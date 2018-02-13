@@ -590,6 +590,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t bucket;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) &&
@@ -607,12 +608,12 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	__wt_cursor_dhandle_decr_use(session);
 
 	/* Move the cursor from the open list to the caching hash table. */
-	if (cursor->cache_bucket < 0)
-		cursor->cache_bucket = __wt_hash_city64(
-		    cursor->uri, strlen(cursor->uri)) % WT_HASH_ARRAY_SIZE;
+	if (cursor->uri_hash == 0)
+		cursor->uri_hash = __wt_hash_city64(
+		    cursor->uri, strlen(cursor->uri));
+	bucket = cursor->uri_hash % WT_HASH_ARRAY_SIZE;
 	TAILQ_REMOVE(&session->cursors, cursor, q);
-	TAILQ_INSERT_HEAD(
-	    &session->cursor_cache[cursor->cache_bucket], cursor, q);
+	TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
 
 	(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
 	WT_STAT_DATA_DECR(session, session_cursor_open);
@@ -629,6 +630,7 @@ void
 __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 {
 	WT_SESSION_IMPL *session;
+	uint64_t bucket;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
@@ -642,7 +644,8 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	WT_STAT_DATA_INCR(session, session_cursor_open);
 	WT_STAT_DATA_DECR(session, session_cursor_cached);
 
-	TAILQ_REMOVE(&session->cursor_cache[cursor->cache_bucket], cursor, q);
+	bucket = cursor->uri_hash % WT_HASH_ARRAY_SIZE;
+	TAILQ_REMOVE(&session->cursor_cache[bucket], cursor, q);
 	TAILQ_INSERT_HEAD(&session->cursors, cursor, q);
 	F_CLR(cursor, WT_CURSTD_CACHED);
 }
@@ -703,7 +706,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	WT_CONFIG_ITEM_STATIC_INIT(false_value);
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	uint64_t bucket;
+	uint64_t bucket, hash_value;
 	bool have_config;
 
 	if (owner != NULL && F_ISSET(owner, WT_CURSTD_CACHEABLE))
@@ -749,9 +752,11 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	 * Walk through all cursors, if there is a cached
 	 * cursor that matches uri and configuration, use it.
 	 */
-	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
+	hash_value = __wt_hash_city64(uri, strlen(uri));
+	bucket = hash_value % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(cursor, &session->cursor_cache[bucket], q) {
-		if (WT_STREQ(cursor->uri, uri) &&
+		if (cursor->uri_hash == hash_value &&
+		    WT_STREQ(cursor->uri, uri) &&
 		    CHECKPOINT_MATCH(cursor->checkpoint)) {
 			if ((ret = cursor->reopen(cursor, false)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);

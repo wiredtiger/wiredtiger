@@ -659,7 +659,7 @@ struct __wt_cursor {
 						/* Reopen a cached cursor */
 	int __F(reopen)(WT_CURSOR *cursor, bool check_only);
 
-	int32_t cache_bucket;			/* Cursor hash table bucket */
+	uint64_t uri_hash;			/* Hash of URI */
 	const char *checkpoint;			/* Checkpoint, if any */
 
 	/*
