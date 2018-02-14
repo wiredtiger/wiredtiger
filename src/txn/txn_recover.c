@@ -361,6 +361,26 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		    r->session, &r->file_alloc, fileid + 1, &r->files));
 		r->nfiles = fileid + 1;
 	}
+	/*
+	 * If we're reading the config for the metadata from the turtle file
+	 * save the stable timestamp of the last checkpoint for later query.
+	 * This gets saved in the connection.
+	 */
+	if (fileid == 0) {
+		WT_CLEAR(cval);
+		WT_RET_NOTFOUND_OK(__wt_config_getones(r->session,
+		    config, "checkpoint_timestamp", &cval));
+		if (cval.len != 0) {
+			WT_RET(__wt_txn_parse_timestamp(r->session, "recovery",
+			    &S2C(r->session)->txn_global.recovery_timestamp,
+			    &cval, true));
+			__wt_verbose(r->session, WT_VERB_RECOVERY,
+			    "Recovery timestamp %.*s",
+			    (int)cval.len, cval.str);
+		} else
+			__wt_timestamp_set_zero(
+			    &S2C(r->session)->txn_global.recovery_timestamp);
+	}
 
 	WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
 	WT_RET(
