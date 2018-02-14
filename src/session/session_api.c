@@ -737,6 +737,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_NOCONF(session, log_printf);
+	WT_ERR(__wt_txn_context_prepare_check(session, false));
 
 	va_start(ap, fmt);
 	ret = __wt_log_vprintf(session, fmt, ap);
