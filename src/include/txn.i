@@ -252,11 +252,30 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_modify_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	WT_TXN *txn;
 	WT_TXN_OP *op;
+
+	txn = &session->txn;
 
 	WT_RET(__txn_next_op(session, &op));
 	op->type = WT_TXN_OP_REF;
 	op->u.ref = ref;
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Mark the update with a timestamp, if we have one.
+	 *
+	 * Updates in the metadata never get timestamps (either now or at
+	 * commit): metadata cannot be read at a point in time, only the most
+	 * recently committed data matches files on disk.
+	 */
+	if (!WT_IS_METADATA(session->dhandle) &&
+	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+		__wt_timestamp_set(
+		    &ref->page_del->timestamp, &txn->commit_timestamp);
+#endif
+	ref->page_del->txnid = txn->id;
+
 	return (__wt_txn_log_op(session, NULL));
 }
 

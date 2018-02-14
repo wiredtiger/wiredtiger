@@ -115,12 +115,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 */
 	WT_ERR(__wt_page_parent_modify_set(session, ref, false));
 
-	/*
-	 * Record the change in the transaction structure and set the change's
-	 * transaction ID.
-	 */
+	/* Allocate and initialize the page-deleted structure. */
 	WT_ERR(__wt_calloc_one(session, &ref->page_del));
-	ref->page_del->txnid = session->txn.id;
 
 	WT_ERR(__wt_txn_modify_ref(session, ref));
 
