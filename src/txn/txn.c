@@ -717,7 +717,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
-	WT_UPDATE **upd;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
@@ -874,6 +873,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+				WT_UPDATE **upd;
+
 				__wt_timestamp_set(
 				    &op->u.ref->page_del->timestamp,
 				    &txn->commit_timestamp);
