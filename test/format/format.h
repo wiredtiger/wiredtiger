@@ -209,6 +209,7 @@ typedef struct {
 	uint32_t c_timer;
 	uint32_t c_txn_freq;
 	uint32_t c_txn_timestamps;
+	uint32_t c_truncate;
 	uint32_t c_value_max;
 	uint32_t c_value_min;
 	uint32_t c_verify;

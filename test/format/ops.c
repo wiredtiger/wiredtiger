@@ -720,7 +720,8 @@ ops(void *arg)
 		op = READ;
 		if (!readonly) {
 			i = mmrand(&tinfo->rnd, 1, 100);
-			if (i < g.c_delete_pct && tinfo->ops < truncate_op)
+			if (i < g.c_delete_pct &&
+			    (g.c_truncate == 0 || tinfo->ops < truncate_op))
 				op = REMOVE;
 			else if (i < g.c_delete_pct) {
 				op = TRUNCATE;
