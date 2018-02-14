@@ -375,7 +375,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	time_t secs;
 	int64_t maxorder;
 	const char *sep;
-	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 2];
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 	maxorder = 0;

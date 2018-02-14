@@ -361,6 +361,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		    r->session, &r->file_alloc, fileid + 1, &r->files));
 		r->nfiles = fileid + 1;
 	}
+
+#ifdef HAVE_TIMESTAMPS
 	/*
 	 * If we're reading the config for the metadata from the turtle file
 	 * save the stable timestamp of the last checkpoint for later query.
@@ -381,6 +383,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 			__wt_timestamp_set_zero(
 			    &S2C(r->session)->txn_global.recovery_timestamp);
 	}
+#endif
 
 	WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
 	WT_RET(
