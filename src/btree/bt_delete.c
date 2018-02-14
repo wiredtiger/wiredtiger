@@ -340,8 +340,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * running inside a checkpoint, and now we're being forced to read that
 	 * page.
 	 *
-	 * In the first case, we have a page reference structure, in the second
-	 * second, we don't.
+	 * In the first case, we have a page reference structure, in the second,
+	 * we don't.
 	 *
 	 * In the first case, check to see if the transaction has been resolved,
 	 * maybe we don't have to do that much work.
