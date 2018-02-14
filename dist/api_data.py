@@ -338,8 +338,7 @@ file_meta = file_config + [
     Config('checkpoint_lsn', '', r'''
         LSN of the last checkpoint'''),
     Config('checkpoint_timestamp', '', r'''
-        stable timestamp of the last checkpoint''',
-        type=string),
+        stable timestamp of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
     Config('version', '(major=0,minor=0)', r'''

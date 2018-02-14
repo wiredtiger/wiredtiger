@@ -669,7 +669,8 @@ main(int argc, char *argv[])
 	 */
 	stable_val = 0;
 	if (use_ts) {
-		testutil_check(conn->query_timestamp(conn, buf, "get=recovery"));
+		testutil_check(
+		    conn->query_timestamp(conn, buf, "get=recovery"));
 		sscanf(buf, "%" SCNx64, &stable_val);
 		printf("Got stable_val %" PRIu64 "\n", stable_val);
 	}

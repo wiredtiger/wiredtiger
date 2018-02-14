@@ -465,7 +465,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	 *
 	 * !!! We're recording the timestamp on each table's metadata although
 	 * only the one in the metadata is useful after recovery for now.
-	 * This allows future possiblity of querying individual tables.
+	 * This allows future possibility of querying individual tables.
 	 */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) ||
 	    strcmp(fname, WT_METAFILE_URI) == 0)

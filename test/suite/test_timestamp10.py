@@ -90,7 +90,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         # Query the recovery timestamp and verify the data in the new database.
         new_session = new_conn.open_session()
         self.assertTimestampsEqual(new_conn.query_timestamp('get=recovery'), timestamp_str(ts))
-        
+
         c_op = new_session.open_cursor(self.oplog_uri)
         c_coll = new_session.open_cursor(self.coll_uri)
         for i in range(1,max):
