@@ -871,7 +871,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 			break;
 
-		case WT_TXN_OP_REF:
+		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
 			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
 				__wt_timestamp_set(
@@ -1028,7 +1028,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			    op->fileid != S2C(session)->cache->las_fileid);
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
-		case WT_TXN_OP_REF:
+		case WT_TXN_OP_REF_DELETE:
 			__wt_delete_page_rollback(session, op->u.ref);
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
@@ -1036,7 +1036,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			/*
 			 * Nothing to do: these operations are only logged for
 			 * recovery.  The in-memory changes will be rolled back
-			 * with a combination of WT_TXN_OP_REF and
+			 * with a combination of WT_TXN_OP_REF_DELETE and
 			 * WT_TXN_OP_INMEM operations.
 			 */
 			break;

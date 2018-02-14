@@ -246,11 +246,11 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
- * __wt_txn_modify_ref --
- *	Remember a WT_REF object modified by the current transaction.
+ * __wt_txn_modify_page_delete --
+ *	Remember a page fast-deleted by the current transaction.
  */
 static inline int
-__wt_txn_modify_ref(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
 	WT_TXN_OP *op;
@@ -258,7 +258,7 @@ __wt_txn_modify_ref(WT_SESSION_IMPL *session, WT_REF *ref)
 	txn = &session->txn;
 
 	WT_RET(__txn_next_op(session, &op));
-	op->type = WT_TXN_OP_REF;
+	op->type = WT_TXN_OP_REF_DELETE;
 	op->u.ref = ref;
 
 #ifdef HAVE_TIMESTAMPS
