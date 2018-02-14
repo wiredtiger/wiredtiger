@@ -113,6 +113,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cursor: cursor-remove key bytes removed",
 	"cursor: cursor-update value bytes updated",
 	"cursor: cursors cached on close",
+	"cursor: cursors reused from cache",
 	"cursor: insert calls",
 	"cursor: modify calls",
 	"cursor: next calls",
@@ -121,7 +122,6 @@ static const char * const __stats_dsrc_desc[] = {
 	"cursor: reserve calls",
 	"cursor: reset calls",
 	"cursor: restarted searches",
-	"cursor: reuses from cache",
 	"cursor: search calls",
 	"cursor: search near calls",
 	"cursor: truncate calls",
@@ -296,6 +296,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cursor_remove_bytes = 0;
 	stats->cursor_update_bytes = 0;
 	stats->cursor_cache = 0;
+	stats->cursor_reopen = 0;
 	stats->cursor_insert = 0;
 	stats->cursor_modify = 0;
 	stats->cursor_next = 0;
@@ -304,7 +305,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cursor_reserve = 0;
 	stats->cursor_reset = 0;
 	stats->cursor_restart = 0;
-	stats->cursor_reopen = 0;
 	stats->cursor_search = 0;
 	stats->cursor_search_near = 0;
 	stats->cursor_truncate = 0;
@@ -480,6 +480,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->cursor_remove_bytes += from->cursor_remove_bytes;
 	to->cursor_update_bytes += from->cursor_update_bytes;
 	to->cursor_cache += from->cursor_cache;
+	to->cursor_reopen += from->cursor_reopen;
 	to->cursor_insert += from->cursor_insert;
 	to->cursor_modify += from->cursor_modify;
 	to->cursor_next += from->cursor_next;
@@ -488,7 +489,6 @@ __wt_stat_dsrc_aggregate_single(
 	to->cursor_reserve += from->cursor_reserve;
 	to->cursor_reset += from->cursor_reset;
 	to->cursor_restart += from->cursor_restart;
-	to->cursor_reopen += from->cursor_reopen;
 	to->cursor_search += from->cursor_search;
 	to->cursor_search_near += from->cursor_search_near;
 	to->cursor_truncate += from->cursor_truncate;
@@ -696,6 +696,7 @@ __wt_stat_dsrc_aggregate(
 	to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
 	to->cursor_update_bytes += WT_STAT_READ(from, cursor_update_bytes);
 	to->cursor_cache += WT_STAT_READ(from, cursor_cache);
+	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
 	to->cursor_modify += WT_STAT_READ(from, cursor_modify);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
@@ -704,7 +705,6 @@ __wt_stat_dsrc_aggregate(
 	to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
 	to->cursor_reset += WT_STAT_READ(from, cursor_reset);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
-	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
 	to->cursor_search_near += WT_STAT_READ(from, cursor_search_near);
 	to->cursor_truncate += WT_STAT_READ(from, cursor_truncate);

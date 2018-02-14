@@ -61,14 +61,16 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	uint32_t position;
 	int i, t_ret, nbuckets, nchecked, ncleaned;
-	bool caching;
 	bool productive;
+
+	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+		return (0);
 
 	position = session->cursor_sweep_position;
 	productive = true;
 	nbuckets = nchecked = ncleaned = 0;
 
-	caching = F_ISSET(session, WT_SESSION_CACHE_CURSORS);
+	/* Turn off caching so that cursor close doesn't try to cache. */
 	F_CLR(session, WT_SESSION_CACHE_CURSORS);
 	for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
 		++nbuckets;
@@ -97,9 +99,8 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 	}
 
 	session->cursor_sweep_position = position;
-	if (caching)
-		F_SET(session, WT_SESSION_CACHE_CURSORS);
 	session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+	F_SET(session, WT_SESSION_CACHE_CURSORS);
 
 	return (ret);
 }
@@ -236,20 +237,18 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
 	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp) {
 		if (F_ISSET(cursor, WT_CURSTD_CACHED))
 			/*
-			 * Put the cached cursor is an open state
+			 * Put the cached cursor in an open state
 			 * that allows it to be closed.
 			 */
 			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
-		else
+		else if (session->event_handler->handle_close != NULL &&
+		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
 			/*
-			 * Notify the user that we are closing the cursor handle
-			 * via the registered close callback.
+			 * Notify the user that we are closing the cursor
+			 * handle via the registered close callback.
 			 */
-			if (session->event_handler->handle_close != NULL &&
-			    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
-				WT_TRET(session->event_handler->handle_close(
-				    session->event_handler, &session->iface,
-				    cursor));
+			WT_TRET(session->event_handler->handle_close(
+			    session->event_handler, &session->iface, cursor));
 
 		WT_TRET(cursor->close(cursor));
 	} WT_TAILQ_SAFE_REMOVE_END

@@ -770,6 +770,7 @@ struct __wt_dsrc_stats {
 	int64_t cursor_remove_bytes;
 	int64_t cursor_update_bytes;
 	int64_t cursor_cache;
+	int64_t cursor_reopen;
 	int64_t cursor_insert;
 	int64_t cursor_modify;
 	int64_t cursor_next;
@@ -778,7 +779,6 @@ struct __wt_dsrc_stats {
 	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_restart;
-	int64_t cursor_reopen;
 	int64_t cursor_search;
 	int64_t cursor_search_near;
 	int64_t cursor_truncate;

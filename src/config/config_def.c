@@ -1209,7 +1209,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_load_extension, 4
 	},
 	{ "WT_CONNECTION.open_session",
-	  "cache_cursors=,ignore_cache_size=false,isolation=read-committed",
+	  "cache_cursors=true,ignore_cache_size=false,"
+	  "isolation=read-committed",
 	  confchk_WT_CONNECTION_open_session, 3
 	},
 	{ "WT_CONNECTION.query_timestamp",
@@ -1332,7 +1333,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "WT_SESSION.reconfigure",
-	  "cache_cursors=,ignore_cache_size=false,isolation=read-committed",
+	  "cache_cursors=true,ignore_cache_size=false,"
+	  "isolation=read-committed",
 	  confchk_WT_SESSION_reconfigure, 3
 	},
 	{ "WT_SESSION.rename",

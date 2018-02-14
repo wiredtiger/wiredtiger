@@ -652,7 +652,8 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
 /*
  * __wt_cursor_cache_release --
- *	Put the cursor into a cached state, called during close operations.
+ *	Put the cursor into a cached state, called during cursor close
+ * operations.
  */
 int
 __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
@@ -713,13 +714,19 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 		return (WT_NOTFOUND);
 	have_config = (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL);
 	if (have_config) {
-		WT_RET(__wt_config_gets_def(
-		    session, cfg, "readonly", 0, &cval));
+
+		/*
+		 * Any cursors that have special configuration cannot
+		 * be cached. There are some exceptions for configurations
+		 * that only differ by a cursor flag, which we can patch
+		 * up if we find a matching cursor.
+		 */
+		WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
 		if (cval.val)
 			return (WT_NOTFOUND);
 
-		WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
-		if (cval.val)
+		WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+		if (cval.len != 0)
 			return (WT_NOTFOUND);
 
 		WT_RET(__wt_config_gets_def(
@@ -727,10 +734,14 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 		if (cval.val != 0)
 			return (WT_NOTFOUND);
 
-		WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
-		if (cval.len != 0)
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "readonly", 0, &cval));
+		if (cval.val)
 			return (WT_NOTFOUND);
 
+		/*
+		 * Look for checkpoint last, the value will stay in 'cfg'.
+		 */
 		WT_RET_NOTFOUND_OK(
 		    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
 
@@ -769,6 +780,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			    WT_CURSTD_RAW);
 
 			if (have_config) {
+				/*
+				 * For these configuration values, there
+				 * is no difference in the resulting
+				 * cursor other than flag values, so fix
+				 * them up now.
+				 */
 				WT_RET(__wt_config_gets_def(
 				    session, cfg, "append", 0, &cval));
 				if (cval.val != 0)

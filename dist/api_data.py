@@ -719,7 +719,7 @@ wiredtiger_open_statistics_log_configuration = [
 ]
 
 session_config = [
-    Config('cache_cursors', '', r'''
+    Config('cache_cursors', 'true', r'''
         enable caching of cursors for reuse. Any calls to WT_CURSOR::close
         for a cursor created in this session will mark the cursor
         as cached and keep it available to be reused for later calls

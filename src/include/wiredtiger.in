@@ -959,7 +959,7 @@ struct __wt_session {
 	 * calls to WT_CURSOR::close for a cursor created in this session will
 	 * mark the cursor as cached and keep it available to be reused for
 	 * later calls to WT_SESSION::open_cursor.  Cached cursors may be
-	 * eventually closed., a boolean flag; default empty.}
+	 * eventually closed., a boolean flag; default \c true.}
 	 * @config{ignore_cache_size, when set\, operations performed by this
 	 * session ignore the cache size and are not blocked when the cache is
 	 * full.  Note that use of this option for operations that create cache
@@ -2345,7 +2345,7 @@ struct __wt_connection {
 	 * calls to WT_CURSOR::close for a cursor created in this session will
 	 * mark the cursor as cached and keep it available to be reused for
 	 * later calls to WT_SESSION::open_cursor.  Cached cursors may be
-	 * eventually closed., a boolean flag; default empty.}
+	 * eventually closed., a boolean flag; default \c true.}
 	 * @config{ignore_cache_size, when set\, operations performed by this
 	 * session ignore the cache size and are not blocked when the cache is
 	 * full.  Note that use of this option for operations that create cache
@@ -5903,24 +5903,24 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2108
 /*! cursor: cursors cached on close */
 #define	WT_STAT_DSRC_CURSOR_CACHE			2109
+/*! cursor: cursors reused from cache */
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2110
 /*! cursor: insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT			2110
+#define	WT_STAT_DSRC_CURSOR_INSERT			2111
 /*! cursor: modify calls */
-#define	WT_STAT_DSRC_CURSOR_MODIFY			2111
+#define	WT_STAT_DSRC_CURSOR_MODIFY			2112
 /*! cursor: next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT			2112
+#define	WT_STAT_DSRC_CURSOR_NEXT			2113
 /*! cursor: prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV			2113
+#define	WT_STAT_DSRC_CURSOR_PREV			2114
 /*! cursor: remove calls */
-#define	WT_STAT_DSRC_CURSOR_REMOVE			2114
+#define	WT_STAT_DSRC_CURSOR_REMOVE			2115
 /*! cursor: reserve calls */
-#define	WT_STAT_DSRC_CURSOR_RESERVE			2115
+#define	WT_STAT_DSRC_CURSOR_RESERVE			2116
 /*! cursor: reset calls */
-#define	WT_STAT_DSRC_CURSOR_RESET			2116
+#define	WT_STAT_DSRC_CURSOR_RESET			2117
 /*! cursor: restarted searches */
-#define	WT_STAT_DSRC_CURSOR_RESTART			2117
-/*! cursor: reuses from cache */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2118
+#define	WT_STAT_DSRC_CURSOR_RESTART			2118
 /*! cursor: search calls */
 #define	WT_STAT_DSRC_CURSOR_SEARCH			2119
 /*! cursor: search near calls */
