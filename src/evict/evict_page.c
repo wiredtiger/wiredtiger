@@ -167,6 +167,17 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	/* Figure out whether reconciliation was done on the page */
 	clean_page = __wt_page_evict_clean(page);
 
+	/*
+	 * Discard all page-deleted information. If a truncate call deleted this
+	 * page, there's memory associated with it we no longer need, eviction
+	 * will have built a new version of the page. It's not a lot of memory,
+	 * but it allows us to assert we never re-enter the page-delete path.
+	 */
+	if (ref->page_del != NULL) {
+		__wt_free(session, ref->page_del->update_list);
+		__wt_free(session, ref->page_del);
+	}
+
 	/* Update the reference and discard the page. */
 	if (__wt_ref_is_root(ref))
 		__wt_ref_out(session, ref);

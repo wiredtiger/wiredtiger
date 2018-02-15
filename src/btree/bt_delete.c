@@ -113,6 +113,13 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	}
 
 	/*
+	 * If this WT_REF was previously part of a fast-delete operation, the
+	 * page must have been evicted for us to be here again. Eviction frees
+	 * the page-delete information, so assert the case.
+	 */
+	WT_ASSERT(session, ref->page_del == NULL);
+
+	/*
 	 * We cannot fast-delete pages that have overflow key/value items as
 	 * the overflow blocks have to be discarded.  The way we figure that
 	 * out is to check the page's cell type, cells for leaf pages without
