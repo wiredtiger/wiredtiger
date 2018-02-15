@@ -183,7 +183,7 @@ int
 __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
     wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
 {
-	WT_RET(__wt_txn_parse_timestamp_int(session, name, timestamp, cval));
+	WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
 	if (cval->len != 0 && __wt_timestamp_iszero(timestamp))
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
