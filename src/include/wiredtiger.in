@@ -2397,7 +2397,7 @@ struct __wt_connection {
 	 * set with WT_CONNECTION::set_timestamp.  See @ref
 	 * transaction_timestamps., a string\, chosen from the following
 	 * options: \c "all_committed"\, \c "oldest"\, \c "pinned"\, \c
-	 * "stable"; default \c all_committed.}
+	 * "recovery"\, \c "stable"; default \c all_committed.}
 	 * @configend
 	 * @errors
 	 * If there is no matching timestamp (e.g., if this method is called

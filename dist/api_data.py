@@ -337,6 +337,8 @@ file_meta = file_config + [
         the file checkpoint entries'''),
     Config('checkpoint_lsn', '', r'''
         LSN of the last checkpoint'''),
+    Config('checkpoint_timestamp', '', r'''
+        stable timestamp of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
     Config('version', '(major=0,minor=0)', r'''
@@ -1339,7 +1341,7 @@ methods = {
         \c oldest_timestamp and the read timestamps of all active readers, and
         \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps''',
-        choices=['all_committed','oldest','pinned','stable']),
+        choices=['all_committed','oldest','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
