@@ -643,7 +643,7 @@ main(int argc, char *argv[])
 	 */
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && "
-	    "cp -p WiredTigerLog.* ../%s.SAVE",
+	    "cp -p * ../%s.SAVE",
 	     home, home, home));
 	if ((status = system(buf)) < 0)
 		testutil_die(status, "system: %s", buf);

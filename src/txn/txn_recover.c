@@ -24,6 +24,7 @@ typedef struct {
 	u_int max_fileid;		/* Maximum file ID seen. */
 	WT_LSN max_lsn;			/* Maximum checkpoint LSN seen. */
 	u_int nfiles;			/* Number of files in the metadata. */
+	WT_DECL_TIMESTAMP(max_timestamp)
 
 	WT_LSN ckpt_lsn;		/* Start LSN for main recovery loop. */
 
@@ -346,6 +347,7 @@ static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 {
 	WT_CONFIG_ITEM cval;
+	WT_DECL_TIMESTAMP(ckpt_timestamp)
 	WT_LSN lsn;
 	uint32_t fileid, lsnfile, lsnoffset;
 
@@ -368,20 +370,20 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	 * save the stable timestamp of the last checkpoint for later query.
 	 * This gets saved in the connection.
 	 */
-	if (fileid == 0) {
-		WT_CLEAR(cval);
-		WT_RET_NOTFOUND_OK(__wt_config_getones(r->session,
-		    config, "checkpoint_timestamp", &cval));
-		if (cval.len != 0) {
-			WT_RET(__wt_txn_parse_timestamp(r->session, "recovery",
-			    &S2C(r->session)->txn_global.recovery_timestamp,
-			    &cval, true));
-			__wt_verbose(r->session, WT_VERB_RECOVERY,
-			    "Recovery timestamp %.*s",
-			    (int)cval.len, cval.str);
-		} else
-			__wt_timestamp_set_zero(
-			    &S2C(r->session)->txn_global.recovery_timestamp);
+	WT_CLEAR(cval);
+	WT_RET_NOTFOUND_OK(__wt_config_getones(r->session,
+	    config, "checkpoint_timestamp", &cval));
+	if (cval.len != 0) {
+		__wt_verbose(r->session, WT_VERB_RECOVERY,
+		    "%s: Recovery timestamp %.*s",
+		    uri, (int)cval.len, cval.str);
+		WT_RET(__wt_txn_parse_timestamp(r->session, "recovery",
+		    &ckpt_timestamp, &cval, true));
+		/*
+		 * Keep track of the largest checkpoint timestamp seen.
+		 */
+		if (__wt_timestamp_cmp(&ckpt_timestamp, &r->max_timestamp) > 0)
+			__wt_timestamp_set(&r->max_timestamp, &ckpt_timestamp);
 	}
 #endif
 
@@ -495,6 +497,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	    false, WT_SESSION_NO_LOGGING, &session));
 	r.session = session;
 	WT_MAX_LSN(&r.max_lsn);
+#ifdef HAVE_TIMESTAMPS
+	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
+	__wt_timestamp_set_zero(&r.max_timestamp);
+#endif
 
 	F_SET(conn, WT_CONN_RECOVERING);
 	WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
@@ -587,6 +593,15 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 */
 	r.files[0].c = NULL;
 	WT_ERR(metac->close(metac));
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * After recovering the metadata, set the recovery timestamp to the
+	 * largest one we recovered.
+	 */
+	__wt_timestamp_set(
+	    &conn->txn_global.recovery_timestamp, &r.max_timestamp);
+#endif
 
 	/*
 	 * Now, recover all the files apart from the metadata.

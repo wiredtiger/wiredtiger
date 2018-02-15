@@ -460,15 +460,9 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	 * We need to record the timestamp of the checkpoint in the metadata's
 	 * checkpoint record. Although the read_timestamp remains set for the
 	 * duration of the checkpoint, we set and unset the flag based on the
-	 * file's durability. Record the timestamp if the flag is set, or if
-	 * this is the metadata record.
-	 *
-	 * !!! We're recording the timestamp on each table's metadata although
-	 * only the one in the metadata is useful after recovery for now.
-	 * This allows future possibility of querying individual tables.
+	 * file's durability. Record the timestamp if the flag is set.
 	 */
-	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) ||
-	    strcmp(fname, WT_METAFILE_URI) == 0)
+	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ))
 		WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &session->txn.read_timestamp));
 #endif

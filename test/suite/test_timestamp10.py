@@ -39,7 +39,9 @@ def timestamp_str(t):
 
 class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'config_base=false,create,log=(enabled)'
-    coll_uri = 'table:collection10'
+    coll1_uri = 'table:collection10.1'
+    coll2_uri = 'table:collection10.2'
+    coll3_uri = 'table:collection10.3'
     oplog_uri = 'table:oplog10'
 
     def copy_dir(self, olddir, newdir):
@@ -62,44 +64,74 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
+        #
+        # Create several collection-like tables that are checkpoint durability.
+        # Add data to each of them separately and checkpoint so that each one
+        # has a different stable timestamp.
+        #
         self.session.create(self.oplog_uri, 'key_format=i,value_format=i')
-        self.session.create(self.coll_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        self.session.create(self.coll1_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        self.session.create(self.coll2_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        self.session.create(self.coll3_uri, 'key_format=i,value_format=i,log=(enabled=false)')
         c_op = self.session.open_cursor(self.oplog_uri)
-        c_coll = self.session.open_cursor(self.coll_uri)
+        c = []
+        c.append(self.session.open_cursor(self.coll1_uri))
+        c.append(self.session.open_cursor(self.coll2_uri))
+        c.append(self.session.open_cursor(self.coll3_uri))
 
         # Begin by adding some data.
-        max = 10
-        ts = max - 3
-        for i in range(1,max):
-          self.session.begin_transaction()
-          c_op[i] = i
-          c_coll[i] = i
-          self.session.commit_transaction(
-            'commit_timestamp=' + timestamp_str(i))
-
-        # Set the oldest and stable timestamp a bit earlier than the data
-        # we inserted. Take a checkpoint to the stable timestamp.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(ts) +
-            ',stable_timestamp=' + timestamp_str(ts))
-
-        self.session.checkpoint()
+        nentries = 10
+        table_cnt = 3
+        for table in range(1,table_cnt+1):
+            curs = c[table - 1]
+            start = nentries * table
+            end = start + nentries
+            ts = (end - 3)
+            for i in range(start,end):
+                self.session.begin_transaction()
+                c_op[i] = i
+                curs[i] = i
+                self.pr("i: " + str(i))
+                self.session.commit_transaction(
+                  'commit_timestamp=' + timestamp_str(i))
+            # Set the oldest and stable timestamp a bit earlier than the data
+            # we inserted. Take a checkpoint to the stable timestamp.
+            self.pr("stable ts: " + str(ts))
+            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(ts) +
+                ',stable_timestamp=' + timestamp_str(ts))
+            # This forces a different checkpoint timestamp for each table.
+            self.session.checkpoint()
 
         # Copy to a new database and then recover.
         self.copy_dir(".", "RESTART")
+        self.copy_dir(".", "SAVE")
         new_conn = self.wiredtiger_open("RESTART", self.conn_config)
         # Query the recovery timestamp and verify the data in the new database.
         new_session = new_conn.open_session()
+        q = new_conn.query_timestamp('get=recovery')
+        self.pr("query recovery ts: " + q)
         self.assertTimestampsEqual(new_conn.query_timestamp('get=recovery'), timestamp_str(ts))
 
         c_op = new_session.open_cursor(self.oplog_uri)
-        c_coll = new_session.open_cursor(self.coll_uri)
-        for i in range(1,max):
-            self.assertEquals(c_op[i], i)
-            c_coll.set_key(i)
-            if i <= ts:
-                self.assertEquals(c_coll[i], i)
-            else:
-                self.assertEqual(c_coll.search(), wiredtiger.WT_NOTFOUND)
+        c = []
+        c.append(new_session.open_cursor(self.coll1_uri))
+        c.append(new_session.open_cursor(self.coll2_uri))
+        c.append(new_session.open_cursor(self.coll3_uri))
+        for table in range(1,table_cnt+1):
+            curs = c[table - 1]
+            start = nentries * table
+            end = start + nentries
+            ts = (end - 3)
+            for i in range(start,end):
+                self.assertEquals(c_op[i], i)
+                curs.set_key(i)
+                # Earlier tables have all the data because later checkpoints
+                # will save the last bit of data. Only the last table will
+                # be missing some.
+                if i <= ts or table != table_cnt:
+                    self.assertEquals(curs[i], i)
+                else:
+                    self.assertEqual(curs.search(), wiredtiger.WT_NOTFOUND)
 
 if __name__ == '__main__':
     wttest.run()
