@@ -116,8 +116,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
         for i in xrange(self.nentries):
             if i > 0 and i % (self.nentries / 37) == 0:
                 self.check(cursor, committed, i)
-                self.session.prepare_transaction()
-                self.session.commit_transaction()
+                self.session.prepare_transaction("prepare_timestamp=2a")
+                self.session.commit_transaction("commit_timestamp=3a")
                 committed = i
                 self.session.begin_transaction()
 
@@ -133,8 +133,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
         self.check(cursor, committed, self.nentries)
 
-        self.session.prepare_transaction()
-        self.session.commit_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.session.commit_transaction("commit_timestamp=3a")
         self.check(cursor, self.nentries, self.nentries)
 
 # Test that read-committed is the default isolation level.
@@ -154,8 +154,8 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         cursor['key: aaa'] = 'value: aaa'
 
-        self.session.prepare_transaction()
-        self.session.commit_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.session.commit_transaction("commit_timestamp=3a")
         self.session.begin_transaction()
         cursor['key: bbb'] = 'value: bbb'
 
@@ -164,13 +164,13 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         s.begin_transaction("isolation=read-committed")
         self.assertEqual(self.cursor_count(cursor), 1)
 
-        s.prepare_transaction()
-        s.commit_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
+        s.commit_transaction("commit_timestamp=3a")
         s.begin_transaction(None)
         self.assertEqual(self.cursor_count(cursor), 1)
-        s.prepare_transaction()
+        s.prepare_transaction("prepare_timestamp=2a")
 
-        s.commit_transaction()
+        s.commit_transaction("commit_timestamp=3a")
         s.close()
 
 if __name__ == '__main__':

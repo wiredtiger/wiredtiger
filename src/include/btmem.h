@@ -987,6 +987,11 @@ struct __wt_update {
 #define	WT_UPDATE_TOMBSTONE	5	/* deleted */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
+#define	WT_UPDATE_LOCKED	0	/* locked */
+#define	WT_UPDATE_NONE		1	/* prepare committed */
+#define	WT_UPDATE_PREPARE	2	/* prepared */
+	uint8_t state;			/* state (one byte : conserve memory) */
+
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
 	((upd)->type == WT_UPDATE_STANDARD ||				\
@@ -1008,7 +1013,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	(22 + WT_TIMESTAMP_SIZE)
 
 /*
  * The memory size of an update: include some padding because this is such a

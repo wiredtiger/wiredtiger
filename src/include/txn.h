@@ -236,6 +236,12 @@ struct __wt_txn {
 	 */
 	WT_DECL_TIMESTAMP(first_commit_timestamp)
 
+	/*
+	 * Timestamp copied into updates created by this transaction, when this
+	 * transaction is prepared.
+	 */
+	WT_DECL_TIMESTAMP(prepare_timestamp)
+
 	/* Read updates committed as of this timestamp. */
 	WT_DECL_TIMESTAMP(read_timestamp)
 

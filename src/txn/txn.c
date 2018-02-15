@@ -750,7 +750,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR_MSG(session, EINVAL, "commit_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
 #endif
-	}
+	} else if (F_ISSET(txn, WT_TXN_PREPARE))
+		WT_ERR_MSG(session, EINVAL, "commit_timestamp is required "
+		    "for a prepared transaction");
 
 #ifdef HAVE_TIMESTAMPS
 	WT_ERR(__txn_commit_timestamp_validate(session));
@@ -806,7 +808,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * positioned cursors so they don't point to updates that could be
 	 * freed once we don't have a snapshot.
 	 */
-	if (session->ncursors > 0) {
+	if (session->ncursors > 0 && !F_ISSET(txn, WT_TXN_PREPARE)) {
 		WT_DIAGNOSTIC_YIELD;
 		WT_ERR(__wt_session_copy_values(session));
 	}
@@ -864,8 +866,30 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			    op->type != WT_TXN_OP_BASIC_TS) {
 				WT_ASSERT(session,
 				    op->fileid != WT_METAFILE_ID);
-				__wt_timestamp_set(&op->u.upd->timestamp,
-				    &txn->commit_timestamp);
+
+				/*
+				 * If this commit is after the prepare,
+				 * then need to update the timestamp as
+				 * commit timestamp. Updating timestamp
+				 * might not be atomic operation, hence
+				 * we will lock the update structure for
+				 * read using the state as LOCKED.
+				 */
+				if (FLD_ISSET(op->u.upd->state,
+				    WT_UPDATE_PREPARE)) {
+					FLD_SET(op->u.upd->state,
+					    WT_UPDATE_LOCKED);
+
+					__wt_timestamp_set(
+					    &op->u.upd->timestamp,
+					    &txn->commit_timestamp);
+
+					FLD_SET(op->u.upd->state,
+					    WT_UPDATE_NONE);
+				} else
+					__wt_timestamp_set(
+					    &op->u.upd->timestamp,
+					    &txn->commit_timestamp);
 			}
 #endif
 			break;
@@ -901,6 +925,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 
 	__wt_txn_release(session);
+	__wt_txn_prepare_clear(session);
 	if (locked)
 		__wt_readunlock(session, &txn_global->visibility_rwlock);
 
@@ -988,22 +1013,127 @@ int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifdef HAVE_TIMESTAMPS
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-#endif
+	WT_TXN *txn;
+	WT_TXN_OP *op;
+	wt_timestamp_t ts;
+	u_int i;
 
-	WT_UNUSED(cfg);
-
-#ifdef HAVE_TIMESTAMPS
+	txn = &session->txn;
+	conn = S2C(session);
 	WT_TRET(__wt_txn_context_check(session, true));
 
+	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
+	/* Transaction should not have a commit timestamp set. */
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT));
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
+
+	/*
+	 * Look for a prepare timestamp.
+	 */
+	WT_ERR(
+	    __wt_config_gets_def(session, cfg, "prepare_timestamp", 0, &cval));
+	if (cval.len != 0) {
+		WT_ERR(__wt_txn_parse_timestamp(session,
+		    "prepare", &ts, &cval));
+
+		/* Validate prepare timestamp.  */
+
+		__wt_timestamp_set(&txn->prepare_timestamp, &ts);
+
+	} else
+		WT_ERR_MSG(session, EINVAL, "prepare timestamp is required");
+
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * Need to check if the transaction has updated any of the tables
+	 * with logging, if yes, need to PANIC.
+	 */
+#endif
+
+	/*
+	 * We are about to release the snapshot: copy values into any
+	 * positioned cursors so they don't point to updates that could be
+	 * freed once we don't have a snapshot.
+	 */
+	if (session->ncursors > 0) {
+		WT_DIAGNOSTIC_YIELD;
+		WT_ERR(__wt_session_copy_values(session));
+	}
+
+	/* Process updates. */
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		switch (op->type) {
+		case WT_TXN_OP_BASIC:
+		case WT_TXN_OP_BASIC_TS:
+		case WT_TXN_OP_INMEM:
+			/*
+			 * Switch reserved operation to abort to simplify
+			 * obsolete update list truncation.
+			 */
+			if (op->u.upd->type == WT_UPDATE_RESERVE) {
+				op->u.upd->txnid = WT_TXN_ABORTED;
+				break;
+			}
+
+			/*
+			 * Assert to make sure the las writes are not
+			 * happening here.
+			 */
+			WT_ASSERT(session, !(conn->cache->las_fileid != 0 &&
+			    op->fileid == conn->cache->las_fileid));
+
+			/* Set prepare timestamp. */
+			if (op->type != WT_TXN_OP_BASIC_TS) {
+				WT_ASSERT(session,
+				    op->fileid != WT_METAFILE_ID);
+				__wt_timestamp_set(&op->u.upd->timestamp, &ts);
+			}
+
+			FLD_SET(op->u.upd->state, WT_UPDATE_PREPARE);
+			break;
+
+		case WT_TXN_OP_REF:
+			__wt_timestamp_set(&op->u.ref->page_del->timestamp,
+			    &ts);
+			break;
+		case WT_TXN_OP_TRUNCATE_COL:
+		case WT_TXN_OP_TRUNCATE_ROW:
+			/* Other operations don't need timestamps. */
+			break;
+		}
+	}
+
+	/* Set transaction state to prepare. */
 	F_SET(&session->txn, WT_TXN_PREPARE);
 
+	/* Release our snapshot in case it is keeping data pinned. */
+	__wt_txn_release_snapshot(session);
+
+#if 0
+	/* Clear the transaction's ID from the global table. */
+	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
+		WT_ASSERT(session,
+		    !WT_TXNID_LT(txn->id, (&conn->txn_global)->last_running));
+
+		WT_ASSERT(session, txn_state->id != WT_TXN_NONE &&
+		    txn->id != WT_TXN_NONE);
+		WT_PUBLISH(txn_state->id, WT_TXN_NONE);
+
+		txn->id = WT_TXN_NONE;
+	}
+#endif
+
+err:	/*
+	 * If anything went wrong, return error
+	 */
+	return (ret);
 #else
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
 	    "of WiredTiger built with timestamp support");
 #endif
-
-	return (0);
 }
 /*
  * __wt_txn_rollback --

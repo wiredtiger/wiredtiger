@@ -1516,10 +1516,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 		    txn->rollback_reason == NULL ? "" : ": ",
 		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
-	__wt_txn_prepare_clear(session);
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);
 	else {
+		__wt_txn_prepare_clear(session);
 		WT_TRET(__wt_session_reset_cursors(session, false));
 		WT_TRET(__wt_txn_rollback(session, cfg));
 	}
@@ -1536,11 +1536,23 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg, false);
 
 	WT_ERR(__wt_txn_context_check(session, true));
+
+	/*
+	 * Failed transaction cannot be prepared, as it cannot guarantee
+	 * commit.
+	 */
+	txn = &session->txn;
+	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
+		WT_ERR_MSG(session, EINVAL,
+		    "failed transaction requires rollback%s%s",
+		    txn->rollback_reason == NULL ? "" : ": ",
+		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
 	WT_TRET(__wt_txn_prepare(session, cfg));
 
