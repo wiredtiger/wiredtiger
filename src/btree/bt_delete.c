@@ -186,21 +186,19 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	for (sleep_count = yield_count = 0;;) {
 		switch (ref->state) {
-		case WT_REF_DISK:
-		case WT_REF_LIMBO:
-		case WT_REF_LOOKASIDE:
-		case WT_REF_READING:
-			WT_ASSERT(session, 0);		/* Impossible, assert */
-			break;
 		case WT_REF_DELETED:
 			/*
 			 * If the page is still "deleted", it's as we left it,
 			 * reset the state.
 			 */
-			if (__wt_atomic_casv32(
+			if (!__wt_atomic_casv32(
 			    &ref->state, WT_REF_DELETED, WT_REF_DISK))
-				return;
-			break;
+				break;
+
+			/* The transaction is aborted, discard the structure. */
+			WT_ASSERT(session, ref->page_del->update_list == NULL);
+			__wt_free(session, ref->page_del);
+			return;
 		case WT_REF_LOCKED:
 			/*
 			 * A possible state, the page is being instantiated.
@@ -223,12 +221,17 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			    ref->page_del->update_list; *upd != NULL; ++upd)
 				(*upd)->txnid = WT_TXN_ABORTED;
 
-			/*
-			 * Discard the memory, the transaction can't abort
-			 * twice.
-			 */
+			/* The transaction is aborted, discard the structure. */
 			__wt_free(session, ref->page_del->update_list);
 			__wt_free(session, ref->page_del);
+			return;
+		case WT_REF_DISK:
+		case WT_REF_LIMBO:
+		case WT_REF_LOOKASIDE:
+		case WT_REF_READING:
+		default:
+			WT_IGNORE_RET(__wt_illegal_value(session,
+			    "illegal WT_REF.state rolling back deleted page"));
 			return;
 		}
 		/*
