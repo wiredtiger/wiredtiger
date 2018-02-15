@@ -82,12 +82,12 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_txn_parse_timestamp --
- *	Decodes and sets a timestamp.
+ * __wt_txn_parse_timestamp_raw --
+ *	Decodes and sets a timestamp. Don't do any checking.
  */
 int
-__wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
-    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval, bool zero_ok)
+__wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
+    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
 {
 	__wt_timestamp_set_zero(timestamp);
 
@@ -172,7 +172,19 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
 	    ts.data, ts.size);
 	}
 #endif
-	if (!zero_ok && __wt_timestamp_iszero(timestamp))
+	return (0);
+}
+
+/*
+ * __wt_txn_parse_timestamp --
+ *	Decodes and sets a timestamp checking it is non-zero.
+ */
+int
+__wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
+    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
+{
+	WT_RET(__wt_txn_parse_timestamp_int(session, name, timestamp, cval));
+	if (cval->len != 0 && __wt_timestamp_iszero(timestamp))
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
 		    name, (int)cval->len, cval->str);
@@ -406,11 +418,11 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 * it is not configured.
 	 */
 	WT_RET(__wt_txn_parse_timestamp(
-	    session, "commit", &commit_ts, &commit_cval, false));
+	    session, "commit", &commit_ts, &commit_cval));
 	WT_RET(__wt_txn_parse_timestamp(
-	    session, "oldest", &oldest_ts, &oldest_cval, false));
+	    session, "oldest", &oldest_ts, &oldest_cval));
 	WT_RET(__wt_txn_parse_timestamp(
-	    session, "stable", &stable_ts, &stable_cval, false));
+	    session, "stable", &stable_ts, &stable_cval));
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "force", 0, &cval));
@@ -641,8 +653,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_RET_MSG(session, EINVAL,
 			    "Transaction must be running "
 			    "to set a commit_timestamp");
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "commit", &ts, &cval, false));
+		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_RET(__wt_timestamp_validate(session,
 		    "commit", &ts, &cval, true, true, true));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);

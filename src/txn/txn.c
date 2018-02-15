@@ -446,8 +446,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		bool round_to_oldest;
 
 		txn_global = &S2C(session)->txn_global;
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "read", &ts, &cval, false));
+		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 
 		/*
 		 * Prepare transactions are supported only in timestamp build.
@@ -742,8 +741,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
-		WT_ERR(__wt_txn_parse_timestamp(
-		    session, "commit", &ts, &cval, false));
+		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_ERR(__wt_timestamp_validate(session,
 		    "commit", &ts, &cval, true, true, true));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);

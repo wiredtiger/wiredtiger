@@ -377,8 +377,8 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		__wt_verbose(r->session, WT_VERB_RECOVERY,
 		    "%s: Recovery timestamp %.*s",
 		    uri, (int)cval.len, cval.str);
-		WT_RET(__wt_txn_parse_timestamp(r->session, "recovery",
-		    &ckpt_timestamp, &cval, true));
+		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
+		    &ckpt_timestamp, &cval));
 		/*
 		 * Keep track of the largest checkpoint timestamp seen.
 		 */
