@@ -1014,7 +1014,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifdef HAVE_TIMESTAMPS
 	WT_CONFIG_ITEM cval;
-	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
@@ -1022,7 +1021,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	u_int i;
 
 	txn = &session->txn;
-	conn = S2C(session);
 	WT_TRET(__wt_txn_context_check(session, true));
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1082,8 +1080,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Assert to make sure the las writes are not
 			 * happening here.
 			 */
-			WT_ASSERT(session, !(conn->cache->las_fileid != 0 &&
-			    op->fileid == conn->cache->las_fileid));
+			WT_ASSERT(session,
+			    !(S2C(session)->cache->las_fileid != 0 &&
+			    op->fileid == S2C(session)->cache->las_fileid));
 
 			/* Set prepare timestamp. */
 			if (op->type != WT_TXN_OP_BASIC_TS) {
