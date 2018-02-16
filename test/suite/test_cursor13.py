@@ -425,7 +425,11 @@ class test_cursor13_sweep(test_cursor13_big_base):
             else:
                 bottom_range = 0
 
+            i = 0
             while self.opencount < (1 + round_cnt) * self.opens_per_round:
+                i += 1
+                if i % 100 == 0:
+                    time.sleep(0.0)   # Let other threads run
                 self.open_or_close(uri_map, rand, bottom_range, self.nuris)
 
         end_stats = self.caching_stats()
