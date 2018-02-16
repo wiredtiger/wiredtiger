@@ -149,6 +149,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 * transaction ID.
 	 */
 	WT_ERR(__wt_calloc_one(session, &ref->page_del));
+	ref->page_del->previous_state = previous_state;
 	ref->page_del->txnid = session->txn.id;
 
 	WT_ERR(__wt_txn_modify_ref(session, ref));
@@ -191,8 +192,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * If the page is still "deleted", it's as we left it,
 			 * reset the state.
 			 */
-			if (!__wt_atomic_casv32(
-			    &ref->state, WT_REF_DELETED, WT_REF_DISK))
+			if (!__wt_atomic_casv32(&ref->state,
+			    WT_REF_DELETED, ref->page_del->previous_state))
 				break;
 
 			/* The transaction is aborted, discard the structure. */
