@@ -60,7 +60,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR_LIST *cached_list;
 	WT_DECL_RET;
 	uint32_t position;
-	int i, t_ret, nbuckets, nchecked, ncleaned;
+	int i, t_ret, nbuckets, nexamined, nclosed;
 	bool productive;
 
 	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
@@ -68,7 +68,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 
 	position = session->cursor_sweep_position;
 	productive = true;
-	nbuckets = nchecked = ncleaned = 0;
+	nbuckets = nexamined = nclosed = 0;
 
 	/* Turn off caching so that cursor close doesn't try to cache. */
 	F_CLR(session, WT_SESSION_CACHE_CURSORS);
@@ -80,14 +80,14 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 			/*
 			 * First check to see if the cursor could be reopened.
 			 */
-			++nchecked;
+			++nexamined;
 			t_ret = cursor->reopen(cursor, true);
 			if (t_ret != 0) {
 				WT_TRET_NOTFOUND_OK(t_ret);
 				WT_TRET_NOTFOUND_OK(
 				    cursor->reopen(cursor, false));
 				WT_TRET(cursor->close(cursor));
-				++ncleaned;
+				++nclosed;
 			}
 		}
 
@@ -95,12 +95,17 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 		 * We continue sweeping as long as we have some good average
 		 * productivity. At a minimum, we look at two buckets.
 		 */
-		productive = (ncleaned >= i);
+		productive = (nclosed >= i);
 	}
 
 	session->cursor_sweep_position = position;
 	session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 	F_SET(session, WT_SESSION_CACHE_CURSORS);
+
+	WT_STAT_CONN_INCR(session, cursor_sweep);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
 
 	return (ret);
 }

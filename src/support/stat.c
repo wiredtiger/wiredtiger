@@ -883,6 +883,10 @@ static const char * const __stats_connection_desc[] = {
 	"cursor: cursor restarted searches",
 	"cursor: cursor search calls",
 	"cursor: cursor search near calls",
+	"cursor: cursor sweep buckets",
+	"cursor: cursor sweep cursors closed",
+	"cursor: cursor sweep cursors examined",
+	"cursor: cursor sweeps",
 	"cursor: cursor update calls",
 	"cursor: cursors cached on close",
 	"cursor: cursors reused from cache",
@@ -1265,6 +1269,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_restart = 0;
 	stats->cursor_search = 0;
 	stats->cursor_search_near = 0;
+	stats->cursor_sweep_buckets = 0;
+	stats->cursor_sweep_closed = 0;
+	stats->cursor_sweep_examined = 0;
+	stats->cursor_sweep = 0;
 	stats->cursor_update = 0;
 	stats->cursor_cache = 0;
 	stats->cursor_reopen = 0;
@@ -1687,6 +1695,11 @@ __wt_stat_connection_aggregate(
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
 	to->cursor_search_near += WT_STAT_READ(from, cursor_search_near);
+	to->cursor_sweep_buckets += WT_STAT_READ(from, cursor_sweep_buckets);
+	to->cursor_sweep_closed += WT_STAT_READ(from, cursor_sweep_closed);
+	to->cursor_sweep_examined +=
+	    WT_STAT_READ(from, cursor_sweep_examined);
+	to->cursor_sweep += WT_STAT_READ(from, cursor_sweep);
 	to->cursor_update += WT_STAT_READ(from, cursor_update);
 	to->cursor_cache += WT_STAT_READ(from, cursor_cache);
 	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);

@@ -301,6 +301,14 @@ connection_stats = [
     CursorStat('cursor_update', 'cursor update calls'),
 
     ##########################################
+    # Cursor sweep
+    ##########################################
+    CursorStat('cursor_sweep', 'cursor sweeps'),
+    CursorStat('cursor_sweep_buckets', 'cursor sweep buckets'),
+    CursorStat('cursor_sweep_examined', 'cursor sweep cursors examined'),
+    CursorStat('cursor_sweep_closed', 'cursor sweep cursors closed'),
+
+    ##########################################
     # Dhandle statistics
     ##########################################
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),

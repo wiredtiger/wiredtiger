@@ -458,6 +458,10 @@ struct __wt_connection_stats {
 	int64_t cursor_restart;
 	int64_t cursor_search;
 	int64_t cursor_search_near;
+	int64_t cursor_sweep_buckets;
+	int64_t cursor_sweep_closed;
+	int64_t cursor_sweep_examined;
+	int64_t cursor_sweep;
 	int64_t cursor_update;
 	int64_t cursor_cache;
 	int64_t cursor_reopen;
