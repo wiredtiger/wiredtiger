@@ -740,7 +740,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			return (WT_NOTFOUND);
 
 		/*
-		 * Look for checkpoint last, the value will stay in 'cfg'.
+		 * Look for checkpoint last, the value will stay in 'cval'.
 		 */
 		WT_RET_NOTFOUND_OK(
 		    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
