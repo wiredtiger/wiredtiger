@@ -318,6 +318,8 @@ class test_cursor13_sweep(test_cursor13_base):
         return [sweep, buckets, examined, closed]
 
     def iterate(self, i, start_time):
+        if i % 100 == 0:
+            time.sleep(0)        # allow other threads to run
         return i < self.nopens
 
     def test_cursor_sweep(self):
@@ -424,9 +426,10 @@ class test_cursor13_sweep2(test_cursor13_sweep):
 
     def iterate(self, i, start_time):
         if i % 100 == 0:
+            time.sleep(0)        # allow other threads to run
             elapsed = time.time() - start_time
             # Begin for a half second with 'stale' mode off, then turn it on.
             self.stale = (elapsed > 0.5)
-            # Make the test finish reasonably quickly to avoid any time outs.
+            # Make the test finish reasonably quickly.
             return elapsed < 3.5
         return True
