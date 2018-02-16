@@ -1130,6 +1130,7 @@ err:	/*
 	 */
 	return (ret);
 #else
+	WT_UNUSED(cfg);
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
 	    "of WiredTiger built with timestamp support");
 #endif
