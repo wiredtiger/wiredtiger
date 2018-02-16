@@ -2090,10 +2090,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
 
-	/* If we don't have one, allocate the dhandle hash array. */
-	if (session_ret->dhhash == NULL)
-		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
-		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
+	/* Initialize the dhandle hash array. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
 

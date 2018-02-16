@@ -201,7 +201,8 @@ struct __wt_session_impl {
 	WT_RAND_STATE rnd;		/* Random number generation state */
 
 					/* Hashed handle reference list array */
-	TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) *dhhash;
+	TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache)
+				dhhash[WT_HASH_ARRAY_SIZE];
 
 					/* Generations manager */
 #define	WT_GEN_CHECKPOINT	0	/* Checkpoint generation */
