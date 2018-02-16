@@ -271,7 +271,7 @@ typedef struct {
 	uint64_t commit_timestamp;		/* last committed timestamp */
 	uint64_t read_timestamp;		/* read timestamp */
 
-	bool quit;				/* thread should quit */
+	volatile bool quit;			/* thread should quit */
 
 	uint64_t search;			/* operation counts */
 	uint64_t insert;
