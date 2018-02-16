@@ -304,7 +304,7 @@ class test_cursor13_sweep(test_cursor13_base):
 
     deep = 3
     nuris = 100
-    nopens = 1000000
+    nopens = 500000
     def uriname(self, i):
         return self.uri + '.' + str(i)
 
@@ -352,8 +352,8 @@ class test_cursor13_sweep(test_cursor13_base):
         opencount = 0
         closecount = 0
 
-        # When 'stale' is set, we only open cursors in half of the range
-        # of uris, and close the other half.  The closed half will be
+        # When the 'stale' mode is on, we only open cursors in half of the
+        # range of uris, and close the other half.  The closed half will be
         # cached, and when the dhandle sweep runs, it will close the
         # dhandles. When the cursor sweep runs (it runs incrementally),
         # the cursors for these will all be closed.
@@ -402,7 +402,7 @@ class test_cursor13_sweep(test_cursor13_base):
         if self.aggressive_sweep:
             swept = end_sweep_stats[3] - begin_sweep_stats[3]
             min_swept = self.deep * (self.nuris / 2)
-            self.assertGreater(swept, min_swept)
+            self.assertGreaterEqual(swept, min_swept)
             # No strict equality test for the reopen stats. When we've swept
             # some closed cursors, we'll have fewer reopens. It's different
             # by approximately the number of swept cursors, but it's less
@@ -412,12 +412,8 @@ class test_cursor13_sweep(test_cursor13_base):
             self.assertEquals(end_stats[1] - begin_stats[1], opencount)
 
 class test_cursor13_sweep2(test_cursor13_sweep):
-    # We set dhandle sweep configuration so that dhandles are closed
-    # within 2 seconds of the cursors being cached. With the high number
-    # of open/closes in this test, the cached cursors using the closed
-    # dhandles will be closed quickly. To make sure there's enough time,
-    # we go into 'stale mode' (when half of the cursors are closed) for 3
-    # seconds out of every 4.
+    # Set dhandle sweep configuration so that dhandles should be closed within
+    # two seconds of all the cursors for the dhandle being closed (cached).
     aggressive_sweep = True
     conn_config = 'statistics=(fast),' + \
                   'file_manager=(close_scan_interval=1,close_idle_time=1,' + \
@@ -428,9 +424,9 @@ class test_cursor13_sweep2(test_cursor13_sweep):
 
     def iterate(self, i, start_time):
         if i % 100 == 0:
-            elapsed = int(time.time() - start_time)
-            # Begin for a second with 'stale' mode off,
-            # then turn it on for 3 seconds, and repeat.
-            self.stale = ((elapsed % 4) != 0)
-            return elapsed < 8
+            elapsed = time.time() - start_time
+            # Begin for a half second with 'stale' mode off, then turn it on.
+            self.stale = (elapsed > 0.5)
+            # Make the test finish reasonably quickly to avoid any time outs.
+            return elapsed < 3.5
         return True
