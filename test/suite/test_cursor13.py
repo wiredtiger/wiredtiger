@@ -51,6 +51,15 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return [cache, reopen]
 
+    def sweep_stats(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        sweep = stat_cursor[stat.conn.cursor_sweep][2]
+        buckets = stat_cursor[stat.conn.cursor_sweep_buckets][2]
+        examined = stat_cursor[stat.conn.cursor_sweep_examined][2]
+        closed = stat_cursor[stat.conn.cursor_sweep_closed][2]
+        stat_cursor.close()
+        return [sweep, buckets, examined, closed]
+
     def assert_cursor_cached(self, expect_change):
         stats = self.caching_stats()
         if expect_change:
@@ -308,20 +317,6 @@ class test_cursor13_sweep(test_cursor13_base):
     def uriname(self, i):
         return self.uri + '.' + str(i)
 
-    def sweep_stats(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        sweep = stat_cursor[stat.conn.cursor_sweep][2]
-        buckets = stat_cursor[stat.conn.cursor_sweep_buckets][2]
-        examined = stat_cursor[stat.conn.cursor_sweep_examined][2]
-        closed = stat_cursor[stat.conn.cursor_sweep_closed][2]
-        stat_cursor.close()
-        return [sweep, buckets, examined, closed]
-
-    def iterate(self, i, start_time):
-        if i % 100 == 0:
-            time.sleep(0)        # allow other threads to run
-        return i < self.nopens
-
     def test_cursor_sweep(self):
         rand = suite_random()
 
@@ -349,32 +344,11 @@ class test_cursor13_sweep(test_cursor13_base):
         begin_stats = self.caching_stats()
         #self.tty('stats before = ' + str(begin_stats))
 
-        begin_sweep_stats = self.sweep_stats()
-
         opencount = 0
         closecount = 0
 
-        # When the 'stale' mode is on, we only open cursors in half of the
-        # range of uris, and close the other half.  The closed half will be
-        # cached, and when the dhandle sweep runs, it will close the
-        # dhandles. When the cursor sweep runs (it runs incrementally),
-        # the cursors for these will all be closed.
-        #
-        was_stale = self.stale = False
-        start_time = time.time()
-        while self.iterate(opencount, start_time):
-            if self.stale and was_stale != self.stale:
-                # close cursors in half the range, to allow them
-                # be closed by sweep.
-                for i in xrange(0, self.nuris / 2):
-                    cursors = urimap[self.uriname(i)]
-                    while len(cursors) > 0:
-                        cursors.pop().close()
-                        closecount += 1
-            was_stale = self.stale
-
-            start_range = self.nuris / 2 if self.stale else 0
-            uri = self.uriname(rand.rand_range(start_range, self.nuris))
+        while opencount < self.nopens:
+            uri = self.uriname(rand.rand_range(0, self.nuris))
             cursors = urimap[uri]
             ncursors = len(cursors)
 
@@ -395,41 +369,8 @@ class test_cursor13_sweep(test_cursor13_base):
                 closecount += 1
 
         end_stats = self.caching_stats()
-        end_sweep_stats = self.sweep_stats()
 
         #self.tty('opens = ' + str(opencount) + ', closes = ' + str(closecount))
         #self.tty('stats after = ' + str(end_stats))
-        #self.tty('sweep stats after: ' + str(end_sweep_stats))
         self.assertEquals(end_stats[0] - begin_stats[0], closecount)
-        if self.aggressive_sweep:
-            swept = end_sweep_stats[3] - begin_sweep_stats[3]
-            min_swept = self.deep * (self.nuris / 2)
-            self.assertGreaterEqual(swept, min_swept)
-            # No strict equality test for the reopen stats. When we've swept
-            # some closed cursors, we'll have fewer reopens. It's different
-            # by approximately the number of swept cursors, but it's less
-            # predictable.
-            self.assertGreater(end_stats[1] - begin_stats[1], 0)
-        else:
-            self.assertEquals(end_stats[1] - begin_stats[1], opencount)
-
-class test_cursor13_sweep2(test_cursor13_sweep):
-    # Set dhandle sweep configuration so that dhandles should be closed within
-    # two seconds of all the cursors for the dhandle being closed (cached).
-    aggressive_sweep = True
-    conn_config = 'statistics=(fast),' + \
-                  'file_manager=(close_scan_interval=1,close_idle_time=1,' + \
-                  'close_handle_minimum=0)'
-    scenarios = make_scenarios([
-        ('table', dict(uri='table:cursor13_sweep_c'))
-    ])
-
-    def iterate(self, i, start_time):
-        if i % 100 == 0:
-            time.sleep(0)        # allow other threads to run
-            elapsed = time.time() - start_time
-            # Begin for a half second with 'stale' mode off, then turn it on.
-            self.stale = (elapsed > 0.5)
-            # Make the test finish reasonably quickly.
-            return elapsed < 3.5
-        return True
+        self.assertEquals(end_stats[1] - begin_stats[1], opencount)
