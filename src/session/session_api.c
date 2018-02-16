@@ -50,6 +50,67 @@ __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers)
 }
 
 /*
+ * __wt_session_cursor_cache_sweep --
+ *	Sweep the cursor cache.
+ */
+int
+__wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
+{
+	WT_CURSOR *cursor, *cursor_tmp;
+	WT_CURSOR_LIST *cached_list;
+	WT_DECL_RET;
+	uint32_t position;
+	int i, t_ret, nbuckets, nexamined, nclosed;
+	bool productive;
+
+	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+		return (0);
+
+	position = session->cursor_sweep_position;
+	productive = true;
+	nbuckets = nexamined = nclosed = 0;
+
+	/* Turn off caching so that cursor close doesn't try to cache. */
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
+	for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
+		++nbuckets;
+		cached_list = &session->cursor_cache[position];
+		position = (position + 1) % WT_HASH_ARRAY_SIZE;
+		TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp) {
+			/*
+			 * First check to see if the cursor could be reopened.
+			 */
+			++nexamined;
+			t_ret = cursor->reopen(cursor, true);
+			if (t_ret != 0) {
+				WT_TRET_NOTFOUND_OK(t_ret);
+				WT_TRET_NOTFOUND_OK(
+				    cursor->reopen(cursor, false));
+				WT_TRET(cursor->close(cursor));
+				++nclosed;
+			}
+		}
+
+		/*
+		 * We continue sweeping as long as we have some good average
+		 * productivity. At a minimum, we look at two buckets.
+		 */
+		productive = (nclosed >= i);
+	}
+
+	session->cursor_sweep_position = position;
+	session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+	F_SET(session, WT_SESSION_CACHE_CURSORS);
+
+	WT_STAT_CONN_INCR(session, cursor_sweep);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
+
+	return (ret);
+}
+
+/*
  * __wt_session_copy_values --
  *	Copy values into all positioned cursors, so that they don't keep
  *	transaction IDs pinned.
@@ -168,6 +229,55 @@ __session_clear(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_close_cursors --
+ *	Close all cursors in a list.
+ */
+static int
+__session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
+{
+	WT_CURSOR *cursor, *cursor_tmp;
+	WT_DECL_RET;
+
+	/* Close all open cursors. */
+	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp) {
+		if (F_ISSET(cursor, WT_CURSTD_CACHED))
+			/*
+			 * Put the cached cursor in an open state
+			 * that allows it to be closed.
+			 */
+			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
+		else if (session->event_handler->handle_close != NULL &&
+		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
+			/*
+			 * Notify the user that we are closing the cursor
+			 * handle via the registered close callback.
+			 */
+			WT_TRET(session->event_handler->handle_close(
+			    session->event_handler, &session->iface, cursor));
+
+		WT_TRET(cursor->close(cursor));
+	} WT_TAILQ_SAFE_REMOVE_END
+
+	return (ret);
+}
+
+/*
+ * __session_close_cached_cursors --
+ *	Fully close all cached cursors.
+ */
+static int
+__session_close_cached_cursors(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	int i;
+
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		WT_TRET(__session_close_cursors(session,
+		    &session->cursor_cache[i]));
+	return (ret);
+}
+
+/*
  * __session_close --
  *	WT_SESSION->close method.
  */
@@ -175,7 +285,6 @@ static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor, *cursor_tmp;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
@@ -184,6 +293,9 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	SESSION_API_CALL(session, close, config, cfg);
 	WT_UNUSED(cfg);
+
+	/* Close all open cursors while the cursor cache is disabled. */
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
 	/* Rollback any active transaction. */
 	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
@@ -197,17 +309,8 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		__wt_txn_release_snapshot(session);
 
 	/* Close all open cursors. */
-	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, &session->cursors, q, cursor_tmp) {
-		/*
-		 * Notify the user that we are closing the cursor handle
-		 * via the registered close callback.
-		 */
-		if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
-			WT_TRET(session->event_handler->handle_close(
-			    session->event_handler, wt_session, cursor));
-		WT_TRET(cursor->close(cursor));
-	} WT_TAILQ_SAFE_REMOVE_END
+	WT_TRET(__session_close_cursors(session, &session->cursors));
+	WT_TRET(__session_close_cached_cursors(session));
 
 	WT_ASSERT(session, session->ncursors == 0);
 
@@ -309,6 +412,17 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 			F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
 		else
 			F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+	}
+	WT_ERR_NOTFOUND_OK(ret);
+
+	ret = __wt_config_getones(session, config, "cache_cursors", &cval);
+	if (ret == 0) {
+		if (cval.val)
+			F_SET(session, WT_SESSION_CACHE_CURSORS);
+		else {
+			F_CLR(session, WT_SESSION_CACHE_CURSORS);
+			WT_ERR(__session_close_cached_cursors(session));
+		}
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -414,6 +528,16 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	if (*cursorp == NULL)
 		return (__wt_bad_object_type(session, uri));
 
+	if (owner != NULL) {
+		/*
+		 * We support caching simple cursors that have no
+		 * children. If this cursor is a child, we're not going
+		 * to cache this child or its parent.
+		 */
+		F_CLR(owner, WT_CURSTD_CACHEABLE);
+		F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
+	}
+
 	/*
 	 * When opening simple tables, the table code calls this function on the
 	 * underlying data source, in which case the application's URI has been
@@ -436,6 +560,15 @@ int
 __wt_open_cursor(WT_SESSION_IMPL *session,
     const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
+	WT_DECL_RET;
+
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, owner, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
+
 	return (__session_open_cursor_int(session, uri, owner, NULL, cfg,
 	    cursorp));
 }
@@ -457,6 +590,13 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
+
+	if (to_dup == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, NULL, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
 
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
@@ -880,6 +1020,8 @@ __session_reset(WT_SESSION *wt_session)
 	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
+
+	WT_TRET(__wt_session_cursor_cache_sweep(session));
 
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
@@ -1971,15 +2113,15 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
-	/*
-	 * If we don't have one, allocate the dhandle hash array.
-	 * Allocate the table hash array as well.
-	 */
-	if (session_ret->dhhash == NULL)
-		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
-		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
+
+	/* Initialize the dhandle hash array. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
+
+	/* Initialize the cursor cache hash buckets and sweep trigger. */
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		TAILQ_INIT(&session_ret->cursor_cache[i]);
+	session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
 	/* Initialize transaction support: default to read-committed. */
 	session_ret->isolation = WT_ISO_READ_COMMITTED;
