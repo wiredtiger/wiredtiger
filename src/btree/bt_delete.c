@@ -75,29 +75,30 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	if (ref->state == WT_REF_MEM &&
 	    __wt_atomic_casv32(&ref->state, WT_REF_MEM, WT_REF_LOCKED)) {
 		if (__wt_page_is_modified(ref->page)) {
-			WT_PUBLISH(ref->state, WT_REF_MEM);
+			ref->state = WT_REF_MEM;
 			return (0);
 		}
 
 		(void)__wt_atomic_addv32(&S2BT(session)->evict_busy, 1);
 		ret = __wt_evict(session, ref, false);
 		(void)__wt_atomic_subv32(&S2BT(session)->evict_busy, 1);
-
-		/*
-		 * Clear the error, later clauses jump to the error label
-		 * without re-setting it.
-		 */
 		WT_RET_BUSY_OK(ret);
 		ret = 0;
 	}
 
 	/*
-	 * Atomically switch the page's state to lock it.
-	 *
-	 * No fast delete if the page is not on-disk (other threads may be using
-	 * it), or if the page requires lookaside records.
+	 * Fast check to see if it's worth locking, then atomically switch the
+	 * page's state to lock it.
 	 */
 	previous_state = ref->state;
+	switch (previous_state) {
+	case WT_REF_DISK:
+	case WT_REF_LIMBO:
+	case WT_REF_LOOKASIDE:
+		break;
+	default:
+		return (0);
+	}
 	if (!__wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED))
 		return (0);
 	switch (previous_state) {
@@ -109,14 +110,19 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 			break;
 		/* FALLTHROUGH */
 	default:
-		goto done;
+		ref->state = previous_state;
+		return (0);
 	}
 
 	/*
 	 * If this WT_REF was previously part of a fast-delete operation, there
 	 * may be existing page-delete information. The structure is only read
 	 * after a WT_REF_DELETED state is switched to locked: immediately after
-	 * locking (from a non-deleted state), free the previous versions.
+	 * locking (from a state other than WT_REF_DELETED), free the previous
+	 * version.
+	 *
+	 * Note: changes have been made, we must publish any state change from
+	 * this point on.
 	 */
 	if (ref->page_del != NULL) {
 		__wt_free(session, ref->page_del->update_list);
@@ -161,14 +167,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	*skipp = true;
 	WT_STAT_CONN_INCR(session, rec_page_delete_fast);
 	WT_STAT_DATA_INCR(session, rec_page_delete_fast);
+
+	/* Publish the page to its new state, ensuring visibility. */
 	WT_PUBLISH(ref->state, WT_REF_DELETED);
 	return (0);
 
 err:	__wt_free(session, ref->page_del);
 
-done:	/*
-	 * Restore the page to its previous status, we have to instantiate it.
-	 */
+	/* Publish the page to its previous state, ensuring visibility. */
 	WT_PUBLISH(ref->state, previous_state);
 	return (ret);
 }
