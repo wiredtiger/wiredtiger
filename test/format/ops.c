@@ -389,9 +389,8 @@ snap_check(WT_CURSOR *cursor,
 			}
 		}
 
-		while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
-			;
-		if (ret == 0) {
+		switch (ret = cursor->search(cursor)) {
+		case 0:
 			if (g.type == FIX) {
 				testutil_check(
 				    cursor->get_value(cursor, &bitfield));
@@ -400,8 +399,14 @@ snap_check(WT_CURSOR *cursor,
 			} else
 				testutil_check(
 				    cursor->get_value(cursor, value));
-		} else
-			testutil_assert(ret == WT_NOTFOUND);
+			break;
+		case WT_NOTFOUND:
+			break;
+		case WT_ROLLBACK:
+			return (WT_ROLLBACK);
+		default:
+			testutil_die(ret, "WT_CURSOR.search");
+		}
 
 		/* Check for simple matches. */
 		if (ret == 0 &&
