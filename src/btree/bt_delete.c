@@ -47,8 +47,8 @@
  * transaction list is no longer useful.  For this reason, when the page is
  * instantiated by a read, a list of the WT_UPDATE structures on the page is
  * stored in the WT_REF.page_del field, with the transaction ID, that way the
- * session unrolling the delete can find all of the WT_UPDATE structures that
- * require update.
+ * session committing/unrolling the delete can find all WT_UPDATE structures
+ * that require update.
  *
  * One final note: pages can also be marked deleted if emptied and evicted.  In
  * that case, the WT_REF state will be set to WT_REF_DELETED but there will not
@@ -109,15 +109,19 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 			break;
 		/* FALLTHROUGH */
 	default:
-		goto err;
+		goto done;
 	}
 
 	/*
-	 * If this WT_REF was previously part of a fast-delete operation, the
-	 * page must have been evicted for us to be here again. Eviction frees
-	 * the page-delete information, so assert the case.
+	 * If this WT_REF was previously part of a fast-delete operation, there
+	 * may be existing page-delete information. The structure is only read
+	 * after a WT_REF_DELETED state is switched to locked: immediately after
+	 * locking (from a non-deleted state), free the previous versions.
 	 */
-	WT_ASSERT(session, ref->page_del == NULL);
+	if (ref->page_del != NULL) {
+		__wt_free(session, ref->page_del->update_list);
+		__wt_free(session, ref->page_del);
+	}
 
 	/*
 	 * We cannot fast-delete pages that have overflow key/value items as
@@ -162,7 +166,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 err:	__wt_free(session, ref->page_del);
 
-	/*
+done:	/*
 	 * Restore the page to its previous status, we have to instantiate it.
 	 */
 	WT_PUBLISH(ref->state, previous_state);
@@ -195,10 +199,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			if (!__wt_atomic_casv32(&ref->state,
 			    WT_REF_DELETED, ref->page_del->previous_state))
 				break;
-
-			/* The transaction is aborted, discard the structure. */
-			WT_ASSERT(session, ref->page_del->update_list == NULL);
-			__wt_free(session, ref->page_del);
 			return;
 		case WT_REF_LOCKED:
 			/*
@@ -215,16 +215,13 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * with unresolved transactions, the page isn't going
 			 * anywhere.
 			 *
-			 * The page is in an in-memory state, walk the list of
+			 * The page is in an in-memory state, which means it
+			 * was instantiated at some point. Walk the list of
 			 * update structures and abort them.
 			 */
 			for (upd =
 			    ref->page_del->update_list; *upd != NULL; ++upd)
 				(*upd)->txnid = WT_TXN_ABORTED;
-
-			/* The transaction is aborted, discard the structure. */
-			__wt_free(session, ref->page_del->update_list);
-			__wt_free(session, ref->page_del);
 			return;
 		case WT_REF_DISK:
 		case WT_REF_LIMBO:
@@ -294,7 +291,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	 */
 	if (skip && ref->page_del != NULL && (visible_all ||
 	    __wt_txn_visible_all(session, ref->page_del->txnid,
-		WT_TIMESTAMP_NULL(&ref->page_del->timestamp)))) {
+	    WT_TIMESTAMP_NULL(&ref->page_del->timestamp)))) {
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
@@ -354,22 +351,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * In the first case, we have a page reference structure, in the second,
 	 * we don't.
 	 *
-	 * In the first case, check to see if the transaction has been resolved,
-	 * maybe we don't have to do that much work.
-	 */
-	page_del = ref->page_del;
-	if (page_del != NULL &&
-	    __wt_txn_visible_all(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
-		__wt_free(session, ref->page_del);
-
-	/*
-	 * If we're still in the first case, allocate the per-reference update
-	 * array; in the case of instantiating a page, deleted by a running
-	 * transaction that might eventually abort, we need a list of the update
-	 * structures so we can do the abort. The hard case is if a page splits:
-	 * the update structures might be moved to different pages, and we still
-	 * have to find them all for an abort.
+	 * Allocate the per-reference update array; in the case of instantiating
+	 * a page, deleted by a running transaction that might eventually abort,
+	 * we need a list of the update structures so we can do that abort.  The
+	 * hard case is if a page splits: the update structures might be moved
+	 * to different pages, and we still have to find them all for an abort.
 	 */
 	page_del = ref->page_del;
 	if (page_del != NULL)
@@ -415,12 +401,10 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	return (0);
 
 err:	/*
-	 * There's no need to free the page update structures on error, our
-	 * caller will discard the page and do that work for us.  We could
-	 * similarly leave the per-reference update array alone because it
-	 * won't ever be used by any page that's not in-memory, but cleaning
-	 * it up makes sense, especially if we come back in to this function
-	 * attempting to instantiate this page again.
+	 * The page-delete update structure may have existed before we were
+	 * called, and presumably might be in use by a running transaction.
+	 * The list of update structures cannot have been created before we
+	 * were called, and should not exist if we exit with an error.
 	 */
 	if (page_del != NULL)
 		__wt_free(session, page_del->update_list);
