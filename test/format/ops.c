@@ -886,8 +886,8 @@ remove_instead_of_truncate:
 			break;
 		case TRUNCATE:
 			/*
-			 * A maximum of 2 truncations at a time, more than that
-			 * can lead to serious thrashing.
+			 * A maximum of 2 truncation operations at a time, more
+			 * than that can lead to serious thrashing.
 			 */
 			if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 2) {
 				(void)__wt_atomic_subv64(&g.truncate_cnt, 1);
