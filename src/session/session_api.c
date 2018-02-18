@@ -292,10 +292,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	/*
-	 * Even though this operation is not allowed in prepared transaction
-	 * state, true is passed indicating the operation is allowed in
-	 * prepared state, so that running transaction check below takes
-	 * precedence over prepare transaction check.
+	 * True is passed even though this operation is not allowed in prepared
+	 * transaction state, so that running transaction check below takes
+	 * precedence.
 	 */
 	SESSION_API_CALL(session, reconfigure, config, cfg, true);
 
@@ -1477,10 +1476,9 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	/*
-	 * Even though this operation is not allowed in prepared transaction
-	 * state, true is passed indicating the operation is allowed in
-	 * prepared state, so that running transaction check below takes
-	 * precedence over prepare transaction check.
+	 * True is passed even though this operation is not allowed in prepared
+	 * transaction state, so that running transaction check below takes
+	 * precedence.
 	 */
 	SESSION_API_CALL(session, begin_transaction, config, cfg, true);
 	WT_STAT_CONN_INCR(session, txn_begin);
@@ -1657,10 +1655,9 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	/*
-	 * Even though this operation is not allowed in prepared transaction
-	 * state, true is passed indicating the operation is allowed in
-	 * prepared state, so that running transaction check below takes
-	 * precedence over prepare transaction check.
+	 * True is passed even though this operation is not allowed in prepared
+	 * transaction state, so that running transaction check below takes
+	 * precedence.
 	 */
 	SESSION_API_CALL(session, transaction_sync, config, cfg, true);
 	WT_STAT_CONN_INCR(session, txn_sync);
@@ -1757,10 +1754,9 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 
 	WT_STAT_CONN_INCR(session, txn_checkpoint);
 	/*
-	 * Even though this operation is not allowed in prepared transaction
-	 * state, true is passed indicating the operation is allowed in
-	 * prepared state, so that running transaction check below takes
-	 * precedence over prepare transaction check.
+	 * True is passed even though this operation is not allowed in prepared
+	 * transaction state, so that running transaction check below takes
+	 * precedence.
 	 */
 	SESSION_API_CALL(session, checkpoint, config, cfg, true);
 

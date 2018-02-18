@@ -190,7 +190,7 @@ __wt_snprintf_len_incr(
 
 /*
  * __wt_txn_context_prepare_check --
- *	Return an error, if not allowed and transaction is in prepare state.
+ *	Return an error, if not allowed and transaction is in the prepare state.
  */
 static inline int
 __wt_txn_context_prepare_check(
