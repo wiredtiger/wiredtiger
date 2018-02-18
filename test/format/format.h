@@ -122,7 +122,9 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
-	uint64_t timestamp;			/* Counter for timestamps. */
+	uint64_t timestamp;			/* Counter for timestamps */
+
+	uint64_t truncate_cnt;			/* Counter for truncation */
 
 	/*
 	 * We have a list of records that are appended, but not yet "resolved",
