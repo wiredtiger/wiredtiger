@@ -823,7 +823,6 @@ __wt_cursor_close(WT_CURSOR *cursor)
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_RET(__wt_txn_context_prepare_check(session, false));
 	if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
 		TAILQ_REMOVE(&session->cursors, cursor, q);
 
@@ -911,7 +910,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_RET(__wt_txn_context_prepare_check(session, false));
+	WT_RET(__wt_txn_context_prepare_check(session));
 	/* Reconfiguration resets the cursor. */
 	WT_RET(cursor->reset(cursor));
 

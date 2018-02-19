@@ -354,7 +354,7 @@ __wt_session_compact(
 	ignore_cache_size_set = false;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, compact, config, cfg, false);
+	SESSION_API_CALL(session, compact, config, cfg);
 
 	/*
 	 * The compaction thread should not block when the cache is full: it is

@@ -190,19 +190,17 @@ __wt_snprintf_len_incr(
 
 /*
  * __wt_txn_context_prepare_check --
- *	Return an error, if not allowed and transaction is in the prepare state.
+ *	Return an error, if the current transaction is in the prepare state.
  */
 static inline int
-__wt_txn_context_prepare_check(
-    WT_SESSION_IMPL *session, bool prepare_allowed)
+__wt_txn_context_prepare_check( WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_TIMESTAMPS
-	if (!prepare_allowed && F_ISSET(&session->txn, WT_TXN_PREPARE))
+	if (F_ISSET(&session->txn, WT_TXN_PREPARE))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: not permitted in a prepared transaction",
 		    session->name);
 #else
-	WT_UNUSED(prepare_allowed);
 	WT_UNUSED(session);
 #endif
 	return (0);
