@@ -549,7 +549,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
 		return (0);
 
 	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET(__wt_txn_context_prepare_check(session, false));
+	WT_RET(__wt_txn_context_prepare_check(session));
 
 	WT_ITEM_SET(ikey, cursor->key);
 	/*
@@ -597,6 +597,8 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_reopen_notsup,		/* reopen */
 	    __wt_cursor_notsup);		/* close */
 	WT_DECL_RET;
 	WT_INDEX *idx;
@@ -1302,6 +1304,8 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_reopen_notsup,		/* reopen */
 	    __curjoin_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_JOIN *cjoin;

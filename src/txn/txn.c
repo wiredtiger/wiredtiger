@@ -1134,7 +1134,10 @@ err:	/*
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
 	    "of WiredTiger built with timestamp support");
 #endif
+
+	return (0);
 }
+
 /*
  * __wt_txn_rollback --
  *	Roll back the current transaction.

@@ -104,6 +104,7 @@ struct __wt_txn_global {
 	WT_DECL_TIMESTAMP(commit_timestamp)
 	WT_DECL_TIMESTAMP(oldest_timestamp)
 	WT_DECL_TIMESTAMP(pinned_timestamp)
+	WT_DECL_TIMESTAMP(recovery_timestamp)
 	WT_DECL_TIMESTAMP(stable_timestamp)
 	bool has_commit_timestamp;
 	bool has_oldest_timestamp;
