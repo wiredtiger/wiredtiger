@@ -985,17 +985,9 @@ __wt_txn_prepare_clear(WT_SESSION_IMPL *session)
  *	Prepare the current transaction.
  */
 int
-__wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_prepare(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_TIMESTAMPS
-	WT_DECL_RET;
-#endif
-
-	WT_UNUSED(cfg);
-
-#ifdef HAVE_TIMESTAMPS
-	WT_TRET(__wt_txn_context_check(session, true));
-
 	F_SET(&session->txn, WT_TXN_PREPARE);
 
 #else
