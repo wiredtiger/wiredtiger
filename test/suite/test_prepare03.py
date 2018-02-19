@@ -183,6 +183,8 @@ class test_prepre03(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.search_near(), preparemsg)
         self.session.commit_transaction()
+        # There is a bug with search_near operation when no key is set.
+        # This fix is being tracked in WT-3918.
         if self.uri == 'lsm':
             cursor.set_key(self.genkey(self.nentries))
         cursor.search_near()
