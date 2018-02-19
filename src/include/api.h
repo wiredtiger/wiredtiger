@@ -65,10 +65,10 @@
 	if ((s) != NULL) {						\
 		WT_TRACK_OP_END(s);					\
 		WT_SINGLE_THREAD_CHECK_STOP(s);				\
-		if (F_ISSET(&(s)->txn, WT_TXN_RUNNING) &&		\
-		    (ret) != 0 &&					\
+		if ((ret) != 0 &&					\
 		    (ret) != WT_NOTFOUND &&				\
-		    (ret) != WT_DUPLICATE_KEY)				\
+		    (ret) != WT_DUPLICATE_KEY &&			\
+		    F_ISSET(&(s)->txn, WT_TXN_RUNNING))			\
 			F_SET(&(s)->txn, WT_TXN_ERROR);			\
 		/*							\
 		 * No code after this line, otherwise error handling	\
