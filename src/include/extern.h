@@ -800,6 +800,7 @@ extern int __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_F
 extern int __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_txn_release(WT_SESSION_IMPL *session);
 extern int __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern void __wt_txn_prepare_clear(WT_SESSION_IMPL *session);
 extern int __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_rollback_required(WT_SESSION_IMPL *session, const char *reason) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -910,6 +910,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
+	WT_RET(__wt_txn_context_prepare_check(session));
 	/* Reconfiguration resets the cursor. */
 	WT_RET(cursor->reset(cursor));
 

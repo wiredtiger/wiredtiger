@@ -291,7 +291,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, close, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
 	WT_UNUSED(cfg);
 
 	/* Close all open cursors while the cursor cache is disabled. */
@@ -391,7 +391,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, reconfigure, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -868,6 +873,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_NOCONF(session, log_printf);
+	WT_ERR(__wt_txn_context_prepare_check(session));
 
 	va_start(ap, fmt);
 	ret = __wt_log_vprintf(session, fmt, ap);
@@ -1608,7 +1614,12 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, begin_transaction, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, begin_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
 	WT_ERR(__wt_txn_context_check(session, false));
@@ -1630,7 +1641,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, commit_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
 
 	WT_ERR(__wt_txn_context_check(session, true));
@@ -1642,6 +1654,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 		    txn->rollback_reason == NULL ? "" : ": ",
 		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
+	__wt_txn_prepare_clear(session);
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);
 	else {
@@ -1669,12 +1682,8 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
 	WT_TRET(__wt_txn_prepare(session, cfg));
 
-	/*
-	 * Below code to be corrected as part of prepare functionality
-	 * implementation, coded as below to avoid setting error to transaction.
-	 */
+err:	API_END_RET(session, ret);
 
-err:	API_END_RET_NO_TXN_ERROR(session, ret);
 }
 
 /*
@@ -1688,11 +1697,13 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, rollback_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
+	__wt_txn_prepare_clear(session);
 	WT_TRET(__wt_session_reset_cursors(session, false));
 
 	WT_TRET(__wt_txn_rollback(session, cfg));
@@ -1737,6 +1748,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 	SESSION_API_CALL_NOCONF(session, pinned_range);
 
 	txn_state = WT_SESSION_TXN_STATE(session);
+	WT_ERR(__wt_txn_context_prepare_check(session));
 
 	/* Assign pinned to the lesser of id or snap_min */
 	if (txn_state->id != WT_TXN_NONE &&
@@ -1783,7 +1795,12 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	uint64_t time_start, time_stop;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, transaction_sync, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, transaction_sync, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
@@ -1877,7 +1894,12 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_STAT_CONN_INCR(session, txn_checkpoint);
-	SESSION_API_CALL(session, checkpoint, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, checkpoint, config, cfg);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 

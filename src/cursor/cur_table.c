@@ -42,6 +42,7 @@ __curextract_insert(WT_CURSOR *cursor)
 	cextract = (WT_CURSOR_EXTRACTOR *)cursor;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
+	WT_RET(__wt_txn_context_prepare_check(session));
 	WT_ITEM_SET(ikey, cursor->key);
 	/*
 	 * We appended a padding byte to the key to avoid rewriting the last

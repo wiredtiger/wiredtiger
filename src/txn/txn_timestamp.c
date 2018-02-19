@@ -649,10 +649,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TXN *txn = &session->txn;
 		wt_timestamp_t ts;
 
-		if (!F_ISSET(txn, WT_TXN_RUNNING))
-			WT_RET_MSG(session, EINVAL,
-			    "Transaction must be running "
-			    "to set a commit_timestamp");
+		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_RET(__wt_timestamp_validate(session,
 		    "commit", &ts, &cval, true, true, true));

@@ -967,20 +967,43 @@ err:	/*
 }
 
 /*
+ * __wt_txn_prepare_clear --
+ *	Clear prepare state of current transaction.
+ */
+void
+__wt_txn_prepare_clear(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_TIMESTAMPS
+	F_CLR(&session->txn, WT_TXN_PREPARE);
+#else
+	WT_UNUSED(session);
+#endif
+}
+
+/*
  * __wt_txn_prepare --
  *	Prepare the current transaction.
  */
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+#ifdef HAVE_TIMESTAMPS
+	WT_DECL_RET;
+#endif
+
 	WT_UNUSED(cfg);
 
 #ifdef HAVE_TIMESTAMPS
-	WT_RET_MSG(session, ENOTSUP, "prepare_transaction is not supported");
+	WT_TRET(__wt_txn_context_check(session, true));
+
+	F_SET(&session->txn, WT_TXN_PREPARE);
+
 #else
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
 	    "of WiredTiger built with timestamp support");
 #endif
+
+	return (0);
 }
 /*
  * __wt_txn_rollback --
