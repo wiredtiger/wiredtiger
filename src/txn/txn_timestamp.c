@@ -82,12 +82,12 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_txn_parse_timestamp --
- *	Decodes and sets a timestamp.
+ * __wt_txn_parse_timestamp_raw --
+ *	Decodes and sets a timestamp. Don't do any checking.
  */
 int
-__wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
-     const char *name, wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
+__wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
+    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
 {
 	__wt_timestamp_set_zero(timestamp);
 
@@ -172,7 +172,19 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
 	    ts.data, ts.size);
 	}
 #endif
-	if (__wt_timestamp_iszero(timestamp))
+	return (0);
+}
+
+/*
+ * __wt_txn_parse_timestamp --
+ *	Decodes and sets a timestamp checking it is non-zero.
+ */
+int
+__wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
+    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
+{
+	WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
+	if (cval->len != 0 && __wt_timestamp_iszero(timestamp))
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
 		    name, (int)cval->len, cval->str);
@@ -254,7 +266,10 @@ __txn_global_query_timestamp(
 		    __wt_timestamp_cmp(&txn->read_timestamp, &ts) < 0)
 			__wt_timestamp_set(&ts, &txn->read_timestamp);
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
-	} else if (WT_STRING_MATCH("stable", cval.str, cval.len)) {
+	} else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
+		/* Read-only value forever. No lock needed. */
+		__wt_timestamp_set(&ts, &txn_global->recovery_timestamp);
+	else if (WT_STRING_MATCH("stable", cval.str, cval.len)) {
 		if (!txn_global->has_stable_timestamp)
 			return (WT_NOTFOUND);
 		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
@@ -674,9 +689,20 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 	 * fixed.
 	 */
 	__wt_timestamp_set(&ts, &txn->commit_timestamp);
-	__wt_timestamp_set(&txn->first_commit_timestamp, &ts);
 
 	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
+	/*
+	 * If our transaction is on the queue remove it first. The timestamp
+	 * may move earlier so we otherwise might not remove ourselves before
+	 * finding where to insert ourselves (which would result in a list
+	 * loop) and we don't want to walk more of the list than needed.
+	 */
+	if (txn->clear_ts_queue) {
+		TAILQ_REMOVE(&txn_global->commit_timestamph,
+		    txn, commit_timestampq);
+		WT_PUBLISH(txn->clear_ts_queue, false);
+		--txn_global->commit_timestampq_len;
+	}
 	/*
 	 * Walk the list to look for where to insert our own transaction
 	 * and remove any transactions that are not active.  We stop when
@@ -716,11 +742,12 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		} else
 			TAILQ_INSERT_BEFORE(qtxn, txn, commit_timestampq);
 	}
+	__wt_timestamp_set(&txn->first_commit_timestamp, &ts);
 	++txn_global->commit_timestampq_len;
 	WT_STAT_CONN_INCR(session, txn_commit_queue_inserts);
 	txn->clear_ts_queue = false;
-	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
 	F_SET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_PUBLIC_TS_COMMIT);
+	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
 }
 
 /*

@@ -177,7 +177,9 @@
 	(s) = (WT_SESSION_IMPL *)(cur)->session;			\
 	API_CALL_NOCONF(s, WT_CURSOR, n,				\
 	    ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle);	\
-	WT_ERR(__wt_txn_context_prepare_check((s), false))
+	WT_ERR(__wt_txn_context_prepare_check((s), false));       \
+	if (F_ISSET(cur, WT_CURSTD_CACHED))				\
+		WT_ERR(__wt_cursor_cached(cur))
 
 #define	JOINABLE_CURSOR_CALL_CHECK(cur)					\
 	if (F_ISSET(cur, WT_CURSTD_JOINED))				\
