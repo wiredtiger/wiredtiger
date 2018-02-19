@@ -389,9 +389,8 @@ snap_check(WT_CURSOR *cursor,
 			}
 		}
 
-		while ((ret = cursor->search(cursor)) == WT_ROLLBACK)
-			;
-		if (ret == 0) {
+		switch (ret = cursor->search(cursor)) {
+		case 0:
 			if (g.type == FIX) {
 				testutil_check(
 				    cursor->get_value(cursor, &bitfield));
@@ -400,8 +399,14 @@ snap_check(WT_CURSOR *cursor,
 			} else
 				testutil_check(
 				    cursor->get_value(cursor, value));
-		} else
-			testutil_assert(ret == WT_NOTFOUND);
+			break;
+		case WT_NOTFOUND:
+			break;
+		case WT_ROLLBACK:
+			return (WT_ROLLBACK);
+		default:
+			testutil_die(ret, "WT_CURSOR.search");
+		}
 
 		/* Check for simple matches. */
 		if (ret == 0 &&
@@ -615,7 +620,8 @@ ops(void *arg)
 	/* Set the first operation where we'll reset the session. */
 	reset_op = mmrand(&tinfo->rnd, 100, 10000);
 	/* Set the first operation where we'll truncate a range. */
-	truncate_op = mmrand(&tinfo->rnd, 100, 10000);
+	truncate_op = g.c_truncate == 0 ?
+	    UINT64_MAX : mmrand(&tinfo->rnd, 100, 10000);
 
 	for (intxn = false; !tinfo->quit; ++tinfo->ops) {
 		/* Periodically open up a new session and cursors. */
@@ -720,8 +726,7 @@ ops(void *arg)
 		op = READ;
 		if (!readonly) {
 			i = mmrand(&tinfo->rnd, 1, 100);
-			if (i < g.c_delete_pct &&
-			    (g.c_truncate == 0 || tinfo->ops < truncate_op))
+			if (i < g.c_delete_pct || tinfo->ops < truncate_op)
 				op = REMOVE;
 			else if (i < g.c_delete_pct) {
 				op = TRUNCATE;
@@ -855,6 +860,7 @@ ops(void *arg)
 			}
 			break;
 		case REMOVE:
+remove_instead_of_truncate:
 			switch (g.type) {
 			case ROW:
 				ret = row_remove(tinfo, cursor, positioned);
@@ -879,6 +885,15 @@ ops(void *arg)
 			}
 			break;
 		case TRUNCATE:
+			/*
+			 * A maximum of 2 truncation operations at a time, more
+			 * than that can lead to serious thrashing.
+			 */
+			if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 2) {
+				(void)__wt_atomic_subv64(&g.truncate_cnt, 1);
+				goto remove_instead_of_truncate;
+			}
+
 			if (!positioned)
 				tinfo->keyno =
 				    mmrand(&tinfo->rnd, 1, (u_int)g.rows);
@@ -931,6 +946,8 @@ ops(void *arg)
 				break;
 			}
 			positioned = false;
+			(void)__wt_atomic_subv64(&g.truncate_cnt, 1);
+
 			if (ret == 0) {
 				++tinfo->truncate;
 				SNAP_TRACK(TRUNCATE, tinfo);

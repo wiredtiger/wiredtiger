@@ -170,8 +170,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	/*
 	 * Discard all page-deleted information. If a truncate call deleted this
 	 * page, there's memory associated with it we no longer need, eviction
-	 * will have built a new version of the page. It's not a lot of memory,
-	 * but it allows us to assert we never re-enter the page-delete path.
+	 * will have built a new version of the page.
 	 */
 	if (ref->page_del != NULL) {
 		__wt_free(session, ref->page_del->update_list);

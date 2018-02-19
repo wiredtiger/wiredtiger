@@ -1,5 +1,5 @@
 # A reasonable configuration for stress testing.
-cache_minimum=40
+cache_minimum=20
 huffman_key=0
 huffman_value=0
 rows=1000000
