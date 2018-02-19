@@ -539,17 +539,16 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
 	WT_ITEM ikey;
 	WT_SESSION_IMPL *session;
 
-	cextract = (WT_CURJOIN_EXTRACTOR *)cursor;
 	/*
 	 * This insert method may be called multiple times during a single
 	 * extraction.  If we already have a definitive answer to the
 	 * membership question, exit early.
 	 */
+	cextract = (WT_CURJOIN_EXTRACTOR *)cursor;
 	if (cextract->ismember)
 		return (0);
 
-	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET(__wt_txn_context_prepare_check(session));
+	CURSOR_API_CALL(cursor, session, insert, NULL);
 
 	WT_ITEM_SET(ikey, cursor->key);
 	/*
@@ -565,7 +564,7 @@ __curjoin_extract_insert(WT_CURSOR *cursor)
 	else if (ret == 0)
 		cextract->ismember = true;
 
-	return (ret);
+err:	API_END_RET(session, ret);
 }
 
 /*
