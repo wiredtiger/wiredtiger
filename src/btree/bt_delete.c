@@ -125,6 +125,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 * this point on.
 	 */
 	if (ref->page_del != NULL) {
+		WT_ASSERT(session, ref->page_del->txnid == WT_TXN_ABORTED);
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
@@ -188,6 +189,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_UPDATE **upd;
 	uint64_t sleep_count, yield_count;
+
+	ref->page_del->txnid = WT_TXN_ABORTED;
 
 	/*
 	 * If the page is still "deleted", it's as we left it, reset the state
