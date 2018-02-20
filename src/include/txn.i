@@ -204,9 +204,12 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 	}
 }
 
+#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_update_needs_timestamp --
- *	Decide whether to copy a commit timestamp into an update.
+ *	Decide whether to copy a commit timestamp into an update. If the op
+ *      structure doesn't have a populated update or ref field there won't
+ *      be any check for an existing timestamp.
  */
 static inline bool
 __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
@@ -221,8 +224,10 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	 */
 	return (op->fileid != WT_METAFILE_ID &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    __wt_timestamp_iszero(&op->u.upd->timestamp));
+	    (op->u.upd == NULL ||
+	    __wt_timestamp_iszero(&(op->u.upd->timestamp))));
 }
+#endif
 
 /*
  * __wt_txn_modify --
@@ -266,13 +271,13 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	WT_RET(__txn_next_op(session, &op));
 	op->type = WT_TXN_OP_REF_DELETE;
-	op->u.ref = ref;
 
 #ifdef HAVE_TIMESTAMPS
 	if (__wt_txn_update_needs_timestamp(session, op))
 		__wt_timestamp_set(
 		    &ref->page_del->timestamp, &txn->commit_timestamp);
 #endif
+	op->u.ref = ref;
 	ref->page_del->txnid = txn->id;
 
 	return (__wt_txn_log_op(session, NULL));
