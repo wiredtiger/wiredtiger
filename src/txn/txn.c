@@ -650,8 +650,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC_TS ||
-		    op->type == WT_TXN_OP_BASIC) {
+		if (op->type == WT_TXN_OP_BASIC) {
 			/*
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
@@ -838,7 +837,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			/*
 			 * Switch reserved operations to abort to
@@ -860,19 +858,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 #ifdef HAVE_TIMESTAMPS
-			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-			    op->type != WT_TXN_OP_BASIC_TS) {
-				WT_ASSERT(session,
-				    op->fileid != WT_METAFILE_ID);
+			if (__wt_txn_update_needs_timestamp(session, op))
 				__wt_timestamp_set(&op->u.upd->timestamp,
 				    &txn->commit_timestamp);
-			}
 #endif
 			break;
 
 		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
-			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+			if (__wt_txn_update_needs_timestamp(session, op)) {
 				WT_UPDATE **upd;
 
 				__wt_timestamp_set(
@@ -1021,7 +1015,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			WT_ASSERT(session, op->u.upd->txnid == txn->id);
 			WT_ASSERT(session,
