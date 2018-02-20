@@ -805,7 +805,7 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid)
 			 * Because of the special visibility rules for
 			 * lookaside, a new block can appear in between our
 			 * search and the block of interest.  Keep trying while
-			 * we have a key lower that we expect.
+			 * we have a key lower than we expect.
 			 *
 			 * There may be no block of lookaside entries if they
 			 * have been removed by

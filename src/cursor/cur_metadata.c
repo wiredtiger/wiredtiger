@@ -555,6 +555,8 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session,
 	    __curmetadata_remove,		/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_reopen_notsup,		/* reopen */
 	    __curmetadata_close);		/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_METADATA *mdc;

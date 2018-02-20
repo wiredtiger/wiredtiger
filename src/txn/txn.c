@@ -650,8 +650,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC_TS ||
-		    op->type == WT_TXN_OP_BASIC) {
+		if (op->type == WT_TXN_OP_BASIC) {
 			/*
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
@@ -838,7 +837,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			/*
 			 * Switch reserved operations to abort to
@@ -860,22 +858,25 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 #ifdef HAVE_TIMESTAMPS
-			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-			    op->type != WT_TXN_OP_BASIC_TS) {
-				WT_ASSERT(session,
-				    op->fileid != WT_METAFILE_ID);
+			if (__wt_txn_update_needs_timestamp(session, op))
 				__wt_timestamp_set(&op->u.upd->timestamp,
 				    &txn->commit_timestamp);
-			}
 #endif
 			break;
 
-		case WT_TXN_OP_REF:
+		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
-			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+			if (__wt_txn_update_needs_timestamp(session, op)) {
+				WT_UPDATE **upd;
+
 				__wt_timestamp_set(
 				    &op->u.ref->page_del->timestamp,
 				    &txn->commit_timestamp);
+				for (upd = op->u.ref->page_del->update_list;
+				    *upd != NULL; ++upd)
+					__wt_timestamp_set(&(*upd)->timestamp,
+					    &txn->commit_timestamp);
+			}
 #endif
 			break;
 
@@ -967,20 +968,35 @@ err:	/*
 }
 
 /*
+ * __wt_txn_prepare_clear --
+ *	Clear prepare state of current transaction.
+ */
+void
+__wt_txn_prepare_clear(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_TIMESTAMPS
+	F_CLR(&session->txn, WT_TXN_PREPARE);
+#else
+	WT_UNUSED(session);
+#endif
+}
+
+/*
  * __wt_txn_prepare --
  *	Prepare the current transaction.
  */
 int
-__wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_prepare(WT_SESSION_IMPL *session)
 {
-	WT_UNUSED(cfg);
-
 #ifdef HAVE_TIMESTAMPS
-	WT_RET_MSG(session, ENOTSUP, "prepare_transaction is not supported");
+	F_SET(&session->txn, WT_TXN_PREPARE);
+
 #else
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
 	    "of WiredTiger built with timestamp support");
 #endif
+
+	return (0);
 }
 /*
  * __wt_txn_rollback --
@@ -1014,7 +1030,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			WT_ASSERT(session, op->u.upd->txnid == txn->id);
 			WT_ASSERT(session,
@@ -1022,7 +1037,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			    op->fileid != S2C(session)->cache->las_fileid);
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
-		case WT_TXN_OP_REF:
+		case WT_TXN_OP_REF_DELETE:
 			__wt_delete_page_rollback(session, op->u.ref);
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
@@ -1030,7 +1045,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			/*
 			 * Nothing to do: these operations are only logged for
 			 * recovery.  The in-memory changes will be rolled back
-			 * with a combination of WT_TXN_OP_REF and
+			 * with a combination of WT_TXN_OP_REF_DELETE and
 			 * WT_TXN_OP_INMEM operations.
 			 */
 			break;
