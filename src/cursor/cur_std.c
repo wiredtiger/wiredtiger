@@ -823,7 +823,6 @@ __wt_cursor_close(WT_CURSOR *cursor)
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_RET(__wt_txn_context_prepare_check(session));
 	if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
 		TAILQ_REMOVE(&session->cursors, cursor, q);
 

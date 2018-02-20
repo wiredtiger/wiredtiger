@@ -1090,15 +1090,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* Set transaction state to prepare. */
-
 	F_SET(&session->txn, WT_TXN_PREPARE);
 
 	/* Release our snapshot in case it is keeping data pinned. */
 	__wt_txn_release_snapshot(session);
 
 	/*
-	 * Clear the transaction's ID from the global table, but not from local
-	 * txn structure.
+	 * Clear the transaction's ID from the global table, to facilitate
+	 * prepared data visibility, but not from local txn structure.
 	 */
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, !WT_TXNID_LT(txn->id,
