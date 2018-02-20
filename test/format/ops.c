@@ -726,15 +726,15 @@ ops(void *arg)
 		op = READ;
 		if (!readonly) {
 			i = mmrand(&tinfo->rnd, 1, 100);
-			if (i < g.c_delete_pct || tinfo->ops < truncate_op)
-				op = REMOVE;
-			else if (i < g.c_delete_pct) {
+			if (i < g.c_delete_pct && tinfo->ops > truncate_op) {
 				op = TRUNCATE;
 
 				/* Pick the next truncate operation. */
 				truncate_op +=
 				    mmrand(&tinfo->rnd, 20000, 100000);
-			} else if (i < g.c_delete_pct + g.c_insert_pct)
+			} else if (i < g.c_delete_pct)
+				op = REMOVE;
+			else if (i < g.c_delete_pct + g.c_insert_pct)
 				op = INSERT;
 			else if (i < g.c_delete_pct +
 			    g.c_insert_pct + g.c_modify_pct)
