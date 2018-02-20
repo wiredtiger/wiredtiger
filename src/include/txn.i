@@ -208,8 +208,8 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 /*
  * __wt_txn_update_needs_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
- *      structure doesn't have a populated update or ref field there won't
- *      be any check for an existing timestamp.
+ *	structure doesn't have a populated update or ref field there won't
+ *	be any check for an existing timestamp.
  */
 static inline bool
 __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
