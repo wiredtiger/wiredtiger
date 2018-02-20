@@ -185,7 +185,7 @@ op_bulk_unique(void *arg)
 
 	/* Generate a unique object name. */
 	testutil_check(__wt_snprintf(
-	    new_uri, sizeof(new_uri), "%s.%u",
+	    new_uri, sizeof(new_uri), "%s.%" PRIu64,
 	    opts->uri, __wt_atomic_add64(&opts->unique_id, 1)));
 	testutil_check(session->create(session, new_uri, NULL));
 
@@ -226,8 +226,8 @@ op_cursor(void *arg)
 {
 	TEST_OPTS *opts;
 	TEST_PER_THREAD_OPTS *args;
-	WT_SESSION *session;
 	WT_CURSOR *cursor;
+	WT_SESSION *session;
 	int ret;
 
 	args = (TEST_PER_THREAD_OPTS *)arg;
@@ -294,7 +294,7 @@ op_create_unique(void *arg)
 
 	/* Generate a unique object name. */
 	testutil_check(__wt_snprintf(
-	    new_uri, sizeof(new_uri), "%s.%u",
+	    new_uri, sizeof(new_uri), "%s.%" PRIu64,
 	    opts->uri, __wt_atomic_add64(&opts->unique_id, 1)));
 	testutil_check(session->create(session, new_uri, NULL));
 
@@ -321,8 +321,8 @@ op_create_unique(void *arg)
 void
 op_drop(void *arg)
 {
-	TEST_PER_THREAD_OPTS *args;
 	TEST_OPTS *opts;
+	TEST_PER_THREAD_OPTS *args;
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
 	int ret;

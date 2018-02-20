@@ -50,6 +50,67 @@ __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffers)
 }
 
 /*
+ * __wt_session_cursor_cache_sweep --
+ *	Sweep the cursor cache.
+ */
+int
+__wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
+{
+	WT_CURSOR *cursor, *cursor_tmp;
+	WT_CURSOR_LIST *cached_list;
+	WT_DECL_RET;
+	uint32_t position;
+	int i, t_ret, nbuckets, nexamined, nclosed;
+	bool productive;
+
+	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+		return (0);
+
+	position = session->cursor_sweep_position;
+	productive = true;
+	nbuckets = nexamined = nclosed = 0;
+
+	/* Turn off caching so that cursor close doesn't try to cache. */
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
+	for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
+		++nbuckets;
+		cached_list = &session->cursor_cache[position];
+		position = (position + 1) % WT_HASH_ARRAY_SIZE;
+		TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp) {
+			/*
+			 * First check to see if the cursor could be reopened.
+			 */
+			++nexamined;
+			t_ret = cursor->reopen(cursor, true);
+			if (t_ret != 0) {
+				WT_TRET_NOTFOUND_OK(t_ret);
+				WT_TRET_NOTFOUND_OK(
+				    cursor->reopen(cursor, false));
+				WT_TRET(cursor->close(cursor));
+				++nclosed;
+			}
+		}
+
+		/*
+		 * We continue sweeping as long as we have some good average
+		 * productivity. At a minimum, we look at two buckets.
+		 */
+		productive = (nclosed >= i);
+	}
+
+	session->cursor_sweep_position = position;
+	session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+	F_SET(session, WT_SESSION_CACHE_CURSORS);
+
+	WT_STAT_CONN_INCR(session, cursor_sweep);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_buckets, nbuckets);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
+	WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
+
+	return (ret);
+}
+
+/*
  * __wt_session_copy_values --
  *	Copy values into all positioned cursors, so that they don't keep
  *	transaction IDs pinned.
@@ -109,6 +170,37 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_clear_commit_queue --
+ *	We're about to clear the session and overwrite the txn structure.
+ *	Remove ourselves from the commit timestamp queue if we're on it.
+ */
+static void
+__session_clear_commit_queue(WT_SESSION_IMPL *session)
+{
+	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+
+	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
+
+	if (!txn->clear_ts_queue)
+		return;
+
+	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
+	/*
+	 * Recheck after acquiring the lock.
+	 */
+	if (txn->clear_ts_queue) {
+		TAILQ_REMOVE(
+		    &txn_global->commit_timestamph, txn, commit_timestampq);
+		--txn_global->commit_timestampq_len;
+		txn->clear_ts_queue = false;
+	}
+	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
+
+}
+
+/*
  * __session_clear --
  *	Clear a session structure.
  */
@@ -127,12 +219,62 @@ __session_clear(WT_SESSION_IMPL *session)
 	 *
 	 * For these reasons, be careful when clearing the session structure.
 	 */
+	__session_clear_commit_queue(session);
 	memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
 	WT_INIT_LSN(&session->bg_sync_lsn);
 
 	session->hazard_inuse = 0;
 	session->nhazard = 0;
+}
+
+/*
+ * __session_close_cursors --
+ *	Close all cursors in a list.
+ */
+static int
+__session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
+{
+	WT_CURSOR *cursor, *cursor_tmp;
+	WT_DECL_RET;
+
+	/* Close all open cursors. */
+	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, cursors, q, cursor_tmp) {
+		if (F_ISSET(cursor, WT_CURSTD_CACHED))
+			/*
+			 * Put the cached cursor in an open state
+			 * that allows it to be closed.
+			 */
+			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
+		else if (session->event_handler->handle_close != NULL &&
+		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
+			/*
+			 * Notify the user that we are closing the cursor
+			 * handle via the registered close callback.
+			 */
+			WT_TRET(session->event_handler->handle_close(
+			    session->event_handler, &session->iface, cursor));
+
+		WT_TRET(cursor->close(cursor));
+	} WT_TAILQ_SAFE_REMOVE_END
+
+	return (ret);
+}
+
+/*
+ * __session_close_cached_cursors --
+ *	Fully close all cached cursors.
+ */
+static int
+__session_close_cached_cursors(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	int i;
+
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		WT_TRET(__session_close_cursors(session,
+		    &session->cursor_cache[i]));
+	return (ret);
 }
 
 /*
@@ -143,15 +285,17 @@ static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor, *cursor_tmp;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, close, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
 	WT_UNUSED(cfg);
+
+	/* Close all open cursors while the cursor cache is disabled. */
+	F_CLR(session, WT_SESSION_CACHE_CURSORS);
 
 	/* Rollback any active transaction. */
 	if (F_ISSET(&session->txn, WT_TXN_RUNNING))
@@ -165,17 +309,8 @@ __session_close(WT_SESSION *wt_session, const char *config)
 		__wt_txn_release_snapshot(session);
 
 	/* Close all open cursors. */
-	WT_TAILQ_SAFE_REMOVE_BEGIN(cursor, &session->cursors, q, cursor_tmp) {
-		/*
-		 * Notify the user that we are closing the cursor handle
-		 * via the registered close callback.
-		 */
-		if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
-			WT_TRET(session->event_handler->handle_close(
-			    session->event_handler, wt_session, cursor));
-		WT_TRET(cursor->close(cursor));
-	} WT_TAILQ_SAFE_REMOVE_END
+	WT_TRET(__session_close_cursors(session, &session->cursors));
+	WT_TRET(__session_close_cached_cursors(session));
 
 	WT_ASSERT(session, session->ncursors == 0);
 
@@ -192,17 +327,14 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	__wt_txn_destroy(session);
 
 	/*
-	 * Close the file where we tracked long operations.  Do this before
-	 * releasing resources, as we do scratch buffer management when we flush
-	 * optrack buffers to disk
+	 * Close the file where we tracked long operations. Do this before
+	 * releasing resources, as we do scratch buffer management when we
+	 * flush optrack buffers to disk.
 	 */
 	if (F_ISSET(conn, WT_CONN_OPTRACK)) {
 		if (session->optrackbuf_ptr > 0) {
-			WT_IGNORE_RET((int)__wt_optrack_flush_buffer(session));
-			WT_IGNORE_RET(__wt_close(session,
-			    &session->optrack_fh));
-			/* Indicate that the file is closed */
-			session->optrack_fh = NULL;
+			__wt_optrack_flush_buffer(session);
+			WT_TRET(__wt_close(session, &session->optrack_fh));
 		}
 
 		/* Free the operation tracking buffer */
@@ -259,7 +391,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, reconfigure, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -280,6 +417,17 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 			F_SET(session, WT_SESSION_IGNORE_CACHE_SIZE);
 		else
 			F_CLR(session, WT_SESSION_IGNORE_CACHE_SIZE);
+	}
+	WT_ERR_NOTFOUND_OK(ret);
+
+	ret = __wt_config_getones(session, config, "cache_cursors", &cval);
+	if (ret == 0) {
+		if (cval.val)
+			F_SET(session, WT_SESSION_CACHE_CURSORS);
+		else {
+			F_CLR(session, WT_SESSION_CACHE_CURSORS);
+			WT_ERR(__session_close_cached_cursors(session));
+		}
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -385,6 +533,16 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	if (*cursorp == NULL)
 		return (__wt_bad_object_type(session, uri));
 
+	if (owner != NULL) {
+		/*
+		 * We support caching simple cursors that have no
+		 * children. If this cursor is a child, we're not going
+		 * to cache this child or its parent.
+		 */
+		F_CLR(owner, WT_CURSTD_CACHEABLE);
+		F_CLR(*cursorp, WT_CURSTD_CACHEABLE);
+	}
+
 	/*
 	 * When opening simple tables, the table code calls this function on the
 	 * underlying data source, in which case the application's URI has been
@@ -407,6 +565,15 @@ int
 __wt_open_cursor(WT_SESSION_IMPL *session,
     const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
+	WT_DECL_RET;
+
+	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, owner, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
+
 	return (__session_open_cursor_int(session, uri, owner, NULL, cfg,
 	    cursorp));
 }
@@ -428,6 +595,13 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
+
+	if (to_dup == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, NULL, cfg, cursorp)) == 0)
+			return (0);
+		WT_RET_NOTFOUND_OK(ret);
+	}
 
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
@@ -699,6 +873,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_NOCONF(session, log_printf);
+	WT_ERR(__wt_txn_context_prepare_check(session));
 
 	va_start(ap, fmt);
 	ret = __wt_log_vprintf(session, fmt, ap);
@@ -851,6 +1026,8 @@ __session_reset(WT_SESSION *wt_session)
 	WT_ERR(__wt_txn_context_check(session, false));
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
+
+	WT_TRET(__wt_session_cursor_cache_sweep(session));
 
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
@@ -1437,7 +1614,12 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, begin_transaction, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, begin_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
 	WT_ERR(__wt_txn_context_check(session, false));
@@ -1459,7 +1641,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, commit_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
 
 	WT_ERR(__wt_txn_context_check(session, true));
@@ -1471,6 +1654,7 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 		    txn->rollback_reason == NULL ? "" : ": ",
 		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
+	__wt_txn_prepare_clear(session);
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);
 	else {
@@ -1479,6 +1663,27 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	}
 
 err:	API_END_RET(session, ret);
+}
+
+/*
+ * __session_prepare_transaction --
+ *	WT_SESSION->prepare_transaction method.
+ */
+static int
+__session_prepare_transaction(WT_SESSION *wt_session, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL(session, prepare_transaction, config, cfg);
+
+	WT_ERR(__wt_txn_context_check(session, true));
+
+	WT_TRET(__wt_txn_prepare(session, cfg));
+
+err:	API_END_RET(session, ret);
+
 }
 
 /*
@@ -1492,11 +1697,13 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, rollback_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
+	__wt_txn_prepare_clear(session);
 	WT_TRET(__wt_session_reset_cursors(session, false));
 
 	WT_TRET(__wt_txn_rollback(session, cfg));
@@ -1541,6 +1748,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 	SESSION_API_CALL_NOCONF(session, pinned_range);
 
 	txn_state = WT_SESSION_TXN_STATE(session);
+	WT_ERR(__wt_txn_context_prepare_check(session));
 
 	/* Assign pinned to the lesser of id or snap_min */
 	if (txn_state->id != WT_TXN_NONE &&
@@ -1587,7 +1795,12 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	uint64_t time_start, time_stop;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, transaction_sync, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, transaction_sync, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
@@ -1681,7 +1894,12 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_STAT_CONN_INCR(session, txn_checkpoint);
-	SESSION_API_CALL(session, checkpoint, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, checkpoint, config, cfg);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -1825,6 +2043,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_verify,
 		__session_begin_transaction,
 		__session_commit_transaction,
+		__session_prepare_transaction,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
 		__session_checkpoint,
@@ -1855,6 +2074,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_verify,
 		__session_begin_transaction,
 		__session_commit_transaction,
+		__session_prepare_transaction,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
 		__session_checkpoint_readonly,
@@ -1915,15 +2135,15 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
-	/*
-	 * If we don't have one, allocate the dhandle hash array.
-	 * Allocate the table hash array as well.
-	 */
-	if (session_ret->dhhash == NULL)
-		WT_ERR(__wt_calloc(session, WT_HASH_ARRAY_SIZE,
-		    sizeof(struct __dhandles_hash), &session_ret->dhhash));
+
+	/* Initialize the dhandle hash array. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
+
+	/* Initialize the cursor cache hash buckets and sweep trigger. */
+	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
+		TAILQ_INIT(&session_ret->cursor_cache[i]);
+	session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
 	/* Initialize transaction support: default to read-committed. */
 	session_ret->isolation = WT_ISO_READ_COMMITTED;

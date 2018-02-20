@@ -1347,7 +1347,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    WT_TXNID_LE(r->last_running, txnid) :
 		    !__txn_visible_id(session, txnid))) {
-			WT_ASSERT(session, upd->type != WT_UPDATE_BIRTHMARK);
 			uncommitted = r->update_uncommitted = true;
 			continue;
 		}
@@ -6156,9 +6155,13 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	__wt_las_cursor(session, &cursor, &session_flags);
 
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-		if (multi->supd != NULL)
+		if (multi->supd != NULL) {
 			WT_ERR(__wt_las_insert_block(
 			    session, cursor, r->page, multi, key));
+
+			__wt_free(session, multi->supd);
+			multi->supd_entries = 0;
+		}
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
@@ -6185,7 +6188,7 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 */
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 		if (multi->supd != NULL && multi->page_las.las_pageid != 0)
-			WT_TRET(__wt_las_remove_block(session, NULL,
+			WT_TRET(__wt_las_remove_block(session,
 			    btree_id, multi->page_las.las_pageid));
 
 	return (ret);

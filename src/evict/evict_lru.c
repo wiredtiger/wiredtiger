@@ -1528,7 +1528,7 @@ retry:	while (slot < max_entries) {
 	 * candidates and we aren't finding more.
 	 */
 	if (slot < max_entries && (retries < 2 ||
-	    (retries < 10 &&
+	    (retries < WT_RETRY_MAX &&
 	    (slot == queue->evict_entries || slot > start_slot)))) {
 		start_slot = slot;
 		++retries;
@@ -2274,7 +2274,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
 	WT_TRACK_OP_INIT(session);
 
-	WT_RET(__evict_get_ref(session, is_server, &btree, &ref));
+	WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
 	app_timer = false;
@@ -2443,7 +2443,6 @@ err:	if (timer) {
 
 done:	WT_TRACK_OP_END(session);
 	return (ret);
-	/* NOTREACHED */
 }
 
 /*

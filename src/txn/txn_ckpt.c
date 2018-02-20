@@ -711,7 +711,8 @@ __checkpoint_prepare(
 		__wt_timestamp_set(
 		    &txn->read_timestamp, &txn_global->stable_timestamp);
 		F_SET(txn, WT_TXN_HAS_TS_READ);
-	}
+	} else
+		__wt_timestamp_set_zero(&txn->read_timestamp);
 #else
 	WT_UNUSED(use_timestamp);
 #endif

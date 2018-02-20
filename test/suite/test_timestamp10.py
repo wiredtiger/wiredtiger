@@ -27,9 +27,10 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp10.py
-#   Timestamps: timestamp ordering
+#   Timestamps: Saving and querying the checkpoint recovery timestamp
 #
 
+import fnmatch, os, shutil
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
@@ -37,126 +38,100 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
-    conn_config = 'verbose=[timestamp]'
-    def test_timestamp_range(self):
-        if not wiredtiger.timestamp_build() or not wiredtiger.diagnostic_build():
-            self.skipTest('requires a timestamp and diagnostic build')
+    conn_config = 'config_base=false,create,log=(enabled)'
+    coll1_uri = 'table:collection10.1'
+    coll2_uri = 'table:collection10.2'
+    coll3_uri = 'table:collection10.3'
+    oplog_uri = 'table:oplog10'
 
-        base = 'timestamp10'
-        uri = 'file:' + base
-        # Create a data item at a timestamp
-        self.session.create(uri, 'key_format=S,value_format=S')
+    def copy_dir(self, olddir, newdir):
+        ''' Simulate a crash from olddir and restart in newdir. '''
+        # with the connection still open, copy files to new directory
+        shutil.rmtree(newdir, ignore_errors=True)
+        os.mkdir(newdir)
+        for fname in os.listdir(olddir):
+            fullname = os.path.join(olddir, fname)
+            # Skip lock file on Windows since it is locked
+            if os.path.isfile(fullname) and \
+              "WiredTiger.lock" not in fullname and \
+              "Tmplog" not in fullname and \
+              "Preplog" not in fullname:
+                shutil.copy(fullname, newdir)
+        # close the original connection.
+        self.close_conn()
 
-        # Insert a data item at timestamp 2
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(2))
-        c['key'] = 'value2'
-        self.session.commit_transaction()
-        c.close()
-
-        # Modify the data item at timestamp 1
-        #
-        # The docs say:
-        # The commits to a particular data item must be performed in timestamp
-        # order. Again, this is only checked in diagnostic builds and if
-        # applications violate this rule, data consistency can be violated.
-        #
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
-        c['key'] = 'value1'
-        msg='on new update is older than'
-        with self.expectedStdoutPattern(msg):
-            self.session.commit_transaction()
-        c.close()
-
-        # Make sure we can successfully add a different key at timestamp 1.
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
-        c['key1'] = 'value1'
-        self.session.commit_transaction()
-        c.close()
+    def test_timestamp_recovery(self):
+        if not wiredtiger.timestamp_build():
+            self.skipTest('requires a timestamp build')
 
         #
-        # Insert key2 at timestamp 10 and key3 at 15.
-        # Then modify both keys in one transaction at timestamp 14.
-        # Modifying the one from 15 should report a warning message, but
-        # the update will be applied.
+        # Create several collection-like tables that are checkpoint durability.
+        # Add data to each of them separately and checkpoint so that each one
+        # has a different stable timestamp.
         #
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(10))
-        c['key2'] = 'value10'
-        self.session.commit_transaction()
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(15))
-        c['key3'] = 'value15'
-        self.session.commit_transaction()
+        self.session.create(self.oplog_uri, 'key_format=i,value_format=i')
+        self.session.create(self.coll1_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        self.session.create(self.coll2_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        self.session.create(self.coll3_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        c_op = self.session.open_cursor(self.oplog_uri)
+        c = []
+        c.append(self.session.open_cursor(self.coll1_uri))
+        c.append(self.session.open_cursor(self.coll2_uri))
+        c.append(self.session.open_cursor(self.coll3_uri))
 
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(14))
-        c['key2'] = 'value14'
-        c['key3'] = 'value14'
-        with self.expectedStdoutPattern(msg):
-            self.session.commit_transaction()
-        c.close()
+        # Begin by adding some data.
+        nentries = 10
+        table_cnt = 3
+        for table in range(1,table_cnt+1):
+            curs = c[table - 1]
+            start = nentries * table
+            end = start + nentries
+            ts = (end - 3)
+            for i in range(start,end):
+                self.session.begin_transaction()
+                c_op[i] = i
+                curs[i] = i
+                self.pr("i: " + str(i))
+                self.session.commit_transaction(
+                  'commit_timestamp=' + timestamp_str(i))
+            # Set the oldest and stable timestamp a bit earlier than the data
+            # we inserted. Take a checkpoint to the stable timestamp.
+            self.pr("stable ts: " + str(ts))
+            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(ts) +
+                ',stable_timestamp=' + timestamp_str(ts))
+            # This forces a different checkpoint timestamp for each table.
+            self.session.checkpoint()
 
-        c = self.session.open_cursor(uri)
-        self.assertEquals(c['key2'], 'value14')
-        self.assertEquals(c['key3'], 'value14')
-        c.close()
+        # Copy to a new database and then recover.
+        self.copy_dir(".", "RESTART")
+        self.copy_dir(".", "SAVE")
+        new_conn = self.wiredtiger_open("RESTART", self.conn_config)
+        # Query the recovery timestamp and verify the data in the new database.
+        new_session = new_conn.open_session()
+        q = new_conn.query_timestamp('get=recovery')
+        self.pr("query recovery ts: " + q)
+        self.assertTimestampsEqual(new_conn.query_timestamp('get=recovery'), timestamp_str(ts))
 
-        #
-        # Separately, we should be able to update key2 at timestamp 16.
-        #
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(16))
-        c['key2'] = 'value16'
-        self.session.commit_transaction()
-
-        # Updating key3 inserted at timestamp 13 will report a warning.
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
-        c['key3'] = 'value13'
-        with self.expectedStdoutPattern(msg):
-            self.session.commit_transaction()
-        c.close()
-
-        # Test that updating again with an invalid timestamp reports a warning.
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(12))
-        c['key3'] = 'value12'
-        with self.expectedStdoutPattern(msg):
-            self.session.commit_transaction()
-        c.close()
-
-        c = self.session.open_cursor(uri)
-        self.assertEquals(c['key3'], 'value12')
-        c.close()
-
-        # Now try a later timestamp.
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(17))
-        c['key3'] = 'value17'
-        self.session.commit_transaction()
-        c.close()
+        c_op = new_session.open_cursor(self.oplog_uri)
+        c = []
+        c.append(new_session.open_cursor(self.coll1_uri))
+        c.append(new_session.open_cursor(self.coll2_uri))
+        c.append(new_session.open_cursor(self.coll3_uri))
+        for table in range(1,table_cnt+1):
+            curs = c[table - 1]
+            start = nentries * table
+            end = start + nentries
+            ts = (end - 3)
+            for i in range(start,end):
+                self.assertEquals(c_op[i], i)
+                curs.set_key(i)
+                # Earlier tables have all the data because later checkpoints
+                # will save the last bit of data. Only the last table will
+                # be missing some.
+                if i <= ts or table != table_cnt:
+                    self.assertEquals(curs[i], i)
+                else:
+                    self.assertEqual(curs.search(), wiredtiger.WT_NOTFOUND)
 
 if __name__ == '__main__':
     wttest.run()

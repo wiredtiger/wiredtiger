@@ -149,8 +149,10 @@ file_runtime_config = [
         Config('commit_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on modifications with this table.  Verification is 'none'
-            if mixed update use is allowed.''',
-            choices=['always','never','none']),
+            if mixed update use is allowed. If 'key_consistent' is
+            set then all updates to a specific key must be the same
+            with respect to timestamp usage or not.''',
+            choices=['always','key_consistent', 'never','none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'
@@ -335,6 +337,8 @@ file_meta = file_config + [
         the file checkpoint entries'''),
     Config('checkpoint_lsn', '', r'''
         LSN of the last checkpoint'''),
+    Config('checkpoint_timestamp', '', r'''
+        stable timestamp of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
     Config('version', '(major=0,minor=0)', r'''
@@ -717,6 +721,13 @@ wiredtiger_open_statistics_log_configuration = [
 ]
 
 session_config = [
+    Config('cache_cursors', 'true', r'''
+        enable caching of cursors for reuse. Any calls to WT_CURSOR::close
+        for a cursor created in this session will mark the cursor
+        as cached and keep it available to be reused for later calls
+        to WT_SESSION::open_cursor. Cached cursors may be eventually
+        closed.''',
+        type='boolean'),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size
         and are not blocked when the cache is full.  Note that use of this
@@ -1135,6 +1146,10 @@ methods = {
 ]),
 
 'WT_SESSION.begin_transaction' : Method([
+    Config('ignore_prepare', 'false', r'''
+        whether to ignore the updates by other prepared transactions as part of
+        read operations of this transaction''',
+        type='boolean'),
     Config('isolation', '', r'''
         the isolation level for this transaction; defaults to the
         session's isolation level''',
@@ -1178,6 +1193,14 @@ methods = {
         wait for record to be written or synchronized.  The
         \c on setting forces log records to be written to the storage device''',
         choices=['background', 'off', 'on']),
+]),
+
+'WT_SESSION.prepare_transaction' : Method([
+    Config('prepare_timestamp', '', r'''
+        set the prepare timestamp for the updates of the current transaction.
+        The supplied value should not be older than any active read timestamps.
+        This configuration option is mandatory.  See
+        @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1325,7 +1348,7 @@ methods = {
         \c oldest_timestamp and the read timestamps of all active readers, and
         \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps''',
-        choices=['all_committed','oldest','pinned','stable']),
+        choices=['all_committed','oldest','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

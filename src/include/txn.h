@@ -104,6 +104,7 @@ struct __wt_txn_global {
 	WT_DECL_TIMESTAMP(commit_timestamp)
 	WT_DECL_TIMESTAMP(oldest_timestamp)
 	WT_DECL_TIMESTAMP(pinned_timestamp)
+	WT_DECL_TIMESTAMP(recovery_timestamp)
 	WT_DECL_TIMESTAMP(stable_timestamp)
 	bool has_commit_timestamp;
 	bool has_oldest_timestamp;
@@ -241,6 +242,7 @@ struct __wt_txn {
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
+	bool clear_ts_queue;	/* Set if we need to clear from the queue */
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
@@ -262,21 +264,24 @@ struct __wt_txn {
 	const char *rollback_reason;		/* If rollback, the reason */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_AUTOCOMMIT	0x0001u
-#define	WT_TXN_ERROR		0x0002u
-#define	WT_TXN_HAS_ID		0x0004u
-#define	WT_TXN_HAS_SNAPSHOT	0x0008u
-#define	WT_TXN_HAS_TS_COMMIT	0x0010u
-#define	WT_TXN_HAS_TS_READ	0x0020u
-#define	WT_TXN_NAMED_SNAPSHOT	0x0040u
-#define	WT_TXN_PUBLIC_TS_COMMIT	0x0080u
-#define	WT_TXN_PUBLIC_TS_READ	0x0100u
-#define	WT_TXN_READONLY		0x0200u
-#define	WT_TXN_RUNNING		0x0400u
-#define	WT_TXN_SYNC_SET		0x0800u
-#define	WT_TXN_TS_COMMIT_ALWAYS	0x1000u
-#define	WT_TXN_TS_COMMIT_NEVER	0x2000u
-#define	WT_TXN_UPDATE	        0x4000u
+#define	WT_TXN_AUTOCOMMIT	0x00001u
+#define	WT_TXN_ERROR		0x00002u
+#define	WT_TXN_HAS_ID		0x00004u
+#define	WT_TXN_HAS_SNAPSHOT	0x00008u
+#define	WT_TXN_HAS_TS_COMMIT	0x00010u
+#define	WT_TXN_HAS_TS_READ	0x00020u
+#define	WT_TXN_IGNORE_PREPARE	0x00040u
+#define	WT_TXN_NAMED_SNAPSHOT	0x00080u
+#define	WT_TXN_PREPARE		0x00100u
+#define	WT_TXN_PUBLIC_TS_COMMIT	0x00200u
+#define	WT_TXN_PUBLIC_TS_READ	0x00400u
+#define	WT_TXN_READONLY		0x00800u
+#define	WT_TXN_RUNNING		0x01000u
+#define	WT_TXN_SYNC_SET		0x02000u
+#define	WT_TXN_TS_COMMIT_ALWAYS	0x04000u
+#define	WT_TXN_TS_COMMIT_KEYS	0x08000u
+#define	WT_TXN_TS_COMMIT_NEVER	0x10000u
+#define	WT_TXN_UPDATE	        0x20000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

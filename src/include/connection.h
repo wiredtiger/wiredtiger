@@ -6,12 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-/*
- * Default hash table size; we don't need a prime number of buckets
- * because we always use a good hash function.
- */
-#define	WT_HASH_ARRAY_SIZE	512
-
 /*******************************************
  * Global per-process structure.
  *******************************************/
@@ -193,7 +187,6 @@ struct __wt_connection_impl {
 	WT_FH *optrack_map_fh;		/* Name to id translation file. */
 	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
 	uintmax_t optrack_pid;		/* Cache the process ID. */
-	uint16_t  optrack_uid;		/* Unique function ID */
 
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
