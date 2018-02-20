@@ -149,8 +149,11 @@ config_setup(void)
 	if (DATASOURCE("kvsbdb") && access(KVS_BDB_PATH, R_OK) != 0)
 		testutil_die(errno, "kvsbdb shared library: %s", KVS_BDB_PATH);
 
-	/* Some data-sources don't support user-specified collations. */
-	if (DATASOURCE("kvsbdb"))
+	/*
+	 * Only row-store tables support collation order.
+	 * Some data-sources don't support user-specified collations.
+	 */
+	if (g.type != ROW || DATASOURCE("kvsbdb"))
 		config_single("reverse=off", 0);
 
 	/*
@@ -588,7 +591,7 @@ config_pct(void)
 
 	/* Cursor modify isn't possible for fixed-length column store. */
 	if (g.type == FIX) {
-		if (config_is_perm("modify_pct"))
+		if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
 			testutil_die(EINVAL,
 			    "WT_CURSOR.modify not supported by fixed-length "
 			    "column store");
@@ -603,7 +606,7 @@ config_pct(void)
 	 */
 	if (g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
 		if (config_is_perm("isolation")) {
-			if (config_is_perm("modify_pct"))
+			if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
 				testutil_die(EINVAL,
 				    "WT_CURSOR.modify not supported with "
 				    "read-uncommitted transactions");
