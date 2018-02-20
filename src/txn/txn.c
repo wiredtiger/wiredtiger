@@ -1010,7 +1010,7 @@ __wt_txn_prepare_clear(WT_SESSION_IMPL *session)
  *	Prepare the current transaction.
  */
 int
-__wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_prepare(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_TIMESTAMPS
 	WT_CONFIG_ITEM cval;
@@ -1106,6 +1106,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* Set transaction state to prepare. */
+
 	F_SET(&session->txn, WT_TXN_PREPARE);
 
 	/* Release our snapshot in case it is keeping data pinned. */
