@@ -779,6 +779,8 @@ struct __wt_page_deleted {
 	volatile uint64_t txnid;		/* Transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
 
+	uint32_t previous_state;		/* Previous state */
+
 	WT_UPDATE **update_list;		/* List of updates for abort */
 };
 
