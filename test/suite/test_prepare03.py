@@ -32,24 +32,24 @@ from wtscenario import make_scenarios
 # test_prepre03.py
 #    Prepare transaction check post conditions for cursor operations
 
-# Pattern of test script is to invoke cursor operations in prepared
-# transactions to ensure they fail and to commit transaction and repeat
-# same operations to ensure normally they pass.
+# Pattern of test script is to invoke cursor operations in prepared transaction
+# state to ensure they fail and to repeat same operations in non-prepared state
+# to ensure normally they pass.
 class test_prepre03(wttest.WiredTigerTestCase):
     """
     Test basic operations
     """
-    table_name1 = 'test_prepare_cursor'
+    table_name = 'test_prepare_cursor'
     nentries = 10
 
     scenarios = make_scenarios([
-        ('file-col', dict(tablekind='col',uri='file')),
-        ('file-fix', dict(tablekind='fix',uri='file')),
-        ('file-row', dict(tablekind='row',uri='file')),
-        ('lsm-row', dict(tablekind='row',uri='lsm')),
-        ('table-col', dict(tablekind='col',uri='table')),
-        ('table-fix', dict(tablekind='fix',uri='table')),
-        ('table-row', dict(tablekind='row',uri='table'))
+        ('file-col', dict(tablekind='col',uri='file', format='key_format=r,value_format=S')),
+        ('file-fix', dict(tablekind='fix',uri='file', format='key_format=r,value_format=8t')),
+        ('file-row', dict(tablekind='row',uri='file', format='key_format=S,value_format=S')),
+        ('lsm-row', dict(tablekind='row',uri='lsm', format='key_format=S,value_format=S')),
+        ('table-col', dict(tablekind='col',uri='table', format='key_format=r,value_format=S')),
+        ('table-fix', dict(tablekind='fix',uri='table', format='key_format=r,value_format=8t')),
+        ('table-row', dict(tablekind='row',uri='table', format='key_format=S,value_format=S'))
     ])
 
     def genkey(self, i):
@@ -72,51 +72,27 @@ class test_prepre03(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError, cursor.get_value, valuemsg)
 
-    def session_create(self, name, args):
-        """
-        session.create, but report errors more completely
-        """
-        try:
-            self.session.create(name, args)
-        except:
-            print('**** ERROR in session.create("' + name + '","' + args + '") ***** ')
-            raise
-
-    # Create and session and test cursor operations.
+    # Create the table and test cursor operations.
     def test_prepare_cursor(self):
-        tablearg = self.uri + ':' + self.table_name1
+        tablearg = self.uri + ':' + self.table_name
+        create_args = self.format
         preparemsg = "/ not permitted in a prepared transaction/"
-        if self.tablekind == 'row':
-            keyformat = 'key_format=S'
-        else:
-            keyformat = 'key_format=r'  # record format
-        if self.tablekind == 'fix':
-            valformat = 'value_format=8t'
-        else:
-            valformat = 'value_format=S'
-        create_args = keyformat + ',' + valformat
 
         self.pr('creating session: ' + create_args)
-        self.session_create(tablearg, create_args)
+        self.session.create(tablearg, create_args)
         self.pr('creating cursor')
         cursor = self.session.open_cursor(tablearg, None, None)
         self.assertCursorHasNoKeyValue(cursor)
         self.assertEqual(cursor.uri, tablearg)
 
-        # Check insert and reset operations
+        # Check insert operation
         for i in range(0, self.nentries):
             self.session.begin_transaction()
             cursor.set_key(self.genkey(i))
             cursor.set_value(self.genvalue(i))
             self.session.prepare_transaction("prepare_timestamp=2a")
-            #cursor.set_value(self.genvalue(i))
-            #with self.expectedStderrPattern(preparemsg):
-            #    self.assertRaises(wiredtiger.WiredTigerError,
-            #            lambda: cursor.set_value(self.genvalue(i)))
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.insert(), preparemsg)
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:cursor.reset(), preparemsg)
             self.session.commit_transaction("commit_timestamp=2b")
             cursor.insert()
 
@@ -176,7 +152,10 @@ class test_prepre03(wttest.WiredTigerTestCase):
         cursor.reset()
         self.assertCursorHasNoKeyValue(cursor)
 
-        cursor.set_key(self.genkey(5))
+        # Search for a specific key.
+        # Verify we get the expected error and then later we can update and
+        # remove it.
+        cursor.set_key(self.genkey(self.nentries/2))
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -191,19 +170,21 @@ class test_prepre03(wttest.WiredTigerTestCase):
             lambda:cursor.reconfigure(), preparemsg)
         self.session.commit_transaction("commit_timestamp=2b")
         cursor.search()
-        cursor.set_value(self.genvalue(15))
+        cursor.set_value(self.genvalue(self.nentries + self.nentries/2))
         cursor.update()
         cursor.remove()
 
         # Check search_near operation
-        cursor.set_key(self.genkey(10))
+        cursor.set_key(self.genkey(self.nentries))
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.search_near(), preparemsg)
         self.session.commit_transaction("commit_timestamp=2b")
+        # There is a bug with search_near operation when no key is set.
+        # This fix is being tracked in WT-3918.
         if self.uri == 'lsm':
-            cursor.set_key(self.genkey(10))
+            cursor.set_key(self.genkey(self.nentries))
         cursor.search_near()
         cursor.close()
 

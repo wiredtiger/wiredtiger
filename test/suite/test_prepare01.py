@@ -164,13 +164,13 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         s.begin_transaction("isolation=read-committed")
         self.assertEqual(self.cursor_count(cursor), 1)
 
-        self.session.prepare_transaction("prepare_timestamp=2a")
-        s.commit_transaction("commit_timestamp=3a")
-        s.begin_transaction(None)
+        s.prepare_transaction("prepare_timestamp=4a")
+        s.commit_transaction("commit_timestamp=5a")
+        s.begin_transaction()
         self.assertEqual(self.cursor_count(cursor), 1)
-        s.prepare_transaction("prepare_timestamp=2a")
+        s.prepare_transaction("prepare_timestamp=7a")
 
-        s.commit_transaction("commit_timestamp=3a")
+        s.commit_transaction("commit_timestamp=8a")
         s.close()
 
 if __name__ == '__main__':

@@ -43,14 +43,19 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.create("table:mytable", "key_format=S,value_format=S")
         cursor = self.session.open_cursor("table:mytable", None)
-        # Session operations not permitted after prepare_transaction
+
+        # Test the session methods that are forbidden after the transaction is
+        # prepared.
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         msg = "/ not permitted in a/"
-        # Below operations are not supported in prepared state. Operations
-        # are listed in the same order as declared with in session
-        # structure and assigned in open_session. Any function missed below
-        # is to be considered as supported in prepare transaction state.
+        #
+        # The operations listed below are not supported in the prepared state.
+        #
+        # The operations are listed in the same order as they are declared in
+        # the session structure. Any function missing below is allowed in the
+        # prepared state.
+        #
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.reconfigure(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -103,18 +108,18 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
             lambda:self.session.transaction_sync(), msg)
         self.session.rollback_transaction()
 
-        # Commit after prepare is permitted
+        # Commit after prepare is permitted.
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.commit_transaction("commit_timestamp=2b")
 
-        # Rollback after prepare is permitted
+        # Rollback after prepare is permitted.
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.rollback_transaction()
 
-        # Close after prepare is permitted
+        # Close after prepare is permitted.
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.close()
