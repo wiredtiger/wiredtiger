@@ -908,11 +908,10 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)cursor->session;
+	CURSOR_API_CALL(cursor, session, reconfigure, NULL);
 
-	WT_RET(__wt_txn_context_prepare_check(session));
 	/* Reconfiguration resets the cursor. */
-	WT_RET(cursor->reset(cursor));
+	WT_ERR(cursor->reset(cursor));
 
 	/*
 	 * append
@@ -926,7 +925,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 			else
 				F_CLR(cursor, WT_CURSTD_APPEND);
 		} else
-			WT_RET_NOTFOUND_OK(ret);
+			WT_ERR_NOTFOUND_OK(ret);
 	}
 
 	/*
@@ -939,9 +938,9 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 		else
 			F_CLR(cursor, WT_CURSTD_OVERWRITE);
 	} else
-		WT_RET_NOTFOUND_OK(ret);
+		WT_ERR_NOTFOUND_OK(ret);
 
-	return (0);
+err:	API_END_RET(session, ret);
 }
 
 /*
