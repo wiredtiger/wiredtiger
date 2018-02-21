@@ -110,7 +110,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         new_session = new_conn.open_session()
         q = new_conn.query_timestamp('get=recovery')
         self.pr("query recovery ts: " + q)
-        self.assertTimestampsEqual(new_conn.query_timestamp('get=recovery'), timestamp_str(ts))
+        self.assertTimestampsEqual(q, timestamp_str(ts))
 
         c_op = new_session.open_cursor(self.oplog_uri)
         c = []
@@ -143,6 +143,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         new_session = new_conn.open_session()
         q = new_conn.query_timestamp('get=recovery')
         self.pr("query recovery ts: " + q)
+        self.assertTimestampsEqual(q, timestamp_str(ts))
 
 if __name__ == '__main__':
     wttest.run()
