@@ -47,19 +47,6 @@ class test_timestamp12(wttest.WiredTigerTestCase):
    ]
     scenarios = make_scenarios(closecfg)
 
-    def copy_dir(self, olddir, newdir):
-        # with the connection still open, copy files to new directory
-        shutil.rmtree(newdir, ignore_errors=True)
-        os.mkdir(newdir)
-        for fname in os.listdir(olddir):
-            fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
-            if os.path.isfile(fullname) and \
-            "WiredTiger.lock" not in fullname and \
-            "Tmplog" not in fullname and \
-            "Preplog" not in fullname:
-                shutil.copy(fullname, newdir)
-
     def verify_expected(self, op_exp, coll_exp):
         c_op = self.session.open_cursor(self.oplog_uri)
         c_coll = self.session.open_cursor(self.coll_uri)
