@@ -904,12 +904,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					 * using state.
 					 */
 					FLD_SET(op->u.upd->state,
-					    WT_UPDATE_LOCKED);
+					    WT_UPDATE_STATE_LOCKED);
 					__wt_timestamp_set(
 					    &op->u.upd->timestamp,
 					    &txn->commit_timestamp);
 					FLD_SET(op->u.upd->state,
-					    WT_UPDATE_NONE);
+					    WT_UPDATE_STATE_READY);
 				} else
 					__wt_timestamp_set(
 					    &op->u.upd->timestamp,
@@ -1101,7 +1101,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			if (op->fileid != WT_METAFILE_ID)
 				__wt_timestamp_set(&op->u.upd->timestamp, &ts);
 
-			FLD_SET(op->u.upd->state, WT_UPDATE_PREPARE);
+			FLD_SET(op->u.upd->state, WT_UPDATE_STATE_PREPARED);
 			break;
 
 		case WT_TXN_OP_REF_DELETE:

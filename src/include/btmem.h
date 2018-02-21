@@ -989,9 +989,14 @@ struct __wt_update {
 #define	WT_UPDATE_TOMBSTONE	5	/* deleted */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
-#define	WT_UPDATE_LOCKED	0	/* locked */
-#define	WT_UPDATE_NONE		1	/* prepare committed */
-#define	WT_UPDATE_PREPARE	2	/* prepared */
+	/*
+	 * The update state is used for transaction prepare to manage
+	 * visibility and transitioning update structure state safely.
+	 */
+#define	WT_UPDATE_STATE_READY		0	/* Must be 0. Default or
+						   finalized prepare */
+#define	WT_UPDATE_STATE_LOCKED		1	/* locked */
+#define	WT_UPDATE_STATE_PREPARED	2	/* prepared */
 	uint8_t state;			/* state (one byte : conserve memory) */
 
 	/* If the update includes a complete value. */
