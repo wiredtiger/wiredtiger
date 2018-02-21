@@ -1131,8 +1131,6 @@ err:	/*
 			    __wt_tree_modify_set(s));
 
 			WT_TRET(wt_session->close(wt_session, config));
-			if (conn->lock_fh != NULL)
-				WT_TRET(__wt_close(session, &conn->lock_fh));
 		}
 	}
 
