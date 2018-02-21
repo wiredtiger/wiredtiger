@@ -1044,10 +1044,10 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *s, *session;
 	uint32_t i;
-	const char *use_ts_cfg;
+	const char *ckpt_cfg;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	use_ts_cfg = "use_timestamp=false";
+	ckpt_cfg = "use_timestamp=false";
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
 
@@ -1056,7 +1056,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 		F_SET(conn, WT_CONN_LEAK_MEMORY);
 	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
 	if (cval.val != 0 && conn->txn_global.has_stable_timestamp) {
-		use_ts_cfg = "use_timestamp=true";
+		ckpt_cfg = "use_timestamp=true";
 		F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
 	}
 
@@ -1117,7 +1117,7 @@ err:	/*
 		if (s != NULL) {
 			const char *checkpoint_cfg[] = {
 			    WT_CONFIG_BASE(session, WT_SESSION_checkpoint),
-			    use_ts_cfg,
+			    ckpt_cfg,
 			    NULL
 			};
 			wt_session = &s->iface;
