@@ -756,6 +756,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			    hex_timestamp[0], hex_timestamp[1]);
 		}
 #else
+		WT_UNUSED(txn);
 		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
 #endif
