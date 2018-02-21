@@ -872,8 +872,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
 	va_list ap;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL_NOCONF(session, log_printf);
-	WT_ERR(__wt_txn_context_prepare_check(session));
+	SESSION_API_CALL_NOCONF_PREPARE_NOT_ALLOWED(session, log_printf);
 
 	va_start(ap, fmt);
 	ret = __wt_log_vprintf(session, fmt, ap);
@@ -1655,7 +1654,6 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 		    txn->rollback_reason == NULL ? "" : ": ",
 		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
-	__wt_txn_prepare_clear(session);
 	if (ret == 0)
 		ret = __wt_txn_commit(session, cfg);
 	else {
@@ -1675,17 +1673,48 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg);
-	WT_UNUSED(cfg);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
-	WT_ERR(__wt_txn_prepare(session));
+	/*
+	 * A failed transaction cannot be prepared, as it cannot guarantee
+	 * a subsequent commit.
+	 */
+	txn = &session->txn;
+	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
+		WT_ERR_MSG(session, EINVAL,
+		    "failed transaction requires rollback%s%s",
+		    txn->rollback_reason == NULL ? "" : ": ",
+		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
+
+	WT_ERR(__wt_txn_prepare(session, cfg));
 
 err:	API_END_RET(session, ret);
 
+}
+
+/*
+ * __session_prepare_transaction_readonly --
+ *	WT_SESSION->prepare_transaction method; readonly version.
+ */
+static int
+__session_prepare_transaction_readonly(
+    WT_SESSION *wt_session, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(config);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL_NOCONF(session, prepare_transaction);
+
+	ret = __wt_session_notsup(session);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1705,7 +1734,6 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
-	__wt_txn_prepare_clear(session);
 	WT_TRET(__wt_session_reset_cursors(session, false));
 
 	WT_TRET(__wt_txn_rollback(session, cfg));
@@ -1747,10 +1775,9 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 	uint64_t pinned;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL_NOCONF(session, pinned_range);
+	SESSION_API_CALL_NOCONF_PREPARE_NOT_ALLOWED(session, pinned_range);
 
 	txn_state = WT_SESSION_TXN_STATE(session);
-	WT_ERR(__wt_txn_context_prepare_check(session));
 
 	/* Assign pinned to the lesser of id or snap_min */
 	if (txn_state->id != WT_TXN_NONE &&
@@ -2076,7 +2103,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_verify,
 		__session_begin_transaction,
 		__session_commit_transaction,
-		__session_prepare_transaction,
+		__session_prepare_transaction_readonly,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
 		__session_checkpoint_readonly,

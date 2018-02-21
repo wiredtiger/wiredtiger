@@ -239,7 +239,7 @@ __curds_reset(WT_CURSOR *cursor)
 
 	source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
 
-	CURSOR_API_CALL(cursor, session, reset, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
 	WT_STAT_CONN_INCR(session, cursor_reset);
 	WT_STAT_DATA_INCR(session, cursor_reset);
@@ -444,7 +444,7 @@ __curds_close(WT_CURSOR *cursor)
 
 	cds = (WT_CURSOR_DATA_SOURCE *)cursor;
 
-	CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 
 	if (cds->source != NULL)
 		ret = cds->source->close(cds->source);

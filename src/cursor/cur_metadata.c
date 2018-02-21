@@ -365,7 +365,7 @@ __curmetadata_reset(WT_CURSOR *cursor)
 
 	mdc = (WT_CURSOR_METADATA *)cursor;
 	file_cursor = mdc->file_cursor;
-	CURSOR_API_CALL(cursor, session,
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session,
 	    reset, ((WT_CURSOR_BTREE *)file_cursor)->btree);
 
 	if (F_ISSET(mdc, WT_MDC_POSITIONED) && !F_ISSET(mdc, WT_MDC_ONMETADATA))
@@ -553,7 +553,7 @@ __curmetadata_close(WT_CURSOR *cursor)
 
 	mdc = (WT_CURSOR_METADATA *)cursor;
 	c = mdc->file_cursor;
-	CURSOR_API_CALL(cursor, session, close, c == NULL ?
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, c == NULL ?
 	    NULL : ((WT_CURSOR_BTREE *)c)->btree);
 
 	if (c != NULL)

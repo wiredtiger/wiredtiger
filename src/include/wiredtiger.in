@@ -3580,6 +3580,14 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * transaction.
  */
 #define	WT_CACHE_FULL	(-31807)
+/*!
+ * Conflict with a prepared update.
+ * This error is generated when the application attempts to update an already
+ * updated record which is in prepared state. An updated record will be in
+ * prepared state, when the transaction that performed the update is in prepared
+ * state.
+ */
+#define	WT_PREPARE_CONFLICT	(-31808)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

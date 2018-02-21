@@ -190,7 +190,7 @@ __wt_snprintf_len_incr(
 
 /*
  * __wt_txn_context_prepare_check --
- *	Return an error, if the current transaction is in the prepare state.
+ *	Return an error if the current transaction is in the prepare state.
  */
 static inline int
 __wt_txn_context_prepare_check( WT_SESSION_IMPL *session)

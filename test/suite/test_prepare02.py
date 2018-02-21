@@ -47,7 +47,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         # Test the session methods that are forbidden after the transaction is
         # prepared.
         self.session.begin_transaction()
-        self.session.prepare_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
         msg = "/ not permitted in a/"
         #
         # The operations listed below are not supported in the prepared state.
@@ -96,7 +96,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.begin_transaction(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.session.prepare_transaction(), msg)
+            lambda:self.session.prepare_transaction("prepare_timestamp=2a"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
                 "commit_timestamp=2a"), msg)
@@ -111,17 +111,17 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit after prepare is permitted.
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
-        self.session.prepare_transaction()
-        self.session.commit_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.session.commit_transaction("commit_timestamp=2b")
 
         # Rollback after prepare is permitted.
         self.session.begin_transaction()
-        self.session.prepare_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.rollback_transaction()
 
         # Close after prepare is permitted.
         self.session.begin_transaction()
-        self.session.prepare_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.close()
 
 if __name__ == '__main__':
