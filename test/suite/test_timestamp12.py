@@ -106,7 +106,7 @@ class test_timestamp12(wttest.WiredTigerTestCase):
             self.session.commit_transaction(
               'commit_timestamp=' + timestamp_str(i))
 
-        # Close and reopen the connection. 
+        # Close and reopen the connection.
         self.close_conn(self.close_cfg)
         self.session = self.conn.open_session()
 
