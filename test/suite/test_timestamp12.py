@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp12.py
-#   Timestamps: Saving and querying the checkpoint recovery timestamp
+#   Timestamps: Test the use_timestamp setting when closing the connection.
 #
 
 import shutil, os, wiredtiger, wttest
