@@ -288,7 +288,9 @@ __curmetadata_next(WT_CURSOR *cursor)
 			WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
 			    ret = file_cursor->next(mdc->file_cursor));
 			WT_ERR(ret);
-			if ((ret = __curmetadata_setkv(mdc, file_cursor)) == 0)
+			WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+			    ret = __curmetadata_setkv(mdc, file_cursor));
+			if (ret == 0)
 				break;
 			WT_ERR_NOTFOUND_OK(ret);
 		}
@@ -335,7 +337,9 @@ __curmetadata_prev(WT_CURSOR *cursor)
 			break;
 		}
 		WT_ERR(ret);
-		if ((ret = __curmetadata_setkv(mdc, file_cursor)) == 0)
+		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+		    ret = __curmetadata_setkv(mdc, file_cursor));
+		if (ret == 0)
 			break;
 		WT_ERR_NOTFOUND_OK(ret);
 	}
@@ -397,7 +401,9 @@ __curmetadata_search(WT_CURSOR *cursor)
 		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
 		    ret = file_cursor->search(file_cursor));
 		WT_ERR(ret);
-		WT_ERR(__curmetadata_setkv(mdc, file_cursor));
+		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+		    ret = __curmetadata_setkv(mdc, file_cursor));
+		WT_ERR(ret);
 	}
 
 err:	if (ret != 0) {
@@ -433,7 +439,9 @@ __curmetadata_search_near(WT_CURSOR *cursor, int *exact)
 		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
 		    ret = file_cursor->search_near(file_cursor, exact));
 		WT_ERR(ret);
-		WT_ERR(__curmetadata_setkv(mdc, file_cursor));
+		WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+		    ret = __curmetadata_setkv(mdc, file_cursor));
+		WT_ERR(ret);
 	}
 
 err:	if (ret != 0) {
