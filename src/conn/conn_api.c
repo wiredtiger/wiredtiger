@@ -1121,7 +1121,6 @@ err:	/*
 			    NULL
 			};
 			wt_session = &s->iface;
-			__wt_errx(session, "Calling CKPT %s", use_ts_cfg);
 			WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
 			/*
