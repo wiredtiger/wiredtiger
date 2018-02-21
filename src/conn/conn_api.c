@@ -1044,14 +1044,21 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *s, *session;
 	uint32_t i;
+	const char *use_ts_cfg;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
+	use_ts_cfg = "use_timestamp=false";
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
 
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)
 		F_SET(conn, WT_CONN_LEAK_MEMORY);
+	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+	if (cval.val != 0) {
+		use_ts_cfg = "use_timestamp=true";
+		F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
+	}
 
 err:	/*
 	 * Rollback all running transactions.
@@ -1110,10 +1117,11 @@ err:	/*
 		if (s != NULL) {
 			const char *checkpoint_cfg[] = {
 			    WT_CONFIG_BASE(session, WT_SESSION_checkpoint),
-			    "use_timestamp=false",
+			    use_ts_cfg,
 			    NULL
 			};
 			wt_session = &s->iface;
+			__wt_errx(session, "Calling CKPT %s", use_ts_cfg);
 			WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
 
 			/*
@@ -1124,6 +1132,9 @@ err:	/*
 			    __wt_tree_modify_set(s));
 
 			WT_TRET(wt_session->close(wt_session, config));
+			if (conn->lock_fh != NULL)
+				WT_TRET(__wt_close(session, &conn->lock_fh));
+			return (0);
 		}
 	}
 

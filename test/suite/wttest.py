@@ -139,9 +139,9 @@ class TestSuiteConnection(object):
         self._conn = conn
         self._connlist = connlist
 
-    def close(self):
+    def close(self, config=''):
         self._connlist.remove(self._conn)
-        return self._conn.close()
+        return self._conn.close(config)
 
     # Proxy everything except what we explicitly define to the
     # wrapped connection
@@ -324,12 +324,12 @@ class WiredTigerTestCase(unittest.TestCase):
         return conn.open_session(None)
 
     # Can be overridden
-    def close_conn(self):
+    def close_conn(self, config=''):
         """
         Close the connection if already open.
         """
         if self.conn != None:
-            self.conn.close()
+            self.conn.close(config)
             self.conn = None
 
     def open_conn(self, directory="."):
