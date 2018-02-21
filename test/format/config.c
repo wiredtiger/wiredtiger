@@ -188,6 +188,13 @@ config_setup(void)
 	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
 		g.c_cache = g.c_cache_minimum;
 
+	/*
+	 * Turn off truncate for LSM runs (some configurations with truncate
+	 * always results in a timeout).
+	 */
+	if (!config_is_perm("truncate") && DATASOURCE("lsm"))
+		config_single("truncate=off", 0);
+
 	/* Give Helium configuration a final review. */
 	if (DATASOURCE("helium"))
 		config_helium_reset();
