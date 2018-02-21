@@ -666,32 +666,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 #ifdef HAVE_TIMESTAMPS
-
-/*
- * __wt_txn_update_to_commit_timestamp --
- *	Modify operation timestamp to commit timestamp.
- */
-void
-__wt_txn_update_to_commit_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
-{
-	WT_TXN *txn;
-
-	txn = &session->txn;
-
-	/*
-	 * Updating timestamp might not be an atomic operation, hence we will
-	 * lock the update structure using the state.
-	 */
-	if (F_ISSET(txn, WT_TXN_PREPARE)) {
-		FLD_SET(op->u.upd->state, WT_UPDATE_LOCKED);
-		__wt_timestamp_set(&op->u.upd->timestamp,
-		    &txn->commit_timestamp);
-		FLD_SET(op->u.upd->state, WT_UPDATE_NONE);
-	} else
-		__wt_timestamp_set(&op->u.upd->timestamp,
-		    &txn->commit_timestamp);
-}
-
 /*
  * __wt_txn_set_commit_timestamp --
  *	Publish a transaction's commit timestamp.

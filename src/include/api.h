@@ -172,6 +172,10 @@
 #define	SESSION_API_CALL_NOCONF(s, n)					\
 	API_CALL_NOCONF(s, WT_SESSION, n, NULL)
 
+#define	SESSION_API_CALL_NOCONF_PREPARE_NOT_ALLOWED(s, n)		\
+	API_CALL_NOCONF(s, WT_SESSION, n, NULL);			\
+	WT_ERR(__wt_txn_context_prepare_check((s)))
+
 #define	SESSION_TXN_API_CALL(s, n, config, cfg)				\
 	TXN_API_CALL(s, WT_SESSION, n, NULL, config, cfg);		\
 	WT_ERR(__wt_txn_context_prepare_check((s)))

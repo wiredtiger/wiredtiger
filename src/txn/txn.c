@@ -63,6 +63,31 @@ __snapsort(uint64_t *array, uint32_t size)
 }
 
 /*
+ * __txn_remove_from_global_table --
+ *	Remove the txn id from the global txn table.
+ */
+static inline void
+__txn_remove_from_global_table(WT_SESSION_IMPL *session)
+{
+	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+	WT_TXN_STATE *txn_state;
+
+	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
+	txn_state = WT_SESSION_TXN_STATE(session);
+
+#ifndef HAVE_DIAGNOSTIC
+	WT_UNUSED(txn);
+	WT_UNUSED(txn_global);
+#endif
+	WT_ASSERT(session, !WT_TXNID_LT(txn->id, txn_global->last_running));
+	WT_ASSERT(session, txn->id != WT_TXN_NONE &&
+	    txn_state->id != WT_TXN_NONE);
+	WT_PUBLISH(txn_state->id, WT_TXN_NONE);
+}
+
+/*
  * __txn_sort_snapshot --
  *	Sort a snapshot for faster searching and set the min/max bounds.
  */
@@ -554,18 +579,17 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	WT_TXN_STATE *txn_state;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-	txn_state = WT_SESSION_TXN_STATE(session);
 
 	WT_ASSERT(session, txn->mod_count == 0);
 	txn->notify = NULL;
 
 	/* Clear the transaction's ID from the global table. */
 	if (WT_SESSION_IS_CHECKPOINT(session)) {
-		WT_ASSERT(session, txn_state->id == WT_TXN_NONE);
+		WT_ASSERT(session,
+		    WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
 		txn->id = txn_global->checkpoint_state.id =
 		    txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
 
@@ -576,17 +600,12 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		 */
 		txn_global->checkpoint_id = 0;
 	} else if (F_ISSET(txn, WT_TXN_HAS_ID)) {
-		WT_ASSERT(session,
-		    !WT_TXNID_LT(txn->id, txn_global->last_running));
-
-		WT_ASSERT(session, txn->id != WT_TXN_NONE);
 		/*
 		 * If transaction is prepared, this would have been done in
 		 * prepare.
 		 */
 		if (!F_ISSET(txn, WT_TXN_PREPARE)) {
-			WT_ASSERT(session, txn_state->id != WT_TXN_NONE);
-			WT_PUBLISH(txn_state->id, WT_TXN_NONE);
+			__txn_remove_from_global_table(session);
 		}
 
 		txn->id = WT_TXN_NONE;
@@ -869,18 +888,33 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_TIMESTAMPS
 			if (__wt_txn_update_needs_timestamp(session, op)) {
-				__wt_timestamp_set(&op->u.upd->timestamp,
-				    &txn->commit_timestamp);
-        /*
-         * In case of a prepared transaction, the order
-         * modification of the prepare timestamp to the
-         * commit timestamp in the update chain will not
-         * affect the data visibility, a reader will 
-         * encounter a prepared update resulting in 
-         * prepare conflict.
-         */
-        __wt_txn_update_to_commit_timestamp(session, op);
-      }  
+				if (F_ISSET(txn, WT_TXN_PREPARE)) {
+					WT_ASSERT(session, op->u.upd != NULL);
+					/*
+					 * In case of a prepared transaction,
+					 * the order of modification of the
+					 * prepare timestamp to the commit
+					 * timestamp in the update chain will
+					 * not affect the data visibility, a
+					 * reader will encounter a prepared
+					 * update resulting in prepare conflict.
+					 *
+					 * As updating timestamp might not be an
+					 * atomic operation, we will manage
+					 * using state.
+					 */
+					FLD_SET(op->u.upd->state,
+					    WT_UPDATE_LOCKED);
+					__wt_timestamp_set(
+					    &op->u.upd->timestamp,
+					    &txn->commit_timestamp);
+					FLD_SET(op->u.upd->state,
+					    WT_UPDATE_NONE);
+				} else
+					__wt_timestamp_set(
+					    &op->u.upd->timestamp,
+					    &txn->commit_timestamp);
+			}
 #endif
 			break;
 
@@ -999,12 +1033,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
-	WT_TXN_STATE *txn_state;
 	wt_timestamp_t ts;
 	u_int i;
 
 	txn = &session->txn;
-	txn_state = WT_SESSION_TXN_STATE(session);
 	WT_TRET(__wt_txn_context_check(session, true));
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1047,7 +1079,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_BASIC_TS:
 		case WT_TXN_OP_INMEM:
 			/*
 			 * Switch reserved operation to abort to simplify
@@ -1059,7 +1090,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			/*
-			 * Assert to make sure the las writes are not
+			 * Assert to make sure the lookaside writes are not
 			 * happening here.
 			 */
 			WT_ASSERT(session,
@@ -1067,16 +1098,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			    op->fileid == S2C(session)->cache->las_fileid));
 
 			/* Set prepare timestamp. */
-			if (op->type != WT_TXN_OP_BASIC_TS) {
-				WT_ASSERT(session,
-				    op->fileid != WT_METAFILE_ID);
+			if (op->fileid != WT_METAFILE_ID)
 				__wt_timestamp_set(&op->u.upd->timestamp, &ts);
-			}
 
 			FLD_SET(op->u.upd->state, WT_UPDATE_PREPARE);
 			break;
 
-		case WT_TXN_OP_REF:
+		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
 			break;
@@ -1098,18 +1126,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * prepared data visibility, but not from local txn structure.
 	 */
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
-		WT_ASSERT(session, !WT_TXNID_LT(txn->id,
-		    (&S2C(session)->txn_global)->last_running));
-
-		WT_ASSERT(session, txn_state->id != WT_TXN_NONE &&
-		    txn->id != WT_TXN_NONE);
-		WT_PUBLISH(txn_state->id, WT_TXN_NONE);
+		__txn_remove_from_global_table(session);
 	}
 
-err:	/*
-	 * If anything went wrong, return error
-	 */
-	return (ret);
+err:	return (ret);
 #else
 	WT_UNUSED(cfg);
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "

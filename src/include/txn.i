@@ -208,8 +208,8 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 /*
  * __wt_txn_update_needs_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
- *	structure doesn't have a populated update or ref field there won't
- *	be any check for an existing timestamp.
+ *	structure doesn't have a populated update or ref field or in prepared
+ *      state there won't be any check for an existing timestamp.
  */
 static inline bool
 __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
@@ -225,7 +225,8 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	return (op->fileid != WT_METAFILE_ID &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    (op->u.upd == NULL ||
-	    __wt_timestamp_iszero(&(op->u.upd->timestamp))));
+	    __wt_timestamp_iszero(&(op->u.upd->timestamp)) ||
+	    F_ISSET(txn, WT_TXN_PREPARE)));
 }
 #endif
 
