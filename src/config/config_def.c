@@ -485,6 +485,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_snapshot[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction[] = {
 	{ "commit_timestamp", "string", NULL, NULL, NULL, 0 },
+	{ "read_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1373,8 +1374,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "WT_SESSION.timestamp_transaction",
-	  "commit_timestamp=",
-	  confchk_WT_SESSION_timestamp_transaction, 1
+	  "commit_timestamp=,read_timestamp=",
+	  confchk_WT_SESSION_timestamp_transaction, 2
 	},
 	{ "WT_SESSION.transaction_sync",
 	  "timeout_ms=1200000",
