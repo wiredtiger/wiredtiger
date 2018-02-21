@@ -65,7 +65,15 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         c_coll = self.session.open_cursor(self.coll_uri)
         op_actual = dict((k, v) for k, v in c_op if v != 0)
         coll_actual = dict((k, v) for k, v in c_coll if v != 0)
+        #print "CHECK: Op Expected"
+        #print op_exp
+        #print "CHECK: Op Actual"
+        #print op_actual
         self.assertTrue(op_actual == op_exp)
+        #print "CHECK: Coll Expected"
+        #print coll_exp
+        #print "CHECK: Coll Actual"
+        #print coll_actual
         self.assertTrue(coll_actual == coll_exp)
 
     def test_timestamp_recovery(self):
@@ -94,8 +102,8 @@ class test_timestamp12(wttest.WiredTigerTestCase):
             self.session.commit_transaction(
               'commit_timestamp=' + timestamp_str(i))
         # Set the oldest and stable timestamp to the end.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(nentries) +
-        ',stable_timestamp=' + timestamp_str(nentries))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(nentries-1) +
+        ',stable_timestamp=' + timestamp_str(nentries-1))
 
         # Add more data but don't advance the stable timestamp.
         for i in second_range:
@@ -108,6 +116,7 @@ class test_timestamp12(wttest.WiredTigerTestCase):
 
         # Close and reopen the connection.
         self.close_conn(self.close_cfg)
+        self.conn = self.setUpConnectionOpen(".")
         self.session = self.conn.open_session()
 
         # Set up our expected data and verify after the reopen.
