@@ -2165,6 +2165,17 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
 
+	/*
+	 * If we don't have them, allocate the cursor and dhandle hash arrays.
+	 * Allocate the table hash array as well.
+	 */
+	if (session_ret->cursor_cache == NULL)
+		WT_ERR(__wt_calloc_def(
+		    session, WT_HASH_ARRAY_SIZE, &session_ret->cursor_cache));
+	if (session_ret->dhhash == NULL)
+		WT_ERR(__wt_calloc_def(
+		    session, WT_HASH_ARRAY_SIZE, &session_ret->dhhash));
+
 	/* Initialize the dhandle hash array. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
