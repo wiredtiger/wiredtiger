@@ -125,6 +125,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 * this point on.
 	 */
 	if (ref->page_del != NULL) {
+		WT_ASSERT(session, ref->page_del->txnid == WT_TXN_ABORTED);
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
@@ -201,7 +202,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			if (!__wt_atomic_casv32(&ref->state,
 			    WT_REF_DELETED, ref->page_del->previous_state))
 				break;
-			return (0);
+			goto done;
 		case WT_REF_LOCKED:
 			/*
 			 * A possible state, the page is being instantiated.
@@ -224,7 +225,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			for (upd =
 			    ref->page_del->update_list; *upd != NULL; ++upd)
 				(*upd)->txnid = WT_TXN_ABORTED;
-			return (0);
+			goto done;
 		case WT_REF_DISK:
 		case WT_REF_LIMBO:
 		case WT_REF_LOOKASIDE:
@@ -242,7 +243,13 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 		WT_STAT_CONN_INCRV(session, page_del_rollback_blocked,
 		    sleep_count);
 	}
-	/* NOTREACHED */
+
+done:	/*
+	 * Now mark the truncate aborted: this must come last because after
+	 * this point there is nothing preventing the page from being evicted.
+	 */
+	WT_PUBLISH(ref->page_del->txnid, WT_TXN_ABORTED);
+	return (0);
 }
 
 /*
