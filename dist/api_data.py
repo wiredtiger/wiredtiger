@@ -1214,6 +1214,10 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  This can only be set once
         for a transaction.  @ref transaction_timestamps'''),
+    Config('round_to_oldest', 'false', r'''
+        if read timestamp is earlier than oldest timestamp,
+        read timestamp will be rounded to oldest timestamp''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),

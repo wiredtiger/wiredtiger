@@ -1854,6 +1854,9 @@ struct __wt_session {
 	 * supplied value must not be older than the current oldest timestamp.
 	 * This can only be set once for a transaction.  @ref
 	 * transaction_timestamps., a string; default empty.}
+	 * @config{round_to_oldest, if read timestamp is earlier than oldest
+	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
+	 * boolean flag; default \c false.}
 	 * @configend
 	 * @errors
 	 */
