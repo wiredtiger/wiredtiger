@@ -127,7 +127,7 @@ extern int __wt_debug_tree_all( WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RE
 extern int __wt_debug_tree( WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_page(WT_SESSION_IMPL *session, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref);
+extern int __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all);
 extern int __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref);
