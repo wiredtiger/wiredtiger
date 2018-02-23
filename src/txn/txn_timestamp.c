@@ -717,8 +717,8 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_timestamp_to_hex_string(session,
 		    hex_timestamp[0], &ts));
 		__wt_readlock(session, &txn_global->rwlock);
-		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
-		{
+		if (__wt_timestamp_cmp(
+		    &ts, &txn_global->oldest_timestamp) < 0) {
 			WT_RET(__wt_timestamp_to_hex_string(session,
 			    hex_timestamp[1], &txn_global->oldest_timestamp));
 			/*
