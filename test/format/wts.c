@@ -490,6 +490,8 @@ wts_close(void)
 	config = g.c_leak_memory ? "leak_memory" : NULL;
 
 	testutil_check(conn->close(conn, config));
+	if (g.wt_api != NULL)
+		exit (0);
 	g.wts_conn = NULL;
 	g.wt_api = NULL;
 }
