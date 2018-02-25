@@ -76,16 +76,8 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 	page = *pagep;
 	*pagep = NULL;
 
-	/*
-	 * Unless we're discarding a handle or closing the database, we should
-	 * never discard a dirty page.
-	 */
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    F_ISSET(S2C(session), WT_CONN_CLOSING))
-		__wt_page_modify_clear(session, page);
+	/* Assert we never discard a dirty page or a page queue for eviction. */
 	WT_ASSERT(session, !__wt_page_is_modified(page));
-
-	/* We should never discard a page queued for eviction. */
 	WT_ASSERT(session, !F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU));
 
 	/*

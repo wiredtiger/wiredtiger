@@ -16,6 +16,7 @@ int
 __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
 	WT_BTREE *btree;
+	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -24,6 +25,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	dhandle = session->dhandle;
 	btree = dhandle->handle;
+	conn = S2C(session);
 
 	/*
 	 * We need exclusive access to the file, we're about to discard the root
@@ -50,8 +52,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	 * the tree are removed.
 	 */
 	if (F_ISSET(dhandle, WT_DHANDLE_DEAD) &&
-	    F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) &&
-	    btree->lookaside_entries) {
+	    F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN) && btree->lookaside_entries) {
 		WT_ASSERT(session, !WT_IS_METADATA(dhandle) &&
 		    !F_ISSET(btree, WT_BTREE_LOOKASIDE));
 
@@ -119,7 +120,9 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 */
 			WT_ASSERT(session,
 			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+			    F_ISSET(conn, WT_CONN_CLOSING) ||
 			    __wt_page_can_evict(session, ref, NULL));
+			__wt_page_modify_clear(session, ref->page);
 			__wt_ref_out(session, ref);
 			break;
 		case WT_SYNC_CHECKPOINT:
