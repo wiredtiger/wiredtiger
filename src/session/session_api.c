@@ -567,7 +567,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 
-	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+	if (owner == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, owner, cfg, cursorp)) == 0)
 			return (0);
@@ -2211,6 +2211,10 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		    session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
 		session_ret->optrackbuf_ptr = 0;
 	}
+
+	/* Set the default value for session flags. */
+	F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
+
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.

@@ -41,9 +41,6 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
     stat_cursor_cache = 0
     stat_cursor_reopen = 0
 
-    def setUpSessionOpen(self, conn):
-        return conn.open_session('cache_cursors=true')
-
     def caching_stats(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache = stat_cursor[stat.conn.cursor_cache][2]
@@ -125,8 +122,6 @@ class test_cursor13_reopens(test_cursor13_base):
         ('table', dict(uri='table:cursor13_reopen2', dstype=None)),
         ('sfile', dict(uri='file:cursor13_reopen3', dstype=SimpleDataSet)),
         ('stable', dict(uri='table:cursor13_reopen4', dstype=SimpleDataSet)),
-        ('ctable', dict(uri='table:cursor13_reopen5', dstype=ComplexDataSet)),
-        ('clsm', dict(uri='table:cursor13_reopen6', dstype=ComplexLSMDataSet))
     ])
 
     def basic_populate(self, uri, caching_enabled):
