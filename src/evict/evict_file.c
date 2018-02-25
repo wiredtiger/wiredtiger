@@ -32,7 +32,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	 * page. Assert eviction has been locked out.
 	 */
 	WT_ASSERT(session,
-	    btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+	    btree->evict_disabled > 0 ||
+	    !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
 	/*
 	 * We do discard objects without pages in memory. If that's the case,
@@ -40,6 +41,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	 */
 	if (btree->root.page == NULL)
 		return (0);
+
+	walk_flags = WT_READ_CACHE | WT_READ_NO_EVICT;
 
 	/*
 	 * If discarding a dead tree, remove any lookaside entries.  This deals
@@ -57,16 +60,14 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		    !F_ISSET(btree, WT_BTREE_LOOKASIDE));
 
 		WT_RET(__wt_las_save_dropped(session));
-	}
+	} else
+		FLD_SET(walk_flags, WT_READ_LOOKASIDE);
 
 	/* Make sure the oldest transaction ID is up-to-date. */
 	WT_RET(__wt_txn_update_oldest(
 	    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
 	/* Walk the tree, discarding pages. */
-	walk_flags =
-	    WT_READ_CACHE | WT_READ_NO_EVICT |
-	    (syncop == WT_SYNC_CLOSE ? WT_READ_LOOKASIDE : 0);
 	next_ref = NULL;
 	WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
 	while ((ref = next_ref) != NULL) {

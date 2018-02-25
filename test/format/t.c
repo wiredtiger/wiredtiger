@@ -191,14 +191,37 @@ main(int argc, char *argv[])
 		wts_init();
 
 		wts_load();			/* Load initial records */
+		wts_verify("post-bulk verify");	/* Verify */
 
 		/*
 		 * If we're not doing any operations, scan the bulk-load, copy
 		 * the statistics and we're done. Otherwise, loop reading and
 		 * operations, with a verify after each set.
 		 */
-		for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
-			wts_ops(reps == FORMAT_OPERATION_REPS);
+		if (g.c_timer == 0 && g.c_ops == 0) {
+			wts_read_scan();		/* Read scan */
+			wts_stats();			/* Statistics */
+		} else
+			for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps) {
+				wts_read_scan();	/* Read scan */
+
+							/* Operations */
+				wts_ops(reps == FORMAT_OPERATION_REPS);
+
+				/*
+				 * Copy out the run's statistics after the last
+				 * set of operations.
+				 *
+				 * XXX
+				 * Verify closes the underlying handle and
+				 * discards the statistics, read them first.
+				 */
+				if (reps == FORMAT_OPERATION_REPS)
+					wts_stats();
+
+							/* Verify */
+				wts_verify("post-ops verify");
+			}
 
 		track("shutting down", 0ULL, NULL);
 #ifdef HAVE_BERKELEY_DB
