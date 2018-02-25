@@ -1783,6 +1783,14 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	bulk = F_ISSET(btree, WT_BTREE_BULK);
 
 	/*
+	 * If we've done a final checkpoint, subsequent writes to normal objects
+	 * are wasted effort. Discard the objects to validate exit accounting.
+	 */
+	if (!WT_IS_METADATA(session->dhandle) &&
+	    F_ISSET(S2C(session), WT_CONN_CLOSING))
+		return (__wt_cache_op(session, WT_SYNC_DISCARD));
+
+	/*
 	 * If closing an unmodified file, check that no update is required
 	 * for active readers.
 	 */
