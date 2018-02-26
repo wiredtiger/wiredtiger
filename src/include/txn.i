@@ -514,8 +514,32 @@ __wt_txn_visible(
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	return (__wt_txn_visible(session,
-	    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
+	/*
+	 * If update state is ready, it indicates either prepared update
+	 * has not started or committed.
+	 */
+	if (FLD_ISSET(upd->state, WT_UPDATE_STATE_READY))
+		return (__wt_txn_visible(session,
+		    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
+#ifdef HAVE_TIMESTAMPS
+	else {
+		switch (upd->state) {
+		case WT_UPDATE_STATE_PREPARED:
+			/* Prepared updates should not be visible for update. */
+			return false;
+		case WT_UPDATE_STATE_LOCKED:
+			/* Commit is in progress. */
+			do {
+				__wt_yield();
+			} while (FLD_ISSET(upd->state, WT_UPDATE_STATE_LOCKED));
+		case WT_UPDATE_STATE_READY:
+			return (__wt_txn_visible(session,
+			    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
+		}
+	}
+#endif
+	/* NOTREACHED */
+	return true;
 }
 
 /*
