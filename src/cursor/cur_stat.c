@@ -265,7 +265,7 @@ __curstat_reset(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	cst = (WT_CURSOR_STAT *)cursor;
-	CURSOR_API_CALL(cursor, session, reset, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
 	cst->notinitialized = cst->notpositioned = true;
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -320,7 +320,7 @@ __curstat_close(WT_CURSOR *cursor)
 	size_t i;
 
 	cst = (WT_CURSOR_STAT *)cursor;
-	CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 
 	if (cst->cfg != NULL) {
 		for (i = 0; cst->cfg[i] != NULL; ++i)

@@ -36,11 +36,13 @@ static int
 __curextract_insert(WT_CURSOR *cursor)
 {
 	WT_CURSOR_EXTRACTOR *cextract;
+	WT_DECL_RET;
 	WT_ITEM *key, ikey, pkey;
 	WT_SESSION_IMPL *session;
 
+	CURSOR_API_CALL(cursor, session, insert, NULL);
+
 	cextract = (WT_CURSOR_EXTRACTOR *)cursor;
-	session = (WT_SESSION_IMPL *)cursor->session;
 
 	WT_ITEM_SET(ikey, cursor->key);
 	/*
@@ -49,14 +51,14 @@ __curextract_insert(WT_CURSOR *cursor)
 	 */
 	WT_ASSERT(session, ikey.size > 0);
 	--ikey.size;
-	WT_RET(__wt_cursor_get_raw_key(cextract->ctable->cg_cursors[0], &pkey));
+	WT_ERR(__wt_cursor_get_raw_key(cextract->ctable->cg_cursors[0], &pkey));
 
 	/*
 	 * We have the index key in the format we need, and all of the primary
 	 * key columns are required: just append them.
 	 */
 	key = &cextract->idxc->key;
-	WT_RET(__wt_buf_grow(session, key, ikey.size + pkey.size));
+	WT_ERR(__wt_buf_grow(session, key, ikey.size + pkey.size));
 	memcpy((uint8_t *)key->mem, ikey.data, ikey.size);
 	memcpy((uint8_t *)key->mem + ikey.size, pkey.data, pkey.size);
 	key->size = ikey.size + pkey.size;
@@ -68,7 +70,9 @@ __curextract_insert(WT_CURSOR *cursor)
 	F_SET(cextract->idxc, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
 
 	/* Call the underlying cursor function to update the index. */
-	return (cextract->f(cextract->idxc));
+	ret = cextract->f(cextract->idxc);
+
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -420,7 +424,7 @@ __curtable_reset(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	JOINABLE_CURSOR_API_CALL(cursor, session, reset, NULL);
+	JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 	APPLY_CG(ctable, reset);
 
 err:	API_END_RET(session, ret);
@@ -803,7 +807,7 @@ __curtable_close(WT_CURSOR *cursor)
 	u_int i;
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
-	JOINABLE_CURSOR_API_CALL(cursor, session, close, NULL);
+	JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 
 	if (ctable->cg_cursors != NULL)
 		for (i = 0, cp = ctable->cg_cursors;

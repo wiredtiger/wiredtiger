@@ -127,7 +127,7 @@ extern int __wt_debug_tree_all( WT_SESSION_IMPL *session, WT_BTREE *btree, WT_RE
 extern int __wt_debug_tree( WT_SESSION_IMPL *session, WT_BTREE *btree, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_page(WT_SESSION_IMPL *session, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref);
+extern int __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all);
 extern int __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref);
@@ -207,6 +207,8 @@ extern int __wt_las_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE
 extern int __wt_las_cursor_open(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_las_cursor( WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags);
 extern int __wt_las_cursor_close( WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t session_flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref);
+extern bool __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref);
 extern int __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_las_cursor_position(WT_CURSOR *cursor, uint32_t btree_id, uint64_t pageid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_las_remove_block( WT_SESSION_IMPL *session, uint32_t btree_id, uint64_t pageid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -846,6 +848,7 @@ extern int __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force
 extern int __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name, wt_timestamp_t *ts, WT_CONFIG_ITEM *cval, bool cmp_oldest, bool cmp_stable, bool cmp_commit) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session);

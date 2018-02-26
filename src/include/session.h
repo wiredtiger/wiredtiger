@@ -77,9 +77,6 @@ struct __wt_session_impl {
 	struct timespec last_epoch;	/* Last epoch time returned */
 
 	WT_CURSOR_LIST cursors;		/* Cursors closed with the session */
-					/* Hash table of cached cursors */
-
-	WT_CURSOR_LIST cursor_cache[WT_HASH_ARRAY_SIZE];
 	uint32_t cursor_sweep_position;	/* Position in cursor_cache for sweep */
 	uint32_t cursor_sweep_countdown;/* Countdown to cursor sweep */
 
@@ -183,7 +180,8 @@ struct __wt_session_impl {
 #define	WT_SESSION_NO_SCHEMA_LOCK		0x080000u
 #define	WT_SESSION_QUIET_CORRUPT_FILE		0x100000u
 #define	WT_SESSION_READ_WONT_NEED		0x200000u
-#define	WT_SESSION_SERVER_ASYNC			0x400000u
+#define	WT_SESSION_SCHEMA_TXN			0x400000u
+#define	WT_SESSION_SERVER_ASYNC			0x800000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 
@@ -200,9 +198,14 @@ struct __wt_session_impl {
 	 */
 	WT_RAND_STATE rnd;		/* Random number generation state */
 
+	/*
+	 * Hash tables are allocated lazily as sessions are used to keep the
+	 * size of this structure from growing too large.
+	 */
+	WT_CURSOR_LIST *cursor_cache;	/* Hash table of cached cursors */
+
 					/* Hashed handle reference list array */
-	TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache)
-				dhhash[WT_HASH_ARRAY_SIZE];
+	TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) *dhhash;
 
 					/* Generations manager */
 #define	WT_GEN_CHECKPOINT	0	/* Checkpoint generation */

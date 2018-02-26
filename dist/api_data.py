@@ -1161,7 +1161,7 @@ methods = {
         Transactions with higher values are less likely to abort''',
         min='-100', max='100'),
     Config('read_timestamp', '', r'''
-        read using the specified timestamp.  The supplied value should not be
+        read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
     Config('round_to_oldest', 'false', r'''
@@ -1180,8 +1180,8 @@ methods = {
 'WT_SESSION.commit_transaction' : Method([
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction.  The supplied
-        value should not be older than the first commit timestamp set for the
-        current transaction.  The value should also not be older than the
+        value must not be older than the first commit timestamp set for the
+        current transaction.  The value must also not be older than the
         current oldest and stable timestamps.  See
         @ref transaction_timestamps'''),
     Config('sync', '', r'''
@@ -1198,7 +1198,7 @@ methods = {
 'WT_SESSION.prepare_transaction' : Method([
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
-        The supplied value should not be older than any active read timestamps.
+        The supplied value must not be older than any active read timestamps.
         This configuration option is mandatory.  See
         @ref transaction_timestamps'''),
 ]),
@@ -1206,10 +1206,18 @@ methods = {
 'WT_SESSION.timestamp_transaction' : Method([
     Config('commit_timestamp', '', r'''
         set the commit timestamp for the current transaction.  The supplied
-        value should not be older than the first commit timestamp set for the
-        current transaction.  The value should also not be older than the
+        value must not be older than the first commit timestamp set for the
+        current transaction.  The value must also not be older than the
         current oldest and stable timestamps.  See
         @ref transaction_timestamps'''),
+    Config('read_timestamp', '', r'''
+        read using the specified timestamp.  The supplied value must not be
+        older than the current oldest timestamp.  This can only be set once
+        for a transaction.  @ref transaction_timestamps'''),
+    Config('round_to_oldest', 'false', r'''
+        if read timestamp is earlier than oldest timestamp,
+        read timestamp will be rounded to oldest timestamp''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),
@@ -1358,7 +1366,7 @@ methods = {
         timestamps greater than the specified value until the next commit moves
         the tracked commit timestamp forwards.  This is only intended for use
         where the application is rolling back locally committed transactions.
-        The supplied value should not be older than the current oldest and
+        The supplied value must not be older than the current oldest and
         stable timestamps.  See @ref transaction_timestamps'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
@@ -1368,13 +1376,13 @@ methods = {
         future commits and queries will be no earlier than the specified
         timestamp.  Supplied values must be monotonically increasing, any
         attempt to set the value to older than the current is silently ignored.
-        The supplied value should not be newer than the current
+        The supplied value must not be newer than the current
         stable timestamp.  See @ref transaction_timestamps'''),
     Config('stable_timestamp', '', r'''
         checkpoints will not include commits that are newer than the specified
         timestamp in tables configured with \c log=(enabled=false).  Supplied
         values must be monotonically increasing, any attempt to set the value to
-        older than the current is silently ignored.  The supplied value should
+        older than the current is silently ignored.  The supplied value must
         not be older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
 ]),

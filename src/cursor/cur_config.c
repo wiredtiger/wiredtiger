@@ -15,7 +15,13 @@
 static int
 __curconfig_close(WT_CURSOR *cursor)
 {
-	return (__wt_cursor_close(cursor));
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+	WT_TRET(__wt_cursor_close(cursor));
+
+err:	API_END_RET(session, ret);
 }
 
 /*

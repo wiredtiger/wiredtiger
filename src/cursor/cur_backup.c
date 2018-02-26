@@ -57,7 +57,7 @@ __curbackup_reset(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	cb = (WT_CURSOR_BACKUP *)cursor;
-	CURSOR_API_CALL(cursor, session, reset, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
 	cb->next = 0;
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -78,7 +78,7 @@ __curbackup_close(WT_CURSOR *cursor)
 
 	cb = (WT_CURSOR_BACKUP *)cursor;
 
-	CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 
 	/*
 	 * When starting a hot backup, we serialize hot backup cursors and set

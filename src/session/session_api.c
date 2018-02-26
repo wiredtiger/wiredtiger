@@ -291,7 +291,7 @@ __session_close(WT_SESSION *wt_session, const char *config)
 	conn = (WT_CONNECTION_IMPL *)wt_session->connection;
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	SESSION_API_CALL(session, close, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
 	WT_UNUSED(cfg);
 
 	/* Close all open cursors while the cursor cache is disabled. */
@@ -391,7 +391,12 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, reconfigure, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -867,7 +872,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
 	va_list ap;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL_NOCONF(session, log_printf);
+	SESSION_API_CALL_NOCONF_PREPARE_NOT_ALLOWED(session, log_printf);
 
 	va_start(ap, fmt);
 	ret = __wt_log_vprintf(session, fmt, ap);
@@ -1370,22 +1375,23 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 	 * what records currently appear in the object.  For this reason, do a
 	 * search-near, rather than a search.  Additionally, we have to correct
 	 * after calling search-near, to position the start/stop cursors on the
-	 * next record greater than/less than the original key.
+	 * next record greater than/less than the original key. If we fail to
+	 * find a key in a search-near, there are no keys in the table. If we
+	 * fail to move forward or backward in a range, there are no keys in
+	 * the range. In either of those cases, we're done.
 	 */
-	if (start != NULL) {
-		WT_ERR(start->search_near(start, &cmp));
-		if (cmp < 0 && (ret = start->next(start)) != 0) {
+	if (start != NULL)
+		if ((ret = start->search_near(start, &cmp)) != 0 ||
+		    (cmp < 0 && (ret = start->next(start)) != 0)) {
 			WT_ERR_NOTFOUND_OK(ret);
 			goto done;
 		}
-	}
-	if (stop != NULL) {
-		WT_ERR(stop->search_near(stop, &cmp));
-		if (cmp > 0 && (ret = stop->prev(stop)) != 0) {
+	if (stop != NULL)
+		if ((ret = stop->search_near(stop, &cmp)) != 0 ||
+		    (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
 			WT_ERR_NOTFOUND_OK(ret);
 			goto done;
 		}
-	}
 
 	/*
 	 * We always truncate in the forward direction because the underlying
@@ -1421,7 +1427,7 @@ err:	/*
 	 */
 	if (local_start)
 		WT_TRET(start->close(start));
-	else
+	else if (start != NULL)
 		WT_TRET(start->reset(start));
 	if (stop != NULL)
 		WT_TRET(stop->reset(stop));
@@ -1608,7 +1614,12 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, begin_transaction, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, begin_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_begin);
 
 	WT_ERR(__wt_txn_context_check(session, false));
@@ -1630,7 +1641,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, commit_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
 
 	WT_ERR(__wt_txn_context_check(session, true));
@@ -1661,20 +1673,48 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
-	WT_TRET(__wt_txn_prepare(session, cfg));
-
 	/*
-	 * Below code to be corrected as part of prepare functionality
-	 * implementation, coded as below to avoid setting error to transaction.
+	 * A failed transaction cannot be prepared, as it cannot guarantee
+	 * a subsequent commit.
 	 */
+	txn = &session->txn;
+	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
+		WT_ERR_MSG(session, EINVAL,
+		    "failed transaction requires rollback%s%s",
+		    txn->rollback_reason == NULL ? "" : ": ",
+		    txn->rollback_reason == NULL ? "" : txn->rollback_reason);
 
-err:	API_END_RET_NO_TXN_ERROR(session, ret);
+	WT_ERR(__wt_txn_prepare(session, cfg));
+
+err:	API_END_RET(session, ret);
+
+}
+
+/*
+ * __session_prepare_transaction_readonly --
+ *	WT_SESSION->prepare_transaction method; readonly version.
+ */
+static int
+__session_prepare_transaction_readonly(
+    WT_SESSION *wt_session, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	WT_UNUSED(config);
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL_NOCONF(session, prepare_transaction);
+
+	ret = __wt_session_notsup(session);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -1688,7 +1728,8 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, rollback_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
 
 	WT_ERR(__wt_txn_context_check(session, true));
@@ -1734,7 +1775,7 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
 	uint64_t pinned;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL_NOCONF(session, pinned_range);
+	SESSION_API_CALL_NOCONF_PREPARE_NOT_ALLOWED(session, pinned_range);
 
 	txn_state = WT_SESSION_TXN_STATE(session);
 
@@ -1783,7 +1824,12 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	uint64_t time_start, time_stop;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-	SESSION_API_CALL(session, transaction_sync, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, transaction_sync, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_sync);
 
 	conn = S2C(session);
@@ -1877,7 +1923,12 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 
 	WT_STAT_CONN_INCR(session, txn_checkpoint);
-	SESSION_API_CALL(session, checkpoint, config, cfg);
+	/*
+	 * Indicated as allowed in prepared state, even though not allowed,
+	 * so that running transaction check below take precedence.
+	 */
+	SESSION_API_CALL_PREPARE_ALLOWED(
+	    session, checkpoint, config, cfg);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -2052,7 +2103,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_verify,
 		__session_begin_transaction,
 		__session_commit_transaction,
-		__session_prepare_transaction,
+		__session_prepare_transaction_readonly,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
 		__session_checkpoint_readonly,
@@ -2113,6 +2164,17 @@ __open_session(WT_CONNECTION_IMPL *conn,
 
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
+
+	/*
+	 * If we don't have them, allocate the cursor and dhandle hash arrays.
+	 * Allocate the table hash array as well.
+	 */
+	if (session_ret->cursor_cache == NULL)
+		WT_ERR(__wt_calloc_def(
+		    session, WT_HASH_ARRAY_SIZE, &session_ret->cursor_cache));
+	if (session_ret->dhhash == NULL)
+		WT_ERR(__wt_calloc_def(
+		    session, WT_HASH_ARRAY_SIZE, &session_ret->dhhash));
 
 	/* Initialize the dhandle hash array. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)

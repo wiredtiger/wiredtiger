@@ -167,7 +167,7 @@ __curfile_reset(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
-	CURSOR_API_CALL(cursor, session, reset, cbt->btree);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, cbt->btree);
 
 	ret = __wt_btcur_reset(cbt);
 
@@ -468,7 +468,7 @@ __curfile_close(WT_CURSOR *cursor)
 	bool released;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
-	CURSOR_API_CALL(cursor, session, close, cbt->btree);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, cbt->btree);
 	released = false;
 
 	/*
