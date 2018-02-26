@@ -397,6 +397,7 @@ class test_cursor13_sweep(test_cursor13_big_base):
     opens_per_round = 100000
     rounds = 5
 
+    @wttest.longtest('cursor sweep tests require wait times')
     def test_cursor_sweep(self):
         rand = suite_random()
 
