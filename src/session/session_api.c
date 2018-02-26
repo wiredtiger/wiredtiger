@@ -599,7 +599,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 	if (to_dup == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, NULL, cfg, cursorp)) == 0)
-			return (0);
+			goto done;
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
@@ -634,7 +634,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 err:		if (cursor != NULL)
 			WT_TRET(cursor->close(cursor));
 	}
-
+done:
 	/*
 	 * Opening a cursor on a non-existent data source will set ret to
 	 * either of ENOENT or WT_NOTFOUND at this point. However,
