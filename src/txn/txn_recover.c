@@ -674,7 +674,7 @@ done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 	    hex_timestamp, &conn->txn_global.recovery_timestamp));
 	__wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
 	    "Set global recovery timestamp: %s", hex_timestamp);
-	__wt_errx(session, "RECOVERY: Global recovery ts %s", hex_ts);
+	__wt_errx(session, "RECOVERY: Global recovery ts %s", hex_timestamp);
 	}
 #endif
 
