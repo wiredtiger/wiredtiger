@@ -377,6 +377,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		__wt_verbose(r->session, WT_VERB_RECOVERY,
 		    "%s: Recovery timestamp %.*s",
 		    uri, (int)cval.len, cval.str);
+		__wt_errx(r->session,
+		    "%s: Recovery timestamp %.*s",
+		    uri, (int)cval.len, cval.str);
 		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
 		    &ckpt_timestamp, &cval));
 		/*
@@ -663,8 +666,16 @@ done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 	 * ran a full recovery or not. In all cases, we've reviewed all the
 	 * files in the metadata.
 	 */
+	{
+	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
 	__wt_timestamp_set(
 	    &conn->txn_global.recovery_timestamp, &r.max_timestamp);
+	WT_TRET(__wt_timestamp_to_hex_string(session,
+	    hex_timestamp, &conn->txn_global.recovery_timestamp));
+	__wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
+	    "Set global recovery timestamp: %s", hex_timestamp);
+	__wt_errx(session, "RECOVERY: Global recovery ts %s", hex_ts);
+	}
 #endif
 
 err:	WT_TRET(__recovery_free(&r));
