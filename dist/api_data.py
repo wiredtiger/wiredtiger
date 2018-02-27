@@ -1303,6 +1303,12 @@ methods = {
     Config('leak_memory', 'false', r'''
         don't free memory during close''',
         type='boolean'),
+    Config('use_timestamp', 'true', r'''
+        by default, create the close checkpoint as of the last stable timestamp
+        if timestamps are in use, or all current updates if there is no
+        stable timestamp set.  If false, this option generates a checkpoint
+        with all updates''',
+        type='boolean'),
 ]),
 'WT_CONNECTION.debug_info' : Method([
     Config('cache', 'false', r'''

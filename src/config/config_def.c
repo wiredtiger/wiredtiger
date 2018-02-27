@@ -12,6 +12,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_async_new_op[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_close[] = {
 	{ "leak_memory", "boolean", NULL, NULL, NULL, 0 },
+	{ "use_timestamp", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1204,8 +1205,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_async_new_op, 4
 	},
 	{ "WT_CONNECTION.close",
-	  "leak_memory=false",
-	  confchk_WT_CONNECTION_close, 1
+	  "leak_memory=false,use_timestamp=true",
+	  confchk_WT_CONNECTION_close, 2
 	},
 	{ "WT_CONNECTION.debug_info",
 	  "cache=false,cursors=false,handles=false,log=false,sessions=false"
