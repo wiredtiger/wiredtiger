@@ -776,16 +776,16 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 				return (ret);
 			}
 
-			/*
-			 * For these configuration values, there
-			 * is no difference in the resulting
-			 * cursor other than flag values, so fix
-			 * them up according to the given configuration.
-			 */
-			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW);
-			F_SET(cursor, WT_CURSTD_OVERWRITE);
+			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE |
+			    WT_CURSTD_RAW);
 
 			if (have_config) {
+				/*
+				 * For these configuration values, there
+				 * is no difference in the resulting
+				 * cursor other than flag values, so fix
+				 * them up now.
+				 */
 				WT_RET(__wt_config_gets_def(
 				    session, cfg, "append", 0, &cval));
 				if (cval.val != 0)
@@ -793,8 +793,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 
 				WT_RET(__wt_config_gets_def(
 				    session, cfg, "overwrite", 1, &cval));
-				if (cval.val == 0)
-					F_CLR(cursor, WT_CURSTD_OVERWRITE);
+				if (cval.val != 0)
+					F_SET(cursor, WT_CURSTD_OVERWRITE);
 
 				WT_RET(__wt_config_gets_def(
 				    session, cfg, "raw", 0, &cval));
