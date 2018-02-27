@@ -290,7 +290,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	    __wt_txn_visible_all(session, ref->page_del->txnid,
 		WT_TIMESTAMP_NULL(&ref->page_del->timestamp)):
 	    __wt_txn_visible(session, ref->page_del->txnid,
-		WT_TIMESTAMP_NULL(&ref->page_del->timestamp)));
+		WT_TIMESTAMP_NULL(&ref->page_del->timestamp), NULL));
 
 	/*
 	 * The page_del structure can be freed as soon as the delete is stable:

@@ -9,6 +9,11 @@
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
+typedef enum {
+	WT_VISIBLE_TYPE_FALSE=0,         /* Not visible Update */
+	WT_VISIBLE_TYPE_TRUE=1,          /* Visible update */
+	WT_VISIBLE_TYPE_PREPARED=2        /* Prepared update */
+} WT_VISIBLE_TYPE;
 #ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_timestamp_flags --
@@ -480,31 +485,59 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  * __wt_txn_visible --
  *	Can the current transaction see the given ID / timestamp?
  */
-static inline bool
+static inline int
 __wt_txn_visible(
-    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t *timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t *timestamp,
+    WT_UPDATE *upd)
 {
 	if (!__txn_visible_id(session, id))
-		return (false);
+		return (WT_VISIBLE_TYPE_FALSE);
 
 	/* Transactions read their writes, regardless of timestamps. */
 	if (F_ISSET(&session->txn, WT_TXN_HAS_ID) && id == session->txn.id)
-		return (true);
+		return (WT_VISIBLE_TYPE_TRUE);
 
 #ifdef HAVE_TIMESTAMPS
 	{
 	WT_TXN *txn = &session->txn;
 
+#if 0
 	/* Timestamp check. */
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
-		return (true);
+		return (WT_VISIBLE_TYPE_TRUE);
+#endif
+	if (timestamp == NULL)
+		return (WT_VISIBLE_TYPE_TRUE);
 
-	return (__wt_timestamp_cmp(timestamp, &txn->read_timestamp) <= 0);
+	if (upd == NULL) {
+		return (!F_ISSET(txn, WT_TXN_HAS_TS_READ) ?
+		    WT_VISIBLE_TYPE_TRUE :
+		    (__wt_timestamp_cmp(timestamp, &txn->read_timestamp) <= 0 ?
+			WT_VISIBLE_TYPE_TRUE : WT_VISIBLE_TYPE_FALSE));
+	} else
+		switch (upd->state) {
+		case WT_UPDATE_STATE_PREPARED:
+			return (WT_VISIBLE_TYPE_PREPARED);
+		case WT_UPDATE_STATE_LOCKED:
+			/* Commit is in progress. */
+			do {
+				__wt_yield();
+			} while (FLD_ISSET(upd->state, WT_UPDATE_STATE_LOCKED));
+			/* FALLTHROUGH */
+		case WT_UPDATE_STATE_READY:
+			return (!F_ISSET(txn, WT_TXN_HAS_TS_READ) ?
+			    WT_VISIBLE_TYPE_TRUE :
+			    (__wt_timestamp_cmp(timestamp,
+				&txn->read_timestamp) <= 0 ?
+				WT_VISIBLE_TYPE_TRUE : WT_VISIBLE_TYPE_FALSE));
+		}
+
 	}
 #else
 	WT_UNUSED(timestamp);
-	return (true);
+	WT_UNUSED(upd);
 #endif
+	return (WT_VISIBLE_TYPE_TRUE);
 }
 
 /*
@@ -514,31 +547,19 @@ __wt_txn_visible(
 static inline bool
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	/*
-	 * If update state is ready, it indicates either prepared update
-	 * has not started or committed.
-	 */
-	if (FLD_ISSET(upd->state, WT_UPDATE_STATE_READY))
-		return (__wt_txn_visible(session,
-		    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
-#ifdef HAVE_TIMESTAMPS
-	else {
-		switch (upd->state) {
-		case WT_UPDATE_STATE_PREPARED:
-			/* Prepared updates should not be visible for update. */
-			return (false);
-		case WT_UPDATE_STATE_LOCKED:
-			/* Commit is in progress. */
-			do {
-				__wt_yield();
-			} while (FLD_ISSET(upd->state, WT_UPDATE_STATE_LOCKED));
-			/* FALLTHROUGH */
-		case WT_UPDATE_STATE_READY:
-			return (__wt_txn_visible(session,
-			    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
-		}
+	WT_VISIBLE_TYPE visible_type;
+
+	visible_type = __wt_txn_visible(session, upd->txnid,
+	    WT_TIMESTAMP_NULL(&upd->timestamp), upd);
+	switch (visible_type) {
+	case WT_VISIBLE_TYPE_FALSE:
+		return (false);
+	case WT_VISIBLE_TYPE_TRUE:
+		return (true);
+	case WT_VISIBLE_TYPE_PREPARED:
+		return (false);
 	}
-#endif
+
 	/* NOTREACHED */
 	return (true);
 }
