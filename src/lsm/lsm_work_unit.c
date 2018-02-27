@@ -313,11 +313,11 @@ __wt_lsm_chunk_visible_all(
 }
 
 /*
- * __lsm_checkpoint_chunk_call --
- *	Make the actual checkpoint call, separated out to make locking easier.
+ * __lsm_checkpoint_chunk --
+ *	Checkpoint an LSM chunk, separated out to make locking easier.
  */
 static int
-__lsm_checkpoint_chunk_call(WT_SESSION_IMPL *session)
+__lsm_checkpoint_chunk(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 
@@ -420,7 +420,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	 */
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __lsm_checkpoint_chunk_call(session)));
+		ret = __lsm_checkpoint_chunk(session)));
 	if (ret != 0)
 		WT_ERR_MSG(session, ret, "LSM checkpoint");
 
