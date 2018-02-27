@@ -465,7 +465,7 @@ __curfile_close(WT_CURSOR *cursor)
 	WT_CURSOR_BULK *cbulk;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool dead, released;
+	bool released;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, cbt->btree);
@@ -477,9 +477,8 @@ __curfile_close(WT_CURSOR *cursor)
 	 */
 	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
 	if (released)
-		goto done;
+		return (0);
 
-	dead = F_ISSET(cursor, WT_CURSTD_DEAD);
 	if (F_ISSET(cursor, WT_CURSTD_BULK)) {
 		/* Free the bulk-specific resources. */
 		cbulk = (WT_CURSOR_BULK *)cbt;
@@ -503,17 +502,9 @@ __curfile_close(WT_CURSOR *cursor)
 	if (session->dhandle != NULL) {
 		/* Decrement the data-source's in-use counter. */
 		__wt_cursor_dhandle_decr_use(session);
-
-		/*
-		 * If the cursor was marked dead, we got here from reopening
-		 * a cached cursor, which had a handle that was dead at that
-		 * time, so it did not obtain a lock on the handle.
-		 */
-		if (!dead)
-			WT_TRET(__wt_session_release_dhandle(session));
+		WT_TRET(__wt_session_release_dhandle(session));
 	}
 
-done:
 err:	API_END_RET(session, ret);
 }
 
@@ -559,10 +550,8 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	if (!check_only) {
 		session->dhandle = dhandle;
 		WT_TRET(__wt_session_lock_dhandle(session, 0, &is_dead));
-		if (is_dead) {
-			F_SET(cursor, WT_CURSTD_DEAD);
+		if (is_dead)
 			WT_TRET(WT_NOTFOUND);
-		}
 		__wt_cursor_reopen(cursor, dhandle);
 	}
 	return (ret);
