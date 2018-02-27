@@ -101,10 +101,10 @@ class test_timestamp12(wttest.WiredTigerTestCase):
             self.session.commit_transaction(
               'commit_timestamp=' + timestamp_str(i))
 
-        # Close and reopen the connection.
+        # Close and reopen the connection. We cannot use reopen_conn because
+        # we want to test the specific close configuration string.
         self.close_conn(self.close_cfg)
-        self.conn = self.setUpConnectionOpen(".")
-        self.session = self.conn.open_session()
+        self.open_conn()
 
         # Set up our expected data and verify after the reopen.
         op_exp = dict((k, 1) for k in all_keys)

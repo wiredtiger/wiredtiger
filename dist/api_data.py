@@ -1307,7 +1307,7 @@ methods = {
         by default, create the close checkpoint as of the last stable timestamp
         if timestamps are in use, or all current updates if there is no
         stable timestamp set.  If false, this option generates a checkpoint
-        with all updates including those later than the timestamp''',
+        with all updates''',
         type='boolean'),
 ]),
 'WT_CONNECTION.debug_info' : Method([
