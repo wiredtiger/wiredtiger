@@ -76,15 +76,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 	page = *pagep;
 	*pagep = NULL;
 
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
-		__wt_page_modify_clear(session, page);
-
-	/*
-	 * We should never discard:
-	 * - a dirty page,
-	 * - a page queued for eviction, or
-	 * - a locked page.
-	 */
+	/* Assert we never discard a dirty page or a page queue for eviction. */
 	WT_ASSERT(session, !__wt_page_is_modified(page));
 	WT_ASSERT(session, !F_ISSET_ATOMIC(page, WT_PAGE_EVICT_LRU));
 

@@ -265,6 +265,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
@@ -281,7 +282,11 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 	op->u.ref = ref;
 	ref->page_del->txnid = txn->id;
 
-	return (__wt_txn_log_op(session, NULL));
+	WT_ERR(__wt_txn_log_op(session, NULL));
+	return (0);
+
+err:	__wt_txn_unmodify(session);
+	return (ret);
 }
 
 /*

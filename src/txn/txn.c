@@ -462,84 +462,12 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 		WT_RET(__wt_txn_named_snapshot_get(session, &cval));
 
-	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
-	if (cval.len > 0) {
-#ifdef HAVE_TIMESTAMPS
-		wt_timestamp_t ts;
-		WT_TXN_GLOBAL *txn_global;
-		char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
-		bool round_to_oldest;
+	/* Check if prepared updates should be ignored during reads. */
+	WT_RET(__wt_config_gets_def(session, cfg, "ignore_prepare", 0, &cval));
+	if (cval.val)
+		F_SET(txn, WT_TXN_IGNORE_PREPARE);
 
-		txn_global = &S2C(session)->txn_global;
-		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
-
-		/*
-		 * Prepare transactions are supported only in timestamp build.
-		 */
-		WT_RET(__wt_config_gets_def(session,
-		    cfg, "ignore_prepare", 0, &cval));
-		if (cval.val)
-			F_SET(txn, WT_TXN_IGNORE_PREPARE);
-
-		/*
-		 * Read the configuration here to reduce the span of the
-		 * critical section.
-		 */
-		WT_RET(__wt_config_gets_def(session,
-		    cfg, "round_to_oldest", 0, &cval));
-		round_to_oldest = cval.val;
-		/*
-		 * This code is not using the timestamp validate function to
-		 * avoid a race between checking and setting transaction
-		 * timestamp.
-		 */
-		WT_RET(__wt_timestamp_to_hex_string(session,
-		    hex_timestamp[0], &ts));
-		__wt_readlock(session, &txn_global->rwlock);
-		if (__wt_timestamp_cmp(&ts, &txn_global->oldest_timestamp) < 0)
-		{
-			WT_RET(__wt_timestamp_to_hex_string(session,
-			    hex_timestamp[1], &txn_global->oldest_timestamp));
-			/*
-			 * If given read timestamp is earlier than oldest
-			 * timestamp then round the read timestamp to
-			 * oldest timestamp.
-			 */
-			if (round_to_oldest)
-				__wt_timestamp_set(&txn->read_timestamp,
-				    &txn_global->oldest_timestamp);
-			else {
-				__wt_readunlock(session, &txn_global->rwlock);
-				WT_RET_MSG(session, EINVAL, "read timestamp "
-				    "%s older than oldest timestamp %s",
-				    hex_timestamp[0], hex_timestamp[1]);
-			}
-		} else {
-			__wt_timestamp_set(&txn->read_timestamp, &ts);
-			/*
-			 * Reset to avoid a verbose message as read
-			 * timestamp is not rounded to oldest timestamp.
-			 */
-			round_to_oldest = false;
-		}
-
-		__wt_txn_set_read_timestamp(session);
-		__wt_readunlock(session, &txn_global->rwlock);
-		txn->isolation = WT_ISO_SNAPSHOT;
-		if (round_to_oldest) {
-			/*
-			 * This message is generated here to reduce the span of
-			 * critical section.
-			 */
-			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
-			    "timestamp %s : Rounded to oldest timestamp %s",
-			    hex_timestamp[0], hex_timestamp[1]);
-		}
-#else
-		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
-		    "version of WiredTiger built with timestamp support");
-#endif
-	}
+	WT_RET(__wt_txn_parse_read_timestamp(session, cfg));
 
 	return (0);
 }
@@ -1177,7 +1105,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF_DELETE:
-			__wt_delete_page_rollback(session, op->u.ref);
+			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:

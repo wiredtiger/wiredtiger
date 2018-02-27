@@ -567,7 +567,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 
-	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+	if (owner == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, owner, cfg, cursorp)) == 0)
 			return (0);
@@ -599,7 +599,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 	if (to_dup == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, NULL, cfg, cursorp)) == 0)
-			return (0);
+			goto done;
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
@@ -634,7 +634,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 err:		if (cursor != NULL)
 			WT_TRET(cursor->close(cursor));
 	}
-
+done:
 	/*
 	 * Opening a cursor on a non-existent data source will set ret to
 	 * either of ENOENT or WT_NOTFOUND at this point. However,
@@ -2165,6 +2165,17 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	TAILQ_INIT(&session_ret->cursors);
 	TAILQ_INIT(&session_ret->dhandles);
 
+	/*
+	 * If we don't have them, allocate the cursor and dhandle hash arrays.
+	 * Allocate the table hash array as well.
+	 */
+	if (session_ret->cursor_cache == NULL)
+		WT_ERR(__wt_calloc_def(
+		    session, WT_HASH_ARRAY_SIZE, &session_ret->cursor_cache));
+	if (session_ret->dhhash == NULL)
+		WT_ERR(__wt_calloc_def(
+		    session, WT_HASH_ARRAY_SIZE, &session_ret->dhhash));
+
 	/* Initialize the dhandle hash array. */
 	for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
 		TAILQ_INIT(&session_ret->dhhash[i]);
@@ -2200,6 +2211,10 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		    session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
 		session_ret->optrackbuf_ptr = 0;
 	}
+
+	/* Set the default value for session flags. */
+	F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
+
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.
