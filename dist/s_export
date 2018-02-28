@@ -22,7 +22,7 @@ check()
 	(sed -e '/^#/d' s_export.list &&
 	eval $NM |
 	sed 's/.* //' |
-	egrep -v '^__wt') |
+	egrep -v '^_') |
 	sort |
 	uniq -u |
 	egrep -v \
