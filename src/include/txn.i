@@ -10,9 +10,9 @@ static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
 typedef enum {
-	WT_VISIBLE_TYPE_FALSE=0,        /* Not a visible update */
-	WT_VISIBLE_TYPE_PREPARE=1,      /* Prepared update */
-	WT_VISIBLE_TYPE_TRUE=2          /* A visible update */
+	WT_VISIBLE_FALSE=0,        /* Not a visible update */
+	WT_VISIBLE_PREPARE=1,      /* Prepared update */
+	WT_VISIBLE_TRUE=2          /* A visible update */
 } WT_VISIBLE_TYPE;
 
 #ifdef HAVE_TIMESTAMPS
@@ -517,7 +517,7 @@ __wt_txn_visible(
  * __wt_txn_upd_visible --
  *	Can the current transaction see the given update.
  */
-static inline int
+static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	uint8_t upd_state;
@@ -541,13 +541,13 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			continue;
 
 		if (!upd_visible)
-			return (WT_VISIBLE_TYPE_FALSE);
+			return (WT_VISIBLE_FALSE);
 
 		if (upd_state == WT_UPDATE_STATE_PREPARED)
 			return (F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) ?
-			    WT_VISIBLE_TYPE_FALSE : WT_VISIBLE_TYPE_PREPARE);
+			    WT_VISIBLE_FALSE : WT_VISIBLE_PREPARE);
 
-		return (WT_VISIBLE_TYPE_TRUE);
+		return (WT_VISIBLE_TRUE);
 	}
 }
 
@@ -801,11 +801,10 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 	if (txn->isolation == WT_ISO_SNAPSHOT)
 		while (upd != NULL && __wt_txn_upd_visible(session, upd) !=
-		    WT_VISIBLE_TYPE_TRUE) {
-			if (ignore_prepare_set)
-				F_SET(txn, WT_TXN_IGNORE_PREPARE);
-
+		    WT_VISIBLE_TRUE) {
 			if (upd->txnid != WT_TXN_ABORTED) {
+				if (ignore_prepare_set)
+					F_SET(txn, WT_TXN_IGNORE_PREPARE);
 				WT_STAT_CONN_INCR(
 				    session, txn_update_conflict);
 				WT_STAT_DATA_INCR(
@@ -816,6 +815,8 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			upd = upd->next;
 		}
 
+	if (ignore_prepare_set)
+		F_SET(txn, WT_TXN_IGNORE_PREPARE);
 	return (0);
 }
 
