@@ -960,7 +960,8 @@ struct __wt_session {
 	 * calls to WT_CURSOR::close for a cursor created in this session will
 	 * mark the cursor as cached and keep it available to be reused for
 	 * later calls to WT_SESSION::open_cursor.  Cached cursors may be
-	 * eventually closed., a boolean flag; default \c true.}
+	 * eventually closed.  This value is inherited from ::wiredtiger_open \c
+	 * cache_cursors., a boolean flag; default \c true.}
 	 * @config{ignore_cache_size, when set\, operations performed by this
 	 * session ignore the cache size and are not blocked when the cache is
 	 * full.  Note that use of this option for operations that create cache
@@ -2126,6 +2127,10 @@ struct __wt_connection {
 	 * thread uses a session from the configured session_max., an integer
 	 * between 1 and 20; default \c 2.}
 	 * @config{ ),,}
+	 * @config{cache_cursors, enable caching of cursors for reuse.  This is
+	 * the default value for any sessions created\, and can be overridden in
+	 * configuring \c cache_cursors in WT_CONNECTION.open_session., a
+	 * boolean flag; default \c true.}
 	 * @config{cache_overhead, assume the heap allocator overhead is the
 	 * specified percentage\, and adjust the cache usage by that amount (for
 	 * example\, if there is 10GB of data in cache\, a percentage of 10
@@ -2388,7 +2393,8 @@ struct __wt_connection {
 	 * calls to WT_CURSOR::close for a cursor created in this session will
 	 * mark the cursor as cached and keep it available to be reused for
 	 * later calls to WT_SESSION::open_cursor.  Cached cursors may be
-	 * eventually closed., a boolean flag; default \c true.}
+	 * eventually closed.  This value is inherited from ::wiredtiger_open \c
+	 * cache_cursors., a boolean flag; default \c true.}
 	 * @config{ignore_cache_size, when set\, operations performed by this
 	 * session ignore the cache size and are not blocked when the cache is
 	 * full.  Note that use of this option for operations that create cache
@@ -2700,6 +2706,10 @@ struct __wt_connection {
  * as the \c config parameter (for example\,
  * <code>builtin_extension_config={zlib={compression_level=3}}</code>)., a
  * string; default empty.}
+ * @config{cache_cursors, enable caching of cursors for reuse.  This is the
+ * default value for any sessions created\, and can be overridden in configuring
+ * \c cache_cursors in WT_CONNECTION.open_session., a boolean flag; default \c
+ * true.}
  * @config{cache_overhead, assume the heap allocator overhead is the specified
  * percentage\, and adjust the cache usage by that amount (for example\, if
  * there is 10GB of data in cache\, a percentage of 10 means WiredTiger treats

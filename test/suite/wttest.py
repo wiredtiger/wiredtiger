@@ -167,6 +167,10 @@ class WiredTigerTestCase(unittest.TestCase):
     # Can be a string or a callable function or lambda expression.
     conn_config = ''
 
+    # session_config can be overridden to add to basic session configuration.
+    # Can be a string or a callable function or lambda expression.
+    session_config = ''
+
     # conn_extensions can be overridden to add a list of extensions to load.
     # Each entry is a string (directory and extension name) and optional config.
     # Example:
@@ -319,9 +323,12 @@ class WiredTigerTestCase(unittest.TestCase):
         conn = wiredtiger.wiredtiger_open(home, config)
         return TestSuiteConnection(conn, self._connections)
 
-    # Can be overridden
+    # Can be overridden, but first consider setting self.session_config
     def setUpSessionOpen(self, conn):
-        return conn.open_session(None)
+        config = self.session_config
+        if hasattr(config, '__call__'):
+            config = self.session_config()
+        return conn.open_session(config)
 
     # Can be overridden
     def close_conn(self, config=''):

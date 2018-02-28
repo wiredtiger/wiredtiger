@@ -2614,6 +2614,10 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
 	conn->mmap = cval.val != 0;
 
+	WT_ERR(__wt_config_gets(session, cfg, "cache_cursors", &cval));
+	if (cval.val)
+		F_SET(conn, WT_CONN_CACHE_CURSORS);
+
 	WT_ERR(__wt_conn_statistics_config(session, cfg));
 	WT_ERR(__wt_lsm_manager_config(session, cfg));
 	WT_ERR(__wt_sweep_config(session, cfg));
