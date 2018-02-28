@@ -559,9 +559,16 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	if (!check_only) {
 		session->dhandle = dhandle;
 		WT_TRET(__wt_session_lock_dhandle(session, 0, &is_dead));
-		if (is_dead) {
+		/*
+		 * If we get a busy return, the data handle may be involved
+		 * in an exclusive operation. We'll treat it in the same
+		 * way as a dead handle: fail the reopen, and flag the
+		 * cursor so that the handle won't be unlocked when it
+		 * is subsequently closed.
+		 */
+		if (is_dead || ret == EBUSY) {
 			F_SET(cursor, WT_CURSTD_DEAD);
-			WT_TRET(WT_NOTFOUND);
+			ret = WT_NOTFOUND;
 		}
 		__wt_cursor_reopen(cursor, dhandle);
 	}
