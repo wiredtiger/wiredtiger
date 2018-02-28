@@ -1422,8 +1422,11 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 
 done:
 err:	/*
-	 * Close any locally-opened start cursor. Reset application cursors,
-	 * they've possibly moved and the application cannot use them.
+	 * Close any locally-opened start cursor.
+	 *
+	 * Reset application cursors, they've possibly moved and the
+	 * application cannot use them.  Note that we can make it here with a
+	 * NULL start cursor (e.g., if the truncate range is empty).
 	 */
 	if (local_start)
 		WT_TRET(start->close(start));
