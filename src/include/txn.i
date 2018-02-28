@@ -9,6 +9,12 @@
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
+typedef enum {
+	WT_VISIBLE_TYPE_FALSE=0,        /* Not a visible update */
+	WT_VISIBLE_TYPE_PREPARE=1,      /* Prepared update */
+	WT_VISIBLE_TYPE_TRUE=2          /* A visible update */
+} WT_VISIBLE_TYPE;
+
 #ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_timestamp_flags --
@@ -511,11 +517,38 @@ __wt_txn_visible(
  * __wt_txn_upd_visible --
  *	Can the current transaction see the given update.
  */
-static inline bool
+static inline int
 __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	return (__wt_txn_visible(session,
-	    upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
+	uint8_t upd_state;
+	bool upd_visible;
+
+	for (;;) {
+		upd_state = upd->state;
+		if (upd_state == WT_UPDATE_STATE_LOCKED) {
+			/* Commit is in progress, yield and try again. */
+			__wt_yield();
+			continue;
+		}
+
+		upd_visible = __wt_txn_visible(session, upd->txnid,
+		    WT_TIMESTAMP_NULL(&upd->timestamp));
+		/*
+		 * Update state changed from beneath during txn visibility
+		 * check, try again.
+		 */
+		if (upd->state != upd_state)
+			continue;
+
+		if (!upd_visible)
+			return (WT_VISIBLE_TYPE_FALSE);
+
+		if (upd_state == WT_UPDATE_STATE_PREPARED)
+			return (F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) ?
+			    WT_VISIBLE_TYPE_FALSE : WT_VISIBLE_TYPE_PREPARE);
+
+		return (WT_VISIBLE_TYPE_TRUE);
+	}
 }
 
 /*
@@ -755,10 +788,23 @@ static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	WT_TXN *txn;
+	uint32_t ignore_prepare_set;
 
 	txn = &session->txn;
+	ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
+	/*
+	 * Clear the ignore prepare setting of txn, as it is not suppose to
+	 * affect the visibility for update operation
+	 */
+	if (ignore_prepare_set)
+		F_CLR(txn, WT_TXN_IGNORE_PREPARE);
+
 	if (txn->isolation == WT_ISO_SNAPSHOT)
-		while (upd != NULL && !__wt_txn_upd_visible(session, upd)) {
+		while (upd != NULL && __wt_txn_upd_visible(session, upd) !=
+		    WT_VISIBLE_TYPE_TRUE) {
+			if (ignore_prepare_set)
+				F_SET(txn, WT_TXN_IGNORE_PREPARE);
+
 			if (upd->txnid != WT_TXN_ABORTED) {
 				WT_STAT_CONN_INCR(
 				    session, txn_update_conflict);
