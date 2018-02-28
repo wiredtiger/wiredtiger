@@ -13,7 +13,7 @@ Darwin)
 	# We require GNU nm, which may not be installed.
 	type nm > /dev/null 2>&1 &&
 	    (nm --version | grep 'GNU nm') > /dev/null 2>&1 || exit 0
-	NM='nm --extern-only --defined-only --print-file-name $f'
+	NM='nm --extern-only --defined-only --print-file-name $f | egrep -v "__bss_start|_edata|_end|_fini|_init"'
 	;;
 esac
 
@@ -22,7 +22,7 @@ check()
 	(sed -e '/^#/d' s_export.list &&
 	eval $NM |
 	sed 's/.* //' |
-	egrep -v '^_') |
+	egrep -v '^__wt') |
 	sort |
 	uniq -u |
 	egrep -v \
