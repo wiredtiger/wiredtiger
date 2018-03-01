@@ -230,6 +230,35 @@ class test_cursor13_reopens(test_cursor13_base):
         self.cursor_stats_init()
         self.basic_reopen(10, False, True)
 
+    # Test we can reopen across a verify.
+    def test_verify(self):
+        if self.dstype != None:
+            self.session.reconfigure('cache_cursors=true')
+            ds = self.dstype(self, self.uri, 100)
+            ds.populate()
+            for loop in range(10):
+                # We need an extra cursor open to test all code paths in
+                # this loop.  After the verify (the second or more time through
+                # the loop), the data handle referred to by both cached
+                # cursors will no longer be open.
+                #
+                # The first cursor open will attempt to reopen the
+                # first cached cursor, will see the data handle closed,
+                # thus will close that cursor and open normally.
+                #
+                # The second cursor open (in ds.check()) will attempt the
+                # reopen the second cached cursor, see the data handle now
+                # open and will succeed the reopen.
+                #
+                # This test checks that reopens of cursor using a an
+                # already reopened data handle will work.
+                c = self.session.open_cursor(self.uri)
+                ds.check()
+                c.close()
+                s2 = self.conn.open_session()
+                s2.verify(self.uri)
+                s2.close()
+
 class test_cursor13_drops(test_cursor13_base):
     def open_and_drop(self, uri, cursor_session, drop_session, nopens, ntrials):
         for i in range(0, ntrials):

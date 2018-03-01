@@ -559,6 +559,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	if (!check_only) {
 		session->dhandle = dhandle;
 		WT_TRET(__wt_session_lock_dhandle(session, 0, &is_dead));
+
 		/*
 		 * If we get a busy return, the data handle may be involved
 		 * in an exclusive operation. We'll treat it in the same
@@ -571,6 +572,17 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 			ret = WT_NOTFOUND;
 		}
 		__wt_cursor_reopen(cursor, dhandle);
+
+		/*
+		 * The btree handle may have been reopened since we last
+		 * accessed it.  Reset fields in the cursor that point to
+		 * memory owned by the btree handle.
+		 */
+		if (ret == 0) {
+			cursor->internal_uri = cbt->btree->dhandle->name;
+			cursor->key_format = cbt->btree->key_format;
+			cursor->value_format = cbt->btree->value_format;
+		}
 	}
 	return (ret);
 }
