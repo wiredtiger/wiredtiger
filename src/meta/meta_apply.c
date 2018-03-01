@@ -28,18 +28,15 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	 * Accumulate errors from the applied function(s) but continue through
 	 * to the end of the metadata.
 	 */
-	t_ret = 0;
-
-	while ((ret = cursor->next(cursor)) == 0) {
+	while ((t_ret = cursor->next(cursor)) == 0) {
 		WT_RET(cursor->get_key(cursor, &uri));
 		if (strcmp(uri, WT_METAFILE_URI) == 0)
 			continue;
 
 		skip = false;
 		if (name_func != NULL &&
-		    (ret = name_func(session, uri, &skip)) != 0) {
-			if (t_ret == 0)
-				t_ret = ret;
+		    (t_ret = name_func(session, uri, &skip)) != 0) {
+			WT_TRET(t_ret);
 			continue;
 		}
 
@@ -57,20 +54,19 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 * checkpoint encountering handles that are locked (e.g., for
 		 * bulk loads or verify operations).
 		 */
-		if ((ret = __wt_session_get_dhandle(
+		if ((t_ret = __wt_session_get_dhandle(
 		    session, uri, NULL, NULL, 0)) != 0) {
-			WT_RET_BUSY_OK(ret);
+			WT_RET_BUSY_OK(t_ret);
 			continue;
 		}
 
-		WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
-		if (ret != 0 && t_ret == 0)
-			t_ret = ret;
+		WT_SAVE_DHANDLE(session, t_ret = file_func(session, cfg));
+		WT_TRET(t_ret);
 		WT_RET(__wt_session_release_dhandle(session));
 	}
-	WT_RET_NOTFOUND_OK(ret);
+	WT_TRET_NOTFOUND_OK(t_ret);
 
-	return (t_ret);
+	return (ret);
 }
 
 /*
