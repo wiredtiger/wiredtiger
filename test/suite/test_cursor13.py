@@ -208,6 +208,21 @@ class test_cursor13_reopens(test_cursor13_base):
             ds = self.dstype(self, self.uri, 100)
             ds.populate()
             for loop in range(10):
+                # We need an extra cursor open to test all code paths in
+                # this loop.  After the verify (the second or more time through
+                # the loop), the data handle referred to by both cached
+                # cursors will no longer be open.
+                #
+                # The first cursor open will attempt to reopen the
+                # first cached cursor, will see the data handle closed,
+                # thus will close that cursor and open normally.
+                #
+                # The second cursor open (in ds.check()) will attempt the
+                # reopen the second cached cursor, see the data handle now
+                # open and will succeed the reopen.
+                #
+                # This test checks that reopens of cursor using a an
+                # already reopened data handle will work.
                 c = self.session.open_cursor(self.uri)
                 ds.check()
                 c.close()
