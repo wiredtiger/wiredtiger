@@ -138,7 +138,6 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ "async", "category",
 	    NULL, NULL,
 	    confchk_wiredtiger_open_async_subconfigs, 3 },
-	{ "cache_cursors", "boolean", NULL, NULL, NULL, 0 },
 	{ "cache_overhead", "int", NULL, "min=0,max=30", NULL, 0 },
 	{ "cache_size", "int", NULL, "min=1MB,max=10TB", NULL, 0 },
 	{ "checkpoint", "category",
@@ -1233,9 +1232,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_query_timestamp, 1
 	},
 	{ "WT_CONNECTION.reconfigure",
-	  "async=(enabled=false,ops_max=1024,threads=2),cache_cursors=true,"
-	  "cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,wait=0)"
-	  ",compatibility=(release=),error_prefix=,eviction=(threads_max=8,"
+	  "async=(enabled=false,ops_max=1024,threads=2),cache_overhead=8,"
+	  "cache_size=100MB,checkpoint=(log_size=0,wait=0),"
+	  "compatibility=(release=),error_prefix=,eviction=(threads_max=8,"
 	  "threads_min=1),eviction_checkpoint_target=5,"
 	  "eviction_dirty_target=5,eviction_dirty_trigger=20,"
 	  "eviction_target=80,eviction_trigger=95,"
@@ -1247,7 +1246,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "statistics=none,statistics_log=(json=false,on_close=false,"
 	  "sources=,timestamp=\"%b %d %H:%M:%S\",wait=0),"
 	  "timing_stress_for_test=,verbose=",
-	  confchk_WT_CONNECTION_reconfigure, 23
+	  confchk_WT_CONNECTION_reconfigure, 22
 	},
 	{ "WT_CONNECTION.rollback_to_stable",
 	  "",

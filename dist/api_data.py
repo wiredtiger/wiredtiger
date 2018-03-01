@@ -401,11 +401,6 @@ connection_runtime_config = [
             session_max''',
                 min='1', max='20'), # !!! Must match WT_ASYNC_MAX_WORKERS
             ]),
-    Config('cache_cursors', 'true', r'''
-        enable caching of cursors for reuse. This is the default value
-        for any sessions created, and can be overridden in configuring
-        \c cache_cursors in WT_CONNECTION.open_session.''',
-        type='boolean'),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
@@ -760,6 +755,11 @@ wiredtiger_open_common =\
         values are passed to WT_CONNECTION::load_extension as the \c config
         parameter (for example,
         <code>builtin_extension_config={zlib={compression_level=3}}</code>)'''),
+    Config('cache_cursors', 'true', r'''
+        enable caching of cursors for reuse. This is the default value
+        for any sessions created, and can be overridden in configuring
+        \c cache_cursors in WT_CONNECTION.open_session.''',
+        type='boolean'),
     Config('checkpoint_sync', 'true', r'''
         flush files to stable storage when closing or writing
         checkpoints''',

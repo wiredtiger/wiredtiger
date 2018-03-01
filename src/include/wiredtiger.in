@@ -2127,10 +2127,6 @@ struct __wt_connection {
 	 * thread uses a session from the configured session_max., an integer
 	 * between 1 and 20; default \c 2.}
 	 * @config{ ),,}
-	 * @config{cache_cursors, enable caching of cursors for reuse.  This is
-	 * the default value for any sessions created\, and can be overridden in
-	 * configuring \c cache_cursors in WT_CONNECTION.open_session., a
-	 * boolean flag; default \c true.}
 	 * @config{cache_overhead, assume the heap allocator overhead is the
 	 * specified percentage\, and adjust the cache usage by that amount (for
 	 * example\, if there is 10GB of data in cache\, a percentage of 10
