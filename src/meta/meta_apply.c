@@ -20,8 +20,15 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
     const char *cfg[])
 {
 	WT_DECL_RET;
+	int t_ret;
 	const char *uri;
 	bool skip;
+
+	/*
+	 * Accumulate errors from the applied function(s) but continue through
+	 * to the end of the metadata.
+	 */
+	t_ret = 0;
 
 	while ((ret = cursor->next(cursor)) == 0) {
 		WT_RET(cursor->get_key(cursor, &uri));
@@ -29,8 +36,12 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			continue;
 
 		skip = false;
-		if (name_func != NULL)
-			WT_RET(name_func(session, uri, &skip));
+		if (name_func != NULL &&
+		    (ret = name_func(session, uri, &skip)) != 0) {
+			if (t_ret == 0)
+				t_ret = ret;
+			continue;
+		}
 
 		if (file_func == NULL || skip || !WT_PREFIX_MATCH(uri, "file:"))
 			continue;
@@ -40,24 +51,26 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 * and make sure it's referenced to stop other internal code
 		 * dropping the handle (e.g in LSM when cleaning up obsolete
 		 * chunks).  Holding the schema lock isn't enough.
-		 */
-		if ((ret = __wt_session_get_dhandle(
-		    session, uri, NULL, NULL, 0)) == 0) {
-			WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
-			WT_TRET(__wt_session_release_dhandle(session));
-		}
-
-		/*
+		 *
 		 * Handles that are busy are skipped without the whole
 		 * operation failing.  This deals among other cases with
 		 * checkpoint encountering handles that are locked (e.g., for
 		 * bulk loads or verify operations).
 		 */
-		WT_RET_BUSY_OK(ret);
+		if ((ret = __wt_session_get_dhandle(
+		    session, uri, NULL, NULL, 0)) != 0) {
+			WT_RET_BUSY_OK(ret);
+			continue;
+		}
+
+		WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
+		if (ret != 0 && t_ret == 0)
+			t_ret = ret;
+		WT_RET(__wt_session_release_dhandle(session));
 	}
 	WT_RET_NOTFOUND_OK(ret);
 
-	return (0);
+	return (t_ret);
 }
 
 /*
