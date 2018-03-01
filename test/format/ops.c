@@ -193,6 +193,7 @@ wts_ops(int lastrun)
 			tinfo = tinfo_list[i];
 			total.commit += tinfo->commit;
 			total.deadlock += tinfo->deadlock;
+			total.prepare += tinfo->prepare;
 			total.insert += tinfo->insert;
 			total.remove += tinfo->remove;
 			total.rollback += tinfo->rollback;
@@ -573,6 +574,32 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	} else
 		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
+}
+
+/*
+ * prepare_transaction --
+ *     Prepare a transaction if timestamps are in use.
+ */
+static int
+prepare_transaction(TINFO *tinfo, WT_SESSION *session)
+{
+	int ret;
+	char config_buf[64];
+
+	if (!g.c_txn_timestamps || g.c_logging)
+		return (0);
+	/*
+	 * Prepare timestamps must be less than or equal to the
+	 * commit timestamp. Set the prepare timestamp to whatever
+	 * the global value is now. The later commit will increment
+	 * it at whatever value it is then.
+	 */
+	testutil_check(__wt_snprintf(
+	    config_buf, sizeof(config_buf),
+	    "prepare_timestamp=%" PRIx64, g.timestamp));
+	ret = session->prepare_transaction(session, config_buf);
+	++tinfo->prepare;
+	return (ret);
 }
 
 /*
@@ -1027,6 +1054,16 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
+			/*
+			 * Occasionally prepare the transaction too.
+			 */
+			if (rnd == 1) {
+				ret = prepare_transaction(tinfo, session);
+				testutil_assert(
+				    ret == 0 || ret == WT_PREPARE_CONFLICT);
+				if (ret == WT_PREPARE_CONFLICT)
+					goto deadlock;
+			}
 			commit_transaction(tinfo, session);
 			break;
 		case 5:						/* 10% */
