@@ -2216,7 +2216,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	}
 
 	/* Set the default value for session flags. */
-	F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
+	if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
+		F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
 	/*
 	 * Configuration: currently, the configuration for open_session is the
