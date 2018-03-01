@@ -201,6 +201,20 @@ class test_cursor13_reopens(test_cursor13_base):
             self.cursor_stats_init()
             self.basic_reopen(10, False, True)
 
+    # Test we can reopen across a verify.
+    def test_verify(self):
+        if self.dstype != None:
+            self.session.reconfigure('cache_cursors=true')
+            ds = self.dstype(self, self.uri, 100)
+            ds.populate()
+            for loop in range(10):
+                c = self.session.open_cursor(self.uri)
+                ds.check()
+                c.close()
+                s2 = self.conn.open_session()
+                s2.verify(self.uri)
+                s2.close()
+
 class test_cursor13_drops(test_cursor13_base):
     def open_and_drop(self, uri, cursor_session, drop_session, nopens, ntrials):
         for i in range(0, ntrials):
