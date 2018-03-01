@@ -45,10 +45,15 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		    session, uri, NULL, NULL, 0)) == 0) {
 			WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
 			WT_TRET(__wt_session_release_dhandle(session));
-		} else
-			WT_TRET_BUSY_OK(ret);
+		}
 
-		WT_RET(ret);
+		/*
+		 * Handles that are busy are skipped without the whole
+		 * operation failing.  This deals among other cases with
+		 * checkpoint encountering handles that are locked (e.g., for
+		 * bulk loads or verify operations).
+		 */
+		WT_RET_BUSY_OK(ret);
 	}
 	WT_RET_NOTFOUND_OK(ret);
 
