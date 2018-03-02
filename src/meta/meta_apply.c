@@ -25,13 +25,14 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	bool skip;
 
 	/*
-	 * Accumulate errors from the applied function(s) but continue through
-	 * to the end of the metadata.
+	 * Accumulate errors but continue through to the end of the metadata.
 	 */
 	while ((t_ret = cursor->next(cursor)) == 0) {
-		WT_RET(cursor->get_key(cursor, &uri));
-		if (strcmp(uri, WT_METAFILE_URI) == 0)
+		if ((t_ret = cursor->get_key(cursor, &uri)) != 0 ||
+		    strcmp(uri, WT_METAFILE_URI) == 0) {
+			WT_TRET(t_ret);
 			continue;
+		}
 
 		skip = false;
 		if (name_func != NULL &&
@@ -56,13 +57,12 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 */
 		if ((t_ret = __wt_session_get_dhandle(
 		    session, uri, NULL, NULL, 0)) != 0) {
-			WT_RET_BUSY_OK(t_ret);
+			WT_TRET_BUSY_OK(t_ret);
 			continue;
 		}
 
-		WT_SAVE_DHANDLE(session, t_ret = file_func(session, cfg));
-		WT_TRET(t_ret);
-		WT_RET(__wt_session_release_dhandle(session));
+		WT_SAVE_DHANDLE(session, WT_TRET(file_func(session, cfg)));
+		WT_TRET(__wt_session_release_dhandle(session));
 	}
 	WT_TRET_NOTFOUND_OK(t_ret);
 
