@@ -267,7 +267,7 @@ class test_cursor13_drops(test_cursor13_base):
                 c = cursor_session.open_cursor(uri)
                 c.close()
             # The cursor cache is unaffected by the drop, and nothing
-            # in the cache should prevent the drop from occuring.
+            # in the cache should prevent the drop from occurring.
             drop_session.drop(uri)
             confirm_does_not_exist(self, uri)
 
