@@ -54,7 +54,8 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * insert is aborted, we simply return zero (empty), regardless of
 	 * whether we are at the end of the data.
 	 */
-	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+	if (__wt_txn_read(session, cbt->ins->upd, &upd) == WT_VISIBLE_PREPARE)
+		return (WT_PREPARE_CONFLICT);
 	if (cbt->recno < WT_INSERT_RECNO(cbt->ins) || upd == NULL) {
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
@@ -102,9 +103,12 @@ new_page:
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
 
-	if (cbt->ins != NULL)
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-	else
+	upd = NULL;			/* -Werror=maybe-uninitialized */
+	if (cbt->ins != NULL) {		/* -Werror=dangling-else */
+		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
+	} else
 		upd = NULL;
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
@@ -138,7 +142,9 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
 		if (upd == NULL)
 			continue;
 		if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -198,9 +204,12 @@ new_page:	/* Find the matching WT_COL slot. */
 		/* Check any insert list for a matching record. */
 		cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
-		if (cbt->ins != NULL)
-			WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-		else
+		upd = NULL;		/* -Werror=maybe-uninitialized */
+		if (cbt->ins != NULL) {		/* -Werror=dangling-else */
+			if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+			    WT_VISIBLE_PREPARE)
+				return (WT_PREPARE_CONFLICT);
+		} else
 			upd = NULL;
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -318,7 +327,9 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 			cbt->ins = WT_SKIP_NEXT(cbt->ins);
 
 new_insert:	if ((ins = cbt->ins) != NULL) {
-			WT_RET(__wt_txn_read(session, ins->upd, &upd));
+			if (__wt_txn_read(session, ins->upd, &upd) ==
+			    WT_VISIBLE_PREPARE)
+				return (WT_PREPARE_CONFLICT);
 			if (upd == NULL)
 				continue;
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -352,7 +363,9 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 		rip = &page->pg_row[cbt->slot];
-		WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
+		if (__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
 		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
 			if (upd->txnid != WT_TXN_NONE &&
 			    __wt_txn_upd_visible_all(session, upd))

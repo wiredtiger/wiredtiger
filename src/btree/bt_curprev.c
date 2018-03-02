@@ -199,8 +199,11 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * created records written by reconciliation are deleted and so can be
 	 * never seen by a read.
 	 */
+	upd = NULL;			/* -Werror=maybe-uninitialized */
 	if (cbt->ins != NULL && cbt->recno <= WT_INSERT_RECNO(cbt->ins))
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
 	if (cbt->ins == NULL || cbt->recno > WT_INSERT_RECNO(cbt->ins) ||
 	    upd == NULL) {
 		cbt->v = 0;
@@ -248,9 +251,12 @@ new_page:
 	    cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
-	if (cbt->ins != NULL)
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-	else
+	upd = NULL;			/* _Werror=maybe-uninitialized */
+	if (cbt->ins != NULL) {		/* -Werror=dangling-else */
+		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
+	} else
 		upd = NULL;
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
@@ -284,7 +290,9 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
 		if (upd == NULL)
 			continue;
 		if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -345,9 +353,12 @@ new_page:	if (cbt->recno < cbt->ref->ref_recno)
 		/* Check any insert list for a matching record. */
 		cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
-		if (cbt->ins != NULL)
-			WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
-		else
+		upd = NULL;		/* _Werror=maybe-uninitialized */
+		if (cbt->ins != NULL) {		/* -Werror=dangling-else */
+			if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+			    WT_VISIBLE_PREPARE)
+				return (WT_PREPARE_CONFLICT);
+		} else
 			upd = NULL;
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -475,7 +486,9 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 			WT_RET(__cursor_skip_prev(cbt));
 
 new_insert:	if ((ins = cbt->ins) != NULL) {
-			WT_RET(__wt_txn_read(session, ins->upd, &upd));
+			if (__wt_txn_read(session, ins->upd, &upd) ==
+			    WT_VISIBLE_PREPARE)
+				return (WT_PREPARE_CONFLICT);
 			if (upd == NULL)
 				continue;
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -511,7 +524,9 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 		rip = &page->pg_row[cbt->slot];
-		WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
+		if (__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_PREPARE_CONFLICT);
 		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
 			if (upd->txnid != WT_TXN_NONE &&
 			    __wt_txn_upd_visible_all(session, upd))

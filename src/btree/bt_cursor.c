@@ -266,7 +266,9 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	 * update that's been deleted is not a valid key/value pair).
 	 */
 	if (cbt->ins != NULL) {
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
+		    WT_VISIBLE_PREPARE)
+			return (WT_VISIBLE_PREPARE);
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE)
 				return (WT_VISIBLE_FALSE);
@@ -340,8 +342,10 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		/* Check for an update. */
 		if (page->modify != NULL &&
 		    page->modify->mod_row_update != NULL) {
-			WT_RET(__wt_txn_read(session,
-			    page->modify->mod_row_update[cbt->slot], &upd));
+			if (__wt_txn_read(session,
+			    page->modify->mod_row_update[cbt->slot], &upd) ==
+			    WT_VISIBLE_PREPARE)
+				return (WT_VISIBLE_PREPARE);
 			if (upd != NULL) {
 				if (upd->type == WT_UPDATE_TOMBSTONE)
 					return (WT_VISIBLE_FALSE);
