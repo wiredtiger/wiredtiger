@@ -9,11 +9,13 @@
 static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
 
+#if 0
 typedef enum {
 	WT_VISIBLE_FALSE=0,        /* Not a visible update */
 	WT_VISIBLE_PREPARE=1,      /* Prepared update */
 	WT_VISIBLE_TRUE=2          /* A visible update */
 } WT_VISIBLE_TYPE;
+#endif
 
 #ifdef HAVE_TIMESTAMPS
 /*
@@ -555,19 +557,25 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  * __wt_txn_read --
  *	Get the first visible update in a list (or NULL if none are visible).
  */
-static inline WT_UPDATE *
-__wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+static inline int
+__wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 {
 	static WT_UPDATE tombstone = {
 		.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE
 	};
+	WT_VISIBLE_TYPE upd_visible;
 	bool skipped_birthmark;
 
+	*updp = NULL;
 	for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
 		/* Skip reserved place-holders, they're never visible. */
-		if (upd->type != WT_UPDATE_RESERVE &&
-		    __wt_txn_upd_visible(session, upd))
-			break;
+		if (upd->type != WT_UPDATE_RESERVE) {
+			upd_visible = __wt_txn_upd_visible(session, upd);
+			if (upd_visible == WT_VISIBLE_TRUE)
+				break;
+			else if (upd_visible == WT_VISIBLE_PREPARE)
+				return (WT_VISIBLE_PREPARE);
+		}
 		/* An invisible birthmark is equivalent to a tombstone. */
 		if (upd->type == WT_UPDATE_BIRTHMARK)
 			skipped_birthmark = true;
@@ -576,7 +584,8 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	if (upd == NULL && skipped_birthmark)
 		upd = &tombstone;
 
-	return (upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd);
+	*updp = (upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd);
+	return (0);
 }
 
 /*

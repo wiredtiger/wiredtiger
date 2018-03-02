@@ -53,14 +53,14 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Various begin_transaction config
     txncfg = [
-        ('before_ts', dict(txn_config='isolation=snapshot,read_timestamp=' + before_ts)),
-        ('after_ts', dict(txn_config='isolation=snapshot,read_timestamp=' + after_ts)),
-        ('no_ts', dict(txn_config='isolation=snapshot')),
+        ('before_ts', dict(txn_config='isolation=snapshot,read_timestamp=' + before_ts, after_ts=False)),
+        ('after_ts', dict(txn_config='isolation=snapshot,read_timestamp=' + after_ts, after_ts=True)),
+        ('no_ts', dict(txn_config='isolation=snapshot', after_ts=True)),
     ]
 
     preparecfg = [
-        #('ignore_false', dict(ignore_config=',ignore_prepare=false')),
-        ('ignore_true', dict(ignore_config=',ignore_prepare=true')),
+        ('ignore_false', dict(ignore_config=',ignore_prepare=false', ignore=False)),
+        ('ignore_true', dict(ignore_config=',ignore_prepare=true', ignore=True)),
     ]
     conn_config = 'log=(enabled)'
 
@@ -105,8 +105,11 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         c_other = s_other.open_cursor(self.uri, None)
         s_other.begin_transaction(self.txn_config + self.ignore_config)
         c_other.set_key(1)
-        c_other.search()
-        self.assertTrue(c_other.get_value() == 1)
+        if self.ignore == False and self.after_ts == True:
+            self.assertRaises(wiredtiger.WiredTigerError, lambda:c_other.search())
+        else:
+            c_other.search()
+            self.assertTrue(c_other.get_value() == 1)
         c_other.set_value(3)
         self.assertRaises(wiredtiger.WiredTigerError, lambda:c_other.update())
         s_other.commit_transaction()

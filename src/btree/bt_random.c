@@ -300,6 +300,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 	wt_off_t size;
 	uint64_t n, skip;
 
@@ -421,16 +422,20 @@ random_page_entry:
 	 * the next entry, if that doesn't work, move to the previous entry.
 	 */
 	WT_ERR(__wt_row_random_leaf(session, cbt));
-	if (__wt_cursor_valid(cbt, &upd)) {
+	visibility = __wt_cursor_valid(cbt, &upd);
+	if (visibility == WT_VISIBLE_TRUE) {
 		WT_ERR(__wt_key_return(session, cbt));
 		WT_ERR(__wt_value_return(session, cbt, upd));
-	} else {
+	} else if (visibility == WT_VISIBLE_FALSE) {
 		if ((ret = __wt_btcur_next(cbt, false)) == WT_NOTFOUND)
 			ret = __wt_btcur_prev(cbt, false);
 		WT_ERR(ret);
-	}
+	} else
+		WT_ERR(WT_PREPARE_CONFLICT);
+
 	return (0);
 
-err:	WT_TRET(__cursor_reset(cbt));
+err:	if (ret != WT_PREPARE_CONFLICT)
+		WT_TRET(__cursor_reset(cbt));
 	return (ret);
 }

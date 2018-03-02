@@ -54,8 +54,8 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * insert is aborted, we simply return zero (empty), regardless of
 	 * whether we are at the end of the data.
 	 */
-	if (cbt->recno < WT_INSERT_RECNO(cbt->ins) ||
-	    (upd = __wt_txn_read(session, cbt->ins->upd)) == NULL) {
+	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+	if (cbt->recno < WT_INSERT_RECNO(cbt->ins) || upd == NULL) {
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
 	} else
@@ -101,7 +101,11 @@ new_page:
 	    cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
-	upd = cbt->ins == NULL ? NULL : __wt_txn_read(session, cbt->ins->upd);
+
+	if (cbt->ins != NULL)
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+	else
+		upd = NULL;
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
 		cbt->iface.value.data = &cbt->v;
@@ -134,7 +138,8 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-		if ((upd = __wt_txn_read(session, cbt->ins->upd)) == NULL)
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (upd == NULL)
 			continue;
 		if (upd->type == WT_UPDATE_TOMBSTONE) {
 			if (upd->txnid != WT_TXN_NONE &&
@@ -193,8 +198,10 @@ new_page:	/* Find the matching WT_COL slot. */
 		/* Check any insert list for a matching record. */
 		cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
-		upd = cbt->ins == NULL ?
-		    NULL : __wt_txn_read(session, cbt->ins->upd);
+		if (cbt->ins != NULL)
+			WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		else
+			upd = NULL;
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
 				if (upd->txnid != WT_TXN_NONE &&
@@ -311,7 +318,8 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 			cbt->ins = WT_SKIP_NEXT(cbt->ins);
 
 new_insert:	if ((ins = cbt->ins) != NULL) {
-			if ((upd = __wt_txn_read(session, ins->upd)) == NULL)
+			WT_RET(__wt_txn_read(session, ins->upd, &upd));
+			if (upd == NULL)
 				continue;
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
 				if (upd->txnid != WT_TXN_NONE &&
@@ -344,7 +352,7 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 		rip = &page->pg_row[cbt->slot];
-		upd = __wt_txn_read(session, WT_ROW_UPDATE(page, rip));
+		WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
 		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
 			if (upd->txnid != WT_TXN_NONE &&
 			    __wt_txn_upd_visible_all(session, upd))
@@ -606,10 +614,14 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				ret = __cursor_fix_append_next(cbt, newpage);
+				if ((ret = __cursor_fix_append_next(cbt,
+				    newpage)) == WT_PREPARE_CONFLICT)
+					goto err;
 				break;
 			case WT_PAGE_COL_VAR:
-				ret = __cursor_var_append_next(cbt, newpage);
+				if ((ret = __cursor_var_append_next(cbt,
+				    newpage)) == WT_PREPARE_CONFLICT)
+					goto err;
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
@@ -621,13 +633,19 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		} else if (page != NULL) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				ret = __cursor_fix_next(cbt, newpage);
+				if ((ret = __cursor_fix_next(cbt, newpage)) ==
+				    WT_PREPARE_CONFLICT)
+					goto err;
 				break;
 			case WT_PAGE_COL_VAR:
-				ret = __cursor_var_next(cbt, newpage);
+				if ((ret = __cursor_var_next(cbt, newpage)) ==
+				    WT_PREPARE_CONFLICT)
+					goto err;
 				break;
 			case WT_PAGE_ROW_LEAF:
-				ret = __cursor_row_next(cbt, newpage);
+				if ((ret = __cursor_row_next(cbt, newpage)) ==
+				    WT_PREPARE_CONFLICT)
+					goto err;
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
@@ -671,7 +689,9 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	if (ret == 0)
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
-err:	if (ret != 0)
+	/* I think cursor reset should not happen for prepare conflict */
+err:	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT))
 		WT_TRET(__cursor_reset(cbt));
+	/* Need to check whether cursor state to be restored, after reset. */
 	return (ret);
 }

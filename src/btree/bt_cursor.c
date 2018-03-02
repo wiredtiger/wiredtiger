@@ -205,7 +205,7 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
  * __wt_cursor_valid --
  *	Return if the cursor references an valid key/value pair.
  */
-bool
+WT_VISIBLE_TYPE
 __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
 	WT_BTREE *btree;
@@ -265,13 +265,15 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	 * First, check for an insert object with a visible update (a visible
 	 * update that's been deleted is not a valid key/value pair).
 	 */
-	if (cbt->ins != NULL &&
-	    (upd = __wt_txn_read(session, cbt->ins->upd)) != NULL) {
-		if (upd->type == WT_UPDATE_TOMBSTONE)
-			return (false);
-		if (updp != NULL)
-			*updp = upd;
-		return (true);
+	if (cbt->ins != NULL) {
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (upd != NULL) {
+			if (upd->type == WT_UPDATE_TOMBSTONE)
+				return (WT_VISIBLE_FALSE);
+			if (updp != NULL)
+				*updp = upd;
+			return (WT_VISIBLE_TRUE);
+		}
 	}
 
 	/*
@@ -290,7 +292,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		 * keys, check for retrieval past the end of the page.
 		 */
 		if (cbt->recno >= cbt->ref->ref_recno + page->entries)
-			return (false);
+			return (WT_VISIBLE_FALSE);
 
 		/*
 		 * An update would have appeared as an "insert" object; no
@@ -300,7 +302,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	case BTREE_COL_VAR:
 		/* The search function doesn't check for empty pages. */
 		if (page->entries == 0)
-			return (false);
+			return (WT_VISIBLE_FALSE);
 		WT_ASSERT(session, cbt->slot < page->entries);
 
 		/*
@@ -309,7 +311,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		 * returned on-page object must be checked for a match.
 		 */
 		if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
-			return (false);
+			return (WT_VISIBLE_FALSE);
 
 		/*
 		 * Although updates would have appeared as an "insert" objects,
@@ -320,12 +322,12 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		cip = &page->pg_var[cbt->slot];
 		if ((cell = WT_COL_PTR(page, cip)) == NULL ||
 		    __wt_cell_type(cell) == WT_CELL_DEL)
-			return (false);
+			return (WT_VISIBLE_FALSE);
 		break;
 	case BTREE_ROW:
 		/* The search function doesn't check for empty pages. */
 		if (page->entries == 0)
-			return (false);
+			return (WT_VISIBLE_FALSE);
 		WT_ASSERT(session, cbt->slot < page->entries);
 
 		/*
@@ -333,21 +335,23 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		 * key as an on-page object, we're done.
 		 */
 		if (cbt->ins != NULL)
-			return (false);
+			return (WT_VISIBLE_FALSE);
 
 		/* Check for an update. */
 		if (page->modify != NULL &&
-		    page->modify->mod_row_update != NULL &&
-		    (upd = __wt_txn_read(session,
-		    page->modify->mod_row_update[cbt->slot])) != NULL) {
-			if (upd->type == WT_UPDATE_TOMBSTONE)
-				return (false);
-			if (updp != NULL)
-				*updp = upd;
+		    page->modify->mod_row_update != NULL) {
+			WT_RET(__wt_txn_read(session,
+			    page->modify->mod_row_update[cbt->slot], &upd));
+			if (upd != NULL) {
+				if (upd->type == WT_UPDATE_TOMBSTONE)
+					return (WT_VISIBLE_FALSE);
+				if (updp != NULL)
+					*updp = upd;
+			}
 		}
 		break;
 	}
-	return (true);
+	return (WT_VISIBLE_TRUE);
 }
 
 /*
@@ -476,6 +480,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 	bool valid;
 
 	btree = cbt->btree;
@@ -512,7 +517,13 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, cbt->ref, false) :
 		    __cursor_col_search(session, cbt, cbt->ref));
-		valid = cbt->compare == 0 && __wt_cursor_valid(cbt, &upd);
+
+		/* If prepared update, return prepare conflict. */
+		visibility = __wt_cursor_valid(cbt, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT);
+		valid = cbt->compare == 0 && (visibility == WT_VISIBLE_TRUE ?
+		    true : false);
 	}
 	if (!valid) {
 		WT_ERR(__cursor_func_init(cbt, true));
@@ -520,7 +531,13 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, NULL, false) :
 		    __cursor_col_search(session, cbt, NULL));
-		valid = cbt->compare == 0 && __wt_cursor_valid(cbt, &upd);
+
+		/* If prepared update, return prepare conflict. */
+		visibility = __wt_cursor_valid(cbt, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT);
+		valid = cbt->compare == 0 && (visibility == WT_VISIBLE_TRUE ?
+		    true : false);
 	}
 
 	if (valid)
@@ -544,7 +561,8 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		WT_ERR(__wt_cursor_key_order_init(session, cbt));
 #endif
 
-err:	if (ret != 0) {
+	/* Do we need to restore cursor state in case of conflict as well ?? */
+err:	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 	}
@@ -564,6 +582,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 	int exact;
 	bool valid;
 
@@ -617,15 +636,25 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		 * might be legitimately positioned after the last page slot).
 		 * Ignore those cases, it makes things too complicated.
 		 */
-		if (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)
-			valid = __wt_cursor_valid(cbt, &upd);
+		if (cbt->slot != 0 &&
+		    cbt->slot != cbt->ref->page->entries - 1) {
+			visibility = __wt_cursor_valid(cbt, &upd);
+			if (visibility == WT_VISIBLE_PREPARE)
+				WT_ERR(WT_PREPARE_CONFLICT);
+
+			valid = (visibility == WT_VISIBLE_TRUE ? true : false);
+		}
 	}
 	if (!valid) {
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, NULL, true) :
 		    __cursor_col_search(session, cbt, NULL));
-		valid = __wt_cursor_valid(cbt, &upd);
+		visibility = __wt_cursor_valid(cbt, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT);
+
+		valid = (visibility == WT_VISIBLE_TRUE ? true : false);
 	}
 
 	/*
@@ -669,7 +698,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, NULL, true) :
 		    __cursor_col_search(session, cbt, NULL));
-		if (__wt_cursor_valid(cbt, &upd)) {
+		visibility = __wt_cursor_valid(cbt, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT);
+
+		if (visibility == WT_VISIBLE_TRUE) {
 			exact = cbt->compare;
 			ret = __cursor_kv_return(session, cbt, upd);
 		} else if ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND)
@@ -684,7 +717,7 @@ err:	if (ret == 0 && exactp != NULL)
 		WT_TRET(__wt_cursor_key_order_init(session, cbt));
 #endif
 
-	if (ret != 0) {
+	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 	}
@@ -703,6 +736,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_VISIBLE_TYPE visibility;
 	bool append_key;
 
 	btree = cbt->btree;
@@ -784,8 +818,17 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 * key/value pair.
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-		    cbt->compare == 0 && __wt_cursor_valid(cbt, NULL))
-			WT_ERR(WT_DUPLICATE_KEY);
+		    cbt->compare == 0) {
+			visibility = __wt_cursor_valid(cbt, NULL);
+			if (visibility == WT_VISIBLE_TRUE)
+				WT_ERR(WT_DUPLICATE_KEY);
+			/*
+			 * Do we have to return WT_ROLLBACK here ??,
+			 * since this is insert function
+			 */
+			if (visibility == WT_VISIBLE_PREPARE)
+				WT_ERR(WT_PREPARE_CONFLICT);
+		}
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_STANDARD);
 	} else {
@@ -805,10 +848,18 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 * column-store implicitly fills the gap with empty records.
 		 * Fail in that case, the record exists.
 		 */
-		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-		    ((cbt->compare == 0 && __wt_cursor_valid(cbt, NULL)) ||
-		    (cbt->compare != 0 && __cursor_fix_implicit(btree, cbt))))
-			WT_ERR(WT_DUPLICATE_KEY);
+		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+			if (cbt->compare ==0 ) {
+				visibility = __wt_cursor_valid(cbt, NULL);
+				if (visibility == WT_VISIBLE_TRUE)
+					WT_ERR(WT_DUPLICATE_KEY);
+				/*  WT_ROLLBACK ?? */
+				if (visibility == WT_VISIBLE_PREPARE)
+					WT_ERR(WT_PREPARE_CONFLICT);
+
+			} else if (__cursor_fix_implicit(btree, cbt))
+				WT_ERR(WT_DUPLICATE_KEY);
+		}
 
 		WT_ERR(__cursor_col_modify(session, cbt, WT_UPDATE_STANDARD));
 
@@ -829,7 +880,7 @@ done:		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 			F_SET(cursor, WT_CURSTD_KEY_EXT);
 	}
 	WT_TRET(__cursor_reset(cbt));
-	if (ret != 0)
+	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT))
 		__cursor_state_restore(cursor, &state);
 
 	return (ret);
@@ -932,6 +983,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_VISIBLE_TYPE visibility;
 	bool iterating;
 
 	btree = cbt->btree;
@@ -1028,8 +1080,13 @@ retry:	if (positioned == POSITIONED)
 		/* Check whether an update would conflict. */
 		WT_ERR(__curfile_update_check(cbt));
 
-		if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
+		if (cbt->compare != 0)
 			WT_ERR(WT_NOTFOUND);
+		visibility = __wt_cursor_valid(cbt, NULL);
+		if (visibility == WT_VISIBLE_FALSE)
+			WT_ERR(WT_NOTFOUND);
+		else if (visibility == WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT); 	/* WT_ROLLBACK ?? */
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_TOMBSTONE);
 	} else {
@@ -1042,8 +1099,11 @@ retry:	if (positioned == POSITIONED)
 		 */
 		WT_ERR(__curfile_update_check(cbt));
 
+		visibility = __wt_cursor_valid(cbt, NULL);
+		if (visibility == WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT);	/* WT_ROLLBACK ?? */
 		/* Remove the record if it exists. */
-		if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL)) {
+		if (cbt->compare != 0 || visibility == WT_VISIBLE_FALSE) {
 			if (!__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
 			/*
@@ -1094,7 +1154,7 @@ done:		switch (positioned) {
 		}
 	}
 
-	if (ret != 0) {
+	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 
@@ -1143,6 +1203,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_VISIBLE_TYPE visibility;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
@@ -1207,8 +1268,13 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 			WT_ERR(__curfile_update_check(cbt));
-			if (cbt->compare != 0 || !__wt_cursor_valid(cbt, NULL))
+			if (cbt->compare != 0)
 				WT_ERR(WT_NOTFOUND);
+			visibility = __wt_cursor_valid(cbt, NULL);
+			if (visibility == WT_VISIBLE_FALSE)
+				WT_ERR(WT_NOTFOUND);
+			if (visibility == WT_VISIBLE_PREPARE)
+				WT_ERR(WT_PREPARE_CONFLICT); /* WT_ROLLBACK */
 		}
 		ret = __cursor_row_modify_v(session, cbt, value, modify_type);
 	} else {
@@ -1224,10 +1290,17 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 			WT_ERR(__curfile_update_check(cbt));
+			/*
+			 * Do we need to check compare != 0 before
+			 * __wt_cursor_valid ??
+			 */
+			visibility = __wt_cursor_valid(cbt, NULL);
 			if ((cbt->compare != 0 ||
-			    !__wt_cursor_valid(cbt, NULL)) &&
+			    visibility == WT_VISIBLE_FALSE) &&
 			    !__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
+			if (visibility == WT_VISIBLE_PREPARE)
+				WT_ERR(WT_PREPARE_CONFLICT); /* WT_ROLLBACK?? */
 		}
 		ret = __cursor_col_modify_v(session, cbt, value, modify_type);
 	}
@@ -1276,7 +1349,7 @@ done:		switch (modify_type) {
 		}
 	}
 
-	if (ret != 0) {
+	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 	}
