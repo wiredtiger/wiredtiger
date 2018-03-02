@@ -967,12 +967,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	u_int i;
 
 	txn = &session->txn;
-	WT_TRET(__wt_txn_context_check(session, true));
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	/* Transaction should not have a commit timestamp set. */
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
+
+	WT_RET(__wt_txn_context_check(session, true));
 
 	/* Look for a prepare timestamp.  */
 	WT_ERR(
