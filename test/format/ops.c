@@ -587,9 +587,8 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	/*
 	 * We cannot prepare a transaction if logging on the table is set.
-	 * It is currently too unwieldly to separate tables and deal with
-	 * non-logged tables. Prepare also requires timestamps. Skip if
-	 * not using timestamps or if using logging.
+	 * Prepare also requires timestamps. Skip if not using timestamps
+	 * or if using logging.
 	 */
 	if (!g.c_txn_timestamps || g.c_logging)
 		return (0);
