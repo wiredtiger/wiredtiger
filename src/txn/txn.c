@@ -69,6 +69,7 @@ __snapsort(uint64_t *array, uint32_t size)
 static inline void
 __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 {
+#ifdef HAVE_DIAGNOSTIC
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
@@ -77,13 +78,14 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 	txn_global = &S2C(session)->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
-#ifndef HAVE_DIAGNOSTIC
-	WT_UNUSED(txn);
-	WT_UNUSED(txn_global);
-#endif
 	WT_ASSERT(session, !WT_TXNID_LT(txn->id, txn_global->last_running));
-	WT_ASSERT(session, txn->id != WT_TXN_NONE &&
-	    txn_state->id != WT_TXN_NONE);
+	WT_ASSERT(session,
+	    txn->id != WT_TXN_NONE && txn_state->id != WT_TXN_NONE);
+#else
+	WT_TXN_STATE *txn_state;
+
+	txn_state = WT_SESSION_TXN_STATE(session);
+#endif
 	WT_PUBLISH(txn_state->id, WT_TXN_NONE);
 }
 
