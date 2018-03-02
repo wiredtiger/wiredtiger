@@ -756,8 +756,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 		cval = false_value;
 
 #define	CHECKPOINT_MATCH(s)						\
-	((s == NULL && cval.len == 0) ||				\
-	    (s != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
+	(((s) == NULL && cval.len == 0) ||				\
+	    ((s) != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
 
 	/*
 	 * Walk through all cursors, if there is a cached
