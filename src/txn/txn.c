@@ -960,7 +960,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifdef HAVE_TIMESTAMPS
 	WT_CONFIG_ITEM cval;
-	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	wt_timestamp_t ts;
@@ -972,29 +971,20 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Transaction should not have a commit timestamp set. */
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
+	/* Transaction should not have updated any of the logged tables. */
+	WT_ASSERT(session, txn->logrec == NULL);
 
 	WT_RET(__wt_txn_context_check(session, true));
 
 	/* Look for a prepare timestamp.  */
-	WT_ERR(
+	WT_RET(
 	    __wt_config_gets_def(session, cfg, "prepare_timestamp", 0, &cval));
-	if (cval.len != 0) {
-		WT_ERR(__wt_txn_parse_timestamp(session,
-		    "prepare", &ts, &cval));
+	if (cval.len == 0)
+		WT_RET_MSG(session, EINVAL, "prepare timestamp is required");
 
-		/* TODO : Validate prepare timestamp.  */
-
-		__wt_timestamp_set(&txn->prepare_timestamp, &ts);
-
-	} else
-		WT_ERR_MSG(session, EINVAL, "prepare timestamp is required");
-
-#ifdef HAVE_DIAGNOSTIC
-	/*
-	 * Transaction should not have updated any of the logged tables.
-	 */
-	WT_ASSERT(session, txn->logrec == NULL);
-#endif
+	/* TODO : Validate prepare timestamp.  */
+	WT_RET(__wt_txn_parse_timestamp(session, "prepare", &ts, &cval));
+	__wt_timestamp_set(&txn->prepare_timestamp, &ts);
 
 	/*
 	 * We are about to release the snapshot: copy values into any
@@ -1003,11 +993,11 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (session->ncursors > 0) {
 		WT_DIAGNOSTIC_YIELD;
-		WT_ERR(__wt_session_copy_values(session));
+		WT_RET(__wt_session_copy_values(session));
 	}
 
 	/* Process updates. */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
@@ -1044,7 +1034,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			/* Other operations don't need timestamps. */
 			break;
 		}
-	}
 
 	/* Set transaction state to prepare. */
 	F_SET(&session->txn, WT_TXN_PREPARE);
@@ -1056,11 +1045,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Clear the transaction's ID from the global table, to facilitate
 	 * prepared data visibility, but not from local txn structure.
 	 */
-	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
+	if (F_ISSET(txn, WT_TXN_HAS_ID))
 		__txn_remove_from_global_table(session);
-	}
 
-err:	return (ret);
+	return (0);
 #else
 	WT_UNUSED(cfg);
 	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
