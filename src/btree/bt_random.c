@@ -435,7 +435,6 @@ random_page_entry:
 
 	return (0);
 
-err:	if (ret != WT_PREPARE_CONFLICT)
-		WT_TRET(__cursor_reset(cbt));
+err: 	WT_TRET(__cursor_reset(cbt));
 	return (ret);
 }

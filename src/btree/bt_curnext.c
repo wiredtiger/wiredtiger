@@ -592,6 +592,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
+	WT_UPDATE *upd;
 	uint32_t flags;
 	bool newpage;
 
@@ -602,6 +603,27 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_STAT_DATA_INCR(session, cursor_next);
 
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+
+	/*
+	 * In case of retrying a next operation due to a prepare conflict,
+	 * cursor would have been already positioned at an update structure
+	 * which resulted in conflict. So, now when retrying we should examine
+	 * the same update again instead of starting from the next one in the
+	 * update chain.
+	 */
+	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
+		upd = NULL; 		/* -Werror=maybe-uninitialized */
+		switch (__wt_cursor_valid(cbt, &upd)) {
+		case WT_VISIBLE_FALSE:
+			break;
+		case WT_VISIBLE_PREPARE:
+			return (WT_PREPARE_CONFLICT);
+		case WT_VISIBLE_TRUE:
+			F_CLR(cbt, WT_CBT_RETRY_NEXT);
+			WT_RET(__cursor_kv_return(session, cbt, upd));
+			return (0);
+		}
+	}
 
 	WT_RET(__cursor_func_init(cbt, false));
 
@@ -702,8 +724,13 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	if (ret == 0)
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
-	/* I think cursor reset should not happen for prepare conflict */
-err:	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT))
+	/*
+	 * If prepare conflict occurs, cursor should not be reset, as current
+	 * cursor position will be reused in case of a retry from user.
+	 */
+err:	if (ret == WT_PREPARE_CONFLICT)
+		F_SET(cbt, WT_CBT_RETRY_NEXT);
+	else if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));
 	/* Need to check whether cursor state to be restored, after reset. */
 	return (ret);

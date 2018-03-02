@@ -359,20 +359,6 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 }
 
 /*
- * __cursor_kv_return --
- *	Return a page referenced key/value pair to the application.
- */
-static inline int
-__cursor_kv_return(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
-{
-	WT_RET(__wt_key_return(session, cbt));
-	WT_RET(__wt_value_return(session, cbt, upd));
-
-	return (0);
-}
-
-/*
  * __cursor_col_search --
  *	Column-store search from a cursor.
  */
@@ -565,8 +551,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		WT_ERR(__wt_cursor_key_order_init(session, cbt));
 #endif
 
-	/* Do we need to restore cursor state in case of conflict as well ?? */
-err:	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
+err:	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 	}
@@ -721,7 +706,7 @@ err:	if (ret == 0 && exactp != NULL)
 		WT_TRET(__wt_cursor_key_order_init(session, cbt));
 #endif
 
-	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
+	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 	}
@@ -884,7 +869,7 @@ done:		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 			F_SET(cursor, WT_CURSTD_KEY_EXT);
 	}
 	WT_TRET(__cursor_reset(cbt));
-	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT))
+	if (ret != 0)
 		__cursor_state_restore(cursor, &state);
 
 	return (ret);
@@ -1158,7 +1143,7 @@ done:		switch (positioned) {
 		}
 	}
 
-	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
+	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 
@@ -1353,7 +1338,7 @@ done:		switch (modify_type) {
 		}
 	}
 
-	if ((ret != 0) && (ret != WT_PREPARE_CONFLICT)) {
+	if (ret != 0) {
 		WT_TRET(__cursor_reset(cbt));
 		__cursor_state_restore(cursor, &state);
 	}
