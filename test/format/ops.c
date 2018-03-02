@@ -583,9 +583,14 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 static int
 prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	int ret;
 	char config_buf[64];
 
+	/*
+	 * We cannot prepare a transaction if logging on the table is set.
+	 * It is currently too unwieldly to separate tables and deal with
+	 * non-logged tables. Prepare also requires timestamps. Skip if
+	 * not using timestamps or if using logging.
+	 */
 	if (!g.c_txn_timestamps || g.c_logging)
 		return (0);
 	/*
@@ -594,12 +599,11 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 * the global value is now. The later commit will increment
 	 * it at whatever value it is then.
 	 */
+	++tinfo->prepare;
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf),
 	    "prepare_timestamp=%" PRIx64, g.timestamp));
-	ret = session->prepare_transaction(session, config_buf);
-	++tinfo->prepare;
-	return (ret);
+	return (session->prepare_transaction(session, config_buf));
 }
 
 /*
@@ -1053,17 +1057,17 @@ update_instead_of_chosen_op:
 		 * rollback 10% of the time.
 		 */
 		switch (rnd) {
-		case 1: case 2: case 3: case 4:			/* 40% */
+		case 1:					/* 10 % */
 			/*
 			 * Occasionally prepare the transaction too.
 			 */
-			if (rnd == 1) {
-				ret = prepare_transaction(tinfo, session);
-				testutil_assert(
-				    ret == 0 || ret == WT_PREPARE_CONFLICT);
-				if (ret == WT_PREPARE_CONFLICT)
-					goto deadlock;
-			}
+			ret = prepare_transaction(tinfo, session);
+			testutil_assert(
+			    ret == 0 || ret == WT_PREPARE_CONFLICT);
+			if (ret == WT_PREPARE_CONFLICT)
+				goto deadlock;
+			/* FALLTHROUGH */
+		case 2: case 3: case 4:			/* 40% */
 			commit_transaction(tinfo, session);
 			break;
 		case 5:						/* 10% */
