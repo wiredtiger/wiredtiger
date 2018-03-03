@@ -587,16 +587,16 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	/*
 	 * We cannot prepare a transaction if logging on the table is set.
-	 * Prepare also requires timestamps. Skip if not using timestamps
-	 * or if using logging.
+	 * Prepare also requires timestamps. Skip if not using timestamps,
+	 * if no timestamp has yet been set, or if using logging.
 	 */
-	if (!g.c_txn_timestamps || g.c_logging)
+	if (!g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
 		return (0);
+
 	/*
-	 * Prepare timestamps must be less than or equal to the
-	 * commit timestamp. Set the prepare timestamp to whatever
-	 * the global value is now. The later commit will increment
-	 * it at whatever value it is then.
+	 * Prepare timestamps must be less than or equal to the eventual commit
+	 * timestamp. Set the prepare timestamp to whatever the global value is
+	 * now. The subsequent commit will increment it, ensuring correctness. 
 	 */
 	++tinfo->prepare;
 	testutil_check(__wt_snprintf(
