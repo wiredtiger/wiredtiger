@@ -671,9 +671,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
+	WT_UPDATE *upd;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
+	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
 	bool update_timestamp;
 #endif
@@ -797,12 +799,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
+			upd = op->u.upd;
+
 			/*
 			 * Switch reserved operations to abort to
 			 * simplify obsolete update list truncation.
 			 */
-			if (op->u.upd->type == WT_UPDATE_RESERVE) {
-				op->u.upd->txnid = WT_TXN_ABORTED;
+			if (upd->type == WT_UPDATE_RESERVE) {
+				upd->txnid = WT_TXN_ABORTED;
 				break;
 			}
 
@@ -812,54 +816,48 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (conn->cache->las_fileid != 0 &&
 			    op->fileid == conn->cache->las_fileid) {
-				op->u.upd->txnid = WT_TXN_NONE;
+				upd->txnid = WT_TXN_NONE;
 				break;
 			}
 
 #ifdef HAVE_TIMESTAMPS
-			if (__wt_txn_update_needs_timestamp(session, op)) {
-				if (F_ISSET(txn, WT_TXN_PREPARE)) {
-					/*
-					 * In case of a prepared transaction,
-					 * the order of modification of the
-					 * prepare timestamp to the commit
-					 * timestamp in the update chain will
-					 * not affect the data visibility, a
-					 * reader will encounter a prepared
-					 * update resulting in prepare conflict.
-					 *
-					 * As updating timestamp might not be an
-					 * atomic operation, we will manage
-					 * using state.
-					 */
-					FLD_SET(op->u.upd->state,
-					    WT_UPDATE_STATE_LOCKED);
-					__wt_timestamp_set(
-					    &op->u.upd->timestamp,
-					    &txn->commit_timestamp);
-					FLD_SET(op->u.upd->state,
-					    WT_UPDATE_STATE_READY);
-				} else
-					__wt_timestamp_set(
-					    &op->u.upd->timestamp,
-					    &txn->commit_timestamp);
-			}
+			if (!__wt_txn_update_needs_timestamp(session, op))
+				break;
+
+			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+				/*
+				 * In case of a prepared transaction, the order
+				 * of modification of the prepare timestamp to
+				 * the commit timestamp in the update chain will
+				 * not affect the data visibility, a reader will
+				 * encounter a prepared update resulting in
+				 * prepare conflict.
+				 *
+				 * As updating timestamp might not be an atomic
+				 * operation, we will manage using state.
+				 */
+				FLD_SET(upd->state, WT_UPDATE_STATE_LOCKED);
+				__wt_timestamp_set(
+				    &upd->timestamp, &txn->commit_timestamp);
+				FLD_SET(upd->state, WT_UPDATE_STATE_READY);
+			} else
+				__wt_timestamp_set(
+				    &upd->timestamp, &txn->commit_timestamp);
 #endif
 			break;
 
 		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
-			if (__wt_txn_update_needs_timestamp(session, op)) {
-				WT_UPDATE **upd;
+			if (!__wt_txn_update_needs_timestamp(session, op))
+				break;
 
-				__wt_timestamp_set(
-				    &op->u.ref->page_del->timestamp,
+			__wt_timestamp_set(
+			    &op->u.ref->page_del->timestamp,
+			    &txn->commit_timestamp);
+			for (updp = op->u.ref->page_del->update_list;
+			    *updp != NULL; ++updp)
+				__wt_timestamp_set(&(*updp)->timestamp,
 				    &txn->commit_timestamp);
-				for (upd = op->u.ref->page_del->update_list;
-				    *upd != NULL; ++upd)
-					__wt_timestamp_set(&(*upd)->timestamp,
-					    &txn->commit_timestamp);
-			}
 #endif
 			break;
 
