@@ -807,7 +807,8 @@ ops(void *arg)
 			}
 			if (ret == 0) {
 				positioned = true;
-				__wt_yield();
+
+				__wt_yield();	/* Let other threads proceed. */
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -1065,6 +1066,9 @@ update_instead_of_chosen_op:
 			    ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
 				goto deadlock;
+
+			__wt_yield();		/* Let other threads proceed. */
+
 			/* FALLTHROUGH */
 		case 2: case 3: case 4:			/* 40% */
 			commit_transaction(tinfo, session);
