@@ -592,6 +592,25 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 }
 
 /*
+ * rollback_transaction --
+ *     Rollback a transaction.
+ */
+static void
+rollback_transaction(TINFO *tinfo, WT_SESSION *session)
+{
+	testutil_check(session->rollback_transaction(session, NULL));
+	++tinfo->rollback;
+
+	/*
+	 * Clear the thread's active timestamp: it no longer needs to
+	 * be pinned. Don't let the compiler re-order this statement,
+	 * if we were to race with the timestamp thread, it might see
+	 * our thread update before the transaction rollback completes.
+	 */
+	WT_PUBLISH(tinfo->commit_timestamp, 0);
+}
+
+/*
  * prepare_transaction --
  *     Prepare a transaction if timestamps are in use.
  */
@@ -1094,9 +1113,7 @@ update_instead_of_chosen_op:
 			if (0) {
 deadlock:			++tinfo->deadlock;
 			}
-			testutil_check(
-			    session->rollback_transaction(session, NULL));
-			++tinfo->rollback;
+			rollback_transaction(tinfo, session);
 			break;
 		}
 
