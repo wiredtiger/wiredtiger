@@ -874,7 +874,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
-			ref->state = previous_state;
+			/*
+			 * Publish to ensure we don't let the page be evicted
+			 * and the updates discarded before being written.
+			 */
+			WT_PUBLISH(ref->state, previous_state);
 #endif
 			break;
 
