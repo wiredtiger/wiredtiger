@@ -587,16 +587,16 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	/*
 	 * We cannot prepare a transaction if logging on the table is set.
-	 * Prepare also requires timestamps. Skip if not using timestamps
-	 * or if using logging.
+	 * Prepare also requires timestamps. Skip if not using timestamps,
+	 * if no timestamp has yet been set, or if using logging.
 	 */
-	if (!g.c_txn_timestamps || g.c_logging)
+	if (!g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
 		return (0);
+
 	/*
-	 * Prepare timestamps must be less than or equal to the
-	 * commit timestamp. Set the prepare timestamp to whatever
-	 * the global value is now. The later commit will increment
-	 * it at whatever value it is then.
+	 * Prepare timestamps must be less than or equal to the eventual commit
+	 * timestamp. Set the prepare timestamp to whatever the global value is
+	 * now. The subsequent commit will increment it, ensuring correctness.
 	 */
 	++tinfo->prepare;
 	testutil_check(__wt_snprintf(
@@ -807,7 +807,8 @@ ops(void *arg)
 			}
 			if (ret == 0) {
 				positioned = true;
-				__wt_yield();
+
+				__wt_yield();	/* Let other threads proceed. */
 			} else {
 				positioned = false;
 				if (ret == WT_ROLLBACK && intxn)
@@ -1065,6 +1066,9 @@ update_instead_of_chosen_op:
 			    ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
 				goto deadlock;
+
+			__wt_yield();		/* Let other threads proceed. */
+
 			/* FALLTHROUGH */
 		case 2: case 3: case 4:			/* 40% */
 			commit_transaction(tinfo, session);
