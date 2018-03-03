@@ -819,7 +819,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 			if (__wt_txn_update_needs_timestamp(session, op)) {
 				if (F_ISSET(txn, WT_TXN_PREPARE)) {
-					WT_ASSERT(session, op->u.upd != NULL);
 					/*
 					 * In case of a prepared transaction,
 					 * the order of modification of the
