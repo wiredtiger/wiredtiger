@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2017 MongoDB, Inc.
+# Public Domain 2014-2018 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -267,7 +267,7 @@ class test_cursor13_drops(test_cursor13_base):
                 c = cursor_session.open_cursor(uri)
                 c.close()
             # The cursor cache is unaffected by the drop, and nothing
-            # in the cache should prevent the drop from occuring.
+            # in the cache should prevent the drop from occurring.
             drop_session.drop(uri)
             confirm_does_not_exist(self, uri)
 

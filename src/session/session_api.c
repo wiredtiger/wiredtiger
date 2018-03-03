@@ -395,8 +395,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 * Indicated as allowed in prepared state, even though not allowed,
 	 * so that running transaction check below take precedence.
 	 */
-	SESSION_API_CALL_PREPARE_ALLOWED(
-	    session, reconfigure, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -1930,8 +1929,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * Indicated as allowed in prepared state, even though not allowed,
 	 * so that running transaction check below take precedence.
 	 */
-	SESSION_API_CALL_PREPARE_ALLOWED(
-	    session, checkpoint, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, checkpoint, config, cfg);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
