@@ -675,8 +675,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
+	WT_REF *ref;
 	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
+	uint32_t previous_state;
 	bool update_timestamp;
 #endif
 
@@ -851,13 +853,28 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			if (!__wt_txn_update_needs_timestamp(session, op))
 				break;
 
+			ref = op->u.ref;
 			__wt_timestamp_set(
-			    &op->u.ref->page_del->timestamp,
-			    &txn->commit_timestamp);
-			for (updp = op->u.ref->page_del->update_list;
-			    *updp != NULL; ++updp)
-				__wt_timestamp_set(&(*updp)->timestamp,
-				    &txn->commit_timestamp);
+			    &ref->page_del->timestamp, &txn->commit_timestamp);
+
+			/*
+			 * The page-deleted list can be discarded by eviction,
+			 * lock the WT_REF to ensure we don't race.
+			 */
+			if (ref->page_del->update_list == NULL)
+				break;
+			for (;;) {
+				previous_state = ref->state;
+				if (__wt_atomic_casv32(
+				    &ref->state, previous_state, WT_REF_LOCKED))
+					break;
+			}
+			if ((updp = ref->page_del->update_list) != NULL)
+				for (; *updp != NULL; ++updp)
+					__wt_timestamp_set(
+					    &(*updp)->timestamp,
+					    &txn->commit_timestamp);
+			ref->state = previous_state;
 #endif
 			break;
 
