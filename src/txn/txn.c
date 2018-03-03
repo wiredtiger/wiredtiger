@@ -1014,8 +1014,17 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_session_copy_values(session));
 	}
 
-	/* Process updates. */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+	/* Prepare updates. */
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		/* Assert it's not an update to the lookaside file. */
+		WT_ASSERT(session,
+		    S2C(session)->cache->las_fileid == 0 ||
+		    op->fileid != S2C(session)->cache->las_fileid);
+
+		/* Metadata updates are never prepared. */
+		if (op->fileid == WT_METAFILE_ID)
+			continue;
+
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
@@ -1028,17 +1037,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 				break;
 			}
 
-			/*
-			 * Assert to make sure the lookaside writes are not
-			 * happening here.
-			 */
-			WT_ASSERT(session,
-			    !(S2C(session)->cache->las_fileid != 0 &&
-			    op->fileid == S2C(session)->cache->las_fileid));
-
 			/* Set prepare timestamp. */
-			if (op->fileid != WT_METAFILE_ID)
-				__wt_timestamp_set(&op->u.upd->timestamp, &ts);
+			__wt_timestamp_set(&op->u.upd->timestamp, &ts);
 
 			FLD_SET(op->u.upd->state, WT_UPDATE_STATE_PREPARED);
 			break;
@@ -1052,6 +1052,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			/* Other operations don't need timestamps. */
 			break;
 		}
+	}
 
 	/* Set transaction state to prepare. */
 	F_SET(&session->txn, WT_TXN_PREPARE);
@@ -1100,6 +1101,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		/* Assert it's not an update to the lookaside file. */
+		WT_ASSERT(session,
+		    S2C(session)->cache->las_fileid == 0 ||
+		    op->fileid != S2C(session)->cache->las_fileid);
+
 		/* Metadata updates are never rolled back. */
 		if (op->fileid == WT_METAFILE_ID)
 			continue;
@@ -1110,9 +1116,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ASSERT(session,
 			    op->u.upd->txnid == txn->id ||
 			    op->u.upd->txnid == WT_TXN_ABORTED);
-			WT_ASSERT(session,
-			    S2C(session)->cache->las_fileid == 0 ||
-			    op->fileid != S2C(session)->cache->las_fileid);
 			op->u.upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF_DELETE:
