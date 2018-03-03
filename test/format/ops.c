@@ -1088,25 +1088,22 @@ update_instead_of_chosen_op:
 				goto deadlock;
 		}
 
+		/* Prepare the transaction 10% of the time. */
+		if (mmrand(&tinfo->rnd, 1, 10) == 1) {
+			ret = prepare_transaction(tinfo, session);
+			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
+			if (ret == WT_PREPARE_CONFLICT)
+				goto deadlock;
+
+			__wt_yield();		/* Let other threads proceed. */
+		}
+
 		/*
 		 * If we're in a transaction, commit 40% of the time and
 		 * rollback 10% of the time.
 		 */
 		switch (rnd) {
-		case 1:					/* 10 % */
-			/*
-			 * Occasionally prepare the transaction too.
-			 */
-			ret = prepare_transaction(tinfo, session);
-			testutil_assert(
-			    ret == 0 || ret == WT_PREPARE_CONFLICT);
-			if (ret == WT_PREPARE_CONFLICT)
-				goto deadlock;
-
-			__wt_yield();		/* Let other threads proceed. */
-
-			/* FALLTHROUGH */
-		case 2: case 3: case 4:			/* 40% */
+		case 1: case 2: case 3: case 4:			/* 40% */
 			commit_transaction(tinfo, session);
 			break;
 		case 5:						/* 10% */
