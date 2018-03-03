@@ -596,7 +596,7 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	/*
 	 * Prepare timestamps must be less than or equal to the eventual commit
 	 * timestamp. Set the prepare timestamp to whatever the global value is
-	 * now. The subsequent commit will increment it, ensuring correctness. 
+	 * now. The subsequent commit will increment it, ensuring correctness.
 	 */
 	++tinfo->prepare;
 	testutil_check(__wt_snprintf(
