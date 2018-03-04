@@ -1028,15 +1028,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
-			/*
-			 * Switch reserved operation to abort to simplify
-			 * obsolete update list truncation.
-			 */
-			if (op->u.upd->type == WT_UPDATE_RESERVE) {
-				op->u.upd->txnid = WT_TXN_ABORTED;
-				break;
-			}
-
 			/* Set prepare timestamp. */
 			__wt_timestamp_set(&op->u.upd->timestamp, &ts);
 
