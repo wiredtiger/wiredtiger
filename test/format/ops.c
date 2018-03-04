@@ -578,17 +578,18 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    "commit_timestamp=%" PRIx64, ts));
 		testutil_check(
 		    session->commit_transaction(session, config_buf));
-
-		/*
-		 * Clear the thread's active timestamp: it no longer needs to
-		 * be pinned. Don't let the compiler re-order this statement,
-		 * if we were to race with the timestamp thread, it might see
-		 * our thread update before the transaction commit completes.
-		 */
-		WT_PUBLISH(tinfo->commit_timestamp, 0);
 	} else
 		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
+
+	/*
+	 * Clear the thread's active timestamp: it no longer needs to be pinned.
+	 * Don't let the compiler re-order this statement, if we were to race
+	 * with the timestamp thread, it might see our thread update before the
+	 * transaction commit completes.
+	 */
+	if (g.c_txn_timestamps)
+		WT_PUBLISH(tinfo->commit_timestamp, 0);
 }
 
 /*
@@ -602,12 +603,13 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 	++tinfo->rollback;
 
 	/*
-	 * Clear the thread's active timestamp: it no longer needs to
-	 * be pinned. Don't let the compiler re-order this statement,
-	 * if we were to race with the timestamp thread, it might see
-	 * our thread update before the transaction rollback completes.
+	 * Clear the thread's active timestamp: it no longer needs to be pinned.
+	 * Don't let the compiler re-order this statement, if we were to race
+	 * with the timestamp thread, it might see our thread update before the
+	 * transaction commit completes.
 	 */
-	WT_PUBLISH(tinfo->commit_timestamp, 0);
+	if (g.c_txn_timestamps)
+		WT_PUBLISH(tinfo->commit_timestamp, 0);
 }
 
 /*
