@@ -627,8 +627,7 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 * Prepare also requires timestamps. Skip if not using timestamps,
 	 * if no timestamp has yet been set, or if using logging.
 	 */
-	if (/* XXX: CONFIGURE PREPARE OFF FOR NOW */ true ||
-	    !g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
+	if (!g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
 		return (0);
 
 	/*
@@ -1092,7 +1091,8 @@ update_instead_of_chosen_op:
 		}
 
 		/* Prepare the transaction 10% of the time. */
-		if (mmrand(&tinfo->rnd, 1, 10) == 1) {
+		/* XXX: CONFIGURE PREPARE OFF FOR NOW */
+		if (mmrand(&tinfo->rnd, 1, 10) == 0) {
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
