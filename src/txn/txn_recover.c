@@ -377,9 +377,6 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		__wt_verbose(r->session, WT_VERB_RECOVERY,
 		    "%s: Recovery timestamp %.*s",
 		    uri, (int)cval.len, cval.str);
-		__wt_errx(r->session,
-		    "%s: Recovery timestamp %.*s",
-		    uri, (int)cval.len, cval.str);
 		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
 		    &ckpt_timestamp, &cval));
 		/*
@@ -674,7 +671,6 @@ done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 	    hex_timestamp, &conn->txn_global.recovery_timestamp));
 	__wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
 	    "Set global recovery timestamp: %s", hex_timestamp);
-	__wt_errx(session, "RECOVERY: Global recovery ts %s", hex_timestamp);
 	}
 #endif
 
