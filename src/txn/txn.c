@@ -864,17 +864,20 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (ref->page_del->update_list == NULL)
 				break;
+
 			for (;;) {
 				previous_state = ref->state;
 				if (__wt_atomic_casv32(
 				    &ref->state, previous_state, WT_REF_LOCKED))
 					break;
 			}
+
 			if ((updp = ref->page_del->update_list) != NULL)
 				for (; *updp != NULL; ++updp)
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
+
 			/*
 			 * Publish to ensure we don't let the page be evicted
 			 * and the updates discarded before being written.
