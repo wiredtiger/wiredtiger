@@ -879,7 +879,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_PUBLISH(ref->state, previous_state);
 #endif
 			break;
-
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
 			/* Other operations don't need timestamps. */
@@ -1031,7 +1030,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 			FLD_SET(op->u.upd->state, WT_UPDATE_STATE_PREPARED);
 			break;
-
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
