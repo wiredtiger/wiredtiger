@@ -395,8 +395,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 * Indicated as allowed in prepared state, even though not allowed,
 	 * so that running transaction check below take precedence.
 	 */
-	SESSION_API_CALL_PREPARE_ALLOWED(
-	    session, reconfigure, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -1422,8 +1421,11 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 
 done:
 err:	/*
-	 * Close any locally-opened start cursor. Reset application cursors,
-	 * they've possibly moved and the application cannot use them.
+	 * Close any locally-opened start cursor.
+	 *
+	 * Reset application cursors, they've possibly moved and the
+	 * application cannot use them.  Note that we can make it here with a
+	 * NULL start cursor (e.g., if the truncate range is empty).
 	 */
 	if (local_start)
 		WT_TRET(start->close(start));
@@ -1927,8 +1929,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * Indicated as allowed in prepared state, even though not allowed,
 	 * so that running transaction check below take precedence.
 	 */
-	SESSION_API_CALL_PREPARE_ALLOWED(
-	    session, checkpoint, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, checkpoint, config, cfg);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -2213,7 +2214,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 	}
 
 	/* Set the default value for session flags. */
-	F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
+	if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
+		F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
 
 	/*
 	 * Configuration: currently, the configuration for open_session is the

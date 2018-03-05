@@ -756,8 +756,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 		cval = false_value;
 
 #define	CHECKPOINT_MATCH(s)						\
-	((s == NULL && cval.len == 0) ||				\
-	    (s != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
+	(((s) == NULL && cval.len == 0) ||				\
+	    ((s) != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
 
 	/*
 	 * Walk through all cursors, if there is a cached
@@ -786,10 +786,16 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			F_SET(cursor, WT_CURSTD_OVERWRITE);
 
 			if (have_config) {
-				WT_RET(__wt_config_gets_def(
-				    session, cfg, "append", 0, &cval));
-				if (cval.val != 0)
-					F_SET(cursor, WT_CURSTD_APPEND);
+				/*
+				 * The append flag is only relevant to
+				 * column stores.
+				 */
+				if (WT_CURSOR_RECNO(cursor)) {
+					WT_RET(__wt_config_gets_def(
+					    session, cfg, "append", 0, &cval));
+					if (cval.val != 0)
+						F_SET(cursor, WT_CURSTD_APPEND);
+				}
 
 				WT_RET(__wt_config_gets_def(
 				    session, cfg, "overwrite", 1, &cval));

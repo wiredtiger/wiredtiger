@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2017 MongoDB, Inc.
+# Public Domain 2014-2018 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -117,12 +117,32 @@ class test_cursor13_ckpt2(test_checkpoint02.test_checkpoint02,
     pass
 
 class test_cursor13_reopens(test_cursor13_base):
-    scenarios = make_scenarios([
+    # The SimpleDataSet uses simple tables, that have no column groups or
+    # indices. Thus, these tables will be cached. The more complex data sets
+    # are not simple, so are not cached and not included in this test.
+    types = [
         ('file', dict(uri='file:cursor13_reopen1', dstype=None)),
         ('table', dict(uri='table:cursor13_reopen2', dstype=None)),
         ('sfile', dict(uri='file:cursor13_reopen3', dstype=SimpleDataSet)),
         ('stable', dict(uri='table:cursor13_reopen4', dstype=SimpleDataSet)),
-    ])
+    ]
+    connoptions = [
+        ('none', dict(connoption='', conn_caching=None)),
+        ('enable', dict(connoption='cache_cursors=true', conn_caching=True)),
+        ('disable', dict(connoption='cache_cursors=false', conn_caching=False)),
+    ]
+    sessoptions = [
+        ('none', dict(sessoption='', sess_caching=None)),
+        ('enable', dict(sessoption='cache_cursors=true', sess_caching=True)),
+        ('disable', dict(sessoption='cache_cursors=false', sess_caching=False)),
+    ]
+    scenarios = make_scenarios(types, connoptions, sessoptions)
+
+    def conn_config(self):
+        return self.connoption + ',statistics=(fast)'
+
+    def session_config(self):
+        return self.sessoption
 
     def basic_populate(self, uri, caching_enabled):
         cursor = self.session.open_cursor(uri)
@@ -183,23 +203,61 @@ class test_cursor13_reopens(test_cursor13_base):
         ds.check()
         self.assert_cursor_reopened(caching_enabled)
 
+    # Return if caching was configured at the start of the session
+    def is_caching_configured(self):
+        if self.sess_caching != None:
+            return self.sess_caching
+        if self.conn_caching != None:
+            return self.conn_caching
+        return True   # default
+
     def test_reopen(self):
+        caching = self.is_caching_configured()
         self.cursor_stats_init()
         if self.dstype == None:
-            self.basic_reopen(100, True, True)
+            self.basic_reopen(100, True, caching)
         else:
-            self.dataset_reopen(True)
+            self.dataset_reopen(caching)
 
     def test_reconfig(self):
-        if self.dstype == None:
-            self.cursor_stats_init()
-            self.basic_reopen(10, True, True)
-            self.session.reconfigure('cache_cursors=false')
-            self.cursor_stats_init()
-            self.basic_reopen(10, False, False)
+        caching = self.is_caching_configured()
+        self.cursor_stats_init()
+        self.basic_reopen(10, True, caching)
+        self.session.reconfigure('cache_cursors=false')
+        self.cursor_stats_init()
+        self.basic_reopen(10, False, False)
+        self.session.reconfigure('cache_cursors=true')
+        self.cursor_stats_init()
+        self.basic_reopen(10, False, True)
+
+    # Test we can reopen across a verify.
+    def test_verify(self):
+        if self.dstype != None:
             self.session.reconfigure('cache_cursors=true')
-            self.cursor_stats_init()
-            self.basic_reopen(10, False, True)
+            ds = self.dstype(self, self.uri, 100)
+            ds.populate()
+            for loop in range(10):
+                # We need an extra cursor open to test all code paths in
+                # this loop.  After the verify (the second or more time through
+                # the loop), the data handle referred to by both cached
+                # cursors will no longer be open.
+                #
+                # The first cursor open will attempt to reopen the
+                # first cached cursor, will see the data handle closed,
+                # thus will close that cursor and open normally.
+                #
+                # The second cursor open (in ds.check()) will attempt the
+                # reopen the second cached cursor, see the data handle now
+                # open and will succeed the reopen.
+                #
+                # This test checks that reopens of cursor using a an
+                # already reopened data handle will work.
+                c = self.session.open_cursor(self.uri)
+                ds.check()
+                c.close()
+                s2 = self.conn.open_session()
+                s2.verify(self.uri)
+                s2.close()
 
 class test_cursor13_drops(test_cursor13_base):
     def open_and_drop(self, uri, cursor_session, drop_session, nopens, ntrials):
@@ -209,7 +267,7 @@ class test_cursor13_drops(test_cursor13_base):
                 c = cursor_session.open_cursor(uri)
                 c.close()
             # The cursor cache is unaffected by the drop, and nothing
-            # in the cache should prevent the drop from occuring.
+            # in the cache should prevent the drop from occurring.
             drop_session.drop(uri)
             confirm_does_not_exist(self, uri)
 
