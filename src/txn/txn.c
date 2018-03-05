@@ -799,6 +799,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
+		case WT_TXN_OP_NONE:
+			break;
+
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
 			upd = op->u.upd;
@@ -1019,18 +1022,24 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* Process updates. */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		upd = op->u.upd;
 
 		switch (op->type) {
+		case WT_TXN_OP_NONE:
+			break;
+
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
 			/*
 			 * Switch reserved operation to abort to simplify
-			 * obsolete update list truncation.
+			 * obsolete update list truncation.  Clear the
+			 * operation type so we don't try to visit this update
+			 * again: it can now be evicted.
 			 */
 			if (upd->type == WT_UPDATE_RESERVE) {
 				upd->txnid = WT_TXN_ABORTED;
+				op->type = WT_TXN_OP_NONE;
 				break;
 			}
 
@@ -1059,6 +1068,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			/* Other operations don't need timestamps. */
 			break;
 		}
+	}
 
 	/* Set transaction state to prepare. */
 	F_SET(&session->txn, WT_TXN_PREPARE);
@@ -1115,6 +1125,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		upd = op->u.upd;
 
 		switch (op->type) {
+		case WT_TXN_OP_NONE:
+			break;
+
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
 			WT_ASSERT(session, upd->txnid == txn->id);
