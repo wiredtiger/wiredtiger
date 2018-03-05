@@ -838,10 +838,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 * As updating timestamp might not be an atomic
 				 * operation, we will manage using state.
 				 */
-				FLD_SET(upd->state, WT_UPDATE_STATE_LOCKED);
+				upd->state = WT_UPDATE_STATE_LOCKED;
 				__wt_timestamp_set(
 				    &upd->timestamp, &txn->commit_timestamp);
-				FLD_SET(upd->state, WT_UPDATE_STATE_READY);
+				upd->state = WT_UPDATE_STATE_READY;
 			} else
 				__wt_timestamp_set(
 				    &upd->timestamp, &txn->commit_timestamp);
@@ -863,17 +863,20 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (ref->page_del->update_list == NULL)
 				break;
+
 			for (;;) {
 				previous_state = ref->state;
 				if (__wt_atomic_casv32(
 				    &ref->state, previous_state, WT_REF_LOCKED))
 					break;
 			}
+
 			if ((updp = ref->page_del->update_list) != NULL)
 				for (; *updp != NULL; ++updp)
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
+
 			/*
 			 * Publish to ensure we don't let the page be evicted
 			 * and the updates discarded before being written.
@@ -980,6 +983,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
+	WT_UPDATE *upd;
 	wt_timestamp_t ts;
 	u_int i;
 
@@ -1016,6 +1020,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Process updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+		upd = op->u.upd;
+
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
@@ -1023,8 +1029,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Switch reserved operation to abort to simplify
 			 * obsolete update list truncation.
 			 */
-			if (op->u.upd->type == WT_UPDATE_RESERVE) {
-				op->u.upd->txnid = WT_TXN_ABORTED;
+			if (upd->type == WT_UPDATE_RESERVE) {
+				upd->txnid = WT_TXN_ABORTED;
 				break;
 			}
 
@@ -1038,15 +1044,16 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 			/* Set prepare timestamp. */
 			if (op->fileid != WT_METAFILE_ID)
-				__wt_timestamp_set(&op->u.upd->timestamp, &ts);
+				__wt_timestamp_set(&upd->timestamp, &ts);
 
-			FLD_SET(op->u.upd->state, WT_UPDATE_STATE_PREPARED);
+			upd->state = WT_UPDATE_STATE_PREPARED;
 			break;
 
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
 			break;
+
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
 			/* Other operations don't need timestamps. */
@@ -1084,6 +1091,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
+	WT_UPDATE *upd;
 	u_int i;
 	bool readonly;
 
@@ -1104,14 +1112,16 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		if (op->fileid == WT_METAFILE_ID)
 			continue;
 
+		upd = op->u.upd;
+
 		switch (op->type) {
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
-			WT_ASSERT(session, op->u.upd->txnid == txn->id);
+			WT_ASSERT(session, upd->txnid == txn->id);
 			WT_ASSERT(session,
 			    S2C(session)->cache->las_fileid == 0 ||
 			    op->fileid != S2C(session)->cache->las_fileid);
-			op->u.upd->txnid = WT_TXN_ABORTED;
+			upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
