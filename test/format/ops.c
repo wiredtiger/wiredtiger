@@ -627,7 +627,8 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 * Prepare also requires timestamps. Skip if not using timestamps,
 	 * if no timestamp has yet been set, or if using logging.
 	 */
-	if (!g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
+	if (/* XXX: CONFIGURE PREPARE OFF FOR NOW */ true ||
+	    !g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
 		return (0);
 
 	/*
