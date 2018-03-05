@@ -541,8 +541,29 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 }
 
 /*
+ * set_commit_timestamp --
+ *	Return the next commit timestamp.
+ */
+static uint64_t
+set_commit_timestamp(TINFO *tinfo)
+{
+	/*
+	 * If the thread's commit timestamp hasn't been set yet, update it with
+	 * the current value to prevent the oldest timestamp moving past our
+	 * allocated timestamp before the commit completes. The sequence where
+	 * it's already set is after prepare, in which case we can't let the
+	 * oldest timestamp move past either the prepare or commit timestamps.
+	 *
+	 * Note the barrier included in the atomic call ensures proper ordering.
+	 */
+	if (tinfo->commit_timestamp == 0)
+		tinfo->commit_timestamp = g.timestamp;
+	return (__wt_atomic_addv64(&g.timestamp, 1));
+}
+
+/*
  * commit_transaction --
- *     Commit a transaction
+ *     Commit a transaction.
  */
 static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
@@ -551,29 +572,44 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	char config_buf[64];
 
 	if (g.c_txn_timestamps) {
-		/*
-		 * Update the thread's update timestamp with the current value
-		 * to prevent the oldest timestamp moving past our allocated
-		 * timestamp before the commit completes.
-		 */
-		tinfo->commit_timestamp = g.timestamp;
-		ts = __wt_atomic_addv64(&g.timestamp, 1);
+		ts = set_commit_timestamp(tinfo);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
 		testutil_check(
 		    session->commit_transaction(session, config_buf));
-
-		/*
-		 * Clear the thread's active timestamp: it no longer needs to
-		 * be pinned. Don't let the compiler re-order this statement,
-		 * if we were to race with the timestamp thread, it might see
-		 * our thread update before the transaction commit.
-		 */
-		WT_PUBLISH(tinfo->commit_timestamp, 0);
 	} else
 		testutil_check(session->commit_transaction(session, NULL));
 	++tinfo->commit;
+
+	/*
+	 * Clear the thread's active timestamp: it no longer needs to be pinned.
+	 * Don't let the compiler re-order this statement, if we were to race
+	 * with the timestamp thread, it might see our thread update before the
+	 * transaction commit completes.
+	 */
+	if (g.c_txn_timestamps)
+		WT_PUBLISH(tinfo->commit_timestamp, 0);
+}
+
+/*
+ * rollback_transaction --
+ *     Rollback a transaction.
+ */
+static void
+rollback_transaction(TINFO *tinfo, WT_SESSION *session)
+{
+	testutil_check(session->rollback_transaction(session, NULL));
+	++tinfo->rollback;
+
+	/*
+	 * Clear the thread's active timestamp: it no longer needs to be pinned.
+	 * Don't let the compiler re-order this statement, if we were to race
+	 * with the timestamp thread, it might see our thread update before the
+	 * transaction commit completes.
+	 */
+	if (g.c_txn_timestamps)
+		WT_PUBLISH(tinfo->commit_timestamp, 0);
 }
 
 /*
@@ -583,6 +619,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 static int
 prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 {
+	uint64_t ts;
 	char config_buf[64];
 
 	/*
@@ -599,9 +636,10 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 * now. The subsequent commit will increment it, ensuring correctness.
 	 */
 	++tinfo->prepare;
+
+	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
-	    config_buf, sizeof(config_buf),
-	    "prepare_timestamp=%" PRIx64, g.timestamp));
+	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
 	return (session->prepare_transaction(session, config_buf));
 }
 
@@ -1052,34 +1090,30 @@ update_instead_of_chosen_op:
 				goto deadlock;
 		}
 
+		/* Prepare the transaction 10% of the time. */
+		/* XXX: CONFIGURE PREPARE OFF FOR NOW */
+		if (mmrand(&tinfo->rnd, 1, 10) == 0) {
+			ret = prepare_transaction(tinfo, session);
+			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
+			if (ret == WT_PREPARE_CONFLICT)
+				goto deadlock;
+
+			__wt_yield();		/* Let other threads proceed. */
+		}
+
 		/*
 		 * If we're in a transaction, commit 40% of the time and
 		 * rollback 10% of the time.
 		 */
 		switch (rnd) {
-		case 1:					/* 10 % */
-			/*
-			 * Occasionally prepare the transaction too.
-			 */
-			ret = prepare_transaction(tinfo, session);
-			testutil_assert(
-			    ret == 0 || ret == WT_PREPARE_CONFLICT);
-			if (ret == WT_PREPARE_CONFLICT)
-				goto deadlock;
-
-			__wt_yield();		/* Let other threads proceed. */
-
-			/* FALLTHROUGH */
-		case 2: case 3: case 4:			/* 40% */
+		case 1: case 2: case 3: case 4:			/* 40% */
 			commit_transaction(tinfo, session);
 			break;
 		case 5:						/* 10% */
 			if (0) {
 deadlock:			++tinfo->deadlock;
 			}
-			testutil_check(
-			    session->rollback_transaction(session, NULL));
-			++tinfo->rollback;
+			rollback_transaction(tinfo, session);
 			break;
 		}
 

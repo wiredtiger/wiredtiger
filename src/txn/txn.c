@@ -534,10 +534,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		 * If transaction is prepared, this would have been done in
 		 * prepare.
 		 */
-		if (!F_ISSET(txn, WT_TXN_PREPARE)) {
+		if (!F_ISSET(txn, WT_TXN_PREPARE))
 			__txn_remove_from_global_table(session);
-		}
-
 		txn->id = WT_TXN_NONE;
 	}
 
@@ -887,7 +885,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_PUBLISH(ref->state, previous_state);
 #endif
 			break;
-
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
 			/* Other operations don't need timestamps. */
@@ -1021,14 +1018,22 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_session_copy_values(session));
 	}
 
-	/* Process updates. */
+	/* Prepare updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		/* Assert it's not an update to the lookaside file. */
+		WT_ASSERT(session,
+		    S2C(session)->cache->las_fileid == 0 ||
+		    op->fileid != S2C(session)->cache->las_fileid);
+
+		/* Metadata updates are never prepared. */
+		if (op->fileid == WT_METAFILE_ID)
+			continue;
+
 		upd = op->u.upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
-
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
 			/*
@@ -1043,26 +1048,15 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 				break;
 			}
 
-			/*
-			 * Assert to make sure the lookaside writes are not
-			 * happening here.
-			 */
-			WT_ASSERT(session,
-			    !(S2C(session)->cache->las_fileid != 0 &&
-			    op->fileid == S2C(session)->cache->las_fileid));
-
 			/* Set prepare timestamp. */
-			if (op->fileid != WT_METAFILE_ID)
-				__wt_timestamp_set(&upd->timestamp, &ts);
+			__wt_timestamp_set(&upd->timestamp, &ts);
 
 			upd->state = WT_UPDATE_STATE_PREPARED;
 			break;
-
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
 			break;
-
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
 			/* Other operations don't need timestamps. */
@@ -1118,6 +1112,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		/* Assert it's not an update to the lookaside file. */
+		WT_ASSERT(session,
+		    S2C(session)->cache->las_fileid == 0 ||
+		    op->fileid != S2C(session)->cache->las_fileid);
+
 		/* Metadata updates are never rolled back. */
 		if (op->fileid == WT_METAFILE_ID)
 			continue;
@@ -1130,10 +1129,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
-			WT_ASSERT(session, upd->txnid == txn->id);
 			WT_ASSERT(session,
-			    S2C(session)->cache->las_fileid == 0 ||
-			    op->fileid != S2C(session)->cache->las_fileid);
+			    upd->txnid == txn->id ||
+			    upd->txnid == WT_TXN_ABORTED);
 			upd->txnid = WT_TXN_ABORTED;
 			break;
 		case WT_TXN_OP_REF_DELETE:
