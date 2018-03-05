@@ -395,8 +395,7 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
 	 * Indicated as allowed in prepared state, even though not allowed,
 	 * so that running transaction check below take precedence.
 	 */
-	SESSION_API_CALL_PREPARE_ALLOWED(
-	    session, reconfigure, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, reconfigure, config, cfg);
 
 	/*
 	 * Note that this method only checks keys that are passed in by the
@@ -567,7 +566,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 
-	if (F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
+	if (owner == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, owner, cfg, cursorp)) == 0)
 			return (0);
@@ -599,7 +598,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 	if (to_dup == NULL && F_ISSET(session, WT_SESSION_CACHE_CURSORS)) {
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, NULL, cfg, cursorp)) == 0)
-			return (0);
+			goto done;
 		WT_RET_NOTFOUND_OK(ret);
 	}
 
@@ -634,7 +633,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 err:		if (cursor != NULL)
 			WT_TRET(cursor->close(cursor));
 	}
-
+done:
 	/*
 	 * Opening a cursor on a non-existent data source will set ret to
 	 * either of ENOENT or WT_NOTFOUND at this point. However,
@@ -1422,8 +1421,11 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 
 done:
 err:	/*
-	 * Close any locally-opened start cursor. Reset application cursors,
-	 * they've possibly moved and the application cannot use them.
+	 * Close any locally-opened start cursor.
+	 *
+	 * Reset application cursors, they've possibly moved and the
+	 * application cannot use them.  Note that we can make it here with a
+	 * NULL start cursor (e.g., if the truncate range is empty).
 	 */
 	if (local_start)
 		WT_TRET(start->close(start));
@@ -1927,8 +1929,7 @@ __session_checkpoint(WT_SESSION *wt_session, const char *config)
 	 * Indicated as allowed in prepared state, even though not allowed,
 	 * so that running transaction check below take precedence.
 	 */
-	SESSION_API_CALL_PREPARE_ALLOWED(
-	    session, checkpoint, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session, checkpoint, config, cfg);
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
@@ -2211,6 +2212,11 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		    session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
 		session_ret->optrackbuf_ptr = 0;
 	}
+
+	/* Set the default value for session flags. */
+	if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))
+		F_SET(session_ret, WT_SESSION_CACHE_CURSORS);
+
 	/*
 	 * Configuration: currently, the configuration for open_session is the
 	 * same as session.reconfigure, so use that function.
