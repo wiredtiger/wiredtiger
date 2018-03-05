@@ -98,6 +98,7 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         c.update()
         self.session.prepare_transaction('prepare_timestamp=' + self.prepare_ts)
         conflictmsg = '/conflict between concurrent operations/'
+        preparemsg = '/conflict with a prepared update/'
 
         #'''
         # Verify transaction with a read timestamp earlier than the prepare timestamp

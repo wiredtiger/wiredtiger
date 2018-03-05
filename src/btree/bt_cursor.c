@@ -674,9 +674,12 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		exact = 0;
 		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-	} else if ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND)
-		exact = 1;
-	else {
+	} else if ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
+			if (ret != WT_PREPARE_CONFLICT)
+				exact = 1;
+			else
+				goto err;
+	} else {
 		/*
 		 * The cursor next call may have overwritten our caller's key,
 		 * restore it to its original value.
@@ -694,8 +697,12 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		if (visibility == WT_VISIBLE_TRUE) {
 			exact = cbt->compare;
 			ret = __cursor_kv_return(session, cbt, upd);
-		} else if ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND)
-			exact = -1;
+		} else if ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+			if (ret != WT_PREPARE_CONFLICT)
+				exact = -1;
+			else
+				goto err;
+		}
 	}
 
 err:	if (ret == 0 && exactp != NULL)
@@ -1674,7 +1681,8 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_CONN_INCR(session, cursor_restart);
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
-	}
+	} else if (ret == WT_PREPARE_CONFLICT)
+		return (ret);
 
 	WT_RET_NOTFOUND_OK(ret);
 	return (0);
@@ -1732,7 +1740,8 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_CONN_INCR(session, cursor_restart);
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
-	}
+	} else if (ret == WT_PREPARE_CONFLICT)
+		return (ret);
 
 	WT_RET_NOTFOUND_OK(ret);
 	return (0);
