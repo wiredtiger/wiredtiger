@@ -530,7 +530,13 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		 */
 		txn_global->checkpoint_id = 0;
 	} else if (F_ISSET(txn, WT_TXN_HAS_ID)) {
-		__txn_remove_from_global_table(session);
+		/*
+		 * If transaction is prepared, this would have been done in
+		 * prepare.
+		 */
+		if (!F_ISSET(txn, WT_TXN_PREPARE)) {
+			__txn_remove_from_global_table(session);
+		}
 
 		txn->id = WT_TXN_NONE;
 	}
@@ -1027,6 +1033,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 			FLD_SET(op->u.upd->state, WT_UPDATE_STATE_PREPARED);
 			break;
+
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
@@ -1043,6 +1050,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Release our snapshot in case it is keeping data pinned. */
 	__wt_txn_release_snapshot(session);
+
+	/*
+	 * Clear the transaction's ID from the global table, to facilitate
+	 * prepared data visibility, but not from local txn structure.
+	 */
+	if (F_ISSET(txn, WT_TXN_HAS_ID))
+		__txn_remove_from_global_table(session);
 
 	return (0);
 #else
