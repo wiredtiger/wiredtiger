@@ -1034,7 +1034,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
-
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
 			/*
@@ -1050,8 +1049,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			/* Set prepare timestamp. */
-			if (op->fileid != WT_METAFILE_ID)
-				__wt_timestamp_set(&upd->timestamp, &ts);
+			__wt_timestamp_set(&upd->timestamp, &ts);
 
 			upd->state = WT_UPDATE_STATE_PREPARED;
 			break;
@@ -1059,7 +1057,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
 			break;
-
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
 			/* Other operations don't need timestamps. */
