@@ -1071,9 +1071,8 @@ retry:	if (positioned == POSITIONED)
 		/* Check whether an update would conflict. */
 		WT_ERR(__curfile_update_check(cbt));
 
-		if (cbt->compare != 0)
-			WT_ERR(WT_NOTFOUND);
-		if ((visibility = __wt_cursor_valid(cbt, NULL)) ==
+		if (cbt->compare != 0 ||
+		    (visibility = __wt_cursor_valid(cbt, NULL)) ==
 		    WT_VISIBLE_FALSE)
 			WT_ERR(WT_NOTFOUND);
 		else if (visibility == WT_VISIBLE_PREPARE)
