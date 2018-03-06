@@ -129,6 +129,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 {
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -200,10 +201,11 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * never seen by a read.
 	 */
 	upd = NULL;			/* -Werror=maybe-uninitialized */
-	if (cbt->ins != NULL && cbt->recno <= WT_INSERT_RECNO(cbt->ins))
-		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
-		    WT_VISIBLE_PREPARE)
+	if (cbt->ins != NULL && cbt->recno <= WT_INSERT_RECNO(cbt->ins)) {
+		__wt_txn_read(session, cbt->ins->upd, &visibility, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
 			return (WT_PREPARE_CONFLICT);
+	}
 	if (cbt->ins == NULL || cbt->recno > WT_INSERT_RECNO(cbt->ins) ||
 	    upd == NULL) {
 		cbt->v = 0;
@@ -225,6 +227,7 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	page = cbt->ref->page;
@@ -253,8 +256,8 @@ new_page:
 		cbt->ins = NULL;
 	upd = NULL;			/* _Werror=maybe-uninitialized */
 	if (cbt->ins != NULL) {		/* -Werror=dangling-else */
-		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
-		    WT_VISIBLE_PREPARE)
+		__wt_txn_read(session, cbt->ins->upd, &visibility, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
 			return (WT_PREPARE_CONFLICT);
 	} else
 		upd = NULL;
@@ -276,6 +279,7 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 {
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 
@@ -290,8 +294,8 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-		if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
-		    WT_VISIBLE_PREPARE)
+		__wt_txn_read(session, cbt->ins->upd, &visibility, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
 			return (WT_PREPARE_CONFLICT);
 		if (upd == NULL)
 			continue;
@@ -320,6 +324,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 	uint64_t rle_start;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -355,8 +360,9 @@ new_page:	if (cbt->recno < cbt->ref->ref_recno)
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
 		upd = NULL;		/* _Werror=maybe-uninitialized */
 		if (cbt->ins != NULL) {		/* -Werror=dangling-else */
-			if (__wt_txn_read(session, cbt->ins->upd, &upd) ==
-			    WT_VISIBLE_PREPARE)
+			__wt_txn_read(session,
+			    cbt->ins->upd, &visibility, &upd);
+			if (visibility == WT_VISIBLE_PREPARE)
 				return (WT_PREPARE_CONFLICT);
 		} else
 			upd = NULL;
@@ -440,6 +446,7 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 	WT_ROW *rip;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	WT_VISIBLE_TYPE visibility;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	page = cbt->ref->page;
@@ -486,8 +493,8 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 			WT_RET(__cursor_skip_prev(cbt));
 
 new_insert:	if ((ins = cbt->ins) != NULL) {
-			if (__wt_txn_read(session, ins->upd, &upd) ==
-			    WT_VISIBLE_PREPARE)
+			__wt_txn_read(session, ins->upd, &visibility, &upd);
+			if (visibility == WT_VISIBLE_PREPARE)
 				return (WT_PREPARE_CONFLICT);
 			if (upd == NULL)
 				continue;
@@ -524,8 +531,9 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 		rip = &page->pg_row[cbt->slot];
-		if (__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd) ==
-		    WT_VISIBLE_PREPARE)
+		__wt_txn_read(session,
+		    WT_ROW_UPDATE(page, rip), &visibility, &upd);
+		if (visibility == WT_VISIBLE_PREPARE)
 			return (WT_PREPARE_CONFLICT);
 		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
 			if (upd->txnid != WT_TXN_NONE &&
