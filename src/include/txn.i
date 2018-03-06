@@ -162,12 +162,14 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 static inline void
 __wt_timestamp_subone(wt_timestamp_t *ts)
 {
+	uint8_t *tsb;
+
 	/*
 	 * Complicated path for arbitrary-sized timestamps: start with the
 	 * least significant byte, subtract one, continue to more significant
 	 * bytes on underflow.
 	 */
-	for (uint8_t *tsb = ts->ts + WT_TIMESTAMP_SIZE - 1; tsb > ts->ts; --tsb)
+	for (tsb = ts->ts + WT_TIMESTAMP_SIZE - 1; tsb >= ts->ts; --tsb)
 		if (--*tsb != 0xff)
 			break;
 }
