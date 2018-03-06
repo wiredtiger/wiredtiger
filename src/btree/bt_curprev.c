@@ -696,6 +696,5 @@ err:	if (ret == WT_PREPARE_CONFLICT)
 		F_SET(cbt, WT_CBT_RETRY_PREV);
 	else if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));
-	/* Need to check whether cursor state to be restored, after reset. */
 	return (ret);
 }

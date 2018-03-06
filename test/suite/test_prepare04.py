@@ -101,7 +101,7 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         preparemsg = '/conflict with a prepared update/'
 
         #'''
-        # Verify transaction with a read timestamp earlier than the prepare timestamp
+        # Verify data visibility from a different session/transaction.
         s_other = self.conn.open_session()
         c_other = s_other.open_cursor(self.uri, None)
         s_other.begin_transaction(self.txn_config + self.ignore_config)

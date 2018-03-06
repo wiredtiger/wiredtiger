@@ -422,8 +422,7 @@ random_page_entry:
 	 * the next entry, if that doesn't work, move to the previous entry.
 	 */
 	WT_ERR(__wt_row_random_leaf(session, cbt));
-	visibility = __wt_cursor_valid(cbt, &upd);
-	if (visibility == WT_VISIBLE_TRUE) {
+	if ((visibility = __wt_cursor_valid(cbt, &upd)) == WT_VISIBLE_TRUE) {
 		WT_ERR(__wt_key_return(session, cbt));
 		WT_ERR(__wt_value_return(session, cbt, upd));
 	} else if (visibility == WT_VISIBLE_FALSE) {

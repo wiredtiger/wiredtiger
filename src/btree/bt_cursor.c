@@ -511,11 +511,10 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		    __cursor_col_search(session, cbt, cbt->ref));
 
 		/* If prepared update, return prepare conflict. */
-		visibility = __wt_cursor_valid(cbt, &upd);
-		if (visibility == WT_VISIBLE_PREPARE)
+		if ((visibility = __wt_cursor_valid(cbt, &upd)) ==
+		    WT_VISIBLE_PREPARE)
 			WT_ERR(WT_PREPARE_CONFLICT);
-		valid = cbt->compare == 0 && (visibility == WT_VISIBLE_TRUE ?
-		    true : false);
+		valid = (cbt->compare == 0 && visibility == WT_VISIBLE_TRUE);
 	}
 	if (!valid) {
 		WT_ERR(__cursor_func_init(cbt, true));
@@ -525,11 +524,10 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		    __cursor_col_search(session, cbt, NULL));
 
 		/* If prepared update, return prepare conflict. */
-		visibility = __wt_cursor_valid(cbt, &upd);
-		if (visibility == WT_VISIBLE_PREPARE)
+		if ((visibility = __wt_cursor_valid(cbt, &upd)) ==
+		    WT_VISIBLE_PREPARE)
 			WT_ERR(WT_PREPARE_CONFLICT);
-		valid = cbt->compare == 0 && (visibility == WT_VISIBLE_TRUE ?
-		    true : false);
+		valid = (cbt->compare == 0 && visibility == WT_VISIBLE_TRUE);
 	}
 
 	if (valid)
@@ -629,11 +627,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		 */
 		if (cbt->slot != 0 &&
 		    cbt->slot != cbt->ref->page->entries - 1) {
-			visibility = __wt_cursor_valid(cbt, &upd);
-			if (visibility == WT_VISIBLE_PREPARE)
+			if ((visibility = __wt_cursor_valid(cbt, &upd)) ==
+			    WT_VISIBLE_PREPARE)
 				WT_ERR(WT_PREPARE_CONFLICT);
 
-			valid = (visibility == WT_VISIBLE_TRUE ? true : false);
+			valid = (visibility == WT_VISIBLE_TRUE);
 		}
 	}
 	if (!valid) {
@@ -641,11 +639,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, NULL, true) :
 		    __cursor_col_search(session, cbt, NULL));
-		visibility = __wt_cursor_valid(cbt, &upd);
-		if (visibility == WT_VISIBLE_PREPARE)
+		if ((visibility = __wt_cursor_valid(cbt, &upd)) ==
+		    WT_VISIBLE_PREPARE)
 			WT_ERR(WT_PREPARE_CONFLICT);
 
-		valid = (visibility == WT_VISIBLE_TRUE ? true : false);
+		valid = (visibility == WT_VISIBLE_TRUE);
 	}
 
 	/*
@@ -692,8 +690,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		WT_ERR(btree->type == BTREE_ROW ?
 		    __cursor_row_search(session, cbt, NULL, true) :
 		    __cursor_col_search(session, cbt, NULL));
-		visibility = __wt_cursor_valid(cbt, &upd);
-		if (visibility == WT_VISIBLE_PREPARE)
+		if ((visibility = __wt_cursor_valid(cbt, &upd)) ==
+		    WT_VISIBLE_PREPARE)
 			WT_ERR(WT_PREPARE_CONFLICT);
 
 		if (visibility == WT_VISIBLE_TRUE) {
@@ -817,13 +815,9 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
 		    cbt->compare == 0) {
-			visibility = __wt_cursor_valid(cbt, NULL);
-			if (visibility == WT_VISIBLE_TRUE)
+			if ((visibility = __wt_cursor_valid(cbt, NULL)) ==
+			    WT_VISIBLE_TRUE)
 				WT_ERR(WT_DUPLICATE_KEY);
-			/*
-			 * Do we have to return WT_ROLLBACK here ??,
-			 * since this is insert function
-			 */
 			if (visibility == WT_VISIBLE_PREPARE)
 				WT_ERR(WT_PREPARE_CONFLICT);
 		}
@@ -848,10 +842,9 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 			if (cbt->compare ==0 ) {
-				visibility = __wt_cursor_valid(cbt, NULL);
-				if (visibility == WT_VISIBLE_TRUE)
+				if ((visibility = __wt_cursor_valid(cbt, NULL))
+				    == WT_VISIBLE_TRUE)
 					WT_ERR(WT_DUPLICATE_KEY);
-				/*  WT_ROLLBACK ?? */
 				if (visibility == WT_VISIBLE_PREPARE)
 					WT_ERR(WT_PREPARE_CONFLICT);
 
@@ -1080,11 +1073,11 @@ retry:	if (positioned == POSITIONED)
 
 		if (cbt->compare != 0)
 			WT_ERR(WT_NOTFOUND);
-		visibility = __wt_cursor_valid(cbt, NULL);
-		if (visibility == WT_VISIBLE_FALSE)
+		if ((visibility = __wt_cursor_valid(cbt, NULL)) ==
+		    WT_VISIBLE_FALSE)
 			WT_ERR(WT_NOTFOUND);
 		else if (visibility == WT_VISIBLE_PREPARE)
-			WT_ERR(WT_PREPARE_CONFLICT); 	/* WT_ROLLBACK ?? */
+			WT_ERR(WT_PREPARE_CONFLICT);
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_TOMBSTONE);
 	} else {
@@ -1097,9 +1090,9 @@ retry:	if (positioned == POSITIONED)
 		 */
 		WT_ERR(__curfile_update_check(cbt));
 
-		visibility = __wt_cursor_valid(cbt, NULL);
-		if (visibility == WT_VISIBLE_PREPARE)
-			WT_ERR(WT_PREPARE_CONFLICT);	/* WT_ROLLBACK ?? */
+		if ((visibility = __wt_cursor_valid(cbt, NULL)) ==
+		    WT_VISIBLE_PREPARE)
+			WT_ERR(WT_PREPARE_CONFLICT);
 		/* Remove the record if it exists. */
 		if (cbt->compare != 0 || visibility == WT_VISIBLE_FALSE) {
 			if (!__cursor_fix_implicit(btree, cbt))
@@ -1268,11 +1261,11 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 			WT_ERR(__curfile_update_check(cbt));
 			if (cbt->compare != 0)
 				WT_ERR(WT_NOTFOUND);
-			visibility = __wt_cursor_valid(cbt, NULL);
-			if (visibility == WT_VISIBLE_FALSE)
+			if ((visibility = __wt_cursor_valid(cbt, NULL)) ==
+			    WT_VISIBLE_FALSE)
 				WT_ERR(WT_NOTFOUND);
 			if (visibility == WT_VISIBLE_PREPARE)
-				WT_ERR(WT_PREPARE_CONFLICT); /* WT_ROLLBACK */
+				WT_ERR(WT_PREPARE_CONFLICT);
 		}
 		ret = __cursor_row_modify_v(session, cbt, value, modify_type);
 	} else {
@@ -1288,17 +1281,13 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 			WT_ERR(__curfile_update_check(cbt));
-			/*
-			 * Do we need to check compare != 0 before
-			 * __wt_cursor_valid ??
-			 */
 			visibility = __wt_cursor_valid(cbt, NULL);
 			if ((cbt->compare != 0 ||
 			    visibility == WT_VISIBLE_FALSE) &&
 			    !__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
 			if (visibility == WT_VISIBLE_PREPARE)
-				WT_ERR(WT_PREPARE_CONFLICT); /* WT_ROLLBACK?? */
+				WT_ERR(WT_PREPARE_CONFLICT);
 		}
 		ret = __cursor_col_modify_v(session, cbt, value, modify_type);
 	}
