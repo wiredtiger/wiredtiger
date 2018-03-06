@@ -1092,7 +1092,7 @@ update_instead_of_chosen_op:
 
 		/* Prepare the transaction 10% of the time. */
 		/* XXX: CONFIGURE PREPARE OFF FOR NOW */
-		if (mmrand(&tinfo->rnd, 1, 10) == 1) {
+		if (mmrand(&tinfo->rnd, 1, 10) == 0) {
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
