@@ -560,7 +560,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
 	uint32_t flags;
-	bool newpage;
+	bool newpage, valid;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -579,12 +579,12 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	 */
 	if (F_ISSET(cbt, WT_CBT_RETRY_PREV)) {
 		upd = NULL;		/* -Werror=maybe-uninitialized */
-		switch (__wt_cursor_valid(cbt, &upd)) {
-		case WT_VISIBLE_FALSE:
-			break;
-		case WT_VISIBLE_PREPARE:
-			return (WT_VISIBLE_PREPARE);
-		case WT_VISIBLE_TRUE:
+		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
+		if (valid == true) {
+			/*
+			 * If the update, which returned prepared conflict is
+			 * visible, return the value.
+			 */
 			F_CLR(cbt, WT_CBT_RETRY_PREV);
 			return (__cursor_kv_return(session, cbt, upd));
 		}
