@@ -44,9 +44,7 @@ static char home[1024];			/* Program working dir */
  * 3. A table that is not logged and involved in timestamps.  This simulates
  * a typical collection file.
  *
- * We also create a fourth table that is not logged and not involved directly
- * in timestamps to store the stable timestamp.  That way we can know what the
- * latest stable timestamp is on checkpoint.
+ * We also have most threads perform schema operations such as create/drop.
  *
  * We also create several files that are not WiredTiger tables.  The checkpoint
  * thread creates a file indicating that a checkpoint has completed.  The parent
@@ -57,7 +55,7 @@ static char home[1024];			/* Program working dir */
  * inserted and it records the timestamp that was used for that insertion.
  */
 #define	INVALID_KEY	UINT64_MAX
-#define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
+#define	MAX_CKPT_INVL	2	/* Maximum interval between checkpoints */
 #define	MAX_TH		12
 #define	MAX_TIME	40
 #define	MAX_VAL		1024
@@ -316,26 +314,6 @@ obj_drop(THREAD_DATA *td, int force)
 }
 
 static void
-obj_checkpoint(THREAD_DATA *td)
-{
-	WT_SESSION *session;
-	int ret;
-
-	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
-	/*
-	 * Force the checkpoint so it has to be taken. Forced checkpoints can
-	 * race with other metadata operations and return EBUSY - we'd expect
-	 * applications using forced checkpoints to retry on EBUSY.
-	 */
-	if ((ret = session->checkpoint(session, "force")) != 0)
-		if (ret != EBUSY && ret != ENOENT)
-			testutil_die(ret, "session.checkpoint");
-
-	testutil_check(session->close(session, NULL));
-}
-
-static void
 obj_rebalance(THREAD_DATA *td)
 {
 	WT_SESSION *session;
@@ -476,9 +454,7 @@ thread_ckpt_run(void *arg)
 	__wt_epoch(NULL, &start);
 	for (i = 0; ;++i) {
 		sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
-#if 0
 		sleep(sleep_time);
-#endif
 		if (use_ts)
 			ts = global_ts;
 		/*
@@ -589,11 +565,12 @@ thread_run(void *arg)
 	stable_ts = 0;
 	for (i = td->start;; ++i) {
 		/*
-		 * Allow some threads to skip schema operations.
+		 * Allow some threads to skip schema operations so that they
+		 * are generating sufficient dirty data.
 		 */
 		if (td->info != 0 && td->info != 1)
 			/*
-			 * Do a schema operation 50% of the time.
+			 * Do a schema operation about 50% of the time.
 			 */
 			switch (__wt_random(&rnd) % 20) {
 			case 0:
@@ -603,28 +580,24 @@ thread_run(void *arg)
 				obj_bulk_unique(td, __wt_random(&rnd) & 1);
 				break;
 			case 2:
-				/* obj_checkpoint(td); */
 				obj_create(td);
 				break;
 			case 3:
-				obj_create(td);
-				break;
-			case 4:
 				obj_create_unique(td, __wt_random(&rnd) & 1);
 				break;
-			case 5:
+			case 4:
 				obj_cursor(td);
 				break;
-			case 6:
+			case 5:
 				obj_drop(td, __wt_random(&rnd) & 1);
 				break;
-			case 7:
+			case 6:
 				obj_rebalance(td);
 				break;
-			case 8:
+			case 7:
 				obj_upgrade(td);
 				break;
-			case 9:
+			case 8:
 				obj_verify(td);
 				break;
 			}
@@ -897,6 +870,10 @@ main(int argc, char *argv[])
 
 	compat = inmem = false;
 	use_ts = true;
+	/*
+	 * Setting this to false forces us to use internal library code.
+	 * Allow an override but default to using that code.
+	 */
 	use_txn = false;
 	nth = MIN_TH;
 	rand_th = rand_time = true;
