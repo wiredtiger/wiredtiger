@@ -214,7 +214,6 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
-	WT_VISIBLE_TYPE visibility;
 
 	btree = cbt->btree;
 	page = cbt->ref->page;
@@ -267,9 +266,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 	 * update that's been deleted is not a valid key/value pair).
 	 */
 	if (cbt->ins != NULL) {
-		__wt_txn_read(session, cbt->ins->upd, &visibility, &upd);
-		if (visibility == WT_VISIBLE_PREPARE)
-			return (WT_PREPARE_CONFLICT);
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
 				*valid = false;
@@ -359,11 +356,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 		/* Check for an update. */
 		if (page->modify != NULL &&
 		    page->modify->mod_row_update != NULL) {
-			__wt_txn_read(session,
-			    page->modify->mod_row_update[cbt->slot],
-			    &visibility, &upd);
-			if (visibility == WT_VISIBLE_PREPARE)
-				return (WT_PREPARE_CONFLICT);
+			WT_RET(__wt_txn_read(session,
+			    page->modify->mod_row_update[cbt->slot], &upd));
 			if (upd != NULL) {
 				if (upd->type == WT_UPDATE_TOMBSTONE) {
 					*valid = false;

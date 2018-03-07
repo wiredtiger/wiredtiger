@@ -263,12 +263,6 @@
 #undef	HAVE_TIMESTAMPS
 #endif
 
-typedef enum {
-	WT_VISIBLE_FALSE=0, 	/* Not a visible update */
-	WT_VISIBLE_PREPARE=1,	/* Prepared update */
-	WT_VISIBLE_TRUE=2	/* A visible update */
-} WT_VISIBLE_TYPE;
-
 #ifdef HAVE_TIMESTAMPS
 struct __wt_timestamp_t {
 #if WT_TIMESTAMP_SIZE == 8
