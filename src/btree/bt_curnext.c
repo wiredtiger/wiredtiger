@@ -108,7 +108,6 @@ new_page:
 	    cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
-
 	if (cbt->ins != NULL)
 		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 	if (upd == NULL) {

@@ -522,7 +522,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		    __cursor_row_search(session, cbt, cbt->ref, false) :
 		    __cursor_col_search(session, cbt, cbt->ref));
 
-		/* If prepared update, return prepare conflict. */
+		/* Return, if prepare conflict encountered. */
 		if (cbt->compare == 0)
 			WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
 	}
@@ -533,7 +533,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
 		    __cursor_row_search(session, cbt, NULL, false) :
 		    __cursor_col_search(session, cbt, NULL));
 
-		/* If prepared update, return prepare conflict. */
+		/* Return, if prepare conflict encountered. */
 		if (cbt->compare == 0)
 			WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
 	}
