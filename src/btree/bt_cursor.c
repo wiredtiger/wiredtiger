@@ -1087,27 +1087,23 @@ retry:	if (positioned == POSITIONED)
 		if (cbt->compare != 0) {
 			if (!__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
-			else {
-				/*
-				 * Creating a record past the end of the tree in
-				 * a fixed-length column-store implicitly fills
-				 * the gap with empty records.  Return success
-				 * in that case, the record was deleted
-				 * successfully.
-				 *
-				 * Correct the btree cursor's location: the
-				 * search will have pointed us at the previous/
-				 * next item and that's not correct.
-				 */
-				cbt->recno = cursor->recno;
-			}
+			/*
+			 * Creating a record past the end of the tree in a
+			 * fixed-length column-store implicitly fills the
+			 * gap with empty records.  Return success in that
+			 * case, the record was deleted successfully.
+			 *
+			 * Correct the btree cursor's location: the search
+			 * will have pointed us at the previous/next item,
+			 * and that's not correct.
+			 */
+			cbt->recno = cursor->recno;
 		} else {
 			WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
 			if (valid == false) {
 				if (!__cursor_fix_implicit(btree, cbt))
 					WT_ERR(WT_NOTFOUND);
-				else
-					cbt->recno = cursor->recno;
+				cbt->recno = cursor->recno;
 			} else
 				ret = __cursor_col_modify(
 				    session, cbt, WT_UPDATE_TOMBSTONE);
