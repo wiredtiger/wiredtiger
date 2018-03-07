@@ -1066,8 +1066,10 @@ retry:	if (positioned == POSITIONED)
 		/* Check whether an update would conflict. */
 		WT_ERR(__curfile_update_check(cbt));
 
+		if (cbt->compare != 0)
+			WT_ERR(WT_NOTFOUND);
 		WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
-		if (cbt->compare != 0 || (valid == false))
+		if (valid == false)
 			WT_ERR(WT_NOTFOUND);
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_TOMBSTONE);
@@ -1081,25 +1083,35 @@ retry:	if (positioned == POSITIONED)
 		 */
 		WT_ERR(__curfile_update_check(cbt));
 
-		WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
 		/* Remove the record if it exists. */
-		if (cbt->compare != 0 || valid == false) {
+		if (cbt->compare != 0) {
 			if (!__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
-			/*
-			 * Creating a record past the end of the tree in a
-			 * fixed-length column-store implicitly fills the
-			 * gap with empty records.  Return success in that
-			 * case, the record was deleted successfully.
-			 *
-			 * Correct the btree cursor's location: the search
-			 * will have pointed us at the previous/next item,
-			 * and that's not correct.
-			 */
-			cbt->recno = cursor->recno;
-		} else
-			ret = __cursor_col_modify(
-			    session, cbt, WT_UPDATE_TOMBSTONE);
+			else {
+				/*
+				 * Creating a record past the end of the tree in
+				 * a fixed-length column-store implicitly fills
+				 * the gap with empty records.  Return success
+				 * in that case, the record was deleted
+				 * successfully.
+				 *
+				 * Correct the btree cursor's location: the
+				 * search will have pointed us at the previous/
+				 * next item and that's not correct.
+				 */
+				cbt->recno = cursor->recno;
+			}
+		} else {
+			WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
+			if (valid == false) {
+				if (!__cursor_fix_implicit(btree, cbt))
+					WT_ERR(WT_NOTFOUND);
+				else
+					cbt->recno = cursor->recno;
+			} else
+				ret = __cursor_col_modify(
+				    session, cbt, WT_UPDATE_TOMBSTONE);
+		}
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -1268,10 +1280,15 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 			WT_ERR(__curfile_update_check(cbt));
-			WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
-			if ((cbt->compare != 0 || valid == false) &&
-			    !__cursor_fix_implicit(btree, cbt))
-				WT_ERR(WT_NOTFOUND);
+			if (cbt->compare != 0) {
+				if (!__cursor_fix_implicit(btree, cbt))
+					WT_ERR(WT_NOTFOUND);
+			} else {
+				WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
+				if (valid == false &&
+				    !__cursor_fix_implicit(btree, cbt))
+					WT_ERR(WT_NOTFOUND);
+			}
 		}
 		ret = __cursor_col_modify_v(session, cbt, value, modify_type);
 	}
