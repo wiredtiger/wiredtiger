@@ -63,19 +63,21 @@ static char home[1024];			/* Program working dir */
 #define	MAX_VAL		1024
 #define	MIN_TH		5
 #define	MIN_TIME	10
-#define	PREPARE_FREQ	5
-#define	PREPARE_YIELD	PREPARE_FREQ * 10
+#define	PREPARE_FREQ    5
+#define	PREPARE_YIELD   PREPARE_FREQ * 10
 #define	RECORDS_FILE	"records-%" PRIu32
 #define	STABLE_PERIOD	100
 
+static const char * const uri = "table:wt";
 static const char * const uri_local = "table:local";
 static const char * const uri_oplog = "table:oplog";
 static const char * const uri_collection = "table:collection";
 
 static const char * const ckpt_file = "checkpoint_done";
 
-static bool compat, inmem, use_ts;
+static bool compat, inmem, stable_set, use_ts, use_txn;
 static volatile uint64_t global_ts = 1;
+static volatile uint64_t uid = 1;
 static volatile uint64_t th_ts[MAX_TH];
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
@@ -110,6 +112,272 @@ usage(void)
 	fprintf(stderr,
 	    "usage: %s [-h dir] [-T threads] [-t time] [-Cmvz]\n", progname);
 	exit(EXIT_FAILURE);
+}
+
+static const char * const config = NULL;
+
+static void
+obj_bulk(THREAD_DATA *td)
+{
+	WT_CURSOR *c;
+	WT_SESSION *session;
+	int ret;
+	bool create;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	create = false;
+	if ((ret = session->create(session, uri, config)) != 0)
+		if (ret != EEXIST && ret != EBUSY)
+			testutil_die(ret, "session.create");
+
+	if (ret == 0) {
+		create = true;
+		__wt_yield();
+		if ((ret = session->open_cursor(
+		    session, uri, NULL, "bulk", &c)) == 0) {
+			testutil_check(c->close(c));
+		} else if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
+			testutil_die(ret, "session.open_cursor bulk");
+	}
+
+	if (use_txn) {
+		/* If create fails, rollback else will commit.*/
+		if (!create)
+			ret = session->rollback_transaction(session, NULL);
+		else
+			ret = session->commit_transaction(session, NULL);
+
+		if (ret == EINVAL)
+			testutil_die(ret, "session.commit bulk");
+	}
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_bulk_unique(THREAD_DATA *td, int force)
+{
+	WT_CURSOR *c;
+	WT_SESSION *session;
+	uint64_t my_uid;
+	int ret;
+	char new_uri[64];
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	/* Generate a unique object name. */
+	my_uid = __wt_atomic_addv64(&uid, 1);
+	testutil_check(__wt_snprintf(
+	    new_uri, sizeof(new_uri), "%s.%u", uri, my_uid));
+
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	testutil_check(session->create(session, new_uri, config));
+
+	__wt_yield();
+	/*
+	 * Opening a bulk cursor may have raced with a forced checkpoint
+	 * which created a checkpoint of the empty file, and triggers an EINVAL
+	 */
+	if ((ret = session->open_cursor(
+	    session, new_uri, NULL, "bulk", &c)) == 0)
+		testutil_check(c->close(c));
+	else if (ret != EINVAL)
+		testutil_die(ret,
+		    "session.open_cursor bulk unique: %s, new_uri");
+
+	while ((ret = session->drop(
+	    session, new_uri, force ? "force" : NULL)) != 0)
+		if (ret != EBUSY)
+			testutil_die(ret, "session.drop: %s", new_uri);
+
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit bulk unique");
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_cursor(THREAD_DATA *td)
+{
+	WT_CURSOR *cursor;
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	if ((ret =
+	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.open_cursor");
+	} else
+		testutil_check(cursor->close(cursor));
+
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit cursor");
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_create(THREAD_DATA *td)
+{
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	if ((ret = session->create(session, uri, config)) != 0)
+		if (ret != EEXIST && ret != EBUSY)
+			testutil_die(ret, "session.create");
+
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit create");
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_create_unique(THREAD_DATA *td, int force)
+{
+	WT_SESSION *session;
+	uint64_t my_uid;
+	int ret;
+	char new_uri[64];
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	/* Generate a unique object name. */
+	my_uid = __wt_atomic_addv64(&uid, 1);
+	testutil_check(__wt_snprintf(
+	    new_uri, sizeof(new_uri), "%s.%u", uri, my_uid));
+
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	testutil_check(session->create(session, new_uri, config));
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit create unique");
+
+	__wt_yield();
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	while ((ret = session->drop(
+	    session, new_uri, force ? "force" : NULL)) != 0)
+		if (ret != EBUSY)
+			testutil_die(ret, "session.drop: %s", new_uri);
+	if (use_txn &&
+	    (ret = session->commit_transaction(session, NULL)) != 0 &&
+	    ret != EINVAL)
+		testutil_die(ret, "session.commit create unique");
+
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_drop(THREAD_DATA *td, int force)
+{
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if (use_txn)
+		testutil_check(session->begin_transaction(session, NULL));
+	if ((ret = session->drop(session, uri, force ? "force" : NULL)) != 0)
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.drop");
+
+	if (use_txn) {
+		/*
+		 * As the operations are being performed concurrently,
+		 * return value can be ENOENT or EBUSY will set
+		 * error to transaction opened by session. In these
+		 * cases the transaction has to be aborted.
+		 */
+		if (ret != ENOENT && ret != EBUSY)
+			ret = session->commit_transaction(session, NULL);
+		else
+			ret = session->rollback_transaction(session, NULL);
+		if (ret == EINVAL)
+			testutil_die(ret, "session.commit drop");
+	}
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_checkpoint(THREAD_DATA *td)
+{
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	/*
+	 * Force the checkpoint so it has to be taken. Forced checkpoints can
+	 * race with other metadata operations and return EBUSY - we'd expect
+	 * applications using forced checkpoints to retry on EBUSY.
+	 */
+	if ((ret = session->checkpoint(session, "force")) != 0)
+		if (ret != EBUSY && ret != ENOENT)
+			testutil_die(ret, "session.checkpoint");
+
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_rebalance(THREAD_DATA *td)
+{
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if ((ret = session->rebalance(session, uri, NULL)) != 0)
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.rebalance");
+
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_upgrade(THREAD_DATA *td)
+{
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if ((ret = session->upgrade(session, uri, NULL)) != 0)
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.upgrade");
+
+	testutil_check(session->close(session, NULL));
+}
+
+static void
+obj_verify(THREAD_DATA *td)
+{
+	WT_SESSION *session;
+	int ret;
+
+	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+	if ((ret = session->verify(session, uri, NULL)) != 0)
+		if (ret != ENOENT && ret != EBUSY)
+			testutil_die(ret, "session.verify");
+
+	testutil_check(session->close(session, NULL));
 }
 
 /*
@@ -167,6 +435,11 @@ thread_ts_run(void *arg)
 			testutil_check(
 			    td->conn->set_timestamp(td->conn, tscfg));
 			last_ts = oldest_ts;
+			if (!stable_set) {
+				stable_set = true;
+				printf("SET STABLE: %" PRIx64 " %" PRIu64 "\n",
+				    oldest_ts, oldest_ts);
+			}
 		} else
 ts_wait:		__wt_sleep(0, 1000);
 	}
@@ -180,6 +453,7 @@ ts_wait:		__wt_sleep(0, 1000);
 static WT_THREAD_RET
 thread_ckpt_run(void *arg)
 {
+	struct timespec now, start;
 	FILE *fp;
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
@@ -199,9 +473,12 @@ thread_ckpt_run(void *arg)
 	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 	first_ckpt = true;
 	ts = 0;
+	__wt_epoch(NULL, &start);
 	for (i = 0; ;++i) {
 		sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
+#if 0
 		sleep(sleep_time);
+#endif
 		if (use_ts)
 			ts = global_ts;
 		/*
@@ -222,6 +499,14 @@ thread_ckpt_run(void *arg)
 			testutil_checksys((fp = fopen(ckpt_file, "w")) == NULL);
 			first_ckpt = false;
 			testutil_checksys(fclose(fp) != 0);
+		}
+
+		__wt_epoch(NULL, &now);
+		printf("CKPT: stable_set %d, time %" PRIu64 "\n",
+		    stable_set, WT_TIMEDIFF_SEC(now, start));
+		if (!stable_set && WT_TIMEDIFF_SEC(now, start) > 2) {
+			fprintf(stderr, "After 2 ckpt stable still not set\n");
+			abort();
 		}
 	}
 	/* NOTREACHED */
@@ -303,6 +588,46 @@ thread_run(void *arg)
 	    td->info, td->start);
 	stable_ts = 0;
 	for (i = td->start;; ++i) {
+		/*
+		 * Allow some threads to skip schema operations.
+		 */
+		if (td->info != 0 && td->info != 1)
+			/*
+			 * Do a schema operation 50% of the time.
+			 */
+			switch (__wt_random(&rnd) % 20) {
+			case 0:
+				obj_bulk(td);
+				break;
+			case 1:
+				obj_bulk_unique(td, __wt_random(&rnd) & 1);
+				break;
+			case 2:
+				/* obj_checkpoint(td); */
+				obj_create(td);
+				break;
+			case 3:
+				obj_create(td);
+				break;
+			case 4:
+				obj_create_unique(td, __wt_random(&rnd) & 1);
+				break;
+			case 5:
+				obj_cursor(td);
+				break;
+			case 6:
+				obj_drop(td, __wt_random(&rnd) & 1);
+				break;
+			case 7:
+				obj_rebalance(td);
+				break;
+			case 8:
+				obj_upgrade(td);
+				break;
+			case 9:
+				obj_verify(td);
+				break;
+			}
 		if (use_ts)
 			stable_ts = __wt_atomic_addv64(&global_ts, 1);
 		testutil_check(__wt_snprintf(
@@ -410,6 +735,7 @@ run_workload(uint32_t nth)
 
 	thr = dcalloc(nth+2, sizeof(*thr));
 	td = dcalloc(nth+2, sizeof(THREAD_DATA));
+	stable_set = false;
 	if (chdir(home) != 0)
 		testutil_die(errno, "Child chdir: %s", home);
 	if (inmem)
@@ -553,11 +879,15 @@ main(int argc, char *argv[])
 	pid_t pid;
 	uint64_t absent_coll, absent_local, absent_oplog, count, key, last_key;
 	uint64_t stable_fp, stable_val;
-	uint32_t i, nth, timeout;
-	int ch, status, ret;
+	uint32_t i;
+	int ret;
+	char fname[64], kname[64];
+	bool fatal;
+	uint32_t nth, timeout;
+	int ch, status;
 	const char *working_dir;
-	char buf[512], fname[64], kname[64], statname[1024];
-	bool fatal, rand_th, rand_time, verify_only;
+	char buf[512], statname[1024];
+	bool rand_th, rand_time, verify_only;
 
 	/* We have nothing to do if this is not a timestamp build */
 	if (!timestamp_build())
@@ -567,13 +897,14 @@ main(int argc, char *argv[])
 
 	compat = inmem = false;
 	use_ts = true;
+	use_txn = false;
 	nth = MIN_TH;
 	rand_th = rand_time = true;
 	timeout = MIN_TIME;
 	verify_only = false;
-	working_dir = "WT_TEST.timestamp-abort";
+	working_dir = "WT_TEST.schema-abort";
 
-	while ((ch = __wt_getopt(progname, argc, argv, "Ch:mT:t:vz")) != EOF)
+	while ((ch = __wt_getopt(progname, argc, argv, "Ch:mT:t:vxz")) != EOF)
 		switch (ch) {
 		case 'C':
 			compat = true;
@@ -594,6 +925,9 @@ main(int argc, char *argv[])
 			break;
 		case 'v':
 			verify_only = true;
+			break;
+		case 'x':
+			use_txn = true;
 			break;
 		case 'z':
 			use_ts = false;

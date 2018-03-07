@@ -118,6 +118,7 @@ __wt_meta_track_on(WT_SESSION_IMPL *session)
 		if (!F_ISSET(&session->txn, WT_TXN_RUNNING)) {
 			WT_RET(__wt_txn_begin(session, NULL));
 			F_SET(session, WT_SESSION_SCHEMA_TXN);
+			__wt_errx(session, "TRACK: Using internal schema txn");
 		}
 		WT_RET(__meta_track_next(session, NULL));
 	}
@@ -276,6 +277,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 	if (F_ISSET(session, WT_SESSION_SCHEMA_TXN)) {
 		F_CLR(session, WT_SESSION_SCHEMA_TXN);
 		WT_ERR(__wt_txn_commit(session, NULL));
+		__wt_errx(session, "TRACK: Commit internal schema txn");
 	}
 
 	/*
@@ -328,6 +330,7 @@ err:	/*
 
 	if (F_ISSET(session, WT_SESSION_SCHEMA_TXN)) {
 		F_CLR(session, WT_SESSION_SCHEMA_TXN);
+		__wt_errx(session, "TRACK: Abort internal schema txn");
 		/*
 		 * We should have committed above unless we're unrolling, there
 		 * was an error or the operation was a noop.
