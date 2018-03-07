@@ -111,8 +111,7 @@ new_page:
 		__wt_txn_read(session, cbt->ins->upd, &visibility, &upd);
 		if (visibility == WT_VISIBLE_PREPARE)
 			return (WT_PREPARE_CONFLICT);
-	} else
-		upd = NULL;
+	}
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
 		cbt->iface.value.data = &cbt->v;
@@ -215,8 +214,7 @@ new_page:	/* Find the matching WT_COL slot. */
 			    cbt->ins->upd, &visibility, &upd);
 			if (visibility == WT_VISIBLE_PREPARE)
 				return (WT_PREPARE_CONFLICT);
-		} else
-			upd = NULL;
+		}
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
 				if (upd->txnid != WT_TXN_NONE &&
