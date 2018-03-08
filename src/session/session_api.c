@@ -328,6 +328,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	WT_COLGROUP *colgroup;
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
+	WT_TABLE *table;
 
 	*cursorp = NULL;
 
@@ -355,9 +356,10 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 			 * the underlying data source.
 			 */
 			WT_RET(__wt_schema_get_colgroup(
-			    session, uri, false, NULL, &colgroup));
+			    session, uri, false, &table, &colgroup));
 			WT_RET(__wt_open_cursor(
 			    session, colgroup->source, owner, cfg, cursorp));
+			WT_RET(__wt_schema_release_table(session, table));
 		} else if (WT_PREFIX_MATCH(uri, "config:"))
 			WT_RET(__wt_curconfig_open(
 			    session, uri, cfg, cursorp));
