@@ -565,8 +565,8 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		    WT_TIMESTAMP_NULL(&upd->timestamp));
 		/*
 		 * Update should not change during txn visibility check.
-		 * If changed from beneath, will impact the visibility, hence
-		 * recheck visibility of update.
+		 * If changed from beneath, will impact the visibility,
+		 * hence recheck visibility of update.
 		 */
 		if (upd->state != upd_state)
 			continue;

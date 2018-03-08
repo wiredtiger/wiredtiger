@@ -1288,6 +1288,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_txn_upd, *first_upd, *upd;
+	WT_VISIBLE_TYPE visible;
 	wt_timestamp_t *timestampp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
@@ -1379,9 +1380,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (*updp == NULL && r->las_skew_newest)
 			*updp = upd;
 
+		visible = WT_VISIBLE_FALSE;
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
-		    !__wt_txn_upd_visible(session, upd)) {
+		    ((visible = __wt_txn_upd_visible(session, upd)) !=
+		    WT_VISIBLE_TRUE)) {
+			/* Ignore prepared updates. */
+			if (visible == WT_VISIBLE_PREPARE)
+				continue;
+
 			if (F_ISSET(r, WT_REC_EVICT))
 				++r->updates_unstable;
 

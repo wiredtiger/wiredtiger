@@ -190,6 +190,7 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
 		if (!F_ISSET(cbt, WT_CBT_NO_TXN))
 			__cursor_leave(session);
 		F_CLR(cbt, WT_CBT_ACTIVE);
+		F_CLR(cbt, WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV);
 	}
 
 	/* If we're not holding a cursor reference, we're done. */
