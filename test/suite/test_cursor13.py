@@ -487,6 +487,8 @@ class test_cursor13_sweep(test_cursor13_big_base):
             # traverses a fraction of the cached cursors.  We'll run for
             # ten seconds with pauses to make sure we see sweep activity.
             pause_point = self.opens_per_round / 100
+            if pause_point == 0:
+                pause_point = 1
             pause_duration = 0.1
 
             i = 0
