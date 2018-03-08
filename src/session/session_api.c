@@ -99,7 +99,6 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 	}
 
 	session->cursor_sweep_position = position;
-	session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 	F_SET(session, WT_SESSION_CACHE_CURSORS);
 
 	WT_STAT_CONN_INCR(session, cursor_sweep);
