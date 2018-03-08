@@ -701,20 +701,22 @@ err:		WT_TRET(cursor->reopen(cursor, false));
  */
 int
 __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
-    WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+    const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;
-	WT_CONFIG_ITEM_STATIC_INIT(false_value);
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	uint64_t bucket, hash_value;
 	bool have_config;
 
-	if (owner != NULL && F_ISSET(owner, WT_CURSTD_CACHEABLE))
+	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
 		return (WT_NOTFOUND);
-	have_config = (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL);
-	if (have_config) {
 
+	/* If original config string is NULL or "", don't check it. */
+	have_config = (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL &&
+	    (cfg[2] != NULL || cfg[1][0] != '\0'));
+
+	if (have_config) {
 		/*
 		 * Any cursors that have special configuration cannot
 		 * be cached. There are some exceptions for configurations
@@ -739,25 +741,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 		if (cval.val)
 			return (WT_NOTFOUND);
 
-		/*
-		 * Look for checkpoint last, the value will stay in 'cval'.
-		 */
-		WT_RET_NOTFOUND_OK(
-		    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
-
-		/*
-		 * The internal checkpoint name is special, don't
-		 * look for it.
-		 */
-		if (cval.len != 0 &&
-		    WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len))
+		/* Checkpoints are readonly, we won't cache them. */
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "checkpoint", 0, &cval));
+		if (cval.val)
 			return (WT_NOTFOUND);
-	} else
-		cval = false_value;
-
-#define	CHECKPOINT_MATCH(s)						\
-	(((s) == NULL && cval.len == 0) ||				\
-	    ((s) != NULL && WT_STRING_MATCH(s, cval.str, cval.len)))
+	}
 
 	/*
 	 * Walk through all cursors, if there is a cached
@@ -767,8 +756,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	bucket = hash_value % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(cursor, &session->cursor_cache[bucket], q) {
 		if (cursor->uri_hash == hash_value &&
-		    WT_STREQ(cursor->uri, uri) &&
-		    CHECKPOINT_MATCH(cursor->checkpoint)) {
+		    WT_STREQ(cursor->uri, uri)) {
 			if ((ret = cursor->reopen(cursor, false)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 				session->dhandle = NULL;
