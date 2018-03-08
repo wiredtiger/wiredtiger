@@ -40,6 +40,11 @@
 #define	WT_ERR_BUSY_OK(a)	WT_ERR_ERROR_OK(a, EBUSY)
 #define	WT_ERR_NOTFOUND_OK(a)	WT_ERR_ERROR_OK(a, WT_NOTFOUND)
 
+#define	WT_ERR_IF(a, e) do {						\
+	if ((ret = (a)) != 0 && (e))					\
+		goto err;						\
+} while (0)
+
 /* Return tests. */
 #define	WT_RET(a) do {							\
 	int __ret;							\

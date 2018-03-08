@@ -600,44 +600,39 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 		if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				if ((ret = __cursor_fix_append_prev(
-				    cbt, newpage)) == WT_PREPARE_CONFLICT)
-					goto err;
+				WT_ERR_IF(
+				    __cursor_fix_append_prev( cbt, newpage),
+				    ret != WT_NOTFOUND);
 				break;
 			case WT_PAGE_COL_VAR:
-				if ((ret = __cursor_var_append_prev(
-				    cbt, newpage)) == WT_PREPARE_CONFLICT)
-					goto err;
+				WT_ERR_IF(
+				    __cursor_var_append_prev( cbt, newpage),
+				    ret != WT_NOTFOUND);
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
 			if (ret == 0)
 				break;
 			F_CLR(cbt, WT_CBT_ITERATE_APPEND);
-			if (ret != WT_NOTFOUND)
-				break;
 			newpage = true;
 		}
 		if (page != NULL) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				if ((ret = __cursor_fix_prev(cbt, newpage)) ==
-				    WT_PREPARE_CONFLICT)
-					goto err;
+				WT_ERR_IF(__cursor_fix_prev( cbt, newpage),
+				    ret != WT_NOTFOUND);
 				break;
 			case WT_PAGE_COL_VAR:
-				if ((ret = __cursor_var_prev(cbt, newpage)) ==
-				    WT_PREPARE_CONFLICT)
-					goto err;
+				WT_ERR_IF(__cursor_var_prev( cbt, newpage),
+				    ret != WT_NOTFOUND);
 				break;
 			case WT_PAGE_ROW_LEAF:
-				if ((ret = __cursor_row_prev(cbt, newpage)) ==
-				    WT_PREPARE_CONFLICT)
-					goto err;
+				WT_ERR_IF(__cursor_row_prev( cbt, newpage),
+				    ret != WT_NOTFOUND);
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
-			if (ret != WT_NOTFOUND)
+			if (ret == 0)
 				break;
 		}
 
