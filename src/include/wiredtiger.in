@@ -660,7 +660,6 @@ struct __wt_cursor {
 	int __F(reopen)(WT_CURSOR *cursor, bool check_only);
 
 	uint64_t uri_hash;			/* Hash of URI */
-	const char *checkpoint;			/* Checkpoint, if any */
 
 	/*
 	 * !!!
