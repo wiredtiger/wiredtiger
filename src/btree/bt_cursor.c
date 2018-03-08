@@ -655,12 +655,9 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		exact = 0;
 		F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-	} else if ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
-			if (ret != WT_PREPARE_CONFLICT)
-				exact = 1;
-			else
-				goto err;
-	} else {
+	} else if ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND)
+		exact = 1;
+	else {
 		/*
 		 * The cursor next call may have overwritten our caller's key,
 		 * restore it to its original value.
@@ -675,12 +672,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 		if (valid) {
 			exact = cbt->compare;
 			ret = __cursor_kv_return(session, cbt, upd);
-		} else if ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
-			if (ret != WT_PREPARE_CONFLICT)
-				exact = -1;
-			else
-				goto err;
-		}
+		} else if ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND)
+			exact = -1;
 	}
 
 err:	if (ret == 0 && exactp != NULL)
