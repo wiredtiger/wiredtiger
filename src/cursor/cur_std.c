@@ -672,8 +672,11 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	 * Do any sweeping first, if there are errors, it will
 	 * be easier to clean up if the cursor is not already cached.
 	 */
-	if (--session->cursor_sweep_countdown == 0)
+	if (--session->cursor_sweep_countdown == 0) {
+		session->cursor_sweep_countdown =
+		    WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 		WT_RET(__wt_session_cursor_cache_sweep(session));
+	}
 
 	WT_ERR(cursor->cache(cursor));
 	WT_STAT_CONN_INCR(session, cursor_cache);
