@@ -556,9 +556,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * update chain.
 	 */
 	if (F_ISSET(cbt, WT_CBT_RETRY_PREV)) {
-		upd = NULL;		/* -Werror=maybe-uninitialized */
 		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
-		if (valid == true) {
+		if (valid) {
 			/*
 			 * If the update, which returned prepared conflict is
 			 * visible, return the value.
@@ -666,11 +665,11 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	if (ret == 0)
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
-	/*
+err: 	/*
 	 * If prepare conflict occurs, cursor should not be reset, as current
 	 * cursor position will be reused in case of a retry from user.
 	 */
-err:	if (ret == WT_PREPARE_CONFLICT)
+	if (ret == WT_PREPARE_CONFLICT)
 		F_SET(cbt, WT_CBT_RETRY_PREV);
 	else if (ret != 0)
 		WT_TRET(__cursor_reset(cbt));
