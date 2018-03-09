@@ -96,6 +96,9 @@ struct __wt_btree {
 	uint32_t maxleafvalue;		/* Leaf page max value size */
 	uint64_t maxmempage;		/* In-memory page max size */
 	uint64_t splitmempage;		/* In-memory split trigger size */
+#define	WT_COMPRESS_ADJ		100
+	uint32_t intl_compadjust;	/* Internal page compression adjust */
+	uint32_t leaf_compadjust;	/* Leaf page compression adjust */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_ASSERT_COMMIT_TS_ALWAYS	0x01u

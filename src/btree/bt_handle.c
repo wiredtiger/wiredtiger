@@ -447,6 +447,19 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
 
 	/*
+	 * If doing standard compression, assume it gives us 5x on leaf pages
+	 * and 2x on internal pages. We adjust the value as soon as there's
+	 * better information, but the exception is bulk load where we don't
+	 * get better information until after it's too late.
+	 */
+	if (btree->compressor != NULL &&
+	    btree->compressor->compress != NULL &&
+	    btree->compressor->compress_raw == NULL) {
+		btree->intl_compadjust = 2 * WT_COMPRESS_ADJ;
+		btree->leaf_compadjust = 5 * WT_COMPRESS_ADJ;
+	}
+
+	/*
 	 * We do not use __wt_config_gets_none here because "none" and the empty
 	 * string have different meanings. The empty string means inherit the
 	 * system encryption setting and "none" means this table is in the clear
