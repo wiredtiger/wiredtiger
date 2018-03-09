@@ -544,41 +544,6 @@ __wt_txn_visible(
 }
 
 /*
- * __wt_txn_upd_visible --
- *	Can the current transaction see the given update.
- */
-static inline bool
-__wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-{
-	uint8_t upd_state;
-	bool upd_visible;
-
-	for (;;) {
-		upd_state = upd->state;
-		if (upd_state == WT_UPDATE_STATE_LOCKED) {
-			/* Commit is in progress, yield and try again. */
-			__wt_yield();
-			continue;
-		}
-
-		upd_visible = __wt_txn_visible(session, upd->txnid,
-		    WT_TIMESTAMP_NULL(&upd->timestamp));
-		/*
-		 * Update should not change during txn visibility check.
-		 * If changed from beneath, will impact the visibility,
-		 * hence recheck visibility of update.
-		 */
-		if (upd->state != upd_state)
-			continue;
-
-		if (!upd_visible || upd_state == WT_UPDATE_STATE_PREPARED)
-			return (false);
-
-		return (true);
-	}
-}
-
-/*
  * __wt_txn_upd_visible_type --
  *      Visible type of given update for the current transaction.
  */
@@ -615,6 +580,16 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 		return (WT_VISIBLE_TRUE);
 	}
+}
+
+/*
+ * __wt_txn_upd_visible --
+ *	Can the current transaction see the given update.
+ */
+static inline bool
+__wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+	return (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE);
 }
 
 /*
