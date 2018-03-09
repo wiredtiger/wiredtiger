@@ -544,11 +544,11 @@ __wt_txn_visible(
 }
 
 /*
- * __wt_txn_upd_is_visible --
- *	Is the given update visible to the current transaction.
+ * __wt_txn_upd_visible --
+ *	Can the current transaction see the given update.
  */
 static inline bool
-__wt_txn_upd_is_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	uint8_t upd_state;
 	bool upd_visible;
@@ -579,11 +579,11 @@ __wt_txn_upd_is_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 }
 
 /*
- * __wt_txn_upd_visible --
- *	Can the current transaction see the given update (false/prepare/true).
+ * __wt_txn_upd_visible_type --
+ *      Visible type of given update for the current transaction.
  */
 static inline WT_VISIBLE_TYPE
-__wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	uint8_t upd_state;
 	bool upd_visible;
@@ -634,7 +634,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 	for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
 		/* Skip reserved place-holders, they're never visible. */
 		if (upd->type != WT_UPDATE_RESERVE) {
-			upd_visible = __wt_txn_upd_visible(session, upd);
+			upd_visible = __wt_txn_upd_visible_type(session, upd);
 			if (upd_visible == WT_VISIBLE_TRUE)
 				break;
 			else if (upd_visible == WT_VISIBLE_PREPARE)
@@ -873,7 +873,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		F_CLR(txn, WT_TXN_IGNORE_PREPARE);
 
 	if (txn->isolation == WT_ISO_SNAPSHOT)
-		while (upd != NULL && !__wt_txn_upd_is_visible(session, upd)) {
+		while (upd != NULL && !__wt_txn_upd_visible(session, upd)) {
 			if (upd->txnid != WT_TXN_ABORTED) {
 				if (ignore_prepare_set)
 					F_SET(txn, WT_TXN_IGNORE_PREPARE);

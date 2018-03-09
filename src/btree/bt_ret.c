@@ -179,8 +179,7 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 		if (upd->txnid == WT_TXN_ABORTED)
 			continue;
 
-		if (!ignore_visibility &&
-		    !__wt_txn_upd_is_visible(session, upd)) {
+		if (!ignore_visibility && !__wt_txn_upd_visible(session, upd)) {
 			if (upd->type == WT_UPDATE_BIRTHMARK)
 				skipped_birthmark = true;
 			continue;

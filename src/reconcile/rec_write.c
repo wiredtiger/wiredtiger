@@ -1381,7 +1381,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
-		    !__wt_txn_upd_is_visible(session, upd)) {
+		    !__wt_txn_upd_visible(session, upd)) {
 			if (F_ISSET(r, WT_REC_EVICT))
 				++r->updates_unstable;
 
