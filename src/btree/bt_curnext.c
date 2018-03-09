@@ -54,8 +54,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * insert is aborted, we simply return zero (empty), regardless of
 	 * whether we are at the end of the data.
 	 */
-	if (cbt->recno < WT_INSERT_RECNO(cbt->ins))
-	{
+	if (cbt->recno < WT_INSERT_RECNO(cbt->ins)) {
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
 	} else {

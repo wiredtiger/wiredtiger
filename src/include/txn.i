@@ -554,19 +554,18 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	bool upd_visible;
 
 	for (;;) {
-		upd_state = upd->state;
-		if (upd_state == WT_UPDATE_STATE_LOCKED) {
+		if ((upd_state = upd->state) == WT_UPDATE_STATE_LOCKED) {
 			/* Commit is in progress, yield and try again. */
 			__wt_yield();
 			continue;
 		}
 
-		upd_visible = __wt_txn_visible(session, upd->txnid,
-		    WT_TIMESTAMP_NULL(&upd->timestamp));
+		upd_visible = __wt_txn_visible(
+		    session, upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp));
+
 		/*
-		 * Update should not change during txn visibility check.
-		 * If changed from beneath, will impact the visibility,
-		 * hence recheck visibility of update.
+		 * The visibility check is only valid if the update does not
+		 * change state.  If the state does change, recheck visibility.
 		 */
 		if (upd->state != upd_state)
 			continue;

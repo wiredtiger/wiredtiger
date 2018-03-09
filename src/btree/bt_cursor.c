@@ -812,7 +812,7 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 * Fail in that case, the record exists.
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-			if (cbt->compare ==0 ) {
+			if (cbt->compare == 0) {
 				WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
 				if (valid)
 					WT_ERR(WT_DUPLICATE_KEY);
