@@ -148,7 +148,6 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
-	WT_VISIBLE_TYPE visible;
 	size_t allocated_bytes;
 	u_int i;
 	bool skipped_birthmark;
@@ -180,11 +179,8 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 		if (upd->txnid == WT_TXN_ABORTED)
 			continue;
 
-		if ((visible = __wt_txn_upd_visible(session, upd)) ==
-		    WT_VISIBLE_PREPARE)
-			continue;
-
-		if (!ignore_visibility && visible != WT_VISIBLE_TRUE) {
+		if (!ignore_visibility &&
+		    !__wt_txn_upd_is_visible(session, upd)) {
 			if (upd->type == WT_UPDATE_BIRTHMARK)
 				skipped_birthmark = true;
 			continue;
