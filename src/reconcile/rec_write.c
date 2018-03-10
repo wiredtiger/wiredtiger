@@ -2398,13 +2398,17 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * Ensure the disk image buffer is large enough for the max object, as
 	 * corrected by the underlying block manager.
 	 *
-	 * Since we want to support split_size more than the page size (to allow
-	 * for adjustments based on the compression), this buffer should be the
-	 * greater of split_size and page_size.
+	 * Since we want to support split_size values larger than the page size
+	 * (to allow for adjustments based on the compression), this buffer
+	 * should be the greater of split_size and page_size, then aligned to
+	 * the next allocation size boundary. The latter shouldn't be an issue,
+	 * but it's a possible scenario if, for example, the compression engine
+	 * is expected to give us 5x compression and gives us nothing at all.
 	 */
 	corrected_page_size = r->page_size;
 	WT_RET(bm->write_size(bm, session, &corrected_page_size));
-	disk_img_buf_size = WT_MAX(corrected_page_size, r->split_size);
+	disk_img_buf_size = WT_ALIGN(
+	    WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
 	/* Initialize the first split chunk. */
 	WT_RET(
