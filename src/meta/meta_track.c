@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#define	WT_ENABLE_SCHEMA_TXN 1
 /*
  * WT_META_TRACK -- A tracked metadata operation: a non-transactional log,
  * maintained to make it easy to unroll simple metadata and filesystem
@@ -116,9 +117,11 @@ __wt_meta_track_on(WT_SESSION_IMPL *session)
 {
 	if (session->meta_track_nest++ == 0) {
 		if (!F_ISSET(&session->txn, WT_TXN_RUNNING)) {
+#ifdef WT_ENABLE_SCHEMA_TXN
 			WT_RET(__wt_txn_begin(session, NULL));
-			F_SET(session, WT_SESSION_SCHEMA_TXN);
 			__wt_errx(session, "TRACK: Using internal schema txn");
+#endif
+			F_SET(session, WT_SESSION_SCHEMA_TXN);
 		}
 		WT_RET(__meta_track_next(session, NULL));
 	}
@@ -276,8 +279,10 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 
 	if (F_ISSET(session, WT_SESSION_SCHEMA_TXN)) {
 		F_CLR(session, WT_SESSION_SCHEMA_TXN);
+#ifdef WT_ENABLE_SCHEMA_TXN
 		WT_ERR(__wt_txn_commit(session, NULL));
 		__wt_errx(session, "TRACK: Commit internal schema txn");
+#endif
 	}
 
 	/*
@@ -330,14 +335,16 @@ err:	/*
 
 	if (F_ISSET(session, WT_SESSION_SCHEMA_TXN)) {
 		F_CLR(session, WT_SESSION_SCHEMA_TXN);
-		__wt_errx(session, "TRACK: Abort internal schema txn");
 		/*
 		 * We should have committed above unless we're unrolling, there
 		 * was an error or the operation was a noop.
 		 */
 		WT_ASSERT(session, unroll || saved_ret != 0 ||
 		    session->txn.mod_count == 0);
+#ifdef WT_ENABLE_SCHEMA_TXN
+		__wt_errx(session, "TRACK: Abort internal schema txn");
 		WT_TRET(__wt_txn_rollback(session, NULL));
+#endif
 	}
 
 	if (ret != 0)

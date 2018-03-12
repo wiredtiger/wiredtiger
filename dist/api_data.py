@@ -838,6 +838,9 @@ wiredtiger_open_common =\
     Config('session_scratch_max', '2MB', r'''
         maximum memory to cache in each session''',
         type='int', undoc=True),
+    Config('session_table_cache', 'true', r'''
+        Maintain a per-session cache of tables''',
+        type='boolean', undoc=True), # Obsolete after WT-3476
     Config('transaction_sync', '', r'''
         how to sync log records when the transaction commits''',
         type='category', subconfig=[
