@@ -215,12 +215,12 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
 
-	btree = cbt->btree;
-	page = cbt->ref->page;
-	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	if (updp != NULL)
 		*updp = NULL;
 	*valid = false;
+	btree = cbt->btree;
+	page = cbt->ref->page;
+	session = (WT_SESSION_IMPL *)cbt->iface.session;
 
 	/*
 	 * We may be pointing to an insert object, and we may have a page with
@@ -816,7 +816,6 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 				WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
 				if (valid)
 					WT_ERR(WT_DUPLICATE_KEY);
-
 			} else if (__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_DUPLICATE_KEY);
 		}
@@ -1057,7 +1056,10 @@ retry:	if (positioned == POSITIONED)
 		WT_ERR(__curfile_update_check(cbt));
 
 		/* Remove the record if it exists. */
-		if (cbt->compare != 0) {
+		valid = false;
+		if (cbt->compare == 0)
+			WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
+		if (cbt->compare != 0 || !valid) {
 			if (!__cursor_fix_implicit(btree, cbt))
 				WT_ERR(WT_NOTFOUND);
 			/*
@@ -1071,16 +1073,9 @@ retry:	if (positioned == POSITIONED)
 			 * and that's not correct.
 			 */
 			cbt->recno = cursor->recno;
-		} else {
-			WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
-			if (!valid) {
-				if (!__cursor_fix_implicit(btree, cbt))
-					WT_ERR(WT_NOTFOUND);
-				cbt->recno = cursor->recno;
-			} else
-				ret = __cursor_col_modify(
-				    session, cbt, WT_UPDATE_TOMBSTONE);
-		}
+		} else
+			ret = __cursor_col_modify(
+			    session, cbt, WT_UPDATE_TOMBSTONE);
 	}
 
 err:	if (ret == WT_RESTART) {
@@ -1249,15 +1244,12 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 */
 		if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
 			WT_ERR(__curfile_update_check(cbt));
-			if (cbt->compare != 0) {
-				if (!__cursor_fix_implicit(btree, cbt))
-					WT_ERR(WT_NOTFOUND);
-			} else {
+			valid = false;
+			if (cbt->compare == 0)
 				WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
-				if (!valid &&
-				    !__cursor_fix_implicit(btree, cbt))
-					WT_ERR(WT_NOTFOUND);
-			}
+			if ((cbt->compare != 0 || !valid) &&
+			    !__cursor_fix_implicit(btree, cbt))
+				WT_ERR(WT_NOTFOUND);
 		}
 		ret = __cursor_col_modify_v(session, cbt, value, modify_type);
 	}
@@ -1642,8 +1634,7 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_CONN_INCR(session, cursor_restart);
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
-	} else if (ret == WT_PREPARE_CONFLICT)
-		return (ret);
+	}
 
 	WT_RET_NOTFOUND_OK(ret);
 	return (0);
@@ -1701,8 +1692,7 @@ err:	if (ret == WT_RESTART) {
 		WT_STAT_CONN_INCR(session, cursor_restart);
 		WT_STAT_DATA_INCR(session, cursor_restart);
 		goto retry;
-	} else if (ret == WT_PREPARE_CONFLICT)
-		return (ret);
+	}
 
 	WT_RET_NOTFOUND_OK(ret);
 	return (0);

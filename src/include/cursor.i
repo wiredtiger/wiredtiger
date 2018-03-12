@@ -190,7 +190,6 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
 		if (!F_ISSET(cbt, WT_CBT_NO_TXN))
 			__cursor_leave(session);
 		F_CLR(cbt, WT_CBT_ACTIVE);
-		F_CLR(cbt, WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV);
 	}
 
 	/* If we're not holding a cursor reference, we're done. */
@@ -335,8 +334,6 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
-
-	F_CLR(cbt, WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV);
 
 	if (reenter) {
 #ifdef HAVE_DIAGNOSTIC
