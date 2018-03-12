@@ -230,7 +230,8 @@ struct __wt_cursor_btree {
 
 #define	WT_CBT_POSITION_MASK		/* Flags associated with position */ \
 	(WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV | \
-	WT_CBT_SEARCH_SMALLEST | WT_CBT_VAR_ONPAGE_MATCH)
+	WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV | WT_CBT_SEARCH_SMALLEST |     \
+	WT_CBT_VAR_ONPAGE_MATCH)
 
 	uint32_t flags;
 };

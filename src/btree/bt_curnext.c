@@ -600,14 +600,15 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * the same update again instead of starting from the next one in the
 	 * update chain.
 	 */
+	F_CLR(cbt, WT_CBT_RETRY_PREV);
 	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
 		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
+		F_CLR(cbt, WT_CBT_RETRY_NEXT);
 		if (valid) {
 			/*
 			 * If the update, which returned prepared conflict is
 			 * visible, return the value.
 			 */
-			F_CLR(cbt, WT_CBT_RETRY_NEXT);
 			return (__cursor_kv_return(session, cbt, upd));
 		}
 	}
@@ -636,37 +637,32 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				WT_ERR_IF(
-				    __cursor_fix_append_next(cbt, newpage),
-				    ret != WT_NOTFOUND);
+				ret = __cursor_fix_append_next(cbt, newpage);
 				break;
 			case WT_PAGE_COL_VAR:
-				WT_ERR_IF(
-				    __cursor_var_append_next(cbt, newpage),
-				    ret != WT_NOTFOUND);
+				ret = __cursor_var_append_next(cbt, newpage);
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
 			if (ret == 0)
 				break;
 			F_CLR(cbt, WT_CBT_ITERATE_APPEND);
+			if (ret != WT_NOTFOUND)
+				break;
 		} else if (page != NULL) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				WT_ERR_IF(__cursor_fix_next(cbt, newpage),
-				    ret != WT_NOTFOUND);
+				ret = __cursor_fix_next(cbt, newpage);
 				break;
 			case WT_PAGE_COL_VAR:
-				WT_ERR_IF(__cursor_var_next(cbt, newpage),
-				    ret != WT_NOTFOUND);
+				ret = __cursor_var_next(cbt, newpage);
 				break;
 			case WT_PAGE_ROW_LEAF:
-				WT_ERR_IF(__cursor_row_next(cbt, newpage),
-				    ret != WT_NOTFOUND);
+				ret = __cursor_row_next(cbt, newpage);
 				break;
 			WT_ILLEGAL_VALUE_ERR(session);
 			}
-			if (ret == 0)
+			if (ret != WT_NOTFOUND)
 				break;
 
 			/*
@@ -698,21 +694,24 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
 	}
-
 #ifdef HAVE_DIAGNOSTIC
 	if (ret == 0)
 		WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
 #endif
-	if (ret == 0)
+err:	switch (ret) {
+	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-
-err: 	/*
-	 * If prepare conflict occurs, cursor should not be reset, as current
-	 * cursor position will be reused in case of a retry from user.
-	 */
-	if (ret == WT_PREPARE_CONFLICT)
+		break;
+	case WT_PREPARE_CONFLICT:
+		/*
+		 * If prepare conflict occurs, cursor should not be reset,
+		 * as current cursor position will be reused in case of a
+		 * retry from user.
+		 */
 		F_SET(cbt, WT_CBT_RETRY_NEXT);
-	else if (ret != 0)
+		break;
+	default:
 		WT_TRET(__cursor_reset(cbt));
+	}
 	return (ret);
 }
