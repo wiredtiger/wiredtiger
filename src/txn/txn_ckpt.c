@@ -899,6 +899,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * checkpointing the metadata since we know that all files in the
 	 * checkpoint are now in a consistent state.
 	 */
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Record the last checkpoint timestamp if we were successful.
+	 */
+	__wt_timestamp_set(
+	    &conn->txn_global.last_ckpt_timestamp, &txn->read_timestamp);
+#endif
 	WT_ERR(__wt_txn_commit(session, NULL));
 
 	/*
