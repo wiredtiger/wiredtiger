@@ -908,8 +908,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * is successful.
 	 */
 	__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
-#else
-	WT_UNUSED(ckpt_tmp_ts);
 #endif
 	WT_ERR(__wt_txn_commit(session, NULL));
 
