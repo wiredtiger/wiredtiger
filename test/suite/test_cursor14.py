@@ -47,8 +47,6 @@ class test_cursor14(wttest.WiredTigerTestCase):
             dataset=ComplexLSMDataSet)),
     ])
 
-    # WT_CURSOR.insert doesn't leave the cursor positioned, verify any
-    # subsequent cursor operation fails with a "key not set" message.
     def test_cursor14(self):
         uri = self.type + 'cursor14'
 

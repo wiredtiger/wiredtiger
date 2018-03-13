@@ -74,6 +74,12 @@
  * 'reader' to 'next' (i.e. readers are scheduled after any queued writers,
  * avoiding starvation), then atomically incrementing 'readers_queued'.
  *
+ * We limit how many readers can queue: we don't allow more readers to queue
+ * than there are active writers (calculated as `next - current`): otherwise,
+ * in write-heavy workloads, readers can keep queuing up in front of writers
+ * and throughput is unstable.  The remaining read requests wait without any
+ * ordering.
+ *
  * The 'next' field is a 1-byte value so the available ticket number wraps
  * after 256 requests. If a thread's write lock request would cause the 'next'
  * field to catch up with 'current', instead it waits to avoid the same ticket
