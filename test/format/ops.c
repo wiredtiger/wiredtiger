@@ -1070,8 +1070,11 @@ update_instead_of_chosen_op:
 				goto deadlock;
 		}
 
-		/* Prepare the transaction 10% of the time. */
-		if (mmrand(&tinfo->rnd, 1, 10) == 1) {
+		/*
+		 * Prepare the transaction 10% of the time.
+		 * Currently doesn't work with truncation, see WT-3922.
+		 */
+		if (g.c_truncate == 0 && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
