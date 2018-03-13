@@ -711,8 +711,15 @@ __checkpoint_prepare(
 		__wt_timestamp_set(
 		    &txn->read_timestamp, &txn_global->stable_timestamp);
 		F_SET(txn, WT_TXN_HAS_TS_READ);
-	} else
+		if (!F_ISSET(conn, WT_CONN_RECOVERING))
+			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
+			    &txn->read_timestamp);
+	} else {
 		__wt_timestamp_set_zero(&txn->read_timestamp);
+		if (!F_ISSET(conn, WT_CONN_RECOVERING))
+			__wt_timestamp_set_zero(
+			    &txn_global->meta_ckpt_timestamp);
+	}
 #else
 	WT_UNUSED(use_timestamp);
 #endif

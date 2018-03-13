@@ -380,9 +380,25 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
 		    &ckpt_timestamp, &cval));
 		/*
-		 * Keep track of the largest checkpoint timestamp seen.
+		 * Set the timestamp that will be used for the recovery
+		 * checkpoint timestamp. Recovery should not change the
+		 * timestamp nature of the last shutdown so just set it
+		 * to what it was before.
 		 */
-		if (__wt_timestamp_cmp(&ckpt_timestamp, &r->max_timestamp) > 0)
+		if (fileid == WT_METAFILE_ID)
+			__wt_timestamp_set(
+			    &S2C(r->session)->txn_global.meta_ckpt_timestamp,
+			    &ckpt_timestamp);
+		else if (!__wt_timestamp_iszero(
+		    &S2C(r->session)->txn_global.meta_ckpt_timestamp) &&
+		    __wt_timestamp_cmp(&ckpt_timestamp, &r->max_timestamp) > 0)
+			/*
+			 * Keep track of the largest checkpoint timestamp seen
+			 * if we're keeping track of timestamps. That is
+			 * controlled by the metadata checkpoint timestamp.
+			 * We're guaranteed to have set that first before
+			 * processing other files.
+			 */
 			__wt_timestamp_set(&r->max_timestamp, &ckpt_timestamp);
 	}
 #endif
@@ -499,6 +515,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	WT_MAX_LSN(&r.max_lsn);
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
+	__wt_timestamp_set_zero(&conn->txn_global.meta_ckpt_timestamp);
 	__wt_timestamp_set_zero(&r.max_timestamp);
 #endif
 

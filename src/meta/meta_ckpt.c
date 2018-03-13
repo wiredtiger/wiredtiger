@@ -457,14 +457,24 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	hex_timestamp[1] = '\0';
 #ifdef HAVE_TIMESTAMPS
 	/*
-	 * We need to record the timestamp of the checkpoint in the metadata's
+	 * We need to record the timestamp of the checkpoint in the table's
 	 * checkpoint record. Although the read_timestamp remains set for the
 	 * duration of the checkpoint, we set and unset the flag based on the
-	 * file's durability. Record the timestamp if the flag is set.
+	 * file's durability (unset if durable). Record the timestamp if the
+	 * flag is set.
+	 *
+	 * The metadata file is special. If we record a timestamp in the
+	 * metadata record it means this checkpoint was as of a timestamp.
+	 * Otherwise write that out as zero. The value to write out is
+	 * set at a higher level, either in checkpoint or recovery.
 	 */
-	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ))
+	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ)) {
+		WT_ASSERT(session, strcmp(fname, WT_METAFILE_URI) != 0);
 		WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &session->txn.read_timestamp));
+	} else if (strcmp(fname, WT_METAFILE_URI) == 0)
+		WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
+		    &S2C(session)->txn_global.meta_ckpt_timestamp));
 #endif
 	WT_ERR(__wt_buf_catfmt(session, buf,
 	    ",checkpoint_timestamp=\"%s\"", hex_timestamp));
