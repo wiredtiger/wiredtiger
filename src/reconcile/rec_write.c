@@ -2244,11 +2244,18 @@ __rec_split_page_size(
 	split_size = __rec_split_page_size_from_pct(
 	    split_pct, maxpagesize, btree->allocsize);
 
-	/* Adjust for compression. */
+	/*
+	 * Adjust for compression. Compression can be too effective, bound the
+	 * page split size at 80% of the maximum, so point updates don't cause
+	 * forced eviction.
+	 */
 	compadjust = WT_PAGE_IS_INTERNAL(r->page) ?
 	    btree->intl_compadjust : btree->leaf_compadjust;
-	if (compadjust != 0)
+	if (compadjust != 0) {
 		split_size = (split_size * compadjust) / WT_COMPRESS_ADJ;
+		if (split_size > btree->splitmempage)
+			split_size = (uint32_t)btree->splitmempage;
+	}
 
 	return (split_size);
 }
