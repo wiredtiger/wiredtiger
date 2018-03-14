@@ -108,10 +108,10 @@ class test_prepare01(wttest.WiredTigerTestCase):
             ',value_format=' + self.value_format)
 
         committed = 0
+        self.conn.set_timestamp('oldest_timestamp=1a')
         cursor = self.session.open_cursor(self.uri, None)
         self.check(cursor, 0, 0)
 
-        # Currently ignore_prepare is not realized yet, hence no effect.
         self.session.begin_transaction("ignore_prepare=false")
         for i in xrange(self.nentries):
             if i > 0 and i % (self.nentries / 37) == 0:
@@ -149,6 +149,7 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         return count
 
     def test_read_committed_default(self):
+        self.conn.set_timestamp('oldest_timestamp=1a')
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
         self.session.begin_transaction()

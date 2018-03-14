@@ -30,7 +30,7 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 # test_prepre03.py
-#    Prepare transaction check post conditions for cursor operations
+#    Prepare: Cursor API usage generates expected error in prepared state.
 
 # Pattern of test script is to invoke cursor operations in prepared transaction
 # state to ensure they fail and to repeat same operations in non-prepared state
@@ -78,6 +78,7 @@ class test_prepre03(wttest.WiredTigerTestCase):
         create_args = self.format
         preparemsg = "/ not permitted in a prepared transaction/"
 
+        self.conn.set_timestamp('oldest_timestamp=1a')
         self.pr('creating session: ' + create_args)
         self.session.create(tablearg, create_args)
         self.pr('creating cursor')
