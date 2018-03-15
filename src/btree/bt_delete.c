@@ -248,6 +248,7 @@ done:	/*
 	 * Now mark the truncate aborted: this must come last because after
 	 * this point there is nothing preventing the page from being evicted.
 	 */
+	ref->page_del->state = WT_UPDATE_STATE_READY;
 	WT_PUBLISH(ref->page_del->txnid, WT_TXN_ABORTED);
 	return (0);
 }
