@@ -211,7 +211,7 @@ thread_ckpt_run(void *arg)
 		testutil_check(td->conn->query_timestamp(
 		    td->conn, buf, "get=last_checkpoint"));
 		sscanf(buf, "%" SCNx64, &stable);
-		printf("Checkpoint %d complete. Ckpt at stable %"
+		printf("Checkpoint %d complete at stable %"
 		    PRIu64 ".\n", i, stable);
 		fflush(stdout);
 		/*
