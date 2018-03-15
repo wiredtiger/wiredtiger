@@ -195,8 +195,7 @@ config_setup(void)
 	 * WiredTiger doesn't currently support truncate and prepare at the
 	 * same time, see WT-3922. For now, pick one on each run.
 	 */
-	if (!config_is_perm("truncate"))
-		if (DATASOURCE("lsm") || mmrand(NULL, 0, 1) == 1)
+	if (!config_is_perm("truncate") && DATASOURCE("lsm"))
 			config_single("truncate=off", 0);
 
 	/* Give Helium configuration a final review. */

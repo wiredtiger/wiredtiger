@@ -1634,7 +1634,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
 	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) &&
+	    page_del->state == WT_UPDATE_STATE_READY)
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1663,8 +1664,9 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * instantiates an entirely new page.)
 	 */
 	if (ref->addr != NULL &&
-	    (page_del == NULL || __wt_txn_visible_all(
-	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp))))
+	    (page_del == NULL || (page_del->state == WT_UPDATE_STATE_READY &&
+	    __wt_txn_visible_all(session, page_del->txnid,
+	    WT_TIMESTAMP_NULL(&page_del->timestamp)))))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1709,9 +1711,11 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * page to reference it from the parent page.
 	 *
 	 * If the delete is not visible in this checkpoint, write the original
-	 * address normally.  Otherwise, we have to write a proxy record.
+	 * address normally. Otherwise, we have to write a proxy record.
+	 * If the delete state is not ready, then delete is not visible as it
+	 * is in prepared state.
 	 */
-	if (__wt_txn_visible(
+	if (page_del->state == WT_UPDATE_STATE_READY && __wt_txn_visible(
 	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		*statep = WT_CHILD_PROXY;
 

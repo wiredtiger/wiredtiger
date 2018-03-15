@@ -779,6 +779,16 @@ struct __wt_page_deleted {
 	volatile uint64_t txnid;		/* Transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
 
+	/*
+	 * The state is used for transaction prepare to manage visibility
+	 * and inheriting prepare state to update_list.
+	 */
+#define	WT_UPDATE_STATE_READY		0	/* Must be 0. Default or
+						   finalized prepare */
+#define	WT_UPDATE_STATE_LOCKED		1	/* locked */
+#define	WT_UPDATE_STATE_PREPARED	2	/* prepared */
+	volatile uint8_t state;
+
 	uint32_t previous_state;		/* Previous state */
 
 	WT_UPDATE **update_list;		/* List of updates for abort */

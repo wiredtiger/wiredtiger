@@ -221,8 +221,10 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * update structures and abort them.
 			 */
 			for (upd =
-			    ref->page_del->update_list; *upd != NULL; ++upd)
+			    ref->page_del->update_list; *upd != NULL; ++upd) {
 				(*upd)->txnid = WT_TXN_ABORTED;
+				(*upd)->state = WT_UPDATE_STATE_READY;
+			}
 			goto done;
 		case WT_REF_DISK:
 		case WT_REF_LIMBO:
@@ -284,11 +286,12 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	if (!__wt_atomic_casv32(&ref->state, WT_REF_DELETED, WT_REF_LOCKED))
 		return (false);
 
-	skip = ref->page_del == NULL || (visible_all ?
-	    __wt_txn_visible_all(session, ref->page_del->txnid,
+	skip = ref->page_del == NULL ||
+	    (ref->page_del->state == WT_UPDATE_STATE_READY &&
+	    (visible_all ? __wt_txn_visible_all(session, ref->page_del->txnid,
 		WT_TIMESTAMP_NULL(&ref->page_del->timestamp)):
 	    __wt_txn_visible(session, ref->page_del->txnid,
-		WT_TIMESTAMP_NULL(&ref->page_del->timestamp)));
+		WT_TIMESTAMP_NULL(&ref->page_del->timestamp))));
 
 	/*
 	 * The page_del structure can be freed as soon as the delete is stable:
@@ -297,8 +300,9 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	 * need synchronization to check the ref.
 	 */
 	if (skip && ref->page_del != NULL && (visible_all ||
+	    (ref->page_del->state == WT_UPDATE_STATE_READY &&
 	    __wt_txn_visible_all(session, ref->page_del->txnid,
-	    WT_TIMESTAMP_NULL(&ref->page_del->timestamp)))) {
+	    WT_TIMESTAMP_NULL(&ref->page_del->timestamp))))) {
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
@@ -392,6 +396,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			upd->txnid = WT_TXN_NONE;	/* Globally visible */
 		else {
 			upd->txnid = page_del->txnid;
+			upd->state = page_del->state;
 			__wt_timestamp_set(
 			    &upd->timestamp, &page_del->timestamp);
 			page_del->update_list[i] = upd;

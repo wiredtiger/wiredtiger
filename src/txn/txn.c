@@ -677,7 +677,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
 	uint32_t previous_state;
-	bool update_timestamp;
+	bool prepared_transaction, update_timestamp;
 #endif
 
 	txn = &session->txn;
@@ -794,6 +794,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Note: we're going to commit: nothing can fail after this point. */
 
+#ifdef HAVE_TIMESTAMPS
+	prepared_transaction = F_ISSET(txn, WT_TXN_PREPARE);
+#endif
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
@@ -827,7 +830,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			if (!__wt_txn_update_needs_timestamp(session, op))
 				break;
 
-			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+			if (prepared_transaction) {
 				/*
 				 * In case of a prepared transaction, the order
 				 * of modification of the prepare timestamp to
@@ -855,8 +858,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				break;
 
 			ref = op->u.ref;
-			__wt_timestamp_set(
-			    &ref->page_del->timestamp, &txn->commit_timestamp);
+			if (prepared_transaction) {
+				/*
+				 * As updating timestamp might not be an atomic
+				 * operation, we will manage using state.
+				 */
+				ref->page_del->state = WT_UPDATE_STATE_LOCKED;
+				__wt_timestamp_set(&ref->page_del->timestamp,
+				    &txn->commit_timestamp);
+				ref->page_del->state = WT_UPDATE_STATE_READY;
+			} else
+				__wt_timestamp_set(&ref->page_del->timestamp,
+				    &txn->commit_timestamp);
 
 			/*
 			 * The page-deleted list can be discarded by eviction,
@@ -873,10 +886,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			if ((updp = ref->page_del->update_list) != NULL)
-				for (; *updp != NULL; ++updp)
+				for (; *updp != NULL; ++updp) {
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
+					/*
+					 * XXX: Need to confirm.
+					 * Update structure level locking is
+					 * not required as page ref is in
+					 * locked state.
+					 */
+					(*updp)->state = WT_UPDATE_STATE_READY;
+				}
 
 			/*
 			 * Publish to ensure we don't let the page be evicted
@@ -1056,6 +1077,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
+			op->u.ref->page_del->state = WT_UPDATE_STATE_PREPARED;
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
@@ -1133,6 +1155,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			    upd->txnid == txn->id ||
 			    upd->txnid == WT_TXN_ABORTED);
 			upd->txnid = WT_TXN_ABORTED;
+			upd->state = WT_UPDATE_STATE_READY;
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
