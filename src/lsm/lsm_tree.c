@@ -1380,7 +1380,7 @@ __wt_lsm_tree_worker(WT_SESSION_IMPL *session,
 	bool exclusive, locked, need_release;
 
 	WT_NOT_READ(locked, false);
-	need_release = false;
+	WT_NOT_READ(need_release, false);
 	exclusive = FLD_ISSET(open_flags, WT_DHANDLE_EXCLUSIVE);
 
 	WT_RET(__wt_lsm_tree_get(session, uri, exclusive, &lsm_tree));
