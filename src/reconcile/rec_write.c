@@ -1631,11 +1631,14 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * it holds the transaction ID we care about.
 	 *
 	 * In some cases, there had better not be any updates we can't see.
+	 *
+	 * A visible update to be in READY state (i.e. not in LOCKED or
+	 * PREPARED state), for truly visible to others.
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
-	    !__wt_txn_visible(session,
+	    !(__wt_txn_visible(session,
 	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) &&
-	    page_del->state == WT_UPDATE_STATE_READY)
+	    page_del->state == WT_UPDATE_STATE_READY))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
