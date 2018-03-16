@@ -885,19 +885,28 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					break;
 			}
 
-			if ((updp = ref->page_del->update_list) != NULL)
-				for (; *updp != NULL; ++updp) {
+			if ((updp = ref->page_del->update_list) == NULL) {
+				/*
+				 * Publish to ensure we don't let the page be
+				 * evicted and the updates discarded before
+				 * being written.
+				 */
+				WT_PUBLISH(ref->state, previous_state);
+				break;
+			}
+
+			for (; *updp != NULL; ++updp) {
+				if (prepared_transaction) {
+					(*updp)->state = WT_UPDATE_STATE_LOCKED;
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
-					/*
-					 * XXX: Need to confirm.
-					 * Update structure level locking is
-					 * not required as page ref is in
-					 * locked state.
-					 */
 					(*updp)->state = WT_UPDATE_STATE_READY;
-				}
+				} else
+					__wt_timestamp_set(
+					    &(*updp)->timestamp,
+					    &txn->commit_timestamp);
+			}
 
 			/*
 			 * Publish to ensure we don't let the page be evicted
