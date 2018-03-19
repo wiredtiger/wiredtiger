@@ -70,7 +70,6 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         self.session.create(self.uri,
             'key_format=i,value_format=i' + self.extra_config)
         c = self.session.open_cursor(self.uri)

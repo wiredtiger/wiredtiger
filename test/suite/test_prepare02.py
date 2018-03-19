@@ -41,7 +41,6 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        self.conn.set_timestamp('oldest_timestamp=1a')
         self.session.create("table:mytable", "key_format=S,value_format=S")
         cursor = self.session.open_cursor("table:mytable", None)
 

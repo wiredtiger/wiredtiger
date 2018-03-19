@@ -108,7 +108,6 @@ class test_prepare01(wttest.WiredTigerTestCase):
             ',value_format=' + self.value_format)
 
         committed = 0
-        self.conn.set_timestamp('oldest_timestamp=1a')
         cursor = self.session.open_cursor(self.uri, None)
         self.check(cursor, 0, 0)
 
@@ -149,7 +148,6 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         return count
 
     def test_read_committed_default(self):
-        self.conn.set_timestamp('oldest_timestamp=1a')
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
         self.session.begin_transaction()
@@ -166,11 +164,13 @@ class test_read_committed_default(wttest.WiredTigerTestCase):
         self.assertEqual(self.cursor_count(cursor), 1)
 
         s.prepare_transaction("prepare_timestamp=4a")
-        s.commit_transaction("commit_timestamp=5a")
+        # commit timestamp can be same as prepare timestamp
+        s.commit_transaction("commit_timestamp=4a")
         s.begin_transaction()
         self.assertEqual(self.cursor_count(cursor), 1)
         s.prepare_transaction("prepare_timestamp=7a")
 
+        # commit timestamp can be greater than prepare timestamp
         s.commit_transaction("commit_timestamp=8a")
         s.close()
 

@@ -56,16 +56,15 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
             "/older than the oldest timestamp/")
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # It is illegal to set a prepare timestamp same as oldest timestamp.
+        # Check setting the prepare timestamp same as oldest timestamp is valid.
         self.session.begin_transaction()
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.prepare_transaction(
-            'prepare_timestamp=' + timestamp_str(2)),
-            "/older than the oldest timestamp/")
+        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(2))
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # In a single transaction it is illegal to set a commit timestamp
         # before invoking prepare for this transaction.
+        # Note: Values are not important, setting commit timestamp before
+        # prepare itself is illegal.
         self.session.begin_transaction()
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(3))
@@ -75,10 +74,11 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
             "/should not have been set before/")
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # It is illegal to set a prepare timestamp not later than an active
-        # read timestamp
-        s_other = self.conn.open_session()
-        s_other.begin_transaction('read_timestamp=' + timestamp_str(4))
+        # It is illegal to set a prepare timestamp same as or earlier than an
+        # active read timestamp.
+        # Start a new reader to have an active read timestamp.
+        s_reader = self.conn.open_session()
+        s_reader.begin_transaction('read_timestamp=' + timestamp_str(4))
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
@@ -87,19 +87,25 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.rollback_transaction()
 
         # Check setting the prepare timestamp as later than active read
-        # timestamp
+        # timestamp is valid.
         self.session.begin_transaction()
         c[1] = 1
         self.session.prepare_transaction(
                 'prepare_timestamp=' + timestamp_str(5))
+        # Resolve the reader transaction started earlier.
+        s_reader.rollback_transaction()
+        self.session.rollback_transaction()
 
         # It is illegal to set a commit timestamp older than prepare
         # timestamp of a transaction.
+        self.session.begin_transaction()
+        c[1] = 1
+        self.session.prepare_transaction(
+                'prepare_timestamp=' + timestamp_str(5))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
             'commit_timestamp=' + timestamp_str(4)),
             "/older than the prepare timestamp/")
-        s_other.rollback_transaction()
 
         # It is legal to set a commit timestamp as same as prepare
         # timestamp.
@@ -107,7 +113,7 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         c[1] = 1
         self.session.prepare_transaction(
                 'prepare_timestamp=' + timestamp_str(5))
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
 if __name__ == '__main__':
     wttest.run()

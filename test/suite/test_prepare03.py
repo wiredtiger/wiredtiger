@@ -78,7 +78,6 @@ class test_prepre03(wttest.WiredTigerTestCase):
         create_args = self.format
         preparemsg = "/ not permitted in a prepared transaction/"
 
-        self.conn.set_timestamp('oldest_timestamp=1a')
         self.pr('creating session: ' + create_args)
         self.session.create(tablearg, create_args)
         self.pr('creating cursor')

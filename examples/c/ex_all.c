@@ -910,7 +910,6 @@ transaction_ops(WT_SESSION *session_arg)
 	 */
 	error_check(session->open_cursor(
 	    session, "table:mytable", NULL, NULL, &cursor));
-	error_check(conn->set_timestamp(conn, "oldest_timestamp=1a"));
 	error_check(session->begin_transaction(session, NULL));
 	cursor->set_key(cursor, "key");
 	cursor->set_value(cursor, "value");

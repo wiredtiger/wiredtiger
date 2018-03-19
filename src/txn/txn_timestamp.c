@@ -567,14 +567,13 @@ set:	__wt_writelock(session, &txn_global->rwlock);
 #ifdef HAVE_TIMESTAMPS
 /*
  * __wt_timestamp_validate --
- *	Validate a timestamp to be not older than the global oldest and/or
- *	global stable and/or running transaction commit timestamp and/or
- *	running transaction prepare timestamp.
+ *	Validate a timestamp to be not older than the global oldest and global
+ *	stable and running transaction commit timestamp and running transaction
+ *	prepare timestamp.
  */
 int
 __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
-    wt_timestamp_t *ts, WT_CONFIG_ITEM *cval,
-    bool cmp_oldest, bool cmp_stable, bool cmp_commit, bool cmp_prepare)
+    wt_timestamp_t *ts, WT_CONFIG_ITEM *cval)
 {
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
@@ -597,16 +596,14 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	    if ((has_stable_ts = txn_global->has_stable_timestamp))
 		__wt_timestamp_set(&stable_ts, &txn_global->stable_timestamp));
 
-	if (cmp_oldest && has_oldest_ts &&
-	    __wt_timestamp_cmp(ts, &oldest_ts) < 0) {
+	if (has_oldest_ts && __wt_timestamp_cmp(ts, &oldest_ts) < 0) {
 		WT_RET(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &oldest_ts));
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than oldest timestamp %s",
 		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
-	if (cmp_stable && has_stable_ts &&
-	    __wt_timestamp_cmp(ts, &stable_ts) < 0) {
+	if (has_stable_ts && __wt_timestamp_cmp(ts, &stable_ts) < 0) {
 		WT_RET(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &stable_ts));
 		WT_RET_MSG(session, EINVAL,
@@ -619,7 +616,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * Return an error if the given timestamp is older than the first
 	 * commit timestamp.
 	 */
-	if (cmp_commit && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    __wt_timestamp_cmp(ts, &txn->first_commit_timestamp) < 0) {
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &txn->first_commit_timestamp));
@@ -634,7 +631,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * Return an error if the given timestamp is older than the prepare
 	 * timestamp.
 	 */
-	if (cmp_prepare && F_ISSET(txn, WT_TXN_PREPARE) &&
+	if (F_ISSET(txn, WT_TXN_PREPARE) &&
 	    __wt_timestamp_cmp(ts, &txn->prepare_timestamp) < 0) {
 		WT_RET(__wt_timestamp_to_hex_string(
 		    session, hex_timestamp, &txn->prepare_timestamp));
@@ -667,8 +664,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_RET(__wt_timestamp_validate(session,
-		    "commit", &ts, &cval, true, true, true, true));
+		WT_RET(__wt_timestamp_validate(session, "commit", &ts, &cval));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
@@ -734,22 +730,15 @@ __wt_txn_parse_prepare_timestamp(
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 
 		/*
-		 * If there are no active readers, prepare timestamp must be
-		 * greater than stable timestamp.
+		 * If there are no active readers, prepare timestamp must not
+		 * be older than oldest timestamp.
 		 */
-
 		if (prev == NULL) {
 			WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 			    __wt_timestamp_set(&oldest_ts,
 			    &txn_global->oldest_timestamp));
 
-			/*
-			 * Assert prepare is not invoked before setting
-			 * oldest timestamp.
-			 */
-			WT_ASSERT(session, !__wt_timestamp_iszero(&oldest_ts));
-
-			if (__wt_timestamp_cmp(&oldest_ts, timestamp) >= 0) {
+			if (__wt_timestamp_cmp(timestamp, &oldest_ts) < 0) {
 				WT_RET(__wt_timestamp_to_hex_string(session,
 				    hex_timestamp, &oldest_ts));
 				WT_RET_MSG(session, EINVAL,
