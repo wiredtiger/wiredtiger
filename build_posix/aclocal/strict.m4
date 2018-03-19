@@ -58,7 +58,6 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 		w="$w -Wno-error=implicit-fallthrough"
 		w="$w -Wno-error=maybe-uninitialized"
 		w="$w -Wno-error=unsafe-loop-optimizations"
-		w="$w -Wno-error=unreachable-code"
 		w="$w -Wjump-misses-init"
 		w="$w -Wlogical-op"
 		w="$w -Wredundant-decls"
@@ -88,9 +87,8 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	# w="$w -Wno-error=cast-qual"
 	w="$w -Wno-cast-qual"
 
-	# Turn off clang thread-safety-analysis, it doesn't like some of the
-	# code patterns in WiredTiger.
-	w="$w -Wno-thread-safety-analysis"
+	# Turn off clang unreachable-code error
+	w="$w -Wno-error=unreachable-code"
 
 	# On Centos 7.3.1611, system header files aren't compatible with
 	# -Wdisabled-macro-expansion.
