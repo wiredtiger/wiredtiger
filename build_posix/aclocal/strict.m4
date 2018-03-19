@@ -55,6 +55,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 		w="$w -Wformat-truncation=2"
 		w="$w -Wno-error=format-truncation"
 		w="$w -Wno-error=format"
+		w="$w -Wno-error=implicit-fallthrough"
 		w="$w -Wjump-misses-init"
 		w="$w -Wlogical-op"
 		w="$w -Wredundant-decls"
