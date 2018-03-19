@@ -58,6 +58,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 		w="$w -Wno-error=implicit-fallthrough"
 		w="$w -Wno-error=maybe-uninitialized"
 		w="$w -Wno-error=unsafe-loop-optimizations"
+		w="$w -Wno-error=unreachable-code"
 		w="$w -Wjump-misses-init"
 		w="$w -Wlogical-op"
 		w="$w -Wredundant-decls"
