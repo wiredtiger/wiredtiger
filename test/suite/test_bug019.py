@@ -37,32 +37,41 @@ class test_bug019(wttest.WiredTigerTestCase):
     uri = "table:bug019"
     entries = 100000
 
-    # There was a bug where pre-allocated log files accumulated on
-    # Windows systems due to an issue with the directory list code.
-    # Make sure the number of pre-allocated log files remains constant.
-    def populate(self, start, nentries):
+    # Modify rows so we write log records. We're writing a lot more than a
+    # single log file, so we know the underlying library will churn through
+    # log files.
+    def populate(self, nentries):
         c = self.session.open_cursor(self.uri, None, None)
-        end = start + nentries
-        for i in range(start, end):
+        for i in range(0, nentries):
             c[i] = i
         c.close()
 
-    def test_bug019(self):
-        # Create a table just to write something into the log.  Sleep
-        # to give the worker thread a chance to run.
-        self.session.create(self.uri, 'key_format=i,value_format=i')
-        self.populate(0, self.entries)
-        self.session.checkpoint()
-        # After populating, sleep to allow pre-allocation to respond.
-        # Then loop a few times making sure pre-allocation is keeping
-        # up but not continually adding more files.
-        time.sleep(1)
-        prep_logs = len(fnmatch.filter(os.listdir('.'), "*Prep*"))
+    # Wait for a log file to be pre-allocated. Avoid timing problems, but
+    # assert a file is created within 30 seconds.
+    def lowestfile(self):
+        for i in range(1,30):
+                f = fnmatch.filter(os.listdir('.'), "*Prep*")
+                if f != []:
+                        break
+                time.sleep(1)
+        self.assertTrue(f != [])
+        return f
 
-        for i in range(1,5):
-            self.populate(self.entries * i, self.entries)
-            new_prep = len(fnmatch.filter(os.listdir('.'), "*Prep*"))
-            self.assertTrue(new_prep <= prep_logs)
+    # There was a bug where pre-allocated log files accumulated on
+    # Windows systems due to an issue with the directory list code.
+    def test_bug019(self):
+        # Create a table just to write something into the log.
+        self.session.create(self.uri, 'key_format=i,value_format=i')
+        self.populate(self.entries)
+        self.session.checkpoint()
+
+        # Loop, making sure pre-allocation is working and the range is moving.
+        lowest = self.lowestfile()
+        for i in range(1, 10):
+            self.populate(self.entries)
+            newest = self.lowestfile()
+            self.assertTrue(lowest[0] < newest[0])
+            lowest = newest
             self.session.checkpoint()
 
 if __name__ == '__main__':
