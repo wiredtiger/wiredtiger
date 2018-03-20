@@ -707,6 +707,32 @@ struct __wt_page {
 	((void *)((uint8_t *)((page)->dsk) + (o)))
 
 /*
+ * Prepare update state.
+ *
+ * Prepare update synchronization is based on the state field, which has below
+ * possible states:
+ *
+ * WT_UPDATE_STATE_READY:
+ *	The initial/final state of either an update or a page_del structure,
+ *	indicating either a prepare phase has not started yet or completed, if
+ *	started. In either case the visibility of data update is not impacted by
+ *	prepare state.
+ *
+ * WT_UPDATE_STATE_LOCKED:
+ *	State is locked as prepare state transition is in progress. Any reader
+ *	of the state need to wait for state transition to complete.
+ *
+ * WT_UPDATE_STATE_PREPARED:
+ *	State is prepared.
+ *
+ * State Transition:
+ * 	READY --> PREPARED --> LOCKED --> READY
+ */
+#define	WT_UPDATE_STATE_READY		0
+#define	WT_UPDATE_STATE_LOCKED		1
+#define	WT_UPDATE_STATE_PREPARED	2
+
+/*
  * Page state.
  *
  * Synchronization is based on the WT_REF->state field, which has a number of
@@ -783,11 +809,7 @@ struct __wt_page_deleted {
 	 * The state is used for transaction prepare to manage visibility
 	 * and inheriting prepare state to update_list.
 	 */
-#define	WT_UPDATE_STATE_READY		0	/* Must be 0. Default or
-						   finalized prepare */
-#define	WT_UPDATE_STATE_LOCKED		1	/* locked */
-#define	WT_UPDATE_STATE_PREPARED	2	/* prepared */
-	volatile uint8_t state;
+	volatile uint8_t state;			/* Prepare state. */
 
 	uint32_t previous_state;		/* Previous state */
 
@@ -1003,11 +1025,7 @@ struct __wt_update {
 	 * The update state is used for transaction prepare to manage
 	 * visibility and transitioning update structure state safely.
 	 */
-#define	WT_UPDATE_STATE_READY		0	/* Must be 0. Default or
-						   finalized prepare */
-#define	WT_UPDATE_STATE_LOCKED		1	/* locked */
-#define	WT_UPDATE_STATE_PREPARED	2	/* prepared */
-	volatile uint8_t state;
+	volatile uint8_t state;		/* Prepare state. */
 
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
