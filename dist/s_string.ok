@@ -138,6 +138,7 @@ FULLFSYNC
 Facebook
 FindClose
 FindFirstFile
+FindNextFileW
 Fixup
 Fk
 FlushFileBuffers

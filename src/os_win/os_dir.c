@@ -65,13 +65,13 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system,
 		 */
 		if (wcscmp(finddata.cFileName, L".") == 0 ||
 		    wcscmp(finddata.cFileName, L"..") == 0)
-			continue;
+			goto skip;
 
 		/* The list of files is optionally filtered by a prefix. */
 		if (prefix != NULL &&
 		    wcsncmp(finddata.cFileName, prefix_wide->data,
 			prefix_widelen) != 0)
-			continue;
+			goto skip;
 
 		WT_ERR(__wt_realloc_def(
 		    session, &dirallocsz, count + 1, &entries));
@@ -81,8 +81,18 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system,
 		++count;
 		__wt_scr_free(session, &file_utf8);
 
-		if (single || FindNextFileW(findhandle, &finddata) == 0)
+		if (single)
 			break;
+
+skip:		if (FindNextFileW(findhandle, &finddata) != 0)
+			continue;
+		windows_error = __wt_getlasterror();
+		if (windows_error == ERROR_NO_MORE_FILES)
+			break;
+		__wt_errx(session,
+		    "%s: directory-list: FindNextFileW: %s",
+		    pathbuf->data, __wt_formatmessage(session, windows_error));
+		WT_ERR(__wt_map_windows_error(windows_error));
 	}
 
 	*dirlistp = entries;
