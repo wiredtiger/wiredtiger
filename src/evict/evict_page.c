@@ -426,13 +426,28 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
+	WT_PAGE_DELETED *page_del;
 	WT_REF *child;
 
 	WT_INTL_FOREACH_BEGIN(session, parent->page, child) {
 		switch (child->state) {
 		case WT_REF_DISK:		/* On-disk */
-		case WT_REF_DELETED:		/* On-disk, deleted */
 			break;
+		case WT_REF_DELETED:		/* Deleted */
+			/*
+			 * If the page was part of a fast-delete, transaction
+			 * rollback might switch this page into its previous
+			 * state at any time, so the delete must be resolved.
+			 * We don't have to lock the page, as no thread of
+			 * control can be running below our locked internal
+			 * page.
+			 */
+			if ((page_del = child->page_del) == NULL ||
+			    page_del->txnid == WT_TXN_ABORTED ||
+			    !__wt_txn_visible_all(session, page_del->txnid,
+			    WT_TIMESTAMP_NULL(&page_del->timestamp)))
+				break;
+			return (EBUSY);
 		default:
 			return (EBUSY);
 		}
