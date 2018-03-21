@@ -208,12 +208,12 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * anywhere.
 			 *
 			 * The page is in an in-memory state, which means it
-			 * was instantiated at some point. Walk the list of
+			 * was instantiated at some point. Walk any list of
 			 * update structures and abort them.
 			 */
-			for (upd =
-			    ref->page_del->update_list; *upd != NULL; ++upd)
-				(*upd)->txnid = WT_TXN_ABORTED;
+			if ((upd = ref->page_del->update_list) != NULL)
+				for (; *upd != NULL; ++upd)
+					(*upd)->txnid = WT_TXN_ABORTED;
 			goto done;
 		case WT_REF_DISK:
 		case WT_REF_LIMBO:
