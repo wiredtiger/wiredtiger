@@ -290,12 +290,11 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	WT_DECL_RET;
 
 	/*
-	 * Discard the page and update the reference structure; if the page has
-	 * an address, it's a disk page; if it has no address, it's a deleted
-	 * page re-instantiated (for example, by searching) and never written.
-	 *
-	 * If evicting a WT_REF_LIMBO reference, we get to here and transition
-	 * back to WT_REF_LOOKASIDE.
+	 * Discard the page and update the reference structure. If evicting a
+	 * WT_REF_LIMBO page, transition back to WT_REF_LOOKASIDE. Otherwise,
+	 * a page with a disk address is an on-disk page, and a page without
+	 * a disk address is a re-instantiated deleted page (for example, by
+	 * searching), that was never subsequently written.
 	 */
 	__wt_ref_out(session, ref);
 	if (!closing && ref->page_las != NULL &&
