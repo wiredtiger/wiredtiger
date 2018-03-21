@@ -65,8 +65,8 @@
 int
 __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
+	WT_ADDR *ref_addr;
 	WT_DECL_RET;
-	WT_PAGE *parent;
 	uint32_t previous_state;
 
 	*skipp = false;
@@ -124,14 +124,17 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 *
 	 * To look at an on-page cell, we need to look at the parent page, and
 	 * that's dangerous, our parent page could change without warning if
-	 * the parent page were to split, deepening the tree.  It's safe: the
-	 * page's reference will always point to some valid page, and if we find
-	 * any problems we simply fail the fast-delete optimization.
+	 * the parent page were to split, deepening the tree. We can look at
+	 * the parent page itself because the page can't change underneath us.
+	 * However, if the parent page splits, our reference address can change;
+	 * we don't care what version of it we read, as long as we don't read
+	 * it twice.
 	 */
-	parent = ref->home;
-	if (__wt_off_page(parent, ref->addr) ?
-	    ((WT_ADDR *)ref->addr)->type != WT_ADDR_LEAF_NO :
-	    __wt_cell_type_raw(ref->addr) != WT_CELL_ADDR_LEAF_NO)
+	WT_ORDERED_READ(ref_addr, ref->addr);
+	if (ref_addr != NULL &&
+	    (__wt_off_page(ref->home, ref_addr) ?
+	    ref_addr->type != WT_ADDR_LEAF_NO :
+	    __wt_cell_type_raw((WT_CELL *)ref_addr) != WT_CELL_ADDR_LEAF_NO))
 		goto err;
 
 	/*
