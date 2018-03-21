@@ -51,11 +51,10 @@ class test_bug019(wttest.WiredTigerTestCase):
     def prepfiles(self):
         for i in range(1,30):
                 f = fnmatch.filter(os.listdir('.'), "*Prep*")
-                if f != []:
-                        break
+                if f:
+                        return f
                 time.sleep(1)
-        self.assertTrue(f != [])
-        return f
+        self.assertFalse(not f)
 
     # There was a bug where pre-allocated log files accumulated on
     # Windows systems due to an issue with the directory list code.
