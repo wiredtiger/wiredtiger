@@ -676,7 +676,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_REF *ref;
 	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
-	uint32_t previous_state;
 	bool update_timestamp;
 #endif
 
@@ -858,31 +857,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			__wt_timestamp_set(
 			    &ref->page_del->timestamp, &txn->commit_timestamp);
 
-			/*
-			 * The page-deleted list can be discarded by eviction,
-			 * lock the WT_REF to ensure we don't race.
-			 */
-			if (ref->page_del->update_list == NULL)
-				break;
-
-			for (;;) {
-				previous_state = ref->state;
-				if (__wt_atomic_casv32(
-				    &ref->state, previous_state, WT_REF_LOCKED))
-					break;
-			}
-
 			if ((updp = ref->page_del->update_list) != NULL)
 				for (; *updp != NULL; ++updp)
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
-
-			/*
-			 * Publish to ensure we don't let the page be evicted
-			 * and the updates discarded before being written.
-			 */
-			WT_PUBLISH(ref->state, previous_state);
 #endif
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
