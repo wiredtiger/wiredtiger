@@ -48,7 +48,7 @@ class test_bug019(wttest.WiredTigerTestCase):
 
     # Wait for a log file to be pre-allocated. Avoid timing problems, but
     # assert a file is created within 30 seconds.
-    def lowestfile(self):
+    def prepfiles(self):
         for i in range(1,30):
                 f = fnmatch.filter(os.listdir('.'), "*Prep*")
                 if f != []:
@@ -66,12 +66,17 @@ class test_bug019(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Loop, making sure pre-allocation is working and the range is moving.
-        lowest = self.lowestfile()
+        older = self.prepfiles()
         for i in range(1, 10):
             self.populate(self.entries)
-            newest = self.lowestfile()
-            self.assertTrue(lowest[0] < newest[0])
-            lowest = newest
+            newer = self.prepfiles()
+
+            # Files can be returned in any order when reading a directory, older
+            # pre-allocated files can persist longer than newer files when newer
+            # files are returned first. Confirm files are being consumed.
+            self.assertFalse(set(older) < set(newer))
+
+            older = newer
             self.session.checkpoint()
 
 if __name__ == '__main__':
