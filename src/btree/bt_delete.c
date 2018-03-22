@@ -174,6 +174,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_UPDATE **updp;
 	uint64_t sleep_count, yield_count;
+	uint32_t current_state;
+	bool locked;
 
 	/*
 	 * If the page is still "deleted", it's as we left it, reset the state
@@ -181,17 +183,17 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * instantiated or being instantiated.  Loop because it's possible for
 	 * the page to return to the deleted state if instantiation fails.
 	 */
-	for (sleep_count = yield_count = 0;;) {
-		switch (ref->state) {
+	for (locked = false, sleep_count = yield_count = 0;;) {
+		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
 			/*
 			 * If the page is still "deleted", it's as we left it,
 			 * reset the state.
 			 */
-			if (!__wt_atomic_casv32(&ref->state,
+			if (__wt_atomic_casv32(&ref->state,
 			    WT_REF_DELETED, ref->page_del->previous_state))
-				break;
-			goto done;
+				goto done;
+			break;
 		case WT_REF_LOCKED:
 			/*
 			 * A possible state, the page is being instantiated.
@@ -199,22 +201,10 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			break;
 		case WT_REF_MEM:
 		case WT_REF_SPLIT:
-			/*
-			 * We can't use the normal read path to get a copy of
-			 * the page because the session may have closed the
-			 * cursor, we no longer have the reference to the tree
-			 * required for a hazard pointer.  We're safe because
-			 * with unresolved transactions, the page isn't going
-			 * anywhere.
-			 *
-			 * The page is in an in-memory state, which means it
-			 * was instantiated at some point. Walk any list of
-			 * update structures and abort them.
-			 */
-			if ((updp = ref->page_del->update_list) != NULL)
-				for (; *updp != NULL; ++updp)
-					(*updp)->txnid = WT_TXN_ABORTED;
-			goto done;
+			if (__wt_atomic_casv32(
+			    &ref->state, current_state, WT_REF_LOCKED))
+				locked = true;
+			break;
 		case WT_REF_DISK:
 		case WT_REF_LIMBO:
 		case WT_REF_LOOKASIDE:
@@ -223,15 +213,38 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			return (__wt_illegal_value(session,
 			    "illegal WT_REF.state rolling back deleted page"));
 		}
+
+		if (locked)
+			break;
+
 		/*
 		 * We wait for the change in page state, yield before retrying,
-		 * and if we've yielded enough times, start sleeping so we don't
-		 * burn CPU to no purpose.
+		 * and if we've yielded enough times, start sleeping so we
+		 * don't burn CPU to no purpose.
 		 */
 		__wt_ref_state_yield_sleep(&yield_count, &sleep_count);
-		WT_STAT_CONN_INCRV(session, page_del_rollback_blocked,
-		    sleep_count);
+		WT_STAT_CONN_INCRV(session,
+		    page_del_rollback_blocked, sleep_count);
 	}
+
+	/*
+	 * We can't use the normal read path to get a copy of the page
+	 * because the session may have closed the cursor, we no longer
+	 * have the reference to the tree required for a hazard
+	 * pointer.  We're safe because with unresolved transactions,
+	 * the page isn't going anywhere.
+	 *
+	 * The page is in an in-memory state, which means it
+	 * was instantiated at some point. Walk any list of
+	 * update structures and abort them.
+	 */
+	WT_ASSERT(session, locked);
+	if ((updp = ref->page_del->update_list) != NULL)
+		for (; *updp != NULL; ++updp)
+			(*updp)->txnid = WT_TXN_ABORTED;
+		goto done;
+
+	ref->state = current_state;
 
 done:	/*
 	 * Now mark the truncate aborted: this must come last because after
