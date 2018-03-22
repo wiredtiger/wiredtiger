@@ -72,10 +72,11 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	*skipp = false;
 
 	/* If we have a clean page in memory, attempt to evict it. */
-	if (ref->state == WT_REF_MEM &&
-	    __wt_atomic_casv32(&ref->state, WT_REF_MEM, WT_REF_LOCKED)) {
+	previous_state = ref->state;
+	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	    __wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED)) {
 		if (__wt_page_is_modified(ref->page)) {
-			ref->state = WT_REF_MEM;
+			ref->state = previous_state;
 			return (0);
 		}
 
@@ -93,7 +94,6 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	previous_state = ref->state;
 	switch (previous_state) {
 	case WT_REF_DISK:
-	case WT_REF_LIMBO:
 	case WT_REF_LOOKASIDE:
 		break;
 	default:
@@ -101,18 +101,6 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	}
 	if (!__wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED))
 		return (0);
-	switch (previous_state) {
-	case WT_REF_DISK:
-		break;
-	case WT_REF_LIMBO:
-	case WT_REF_LOOKASIDE:
-		if (__wt_las_page_skip_locked(session, ref))
-			break;
-		/* FALLTHROUGH */
-	default:
-		ref->state = previous_state;
-		return (0);
-	}
 
 	/*
 	 * If this WT_REF was previously part of a fast-delete operation, there

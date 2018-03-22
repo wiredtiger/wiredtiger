@@ -1459,7 +1459,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
 			if (!WT_SESSION_IS_CHECKPOINT(session))
-				(void)__wt_page_evict_urgent(session, ref);
+				WT_IGNORE_RET(
+				    __wt_page_evict_urgent(session, ref));
 		} else {
 			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
 			return (0);

@@ -719,8 +719,7 @@ read:			/*
 				ret = __wt_page_release_evict(session, ref);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
-					ret = 0;
-					WT_NOT_READ(ret);
+					WT_NOT_READ(ret, 0);
 					WT_STAT_CONN_INCR(session,
 					    page_forcible_evict_blocked);
 					stalled = true;
