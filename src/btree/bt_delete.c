@@ -242,7 +242,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	if ((updp = ref->page_del->update_list) != NULL)
 		for (; *updp != NULL; ++updp)
 			(*updp)->txnid = WT_TXN_ABORTED;
-		goto done;
 
 	ref->state = current_state;
 
