@@ -172,7 +172,7 @@ err:	__wt_free(session, ref->page_del);
 int
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-	WT_UPDATE **upd;
+	WT_UPDATE **updp;
 	uint64_t sleep_count, yield_count;
 
 	/*
@@ -211,9 +211,9 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * was instantiated at some point. Walk any list of
 			 * update structures and abort them.
 			 */
-			if ((upd = ref->page_del->update_list) != NULL)
-				for (; *upd != NULL; ++upd)
-					(*upd)->txnid = WT_TXN_ABORTED;
+			if ((updp = ref->page_del->update_list) != NULL)
+				for (; *updp != NULL; ++updp)
+					(*updp)->txnid = WT_TXN_ABORTED;
 			goto done;
 		case WT_REF_DISK:
 		case WT_REF_LIMBO:
