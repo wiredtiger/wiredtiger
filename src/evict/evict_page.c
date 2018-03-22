@@ -444,7 +444,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			 */
 			if ((page_del = child->page_del) == NULL ||
 			    page_del->txnid == WT_TXN_ABORTED ||
-			    !__wt_txn_visible_all(session, page_del->txnid,
+			    __wt_txn_visible_all(session, page_del->txnid,
 			    WT_TIMESTAMP_NULL(&page_del->timestamp)))
 				break;
 			return (EBUSY);
