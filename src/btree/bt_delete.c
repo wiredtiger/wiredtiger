@@ -311,6 +311,31 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 }
 
 /*
+ * __tombstone_update_alloc --
+ *	Allocate and initialize a page-deleted tombstone update structure.
+ */
+static int
+__tombstone_update_alloc(WT_SESSION_IMPL *session,
+    WT_PAGE_DELETED *page_del, WT_UPDATE **updp, size_t *sizep)
+{
+	WT_UPDATE *upd;
+
+	WT_RET(
+	    __wt_update_alloc(session, NULL, &upd, sizep, WT_UPDATE_TOMBSTONE));
+
+	/*
+	 * Cleared memory matches the lowest possible transaction ID and
+	 * timestamp, do nothing.
+	 */
+	if (page_del != NULL) {
+		upd->txnid = page_del->txnid;
+		__wt_timestamp_set(&upd->timestamp, &page_del->timestamp);
+	}
+	*updp = upd;
+	return (0);
+}
+
+/*
  * __wt_delete_page_instantiate --
  *	Instantiate an entirely deleted row-store leaf page.
  */
@@ -319,11 +344,14 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
+	WT_INSERT *ins;
+	WT_INSERT_HEAD *insert;
 	WT_PAGE *page;
 	WT_PAGE_DELETED *page_del;
+	WT_ROW *rip;
 	WT_UPDATE **upd_array, *upd;
 	size_t size;
-	uint32_t i;
+	uint32_t count, i;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -358,52 +386,75 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * running inside a checkpoint, and now we're being forced to read that
 	 * page.
 	 *
-	 * In the first case, we have a page reference structure, in the second,
-	 * we don't.
-	 *
-	 * Allocate the per-reference update array; in the case of instantiating
-	 * a page, deleted by a running transaction that might eventually abort,
-	 * we need a list of the update structures so we can do that abort.  The
-	 * hard case is if a page splits: the update structures might be moved
-	 * to different pages, and we still have to find them all for an abort.
+	 * Expect a page-deleted structure if there's a running transaction that
+	 * needs to be resolved, otherwise, there may not be one (and, if the
+	 * transaction has resolved, we can ignore the page-deleted structure).
 	 */
-	page_del = ref->page_del;
-	if (page_del != NULL)
-		WT_RET(__wt_calloc_def(
-		    session, page->entries + 1, &page_del->update_list));
+	page_del =
+	    __wt_txn_page_del_visible(session, ref) ? NULL : ref->page_del;
 
 	/*
-	 * Allocate the per-page update array if one doesn't already exist.
-	 * Because deletes may be instantiated after lookaside table updates,
-	 * the update array may already exist.
+	 * Allocate the per-page update array if one doesn't already exist. (It
+	 * might already exist because deletes are instantiated after lookaside
+	 * table updates.)
 	 */
-	if (page->modify->mod_row_update == NULL)
-		WT_ERR(__wt_calloc_def(
+	if (page->entries != 0 && page->modify->mod_row_update == NULL)
+		WT_RET(__wt_calloc_def(
 		    session, page->entries, &page->modify->mod_row_update));
 
 	/*
-	 * Fill in the per-reference update array with references to update
-	 * structures, fill in the per-page update array with references to
-	 * deleted items.
+	 * Allocate the per-reference update array; in the case of instantiating
+	 * a page deleted in a running transaction, we need a list of the update
+	 * structures for the eventual commit or abort.
 	 */
-	upd_array = page->modify->mod_row_update;
-	for (i = 0, size = 0; i < page->entries; ++i) {
-		WT_ERR(__wt_calloc_one(session, &upd));
-		upd->type = WT_UPDATE_TOMBSTONE;
-
-		if (page_del == NULL)
-			upd->txnid = WT_TXN_NONE;	/* Globally visible */
-		else {
-			upd->txnid = page_del->txnid;
-			__wt_timestamp_set(
-			    &upd->timestamp, &page_del->timestamp);
-			page_del->update_list[i] = upd;
+	if (page_del != NULL) {
+		count = 0;
+		if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
+			WT_SKIP_FOREACH(ins, insert)
+				++count;
+		WT_ROW_FOREACH(page, rip, i) {
+			++count;
+			if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
+				WT_SKIP_FOREACH(ins, insert)
+					++count;
 		}
+		WT_RET(__wt_calloc_def(
+		    session, count + 1, &page_del->update_list));
+	}
 
-		upd->next = upd_array[i];
-		upd_array[i] = upd;
+	/* Walk the page entries, giving each one a tombstone. */
+	size = 0;
+	count = 0;
+	upd_array = page->modify->mod_row_update;
+	if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
+		WT_SKIP_FOREACH(ins, insert) {
+			WT_ERR(__tombstone_update_alloc(
+			    session, page_del, &upd, &size));
+			upd->next = ins->upd;
+			ins->upd = upd;
 
-		size += sizeof(WT_UPDATE *) + WT_UPDATE_MEMSIZE(upd);
+			if (page_del != NULL)
+				page_del->update_list[count++] = upd;
+		}
+	WT_ROW_FOREACH(page, rip, i) {
+		WT_ERR(__tombstone_update_alloc(
+		    session, page_del, &upd, &size));
+		upd->next = upd_array[WT_ROW_SLOT(page, rip)];
+		upd_array[WT_ROW_SLOT(page, rip)] = upd;
+
+		if (page_del != NULL)
+			page_del->update_list[count++] = upd;
+
+		if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
+			WT_SKIP_FOREACH(ins, insert) {
+				WT_ERR(__tombstone_update_alloc(
+				    session, page_del, &upd, &size));
+				upd->next = ins->upd;
+				ins->upd = upd;
+
+				if (page_del != NULL)
+					page_del->update_list[count++] = upd;
+			}
 	}
 
 	__wt_cache_page_inmem_incr(session, page, size);

@@ -544,6 +544,23 @@ __wt_txn_visible(
 }
 
 /*
+ * __wt_txn_page_del_visible --
+ *	Return if a fast-delete operation is unresolved.
+ */
+static inline bool
+__wt_txn_page_del_visible(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_PAGE_DELETED *page_del;
+
+	if ((page_del = ref->page_del) == NULL)
+		return (true);
+	if (page_del->txnid == WT_TXN_ABORTED)
+		return (true);
+	return (__wt_txn_visible_all(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
+}
+
+/*
  * __wt_txn_upd_visible_type --
  *      Visible type of given update for the current transaction.
  */
