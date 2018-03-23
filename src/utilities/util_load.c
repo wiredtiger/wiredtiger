@@ -496,8 +496,10 @@ config_rename(WT_SESSION *session, char **urip, const char *name)
 	*p = '\0';
 	p = strchr(p + 1, ':');
 	if ((ret = __wt_snprintf(
-	    buf, len, "%s:%s%s", *urip, name, p == NULL ? "" : p)) != 0)
+	    buf, len, "%s:%s%s", *urip, name, p == NULL ? "" : p)) != 0) {
+		free(buf);
 		return (util_err(session, ret, NULL));
+	}
 	*urip = buf;
 
 	return (0);
