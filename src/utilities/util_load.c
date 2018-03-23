@@ -124,8 +124,10 @@ load_dump(WT_SESSION *session)
 	    "dump=%s%s%s",
 	    hex ? "hex" : "print",
 	    append ? ",append" : "",
-	    no_overwrite ? ",overwrite=false" : "")) != 0)
-		return (util_err(session, ret, NULL));
+	    no_overwrite ? ",overwrite=false" : "")) != 0) {
+		ret = util_err(session, ret, NULL);
+		goto err;
+	}
 	if ((ret = session->open_cursor(
 	    session, uri, NULL, config, &cursor)) != 0) {
 		ret = util_err(session, ret, "%s: session.open_cursor", uri);
