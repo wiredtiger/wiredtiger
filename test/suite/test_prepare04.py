@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare04.py
-#   Prepare: Update and read operations generates prepared conflict error.
+#   Prepare: Update and read operations generate prepared conflict error.
 #
 
 import random

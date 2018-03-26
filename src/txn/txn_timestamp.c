@@ -710,8 +710,8 @@ __wt_txn_parse_prepare_timestamp(
 		    session, "prepare", timestamp, &cval));
 
 		/*
-		 * Prepare timestamp must be later/greater than all active read
-		 * timestamps.
+		 * Prepare timestamp must be later/greater than latest active
+		 * read timestamp.
 		 */
 		__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 		prev = TAILQ_LAST(&txn_global->read_timestamph,
