@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_alter --
+ * __alter_apply --
  *	Alter an object
  */
 static int
-__wt_alter(WT_SESSION_IMPL *session,
+__alter_apply(WT_SESSION_IMPL *session,
     const char *uri, const char *newcfg[], const char *base_config)
 {
 	WT_DECL_RET;
@@ -58,11 +58,11 @@ err:	__wt_free(session, config);
 }
 
 /*
- * __wt_alter_file --
+ * __alter_file --
  *	Alter a file.
  */
 static int
-__wt_alter_file(WT_SESSION_IMPL *session, const char *cfg[])
+__alter_file(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_DECL_RET;
 	const char *filename, *uri;
@@ -78,7 +78,7 @@ __wt_alter_file(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_meta_track_on(session));
 
-	WT_ERR(__wt_alter(session,
+	WT_ERR(__alter_apply(session,
 	    uri, cfg, WT_CONFIG_BASE(session, file_meta)));
 
 err:	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -121,7 +121,12 @@ __alter_tree(WT_SESSION_IMPL *session, const char *name, const char *cfg[])
 	WT_ERR(__wt_schema_alter(session, data_source->data, cfg));
 
 	/* Alter the index or colgroup */
-	WT_ERR(__wt_schema_alter(session, name, cfg));
+	if (is_colgroup)
+		WT_ERR(__alter_apply(session,
+		    name, cfg, WT_CONFIG_BASE(session, colgroup_meta)));
+	else
+		WT_ERR(__alter_apply(session,
+		    name, cfg, WT_CONFIG_BASE(session, index_meta)));
 
 err:	__wt_scr_free(session, &data_source);
 	__wt_free(session, value);
@@ -174,16 +179,8 @@ __alter_table(
 	}
 
 	/* Alter the table */
-	WT_ERR(__wt_alter(session,
+	WT_ERR(__alter_apply(session,
 	    uri, cfg, WT_CONFIG_BASE(session, table_meta)));
-
-	/* Alter the underlying file */
-	/*
-	 * Note: Ideally we should call __wt_schema_alter() on the underlying
-	 * "file:" uri.
-	 */
-	WT_ERR(__wt_schema_worker(session, uri, __wt_alter_file,
-	    NULL, cfg, WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE));
 
 	if (WT_META_TRACKING(session)) {
 		WT_WITH_DHANDLE(session, &table->iface,
@@ -205,16 +202,13 @@ int
 __wt_schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
 	if (WT_PREFIX_MATCH(uri, "file:"))
-		return (__wt_schema_worker(session, uri, __wt_alter_file,
-		    NULL, cfg, WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE));
-	else if (WT_PREFIX_MATCH(uri, "colgroup:"))
-		return (__wt_alter(session,
-		    uri, cfg, WT_CONFIG_BASE(session, colgroup_meta)));
-	else if (WT_PREFIX_MATCH(uri, "index:"))
-		return (__wt_alter(session,
-		    uri, cfg, WT_CONFIG_BASE(session, index_meta)));
+		return (__wt_exclusive_handle_operation(session, uri,
+		    __alter_file, cfg, WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE));
+	else if (WT_PREFIX_MATCH(uri,
+	    "colgroup:") || WT_PREFIX_MATCH(uri, "index:"))
+		return (__alter_tree(session, uri, cfg));
 	else if (WT_PREFIX_MATCH(uri, "lsm:"))
-		return (__wt_lsm_tree_worker(session, uri, __wt_alter_file,
+		return (__wt_lsm_tree_worker(session, uri, __alter_file,
 		    NULL, cfg, WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE));
 	else if (WT_PREFIX_MATCH(uri, "table:"))
 		return (__alter_table(session, uri, cfg));
