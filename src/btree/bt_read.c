@@ -477,7 +477,7 @@ skip_read:
 	switch (previous_state) {
 	case WT_REF_DELETED:
 		/*
-		 * A fast-deleted page may also have lookaside information. The
+		 * A truncated page may also have lookaside information. The
 		 * delete happened after page eviction (writing the lookaside
 		 * information), first update based on the lookaside table and
 		 * then apply the delete.

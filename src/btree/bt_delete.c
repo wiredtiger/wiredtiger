@@ -103,7 +103,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 		return (0);
 
 	/*
-	 * If this WT_REF was previously part of a fast-delete operation, there
+	 * If this WT_REF was previously part of a truncate operation, there
 	 * may be existing page-delete information. The structure is only read
 	 * while the state is locked, free the previous version.
 	 *
@@ -117,10 +117,10 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	}
 
 	/*
-	 * We cannot fast-delete pages that have overflow key/value items as
-	 * the overflow blocks have to be discarded.  The way we figure that
-	 * out is to check the page's cell type, cells for leaf pages without
-	 * overflow items are special.
+	 * We cannot truncate pages that have overflow key/value items as the
+	 * overflow blocks have to be discarded.  The way we figure that out is
+	 * to check the page's cell type, cells for leaf pages without overflow
+	 * items are special.
 	 *
 	 * To look at an on-page cell, we need to look at the parent page, and
 	 * that's dangerous, our parent page could change without warning if
@@ -264,12 +264,12 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	bool skip;
 
 	/*
-	 * Deleted pages come from two sources: either it's a fast-delete as
+	 * Deleted pages come from two sources: either it's a truncate as
 	 * described above, or the page has been emptied by other operations
 	 * and eviction deleted it.
 	 *
 	 * In both cases, the WT_REF state will be WT_REF_DELETED.  In the case
-	 * of a fast-delete page, there will be a WT_PAGE_DELETED structure with
+	 * of a truncated page, there will be a WT_PAGE_DELETED structure with
 	 * the transaction ID of the transaction that deleted the page, and the
 	 * page is visible if that transaction ID is visible.  In the case of an
 	 * empty page, there will be no WT_PAGE_DELETED structure and the delete
@@ -391,7 +391,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * transaction has resolved, we can ignore the page-deleted structure).
 	 */
 	page_del =
-	    __wt_txn_page_del_visible(session, ref) ? NULL : ref->page_del;
+	    __wt_btree_truncate_active(session, ref) ? ref->page_del : NULL;
 
 	/*
 	 * Allocate the per-page update array if one doesn't already exist. (It

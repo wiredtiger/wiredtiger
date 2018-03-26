@@ -296,7 +296,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 /*
  * __wt_txn_modify_page_delete --
- *	Remember a page fast-deleted by the current transaction.
+ *	Remember a page truncated by the current transaction.
  */
 static inline int
 __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -541,23 +541,6 @@ __wt_txn_visible(
 	WT_UNUSED(timestamp);
 	return (true);
 #endif
-}
-
-/*
- * __wt_txn_page_del_visible --
- *	Return if a fast-delete operation is unresolved.
- */
-static inline bool
-__wt_txn_page_del_visible(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-	WT_PAGE_DELETED *page_del;
-
-	if ((page_del = ref->page_del) == NULL)
-		return (true);
-	if (page_del->txnid == WT_TXN_ABORTED)
-		return (true);
-	return (__wt_txn_visible_all(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
 }
 
 /*

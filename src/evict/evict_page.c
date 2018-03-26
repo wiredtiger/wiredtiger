@@ -434,14 +434,14 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			break;
 		case WT_REF_DELETED:		/* Deleted */
 			/*
-			 * If the page was part of a fast-delete, transaction
+			 * If the page was part of a truncate, transaction
 			 * rollback might switch this page into its previous
 			 * state at any time, so the delete must be resolved.
 			 * We don't have to lock the page, as no thread of
 			 * control can be running below our locked internal
 			 * page.
 			 */
-			if (!__wt_txn_page_del_visible(session, child))
+			if (__wt_btree_truncate_active(session, child))
 				return (EBUSY);
 			break;
 		default:
