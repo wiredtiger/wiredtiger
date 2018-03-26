@@ -15,10 +15,13 @@ class Config:
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
-# Metadata shared by all schema objects
-common_meta = [
+common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
+]
+
+# Metadata shared by all schema objects
+common_meta = [
     Config('collator', 'none', r'''
         configure custom collation for keys.  Permitted values are \c "none"
         or a custom collator name created with WT_CONNECTION::add_collator'''),
@@ -130,7 +133,7 @@ lsm_config = [
     ]),
 ]
 
-file_runtime_config = [
+file_runtime_config = common_runtime_config + [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of
         updates and/or point queries specify \c random.  Workloads that
@@ -375,14 +378,15 @@ index_only_config = [
         by any update to a record in the table''', type='boolean'),
 ]
 
-colgroup_meta = common_meta + source_meta
+colgroup_meta = common_runtime_config + common_meta + source_meta
 
-index_meta = format_meta + source_meta + index_only_config + [
+index_meta = common_runtime_config + \
+    format_meta + source_meta + index_only_config + [
     Config('index_key_columns', '', r'''
         number of public key columns''', type='int', undoc=True),
 ]
 
-table_meta = format_meta + table_only_config
+table_meta = common_runtime_config + format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
