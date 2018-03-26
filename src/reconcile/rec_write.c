@@ -1345,7 +1345,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * globally visible, need to check the update state as well.
 		 */
 		if (F_ISSET(r, WT_REC_EVICT) &&
-		    (upd->state != WT_UPDATE_STATE_READY ||
+		    (upd->prepare_state != WT_PREPARE_READY ||
 		    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    WT_TXNID_LE(r->last_running, txnid) :
 		    !__txn_visible_id(session, txnid)))) {
@@ -1636,7 +1636,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * PREPARED state), for truly visible to others.
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
-	    !(page_del->state == WT_UPDATE_STATE_READY &&
+	    !(page_del->prepare_state == WT_PREPARE_READY &&
 	    __wt_txn_visible(session,
 	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp))))
 		WT_PANIC_RET(session, EINVAL,
@@ -1666,8 +1666,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * read into this part of the name space again, the cache read function
 	 * instantiates an entirely new page.)
 	 */
-	if (ref->addr != NULL &&
-	    (page_del == NULL || (page_del->state == WT_UPDATE_STATE_READY &&
+	if (ref->addr != NULL && (page_del == NULL ||
+	    (page_del->prepare_state == WT_PREPARE_READY &&
 	    __wt_txn_visible_all(session, page_del->txnid,
 	    WT_TIMESTAMP_NULL(&page_del->timestamp)))))
 		WT_RET(__wt_ref_block_free(session, ref));
@@ -1718,8 +1718,9 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * If the delete state is not ready, then delete is not visible as it
 	 * is in prepared state.
 	 */
-	if (page_del->state == WT_UPDATE_STATE_READY && __wt_txn_visible(
-	    session, page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)))
+	if (page_del->prepare_state == WT_PREPARE_READY &&
+	    __wt_txn_visible(session, page_del->txnid,
+	    WT_TIMESTAMP_NULL(&page_del->timestamp)))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);

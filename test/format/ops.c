@@ -1072,7 +1072,6 @@ update_instead_of_chosen_op:
 
 		/*
 		 * Prepare the transaction 10% of the time.
-		 * Currently doesn't work with truncation, see WT-3922.
 		 */
 		if (mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);

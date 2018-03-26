@@ -1352,7 +1352,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 
 	/* A truncated page can't be evicted until the truncate completes. */
 	if (ref->page_del != NULL && ref->page_del->txnid != WT_TXN_ABORTED &&
-	    !(ref->page_del->state == WT_UPDATE_STATE_READY &&
+	    !(ref->page_del->prepare_state == WT_PREPARE_READY &&
 	    __wt_txn_visible_all(session, ref->page_del->txnid,
 	    WT_TIMESTAMP_NULL(&ref->page_del->timestamp))))
 		return (false);

@@ -550,12 +550,12 @@ __wt_txn_visible(
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	uint8_t upd_state;
+	uint8_t prepare_state;
 	bool upd_visible;
 
 	for (;;__wt_yield()) {
 		/* Commit is in progress, yield and try again. */
-		if ((upd_state = upd->state) == WT_UPDATE_STATE_LOCKED)
+		if ((prepare_state = upd->prepare_state) == WT_PREPARE_LOCKED)
 			continue;
 
 		upd_visible = __wt_txn_visible(
@@ -565,14 +565,14 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		 * The visibility check is only valid if the update does not
 		 * change state.  If the state does change, recheck visibility.
 		 */
-		if (upd->state == upd_state)
+		if (upd->prepare_state == prepare_state)
 			break;
 	}
 
 	if (!upd_visible)
 		return (WT_VISIBLE_FALSE);
 
-	if (upd_state == WT_UPDATE_STATE_PREPARED)
+	if (prepare_state == WT_PREPARE_STATE)
 		return (F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) ?
 		    WT_VISIBLE_FALSE : WT_VISIBLE_PREPARE);
 

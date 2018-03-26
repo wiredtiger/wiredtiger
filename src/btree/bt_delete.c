@@ -211,7 +211,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 			for (upd =
 			    ref->page_del->update_list; *upd != NULL; ++upd) {
 				(*upd)->txnid = WT_TXN_ABORTED;
-				(*upd)->state = WT_UPDATE_STATE_READY;
+				(*upd)->prepare_state = WT_PREPARE_READY;
 			}
 			goto done;
 		case WT_REF_DISK:
@@ -236,7 +236,7 @@ done:	/*
 	 * Now mark the truncate aborted: this must come last because after
 	 * this point there is nothing preventing the page from being evicted.
 	 */
-	ref->page_del->state = WT_UPDATE_STATE_READY;
+	ref->page_del->prepare_state = WT_PREPARE_READY;
 	WT_PUBLISH(ref->page_del->txnid, WT_TXN_ABORTED);
 	return (0);
 }
@@ -276,7 +276,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 		return (false);
 
 	if (ref->page_del == NULL ||
-	    ref->page_del->state != WT_UPDATE_STATE_READY) {
+	    ref->page_del->prepare_state != WT_PREPARE_READY) {
 		WT_PUBLISH(ref->state, WT_REF_DELETED);
 		return (true);
 	}
@@ -389,7 +389,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			upd->txnid = WT_TXN_NONE;	/* Globally visible */
 		else {
 			upd->txnid = page_del->txnid;
-			upd->state = page_del->state;
+			upd->prepare_state = page_del->prepare_state;
 			__wt_timestamp_set(
 			    &upd->timestamp, &page_del->timestamp);
 			page_del->update_list[i] = upd;
