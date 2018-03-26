@@ -544,6 +544,28 @@ __wt_txn_visible(
 }
 
 /*
+ * __wt_txn_visible_page_deleted --
+ *	Can the current transaction see the fast-deleted page.
+ */
+static inline bool
+__wt_txn_visible_page_deleted(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+{
+	WT_PAGE_DELETED *page_del;
+
+	if ((page_del = ref->page_del) == NULL)
+		return (true);
+	if (page_del->prepare_state != WT_PREPARE_READY)
+		return (false);
+	return (visible_all ?
+	    __wt_txn_visible_all(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) :
+	    __wt_txn_visible(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
+
+}
+
+/*
  * __wt_txn_upd_visible_type --
  *      Visible type of given update for the current transaction.
  */

@@ -1636,9 +1636,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * PREPARED state), for truly visible to others.
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
-	    !(page_del->prepare_state == WT_PREPARE_READY &&
-	    __wt_txn_visible(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp))))
+	    !(__wt_txn_visible_page_deleted(session, ref, false)))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1666,10 +1664,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * read into this part of the name space again, the cache read function
 	 * instantiates an entirely new page.)
 	 */
-	if (ref->addr != NULL && (page_del == NULL ||
-	    (page_del->prepare_state == WT_PREPARE_READY &&
-	    __wt_txn_visible_all(session, page_del->txnid,
-	    WT_TIMESTAMP_NULL(&page_del->timestamp)))))
+	if (ref->addr != NULL &&
+	    __wt_txn_visible_page_deleted(session, ref, true))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1718,9 +1714,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * If the delete state is not ready, then delete is not visible as it
 	 * is in prepared state.
 	 */
-	if (page_del->prepare_state == WT_PREPARE_READY &&
-	    __wt_txn_visible(session, page_del->txnid,
-	    WT_TIMESTAMP_NULL(&page_del->timestamp)))
+	if (__wt_txn_visible_page_deleted(session, ref, false))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);
