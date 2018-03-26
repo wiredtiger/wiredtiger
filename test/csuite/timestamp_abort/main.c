@@ -58,7 +58,7 @@ static char home[1024];			/* Program working dir */
  */
 #define	INVALID_KEY	UINT64_MAX
 #define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
-#define	MAX_TH		256
+#define	MAX_TH		12
 #define	MAX_TIME	40
 #define	MAX_VAL		1024
 #define	MIN_TH		5
