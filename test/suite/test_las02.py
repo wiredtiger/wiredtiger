@@ -34,16 +34,14 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_las02.py
-# Test that truncate with lookaside entries and timestamps gives expected
-# results
+# Test that truncate with lookaside entries and timestamps gives expected results.
 class test_las02(wttest.WiredTigerTestCase):
     # Force a small cache.
     def conn_config(self):
-        return 'cache_size=50MB,log=(enabled),statistics=(fast),statistics_log=(on_close)'
+        return 'cache_size=50MB,log=(enabled)'
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records, we'll hang if the lookaside table
-        # isn't working
+        # Update a large number of records, we'll hang if the lookaside table isn't working.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(1, nrows + 1):
@@ -66,21 +64,22 @@ class test_las02(wttest.WiredTigerTestCase):
     def test_las(self):
         nrows = 10000
 
-        # Create a table.
+        # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.
         uri = "table:las02_main"
-        ds = SimpleDataSet(self, uri, 0, key_format="S", value_format="S", config='log=(enabled=false)')
+        ds = SimpleDataSet(
+            self, uri, 0, key_format="S", value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         uri2 = "table:las02_extra"
         ds2 = SimpleDataSet(self, uri2, 0, key_format="S", value_format="S")
         ds2.populate()
 
-        bigvalue = "aaaaa" * 100
-        self.large_updates(uri, bigvalue, ds, nrows / 3, 1)
-
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
+
+        bigvalue = "aaaaa" * 100
+        self.large_updates(uri, bigvalue, ds, nrows / 3, 1)
 
         # Check that all updates are seen
         self.check(bigvalue, uri, nrows / 3, 1)
