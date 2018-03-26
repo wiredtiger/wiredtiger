@@ -251,8 +251,18 @@ static inline bool
 __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	WT_TXN *txn;
+	wt_timestamp_t *timestamp;
 
 	txn = &session->txn;
+
+	/*
+	 * The timestamp is in the update for most operations, or attached to
+	 * the page deleted structure for truncates.
+	 */
+	timestamp = op->type == WT_TXN_OP_REF_DELETE ?
+	    (op->u.ref == NULL ? NULL : &op->u.ref->page_del->timestamp) :
+	    (op->u.upd == NULL ? NULL : &op->u.upd->timestamp);
+
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
 	 * commit): metadata cannot be read at a point in time, only the most
@@ -260,8 +270,7 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	 */
 	return (op->fileid != WT_METAFILE_ID &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    (op->u.upd == NULL ||
-	    __wt_timestamp_iszero(&(op->u.upd->timestamp)) ||
+	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
 	    F_ISSET(txn, WT_TXN_PREPARE)));
 }
 #endif
