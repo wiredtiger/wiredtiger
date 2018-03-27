@@ -698,7 +698,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_ERR(__wt_timestamp_validate(session, "commit", &ts, &cval));
+		WT_ERR(__wt_timestamp_validate(session,
+		    "commit", &ts, &cval, true, true, true));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
 #else
@@ -1012,6 +1013,7 @@ int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
 #ifdef HAVE_TIMESTAMPS
+	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
@@ -1021,14 +1023,22 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
+	/* Transaction should not have a commit timestamp set. */
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 	/* Transaction should not have updated any of the logged tables. */
 	WT_ASSERT(session, txn->logrec == NULL);
 
 	WT_RET(__wt_txn_context_check(session, true));
 
-	/* Parse and validate the prepare timestamp.  */
-	WT_RET(__wt_txn_parse_prepare_timestamp(session, cfg, &ts));
+	/* Look for a prepare timestamp.  */
+	WT_RET(
+	    __wt_config_gets_def(session, cfg, "prepare_timestamp", 0, &cval));
+	if (cval.len == 0)
+		WT_RET_MSG(session, EINVAL, "prepare timestamp is required");
+
+	/* TODO : Validate prepare timestamp.  */
+	WT_RET(__wt_txn_parse_timestamp(session, "prepare", &ts, &cval));
 	__wt_timestamp_set(&txn->prepare_timestamp, &ts);
 
 	/*
