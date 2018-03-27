@@ -76,6 +76,7 @@ class test_alter03(wttest.WiredTigerTestCase):
 
         # Alter app metadata and verify
         self.session.alter(uri, app_meta_new)
+        self.verify_metadata(app_meta_new)
 
 if __name__ == '__main__':
     wttest.run()
