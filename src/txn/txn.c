@@ -677,7 +677,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
 	uint32_t previous_state;
-	bool update_timestamp;
+	bool prepared_transaction, update_timestamp;
 #endif
 
 	txn = &session->txn;
@@ -794,6 +794,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Note: we're going to commit: nothing can fail after this point. */
 
+#ifdef HAVE_TIMESTAMPS
+	prepared_transaction = F_ISSET(txn, WT_TXN_PREPARE);
+#endif
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		switch (op->type) {
@@ -827,7 +830,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			if (!__wt_txn_update_needs_timestamp(session, op))
 				break;
 
-			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+			if (prepared_transaction) {
 				/*
 				 * In case of a prepared transaction, the order
 				 * of modification of the prepare timestamp to
@@ -839,10 +842,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 * As updating timestamp might not be an atomic
 				 * operation, we will manage using state.
 				 */
-				upd->state = WT_UPDATE_STATE_LOCKED;
+				upd->prepare_state = WT_PREPARE_LOCKED;
 				__wt_timestamp_set(
 				    &upd->timestamp, &txn->commit_timestamp);
-				upd->state = WT_UPDATE_STATE_READY;
+				upd->prepare_state = WT_PREPARE_READY;
 			} else
 				__wt_timestamp_set(
 				    &upd->timestamp, &txn->commit_timestamp);
@@ -855,8 +858,19 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				break;
 
 			ref = op->u.ref;
-			__wt_timestamp_set(
-			    &ref->page_del->timestamp, &txn->commit_timestamp);
+			if (prepared_transaction) {
+				/*
+				 * As updating timestamp might not be an atomic
+				 * operation, we will manage using state.
+				 */
+				ref->page_del->prepare_state =
+				    WT_PREPARE_LOCKED;
+				__wt_timestamp_set(&ref->page_del->timestamp,
+				    &txn->commit_timestamp);
+				ref->page_del->prepare_state = WT_PREPARE_READY;
+			} else
+				__wt_timestamp_set(&ref->page_del->timestamp,
+				    &txn->commit_timestamp);
 
 			/*
 			 * The page-deleted list can be discarded by eviction,
@@ -872,11 +886,30 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					break;
 			}
 
-			if ((updp = ref->page_del->update_list) != NULL)
-				for (; *updp != NULL; ++updp)
+			if ((updp = ref->page_del->update_list) == NULL) {
+				/*
+				 * Publish to ensure we don't let the page be
+				 * evicted and the updates discarded before
+				 * being written.
+				 */
+				WT_PUBLISH(ref->state, previous_state);
+				break;
+			}
+
+			for (; *updp != NULL; ++updp) {
+				if (prepared_transaction) {
+					(*updp)->prepare_state =
+					    WT_PREPARE_LOCKED;
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
+					(*updp)->prepare_state =
+					    WT_PREPARE_READY;
+				} else
+					__wt_timestamp_set(
+					    &(*updp)->timestamp,
+					    &txn->commit_timestamp);
+			}
 
 			/*
 			 * Publish to ensure we don't let the page be evicted
@@ -1051,11 +1084,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			/* Set prepare timestamp. */
 			__wt_timestamp_set(&upd->timestamp, &ts);
 
-			upd->state = WT_UPDATE_STATE_PREPARED;
+			upd->prepare_state = WT_PREPARE_STATE;
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
+			op->u.ref->page_del->prepare_state = WT_PREPARE_STATE;
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
@@ -1133,6 +1167,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			    upd->txnid == txn->id ||
 			    upd->txnid == WT_TXN_ABORTED);
 			upd->txnid = WT_TXN_ABORTED;
+			upd->prepare_state = WT_PREPARE_READY;
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));

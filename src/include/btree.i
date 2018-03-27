@@ -1163,6 +1163,8 @@ __wt_btree_truncate_active(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 	if (page_del->txnid == WT_TXN_ABORTED)
 		return (false);
+	if (page_del->prepare_state != WT_PREPARE_READY)
+		return (true);
 	return (!__wt_txn_visible_all(session,
 	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
 }
