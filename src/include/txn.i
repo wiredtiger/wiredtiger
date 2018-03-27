@@ -561,10 +561,12 @@ __wt_txn_visible_page_deleted(
     WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
 	WT_PAGE_DELETED *page_del;
+	uint8_t prepare_state;
 
 	if ((page_del = ref->page_del) == NULL)
 		return (true);
-	if (page_del->prepare_state != WT_PREPARE_READY)
+	WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+	if (prepare_state != WT_PREPARE_READY)
 		return (false);
 	return (visible_all ?
 	    __wt_txn_visible_all(session,
@@ -581,12 +583,13 @@ __wt_txn_visible_page_deleted(
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	uint8_t prepare_state;
+	uint8_t after_prepare_state, before_prepare_state;
 	bool upd_visible;
 
 	for (;;__wt_yield()) {
-		/* Commit is in progress, yield and try again. */
-		if ((prepare_state = upd->prepare_state) == WT_PREPARE_LOCKED)
+		WT_ORDERED_READ(before_prepare_state, upd->prepare_state);
+		/* Prepare state change is in progress, yield and try again. */
+		if (before_prepare_state == WT_PREPARE_LOCKED)
 			continue;
 
 		upd_visible = __wt_txn_visible(
@@ -594,16 +597,21 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 		/*
 		 * The visibility check is only valid if the update does not
-		 * change state.  If the state does change, recheck visibility.
+		 * change its prepared state.  If it does change, recheck
+		 * visibility.
 		 */
-		if (upd->prepare_state == prepare_state)
+		WT_ORDERED_READ(after_prepare_state, upd->prepare_state);
+		if (after_prepare_state == before_prepare_state)
 			break;
 	}
 
 	if (!upd_visible)
 		return (WT_VISIBLE_FALSE);
 
-	if (prepare_state == WT_PREPARE_STATE)
+	/*
+	 * Ignore the prepared updated, if transaction is configured to do so.
+	 */
+	if (after_prepare_state == WT_PREPARE_STATE)
 		return (F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) ?
 		    WT_VISIBLE_FALSE : WT_VISIBLE_PREPARE);
 

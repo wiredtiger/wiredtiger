@@ -241,8 +241,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_ASSERT(session, locked);
 	if ((updp = ref->page_del->update_list) != NULL)
 		for (; *updp != NULL; ++updp) {
+			WT_PUBLISH((*updp)->prepare_state, WT_PREPARE_READY);
 			(*updp)->txnid = WT_TXN_ABORTED;
-			(*updp)->prepare_state = WT_PREPARE_READY;
 		}
 
 	ref->state = current_state;
@@ -251,7 +251,7 @@ done:	/*
 	 * Now mark the truncate aborted: this must come last because after
 	 * this point there is nothing preventing the page from being evicted.
 	 */
-	ref->page_del->prepare_state = WT_PREPARE_READY;
+	WT_PUBLISH(ref->page_del->prepare_state, WT_PREPARE_READY);
 	WT_PUBLISH(ref->page_del->txnid, WT_TXN_ABORTED);
 	return (0);
 }

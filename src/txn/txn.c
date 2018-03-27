@@ -842,10 +842,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 * As updating timestamp might not be an atomic
 				 * operation, we will manage using state.
 				 */
-				upd->prepare_state = WT_PREPARE_LOCKED;
+				WT_PUBLISH(upd->prepare_state,
+				    WT_PREPARE_LOCKED);
 				__wt_timestamp_set(
 				    &upd->timestamp, &txn->commit_timestamp);
-				upd->prepare_state = WT_PREPARE_READY;
+				WT_PUBLISH(upd->prepare_state,
+				    WT_PREPARE_READY);
 			} else
 				__wt_timestamp_set(
 				    &upd->timestamp, &txn->commit_timestamp);
@@ -863,11 +865,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 * As updating timestamp might not be an atomic
 				 * operation, we will manage using state.
 				 */
-				ref->page_del->prepare_state =
-				    WT_PREPARE_LOCKED;
+				WT_PUBLISH(ref->page_del->prepare_state,
+				    WT_PREPARE_LOCKED);
 				__wt_timestamp_set(&ref->page_del->timestamp,
 				    &txn->commit_timestamp);
-				ref->page_del->prepare_state = WT_PREPARE_READY;
+				WT_PUBLISH(ref->page_del->prepare_state,
+				    WT_PREPARE_READY);
 			} else
 				__wt_timestamp_set(&ref->page_del->timestamp,
 				    &txn->commit_timestamp);
@@ -898,13 +901,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 			for (; *updp != NULL; ++updp) {
 				if (prepared_transaction) {
-					(*updp)->prepare_state =
-					    WT_PREPARE_LOCKED;
+					WT_PUBLISH((*updp)->prepare_state,
+					    WT_PREPARE_LOCKED);
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
-					(*updp)->prepare_state =
-					    WT_PREPARE_READY;
+					WT_PUBLISH((*updp)->prepare_state,
+					    WT_PREPARE_READY);
 				} else
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
@@ -1084,12 +1087,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			/* Set prepare timestamp. */
 			__wt_timestamp_set(&upd->timestamp, &ts);
 
-			upd->prepare_state = WT_PREPARE_STATE;
+			WT_PUBLISH(upd->prepare_state, WT_PREPARE_STATE);
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
 			    &op->u.ref->page_del->timestamp, &ts);
-			op->u.ref->page_del->prepare_state = WT_PREPARE_STATE;
+			WT_PUBLISH(op->u.ref->page_del->prepare_state,
+			    WT_PREPARE_STATE);
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
@@ -1166,8 +1170,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ASSERT(session,
 			    upd->txnid == txn->id ||
 			    upd->txnid == WT_TXN_ABORTED);
+			WT_PUBLISH(upd->prepare_state, WT_PREPARE_READY);
 			upd->txnid = WT_TXN_ABORTED;
-			upd->prepare_state = WT_PREPARE_READY;
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
