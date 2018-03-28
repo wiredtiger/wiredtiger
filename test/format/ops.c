@@ -512,6 +512,13 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 		config = "isolation=snapshot";
 		if (g.c_txn_timestamps) {
 			/*
+			 * Avoid starting a new reader when a prepare is in
+			 * progress.
+			 */
+			while (g.prepare_cnt)
+				__wt_yield();
+
+			/*
 			 * Set the thread's read timestamp to the current value
 			 * before allocating a new read timestamp. This
 			 * guarantees the oldest timestamp won't move past the
@@ -617,6 +624,7 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 static int
 prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 {
+	WT_DECL_RET;
 	uint64_t ts;
 	char config_buf[64];
 
@@ -635,10 +643,22 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 */
 	++tinfo->prepare;
 
+	/*
+	 * Indicate a prepare is in progress to avoid starting a new reader.
+	 *
+	 * Prepare will return error if prepare timestamp is less than any
+	 * active read timestamp.
+	 */
+	__wt_atomic_add8(&g.prepare_cnt, 1);
+
 	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
-	return (session->prepare_transaction(session, config_buf));
+	ret = session->prepare_transaction(session, config_buf);
+
+	__wt_atomic_sub8(&g.prepare_cnt, 1);
+
+	return (ret);
 }
 
 /*
