@@ -799,7 +799,7 @@ skip_evict:		/*
 			if (cache_work)
 				continue;
 		}
-		__wt_ref_state_yield_sleep(&wait_cnt, &sleep_cnt);
+		__wt_state_yield_sleep(&wait_cnt, &sleep_cnt);
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_cnt);
 	}
 }
