@@ -2,7 +2,18 @@
 
 class Method:
     def __init__(self, config):
-        self.config = config
+        # Deal with duplicates: with complex configurations (like
+        # WT_SESSION::create), it's simpler to deal with duplicates once than
+        # manually as configurations are defined
+        self.config = []
+        lastname = None
+        for c in sorted(config):
+            if '.' in c.name:
+                raise "Bad config key '%s'" % c.name
+            if c.name == lastname:
+                continue
+            lastname = c.name
+            self.config.append(c)
 
 class Config:
     def __init__(self, name, default, desc, subconfig=None, **flags):
@@ -21,7 +32,7 @@ common_runtime_config = [
 ]
 
 # Metadata shared by all schema objects
-common_meta = [
+common_meta = common_runtime_config + [
     Config('collator', 'none', r'''
         configure custom collation for keys.  Permitted values are \c "none"
         or a custom collator name created with WT_CONNECTION::add_collator'''),
@@ -378,15 +389,14 @@ index_only_config = [
         by any update to a record in the table''', type='boolean'),
 ]
 
-colgroup_meta = common_runtime_config + common_meta + source_meta
+colgroup_meta = common_meta + source_meta
 
-index_meta = common_runtime_config + \
-    format_meta + source_meta + index_only_config + [
+index_meta = format_meta + source_meta + index_only_config + [
     Config('index_key_columns', '', r'''
         number of public key columns''', type='int', undoc=True),
 ]
 
-table_meta = common_runtime_config + format_meta + table_only_config
+table_meta = format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
