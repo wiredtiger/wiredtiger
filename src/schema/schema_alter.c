@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+static int __schema_alter(WT_SESSION_IMPL *, const char *, const char *[]);
 
 /*
  * __alter_apply --
@@ -64,7 +65,6 @@ err:	__wt_free(session, config);
 static int
 __alter_file(WT_SESSION_IMPL *session, const char *newcfg[])
 {
-	WT_DECL_RET;
 	const char *filename, *uri;
 
 	/*
@@ -76,13 +76,9 @@ __alter_file(WT_SESSION_IMPL *session, const char *newcfg[])
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		return (__wt_unexpected_object_type(session, uri, "file:"));
 
-	WT_RET(__wt_meta_track_on(session));
-
-	WT_ERR(__alter_apply(session,
+	WT_RET(__alter_apply(session,
 	    uri, newcfg, WT_CONFIG_BASE(session, file_meta)));
-
-err:	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
-	return (ret);
+	return (0);
 }
 
 /*
@@ -118,7 +114,7 @@ __alter_tree(WT_SESSION_IMPL *session, const char *name, const char *newcfg[])
 	    data_source, "%.*s", (int)cval.len, cval.str));
 
 	/* Alter the data source */
-	WT_ERR(__wt_schema_alter(session, data_source->data, newcfg));
+	WT_ERR(__schema_alter(session, data_source->data, newcfg));
 
 	/* Alter the index or colgroup */
 	if (is_colgroup)
@@ -147,51 +143,77 @@ __alter_table(
 	WT_TABLE *table;
 	u_int i;
 	const char *name;
-	bool tracked;
 
+	colgroup = NULL;
+	table = NULL;
 	name = uri;
 	WT_PREFIX_SKIP_REQUIRED(session, name, "table:");
-
-	table = NULL;
-	tracked = false;
 
 	/*
 	 * Open the table so we can alter its column groups and indexes, keeping
 	 * the table locked exclusive across the alter.
 	 */
-	WT_ERR(__wt_schema_get_table_uri(session, uri, true,
+	WT_RET(__wt_schema_get_table_uri(session, uri, true,
 	    WT_DHANDLE_EXCLUSIVE, &table));
+	/* Meta tracking needs to be used because alter needs to be atomic. */
+	WT_ASSERT(session, WT_META_TRACKING(session));
+	WT_WITH_DHANDLE(session, &table->iface,
+	    ret = __wt_meta_track_handle_lock(session, false));
+	WT_RET(ret);
 
-	colgroup = NULL;
 	/* Alter the column groups. */
 	for (i = 0; i < WT_COLGROUPS(table); i++) {
 		if ((colgroup = table->cgroups[i]) == NULL)
 			continue;
-		WT_ERR(__alter_tree(session, colgroup->name, newcfg));
+		WT_RET(__alter_tree(session, colgroup->name, newcfg));
 	}
 
 	/* Alter the indices. */
-	WT_ERR(__wt_schema_open_indices(session, table));
+	WT_RET(__wt_schema_open_indices(session, table));
 	for (i = 0; i < table->nindices; i++) {
 		if ((idx = table->indices[i]) == NULL)
 			continue;
-		WT_ERR(__alter_tree(session, idx->name, newcfg));
+		WT_RET(__alter_tree(session, idx->name, newcfg));
 	}
 
 	/* Alter the table */
-	WT_ERR(__alter_apply(session,
+	WT_RET(__alter_apply(session,
 	    uri, newcfg, WT_CONFIG_BASE(session, table_meta)));
 
-	if (WT_META_TRACKING(session)) {
-		WT_WITH_DHANDLE(session, &table->iface,
-		    ret = __wt_meta_track_handle_lock(session, false));
-		WT_ERR(ret);
-		tracked = true;
-	}
-
-err:	if (table != NULL && !tracked)
-		WT_TRET(__wt_schema_release_table(session, table));
 	return (ret);
+}
+
+/*
+ * __schema_alter --
+ *	Alter an object.
+ */
+static int
+__schema_alter(WT_SESSION_IMPL *session,
+    const char *uri, const char *newcfg[])
+{
+	uint32_t flags;
+
+	/*
+	 * The alter flag is used so LSM can apply some special logic, the
+	 * exclusive flag avoids conflicts with other operations and the lock
+	 * only flag is required because we don't need to have a handle to
+	 * update the metadata and opening the handle causes problems when
+	 * meta tracking is enabled.
+	 */
+	flags = WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE | WT_DHANDLE_LOCK_ONLY;
+	if (WT_PREFIX_MATCH(uri, "file:"))
+		return (__wt_exclusive_handle_operation(
+		    session, uri, __alter_file, newcfg, flags));
+	else if (WT_PREFIX_MATCH(uri, "colgroup:") ||
+	    WT_PREFIX_MATCH(uri, "index:"))
+		return (__alter_tree(session, uri, newcfg));
+	else if (WT_PREFIX_MATCH(uri, "lsm:"))
+		return (__wt_lsm_tree_worker(session, uri, __alter_file,
+		    NULL, newcfg, flags));
+	else if (WT_PREFIX_MATCH(uri, "table:"))
+		return (__alter_table(session, uri, newcfg));
+
+	return (__wt_bad_object_type(session, uri));
 }
 
 /*
@@ -202,18 +224,9 @@ int
 __wt_schema_alter(WT_SESSION_IMPL *session,
     const char *uri, const char *newcfg[])
 {
-	if (WT_PREFIX_MATCH(uri, "file:"))
-		return (__wt_exclusive_handle_operation(
-		    session, uri, __alter_file, newcfg,
-		    WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE));
-	else if (WT_PREFIX_MATCH(uri,
-	    "colgroup:") || WT_PREFIX_MATCH(uri, "index:"))
-		return (__alter_tree(session, uri, newcfg));
-	else if (WT_PREFIX_MATCH(uri, "lsm:"))
-		return (__wt_lsm_tree_worker(session, uri, __alter_file,
-		    NULL, newcfg, WT_BTREE_ALTER | WT_DHANDLE_EXCLUSIVE));
-	else if (WT_PREFIX_MATCH(uri, "table:"))
-		return (__alter_table(session, uri, newcfg));
-
-	return (__wt_bad_object_type(session, uri));
+	WT_DECL_RET;
+	WT_RET(__wt_meta_track_on(session));
+	ret = __schema_alter(session, uri, newcfg);
+	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+	return (ret);
 }
