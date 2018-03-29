@@ -256,12 +256,14 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	txn = &session->txn;
 
 	/*
-	 * The timestamp is in the update for most operations, or attached to
-	 * the page deleted structure for truncates.
+	 * The timestamp is in the page deleted structure for truncates, or
+	 * in the update for other operations.
 	 */
-	timestamp = op->type == WT_TXN_OP_REF_DELETE ?
-	    (op->u.ref == NULL ? NULL : &op->u.ref->page_del->timestamp) :
-	    (op->u.upd == NULL ? NULL : &op->u.upd->timestamp);
+	if (op->type == WT_TXN_OP_REF_DELETE)
+		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
+		    NULL : &op->u.ref->page_del->timestamp;
+	else
+		timestamp = op->u.upd == NULL ? NULL : &op->u.upd->timestamp;
 
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
