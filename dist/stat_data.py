@@ -549,7 +549,6 @@ connection_stats = [
     YieldStat('page_locked_blocked', 'page acquire locked blocked'),
     YieldStat('page_read_blocked', 'page acquire read blocked'),
     YieldStat('page_sleep', 'page acquire time sleeping (usecs)'),
-    YieldStat('tree_descend_blocked', 'tree descend one level yielded for split page index update'),
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
 

@@ -1040,7 +1040,6 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page acquire time sleeping (usecs)",
 	"thread-yield: page delete rollback time sleeping for state change (usecs)",
 	"thread-yield: page reconciliation yielded due to child modification",
-	"thread-yield: tree descend one level yielded for split page index update",
 	"transaction: commit timestamp queue insert to empty",
 	"transaction: commit timestamp queue inserts to tail",
 	"transaction: commit timestamp queue inserts total",
@@ -1429,7 +1428,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_sleep = 0;
 	stats->page_del_rollback_blocked = 0;
 	stats->child_modify_blocked_page = 0;
-	stats->tree_descend_blocked = 0;
 	stats->txn_commit_queue_empty = 0;
 	stats->txn_commit_queue_tail = 0;
 	stats->txn_commit_queue_inserts = 0;
@@ -1944,7 +1942,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, page_del_rollback_blocked);
 	to->child_modify_blocked_page +=
 	    WT_STAT_READ(from, child_modify_blocked_page);
-	to->tree_descend_blocked += WT_STAT_READ(from, tree_descend_blocked);
 	to->txn_commit_queue_empty +=
 	    WT_STAT_READ(from, txn_commit_queue_empty);
 	to->txn_commit_queue_tail +=
