@@ -1290,7 +1290,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 {
 	WT_DECL_RET;
 	WT_ITEM key, value;
-	uint64_t keyno;
+	uint64_t keyno, keyno_prev;
 	uint8_t bitfield;
 	int cmp;
 	const char *which;
@@ -1331,41 +1331,68 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		if (DATASOURCE("lsm"))
 			break;
 
+		/*
+		 * Compare the returned key with the previously returned key.
+		 * Assert the order is correct, and if not deleting keys, also
+		 * assert we don't skip groups of records (that's a page-split
+		 * bug symptom).
+		 */
 		switch (g.type) {
 		case FIX:
 		case VAR:
-			testutil_assertfmt(
-			    !next || tinfo->keyno < keyno,
-			    "%s returned %" PRIu64 " then %" PRIu64,
-			    which, tinfo->keyno, keyno);
-			testutil_assertfmt(
-			    next || tinfo->keyno > keyno,
-			    "%s returned %" PRIu64 " then %" PRIu64,
-			    which, tinfo->keyno, keyno);
+			if (!next) {
+				if (tinfo->keyno < keyno ||
+				    (g.c_delete_pct == 0 &&
+				    keyno != tinfo->keyno - 1))
+					goto order_error_col;
+			} else
+				if (tinfo->keyno > keyno ||
+				    (g.c_delete_pct == 0 &&
+				    keyno != tinfo->keyno + 1))
+					goto order_error_col;
+			if (0) {
+order_error_col:
+				testutil_die(0,
+				    "%s returned %" PRIu64 " then %" PRIu64,
+				    which, tinfo->keyno, keyno);
+			}
 
 			tinfo->keyno = keyno;
 			break;
 		case ROW:
-			cmp = memcmp(tinfo->key->data, key.data,
-			    WT_MIN(tinfo->key->size, key.size));
 			incrementing =
 			    (next && !g.c_reverse) || (!next && g.c_reverse);
-			testutil_assertfmt(
-			    !incrementing ||
-			    cmp < 0 ||
-			    (cmp == 0 && tinfo->key->size < key.size),
-			    "%s returned {%.*s} then {%.*s}",
-			    which,
-			    (int)tinfo->key->size, tinfo->key->data,
-			    (int)key.size, key.data);
-			testutil_assertfmt(
-			    incrementing ||
-			    cmp > 0 ||
-			    (cmp == 0 && tinfo->key->size > key.size),
-			    "%s returned {%.*s} then {%.*s}",
-			    which,
-			    (int)tinfo->key->size, tinfo->key->data,
-			    (int)key.size, key.data);
+			cmp = memcmp(tinfo->key->data, key.data,
+			    WT_MIN(tinfo->key->size, key.size));
+			if (incrementing) {
+				if (cmp > 0 ||
+				    (cmp == 0 && tinfo->key->size < key.size))
+					goto order_error_row;
+			} else
+				if (cmp < 0 ||
+				    (cmp == 0 && tinfo->key->size > key.size))
+					goto order_error_row;
+			if (g.c_delete_pct == 0) {
+				keyno_prev =
+				    strtoul(tinfo->key->data, NULL, 10);
+				keyno = strtoul(key.data, NULL, 10);
+				if (incrementing) {
+					if (keyno_prev != keyno &&
+					    keyno_prev + 1 != keyno)
+						goto order_error_row;
+				} else
+					if (keyno_prev != keyno &&
+					    keyno_prev - 1 != keyno)
+						goto order_error_row;
+			}
+			if (0) {
+order_error_row:
+				testutil_die(0,
+				    "%s returned {%.*s} then {%.*s}",
+				    which,
+				    (int)tinfo->key->size, tinfo->key->data,
+				    (int)key.size, key.data);
+			}
 
 			testutil_check(__wt_buf_set((WT_SESSION_IMPL *)
 			    cursor->session, tinfo->key, key.data, key.size));
