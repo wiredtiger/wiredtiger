@@ -244,7 +244,7 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 		ds->f = __dmsg_file;
 	}
 
-	btree = S2BT_SAFE(session);
+	btree = S2BT(session);
 	ds->key_format = btree->key_format;
 	ds->value_format = btree->value_format;
 	return (0);
@@ -661,7 +661,8 @@ __wt_debug_page(
 		btree = S2BT(session);
 
 	ds = &_ds;
-	WT_RET(__debug_config(session, ds, ofile));
+	WT_WITH_BTREE(session, btree, ret = __debug_config(session, ds, ofile));
+	WT_RET(ret);
 
 	WT_WITH_BTREE(session, btree,
 	    ret = __debug_page(ds, ref, WT_DEBUG_TREE_LEAF));
