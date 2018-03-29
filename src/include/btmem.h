@@ -506,11 +506,7 @@ struct __wt_page {
 		 * Internal pages (both column- and row-store).
 		 *
 		 * In-memory internal pages have an array of pointers to child
-		 * structures, maintained in collated order.  When a page is
-		 * read into memory, the initial list of children is stored in
-		 * the "orig_index" field, and it and the collated order are
-		 * the same.  After a page splits, the collated order and the
-		 * original order will differ.
+		 * structures, maintained in collated order.
 		 *
 		 * Multiple threads of control may be searching the in-memory
 		 * internal page and a child page of the internal page may
