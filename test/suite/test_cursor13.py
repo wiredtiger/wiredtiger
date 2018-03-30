@@ -527,3 +527,21 @@ class test_cursor13_sweep(test_cursor13_big_base):
         # by approximately the number of swept cursors, but it's less
         # predictable.
         self.assertGreater(end_stats[1] - begin_stats[1], 0)
+
+class test_cursor13_dup(test_cursor13_base):
+    def test_dup(self):
+        self.cursor_stats_init()
+        uri = 'table:test_cursor13_dup'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
+        cursor['A'] = 'B'
+        cursor.close()
+
+        c1 = self.session.open_cursor(uri, None)
+        for notused in range(0, 100):
+            self.session.breakpoint()
+            c2 = self.session.open_cursor(None, c1, None)
+            c2.close()
+        stats = self.caching_stats()
+        self.assertGreaterEqual(stats[0], 100)
+        self.assertGreaterEqual(stats[1], 100)

@@ -578,7 +578,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session,
 	/* We do not cache any subordinate tables/files cursors. */
 	if (owner == NULL) {
 		if ((ret = __wt_cursor_cache_get(
-		    session, uri, cfg, cursorp)) == 0)
+		    session, uri, NULL, cfg, cursorp)) == 0)
 			return (0);
 		WT_RET_NOTFOUND_OK(ret);
 	}
@@ -605,13 +605,6 @@ __session_open_cursor(WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
 
-	if (to_dup == NULL) {
-		if ((ret = __wt_cursor_cache_get(
-		    session, uri, cfg, cursorp)) == 0)
-			goto done;
-		WT_RET_NOTFOUND_OK(ret);
-	}
-
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
 	if ((to_dup == NULL && uri == NULL) ||
@@ -619,6 +612,11 @@ __session_open_cursor(WT_SESSION *wt_session,
 		WT_ERR_MSG(session, EINVAL,
 		    "should be passed either a URI or a cursor to duplicate, "
 		    "but not both");
+
+	if ((ret = __wt_cursor_cache_get(
+	    session, uri, to_dup, cfg, cursorp)) == 0)
+		goto done;
+	WT_ERR_NOTFOUND_OK(ret);
 
 	if (to_dup != NULL && !statjoin) {
 		uri = to_dup->uri;
@@ -634,7 +632,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	WT_ERR(__session_open_cursor_int(session, uri, NULL,
 	    statjoin ? to_dup : NULL, cfg, &cursor));
-	if (to_dup != NULL && !statjoin)
+	if (to_dup != NULL && !statjoin && F_ISSET(to_dup, WT_CURSTD_KEY_SET))
 		WT_ERR(__wt_cursor_dup_position(to_dup, cursor));
 
 	*cursorp = cursor;
