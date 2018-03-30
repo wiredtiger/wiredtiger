@@ -65,20 +65,19 @@ err:	__wt_free(session, config);
 static int
 __alter_file(WT_SESSION_IMPL *session, const char *newcfg[])
 {
-	const char *filename, *uri;
+	const char *uri;
 
 	/*
 	 * We know that we have exclusive access to the file.  So it will be
 	 * closed after we're done with it and the next open will see the
 	 * updated metadata.
 	 */
-	filename = uri = session->dhandle->name;
-	if (!WT_PREFIX_SKIP(filename, "file:"))
+	uri = session->dhandle->name;
+	if (!WT_PREFIX_MATCH(uri, "file:"))
 		return (__wt_unexpected_object_type(session, uri, "file:"));
 
-	WT_RET(__alter_apply(session,
+	return (__alter_apply(session,
 	    uri, newcfg, WT_CONFIG_BASE(session, file_meta)));
-	return (0);
 }
 
 /*
