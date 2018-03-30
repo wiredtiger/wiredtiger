@@ -155,7 +155,10 @@ __thread_group_resize(
 		return (0);
 
 	if (new_min > new_max)
-		return (EINVAL);
+		WT_RET_MSG(session, EINVAL,
+		    "Illegal thread group resize: %s, from min: %" PRIu32
+		    " -> %" PRIu32 " from max: %" PRIu32 " -> %" PRIu32,
+		    group->name, group->min, new_min, group->max, new_max);
 
 	/*
 	 * Call shrink to reduce the number of thread structures and running
