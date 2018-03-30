@@ -614,7 +614,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 		    "but not both");
 
 	if ((ret = __wt_cursor_cache_get(
-	    session, uri, to_dup, cfg, cursorp)) == 0)
+	    session, uri, to_dup, cfg, &cursor)) == 0)
 		goto done;
 	WT_ERR_NOTFOUND_OK(ret);
 
@@ -632,7 +632,9 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	WT_ERR(__session_open_cursor_int(session, uri, NULL,
 	    statjoin ? to_dup : NULL, cfg, &cursor));
-	if (to_dup != NULL && !statjoin && F_ISSET(to_dup, WT_CURSTD_KEY_SET))
+
+done:
+	if (to_dup != NULL && !statjoin)
 		WT_ERR(__wt_cursor_dup_position(to_dup, cursor));
 
 	*cursorp = cursor;
@@ -641,7 +643,6 @@ __session_open_cursor(WT_SESSION *wt_session,
 err:		if (cursor != NULL)
 			WT_TRET(cursor->close(cursor));
 	}
-done:
 	/*
 	 * Opening a cursor on a non-existent data source will set ret to
 	 * either of ENOENT or WT_NOTFOUND at this point. However,

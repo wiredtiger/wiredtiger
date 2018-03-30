@@ -538,6 +538,7 @@ class test_cursor13_dup(test_cursor13_base):
         cursor.close()
 
         c1 = self.session.open_cursor(uri, None)
+        c1.next()
         for notused in range(0, 100):
             self.session.breakpoint()
             c2 = self.session.open_cursor(None, c1, None)
