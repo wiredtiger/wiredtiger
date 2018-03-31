@@ -18,7 +18,9 @@
 #if defined(HAVE_ARM_NEON_INTRIN_H)
 #include <arm_neon.h>
 /*
- * Creates a 16-bit mask from the most significant bits of the 16 signed or unsigned 8-bit integers
+ * _mm_movemask_epi8_neon --
+ *	Creates a 16-bit mask from the most significant bits of the 16 signed
+ * or unsigned 8-bit integers.
  */
 static inline uint16_t
 _mm_movemask_epi8_neon(const uint8x16_t data)
@@ -28,10 +30,12 @@ _mm_movemask_epi8_neon(const uint8x16_t data)
 	uint8x16_t powers = vcombine_u8(p, p);
 	uint8x16_t zero8x16 = vdupq_n_s8(0);
 	int8x16_t input = vcltq_s8((int8x16_t)data, (int8x16_t)zero8x16);
-	uint64x2_t mask = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8(vandq_u8((uint8x16_t)input, powers))));
+	uint64x2_t mask = vpaddlq_u32(
+	    vpaddlq_u16(vpaddlq_u8(vandq_u8((uint8x16_t)input, powers))));
 	uint16_t output;
-	output = ( (vgetq_lane_u8(mask, 8) << 8) | (vgetq_lane_u8(mask, 0) << 0) );
-	return output;
+	output =
+	    ((vgetq_lane_u8(mask, 8) << 8) | (vgetq_lane_u8(mask, 0) << 0));
+	return (output);
 }
 #endif
 
