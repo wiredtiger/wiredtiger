@@ -751,6 +751,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			return (WT_NOTFOUND);
 	}
 
+	WT_ASSERT(session, uri == NULL || to_dup == NULL);
 	if (to_dup != NULL) {
 		uri = to_dup->uri;
 		hash_value = to_dup->uri_hash;

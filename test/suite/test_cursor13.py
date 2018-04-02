@@ -41,6 +41,7 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
     stat_cursor_cache = 0
     stat_cursor_reopen = 0
 
+    # Returns a list: [cursor_cached, cursor_reopened]
     def caching_stats(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache = stat_cursor[stat.conn.cursor_cache][2]
@@ -48,6 +49,8 @@ class test_cursor13_base(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return [cache, reopen]
 
+    # Returns a list: [cursor_sweep, cursor_sweep_buckets,
+    #                  cursor_sweep_examined, cursor_sweep_closed]
     def sweep_stats(self):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         sweep = stat_cursor[stat.conn.cursor_sweep][2]
@@ -537,12 +540,15 @@ class test_cursor13_dup(test_cursor13_base):
         cursor['A'] = 'B'
         cursor.close()
 
+        # Get a cursor and position it.
+        # An unpositioned cursor cannot be duplicated.
         c1 = self.session.open_cursor(uri, None)
         c1.next()
+
         for notused in range(0, 100):
             self.session.breakpoint()
             c2 = self.session.open_cursor(None, c1, None)
             c2.close()
         stats = self.caching_stats()
-        self.assertGreaterEqual(stats[0], 100)
-        self.assertGreaterEqual(stats[1], 100)
+        self.assertGreaterEqual(stats[0], 100)  # cursor_cached > 100
+        self.assertGreaterEqual(stats[1], 100)  # cursor_reopened > 100

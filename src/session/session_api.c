@@ -607,27 +607,29 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    WT_STREQ(uri, "statistics:join"));
-	if ((to_dup == NULL && uri == NULL) ||
-	    (to_dup != NULL && uri != NULL && !statjoin))
-		WT_ERR_MSG(session, EINVAL,
-		    "should be passed either a URI or a cursor to duplicate, "
-		    "but not both");
+	if (!statjoin) {
+		if ((to_dup == NULL && uri == NULL) ||
+		    (to_dup != NULL && uri != NULL))
+			WT_ERR_MSG(session, EINVAL,
+			    "should be passed either a URI or a cursor to "
+			    "duplicate, but not both");
 
-	if ((ret = __wt_cursor_cache_get(
-	    session, uri, to_dup, cfg, &cursor)) == 0)
-		goto done;
-	WT_ERR_NOTFOUND_OK(ret);
+		if ((ret = __wt_cursor_cache_get(
+		    session, uri, to_dup, cfg, &cursor)) == 0)
+			goto done;
+		WT_ERR_NOTFOUND_OK(ret);
 
-	if (to_dup != NULL && !statjoin) {
-		uri = to_dup->uri;
-		if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
-		    !WT_PREFIX_MATCH(uri, "index:") &&
-		    !WT_PREFIX_MATCH(uri, "file:") &&
-		    !WT_PREFIX_MATCH(uri, "lsm:") &&
-		    !WT_PREFIX_MATCH(uri, WT_METADATA_URI) &&
-		    !WT_PREFIX_MATCH(uri, "table:") &&
-		    __wt_schema_get_source(session, uri) == NULL)
-			WT_ERR(__wt_bad_object_type(session, uri));
+		if (to_dup != NULL) {
+			uri = to_dup->uri;
+			if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
+			    !WT_PREFIX_MATCH(uri, "index:") &&
+			    !WT_PREFIX_MATCH(uri, "file:") &&
+			    !WT_PREFIX_MATCH(uri, "lsm:") &&
+			    !WT_PREFIX_MATCH(uri, WT_METADATA_URI) &&
+			    !WT_PREFIX_MATCH(uri, "table:") &&
+			    __wt_schema_get_source(session, uri) == NULL)
+				WT_ERR(__wt_bad_object_type(session, uri));
+		}
 	}
 
 	WT_ERR(__session_open_cursor_int(session, uri, NULL,
