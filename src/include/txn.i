@@ -251,8 +251,20 @@ static inline bool
 __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	WT_TXN *txn;
+	wt_timestamp_t *timestamp;
 
 	txn = &session->txn;
+
+	/*
+	 * The timestamp is in the page deleted structure for truncates, or
+	 * in the update for other operations.
+	 */
+	if (op->type == WT_TXN_OP_REF_DELETE)
+		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
+		    NULL : &op->u.ref->page_del->timestamp;
+	else
+		timestamp = op->u.upd == NULL ? NULL : &op->u.upd->timestamp;
+
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
 	 * commit): metadata cannot be read at a point in time, only the most
@@ -260,8 +272,7 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	 */
 	return (op->fileid != WT_METAFILE_ID &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    (op->u.upd == NULL ||
-	    __wt_timestamp_iszero(&(op->u.upd->timestamp)) ||
+	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
 	    F_ISSET(txn, WT_TXN_PREPARE)));
 }
 #endif
@@ -296,7 +307,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 /*
  * __wt_txn_modify_page_delete --
- *	Remember a page fast-deleted by the current transaction.
+ *	Remember a page truncated by the current transaction.
  */
 static inline int
 __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -544,18 +555,40 @@ __wt_txn_visible(
 }
 
 /*
+ * __wt_txn_visible_page_deleted --
+ *	Can the current transaction see the fast-deleted page.
+ */
+static inline bool
+__wt_txn_visible_page_deleted(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+{
+	WT_PAGE_DELETED *page_del;
+
+	if ((page_del = ref->page_del) == NULL)
+		return (true);
+	if (page_del->prepare_state != WT_PREPARE_READY)
+		return (false);
+	return (visible_all ?
+	    __wt_txn_visible_all(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) :
+	    __wt_txn_visible(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
+
+}
+
+/*
  * __wt_txn_upd_visible_type --
  *      Visible type of given update for the current transaction.
  */
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	uint8_t upd_state;
+	uint8_t prepare_state;
 	bool upd_visible;
 
 	for (;;__wt_yield()) {
 		/* Commit is in progress, yield and try again. */
-		if ((upd_state = upd->state) == WT_UPDATE_STATE_LOCKED)
+		if ((prepare_state = upd->prepare_state) == WT_PREPARE_LOCKED)
 			continue;
 
 		upd_visible = __wt_txn_visible(
@@ -565,14 +598,14 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		 * The visibility check is only valid if the update does not
 		 * change state.  If the state does change, recheck visibility.
 		 */
-		if (upd->state == upd_state)
+		if (upd->prepare_state == prepare_state)
 			break;
 	}
 
 	if (!upd_visible)
 		return (WT_VISIBLE_FALSE);
 
-	if (upd_state == WT_UPDATE_STATE_PREPARED)
+	if (prepare_state == WT_PREPARE_STATE)
 		return (F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) ?
 		    WT_VISIBLE_FALSE : WT_VISIBLE_PREPARE);
 

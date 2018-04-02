@@ -1072,9 +1072,8 @@ update_instead_of_chosen_op:
 
 		/*
 		 * Prepare the transaction 10% of the time.
-		 * Currently doesn't work with truncation, see WT-3922.
 		 */
-		if (g.c_truncate == 0 && mmrand(&tinfo->rnd, 1, 10) == 1) {
+		if (mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
@@ -1379,7 +1378,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		return (ret);
 	}
 
-	if (g.logging == LOG_OPS)
+	if (ret == 0 && g.logging == LOG_OPS)
 		switch (g.type) {
 		case FIX:
 			(void)g.wt_api->msg_printf(g.wt_api,

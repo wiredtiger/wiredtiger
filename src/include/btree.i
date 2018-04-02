@@ -1151,6 +1151,25 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_btree_truncate_active --
+ *	Return if a truncate operation is active.
+ */
+static inline bool
+__wt_btree_truncate_active(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_PAGE_DELETED *page_del;
+
+	if ((page_del = ref->page_del) == NULL)
+		return (false);
+	if (page_del->txnid == WT_TXN_ABORTED)
+		return (false);
+	if (page_del->prepare_state != WT_PREPARE_READY)
+		return (true);
+	return (!__wt_txn_visible_all(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
+}
+
+/*
  * __wt_btree_can_evict_dirty --
  *	Check whether eviction of dirty pages or splits are permitted in the
  *	current tree.
@@ -1336,7 +1355,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	page = ref->page;
 	mod = page->modify;
 
-	/* Pages that have never been modified can always be evicted. */
+	/* A truncated page can't be evicted until the truncate completes. */
+	if (__wt_btree_truncate_active(session, ref))
+		return (false);
+
+	/* Otherwise, never modified pages can always be evicted. */
 	if (mod == NULL)
 		return (true);
 
@@ -1348,12 +1371,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 */
 	if (!__wt_btree_can_evict_dirty(session) &&
 	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
-		return (false);
-
-	/* A truncated page can't be evicted until the truncate completes. */
-	if (ref->page_del != NULL && ref->page_del->txnid != WT_TXN_ABORTED &&
-	    !__wt_txn_visible_all(session,
-	    ref->page_del->txnid, WT_TIMESTAMP_NULL(&ref->page_del->timestamp)))
 		return (false);
 
 	/*
@@ -1458,7 +1475,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
 			if (!WT_SESSION_IS_CHECKPOINT(session))
-				(void)__wt_page_evict_urgent(session, ref);
+				WT_IGNORE_RET(
+				    __wt_page_evict_urgent(session, ref));
 		} else {
 			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
 			return (0);
@@ -1674,25 +1692,4 @@ __wt_split_descent_race(
 	 */
 	WT_INTL_INDEX_GET(session, ref->home, pindex);
 	return (pindex != saved_pindex);
-}
-
-/*
- * __wt_ref_state_yield_sleep --
- *	sleep while waiting for the wt_ref state after THOUSAND yields.
- */
-static inline void
-__wt_ref_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_count)
-{
-	/*
-	 * We yield before retrying, and if we've yielded enough times, start
-	 * sleeping so we don't burn CPU to no purpose.
-	 */
-	if ((*yield_count) < WT_THOUSAND) {
-		(*yield_count)++;
-		__wt_yield();
-		return;
-	}
-
-	(*sleep_count) = WT_MIN((*sleep_count) + 100, WT_THOUSAND);
-	__wt_sleep(0, (*sleep_count));
 }
