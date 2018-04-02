@@ -493,6 +493,7 @@ snap_check(WT_CURSOR *cursor,
 static void
 begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
+	uint64_t prepare_cnt;
 	u_int v;
 	const char *config;
 	char config_buf[64];
@@ -515,8 +516,11 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 			 * Avoid starting a new reader when a prepare is in
 			 * progress.
 			 */
-			while (!__wt_atomic_cas64(&g.prepare_cnt, 0, 0))
-				__wt_yield();
+			for (;; __wt_yield()) {
+				WT_ORDERED_READ(prepare_cnt, g.prepare_cnt);
+				if (prepare_cnt ==0)
+					break;
+			}
 
 			/*
 			 * Set the thread's read timestamp to the current value
@@ -649,14 +653,14 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 * Prepare will return error if prepare timestamp is less than any
 	 * active read timestamp.
 	 */
-	__wt_atomic_add64(&g.prepare_cnt, 1);
+	(void)__wt_atomic_add64(&g.prepare_cnt, 1);
 
 	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
 	ret = session->prepare_transaction(session, config_buf);
 
-	__wt_atomic_sub64(&g.prepare_cnt, 1);
+	(void)__wt_atomic_sub64(&g.prepare_cnt, 1);
 
 	return (ret);
 }
