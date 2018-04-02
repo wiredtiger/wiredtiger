@@ -462,7 +462,8 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	 * duration of the checkpoint, we set and unset the flag based on the
 	 * file's durability. Record the timestamp if the flag is set.
 	 */
-	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ))
+	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ) ||
+	    strcmp(fname, WT_METAFILE_URI) == 0)
 		WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &session->txn.read_timestamp));
 #endif

@@ -707,9 +707,19 @@ __checkpoint_prepare(
 	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
 	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
 
-	if (use_timestamp && txn_global->has_stable_timestamp) {
-		__wt_timestamp_set(
-		    &txn->read_timestamp, &txn_global->stable_timestamp);
+	if (use_timestamp) {
+		/*
+		 * If we have a stable timestamp, use it. If the caller wants
+		 * to use the timestamp, but stable is not set, write out the
+		 * value that we detected in recovery to preserve any stable
+		 * timestamp we knew about earlier.
+		 */
+		if (txn_global->has_stable_timestamp)
+			__wt_timestamp_set(
+			    &txn->read_timestamp, &txn_global->stable_timestamp);
+		else
+			__wt_timestamp_set(
+			    &txn->read_timestamp, &txn_global->recovery_timestamp);
 		F_SET(txn, WT_TXN_HAS_TS_READ);
 	} else
 		__wt_timestamp_set_zero(&txn->read_timestamp);
