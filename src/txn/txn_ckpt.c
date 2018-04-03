@@ -707,9 +707,13 @@ __checkpoint_prepare(
 	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
 	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
 
-	if (use_timestamp && txn_global->has_stable_timestamp) {
-		__wt_timestamp_set(
-		    &txn->read_timestamp, &txn_global->stable_timestamp);
+	if (use_timestamp) {
+		if (txn_global->has_stable_timestamp)
+			__wt_timestamp_set(&txn->read_timestamp,
+			    &txn_global->stable_timestamp);
+		else
+			__wt_timestamp_set(&txn->read_timestamp,
+			    &txn_global->recovery_timestamp);
 		F_SET(txn, WT_TXN_HAS_TS_READ);
 		if (!F_ISSET(conn, WT_CONN_RECOVERING))
 			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
