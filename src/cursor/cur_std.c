@@ -751,12 +751,18 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			return (WT_NOTFOUND);
 	}
 
-	WT_ASSERT(session, uri == NULL || to_dup == NULL);
+	/*
+	 * Caller guarantees that exactly one of the URI and the
+	 * duplicate cursor is non-NULL.
+	 */
 	if (to_dup != NULL) {
+		WT_ASSERT(session, uri == NULL);
 		uri = to_dup->uri;
 		hash_value = to_dup->uri_hash;
-	} else
+	} else {
+		WT_ASSERT(session, uri != NULL);
 		hash_value = __wt_hash_city64(uri, strlen(uri));
+	}
 
 	/*
 	 * Walk through all cursors, if there is a cached
