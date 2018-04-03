@@ -1987,7 +1987,10 @@ err:	__wt_scr_free(session, &buf);
 
 /*
  * __wt_timing_stress_config --
- *	Set timing stress for test delay configuration.
+ *	Set timing stress configuration. There are a places we optionally make
+ * threads sleep in order to stress the system and increase the likelihood of
+ * failure. For example, there are several places where page splits are delayed
+ * to make cursor iteration races more likely.
  */
 int
 __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
@@ -2011,8 +2014,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	conn = S2C(session);
 
-	WT_RET(__wt_config_gets(
-	    session, cfg, "timing_stress_for_test", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "timing_stress_for_test", &cval));
 
 	flags = 0;
 	for (ft = stress_types; ft->name != NULL; ft++) {
