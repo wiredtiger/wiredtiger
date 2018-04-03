@@ -1784,24 +1784,26 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	 * eviction fairly visits all pages in trees with a lot of in-cache
 	 * content.
 	 */
-	switch (btree->evict_start_type) {
-	case WT_EVICT_WALK_NEXT:
-		break;
-	case WT_EVICT_WALK_PREV:
-		FLD_SET(walk_flags, WT_READ_PREV);
-		break;
-	case WT_EVICT_WALK_RAND_PREV:
-		FLD_SET(walk_flags, WT_READ_PREV);
-		/* FALLTHROUGH */
-	case WT_EVICT_WALK_RAND_NEXT:
-		if (btree->evict_ref == NULL) {
-			/* Ensure internal pages indexes remain valid */
-			WT_WITH_PAGE_INDEX(session, ret = __wt_random_descent(
-			    session, &btree->evict_ref, true));
-			WT_RET_NOTFOUND_OK(ret);
+	if (!F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
+		switch (btree->evict_start_type) {
+		case WT_EVICT_WALK_NEXT:
+			break;
+		case WT_EVICT_WALK_PREV:
+			FLD_SET(walk_flags, WT_READ_PREV);
+			break;
+		case WT_EVICT_WALK_RAND_PREV:
+			FLD_SET(walk_flags, WT_READ_PREV);
+			/* FALLTHROUGH */
+		case WT_EVICT_WALK_RAND_NEXT:
+			if (btree->evict_ref == NULL) {
+				/* Ensure internal pages indexes remain valid */
+				WT_WITH_PAGE_INDEX(session,
+				    ret = __wt_random_descent(
+				    session, &btree->evict_ref, true));
+				WT_RET_NOTFOUND_OK(ret);
+			}
+			break;
 		}
-		break;
-	}
 
 	/*
 	 * Get some more eviction candidate pages, starting at the last saved
