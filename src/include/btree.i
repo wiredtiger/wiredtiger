@@ -1720,26 +1720,25 @@ __wt_page_swap_func(WT_SESSION_IMPL *session,
 	    );
 
 	/*
+	 * We can race when descending into an internal page as part of moving
+	 * backwards through the tree, and we have to detect that race before
+	 * releasing the page from which we are coupling, else we can't restart
+	 * the movement.
+	 */
+	if (ret == 0 && prev_race && WT_PAGE_IS_INTERNAL(want->page) &&
+	    __wt_split_prev_race(session, want)) {
+		ret = WT_RESTART;
+		WT_TRET(__wt_page_release(session, want, flags));
+	}
+
+	/*
 	 * Expected failures: page not found or restart. Our callers list the
 	 * errors they're expecting to handle.
 	 */
 	if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
 		return (WT_NOTFOUND);
-	if (LF_ISSET(WT_READ_RESTART_OK)) {
-		/*
-		 * We can race when moving backwards through the tree, and we
-		 * have to detect it before we give up the page from which we
-		 * are coupling, else we can't restart the movement.
-		 */
-		if (ret == 0 && prev_race &&
-		    WT_PAGE_IS_INTERNAL(want->page) &&
-		    __wt_split_prev_race(session, want)) {
-			ret = WT_RESTART;
-			WT_TRET(__wt_page_release(session, want, flags));
-		}
-		if (ret == WT_RESTART)
-			return (WT_RESTART);
-	}
+	if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
+		return (WT_RESTART);
 
 	/* Discard the original held page on either success or error. */
 	acquired = ret == 0;
