@@ -493,7 +493,6 @@ snap_check(WT_CURSOR *cursor,
 static void
 begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
-	uint64_t prepare_cnt;
 	u_int v;
 	const char *config;
 	char config_buf[64];
@@ -516,11 +515,8 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 			 * Avoid starting a new reader when a prepare is in
 			 * progress.
 			 */
-			for (;; __wt_yield()) {
-				WT_ORDERED_READ(prepare_cnt, g.prepare_cnt);
-				if (prepare_cnt ==0)
-					break;
-			}
+			__wt_readlock((WT_SESSION_IMPL *)session,
+			    &g.prepare_lock);
 
 			/*
 			 * Set the thread's read timestamp to the current value
@@ -541,6 +537,9 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	*iso_configp = v;
 
 	testutil_check(session->begin_transaction(session, config));
+
+	if (g.c_txn_timestamps)
+		__wt_readunlock((WT_SESSION_IMPL *)session, &g.prepare_lock);
 
 	/*
 	 * It's OK for the oldest timestamp to move past a running query, clear
@@ -648,19 +647,20 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	++tinfo->prepare;
 
 	/*
-	 * Indicate a prepare is in progress to avoid starting a new reader.
+	 * Synchronize prepare call with begin transaction to prevent a new
+	 * reader creeping in.
 	 *
 	 * Prepare will return error if prepare timestamp is less than any
 	 * active read timestamp.
 	 */
-	(void)__wt_atomic_add64(&g.prepare_cnt, 1);
+	__wt_writelock((WT_SESSION_IMPL *)session, &g.prepare_lock);
 
 	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
 	ret = session->prepare_transaction(session, config_buf);
 
-	(void)__wt_atomic_sub64(&g.prepare_cnt, 1);
+	__wt_writeunlock((WT_SESSION_IMPL *)session, &g.prepare_lock);
 
 	return (ret);
 }
