@@ -538,7 +538,7 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 
 	testutil_check(session->begin_transaction(session, config));
 
-	if (g.c_txn_timestamps)
+	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps)
 		__wt_readunlock((WT_SESSION_IMPL *)session, &g.prepare_lock);
 
 	/*
