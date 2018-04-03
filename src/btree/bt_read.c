@@ -578,6 +578,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (LF_ISSET(WT_READ_NO_EMPTY) &&
 			    __wt_delete_page_skip(session, ref, false))
 				return (WT_NOTFOUND);
+			if (LF_ISSET(WT_READ_NO_WAIT))
+				return (WT_NOTFOUND);
 			goto read;
 		case WT_REF_LOOKASIDE:
 			if (LF_ISSET(WT_READ_CACHE)) {

@@ -1840,6 +1840,11 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 *
 			 * This call cannot return split/restart, we have a lock
 			 * on the parent which prevents a child page split.
+			 *
+			 * Set WT_READ_NO_WAIT because we're only interested in
+			 * the WT_REF's final state. Pages in transition might
+			 * change WT_REF state during our read, and then return
+			 * WT_NOTFOUND to us. In that case, loop and look again.
 			 */
 			ret = __wt_page_in(session, ref,
 			    WT_READ_CACHE | WT_READ_NO_EVICT |
