@@ -448,7 +448,7 @@ restart:	/*
 					break;
 			}
 
-			ret = __wt_page_swap(session, couple, ref, true,
+			ret = __wt_page_swap(session, couple, ref, prev,
 			    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
 
 			/*
