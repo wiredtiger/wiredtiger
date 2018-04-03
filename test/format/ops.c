@@ -515,8 +515,7 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 			 * Avoid starting a new reader when a prepare is in
 			 * progress.
 			 */
-			__wt_readlock((WT_SESSION_IMPL *)session,
-			    &g.prepare_lock);
+			pthread_rwlock_rdlock(&g.prepare_lock);
 
 			/*
 			 * Set the thread's read timestamp to the current value
@@ -539,7 +538,7 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	testutil_check(session->begin_transaction(session, config));
 
 	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps)
-		__wt_readunlock((WT_SESSION_IMPL *)session, &g.prepare_lock);
+		pthread_rwlock_unlock(&g.prepare_lock);
 
 	/*
 	 * It's OK for the oldest timestamp to move past a running query, clear
@@ -653,14 +652,14 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	 * Prepare will return error if prepare timestamp is less than any
 	 * active read timestamp.
 	 */
-	__wt_writelock((WT_SESSION_IMPL *)session, &g.prepare_lock);
+	pthread_rwlock_wrlock(&g.prepare_lock);
 
 	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
 	ret = session->prepare_transaction(session, config_buf);
 
-	__wt_writeunlock((WT_SESSION_IMPL *)session, &g.prepare_lock);
+	pthread_rwlock_unlock(&g.prepare_lock);
 
 	return (ret);
 }
