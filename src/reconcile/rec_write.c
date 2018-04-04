@@ -1291,7 +1291,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	wt_timestamp_t *timestampp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
-	uint8_t prepare_state;
 	bool all_visible, skipped_birthmark, uncommitted;
 
 #ifdef HAVE_TIMESTAMPS
@@ -1345,10 +1344,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * examining its updates. As prepared transaction id's are
 		 * globally visible, need to check the update state as well.
 		 */
-		WT_ORDERED_READ(prepare_state, upd->prepare_state);
 		if (F_ISSET(r, WT_REC_EVICT) &&
-		    (prepare_state == WT_PREPARE_LOCKED ||
-		    prepare_state == WT_PREPARE_INPROGRESS ||
+		    (upd->prepare_state == WT_PREPARE_LOCKED ||
+		    upd->prepare_state == WT_PREPARE_INPROGRESS ||
 		    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    WT_TXNID_LE(r->last_running, txnid) :
 		    !__txn_visible_id(session, txnid)))) {
