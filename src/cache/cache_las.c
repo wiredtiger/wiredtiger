@@ -709,8 +709,8 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			/*
 			 * If remove is running concurrently, it's possible for
 			 * records to be removed before the insert transaction
-			 * commit (remove is configured read-uncommitted). Make
-			 * sure increments stay ahead of decrements.
+			 * commits (since both are running read-uncommitted).
+			 * Make sure increments stay ahead of decrements.
 			 */
 			if (insert_estimate <= insert_cnt) {
 				insert_estimate += 100;
@@ -739,27 +739,13 @@ err:	/* Resolve the transaction. */
 
 	__las_restore_isolation(las_session, saved_isolation);
 
-	/*
-	 * If the transaction successfully committed and we inserted records,
-	 * adjust the final entry count. We may have also deleted records,
-	 * but we must have intended to insert records to be in this function
-	 * at all, checking the insert count is sufficient.
-	 */
-	if (insert_cnt > 0) {
-		if (ret == 0) {
-			(void)__wt_atomic_add64(
-			    &conn->cache->las_entry_count,
-			    insert_estimate - insert_cnt);
-			__wt_cache_decr_check_uint64(session,
-			    &conn->cache->las_entry_count,
-			    decrement_cnt, "lookaside entry count");
+	/* Adjust the final entry count. */
+	__wt_cache_decr_check_uint64(session, &conn->cache->las_entry_count,
+	    decrement_cnt + insert_estimate - (ret == 0 ? insert_cnt : 0),
+	    "lookaside entry count");
 
-			ret = __las_insert_block_verbose(session, multi);
-		} else
-			__wt_cache_decr_check_uint64(session,
-			    &conn->cache->las_entry_count,
-			    insert_estimate, "lookaside entry count");
-	}
+	if (ret == 0 && insert_cnt > 0)
+		ret = __las_insert_block_verbose(session, multi);
 
 	return (ret);
 }
