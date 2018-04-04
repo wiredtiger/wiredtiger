@@ -1294,7 +1294,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 	uint8_t bitfield;
 	int cmp;
 	const char *which;
-	bool incrementing;
+	bool incrementing, record_gaps;
 
 	keyno = 0;
 	which = next ? "WT_CURSOR.next" : "WT_CURSOR.prev";
@@ -1332,23 +1332,25 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 			break;
 
 		/*
-		 * Compare the returned key with the previously returned key.
-		 * Assert the order is correct, and if not deleting keys, also
+		 * Compare the returned key with the previously returned key,
+		 * and assert the order is correct. If not deleting keys, and
+		 * the rows aren't in the column-store insert name space, also
 		 * assert we don't skip groups of records (that's a page-split
 		 * bug symptom).
 		 */
+		record_gaps = g.c_delete_pct != 0;
 		switch (g.type) {
 		case FIX:
 		case VAR:
+			if (tinfo->keyno > g.c_rows || keyno > g.c_rows)
+				records_gaps = true;
 			if (!next) {
 				if (tinfo->keyno < keyno ||
-				    (g.c_delete_pct == 0 &&
-				    keyno != tinfo->keyno - 1))
+				    (!record_gaps && keyno != tinfo->keyno - 1))
 					goto order_error_col;
 			} else
 				if (tinfo->keyno > keyno ||
-				    (g.c_delete_pct == 0 &&
-				    keyno != tinfo->keyno + 1))
+				    (!record_gaps && keyno != tinfo->keyno + 1))
 					goto order_error_col;
 			if (0) {
 order_error_col:
@@ -1372,7 +1374,7 @@ order_error_col:
 				if (cmp < 0 ||
 				    (cmp == 0 && tinfo->key->size > key.size))
 					goto order_error_row;
-			if (g.c_delete_pct == 0) {
+			if (!record_gaps) {
 				keyno_prev =
 				    strtoul(tinfo->key->data, NULL, 10);
 				keyno = strtoul(key.data, NULL, 10);
