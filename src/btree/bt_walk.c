@@ -371,7 +371,7 @@ restart:	/*
 			 */
 			if (!LF_ISSET(WT_READ_SKIP_INTL)) {
 				WT_ERR(__wt_page_swap(
-				    session, couple, ref, false, flags));
+				    session, couple, ref, flags));
 				*refp = ref;
 				goto done;
 			}
@@ -449,7 +449,7 @@ restart:	/*
 					break;
 			}
 
-			ret = __wt_page_swap(session, couple, ref, prev,
+			ret = __wt_page_swap(session, couple, ref,
 			    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
 
 			/*
