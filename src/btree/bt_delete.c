@@ -360,6 +360,9 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	btree = S2BT(session);
 	page = ref->page;
 
+	WT_STAT_CONN_INCR(session, cache_read_deleted);
+	WT_STAT_DATA_INCR(session, cache_read_deleted);
+
 	/*
 	 * Give the page a modify structure.
 	 *

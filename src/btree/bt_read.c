@@ -562,6 +562,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
 		LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
+	/* Sanity check flag combinations. */
+	WT_ASSERT(session, !LF_ISSET(
+	    WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
+	    LF_ISSET(WT_READ_CACHE));
+	WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) ||
+	    !LF_ISSET(WT_READ_DELETED_SKIP));
+
 	/*
 	 * Ignore reads of pages already known to be in cache, otherwise the
 	 * eviction server can dominate these statistics.
@@ -575,10 +582,10 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	    force_attempts = 0, sleep_cnt = wait_cnt = 0;;) {
 		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
-			if (LF_ISSET(WT_READ_NO_EMPTY) &&
-			    __wt_delete_page_skip(session, ref, false))
+			if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
 				return (WT_NOTFOUND);
-			if (LF_ISSET(WT_READ_NO_WAIT))
+			if (LF_ISSET(WT_READ_DELETED_CHECK) &&
+			    __wt_delete_page_skip(session, ref, false))
 				return (WT_NOTFOUND);
 			goto read;
 		case WT_REF_LOOKASIDE:

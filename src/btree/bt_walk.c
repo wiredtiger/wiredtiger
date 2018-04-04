@@ -309,8 +309,9 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	 */
 	WT_ENTER_PAGE_INDEX(session);
 
-	/* Walk should never instantiate deleted pages. */
-	LF_SET(WT_READ_NO_EMPTY);
+	/* Check whether deleted pages can be skipped. */
+	if (!LF_ISSET(WT_READ_DELETED_SKIP))
+		LF_SET(WT_READ_DELETED_CHECK);
 
 	/*
 	 * !!!
