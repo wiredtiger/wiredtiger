@@ -289,6 +289,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
 		}
 	}
 	upd->type = (uint8_t)modify_type;
+	upd->prepare_state = WT_PREPARE_INIT;
 
 	*updp = upd;
 	*sizep = WT_UPDATE_MEMSIZE(upd);

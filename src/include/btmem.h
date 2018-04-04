@@ -707,31 +707,41 @@ struct __wt_page {
 	((void *)((uint8_t *)((page)->dsk) + (o)))
 
 /*
- * Prepare update state.
+ * Prepare update states.
  *
  * Prepare update synchronization is based on the state field, which has the
  * following possible states:
  *
- * WT_PREPARE_READY:
- *	The initial/final prepare state of either an update or a page_del
- *	structure, indicating either a prepare phase has not started yet or
- *	completed, if started. In either case the visibility of the update's
- *	data is not impacted by prepare state.
+ * WT_PREPARE_INIT:
+ *	The initial prepare state of either an update or a page_del structure,
+ *	indicating a prepare phase has not started yet.
+ *	This state has no impact on the visibility of the update's data.
+ *
+ * WT_PREPARE_INPROGRESS:
+ *	Update is in prepared phase.
  *
  * WT_PREPARE_LOCKED:
- *	State is locked as prepare state transition is in progress. Any reader
- *	of the state need to wait for state transition to complete.
+ *	State is locked as state transition is in progress from INPROGRESS to
+ *	RESOLVED. Any reader of the state need to wait for state transition to
+ *	complete.
  *
- * WT_PREPARE_STATE:
- *	State is prepared.
+ * WT_PREPARE_RESOLVED:
+ *	Represents the commit state of the prepared update.
  *
  * State Transition:
- * 	READY --> STATE --> LOCKED --> READY
+ * 	From prepare to commit:
+ * 	INIT --> INPROGRESS --> LOCKED --> RESOLVED
+ * 	LOCKED will be a momentarily phase during timestamp update.
+ *
+ * 	From prepare to rollback:
+ * 	INIT --> INPROGRESS
  */
-#define	WT_PREPARE_READY		0	/* Must be 0, Default or
-						   finalized prepare state. */
-#define	WT_PREPARE_LOCKED		1
-#define	WT_PREPARE_STATE		2
+#define	WT_PREPARE_INIT			0	/* Must be 0, as structures
+						   will be default initialized
+						   with 0. */
+#define	WT_PREPARE_INPROGRESS		1
+#define	WT_PREPARE_LOCKED		2
+#define	WT_PREPARE_RESOLVED		3
 
 /*
  * Page state.
