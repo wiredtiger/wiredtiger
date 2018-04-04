@@ -27,12 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_timestamp10.py
-#   Timestamps: Saving and querying the last checkpoint and recovery timestamps
+#   Timestamps: Saving and querying the checkpoint recovery timestamp
 #
 
 import fnmatch, os, shutil
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -43,6 +44,18 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     coll2_uri = 'table:collection10.2'
     coll3_uri = 'table:collection10.3'
     oplog_uri = 'table:oplog10'
+
+    types = [
+        ('all', dict(use_stable=False, run_wt=False)),
+        ('all+wt', dict(use_stable=False, run_wt=True)),
+        ('stable', dict(use_stable=True, run_wt=False)),
+        ('stable+wt', dict(use_stable=True, run_wt=True)),
+    ]
+    types = [
+        ('all', dict(use_stable=False, run_wt=True)),
+        ('stable', dict(use_stable=True, run_wt=True)),
+    ]
+    scenarios = make_scenarios(types)
 
     def copy_dir(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
@@ -60,10 +73,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         # close the original connection.
         self.close_conn()
 
-    def test_timestamp_recovery(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
+    def data_and_checkpoint(self):
         #
         # Create several collection-like tables that are checkpoint durability.
         # Add data to each of them separately and checkpoint so that each one
@@ -101,9 +111,39 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
                 ',stable_timestamp=' + timestamp_str(ts))
             # This forces a different checkpoint timestamp for each table.
             self.session.checkpoint()
-            q = self.conn.query_timestamp('get=last_checkpoint')
-            self.assertTimestampsEqual(q, timestamp_str(ts))
+            return ts
 
+    def close_and_recover(self, expected_rec_ts):
+        #
+        # Close with the close configuration string and optionally run
+        # the 'wt' command. Then open the connection again and query the
+        # recovery timestamp verifying it is the expected value.
+        #
+        if self.use_stable == True:
+            close_cfg = 'use_timestamp=true'
+        else:
+            close_cfg = 'use_timestamp=false'
+        self.close_conn(close_cfg)
+        if self.run_wt == True:
+            self.runWt(['-h', '.', '-R', 'list', '-v'], outfilename="list.out")
+
+        self.open_conn()
+        q = self.conn.query_timestamp('get=recovery')
+        self.pr("query recovery ts: " + q)
+        self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
+
+    def test_timestamp_recovery(self):
+        if not wiredtiger.timestamp_build():
+            self.skipTest('requires a timestamp build')
+
+        # Clean shutdown with using timestamp.
+        last_stable = self.data_and_checkpoint()
+        if self.use_stable:
+            self.close_and_recover(last_stable)
+        else:
+            self.close_and_recover(0)
+
+        return
         # Copy to a new database and then recover.
         self.copy_dir(".", "RESTART")
         self.copy_dir(".", "SAVE")
@@ -145,7 +185,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         new_session = new_conn.open_session()
         q = new_conn.query_timestamp('get=recovery')
         self.pr("query recovery ts: " + q)
-        self.assertTimestampsEqual(q, timestamp_str(ts))
+        self.assertTimestampsEqual(q, timestamp_str(0))
 
 if __name__ == '__main__':
     wttest.run()
