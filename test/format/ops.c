@@ -1343,7 +1343,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		case FIX:
 		case VAR:
 			if (tinfo->keyno > g.c_rows || keyno > g.c_rows)
-				records_gaps = true;
+				record_gaps = true;
 			if (!next) {
 				if (tinfo->keyno < keyno ||
 				    (!record_gaps && keyno != tinfo->keyno - 1))
