@@ -290,6 +290,8 @@ typedef struct {
 	uint64_t last;				/* truncate range */
 	WT_ITEM	 *lastkey, _lastkey;
 
+	WT_ITEM  *tbuf, _tbuf;			/* temporary buffer */
+
 #define	TINFO_RUNNING	1			/* Running */
 #define	TINFO_COMPLETE	2			/* Finished */
 #define	TINFO_JOINED	3			/* Resolved */
