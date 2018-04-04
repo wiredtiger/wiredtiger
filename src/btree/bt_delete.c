@@ -71,9 +71,13 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 	*skipp = false;
 
-	/* If we have a clean page in memory, attempt to evict it. */
+	/*
+	 * If we have a clean page in memory, attempt to evict it. Do a fast
+	 * check for a dirty page, and then repeat the test once we're locked.
+	 */
 	previous_state = ref->state;
 	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	    !__wt_page_is_modified(ref->page) &&
 	    __wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED)) {
 		if (__wt_page_is_modified(ref->page)) {
 			ref->state = previous_state;
@@ -222,7 +226,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 		 * and if we've yielded enough times, start sleeping so we
 		 * don't burn CPU to no purpose.
 		 */
-		__wt_ref_state_yield_sleep(&yield_count, &sleep_count);
+		__wt_state_yield_sleep(&yield_count, &sleep_count);
 		WT_STAT_CONN_INCRV(session,
 		    page_del_rollback_blocked, sleep_count);
 	}

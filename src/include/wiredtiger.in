@@ -1139,6 +1139,8 @@ struct __wt_session {
 	 * option leads to an advisory call to an appropriate operating system
 	 * API where available., a string\, chosen from the following options:
 	 * \c "none"\, \c "random"\, \c "sequential"; default \c none.}
+	 * @config{app_metadata, application-owned metadata for this object., a
+	 * string; default empty.}
 	 * @config{cache_resident, do not ever evict the object's pages from
 	 * cache.  Not compatible with LSM tables; see @ref
 	 * tuning_cache_resident for more information., a boolean flag; default
