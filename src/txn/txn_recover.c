@@ -372,7 +372,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	WT_CLEAR(cval);
 	WT_RET_NOTFOUND_OK(__wt_config_getones(r->session,
 	    config, "checkpoint_timestamp", &cval));
-	if (cval.len != 0) {
+	if (cval.len != 0 && fileid == WT_METAFILE_ID) {
 		__wt_verbose(r->session, WT_VERB_RECOVERY,
 		    "%s: Recovery timestamp %.*s",
 		    uri, (int)cval.len, cval.str);
@@ -384,10 +384,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		 * timestamp nature of the last shutdown so just set it
 		 * to what it was before.
 		 */
-		if (fileid == WT_METAFILE_ID)
-			__wt_timestamp_set(
-			    &S2C(r->session)->txn_global.meta_ckpt_timestamp,
-			    &ckpt_timestamp);
+		__wt_timestamp_set(
+		    &S2C(r->session)->txn_global.meta_ckpt_timestamp,
+		    &ckpt_timestamp);
 	}
 #endif
 
