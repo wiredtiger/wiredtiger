@@ -708,16 +708,24 @@ __checkpoint_prepare(
 	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
 
 	if (use_timestamp) {
-		if (txn_global->has_stable_timestamp)
+		/*
+		 * If the user wants timestamps then set the metadata
+		 * checkpoint timestamp based on whether a stable timestamp
+		 * is actually in use or not. Only set it when we're not
+		 * running recovery because recovery does not set the recovery
+		 * timestamp until its checkpoint is complete.
+		 */
+		if (txn_global->has_stable_timestamp) {
 			__wt_timestamp_set(&txn->read_timestamp,
 			    &txn_global->stable_timestamp);
-		else
-			__wt_timestamp_set(&txn->read_timestamp,
-			    &txn_global->recovery_timestamp);
-		F_SET(txn, WT_TXN_HAS_TS_READ);
-		if (!F_ISSET(conn, WT_CONN_RECOVERING))
+			F_SET(txn, WT_TXN_HAS_TS_READ);
+			if (!F_ISSET(conn, WT_CONN_RECOVERING))
+				__wt_timestamp_set(
+				    &txn_global->meta_ckpt_timestamp,
+				    &txn->read_timestamp);
+		} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
 			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
-			    &txn->read_timestamp);
+			    &txn_global->recovery_timestamp);
 	} else {
 		__wt_timestamp_set_zero(&txn->read_timestamp);
 		if (!F_ISSET(conn, WT_CONN_RECOVERING))
