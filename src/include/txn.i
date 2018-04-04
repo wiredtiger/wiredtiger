@@ -653,7 +653,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 	if (upd == NULL && skipped_birthmark)
 		upd = &tombstone;
 
-	*updp = (upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd);
+	*updp = upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd;
 	return (0);
 }
 
