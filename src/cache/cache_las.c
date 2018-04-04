@@ -580,7 +580,7 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	WT_SESSION_IMPL *las_session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
-	uint64_t decrement_cnt, insert_cnt, insert_estimate;
+	uint64_t adjust, decrement_cnt, insert_cnt, insert_estimate;
 	uint64_t las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
@@ -739,10 +739,16 @@ err:	/* Resolve the transaction. */
 
 	__las_restore_isolation(las_session, saved_isolation);
 
-	/* Adjust the final entry count. */
-	__wt_cache_decr_check_uint64(session, &conn->cache->las_entry_count,
-	    decrement_cnt + insert_estimate - (ret == 0 ? insert_cnt : 0),
-	    "lookaside entry count");
+	/*
+	 * Adjust the final entry count. If successful, decrement by the rows
+	 * initially discarded plus the difference between the insert estimate
+	 * and the actual insert count. If we failed, decrement by the insert
+	 * estimate, the changes were rolled back.
+	 */
+	adjust = ret == 0 ?
+	    decrement_cnt + (insert_estimate - insert_cnt) : insert_estimate;
+	__wt_cache_decr_check_uint64(session,
+	    &conn->cache->las_entry_count, adjust, "lookaside entry count");
 
 	if (ret == 0 && insert_cnt > 0)
 		ret = __las_insert_block_verbose(session, multi);
