@@ -1995,6 +1995,12 @@ err:	__wt_scr_free(session, &buf);
 int
 __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	/*
+	 * Each split race delay is controlled using a different flag to allow
+	 * more effective race condition detection, since enabling all delays
+	 * at once can lead to an overall slowdown to the point where race
+	 * conditions aren't encountered.
+	 */
 	static const WT_NAME_FLAG stress_types[] = {
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
 		{ "split_race_1",	WT_TIMING_STRESS_SPLIT_RACE_1 },
