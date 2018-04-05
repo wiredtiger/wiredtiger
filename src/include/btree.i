@@ -1689,8 +1689,8 @@ __wt_split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref)
  * coupling up/down the tree.
  */
 static inline int
-__wt_page_swap_func(
-    WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+__wt_page_swap_func(WT_SESSION_IMPL *session,
+    WT_REF *held, WT_REF *want, bool prev_race, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
     , const char *file, int line
 #endif
@@ -1725,8 +1725,7 @@ __wt_page_swap_func(
 	 * releasing the page from which we are coupling, else we can't restart
 	 * the movement.
 	 */
-	if (ret == 0 && LF_ISSET(WT_READ_PREV) &&
-	    WT_PAGE_IS_INTERNAL(want->page) &&
+	if (ret == 0 && prev_race && WT_PAGE_IS_INTERNAL(want->page) &&
 	    __wt_split_prev_race(session, want)) {
 		ret = WT_RESTART;
 		WT_TRET(__wt_page_release(session, want, flags));
