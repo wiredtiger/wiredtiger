@@ -291,7 +291,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	if (!__wt_atomic_casv32(&ref->state, WT_REF_DELETED, WT_REF_LOCKED))
 		return (false);
 
-	skip = !__wt_btree_truncate_active(session, ref, visible_all);
+	skip = !__wt_page_del_active(session, ref, visible_all);
 
 	/*
 	 * The page_del structure can be freed as soon as the delete is stable:
@@ -391,7 +391,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * needs to be resolved, otherwise, there may not be one (and, if the
 	 * transaction has resolved, we can ignore the page-deleted structure).
 	 */
-	page_del = __wt_btree_truncate_active(session, ref, true) ?
+	page_del = __wt_page_del_active(session, ref, true) ?
 	    ref->page_del : NULL;
 
 	/*

@@ -1637,7 +1637,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * PREPARED state), for truly visible to others.
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
-	    __wt_btree_truncate_active(session, ref, false))
+	    __wt_page_del_active(session, ref, false))
 		WT_PANIC_RET(session, EINVAL,
 		    "reconciliation illegally skipped an update");
 
@@ -1665,8 +1665,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * read into this part of the name space again, the cache read function
 	 * instantiates an entirely new page.)
 	 */
-	if (ref->addr != NULL &&
-	    !__wt_btree_truncate_active(session, ref, true))
+	if (ref->addr != NULL && !__wt_page_del_active(session, ref, true))
 		WT_RET(__wt_ref_block_free(session, ref));
 
 	/*
@@ -1715,7 +1714,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * If the delete state is not ready, then delete is not visible as it
 	 * is in prepared state.
 	 */
-	if (!__wt_btree_truncate_active(session, ref, false))
+	if (!__wt_page_del_active(session, ref, false))
 		*statep = WT_CHILD_PROXY;
 
 	return (0);
