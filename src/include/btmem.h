@@ -722,19 +722,21 @@ struct __wt_page {
  *
  * WT_PREPARE_LOCKED:
  *	State is locked as state transition is in progress from INPROGRESS to
- *	RESOLVED. Any reader of the state need to wait for state transition to
+ *	RESOLVED. Any reader of the state needs to wait for state transition to
  *	complete.
  *
  * WT_PREPARE_RESOLVED:
  *	Represents the commit state of the prepared update.
  *
  * State Transition:
- * 	From prepare to commit:
+ * 	From uncommitted -> prepare -> commit:
  * 	INIT --> INPROGRESS --> LOCKED --> RESOLVED
- * 	LOCKED will be a momentarily phase during timestamp update.
+ * 	LOCKED will be a momentary phase during timestamp update.
  *
- * 	From prepare to rollback:
+ * 	From uncommitted -> prepare -> rollback:
  * 	INIT --> INPROGRESS
+ * 	Prepare state will not be updated during rollback and will continue to
+ * 	have the state as INPROGRESS.
  */
 #define	WT_PREPARE_INIT			0	/* Must be 0, as structures
 						   will be default initialized
@@ -1032,12 +1034,6 @@ struct __wt_update {
 #define	WT_UPDATE_TOMBSTONE	5	/* deleted */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
-	/*
-	 * The update state is used for transaction prepare to manage
-	 * visibility and transitioning update structure state safely.
-	 */
-	volatile uint8_t prepare_state;	/* Prepare state. */
-
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
 	((upd)->type == WT_UPDATE_STANDARD ||				\
@@ -1046,6 +1042,12 @@ struct __wt_update {
 #if WT_TIMESTAMP_SIZE != 8
 	WT_DECL_TIMESTAMP(timestamp)	/* unaligned uint8_t array timestamp */
 #endif
+
+	/*
+	 * The update state is used for transaction prepare to manage
+	 * visibility and transitioning update structure state safely.
+	 */
+	volatile uint8_t prepare_state;	/* Prepare state. */
 
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the

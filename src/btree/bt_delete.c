@@ -328,9 +328,9 @@ __tombstone_update_alloc(WT_SESSION_IMPL *session,
 	 * timestamp, do nothing.
 	 */
 	if (page_del != NULL) {
+		upd->txnid = page_del->txnid;
 		__wt_timestamp_set(&upd->timestamp, &page_del->timestamp);
 		upd->prepare_state = page_del->prepare_state;
-		upd->txnid = page_del->txnid;
 	}
 	*updp = upd;
 	return (0);
