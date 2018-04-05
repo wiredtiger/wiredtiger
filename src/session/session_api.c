@@ -1657,9 +1657,12 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	    session, commit_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_commit);
 
+	txn = &session->txn;
+	if (F_ISSET(txn, WT_TXN_PREPARE))
+		WT_STAT_CONN_INCR(session, txn_prepare_commit);
+
 	WT_ERR(__wt_txn_context_check(session, true));
 
-	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "failed transaction requires rollback%s%s",
@@ -1689,6 +1692,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg);
+	WT_STAT_CONN_INCR(session, txn_prepare);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
@@ -1738,11 +1742,16 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	WT_TXN *txn;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_PREPARE_ALLOWED(
 	    session, rollback_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_rollback);
+
+	txn = &session->txn;
+	if (F_ISSET(txn, WT_TXN_PREPARE))
+		WT_STAT_CONN_INCR(session, txn_prepare_rollback);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 

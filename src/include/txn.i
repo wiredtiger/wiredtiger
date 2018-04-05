@@ -600,6 +600,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		 */
 		if (upd->prepare_state == prepare_state)
 			break;
+
+		WT_STAT_CONN_INCR(session, blocked_for_prepare_transition);
 	}
 
 	if (!upd_visible)
