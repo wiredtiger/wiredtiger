@@ -10,18 +10,19 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_READ_CACHE			0x0001u
-#define	WT_READ_IGNORE_CACHE_SIZE	0x0002u
-#define	WT_READ_LOOKASIDE		0x0004u
-#define	WT_READ_NOTFOUND_OK		0x0008u
-#define	WT_READ_NO_EMPTY		0x0010u
-#define	WT_READ_NO_GEN			0x0020u
-#define	WT_READ_NO_SPLIT		0x0040u
-#define	WT_READ_NO_WAIT			0x0080u
-#define	WT_READ_PREV			0x0100u
-#define	WT_READ_RESTART_OK		0x0200u
-#define	WT_READ_SKIP_INTL		0x0400u
-#define	WT_READ_TRUNCATE		0x0800u
-#define	WT_READ_WONT_NEED		0x1000u
+#define	WT_READ_DELETED_CHECK		0x0002u
+#define	WT_READ_DELETED_SKIP		0x0004u
+#define	WT_READ_IGNORE_CACHE_SIZE	0x0008u
+#define	WT_READ_LOOKASIDE		0x0010u
+#define	WT_READ_NOTFOUND_OK		0x0020u
+#define	WT_READ_NO_GEN			0x0040u
+#define	WT_READ_NO_SPLIT		0x0080u
+#define	WT_READ_NO_WAIT			0x0100u
+#define	WT_READ_PREV			0x0200u
+#define	WT_READ_RESTART_OK		0x0400u
+#define	WT_READ_SKIP_INTL		0x0800u
+#define	WT_READ_TRUNCATE		0x1000u
+#define	WT_READ_WONT_NEED		0x2000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
@@ -506,11 +507,7 @@ struct __wt_page {
 		 * Internal pages (both column- and row-store).
 		 *
 		 * In-memory internal pages have an array of pointers to child
-		 * structures, maintained in collated order.  When a page is
-		 * read into memory, the initial list of children is stored in
-		 * the "orig_index" field, and it and the collated order are
-		 * the same.  After a page splits, the collated order and the
-		 * original order will differ.
+		 * structures, maintained in collated order.
 		 *
 		 * Multiple threads of control may be searching the in-memory
 		 * internal page and a child page of the internal page may
