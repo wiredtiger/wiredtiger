@@ -461,12 +461,23 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	 * metadata record it means this checkpoint was as of a timestamp.
 	 * Otherwise write that out as zero. The value to write out is
 	 * set at a higher level, either in checkpoint or recovery.
+	 *
+	 * We also record the timestamp of the checkpoint in the table's
+	 * checkpoint record. This value is not used anywhere in the system.
+	 * It is only there as a debugging aid. If a user prints out the
+	 * metadata they can see at what timestamp each table's checkpoint was
+	 * written. One downside is if using timestamps is turned off for a
+	 * checkpoint, and therefore reflected in the metadata's timestamp
+	 * record, we do not change all table's values, only those affected
+	 * by that non-timestamp checkpoint.
 	 */
-	if (strcmp(fname, WT_METAFILE_URI) == 0) {
-		WT_ASSERT(session, !F_ISSET(&session->txn, WT_TXN_HAS_TS_READ));
+	if (F_ISSET(&session->txn, WT_TXN_HAS_TS_READ)) {
+		WT_ASSERT(session, strcmp(fname, WT_METAFILE_URI) != 0);
+		WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
+		    &session->txn.read_timestamp));
+	} else if (strcmp(fname, WT_METAFILE_URI) == 0)
 		WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &S2C(session)->txn_global.meta_ckpt_timestamp));
-	}
 #endif
 	WT_ERR(__wt_buf_catfmt(session, buf,
 	    ",checkpoint_timestamp=\"%s\"", hex_timestamp));

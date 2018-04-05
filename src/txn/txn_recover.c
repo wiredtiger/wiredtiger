@@ -24,6 +24,7 @@ typedef struct {
 	u_int max_fileid;		/* Maximum file ID seen. */
 	WT_LSN max_lsn;			/* Maximum checkpoint LSN seen. */
 	u_int nfiles;			/* Number of files in the metadata. */
+	WT_DECL_TIMESTAMP(max_timestamp)
 
 	WT_LSN ckpt_lsn;		/* Start LSN for main recovery loop. */
 
@@ -372,21 +373,29 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	WT_CLEAR(cval);
 	WT_RET_NOTFOUND_OK(__wt_config_getones(r->session,
 	    config, "checkpoint_timestamp", &cval));
-	if (cval.len != 0 && fileid == WT_METAFILE_ID) {
+	if (cval.len != 0) {
+		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
+		    &ckpt_timestamp, &cval));
 		__wt_verbose(r->session, WT_VERB_RECOVERY,
 		    "%s: Recovery timestamp %.*s",
 		    uri, (int)cval.len, cval.str);
-		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
-		    &ckpt_timestamp, &cval));
-		/*
-		 * Set the timestamp that will be used for the recovery
-		 * checkpoint timestamp. Recovery should not change the
-		 * timestamp nature of the last shutdown so just set it
-		 * to what it was before.
-		 */
-		__wt_timestamp_set(
-		    &S2C(r->session)->txn_global.meta_ckpt_timestamp,
-		    &ckpt_timestamp);
+		__wt_errx(r->session,
+		    "%s: Recovery timestamp %.*s",
+		    uri, (int)cval.len, cval.str);
+		if (fileid == WT_METAFILE_ID)
+			/*
+			 * Set the timestamp that will be used for the recovery
+			 * checkpoint timestamp. Recovery should not change the
+			 * timestamp nature of the last shutdown so just set it
+			 * to what it was before.
+			 */
+			__wt_timestamp_set(
+			    &S2C(r->session)->txn_global.meta_ckpt_timestamp,
+			    &ckpt_timestamp);
+		else if (!__wt_timestamp_iszero(
+		    &S2C(r->session)->txn_global.meta_ckpt_timestamp) &&
+		    __wt_timestamp_cmp(&ckpt_timestamp, &r->max_timestamp) > 0)
+			__wt_timestamp_set(&r->max_timestamp, &ckpt_timestamp);
 	}
 #endif
 
@@ -503,6 +512,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
 	__wt_timestamp_set_zero(&conn->txn_global.meta_ckpt_timestamp);
+	__wt_timestamp_set_zero(&r.max_timestamp);
 #endif
 
 	F_SET(conn, WT_CONN_RECOVERING);
@@ -657,6 +667,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * open is fast and keep the metadata up to date with the checkpoint
 	 * LSN and archiving.
 	 */
+	WT_ASSERT(session, (__wt_timestamp_iszero(
+	    &conn->txn_global.meta_ckpt_timestamp) ||
+	    __wt_timestamp_cmp(
+	    &conn->txn_global.meta_ckpt_timestamp,
+	    &r.max_timestamp) >= 0));
 ckpt:	WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 #ifdef HAVE_TIMESTAMPS
