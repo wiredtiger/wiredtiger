@@ -29,7 +29,7 @@ struct __wt_dbg {
 	const char *key_format;
 	const char *value_format;
 
-	WT_ITEM *tmp;				/* Temporary space */
+	WT_ITEM *t1, *t2;			/* Temporary space */
 };
 
 static const					/* Output separator */
@@ -123,10 +123,25 @@ __debug_item(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 static int
 __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 {
+	WT_SESSION_IMPL *session;
+
+	session = ds->session;
+
+	/*
+	 * If the format is 'S', it's a string and our version of it may
+	 * not yet be nul-terminated.
+	 */
+	if (WT_STREQ(ds->key_format, "S") &&
+	    ((char *)data_arg)[size - 1] != '\0') {
+		WT_RET(__wt_buf_fmt(
+		    session, ds->t2, "%.*s", (int)size, (char *)data_arg));
+		data_arg = ds->t2->data;
+		size = (size_t)ds->t2->size + 1;
+	}
 	return (ds->f(ds, "\t%s%s{%s}\n",
 	    tag == NULL ? "" : tag, tag == NULL ? "" : " ",
 	    __wt_buf_set_printable_format(
-	    ds->session, data_arg, size, ds->key_format, ds->tmp)));
+	    ds->session, data_arg, size, ds->key_format, ds->t1)));
 }
 
 /*
@@ -137,10 +152,25 @@ static int
 __debug_item_value(
     WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 {
+	WT_SESSION_IMPL *session;
+
+	session = ds->session;
+
+	/*
+	 * If the format is 'S', it's a string and our version of it may
+	 * not yet be nul-terminated.
+	 */
+	if (WT_STREQ(ds->value_format, "S") &&
+	    ((char *)data_arg)[size - 1] != '\0') {
+		WT_RET(__wt_buf_fmt(
+		    session, ds->t2, "%.*s", (int)size, (char *)data_arg));
+		data_arg = ds->t2->data;
+		size = (size_t)ds->t2->size + 1;
+	}
 	return (ds->f(ds, "\t%s%s{%s}\n",
 	    tag == NULL ? "" : tag, tag == NULL ? "" : " ",
 	    __wt_buf_set_printable_format(
-	    ds->session, data_arg, size, ds->value_format, ds->tmp)));
+	    ds->session, data_arg, size, ds->value_format, ds->t1)));
 }
 
 /*
@@ -228,7 +258,8 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 
 	ds->session = session;
 
-	WT_RET(__wt_scr_alloc(session, 512, &ds->tmp));
+	WT_RET(__wt_scr_alloc(session, 512, &ds->t1));
+	WT_RET(__wt_scr_alloc(session, 512, &ds->t2));
 
 	/*
 	 * If we weren't given a file, we use the default event handler, and
@@ -263,7 +294,8 @@ __dmsg_wrapup(WT_DBG *ds)
 	session = ds->session;
 	msg = ds->msg;
 
-	__wt_scr_free(session, &ds->tmp);
+	__wt_scr_free(session, &ds->t1);
+	__wt_scr_free(session, &ds->t2);
 
 	/*
 	 * Discard the buffer -- it shouldn't have anything in it, but might
@@ -1228,7 +1260,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 
 	__wt_ref_info(ref, &addr, &addr_size, NULL);
 	return (ds->f(ds, "\t" "%p %s %s\n", (void *)ref,
-	    state, __wt_addr_string(session, addr, addr_size, ds->tmp)));
+	    state, __wt_addr_string(session, addr, addr_size, ds->t1)));
 }
 
 /*
