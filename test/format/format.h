@@ -122,6 +122,8 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
+	pthread_rwlock_t prepare_lock;		/* Prepare running */
+
 	uint64_t timestamp;			/* Counter for timestamps */
 
 	uint64_t truncate_cnt;			/* Counter for truncation */
