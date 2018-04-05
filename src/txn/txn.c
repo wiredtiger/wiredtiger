@@ -902,8 +902,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 			for (; *updp != NULL; ++updp) {
 				if (prepared_transaction) {
-					(*updp)->prepare_state =
-					    WT_PREPARE_LOCKED;
+					/*
+					 * As ref state is LOCKED, timestamp
+					 * and prepare state are updated in
+					 * exclusive access, hence no need for
+					 * temporary state WT_PREPARE_LOCKED
+					 * and BARRIER.
+					 */
 					__wt_timestamp_set(
 					    &(*updp)->timestamp,
 					    &txn->commit_timestamp);
