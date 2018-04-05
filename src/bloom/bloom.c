@@ -273,7 +273,8 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 	WT_ASSERT(bloom->session, bloom->bitstring == NULL);
 
 	/* Create a cursor on the first time through. */
-	WT_RET(__bloom_open_cursor(bloom, NULL));
+	c = NULL;
+	WT_ERR(__bloom_open_cursor(bloom, NULL));
 	c = bloom->c;
 
 	h1 = bhash->h1;
@@ -293,12 +294,13 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 			break;
 		}
 	}
+	WT_ERR(c->reset(c));
+	return (ret);
 
-err:	WT_TRET(c->reset(c));
-	if (ret == 0)
-		return (0);
+err:	if (c != NULL)
+		WT_TRET(c->reset(c));
 
-	/* Don't return WT_NOTFOUND from a failed search. */
+	/* Don't return WT_NOTFOUND from a failed cursor open or search. */
 	WT_RET_MSG(bloom->session,
 	    ret == WT_NOTFOUND ? WT_ERROR : ret,
 	    "Failed lookup in bloom filter");
