@@ -514,6 +514,7 @@ connection_stats = [
     TxnStat('txn_pinned_timestamp', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp_oldest', 'transaction range of timestamps pinned by the oldest timestamp', 'no_clear,no_scale'),
     TxnStat('txn_prepare', 'transactions prepared'),
+    TxnStat('txn_prepare_active', 'active prepared transactions'),
     TxnStat('txn_prepare_commit', 'prepare transactions committed'),
     TxnStat('txn_prepare_rollback', 'prepare transactions rolled back'),
     TxnStat('txn_query_ts', 'query timestamp calls'),

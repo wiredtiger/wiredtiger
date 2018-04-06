@@ -1658,8 +1658,10 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 	WT_STAT_CONN_INCR(session, txn_commit);
 
 	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_PREPARE))
+	if (F_ISSET(txn, WT_TXN_PREPARE)) {
 		WT_STAT_CONN_INCR(session, txn_prepare_commit);
+		WT_STAT_CONN_DECR(session, txn_prepare_active);
+	}
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
@@ -1693,6 +1695,7 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, prepare_transaction, config, cfg);
 	WT_STAT_CONN_INCR(session, txn_prepare);
+	WT_STAT_CONN_INCR(session, txn_prepare_active);
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
@@ -1750,8 +1753,10 @@ __session_rollback_transaction(WT_SESSION *wt_session, const char *config)
 	WT_STAT_CONN_INCR(session, txn_rollback);
 
 	txn = &session->txn;
-	if (F_ISSET(txn, WT_TXN_PREPARE))
+	if (F_ISSET(txn, WT_TXN_PREPARE)) {
 		WT_STAT_CONN_INCR(session, txn_prepare_rollback);
+		WT_STAT_CONN_DECR(session, txn_prepare_active);
+	}
 
 	WT_ERR(__wt_txn_context_check(session, true));
 
