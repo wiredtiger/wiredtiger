@@ -268,6 +268,7 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 	uint64_t h1, h2;
 	uint32_t i;
 	uint8_t bit;
+	int result;
 
 	/* Get operations are only supported by finalized bloom filters. */
 	WT_ASSERT(bloom->session, bloom->bitstring == NULL);
@@ -280,6 +281,7 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 	h1 = bhash->h1;
 	h2 = bhash->h2;
 
+	result = 0;
 	for (i = 0; i < bloom->k; i++, h1 += h2) {
 		/*
 		 * Add 1 to the hash because WiredTiger tables are 1 based and
@@ -290,12 +292,12 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 		WT_ERR(c->get_value(c, &bit));
 
 		if (bit == 0) {
-			ret = WT_NOTFOUND;
+			result = WT_NOTFOUND;
 			break;
 		}
 	}
 	WT_ERR(c->reset(c));
-	return (ret);
+	return (result);
 
 err:	if (c != NULL)
 		WT_TRET(c->reset(c));
