@@ -244,10 +244,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	WT_ASSERT(session, locked);
 	if ((updp = ref->page_del->update_list) != NULL)
-		for (; *updp != NULL; ++updp) {
+		for (; *updp != NULL; ++updp)
 			(*updp)->txnid = WT_TXN_ABORTED;
-			(*updp)->prepare_state = WT_PREPARE_READY;
-		}
 
 	ref->state = current_state;
 
@@ -255,7 +253,6 @@ done:	/*
 	 * Now mark the truncate aborted: this must come last because after
 	 * this point there is nothing preventing the page from being evicted.
 	 */
-	ref->page_del->prepare_state = WT_PREPARE_READY;
 	WT_PUBLISH(ref->page_del->txnid, WT_TXN_ABORTED);
 	return (0);
 }
@@ -294,7 +291,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	if (!__wt_atomic_casv32(&ref->state, WT_REF_DELETED, WT_REF_LOCKED))
 		return (false);
 
-	skip = __wt_txn_visible_page_deleted(session, ref, visible_all);
+	skip = !__wt_page_del_active(session, ref, visible_all);
 
 	/*
 	 * The page_del structure can be freed as soon as the delete is stable:
@@ -332,8 +329,8 @@ __tombstone_update_alloc(WT_SESSION_IMPL *session,
 	 */
 	if (page_del != NULL) {
 		upd->txnid = page_del->txnid;
-		upd->prepare_state = page_del->prepare_state;
 		__wt_timestamp_set(&upd->timestamp, &page_del->timestamp);
+		upd->prepare_state = page_del->prepare_state;
 	}
 	*updp = upd;
 	return (0);
@@ -397,8 +394,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * needs to be resolved, otherwise, there may not be one (and, if the
 	 * transaction has resolved, we can ignore the page-deleted structure).
 	 */
-	page_del =
-	    __wt_btree_truncate_active(session, ref) ? ref->page_del : NULL;
+	page_del = __wt_page_del_active(session, ref, true) ?
+	    ref->page_del : NULL;
 
 	/*
 	 * Allocate the per-page update array if one doesn't already exist. (It

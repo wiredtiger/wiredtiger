@@ -367,11 +367,14 @@ restart:	/*
 			 * handle restart or not-found returns, it would require
 			 * additional complexity and is not a possible return:
 			 * we're moving to the parent of the current child page,
-			 * the parent can't have been evicted.
+			 * the parent can't have been evicted. (This is why we
+			 * don't pass "prev" to the page-swap function, we can't
+			 * handle the restart error returned if the parent page
+			 * is currently splitting.)
 			 */
 			if (!LF_ISSET(WT_READ_SKIP_INTL)) {
 				WT_ERR(__wt_page_swap(
-				    session, couple, ref, flags));
+				    session, couple, ref, false, flags));
 				*refp = ref;
 				goto done;
 			}
@@ -449,7 +452,7 @@ restart:	/*
 					break;
 			}
 
-			ret = __wt_page_swap(session, couple, ref,
+			ret = __wt_page_swap(session, couple, ref, prev,
 			    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
 
 			/*

@@ -1151,21 +1151,28 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_btree_truncate_active --
+ * __wt_page_del_active --
  *	Return if a truncate operation is active.
  */
 static inline bool
-__wt_btree_truncate_active(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_page_del_active(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
 	WT_PAGE_DELETED *page_del;
+	uint8_t prepare_state;
 
 	if ((page_del = ref->page_del) == NULL)
 		return (false);
 	if (page_del->txnid == WT_TXN_ABORTED)
 		return (false);
-	if (page_del->prepare_state != WT_PREPARE_READY)
+	WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+	if (prepare_state == WT_PREPARE_INPROGRESS ||
+	    prepare_state == WT_PREPARE_LOCKED)
 		return (true);
-	return (!__wt_txn_visible_all(session,
+	return (visible_all ?
+	    !__wt_txn_visible_all(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) :
+	    !__wt_txn_visible(session,
 	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
 }
 
@@ -1356,7 +1363,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	mod = page->modify;
 
 	/* A truncated page can't be evicted until the truncate completes. */
-	if (__wt_btree_truncate_active(session, ref))
+	if (__wt_page_del_active(session, ref, true))
 		return (false);
 
 	/* Otherwise, never modified pages can always be evicted. */
@@ -1689,8 +1696,8 @@ __wt_split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref)
  * coupling up/down the tree.
  */
 static inline int
-__wt_page_swap_func(
-    WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+__wt_page_swap_func(WT_SESSION_IMPL *session,
+    WT_REF *held, WT_REF *want, bool prev_race, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
     , const char *file, int line
 #endif
@@ -1725,8 +1732,7 @@ __wt_page_swap_func(
 	 * releasing the page from which we are coupling, else we can't restart
 	 * the movement.
 	 */
-	if (ret == 0 && LF_ISSET(WT_READ_PREV) &&
-	    WT_PAGE_IS_INTERNAL(want->page) &&
+	if (ret == 0 && prev_race && WT_PAGE_IS_INTERNAL(want->page) &&
 	    __wt_split_prev_race(session, want)) {
 		ret = WT_RESTART;
 		WT_TRET(__wt_page_release(session, want, flags));
