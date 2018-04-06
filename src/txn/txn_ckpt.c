@@ -707,12 +707,31 @@ __checkpoint_prepare(
 	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
 	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
 
-	if (use_timestamp && txn_global->has_stable_timestamp) {
-		__wt_timestamp_set(
-		    &txn->read_timestamp, &txn_global->stable_timestamp);
-		F_SET(txn, WT_TXN_HAS_TS_READ);
-	} else
+	if (use_timestamp) {
+		/*
+		 * If the user wants timestamps then set the metadata
+		 * checkpoint timestamp based on whether or not a stable
+		 * timestamp is actually in use.  Only set it when we're not
+		 * running recovery because recovery doesn't set the recovery
+		 * timestamp until its checkpoint is complete.
+		 */
+		if (txn_global->has_stable_timestamp) {
+			__wt_timestamp_set(&txn->read_timestamp,
+			    &txn_global->stable_timestamp);
+			F_SET(txn, WT_TXN_HAS_TS_READ);
+			if (!F_ISSET(conn, WT_CONN_RECOVERING))
+				__wt_timestamp_set(
+				    &txn_global->meta_ckpt_timestamp,
+				    &txn->read_timestamp);
+		} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
+			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
+			    &txn_global->recovery_timestamp);
+	} else {
 		__wt_timestamp_set_zero(&txn->read_timestamp);
+		if (!F_ISSET(conn, WT_CONN_RECOVERING))
+			__wt_timestamp_set_zero(
+			    &txn_global->meta_ckpt_timestamp);
+	}
 #else
 	WT_UNUSED(use_timestamp);
 #endif
@@ -907,7 +926,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * commit but we don't want to set it until we know the checkpoint
 	 * is successful.
 	 */
-	__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
+	if (full) {
+		WT_ERR(__wt_meta_sysinfo_set(session));
+		__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
+	}
 #endif
 	WT_ERR(__wt_txn_commit(session, NULL));
 
