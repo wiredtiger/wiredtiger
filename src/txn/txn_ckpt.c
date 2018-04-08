@@ -926,6 +926,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * commit but we don't want to set it until we know the checkpoint
 	 * is successful.
 	 */
+	__wt_timestamp_set_zero(&ckpt_tmp_ts);
 	if (full) {
 		WT_ERR(__wt_meta_sysinfo_set(session));
 		__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
