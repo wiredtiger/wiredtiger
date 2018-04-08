@@ -502,7 +502,10 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+	const char *cfg[3];
+	char *config, *newcfg;
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 2];
+	bool update;
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 	hex_timestamp[0] = '0';
@@ -518,11 +521,34 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 #endif
 	WT_ERR(__wt_buf_catfmt(session, buf,
 	    "checkpoint_timestamp=\"%s\"", hex_timestamp));
-	WT_ERR(__ckpt_set(session, WT_SYSTEM_URI, buf->mem));
 
-err:	__wt_scr_free(session, &buf);
+	update = true;
+	config = newcfg = NULL;
+	/* Retrieve the metadata for this file. */
+	cfg[2] = NULL;
+	if ((ret =
+	    __wt_metadata_search(session, WT_SYSTEM_URI, &config)) == 0) {
+		cfg[0] = config;
+		cfg[1] = buf->mem;
+	} else if (ret == WT_NOTFOUND) {
+		update = false;
+		cfg[0] = buf->mem;
+		cfg[1] = NULL;
+	} else
+		WT_ERR(ret);
+	/* Replace or insert the system info entry. */
+	WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
+	if (update)
+		WT_ERR(__wt_metadata_update(session, WT_SYSTEM_URI, newcfg));
+	else
+		WT_ERR(__wt_metadata_insert(session, WT_SYSTEM_URI, newcfg));
+
+err:	__wt_free(session, config);
+	__wt_free(session, newcfg);
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
+
 /*
  * __ckpt_version_chk --
  *	Check the version major/minor numbers.
