@@ -140,9 +140,9 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 		 * and lookaside tables, they're not application/user "objects"
 		 * in the database.  I'm making an exception for the checkpoint
 		 * and verbose options. However, skip over the metadata system
-		 * information with the checkpoint option.
+		 * information for anything except the verbose option.
 		 */
-		if (cflag && strcmp(key, WT_SYSTEM_URI) != 0)
+		if (!vflag && strcmp(key, WT_SYSTEM_URI) == 0)
 			continue;
 		if (cflag || vflag ||
 		    (strcmp(key, WT_METADATA_URI) != 0 &&
