@@ -1149,9 +1149,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		++remove_cnt;
 	}
 
-	__wt_writeunlock(session, &cache->las_sweepwalk_lock);
-	locked = false;
-
 	/*
 	 * If the loop terminates after completing a work unit, we will
 	 * continue the table sweep next time. Get a local copy of the
