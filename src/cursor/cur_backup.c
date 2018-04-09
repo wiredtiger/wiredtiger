@@ -470,13 +470,14 @@ __backup_list_uri_append(
 	    !WT_PREFIX_MATCH(name, "colgroup:") &&
 	    !WT_PREFIX_MATCH(name, "index:") &&
 	    !WT_PREFIX_MATCH(name, "lsm:") &&
+	    !WT_PREFIX_MATCH(name, "system:") &&
 	    !WT_PREFIX_MATCH(name, "table:"))
 		WT_RET_MSG(session, ENOTSUP,
 		    "hot backup is not supported for objects of type %s",
 		    name);
 
-	/* Ignore the lookaside table. */
-	if (strcmp(name, WT_LAS_URI) == 0)
+	/* Ignore the lookaside table or system info. */
+	if (strcmp(name, WT_LAS_URI) == 0 || strcmp(name, WT_SYSTEM_URI) == 0)
 		return (0);
 
 	/* Add the metadata entry to the backup file. */

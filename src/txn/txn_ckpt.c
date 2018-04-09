@@ -60,7 +60,10 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 	 * devices.  If a target list is configured for the checkpoint, this
 	 * function is called with each target list entry; check the entry to
 	 * make sure it's backed by a file.  If no target list is configured,
-	 * confirm the metadata file contains no non-file objects.
+	 * confirm the metadata file contains no non-file objects. Skip any
+	 * internal system objects. We don't want spurious error messages,
+	 * other code will skip over them and the user has no control over
+	 * their existence.
 	 */
 	if (uri == NULL) {
 		WT_RET(__wt_metadata_cursor(session, &cursor));
@@ -69,6 +72,7 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 			if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
 			    !WT_PREFIX_MATCH(uri, "file:") &&
 			    !WT_PREFIX_MATCH(uri, "index:") &&
+			    !WT_PREFIX_MATCH(uri, "system:") &&
 			    !WT_PREFIX_MATCH(uri, "table:")) {
 				fail = uri;
 				break;
