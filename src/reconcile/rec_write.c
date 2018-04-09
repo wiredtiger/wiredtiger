@@ -6183,18 +6183,18 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
 	WT_DECL_RET;
 	WT_MULTI *multi;
-	uint32_t btree_id, i;
-
-	btree_id = S2BT(session)->id;
+	uint64_t las_pageid;
+	uint32_t i;
 
 	/*
 	 * Note the additional check for a non-zero lookaside page ID, that
 	 * flags if lookaside table entries for this page have been written.
 	 */
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-		if (multi->supd != NULL && multi->page_las.las_pageid != 0)
-			WT_TRET(__wt_las_remove_block(session,
-			    btree_id, multi->page_las.las_pageid));
+		if (multi->supd != NULL &&
+		    (las_pageid = multi->page_las.las_pageid) != 0)
+			WT_TRET(
+			    __wt_las_remove_block(session, las_pageid, true));
 
 	return (ret);
 }

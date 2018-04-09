@@ -159,8 +159,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	 * for a key and then insert those updates into the page, then all the
 	 * updates for the next key, and so on.
 	 */
-	ret = __wt_las_cursor_position(
-	    cursor, btree_id, ref->page_las->las_pageid);
+	ret = __wt_las_cursor_position(cursor, ref->page_las->las_pageid);
 	__wt_readlock(session, &cache->las_sweepwalk_lock);
 	locked = true;
 	for (; ret == 0; ret = cursor->next(cursor)) {
@@ -518,7 +517,7 @@ skip_read:
 	 */
 	if (final_state == WT_REF_MEM && ref->page_las != NULL)
 		WT_IGNORE_RET(__wt_las_remove_block(
-		    session, btree->id, ref->page_las->las_pageid));
+		    session, ref->page_las->las_pageid, false));
 
 	WT_PUBLISH(ref->state, final_state);
 	return (ret);
