@@ -507,6 +507,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 2];
 	bool update;
 
+	config = newcfg = NULL;
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 	hex_timestamp[0] = '0';
 	hex_timestamp[1] = '\0';
@@ -523,7 +524,6 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 	    "checkpoint_timestamp=\"%s\"", hex_timestamp));
 
 	update = true;
-	config = newcfg = NULL;
 	/* Retrieve the metadata for this file. */
 	cfg[2] = NULL;
 	if ((ret =
