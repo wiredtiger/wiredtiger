@@ -368,6 +368,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (btree->modified)
 		__wt_page_modify_set(session, page);
 
+	if (ref->page_del != NULL &&
+	    ref->page_del->prepare_state != WT_PREPARE_INIT) {
+		WT_STAT_CONN_INCR(session, cache_read_deleted_prepared);
+		WT_STAT_DATA_INCR(session, cache_read_deleted_prepared);
+	}
+
 	/*
 	 * An operation is accessing a "deleted" page, and we're building an
 	 * in-memory version of the page (making it look like all entries in
