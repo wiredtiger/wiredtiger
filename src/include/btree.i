@@ -202,6 +202,8 @@ static inline void
 __wt_cache_decr_check_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
 {
+	uint64_t orig = *vp;
+
 	if (v == 0 || __wt_atomic_sub64(vp, v) < WT_EXABYTE)
 		return;
 
@@ -211,7 +213,8 @@ __wt_cache_decr_check_uint64(
 	 */
 	*vp = 0;
 	__wt_errx(session,
-	    "%s went negative with decrement of %" PRIu64, fld, v);
+	    "%s was %" PRIu64 ", went negative with decrement of %" PRIu64, fld,
+	    orig, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
