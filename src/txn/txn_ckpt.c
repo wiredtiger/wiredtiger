@@ -894,6 +894,20 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	session->dhandle = NULL;
 
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Record the timestamp from the transaction if we were successful.
+	 * Store it in a temp variable now because it will be invalidated during
+	 * commit but we don't want to set it until we know the checkpoint
+	 * is successful.
+	 */
+	__wt_timestamp_set_zero(&ckpt_tmp_ts);
+	if (full) {
+		WT_ERR(__wt_meta_sysinfo_set(session));
+		__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
+	}
+#endif
+
 	/* Release the snapshot so we aren't pinning updates in cache. */
 	__wt_txn_release_snapshot(session);
 
@@ -923,21 +937,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * checkpointing the metadata since we know that all files in the
 	 * checkpoint are now in a consistent state.
 	 */
-#ifdef HAVE_TIMESTAMPS
-	/*
-	 * Record the timestamp from the transaction if we were successful.
-	 * Store it in a temp variable now because it will be invalidated during
-	 * commit but we don't want to set it until we know the checkpoint
-	 * is successful.
-	 */
-	__wt_timestamp_set_zero(&ckpt_tmp_ts);
-	if (full) {
-		F_SET(session, WT_SESSION_NO_RECONCILE);
-		WT_ERR(__wt_meta_sysinfo_set(session));
-		F_CLR(session, WT_SESSION_NO_RECONCILE);
-		__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
-	}
-#endif
 	WT_ERR(__wt_txn_commit(session, NULL));
 
 	/*
