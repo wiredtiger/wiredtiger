@@ -395,7 +395,8 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	 */
 	for (skip = cbt->next_random_leaf_skip; cbt->ref == NULL || skip > 0;) {
 		n = skip;
-		WT_ERR(__wt_tree_walk_skip(session, &cbt->ref, &skip));
+		WT_ERR(__wt_tree_walk_skip(session, &cbt->ref, &skip,
+		    WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
 		if (n == skip) {
 			if (skip == 0)
 				break;
