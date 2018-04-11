@@ -477,7 +477,7 @@ __backup_list_uri_append(
 		    name);
 
 	/* Ignore the lookaside table or system info. */
-	if (strcmp(name, WT_LAS_URI) == 0 || strcmp(name, WT_SYSTEM_URI) == 0)
+	if (strcmp(name, WT_LAS_URI) == 0)
 		return (0);
 
 	/* Add the metadata entry to the backup file. */
@@ -485,6 +485,13 @@ __backup_list_uri_append(
 	ret = __wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value);
 	__wt_free(session, value);
 	WT_RET(ret);
+
+	/*
+	 * We want to retain the system information in the backup metadata
+	 * file above, but there is no file object to copy so return now.
+	 */
+	if (strcmp(name, WT_SYSTEM_URI) == 0)
+		return (0);
 
 	/* Add file type objects to the list of files to be copied. */
 	if (WT_PREFIX_MATCH(name, "file:"))
