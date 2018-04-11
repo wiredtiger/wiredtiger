@@ -932,7 +932,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	__wt_timestamp_set_zero(&ckpt_tmp_ts);
 	if (full) {
+		F_SET(session, WT_SESSION_NO_RECONCILE);
 		WT_ERR(__wt_meta_sysinfo_set(session));
+		F_CLR(session, WT_SESSION_NO_RECONCILE);
 		__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
 	}
 #endif
