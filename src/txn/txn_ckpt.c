@@ -899,7 +899,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Record the timestamp from the transaction if we were successful.
 	 * Store it in a temp variable now because it will be invalidated during
 	 * commit but we don't want to set it until we know the checkpoint
-	 * is successful.
+	 * is successful. We have to set the system information before we
+	 * release the snapshot.
 	 */
 	__wt_timestamp_set_zero(&ckpt_tmp_ts);
 	if (full) {

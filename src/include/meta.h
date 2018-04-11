@@ -27,7 +27,7 @@
 #define	WT_METAFILE_URI		"file:WiredTiger.wt"	/* Metadata table URI */
 
 #define	WT_LAS_URI		"file:WiredTigerLAS.wt"	/* Lookaside table URI*/
-#define	WT_SYSTEM_URI		"system:info"		/* System info URI*/
+#define	WT_SYSTEM_URI		"system:checkpoint"	/* System ckpt URI*/
 
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference
