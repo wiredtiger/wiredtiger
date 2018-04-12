@@ -764,10 +764,10 @@ __wt_config_gets_def(WT_SESSION_IMPL *session,
 	for (end = cfg; *end != NULL; ++end)
 		;
 	switch ((int)(end - cfg)) {
-	case 0:
-	case 1:
+	case 0:				/* cfg[0] == NULL */
+	case 1:				/* cfg[1] == NULL */
 		return (0);
-	case 2:
+	case 2:				/* cfg[2] == NULL */
 		WT_RET_NOTFOUND_OK(
 		    __wt_config_getones(session, cfg[1], key, value));
 		return (0);
