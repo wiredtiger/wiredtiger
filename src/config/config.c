@@ -758,7 +758,7 @@ __wt_config_gets_def(WT_SESSION_IMPL *session,
 	 * deliberate. The reason is because we pass variable length arrays of
 	 * pointers as the configuration argument, some of which have only one
 	 * element and the NULL termination. Static analyzers (like Coverity)
-	 * complain if we derefence an offset past the end of the array, even
+	 * complain if we read from an offset past the end of the array, even
 	 * if we check there's no NULL slots before the offset.
 	 */
 	for (end = cfg; *end != NULL; ++end)
