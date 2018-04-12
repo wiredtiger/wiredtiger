@@ -24,6 +24,7 @@ typedef struct {
 	u_int max_fileid;		/* Maximum file ID seen. */
 	WT_LSN max_lsn;			/* Maximum checkpoint LSN seen. */
 	u_int nfiles;			/* Number of files in the metadata. */
+	WT_DECL_TIMESTAMP(max_timestamp)
 
 	WT_LSN ckpt_lsn;		/* Start LSN for main recovery loop. */
 
@@ -346,13 +347,10 @@ static int
 __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 {
 	WT_CONFIG_ITEM cval;
-	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(ckpt_timestamp)
 	WT_LSN lsn;
 	uint32_t fileid, lsnfile, lsnoffset;
-	char *sys_config;
 
-	sys_config = NULL;
 	WT_RET(__wt_config_getones(r->session, config, "id", &cval));
 	fileid = (uint32_t)cval.val;
 
@@ -372,41 +370,25 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	 * save the stable timestamp of the last checkpoint for later query.
 	 * This gets saved in the connection.
 	 */
-	if (fileid == WT_METAFILE_ID) {
-		__wt_timestamp_set_zero(&ckpt_timestamp);
+	WT_CLEAR(cval);
+	WT_RET_NOTFOUND_OK(__wt_config_getones(r->session,
+	    config, "checkpoint_timestamp", &cval));
+	if (cval.len != 0) {
+		__wt_verbose(r->session, WT_VERB_RECOVERY,
+		    "%s: Recovery timestamp %.*s",
+		    uri, (int)cval.len, cval.str);
+		WT_RET(__wt_txn_parse_timestamp_raw(r->session, "recovery",
+		    &ckpt_timestamp, &cval));
 		/*
-		 * Search in the metadata for the system information.
+		 * Keep track of the largest checkpoint timestamp seen.
 		 */
-		WT_ERR_NOTFOUND_OK(__wt_metadata_search(r->session,
-		    WT_SYSTEM_URI, &sys_config));
-		if (sys_config != NULL) {
-			WT_CLEAR(cval);
-			WT_ERR_NOTFOUND_OK(__wt_config_getones(r->session,
-			sys_config, "checkpoint_timestamp", &cval));
-			if (cval.len != 0) {
-				__wt_verbose(r->session, WT_VERB_RECOVERY,
-				    "%s: Recovery timestamp %.*s",
-				    uri, (int)cval.len, cval.str);
-				WT_ERR(__wt_txn_parse_timestamp_raw(r->session,
-				    "recovery", &ckpt_timestamp, &cval));
-			}
-		}
-		/*
-		 * Set the timestamp that will be used for the recovery
-		 * checkpoint timestamp. Recovery should not change the
-		 * timestamp nature of the last shutdown so just set it
-		 * to what it was before.
-		 */
-		__wt_timestamp_set(
-		    &S2C(r->session)->txn_global.meta_ckpt_timestamp,
-		    &ckpt_timestamp);
+		if (__wt_timestamp_cmp(&ckpt_timestamp, &r->max_timestamp) > 0)
+			__wt_timestamp_set(&r->max_timestamp, &ckpt_timestamp);
 	}
-#else
-	WT_UNUSED(sys_config);
 #endif
 
-	WT_ERR(__wt_strdup(r->session, uri, &r->files[fileid].uri));
-	WT_ERR(
+	WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
+	WT_RET(
 	    __wt_config_getones(r->session, config, "checkpoint_lsn", &cval));
 	/* If there is checkpoint logged for the file, apply everything. */
 	if (cval.type != WT_CONFIG_ITEM_STRUCT)
@@ -415,7 +397,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	    "(%" SCNu32 ",%" SCNu32 ")", &lsnfile, &lsnoffset) == 2)
 		WT_SET_LSN(&lsn, lsnfile, lsnoffset);
 	else
-		WT_ERR_MSG(r->session, EINVAL,
+		WT_RET_MSG(r->session, EINVAL,
 		    "Failed to parse checkpoint LSN '%.*s'",
 		    (int)cval.len, cval.str);
 	r->files[fileid].ckpt_lsn = lsn;
@@ -428,8 +410,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	    (WT_IS_MAX_LSN(&r->max_lsn) || __wt_log_cmp(&lsn, &r->max_lsn) > 0))
 		r->max_lsn = lsn;
 
-err:	__wt_free(r->session, sys_config);
-	return (ret);
+	return (0);
 
 }
 
@@ -518,7 +499,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	WT_MAX_LSN(&r.max_lsn);
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
-	__wt_timestamp_set_zero(&conn->txn_global.meta_ckpt_timestamp);
+	__wt_timestamp_set_zero(&r.max_timestamp);
 #endif
 
 	F_SET(conn, WT_CONN_RECOVERING);
@@ -685,8 +666,7 @@ done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 	{
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
 	__wt_timestamp_set(
-	    &conn->txn_global.recovery_timestamp,
-	    &conn->txn_global.meta_ckpt_timestamp);
+	    &conn->txn_global.recovery_timestamp, &r.max_timestamp);
 	WT_TRET(__wt_timestamp_to_hex_string(session,
 	    hex_timestamp, &conn->txn_global.recovery_timestamp));
 	__wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
