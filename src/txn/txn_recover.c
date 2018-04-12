@@ -339,6 +339,74 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __recovery_set_checkpoint_timestamp --
+ *	Set the checkpoint timestamp as retrieved from the turtle file.
+ */
+static int
+__recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
+{
+#ifdef HAVE_TIMESTAMPS
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_DECL_TIMESTAMP(ckpt_timestamp)
+	WT_SESSION_IMPL *session;
+	char *sys_config;
+
+	sys_config = NULL;
+
+	session = r->session;
+	conn = S2C(session);
+	/*
+	 * If we're reading the config for the metadata from the turtle file
+	 * save the stable timestamp of the last checkpoint for later query.
+	 * This gets saved in the connection.
+	 */
+	__wt_timestamp_set_zero(&ckpt_timestamp);
+
+	/* Search in the metadata for the system information. */
+	WT_ERR_NOTFOUND_OK(
+	    __wt_metadata_search(session, WT_SYSTEM_URI, &sys_config));
+	if (sys_config != NULL) {
+		WT_CLEAR(cval);
+		WT_ERR_NOTFOUND_OK(__wt_config_getones(
+		    session, sys_config, "checkpoint_timestamp", &cval));
+		if (cval.len != 0) {
+			__wt_verbose(session, WT_VERB_RECOVERY,
+			    "Recovery timestamp %.*s",
+			    (int)cval.len, cval.str);
+			WT_ERR(__wt_txn_parse_timestamp_raw(session,
+			    "recovery", &ckpt_timestamp, &cval));
+		}
+	}
+
+	/*
+	 * Now that the metadata has been recovered, set the recovery
+	 * checkpoint timestamp.
+	 */
+	__wt_timestamp_set(
+	    &conn->txn_global.meta_ckpt_timestamp, &ckpt_timestamp);
+	__wt_timestamp_set(
+	    &conn->txn_global.recovery_timestamp, &ckpt_timestamp);
+
+	if (WT_VERBOSE_ISSET(session,
+	    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS)) {
+		char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+		WT_TRET(__wt_timestamp_to_hex_string(session,
+		    hex_timestamp, &conn->txn_global.recovery_timestamp));
+		__wt_verbose(session,
+		    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
+		    "Set global recovery timestamp: %s", hex_timestamp);
+	}
+err:	__wt_free(session, sys_config);
+	return (ret);
+#else
+	WT_UNUSED(r);
+	return (0);
+#endif
+}
+
+/*
  * __recovery_setup_file --
  *	Set up the recovery slot for a file.
  */
@@ -454,20 +522,19 @@ __recovery_file_scan(WT_RECOVERY *r)
 int
 __wt_txn_recover(WT_SESSION_IMPL *session)
 {
-	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *metac;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(ckpt_timestamp)
 	WT_RECOVERY r;
 	WT_RECOVERY_FILE *metafile;
-	char *config, *sys_config;
-	bool eviction_started, needs_rec, was_backup;
+	char *config;
+	bool do_checkpoint, eviction_started, needs_rec, was_backup;
 
 	conn = S2C(session);
 	WT_CLEAR(r);
 	WT_INIT_LSN(&r.ckpt_lsn);
-	config = sys_config = NULL;
+	config = NULL;
+	do_checkpoint = true;
 	eviction_started = false;
 	was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
@@ -513,11 +580,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 		    WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
-		    !WT_IS_MAX_LSN(&r.max_lsn)) {
+		    !WT_IS_MAX_LSN(&r.max_lsn))
 			WT_ERR(__wt_log_reset(session, r.max_lsn.l.file));
-			goto ckpt;
-		} else
-			goto done;
+		else
+			do_checkpoint = false;
+		goto done;
 	}
 
 	/*
@@ -558,52 +625,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 		}
 	}
 
-#ifdef HAVE_TIMESTAMPS
-	/*
-	 * If we're reading the config for the metadata from the turtle file
-	 * save the stable timestamp of the last checkpoint for later query.
-	 * This gets saved in the connection.
-	 */
-	__wt_timestamp_set_zero(&ckpt_timestamp);
-
-	/* Search in the metadata for the system information. */
-	WT_ERR_NOTFOUND_OK(
-	    __wt_metadata_search(session, WT_SYSTEM_URI, &sys_config));
-	if (sys_config != NULL) {
-		WT_CLEAR(cval);
-		WT_ERR_NOTFOUND_OK(__wt_config_getones(
-		    session, sys_config, "checkpoint_timestamp", &cval));
-		if (cval.len != 0) {
-			__wt_verbose(session, WT_VERB_RECOVERY,
-			    "Recovery timestamp %.*s",
-			    (int)cval.len, cval.str);
-			WT_ERR(__wt_txn_parse_timestamp_raw(session,
-			    "recovery", &ckpt_timestamp, &cval));
-		}
-	}
-
-	/*
-	 * Now that the metadata has been recovered, set the recovery
-	 * checkpoint timestamp.
-	 */
-	__wt_timestamp_set(
-	    &conn->txn_global.meta_ckpt_timestamp, &ckpt_timestamp);
-	__wt_timestamp_set(
-	    &conn->txn_global.recovery_timestamp, &ckpt_timestamp);
-
-	if (WT_VERBOSE_ISSET(session,
-	    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS)) {
-		char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-		WT_TRET(__wt_timestamp_to_hex_string(session,
-		    hex_timestamp, &conn->txn_global.recovery_timestamp));
-		__wt_verbose(session,
-		    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
-		    "Set global recovery timestamp: %s", hex_timestamp);
-	}
-#else
-	WT_UNUSED(sys_config);
-#endif
-
 	/* Scan the metadata to find the live files and their IDs. */
 	WT_ERR(__recovery_file_scan(&r));
 	/*
@@ -642,8 +663,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 		WT_ERR(WT_RUN_RECOVERY);
 	}
 
-	if (F_ISSET(conn, WT_CONN_READONLY))
+	if (F_ISSET(conn, WT_CONN_READONLY)) {
+		do_checkpoint = false;
 		goto done;
+	}
 
 	/*
 	 * Recovery can touch more data than fits in cache, so it relies on
@@ -674,16 +697,18 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 	conn->next_file_id = r.max_fileid;
 
-	/*
-	 * If recovery ran successfully forcibly log a checkpoint so the next
-	 * open is fast and keep the metadata up to date with the checkpoint
-	 * LSN and archiving.
-	 */
-ckpt:	WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
-done:	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
+done:	WT_ERR(__recovery_set_checkpoint_timestamp(&r));
+	if (do_checkpoint) {
+		/*
+		 * Forcibly log a checkpoint so the next open is fast and keep
+		 * the metadata up to date with the checkpoint LSN and
+		 * archiving.
+		 */
+		WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+	}
+	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
 err:	WT_TRET(__recovery_free(&r));
-	__wt_free(session, sys_config);
 	__wt_free(session, config);
 	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
