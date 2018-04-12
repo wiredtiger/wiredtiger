@@ -340,7 +340,7 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 
 /*
  * __recovery_set_checkpoint_timestamp --
- *	Set the checkpoint timestamp as retrieved from the turtle file.
+ *	Set the checkpoint timestamp as retrieved from the metadata file.
  */
 static int
 __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
@@ -358,7 +358,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	session = r->session;
 	conn = S2C(session);
 	/*
-	 * If we're reading the config for the metadata from the turtle file
+	 * Read the system checkpoint information from the metadata file and
 	 * save the stable timestamp of the last checkpoint for later query.
 	 * This gets saved in the connection.
 	 */
@@ -381,8 +381,9 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	}
 
 	/*
-	 * Now that the metadata has been recovered, set the recovery
-	 * checkpoint timestamp.
+	 * Set the recovery checkpoint timestamp and the metadata checkpoint
+	 * timestamp so that the checkpoint after recovery writes the correct
+	 * value into the metadata.
 	 */
 	__wt_timestamp_set(
 	    &conn->txn_global.meta_ckpt_timestamp, &ckpt_timestamp);
@@ -698,14 +699,13 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	conn->next_file_id = r.max_fileid;
 
 done:	WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-	if (do_checkpoint) {
+	if (do_checkpoint)
 		/*
 		 * Forcibly log a checkpoint so the next open is fast and keep
 		 * the metadata up to date with the checkpoint LSN and
 		 * archiving.
 		 */
 		WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
-	}
 	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
 err:	WT_TRET(__recovery_free(&r));
