@@ -1665,16 +1665,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * read into this part of the name space again, the cache read function
 	 * instantiates an entirely new page.)
 	 */
-	if (ref->addr != NULL && !__wt_page_del_active(session, ref, true))
-		WT_RET(__wt_ref_block_free(session, ref));
-
-	/*
-	 * If the original page is gone, we can skip the slot on the internal
-	 * page.
-	 */
-	if (ref->addr == NULL) {
-		*statep = WT_CHILD_IGNORE;
-
+	if (ref->addr != NULL && !__wt_page_del_active(session, ref, true)) {
 		/*
 		 * Minor memory cleanup: if a truncate call deleted this page
 		 * and we were ever forced to instantiate the page in memory,
@@ -1687,6 +1678,15 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 			__wt_free(session, ref->page_del);
 		}
 
+		WT_RET(__wt_ref_block_free(session, ref));
+	}
+
+	/*
+	 * If the original page is gone, we can skip the slot on the internal
+	 * page.
+	 */
+	if (ref->addr == NULL) {
+		*statep = WT_CHILD_IGNORE;
 		return (0);
 	}
 
