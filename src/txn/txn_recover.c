@@ -366,7 +366,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 	/* Search in the metadata for the system information. */
 	WT_ERR_NOTFOUND_OK(
-	    __wt_metadata_search(session, WT_SYSTEM_URI, &sys_config));
+	    __wt_metadata_search(session, WT_SYSTEM_CKPT_URI, &sys_config));
 	if (sys_config != NULL) {
 		WT_CLEAR(cval);
 		WT_ERR_NOTFOUND_OK(__wt_config_getones(

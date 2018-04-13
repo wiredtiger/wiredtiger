@@ -72,7 +72,7 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 			if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
 			    !WT_PREFIX_MATCH(uri, "file:") &&
 			    !WT_PREFIX_MATCH(uri, "index:") &&
-			    !WT_PREFIX_MATCH(uri, "system:") &&
+			    !WT_PREFIX_MATCH(uri, WT_SYSTEM_PREFIX) &&
 			    !WT_PREFIX_MATCH(uri, "table:")) {
 				fail = uri;
 				break;
