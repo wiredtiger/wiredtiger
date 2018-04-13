@@ -490,7 +490,7 @@ __backup_list_uri_append(
 	 * We want to retain the system information in the backup metadata
 	 * file above, but there is no file object to copy so return now.
 	 */
-	if (strcmp(name, WT_SYSTEM_URI) == 0)
+	if (WT_PREFIX_MATCH(name, "system:"))
 		return (0);
 
 	/* Add file type objects to the list of files to be copied. */

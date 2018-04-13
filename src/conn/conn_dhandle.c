@@ -791,7 +791,7 @@ restart:
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
 		if (WT_IS_METADATA(dhandle) ||
 		    strcmp(dhandle->name, WT_LAS_URI) == 0 ||
-		    strcmp(dhandle->name, WT_SYSTEM_URI) == 0)
+		    WT_PREFIX_MATCH(dhandle->name, "system:"))
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,

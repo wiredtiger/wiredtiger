@@ -142,7 +142,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 		 * and verbose options. However, skip over the metadata system
 		 * information for anything except the verbose option.
 		 */
-		if (!vflag && strcmp(key, WT_SYSTEM_URI) == 0)
+		if (!vflag && WT_PREFIX_MATCH(key, "system:") == 0)
 			continue;
 		if (cflag || vflag ||
 		    (strcmp(key, WT_METADATA_URI) != 0 &&
