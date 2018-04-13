@@ -470,7 +470,7 @@ __backup_list_uri_append(
 	    !WT_PREFIX_MATCH(name, "colgroup:") &&
 	    !WT_PREFIX_MATCH(name, "index:") &&
 	    !WT_PREFIX_MATCH(name, "lsm:") &&
-	    !WT_PREFIX_MATCH(name, "system:") &&
+	    !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) &&
 	    !WT_PREFIX_MATCH(name, "table:"))
 		WT_RET_MSG(session, ENOTSUP,
 		    "hot backup is not supported for objects of type %s",
@@ -490,7 +490,7 @@ __backup_list_uri_append(
 	 * We want to retain the system information in the backup metadata
 	 * file above, but there is no file object to copy so return now.
 	 */
-	if (WT_PREFIX_MATCH(name, "system:"))
+	if (WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX))
 		return (0);
 
 	/* Add file type objects to the list of files to be copied. */
