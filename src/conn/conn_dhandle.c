@@ -790,7 +790,8 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 restart:
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
 		if (WT_IS_METADATA(dhandle) ||
-		    strcmp(dhandle->name, WT_LAS_URI) == 0)
+		    strcmp(dhandle->name, WT_LAS_URI) == 0 ||
+		    strcmp(dhandle->name, WT_SYSTEM_URI) == 0)
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,
