@@ -513,6 +513,7 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 		config = "isolation=read-committed";
 		break;
 	case 3:
+	default:
 		v = ISOLATION_SNAPSHOT;
 		config = "isolation=snapshot";
 
