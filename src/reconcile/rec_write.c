@@ -5376,16 +5376,24 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			__wt_cell_unpack(cell, kpack);
 		}
 
-		/* Unpack the on-page value cell, and look for an update. */
+		/*
+		 * Unpack the on-page value cell, and look for an update. Under
+		 * some conditions, the underlying code returning updates will
+		 * restructure the update list to include the original on-page
+		 * value, represented by the unpacked-cell argument. Row-store
+		 * doesn't store zero-length values on the page, so we build an
+		 * unpacked cell that allows us to pretend.
+		 */
 		if ((val_cell =
-		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
+		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL) {
+			__wt_cell_unpack_empty_value(&_vpack);
 			vpack = NULL;
-		else {
+		} else {
+			__wt_cell_unpack(val_cell, &_vpack);
 			vpack = &_vpack;
-			__wt_cell_unpack(val_cell, vpack);
 		}
 		WT_ERR(__rec_txn_read(
-		    session, r, NULL, rip, vpack, NULL, &upd));
+		    session, r, NULL, rip, &_vpack, NULL, &upd));
 
 		/* Build value cell. */
 		dictionary = false;
