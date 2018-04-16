@@ -1420,6 +1420,8 @@ __wt_txn_global_clear_pinned(WT_SESSION_IMPL *session)
 	 * pinned.
 	 */
 	__wt_timestamp_set_inf(&S2C(session)->txn_global.pinned_timestamp);
+#else
+	WT_UNUSED(session);
 #endif
 }
 
