@@ -1411,7 +1411,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
  * __wt_txn_global_clear_pinned --
  *	Shut down the global transaction state.
  */
-int
+void
 __wt_txn_global_clear_pinned(WT_SESSION_IMPL *session)
 {
 #ifdef HAVE_TIMESTAMPS
@@ -1421,8 +1421,6 @@ __wt_txn_global_clear_pinned(WT_SESSION_IMPL *session)
 	 */
 	__wt_timestamp_set_inf(&S2C(session)->txn_global.pinned_timestamp);
 #endif
-
-	return (0);
 }
 
 /*
