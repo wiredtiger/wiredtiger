@@ -26,13 +26,8 @@ class Config:
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
-common_runtime_config = [
-    Config('app_metadata', '', r'''
-        application-owned metadata for this object'''),
-]
-
 # Metadata shared by all schema objects
-common_meta = common_runtime_config + [
+common_meta = [
     Config('collator', 'none', r'''
         configure custom collation for keys.  Permitted values are \c "none"
         or a custom collator name created with WT_CONNECTION::add_collator'''),
@@ -144,7 +139,7 @@ lsm_config = [
     ]),
 ]
 
-file_runtime_config = common_runtime_config + [
+file_runtime_config = [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of
         updates and/or point queries specify \c random.  Workloads that
@@ -357,7 +352,9 @@ file_meta = file_config + [
         the file version'''),
 ]
 
-lsm_meta = file_config + lsm_config + [
+# The table runtime metadata also applied to LSM trees, it currently contains
+# the user configurable app_metadata.
+lsm_meta = file_config + lsm_config + table_runtime_config + [
     Config('last', '', r'''
         the last allocated chunk ID'''),
     Config('chunks', '', r'''
@@ -366,7 +363,12 @@ lsm_meta = file_config + lsm_config + [
         obsolete chunks in the LSM tree'''),
 ]
 
-table_only_config = [
+table_runtime_config = [
+    Config('app_metadata', '', r'''
+        application-owned metadata for this object'''),
+]
+
+table_only_config = table_runtime_config + [
     Config('colgroups', '', r'''
         comma-separated list of names of column groups.  Each column
         group is stored separately, keyed by the primary key of the
@@ -938,7 +940,7 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_SESSION.alter' : Method(file_runtime_config),
+'WT_SESSION.alter' : Method(file_runtime_config + table_runtime_config),
 
 'WT_SESSION.close' : Method([]),
 
