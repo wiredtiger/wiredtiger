@@ -352,6 +352,14 @@ file_meta = file_config + [
         the file version'''),
 ]
 
+# This is a set of configuration options that exist only on table and LSM
+# objects. They can be safely altered without exclusive access, as long as
+# the user doesn't need to see refreshed values without a restart.
+table_runtime_config = [
+    Config('app_metadata', '', r'''
+        application-owned metadata for this object'''),
+]
+
 # The table runtime metadata also applied to LSM trees, it currently contains
 # the user configurable app_metadata.
 lsm_meta = file_config + lsm_config + table_runtime_config + [
@@ -361,11 +369,6 @@ lsm_meta = file_config + lsm_config + table_runtime_config + [
         active chunks in the LSM tree'''),
     Config('old_chunks', '', r'''
         obsolete chunks in the LSM tree'''),
-]
-
-table_runtime_config = [
-    Config('app_metadata', '', r'''
-        application-owned metadata for this object'''),
 ]
 
 table_only_config = table_runtime_config + [
@@ -940,7 +943,15 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_SESSION.alter' : Method(file_runtime_config + table_runtime_config),
+'WT_SESSION.alter' : Method(file_runtime_config + table_runtime_config + [
+    Config('exclusive_refreshed', 'true', r'''
+        give users the ability to avoid refreshing the in memory state
+        which is useful because it means we don't need exclusive access to
+        change a setting. This option is dangerous because some metadata
+        entries are overwritten automatically, which could lead to alterations
+        being lost.''',
+        type='boolean', undoc=True),
+]),
 
 'WT_SESSION.close' : Method([]),
 
