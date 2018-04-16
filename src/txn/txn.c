@@ -1404,7 +1404,16 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 		WT_STAT_CONN_INCR(session, txn_release_blocked);
 		__wt_yield();
 	}
+	return (0);
+}
 
+/*
+ * __wt_txn_global_clear_pinned --
+ *	Shut down the global transaction state.
+ */
+int
+__wt_txn_global_clear_pinned(WT_SESSION_IMPL *session)
+{
 #ifdef HAVE_TIMESTAMPS
 	/*
 	 * Now that all transactions have completed, no timestamps should be

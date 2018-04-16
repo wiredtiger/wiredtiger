@@ -1134,6 +1134,7 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 	}
+	WT_TRET(__wt_txn_global_clear_pinned(session));
 
 	if (ret != 0) {
 		__wt_err(session, ret,
