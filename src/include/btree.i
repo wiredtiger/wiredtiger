@@ -1188,7 +1188,7 @@ __wt_page_del_active(
  *      unless the checkpoint thread is doing the work.
  *
  *	Also, during connection close, if we take a checkpoint as of a
- *	timestamp, eviction should write dirty pages to avoid updates newer
+ *	timestamp, eviction should not write dirty pages to avoid updates newer
  *	than the checkpoint timestamp leaking to disk.
  */
 static inline bool
