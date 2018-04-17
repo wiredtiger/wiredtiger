@@ -1186,6 +1186,10 @@ __wt_page_del_active(
  *
  *      We cannot evict dirty pages or split while a checkpoint is in progress,
  *      unless the checkpoint thread is doing the work.
+ *
+ *	Also, during connection close, if we take a checkpoint as of a
+ *	timestamp, eviction should not write dirty pages to avoid updates newer
+ *	than the checkpoint timestamp leaking to disk.
  */
 static inline bool
 __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
@@ -1193,7 +1197,8 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	return (btree->checkpointing == WT_CKPT_OFF ||
+	return ((btree->checkpointing == WT_CKPT_OFF &&
+	    !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) ||
 	    WT_SESSION_IS_CHECKPOINT(session));
 }
 
