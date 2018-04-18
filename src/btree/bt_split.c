@@ -406,7 +406,6 @@ __split_ref_prepare(WT_SESSION_IMPL *session,
 		WT_INTL_FOREACH_BEGIN(session, child, child_ref) {
 			child_ref->home = child;
 			child_ref->pindex_hint = j++;
-
 		} WT_INTL_FOREACH_END;
 
 #ifdef HAVE_DIAGNOSTIC
