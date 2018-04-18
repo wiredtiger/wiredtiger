@@ -395,17 +395,18 @@ __split_ref_prepare(WT_SESSION_IMPL *session,
 		ref = pindex->index[i];
 		child = ref->page;
 
+		WT_PAGE_LOCK(session, child);
+
+		/* Track the locked pages for cleanup. */
+		WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));
+		locked[cnt++] = child;
+
 		/* Switch the WT_REF's to their new page. */
 		j = 0;
-		WT_PAGE_LOCK(session, child);
 		WT_INTL_FOREACH_BEGIN(session, child, child_ref) {
 			child_ref->home = child;
 			child_ref->pindex_hint = j++;
 
-			/* Track the locked pages for cleanup. */
-			WT_ERR(__wt_realloc_def(
-			    session, &alloc, cnt + 2, &locked));
-			locked[cnt++] = child;
 		} WT_INTL_FOREACH_END;
 
 #ifdef HAVE_DIAGNOSTIC
