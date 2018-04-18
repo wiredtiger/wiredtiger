@@ -702,7 +702,7 @@ extern uint64_t __wt_gen(WT_SESSION_IMPL *session, int which);
 extern uint64_t __wt_gen_next(WT_SESSION_IMPL *session, int which);
 extern uint64_t __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
-extern uint64_t __wt_gen_oldest(WT_SESSION_IMPL *session, int which);
+extern bool __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_session_gen(WT_SESSION_IMPL *session, int which);
 extern void __wt_session_gen_enter(WT_SESSION_IMPL *session, int which);
 extern void __wt_session_gen_leave(WT_SESSION_IMPL *session, int which);
