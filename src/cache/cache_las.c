@@ -893,9 +893,8 @@ static inline uint64_t
 __las_sweep_count(WT_CACHE *cache)
 {
 	/*
-	 * The sweep server wakes up every 10 seconds (by default), it's a slow
-	 * moving thread. Try to review the entire lookaside table once every 5
-	 * minutes, or every 30 calls.
+	 * The sweep server is a slow moving thread. Try to review the entire
+	 * lookaside table once every 5 minutes.
 	 *
 	 * The reason is because the lookaside table exists because we're seeing
 	 * cache/eviction pressure (it allows us to trade performance and disk
@@ -909,8 +908,8 @@ __las_sweep_count(WT_CACHE *cache)
 	 * with lookaside entries are blocked during sweep, make sure we do
 	 * some work but don't block reads for too long.
 	 */
-	return ((uint64_t)WT_MAX(100, WT_MIN(10 * WT_THOUSAND,
-	    cache->las_entry_count / 30)));
+	return ((uint64_t)WT_MAX(100, WT_MIN(WT_LAS_SWEEP_ENTRIES,
+	    cache->las_entry_count / (WT_MINUTE * 5 / WT_LAS_SWEEP_SEC))));
 }
 
 /*
