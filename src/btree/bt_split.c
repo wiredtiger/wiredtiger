@@ -454,10 +454,9 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	 * thread might see a freed WT_REF. To ensure that doesn't happen, the
 	 * created pages are set to the current split generation and so can't be
 	 * evicted until all readers have left the old generation.
-	 *
-	 * Our thread has a stable split generation, get a copy.
 	 */
-	split_gen = __wt_session_gen(session, WT_GEN_SPLIT);
+	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
+	WT_ASSERT(session, root->pg_intl_split_gen < split_gen);
 
 	/* Allocate child pages, and connect them into the new page index. */
 	for (root_refp = pindex->index,
@@ -1009,10 +1008,9 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	 * thread might see a freed WT_REF. To ensure that doesn't happen, the
 	 * created pages are set to the current split generation and so can't be
 	 * evicted until all readers have left the old generation.
-	 *
-	 * Our thread has a stable split generation, get a copy.
 	 */
-	split_gen = __wt_session_gen(session, WT_GEN_SPLIT);
+	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
+	WT_ASSERT(session, page->pg_intl_split_gen < split_gen);
 
 	/* Allocate child pages, and connect them into the new page index. */
 	WT_ASSERT(session, page_refp == pindex->index + chunk);
