@@ -908,8 +908,8 @@ __las_sweep_count(WT_CACHE *cache)
 	 * with lookaside entries are blocked during sweep, make sure we do
 	 * some work but don't block reads for too long.
 	 */
-	return ((uint64_t)WT_MAX(100, WT_MIN(WT_LAS_SWEEP_ENTRIES,
-	    cache->las_entry_count / (WT_MINUTE * 5 / WT_LAS_SWEEP_SEC))));
+	return ((uint64_t)WT_MAX(100,
+	    cache->las_entry_count / (WT_MINUTE * 5 / WT_LAS_SWEEP_SEC)));
 }
 
 /*
@@ -924,7 +924,6 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 	u_int i;
 
 	cache = S2C(session)->cache;
-	cache->las_sweep_cnt = __las_sweep_count(cache);
 
 	__wt_spin_lock(session, &cache->las_sweep_lock);
 
@@ -983,8 +982,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 #else
 	wt_timestamp_t *val_ts;
 #endif
-	uint64_t cnt, remove_cnt, las_counter, las_pageid, saved_pageid;
-	uint64_t las_txnid;
+	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
+	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t upd_type;
 	int notused;
@@ -1049,8 +1048,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	 * rather than driving the lookaside table to empty.
 	 */
 	cnt = __las_sweep_count(cache);
-	if (cnt < cache->las_sweep_cnt)
-		cnt = cache->las_sweep_cnt;
+	if (cnt < WT_LAS_SWEEP_ENTRIES)
+		cnt = WT_LAS_SWEEP_ENTRIES;
+	visit_cnt = 0;
 
 	/* Walk the file. */
 	while ((ret = cursor->next(cursor)) == 0) {
@@ -1077,12 +1077,16 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			cnt = 0;
 
 		/*
-		 * If we have processed enough entries and we are between
-		 * blocks, give up.
+		 * If we have processed enough entries and there is a reader
+		 * wanting to get the lock or we are between blocks, give up.
 		 */
-		if (cnt > 0)
+		++visit_cnt;
+		if (cnt > 0) {
 			--cnt;
-		else if (saved_key->size == 0)
+			if (visit_cnt > WT_LAS_SWEEP_ENTRIES &&
+			    cache->las_reader)
+				break;
+		} else if (saved_key->size == 0)
 			break;
 
 		/*
