@@ -38,6 +38,21 @@ transaction and their effects committed by calling
 WT_SESSION::commit_transaction, or discarded by calling
 WT_SESSION::rollback_transaction.
 
+Applications that use @ref transaction_timestamps can utilize the
+WT_SESSION::prepare_transaction API as a basis for implementing a two phase
+commit protocol. The WT_SESSION::prepare_transaction call assigns a prepare
+timestamp to the transaction, which will be used for visibility checks
+until the transaction is committed or aborted. Once a transaction has been
+prepared the only other operations that can be completed are
+WT_SESSION::commit_transaction or WT_SESSION::rollback_transaction. The
+WT_SESSION::prepare_transaction API only guarantees that transactional
+conflicts will not cause the transaction to rollback - it does not guarantee
+that the transactions updates are durable. If a read operation encounters an
+update from a prepared transaction a WT_PREPARE_CONFLICT error will be
+returned indicating that it is not possible to choose a version of data to
+return until a prepared transaction is resolved, it is reasonable to retry
+such operations.
+
 If WT_SESSION::commit_transaction returns an error for any reason, the
 transaction was rolled back, not committed.
 
