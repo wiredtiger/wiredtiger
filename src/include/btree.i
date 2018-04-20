@@ -1013,11 +1013,11 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
 
 /*
  * __wt_row_leaf_value_cell --
- *	Return the unpacked value for a row-store leaf page key.
+ *	Return a pointer to the value cell for a row-store leaf page key, or
+ * NULL if there isn't one.
  */
-static inline void
-__wt_row_leaf_value_cell(
-    WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_CELL_UNPACK *vpack)
+static inline WT_CELL *
+__wt_row_leaf_value_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack)
 {
 	WT_CELL *kcell, *vcell;
 	WT_CELL_UNPACK unpack;
@@ -1052,7 +1052,7 @@ __wt_row_leaf_value_cell(
 		}
 	}
 
-	__wt_cell_unpack(__wt_cell_leaf_value_parse(page, vcell), vpack);
+	return (__wt_cell_leaf_value_parse(page, vcell));
 }
 
 /*
