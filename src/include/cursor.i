@@ -376,7 +376,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 {
 	WT_BTREE *btree;
 	WT_CELL *cell;
-	WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
+	WT_CELL_UNPACK *unpack, _unpack;
 	WT_ITEM *kb, *vb;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
@@ -386,8 +386,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	btree = S2BT(session);
 	page = cbt->ref->page;
 
-	kpack = NULL;
-	vpack = &_vpack;
+	unpack = NULL;
 
 	kb = &cbt->iface.key;
 	vb = &cbt->iface.value;
@@ -418,11 +417,11 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	 * Inline building simple prefix-compressed keys from a previous key,
 	 * otherwise build from scratch.
 	 */
-	kpack = &_kpack;
-	__wt_cell_unpack(cell, kpack);
-	if (kpack->type == WT_CELL_KEY &&
+	unpack = &_unpack;
+	__wt_cell_unpack(cell, unpack);
+	if (unpack->type == WT_CELL_KEY &&
 	    cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
-		WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
+		WT_ASSERT(session, cbt->row_key->size >= unpack->prefix);
 
 		/*
 		 * Grow the buffer as necessary as well as ensure data has been
@@ -432,12 +431,12 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 		 * Don't grow the buffer unnecessarily or copy data we don't
 		 * need, truncate the item's data length to the prefix bytes.
 		 */
-		cbt->row_key->size = kpack->prefix;
+		cbt->row_key->size = unpack->prefix;
 		WT_RET(__wt_buf_grow(
-		    session, cbt->row_key, cbt->row_key->size + kpack->size));
+		    session, cbt->row_key, cbt->row_key->size + unpack->size));
 		memcpy((uint8_t *)cbt->row_key->data + cbt->row_key->size,
-		    kpack->data, kpack->size);
-		cbt->row_key->size += kpack->size;
+		    unpack->data, unpack->size);
+		cbt->row_key->size += unpack->size;
 	} else {
 		/*
 		 * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we
@@ -463,7 +462,17 @@ value:
 	if (__wt_row_leaf_value(page, rip, vb))
 		return (0);
 
-	/* Else, take the value from the original page cell. */
-	__wt_row_leaf_value_cell(page, rip, kpack, vpack);
-	return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
+	/*
+	 * Else, take the value from the original page cell (which may be
+	 * empty).
+	 */
+	if ((cell = __wt_row_leaf_value_cell(page, rip, unpack)) == NULL) {
+		vb->data = "";
+		vb->size = 0;
+		return (0);
+	}
+
+	unpack = &_unpack;
+	__wt_cell_unpack(cell, unpack);
+	return (__wt_page_cell_data_ref(session, cbt->ref->page, unpack, vb));
 }
