@@ -1186,6 +1186,10 @@ __wt_page_del_active(
  *
  *      We cannot evict dirty pages or split while a checkpoint is in progress,
  *      unless the checkpoint thread is doing the work.
+ *
+ *	Also, during connection close, if we take a checkpoint as of a
+ *	timestamp, eviction should not write dirty pages to avoid updates newer
+ *	than the checkpoint timestamp leaking to disk.
  */
 static inline bool
 __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
@@ -1193,7 +1197,8 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	return (btree->checkpointing == WT_CKPT_OFF ||
+	return ((btree->checkpointing == WT_CKPT_OFF &&
+	    !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) ||
 	    WT_SESSION_IS_CHECKPOINT(session));
 }
 
@@ -1420,9 +1425,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * locked exclusive (e.g., when the whole tree is being evicted).  In
 	 * that case, no readers can be looking at an old index.
 	 */
-	if (!F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
-	    WT_PAGE_IS_INTERNAL(page) &&
-	    page->pg_intl_split_gen >= __wt_gen_oldest(session, WT_GEN_SPLIT))
+	if (WT_PAGE_IS_INTERNAL(page) &&
+	    !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+	    __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
 		return (false);
 
 	/*
