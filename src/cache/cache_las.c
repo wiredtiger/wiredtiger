@@ -1077,17 +1077,17 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			cnt = 0;
 
 		/*
-		 * If we have processed enough entries and there is a reader
-		 * wanting to get the lock or we are between blocks, give up.
+		 * We only want to break between key blocks. Stop if we've
+		 * processed enough entries either all we wanted or enough
+		 * and there is a reader waiting and we're on a key boundary.
 		 */
 		++visit_cnt;
-		if (cnt > 0) {
-			--cnt;
-			if (visit_cnt > WT_LAS_SWEEP_ENTRIES &&
-			    cache->las_reader)
-				break;
-		} else if (saved_key->size == 0)
+		if ((cnt == 0 ||
+		    (visit_cnt > WT_LAS_SWEEP_ENTRIES && cache->las_reader)) &&
+		    saved_key->size == 0)
 			break;
+		if (cnt > 0)
+			--cnt;
 
 		/*
 		 * If the entry belongs to a dropped tree, discard it.
