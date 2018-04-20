@@ -2081,10 +2081,10 @@ __slvg_row_ovfl(WT_SESSION_IMPL *session,
 		copy = WT_ROW_KEY_COPY(rip);
 		(void)__wt_row_leaf_key_info(
 		    page, copy, NULL, &cell, NULL, NULL);
-		WT_ASSERT(session, cell != NULL);
-		__wt_cell_unpack(cell, &unpack);
-		WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
-
+		if (cell != NULL) {
+			__wt_cell_unpack(cell, &unpack);
+			WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
+		}
 		__wt_row_leaf_value_cell(page, rip, NULL, &unpack);
 		WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
 	}
