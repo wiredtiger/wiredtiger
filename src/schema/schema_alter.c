@@ -136,11 +136,15 @@ static int
 __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 {
 	WT_COLGROUP *colgroup;
+	WT_CONFIG_ITEM cv;
 	WT_DECL_RET;
 	WT_INDEX *idx;
 	WT_TABLE *table;
 	u_int i;
 	const char *name;
+	bool exclusive_refreshed;
+	const char *cfg[] = {
+	    WT_CONFIG_BASE(session, WT_SESSION_alter), newcfg[0], NULL};
 
 	colgroup = NULL;
 	table = NULL;
@@ -148,30 +152,42 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 	WT_PREFIX_SKIP_REQUIRED(session, name, "table:");
 
 	/*
-	 * Open the table so we can alter its column groups and indexes, keeping
-	 * the table locked exclusive across the alter.
+	 * Only alter the table and skip everything else if we are not to take
+	 * an exclusive access for this operation.
 	 */
-	WT_RET(__wt_schema_get_table_uri(session, uri, true,
-	    WT_DHANDLE_EXCLUSIVE, &table));
-	/* Meta tracking needs to be used because alter needs to be atomic. */
-	WT_ASSERT(session, WT_META_TRACKING(session));
-	WT_WITH_DHANDLE(session, &table->iface,
-	    ret = __wt_meta_track_handle_lock(session, false));
-	WT_RET(ret);
+	WT_RET(__wt_config_gets(session, cfg, "exclusive_refreshed", &cv));
+	exclusive_refreshed = (bool)cv.val;
 
-	/* Alter the column groups. */
-	for (i = 0; i < WT_COLGROUPS(table); i++) {
-		if ((colgroup = table->cgroups[i]) == NULL)
-			continue;
-		WT_RET(__alter_tree(session, colgroup->name, newcfg));
-	}
+	if (exclusive_refreshed) {
+		/*
+		 * Open the table so we can alter its column groups and indexes,
+		 * keeping the table locked exclusive across the alter.
+		 */
+		WT_RET(__wt_schema_get_table_uri(session, uri, true,
+		    WT_DHANDLE_EXCLUSIVE, &table));
+		/*
+		 * Meta tracking needs to be used because alter needs to be
+		 * atomic.
+		 */
+		WT_ASSERT(session, WT_META_TRACKING(session));
+		WT_WITH_DHANDLE(session, &table->iface,
+		    ret = __wt_meta_track_handle_lock(session, false));
+		WT_RET(ret);
 
-	/* Alter the indices. */
-	WT_RET(__wt_schema_open_indices(session, table));
-	for (i = 0; i < table->nindices; i++) {
-		if ((idx = table->indices[i]) == NULL)
-			continue;
-		WT_RET(__alter_tree(session, idx->name, newcfg));
+		/* Alter the column groups. */
+		for (i = 0; i < WT_COLGROUPS(table); i++) {
+			if ((colgroup = table->cgroups[i]) == NULL)
+				continue;
+			WT_RET(__alter_tree(session, colgroup->name, newcfg));
+		}
+
+		/* Alter the indices. */
+		WT_RET(__wt_schema_open_indices(session, table));
+		for (i = 0; i < table->nindices; i++) {
+			if ((idx = table->indices[i]) == NULL)
+				continue;
+			WT_RET(__alter_tree(session, idx->name, newcfg));
+		}
 	}
 
 	/* Alter the table */
