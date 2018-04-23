@@ -95,14 +95,12 @@ class test_alter03(wttest.WiredTigerTestCase):
             c2[k+1] = 2
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.alter(uri, 'app_metadata="meta_data_4",'),
-            'Device or resource busy')
+            lambda: self.session.alter(uri, 'app_metadata="meta_data_4",'))
         self.verify_metadata('app_metadata="meta_data_3",')
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.alter(uri,
-                'exclusive_refreshed=true,app_metadata="meta_data_4",'),
-            'Device or resource busy')
+                'exclusive_refreshed=true,app_metadata="meta_data_4",'))
         self.verify_metadata('app_metadata="meta_data_3",')
 
         self.session.alter(uri, 'app_metadata="meta_data_4",exclusive_refreshed=false,')
