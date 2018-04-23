@@ -5328,6 +5328,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 
 	key = &r->k;
 	val = &r->v;
+	vpack = &_vpack;
 
 	WT_RET(__rec_split_init(session, r, page, 0, btree->maxleafpage));
 
@@ -5376,14 +5377,19 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			__wt_cell_unpack(cell, kpack);
 		}
 
-		/* Unpack the on-page value cell, and look for an update. */
+		/*
+		 * Unpack the on-page value cell, and look for an update. Under
+		 * some conditions, the underlying code returning updates will
+		 * restructure the update list to include the original on-page
+		 * value, represented by the unpacked-cell argument. Row-store
+		 * doesn't store zero-length values on the page, so we build an
+		 * unpacked cell that allows us to pretend.
+		 */
 		if ((val_cell =
 		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL)
-			vpack = NULL;
-		else {
-			vpack = &_vpack;
+			__wt_cell_unpack_empty_value(vpack);
+		else
 			__wt_cell_unpack(val_cell, vpack);
-		}
 		WT_ERR(__rec_txn_read(
 		    session, r, NULL, rip, vpack, NULL, &upd));
 
@@ -5399,10 +5405,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			 * copy, we have to create a new value item as the old
 			 * item might have been discarded from the page.
 			 */
-			if (vpack == NULL) {
-				val->buf.data = NULL;
-				val->cell_len = val->len = val->buf.size = 0;
-			} else if (vpack->raw == WT_CELL_VALUE_COPY) {
+			if (vpack->raw == WT_CELL_VALUE_COPY) {
 				/* If the item is Huffman encoded, decode it. */
 				if (btree->huffman_value == NULL) {
 					p = vpack->data;
@@ -5478,8 +5481,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			 * The first time we find an overflow record we're not
 			 * going to use, discard the underlying blocks.
 			 */
-			if (vpack != NULL &&
-			    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
+			if (vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)
 				WT_ERR(__wt_ovfl_remove(session,
 				    page, vpack, F_ISSET(r, WT_REC_EVICT)));
 
