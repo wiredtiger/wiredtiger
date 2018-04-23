@@ -1296,11 +1296,11 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_destroy --
- *	Destroy a session's transaction data.
+ * __wt_txn_release_resources --
+ *	Release resources for a session's transaction data.
  */
 void
-__wt_txn_destroy(WT_SESSION_IMPL *session)
+__wt_txn_release_resources(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
 
@@ -1310,8 +1310,17 @@ __wt_txn_destroy(WT_SESSION_IMPL *session)
 	__wt_free(session, txn->mod);
 	txn->mod_alloc = 0;
 	txn->mod_count = 0;
+}
 
-	__wt_free(session, txn->snapshot);
+/*
+ * __wt_txn_destroy --
+ *	Destroy a session's transaction data.
+ */
+void
+__wt_txn_destroy(WT_SESSION_IMPL *session)
+{
+	__wt_txn_release_resources(session);
+	__wt_free(session, session->txn.snapshot);
 }
 
 /*
