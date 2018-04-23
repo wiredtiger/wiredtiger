@@ -157,6 +157,9 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 
+	/* Free transaction information. */
+	__wt_txn_destroy(session);
+
 	/* Block manager cleanup */
 	if (session->block_manager_cleanup != NULL)
 		WT_TRET(session->block_manager_cleanup(session));
@@ -331,9 +334,6 @@ __session_close(WT_SESSION *wt_session, const char *config)
 
 	/* Discard metadata tracking. */
 	__wt_meta_track_discard(session);
-
-	/* Free transaction information. */
-	__wt_txn_destroy(session);
 
 	/*
 	 * Close the file where we tracked long operations. Do this before
