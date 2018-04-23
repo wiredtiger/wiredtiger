@@ -1185,7 +1185,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we're running the version where we write a system record
 	 * do so now and update the alloc_lsn.
 	 */
-	if (log->log_version == WT_LOG_VERSION) {
+	if (log->log_version >= WT_LOG_VERSION_SYSTEM) {
 		WT_RET(__wt_log_system_record(session,
 		    log_fh, &logrec_lsn));
 		WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
