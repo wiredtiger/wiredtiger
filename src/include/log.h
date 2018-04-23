@@ -351,6 +351,11 @@ __wt_log_record_byteswap(WT_LOG_RECORD *record)
 struct __wt_log_desc {
 #define	WT_LOG_MAGIC		0x101064u
 	uint32_t	log_magic;	/* 00-03: Magic number */
+/*
+ * NOTE: We bumped the log version from 2 to 3 to make it convenient for
+ * MongoDB to detect users accidentally running old binaries on a newer
+ * release. There are no actual log file format changes with version 2 and 3.
+ */
 #define	WT_LOG_VERSION	3
 	uint16_t	version;	/* 04-05: Log version */
 	uint16_t	unused;		/* 06-07: Unused */
