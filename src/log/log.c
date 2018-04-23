@@ -196,8 +196,12 @@ __log_fs_write(WT_SESSION_IMPL *session,
 	 * compatibility mode to an older release, we have to wait for all
 	 * writes to the previous log file to complete otherwise there could
 	 * be a hole at the end of the previous log file that we cannot detect.
+	 *
+	 * NOTE: Check for a version less than the one writing the system
+	 * record since we've had a log version change without any actual
+	 * file format changes.
 	 */
-	if (S2C(session)->log->log_version != WT_LOG_VERSION &&
+	if (S2C(session)->log->log_version < WT_LOG_VERSION_SYSTEM &&
 	    slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
