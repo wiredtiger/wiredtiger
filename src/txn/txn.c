@@ -1305,7 +1305,12 @@ __wt_txn_destroy(WT_SESSION_IMPL *session)
 	WT_TXN *txn;
 
 	txn = &session->txn;
+
+	WT_ASSERT(session, txn->mod_count == 0);
 	__wt_free(session, txn->mod);
+	txn->mod_alloc = 0;
+	txn->mod_count = 0;
+
 	__wt_free(session, txn->snapshot);
 }
 
