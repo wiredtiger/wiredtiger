@@ -139,7 +139,12 @@ lsm_config = [
     ]),
 ]
 
-file_runtime_config = [
+table_runtime_config = [
+    Config('app_metadata', '', r'''
+        application-owned metadata for this object'''),
+]
+
+file_runtime_config = table_runtime_config + [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of
         updates and/or point queries specify \c random.  Workloads that
@@ -352,17 +357,7 @@ file_meta = file_config + [
         the file version'''),
 ]
 
-# This is a set of configuration options that exist only on table and LSM
-# objects. They can be safely altered without exclusive access, as long as
-# the user doesn't need to see refreshed values without a restart.
-table_runtime_config = [
-    Config('app_metadata', '', r'''
-        application-owned metadata for this object'''),
-]
-
-# The table runtime metadata also applied to LSM trees, it currently contains
-# the user configurable app_metadata.
-lsm_meta = file_config + lsm_config + table_runtime_config + [
+lsm_meta = file_config + lsm_config + [
     Config('last', '', r'''
         the last allocated chunk ID'''),
     Config('chunks', '', r'''
@@ -371,7 +366,7 @@ lsm_meta = file_config + lsm_config + table_runtime_config + [
         obsolete chunks in the LSM tree'''),
 ]
 
-table_only_config = table_runtime_config + [
+table_only_config = [
     Config('colgroups', '', r'''
         comma-separated list of names of column groups.  Each column
         group is stored separately, keyed by the primary key of the
@@ -399,7 +394,7 @@ index_meta = format_meta + source_meta + index_only_config + [
         number of public key columns''', type='int', undoc=True),
 ]
 
-table_meta = format_meta + table_only_config
+table_meta = table_runtime_config + format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
@@ -943,7 +938,7 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_SESSION.alter' : Method(file_runtime_config + table_runtime_config + [
+'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('exclusive_refreshed', 'true', r'''
         give users the ability to avoid refreshing the in memory state
         which is useful because it means we don't need exclusive access to

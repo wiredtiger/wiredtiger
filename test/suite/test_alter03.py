@@ -34,33 +34,28 @@ from wtscenario import make_scenarios
 class test_alter03(wttest.WiredTigerTestCase):
     name = "alter03"
 
-    def verify_metadata(self, metastr):
-        if metastr == '':
+    def verify_metadata(self, table_metastr, file_metastr):
+        if table_metastr == '' and file_metastr == '':
             return
-        cursor = self.session.open_cursor('metadata:', None, None)
-        #
-        # Walk through all the metadata looking for the entries that are
-        # the URIs for the named object.
-        #
-        found = False
-        while True:
-            ret = cursor.next()
-            if ret != 0:
-                break
-            key = cursor.get_key()
-            if key.find(self.name) != -1:
-                # "app_metadata" is only applicable to lsm: and table: uris.
-                # Assert if alter gets applied to any other object type.
-                if ((key.find("lsm:") != -1 or key.find("table:") != -1)):
-                    value = cursor[key]
-                    found = True
-                    self.assertTrue(value.find(metastr) != -1)
-                else:
-                    value = cursor[key]
-                    self.assertTrue(value.find(metastr) == -1)
+        c = self.session.open_cursor('metadata:', None, None)
 
-        cursor.close()
-        self.assertTrue(found == True)
+        if table_metastr != '':
+            # We must find a table type entry for this object and it's value
+            # should contain the provided table meta string.
+            c.set_key('table:' + self.name)
+            self.assertNotEqual(c.search(), wiredtiger.WT_NOTFOUND)
+            value = c.get_value()
+            self.assertTrue(value.find(table_metastr) != -1)
+
+        if file_metastr != '':
+            # We must find a file type entry for the object and it's value
+            # should contain the provided file meta string.
+            c.set_key('file:' + self.name + '.wt')
+            self.assertNotEqual(c.search(), wiredtiger.WT_NOTFOUND)
+            value = c.get_value()
+            self.assertTrue(value.find(file_metastr) != -1)
+
+        c.close()
 
     # Alter: Change the app_metadata and verify
     def test_alter03_app_metadata(self):
@@ -78,15 +73,20 @@ class test_alter03(wttest.WiredTigerTestCase):
         c.close()
 
         # Verify the string in the metadata
-        self.verify_metadata(app_meta_orig)
+        self.verify_metadata(app_meta_orig, app_meta_orig)
 
         # Alter app metadata and verify
         self.session.alter(uri, 'app_metadata="meta_data_2",')
-        self.verify_metadata('app_metadata="meta_data_2",')
+        self.verify_metadata('app_metadata="meta_data_2",', 'app_metadata="meta_data_2",')
 
-        # Alter app metadata without taking exclusive lock and verify
-        self.session.alter(uri, 'app_metadata="meta_data_3",exclusive_refreshed=false,')
-        self.verify_metadata('app_metadata="meta_data_3",')
+        # Alter app metadata, explicitly asking for exclusive access and verify
+        self.session.alter(uri, 'app_metadata="meta_data_3",exclusive_refreshed=true,')
+        self.verify_metadata('app_metadata="meta_data_3",', 'app_metadata="meta_data_3",')
+
+        # Alter app metadata without taking exclusive lock and verify that only
+        # table object gets modified
+        self.session.alter(uri, 'app_metadata="meta_data_4",exclusive_refreshed=false,')
+        self.verify_metadata('app_metadata="meta_data_4",', 'app_metadata="meta_data_3",')
 
         # Open a cursor, insert some data and try to alter with session open.
         # We should fail unless we ask not to take an exclusive lock
@@ -95,18 +95,23 @@ class test_alter03(wttest.WiredTigerTestCase):
             c2[k+1] = 2
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.alter(uri, 'app_metadata="meta_data_4",'))
-        self.verify_metadata('app_metadata="meta_data_3",')
+            lambda: self.session.alter(uri, 'app_metadata="meta_data_5",'))
+        self.verify_metadata('app_metadata="meta_data_4",', 'app_metadata="meta_data_3",')
 
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.alter(uri,
-                'exclusive_refreshed=true,app_metadata="meta_data_4",'))
-        self.verify_metadata('app_metadata="meta_data_3",')
+                'exclusive_refreshed=true,app_metadata="meta_data_5",'))
+        self.verify_metadata('app_metadata="meta_data_4",', 'app_metadata="meta_data_3",')
 
-        self.session.alter(uri, 'app_metadata="meta_data_4",exclusive_refreshed=false,')
-        self.verify_metadata('app_metadata="meta_data_4",')
+        self.session.alter(uri, 'app_metadata="meta_data_5",exclusive_refreshed=false,')
+        self.verify_metadata('app_metadata="meta_data_5",', 'app_metadata="meta_data_3",')
 
         c2.close()
+
+        # Close and reopen the connection.
+        # Confirm we retain the app_metadata as expected after reopen
+        self.reopen_conn()
+        self.verify_metadata('app_metadata="meta_data_5",', 'app_metadata="meta_data_3",')
 
 if __name__ == '__main__':
     wttest.run()

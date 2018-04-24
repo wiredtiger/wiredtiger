@@ -524,6 +524,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
 	{ "allocation_size", "int",
 	    NULL, "min=512B,max=128MB",
 	    NULL, 0 },
+	{ "app_metadata", "string", NULL, NULL, NULL, 0 },
 	{ "assert", "category",
 	    NULL, NULL,
 	    confchk_assert_subconfigs, 2 },
@@ -587,6 +588,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 	{ "allocation_size", "int",
 	    NULL, "min=512B,max=128MB",
 	    NULL, 0 },
+	{ "app_metadata", "string", NULL, NULL, NULL, 0 },
 	{ "assert", "category",
 	    NULL, NULL,
 	    confchk_assert_subconfigs, 2 },
@@ -1412,7 +1414,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_colgroup_meta, 4
 	},
 	{ "file.config",
-	  "access_pattern_hint=none,allocation_size=4KB,"
+	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
 	  "assert=(commit_timestamp=none,read_timestamp=none),"
 	  "block_allocation=best,block_compressor=,cache_resident=false,"
 	  "checksum=uncompressed,collator=,columns=,dictionary=0,"
@@ -1425,10 +1427,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
 	  "prefix_compression_min=4,split_deepen_min_child=0,"
 	  "split_deepen_per_child=0,split_pct=90,value_format=u",
-	  confchk_file_config, 35
+	  confchk_file_config, 36
 	},
 	{ "file.meta",
-	  "access_pattern_hint=none,allocation_size=4KB,"
+	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
 	  "assert=(commit_timestamp=none,read_timestamp=none),"
 	  "block_allocation=best,block_compressor=,cache_resident=false,"
 	  "checkpoint=,checkpoint_lsn=,checksum=uncompressed,collator=,"
@@ -1442,7 +1444,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "os_cache_max=0,prefix_compression=false,prefix_compression_min=4"
 	  ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
 	  "value_format=u,version=(major=0,minor=0)",
-	  confchk_file_meta, 39
+	  confchk_file_meta, 40
 	},
 	{ "index.meta",
 	  "collator=,columns=,extractor=,immutable=false,index_key_columns="
