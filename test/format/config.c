@@ -693,10 +693,14 @@ config_prepare(void)
 			testutil_die(EINVAL,
 			    "prepare requires transaction timestamps");
 	}
-	if (g.c_logging && config_is_perm("logging"))
+	if (g.c_logging && config_is_perm("logging")) {
+		config_single("prepare=off", 0);
 		return;
-	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps"))
+	}
+	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps")) {
+		config_single("prepare=off", 0);
 		return;
+	}
 
 	config_single("logging=off", 0);
 	config_single("transaction_timestamps=on", 0);
