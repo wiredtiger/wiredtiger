@@ -34,6 +34,7 @@ static void	   config_checksum(void);
 static void	   config_compression(const char *);
 static void	   config_encryption(void);
 static const char *config_file_type(u_int);
+static bool	   config_fix(void);
 static void	   config_helium_reset(void);
 static void	   config_in_memory(void);
 static void	   config_in_memory_reset(void);
@@ -47,6 +48,7 @@ static void	   config_map_encryption(const char *, u_int *);
 static void	   config_map_file_type(const char *, u_int *);
 static void	   config_map_isolation(const char *, u_int *);
 static void	   config_pct(void);
+static void	   config_prepare(void);
 static void	   config_reset(void);
 
 /*
@@ -73,15 +75,15 @@ config_setup(void)
 			config_single("file_type=row", 0);
 		else
 			switch (mmrand(NULL, 1, 10)) {
-			case 1:					/* 10% */
-				if (!config_is_perm("modify_pct")) {
+			case 1: case 2: case 3:			/* 30% */
+				config_single("file_type=var", 0);
+				break;
+			case 4:					/* 10% */
+				if (config_fix()) {
 					config_single("file_type=fix", 0);
 					break;
 				}
-				/* FALLTHROUGH */
-			case 2: case 3: case 4:			/* 30% */
-				config_single("file_type=var", 0);
-				break;				/* 60% */
+				/* FALLTHROUGH */		/* 60% */
 			case 5: case 6: case 7: case 8: case 9: case 10:
 				config_single("file_type=row", 0);
 				break;
@@ -159,9 +161,8 @@ config_setup(void)
 	/*
 	 * Periodically, run single-threaded so we can compare the results to
 	 * a Berkeley DB copy, as long as the thread-count isn't nailed down.
-	 * Don't do it on the first run, all our smoke tests would hit it.
 	 */
-	if (!g.replay && g.run_cnt % 20 == 19 && !config_is_perm("threads"))
+	if (!config_is_perm("threads") && mmrand(NULL, 1, 20) == 1)
 		g.c_threads = 1;
 
 	config_checkpoint();
@@ -172,6 +173,7 @@ config_setup(void)
 	config_isolation();
 	config_lrt();
 	config_pct();
+	config_prepare();
 
 	/*
 	 * If this is an LSM run, ensure cache size sanity.
@@ -193,7 +195,7 @@ config_setup(void)
 	 * always results in a timeout).
 	 */
 	if (!config_is_perm("truncate") && DATASOURCE("lsm"))
-		config_single("truncate=off", 0);
+			config_single("truncate=off", 0);
 
 	/* Give Helium configuration a final review. */
 	if (DATASOURCE("helium"))
@@ -392,6 +394,24 @@ config_encryption(void)
 }
 
 /*
+ * config_fix --
+ *	Fixed-length column-store configuration.
+ */
+static bool
+config_fix(void)
+{
+	/*
+	 * Fixed-length column stores don't support the lookaside table (so, no
+	 * long running transactions), or modify operations.
+	 */
+	if (config_is_perm("long_running_txn"))
+		return (false);
+	if (config_is_perm("modify_pct"))
+		return (false);
+	return (true);
+}
+
+/*
  * config_helium_reset --
  *	Helium configuration review.
  */
@@ -551,8 +571,8 @@ config_lrt(void)
 	 * WiredTiger doesn't support a lookaside file for fixed-length column
 	 * stores.
 	 */
-	if (g.type == FIX) {
-		if (config_is_perm("long_running_txn") && g.c_long_running_txn)
+	if (g.type == FIX && g.c_long_running_txn) {
+		if (config_is_perm("long_running_txn"))
 			testutil_die(EINVAL,
 			    "long_running_txn not supported with fixed-length "
 			    "column store");
@@ -625,10 +645,10 @@ config_pct(void)
 
 	/*
 	 * If the delete percentage isn't nailed down, periodically set it to
-	 * 0 so salvage gets run. Don't do it on the first run, all our smoke
-	 * tests would hit it.
+	 * 0 so salvage gets run and so we can perform stricter sanity checks
+	 * on key ordering.
 	 */
-	if (!config_is_perm("delete_pct") && !g.replay && g.run_cnt % 10 == 9) {
+	if (!config_is_perm("delete_pct") && mmrand(NULL, 1, 10) == 1) {
 		list[CONFIG_DELETE_ENTRY].order = 0;
 		*list[CONFIG_DELETE_ENTRY].vp = 0;
 	}
@@ -665,6 +685,44 @@ config_pct(void)
 
 	testutil_assert(g.c_delete_pct + g.c_insert_pct +
 	    g.c_modify_pct + g.c_read_pct + g.c_write_pct == 100);
+}
+
+/*
+ * config_prepare --
+ *	Transaction prepare configuration.
+ */
+static void
+config_prepare(void)
+{
+	/*
+	 * We cannot prepare a transaction if logging is configured, or if
+	 * timestamps are not configured.
+	 *
+	 * Prepare isn't configured often, let it control other features, unless
+	 * they're explicitly set/not-set.
+	 */
+	if (!g.c_prepare)
+		return;
+	if (config_is_perm("prepare")) {
+		if (g.c_logging && config_is_perm("logging"))
+			testutil_die(EINVAL,
+			    "prepare is incompatible with logging");
+		if (!g.c_txn_timestamps &&
+		    config_is_perm("transaction_timestamps"))
+			testutil_die(EINVAL,
+			    "prepare requires transaction timestamps");
+	}
+	if (g.c_logging && config_is_perm("logging")) {
+		config_single("prepare=off", 0);
+		return;
+	}
+	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps")) {
+		config_single("prepare=off", 0);
+		return;
+	}
+
+	config_single("logging=off", 0);
+	config_single("transaction_timestamps=on", 0);
 }
 
 /*

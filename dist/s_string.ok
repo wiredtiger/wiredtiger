@@ -138,6 +138,7 @@ FULLFSYNC
 Facebook
 FindClose
 FindFirstFile
+FindNextFileW
 Fixup
 Fk
 FlushFileBuffers
@@ -175,6 +176,7 @@ INCR
 INIT
 INITIALIZER
 INMEM
+INPROGRESS
 INSN
 INTL
 INULL
@@ -523,7 +525,7 @@ ccr
 cd
 centric
 cfg
-cfkos
+cfko
 change's
 changelog
 chdir
@@ -684,6 +686,7 @@ enqueue
 enqueued
 env
 eof
+epi
 eq
 equalp
 errhandler
@@ -946,6 +949,7 @@ mkdir
 mmap
 mmrand
 mnt
+movemask
 msecs
 msg
 msvc
@@ -1197,6 +1201,7 @@ sx
 sy
 sys
 syscall
+sysinfo
 sz
 t's
 tV

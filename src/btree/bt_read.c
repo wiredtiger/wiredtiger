@@ -113,7 +113,7 @@ __las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
  *	Instantiate lookaside update records in a recently read page.
  */
 static int
-__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
+__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
@@ -136,11 +136,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	locked = false;
 	total_incr = 0;
 	current_recno = recno = WT_RECNO_OOB;
+	las_pageid = ref->page_las->las_pageid;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	WT_CLEAR(las_key);
 
 	cache = S2C(session)->cache;
-	__las_page_instantiate_verbose(session, ref->page_las->las_pageid);
+	__las_page_instantiate_verbose(session, las_pageid);
 	WT_STAT_CONN_INCR(session, cache_read_lookaside);
 	WT_STAT_DATA_INCR(session, cache_read_lookaside);
 
@@ -159,11 +160,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 	 * for a key and then insert those updates into the page, then all the
 	 * updates for the next key, and so on.
 	 */
-	ret = __wt_las_cursor_position(
-	    cursor, btree_id, ref->page_las->las_pageid);
 	__wt_readlock(session, &cache->las_sweepwalk_lock);
 	locked = true;
-	for (; ret == 0; ret = cursor->next(cursor)) {
+	for (ret = __wt_las_cursor_position(cursor, las_pageid);
+	    ret == 0;
+	    ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
@@ -171,8 +172,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t btree_id)
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
-		if (las_id != btree_id ||
-		    las_pageid != ref->page_las->las_pageid)
+		if (las_pageid != ref->page_las->las_pageid)
 			break;
 
 		/* Allocate the WT_UPDATE structure. */
@@ -367,18 +367,15 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
-	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_ITEM tmp;
-	WT_PAGE *page;
+	WT_PAGE *notused;
 	size_t addr_size;
 	uint64_t time_start, time_stop;
 	uint32_t page_flags, final_state, new_state, previous_state;
 	const uint8_t *addr;
 	bool timer;
 
-	btree = S2BT(session);
-	page = NULL;
 	time_start = time_stop = 0;
 
 	/*
@@ -427,11 +424,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	if (addr == NULL) {
 		WT_ASSERT(session, previous_state != WT_REF_DISK);
 
-		WT_ERR(__wt_btree_new_leaf_page(session, &page));
-		ref->page = page;
-		if (previous_state == WT_REF_LOOKASIDE)
-			goto skip_read;
-		goto done;
+		WT_ERR(__wt_btree_new_leaf_page(session, &ref->page));
+		goto skip_read;
 	}
 
 	/*
@@ -464,7 +458,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
 	if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 		FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &page));
+	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
 	tmp.mem = NULL;
 
 	/*
@@ -481,16 +475,17 @@ skip_read:
 	switch (previous_state) {
 	case WT_REF_DELETED:
 		/*
-		 * A fast-deleted page may also have lookaside information. The
+		 * A truncated page may also have lookaside information. The
 		 * delete happened after page eviction (writing the lookaside
 		 * information), first update based on the lookaside table and
 		 * then apply the delete.
 		 */
 		if (ref->page_las != NULL) {
-			WT_ERR(__las_page_instantiate(session, ref, btree->id));
+			WT_ERR(__las_page_instantiate(session, ref));
 			ref->page_las->eviction_to_lookaside = false;
 		}
 
+		/* Move all records to a deleted state. */
 		WT_ERR(__wt_delete_page_instantiate(session, ref));
 		break;
 	case WT_REF_LOOKASIDE:
@@ -507,7 +502,7 @@ skip_read:
 		if (previous_state == WT_REF_LIMBO)
 			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
 
-		WT_ERR(__las_page_instantiate(session, ref, btree->id));
+		WT_ERR(__las_page_instantiate(session, ref));
 		ref->page_las->eviction_to_lookaside = false;
 		break;
 	}
@@ -521,9 +516,9 @@ skip_read:
 	 */
 	if (final_state == WT_REF_MEM && ref->page_las != NULL)
 		WT_IGNORE_RET(__wt_las_remove_block(
-		    session, btree->id, ref->page_las->las_pageid));
+		    session, ref->page_las->las_pageid, false));
 
-done:	WT_PUBLISH(ref->state, final_state);
+	WT_PUBLISH(ref->state, final_state);
 	return (ret);
 
 err:	/*
@@ -565,6 +560,13 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE))
 		LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
+	/* Sanity check flag combinations. */
+	WT_ASSERT(session, !LF_ISSET(
+	    WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
+	    LF_ISSET(WT_READ_CACHE));
+	WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) ||
+	    !LF_ISSET(WT_READ_DELETED_SKIP));
+
 	/*
 	 * Ignore reads of pages already known to be in cache, otherwise the
 	 * eviction server can dominate these statistics.
@@ -578,7 +580,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	    force_attempts = 0, sleep_cnt = wait_cnt = 0;;) {
 		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
-			if (LF_ISSET(WT_READ_NO_EMPTY) &&
+			if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
+				return (WT_NOTFOUND);
+			if (LF_ISSET(WT_READ_DELETED_CHECK) &&
 			    __wt_delete_page_skip(session, ref, false))
 				return (WT_NOTFOUND);
 			goto read;
@@ -719,8 +723,7 @@ read:			/*
 				ret = __wt_page_release_evict(session, ref);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
-					ret = 0;
-					WT_NOT_READ(ret);
+					WT_NOT_READ(ret, 0);
 					WT_STAT_CONN_INCR(session,
 					    page_forcible_evict_blocked);
 					stalled = true;
@@ -803,7 +806,7 @@ skip_evict:		/*
 			if (cache_work)
 				continue;
 		}
-		__wt_ref_state_yield_sleep(&wait_cnt, &sleep_cnt);
+		__wt_state_yield_sleep(&wait_cnt, &sleep_cnt);
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_cnt);
 	}
 }
