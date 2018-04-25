@@ -1232,6 +1232,7 @@ __log_set_version(WT_SESSION_IMPL *session, uint16_t version,
 	log = conn->log;
 
 	log->log_version = version;
+	WT_STAT_CONN_SET(session, log_file_version, log->log_version);
 	log->first_record = first_rec;
 	if (downgrade)
 		FLD_SET(conn->log_flags, WT_CONN_LOG_DOWNGRADED);
@@ -1590,6 +1591,18 @@ __wt_log_open(WT_SESSION_IMPL *session)
 		WT_WITH_SLOT_LOCK(session, log,
 		    ret = __log_newfile(session, true, NULL));
 		WT_ERR(ret);
+	} else if (lastlog != 0) {
+		/*
+		 * If we are a read-only connection, then set the log file
+		 * version statistic to the version of the last log file
+		 * written. Note that this will override the version statistic
+		 * set while setting the log version. That would reflect current
+		 * and future versions whereas for a read-only connection,
+		 * this value is the most recent log version written.
+		 */
+		WT_ERR(__log_open_verify(session,
+		    lastlog, NULL, NULL, &version));
+		WT_STAT_CONN_SET(session, log_file_version, version);
 	}
 
 	/* If we found log files, save the new state. */

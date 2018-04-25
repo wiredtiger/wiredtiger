@@ -962,6 +962,7 @@ static const char * const __stats_connection_desc[] = {
 	"log: log write operations",
 	"log: logging bytes consolidated",
 	"log: maximum log file size",
+	"log: most recent log file version number",
 	"log: number of pre-allocated log files to create",
 	"log: pre-allocated log files not ready and missed",
 	"log: pre-allocated log files prepared",
@@ -1357,6 +1358,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->log_writes = 0;
 	stats->log_slot_consolidated = 0;
 		/* not clearing log_max_filesize */
+	stats->log_file_version = 0;
 		/* not clearing log_prealloc_max */
 	stats->log_prealloc_missed = 0;
 	stats->log_prealloc_files = 0;
@@ -1825,6 +1827,7 @@ __wt_stat_connection_aggregate(
 	to->log_slot_consolidated +=
 	    WT_STAT_READ(from, log_slot_consolidated);
 	to->log_max_filesize += WT_STAT_READ(from, log_max_filesize);
+	to->log_file_version += WT_STAT_READ(from, log_file_version);
 	to->log_prealloc_max += WT_STAT_READ(from, log_prealloc_max);
 	to->log_prealloc_missed += WT_STAT_READ(from, log_prealloc_missed);
 	to->log_prealloc_files += WT_STAT_READ(from, log_prealloc_files);

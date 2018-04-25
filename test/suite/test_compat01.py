@@ -32,6 +32,7 @@
 import fnmatch, os
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
+from wiredtiger import stat
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 
@@ -95,7 +96,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             self.scenario_number % len(self.sync_list)]
         # Set archive false on the home directory.
         log_str = 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-            'transaction_sync="%s",' % txn_sync
+            'statistics=(fast),transaction_sync="%s",' % txn_sync
         compat_str = self.make_compat_str(True)
         self.pr("Conn config:" + log_str + compat_str)
         return log_str + compat_str
@@ -118,6 +119,12 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
                     contains += 1
         self.assertEqual(prev_lsn_count, contains)
 
+    def check_stat(self, vers):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        v = stat_cursor[stat.conn.log_file_version][2]
+        self.assertEqual(v, vers)
+        stat_cursor.close()
+
     def check_log(self, reconfig):
         orig_logs = fnmatch.filter(os.listdir('.'), "*gerLog*")
         compat_str = self.make_compat_str(False)
@@ -127,6 +134,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             prev_lsn_logs = 0
         pstr = str(prev_lsn_logs)
         self.pr("CHECK LOG: Orig " + pstr + " prev LSN log files")
+        self.check_stat(self.logv1)
 
         if not reconfig:
             #
@@ -167,6 +175,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         # the prev_lsn record based on the count of log files that exist
         # before and after.  Pass that into this function and check the
         # number of prev_lsn records we see.
+        self.check_stat(self.logv2)
         self.check_prev_lsn(check_close, prev_lsn_logs)
 
     def run_test(self, reconfig):
