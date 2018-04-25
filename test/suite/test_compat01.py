@@ -143,12 +143,25 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             #
             self.conn.close()
             log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
+            readonly_str = 'readonly=true,'
             restart_config = log_str + compat_str
+            readonly_config = restart_config + readonly_str
+            # Check that opening readonly allows us to get the version of the
+            # previous run.
+            self.pr("Readonly conn " + readonly_config)
+            conn = self.wiredtiger_open('.', readonly_config)
+            self.session = conn.open_session()
+            # Note we're checking the version from the first run.
+            self.check_stat(self.logv1)
+            conn.close()
+
             self.pr("Restart conn " + restart_config)
             #
             # Open a connection to force it to run recovery.
             #
             conn = self.wiredtiger_open('.', restart_config)
+            self.session = conn.open_session()
+            self.check_stat(self.logv2)
             conn.close()
             check_close = False
             #
@@ -160,6 +173,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.pr("Reconfigure: " + compat_str)
             self.conn.reconfigure(compat_str)
+            self.check_stat(self.logv2)
             check_close = True
             #
             # If we're reconfiguring, we'll see another new log file
@@ -175,7 +189,6 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         # the prev_lsn record based on the count of log files that exist
         # before and after.  Pass that into this function and check the
         # number of prev_lsn records we see.
-        self.check_stat(self.logv2)
         self.check_prev_lsn(check_close, prev_lsn_logs)
 
     def run_test(self, reconfig):
