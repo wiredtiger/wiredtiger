@@ -1592,11 +1592,14 @@ __conn_home(WT_SESSION_IMPL *session, const char *home, const char *cfg[])
 	 * Else use the WIREDTIGER_HOME environment variable.
 	 * Else default to ".".
 	 */
-	if (home == NULL)
-		WT_RET(__conn_env_var(session, cfg, "WIREDTIGER_HOME", &home));
+	if (home == NULL) {
+		WT_RET(__conn_env_var(
+		    session, cfg, "WIREDTIGER_HOME", &S2C(session)->home));
+		if (S2C(session)->home != NULL)
+			return (0);
 
-	if (home == NULL)
 		home = ".";
+	}
 
 	return (__wt_strdup(session, home, &S2C(session)->home));
 }
