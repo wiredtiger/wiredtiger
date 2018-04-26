@@ -32,6 +32,7 @@
 import fnmatch, os
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
+from wiredtiger import stat
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 
@@ -95,7 +96,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             self.scenario_number % len(self.sync_list)]
         # Set archive false on the home directory.
         log_str = 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-            'transaction_sync="%s",' % txn_sync
+            'statistics=(fast),transaction_sync="%s",' % txn_sync
         compat_str = self.make_compat_str(True)
         self.pr("Conn config:" + log_str + compat_str)
         return log_str + compat_str
@@ -118,6 +119,12 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
                     contains += 1
         self.assertEqual(prev_lsn_count, contains)
 
+    def check_stat(self, vers):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        v = stat_cursor[stat.conn.log_file_version][2]
+        self.assertEqual(v, vers)
+        stat_cursor.close()
+
     def check_log(self, reconfig):
         orig_logs = fnmatch.filter(os.listdir('.'), "*gerLog*")
         compat_str = self.make_compat_str(False)
@@ -127,6 +134,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             prev_lsn_logs = 0
         pstr = str(prev_lsn_logs)
         self.pr("CHECK LOG: Orig " + pstr + " prev LSN log files")
+        self.check_stat(self.logv1)
 
         if not reconfig:
             #
@@ -135,12 +143,25 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
             #
             self.conn.close()
             log_str = 'log=(enabled,file_max=%s,archive=false),' % self.logmax
+            readonly_str = 'readonly=true,'
             restart_config = log_str + compat_str
+            readonly_config = restart_config + readonly_str
+            # Check that opening readonly allows us to get the version of the
+            # previous run.
+            self.pr("Readonly conn " + readonly_config)
+            conn = self.wiredtiger_open('.', readonly_config)
+            self.session = conn.open_session()
+            # Note we're checking the version from the first run.
+            self.check_stat(self.logv1)
+            conn.close()
+
             self.pr("Restart conn " + restart_config)
             #
             # Open a connection to force it to run recovery.
             #
             conn = self.wiredtiger_open('.', restart_config)
+            self.session = conn.open_session()
+            self.check_stat(self.logv2)
             conn.close()
             check_close = False
             #
@@ -152,6 +173,7 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.pr("Reconfigure: " + compat_str)
             self.conn.reconfigure(compat_str)
+            self.check_stat(self.logv2)
             check_close = True
             #
             # If we're reconfiguring, we'll see another new log file

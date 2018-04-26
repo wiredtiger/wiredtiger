@@ -367,6 +367,7 @@ connection_stats = [
     LogStat('log_compress_small', 'log records too small to compress'),
     LogStat('log_compress_write_fails', 'log records not compressed'),
     LogStat('log_compress_writes', 'log records compressed'),
+    LogStat('log_file_version', 'most recent log file version number'),
     LogStat('log_flush', 'log flush operations'),
     LogStat('log_force_ckpt_sleep', 'force checkpoint calls slept'),
     LogStat('log_force_write', 'log force write operations'),

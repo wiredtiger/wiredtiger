@@ -528,6 +528,7 @@ struct __wt_connection_stats {
 	int64_t log_writes;
 	int64_t log_slot_consolidated;
 	int64_t log_max_filesize;
+	int64_t log_file_version;
 	int64_t log_prealloc_max;
 	int64_t log_prealloc_missed;
 	int64_t log_prealloc_files;
