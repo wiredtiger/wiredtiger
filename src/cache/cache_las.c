@@ -1141,9 +1141,19 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			if (cnt == 0)
 				break;
 
+			/* We can only start removing from a full value. */
+			if (upd_type == WT_UPDATE_MODIFY) {
+				saved_key->size = 0;
+				continue;
+			}
+
 			WT_ERR(__wt_buf_set(session, saved_key,
 			    las_key.data, las_key.size));
 
+			/*
+			 * If the first stable record contains data, we have to
+			 * keep it.
+			 */
 			if (upd_type != WT_UPDATE_BIRTHMARK)
 				continue;
 		}
