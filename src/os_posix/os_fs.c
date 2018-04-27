@@ -154,7 +154,7 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
 
 err:	__wt_scr_free(session, &tmp);
 	if (ret == 0)
-		return (0);
+		return (ret);
 
 	/* See comment in __posix_sync(): sync cannot be retried or fail. */
 	WT_PANIC_RET(session, ret, "%s: directory-sync", path);
