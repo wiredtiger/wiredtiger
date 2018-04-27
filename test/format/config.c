@@ -137,9 +137,9 @@ config_setup(void)
 			continue;
 
 		/*
-		 * Boolean flags are 0 or 1, where the variables "min" value
-		 * is the percent chance the flag is "on" (so on if we rolled
-		 * <= N, otherwise off).
+		 * Boolean flags are 0 or 1, where the variable's "min" value
+		 * is the percent chance the flag is "on" (so "on" if random
+		 * rolled <= N, otherwise "off").
 		 */
 		if (F_ISSET(cp, C_BOOL))
 			testutil_check(__wt_snprintf(buf, sizeof(buf),
@@ -253,42 +253,46 @@ config_setup(void)
 static void
 config_cache(void)
 {
-	uint32_t required;
+	uint32_t max_dirty_bytes, required;
 
-	if (!config_is_perm("cache")) {
-		/* Ensure there is at least 1MB of cache per thread. */
-		if (g.c_cache < g.c_threads)
-			g.c_cache = g.c_threads;
+	if (config_is_perm("cache"))
+		return;
 
-		/* Check if a minimum cache size has been specified. */
-		if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
-			g.c_cache = g.c_cache_minimum;
-	}
+	/* Check if a minimum cache size has been specified. */
+	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
+		g.c_cache = g.c_cache_minimum;
+
+	/* Ensure there is at least 1MB of cache per thread. */
+	if (g.c_cache < g.c_threads)
+		g.c_cache = g.c_threads;
 
 	/*
 	 * Maximum internal/leaf page size sanity.
+	 *
 	 * Ensure we can service at least one operation per-thread concurrently
-	 * without filling the cache with pinned pages. We choose a multiplier
-	 * of three because the max configurations control on disk size and in
-	 * memory pages are often significantly larger than their disk
-	 * counterparts. We also apply the default eviction_dirty_trigger of 20%
-	 * so that workloads don't get stuck with dirty pages in cache.
+	 * without filling the cache with pinned pages, that is, every thread
+	 * consuming an internal page and a leaf page. Page-size configurations
+	 * control on-disk sizes and in-memory pages are often larger than their
+	 * disk counterparts, so it's hard to translate from one to the other.
+	 * Use a size-adjustment multiplier as an estimate.
+	 *
+	 * Assuming all of those pages are dirty, don't let the maximum dirty
+	 * bytes exceed 40% of the cache (the default eviction trigger is 20%).
 	 */
-	while (3 * g.c_threads *
-	    (g.c_intl_page_max + g.c_leaf_page_max) > (g.c_cache << 20) / 5) {
-		if (g.c_leaf_page_max <= 512 && g.c_intl_page_max <= 512)
+#define	SIZE_ADJUSTMENT	3
+	for (;;) {
+		max_dirty_bytes = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
+		if (SIZE_ADJUSTMENT * g.c_threads *
+		    (g.c_intl_page_max + g.c_leaf_page_max) <= max_dirty_bytes)
 			break;
-		if (g.c_intl_page_max > 512)
-			g.c_intl_page_max >>= 1;
-		if (g.c_leaf_page_max > 512)
-			g.c_leaf_page_max >>= 1;
+		g.c_cache += g.c_threads * g.c_leaf_page_max;
 	}
 
 	/*
-	 * Ensure cache size sanity in the case of an LSM run, replicate the
-	 * test from LSM tree open.
+	 * Ensure cache size sanity for LSM runs, replicate the test from the
+	 * LSM tree open code (the hard-coded 3's are from there).
 	 */
-	if (!config_is_perm("cache") && DATASOURCE("lsm")) {
+	if (DATASOURCE("lsm")) {
 		required = 3 * g.c_chunk_size +
 		    3 * (g.c_merge_max * g.c_leaf_page_max);
 		if (g.c_cache < required)
