@@ -978,9 +978,9 @@ __rec_init(WT_SESSION_IMPL *session,
 		WT_ORDERED_READ(las_skew_oldest,
 		    txn_global->has_stable_timestamp);
 		if (las_skew_oldest)
-			las_skew_oldest = r->ref->page_las != NULL &&
+			las_skew_oldest = ref->page_las != NULL &&
 			    !__wt_txn_visible_all(session, WT_TXN_NONE,
-			    &r->ref->page_las->min_timestamp);
+			    WT_TIMESTAMP_NULL(&ref->page_las->min_timestamp));
 	}
 	r->las_skew_newest = LF_ISSET(WT_REC_LOOKASIDE) &&
 	    LF_ISSET(WT_REC_VISIBLE_ALL) && !las_skew_oldest;
