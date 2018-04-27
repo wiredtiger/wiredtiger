@@ -29,6 +29,7 @@
 #include "format.h"
 #include "config.h"
 
+static void	   config_cache(void);
 static void	   config_checkpoint(void);
 static void	   config_checksum(void);
 static void	   config_compression(const char *);
@@ -59,6 +60,7 @@ void
 config_setup(void)
 {
 	CONFIG *cp;
+	char buf[128];
 
 	/* Clear any temporary values. */
 	config_reset();
@@ -135,14 +137,20 @@ config_setup(void)
 			continue;
 
 		/*
-		 * Boolean flags are 0 or 1, but only set N in 100 where the
-		 * variable's min value is N.  Set the flag if we rolled >=
-		 * the min, 0 otherwise.
+		 * Boolean flags are 0 or 1, where the variables "min" value
+		 * is the percent chance the flag is "on" (so on if we rolled
+		 * <= N, otherwise off).
 		 */
 		if (F_ISSET(cp, C_BOOL))
-			*cp->v = mmrand(NULL, 1, 100) <= cp->min ? 1 : 0;
+			testutil_check(__wt_snprintf(buf, sizeof(buf),
+			    "%s=%s",
+			    cp->name,
+			    mmrand(NULL, 1, 100) <= cp->min ? "on" : "off"));
 		else
-			*cp->v = mmrand(NULL, cp->min, cp->maxrand);
+			testutil_check(__wt_snprintf(buf, sizeof(buf),
+			    "%s=%" PRIu32,
+			    cp->name, mmrand(NULL, cp->min, cp->maxrand)));
+		config_single(buf, 0);
 	}
 
 	/* Required shared libraries. */
@@ -174,21 +182,7 @@ config_setup(void)
 	config_lrt();
 	config_pct();
 	config_prepare();
-
-	/*
-	 * If this is an LSM run, ensure cache size sanity.
-	 * Ensure there is at least 1MB of cache per thread.
-	 */
-	if (!config_is_perm("cache")) {
-		if (DATASOURCE("lsm"))
-			g.c_cache = 30 * g.c_chunk_size;
-		if (g.c_cache < g.c_threads)
-			g.c_cache = g.c_threads;
-	}
-
-	/* Check if a minimum cache size has been specified. */
-	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
-		g.c_cache = g.c_cache_minimum;
+	config_cache();
 
 	/*
 	 * Turn off truncate for LSM runs (some configurations with truncate
@@ -250,6 +244,56 @@ config_setup(void)
 
 	/* Reset the key count. */
 	g.key_cnt = 0;
+}
+
+/*
+ * config_cache --
+ *	Cache configuration.
+ */
+static void
+config_cache(void)
+{
+	uint32_t required;
+
+	if (!config_is_perm("cache")) {
+		/* Ensure there is at least 1MB of cache per thread. */
+		if (g.c_cache < g.c_threads)
+			g.c_cache = g.c_threads;
+
+		/* Check if a minimum cache size has been specified. */
+		if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
+			g.c_cache = g.c_cache_minimum;
+	}
+
+	/*
+	 * Maximum internal/leaf page size sanity.
+	 * Ensure we can service at least one operation per-thread concurrently
+	 * without filling the cache with pinned pages. We choose a multiplier
+	 * of three because the max configurations control on disk size and in
+	 * memory pages are often significantly larger than their disk
+	 * counterparts. We also apply the default eviction_dirty_trigger of 20%
+	 * so that workloads don't get stuck with dirty pages in cache.
+	 */
+	while (3 * g.c_threads *
+	    (g.c_intl_page_max + g.c_leaf_page_max) > (g.c_cache << 20) / 5) {
+		if (g.c_leaf_page_max <= 512 && g.c_intl_page_max <= 512)
+			break;
+		if (g.c_intl_page_max > 512)
+			g.c_intl_page_max >>= 1;
+		if (g.c_leaf_page_max > 512)
+			g.c_leaf_page_max >>= 1;
+	}
+
+	/*
+	 * Ensure cache size sanity in the case of an LSM run, replicate the
+	 * test from LSM tree open.
+	 */
+	if (!config_is_perm("cache") && DATASOURCE("lsm")) {
+		required = 3 * g.c_chunk_size +
+		    3 * (g.c_merge_max * g.c_leaf_page_max);
+		if (g.c_cache < required)
+			g.c_cache = required;
+	}
 }
 
 /*
@@ -900,17 +944,6 @@ config_single(const char *s, int perm)
 	++ep;
 
 	if (F_ISSET(cp, C_STRING)) {
-		if (strncmp(s, "data_source", strlen("data_source")) == 0 &&
-		    strncmp("file", ep, strlen("file")) != 0 &&
-		    strncmp("helium", ep, strlen("helium")) != 0 &&
-		    strncmp("kvsbdb", ep, strlen("kvsbdb")) != 0 &&
-		    strncmp("lsm", ep, strlen("lsm")) != 0 &&
-		    strncmp("table", ep, strlen("table")) != 0) {
-			    fprintf(stderr,
-				"Invalid data source option: %s\n", ep);
-			    exit(EXIT_FAILURE);
-		}
-
 		/*
 		 * Free the previous setting if a configuration has been
 		 * passed in twice.
@@ -926,12 +959,22 @@ config_single(const char *s, int perm)
 		} else if (strncmp(s, "checksum", strlen("checksum")) == 0) {
 			config_map_checksum(ep, &g.c_checksum_flag);
 			*cp->vstr = dstrdup(ep);
-		} else if (strncmp(
-		    s, "compression", strlen("compression")) == 0) {
+		} else if (strncmp(s,
+		    "compression", strlen("compression")) == 0) {
 			config_map_compression(ep, &g.c_compression_flag);
 			*cp->vstr = dstrdup(ep);
-		} else if (strncmp(
-		    s, "encryption", strlen("encryption")) == 0) {
+		} else if (strncmp(s,
+		    "data_source", strlen("data_source")) == 0 &&
+		    strncmp("file", ep, strlen("file")) != 0 &&
+		    strncmp("helium", ep, strlen("helium")) != 0 &&
+		    strncmp("kvsbdb", ep, strlen("kvsbdb")) != 0 &&
+		    strncmp("lsm", ep, strlen("lsm")) != 0 &&
+		    strncmp("table", ep, strlen("table")) != 0) {
+			    fprintf(stderr,
+				"Invalid data source option: %s\n", ep);
+			    exit(EXIT_FAILURE);
+		} else if (strncmp(s,
+		    "encryption", strlen("encryption")) == 0) {
 			config_map_encryption(ep, &g.c_encryption_flag);
 			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(s, "file_type", strlen("file_type")) == 0) {
@@ -945,10 +988,8 @@ config_single(const char *s, int perm)
 			config_map_compression(ep,
 			    &g.c_logging_compression_flag);
 			*cp->vstr = dstrdup(ep);
-		} else {
-			free((void *)*cp->vstr);
+		} else
 			*cp->vstr = dstrdup(ep);
-		}
 
 		return;
 	}
@@ -981,6 +1022,13 @@ config_single(const char *s, int perm)
 		    progname, s, cp->min, cp->maxset);
 		exit(EXIT_FAILURE);
 	}
+
+	/* Page sizes are powers-of-two for bad historic reasons. */
+	if (strncmp(s, "internal_page_max", strlen("internal_page_max")) == 0)
+		v = 1U << v;
+	if (strncmp(s, "leaf_page_max", strlen("leaf_page_max")) == 0)
+		v = 1U << v;
+
 	*cp->v = v;
 }
 
