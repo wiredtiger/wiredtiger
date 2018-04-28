@@ -255,8 +255,19 @@ config_cache(void)
 {
 	uint32_t max_dirty_bytes, required;
 
-	if (config_is_perm("cache"))
+	/* Page sizes are powers-of-two for bad historic reasons. */
+	g.intl_page_max = 1U << g.c_intl_page_max;
+	g.leaf_page_max = 1U << g.c_leaf_page_max;
+
+	if (config_is_perm("cache")) {
+		if (config_is_perm("cache_minimum") &&
+		    g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
+			testutil_die(EINVAL,
+			    "minimum cache set larger than cache "
+			    "(%" PRIu32 " > %" PRIu32 ")",
+			    g.c_cache_minimum, g.c_cache);
 		return;
+	}
 
 	/* Check if a minimum cache size has been specified. */
 	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
@@ -283,9 +294,9 @@ config_cache(void)
 	for (;;) {
 		max_dirty_bytes = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
 		if (SIZE_ADJUSTMENT * g.c_threads *
-		    (g.c_intl_page_max + g.c_leaf_page_max) <= max_dirty_bytes)
+		    (g.intl_page_max + g.leaf_page_max) <= max_dirty_bytes)
 			break;
-		g.c_cache += g.c_threads * g.c_leaf_page_max;
+		g.c_cache += g.c_threads * g.leaf_page_max;
 	}
 
 	/*
@@ -294,7 +305,7 @@ config_cache(void)
 	 */
 	if (DATASOURCE("lsm")) {
 		required = 3 * g.c_chunk_size +
-		    3 * (g.c_merge_max * g.c_leaf_page_max);
+		    3 * (g.c_merge_max * g.leaf_page_max);
 		if (g.c_cache < required)
 			g.c_cache = required;
 	}
@@ -1026,12 +1037,6 @@ config_single(const char *s, int perm)
 		    progname, s, cp->min, cp->maxset);
 		exit(EXIT_FAILURE);
 	}
-
-	/* Page sizes are powers-of-two for bad historic reasons. */
-	if (strncmp(s, "internal_page_max", strlen("internal_page_max")) == 0)
-		v = 1U << v;
-	if (strncmp(s, "leaf_page_max", strlen("leaf_page_max")) == 0)
-		v = 1U << v;
 
 	*cp->v = v;
 }
