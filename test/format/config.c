@@ -255,8 +255,19 @@ config_cache(void)
 {
 	uint32_t max_dirty_bytes, required;
 
-	if (config_is_perm("cache"))
+	/* Page sizes are powers-of-two for bad historic reasons. */
+	g.intl_page_max = 1U << g.c_intl_page_max;
+	g.leaf_page_max = 1U << g.c_leaf_page_max;
+
+	if (config_is_perm("cache")) {
+		if (config_is_perm("cache_minimum") &&
+		    g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
+			testutil_die(EINVAL,
+			    "minimum cache set larger than cache "
+			    "(%" PRIu32 " > %" PRIu32 ")",
+			    g.c_cache_minimum, g.c_cache);
 		return;
+	}
 
 	/* Check if a minimum cache size has been specified. */
 	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
@@ -283,18 +294,24 @@ config_cache(void)
 	for (;;) {
 		max_dirty_bytes = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
 		if (SIZE_ADJUSTMENT * g.c_threads *
-		    (g.c_intl_page_max + g.c_leaf_page_max) <= max_dirty_bytes)
+		    (g.intl_page_max + g.leaf_page_max) <= max_dirty_bytes)
 			break;
-		g.c_cache += g.c_threads * g.c_leaf_page_max;
+		++g.c_cache;
 	}
 
 	/*
-	 * Ensure cache size sanity for LSM runs, replicate the test from the
-	 * LSM tree open code (the hard-coded 3's are from there).
+	 * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
+	 * chunks plus a page for each participant in up to three concurrent
+	 * merges. Integrate a thread count into that calculation by requiring
+	 * 3 chunks/pages per configured thread. That might be overkill, but
+	 * LSM runs are more sensitive to small caches than other runs, and a
+	 * generous cache avoids stalls we're not interested in chasing.
 	 */
 	if (DATASOURCE("lsm")) {
-		required = 3 * g.c_chunk_size +
-		    3 * (g.c_merge_max * g.c_leaf_page_max);
+		required = WT_LSM_TREE_MINIMUM_SIZE(
+		    g.c_chunk_size * WT_MEGABYTE,
+		    g.c_threads * g.c_merge_max, g.c_threads * g.leaf_page_max);
+		required = (required + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
 		if (g.c_cache < required)
 			g.c_cache = required;
 	}
@@ -1026,12 +1043,6 @@ config_single(const char *s, int perm)
 		    progname, s, cp->min, cp->maxset);
 		exit(EXIT_FAILURE);
 	}
-
-	/* Page sizes are powers-of-two for bad historic reasons. */
-	if (strncmp(s, "internal_page_max", strlen("internal_page_max")) == 0)
-		v = 1U << v;
-	if (strncmp(s, "leaf_page_max", strlen("leaf_page_max")) == 0)
-		v = 1U << v;
 
 	*cp->v = v;
 }

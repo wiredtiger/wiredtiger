@@ -368,22 +368,19 @@ wts_init(void)
 	    "internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32,
 	    (g.type == ROW) ? "u" : "r",
 	    g.c_firstfit ? "block_allocation=first," : "",
-	    g.c_intl_page_max, g.c_leaf_page_max);
+	    g.intl_page_max, g.leaf_page_max);
 
 	/*
 	 * Configure the maximum key/value sizes, but leave it as the default
 	 * if we come up with something crazy.
 	 */
-	maxintlkey =
-	    mmrand(NULL, g.c_intl_page_max / 50, g.c_intl_page_max / 40);
+	maxintlkey = mmrand(NULL, g.intl_page_max / 50, g.intl_page_max / 40);
 	if (maxintlkey > 20)
 		CONFIG_APPEND(p, ",internal_key_max=%" PRIu32, maxintlkey);
-	maxleafkey =
-	    mmrand(NULL, g.c_leaf_page_max / 50, g.c_leaf_page_max / 40);
+	maxleafkey = mmrand(NULL, g.leaf_page_max / 50, g.leaf_page_max / 40);
 	if (maxleafkey > 20)
 		CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-	maxleafvalue =
-	    mmrand(NULL, g.c_leaf_page_max * 10, g.c_leaf_page_max / 40);
+	maxleafvalue = mmrand(NULL, g.leaf_page_max * 10, g.leaf_page_max / 40);
 	if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
 		CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
