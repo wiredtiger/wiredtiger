@@ -311,7 +311,7 @@ config_cache(void)
 		required = WT_LSM_TREE_MINIMUM_SIZE(
 		    g.c_chunk_size * WT_MEGABYTE,
 		    g.c_threads * g.c_merge_max, g.c_threads * g.leaf_page_max);
-		required = WT_ALIGN(required, WT_MEGABYTE) / WT_MEGABYTE;
+		required = (required + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
 		if (g.c_cache < required)
 			g.c_cache = required;
 	}
