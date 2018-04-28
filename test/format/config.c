@@ -296,16 +296,22 @@ config_cache(void)
 		if (SIZE_ADJUSTMENT * g.c_threads *
 		    (g.intl_page_max + g.leaf_page_max) <= max_dirty_bytes)
 			break;
-		g.c_cache += g.c_threads * g.leaf_page_max;
+		++g.c_cache;
 	}
 
 	/*
-	 * Ensure cache size sanity for LSM runs, replicate the test from the
-	 * LSM tree open code (the hard-coded 3's are from there).
+	 * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
+	 * chunks plus a page for each participant in up to three concurrent
+	 * merges. Integrate a thread count into that calculation by requiring
+	 * 3 chunks/pages per configured thread. That might be overkill, but
+	 * LSM runs are more sensitive to small caches than other runs, and a
+	 * generous cache avoids stalls we're not interested in chasing.
 	 */
 	if (DATASOURCE("lsm")) {
-		required = 3 * g.c_chunk_size +
-		    3 * (g.c_merge_max * g.leaf_page_max);
+		required = WT_LSM_TREE_MINIMUM_SIZE(
+		    g.c_chunk_size * WT_MEGABYTE,
+		    g.c_threads * g.c_merge_max, g.c_threads * g.leaf_page_max);
+		required = WT_ALIGN(required, WT_MEGABYTE) / WT_MEGABYTE;
 		if (g.c_cache < required)
 			g.c_cache = required;
 	}
