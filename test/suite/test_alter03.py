@@ -57,8 +57,8 @@ class test_alter03(wttest.WiredTigerTestCase):
 
         c.close()
 
-    # Alter: Change the app_metadata and verify
-    def test_alter03_app_metadata(self):
+    # Alter Table: Change the app_metadata and verify
+    def test_alter03_table_app_metadata(self):
         uri = "table:" + self.name
         entries = 100
         create_params = 'key_format=i,value_format=i,'
@@ -112,6 +112,21 @@ class test_alter03(wttest.WiredTigerTestCase):
         # Confirm we retain the app_metadata as expected after reopen
         self.reopen_conn()
         self.verify_metadata('app_metadata="meta_data_5",', 'app_metadata="meta_data_3",')
+
+    # Alter LSM: A non exclusive alter should not be allowed
+    def test_alter03_lsm_app_metadata(self):
+        uri = "lsm:" + self.name
+        create_params = 'key_format=i,value_format=i,'
+        app_meta_orig = 'app_metadata="meta_data_1",'
+
+        self.session.create(uri, create_params + app_meta_orig)
+
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.alter(uri,
+                'exclusive_refreshed=false,app_metadata="meta_data_2",'),
+                '/applicable only with the table data objects/')
+
+        self.session.alter(uri, 'exclusive_refreshed=true,app_metadata="meta_data_2",')
 
 if __name__ == '__main__':
     wttest.run()

@@ -133,18 +133,15 @@ err:	__wt_scr_free(session, &data_source);
  *	Alter a table.
  */
 static int
-__alter_table(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
+__alter_table(WT_SESSION_IMPL *session,
+    const char *uri, const char *newcfg[], bool exclusive_refreshed)
 {
 	WT_COLGROUP *colgroup;
-	WT_CONFIG_ITEM cv;
 	WT_DECL_RET;
 	WT_INDEX *idx;
 	WT_TABLE *table;
 	u_int i;
 	const char *name;
-	bool exclusive_refreshed;
-	const char *cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_alter), newcfg[0], NULL};
 
 	colgroup = NULL;
 	table = NULL;
@@ -155,9 +152,6 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 	 * Only alter the table and skip everything else if we are not to take
 	 * an exclusive access for this operation.
 	 */
-	WT_RET(__wt_config_gets(session, cfg, "exclusive_refreshed", &cv));
-	exclusive_refreshed = (bool)cv.val;
-
 	if (exclusive_refreshed) {
 		/*
 		 * Open the table so we can alter its column groups and indexes,
@@ -204,7 +198,24 @@ __alter_table(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 static int
 __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 {
+	WT_CONFIG_ITEM cv;
 	uint32_t flags;
+	bool exclusive_refreshed;
+	const char *cfg[] = {
+	    WT_CONFIG_BASE(session, WT_SESSION_alter), newcfg[0], NULL};
+
+	/*
+	 * Determine what configuration says about exclusive access.
+	 * A non exclusive alter that doesn't refresh in-memory configuration is
+	 * only valid for the table objects.
+	 */
+	WT_RET(__wt_config_gets(session, cfg, "exclusive_refreshed", &cv));
+	exclusive_refreshed = (bool)cv.val;
+
+	if (!exclusive_refreshed && !WT_PREFIX_MATCH(uri, "table:"))
+		WT_RET_MSG(session, EINVAL,
+		    "option \"exclusive_refreshed\" is "
+		    "applicable only with the table data objects");
 
 	/*
 	 * The alter flag is used so LSM can apply some special logic, the
@@ -224,7 +235,8 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 		return (__wt_lsm_tree_worker(session, uri, __alter_file,
 		    NULL, newcfg, flags));
 	if (WT_PREFIX_MATCH(uri, "table:"))
-		return (__alter_table(session, uri, newcfg));
+		return (__alter_table(session,
+		    uri, newcfg, exclusive_refreshed));
 
 	return (__wt_bad_object_type(session, uri));
 }
