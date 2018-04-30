@@ -510,6 +510,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_colgroup_meta[] = {
+	{ "app_metadata", "string", NULL, NULL, NULL, 0 },
 	{ "collator", "string", NULL, NULL, NULL, 0 },
 	{ "columns", "list", NULL, NULL, NULL, 0 },
 	{ "source", "string", NULL, NULL, NULL, 0 },
@@ -650,6 +651,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_index_meta[] = {
+	{ "app_metadata", "string", NULL, NULL, NULL, 0 },
 	{ "collator", "string", NULL, NULL, NULL, 0 },
 	{ "columns", "list", NULL, NULL, NULL, 0 },
 	{ "extractor", "string", NULL, NULL, NULL, 0 },
@@ -1410,8 +1412,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_verify, 6
 	},
 	{ "colgroup.meta",
-	  "collator=,columns=,source=,type=file",
-	  confchk_colgroup_meta, 4
+	  "app_metadata=,collator=,columns=,source=,type=file",
+	  confchk_colgroup_meta, 5
 	},
 	{ "file.config",
 	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -1447,9 +1449,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_file_meta, 40
 	},
 	{ "index.meta",
-	  "collator=,columns=,extractor=,immutable=false,index_key_columns="
-	  ",key_format=u,source=,type=file,value_format=u",
-	  confchk_index_meta, 9
+	  "app_metadata=,collator=,columns=,extractor=,immutable=false,"
+	  "index_key_columns=,key_format=u,source=,type=file,value_format=u",
+	  confchk_index_meta, 10
 	},
 	{ "lsm.meta",
 	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
