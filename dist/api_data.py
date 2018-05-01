@@ -940,11 +940,11 @@ methods = {
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
     Config('exclusive_refreshed', 'true', r'''
-        give users the ability to avoid refreshing the in memory state
-        which is useful because it means we don't need exclusive access to
-        change a setting. This option is dangerous because some metadata
-        entries are overwritten automatically, which could lead to alterations
-        being lost. This option is only applicable on simple tables.''',
+        refresh the in memory state and flush the metadata change to disk,
+        disabling this flag is dangerous - it will only re-write the
+        metadata without refreshing the in-memory information or creating
+        a checkpoint. The update will also only be applied to table URI
+        entries in the metadata, not their sub-entries.''',
         type='boolean', undoc=True),
 ]),
 

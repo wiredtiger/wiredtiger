@@ -149,8 +149,8 @@ __alter_table(WT_SESSION_IMPL *session,
 	WT_PREFIX_SKIP_REQUIRED(session, name, "table:");
 
 	/*
-	 * Only alter the table and skip everything else if we are not to take
-	 * an exclusive access for this operation.
+	 * If we have exclusive access update all objects in the schema for
+	 * this table and reopen the handle to update the in-memory state.
 	 */
 	if (exclusive_refreshed) {
 		/*
