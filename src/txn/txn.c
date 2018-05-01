@@ -154,6 +154,13 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	txn_state = WT_SESSION_TXN_STATE(session);
 	n = 0;
 
+	/* Fast path if we already have the current snapshot. */
+	if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+	    __wt_session_gen(session, WT_GEN_COMMIT) ==
+	    __wt_gen(session, WT_GEN_COMMIT))
+		return;
+	__wt_session_gen_enter(session, WT_GEN_COMMIT);
+
 	/* We're going to scan the table: wait for the lock. */
 	__wt_readlock(session, &txn_global->rwlock);
 
@@ -950,6 +957,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	__wt_txn_release(session);
 	if (locked)
 		__wt_readunlock(session, &txn_global->visibility_rwlock);
+
+	/*
+	 * If we have made some updates visible, start a new commit generation:
+	 * any cached snapshots have to be refreshed.
+	 */
+	if (!readonly)
+		WT_IGNORE_RET(__wt_gen_next(session, WT_GEN_COMMIT));
 
 #ifdef HAVE_TIMESTAMPS
 	/* First check if we've already committed something in the future. */
