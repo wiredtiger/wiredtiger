@@ -42,17 +42,16 @@ __las_restore_isolation(
 }
 
 /*
- * __wt_las_entry_count --
+ * __las_entry_count --
  *	Return when there are entries in the lookaside table.
  */
-uint64_t
-__wt_las_entry_count(WT_CACHE *cache)
+static uint64_t
+__las_entry_count(WT_CACHE *cache)
 {
 	uint64_t insert_cnt, remove_cnt;
 
 	insert_cnt = cache->las_insert_count;
-	remove_cnt = cache->las_remove_count;
-	WT_READ_BARRIER();
+	WT_ORDERED_READ(remove_cnt, cache->las_remove_count);
 
 	return (insert_cnt > remove_cnt ? insert_cnt - remove_cnt : 0);
 }
@@ -64,7 +63,7 @@ __wt_las_entry_count(WT_CACHE *cache)
 bool
 __wt_las_empty(WT_SESSION_IMPL *session)
 {
-	return (__wt_las_entry_count(S2C(session)->cache) == 0);
+	return (__las_entry_count(S2C(session)->cache) == 0);
 }
 
 /*
@@ -95,7 +94,7 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
 	cstats = conn->stats;
 
 	WT_STAT_SET(session, cstats,
-	    cache_lookaside_entries, __wt_las_entry_count(cache));
+	    cache_lookaside_entries, __las_entry_count(cache));
 
 	/*
 	 * We have a cursor, and we need the underlying data handle; we can get
@@ -746,7 +745,7 @@ err:	/* Resolve the transaction. */
 
 		/* Adjust the entry count. */
 		if (ret == 0)
-			__wt_atomic_add64(
+			(void)__wt_atomic_add64(
 			    &conn->cache->las_insert_count, insert_cnt);
 	}
 
@@ -857,7 +856,8 @@ __wt_las_remove_block(
 	else
 		WT_TRET(__wt_txn_rollback(las_session, NULL));
 	if (ret == 0)
-		__wt_atomic_add64(&conn->cache->las_remove_count, remove_cnt);
+		(void)__wt_atomic_add64(
+		    &conn->cache->las_remove_count, remove_cnt);
 
 err:	__las_restore_isolation(las_session, saved_isolation);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
@@ -894,6 +894,8 @@ err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 static inline uint64_t
 __las_sweep_count(WT_CACHE *cache)
 {
+	uint64_t las_entry_count;
+
 	/*
 	 * The sweep server is a slow moving thread. Try to review the entire
 	 * lookaside table once every 5 minutes.
@@ -910,8 +912,9 @@ __las_sweep_count(WT_CACHE *cache)
 	 * with lookaside entries are blocked during sweep, make sure we do
 	 * some work but don't block reads for too long.
 	 */
-	return ((uint64_t)WT_MAX(100, __wt_las_entry_count(cache) /
-	     (5 * WT_MINUTE / WT_LAS_SWEEP_SEC)));
+	las_entry_count = __las_entry_count(cache);
+	return ((uint64_t)WT_MAX(WT_LAS_SWEEP_ENTRIES,
+	    las_entry_count / (5 * WT_MINUTE / WT_LAS_SWEEP_SEC)));
 }
 
 /*
@@ -1042,16 +1045,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	if (ret != 0)
 		goto srch_notfound;
 
-	/*
-	 * Walk at least the number we calculated at the beginning of the
-	 * sweep, or more if there have been additional records inserted in the
-	 * meantime.  Don't just repeat the calculation here since sweep
-	 * removes entries and that would cause sweep to do less and less work
-	 * rather than driving the lookaside table to empty.
-	 */
 	cnt = __las_sweep_count(cache);
-	if (cnt < WT_LAS_SWEEP_ENTRIES)
-		cnt = WT_LAS_SWEEP_ENTRIES;
 	visit_cnt = 0;
 
 	/* Walk the file. */
@@ -1190,7 +1184,7 @@ err:		__wt_buf_free(session, sweep_key);
 		else
 			WT_TRET(__wt_txn_rollback(session, NULL));
 		if (ret == 0)
-			__wt_atomic_add64(
+			(void)__wt_atomic_add64(
 			    &cache->las_remove_count, remove_cnt);
 	}
 	if (locked)
