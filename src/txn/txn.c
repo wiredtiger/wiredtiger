@@ -144,8 +144,7 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *s, *txn_state;
-	uint64_t current_id, id;
-	uint64_t prev_oldest_id, pinned_id;
+	uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
 	uint32_t i, n, session_cnt;
 
 	conn = S2C(session);
@@ -155,10 +154,12 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	n = 0;
 
 	/* Fast path if we already have the current snapshot. */
-	if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
-	    __wt_session_gen(session, WT_GEN_COMMIT) ==
-	    __wt_gen(session, WT_GEN_COMMIT))
-		return;
+	if ((commit_gen = __wt_session_gen(session, WT_GEN_COMMIT)) != 0) {
+		if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
+		    commit_gen == __wt_gen(session, WT_GEN_COMMIT))
+			return;
+		__wt_session_gen_leave(session, WT_GEN_COMMIT);
+	}
 	__wt_session_gen_enter(session, WT_GEN_COMMIT);
 
 	/* We're going to scan the table: wait for the lock. */
