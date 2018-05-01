@@ -944,7 +944,7 @@ methods = {
         which is useful because it means we don't need exclusive access to
         change a setting. This option is dangerous because some metadata
         entries are overwritten automatically, which could lead to alterations
-        being lost.''',
+        being lost. This option is only applicable on simple tables.''',
         type='boolean', undoc=True),
 ]),
 

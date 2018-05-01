@@ -124,7 +124,7 @@ class test_alter03(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.alter(uri,
                 'exclusive_refreshed=false,app_metadata="meta_data_2",'),
-                '/applicable only with the table data objects/')
+                '/is applicable only on simple tables/')
 
         self.session.alter(uri, 'exclusive_refreshed=true,app_metadata="meta_data_2",')
 
