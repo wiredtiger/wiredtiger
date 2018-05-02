@@ -671,7 +671,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool locked, readonly;
+	bool locked;
 #ifdef HAVE_TIMESTAMPS
 	WT_REF *ref;
 	WT_UPDATE **updp;
@@ -689,7 +689,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
 	    txn->mod_count == 0);
 
-	readonly = txn->mod_count == 0;
 	/*
 	 * Look for a commit timestamp.
 	 */
@@ -993,13 +992,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 #endif
 
-	/*
-	 * We're between transactions, if we need to block for eviction, it's
-	 * a good time to do so.  Note that we must ignore any error return
-	 * because the user's data is committed.
-	 */
-	if (!readonly)
-		(void)__wt_cache_eviction_check(session, false, false, NULL);
 	return (0);
 
 err:	/*
@@ -1132,12 +1124,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool readonly;
 
 	WT_UNUSED(cfg);
 
 	txn = &session->txn;
-	readonly = txn->mod_count == 0;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	/* Rollback notification. */
@@ -1189,13 +1179,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);
-	/*
-	 * We're between transactions, if we need to block for eviction, it's
-	 * a good time to do so.  Note that we must ignore any error return
-	 * because the user's data is committed.
-	 */
-	if (!readonly)
-		(void)__wt_cache_eviction_check(session, false, false, NULL);
+
 	return (ret);
 }
 
