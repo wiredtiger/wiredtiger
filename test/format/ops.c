@@ -523,24 +523,20 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	testutil_check(session->begin_transaction(session, config));
 
 	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
-		/*
-		 * Avoid starting a new reader when a prepare is in progress.
-		 */
+		/* Avoid starting a new reader when a prepare is in progress. */
 		if (g.c_prepare) {
-			testutil_check(
-			    pthread_rwlock_rdlock(&g.prepare_lock));
+			testutil_check(pthread_rwlock_rdlock(&g.prepare_lock));
 			locked = true;
 		}
 
 		/*
-		 * Set the thread's read timestamp to the current value
-		 * before allocating a new read timestamp. This
-		 * guarantees the oldest timestamp won't move past the
-		 * allocated timestamp before the transaction uses it.
+		 * Set the thread's read timestamp to the current value before
+		 * allocating a new read timestamp. This guarantees the oldest
+		 * timestamp won't move past the allocated timestamp before the
+		 * transaction uses it.
 		 */
 		tinfo->read_timestamp = g.timestamp;
-		tinfo->read_timestamp =
-		    __wt_atomic_addv64(&g.timestamp, 1);
+		tinfo->read_timestamp = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "read_timestamp=%" PRIx64, tinfo->read_timestamp));
