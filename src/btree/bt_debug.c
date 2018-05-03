@@ -136,7 +136,7 @@ __debug_item_key(WT_DBG *ds, const char *tag, const void *data_arg, size_t size)
 		WT_RET(__wt_buf_fmt(
 		    session, ds->t2, "%.*s", (int)size, (char *)data_arg));
 		data_arg = ds->t2->data;
-		size = (size_t)ds->t2->size + 1;
+		size = ds->t2->size + 1;
 	}
 	return (ds->f(ds, "\t%s%s{%s}\n",
 	    tag == NULL ? "" : tag, tag == NULL ? "" : " ",
@@ -165,7 +165,7 @@ __debug_item_value(
 		WT_RET(__wt_buf_fmt(
 		    session, ds->t2, "%.*s", (int)size, (char *)data_arg));
 		data_arg = ds->t2->data;
-		size = (size_t)ds->t2->size + 1;
+		size = ds->t2->size + 1;
 	}
 	return (ds->f(ds, "\t%s%s{%s}\n",
 	    tag == NULL ? "" : tag, tag == NULL ? "" : " ",
