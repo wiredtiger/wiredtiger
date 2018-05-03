@@ -591,6 +591,8 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 	uint64_t ts;
 	char *config, config_buf[64];
 
+	++tinfo->commit;
+
 	config = NULL;
 	if (g.c_txn_timestamps) {
 		ts = set_commit_timestamp(tinfo);
@@ -601,27 +603,22 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 	}
 
 	if (prepared)
-		testutil_check(
-		    session->commit_transaction(session, config));
+		testutil_check(session->commit_transaction(session, config));
 
 	if (!prepared)
-		testutil_check(
-		    session->timestamp_transaction(session, config));
+		testutil_check(session->timestamp_transaction(session, config));
 
 	/*
-	 * Clear the thread's active timestamp: it no longer needs to
-	 * be pinned.  Don't let the compiler re-order this statement,
-	 * if we were to race with the timestamp thread, it might see
-	 * our thread update before the commit_timestamp is set for the
-	 * transaction.
+	 * Clear the thread's active timestamp: it no longer needs to be pinned.
+	 * Don't let the compiler re-order this statement, if we were to race
+	 * with the timestamp thread, it might see our thread update before the
+	 * commit_timestamp is set for the transaction.
 	 */
 	if (g.c_txn_timestamps)
 		WT_PUBLISH(tinfo->commit_timestamp, 0);
 
 	if (!prepared)
 		testutil_check(session->commit_transaction(session, NULL));
-
-	++tinfo->commit;
 }
 
 /*
@@ -631,8 +628,9 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 static void
 rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	testutil_check(session->rollback_transaction(session, NULL));
 	++tinfo->rollback;
+
+	testutil_check(session->rollback_transaction(session, NULL));
 
 	/*
 	 * Clear the thread's active timestamp: it no longer needs to be pinned.
@@ -658,23 +656,22 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	/* Skip if no timestamp has yet been set. */
 	if (g.timestamp == 0)
 		return (0);
-
-	/*
-	 * Prepare timestamps must be less than or equal to the eventual commit
-	 * timestamp. Set the prepare timestamp to whatever the global value is
-	 * now. The subsequent commit will increment it, ensuring correctness.
-	 */
 	++tinfo->prepare;
 
 	/*
 	 * Synchronize prepare call with begin transaction to prevent a new
 	 * reader creeping in.
-	 *
-	 * Prepare will return error if prepare timestamp is less than any
-	 * active read timestamp.
 	 */
 	testutil_check(pthread_rwlock_wrlock(&g.prepare_lock));
 
+	/*
+	 * Prepare timestamps must be less than or equal to the eventual commit
+	 * timestamp. Set the prepare timestamp to whatever the global value is
+	 * now. The subsequent commit will increment it, ensuring correctness.
+	 *
+	 * Prepare will return error if the prepare timestamp is less than any
+	 * active read timestamp.
+	 */
 	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
