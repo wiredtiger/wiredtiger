@@ -617,7 +617,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	 * created pages are set to the current split generation and so can't be
 	 * evicted until all readers have left the old generation.
 	 */
-	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
+	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
 	WT_ASSERT(session, root->pg_intl_split_gen < split_gen);
 
 	/* Allocate child pages, and connect them into the new page index. */
@@ -646,6 +646,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 
 		/* Initialize the child page. */
 		child->pg_intl_parent_ref = ref;
+		child->pg_intl_split_gen = split_gen;
 
 		/* Mark it dirty. */
 		WT_ERR(__wt_page_modify_init(session, child));
@@ -678,11 +679,8 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	complete = WT_ERR_PANIC;
 
 	/* Prepare the WT_REFs for the move. */
+	WT_ENTER_PAGE_INDEX(session);
 	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
-
-	/* Encourage a race */
-	__page_split_timing_stress(session,
-	    WT_TIMING_STRESS_SPLIT_RACE_1, 100 * WT_THOUSAND);
 
 	/*
 	 * Confirm the root page's index hasn't moved, then update it, which
@@ -1161,7 +1159,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	 * created pages are set to the current split generation and so can't be
 	 * evicted until all readers have left the old generation.
 	 */
-	split_gen = __wt_gen_next(session, WT_GEN_SPLIT);
+	split_gen = __wt_atomic_addv64(&S2C(session)->split_gen, 1);
 	WT_ASSERT(session, page->pg_intl_split_gen < split_gen);
 
 	/* Allocate child pages, and connect them into the new page index. */
@@ -1190,6 +1188,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 
 		/* Initialize the child page. */
 		child->pg_intl_parent_ref = ref;
+		child->pg_intl_split_gen = split_gen;
 
 		/* Mark it dirty. */
 		WT_ERR(__wt_page_modify_init(session, child));
@@ -1224,10 +1223,6 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	/* Prepare the WT_REFs for the move. */
 	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
-	/* Encourage a race */
-	__page_split_timing_stress(session,
-	    WT_TIMING_STRESS_SPLIT_RACE_5, 100 * WT_THOUSAND);
-
 	/* Split into the parent. */
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
 	    alloc_index->entries, parent_incr, false, false));
@@ -1237,7 +1232,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	 * generation to block splits in newly created pages, so get one.
 	 */
 	WT_ENTER_PAGE_INDEX(session);
-	__split_ref_prepare(session, alloc_index, session->split_gen, true);
+	__split_ref_prepare(session, alloc_index, &locked, true);
 
 	/* Split into the parent. */
 	if ((ret = __split_parent(session, page_ref, alloc_index->index,
