@@ -671,7 +671,7 @@ wiredtiger_open_log_configuration = [
         Config('file_max', '100MB', r'''
             the maximum size of log files''',
             min='100KB', max='2GB'),
-            Config('path', '"."', r'''
+        Config('path', '"."', r'''
             the name of a directory into which log files are written. The
             directory must already exist. If the value is not an absolute path,
             the path is relative to the database home (see @ref absolute_path
