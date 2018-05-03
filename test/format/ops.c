@@ -516,46 +516,48 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	default:
 		v = ISOLATION_SNAPSHOT;
 		config = "isolation=snapshot";
-
-		if (g.c_txn_timestamps) {
-			/*
-			 * Avoid starting a new reader when a prepare is in
-			 * progress.
-			 */
-			if (g.c_prepare) {
-				testutil_check(
-				    pthread_rwlock_rdlock(&g.prepare_lock));
-				locked = true;
-			}
-
-			/*
-			 * Set the thread's read timestamp to the current value
-			 * before allocating a new read timestamp. This
-			 * guarantees the oldest timestamp won't move past the
-			 * allocated timestamp before the transaction begins.
-			 */
-			tinfo->read_timestamp = g.timestamp;
-			tinfo->read_timestamp =
-			    __wt_atomic_addv64(&g.timestamp, 1);
-			testutil_check(__wt_snprintf(
-			    config_buf, sizeof(config_buf),
-			    "read_timestamp=%" PRIx64, tinfo->read_timestamp));
-			config = config_buf;
-		}
 		break;
 	}
 	*iso_configp = v;
 
 	testutil_check(session->begin_transaction(session, config));
 
-	if (locked)
-		testutil_check(pthread_rwlock_unlock(&g.prepare_lock));
+	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
+		/*
+		 * Avoid starting a new reader when a prepare is in progress.
+		 */
+		if (g.c_prepare) {
+			testutil_check(
+			    pthread_rwlock_rdlock(&g.prepare_lock));
+			locked = true;
+		}
 
-	/*
-	 * It's OK for the oldest timestamp to move past a running query, clear
-	 * the thread's read timestamp, it no longer needs to be pinned.
-	 */
-	tinfo->read_timestamp = 0;
+		/*
+		 * Set the thread's read timestamp to the current value
+		 * before allocating a new read timestamp. This
+		 * guarantees the oldest timestamp won't move past the
+		 * allocated timestamp before the transaction uses it.
+		 */
+		tinfo->read_timestamp = g.timestamp;
+		tinfo->read_timestamp =
+		    __wt_atomic_addv64(&g.timestamp, 1);
+		testutil_check(__wt_snprintf(
+		    config_buf, sizeof(config_buf),
+		    "read_timestamp=%" PRIx64, tinfo->read_timestamp));
+
+		testutil_check(
+		    session->timestamp_transaction(session, config_buf));
+
+		/*
+		 * It's OK for the oldest timestamp to move past a running
+		 * query, clear the thread's read timestamp, it no longer needs
+		 * to be pinned.
+		 */
+		tinfo->read_timestamp = 0;
+
+		if (locked)
+			testutil_check(pthread_rwlock_unlock(&g.prepare_lock));
+	}
 }
 
 /*
@@ -595,19 +597,21 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
 		testutil_check(
-		    session->commit_transaction(session, config_buf));
-	} else
-		testutil_check(session->commit_transaction(session, NULL));
-	++tinfo->commit;
+		    session->timestamp_transaction(session, config_buf));
 
-	/*
-	 * Clear the thread's active timestamp: it no longer needs to be pinned.
-	 * Don't let the compiler re-order this statement, if we were to race
-	 * with the timestamp thread, it might see our thread update before the
-	 * transaction commit completes.
-	 */
-	if (g.c_txn_timestamps)
-		WT_PUBLISH(tinfo->commit_timestamp, 0);
+		/*
+		 * Clear the thread's active timestamp: it no longer needs to
+		 * be pinned.  Don't let the compiler re-order this statement,
+		 * if we were to race with the timestamp thread, it might see
+		 * our thread update before the commit_timestamp is set for the
+		 * transaction.
+		 */
+		if (g.c_txn_timestamps)
+			WT_PUBLISH(tinfo->commit_timestamp, 0);
+	}
+
+	testutil_check(session->commit_transaction(session, NULL));
+	++tinfo->commit;
 }
 
 /*
