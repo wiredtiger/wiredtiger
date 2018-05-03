@@ -13,7 +13,8 @@
  *	Configure compatibility version.
  */
 int
-__wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
+__wt_conn_compat_config(
+    WT_SESSION_IMPL *session, const char **cfg, bool reconfig)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
@@ -25,7 +26,6 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 	if (cval.len == 0) {
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
-		return (0);
 	}
 
 	/*
@@ -53,6 +53,50 @@ __wt_conn_compat_config(WT_SESSION_IMPL *session, const char **cfg)
 		    "system must be quiescent for upgrade or downgrade");
 	conn->compat_major = major;
 	conn->compat_minor = minor;
+
+	/*
+	 * The required minimum cannot be set via reconfigure and it is
+	 * meaningless on a newly created database. We're done in those cases.
+	 */
+	if (reconfig || conn->is_new)
+		return (0);
+
+	/*
+	 * The minimum required version for existing files is only available
+	 * on opening the connection, not reconfigure.
+	 */
+	WT_RET(__wt_config_gets(session,
+	    cfg, "compatibility.require_min", &cval));
+	if (cval.len == 0) {
+		conn->compat_req_major = WT_CONN_COMPAT_NONE;
+		conn->compat_req_minor = WT_CONN_COMPAT_NONE;
+		return (0);
+	}
+	/*
+	 * Accept either a major.minor release string or a major.minor.patch
+	 * release string.  We ignore the patch value, but allow it in the
+	 * string.
+	 */
+	if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16, &major, &minor) != 2 &&
+	    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+	    &major, &minor, &patch) != 3)
+		WT_RET_MSG(session, EINVAL, "illegal release minimum");
+	if (major > WIREDTIGER_VERSION_MAJOR)
+		WT_RET_MSG(session, ENOTSUP, "unsupported major version");
+	if (major == WIREDTIGER_VERSION_MAJOR &&
+	    minor > WIREDTIGER_VERSION_MINOR)
+		WT_RET_MSG(session, ENOTSUP, "unsupported minor version");
+	/*
+	 * The minimum required must be less than or equal to the compatibility
+	 * release if one was set.
+	 */
+	if ((major > conn->compat_major) ||
+	    (major == conn->compat_major && minor > conn->compat_minor))
+		WT_RET_MSG(session, ENOTSUP,
+		    "required min cannot be larger than compatibility release");
+	conn->compat_req_major = major;
+	conn->compat_req_minor = minor;
+
 	return (0);
 }
 
@@ -288,7 +332,7 @@ __wt_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 	 * downgrade completes.
 	 */
 	WT_WITH_CHECKPOINT_LOCK(session,
-	    ret = __wt_conn_compat_config(session, cfg));
+	    ret = __wt_conn_compat_config(session, cfg, true));
 	WT_ERR(ret);
 	WT_ERR(__wt_conn_optrack_setup(session, cfg, true));
 	WT_ERR(__wt_conn_statistics_config(session, cfg));
