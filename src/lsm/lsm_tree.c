@@ -468,17 +468,17 @@ __lsm_tree_open_check(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t maxleafpage, required;
+	uint64_t memory_page_max, required;
 	const char *cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_create), lsm_tree->file_config, NULL };
 
 	conn = S2C(session);
 
-	WT_RET(__wt_config_gets(session, cfg, "leaf_page_max", &cval));
-	maxleafpage = (uint64_t)cval.val;
+	WT_RET(__wt_config_gets(session, cfg, "memory_page_max", &cval));
+	memory_page_max = (uint64_t)cval.val;
 
 	required = WT_LSM_TREE_MINIMUM_SIZE(
-	    lsm_tree->chunk_size, lsm_tree->merge_max, maxleafpage);
+	    lsm_tree->chunk_size, lsm_tree->merge_max, memory_page_max);
 	if (conn->cache_size < required)
 		WT_RET_MSG(session, EINVAL,
 		    "LSM cache size %" PRIu64 " (%" PRIu64 "MB) too small, "
