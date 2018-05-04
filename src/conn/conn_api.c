@@ -2007,13 +2007,13 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	static const WT_NAME_FLAG stress_types[] = {
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
-		{ "split_race_1",	WT_TIMING_STRESS_SPLIT_RACE_1 },
-		{ "split_race_2",	WT_TIMING_STRESS_SPLIT_RACE_2 },
-		{ "split_race_3",	WT_TIMING_STRESS_SPLIT_RACE_3 },
-		{ "split_race_4",	WT_TIMING_STRESS_SPLIT_RACE_4 },
-		{ "split_race_5",	WT_TIMING_STRESS_SPLIT_RACE_5 },
-		{ "split_race_6",	WT_TIMING_STRESS_SPLIT_RACE_6 },
-		{ "split_race_7",	WT_TIMING_STRESS_SPLIT_RACE_7 },
+		{ "split_1",		WT_TIMING_STRESS_SPLIT_1 },
+		{ "split_2",		WT_TIMING_STRESS_SPLIT_2 },
+		{ "split_3",		WT_TIMING_STRESS_SPLIT_3 },
+		{ "split_4",		WT_TIMING_STRESS_SPLIT_4 },
+		{ "split_5",		WT_TIMING_STRESS_SPLIT_5 },
+		{ "split_6",		WT_TIMING_STRESS_SPLIT_6 },
+		{ "split_7",		WT_TIMING_STRESS_SPLIT_7 },
 		{ NULL, 0 }
 	};
 	WT_CONFIG_ITEM cval, sval;
