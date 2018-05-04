@@ -26,33 +26,38 @@ __wt_conn_compat_config(
 	if (cval.len == 0) {
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+	} else {
+		/*
+		 * Accept either a major.minor.patch release string or a
+		 * major.minor release string.  We ignore the patch value,
+		 * but allow it in the string.
+		 */
+		if (sscanf(cval.str,
+		    "%" SCNu16 ".%" SCNu16, &major, &minor) != 2 &&
+		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+		    &major, &minor, &patch) != 3)
+			WT_RET_MSG(session, EINVAL,
+			    "illegal compatibility release");
+		if (major > WIREDTIGER_VERSION_MAJOR)
+			WT_RET_MSG(session, ENOTSUP,
+			    "unsupported major version");
+		if (major == WIREDTIGER_VERSION_MAJOR &&
+		    minor > WIREDTIGER_VERSION_MINOR)
+			WT_RET_MSG(session, ENOTSUP,
+			    "unsupported minor version");
+
+		/*
+		 * We're doing an upgrade or downgrade, check whether
+		 * transactions are active.
+		 */
+		WT_RET(__wt_txn_activity_check(session, &txn_active));
+		if (txn_active)
+			WT_RET_MSG(session, ENOTSUP,
+			    "system must be quiescent"
+			    " for upgrade or downgrade");
+		conn->compat_major = major;
+		conn->compat_minor = minor;
 	}
-
-	/*
-	 * Accept either a major.minor release string or a major.minor.patch
-	 * release string.  We ignore the patch value, but allow it in the
-	 * string.
-	 */
-	if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16, &major, &minor) != 2 &&
-	    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
-	    &major, &minor, &patch) != 3)
-		WT_RET_MSG(session, EINVAL, "illegal compatibility release");
-	if (major > WIREDTIGER_VERSION_MAJOR)
-		WT_RET_MSG(session, ENOTSUP, "unsupported major version");
-	if (major == WIREDTIGER_VERSION_MAJOR &&
-	    minor > WIREDTIGER_VERSION_MINOR)
-		WT_RET_MSG(session, ENOTSUP, "unsupported minor version");
-
-	/*
-	 * We're doing an upgrade or downgrade, check whether transactions are
-	 * active.
-	 */
-	WT_RET(__wt_txn_activity_check(session, &txn_active));
-	if (txn_active)
-		WT_RET_MSG(session, ENOTSUP,
-		    "system must be quiescent for upgrade or downgrade");
-	conn->compat_major = major;
-	conn->compat_minor = minor;
 
 	/*
 	 * The required minimum cannot be set via reconfigure and it is
