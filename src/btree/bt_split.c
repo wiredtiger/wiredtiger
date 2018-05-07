@@ -1219,19 +1219,12 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	/* Start making real changes to the tree, errors are fatal. */
 	complete = WT_ERR_PANIC;
 
-	/* Prepare the WT_REFs for the move. */
-	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
-
-	/* Split into the parent. */
-	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
-	    alloc_index->entries, parent_incr, false, false));
-
 	/*
 	 * Prepare the WT_REFs for the move: this requires a stable split
 	 * generation to block splits in newly created pages, so get one.
 	 */
 	WT_ENTER_PAGE_INDEX(session);
-	__split_ref_prepare(session, alloc_index, &locked, true);
+	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
 	/* Split into the parent. */
 	if ((ret = __split_parent(session, page_ref, alloc_index->index,
