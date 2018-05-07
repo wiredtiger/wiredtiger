@@ -960,7 +960,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	 */
 	if (desc->version > WT_LOG_VERSION)
 		WT_ERR_MSG(session, WT_ERROR,
-		    "unsupported WiredTiger file version: this build "
+		    "unsupported WiredTiger file version: this build"
 		    " only supports versions up to %d,"
 		    " and the file is version %" PRIu16,
 		    WT_LOG_VERSION, desc->version);
@@ -971,7 +971,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	if (conn->compat_req_major != WT_CONN_COMPAT_NONE &&
 	    desc->version < conn->log_req_version)
 		WT_ERR_MSG(session, WT_ERROR,
-		    "unsupported WiredTiger file version: this build "
+		    "unsupported WiredTiger file version: this build"
 		    " requires a minimum version of %" PRIu16 ","
 		    " and the file is version %" PRIu16,
 		    conn->log_req_version, desc->version);
