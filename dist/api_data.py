@@ -308,8 +308,8 @@ file_config = format_meta + file_runtime_config + [
         blocks which require significant resources to re-instantiate in the
         cache, penalizing the performance of future point updates. The value
         limits the maximum in-memory page image a storage block will need. If
-        set to 0, 4 times \c leaf_page_max is used''',
-        min='512B'),
+        set to 0, a default of 4 times \c leaf_page_max is used''',
+        min='0'),
     Config('memory_page_max', '5MB', r'''
         the maximum size a page can grow to in memory before being
         reconciled to disk.  The specified size will be adjusted to a lower
