@@ -9,6 +9,37 @@
 #include "wt_internal.h"
 
 /*
+ * __conn_compat_parse --
+ *	Parse a compatibility release string into its parts.
+ */
+static int
+__conn_compat_parse(WT_SESSION_IMPL *session,
+    WT_CONFIG_ITEM *cvalp, uint16_t *majorp, uint16_t *minorp)
+{
+	uint16_t unused_patch;
+
+	/*
+	 * Accept either a major.minor.patch release string or a major.minor
+	 * release string.  We ignore the patch value, but allow it in
+	 * the string.
+	 */
+	if (sscanf(cvalp->str,
+	    "%" SCNu16 ".%" SCNu16, majorp, minorp) != 2 &&
+	    sscanf(cvalp->str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
+	    majorp, minorp, &unused_patch) != 3)
+		WT_RET_MSG(session, EINVAL,
+		    "illegal compatibility release");
+	if (*majorp > WIREDTIGER_VERSION_MAJOR)
+		WT_RET_MSG(session, ENOTSUP,
+		    "unsupported major version");
+	if (*majorp == WIREDTIGER_VERSION_MAJOR &&
+	    *minorp > WIREDTIGER_VERSION_MINOR)
+		WT_RET_MSG(session, ENOTSUP,
+		    "unsupported minor version");
+	return (0);
+}
+
+/*
  * __wt_conn_compat_config --
  *	Configure compatibility version.
  */
@@ -18,7 +49,7 @@ __wt_conn_compat_config(
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	uint16_t major, minor, patch;
+	uint16_t major, minor;
 	bool txn_active;
 
 	conn = S2C(session);
@@ -27,24 +58,7 @@ __wt_conn_compat_config(
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
 	} else {
-		/*
-		 * Accept either a major.minor.patch release string or a
-		 * major.minor release string.  We ignore the patch value,
-		 * but allow it in the string.
-		 */
-		if (sscanf(cval.str,
-		    "%" SCNu16 ".%" SCNu16, &major, &minor) != 2 &&
-		    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
-		    &major, &minor, &patch) != 3)
-			WT_RET_MSG(session, EINVAL,
-			    "illegal compatibility release");
-		if (major > WIREDTIGER_VERSION_MAJOR)
-			WT_RET_MSG(session, ENOTSUP,
-			    "unsupported major version");
-		if (major == WIREDTIGER_VERSION_MAJOR &&
-		    minor > WIREDTIGER_VERSION_MINOR)
-			WT_RET_MSG(session, ENOTSUP,
-			    "unsupported minor version");
+		WT_RET(__conn_compat_parse(session, &cval, &major, &minor));
 
 		/*
 		 * We're doing an upgrade or downgrade, check whether
@@ -77,20 +91,8 @@ __wt_conn_compat_config(
 		conn->compat_req_minor = WT_CONN_COMPAT_NONE;
 		return (0);
 	}
-	/*
-	 * Accept either a major.minor release string or a major.minor.patch
-	 * release string.  We ignore the patch value, but allow it in the
-	 * string.
-	 */
-	if (sscanf(cval.str, "%" SCNu16 ".%" SCNu16, &major, &minor) != 2 &&
-	    sscanf(cval.str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
-	    &major, &minor, &patch) != 3)
-		WT_RET_MSG(session, EINVAL, "illegal release minimum");
-	if (major > WIREDTIGER_VERSION_MAJOR)
-		WT_RET_MSG(session, ENOTSUP, "unsupported major version");
-	if (major == WIREDTIGER_VERSION_MAJOR &&
-	    minor > WIREDTIGER_VERSION_MINOR)
-		WT_RET_MSG(session, ENOTSUP, "unsupported minor version");
+	WT_RET(__conn_compat_parse(session, &cval, &major, &minor));
+
 	/*
 	 * The minimum required must be less than or equal to the compatibility
 	 * release if one was set.

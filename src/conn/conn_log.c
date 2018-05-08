@@ -128,8 +128,10 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	 * Set up the minimum log version required if needed.
 	 */
 	if (conn->compat_req_major != WT_CONN_COMPAT_NONE) {
-		if (conn->compat_req_major < WT_LOG_V2)
+		if (conn->compat_req_major < WT_LOG_V2_MAJOR)
 			conn->log_req_version = 1;
+		else if (conn->compat_req_minor == WT_LOG_V2_MINOR)
+			conn->log_req_version = 2;
 		else
 			conn->log_req_version = WT_LOG_VERSION;
 	}

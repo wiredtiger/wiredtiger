@@ -48,34 +48,32 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
     # Log version 3 continues to have that record.
     min_logv = 2
 
+    # Test detecting a not-yet-existing log version. This should
+    # hold us for a couple years.
+    future_logv = 5
+    future_rel = "5.0"
+
     # The API uses only the major and minor numbers but accepts with
-    # and without the patch number.  Test both.
+    # and without the patch number. Test one on release and the
+    # required minimum just for testing of parsing.
     #
-    #    ('def', dict(create_rel='none', log_rel=3)),
-    #    ('31', dict(create_rel="3.1", log_rel=3)),
-    #    ('31_patch', dict(create_rel="3.1.0", log_rel=3)),
     compat_create = [
-        ('def', dict(create_rel='none', log_create=2)),
+        ('def', dict(create_rel='none', log_create=3)),
+        ('31', dict(create_rel="3.1", log_create=3)),
         ('30', dict(create_rel="3.0", log_create=2)),
-        ('30_patch', dict(create_rel="3.0.0", log_create=2)),
         ('26', dict(create_rel="2.6", log_create=1)),
-        ('26_patch', dict(create_rel="2.6.1", log_create=1)),
     ]
-    #    ('def_rel', dict(rel='none', log_rel=3)),
-    #    ('31_rel', dict(rel="3.1", log_rel=3)),
-    #    ('31_patch_rel', dict(rel="3.1.0", log_rel=3)),
     compat_release = [
-        ('def_rel', dict(rel='none', log_rel=2)),
+        ('def_rel', dict(rel='none', log_rel=3)),
+        ('31_rel', dict(rel="3.1", log_rel=3)),
         ('30_rel', dict(rel="3.0", log_rel=2)),
-        ('30_patch_rel', dict(rel="3.0.0", log_rel=2)),
         ('26_rel', dict(rel="2.6", log_rel=1)),
         ('26_patch_rel', dict(rel="2.6.1", log_rel=1)),
     ]
     compat_required = [
+        ('future_req', dict(req=future_rel, log_req=future_logv)),
         ('31_req', dict(req="3.1", log_req=3)),
-        ('31_patch_req', dict(req="3.1.0", log_req=3)),
         ('30_req', dict(req="3.0", log_req=2)),
-        ('30_patch_req', dict(req="3.0.0", log_req=2)),
         ('26_req', dict(req="2.6", log_req=1)),
         ('26_patch_req', dict(req="2.6.1", log_req=1)),
     ]
@@ -111,7 +109,7 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
         # Close and reopen the connection with the required compatibility
-        # version. That configuration needs an existing database for be
+        # version. That configuration needs an existing database for it to be
         # useful. Test for success or failure based on the relative versions
         # configured.
         compat_str = ''
@@ -128,14 +126,13 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
         # Open a connection with a minimum required database and a
         # release compatibility setting.
         #
-        msg4029 = "/unsupported minor version/"
+        msgunsup = "/unsupported major version/"
         msglog = "/this build requires a minimum version/"
         msgcompat = "/required min cannot be larger/"
-        # XXX Once WT-4029 is merged this needs to be fixed.
-        if (self.log_req == 3):
-            self.pr("EXPECT: " + msg4029)
+        if (self.log_req >= self.future_logv):
+            self.pr("EXPECT: " + msgunsup)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open('.', restart_config), msg4029)
+                lambda: self.wiredtiger_open('.', restart_config), msgunsup)
         elif (self.rel != 'none' and self.log_req > self.log_rel):
             self.pr("EXPECT: " + msgcompat)
             # If required minimum is larger than the compatibility
