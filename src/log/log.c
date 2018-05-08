@@ -969,10 +969,21 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	 */
 	if (desc->version > WT_LOG_VERSION)
 		WT_ERR_MSG(session, WT_ERROR,
-		    "unsupported WiredTiger file version: this build "
+		    "unsupported WiredTiger file version: this build"
 		    " only supports versions up to %d,"
 		    " and the file is version %" PRIu16,
 		    WT_LOG_VERSION, desc->version);
+
+	/*
+	 * We error if the log version is less than the required minimum.
+	 */
+	if (conn->compat_req_major != WT_CONN_COMPAT_NONE &&
+	    desc->version < conn->log_req_version)
+		WT_ERR_MSG(session, WT_ERROR,
+		    "unsupported WiredTiger file version: this build"
+		    " requires a minimum version of %" PRIu16 ","
+		    " and the file is version %" PRIu16,
+		    conn->log_req_version, desc->version);
 
 	/*
 	 * Set up the return values if the magic number is valid.
@@ -1581,8 +1592,17 @@ __wt_log_open(WT_SESSION_IMPL *session)
 	if (firstlog == UINT32_MAX) {
 		WT_ASSERT(session, logcount == 0);
 		WT_INIT_LSN(&log->first_lsn);
-	} else
+	} else {
 		WT_SET_LSN(&log->first_lsn, firstlog, 0);
+		/*
+		 * If the user specified a required minimum version and we
+		 * have existing log files, check the last log now before
+		 * we create a new log file.
+		 */
+		if (conn->compat_req_major != WT_CONN_COMPAT_NONE)
+			WT_ERR(__log_open_verify(session,
+			    lastlog, NULL, NULL, &version));
+	}
 
 	/*
 	 * Start logging at the beginning of the next log file, no matter

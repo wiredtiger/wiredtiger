@@ -2448,11 +2448,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__conn_load_extensions(session, cfg, true));
 
 	/*
-	 * Set compatibility versions early so that any subsystem sees it.
-	 */
-	WT_ERR(__wt_conn_compat_config(session, cfg));
-
-	/*
 	 * If the application didn't configure its own file system, configure
 	 * one of ours. Check to ensure we have a valid file system.
 	 */
@@ -2471,6 +2466,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	/* Make sure no other thread of control already owns this database. */
 	WT_ERR(__conn_single(session, cfg));
+
+	/*
+	 * Set compatibility versions early so that any subsystem sees it.
+	 * Call after we own the database so that we can know if the
+	 * database is new or not.
+	 */
+	WT_ERR(__wt_conn_compat_config(session, cfg, false));
 
 	/*
 	 * Capture the config_base setting file for later use. Again, if the
