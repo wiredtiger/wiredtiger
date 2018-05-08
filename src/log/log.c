@@ -165,7 +165,12 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 		 */
 		if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
 			__wt_spin_unlock(session, &log->log_slot_lock);
-		__wt_cond_signal(session, conn->log_wrlsn_cond);
+		/*
+		 * This may not be initialized if we are starting at an
+		 * older log file version. So only signal if valid.
+		 */
+		if (conn->log_wrlsn_cond != NULL)
+			__wt_cond_signal(session, conn->log_wrlsn_cond);
 		if (++yield_count < WT_THOUSAND)
 			__wt_yield();
 		else
@@ -191,8 +196,12 @@ __log_fs_write(WT_SESSION_IMPL *session,
 	 * compatibility mode to an older release, we have to wait for all
 	 * writes to the previous log file to complete otherwise there could
 	 * be a hole at the end of the previous log file that we cannot detect.
+	 *
+	 * NOTE: Check for a version less than the one writing the system
+	 * record since we've had a log version change without any actual
+	 * file format changes.
 	 */
-	if (S2C(session)->log->log_version != WT_LOG_VERSION &&
+	if (S2C(session)->log->log_version < WT_LOG_VERSION_SYSTEM &&
 	    slot->slot_release_lsn.l.file < slot->slot_start_lsn.l.file) {
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
@@ -1187,7 +1196,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * If we're running the version where we write a system record
 	 * do so now and update the alloc_lsn.
 	 */
-	if (log->log_version == WT_LOG_VERSION) {
+	if (log->log_version >= WT_LOG_VERSION_SYSTEM) {
 		WT_RET(__wt_log_system_record(session,
 		    log_fh, &logrec_lsn));
 		WT_SET_LSN(&log->alloc_lsn, log->fileid, log->first_record);
