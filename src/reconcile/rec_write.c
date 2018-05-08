@@ -2242,7 +2242,7 @@ __wt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
  * __rec_split_page_size --
  *	Split page size calculation: we don't want to repeatedly split every
  *	time a new entry is added, so we split to a smaller-than-maximum page
- *	size. Internal version that also adjusts based on compression.
+ *	size. Internal version that also adjusts based on standard compression.
  */
 static uint32_t
 __rec_split_page_size(
@@ -2255,15 +2255,15 @@ __rec_split_page_size(
 
 	/*
 	 * Adjust for compression. Compression can be too effective, bound the
-	 * page split size at 80% of the maximum, so point updates don't cause
-	 * forced eviction.
+	 * page split size at the maximum in-memory page image size, so point
+	 * updates don't cause forced eviction.
 	 */
 	compadjust = WT_PAGE_IS_INTERNAL(r->page) ?
 	    btree->intl_compadjust : btree->leaf_compadjust;
 	if (compadjust != 0) {
 		split_size = (split_size * compadjust) / WT_COMPRESS_ADJ;
-		if (split_size > btree->splitmempage)
-			split_size = (uint32_t)btree->splitmempage;
+		if (split_size > btree->maxmempage_image)
+			split_size = btree->maxmempage_image;
 	}
 
 	return (split_size);
@@ -3770,7 +3770,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * numbers of pages from the same file, don't bother updating the value
 	 * if there's not at least a 5% shift.
 	 */
-	if (btree->type != BTREE_COL_FIX && compressed_size) {
+	if (!btree->compressor_is_snappy &&
+	    btree->type != BTREE_COL_FIX && compressed_size) {
 		compression_adj = (uint32_t)(((double)
 		    chunk->image.size / compressed_size) * WT_COMPRESS_ADJ);
 		adjustp = WT_PAGE_IS_INTERNAL(r->page) ?

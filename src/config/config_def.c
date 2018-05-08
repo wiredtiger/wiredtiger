@@ -377,6 +377,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
 	{ "lsm", "category",
 	    NULL, NULL,
 	    confchk_WT_SESSION_create_lsm_subconfigs, 12 },
+	{ "memory_page_image_max", "int", NULL, "min=512B", NULL, 0 },
 	{ "memory_page_max", "int",
 	    NULL, "min=512B,max=10TB",
 	    NULL, 0 },
@@ -566,6 +567,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
 	{ "log", "category",
 	    NULL, NULL,
 	    confchk_WT_SESSION_create_log_subconfigs, 1 },
+	{ "memory_page_image_max", "int", NULL, "min=512B", NULL, 0 },
 	{ "memory_page_max", "int",
 	    NULL, "min=512B,max=10TB",
 	    NULL, 0 },
@@ -633,6 +635,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 	{ "log", "category",
 	    NULL, NULL,
 	    confchk_WT_SESSION_create_log_subconfigs, 1 },
+	{ "memory_page_image_max", "int", NULL, "min=512B", NULL, 0 },
 	{ "memory_page_max", "int",
 	    NULL, "min=512B,max=10TB",
 	    NULL, 0 },
@@ -719,6 +722,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
 	{ "lsm", "category",
 	    NULL, NULL,
 	    confchk_WT_SESSION_create_lsm_subconfigs, 12 },
+	{ "memory_page_image_max", "int", NULL, "min=512B", NULL, 0 },
 	{ "memory_page_max", "int",
 	    NULL, "min=512B,max=10TB",
 	    NULL, 0 },
@@ -1328,11 +1332,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
 	  "bloom_oldest=false,chunk_count_limit=0,chunk_max=5GB,"
 	  "chunk_size=10MB,merge_custom=(prefix=,start_generation=0,"
-	  "suffix=),merge_max=15,merge_min=0),memory_page_max=5MB,"
-	  "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-	  "prefix_compression_min=4,source=,split_deepen_min_child=0,"
-	  "split_deepen_per_child=0,split_pct=90,type=file,value_format=u",
-	  confchk_WT_SESSION_create, 43
+	  "suffix=),merge_max=15,merge_min=0),memory_page_image_max=0,"
+	  "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
+	  "prefix_compression=false,prefix_compression_min=4,source=,"
+	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+	  "type=file,value_format=u",
+	  confchk_WT_SESSION_create, 44
 	},
 	{ "WT_SESSION.drop",
 	  "checkpoint_wait=true,force=false,lock_wait=true,"
@@ -1432,11 +1437,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "internal_item_max=0,internal_key_max=0,"
 	  "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
-	  "leaf_value_max=0,log=(enabled=true),memory_page_max=5MB,"
-	  "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-	  "prefix_compression_min=4,split_deepen_min_child=0,"
-	  "split_deepen_per_child=0,split_pct=90,value_format=u",
-	  confchk_file_config, 36
+	  "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
+	  "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
+	  "prefix_compression=false,prefix_compression_min=4,"
+	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+	  "value_format=u",
+	  confchk_file_config, 37
 	},
 	{ "file.meta",
 	  "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -1449,11 +1455,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "internal_key_max=0,internal_key_truncate=true,"
 	  "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
 	  "leaf_key_max=0,leaf_page_max=32KB,leaf_value_max=0,"
-	  "log=(enabled=true),memory_page_max=5MB,os_cache_dirty_max=0,"
-	  "os_cache_max=0,prefix_compression=false,prefix_compression_min=4"
-	  ",split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-	  "value_format=u,version=(major=0,minor=0)",
-	  confchk_file_meta, 40
+	  "log=(enabled=true),memory_page_image_max=0,memory_page_max=5MB,"
+	  "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
+	  "prefix_compression_min=4,split_deepen_min_child=0,"
+	  "split_deepen_per_child=0,split_pct=90,value_format=u,"
+	  "version=(major=0,minor=0)",
+	  confchk_file_meta, 41
 	},
 	{ "index.meta",
 	  "app_metadata=,collator=,columns=,extractor=,immutable=false,"
@@ -1475,11 +1482,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "bloom_config=,bloom_hash_count=8,bloom_oldest=false,"
 	  "chunk_count_limit=0,chunk_max=5GB,chunk_size=10MB,"
 	  "merge_custom=(prefix=,start_generation=0,suffix=),merge_max=15,"
-	  "merge_min=0),memory_page_max=5MB,old_chunks=,"
-	  "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
-	  "prefix_compression_min=4,split_deepen_min_child=0,"
-	  "split_deepen_per_child=0,split_pct=90,value_format=u",
-	  confchk_lsm_meta, 40
+	  "merge_min=0),memory_page_image_max=0,memory_page_max=5MB,"
+	  "old_chunks=,os_cache_dirty_max=0,os_cache_max=0,"
+	  "prefix_compression=false,prefix_compression_min=4,"
+	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
+	  "value_format=u",
+	  confchk_lsm_meta, 41
 	},
 	{ "table.meta",
 	  "app_metadata=,colgroups=,collator=,columns=,key_format=u,"

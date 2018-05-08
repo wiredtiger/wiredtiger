@@ -447,17 +447,26 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
 
 	/*
-	 * If doing standard compression, assume it gives us 5x on leaf pages
-	 * and 2x on internal pages. We adjust the value as soon as there's
-	 * better information, but the exception is bulk load where we don't
-	 * get better information until after it's too late.
+	 * When doing standard compression, assume it gives us 4x. Adjust the
+	 * value as soon as there's better information, the exception is bulk
+	 * load where we don't get better information until after it's too late.
 	 */
 	if (btree->compressor != NULL &&
-	    btree->compressor->compress != NULL &&
-	    btree->compressor->compress_raw == NULL) {
-		btree->intl_compadjust = 2 * WT_COMPRESS_ADJ;
-		btree->leaf_compadjust = 5 * WT_COMPRESS_ADJ;
+	    btree->compressor->compress != NULL) {
+		btree->intl_compadjust = 4 * WT_COMPRESS_ADJ;
+		btree->leaf_compadjust = 4 * WT_COMPRESS_ADJ;
 	}
+
+	/*
+	 * XXX
+	 * We don't try to increase the size of snappy-compressed blocks, set a
+	 * flag so reconciliation knows to ignore snappy. To increase the size
+	 * of snappy-compressed blocks, remove all usage of this flag.
+	 */
+	btree->compressor_is_snappy =
+	    WT_STRING_MATCH("snappy", cval.str, cval.len);
+	if (btree->compressor_is_snappy)
+		btree->intl_compadjust = btree->leaf_compadjust = 0;
 
 	/*
 	 * We do not use __wt_config_gets_none here because "none" and the empty
@@ -798,6 +807,17 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		WT_RET_MSG(session, EINVAL,
 		    "page sizes must be a multiple of the page allocation "
 		    "size (%" PRIu32 "B)", btree->allocsize);
+
+	/*
+	 * Default in-memory page image size for compression: 4x the maximum
+	 * leaf page size, enforce a lower-limit of the leaf page size.
+	 */
+	WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
+	btree->maxmempage_image = (uint32_t)cval.val;
+	if (btree->maxmempage_image == 0)
+		btree->maxmempage_image = 4 * btree->maxleafpage;
+	else if (btree->maxmempage_image < btree->maxleafpage)
+		btree->maxmempage_image = btree->maxleafpage;
 
 	/*
 	 * Don't let pages grow large compared to the cache size or we can end

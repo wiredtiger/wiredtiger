@@ -95,6 +95,7 @@ struct __wt_btree {
 	uint32_t maxleafkey;		/* Leaf page max key size */
 	uint32_t maxleafvalue;		/* Leaf page max value size */
 	uint64_t maxmempage;		/* In-memory page max size */
+	uint32_t maxmempage_image;	/* In-memory page image max size */
 	uint64_t splitmempage;		/* In-memory split trigger size */
 #define	WT_COMPRESS_ADJ		100
 	uint32_t intl_compadjust;	/* Internal page compression adjust */
@@ -132,6 +133,7 @@ struct __wt_btree {
 	int   split_pct;		/* Split page percent */
 
 	WT_COMPRESSOR *compressor;	/* Page compressor */
+	bool compressor_is_snappy;	/* Page compressor is snappy */
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Page encryptor */
 
 	WT_RWLOCK ovfl_lock;		/* Overflow lock */
