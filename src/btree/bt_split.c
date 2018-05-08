@@ -392,11 +392,11 @@ __split_ref_prepare(WT_SESSION_IMPL *session,
 		ref = pindex->index[i];
 		child = ref->page;
 
-		WT_PAGE_LOCK(session, child);
-
 		/* Track the locked pages for cleanup. */
 		WT_ERR(__wt_realloc_def(session, &alloc, cnt + 2, &locked));
 		locked[cnt++] = child;
+
+		WT_PAGE_LOCK(session, child);
 
 		/* Switch the WT_REF's to their new page. */
 		j = 0;
