@@ -452,10 +452,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	 * load where we don't get better information until after it's too late.
 	 */
 	if (btree->compressor != NULL &&
-	    btree->compressor->compress != NULL) {
-		btree->intl_compadjust = 4 * WT_COMPRESS_ADJ;
-		btree->leaf_compadjust = 4 * WT_COMPRESS_ADJ;
-	}
+	    btree->compressor->compress != NULL)
+		btree->compression_adj = 4 * WT_COMPRESS_SHIFT;
 
 	/*
 	 * XXX
@@ -466,7 +464,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	btree->compressor_is_snappy =
 	    WT_STRING_MATCH("snappy", cval.str, cval.len);
 	if (btree->compressor_is_snappy)
-		btree->intl_compadjust = btree->leaf_compadjust = 0;
+		btree->compression_adj = 0;
 
 	/*
 	 * We do not use __wt_config_gets_none here because "none" and the empty

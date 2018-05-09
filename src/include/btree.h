@@ -97,9 +97,6 @@ struct __wt_btree {
 	uint64_t maxmempage;		/* In-memory page max size */
 	uint32_t maxmempage_image;	/* In-memory page image max size */
 	uint64_t splitmempage;		/* In-memory split trigger size */
-#define	WT_COMPRESS_ADJ		100
-	uint32_t intl_compadjust;	/* Internal page compression adjust */
-	uint32_t leaf_compadjust;	/* Leaf page compression adjust */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_ASSERT_COMMIT_TS_ALWAYS	0x01u
@@ -134,6 +131,14 @@ struct __wt_btree {
 
 	WT_COMPRESSOR *compressor;	/* Page compressor */
 	bool compressor_is_snappy;	/* Page compressor is snappy */
+	/*
+	 * When doing standard compression, the in-memory chunk size handed to
+	 * the compression engine is adjusted based on previous compression.
+	 * It's an 8B value because it's updated without a lock.
+	 */
+#define	WT_COMPRESS_SHIFT	100	/* Float-to-integer shift constant */
+	uint64_t compression_adj;	/* Page compression adjustment */
+
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Page encryptor */
 
 	WT_RWLOCK ovfl_lock;		/* Overflow lock */
