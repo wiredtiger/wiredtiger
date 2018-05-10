@@ -453,7 +453,7 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "found {deleted}\n");
+				fprintf(stderr, "\t   found {deleted}\n");
 			else
 				print_item_data(
 				    "   found", value->data, value->size);
@@ -473,7 +473,7 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "found {deleted}\n");
+				fprintf(stderr, "\t   found {deleted}\n");
 			else
 				print_item_data(
 				    "   found", value->data, value->size);
