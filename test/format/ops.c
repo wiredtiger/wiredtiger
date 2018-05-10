@@ -684,7 +684,8 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
  */
 #define	OP_FAILED(notfound_ok) do {					\
 	positioned = false;						\
-	if (intxn && (ret == WT_CACHE_FULL || ret == WT_ROLLBACK))	\
+	if (intxn && (ret == WT_CACHE_FULL ||				\
+	    ret == WT_PREPARE_CONFLICT || ret == WT_ROLLBACK))		\
 		goto deadlock;						\
 	testutil_assert((notfound_ok && ret == WT_NOTFOUND) ||		\
 	    ret == WT_CACHE_FULL ||					\
