@@ -192,7 +192,6 @@ wts_ops(int lastrun)
 		for (i = 0, running = false; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
 			total.commit += tinfo->commit;
-			total.deadlock += tinfo->deadlock;
 			total.insert += tinfo->insert;
 			total.prepare += tinfo->prepare;
 			total.remove += tinfo->remove;
@@ -686,7 +685,7 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	positioned = false;						\
 	if (intxn && (ret == WT_CACHE_FULL ||				\
 	    ret == WT_PREPARE_CONFLICT || ret == WT_ROLLBACK))		\
-		goto deadlock;						\
+		goto rollback;						\
 	testutil_assert((notfound_ok && ret == WT_NOTFOUND) ||		\
 	    ret == WT_CACHE_FULL ||					\
 	    ret == WT_PREPARE_CONFLICT || ret == WT_ROLLBACK);		\
@@ -1106,7 +1105,7 @@ update_instead_of_chosen_op:
 			    cursor, snap_list, snap, tinfo->key, tinfo->value);
 			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			if (ret == WT_ROLLBACK)
-				goto deadlock;
+				goto rollback;
 		}
 
 		/*
@@ -1118,7 +1117,7 @@ update_instead_of_chosen_op:
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
-				goto deadlock;
+				goto rollback;
 
 			prepared = true;
 			__wt_yield();		/* Let other threads proceed. */
@@ -1133,10 +1132,7 @@ update_instead_of_chosen_op:
 			commit_transaction(tinfo, session, prepared);
 			break;
 		case 5:						/* 10% */
-			if (0) {
-deadlock:			++tinfo->deadlock;
-			}
-			rollback_transaction(tinfo, session);
+rollback:		rollback_transaction(tinfo, session);
 			break;
 		}
 
