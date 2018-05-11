@@ -193,11 +193,11 @@ struct __wt_lsm_manager {
 #define	WT_LSM_AGGRESSIVE_THRESHOLD	2
 
 /*
- * The minimum size for opening a tree: three chunks, plus one page for each
- * participant in up to three concurrent merges.
+ * The minimum cache size for opening a tree: 3 chunks plus one maximum-sized
+ * page for each participant.
  */
-#define	WT_LSM_TREE_MINIMUM_SIZE(chunk_size, merge_max, maxleafpage)	\
-	(3 * (chunk_size) + 3 * ((merge_max) * (maxleafpage)))
+#define	WT_LSM_TREE_MINIMUM_SIZE(chunk_size, merge_max, memory_page_max)\
+	(3 * (chunk_size) + (merge_max) * (memory_page_max))
 
 /*
  * WT_LSM_TREE --
