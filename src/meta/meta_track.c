@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define	WT_ENABLE_SCHEMA_TXN 1
+#define	WT_ENABLE_SCHEMA_TXN 0
 /*
  * WT_META_TRACK -- A tracked metadata operation: a non-transactional log,
  * maintained to make it easy to unroll simple metadata and filesystem
