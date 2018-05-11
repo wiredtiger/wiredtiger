@@ -2,7 +2,18 @@
 
 class Method:
     def __init__(self, config):
-        self.config = config
+        # Deal with duplicates: with complex configurations (like
+        # WT_SESSION::create), it's simpler to deal with duplicates once than
+        # manually as configurations are defined
+        self.config = []
+        lastname = None
+        for c in sorted(config):
+            if '.' in c.name:
+                raise "Bad config key '%s'" % c.name
+            if c.name == lastname:
+                continue
+            lastname = c.name
+            self.config.append(c)
 
 class Config:
     def __init__(self, name, default, desc, subconfig=None, **flags):
@@ -15,10 +26,13 @@ class Config:
     def __cmp__(self, other):
         return cmp(self.name, other.name)
 
-# Metadata shared by all schema objects
-common_meta = [
+common_runtime_config = [
     Config('app_metadata', '', r'''
         application-owned metadata for this object'''),
+]
+
+# Metadata shared by all schema objects
+common_meta = common_runtime_config + [
     Config('collator', 'none', r'''
         configure custom collation for keys.  Permitted values are \c "none"
         or a custom collator name created with WT_CONNECTION::add_collator'''),
@@ -130,7 +144,7 @@ lsm_config = [
     ]),
 ]
 
-file_runtime_config = [
+file_runtime_config = common_runtime_config + [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of
         updates and/or point queries specify \c random.  Workloads that
@@ -337,8 +351,6 @@ file_meta = file_config + [
         the file checkpoint entries'''),
     Config('checkpoint_lsn', '', r'''
         LSN of the last checkpoint'''),
-    Config('checkpoint_timestamp', '', r'''
-        stable timestamp of the last checkpoint'''),
     Config('id', '', r'''
         the file's ID number'''),
     Config('version', '(major=0,minor=0)', r'''
@@ -430,14 +442,6 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
-        ]),
-    Config('compatibility', '', r'''
-        set compatibility version of database.  Changing the compatibility
-        version requires that there are no active operations for the duration
-        of the call.''',
-        type='category', subconfig=[
-        Config('release', '', r'''
-            compatibility release version string'''),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
@@ -575,14 +579,13 @@ connection_runtime_config = [
         type='list',
         choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
     Config('timing_stress_for_test', '', r'''
-        enable code that interrupts the usual timing of operations with a
-        goal of uncovering race conditions and unexpected blocking.
-        This option is intended for use with internal stress
-        testing of WiredTiger. Options are given as a list, such as
-        <code>"timing_stress_for_test=[checkpoint_slow,
-            internal_page_split_race, page_split_race]"</code>''',
-        type='list', undoc=True, choices=[
-            'checkpoint_slow', 'internal_page_split_race', 'page_split_race']),
+        enable code that interrupts the usual timing of operations with a goal
+        of uncovering race conditions and unexpected blocking. This option is
+        intended for use with internal stress testing of WiredTiger.''',
+        type='list', undoc=True,
+        choices=[
+        'checkpoint_slow', 'split_race_1', 'split_race_2', 'split_race_3',
+        'split_race_4', 'split_race_5', 'split_race_6', 'split_race_7']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
@@ -620,6 +623,34 @@ connection_runtime_config = [
             'verify',
             'version',
             'write']),
+]
+
+# wiredtiger_open and WT_CONNECTION.reconfigure compatibility configurations.
+compatibility_configuration_common = [
+    Config('release', '', r'''
+        compatibility release version string'''),
+]
+
+connection_reconfigure_compatibility_configuration = [
+    Config('compatibility', '', r'''
+        set compatibility version of database.  Changing the compatibility
+        version requires that there are no active operations for the duration
+        of the call.''',
+        type='category', subconfig=
+        compatibility_configuration_common)
+]
+wiredtiger_open_compatibility_configuration = [
+    Config('compatibility', '', r'''
+        set compatibility version of database.  Changing the compatibility
+        version requires that there are no active operations for the duration
+        of the call.''',
+        type='category', subconfig=
+        compatibility_configuration_common + [
+        Config('require_min', '', r'''
+            required minimum compatibility version of existing data files.
+            Must be less than or equal to any release version set in the
+            \c release setting. Has no effect if creating the database.'''),
+    ]),
 ]
 
 # wiredtiger_open and WT_CONNECTION.reconfigure log configurations.
@@ -660,11 +691,11 @@ wiredtiger_open_log_configuration = [
         Config('file_max', '100MB', r'''
             the maximum size of log files''',
             min='100KB', max='2GB'),
-            Config('path', '"."', r'''
-                the name of a directory into which log files are written. The
-                directory must already exist. If the value is not an absolute
-                path, the path is relative to the database home (see @ref
-                absolute_path for more information)'''),
+        Config('path', '"."', r'''
+            the name of a directory into which log files are written. The
+            directory must already exist. If the value is not an absolute path,
+            the path is relative to the database home (see @ref absolute_path
+            for more information)'''),
         Config('recover', 'on', r'''
             run recovery or error if recovery needs to run after an
             unclean shutdown''',
@@ -742,6 +773,7 @@ session_config = [
 
 wiredtiger_open_common =\
     connection_runtime_config +\
+    wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
     wiredtiger_open_statistics_log_configuration + [
     Config('buffer_alignment', '-1', r'''
@@ -927,7 +959,15 @@ methods = {
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
-'WT_SESSION.alter' : Method(file_runtime_config),
+'WT_SESSION.alter' : Method(file_runtime_config + [
+    Config('exclusive_refreshed', 'true', r'''
+        refresh the in memory state and flush the metadata change to disk,
+        disabling this flag is dangerous - it will only re-write the
+        metadata without refreshing the in-memory information or creating
+        a checkpoint. The update will also only be applied to table URI
+        entries in the metadata, not their sub-entries.''',
+        type='boolean', undoc=True),
+]),
 
 'WT_SESSION.close' : Method([]),
 
@@ -1334,6 +1374,7 @@ methods = {
         print global txn information''', type='boolean'),
 ]),
 'WT_CONNECTION.reconfigure' : Method(
+    connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
     connection_runtime_config
@@ -1371,7 +1412,8 @@ methods = {
         \c oldest_timestamp and the read timestamps of all active readers, and
         \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps''',
-        choices=['all_committed','oldest','pinned','recovery','stable']),
+        choices=['all_committed','last_checkpoint',
+            'oldest','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

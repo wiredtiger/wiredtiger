@@ -192,12 +192,12 @@ wts_ops(int lastrun)
 		for (i = 0, running = false; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
 			total.commit += tinfo->commit;
-			total.deadlock += tinfo->deadlock;
-			total.prepare += tinfo->prepare;
 			total.insert += tinfo->insert;
+			total.prepare += tinfo->prepare;
 			total.remove += tinfo->remove;
 			total.rollback += tinfo->rollback;
 			total.search += tinfo->search;
+			total.truncate += tinfo->truncate;
 			total.update += tinfo->update;
 
 			switch (tinfo->state) {
@@ -403,10 +403,8 @@ snap_check(WT_CURSOR *cursor,
 			break;
 		case WT_NOTFOUND:
 			break;
-		case WT_ROLLBACK:
-			return (WT_ROLLBACK);
 		default:
-			testutil_die(ret, "WT_CURSOR.search");
+			return (ret);
 		}
 
 		/* Check for simple matches. */
@@ -454,7 +452,7 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "found {deleted}\n");
+				fprintf(stderr, "\t   found {deleted}\n");
 			else
 				print_item_data(
 				    "   found", value->data, value->size);
@@ -474,7 +472,7 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "found {deleted}\n");
+				fprintf(stderr, "\t   found {deleted}\n");
 			else
 				print_item_data(
 				    "   found", value->data, value->size);
@@ -498,46 +496,63 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	u_int v;
 	const char *config;
 	char config_buf[64];
+	bool locked;
+
+	locked = false;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
-		v = mmrand(&tinfo->rnd, 2, 4);
+		v = mmrand(&tinfo->rnd, 1, 3);
 	switch (v) {
-	case ISOLATION_READ_UNCOMMITTED:
+	case 1:
+		v = ISOLATION_READ_UNCOMMITTED;
 		config = "isolation=read-uncommitted";
 		break;
-	case ISOLATION_READ_COMMITTED:
+	case 2:
+		v = ISOLATION_READ_COMMITTED;
 		config = "isolation=read-committed";
 		break;
-	case ISOLATION_SNAPSHOT:
+	case 3:
 	default:
 		v = ISOLATION_SNAPSHOT;
 		config = "isolation=snapshot";
-		if (g.c_txn_timestamps) {
-			/*
-			 * Set the thread's read timestamp to the current value
-			 * before allocating a new read timestamp. This
-			 * guarantees the oldest timestamp won't move past the
-			 * allocated timestamp before the transaction begins.
-			 */
-			tinfo->read_timestamp = g.timestamp;
-			tinfo->read_timestamp =
-			    __wt_atomic_addv64(&g.timestamp, 1);
-			testutil_check(__wt_snprintf(
-			    config_buf, sizeof(config_buf),
-			    "read_timestamp=%" PRIx64, tinfo->read_timestamp));
-			config = config_buf;
-		}
 		break;
 	}
 	*iso_configp = v;
 
 	testutil_check(session->begin_transaction(session, config));
 
-	/*
-	 * It's OK for the oldest timestamp to move past a running query, clear
-	 * the thread's read timestamp, it no longer needs to be pinned.
-	 */
-	tinfo->read_timestamp = 0;
+	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
+		/* Avoid starting a new reader when a prepare is in progress. */
+		if (g.c_prepare) {
+			testutil_check(pthread_rwlock_rdlock(&g.prepare_lock));
+			locked = true;
+		}
+
+		/*
+		 * Set the thread's read timestamp to the current value before
+		 * allocating a new read timestamp. This guarantees the oldest
+		 * timestamp won't move past the allocated timestamp before the
+		 * transaction uses it.
+		 */
+		tinfo->read_timestamp = g.timestamp;
+		tinfo->read_timestamp = __wt_atomic_addv64(&g.timestamp, 1);
+		testutil_check(__wt_snprintf(
+		    config_buf, sizeof(config_buf),
+		    "read_timestamp=%" PRIx64, tinfo->read_timestamp));
+
+		testutil_check(
+		    session->timestamp_transaction(session, config_buf));
+
+		/*
+		 * It's OK for the oldest timestamp to move past a running
+		 * query, clear the thread's read timestamp, it no longer needs
+		 * to be pinned.
+		 */
+		tinfo->read_timestamp = 0;
+
+		if (locked)
+			testutil_check(pthread_rwlock_unlock(&g.prepare_lock));
+	}
 }
 
 /*
@@ -566,30 +581,39 @@ set_commit_timestamp(TINFO *tinfo)
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo, WT_SESSION *session)
+commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 {
 	uint64_t ts;
-	char config_buf[64];
+	char *config, config_buf[64];
 
+	++tinfo->commit;
+
+	config = NULL;
 	if (g.c_txn_timestamps) {
 		ts = set_commit_timestamp(tinfo);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
-		testutil_check(
-		    session->commit_transaction(session, config_buf));
-	} else
-		testutil_check(session->commit_transaction(session, NULL));
-	++tinfo->commit;
+		config = config_buf;
+	}
+
+	if (prepared)
+		testutil_check(session->commit_transaction(session, config));
+
+	if (!prepared)
+		testutil_check(session->timestamp_transaction(session, config));
 
 	/*
 	 * Clear the thread's active timestamp: it no longer needs to be pinned.
 	 * Don't let the compiler re-order this statement, if we were to race
 	 * with the timestamp thread, it might see our thread update before the
-	 * transaction commit completes.
+	 * commit_timestamp is set for the transaction.
 	 */
 	if (g.c_txn_timestamps)
 		WT_PUBLISH(tinfo->commit_timestamp, 0);
+
+	if (!prepared)
+		testutil_check(session->commit_transaction(session, NULL));
 }
 
 /*
@@ -599,8 +623,9 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 static void
 rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	testutil_check(session->rollback_transaction(session, NULL));
 	++tinfo->rollback;
+
+	testutil_check(session->rollback_transaction(session, NULL));
 
 	/*
 	 * Clear the thread's active timestamp: it no longer needs to be pinned.
@@ -619,29 +644,52 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 static int
 prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 {
+	WT_DECL_RET;
 	uint64_t ts;
 	char config_buf[64];
 
-	/*
-	 * We cannot prepare a transaction if logging on the table is set.
-	 * Prepare also requires timestamps. Skip if not using timestamps,
-	 * if no timestamp has yet been set, or if using logging.
-	 */
-	if (!g.c_txn_timestamps || g.timestamp == 0 || g.c_logging)
+	/* Skip if no timestamp has yet been set. */
+	if (g.timestamp == 0)
 		return (0);
+	++tinfo->prepare;
+
+	/*
+	 * Synchronize prepare call with begin transaction to prevent a new
+	 * reader creeping in.
+	 */
+	testutil_check(pthread_rwlock_wrlock(&g.prepare_lock));
 
 	/*
 	 * Prepare timestamps must be less than or equal to the eventual commit
 	 * timestamp. Set the prepare timestamp to whatever the global value is
 	 * now. The subsequent commit will increment it, ensuring correctness.
+	 *
+	 * Prepare will return error if the prepare timestamp is less than any
+	 * active read timestamp.
 	 */
-	++tinfo->prepare;
-
 	ts = set_commit_timestamp(tinfo);
 	testutil_check(__wt_snprintf(
 	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
-	return (session->prepare_transaction(session, config_buf));
+	ret = session->prepare_transaction(session, config_buf);
+
+	testutil_check(pthread_rwlock_unlock(&g.prepare_lock));
+
+	return (ret);
 }
+
+/*
+ * OP_FAILED --
+ *	General error handling.
+ */
+#define	OP_FAILED(notfound_ok) do {					\
+	positioned = false;						\
+	if (intxn && (ret == WT_CACHE_FULL ||				\
+	    ret == WT_PREPARE_CONFLICT || ret == WT_ROLLBACK))		\
+		goto rollback;						\
+	testutil_assert((notfound_ok && ret == WT_NOTFOUND) ||		\
+	    ret == WT_CACHE_FULL ||					\
+	    ret == WT_PREPARE_CONFLICT || ret == WT_ROLLBACK);		\
+} while (0)
 
 /*
  * ops --
@@ -660,7 +708,7 @@ ops(void *arg)
 	uint64_t reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
-	bool greater_than, intxn, next, positioned, readonly;
+	bool greater_than, intxn, next, positioned, prepared, readonly;
 
 	tinfo = arg;
 
@@ -679,6 +727,7 @@ ops(void *arg)
 	val_gen_init(tinfo->value);
 	tinfo->lastkey = &tinfo->_lastkey;
 	key_gen_init(tinfo->lastkey);
+	tinfo->tbuf = &tinfo->_tbuf;
 
 	/* Set the first operation where we'll create sessions and cursors. */
 	cursor = NULL;
@@ -700,7 +749,7 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session);
+				commit_transaction(tinfo, session, false);
 				intxn = false;
 			}
 
@@ -825,11 +874,8 @@ ops(void *arg)
 			if (ret == 0) {
 				positioned = true;
 				SNAP_TRACK(READ, tinfo);
-			} else {
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_NOTFOUND);
-			}
+			} else
+				OP_FAILED(true);
 		}
 
 		/* Optionally reserve a row. */
@@ -847,12 +893,8 @@ ops(void *arg)
 				positioned = true;
 
 				__wt_yield();	/* Let other threads proceed. */
-			} else {
-				positioned = false;
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_NOTFOUND);
-			}
+			} else
+				OP_FAILED(true);
 		}
 
 		/* Perform the operation. */
@@ -881,11 +923,8 @@ ops(void *arg)
 			if (ret == 0) {
 				++tinfo->insert;
 				SNAP_TRACK(INSERT, tinfo);
-			} else {
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_ROLLBACK);
-			}
+			} else
+				OP_FAILED(false);
 			break;
 		case MODIFY:
 			/*
@@ -907,13 +946,8 @@ ops(void *arg)
 			if (ret == 0) {
 				positioned = true;
 				SNAP_TRACK(MODIFY, tinfo);
-			} else {
-				positioned = false;
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(
-				    ret == WT_NOTFOUND || ret == WT_ROLLBACK);
-			}
+			} else
+				OP_FAILED(true);
 			break;
 		case READ:
 			++tinfo->search;
@@ -921,12 +955,8 @@ ops(void *arg)
 			if (ret == 0) {
 				positioned = true;
 				SNAP_TRACK(READ, tinfo);
-			} else {
-				positioned = false;
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_NOTFOUND);
-			}
+			} else
+				OP_FAILED(true);
 			break;
 		case REMOVE:
 remove_instead_of_truncate:
@@ -946,12 +976,8 @@ remove_instead_of_truncate:
 				 * previous state, but not necessarily set.
 				 */
 				SNAP_TRACK(REMOVE, tinfo);
-			} else {
-				positioned = false;
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_NOTFOUND);
-			}
+			} else
+				OP_FAILED(true);
 			break;
 		case TRUNCATE:
 			/*
@@ -1020,11 +1046,8 @@ remove_instead_of_truncate:
 			if (ret == 0) {
 				++tinfo->truncate;
 				SNAP_TRACK(TRUNCATE, tinfo);
-			} else {
-				testutil_assert(ret == WT_ROLLBACK);
-				if (intxn)
-					goto deadlock;
-			}
+			} else
+				OP_FAILED(false);
 			break;
 		case UPDATE:
 update_instead_of_chosen_op:
@@ -1041,12 +1064,8 @@ update_instead_of_chosen_op:
 			if (ret == 0) {
 				positioned = true;
 				SNAP_TRACK(UPDATE, tinfo);
-			} else {
-				positioned = false;
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_ROLLBACK);
-			}
+			} else
+				OP_FAILED(false);
 			break;
 		}
 
@@ -1061,9 +1080,8 @@ update_instead_of_chosen_op:
 			for (i = 0; i < j; ++i) {
 				if ((ret = nextprev(tinfo, cursor, next)) == 0)
 					continue;
-				if (ret == WT_ROLLBACK && intxn)
-					goto deadlock;
-				testutil_assert(ret == WT_NOTFOUND);
+
+				OP_FAILED(true);
 				break;
 			}
 		}
@@ -1087,17 +1105,21 @@ update_instead_of_chosen_op:
 			    cursor, snap_list, snap, tinfo->key, tinfo->value);
 			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			if (ret == WT_ROLLBACK)
-				goto deadlock;
+				goto rollback;
 		}
 
-		/* Prepare the transaction 10% of the time. */
-		/* XXX: CONFIGURE PREPARE OFF FOR NOW */
-		if (mmrand(&tinfo->rnd, 1, 10) == 0) {
+		/*
+		 * If prepare configured, prepare the transaction 10% of the
+		 * time.
+		 */
+		prepared = false;
+		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
-				goto deadlock;
+				goto rollback;
 
+			prepared = true;
 			__wt_yield();		/* Let other threads proceed. */
 		}
 
@@ -1107,13 +1129,10 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
-			commit_transaction(tinfo, session);
+			commit_transaction(tinfo, session, prepared);
 			break;
 		case 5:						/* 10% */
-			if (0) {
-deadlock:			++tinfo->deadlock;
-			}
-			rollback_transaction(tinfo, session);
+rollback:		rollback_transaction(tinfo, session);
 			break;
 		}
 
@@ -1131,6 +1150,7 @@ deadlock:			++tinfo->deadlock;
 	key_gen_teardown(tinfo->key);
 	val_gen_teardown(tinfo->value);
 	key_gen_teardown(tinfo->lastkey);
+	free(tinfo->tbuf->mem);
 
 	tinfo->state = TINFO_COMPLETE;
 	return (WT_THREAD_RET_VALUE);
@@ -1138,7 +1158,7 @@ deadlock:			++tinfo->deadlock;
 
 /*
  * wts_read_scan --
- *	Read and verify all elements in a file.
+ *	Read and verify a subset of the elements in a file.
  */
 void
 wts_read_scan(void)
@@ -1182,6 +1202,7 @@ wts_read_scan(void)
 		case 0:
 		case WT_NOTFOUND:
 		case WT_ROLLBACK:
+		case WT_PREPARE_CONFLICT:
 			break;
 		default:
 			testutil_die(
@@ -1208,11 +1229,6 @@ read_row_worker(
 	int exact, ret;
 
 	session = cursor->session;
-
-	/* Log the operation */
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    session, "%-10s%" PRIu64, "read", keyno);
 
 	/* Retrieve the key/value pair by key. */
 	switch (g.type) {
@@ -1254,11 +1270,14 @@ read_row_worker(
 			value->size = 1;
 		}
 		break;
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
 	default:
-		testutil_die(ret, "read_row: read row %" PRIu64, keyno);
+		return (ret);
 	}
+
+	/* Log the operation */
+	if (g.logging == LOG_OPS)
+		(void)g.wt_api->msg_printf(g.wt_api,
+		    session, "%-10s%" PRIu64, "read", keyno);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1310,11 +1329,11 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 {
 	WT_DECL_RET;
 	WT_ITEM key, value;
-	uint64_t keyno;
+	uint64_t keyno, keyno_prev;
 	uint8_t bitfield;
 	int cmp;
 	const char *which;
-	bool incrementing;
+	bool incrementing, record_gaps;
 
 	keyno = 0;
 	which = next ? "WT_CURSOR.next" : "WT_CURSOR.prev";
@@ -1351,41 +1370,85 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		if (DATASOURCE("lsm"))
 			break;
 
+		/*
+		 * Compare the returned key with the previously returned key,
+		 * and assert the order is correct. If not deleting keys, and
+		 * the rows aren't in the column-store insert name space, also
+		 * assert we don't skip groups of records (that's a page-split
+		 * bug symptom).
+		 */
+		record_gaps = g.c_delete_pct != 0;
 		switch (g.type) {
 		case FIX:
 		case VAR:
-			testutil_assertfmt(
-			    !next || tinfo->keyno < keyno,
-			    "%s returned %" PRIu64 " then %" PRIu64,
-			    which, tinfo->keyno, keyno);
-			testutil_assertfmt(
-			    next || tinfo->keyno > keyno,
-			    "%s returned %" PRIu64 " then %" PRIu64,
-			    which, tinfo->keyno, keyno);
+			if (tinfo->keyno > g.c_rows || keyno > g.c_rows)
+				record_gaps = true;
+			if (!next) {
+				if (tinfo->keyno < keyno ||
+				    (!record_gaps && keyno != tinfo->keyno - 1))
+					goto order_error_col;
+			} else
+				if (tinfo->keyno > keyno ||
+				    (!record_gaps && keyno != tinfo->keyno + 1))
+					goto order_error_col;
+			if (0) {
+order_error_col:
+				testutil_die(0,
+				    "%s returned %" PRIu64 " then %" PRIu64,
+				    which, tinfo->keyno, keyno);
+			}
 
 			tinfo->keyno = keyno;
 			break;
 		case ROW:
-			cmp = memcmp(tinfo->key->data, key.data,
-			    WT_MIN(tinfo->key->size, key.size));
 			incrementing =
 			    (next && !g.c_reverse) || (!next && g.c_reverse);
-			testutil_assertfmt(
-			    !incrementing ||
-			    cmp < 0 ||
-			    (cmp == 0 && tinfo->key->size < key.size),
-			    "%s returned {%.*s} then {%.*s}",
-			    which,
-			    (int)tinfo->key->size, tinfo->key->data,
-			    (int)key.size, key.data);
-			testutil_assertfmt(
-			    incrementing ||
-			    cmp > 0 ||
-			    (cmp == 0 && tinfo->key->size > key.size),
-			    "%s returned {%.*s} then {%.*s}",
-			    which,
-			    (int)tinfo->key->size, tinfo->key->data,
-			    (int)key.size, key.data);
+			cmp = memcmp(tinfo->key->data, key.data,
+			    WT_MIN(tinfo->key->size, key.size));
+			if (incrementing) {
+				if (cmp > 0 ||
+				    (cmp == 0 && tinfo->key->size < key.size))
+					goto order_error_row;
+			} else
+				if (cmp < 0 ||
+				    (cmp == 0 && tinfo->key->size > key.size))
+					goto order_error_row;
+			if (!record_gaps) {
+				/*
+				 * Convert the keys to record numbers and then
+				 * compare less-than-or-equal. (Not less-than,
+				 * row-store inserts new rows in-between rows
+				 * by append a new suffix to the row's key.)
+				 */
+				testutil_check(__wt_buf_fmt(
+				    (WT_SESSION_IMPL *)cursor->session,
+				    tinfo->tbuf, "%.*s",
+				    (int)tinfo->key->size,
+				    (char *)tinfo->key->data));
+				keyno_prev =
+				    strtoul(tinfo->tbuf->data, NULL, 10);
+				testutil_check(__wt_buf_fmt(
+				    (WT_SESSION_IMPL *)cursor->session,
+				    tinfo->tbuf, "%.*s",
+				    (int)key.size, (char *)key.data));
+				keyno = strtoul(tinfo->tbuf->data, NULL, 10);
+				if (incrementing) {
+					if (keyno_prev != keyno &&
+					    keyno_prev + 1 != keyno)
+						goto order_error_row;
+				} else
+					if (keyno_prev != keyno &&
+					    keyno_prev - 1 != keyno)
+						goto order_error_row;
+			}
+			if (0) {
+order_error_row:
+				testutil_die(0,
+				    "%s returned {%.*s} then {%.*s}",
+				    which,
+				    (int)tinfo->key->size, tinfo->key->data,
+				    (int)key.size, key.data);
+			}
 
 			testutil_check(__wt_buf_set((WT_SESSION_IMPL *)
 			    cursor->session, tinfo->key, key.data, key.size));
@@ -1394,11 +1457,29 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		break;
 	case WT_NOTFOUND:
 		break;
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
 	default:
-		testutil_die(ret, "%s", which);
+		return (ret);
 	}
+
+	if (ret == 0 && g.logging == LOG_OPS)
+		switch (g.type) {
+		case FIX:
+			(void)g.wt_api->msg_printf(g.wt_api,
+			    cursor->session, "%-10s%" PRIu64 " {0x%02x}",
+			    which, keyno, ((char *)value.data)[0]);
+			break;
+		case ROW:
+			(void)g.wt_api->msg_printf(g.wt_api,
+			    cursor->session, "%-10s{%.*s}, {%.*s}",
+			    which, (int)key.size, (char *)key.data,
+			    (int)value.size, (char *)value.data);
+			break;
+		case VAR:
+			(void)g.wt_api->msg_printf(g.wt_api,
+			    cursor->session, "%-10s%" PRIu64 " {%.*s}",
+			    which, keyno, (int)value.size, (char *)value.data);
+			break;
+		}
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1406,11 +1487,8 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 
 	{
 	WT_ITEM bdb_key, bdb_value;
-	WT_SESSION *session;
 	int notfound;
 	char *p;
-
-	session = cursor->session;
 
 	/* Retrieve the BDB key/value. */
 	bdb_np(next, &bdb_key.data, &bdb_key.size,
@@ -1444,26 +1522,6 @@ mismatch:	if (g.type == ROW) {
 		print_item(" wt-value", &value);
 		testutil_die(0, NULL);
 	}
-
-	if (g.logging == LOG_OPS)
-		switch (g.type) {
-		case FIX:
-			(void)g.wt_api->msg_printf(g.wt_api,
-			    session, "%-10s%" PRIu64 " {0x%02x}", which,
-			    keyno, ((char *)value.data)[0]);
-			break;
-		case ROW:
-			(void)g.wt_api->msg_printf(
-			    g.wt_api, session, "%-10s{%.*s}, {%.*s}", which,
-			    (int)key.size, (char *)key.data,
-			    (int)value.size, (char *)value.data);
-			break;
-		case VAR:
-			(void)g.wt_api->msg_printf(g.wt_api, session,
-			    "%-10s%" PRIu64 " {%.*s}", which,
-			    keyno, (int)value.size, (char *)value.data);
-			break;
-		}
 	}
 #endif
 	return (ret);
@@ -1483,24 +1541,14 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		cursor->set_key(cursor, tinfo->key);
 	}
 
+	if ((ret = cursor->reserve(cursor)) != 0)
+		return (ret);
+
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s{%.*s}", "reserve",
 		    (int)tinfo->key->size, tinfo->key->data);
 
-	switch (ret = cursor->reserve(cursor)) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	case WT_NOTFOUND:
-		return (WT_NOTFOUND);
-	default:
-		testutil_die(ret,
-		    "row_reserve: reserve row %" PRIu64 " by key",
-		    tinfo->keyno);
-	}
 	return (0);
 }
 
@@ -1516,21 +1564,13 @@ col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);
 
+	if ((ret = cursor->reserve(cursor)) != 0)
+		return (ret);
+
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
 		    "%-10s%" PRIu64, "reserve", tinfo->keyno);
 
-	switch (ret = cursor->reserve(cursor)) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	case WT_NOTFOUND:
-		return (WT_NOTFOUND);
-	default:
-		testutil_die(ret, "col_reserve: %" PRIu64, tinfo->keyno);
-	}
 	return (0);
 }
 
@@ -1577,19 +1617,10 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	}
 
 	modify_build(tinfo, entries, &nentries);
-	switch (ret = cursor->modify(cursor, entries, nentries)) {
-	case 0:
-		testutil_check(cursor->get_value(cursor, tinfo->value));
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	case WT_NOTFOUND:
-		return (WT_NOTFOUND);
-	default:
-		testutil_die(ret,
-		    "row_modify: modify row %" PRIu64 " by key", tinfo->keyno);
-	}
+	if ((ret = cursor->modify(cursor, entries, nentries)) != 0)
+		return (ret);
+
+	testutil_check(cursor->get_value(cursor, tinfo->value));
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
@@ -1624,25 +1655,16 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		cursor->set_key(cursor, tinfo->keyno);
 
 	modify_build(tinfo, entries, &nentries);
-	switch (ret = cursor->modify(cursor, entries, nentries)) {
-	case 0:
-		testutil_check(cursor->get_value(cursor, tinfo->value));
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	case WT_NOTFOUND:
-		return (WT_NOTFOUND);
-	default:
-		testutil_die(ret,
-		    "col_modify: modify row %" PRIu64, tinfo->keyno);
-	}
+	if ((ret = cursor->modify(cursor, entries, nentries)) != 0)
+		return (ret);
+
+	testutil_check(cursor->get_value(cursor, tinfo->value));
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
+		    "%-10s%" PRIu64 ", {%.*s}",
 		    "modify",
-		    (int)tinfo->key->size, tinfo->key->data,
+		    tinfo->keyno,
 		    (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
@@ -1698,70 +1720,18 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 		testutil_check(c2->close(c2));
 	}
 
+	if (ret != 0)
+		return (ret);
+
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
 		    "%-10s%" PRIu64 ", %" PRIu64,
 		    "truncate",
 		    tinfo->keyno, tinfo->last);
 
-	switch (ret) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret,
-		    "row_truncate: row %" PRIu64 "-%" PRIu64,
-		    tinfo->keyno, tinfo->last);
-	}
-
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
 		bdb_truncate(tinfo->keyno, tinfo->last);
-#endif
-	return (0);
-}
-
-/*
- * row_update --
- *	Update a row in a row-store file.
- */
-static int
-row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
-{
-	WT_DECL_RET;
-
-	if (!positioned) {
-		key_gen(tinfo->key, tinfo->keyno);
-		cursor->set_key(cursor, tinfo->key);
-	}
-	val_gen(&tinfo->rnd, tinfo->value, tinfo->keyno);
-	cursor->set_value(cursor, tinfo->value);
-
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
-		    "put",
-		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
-
-	switch (ret = cursor->update(cursor)) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret,
-		    "row_update: update row %" PRIu64 " by key", tinfo->keyno);
-	}
-
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED)
-		bdb_update(
-		    tinfo->key->data, tinfo->key->size,
-		    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1802,6 +1772,8 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 		ret = session->truncate(session, NULL, cursor, c2, NULL);
 		testutil_check(c2->close(c2));
 	}
+	if (ret != 0)
+		return (ret);
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -1809,21 +1781,44 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 		    "truncate",
 		    tinfo->keyno, tinfo->last);
 
-	switch (ret) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret,
-		    "col_truncate: row %" PRIu64 "-%" PRIu64,
-		    tinfo->keyno, tinfo->last);
-	}
-
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
 		bdb_truncate(tinfo->keyno, tinfo->last);
+#endif
+	return (0);
+}
+
+/*
+ * row_update --
+ *	Update a row in a row-store file.
+ */
+static int
+row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
+{
+	WT_DECL_RET;
+
+	if (!positioned) {
+		key_gen(tinfo->key, tinfo->keyno);
+		cursor->set_key(cursor, tinfo->key);
+	}
+	val_gen(&tinfo->rnd, tinfo->value, tinfo->keyno);
+	cursor->set_value(cursor, tinfo->value);
+
+	if ((ret = cursor->update(cursor)) != 0)
+		return (ret);
+
+	if (g.logging == LOG_OPS)
+		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
+		    "%-10s{%.*s}, {%.*s}",
+		    "put",
+		    (int)tinfo->key->size, tinfo->key->data,
+		    (int)tinfo->value->size, tinfo->value->data);
+
+#ifdef HAVE_BERKELEY_DB
+	if (SINGLETHREADED)
+		bdb_update(
+		    tinfo->key->data, tinfo->key->size,
+		    tinfo->value->data, tinfo->value->size);
 #endif
 	return (0);
 }
@@ -1845,6 +1840,9 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	else
 		cursor->set_value(cursor, tinfo->value);
 
+	if ((ret = cursor->update(cursor)) != 0)
+		return (ret);
+
 	if (g.logging == LOG_OPS) {
 		if (g.type == FIX)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
@@ -1857,16 +1855,6 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 			    "update", tinfo->keyno,
 			    (int)tinfo->value->size,
 			    (char *)tinfo->value->data);
-	}
-
-	switch (ret = cursor->update(cursor)) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret, "col_update: %" PRIu64, tinfo->keyno);
 	}
 
 #ifdef HAVE_BERKELEY_DB
@@ -1999,6 +1987,9 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	val_gen(&tinfo->rnd, tinfo->value, tinfo->keyno);
 	cursor->set_value(cursor, tinfo->value);
 
+	if ((ret = cursor->insert(cursor)) != 0)
+		return (ret);
+
 	/* Log the operation */
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
@@ -2006,17 +1997,6 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		    "insert",
 		    (int)tinfo->key->size, tinfo->key->data,
 		    (int)tinfo->value->size, tinfo->value->data);
-
-	switch (ret = cursor->insert(cursor)) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret,
-		    "row_insert: insert row %" PRIu64 " by key", tinfo->keyno);
-	}
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -2041,15 +2021,10 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 		cursor->set_value(cursor, *(uint8_t *)tinfo->value->data);
 	else
 		cursor->set_value(cursor, tinfo->value);
-	switch (ret = cursor->insert(cursor)) {
-	case 0:
-		break;
-	case WT_CACHE_FULL:
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret, "cursor.insert");
-	}
+
+	if ((ret = cursor->insert(cursor)) != 0)
+		return (ret);
+
 	testutil_check(cursor->get_key(cursor, &tinfo->keyno));
 
 	table_append(tinfo->keyno);			/* Extend the object. */
@@ -2093,23 +2068,16 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		cursor->set_key(cursor, tinfo->key);
 	}
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
-
 	/* We use the cursor in overwrite mode, check for existence. */
 	if ((ret = cursor->search(cursor)) == 0)
 		ret = cursor->remove(cursor);
-	switch (ret) {
-	case 0:
-	case WT_NOTFOUND:
-		break;
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret,
-		    "row_remove: remove %" PRIu64 " by key", tinfo->keyno);
-	}
+
+	if (ret != 0 && ret != WT_NOTFOUND)
+		return (ret);
+
+	if (g.logging == LOG_OPS)
+		(void)g.wt_api->msg_printf(g.wt_api,
+		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {
@@ -2134,23 +2102,16 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
-
 	/* We use the cursor in overwrite mode, check for existence. */
 	if ((ret = cursor->search(cursor)) == 0)
 		ret = cursor->remove(cursor);
-	switch (ret) {
-	case 0:
-	case WT_NOTFOUND:
-		break;
-	case WT_ROLLBACK:
-		return (WT_ROLLBACK);
-	default:
-		testutil_die(ret,
-		    "col_remove: remove %" PRIu64 " by key", tinfo->keyno);
-	}
+
+	if (ret != 0 && ret != WT_NOTFOUND)
+		return (ret);
+
+	if (g.logging == LOG_OPS)
+		(void)g.wt_api->msg_printf(g.wt_api,
+		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {

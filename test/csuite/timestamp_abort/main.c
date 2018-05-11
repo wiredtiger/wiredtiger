@@ -64,7 +64,7 @@ static char home[1024];			/* Program working dir */
 #define	MIN_TH		5
 #define	MIN_TIME	10
 #define	PREPARE_FREQ	5
-#define	PREPARE_YIELD	PREPARE_FREQ * 10
+#define	PREPARE_YIELD	(PREPARE_FREQ * 10)
 #define	RECORDS_FILE	"records-%" PRIu32
 #define	STABLE_PERIOD	100
 
@@ -185,10 +185,11 @@ thread_ckpt_run(void *arg)
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
 	THREAD_DATA *td;
-	uint64_t ts;
+	uint64_t stable;
 	uint32_t sleep_time;
 	int i;
 	bool first_ckpt;
+	char buf[128];
 
 	__wt_random_init(&rnd);
 
@@ -199,20 +200,20 @@ thread_ckpt_run(void *arg)
 	(void)unlink(ckpt_file);
 	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 	first_ckpt = true;
-	ts = 0;
 	for (i = 0; ;++i) {
 		sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
 		sleep(sleep_time);
-		if (use_ts)
-			ts = global_ts;
 		/*
 		 * Since this is the default, send in this string even if
 		 * running without timestamps.
 		 */
 		testutil_check(session->checkpoint(
 		    session, "use_timestamp=true"));
-		printf("Checkpoint %d complete.  Minimum ts %" PRIu64 "\n",
-		    i, ts);
+		testutil_check(td->conn->query_timestamp(
+		    td->conn, buf, "get=last_checkpoint"));
+		sscanf(buf, "%" SCNx64, &stable);
+		printf("Checkpoint %d complete at stable %"
+		    PRIu64 ".\n", i, stable);
 		fflush(stdout);
 		/*
 		 * Create the checkpoint file so that the parent process knows
