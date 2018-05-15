@@ -124,6 +124,16 @@ static const char * const config = NULL;
  * schema operations so that we can verify the state of the schema too.
  */
 
+static void
+dump_ts(uint64_t nth)
+{
+	uint64_t i;
+
+	for (i = 0; i < nth; ++i)
+		fprintf(stderr, "THREAD %" PRIu64 ": ts: %" PRIu64 "\n",
+		    i, th_ts[i]);
+}
+
 /*
  * test_bulk --
  *	Test creating a bulk cursor.
@@ -531,8 +541,14 @@ thread_ckpt_run(void *arg)
 		__wt_epoch(NULL, &now);
 		printf("CKPT: stable_set %d, time %" PRIu64 "\n",
 		    stable_set, WT_TIMEDIFF_SEC(now, start));
-		if (!stable_set && WT_TIMEDIFF_SEC(now, start) > 2) {
-			fprintf(stderr, "After 2 ckpt stable still not set\n");
+		if (use_ts && !stable_set && WT_TIMEDIFF_SEC(now, start) > 2) {
+			fprintf(stderr,
+			    "After 2 seconds ckpt stable still not set\n");
+			/*
+			 * For the checkpoint thread the info contains the
+			 * number of threads.
+			 */
+			dump_ts(td->info);
 			abort();
 		}
 	}
