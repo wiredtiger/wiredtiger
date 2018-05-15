@@ -108,14 +108,28 @@ static void
 usage(void)
 {
 	fprintf(stderr,
-	    "usage: %s [-h dir] [-T threads] [-t time] [-Cmvz]\n", progname);
+	    "usage: %s [-h dir] [-T threads] [-t time] [-Cmvxz]\n", progname);
 	exit(EXIT_FAILURE);
 }
 
 static const char * const config = NULL;
 
+/*
+ * The following are various schema-related functions to have some threads
+ * performing during the test. The goal is to make sure that after a random
+ * abort, the database is left in a recoverable state. Yield during the
+ * schema operations to increase chance of abort during them.
+ *
+ * TODO: Currently only verifies insert data, it would be ideal to modify the
+ * schema operations so that we can verify the state of the schema too.
+ */
+
+/*
+ * test_bulk --
+ *	Test creating a bulk cursor.
+ */
 static void
-obj_bulk(THREAD_DATA *td)
+test_bulk(THREAD_DATA *td)
 {
 	WT_CURSOR *c;
 	WT_SESSION *session;
@@ -133,9 +147,9 @@ obj_bulk(THREAD_DATA *td)
 
 	if (ret == 0) {
 		create = true;
-		__wt_yield();
 		if ((ret = session->open_cursor(
 		    session, uri, NULL, "bulk", &c)) == 0) {
+			__wt_yield();
 			testutil_check(c->close(c));
 		} else if (ret != ENOENT && ret != EBUSY && ret != EINVAL)
 			testutil_die(ret, "session.open_cursor bulk");
@@ -148,14 +162,21 @@ obj_bulk(THREAD_DATA *td)
 		else
 			ret = session->commit_transaction(session, NULL);
 
-		if (ret == EINVAL)
+		if (ret == EINVAL) {
+			fprintf(stderr, "BULK: EINVAL on %s. ABORT\n",
+			    create ? "commit" : "rollback");
 			testutil_die(ret, "session.commit bulk");
+		}
 	}
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_bulk_unique --
+ *	Test creating a bulk cursor with a unique name.
+ */
 static void
-obj_bulk_unique(THREAD_DATA *td, int force)
+test_bulk_unique(THREAD_DATA *td, int force)
 {
 	WT_CURSOR *c;
 	WT_SESSION *session;
@@ -177,7 +198,7 @@ obj_bulk_unique(THREAD_DATA *td, int force)
 	__wt_yield();
 	/*
 	 * Opening a bulk cursor may have raced with a forced checkpoint
-	 * which created a checkpoint of the empty file, and triggers an EINVAL
+	 * which created a checkpoint of the empty file, and triggers an EINVAL.
 	 */
 	if ((ret = session->open_cursor(
 	    session, new_uri, NULL, "bulk", &c)) == 0)
@@ -198,8 +219,12 @@ obj_bulk_unique(THREAD_DATA *td, int force)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_cursor --
+ *	Open a cursor on a data source.
+ */
 static void
-obj_cursor(THREAD_DATA *td)
+test_cursor(THREAD_DATA *td)
 {
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
@@ -213,8 +238,10 @@ obj_cursor(THREAD_DATA *td)
 	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
 		if (ret != ENOENT && ret != EBUSY)
 			testutil_die(ret, "session.open_cursor");
-	} else
+	} else {
+		__wt_yield();
 		testutil_check(cursor->close(cursor));
+	}
 
 	if (use_txn &&
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
@@ -223,8 +250,12 @@ obj_cursor(THREAD_DATA *td)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_create --
+ *	Create a table.
+ */
 static void
-obj_create(THREAD_DATA *td)
+test_create(THREAD_DATA *td)
 {
 	WT_SESSION *session;
 	int ret;
@@ -236,7 +267,7 @@ obj_create(THREAD_DATA *td)
 	if ((ret = session->create(session, uri, config)) != 0)
 		if (ret != EEXIST && ret != EBUSY)
 			testutil_die(ret, "session.create");
-
+	__wt_yield();
 	if (use_txn &&
 	    (ret = session->commit_transaction(session, NULL)) != 0 &&
 	    ret != EINVAL)
@@ -244,8 +275,12 @@ obj_create(THREAD_DATA *td)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_create_unique --
+ *	Create a uniquely named table.
+ */
 static void
-obj_create_unique(THREAD_DATA *td, int force)
+test_create_unique(THREAD_DATA *td, int force)
 {
 	WT_SESSION *session;
 	uint64_t my_uid;
@@ -282,8 +317,12 @@ obj_create_unique(THREAD_DATA *td, int force)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_drop --
+ *	Test dropping a table.
+ */
 static void
-obj_drop(THREAD_DATA *td, int force)
+test_drop(THREAD_DATA *td, int force)
 {
 	WT_SESSION *session;
 	int ret;
@@ -313,8 +352,12 @@ obj_drop(THREAD_DATA *td, int force)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_rebalance --
+ *	Rebalance a tree.
+ */
 static void
-obj_rebalance(THREAD_DATA *td)
+test_rebalance(THREAD_DATA *td)
 {
 	WT_SESSION *session;
 	int ret;
@@ -328,8 +371,12 @@ obj_rebalance(THREAD_DATA *td)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_upgrade --
+ *	Upgrade a tree.
+ */
 static void
-obj_upgrade(THREAD_DATA *td)
+test_upgrade(THREAD_DATA *td)
 {
 	WT_SESSION *session;
 	int ret;
@@ -343,8 +390,12 @@ obj_upgrade(THREAD_DATA *td)
 	testutil_check(session->close(session, NULL));
 }
 
+/*
+ * test_verify --
+ *	Verify a tree.
+ */
 static void
-obj_verify(THREAD_DATA *td)
+test_verify(THREAD_DATA *td)
 {
 	WT_SESSION *session;
 	int ret;
@@ -570,35 +621,36 @@ thread_run(void *arg)
 		 */
 		if (td->info != 0 && td->info != 1)
 			/*
-			 * Do a schema operation about 50% of the time.
+			 * Do a schema operation about 50% of the time by having
+			 * a case for only about half the possible mod values.
 			 */
 			switch (__wt_random(&rnd) % 20) {
 			case 0:
-				obj_bulk(td);
+				test_bulk(td);
 				break;
 			case 1:
-				obj_bulk_unique(td, __wt_random(&rnd) & 1);
+				test_bulk_unique(td, __wt_random(&rnd) & 1);
 				break;
 			case 2:
-				obj_create(td);
+				test_create(td);
 				break;
 			case 3:
-				obj_create_unique(td, __wt_random(&rnd) & 1);
+				test_create_unique(td, __wt_random(&rnd) & 1);
 				break;
 			case 4:
-				obj_cursor(td);
+				test_cursor(td);
 				break;
 			case 5:
-				obj_drop(td, __wt_random(&rnd) & 1);
+				test_drop(td, __wt_random(&rnd) & 1);
 				break;
 			case 6:
-				obj_rebalance(td);
+				test_rebalance(td);
 				break;
 			case 7:
-				obj_upgrade(td);
+				test_upgrade(td);
 				break;
 			case 8:
-				obj_verify(td);
+				test_verify(td);
 				break;
 			}
 		if (use_ts)
