@@ -1785,7 +1785,8 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
 	    timestamp_transaction, config, cfg);
 #else
-	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    timestamp_transaction, NULL, cfg);
 	cfg[1] = config;
 #endif
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));
