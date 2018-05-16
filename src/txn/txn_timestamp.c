@@ -671,7 +671,13 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET_MSG(session, ENOTSUP, "commit_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
 #endif
-	}
+	} else
+		/*
+		 * We allow setting the commit timestamp after a prepare
+		 * but no other timestamp.
+		 */
+		WT_RET(__wt_txn_context_prepare_check(session));
+
 	WT_RET_NOTFOUND_OK(ret);
 
 	/* Look for a read timestamp. */
