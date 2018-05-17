@@ -1595,13 +1595,12 @@ __wt_log_open(WT_SESSION_IMPL *session)
 	} else {
 		WT_SET_LSN(&log->first_lsn, firstlog, 0);
 		/*
-		 * If the user specified a required minimum version and we
-		 * have existing log files, check the last log now before
-		 * we create a new log file.
+		 * If we have existing log files, check the last log now before
+		 * we create a new log file so that we can detect an unsupported
+		 * version before modifying the file space.
 		 */
-		if (conn->compat_req_major != WT_CONN_COMPAT_NONE)
-			WT_ERR(__log_open_verify(session,
-			    lastlog, NULL, NULL, &version));
+		WT_ERR(__log_open_verify(session,
+		    lastlog, NULL, NULL, &version));
 	}
 
 	/*
