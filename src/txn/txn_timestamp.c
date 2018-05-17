@@ -657,6 +657,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Look for a commit timestamp. */
 	ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);
+	WT_RET_NOTFOUND_OK(ret);
 	if (ret == 0 && cval.len != 0) {
 #ifdef HAVE_TIMESTAMPS
 		WT_TXN *txn = &session->txn;
@@ -677,8 +678,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 * but no other timestamp.
 		 */
 		WT_RET(__wt_txn_context_prepare_check(session));
-
-	WT_RET_NOTFOUND_OK(ret);
 
 	/* Look for a read timestamp. */
 	WT_RET(__wt_txn_parse_read_timestamp(session, cfg));
