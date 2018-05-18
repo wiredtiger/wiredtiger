@@ -584,8 +584,9 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'checkpoint_slow', 'split_race_1', 'split_race_2', 'split_race_3',
-        'split_race_4', 'split_race_5', 'split_race_6', 'split_race_7']),
+        'checkpoint_slow', 'lookaside_sweep_race', 'split_race_1',
+        'split_race_2', 'split_race_3', 'split_race_4', 'split_race_5',
+        'split_race_6', 'split_race_7']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
