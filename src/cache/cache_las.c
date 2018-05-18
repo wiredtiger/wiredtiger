@@ -1041,6 +1041,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 	/* Encourage a race */
 	__las_timing_stress(session);
+
 	/*
 	 * When continuing a sweep, position the cursor using the key from the
 	 * last call (we don't care if we're before or after the key, either
