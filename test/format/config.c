@@ -102,10 +102,14 @@ config_setup(void)
 			config_single("data_source=table", 0);
 			break;
 		case 3:
+#ifdef WT_4067_LSM_CONFIGURATION_RESOLVED
 			if (g.c_in_memory || g.type != ROW)
 				config_single("data_source=table", 0);
 			else
 				config_single("data_source=lsm", 0);
+#else
+			config_single("data_source=table", 0);
+#endif
 			break;
 		}
 
