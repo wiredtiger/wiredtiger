@@ -82,7 +82,6 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 		w="$w -Walloc-zero"
 		w="$w -Wduplicated-branches"
 		w="$w -Wformat-overflow=2"
-		w="$w -Wformat-signedness"
 		w="$w -Wformat-truncation=2"
 		w="$w -Wrestrict"
 	fi
