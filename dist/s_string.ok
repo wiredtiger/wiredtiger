@@ -75,7 +75,6 @@ Checksum
 Checksums
 CityHash
 CloseHandle
-Cmvxz
 Cmvz
 Collet
 Comparator
@@ -223,7 +222,6 @@ LevelDB
 Levyx
 Llqr
 Llqrt
-LmT
 LoadLoad
 LockFile
 Lookaside
@@ -1319,7 +1317,6 @@ vtype
 vunpack
 vw
 vxr
-vxz
 vz
 waitpid
 waker
