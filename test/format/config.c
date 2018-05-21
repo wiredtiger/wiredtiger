@@ -48,6 +48,7 @@ static void	   config_map_compression(const char *, u_int *);
 static void	   config_map_encryption(const char *, u_int *);
 static void	   config_map_file_type(const char *, u_int *);
 static void	   config_map_isolation(const char *, u_int *);
+static void	   config_lsm_no_timestamps(void);
 static void	   config_pct(void);
 static void	   config_prepare(void);
 static void	   config_reset(void);
@@ -102,14 +103,10 @@ config_setup(void)
 			config_single("data_source=table", 0);
 			break;
 		case 3:
-#ifdef WT_4067_LSM_CONFIGURATION_RESOLVED
 			if (g.c_in_memory || g.type != ROW)
 				config_single("data_source=table", 0);
 			else
 				config_single("data_source=lsm", 0);
-#else
-			config_single("data_source=table", 0);
-#endif
 			break;
 		}
 
@@ -186,6 +183,7 @@ config_setup(void)
 	config_lrt();
 	config_pct();
 	config_prepare();
+	config_lsm_no_timestamps();
 	config_cache();
 
 	/*
@@ -792,6 +790,19 @@ config_prepare(void)
 
 	config_single("logging=off", 0);
 	config_single("transaction_timestamps=on", 0);
+}
+
+/*
+ * config_lsm_no_timestamps --
+ *	LSM doesn't currently play nicely with timestamps, don't choose the
+ *	pair unless forced to. Remove this code with WT-4067.
+ */
+static void
+config_lsm_no_timestamps(void)
+{
+	if (g.c_txn_timestamps && DATASOURCE("lsm") &&
+	    !config_is_perm("transaction_timestamps"))
+		config_single("transaction_timestamps=off", 0);
 }
 
 /*
