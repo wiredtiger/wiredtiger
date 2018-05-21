@@ -68,10 +68,9 @@ static char home[1024];			/* Program working dir */
 #define	RECORDS_FILE	"records-%" PRIu32
 #define	STABLE_PERIOD	100
 
-static const char * table_pfx = "table";
-static const char * const uri_local = "local";
-static const char * const uri_oplog = "oplog";
-static const char * const uri_collection = "collection";
+static const char * const uri_local = "table:local";
+static const char * const uri_oplog = "table:oplog";
+static const char * const uri_collection = "table:collection";
 
 static const char * const ckpt_file = "checkpoint_done";
 
@@ -244,7 +243,7 @@ thread_run(void *arg)
 	THREAD_DATA *td;
 	uint64_t i, stable_ts;
 	char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
-	char kname[64], tscfg[64], uri[128];
+	char kname[64], tscfg[64];
 	bool use_prep;
 
 	__wt_random_init(&rnd);
@@ -284,25 +283,19 @@ thread_run(void *arg)
 	/*
 	 * Open a cursor to each table.
 	 */
-	testutil_check(__wt_snprintf(
-	    uri, sizeof(uri), "%s:%s", table_pfx, uri_collection));
 	testutil_check(session->open_cursor(session,
-	    uri, NULL, NULL, &cur_coll));
-	testutil_check(__wt_snprintf(
-	    uri, sizeof(uri), "%s:%s", table_pfx, uri_local));
+	    uri_collection, NULL, NULL, &cur_coll));
 	testutil_check(session->open_cursor(session,
-	    uri, NULL, NULL, &cur_local));
-	testutil_check(__wt_snprintf(
-	    uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog));
+	    uri_local, NULL, NULL, &cur_local));
 	oplog_session = NULL;
 	if (use_prep) {
 		testutil_check(td->conn->open_session(
 		    td->conn, NULL, NULL, &oplog_session));
 		testutil_check(session->open_cursor(oplog_session,
-		    uri, NULL, NULL, &cur_oplog));
+		    uri_oplog, NULL, NULL, &cur_oplog));
 	} else
 		testutil_check(session->open_cursor(session,
-		    uri, NULL, NULL, &cur_oplog));
+		    uri_oplog, NULL, NULL, &cur_oplog));
 
 	/*
 	 * Write our portion of the key space until we're killed.
@@ -414,7 +407,7 @@ run_workload(uint32_t nth)
 	THREAD_DATA *td;
 	wt_thread_t *thr;
 	uint32_t ckpt_id, i, ts_id;
-	char envconf[512], uri[128];
+	char envconf[512];
 
 	thr = dcalloc(nth+2, sizeof(*thr));
 	td = dcalloc(nth+2, sizeof(THREAD_DATA));
@@ -432,18 +425,12 @@ run_workload(uint32_t nth)
 	/*
 	 * Create all the tables.
 	 */
-	testutil_check(__wt_snprintf(
-	    uri, sizeof(uri), "%s:%s", table_pfx, uri_collection));
-	testutil_check(session->create(session, uri,
+	testutil_check(session->create(session, uri_collection,
 		"key_format=S,value_format=u,log=(enabled=false)"));
-	testutil_check(__wt_snprintf(
-	    uri, sizeof(uri), "%s:%s", table_pfx, uri_local));
 	testutil_check(session->create(session,
-	    uri, "key_format=S,value_format=u"));
-	testutil_check(__wt_snprintf(
-	    uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog));
+	    uri_local, "key_format=S,value_format=u"));
 	testutil_check(session->create(session,
-	    uri, "key_format=S,value_format=u"));
+	    uri_oplog, "key_format=S,value_format=u"));
 	/*
 	 * Don't log the stable timestamp table so that we know what timestamp
 	 * was stored at the checkpoint.
@@ -587,16 +574,13 @@ main(int argc, char *argv[])
 	verify_only = false;
 	working_dir = "WT_TEST.timestamp-abort";
 
-	while ((ch = __wt_getopt(progname, argc, argv, "Ch:LmT:t:vz")) != EOF)
+	while ((ch = __wt_getopt(progname, argc, argv, "Ch:mT:t:vz")) != EOF)
 		switch (ch) {
 		case 'C':
 			compat = true;
 			break;
 		case 'h':
 			working_dir = __wt_optarg;
-			break;
-		case 'L':
-			table_pfx = "lsm";
 			break;
 		case 'm':
 			inmem = true;
@@ -730,18 +714,12 @@ main(int argc, char *argv[])
 	/*
 	 * Open a cursor on all the tables.
 	 */
-	testutil_check(__wt_snprintf(
-	    buf, sizeof(buf), "%s:%s", table_pfx, uri_collection));
 	testutil_check(session->open_cursor(session,
-	    buf, NULL, NULL, &cur_coll));
-	testutil_check(__wt_snprintf(
-	    buf, sizeof(buf), "%s:%s", table_pfx, uri_local));
+	    uri_collection, NULL, NULL, &cur_coll));
 	testutil_check(session->open_cursor(session,
-	    buf, NULL, NULL, &cur_local));
-	testutil_check(__wt_snprintf(
-	    buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog));
+	    uri_local, NULL, NULL, &cur_local));
 	testutil_check(session->open_cursor(session,
-	    buf, NULL, NULL, &cur_oplog));
+	    uri_oplog, NULL, NULL, &cur_oplog));
 
 	/*
 	 * Find the biggest stable timestamp value that was saved.
