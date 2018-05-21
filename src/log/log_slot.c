@@ -356,6 +356,12 @@ __log_slot_switch_internal(
 	WT_RET(__log_slot_new(session));
 	F_CLR(myslot, WT_MYSLOT_CLOSE);
 	if (F_ISSET(myslot, WT_MYSLOT_NEEDS_RELEASE)) {
+		/*
+		 * The release here must be done while holding the slot lock.
+		 * The reason is that a forced slot switch needs to be sure
+		 * that any earlier slot switches have completed, including
+		 * writing out the buffer contents of earlier slots.
+		 */
 		WT_RET(__wt_log_release(session, slot, &free_slot));
 		F_CLR(myslot, WT_MYSLOT_NEEDS_RELEASE);
 		if (free_slot)
