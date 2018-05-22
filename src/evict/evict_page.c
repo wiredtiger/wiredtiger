@@ -453,6 +453,13 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			if (__wt_page_del_active(session, child, true))
 				return (EBUSY);
 			break;
+		case WT_REF_LOOKASIDE:
+			if (__wt_page_las_active(session, child))
+				return (EBUSY);
+
+			__wt_free(session, child->page_las);
+			WT_PUBLISH(child->state, WT_REF_DISK);
+			break;
 		default:
 			return (EBUSY);
 		}
