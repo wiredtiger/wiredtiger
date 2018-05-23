@@ -461,7 +461,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			 * will flip the state to WT_REF_DISK.
 			 */
 			__wt_las_page_obsolete_check(session, child);
-			if (child->state != WT_REF_DISK)
+			if (child->state != WT_REF_DISK &&
+			    child->state != WT_REF_DELETED)
 				return (EBUSY);
 			break;
 		default:

@@ -480,7 +480,8 @@ __wt_las_page_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (!__wt_page_las_active(session, ref)) {
 		__wt_free(session, ref->page_las);
 		WT_PUBLISH(ref->state, previous_state == WT_REF_LOOKASIDE ?
-		    WT_REF_DISK : WT_REF_MEM);
+		    (ref->addr == NULL ? WT_REF_DELETED : WT_REF_DISK) :
+		    WT_REF_MEM);
 	} else
 		WT_PUBLISH(ref->state, previous_state);
 }
