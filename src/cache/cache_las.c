@@ -18,8 +18,6 @@
 	(WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED |	\
 	WT_SESSION_NO_RECONCILE)
 
-#define STRESS_SLEEP_LONG (100 * WT_THOUSAND)
-
 /*
  * __las_timing_stress --
  *	Optionally add delay to simulate the race conditions in lookaside
