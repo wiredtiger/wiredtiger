@@ -226,10 +226,10 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 
 /*
  * __wt_spin_backoff --
- *	Backoff spinning for a resource. This is used to avoid busy waiting
- *      loops that can consume enough CPU to block real work being done.
- *      The algorithm spins a few times, then yields for a while, then falls
- *      back to sleeping.
+ *	Back off while spinning for a resource. This is used to avoid busy
+ *	waiting loops that can consume enough CPU to block real work being
+ *	done. The algorithm spins a few times, then yields for a while, then
+ *	falls back to sleeping.
  */
 static inline void
 __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
