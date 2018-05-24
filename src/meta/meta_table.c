@@ -16,14 +16,18 @@ static bool
 __metadata_turtle(const char *key)
 {
 	switch (key[0]) {
+	case 'C':
+		if (strcmp(key, WT_METADATA_COMPAT) == 0)
+			return (true);
+		break;
 	case 'f':
 		if (strcmp(key, WT_METAFILE_URI) == 0)
 			return (true);
 		break;
 	case 'W':
-		if (strcmp(key, "WiredTiger version") == 0)
+		if (strcmp(key, WT_METADATA_VERSION) == 0)
 			return (true);
-		if (strcmp(key, "WiredTiger version string") == 0)
+		if (strcmp(key, WT_METADATA_VERSION_STR) == 0)
 			return (true);
 		break;
 	}

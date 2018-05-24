@@ -49,14 +49,19 @@ __wt_conn_compat_config(
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	uint16_t major, minor;
+	WT_DECL_RET;
+	uint16_t major, minor, saved_major, saved_minor;
+	char *value;
 	bool txn_active;
 
 	conn = S2C(session);
+	value = NULL;
+
 	WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
 	if (cval.len == 0) {
 		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
 		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+		F_CLR(conn, WT_CONN_COMPATIBILITY);
 	} else {
 		WT_RET(__conn_compat_parse(session, &cval, &major, &minor));
 
@@ -71,6 +76,25 @@ __wt_conn_compat_config(
 			    " for upgrade or downgrade");
 		conn->compat_major = major;
 		conn->compat_minor = minor;
+		F_SET(conn, WT_CONN_COMPATIBILITY);
+	}
+
+	/*
+	 * Only rewrite the turtle file if this is a reconfig. On startup
+	 * it will get written as part of creating the connection.
+	 */
+	if (reconfig) {
+		/*
+		 * We rewrite the turtle file with the metadata information
+		 * that is already there. This call is only to update the
+		 * compatibility information. But since the turtle file is
+		 * entirely rewritten every time we need to send in the
+		 * metadata file information.
+		 */
+		WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &value));
+		WT_ERR(__wt_metadata_update(session, WT_METAFILE_URI, value));
+		__wt_free(session, value);
+		value = NULL;
 	}
 
 	/*
@@ -78,20 +102,20 @@ __wt_conn_compat_config(
 	 * meaningless on a newly created database. We're done in those cases.
 	 */
 	if (reconfig || conn->is_new)
-		return (0);
+		goto done;
 
 	/*
 	 * The minimum required version for existing files is only available
 	 * on opening the connection, not reconfigure.
 	 */
-	WT_RET(__wt_config_gets(session,
+	WT_ERR(__wt_config_gets(session,
 	    cfg, "compatibility.require_min", &cval));
 	if (cval.len == 0) {
 		conn->compat_req_major = WT_CONN_COMPAT_NONE;
 		conn->compat_req_minor = WT_CONN_COMPAT_NONE;
-		return (0);
+		goto done;
 	}
-	WT_RET(__conn_compat_parse(session, &cval, &major, &minor));
+	WT_ERR(__conn_compat_parse(session, &cval, &major, &minor));
 
 	/*
 	 * The minimum required must be less than or equal to the compatibility
@@ -99,10 +123,32 @@ __wt_conn_compat_config(
 	 */
 	if ((major > conn->compat_major) ||
 	    (major == conn->compat_major && minor > conn->compat_minor))
-		WT_RET_MSG(session, ENOTSUP,
+		WT_ERR_MSG(session, ENOTSUP,
 		    "required min cannot be larger than compatibility release");
+
+	/*
+	 * Check the minimum required against any saved compatibility version
+	 * in the turtle file saved from an earlier run.
+	 */
+	saved_major = saved_minor = WT_CONN_COMPAT_NONE;
+	WT_ERR_NOTFOUND_OK(
+	    __wt_metadata_search(session, WT_METADATA_COMPAT, &value));
+	if (ret != WT_NOTFOUND) {
+		WT_ERR(__wt_config_getones(session, value, "major", &cval));
+		saved_major = (uint16_t)cval.val;
+		WT_ERR(__wt_config_getones(session, value, "minor", &cval));
+		saved_minor = (uint16_t)cval.val;
+		if (major > saved_major ||
+		    (major == saved_major && minor > saved_minor))
+			WT_ERR_MSG(session, ENOTSUP,
+			    "required min cannot be larger than saved release");
+	}
+
 	conn->compat_req_major = major;
 	conn->compat_req_minor = minor;
+done:
+err:	if (value != NULL)
+		__wt_free(session, value);
 
 	return (0);
 }
