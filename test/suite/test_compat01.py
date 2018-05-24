@@ -42,10 +42,11 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
     tablename = 'test_compat01'
     uri = 'table:' + tablename
-    sync_list = [
-        '(method=fsync,enabled)',
-        '(method=none,enabled)',
-    ]
+    # Declare the log versions that do and do not have prevlsn.
+    # Log version 1 does not have the prevlsn record.
+    # Log version 2 introduced that record.
+    # Log version 3 continues to have that record.
+    min_logv = 2
 
     # The API uses only the major and minor numbers but accepts with
     # and without the patch number.  Test both.
@@ -80,13 +81,8 @@ class test_compat01(wttest.WiredTigerTestCase, suite_subprocess):
         return compat_str
 
     def conn_config(self):
-        # Cycle through the different transaction_sync values in a
-        # deterministic manner.
-        txn_sync = self.sync_list[
-            self.scenario_number % len(self.sync_list)]
         # Set archive false on the home directory.
-        log_str = 'log=(archive=false,enabled,file_max=%s),' % self.logmax + \
-            'transaction_sync="%s",' % txn_sync
+        log_str = 'log=(archive=false,enabled,file_max=%s),' % self.logmax
         compat_str = self.make_compat_str(True)
         self.pr("Conn config:" + log_str + compat_str)
         return log_str + compat_str
