@@ -150,7 +150,7 @@ done:
 err:	if (value != NULL)
 		__wt_free(session, value);
 
-	return (0);
+	return (ret);
 }
 
 /*
