@@ -33,7 +33,7 @@ __las_timing_stress(WT_SESSION_IMPL *session)
 	/* Only sleep when lookaside sweep race flag is set. */
 	if (FLD_ISSET(conn->timing_stress_flags,
 	    WT_TIMING_STRESS_LOOKASIDE_SWEEP))
-		__wt_sleep(0, STRESS_SLEEP_LONG);
+		__wt_sleep(0, TIMING_STRESS_TEST_SLEEP);
 }
 
 /*
