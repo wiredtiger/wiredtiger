@@ -124,7 +124,10 @@ __wt_conn_compat_config(
 	if ((major > conn->compat_major) ||
 	    (major == conn->compat_major && minor > conn->compat_minor))
 		WT_ERR_MSG(session, ENOTSUP,
-		    "required min cannot be larger than compatibility release");
+		    "required min of %" PRIu16 ".%" PRIu16
+		    "cannot be larger than compatibility release %"
+		    PRIu16 ".%" PRIu16,
+		    major, minor, conn->compat_major, conn->compat_minor);
 
 	/*
 	 * Check the minimum required against any saved compatibility version
@@ -141,7 +144,10 @@ __wt_conn_compat_config(
 		if (major > saved_major ||
 		    (major == saved_major && minor > saved_minor))
 			WT_ERR_MSG(session, ENOTSUP,
-			    "required min cannot be larger than saved release");
+			    "required min of %" PRIu16 ".%" PRIu16
+			    "cannot be larger than saved release %"
+			    PRIu16 ".%" PRIu16,
+			    major, minor, saved_major, saved_minor);
 	}
 
 	conn->compat_req_major = major;

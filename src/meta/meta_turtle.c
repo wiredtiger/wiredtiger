@@ -286,9 +286,13 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 
 	/*
 	 * A file error or a missing key/value pair in the turtle file means
-	 * something has gone horribly wrong -- we're done.
+	 * something has gone horribly wrong, except for the compatiblity
+	 * setting which is optional.
 	 */
-	return (ret == 0 ? 0 : __wt_illegal_value(session, WT_METADATA_TURTLE));
+	return (ret == 0 ? 0 :
+	    (WT_STRING_MATCH(
+	    key, WT_METADATA_COMPAT, strlen(WT_METADATA_COMPAT)) ? ret :
+	    __wt_illegal_value(session, WT_METADATA_TURTLE)));
 }
 
 /*
