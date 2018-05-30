@@ -286,7 +286,7 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 
 	/*
 	 * A file error or a missing key/value pair in the turtle file means
-	 * something has gone horribly wrong, except for the compatiblity
+	 * something has gone horribly wrong, except for the compatibility
 	 * setting which is optional.
 	 */
 	return (ret == 0 ? 0 :
