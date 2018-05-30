@@ -134,9 +134,8 @@ __wt_conn_compat_config(
 	 * in the turtle file saved from an earlier run.
 	 */
 	saved_major = saved_minor = WT_CONN_COMPAT_NONE;
-	WT_ERR_NOTFOUND_OK(
-	    __wt_metadata_search(session, WT_METADATA_COMPAT, &value));
-	if (ret != WT_NOTFOUND) {
+	if ((ret =
+	    __wt_metadata_search(session, WT_METADATA_COMPAT, &value)) == 0) {
 		WT_ERR(__wt_config_getones(session, value, "major", &cval));
 		saved_major = (uint16_t)cval.val;
 		WT_ERR(__wt_config_getones(session, value, "minor", &cval));
@@ -148,7 +147,10 @@ __wt_conn_compat_config(
 			    "cannot be larger than saved release %"
 			    PRIu16 ".%" PRIu16,
 			    major, minor, saved_major, saved_minor);
-	}
+	} else if (ret == WT_NOTFOUND)
+		ret = 0;
+	else
+		WT_ERR(ret);
 
 	conn->compat_req_major = major;
 	conn->compat_req_minor = minor;
