@@ -289,7 +289,7 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 	 * something has gone horribly wrong, except for the compatibility
 	 * setting which is optional.
 	 */
-	return (ret == 0 || strcmp(key, WT_METADATA_COMPAT) ? ret :
+	return (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 ? ret :
 	    __wt_illegal_value(session, WT_METADATA_TURTLE));
 }
 
