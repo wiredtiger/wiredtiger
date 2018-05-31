@@ -1347,11 +1347,16 @@ done:		switch (modify_type) {
 static bool
 __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 {
+	WT_CURSOR *cursor;
 	WT_PAGE *page;
+	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
+	size_t upd_size;
 	int i;
 
+	cursor = &cbt->iface;
 	page = cbt->ref->page;
+	session = (WT_SESSION_IMPL *)cursor->session;
 
 	upd = NULL;
 	if (cbt->ins != NULL)
@@ -1360,9 +1365,14 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 	    page->modify != NULL && page->modify->mod_row_update != NULL)
 		upd = page->modify->mod_row_update[cbt->slot];
 
-	for (i = 0; upd != NULL; ++i, upd = upd->next) {
+	for (i = 0, upd_size = 0; upd != NULL; ++i, upd = upd->next) {
 		if (WT_UPDATE_DATA_VALUE(upd))
 			return (false);
+		upd_size += WT_UPDATE_MEMSIZE(upd);
+		if (!__wt_txn_upd_visible_all(session, upd))
+			continue;
+		if (upd_size >= WT_MODIFY_MEM_FACTOR * cursor->value.size)
+			return (true);
 		if (i >= WT_MAX_MODIFY_UPDATE)
 			return (true);
 	}
