@@ -50,7 +50,7 @@ __wt_conn_compat_config(
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	uint16_t major, minor, saved_major, saved_minor;
+	uint16_t min_major, min_minor, rel_major, rel_minor;
 	char *value;
 	bool txn_active;
 
@@ -59,11 +59,12 @@ __wt_conn_compat_config(
 
 	WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
 	if (cval.len == 0) {
-		conn->compat_major = WIREDTIGER_VERSION_MAJOR;
-		conn->compat_minor = WIREDTIGER_VERSION_MINOR;
+		rel_major = WIREDTIGER_VERSION_MAJOR;
+		rel_minor = WIREDTIGER_VERSION_MINOR;
 		F_CLR(conn, WT_CONN_COMPATIBILITY);
 	} else {
-		WT_RET(__conn_compat_parse(session, &cval, &major, &minor));
+		WT_RET(__conn_compat_parse(
+		    session, &cval, &rel_major, &rel_minor));
 
 		/*
 		 * We're doing an upgrade or downgrade, check whether
@@ -74,28 +75,70 @@ __wt_conn_compat_config(
 			WT_RET_MSG(session, ENOTSUP,
 			    "system must be quiescent"
 			    " for upgrade or downgrade");
-		conn->compat_major = major;
-		conn->compat_minor = minor;
 		F_SET(conn, WT_CONN_COMPATIBILITY);
 	}
+	/*
+	 * If we're a reconfigure and the user did not set any compatibility,
+	 * we're done.
+	 */
+	if (reconfig && !F_ISSET(conn, WT_CONN_COMPATIBILITY))
+		goto done;
+
+	/*
+	 * The minimum required version for existing files is only available
+	 * on opening the connection, not reconfigure.
+	 */
+	WT_RET(__wt_config_gets(session,
+	    cfg, "compatibility.require_min", &cval));
+	if (cval.len == 0) {
+		min_major = WT_CONN_COMPAT_NONE;
+		min_minor = WT_CONN_COMPAT_NONE;
+	} else
+		WT_RET(__conn_compat_parse(
+		    session, &cval, &min_major, &min_minor));
+
+	/*
+	 * The minimum required must be less than or equal to the compatibility
+	 * release if one was set. This is on an open and we're checking the
+	 * two against each other. We'll check against what was saved on a
+	 * restart later.
+	 */
+	if (!reconfig && F_ISSET(conn, WT_CONN_COMPATIBILITY) &&
+	    min_major != WT_CONN_COMPAT_NONE &&
+	    (min_major > rel_major ||
+	    (min_major == rel_major && min_minor > rel_minor)))
+		WT_RET_MSG(session, ENOTSUP,
+		    "required min of %" PRIu16 ".%" PRIu16
+		    "cannot be larger than compatibility release %"
+		    PRIu16 ".%" PRIu16,
+		    min_major, min_minor, rel_major, rel_minor);
+
+	/*
+	 * On a reconfigure, check the new release version against any
+	 * required minimum version set on open.
+	 */
+	if (reconfig && conn->compat_req_major != WT_CONN_COMPAT_NONE &&
+	    (conn->compat_req_major > rel_major ||
+	    (conn->compat_req_major == rel_major &&
+	    conn->compat_req_minor > rel_minor)))
+		WT_RET_MSG(session, ENOTSUP,
+		    "required min of %" PRIu16 ".%" PRIu16
+		    "cannot be larger than requested compatibility release %"
+		    PRIu16 ".%" PRIu16,
+		    conn->compat_req_major, conn->compat_req_minor,
+		    rel_major, rel_minor);
+
+	conn->compat_major = rel_major;
+	conn->compat_minor = rel_minor;
 
 	/*
 	 * Only rewrite the turtle file if this is a reconfig. On startup
-	 * it will get written as part of creating the connection.
+	 * it will get written as part of creating the connection. We do this
+	 * after checking the required minimum version so that we don't rewrite
+	 * the turtle file if there is an error.
 	 */
-	if (reconfig) {
-		/*
-		 * We rewrite the turtle file with the metadata information
-		 * that is already there. This call is only to update the
-		 * compatibility information. But since the turtle file is
-		 * entirely rewritten every time we need to send in the
-		 * metadata file information.
-		 */
-		WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &value));
-		WT_ERR(__wt_metadata_update(session, WT_METAFILE_URI, value));
-		__wt_free(session, value);
-		value = NULL;
-	}
+	if (reconfig)
+		WT_RET(__wt_metadata_turtle_rewrite(session));
 
 	/*
 	 * The required minimum cannot be set via reconfigure and it is
@@ -105,55 +148,30 @@ __wt_conn_compat_config(
 		goto done;
 
 	/*
-	 * The minimum required version for existing files is only available
-	 * on opening the connection, not reconfigure.
-	 */
-	WT_ERR(__wt_config_gets(session,
-	    cfg, "compatibility.require_min", &cval));
-	if (cval.len == 0) {
-		conn->compat_req_major = WT_CONN_COMPAT_NONE;
-		conn->compat_req_minor = WT_CONN_COMPAT_NONE;
-		goto done;
-	}
-	WT_ERR(__conn_compat_parse(session, &cval, &major, &minor));
-
-	/*
-	 * The minimum required must be less than or equal to the compatibility
-	 * release if one was set.
-	 */
-	if ((major > conn->compat_major) ||
-	    (major == conn->compat_major && minor > conn->compat_minor))
-		WT_ERR_MSG(session, ENOTSUP,
-		    "required min of %" PRIu16 ".%" PRIu16
-		    "cannot be larger than compatibility release %"
-		    PRIu16 ".%" PRIu16,
-		    major, minor, conn->compat_major, conn->compat_minor);
-
-	/*
 	 * Check the minimum required against any saved compatibility version
 	 * in the turtle file saved from an earlier run.
 	 */
-	saved_major = saved_minor = WT_CONN_COMPAT_NONE;
+	rel_major = rel_minor = WT_CONN_COMPAT_NONE;
 	if ((ret =
 	    __wt_metadata_search(session, WT_METADATA_COMPAT, &value)) == 0) {
 		WT_ERR(__wt_config_getones(session, value, "major", &cval));
-		saved_major = (uint16_t)cval.val;
+		rel_major = (uint16_t)cval.val;
 		WT_ERR(__wt_config_getones(session, value, "minor", &cval));
-		saved_minor = (uint16_t)cval.val;
-		if (major > saved_major ||
-		    (major == saved_major && minor > saved_minor))
+		rel_minor = (uint16_t)cval.val;
+		if (min_major > rel_major ||
+		    (min_major == rel_major && min_minor > rel_minor))
 			WT_ERR_MSG(session, ENOTSUP,
 			    "required min of %" PRIu16 ".%" PRIu16
 			    "cannot be larger than saved release %"
 			    PRIu16 ".%" PRIu16,
-			    major, minor, saved_major, saved_minor);
+			    min_major, min_minor, rel_major, rel_minor);
 	} else if (ret == WT_NOTFOUND)
 		ret = 0;
 	else
 		WT_ERR(ret);
 
-	conn->compat_req_major = major;
-	conn->compat_req_minor = minor;
+	conn->compat_req_major = min_major;
+	conn->compat_req_minor = min_minor;
 done:
 err:	if (value != NULL)
 		__wt_free(session, value);

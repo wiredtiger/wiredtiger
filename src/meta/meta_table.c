@@ -35,6 +35,26 @@ __metadata_turtle(const char *key)
 }
 
 /*
+ * __wt_metadata_turtle_rewrite --
+ *	Rewrite the turtle file. We wrap this because the lower functions
+ *	expect a URI key and config value pair for the metadata. This function
+ *	exists to push out the other contents to the turtle file such as a
+ *	change in compatibility information.
+ */
+int
+__wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	char *value;
+
+	value = NULL;
+	WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &value));
+	if ((ret = __wt_metadata_update(session, WT_METAFILE_URI, value)) == 0)
+		__wt_free(session, value);
+	return (ret);
+}
+
+/*
  * __wt_metadata_cursor_open --
  *	Opens a cursor on the metadata.
  */
