@@ -144,7 +144,7 @@ __wt_conn_compat_config(
 	 * The required minimum cannot be set via reconfigure and it is
 	 * meaningless on a newly created database. We're done in those cases.
 	 */
-	if (reconfig || conn->is_new)
+	if (reconfig || conn->is_new || min_major == WT_CONN_COMPAT_NONE)
 		goto done;
 
 	/*
