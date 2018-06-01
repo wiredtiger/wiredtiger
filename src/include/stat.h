@@ -422,6 +422,8 @@ struct __wt_connection_stats {
 	int64_t cache_read_deleted;
 	int64_t cache_read_deleted_prepared;
 	int64_t cache_read_lookaside;
+	int64_t cache_read_lookaside_snapshot_old;
+	int64_t cache_read_lookaside_snapshot_overlaps_las;
 	int64_t cache_read_lookaside_skipped;
 	int64_t cache_read_lookaside_delay;
 	int64_t cache_pages_requested;

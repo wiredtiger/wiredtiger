@@ -421,8 +421,26 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
 		return (false);
 
-	if (WT_TXNID_LE(txn->snap_min, ref->page_las->las_max_txn))
+	/*
+	 * If page image has the newest version of data and includes data newer
+	 * than the reader's snapshot then we should read the history.
+	 */
+	if (ref->page_las->las_skew_newest &&
+	    WT_TXNID_LE(txn->snap_min, ref->page_las->las_max_txn)) {
+		WT_STAT_CONN_INCR(session, cache_read_lookaside_snapshot_old);
 		return (false);
+	}
+
+	/*
+	 * If page image has the oldest version of data and some of the history
+	 * overlaps with the reader's snapshot then we should read the history.
+	 */
+	if (!ref->page_las->las_skew_newest &&
+	    WT_TXNID_LE(ref->page_las->las_min_txn, txn->snap_max)) {
+		WT_STAT_CONN_INCR(session,
+		    cache_read_lookaside_snapshot_overlaps_las);
+		return (false);
+	}
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) && ref->page_las->las_skew_newest)
 		return (true);

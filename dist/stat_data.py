@@ -274,6 +274,8 @@ connection_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_lookaside', 'pages read into cache requiring lookaside entries'),
+    CacheStat('cache_read_lookaside_snapshot_old', 'pages read into cache requiring lookaside entries snapshot old'),
+    CacheStat('cache_read_lookaside_snapshot_overlaps_las', 'pages read into cache requiring lookaside entries snapshot overlaps history'),
     CacheStat('cache_read_lookaside_delay', 'pages read into cache with skipped lookaside entries needed later'),
     CacheStat('cache_read_lookaside_skipped', 'pages read into cache skipping older lookaside entries'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
