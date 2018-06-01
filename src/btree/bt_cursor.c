@@ -1371,6 +1371,11 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 		upd_size += WT_UPDATE_MEMSIZE(upd);
 		if (!__wt_txn_upd_visible_all(session, upd))
 			continue;
+		/*
+		 * When history has to be maintained, creating extra copies
+		 * of large documents multiplies cache pressure, so avoid it,
+		 * by growing the modify chain.
+		 */
 		if (upd_size >= WT_MODIFY_MEM_FACTOR * cursor->value.size)
 			return (true);
 		if (i >= WT_MAX_MODIFY_UPDATE)

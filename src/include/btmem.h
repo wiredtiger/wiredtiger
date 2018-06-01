@@ -1070,8 +1070,10 @@ struct __wt_update {
 
 /*
  * WT_MAX_MODIFY_UPDATE --
- *	Limit update chains to a small value to avoid penalizing reads and
- *	permit truncation.
+ *	Limit update chains value to avoid penalizing reads and
+ *	permit truncation. Having a smaller value will penalize the cases
+ *	when history has to be maintained, resulting in multipling cache
+ *	pressure.
  */
 #define	WT_MAX_MODIFY_UPDATE	10000
 
