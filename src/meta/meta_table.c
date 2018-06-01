@@ -47,10 +47,9 @@ __wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	char *value;
 
-	value = NULL;
 	WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &value));
-	if ((ret = __wt_metadata_update(session, WT_METAFILE_URI, value)) == 0)
-		__wt_free(session, value);
+	ret = __wt_metadata_update(session, WT_METAFILE_URI, value);
+	__wt_free(session, value);
 	return (ret);
 }
 
