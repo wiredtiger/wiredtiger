@@ -31,12 +31,12 @@
 
 static const char * const uri = "table:large";
 
-#define DATASIZE	(10 * 1024 * 1024)
-#define MODIFY_COUNT	(1024 * 1024)
-#define NUM_DOCS	2
+#define	DATASIZE	(10 * 1024 * 1024)
+#define	MODIFY_COUNT	(1024 * 1024)
+#define	NUM_DOCS	2
 
 static void on_alarm(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void 
+static void
 on_alarm(int signo)
 {
 	(void)signo;				/* Unused parameter */
@@ -95,14 +95,14 @@ main(int argc, char *argv[])
 	testutil_check(testutil_parse_opts(argc, argv, opts));
 	testutil_make_work_dir(opts->home);
 
-	testutil_check(wiredtiger_open(opts->home, &event_handler, 
-	    "create," 
-	    "cache_size=1G," 
+	testutil_check(wiredtiger_open(opts->home, &event_handler,
+	    "create,"
+	    "cache_size=1G,"
 	    "statistics_log=(json,wait=1)", &opts->conn));
 
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(session->create(session, uri, 
+	testutil_check(session->create(session, uri,
 	    "key_format=Q,value_format=u,"
 	    "leaf_page_max=32k,"));
 
@@ -114,10 +114,10 @@ main(int argc, char *argv[])
 	memset(large_doc, 'v', DATASIZE);
 	value.data = large_doc;
 	value.size = DATASIZE;
-	
+
 	/* Insert records. */
-	for (i = 0; i < NUM_DOCS; i++) { 
-		c->set_key(c, i); 
+	for (i = 0; i < NUM_DOCS; i++) {
+		c->set_key(c, i);
 		c->set_value(c, &value);
 		testutil_check(c->insert(c));
 	}
@@ -140,8 +140,8 @@ main(int argc, char *argv[])
 
 	j = offset = 0;
 	while (++j < MODIFY_COUNT) {
-		for (i = 0; i < NUM_DOCS; i++) { 
-			/* Position the cursor. */ 
+		for (i = 0; i < NUM_DOCS; i++) {
+			/* Position the cursor. */
 			c->set_key(c, i);
 			modify_entry.data.data = "wiredtiger";
 			modify_entry.data.size = strlen(modify_entry.data.data);
@@ -151,7 +151,7 @@ main(int argc, char *argv[])
 			testutil_check(c->modify(c, &modify_entry, 1));
 			(void)alarm(0);
 		}
-		/* 
+		/*
 		 * Modify operations are done similar to append sequence.
 		 * This has no bearing on the test outcome.
 		 */

@@ -104,8 +104,8 @@ noinst_PROGRAMS += test_rwlock
 all_TESTS += test_rwlock
 
 test_wt4105_large_doc_small_upd_SOURCES = wt4105_large_doc_small_upd/main.c
-noinst_PROGRAMS += wt4105_large_doc_small_upd
-all_TESTS += wt4105_large_doc_small_upd
+noinst_PROGRAMS += test_wt4105_large_doc_small_upd
+all_TESTS += test_wt4105_large_doc_small_upd
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)
