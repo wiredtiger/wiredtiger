@@ -457,12 +457,10 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			break;
 		case WT_REF_LOOKASIDE:
 			/*
-			 * Check if the lookaside history is obsolete, which
-			 * will flip the state to WT_REF_DISK.
+			 * If the lookaside history is obsolete, the reference
+			 * can be ignored.
 			 */
-			__wt_las_page_obsolete_check(session, child);
-			if (child->state != WT_REF_DISK &&
-			    child->state != WT_REF_DELETED)
+			if (__wt_page_las_active(session, child))
 				return (EBUSY);
 			break;
 		default:

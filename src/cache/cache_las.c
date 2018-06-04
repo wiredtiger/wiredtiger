@@ -462,33 +462,6 @@ __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_las_page_obsolete_check --
- *	 Discard references from cache to obsolete lookaside history.
- */
-void
-__wt_las_page_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-	uint32_t previous_state;
-
-	if ((previous_state = ref->state) != WT_REF_LIMBO &&
-	    previous_state != WT_REF_LOOKASIDE)
-		return;
-
-	if (!__wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED))
-		return;
-
-	if (!__wt_page_las_active(session, ref)) {
-		__wt_free(session, ref->page_las);
-		if (previous_state == WT_REF_LOOKASIDE)
-			WT_PUBLISH(ref->state,
-			    ref->addr == NULL ?  WT_REF_DELETED : WT_REF_DISK);
-		else
-			WT_PUBLISH(ref->state, WT_REF_MEM);
-	} else
-		WT_PUBLISH(ref->state, previous_state);
-}
-
-/*
  * __las_remove_block --
  *	Remove all records for a given page from the lookaside store.
  */
