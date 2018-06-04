@@ -50,12 +50,17 @@ __wt_conn_compat_config(
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	uint16_t min_major, min_minor, rel_major, rel_minor;
+	uint16_t max_major, max_minor, min_major, min_minor;
+	uint16_t rel_major, rel_minor;
 	char *value;
 	bool txn_active;
 
 	conn = S2C(session);
 	value = NULL;
+	max_major = WT_CONN_COMPAT_NONE;
+	max_minor = WT_CONN_COMPAT_NONE;
+	min_major = WT_CONN_COMPAT_NONE;
+	min_minor = WT_CONN_COMPAT_NONE;
 
 	WT_RET(__wt_config_gets(session, cfg, "compatibility.release", &cval));
 	if (cval.len == 0) {
@@ -85,17 +90,20 @@ __wt_conn_compat_config(
 		goto done;
 
 	/*
-	 * The minimum required version for existing files is only available
-	 * on opening the connection, not reconfigure.
+	 * The maximum and minimum required version for existing files
+	 * is only available on opening the connection, not reconfigure.
 	 */
 	WT_RET(__wt_config_gets(session,
 	    cfg, "compatibility.require_min", &cval));
-	if (cval.len == 0) {
-		min_major = WT_CONN_COMPAT_NONE;
-		min_minor = WT_CONN_COMPAT_NONE;
-	} else
+	if (cval.len != 0)
 		WT_RET(__conn_compat_parse(
 		    session, &cval, &min_major, &min_minor));
+
+	WT_RET(__wt_config_gets(session,
+	    cfg, "compatibility.require_max", &cval));
+	if (cval.len != 0)
+		WT_RET(__conn_compat_parse(
+		    session, &cval, &max_major, &max_minor));
 
 	/*
 	 * The minimum required must be less than or equal to the compatibility
@@ -117,15 +125,15 @@ __wt_conn_compat_config(
 	 * On a reconfigure, check the new release version against any
 	 * required minimum version set on open.
 	 */
-	if (reconfig && conn->compat_req_major != WT_CONN_COMPAT_NONE &&
-	    (conn->compat_req_major > rel_major ||
-	    (conn->compat_req_major == rel_major &&
-	    conn->compat_req_minor > rel_minor)))
+	if (reconfig && conn->req_min_major != WT_CONN_COMPAT_NONE &&
+	    (conn->req_min_major > rel_major ||
+	    (conn->req_min_major == rel_major &&
+	    conn->req_min_minor > rel_minor)))
 		WT_RET_MSG(session, ENOTSUP,
 		    "required min of %" PRIu16 ".%" PRIu16
 		    "cannot be larger than requested compatibility release %"
 		    PRIu16 ".%" PRIu16,
-		    conn->compat_req_major, conn->compat_req_minor,
+		    conn->req_min_major, conn->req_min_minor,
 		    rel_major, rel_minor);
 
 	conn->compat_major = rel_major;
@@ -170,9 +178,11 @@ __wt_conn_compat_config(
 	else
 		WT_ERR(ret);
 
-	conn->compat_req_major = min_major;
-	conn->compat_req_minor = min_minor;
-done:
+done:	conn->req_max_major = max_major;
+	conn->req_max_minor = max_minor;
+	conn->req_min_major = min_major;
+	conn->req_min_minor = min_minor;
+
 err:	if (value != NULL)
 		__wt_free(session, value);
 
