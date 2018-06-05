@@ -1369,15 +1369,15 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 		if (WT_UPDATE_DATA_VALUE(upd))
 			return (false);
 		upd_size += WT_UPDATE_MEMSIZE(upd);
-		if (!__wt_txn_upd_visible_all(session, upd))
-			continue;
+		if (upd_size >= WT_MODIFY_MEM_FACTOR * cursor->value.size)
+			return (true);
 		/*
 		 * When history has to be maintained, creating extra copies
 		 * of large documents multiplies cache pressure, so avoid it,
 		 * by growing the modify chain.
 		 */
-		if (upd_size >= WT_MODIFY_MEM_FACTOR * cursor->value.size)
-			return (true);
+		if (!__wt_txn_upd_visible_all(session, upd))
+			continue;
 		if (i >= WT_MAX_MODIFY_UPDATE)
 			return (true);
 	}
@@ -1408,6 +1408,10 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	/* Save the cursor state. */
 	__cursor_state_save(cursor, &state);
 
+	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+		WT_ERR_MSG(session, ENOTSUP,
+		    "not supported in read-uncommitted transactions");
+
 	/*
 	 * Get the current value and apply the modification to it, for a few
 	 * reasons: first, we set the updated value so the application can
@@ -1419,11 +1423,9 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 * fifth reason, verify we're not in a read-uncommitted transaction,
 	 * that implies a value that might disappear out from under us.
 	 */
-	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
-		WT_ERR_MSG(session, ENOTSUP,
-		    "not supported in read-uncommitted transactions");
-
-	WT_ERR(__wt_btcur_search(cbt));
+	if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) ||
+	    !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
+		WT_ERR(__wt_btcur_search(cbt));
 	orig = cursor->value.size;
 	WT_ERR(__wt_modify_apply_api(session, cursor, entries, nentries));
 	new = cursor->value.size;
