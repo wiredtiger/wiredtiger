@@ -70,18 +70,27 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
         ('26_rel', dict(rel="2.6", log_rel=1)),
         ('26_patch_rel', dict(rel="2.6.1", log_rel=1)),
     ]
-    compat_required = [
-        ('future_req', dict(req=future_rel, log_req=future_logv)),
-        ('31_req', dict(req="3.1", log_req=3)),
-        ('30_req', dict(req="3.0", log_req=2)),
-        ('26_req', dict(req="2.6", log_req=1)),
-        ('26_patch_req', dict(req="2.6.1", log_req=1)),
+    compat_max = [
+        ('future_max', dict(max_req=future_rel, log_max=future_logv)),
+        ('def_max', dict(max_req='none', log_max=3)),
+        ('31_max', dict(max_req="3.1", log_max=3)),
+        ('30_max', dict(max_req="3.0", log_max=2)),
+        ('26_max', dict(max_req="2.6", log_max=1)),
+        ('26_patch_max', dict(max_req="2.6.1", log_max=1)),
+    ]
+    compat_min = [
+        ('future_min', dict(min_req=future_rel, log_min=future_logv)),
+        ('def_min', dict(min_req='none', log_min=3)),
+        ('31_min', dict(min_req="3.1", log_min=3)),
+        ('30_min', dict(min_req="3.0", log_min=2)),
+        ('26_min', dict(min_req="2.6", log_min=1)),
+        ('26_patch_min', dict(min_req="2.6.1", log_min=1)),
     ]
     base_config = [
         ('basecfg_true', dict(basecfg='true')),
         ('basecfg_false', dict(basecfg='false')),
     ]
-    scenarios = make_scenarios(compat_create, compat_release, compat_required, base_config)
+    scenarios = make_scenarios(compat_create, compat_release, compat_min, compat_max, base_config)
 
     def conn_config(self):
         # Set archive false on the home directory.
@@ -113,9 +122,10 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
         # useful. Test for success or failure based on the relative versions
         # configured.
         compat_str = ''
-        if (self.req != 'none'):
-            #compat_str = 'verbose=(temporary),compatibility=(require_min="%s"),' % self.req
-            compat_str += 'compatibility=(require_min="%s"),' % self.req
+        if (self.max_req != 'none'):
+            compat_str += 'compatibility=(require_max="%s"),' % self.max_req
+        if (self.min_req != 'none'):
+            compat_str += 'compatibility=(require_min="%s"),' % self.min_req
         if (self.rel != 'none'):
             compat_str += 'compatibility=(release="%s"),' % self.rel
         self.conn.close()
@@ -123,38 +133,29 @@ class test_compat02(wttest.WiredTigerTestCase, suite_subprocess):
         restart_config = log_str + compat_str
         self.pr("Restart conn " + restart_config)
         #
-        # Open a connection with a minimum required database and a
-        # release compatibility setting.
+        # We have a lot of error cases. There are too many and they are
+        # dependent on the order of the library code so don't check specific
+        # error messages. So just determine if an error should occur and
+        # make sure it does.
         #
-        msgunsup = "/unsupported major version/"
-        msglog = "/this build requires a minimum version/"
-        msgcompat = "/cannot be larger than compatibility release/"
-        msgsave = "/cannot be larger than saved release/"
-        if (self.log_req >= self.future_logv):
-            self.pr("EXPECT: " + msgunsup)
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open('.', restart_config), msgunsup)
-        elif (self.rel != 'none' and self.log_req > self.log_rel):
-            self.pr("EXPECT: " + msgcompat)
-            # If required minimum is larger than the compatibility
-            # setting we expect an error.
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open('.', restart_config), msgcompat)
-        elif (self.log_req > self.log_create and self.create_rel != 'none'):
-            self.pr("EXPECT: " + msgsave)
-            # If required minimum is larger than the setting we created the
-            # database with, we expect an error.
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open('.', restart_config), msgsave)
-        elif (self.log_req > self.log_create):
-            self.pr("EXPECT: " + msglog)
-            # If required minimum is larger than the setting we created the
-            # database with, we expect an error.
-            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: self.wiredtiger_open('.', restart_config), msglog)
+        if ((self.log_min >= self.future_logv) or
+          (self.log_max >= self.future_logv) or
+          (self.max_req != 'none' and self.log_max < self.log_rel) or
+          (self.min_req != 'none' and self.log_min > self.log_rel) or
+          (self.max_req != 'none' and self.min_req != 'none' and self.log_max < self.log_min) or
+          (self.max_req != 'none' and self.log_max < self.log_create) or
+          (self.min_req != 'none' and self.log_min > self.log_create)):
+            expect_err = True
         else:
-            # We expect success
-            self.pr("EXPECT: SUCCESS")
+            expect_err = False
+
+        if (expect_err == True):
+            self.pr("EXPECT ERROR")
+            with self.expectedStderrPattern(''):
+                self.assertRaisesException(wiredtiger.WiredTigerError,
+                    lambda: self.wiredtiger_open('.', restart_config))
+        else:
+            self.pr("EXPECT SUCCESS")
             conn = self.wiredtiger_open('.', restart_config)
             conn.close()
 
