@@ -627,11 +627,13 @@ __checkpoint_prepare(
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_DECL_TIMESTAMP(read_timestamp)
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *txn_state;
 	const char *txn_cfg[] = { WT_CONFIG_BASE(session,
 	    WT_SESSION_begin_transaction), "isolation=snapshot", NULL, NULL };
+	char timestamp_buf[64 + 2 * WT_TIMESTAMP_SIZE];
 	bool use_timestamp;
 
 	conn = S2C(session);
@@ -641,6 +643,50 @@ __checkpoint_prepare(
 
 	WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
 	use_timestamp = (cval.val != 0);
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * Set the checkpoint transaction's timestamp, if requested.
+	 *
+	 * We rely on having the global transaction data locked so the oldest
+	 * timestamp can't move past the stable timestamp.
+	 */
+	WT_ASSERT(session, !F_ISSET(txn,
+	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
+	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
+
+	if (use_timestamp) {
+		/*
+		 * If the user wants timestamps then set the metadata
+		 * checkpoint timestamp based on whether or not a stable
+		 * timestamp is actually in use.  Only set it when we're not
+		 * running recovery because recovery doesn't set the recovery
+		 * timestamp until its checkpoint is complete.
+		 */
+		if (txn_global->has_stable_timestamp) {
+			WT_WITH_TIMESTAMP_READLOCK(session,
+			    &txn_global->rwlock,
+			    __wt_timestamp_set(&read_timestamp,
+			    &txn_global->stable_timestamp));
+			strcpy(timestamp_buf, "read_timestamp=");
+			WT_RET(__wt_timestamp_to_hex_string(session,
+			    timestamp_buf + strlen(timestamp_buf),
+			    &read_timestamp));
+			txn_cfg[2] = timestamp_buf;
+
+			if (!F_ISSET(conn, WT_CONN_RECOVERING))
+				__wt_timestamp_set(
+				    &txn_global->meta_ckpt_timestamp,
+				    &read_timestamp);
+		} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
+			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
+			    &txn_global->recovery_timestamp);
+	} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
+		__wt_timestamp_set_zero(&txn_global->meta_ckpt_timestamp);
+#else
+	WT_UNUSED(use_timestamp);
+	WT_UNUSED(timestamp_buf);
+#endif
 
 	/*
 	 * Start a snapshot transaction for the checkpoint.
@@ -704,46 +750,6 @@ __checkpoint_prepare(
 	 */
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
-
-#ifdef HAVE_TIMESTAMPS
-	/*
-	 * Set the checkpoint transaction's timestamp, if requested.
-	 *
-	 * We rely on having the global transaction data locked so the oldest
-	 * timestamp can't move past the stable timestamp.
-	 */
-	WT_ASSERT(session, !F_ISSET(txn,
-	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
-
-	if (use_timestamp) {
-		/*
-		 * If the user wants timestamps then set the metadata
-		 * checkpoint timestamp based on whether or not a stable
-		 * timestamp is actually in use.  Only set it when we're not
-		 * running recovery because recovery doesn't set the recovery
-		 * timestamp until its checkpoint is complete.
-		 */
-		if (txn_global->has_stable_timestamp) {
-			__wt_timestamp_set(&txn->read_timestamp,
-			    &txn_global->stable_timestamp);
-			F_SET(txn, WT_TXN_HAS_TS_READ);
-			if (!F_ISSET(conn, WT_CONN_RECOVERING))
-				__wt_timestamp_set(
-				    &txn_global->meta_ckpt_timestamp,
-				    &txn->read_timestamp);
-		} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
-			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
-			    &txn_global->recovery_timestamp);
-	} else {
-		__wt_timestamp_set_zero(&txn->read_timestamp);
-		if (!F_ISSET(conn, WT_CONN_RECOVERING))
-			__wt_timestamp_set_zero(
-			    &txn_global->meta_ckpt_timestamp);
-	}
-#else
-	WT_UNUSED(use_timestamp);
-#endif
 
 	__wt_writeunlock(session, &txn_global->rwlock);
 
