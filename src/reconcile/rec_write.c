@@ -939,12 +939,16 @@ __rec_init(WT_SESSION_IMPL *session,
 		WT_ORDERED_READ(las_skew_oldest,
 		    txn_global->has_stable_timestamp);
 		if (las_skew_oldest)
-			las_skew_oldest = (ref->page_las != NULL &&
+			las_skew_oldest = ref->page_las != NULL &&
 			    !__wt_txn_visible_all(session, WT_TXN_NONE,
 			    WT_TIMESTAMP_NULL(
-			    &ref->page_las->min_timestamp))) ||
-			    btree->checkpoint_gen !=
-			    __wt_gen(session, WT_GEN_CHECKPOINT);
+			    &ref->page_las->min_timestamp));
+			if (!las_skew_oldest && (btree->checkpoint_gen !=
+			    __wt_gen(session, WT_GEN_CHECKPOINT))) {
+				las_skew_oldest = true;
+				WT_STAT_CONN_INCR(session,
+				    cache_skew_oldest);
+			}
 	}
 	r->las_skew_newest = LF_ISSET(WT_REC_LOOKASIDE) &&
 	    LF_ISSET(WT_REC_VISIBLE_ALL) && !las_skew_oldest;
@@ -978,7 +982,7 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
-	r->min_txn_unstable = WT_TXN_NONE;
+	r->min_txn_unstable = WT_TXN_ABORTED;
 	__wt_timestamp_set_zero(&r->max_timestamp);
 	__wt_timestamp_set_zero(&r->max_onpage_timestamp);
 	__wt_timestamp_set_inf(&r->min_saved_timestamp);
@@ -1278,7 +1282,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	page = r->page;
 	first_txn_upd = NULL;
 	upd_memsize = 0;
-	max_txn = min_txn_unstable = WT_TXN_NONE;
+	max_txn = WT_TXN_NONE;
+	min_txn_unstable = WT_TXN_ABORTED;
 	skipped_birthmark = uncommitted = false;
 
 	/*
@@ -1381,7 +1386,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			/*
 			 * Track minimum transaction ID for unstable updates.
 			 */
-			if (WT_TXNID_LT(txnid, min_txn_unstable))
+			if (txnid != WT_TXN_NONE &&
+			    WT_TXNID_LT(txnid, min_txn_unstable))
 				min_txn_unstable = txnid;
 
 			continue;
