@@ -939,16 +939,12 @@ __rec_init(WT_SESSION_IMPL *session,
 		WT_ORDERED_READ(las_skew_oldest,
 		    txn_global->has_stable_timestamp);
 		if (las_skew_oldest) {
-			las_skew_oldest = ref->page_las != NULL &&
+			las_skew_oldest = (ref->page_las != NULL &&
 			    !__wt_txn_visible_all(session, WT_TXN_NONE,
 			    WT_TIMESTAMP_NULL(
-			    &ref->page_las->min_timestamp));
-			if (!las_skew_oldest && (btree->checkpoint_gen !=
-			    __wt_gen(session, WT_GEN_CHECKPOINT))) {
-				las_skew_oldest = true;
-				WT_STAT_CONN_INCR(session,
-				    cache_skew_oldest);
-			}
+			    &ref->page_las->min_timestamp))) ||
+			    btree->checkpoint_gen !=
+			    __wt_gen(session, WT_GEN_CHECKPOINT);
 		}
 	}
 	r->las_skew_newest = LF_ISSET(WT_REC_LOOKASIDE) &&

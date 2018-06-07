@@ -841,7 +841,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: modified pages evicted",
 	"cache: modified pages evicted by application threads",
 	"cache: overflow pages read into cache",
-	"cache: page image has the oldest version of data",
 	"cache: page split during eviction deepened the tree",
 	"cache: page written requiring lookaside records",
 	"cache: pages currently held in the cache",
@@ -857,8 +856,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages read into cache after truncate",
 	"cache: pages read into cache after truncate in prepare state",
 	"cache: pages read into cache requiring lookaside entries",
-	"cache: pages read into cache requiring lookaside entries snapshot old",
-	"cache: pages read into cache requiring lookaside entries snapshot overlaps history",
 	"cache: pages read into cache requiring lookaside for checkpoint",
 	"cache: pages read into cache skipping older lookaside entries",
 	"cache: pages read into cache with skipped lookaside entries needed later",
@@ -1241,7 +1238,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_dirty = 0;
 	stats->cache_eviction_app_dirty = 0;
 	stats->cache_read_overflow = 0;
-	stats->cache_skew_oldest = 0;
 	stats->cache_eviction_deepen = 0;
 	stats->cache_write_lookaside = 0;
 		/* not clearing cache_pages_inuse */
@@ -1257,8 +1253,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_read_deleted = 0;
 	stats->cache_read_deleted_prepared = 0;
 	stats->cache_read_lookaside = 0;
-	stats->cache_read_lookaside_snapshot_old = 0;
-	stats->cache_read_lookaside_snapshot_overlaps_las = 0;
 	stats->cache_read_lookaside_checkpoint = 0;
 	stats->cache_read_lookaside_skipped = 0;
 	stats->cache_read_lookaside_delay = 0;
@@ -1669,7 +1663,6 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_app_dirty +=
 	    WT_STAT_READ(from, cache_eviction_app_dirty);
 	to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
-	to->cache_skew_oldest += WT_STAT_READ(from, cache_skew_oldest);
 	to->cache_eviction_deepen +=
 	    WT_STAT_READ(from, cache_eviction_deepen);
 	to->cache_write_lookaside +=
@@ -1694,10 +1687,6 @@ __wt_stat_connection_aggregate(
 	to->cache_read_deleted_prepared +=
 	    WT_STAT_READ(from, cache_read_deleted_prepared);
 	to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
-	to->cache_read_lookaside_snapshot_old +=
-	    WT_STAT_READ(from, cache_read_lookaside_snapshot_old);
-	to->cache_read_lookaside_snapshot_overlaps_las +=
-	    WT_STAT_READ(from, cache_read_lookaside_snapshot_overlaps_las);
 	to->cache_read_lookaside_checkpoint +=
 	    WT_STAT_READ(from, cache_read_lookaside_checkpoint);
 	to->cache_read_lookaside_skipped +=

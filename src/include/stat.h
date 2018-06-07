@@ -407,7 +407,6 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_dirty;
 	int64_t cache_eviction_app_dirty;
 	int64_t cache_read_overflow;
-	int64_t cache_skew_oldest;
 	int64_t cache_eviction_deepen;
 	int64_t cache_write_lookaside;
 	int64_t cache_pages_inuse;
@@ -423,8 +422,6 @@ struct __wt_connection_stats {
 	int64_t cache_read_deleted;
 	int64_t cache_read_deleted_prepared;
 	int64_t cache_read_lookaside;
-	int64_t cache_read_lookaside_snapshot_old;
-	int64_t cache_read_lookaside_snapshot_overlaps_las;
 	int64_t cache_read_lookaside_checkpoint;
 	int64_t cache_read_lookaside_skipped;
 	int64_t cache_read_lookaside_delay;
