@@ -235,6 +235,7 @@ struct __wt_ovfl_reuse {
 struct __wt_page_lookaside {
 	uint64_t las_pageid;		/* Page ID in lookaside */
 	uint64_t las_max_txn;		/* Max transaction ID in lookaside */
+	uint64_t las_min_txn;		/* Min transaction ID in lookaside */
 	WT_DECL_TIMESTAMP(min_timestamp)/* Min timestamp in lookaside */
 					/* Max timestamp on page */
 	WT_DECL_TIMESTAMP(onpage_timestamp)
