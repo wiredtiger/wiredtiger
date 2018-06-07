@@ -140,8 +140,8 @@ main(int argc, char *argv[])
 		for (i = 0; i < NUM_DOCS; i++) {
 			/* Position the cursor. */
 			c->set_key(c, i);
-			modify_entry.data.data = 
-			    "wiredtigerwiredtigerwiredtiger";
+			modify_entry.data.data =
+			    "abcdefghijklmnopqrstuvwxyz";
 			modify_entry.data.size = strlen(modify_entry.data.data);
 			modify_entry.offset = offset;
 			modify_entry.size = modify_entry.data.size;
