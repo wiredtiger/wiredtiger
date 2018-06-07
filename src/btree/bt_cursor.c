@@ -1339,10 +1339,7 @@ done:		switch (modify_type) {
 
 /*
  * __cursor_chain_exceeded --
- *	Return if the update chain has exceeded the limit. Deleted or standard
- * updates are anticipated to be sufficient to base the modify (although that's
- * not guaranteed, they may not be visible or might abort before we read them).
- * Also, this is not a hard limit, threads can race modifying updates.
+ *	Return if the update chain has exceeded the limit.
  */
 static bool
 __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
@@ -1365,20 +1362,35 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
 	    page->modify != NULL && page->modify->mod_row_update != NULL)
 		upd = page->modify->mod_row_update[cbt->slot];
 
-	for (i = 0, upd_size = 0; upd != NULL; ++i, upd = upd->next) {
-		if (WT_UPDATE_DATA_VALUE(upd))
-			return (false);
+	/*
+	 * Step through the modify operations at the beginning of the chain.
+	 *
+	 * Deleted or standard updates are anticipated to be sufficient to base
+	 * the modify (although that's not guaranteed: they may not be visible
+	 * or might abort before we read them).  Also, this is not a hard
+	 * limit, threads can race modifying updates.
+	 *
+	 * If the total size in bytes of the updates exceeds some factor of the
+	 * underlying value size (which we know because the cursor is
+	 * positioned), create a new full copy of the value.  This limits the
+	 * cache pressure from creating full copies to that factor: with the
+	 * default factor of 1, the total size in memory of a set of modify
+	 * updates is limited to double the size of the modifies.
+	 *
+	 * Otherwise, limit the length of the update chain to a fixed size to
+	 * bound the cost of rebuilding the value during reads.  When history
+	 * has to be maintained, creating extra copies of large documents
+	 * multiplies cache pressure because the old ones cannot be freed, so
+	 * allow the modify chain to grow.
+	 */
+	for (i = 0, upd_size = 0;
+	    upd != NULL && upd->type == WT_UPDATE_MODIFY;
+	    ++i, upd = upd->next) {
 		upd_size += WT_UPDATE_MEMSIZE(upd);
 		if (upd_size >= WT_MODIFY_MEM_FACTOR * cursor->value.size)
 			return (true);
-		/*
-		 * When history has to be maintained, creating extra copies
-		 * of large documents multiplies cache pressure, so avoid it,
-		 * by growing the modify chain.
-		 */
-		if (!__wt_txn_upd_visible_all(session, upd))
-			continue;
-		if (i >= WT_MAX_MODIFY_UPDATE)
+		if (__wt_txn_upd_visible_all(session, upd) &&
+		    i >= WT_MAX_MODIFY_UPDATE)
 			return (true);
 	}
 	return (false);
