@@ -31,8 +31,8 @@
 
 static const char * const uri = "table:large";
 
-#define	DATASIZE	(10 * 1024 * 1024)
-#define	MODIFY_COUNT	(1024 * 1024)
+#define	DATASIZE	(1024 * 1024)
+#define	MODIFY_COUNT	(1024)
 #define	NUM_DOCS	2
 
 static void on_alarm(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -86,10 +86,6 @@ main(int argc, char *argv[])
 	char *large_doc;
 	uint64_t i, j, offset;
 
-	/* Ignore unless requested */
-	if (!testutil_is_flag_set("TESTUTIL_ENABLE_LONG_TESTS"))
-		return (EXIT_SUCCESS);
-
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
 	testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -104,7 +100,7 @@ main(int argc, char *argv[])
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 	testutil_check(session->create(session, uri,
 	    "key_format=Q,value_format=u,"
-	    "leaf_page_max=32k,"));
+	    "leaf_item_max=64M,leaf_page_max=32k,memory_page_max=1M"));
 
 	testutil_check(
 	    session->open_cursor(session, uri, NULL, NULL, &c));
@@ -123,7 +119,8 @@ main(int argc, char *argv[])
 	}
 
 	testutil_check(c->close(c));
-	printf("%d documents inserted\n", NUM_DOCS);
+	if (opts->verbose)
+		printf("%d documents inserted\n", NUM_DOCS);
 
 	/* Setup Transaction to pin the cache */
 	testutil_check(
@@ -143,7 +140,8 @@ main(int argc, char *argv[])
 		for (i = 0; i < NUM_DOCS; i++) {
 			/* Position the cursor. */
 			c->set_key(c, i);
-			modify_entry.data.data = "wiredtiger";
+			modify_entry.data.data = 
+			    "wiredtigerwiredtigerwiredtiger";
 			modify_entry.data.size = strlen(modify_entry.data.data);
 			modify_entry.offset = offset;
 			modify_entry.size = modify_entry.data.size;
@@ -157,7 +155,8 @@ main(int argc, char *argv[])
 		 */
 		offset += modify_entry.data.size;
 		offset = offset < DATASIZE ? offset : 0;
-		printf("modify count %" PRIu64"\n", j * NUM_DOCS);
+		if (opts->verbose)
+			printf("modify count %" PRIu64"\n", j * NUM_DOCS);
 	}
 
 	testutil_cleanup(opts);
