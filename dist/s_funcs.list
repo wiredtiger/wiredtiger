@@ -35,6 +35,7 @@ __wt_stream_set_no_buffer
 __wt_try_readlock
 wiredtiger_config_parser_open
 wiredtiger_config_validate
+wiredtiger_crc32c_checksum
 wiredtiger_pack_int
 wiredtiger_pack_item
 wiredtiger_pack_str
