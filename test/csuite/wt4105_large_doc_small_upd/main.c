@@ -82,9 +82,8 @@ main(int argc, char *argv[])
 	WT_ITEM value;
 	WT_MODIFY modify_entry;
 	WT_SESSION *session, *session2;
-
-	char *large_doc;
 	uint64_t i, j, offset;
+	char *large_doc;
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -106,7 +105,7 @@ main(int argc, char *argv[])
 	    session->open_cursor(session, uri, NULL, NULL, &c));
 
 	/* Value is initialized with 'v' and has not significance to it. */
-	large_doc = (char *)malloc(DATASIZE);
+	large_doc = dmalloc(DATASIZE);
 	memset(large_doc, 'v', DATASIZE);
 	value.data = large_doc;
 	value.size = DATASIZE;
