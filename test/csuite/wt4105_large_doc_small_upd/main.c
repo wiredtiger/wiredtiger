@@ -132,8 +132,7 @@ main(int argc, char *argv[])
 	/* Start another session to perform small updates. */
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session2));
-	testutil_check(
-	    session->open_cursor(session2, uri, NULL, NULL, &c));
+	testutil_check(session2->open_cursor(session2, uri, NULL, NULL, &c));
 
 	j = offset = 0;
 	while (++j < MODIFY_COUNT) {
