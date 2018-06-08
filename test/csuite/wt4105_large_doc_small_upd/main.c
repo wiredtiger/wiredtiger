@@ -46,7 +46,7 @@ on_alarm(int signo)
 	/* NOTREACHED */
 }
 
-static int ignore_errors;
+static int ignore_errors = 0;
 
 static int
 handle_error(WT_EVENT_HANDLER *handler,
