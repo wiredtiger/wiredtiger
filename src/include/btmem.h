@@ -1076,7 +1076,7 @@ struct __wt_update {
  *	when history has to be maintained, resulting in multiplying cache
  *	pressure.
  */
-#define	WT_MAX_MODIFY_UPDATE	10000
+#define	WT_MAX_MODIFY_UPDATE	10
 
 /*
  * WT_MODIFY_MEM_FACTOR	--
