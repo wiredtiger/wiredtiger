@@ -54,29 +54,29 @@ run(void)
 	 * Some simple known checksums.
 	 */
 	len = 1;
-	crc32c = wiredtiger_crc32c_checksum(data, len);
+	crc32c = wiredtiger_checksum_crc32c(data, len);
 	check(crc32c, (uint32_t)0x527d5351, len, "nul x1");
 
 	len = 2;
-	crc32c = wiredtiger_crc32c_checksum(data, len);
+	crc32c = wiredtiger_checksum_crc32c(data, len);
 	check(crc32c, (uint32_t)0xf16177d2, len, "nul x2");
 
 	len = 3;
-	crc32c = wiredtiger_crc32c_checksum(data, len);
+	crc32c = wiredtiger_checksum_crc32c(data, len);
 	check(crc32c, (uint32_t)0x6064a37a, len, "nul x3");
 
 	len = 4;
-	crc32c = wiredtiger_crc32c_checksum(data, len);
+	crc32c = wiredtiger_checksum_crc32c(data, len);
 	check(crc32c, (uint32_t)0x48674bc7, len, "nul x4");
 
 	len = strlen("123456789");
 	memcpy(data, "123456789", len);
-	crc32c = wiredtiger_crc32c_checksum(data, len);
+	crc32c = wiredtiger_checksum_crc32c(data, len);
 	check(crc32c, (uint32_t)0xe3069283, len, "known string #1");
 
 	len = strlen("The quick brown fox jumps over the lazy dog");
 	memcpy(data, "The quick brown fox jumps over the lazy dog", len);
-	crc32c = wiredtiger_crc32c_checksum(data, len);
+	crc32c = wiredtiger_checksum_crc32c(data, len);
 	check(crc32c, (uint32_t)0x22620404, len, "known string #2");
 
 	free(data);

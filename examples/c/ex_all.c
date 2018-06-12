@@ -1357,7 +1357,7 @@ main(int argc, char *argv[])
 	size_t len = strlen(buffer);
 	/*! [Checksum a buffer] */
 	uint32_t crc32c;
-	crc32c = wiredtiger_crc32c_checksum(buffer, len);
+	crc32c = wiredtiger_checksum_crc32c(buffer, len);
 	/*! [Checksum a buffer] */
 	(void)crc32c;
 	}

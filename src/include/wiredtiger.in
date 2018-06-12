@@ -3538,7 +3538,7 @@ struct __wt_config_parser {
  * @param len the number of valid bytes in the buffer
  * @returns the buffer's CRC32C checksum
  */
-uint32_t wiredtiger_crc32c_checksum(const void *buffer, size_t len)
+uint32_t wiredtiger_checksum_crc32c(const void *buffer, size_t len)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*! @} */
