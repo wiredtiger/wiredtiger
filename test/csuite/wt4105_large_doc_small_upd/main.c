@@ -157,6 +157,7 @@ main(int argc, char *argv[])
 			printf("modify count %" PRIu64"\n", j * NUM_DOCS);
 	}
 
+	free(large_doc);
 	testutil_cleanup(opts);
 
 	return (EXIT_SUCCESS);
