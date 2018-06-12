@@ -684,6 +684,7 @@ extern
 extlist
 fadvise
 fallocate
+fallthrough
 fblocks
 fc
 fclose
