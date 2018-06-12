@@ -240,6 +240,12 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	empty_internal = initial_descent = false;
 
 	/*
+	 * We're not supposed to walk trees without root pages. As this has not
+	 * always been the case, assert to debug that change.
+	 */
+	WT_ASSERT(session, btree->root.page != NULL);
+
+	/*
 	 * Tree walks are special: they look inside page structures that splits
 	 * may want to free.  Publish that the tree is active during this
 	 * window.
@@ -304,12 +310,6 @@ restart:	/*
 		 * by calling them out.
 		 */
 		WT_ERR(__wt_page_release(session, couple, flags));
-
-		/*
-		 * We're not supposed to walk trees without root pages. As this
-		 * has not always been the case, assert to debug that change.
-		 */
-		WT_ASSERT(session, btree->root.page != NULL);
 
 		couple = couple_orig = ref = &btree->root;
 		initial_descent = true;
