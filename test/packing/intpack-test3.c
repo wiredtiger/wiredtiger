@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2016 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -35,23 +35,32 @@ void
 test_value(int64_t val)
 {
 	const uint8_t *cp;
-	uint8_t buf[10], *p;
+	uint8_t buf[WT_INTPACK64_MAXSIZE + 8];	/* -Werror=array-bounds */
+	uint8_t *p;
 	int64_t sinput, soutput;
 	uint64_t uinput, uoutput;
 	size_t used_len;
 
-	soutput = 0;	/* -Werror=maybe-uninitialized */
+	memset(buf, 0xff, sizeof(buf));	/* -Werror=maybe-uninitialized */
 	sinput = val;
-	soutput = 0;	/* Make GCC happy. */
+	soutput = 0;	/* -Werror=maybe-uninitialized */
+
+	/*
+	 * Required on some systems to pull in parts of the library
+	 * for which we have data references.
+	 */
+	testutil_check(__wt_library_init());
+
 	p = buf;
 	testutil_check(__wt_vpack_int(&p, sizeof(buf), sinput));
 	used_len = (size_t)(p - buf);
+	testutil_assert(used_len <= WT_INTPACK64_MAXSIZE);
 	cp = buf;
 	testutil_check(__wt_vunpack_int(&cp, used_len, &soutput));
 	/* Ensure we got the correct value back */
 	if (sinput != soutput) {
-		fprintf(stderr, "mismatch %" PRIu64 ", %" PRIu64 "\n",
-		    sinput, soutput);
+		fprintf(stderr,
+		    "mismatch %" PRId64 ", %" PRId64 "\n", sinput, soutput);
 		abort();
 	}
 	/* Ensure that decoding used the correct amount of buffer */
@@ -70,12 +79,14 @@ test_value(int64_t val)
 
 	p = buf;
 	testutil_check(__wt_vpack_uint(&p, sizeof(buf), uinput));
+	used_len = (size_t)(p - buf);
+	testutil_assert(used_len <= WT_INTPACK64_MAXSIZE);
 	cp = buf;
 	testutil_check(__wt_vunpack_uint(&cp, sizeof(buf), &uoutput));
 	/* Ensure we got the correct value back */
 	if (sinput != soutput) {
-		fprintf(stderr, "mismatch %" PRIu64 ", %" PRIu64 "\n",
-		    sinput, soutput);
+		fprintf(stderr,
+		    "mismatch %" PRId64 ", %" PRId64 "\n", sinput, soutput);
 		abort();
 	}
 	/* Ensure that decoding used the correct amount of buffer */
