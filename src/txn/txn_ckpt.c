@@ -839,6 +839,8 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 		*can_skipp = true;
 		return (0);
 	}
+#else
+	WT_UNUSED(txn_global);
 #endif
 
 	return (0);
