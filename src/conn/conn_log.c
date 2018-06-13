@@ -113,6 +113,10 @@ __logmgr_version(WT_SESSION_IMPL *session, bool reconfig)
 	 * Set the log file format versions based on compatibility versions
 	 * set in the connection.  We must set this before we call log_open
 	 * to open or create a log file.
+	 *
+	 * Note: downgrade in this context means the new version is not the
+	 * latest possible version. It does not mean the direction of change
+	 * from the release we may be running currently.
 	 */
 	if (conn->compat_major < WT_LOG_V2_MAJOR) {
 		new_version = 1;
