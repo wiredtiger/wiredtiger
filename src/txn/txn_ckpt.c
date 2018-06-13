@@ -770,17 +770,19 @@ __checkpoint_prepare(
 
 /*
  * __txn_checkpoint_can_skip --
- *	Determine whether it's safe to skip taking a checkpoint.
+ *	Determine whether it's safe to skip taking a checkpoint. This function
+ *	also parses out some configuration options and hands them back to the
+ *	caller - make sure it does that parsing regardless of the result.
  */
 static int
 __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
-    const char *cfg[], bool *fullp, bool *can_skipp)
+    const char *cfg[], bool *fullp, bool *use_timestampp, bool *can_skipp)
 {
 	WT_CONFIG targetconf;
 	WT_CONFIG_ITEM cval, k, v;
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN_GLOBAL *txn_global;
-	bool full;
+	bool full, use_timestamp;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -796,6 +798,11 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 	full = __wt_config_next(&targetconf, &k, &v) != 0;
 	if (fullp != NULL)
 		*fullp = full;
+
+	WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+	use_timestamp = cval.val != 0;
+	if (use_timestampp != NULL)
+		*use_timestampp = use_timestamp;
 
 	/* Never skip non-full checkpoints */
 	if (!full)
@@ -830,9 +837,7 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 	 * hasn't been updated since the last checkpoint there is nothing
 	 * more that could be written.
 	 */
-	WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
-	if (cval.val != 0 &&
-	    txn_global->has_stable_timestamp &&
+	if (use_timestamp && txn_global->has_stable_timestamp &&
 	    !__wt_timestamp_iszero(&txn_global->last_ckpt_timestamp) &&
 	    __wt_timestamp_cmp(&txn_global->last_ckpt_timestamp,
 	    &txn_global->stable_timestamp) == 0) {
@@ -873,7 +878,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	full = idle = logging = tracking = use_timestamp = false;
 
 	/* Avoid doing work if possible. */
-	WT_RET(__txn_checkpoint_can_skip(session, cfg, &full, &can_skip));
+	WT_RET(__txn_checkpoint_can_skip(session,
+	    cfg, &full, &use_timestamp, &can_skip));
 	if (can_skip) {
 		WT_STAT_CONN_INCR(session, txn_checkpoint_skipped);
 		return (0);
