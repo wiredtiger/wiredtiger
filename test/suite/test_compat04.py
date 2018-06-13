@@ -66,11 +66,15 @@ class test_compat04(wttest.WiredTigerTestCase, suite_subprocess):
         ('300_rel', dict(rel="3.0.0", log_rel=2)),
         ('26_rel', dict(rel="2.6", log_rel=1)),
     ]
+    reconfig_config = [
+        ('reconfig_true', dict(doreconfig='true')),
+        ('reconfig_false', dict(doreconfig='false')),
+    ]
     base_config = [
         ('basecfg_true', dict(basecfg='true')),
         ('basecfg_false', dict(basecfg='false')),
     ]
-    scenarios = make_scenarios(create_release, reconfig_release, base_config)
+    scenarios = make_scenarios(create_release, reconfig_release, reconfig_config, base_config)
 
     # This test creates scenarios that lead to errors. This is different
     # than compat02 because it is testing errors (or success) using the
@@ -101,17 +105,24 @@ class test_compat04(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Reconfigure and close the connection. Then reopen with that release.
         # We expect success.
-        config_str = 'compatibility=(release=%s)' % self.rel
-        self.conn.reconfigure(config_str)
+        if self.doreconfig:
+            config_str = 'compatibility=(release=%s)' % self.rel
+            self.conn.reconfigure(config_str)
         self.conn.close()
 
         config_str = 'compatibility=(release=%s,require_max=%s)' % (self.rel, self.rel)
-        conn = self.wiredtiger_open('.', config_str)
-        conn.close()
+        if self.doreconfig:
+            msg = '/requires a maximum/'
+            with self.expectedStderrPattern(''):
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.wiredtiger_open('.', config_str), msg)
+
+        else:
+            conn = self.wiredtiger_open('.', config_str)
+            conn.close()
 
 if __name__ == '__main__':
     wttest.run()
-
 
 if __name__ == '__main__':
     wttest.run()
