@@ -122,10 +122,9 @@ class test_compat03(wttest.WiredTigerTestCase, suite_subprocess):
             expect_err = False
 
         if (expect_err == True):
-            self.pr("EXPECT ERROR")
-            with self.expectedStderrPattern(''):
-                self.assertRaisesException(wiredtiger.WiredTigerError,
-                    lambda: self.wiredtiger_open(testdir, config_str))
+            msg = '/Version incompatibility detected:/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.wiredtiger_open(testdir, config_str), msg)
         else:
             self.pr("EXPECT SUCCESS")
             conn = self.wiredtiger_open(testdir, config_str)
