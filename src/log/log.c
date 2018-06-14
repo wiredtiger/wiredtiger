@@ -975,8 +975,8 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 		    WT_LOG_VERSION, desc->version);
 
 	/*
-	 * We error if the log version is less than the required minimum
-	 * or larger than the required maximum.
+	 * We error if the log version is less than the required minimum or
+	 * larger than the required maximum.
 	 */
 	if (conn->req_max_major != WT_CONN_COMPAT_NONE &&
 	    desc->version > conn->log_req_max)
@@ -997,7 +997,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 		    conn->log_req_min, desc->version);
 
 	/*
-	 * Set up the return values if the magic number is valid.
+	 * Set up the return values since the header is valid.
 	 */
 	if (versionp != NULL)
 		*versionp = desc->version;
