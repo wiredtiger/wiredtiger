@@ -83,6 +83,7 @@ __ckpt_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
+	uint64_t checkpoint_gen;
 
 	session = arg;
 	conn = S2C(session);
@@ -101,10 +102,15 @@ __ckpt_server(void *arg)
 		if (!__ckpt_server_run_chk(session))
 			break;
 
+		checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 		WT_ERR(wt_session->checkpoint(wt_session, NULL));
 
-		/* Reset. */
-		if (conn->ckpt_logsize) {
+		/*
+		 * Reset the log file size counters if the checkpoint wasn't
+		 * skipped.
+		 */
+		if (checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
+		    conn->ckpt_logsize) {
 			__wt_log_written_reset(session);
 			conn->ckpt_signalled = false;
 
@@ -115,8 +121,7 @@ __ckpt_server(void *arg)
 			 * it so we don't do another checkpoint
 			 * immediately.
 			 */
-			__wt_cond_wait(
-			    session, conn->ckpt_cond, 1, NULL);
+			__wt_cond_wait(session, conn->ckpt_cond, 1, NULL);
 		}
 	}
 

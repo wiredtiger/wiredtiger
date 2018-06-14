@@ -770,9 +770,7 @@ __checkpoint_prepare(
 
 /*
  * __txn_checkpoint_can_skip --
- *	Determine whether it's safe to skip taking a checkpoint. This function
- *	also parses out some configuration options and hands them back to the
- *	caller - make sure it does that parsing regardless of the result.
+ *	Determine whether it's safe to skip taking a checkpoint.
  */
 static int
 __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
@@ -784,12 +782,21 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 	WT_TXN_GLOBAL *txn_global;
 	bool full, use_timestamp;
 
+	/*
+	 * Default to not skipping - also initialize the other output
+	 * parameters - even though they will always be initialized unless
+	 * there is an error and callers need to ignore the results on error.
+	 */
+	*can_skipp = *fullp = *use_timestampp = false;
+
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
-	/* Default to not skipping. */
-	*can_skipp = false;
 
 	/*
+	 * This function also parses out some configuration options and hands
+	 * them back to the caller - make sure it does that parsing regardless
+	 * of the result.
+	 *
 	 * Determine if this is going to be a full checkpoint, that is a
 	 * checkpoint that applies to all data tables in a database.
 	 */
@@ -824,7 +831,7 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 	 * btree gets marked dirty and the connection is yet to be. We might
 	 * skip a checkpoint in that short instance, which is okay because by
 	 * the next time we get to checkpoint, the connection would have been
-	 * marked dirty and hence the checkpoint will not be skipped this time.
+	 * marked dirty and hence the checkpoint will not be skipped again.
 	 */
 	if (!conn->modified) {
 		*can_skipp = true;
@@ -891,7 +898,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	WT_RET(__checkpoint_apply_all(session, cfg, NULL));
 
-	/* Configure logging only if doing a full checkpoint. */
 	logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
 	/* Reset the maximum page size seen by eviction. */
