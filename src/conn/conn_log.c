@@ -50,11 +50,12 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
 	WT_SESSION_IMPL *tmp_session;
-	int yield;
+	uint64_t sleep_usecs, yield_cnt;
 
 	conn = S2C(session);
 	log = conn->log;
-	yield = 0;
+	sleep_usecs = yield_cnt = 0;
+
 	WT_RET(__wt_open_internal_session(conn,
 	    "compatibility-reconfig", true, 0, &tmp_session));
 	while (log->first_lsn.l.file < lognum) {
@@ -70,20 +71,13 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
 		WT_RET(tmp_session->iface.checkpoint(
 		    &tmp_session->iface, "force=1"));
 		/*
-		 * Only sleep in the rare case that we had to come through
-		 * this loop more than once.
+		 * Backoff spin loop - it's reasonable to call this once
+		 * unconditionally because the backoff is very gradual.
 		 */
-		if (yield++ != 0) {
-			if (yield < WT_THOUSAND) {
-				WT_STAT_CONN_INCR(session,
-				    log_force_archive_yield);
-				__wt_yield();
-			} else {
-				WT_STAT_CONN_INCR(session,
-				    log_force_archive_sleep);
-				__wt_sleep(0, WT_THOUSAND);
-			}
-		}
+		__wt_spin_backoff(&yield_cnt, &sleep_usecs);
+		WT_STAT_CONN_INCRV(session,
+		    log_force_archive_sleep, sleep_usecs);
+
 		WT_RET(WT_SESSION_CHECK_PANIC(tmp_session));
 		WT_RET(__wt_log_truncate_files(tmp_session, NULL, true));
 	}
