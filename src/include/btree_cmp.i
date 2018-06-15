@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2016 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,13 +7,17 @@
  */
 
 #ifdef HAVE_X86INTRIN_H
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !defined(_lint)
 #include <x86intrin.h>
+#endif
+#endif
+
+#if defined(HAVE_ARM_NEON_INTRIN_H)
+#include <arm_neon.h>
 #endif
 						/* 16B alignment */
 #define	WT_ALIGNED_16(p)	(((uintptr_t)(p) & 0x0f) == 0)
 #define	WT_VECTOR_SIZE		16		/* chunk size */
-#endif
 
 /*
  * __wt_lex_compare --
@@ -68,6 +72,24 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 				if (_mm_movemask_epi8(res_eq) != 65535)
 					break;
 			}
+		len += remain;
+	}
+#elif defined(HAVE_ARM_NEON_INTRIN_H)
+	/* Use vector instructions if we'll execute at least 1 of them. */
+	if (len >= WT_VECTOR_SIZE) {
+		size_t remain;
+		uint8x16_t res_eq, u, t;
+		remain = len % WT_VECTOR_SIZE;
+		len -= remain;
+		for (; len > 0;
+		    len -= WT_VECTOR_SIZE,
+		    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+			u = vld1q_u8(userp);
+			t = vld1q_u8(treep);
+			res_eq = vceqq_u8(u, t);
+			if (vminvq_u8(res_eq) != 255)
+				break;
+		}
 		len += remain;
 	}
 #endif
@@ -158,6 +180,26 @@ __wt_lex_compare_skip(
 			}
 		len += remain;
 	}
+#elif defined(HAVE_ARM_NEON_INTRIN_H)
+	/* Use vector instructions if we'll execute  at least 1 of them. */
+	if (len >= WT_VECTOR_SIZE) {
+		size_t remain;
+		uint8x16_t res_eq, u, t;
+		remain = len % WT_VECTOR_SIZE;
+		len -= remain;
+		if (WT_ALIGNED_16(userp) && WT_ALIGNED_16(treep))
+		for (; len > 0;
+		    len -= WT_VECTOR_SIZE,
+		    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE,
+			*matchp += WT_VECTOR_SIZE) {
+			u = vld1q_u8(userp);
+			t = vld1q_u8(treep);
+			res_eq = vceqq_u8(u, t);
+			if (vminvq_u8(res_eq) != 255)
+				break;
+		}
+		len += remain;
+	}
 #endif
 	/*
 	 * Use the non-vectorized version for the remaining bytes and for the
@@ -217,23 +259,61 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 	/*
 	 * The maximum packed uint64_t is 9B, catch row-store objects using
 	 * packed record numbers as keys.
+	 *
+	 * Don't use a #define to compress this case statement: gcc7 complains
+	 * about implicit fallthrough and doesn't support explicit fallthrough
+	 * comments in macros.
 	 */
 #define	WT_COMPARE_SHORT_MAXLEN 9
-#undef	WT_COMPARE_SHORT
-#define	WT_COMPARE_SHORT(n)						\
-	case n:								\
-		if (*userp != *treep)					\
-			break;						\
-		++userp, ++treep
 	switch (len) {
-	WT_COMPARE_SHORT(9);
-	WT_COMPARE_SHORT(8);
-	WT_COMPARE_SHORT(7);
-	WT_COMPARE_SHORT(6);
-	WT_COMPARE_SHORT(5);
-	WT_COMPARE_SHORT(4);
-	WT_COMPARE_SHORT(3);
-	WT_COMPARE_SHORT(2);
+	case 9:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 8:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 7:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 6:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 5:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 4:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 3:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
+	case 2:
+		if (*userp != *treep)
+			break;
+		++userp;
+		++treep;
+		/* FALLTHROUGH */
 	case 1:
 		if (*userp != *treep)
 			break;
