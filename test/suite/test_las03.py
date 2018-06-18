@@ -43,9 +43,7 @@ class test_las03(wttest.WiredTigerTestCase):
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat]
-        print val
-        val = val[2]
+        val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
 
@@ -88,13 +86,16 @@ class test_las03(wttest.WiredTigerTestCase):
         las_writes = self.get_stat(stat.conn.cache_write_lookaside) - las_writes_start
         self.assertGreaterEqual(las_writes, 0)
 
-        # Now just update one record and checkpoint again
-        self.large_updates(self.session, uri, bigvalue2, ds, nrows, 1)
+        for ts in range(2, 4):
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(ts))
 
-        las_reads_start = self.get_stat(stat.conn.cache_read_lookaside)
-        self.session.checkpoint()
-        las_reads = self.get_stat(stat.conn.cache_read_lookaside) - las_reads_start
-        self.assertLessEqual(las_reads, 1)
+            # Now just update one record and checkpoint again
+            self.large_updates(self.session, uri, bigvalue2, ds, nrows, 1)
+
+            las_reads_start = self.get_stat(stat.conn.cache_read_lookaside)
+            self.session.checkpoint()
+            las_reads = self.get_stat(stat.conn.cache_read_lookaside) - las_reads_start
+            self.assertLessEqual(las_reads, 10)
 
 if __name__ == '__main__':
     wttest.run()

@@ -1192,8 +1192,8 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 	if (page_las->invalid || !ref->page_las->las_skew_newest)
 		return (true);
-	if (__wt_txn_visible_all(session, page_las->las_max_txn,
-	    WT_TIMESTAMP_NULL(&page_las->onpage_timestamp)))
+	if (__wt_txn_visible_all(session, page_las->max_txn,
+	    WT_TIMESTAMP_NULL(&page_las->max_timestamp)))
 		return (false);
 
 	return (true);
@@ -1338,7 +1338,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * If the page hasn't been through one round of update/restore, give it
 	 * a try.
 	 */
-	if ((mod = page->modify) == NULL || !mod->update_restored)
+	if ((mod = page->modify) == NULL ||
+	    !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
 		return (true);
 
 	/*
