@@ -1557,6 +1557,9 @@ __split_multi_inmem(
 	    &orig->modify->last_eviction_timestamp);
 
 	/* Add the update/restore flag to any previous state. */
+	page->modify->rec_max_txn = orig->modify->rec_max_txn;
+	__wt_timestamp_set(&page->modify->rec_max_timestamp,
+	    &orig->modify->rec_max_timestamp);
 	page->modify->restore_state = orig->modify->restore_state;
 	FLD_SET(page->modify->restore_state, WT_PAGE_RS_RESTORED);
 
