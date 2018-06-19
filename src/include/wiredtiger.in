@@ -5349,8 +5349,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WRITE_COUNT	1193
 /*! log: busy returns attempting to switch slots */
 #define	WT_STAT_CONN_LOG_SLOT_SWITCH_BUSY		1194
-/*! log: force checkpoint calls slept */
-#define	WT_STAT_CONN_LOG_FORCE_CKPT_SLEEP		1195
+/*! log: force archive time sleeping (usecs) */
+#define	WT_STAT_CONN_LOG_FORCE_ARCHIVE_SLEEP		1195
 /*! log: log bytes of payload data */
 #define	WT_STAT_CONN_LOG_BYTES_PAYLOAD			1196
 /*! log: log bytes written */
