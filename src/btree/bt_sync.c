@@ -255,19 +255,31 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 			if (walk == NULL)
 				break;
+			page = walk->page;
 
 			/* Skip clean pages. */
-			if (!__wt_page_is_modified(walk->page))
+			if (page->modify == NULL)
 				continue;
-
-			/*
-			 * Take a local reference to the page modify structure
-			 * now that we know the page is dirty. It needs to be
-			 * done in this order otherwise the page modify
-			 * structure could have been created between taking the
-			 * reference and checking modified.
-			 */
-			page = walk->page;
+			if (!__wt_page_is_modified(page)) {
+				/*
+				 * Track the most recent update in the tree.
+				 * This determines when the tree can safely be
+				 * discarded from cache.
+				 */
+				if (WT_TXNID_LT(btree->rec_max_txn,
+				    page->modify->rec_max_txn))
+					btree->rec_max_txn =
+					    page->modify->rec_max_txn;
+#ifdef HAVE_TIMESTAMPS
+				if (__wt_timestamp_cmp(
+				    &btree->rec_max_timestamp,
+				    &page->modify->rec_max_timestamp) < 0)
+					__wt_timestamp_set(
+					    &btree->rec_max_timestamp,
+					    &page->modify->rec_max_timestamp);
+#endif
+				continue;
+			}
 
 			/*
 			 * Write dirty pages, if we can't skip them. If we skip

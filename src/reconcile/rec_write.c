@@ -423,6 +423,14 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		return (EBUSY);
 	}
 
+	/* Initialize the reconciliation structure for each new run. */
+	if ((ret = __rec_init(
+	    session, ref, flags, salvage, &session->reconcile)) != 0) {
+		WT_PAGE_UNLOCK(session, page);
+		return (ret);
+	}
+	r = session->reconcile;
+
 	oldest_id = __wt_txn_oldest_id(session);
 	if (LF_ISSET(WT_REC_EVICT)) {
 		mod->last_eviction_id = oldest_id;
@@ -444,14 +452,6 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
 	mod->last_oldest_id = oldest_id;
 #endif
-
-	/* Initialize the reconciliation structure for each new run. */
-	if ((ret = __rec_init(
-	    session, ref, flags, salvage, &session->reconcile)) != 0) {
-		WT_PAGE_UNLOCK(session, page);
-		return (ret);
-	}
-	r = session->reconcile;
 
 	/* Reconcile the page. */
 	switch (page->type) {
@@ -654,13 +654,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	mod = page->modify;
 
 	/*
-	 * Track the page's maximum transaction ID (used to decide if we're
-	 * likely to be able to evict this page in the future).
-	 */
-	mod->rec_max_txn = r->max_txn;
-	__wt_timestamp_set(&mod->rec_max_timestamp, &r->max_timestamp);
-
-	/*
 	 * Set the page's status based on whether or not we cleaned the page.
 	 */
 	if (r->leave_dirty) {
@@ -687,6 +680,13 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		    !F_ISSET(r, WT_REC_EVICT) ||
 		    F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
 	} else {
+		/*
+		 * Track the page's maximum transaction ID (used to decide if
+		 * we're can evict a clean page and discard its history).
+		 */
+		mod->rec_max_txn = r->max_txn;
+		__wt_timestamp_set(&mod->rec_max_timestamp, &r->max_timestamp);
+
 		/*
 		 * Track the tree's maximum transaction ID (used to decide if
 		 * it's safe to discard the tree). Reconciliation for eviction
@@ -719,6 +719,15 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		else
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 	}
+
+#ifdef HAVE_TIMESTAMPS
+	if (S2C(session)->txn_global.has_stable_timestamp)
+		WT_WITH_TIMESTAMP_READLOCK(session,
+		    &S2C(session)->txn_global.rwlock,
+		    __wt_timestamp_set(&mod->last_stable_timestamp,
+			&S2C(session)->txn_global.stable_timestamp));
+#endif
+
 }
 
 /*
@@ -938,10 +947,11 @@ __rec_init(WT_SESSION_IMPL *session,
 	if (r->las_skew_newest &&
 	    !__wt_btree_immediately_durable(session) &&
 	    txn_global->has_stable_timestamp &&
-	    (btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) ||
+	    ((btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
+	    txn_global->stable_is_pinned) ||
 	    FLD_ISSET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE) ||
-	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
-	    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp))))
+	    __wt_timestamp_cmp(&page->modify->last_stable_timestamp,
+	    &txn_global->stable_timestamp) == 0))
 		r->las_skew_newest = false;
 
 	/*

@@ -362,6 +362,9 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 		txn_global->oldest_is_pinned = __wt_timestamp_cmp(
 		    &txn_global->pinned_timestamp,
 		    &txn_global->oldest_timestamp) == 0;
+		txn_global->stable_is_pinned = __wt_timestamp_cmp(
+		    &txn_global->pinned_timestamp,
+		    &txn_global->stable_timestamp) == 0;
 		__wt_verbose_timestamp(session,
 		    &pinned_timestamp, "Updated pinned timestamp");
 	}
