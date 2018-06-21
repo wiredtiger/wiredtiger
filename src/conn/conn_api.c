@@ -2016,6 +2016,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	static const WT_NAME_FLAG stress_types[] = {
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
+		{ "lookaside_sweep_race",WT_TIMING_STRESS_LOOKASIDE_SWEEP },
 		{ "split_1",		WT_TIMING_STRESS_SPLIT_1 },
 		{ "split_2",		WT_TIMING_STRESS_SPLIT_2 },
 		{ "split_3",		WT_TIMING_STRESS_SPLIT_3 },
@@ -2746,4 +2747,16 @@ err:	/* Discard the scratch buffers. */
 	}
 
 	return (ret);
+}
+
+/*
+ * wiredtiger_checksum_crc32c --
+ *	CRC32C checksum function entry point.
+ */
+uint32_t
+wiredtiger_checksum_crc32c(const void *buffer, size_t len)
+{
+	if (__wt_process.checksum == NULL)
+		__wt_checksum_init();
+	return (__wt_process.checksum(buffer, len));
 }
