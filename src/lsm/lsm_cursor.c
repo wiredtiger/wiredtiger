@@ -629,57 +629,6 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 				goto retry;
 		}
 
-#if 0
-		/*
-		 * Only open live handles on up to three chunks when there is
-		 * cache pressure, otherwise this cursor can pin the unflushed
-		 * content into cache until it's finished. Having more than
-		 * three live chunks indicates that the manager isn't keeping
-		 * up with flushing chunks - so it's reasonable to wait.
-		 */
-#define	WT_LSM_MAX_LIVE_CHUNKS	4
-		if (lsm_tree->nchunks > WT_LSM_MAX_LIVE_CHUNKS &&
-		    nchunks > WT_LSM_MAX_LIVE_CHUNKS &&
-		    !F_ISSET(lsm_tree->chunk[lsm_tree->nchunks -
-		    WT_LSM_MAX_LIVE_CHUNKS], WT_LSM_CHUNK_ONDISK) /*&&
-		    __wt_eviction_needed(session, false, !update, NULL)*/) {
-			saved_gen = lsm_tree->dsk_gen;
-			locked = false;
-			__wt_lsm_tree_readunlock(session, lsm_tree);
-
-			/*
-			 * LSM checkpoints chunks in order - base the decision
-			 * on the most recent chunk we care about.
-			 */
-			chunk = lsm_tree->chunk[
-			    lsm_tree->nchunks - WT_LSM_MAX_LIVE_CHUNKS];
-			while (!chunk->empty &&
-			    !F_ISSET(chunk, WT_LSM_CHUNK_ONDISK)) {
-				if (__wt_eviction_needed(
-				    session, false, !update, NULL)) {
-					/*
-					 * Drop and re-acquire the schema lock
-					 * here, so tree maintenance can make
-					 * progress. This is safe because we
-					 * are only holding the schema lock
-					 * already to satisfy lock ordering in
-					 * case cursor open requires the schema
-					 * lock later.
-					 */
-					WT_WITHOUT_LOCKS(session,
-					    ret = __wt_cache_eviction_check(
-					    session, false, !update, NULL));
-					WT_ERR(ret);
-				} else
-					__wt_sleep(0, 10);
-			}
-			__wt_lsm_tree_readlock(session, lsm_tree);
-			locked = true;
-			if (lsm_tree->dsk_gen != saved_gen)
-				goto retry;
-		}
-#endif
-
 		/* Detach from our old primary. */
 		clsm->primary_chunk = NULL;
 		clsm->current = NULL;
@@ -690,7 +639,7 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 
 	/* Open the cursors for chunks that have changed. */
 	__wt_verbose(session, WT_VERB_LSM,
-	    "LSM opening cursor session(%p):clsm(%p)%s, nchunks: %u, ngood: %u",
+	    "LSM opening cursor session(%p):clsm(%p)%s, chunks: %u, good: %u",
 	    session, clsm, update ? ", update" : "", nchunks, ngood);
 	for (i = ngood; i != nchunks; i++) {
 		chunk = lsm_tree->chunk[i + start_chunk];
@@ -780,10 +729,6 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 
 err:
 #ifdef HAVE_DIAGNOSTIC
-#if 0
-	WT_ASSERT(session, nchunks <= WT_LSM_MAX_LIVE_CHUNKS + 1 ||
-	    ((WT_CURSOR_BTREE *)clsm->chunks[1 + clsm->nchunks - WT_LSM_MAX_LIVE_CHUNKS]->cursor)->btree->dhandle->checkpoint != NULL);
-#endif
 	/* Check that all cursors are open as expected. */
 	if (ret == 0 && F_ISSET(clsm, WT_CLSM_OPEN_READ)) {
 		for (i = 0; i != clsm->nchunks; i++) {
