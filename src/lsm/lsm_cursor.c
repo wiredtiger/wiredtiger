@@ -381,7 +381,7 @@ __clsm_close_cursors(
 
 	__wt_verbose(session, WT_VERB_LSM,
 	    "LSM closing cursor session(%p):clsm(%p), start: %u, end: %u",
-	    session, clsm, start, end);
+	    (void *)session, (void *)clsm, start, end);
 
 	if (clsm->chunks == NULL || clsm->nchunks == 0)
 		return (0);
@@ -640,7 +640,8 @@ retry:	if (F_ISSET(clsm, WT_CLSM_MERGE)) {
 	/* Open the cursors for chunks that have changed. */
 	__wt_verbose(session, WT_VERB_LSM,
 	    "LSM opening cursor session(%p):clsm(%p)%s, chunks: %u, good: %u",
-	    session, clsm, update ? ", update" : "", nchunks, ngood);
+	    (void *)session, (void *)clsm,
+	    update ? ", update" : "", nchunks, ngood);
 	for (i = ngood; i != nchunks; i++) {
 		chunk = lsm_tree->chunk[i + start_chunk];
 		/* Copy the maximum transaction ID. */
