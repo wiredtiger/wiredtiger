@@ -257,7 +257,10 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (walk == NULL)
 				break;
 
-			/* Skip clean pages. */
+			/*
+			 * Skip clean pages, but need to make sure maximum
+			 * transaction ID is always updated.
+			 */
 			if (!__wt_page_is_modified(walk->page)) {
 				if (((mod = walk->page->modify) != NULL) &&
 				    mod->rec_max_txn > btree->rec_max_txn)
