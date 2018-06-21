@@ -249,12 +249,12 @@ __split_prev_race(
 	 * if the split page's page-index hasn't been updated yet, it selects
 	 * the 'f' slot, which is incorrect. Once the split page's page index is
 	 * updated to this:
- 	 *
+	 *
 	 *	| a | b |
 	 *
 	 * the previous-cursor movement will select the 'b' slot, which is
 	 * correct.
- 	 *
+	 *
 	 * If the last slot on the page no longer points to the current page as
 	 * its "home", the page is being split and part of its namespace moved,
 	 * restart. (We probably don't have to restart, I think we could spin
