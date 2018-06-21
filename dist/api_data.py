@@ -417,6 +417,11 @@ connection_runtime_config = [
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
         min='1MB', max='10TB'),
+    Config('cache_max_wait', '0', r'''
+        the maximum number of milliseconds an application thread will wait
+        for space to be available in cache before giving up. Default will
+        wait forever''',
+        min=0),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and
         adjust the cache usage by that amount (for example, if there is 10GB

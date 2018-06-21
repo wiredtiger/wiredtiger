@@ -125,6 +125,8 @@ struct __wt_cache {
 					   scrubs */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
+	uint64_t cache_max_wait_us;	/* Maximum time an operation waits for
+					 * space in cache */
 
 	/*
 	 * Eviction thread tuning information.

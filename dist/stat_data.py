@@ -279,6 +279,7 @@ connection_stats = [
     CacheStat('cache_read_lookaside_delay_checkpoint', 'pages read into cache with skipped lookaside entries needed later by checkpoint'),
     CacheStat('cache_read_lookaside_skipped', 'pages read into cache skipping older lookaside entries'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
+    CacheStat('cache_timed_out_ops', 'operations timed out waiting for space in cache'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
