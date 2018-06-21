@@ -216,7 +216,7 @@ __split_prev_race(
 	/*
 	 * That doesn't check if we read a new version of parent's page index
 	 * and then an old version of the child's page index. For example, if
-	 * a thread were in the newly created split page subtrees, the split
+	 * a thread were in a newly created split page subtree, the split
 	 * completes into the parent before the thread reads it and descends
 	 * into the child (where the split hasn't yet completed).
 	 *
