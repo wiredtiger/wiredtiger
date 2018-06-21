@@ -186,11 +186,17 @@ __split_prev_race(
 	WT_PAGE_INDEX *pindex;
 
 	/*
-	 * When splitting an internal page into its parent, we move the WT_REF
-	 * structures and update the parent's page index before updating the
-	 * split page's page index, and it's not an atomic update. A thread can
-	 * read the parent page's replacement page index, then read the split
-	 * page's original index.
+	 * Handle a cursor moving backwards through the tree or setting up at
+	 * the end of the tree. We're passed the child page into which we're
+	 * descending, and the parent page's page-index we used to find that
+	 * child page.
+	 *
+	 * When splitting an internal page into its parent, we move the split
+	 * pages WT_REF structures, then update the parent's page index, then
+	 * update the split page's page index, and nothing is atomic. A thread
+	 * can read the parent page's replacement page index and then the split
+	 * page's original index, or vice-versa, and either change can cause a
+	 * cursor moving backwards through the tree to skip pages.
 	 *
 	 * This isn't a problem for a cursor setting up at the start of the tree
 	 * or moving forward through the tree because we do right-hand splits on
@@ -199,17 +205,63 @@ __split_prev_race(
 	 * parent page's and split page's indexes will move to the same slot no
 	 * matter what order of indexes are read.
 	 *
-	 * Handle a cursor moving backwards through the tree or setting up at
-	 * the end of the tree.
-	 *
-	 * We're passed a child page into which we're descending, and on which
-	 * we have a hazard pointer.
-	 *
-	 * Acquire a page index for the child page and then confirm we haven't
-	 * raced with a parent split.
+	 * Acquire the child's page index, then confirm the parent's page index
+	 * hasn't changed, to check for reading an old version of the parent's
+	 * page index and then reading a new version of the child's page index.
 	 */
 	WT_INTL_INDEX_GET(session, ref->page, pindex);
 	if (__wt_split_descent_race(session, ref, *pindexp))
+		return (true);
+
+	/*
+	 * That doesn't check if we read a new version of parent's page index
+	 * and then an old version of the child's page index. For example, if
+	 * a thread were in the newly created split page subtrees, the split
+	 * completes into the parent before the thread reads it and descends
+	 * into the child (where the split hasn't yet completed).
+	 *
+	 * Imagine an internal page with 3 child pages, with the namespaces a-f,
+	 * g-h and i-j; the first child page splits. The parent starts out with
+	 * the following page-index:
+	 *
+	 *	| ... | a | g | i | ... |
+	 *
+	 * The split page starts out with the following page-index:
+	 *
+	 *	| a | b | c | d | e | f |
+	 *
+	 * The first step is to move the c-f ranges into a new subtree, so, for
+	 * example we might have two new internal pages 'c' and 'e', where the
+	 * new 'c' page references the c-d namespace and the new 'e' page
+	 * references the e-f namespace. The top of the subtree references the
+	 * parent page, but until the parent's page index is updated, threads in
+	 * the subtree won't be able to ascend out of the subtree. However, once
+	 * the parent page's page index is updated to this:
+	 *
+	 *	| ... | a | c | e | g | i | ... |
+	 *
+	 * threads in the subtree can ascend into the parent. Imagine a cursor
+	 * in the c-d part of the namespace that ascends to the parent's 'c'
+	 * slot. It would then decrement to the slot before the 'c' slot, the
+	 * 'a' slot.
+	 *
+	 * The previous-cursor movement selects the last slot in the 'a' page;
+	 * if the split page's page-index hasn't been updated yet, it selects
+	 * the 'f' slot, which is incorrect. Once the split page's page index is
+	 * updated to this:
+ 	 *
+	 *	| a | b |
+	 *
+	 * the previous-cursor movement will select the 'b' slot, which is
+	 * correct.
+ 	 *
+	 * If the last slot on the page no longer points to the current page as
+	 * its "home", the page is being split and part of its namespace moved,
+	 * restart. (We probably don't have to restart, I think we could spin
+	 * until the page-index is updated, but I'm not willing to debug that
+	 * one if I'm wrong.)
+	 */
+	if (pindex->index[pindex->entries - 1]->home != ref->page)
 		return (true);
 
 	*pindexp = pindex;
