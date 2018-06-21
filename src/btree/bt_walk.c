@@ -356,7 +356,7 @@ restart:	/*
 			 * all of the child pages were deleted, mark it for
 			 * eviction.
 			 */
-			if (empty_internal && pindex->entries > 1) {
+			if (empty_internal) {
 				__wt_page_evict_soon(session, ref);
 				empty_internal = false;
 			}
