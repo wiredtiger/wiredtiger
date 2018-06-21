@@ -335,6 +335,16 @@ restart:	/*
 		 */
 		while ((prev && slot == 0) ||
 		    (!prev && slot == pindex->entries - 1)) {
+			/*
+			 * If we got all the way through an internal page and
+			 * all of the child pages were deleted, mark it for
+			 * eviction.
+			 */
+			if (empty_internal && pindex->entries > 1) {
+				__wt_page_evict_soon(session, ref);
+				empty_internal = false;
+			}
+
 			/* Ascend to the parent. */
 			__ref_ascend(session, &ref, &pindex, &slot);
 
@@ -349,16 +359,6 @@ restart:	/*
 				if (!LF_ISSET(WT_READ_SKIP_INTL))
 					*refp = ref;
 				goto done;
-			}
-
-			/*
-			 * If we got all the way through an internal page and
-			 * all of the child pages were deleted, mark it for
-			 * eviction.
-			 */
-			if (empty_internal && pindex->entries > 1) {
-				__wt_page_evict_soon(session, ref);
-				empty_internal = false;
 			}
 
 			/*
