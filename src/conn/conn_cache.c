@@ -144,7 +144,7 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 	conn->evict_threads_min = evict_threads_min;
 
 	/* Retrieve the wait time and convert from milliseconds */
-	WT_RET(__wt_config_gets(session, cfg, "cache_max_wait", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
 	cache->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
 
 	return (0);
