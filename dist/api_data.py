@@ -417,7 +417,7 @@ connection_runtime_config = [
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
         min='1MB', max='10TB'),
-    Config('cache_max_wait', '0', r'''
+    Config('cache_max_wait_ms', '0', r'''
         the maximum number of milliseconds an application thread will wait
         for space to be available in cache before giving up. Default will
         wait forever''',

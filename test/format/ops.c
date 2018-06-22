@@ -529,8 +529,9 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	 * know there aren't any resources pinned so it should succeed
 	 * eventually.
 	 */
-	while ((ret = session->begin_transaction(
-	    session, config)) == WT_CACHE_FULL) {}
+	while ((ret =
+	    session->begin_transaction(session, config)) == WT_CACHE_FULL)
+		;
 	testutil_check(ret);
 
 	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {

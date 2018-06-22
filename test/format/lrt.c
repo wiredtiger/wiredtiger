@@ -116,7 +116,8 @@ lrt(void *arg)
 			 * pinned so it should succeed eventually.
 			 */
 			while ((ret = session->begin_transaction(
-			    session, "snapshot=test")) == WT_CACHE_FULL) {}
+			    session, "snapshot=test")) == WT_CACHE_FULL)
+				;
 			testutil_check(ret);
 			testutil_check(session->snapshot(
 			    session, "drop=(all)"));
@@ -130,7 +131,8 @@ lrt(void *arg)
 			 * a new snapshot will be allocated.
 			 */
 			while ((ret = session->begin_transaction(
-			    session, "snapshot=snapshot")) == WT_CACHE_FULL) {}
+			    session, "snapshot=snapshot")) == WT_CACHE_FULL)
+				;
 			testutil_check(ret);
 
 			/* Read a record at the end of the table. */
