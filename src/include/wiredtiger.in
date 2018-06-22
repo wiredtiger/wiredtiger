@@ -2128,7 +2128,7 @@ struct __wt_connection {
 	 * thread uses a session from the configured session_max., an integer
 	 * between 1 and 20; default \c 2.}
 	 * @config{ ),,}
-	 * @config{cache_max_wait, the maximum number of milliseconds an
+	 * @config{cache_max_wait_ms, the maximum number of milliseconds an
 	 * application thread will wait for space to be available in cache
 	 * before giving up.  Default will wait forever., an integer greater
 	 * than or equal to 0; default \c 0.}
@@ -2712,7 +2712,7 @@ struct __wt_connection {
  * default value for any sessions created\, and can be overridden in configuring
  * \c cache_cursors in WT_CONNECTION.open_session., a boolean flag; default \c
  * true.}
- * @config{cache_max_wait, the maximum number of milliseconds an application
+ * @config{cache_max_wait_ms, the maximum number of milliseconds an application
  * thread will wait for space to be available in cache before giving up.
  * Default will wait forever., an integer greater than or equal to 0; default \c
  * 0.}
