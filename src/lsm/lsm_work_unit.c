@@ -331,16 +331,15 @@ __lsm_set_chunk_evictable(
 		if (need_handle)
 			WT_RET(__wt_session_get_dhandle(
 			    session, chunk->uri, NULL, NULL, 0));
-		/* Get a handle to the chunk */
 		btree = session->dhandle->handle;
 		if (btree->evict_disabled_open) {
 			btree->evict_disabled_open = false;
 			__wt_evict_file_exclusive_off(session);
 		}
-	}
 
-	if (need_handle)
-		WT_TRET(__wt_session_release_dhandle(session));
+		if (need_handle)
+			WT_TRET(__wt_session_release_dhandle(session));
+	}
 	return (ret);
 }
 

@@ -57,9 +57,6 @@ __lsm_worker_general_op(
 
 	*completed = false;
 
-	/*
-	 * Return if this thread cannot process a bloom, drop or flush.
-	 */
 	if (!FLD_ISSET(cookie->type, WT_LSM_WORK_GENERAL_OPS))
 		return (WT_NOTFOUND);
 
