@@ -509,15 +509,20 @@ descend:		/*
 			ret = __wt_page_swap(session, couple, ref,
 			    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
 			if (ret == 0) {
+				/* Success, so "couple" has been released. */
+				couple = NULL;
+
 				/* Return leaf pages to our caller. */
 				if (!WT_PAGE_IS_INTERNAL(ref->page)) {
-					couple = NULL;
 					*refp = ref;
 					goto done;
 				}
 
-				/* Configure traversal of any internal page. */
+				/* Set the new "couple" value. */
 				couple = ref;
+
+				/* Configure traversal of any internal page. */
+				empty_internal = true;
 				if (prev) {
 					if (__split_prev_race(
 					    session, ref, &pindex))
@@ -528,13 +533,14 @@ descend:		/*
 					    session, ref->page, pindex);
 					slot = 0;
 				}
-				empty_internal = true;
 				continue;
 			}
 
 			/*
 			 * Not-found is an expected return when walking only
 			 * in-cache pages, or if we see a deleted page.
+			 *
+			 * An expected error, so "couple" is unchanged.
 			 */
 			if (ret == WT_NOTFOUND) {
 				WT_NOT_READ(ret, 0);
@@ -544,10 +550,14 @@ descend:		/*
 			/*
 			 * The page we're moving to might have split, in which
 			 * case restart the movement.
+			 *
+			 * An expected error, so "couple" is unchanged.
 			 */
 			if (ret == WT_RESTART)
 				goto restart;
 
+			/* Unexpected error, so "couple" was released. */
+			couple = NULL;
 			goto err;
 		}
 	}
