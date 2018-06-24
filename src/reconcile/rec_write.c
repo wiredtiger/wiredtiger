@@ -944,6 +944,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 */
 	r->las_skew_newest =
 	    LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
+#ifdef HAVE_TIMESTAMPS
 	if (r->las_skew_newest &&
 	    !__wt_btree_immediately_durable(session) &&
 	    txn_global->has_stable_timestamp &&
@@ -953,6 +954,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	    __wt_timestamp_cmp(&page->modify->last_stable_timestamp,
 	    &txn_global->stable_timestamp) == 0))
 		r->las_skew_newest = false;
+#endif
 
 	/*
 	 * When operating on the lookaside table, we should never try
