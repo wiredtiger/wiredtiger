@@ -131,13 +131,6 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
 	txn_state->metadata_pinned = txn_state->pinned_id = WT_TXN_NONE;
 	F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
-
-	/* Clear a checkpoint's pinned ID. */
-	if (WT_SESSION_IS_CHECKPOINT(session))
-		S2C(session)->txn_global.checkpoint_state.pinned_id =
-		    WT_TXN_NONE;
-
-	__wt_txn_clear_read_timestamp(session);
 }
 
 /*
@@ -535,7 +528,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	if (WT_SESSION_IS_CHECKPOINT(session)) {
 		WT_ASSERT(session,
 		    WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
-		txn->id = txn_global->checkpoint_state.id = WT_TXN_NONE;
+		txn->id = txn_global->checkpoint_state.id =
+		    txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
 
 		/*
 		 * Be extra careful to cleanup everything for checkpoints: once
@@ -554,6 +548,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	}
 
 	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_read_timestamp(session);
 
 	/* Free the scratch buffer allocated for logging. */
 	__wt_logrec_free(session, &txn->logrec);
