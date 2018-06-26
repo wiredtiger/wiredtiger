@@ -49,10 +49,10 @@ static bool inmem;
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
-    "create,log=(file_max=10M,enabled)"
+    "create,log=(file_max=10M,enabled),verbose=(temporary)"
 #define	ENV_CONFIG_TXNSYNC					\
     "create,log=(file_max=10M,enabled),"		\
-    "transaction_sync=(enabled,method=none)"
+    "transaction_sync=(enabled,method=none),verbose=(temporary)"
 #define	ENV_CONFIG_REC "log=(recover=on)"
 #define	MAX_VAL	4096
 
@@ -84,6 +84,7 @@ thread_run(void *arg)
 	WT_THREAD_DATA *td;
 	uint64_t i;
 	size_t lsize;
+	char dbg[64];
 	char buf[MAX_VAL], kname[64], lgbuf[8];
 	char large[128*1024];
 
@@ -129,7 +130,10 @@ thread_run(void *arg)
 	    td->id, td->start);
 	for (i = td->start; ; ++i) {
 		testutil_check(__wt_snprintf(
+		    dbg, sizeof(dbg), "%" PRIu32 " %" PRIu64, td->id, i));
+		testutil_check(__wt_snprintf(
 		    kname, sizeof(kname), "%" PRIu64, i));
+		session->app_private = (void *)dbg;
 		cursor->set_key(cursor, kname);
 		/*
 		 * Every 30th record write a very large record that exceeds the
