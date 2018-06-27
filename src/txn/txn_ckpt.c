@@ -681,9 +681,6 @@ __checkpoint_prepare(
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
-	if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
-		__wt_timestamp_set(&txn_global->checkpoint_timestamp,
-		    &txn->read_timestamp);
 	txn_global->checkpoint_state.pinned_id = txn->snap_min;
 
 	/*
@@ -726,6 +723,8 @@ __checkpoint_prepare(
 		if (txn_global->has_stable_timestamp) {
 			__wt_timestamp_set(&txn->read_timestamp,
 			    &txn_global->stable_timestamp);
+			__wt_timestamp_set(&txn_global->checkpoint_timestamp,
+			    &txn->read_timestamp);
 			F_SET(txn, WT_TXN_HAS_TS_READ);
 			if (!F_ISSET(conn, WT_CONN_RECOVERING))
 				__wt_timestamp_set(
