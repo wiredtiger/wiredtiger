@@ -95,7 +95,11 @@ class test_las03(wttest.WiredTigerTestCase):
             las_reads_start = self.get_stat(stat.conn.cache_read_lookaside)
             self.session.checkpoint()
             las_reads = self.get_stat(stat.conn.cache_read_lookaside) - las_reads_start
-            self.assertLessEqual(las_reads, 10)
+
+            # Since we're dealing with eviction concurrent with checkpoints
+            # and skewing is controlled by a heuristic, we can't put too tight
+            # a bound on this.
+            self.assertLessEqual(las_reads, 100)
 
 if __name__ == '__main__':
     wttest.run()
