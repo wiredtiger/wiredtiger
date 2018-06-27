@@ -681,8 +681,10 @@ __checkpoint_prepare(
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
-	txn_global->checkpoint_txn = txn;
-	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
+	if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
+		__wt_timestamp_set(&txn_global->checkpoint_timestamp,
+		    &txn->read_timestamp);
+	txn_global->checkpoint_state.pinned_id = txn->snap_min;
 
 	/*
 	 * Sanity check that the oldest ID hasn't moved on before we have
