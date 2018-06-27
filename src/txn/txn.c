@@ -1279,9 +1279,6 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
 	WT_TXN_GLOBAL *txn_global;
-	WT_DECL_TIMESTAMP(checkpoint_timestamp)
-	WT_DECL_TIMESTAMP(commit_timestamp)
-	WT_DECL_TIMESTAMP(pinned_timestamp)
 	uint64_t checkpoint_pinned, snapshot_pinned;
 
 	conn = S2C(session);
@@ -1294,6 +1291,11 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    txn_global->current - txn_global->oldest_id);
 
 #if WT_TIMESTAMP_SIZE == 8
+	{
+	WT_DECL_TIMESTAMP(checkpoint_timestamp)
+	WT_DECL_TIMESTAMP(commit_timestamp)
+	WT_DECL_TIMESTAMP(pinned_timestamp)
+
 	checkpoint_timestamp = txn_global->checkpoint_timestamp;
 	commit_timestamp = txn_global->commit_timestamp;
 	pinned_timestamp = txn_global->pinned_timestamp;
@@ -1306,6 +1308,7 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    commit_timestamp.val - checkpoint_timestamp.val);
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
 	    commit_timestamp.val - txn_global->oldest_timestamp.val);
+	}
 #endif
 
 	WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
