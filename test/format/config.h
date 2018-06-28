@@ -334,6 +334,10 @@ static CONFIG c[] = {
 	  "configure slow checkpoints",				/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL },
 
+	{ "timing_stress_lookaside_sweep",
+	  "configure slow lookaside sweep",			/* 2% */
+	  C_BOOL, 2, 0, 0, &g.c_timing_stress_lookaside_sweep, NULL },
+
 	{ "timing_stress_split_1",
 	  "configure slow splits (#1)",				/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_1, NULL },
@@ -361,6 +365,10 @@ static CONFIG c[] = {
 	{ "timing_stress_split_7",
 	  "configure slow splits (#7)",				/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_7, NULL },
+
+	{ "timing_stress_split_8",
+	  "configure slow splits (#8)",				/* 2% */
+	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_8, NULL },
 
 	{ "transaction_timestamps",				/* 10% */
 	  "enable transaction timestamp support",

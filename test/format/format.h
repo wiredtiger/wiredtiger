@@ -213,6 +213,7 @@ typedef struct {
 	uint32_t c_threads;
 	uint32_t c_timer;
 	uint32_t c_timing_stress_checkpoint;
+	uint32_t c_timing_stress_lookaside_sweep;
 	uint32_t c_timing_stress_split_1;
 	uint32_t c_timing_stress_split_2;
 	uint32_t c_timing_stress_split_3;
@@ -220,6 +221,7 @@ typedef struct {
 	uint32_t c_timing_stress_split_5;
 	uint32_t c_timing_stress_split_6;
 	uint32_t c_timing_stress_split_7;
+	uint32_t c_timing_stress_split_8;
 	uint32_t c_truncate;
 	uint32_t c_txn_freq;
 	uint32_t c_txn_timestamps;

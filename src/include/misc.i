@@ -225,16 +225,20 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 }
 
 /*
- * __wt_state_yield_sleep --
- *	Sleep while waiting, after a thousand yields.
+ * __wt_spin_backoff --
+ *	Back off while spinning for a resource. This is used to avoid busy
+ *	waiting loops that can consume enough CPU to block real work being
+ *	done. The algorithm spins a few times, then yields for a while, then
+ *	falls back to sleeping.
  */
 static inline void
-__wt_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_usecs)
+__wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 {
-	/*
-	 * We yield before retrying, and if we've yielded enough times, start
-	 * sleeping so we don't burn CPU to no purpose.
-	 */
+	if ((*yield_count) < 10) {
+		(*yield_count)++;
+		return;
+	}
+
 	if ((*yield_count) < WT_THOUSAND) {
 		(*yield_count)++;
 		__wt_yield();
@@ -243,4 +247,27 @@ __wt_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_usecs)
 
 	(*sleep_usecs) = WT_MIN((*sleep_usecs) + 100, WT_THOUSAND);
 	__wt_sleep(0, (*sleep_usecs));
+}
+
+				/* Maximum stress delay is 1/10 of a second. */
+#define	WT_TIMING_STRESS_MAX_DELAY	(100000)
+
+/*
+ * __wt_timing_stress --
+ *	Optionally add delay to stress code paths.
+ */
+static inline void
+__wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
+{
+	WT_CONNECTION_IMPL *conn;
+	uint64_t sleep_usecs;
+
+	conn = S2C(session);
+
+	/* Only sleep when the specified configuration flag is set. */
+	if (!FLD_ISSET(conn->timing_stress_flags, flag))
+		return;
+
+	sleep_usecs = __wt_random(&session->rnd) % WT_TIMING_STRESS_MAX_DELAY;
+	__wt_sleep(0, sleep_usecs);
 }
