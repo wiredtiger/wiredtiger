@@ -460,7 +460,7 @@ connection_runtime_config = [
                 vary depending on the current eviction load''',
                 min=1, max=20),
             ]),
-    Config('eviction_checkpoint_target', '5', r'''
+    Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty
         content in cache to this level. It is a percentage of the cache size if
         the value is within the range of 0 to 100 or an absolute size when
