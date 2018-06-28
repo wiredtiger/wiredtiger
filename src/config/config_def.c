@@ -773,7 +773,7 @@ static const WT_CONFIG_CHECK
 	{ "path", "string", NULL, NULL, NULL, 0 },
 	{ "prealloc", "boolean", NULL, NULL, NULL, 0 },
 	{ "recover", "string",
-	    NULL, "choices=[\"error\",\"on\"]",
+	    NULL, "choices=[\"error\",\"on\",\"salvage\"]",
 	    NULL, 0 },
 	{ "zero_fill", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }

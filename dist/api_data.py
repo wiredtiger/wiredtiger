@@ -703,7 +703,7 @@ wiredtiger_open_log_configuration = [
         Config('recover', 'on', r'''
             run recovery or error if recovery needs to run after an
             unclean shutdown''',
-            choices=['error','on'])
+            choices=['error', 'on', 'salvage'])
     ]),
 ]
 
