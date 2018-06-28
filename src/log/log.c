@@ -943,6 +943,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	WT_ASSERT(session, !salvage_mode || need_salvagep != NULL);
 
 	conn = S2C(session);
+	fh = NULL;
 	log = conn->log;
 	need_salvage = false;
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
