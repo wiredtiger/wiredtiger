@@ -2067,6 +2067,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	WT_ERR(__log_open_verify(session,
 	    start_lsn.l.file, &log_fh, &prev_lsn, NULL));
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
+	__wt_verbose(session, WT_VERB_TEMPORARY,
+	    "Scan1: Log %s size %" PRIu64, log_fh->name, log_size);
 	rd_lsn = start_lsn;
 	if (LF_ISSET(WT_LOGSCAN_RECOVER))
 		__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
@@ -2156,6 +2158,9 @@ advance:
 				break;
 			}
 			WT_ERR(__wt_filesize(session, log_fh, &log_size));
+			__wt_verbose(session, WT_VERB_TEMPORARY,
+			    "Scan2: Log %s size %" PRIu64,
+			    log_fh->name, log_size);
 			eol = false;
 			continue;
 		}

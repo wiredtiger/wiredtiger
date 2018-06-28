@@ -53,7 +53,7 @@ static bool inmem;
 #define	ENV_CONFIG_TXNSYNC					\
     "create,log=(file_max=10M,enabled),"		\
     "transaction_sync=(enabled,method=none),verbose=(temporary)"
-#define	ENV_CONFIG_REC "log=(recover=on)"
+#define	ENV_CONFIG_REC "log=(recover=on),verbose=(temporary)"
 #define	MAX_VAL	4096
 
 static void handler(int)
