@@ -256,21 +256,17 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 			if (walk == NULL)
 				break;
-			page = walk->page;
 
 			/*
-			 * Skip clean pages, but track the most recent update
-			 * in the tree. This determines when the tree can
-			 * safely be discarded from cache.
+			 * Skip clean pages, but need to make sure maximum
+			 * transaction ID is always updated.
 			 */
-			if ((mod = page->modify) == NULL)
-				continue;
-			if (!__wt_page_is_modified(page)) {
-				if (WT_TXNID_LT(btree->rec_max_txn,
-				    mod->rec_max_txn))
+			if (!__wt_page_is_modified(walk->page)) {
+				if (((mod = walk->page->modify) != NULL) &&
+				    mod->rec_max_txn > btree->rec_max_txn)
 					btree->rec_max_txn = mod->rec_max_txn;
 #ifdef HAVE_TIMESTAMPS
-				if (__wt_timestamp_cmp(
+				if (mod != NULL && __wt_timestamp_cmp(
 				    &btree->rec_max_timestamp,
 				    &mod->rec_max_timestamp) < 0)
 					__wt_timestamp_set(
@@ -279,6 +275,15 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 #endif
 				continue;
 			}
+
+			/*
+			 * Take a local reference to the page modify structure
+			 * now that we know the page is dirty. It needs to be
+			 * done in this order otherwise the page modify
+			 * structure could have been created between taking the
+			 * reference and checking modified.
+			 */
+			page = walk->page;
 
 			/*
 			 * Write dirty pages, if we can't skip them. If we skip
@@ -319,8 +324,8 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (!WT_PAGE_IS_INTERNAL(page) &&
 			    page->read_gen == WT_READGEN_WONT_NEED &&
 			    !tried_eviction) {
-				ret = __wt_page_release_evict(session, walk);
-				WT_ERR_BUSY_OK(ret);
+				WT_ERR_BUSY_OK(
+				    __wt_page_release_evict(session, walk));
 				walk = prev;
 				prev = NULL;
 				tried_eviction = true;

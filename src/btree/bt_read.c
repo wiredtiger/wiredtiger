@@ -278,7 +278,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
-		if (ref->page_las->las_skew_newest &&
+		if (ref->page_las->skew_newest &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
 		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
 		    WT_TIMESTAMP_NULL(&ref->page_las->unstable_timestamp))) {

@@ -408,19 +408,19 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * then we have to read it.  This is only relevant if we chose versions
 	 * that were unstable when the page was written.
 	 */
-	if (ref->page_las->las_skew_newest &&
+	if (ref->page_las->skew_newest &&
 	    WT_TXNID_LE(txn->snap_min, ref->page_las->unstable_txn))
 		return (false);
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
-		return (ref->page_las->las_skew_newest);
+		return (ref->page_las->skew_newest);
 
 #ifdef HAVE_TIMESTAMPS
 	/*
 	 * Skip lookaside pages if reading as of a timestamp, we evicted new
 	 * versions of data and all the updates are in the past.
 	 */
-	if (ref->page_las->las_skew_newest &&
+	if (ref->page_las->skew_newest &&
 	    __wt_timestamp_cmp(
 	    &txn->read_timestamp, &ref->page_las->unstable_timestamp) > 0)
 		return (true);
@@ -429,7 +429,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Skip lookaside pages if reading as of a timestamp, we evicted old
 	 * versions of data and all the unstable updates are in the future.
 	 */
-	if (!ref->page_las->las_skew_newest &&
+	if (!ref->page_las->skew_newest &&
 	    __wt_timestamp_cmp(
 	    &txn->read_timestamp, &ref->page_las->unstable_timestamp) < 0)
 		return (true);
@@ -571,7 +571,7 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_MULTI *multi)
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
 		    ts,
-		    multi->page_las.las_skew_newest ? "newest" : "not newest",
+		    multi->page_las.skew_newest ? "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
 	}

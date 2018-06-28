@@ -432,6 +432,13 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	r = session->reconcile;
 
 	oldest_id = __wt_txn_oldest_id(session);
+
+	/*
+	 * During eviction, save the transaction state that causes history to
+	 * be pinned, regardless of whether reconciliation succeeds or fails.
+	 * There is usually no point retrying eviction until this state
+	 * changes.
+	 */
 	if (LF_ISSET(WT_REC_EVICT)) {
 		mod->last_eviction_id = oldest_id;
 #ifdef HAVE_TIMESTAMPS
@@ -495,6 +502,17 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 		__rec_write_page_status(session, r);
 	else
 		WT_TRET(__rec_write_wrapup_err(session, r, page));
+
+#ifdef HAVE_TIMESTAMPS
+	/*
+	 * If reconciliation completes successfully, save the stable timestamp.
+	 */
+	if (ret == 0 && S2C(session)->txn_global.has_stable_timestamp)
+		WT_WITH_TIMESTAMP_READLOCK(session,
+		    &S2C(session)->txn_global.rwlock,
+		    __wt_timestamp_set(&mod->last_stable_timestamp,
+		    &S2C(session)->txn_global.stable_timestamp));
+#endif
 
 	/* Release the reconciliation lock. */
 	WT_PAGE_UNLOCK(session, page);
@@ -682,7 +700,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	} else {
 		/*
 		 * Track the page's maximum transaction ID (used to decide if
-		 * we're can evict a clean page and discard its history).
+		 * we can evict a clean page and discard its history).
 		 */
 		mod->rec_max_txn = r->max_txn;
 		__wt_timestamp_set(&mod->rec_max_timestamp, &r->max_timestamp);
@@ -719,15 +737,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		else
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 	}
-
-#ifdef HAVE_TIMESTAMPS
-	if (S2C(session)->txn_global.has_stable_timestamp)
-		WT_WITH_TIMESTAMP_READLOCK(session,
-		    &S2C(session)->txn_global.rwlock,
-		    __wt_timestamp_set(&mod->last_stable_timestamp,
-			&S2C(session)->txn_global.stable_timestamp));
-#endif
-
 }
 
 /*
@@ -939,8 +948,8 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * we choose will be stable.  However, if checkpointing with a
 	 * timestamp (indicated by a stable_timestamp being set), and there is
 	 * a checkpoint already running, or this page was read with lookaside
-	 * history, or there were updates on the page last time it was
-	 * reconciled that still aren't stable, skew oldest instead.
+	 * history, or the stable timestamp hasn't changed since last time this
+	 * page was successfully, skew oldest instead.
 	 */
 	r->las_skew_newest =
 	    LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
@@ -3440,7 +3449,7 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 
 done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		/* Track the oldest lookaside timestamp seen so far. */
-		multi->page_las.las_skew_newest = r->las_skew_newest;
+		multi->page_las.skew_newest = r->las_skew_newest;
 		multi->page_las.max_txn = r->max_txn;
 		multi->page_las.unstable_txn = r->unstable_txn;
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
