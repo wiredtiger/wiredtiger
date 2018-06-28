@@ -431,7 +431,10 @@ append:			if (__wt_split_descent_race(
 				goto restart;
 		}
 
-descend:	/*
+descend:	/* Encourage races. */
+		__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_9);
+
+		/*
 		 * Swap the current page for the child page. If the page splits
 		 * while we're retrieving it, restart the search at the root.
 		 * We cannot restart in the "current" page; for example, if a

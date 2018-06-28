@@ -179,6 +179,9 @@ descend:	/*
 			descent = pindex->index[base - 1];
 		}
 
+		/* Encourage races. */
+		__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_9);
+
 		/*
 		 * Swap the current page for the child page. If the page splits
 		 * while we're retrieving it, restart the search at the root.
