@@ -602,6 +602,14 @@ struct __wt_cursor {
 	 *
 	 * The key must first be set and the record must already exist.
 	 *
+	 * Note that reserve works by doing a special update operation that is
+	 * not logged and does not change the value of the record. This update
+	 * is aborted when the enclosing transaction ends regardless of whether
+	 * it commits or rolls back. Given that, reserve can only be used to
+	 * detect conflicts between transactions that execute concurrently. It
+	 * cannot detect all logical conflicts between transactions. For that,
+	 * some update to the record must be committed.
+	 *
 	 * @snippet ex_all.c Reserve a record
 	 *
 	 * On success, the cursor ends positioned at the specified record; to
