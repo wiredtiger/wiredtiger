@@ -417,10 +417,6 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	for (;;) {
 		__wt_sleep(0, 100 * WT_THOUSAND);
 
-		time_stop = __wt_clock(session);
-		bytes_written_total =
-		    cache->bytes_written - bytes_written_start;
-
 		prev_dirty = current_dirty;
 		current_dirty =
 		    (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
@@ -442,6 +438,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		 * that can't be evicted.  If we can't meet the target,
 		 * give up and start the checkpoint for real.
 		 */
+		bytes_written_total =
+		    cache->bytes_written - bytes_written_start;
 		if (bytes_written_total > max_write)
 			break;
 	}
