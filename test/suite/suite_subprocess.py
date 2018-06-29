@@ -116,7 +116,7 @@ class suite_subprocess:
                 else:
                     expect = str(expectlist)
                 gotstr = '\'' + \
-                    (got if len(got) < 100 else (got[0:100] + '...')) + '\''
+                    (got if len(got) < 1000 else (got[0:1000] + '...')) + '\''
                 if len(got) >= maxbytes:
                     self.fail(filename + ': does not contain expected ' + expect + ', or output is too large, got ' + gotstr)
                 else:
