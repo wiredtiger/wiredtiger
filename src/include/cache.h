@@ -123,6 +123,8 @@ struct __wt_cache {
 	double eviction_scrub_target;	/* Current scrub target */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
+	uint64_t cache_max_wait_us;	/* Maximum time an operation waits for
+					 * space in cache */
 
 	/*
 	 * Eviction thread tuning information.
