@@ -465,7 +465,7 @@ connection_runtime_config = [
                 vary depending on the current eviction load''',
                 min=1, max=20),
             ]),
-    Config('eviction_checkpoint_target', '5', r'''
+    Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty
         content in cache to this level. It is a percentage of the cache size if
         the value is within the range of 0 to 100 or an absolute size when
@@ -590,7 +590,7 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'checkpoint_slow', 'lookaside_sweep_race', 'split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7']),
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',

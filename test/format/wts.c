@@ -262,6 +262,8 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 		CONFIG_APPEND(p, ",split_6");
 	if (g.c_timing_stress_split_7)
 		CONFIG_APPEND(p, ",split_7");
+	if (g.c_timing_stress_split_8)
+		CONFIG_APPEND(p, ",split_8");
 	CONFIG_APPEND(p, "]");
 
 	/* Extensions. */

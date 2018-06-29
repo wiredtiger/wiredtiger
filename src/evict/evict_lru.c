@@ -563,7 +563,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	cache = conn->cache;
 
-	dirty_target = cache->eviction_dirty_target;
+	dirty_target = __wt_eviction_dirty_target(cache);
 	dirty_trigger = cache->eviction_dirty_trigger;
 	target = cache->eviction_target;
 	trigger = cache->eviction_trigger;
@@ -2405,21 +2405,9 @@ __wt_cache_eviction_worker(
 
 		/* See if eviction is still needed. */
 		if (!__wt_eviction_needed(session, busy, readonly, &pct_full) ||
-		    ((pct_full < 100.0 || cache->eviction_scrub_limit > 0.0) &&
-		    (cache->eviction_progress >
+		    (pct_full < 100.0 && (cache->eviction_progress >
 		    initial_progress + max_progress)))
 			break;
-
-		/*
-		 * Don't make application threads participate in scrubbing for
-		 * checkpoints.  Just throttle updates instead.
-		 */
-		if (WT_EVICT_HAS_WORKERS(session) &&
-		    cache->eviction_scrub_limit > 0.0 &&
-		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD)) {
-			__wt_yield();
-			continue;
-		}
 
 		/* Evict a page. */
 		switch (ret = __evict_page(session, false)) {
