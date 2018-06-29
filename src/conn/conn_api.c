@@ -1832,6 +1832,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "checkpoint",		WT_VERB_CHECKPOINT },
 		{ "checkpoint_progress",WT_VERB_CHECKPOINT_PROGRESS },
 		{ "compact",		WT_VERB_COMPACT },
+		{ "error_returns",      WT_VERB_ERROR_RETURNS },
 		{ "evict",		WT_VERB_EVICT },
 		{ "evict_stuck",	WT_VERB_EVICT_STUCK },
 		{ "evictserver",	WT_VERB_EVICTSERVER },
