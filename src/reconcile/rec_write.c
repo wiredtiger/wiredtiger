@@ -442,10 +442,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	if (LF_ISSET(WT_REC_EVICT)) {
 		mod->last_eviction_id = oldest_id;
 #ifdef HAVE_TIMESTAMPS
-		WT_WITH_TIMESTAMP_READLOCK(session,
-		    &S2C(session)->txn_global.rwlock,
-		    __wt_timestamp_set(&mod->last_eviction_timestamp,
-		    &S2C(session)->txn_global.pinned_timestamp));
+		__wt_txn_pinned_timestamp(
+		    session, &mod->last_eviction_timestamp);
 #endif
 		mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
 	}
