@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -90,8 +90,8 @@ main(int argc, char *argv[])
 	WT_CURSOR *cursor1, *cursor2, *jcursor;
 	WT_ITEM k, v;
 	WT_SESSION *session;
-	int i, ret;
 	int32_t key, val[2];
+	int i, ret;
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));

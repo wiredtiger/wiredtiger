@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -48,9 +48,8 @@
  *		uint8_t current;		// Current ticket
  *		uint8_t next;			// Next available ticket
  *		uint8_t reader;			// Read queue ticket
- *		uint8_t __notused;		// Padding
- *		uint16_t readers_active;	// Count of active readers
- *		uint16_t readers_queued;	// Count of queued readers
+ *		uint8_t readers_queued;		// Count of queued readers
+ *		uint32_t readers_active;	// Count of active readers
  *	} s;
  * } u;
  *
@@ -74,6 +73,12 @@
  * When there are writers active, readers form a new queue by first setting
  * 'reader' to 'next' (i.e. readers are scheduled after any queued writers,
  * avoiding starvation), then atomically incrementing 'readers_queued'.
+ *
+ * We limit how many readers can queue: we don't allow more readers to queue
+ * than there are active writers (calculated as `next - current`): otherwise,
+ * in write-heavy workloads, readers can keep queuing up in front of writers
+ * and throughput is unstable.  The remaining read requests wait without any
+ * ordering.
  *
  * The 'next' field is a 1-byte value so the available ticket number wraps
  * after 256 requests. If a thread's write lock request would cause the 'next'
@@ -165,19 +170,18 @@ __read_blocked(WT_SESSION_IMPL *session)
 void
 __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	struct timespec enter, leave;
 	WT_RWLOCK new, old;
+	uint64_t time_start, time_stop;
 	int64_t **stats;
 	int16_t writers_active;
 	uint8_t ticket;
 	int pause_cnt;
 	bool set_stats;
 
+	stats = NULL;			/* -Wconditional-uninitialized */
+	time_start = time_stop = 0;	/* -Wconditional-uninitialized */
+
 	WT_STAT_CONN_INCR(session, rwlock_read);
-	stats = (int64_t **)S2C(session)->stats;
-	set_stats = (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session));
-	if (set_stats)
-		stats[session->stat_bucket][l->stat_read_count_off]++;
 
 	WT_DIAGNOSTIC_YIELD;
 
@@ -235,8 +239,12 @@ stall:			__wt_cond_wait(session,
 			break;
 	}
 
-	if (set_stats)
-		__wt_epoch(session, &enter);
+	set_stats = (l->stat_read_count_off != -1 && WT_STAT_ENABLED(session));
+	if (set_stats) {
+		stats = (int64_t **)S2C(session)->stats;
+		stats[session->stat_bucket][l->stat_read_count_off]++;
+		time_start = __wt_clock(session);
+	}
 	/* Wait for our group to start. */
 	for (pause_cnt = 0; ticket != l->u.s.current; pause_cnt++) {
 		if (pause_cnt < 1000)
@@ -251,13 +259,13 @@ stall:			__wt_cond_wait(session,
 		}
 	}
 	if (set_stats) {
-		__wt_epoch(session, &leave);
+		time_stop = __wt_clock(session);
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][l->stat_int_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
 		else
 			stats[session->stat_bucket][l->stat_app_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
 	}
 
 	/*
@@ -362,18 +370,17 @@ __write_blocked(WT_SESSION_IMPL *session)
 void
 __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 {
-	struct timespec enter, leave;
 	WT_RWLOCK new, old;
+	uint64_t time_start, time_stop;
 	int64_t **stats;
 	uint8_t ticket;
 	int pause_cnt;
 	bool set_stats;
 
+	stats = NULL;			/* -Wconditional-uninitialized */
+	time_start = time_stop = 0;	/* -Wconditional-uninitialized */
+
 	WT_STAT_CONN_INCR(session, rwlock_write);
-	stats = (int64_t **)S2C(session)->stats;
-	set_stats = (l->stat_write_count_off != -1 && WT_STAT_ENABLED(session));
-	if (set_stats)
-		stats[session->stat_bucket][l->stat_write_count_off]++;
 
 	for (;;) {
 		old.u.v = l->u.v;
@@ -396,6 +403,12 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 			break;
 	}
 
+	set_stats = (l->stat_write_count_off != -1 && WT_STAT_ENABLED(session));
+	if (set_stats) {
+		stats = (int64_t **)S2C(session)->stats;
+		stats[session->stat_bucket][l->stat_write_count_off]++;
+		time_start = __wt_clock(session);
+	}
 	/*
 	 * Wait for our group to start and any readers to drain.
 	 *
@@ -404,8 +417,6 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	 * could see no readers active from a different batch and decide that
 	 * we have the lock.
 	 */
-	if (set_stats)
-		__wt_epoch(session, &enter);
 	for (pause_cnt = 0, old.u.v = l->u.v;
 	    ticket != old.u.s.current || old.u.s.readers_active != 0;
 	    pause_cnt++, old.u.v = l->u.v) {
@@ -421,13 +432,13 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		}
 	}
 	if (set_stats) {
-		__wt_epoch(session, &leave);
+		time_stop = __wt_clock(session);
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][l->stat_int_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
 		else
 			stats[session->stat_bucket][l->stat_app_usecs_off] +=
-			    (int64_t)WT_TIMEDIFF_US(leave, enter);
+			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
 	}
 
 	/*

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -384,7 +384,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs)
 	if (vs->dump_blocks)
 		WT_RET(__wt_debug_disk(session, page->dsk, NULL));
 	if (vs->dump_pages)
-		WT_RET(__wt_debug_page(session, ref, NULL));
+		WT_RET(__wt_debug_page(session, NULL, ref, NULL));
 #endif
 
 	/*

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -47,9 +47,9 @@ fail(int ret) {
 int
 main(int argc, char *argv[])
 {
-	int ret;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
+	int ret;
 
 	(void)argc;
 	(void)argv;

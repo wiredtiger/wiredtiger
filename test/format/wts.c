@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -166,10 +166,10 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	max = sizeof(g.wiredtiger_open_config);
 
 	CONFIG_APPEND(p,
-	    "create=true,"
-	    "cache_size=%" PRIu32 "MB,"
-	    "checkpoint_sync=false,"
-	    "error_prefix=\"%s\"",
+	    "create=true"
+	    ",cache_size=%" PRIu32 "MB"
+	    ",checkpoint_sync=false"
+	    ",error_prefix=\"%s\"",
 	    g.c_cache, progname);
 
 	/* In-memory configuration. */
@@ -241,6 +241,30 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	} else
 		CONFIG_APPEND(p,
 		    ",statistics=(%s)", g.c_statistics ? "fast" : "none");
+
+	/* Optionally stress operations. */
+	CONFIG_APPEND(p, ",timing_stress_for_test=[");
+	if (g.c_timing_stress_checkpoint)
+		CONFIG_APPEND(p, ",checkpoint_slow");
+	if (g.c_timing_stress_lookaside_sweep)
+		CONFIG_APPEND(p, ",lookaside_sweep_race");
+	if (g.c_timing_stress_split_1)
+		CONFIG_APPEND(p, ",split_1");
+	if (g.c_timing_stress_split_2)
+		CONFIG_APPEND(p, ",split_2");
+	if (g.c_timing_stress_split_3)
+		CONFIG_APPEND(p, ",split_3");
+	if (g.c_timing_stress_split_4)
+		CONFIG_APPEND(p, ",split_4");
+	if (g.c_timing_stress_split_5)
+		CONFIG_APPEND(p, ",split_5");
+	if (g.c_timing_stress_split_6)
+		CONFIG_APPEND(p, ",split_6");
+	if (g.c_timing_stress_split_7)
+		CONFIG_APPEND(p, ",split_7");
+	if (g.c_timing_stress_split_8)
+		CONFIG_APPEND(p, ",split_8");
+	CONFIG_APPEND(p, "]");
 
 	/* Extensions. */
 	CONFIG_APPEND(p,
@@ -335,51 +359,32 @@ wts_init(void)
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	size_t max;
-	uint32_t maxintlpage, maxintlkey, maxleafpage, maxleafkey, maxleafvalue;
+	uint32_t maxintlkey, maxleafkey, maxleafvalue;
 	char config[4096], *p;
 
 	conn = g.wts_conn;
 	p = config;
 	max = sizeof(config);
 
-	/*
-	 * Ensure that we can service at least one operation per-thread
-	 * concurrently without filling the cache with pinned pages. We choose
-	 * a multiplier of three because the max configurations control on disk
-	 * size and in memory pages are often significantly larger than their
-	 * disk counterparts.  We also apply the default eviction_dirty_trigger
-	 * of 20% so that workloads don't get stuck with dirty pages in cache.
-	 */
-	maxintlpage = 1U << g.c_intl_page_max;
-	maxleafpage = 1U << g.c_leaf_page_max;
-	while (3 * g.c_threads * (maxintlpage + maxleafpage) >
-	    (g.c_cache << 20) / 5) {
-		if (maxleafpage <= 512 && maxintlpage <= 512)
-			break;
-		if (maxintlpage > 512)
-			maxintlpage >>= 1;
-		if (maxleafpage > 512)
-			maxleafpage >>= 1;
-	}
 	CONFIG_APPEND(p,
 	    "key_format=%s,"
 	    "allocation_size=512,%s"
 	    "internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32,
 	    (g.type == ROW) ? "u" : "r",
 	    g.c_firstfit ? "block_allocation=first," : "",
-	    maxintlpage, maxleafpage);
+	    g.intl_page_max, g.leaf_page_max);
 
 	/*
 	 * Configure the maximum key/value sizes, but leave it as the default
 	 * if we come up with something crazy.
 	 */
-	maxintlkey = mmrand(NULL, maxintlpage / 50, maxintlpage / 40);
+	maxintlkey = mmrand(NULL, g.intl_page_max / 50, g.intl_page_max / 40);
 	if (maxintlkey > 20)
 		CONFIG_APPEND(p, ",internal_key_max=%" PRIu32, maxintlkey);
-	maxleafkey = mmrand(NULL, maxleafpage / 50, maxleafpage / 40);
+	maxleafkey = mmrand(NULL, g.leaf_page_max / 50, g.leaf_page_max / 40);
 	if (maxleafkey > 20)
 		CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-	maxleafvalue = mmrand(NULL, maxleafpage * 10, maxleafpage / 40);
+	maxleafvalue = mmrand(NULL, g.leaf_page_max * 10, g.leaf_page_max / 40);
 	if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
 		CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
@@ -552,7 +557,7 @@ wts_verify(const char *tag)
 
 	if (g.c_txn_timestamps && g.timestamp > 0) {
 		/*
-		 * Bump the oldest timestamp, otherwise recent operation will
+		 * Bump the oldest timestamp, otherwise recent operations can
 		 * prevent verify from running.
 		 */
 		testutil_check(__wt_snprintf(

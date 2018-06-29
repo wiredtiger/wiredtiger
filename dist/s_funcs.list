@@ -16,6 +16,7 @@ __wt_config_getone
 __wt_cursor_get_raw_value
 __wt_debug_addr
 __wt_debug_addr_print
+__wt_debug_cursor_page
 __wt_debug_offset
 __wt_debug_set_verbose
 __wt_debug_tree
@@ -27,10 +28,12 @@ __wt_log_scan
 __wt_nlpo2
 __wt_nlpo2_round
 __wt_print_huffman_code
+__wt_session_breakpoint
 __wt_stat_join_aggregate
 __wt_stat_join_clear_all
 __wt_stream_set_no_buffer
 __wt_try_readlock
+wiredtiger_checksum_crc32c
 wiredtiger_config_parser_open
 wiredtiger_config_validate
 wiredtiger_pack_int

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,6 +7,34 @@
  */
 
 #define	WT_RECNO_OOB	0		/* Illegal record number */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_READ_CACHE			0x0001u
+#define	WT_READ_DELETED_CHECK		0x0002u
+#define	WT_READ_DELETED_SKIP		0x0004u
+#define	WT_READ_IGNORE_CACHE_SIZE	0x0008u
+#define	WT_READ_LOOKASIDE		0x0010u
+#define	WT_READ_NOTFOUND_OK		0x0020u
+#define	WT_READ_NO_GEN			0x0040u
+#define	WT_READ_NO_SPLIT		0x0080u
+#define	WT_READ_NO_WAIT			0x0100u
+#define	WT_READ_PREV			0x0200u
+#define	WT_READ_RESTART_OK		0x0400u
+#define	WT_READ_SKIP_INTL		0x0800u
+#define	WT_READ_TRUNCATE		0x1000u
+#define	WT_READ_WONT_NEED		0x2000u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_REC_CHECKPOINT	0x01u
+#define	WT_REC_EVICT		0x02u
+#define	WT_REC_IN_MEMORY	0x04u
+#define	WT_REC_LOOKASIDE	0x08u
+#define	WT_REC_SCRUB		0x10u
+#define	WT_REC_UPDATE_RESTORE	0x20u
+#define	WT_REC_VISIBILITY_ERR	0x40u
+#define	WT_REC_VISIBLE_ALL	0x80u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
  * WT_PAGE_HEADER --
@@ -41,11 +69,15 @@ struct __wt_page_header {
 
 	uint8_t type;			/* 24: page type */
 
-#define	WT_PAGE_COMPRESSED	0x01	/* Page is compressed on disk */
-#define	WT_PAGE_EMPTY_V_ALL	0x02	/* Page has all zero-length values */
-#define	WT_PAGE_EMPTY_V_NONE	0x04	/* Page has no zero-length values */
-#define	WT_PAGE_ENCRYPTED	0x08	/* Page is encrypted on disk */
-#define	WT_PAGE_LAS_UPDATE	0x10	/* Page updates in lookaside store */
+	/*
+	 * No automatic generation: flag values cannot change, they're written
+	 * to disk.
+	 */
+#define	WT_PAGE_COMPRESSED	0x01u	/* Page is compressed on disk */
+#define	WT_PAGE_EMPTY_V_ALL	0x02u	/* Page has all zero-length values */
+#define	WT_PAGE_EMPTY_V_NONE	0x04u	/* Page has no zero-length values */
+#define	WT_PAGE_ENCRYPTED	0x08u	/* Page is encrypted on disk */
+#define	WT_PAGE_LAS_UPDATE	0x10u	/* Page updates in lookaside store */
 	uint8_t flags;			/* 25: flags */
 
 	/*
@@ -145,8 +177,10 @@ struct __wt_ovfl_reuse {
 	 * skiplist entry; if reconciliation fails for any reason, discard the
 	 * newly added skiplist entries, along with their underlying blocks.
 	 */
-#define	WT_OVFL_REUSE_INUSE		0x01
-#define	WT_OVFL_REUSE_JUST_ADDED	0x02
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_OVFL_REUSE_INUSE		0x1u
+#define	WT_OVFL_REUSE_JUST_ADDED	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t	 flags;
 
 	/*
@@ -191,19 +225,22 @@ struct __wt_ovfl_reuse {
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
     ",value_format=" WT_UNCHECKED_STRING(QuBu)				\
     ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
-    ",leaf_value_max=64MB"
+    ",leaf_value_max=64MB"						\
+    ",prefix_compression=true"
 
 /*
  * WT_PAGE_LOOKASIDE --
  *	Related information for on-disk pages with lookaside entries.
  */
 struct __wt_page_lookaside {
-	uint64_t las_pageid;			/* Page ID in lookaside */
-	uint64_t las_max_txn;			/* Maximum transaction ID in
-						   lookaside */
-	WT_DECL_TIMESTAMP(min_timestamp)	/* Min timestamp in lookaside */
-	WT_DECL_TIMESTAMP(onpage_timestamp)	/* Max timestamp on page */
-	bool las_skew_newest;			/* On-page skewed to newest */
+	uint64_t las_pageid;		/* Page ID in lookaside */
+	uint64_t max_txn;		/* Maximum transaction ID */
+	uint64_t unstable_txn;		/* First transaction ID not on page */
+	WT_DECL_TIMESTAMP(max_timestamp)/* Maximum timestamp */
+	WT_DECL_TIMESTAMP(unstable_timestamp)/* First timestamp not on page */
+	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
+	bool invalid;			/* History is required correct reads */
+	bool skew_newest;		/* Page image has newest versions */
 };
 
 /*
@@ -231,6 +268,9 @@ struct __wt_page_modify {
 	/* The largest transaction seen on the page by reconciliation. */
 	uint64_t rec_max_txn;
 	WT_DECL_TIMESTAMP(rec_max_timestamp)
+
+	/* Stable timestamp at last reconciliation. */
+	WT_DECL_TIMESTAMP(last_stable_timestamp)
 
 	/* The largest update transaction ID (approximate). */
 	uint64_t update_txn;
@@ -443,7 +483,9 @@ struct __wt_page_modify {
 #define	WT_PM_REC_REPLACE	3	/* Reconciliation: single block */
 	uint8_t rec_result;		/* Reconciliation state */
 
-	uint8_t update_restored;	/* Page created by restoring updates */
+#define	WT_PAGE_RS_LOOKASIDE	0x1
+#define	WT_PAGE_RS_RESTORED	0x2
+	uint8_t restore_state;		/* Created by restoring updates */
 };
 
 /*
@@ -470,11 +512,7 @@ struct __wt_page {
 		 * Internal pages (both column- and row-store).
 		 *
 		 * In-memory internal pages have an array of pointers to child
-		 * structures, maintained in collated order.  When a page is
-		 * read into memory, the initial list of children is stored in
-		 * the "orig_index" field, and it and the collated order are
-		 * the same.  After a page splits, the collated order and the
-		 * original order will differ.
+		 * structures, maintained in collated order.
 		 *
 		 * Multiple threads of control may be searching the in-memory
 		 * internal page and a child page of the internal page may
@@ -604,14 +642,16 @@ struct __wt_page {
 #define	WT_PAGE_ROW_LEAF	7	/* Row-store leaf page */
 	uint8_t type;			/* Page type */
 
-#define	WT_PAGE_BUILD_KEYS	0x01	/* Keys have been built in memory */
-#define	WT_PAGE_DISK_ALLOC	0x02	/* Disk image in allocated memory */
-#define	WT_PAGE_DISK_MAPPED	0x04	/* Disk image in mapped memory */
-#define	WT_PAGE_EVICT_LRU	0x08	/* Page is on the LRU queue */
-#define	WT_PAGE_OVERFLOW_KEYS	0x10	/* Page has overflow keys */
-#define	WT_PAGE_READ_NO_EVICT	0x20	/* Page read with eviction disabled */
-#define	WT_PAGE_SPLIT_INSERT	0x40	/* A leaf page was split for append */
-#define	WT_PAGE_UPDATE_IGNORE	0x80	/* Ignore updates on page discard */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_PAGE_BUILD_KEYS	0x01u	/* Keys have been built in memory */
+#define	WT_PAGE_DISK_ALLOC	0x02u	/* Disk image in allocated memory */
+#define	WT_PAGE_DISK_MAPPED	0x04u	/* Disk image in mapped memory */
+#define	WT_PAGE_EVICT_LRU	0x08u	/* Page is on the LRU queue */
+#define	WT_PAGE_EVICT_NO_PROGRESS 0x10u	/* Eviction doesn't count as progress */
+#define	WT_PAGE_OVERFLOW_KEYS	0x20u	/* Page has overflow keys */
+#define	WT_PAGE_SPLIT_INSERT	0x40u	/* A leaf page was split for append */
+#define	WT_PAGE_UPDATE_IGNORE	0x80u	/* Ignore updates on page discard */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t flags_atomic;		/* Atomic flags, use F_*_ATOMIC */
 
 	uint8_t unused[2];		/* Unused padding */
@@ -669,6 +709,45 @@ struct __wt_page {
 	((void *)((uint8_t *)((page)->dsk) + (o)))
 
 /*
+ * Prepare update states.
+ *
+ * Prepare update synchronization is based on the state field, which has the
+ * following possible states:
+ *
+ * WT_PREPARE_INIT:
+ *	The initial prepare state of either an update or a page_del structure,
+ *	indicating a prepare phase has not started yet.
+ *	This state has no impact on the visibility of the update's data.
+ *
+ * WT_PREPARE_INPROGRESS:
+ *	Update is in prepared phase.
+ *
+ * WT_PREPARE_LOCKED:
+ *	State is locked as state transition is in progress from INPROGRESS to
+ *	RESOLVED. Any reader of the state needs to wait for state transition to
+ *	complete.
+ *
+ * WT_PREPARE_RESOLVED:
+ *	Represents the commit state of the prepared update.
+ *
+ * State Transition:
+ * 	From uncommitted -> prepare -> commit:
+ * 	INIT --> INPROGRESS --> LOCKED --> RESOLVED
+ * 	LOCKED will be a momentary phase during timestamp update.
+ *
+ * 	From uncommitted -> prepare -> rollback:
+ * 	INIT --> INPROGRESS
+ * 	Prepare state will not be updated during rollback and will continue to
+ * 	have the state as INPROGRESS.
+ */
+#define	WT_PREPARE_INIT			0	/* Must be 0, as structures
+						   will be default initialized
+						   with 0. */
+#define	WT_PREPARE_INPROGRESS		1
+#define	WT_PREPARE_LOCKED		2
+#define	WT_PREPARE_RESOLVED		3
+
+/*
  * Page state.
  *
  * Synchronization is based on the WT_REF->state field, which has a number of
@@ -684,6 +763,10 @@ struct __wt_page {
  *	The page is on disk, but has been deleted from the tree; we can delete
  *	row-store leaf pages without reading them if they don't reference
  *	overflow items.
+ *
+ * WT_REF_LIMBO:
+ *	The page image has been loaded into memory but there is additional
+ *	history in the lookaside table that has not been applied.
  *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
@@ -731,11 +814,19 @@ struct __wt_page {
 
 /*
  * WT_PAGE_DELETED --
- *	Related information for fast-delete, on-disk pages.
+ *	Related information for truncated pages.
  */
 struct __wt_page_deleted {
 	volatile uint64_t txnid;		/* Transaction ID */
 	WT_DECL_TIMESTAMP(timestamp)
+
+	/*
+	 * The state is used for transaction prepare to manage visibility
+	 * and inheriting prepare state to update_list.
+	 */
+	volatile uint8_t prepare_state;		/* Prepare state. */
+
+	uint32_t previous_state;		/* Previous state */
 
 	WT_UPDATE **update_list;		/* List of updates for abort */
 };
@@ -758,11 +849,12 @@ struct __wt_ref {
 
 #define	WT_REF_DISK	 0		/* Page is on disk */
 #define	WT_REF_DELETED	 1		/* Page is on disk, but deleted */
-#define	WT_REF_LOCKED	 2		/* Page locked for exclusive access */
-#define	WT_REF_LOOKASIDE 3		/* Page is on disk with lookaside */
-#define	WT_REF_MEM	 4		/* Page is in cache and valid */
-#define	WT_REF_READING	 5		/* Page being read */
-#define	WT_REF_SPLIT	 6		/* Parent page split (WT_REF dead) */
+#define	WT_REF_LIMBO	 2		/* Page is in cache without history */
+#define	WT_REF_LOCKED	 3		/* Page locked for exclusive access */
+#define	WT_REF_LOOKASIDE 4		/* Page is on disk with lookaside */
+#define	WT_REF_MEM	 5		/* Page is in cache and valid */
+#define	WT_REF_READING	 6		/* Page being read */
+#define	WT_REF_SPLIT	 7		/* Parent page split (WT_REF dead) */
 	volatile uint32_t state;	/* Page state */
 
 	/*
@@ -784,16 +876,14 @@ struct __wt_ref {
 #undef	ref_ikey
 #define	ref_ikey	key.ikey
 
-	union {
-		WT_PAGE_DELETED	*page_del;	/* Deleted page information */
-		WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
-	};
+	WT_PAGE_DELETED	  *page_del;	/* Deleted page information */
+	WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
  * the compiler hasn't inserted padding which would break the world.
  */
-#define	WT_REF_SIZE	48
+#define	WT_REF_SIZE	56
 
 /*
  * WT_ROW --
@@ -939,19 +1029,27 @@ struct __wt_update {
 	uint32_t size;			/* data length */
 
 #define	WT_UPDATE_INVALID	0	/* diagnostic check */
-#define	WT_UPDATE_DELETED	1	/* deleted */
-#define	WT_UPDATE_MODIFIED	2	/* partial-update modify value */
-#define	WT_UPDATE_RESERVED	3	/* reserved */
+#define	WT_UPDATE_BIRTHMARK	1	/* transaction for on-page value */
+#define	WT_UPDATE_MODIFY	2	/* partial-update modify value */
+#define	WT_UPDATE_RESERVE	3	/* reserved */
 #define	WT_UPDATE_STANDARD	4	/* complete value */
+#define	WT_UPDATE_TOMBSTONE	5	/* deleted */
 	uint8_t type;			/* type (one byte to conserve memory) */
 
 	/* If the update includes a complete value. */
 #define	WT_UPDATE_DATA_VALUE(upd)					\
-	((upd)->type == WT_UPDATE_STANDARD || (upd)->type == WT_UPDATE_DELETED)
+	((upd)->type == WT_UPDATE_STANDARD ||				\
+	(upd)->type == WT_UPDATE_TOMBSTONE)
 
 #if WT_TIMESTAMP_SIZE != 8
 	WT_DECL_TIMESTAMP(timestamp)	/* unaligned uint8_t array timestamp */
 #endif
+
+	/*
+	 * The update state is used for transaction prepare to manage
+	 * visibility and transitioning update structure state safely.
+	 */
+	volatile uint8_t prepare_state;	/* Prepare state. */
 
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the
@@ -965,7 +1063,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(21 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	(22 + WT_TIMESTAMP_SIZE)
 
 /*
  * The memory size of an update: include some padding because this is such a
@@ -977,10 +1075,18 @@ struct __wt_update {
 
 /*
  * WT_MAX_MODIFY_UPDATE --
- *	Limit update chains to a small value to avoid penalizing reads and
- * permit truncation.
+ *	Limit update chains value to avoid penalizing reads and
+ *	permit truncation. Having a smaller value will penalize the cases
+ *	when history has to be maintained, resulting in multiplying cache
+ *	pressure.
  */
 #define	WT_MAX_MODIFY_UPDATE	10
+
+/*
+ * WT_MODIFY_MEM_FACTOR	--
+ *	Limit update chains to a factor of the base document size.
+ */
+#define	WT_MODIFY_MEM_FACTOR	1
 
 /*
  * WT_INSERT --

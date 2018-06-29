@@ -71,6 +71,9 @@ This error is generated when wiredtiger_open is configured to return an error if
 @par <code>WT_CACHE_FULL</code>
 This error is only generated when wiredtiger_open is configured to run in-memory, and an insert or update operation requires more than the configured cache size to complete. The operation may be retried; if a transaction is in progress, it should be rolled back and the operation retried in a new transaction.
 
+@par <code>WT_PREPARE_CONFLICT</code>
+This error is generated when the application attempts to update an already updated record which is in prepared state. An updated record will be in prepared state, when the transaction that performed the update is in prepared state.
+
 @if IGNORE_BUILT_BY_API_ERR_END
 @endif
 
@@ -87,10 +90,11 @@ standard API.
 Note that ::wiredtiger_strerror is not thread-safe.
 
 @m_if{c}
-@section error_handling_event Error handling using the WT_EVENT_HANDLER
+@section event_message_handling Message handling using the WT_EVENT_HANDLER
 
-Specific error handling can be configured by passing an implementation
-of WT_EVENT_HANDLER to ::wiredtiger_open or WT_CONNECTION::open_session.
+Specific error and other message handling can be configured by passing an
+implementation of WT_EVENT_HANDLER to ::wiredtiger_open or
+WT_CONNECTION::open_session.
 
 For example, both informational and error messages might be passed to an
 application-specific logging function that added a timestamp and logged

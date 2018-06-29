@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -256,7 +256,7 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	conn = S2C(session);
 
 	__wt_verbose(session, WT_VERB_BLOCK,
-	    "close: %s", block->name == NULL ? "" : block->name );
+	    "close: %s", block->name == NULL ? "" : block->name);
 
 	__wt_spin_lock(session, &conn->block_lock);
 

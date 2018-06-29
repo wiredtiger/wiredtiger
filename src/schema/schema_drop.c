@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -30,7 +30,7 @@ __drop_file(
 	WT_RET(__wt_schema_backup_check(session, filename));
 	/* Close all btree handles associated with this file. */
 	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-	    ret = __wt_conn_dhandle_close_all(session, uri, force));
+	    ret = __wt_conn_dhandle_close_all(session, uri, true, force));
 	WT_RET(ret);
 
 	/* Remove the metadata entry (ignore missing items). */
@@ -124,7 +124,14 @@ __drop_table(
 	 * being reopened while it is being dropped.  One issue is that the
 	 * WT_WITHOUT_LOCKS macro can drop and reacquire the global table lock,
 	 * avoiding deadlocks while waiting for LSM operation to quiesce.
+	 *
+	 * Temporarily getting the table exclusively serves the purpose
+	 * of ensuring that cursors on the table that are already open
+	 * must at least be closed before this call proceeds.
 	 */
+	WT_ERR(__wt_schema_get_table_uri(session, uri, true,
+	    WT_DHANDLE_EXCLUSIVE, &table));
+	WT_ERR(__wt_schema_release_table(session, table));
 	WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 
 	/* Drop the column groups. */

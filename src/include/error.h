@@ -1,10 +1,11 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
+#define	WT_COMPAT_MSG_PREFIX "Version incompatibility detected: "
 
 #define	WT_DEBUG_POINT	((void *)(uintptr_t)0xdeadbeef)
 #define	WT_DEBUG_BYTE	(0xab)
@@ -46,6 +47,13 @@
 	if ((__ret = (a)) != 0)						\
 		return (__ret);						\
 } while (0)
+#define	WT_RET_TRACK(a) do {						\
+	int __ret;							\
+	if ((__ret = (a)) != 0)	{					\
+		WT_TRACK_OP_END(session);				\
+		return (__ret);						\
+	}								\
+} while (0)
 #define	WT_RET_MSG(session, v, ...) do {				\
 	int __ret = (v);						\
 	__wt_err(session, __ret, __VA_ARGS__);				\
@@ -61,7 +69,6 @@
 } while (0)
 #define	WT_RET_BUSY_OK(a)	WT_RET_ERROR_OK(a, EBUSY)
 #define	WT_RET_NOTFOUND_OK(a)	WT_RET_ERROR_OK(a, WT_NOTFOUND)
-
 /* Set "ret" if not already set. */
 #define	WT_TRET(a) do {							\
 	int __ret;							\
@@ -79,6 +86,7 @@
 	    ret == WT_NOTFOUND || ret == WT_RESTART))			\
 		ret = __ret;						\
 } while (0)
+#define	WT_TRET_BUSY_OK(a)	WT_TRET_ERROR_OK(a, EBUSY)
 #define	WT_TRET_NOTFOUND_OK(a)	WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
 /* Return and branch-to-err-label cases for switch statements. */
@@ -137,15 +145,7 @@
  * there's no portable way to remove the comma before an empty __VA_ARGS__
  * value.
  */
-#ifdef HAVE_VERBOSE
 #define	__wt_verbose(session, flag, fmt, ...) do {			\
 	if (WT_VERBOSE_ISSET(session, flag))				\
 		__wt_verbose_worker(session, fmt, __VA_ARGS__);		\
 } while (0)
-#else
-#define	__wt_verbose(session, flag, fmt, ...) do {			\
-	WT_UNUSED(session);						\
-	WT_UNUSED(flag);						\
-	WT_UNUSED(fmt);							\
-} while (0)
-#endif

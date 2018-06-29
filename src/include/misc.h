@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,6 +11,10 @@
  * and unused function return values.
  */
 #define	WT_UNUSED(var)		(void)(var)
+#define	WT_NOT_READ(v, val) do {					\
+	(v) = (val);							\
+	(void)(v);							\
+} while (0);
 #define	WT_IGNORE_RET(call) do {					\
 	int __ignored_ret;						\
 	__ignored_ret = (call);						\
@@ -23,6 +27,8 @@
 #define	WT_THOUSAND	(1000)
 #define	WT_MILLION	(1000000)
 #define	WT_BILLION	(1000000000)
+
+#define	WT_MINUTE	(60)
 
 #define	WT_KILOBYTE	(1024)
 #define	WT_MEGABYTE	(1048576)
@@ -74,6 +80,12 @@
  * block or logging subsystems pad.  Constant value.
  */
 #define	WT_ENCRYPT_LEN_SIZE	sizeof(uint32_t)
+
+/*
+ * Default hash table size; we don't need a prime number of buckets
+ * because we always use a good hash function.
+ */
+#define	WT_HASH_ARRAY_SIZE	512
 
 /*
  * __wt_calloc_def, __wt_calloc_one --
@@ -132,15 +144,13 @@
  * hex constant might be a negative integer), and to ensure the hex constant is
  * the correct size before applying the bitwise not operator.
  */
-#define	FLD_CLR(field, mask)	        ((void)((field) &= ~(uint32_t)(mask)))
-#define	FLD_MASK(field, mask)	        ((field) & (uint32_t)(mask))
+#define	FLD_CLR(field, mask)	        ((void)((field) &= ~(mask)))
+#define	FLD_MASK(field, mask)	        ((field) & (mask))
 #define	FLD_ISSET(field, mask)	        (FLD_MASK(field, mask) != 0)
-#define	FLD64_ISSET(field, mask)	(((field) & (uint64_t)(mask)) != 0)
-#define	FLD_SET(field, mask)	        ((void)((field) |= (uint32_t)(mask)))
+#define	FLD_SET(field, mask)	        ((void)((field) |= (mask)))
 
 #define	F_CLR(p, mask)		        FLD_CLR((p)->flags, mask)
 #define	F_ISSET(p, mask)	        FLD_ISSET((p)->flags, mask)
-#define	F_ISSET_ALL(p, mask)	        (FLD_MASK((p)->flags, mask) == (mask))
 #define	F_MASK(p, mask)	                FLD_MASK((p)->flags, mask)
 #define	F_SET(p, mask)		        FLD_SET((p)->flags, mask)
 
@@ -195,12 +205,8 @@
 } while (0)
 
 /* Verbose messages. */
-#ifdef HAVE_VERBOSE
 #define	WT_VERBOSE_ISSET(session, f)					\
 	(FLD_ISSET(S2C(session)->verbose, f))
-#else
-#define	WT_VERBOSE_ISSET(session, f)	0
-#endif
 
 #define	WT_CLEAR(s)							\
 	memset(&(s), 0, sizeof(s))

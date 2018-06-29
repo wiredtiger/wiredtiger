@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -178,7 +178,7 @@ static inline void
 __wt_cache_decr_check_size(
     WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld)
 {
-	if (__wt_atomic_subsize(vp, v) < WT_EXABYTE)
+	if (v == 0 || __wt_atomic_subsize(vp, v) < WT_EXABYTE)
 		return;
 
 	/*
@@ -202,7 +202,9 @@ static inline void
 __wt_cache_decr_check_uint64(
     WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
 {
-	if (__wt_atomic_sub64(vp, v) < WT_EXABYTE)
+	uint64_t orig = *vp;
+
+	if (v == 0 || __wt_atomic_sub64(vp, v) < WT_EXABYTE)
 		return;
 
 	/*
@@ -211,7 +213,8 @@ __wt_cache_decr_check_uint64(
 	 */
 	*vp = 0;
 	__wt_errx(session,
-	    "%s went negative with decrement of %" PRIu64, fld, v);
+	    "%s was %" PRIu64 ", went negative with decrement of %" PRIu64, fld,
+	    orig, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
@@ -257,7 +260,7 @@ __wt_cache_page_byte_dirty_decr(
 		 * Take care to read the dirty-byte count only once in case
 		 * we're racing with updates.
 		 */
-		orig = page->modify->bytes_dirty;
+		WT_ORDERED_READ(orig, page->modify->bytes_dirty);
 		decr = WT_MIN(size, orig);
 		if (__wt_atomic_cassize(
 		    &page->modify->bytes_dirty, orig, orig - decr))
@@ -400,7 +403,7 @@ __wt_cache_page_image_incr(WT_SESSION_IMPL *session, uint32_t size)
  *	Evict pages from the cache.
  */
 static inline void
-__wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
+__wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -448,17 +451,8 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page, bool rewrite)
 	/*
 	 * Track if eviction makes progress.  This is used in various places to
 	 * determine whether eviction is stuck.
-	 *
-	 * We don't count rewrites as progress.
-	 *
-	 * Further, if a page was read with eviction disabled, we don't count
-	 * evicting a it as progress.  Since disabling eviction allows pages to
-	 * be read even when the cache is full, we want to avoid workloads
-	 * repeatedly reading a page with eviction disabled (e.g., from the
-	 * metadata), then evicting that page and deciding that is a sign that
-	 * eviction is unstuck.
 	 */
-	if (!rewrite && !F_ISSET_ATOMIC(page, WT_PAGE_READ_NO_EVICT))
+	if (!F_ISSET_ATOMIC(page, WT_PAGE_EVICT_NO_PROGRESS))
 		(void)__wt_atomic_addv64(&cache->eviction_progress, 1);
 }
 
@@ -1019,11 +1013,11 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
 
 /*
  * __wt_row_leaf_value_cell --
- *	Return a pointer to the value cell for a row-store leaf page key, or
- * NULL if there isn't one.
+ *	Return the unpacked value for a row-store leaf page key.
  */
-static inline WT_CELL *
-__wt_row_leaf_value_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack)
+static inline void
+__wt_row_leaf_value_cell(
+    WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_CELL_UNPACK *vpack)
 {
 	WT_CELL *kcell, *vcell;
 	WT_CELL_UNPACK unpack;
@@ -1058,7 +1052,7 @@ __wt_row_leaf_value_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack)
 		}
 	}
 
-	return (__wt_cell_leaf_value_parse(page, vcell));
+	__wt_cell_unpack(__wt_cell_leaf_value_parse(page, vcell), vpack);
 }
 
 /*
@@ -1160,12 +1154,62 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_page_del_active --
+ *	Return if a truncate operation is active.
+ */
+static inline bool
+__wt_page_del_active(
+    WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+{
+	WT_PAGE_DELETED *page_del;
+	uint8_t prepare_state;
+
+	if ((page_del = ref->page_del) == NULL)
+		return (false);
+	if (page_del->txnid == WT_TXN_ABORTED)
+		return (false);
+	WT_ORDERED_READ(prepare_state, page_del->prepare_state);
+	if (prepare_state == WT_PREPARE_INPROGRESS ||
+	    prepare_state == WT_PREPARE_LOCKED)
+		return (true);
+	return (visible_all ?
+	    !__wt_txn_visible_all(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) :
+	    !__wt_txn_visible(session,
+	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
+}
+
+/*
+ * __wt_page_las_active --
+ *	Return if lookaside data for a page is still required.
+ */
+static inline bool
+__wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_PAGE_LOOKASIDE *page_las;
+
+	if ((page_las = ref->page_las) == NULL)
+		return (false);
+	if (page_las->invalid || !ref->page_las->skew_newest)
+		return (true);
+	if (__wt_txn_visible_all(session, page_las->max_txn,
+	    WT_TIMESTAMP_NULL(&page_las->max_timestamp)))
+		return (false);
+
+	return (true);
+}
+
+/*
  * __wt_btree_can_evict_dirty --
  *	Check whether eviction of dirty pages or splits are permitted in the
  *	current tree.
  *
  *      We cannot evict dirty pages or split while a checkpoint is in progress,
  *      unless the checkpoint thread is doing the work.
+ *
+ *	Also, during connection close, if we take a checkpoint as of a
+ *	timestamp, eviction should not write dirty pages to avoid updates newer
+ *	than the checkpoint timestamp leaking to disk.
  */
 static inline bool
 __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
@@ -1173,7 +1217,8 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	return (btree->checkpointing == WT_CKPT_OFF ||
+	return ((btree->checkpointing == WT_CKPT_OFF &&
+	    !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) ||
 	    WT_SESSION_IS_CHECKPOINT(session));
 }
 
@@ -1236,7 +1281,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * size, split as soon as there are 5 items on the page.
 	 */
 #define	WT_MAX_SPLIT_COUNT	5
-	if (page->memory_footprint > btree->maxleafpage * 2) {
+	if (page->memory_footprint > (size_t)btree->maxleafpage * 2) {
 		for (count = 0, ins = ins_head->head[0];
 		    ins != NULL;
 		    ins = ins->next[0]) {
@@ -1293,7 +1338,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * If the page hasn't been through one round of update/restore, give it
 	 * a try.
 	 */
-	if ((mod = page->modify) == NULL || !mod->update_restored)
+	if ((mod = page->modify) == NULL ||
+	    !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
 		return (true);
 
 	/*
@@ -1345,7 +1391,11 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	page = ref->page;
 	mod = page->modify;
 
-	/* Pages that have never been modified can always be evicted. */
+	/* A truncated page can't be evicted until the truncate completes. */
+	if (__wt_page_del_active(session, ref, true))
+		return (false);
+
+	/* Otherwise, never modified pages can always be evicted. */
 	if (mod == NULL)
 		return (true);
 
@@ -1357,14 +1407,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 */
 	if (!__wt_btree_can_evict_dirty(session) &&
 	    F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS))
-		return (false);
-
-	/*
-	 * If the page was restored after a truncate, it can't be evicted until
-	 * the truncate completes.
-	 */
-	if (ref->page_del != NULL && !__wt_txn_visible_all(session,
-	    ref->page_del->txnid, WT_TIMESTAMP_NULL(&ref->page_del->timestamp)))
 		return (false);
 
 	/*
@@ -1404,9 +1446,9 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * locked exclusive (e.g., when the whole tree is being evicted).  In
 	 * that case, no readers can be looking at an old index.
 	 */
-	if (!F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
-	    WT_PAGE_IS_INTERNAL(page) &&
-	    page->pg_intl_split_gen >= __wt_gen_oldest(session, WT_GEN_SPLIT))
+	if (WT_PAGE_IS_INTERNAL(page) &&
+	    !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+	    __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
 		return (false);
 
 	/*
@@ -1469,7 +1511,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
 			if (!WT_SESSION_IS_CHECKPOINT(session))
-				__wt_page_evict_urgent(session, ref);
+				WT_IGNORE_RET(
+				    __wt_page_evict_urgent(session, ref));
 		} else {
 			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
 			return (0);
@@ -1477,81 +1520,6 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	}
 
 	return (__wt_hazard_clear(session, ref));
-}
-
-/*
- * __wt_page_swap_func --
- *	Swap one page's hazard pointer for another one when hazard pointer
- * coupling up/down the tree.
- */
-static inline int
-__wt_page_swap_func(
-    WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
-#ifdef HAVE_DIAGNOSTIC
-    , const char *file, int line
-#endif
-    )
-{
-	WT_DECL_RET;
-	bool acquired;
-
-	/*
-	 * This function is here to simplify the error handling during hazard
-	 * pointer coupling so we never leave a hazard pointer dangling.  The
-	 * assumption is we're holding a hazard pointer on "held", and want to
-	 * acquire a hazard pointer on "want", releasing the hazard pointer on
-	 * "held" when we're done.
-	 *
-	 * When walking the tree, we sometimes swap to the same page. Fast-path
-	 * that to avoid thinking about error handling.
-	 */
-	if (held == want)
-		return (0);
-
-	/* Get the wanted page. */
-	ret = __wt_page_in_func(session, want, flags
-#ifdef HAVE_DIAGNOSTIC
-	    , file, line
-#endif
-	    );
-
-	/*
-	 * Expected failures: page not found or restart. Our callers list the
-	 * errors they're expecting to handle.
-	 */
-	if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-		return (WT_NOTFOUND);
-	if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-		return (WT_RESTART);
-
-	/* Discard the original held page on either success or error. */
-	acquired = ret == 0;
-	WT_TRET(__wt_page_release(session, held, flags));
-
-	/* Fast-path expected success. */
-	if (ret == 0)
-		return (0);
-
-	/*
-	 * If there was an error at any point that our caller isn't prepared to
-	 * handle, discard any page we acquired.
-	 */
-	if (acquired)
-		WT_TRET(__wt_page_release(session, want, flags));
-
-	/*
-	 * If we're returning an error, don't let it be one our caller expects
-	 * to handle as returned by page-in: the expectation includes the held
-	 * page not having been released, and that's not the case.
-	 */
-	if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-		WT_RET_MSG(session,
-		    EINVAL, "page-release WT_NOTFOUND error mapped to EINVAL");
-	if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-		WT_RET_MSG(session,
-		    EINVAL, "page-release WT_RESTART error mapped to EINVAL");
-
-	return (ret);
 }
 
 /*
@@ -1638,6 +1606,8 @@ __wt_split_descent_race(
 	 * update. A thread can read the parent page's original page index and
 	 * then read the split page's replacement index.
 	 *
+	 * For example, imagine a search descending the tree.
+	 *
 	 * Because internal page splits work by truncating the original page to
 	 * the initial part of the original page, the result of this race is we
 	 * will have a search key that points past the end of the current page.
@@ -1682,28 +1652,90 @@ __wt_split_descent_race(
 	 * work by truncating the split page, so the split page search is for
 	 * content the split page retains after the split, and we ignore this
 	 * race.
+	 *
+	 * This code is a general purpose check for a descent race and we call
+	 * it in other cases, for example, a cursor traversing backwards through
+	 * the tree.
+	 *
+	 * Presumably we acquired a page index on the child page before calling
+	 * this code, don't re-order that acquisition with this check.
 	 */
+	WT_BARRIER();
 	WT_INTL_INDEX_GET(session, ref->home, pindex);
 	return (pindex != saved_pindex);
 }
 
 /*
- * __wt_ref_state_yield_sleep --
- *	sleep while waiting for the wt_ref state after THOUSAND yields.
+ * __wt_page_swap_func --
+ *	Swap one page's hazard pointer for another one when hazard pointer
+ * coupling up/down the tree.
  */
-static inline void
-__wt_ref_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_count)
+static inline int
+__wt_page_swap_func(
+    WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+#ifdef HAVE_DIAGNOSTIC
+    , const char *file, int line
+#endif
+    )
 {
-	/*
-	 * We yield before retrying, and if we've yielded enough times, start
-	 * sleeping so we don't burn CPU to no purpose.
-	 */
-	if ((*yield_count) < WT_THOUSAND) {
-		(*yield_count)++;
-		__wt_yield();
-		return;
-	}
+	WT_DECL_RET;
+	bool acquired;
 
-	(*sleep_count) = WT_MIN((*sleep_count) + 100, WT_THOUSAND);
-	__wt_sleep(0, (*sleep_count));
+	/*
+	 * This function is here to simplify the error handling during hazard
+	 * pointer coupling so we never leave a hazard pointer dangling.  The
+	 * assumption is we're holding a hazard pointer on "held", and want to
+	 * acquire a hazard pointer on "want", releasing the hazard pointer on
+	 * "held" when we're done.
+	 *
+	 * When walking the tree, we sometimes swap to the same page. Fast-path
+	 * that to avoid thinking about error handling.
+	 */
+	if (held == want)
+		return (0);
+
+	/* Get the wanted page. */
+	ret = __wt_page_in_func(session, want, flags
+#ifdef HAVE_DIAGNOSTIC
+	    , file, line
+#endif
+	    );
+
+	/*
+	 * Expected failures: page not found or restart. Our callers list the
+	 * errors they're expecting to handle.
+	 */
+	if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
+		return (WT_NOTFOUND);
+	if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
+		return (WT_RESTART);
+
+	/* Discard the original held page on either success or error. */
+	acquired = ret == 0;
+	WT_TRET(__wt_page_release(session, held, flags));
+
+	/* Fast-path expected success. */
+	if (ret == 0)
+		return (0);
+
+	/*
+	 * If there was an error at any point that our caller isn't prepared to
+	 * handle, discard any page we acquired.
+	 */
+	if (acquired)
+		WT_TRET(__wt_page_release(session, want, flags));
+
+	/*
+	 * If we're returning an error, don't let it be one our caller expects
+	 * to handle as returned by page-in: the expectation includes the held
+	 * page not having been released, and that's not the case.
+	 */
+	if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
+		WT_RET_MSG(session,
+		    EINVAL, "page-release WT_NOTFOUND error mapped to EINVAL");
+	if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
+		WT_RET_MSG(session,
+		    EINVAL, "page-release WT_RESTART error mapped to EINVAL");
+
+	return (ret);
 }

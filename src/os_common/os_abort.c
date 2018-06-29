@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -24,7 +24,7 @@ __wt_abort(WT_SESSION_IMPL *session)
 
 	/* Sleep forever, the debugger will interrupt us when it attaches. */
 	for (i = 0; i < WT_MILLION; ++i)
-		__wt_sleep(10, 0);
+		__wt_sleep(100, 0);
 #else
 	__wt_errx(session, "aborting WiredTiger library");
 #endif

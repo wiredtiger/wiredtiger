@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -49,7 +49,9 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	F_SET(session, WT_SESSION_READ_WONT_NEED);
 
 	/* Walk the file. */
-	for (; (ret = cursor->next(cursor)) == 0; ) {
+	__wt_writelock(session, &conn->cache->las_sweepwalk_lock);
+	while ((ret = cursor->next(cursor)) == 0) {
+		++las_total;
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
@@ -70,14 +72,19 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		 * be removed.
 		 */
 		if (__wt_timestamp_cmp(
-		    &rollback_timestamp, las_timestamp.data) < 0)
+		    &rollback_timestamp, las_timestamp.data) < 0) {
 			WT_ERR(cursor->remove(cursor));
-		else
-			++las_total;
+			WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
+			--las_total;
+		}
 	}
 	WT_ERR_NOTFOUND_OK(ret);
-err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-	WT_STAT_CONN_SET(session, cache_lookaside_entries, las_total);
+err:	if (ret == 0) {
+		conn->cache->las_insert_count = las_total;
+		conn->cache->las_remove_count = 0;
+	}
+	__wt_writeunlock(session, &conn->cache->las_sweepwalk_lock);
+	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
 	F_CLR(session, WT_SESSION_READ_WONT_NEED);
 
@@ -106,6 +113,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 		if (__wt_timestamp_cmp(
 		    rollback_timestamp, &next_upd->timestamp) < 0) {
 			next_upd->txnid = WT_TXN_ABORTED;
+			WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
 			__wt_timestamp_set_zero(&next_upd->timestamp);
 
 			/*
@@ -251,22 +259,6 @@ __txn_abort_newer_updates(
 }
 
 /*
- * __txn_rollback_to_stable_custom_skip --
- *	Return if custom rollback requires we read this page.
- */
-static int
-__txn_rollback_to_stable_custom_skip(
-    WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
-{
-	WT_UNUSED(context);
-	WT_UNUSED(session);
-
-	/* Review all pages that are in memory. */
-	*skipp = !(ref->state == WT_REF_MEM || ref->state == WT_REF_DELETED);
-	return (0);
-}
-
-/*
  * __txn_rollback_to_stable_btree_walk --
  *	Called for each open handle - choose to either skip or wipe the commits
  */
@@ -275,22 +267,25 @@ __txn_rollback_to_stable_btree_walk(
     WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_DECL_RET;
-	WT_PAGE *page;
 	WT_REF *ref;
 
 	/* Walk the tree, marking commits aborted where appropriate. */
 	ref = NULL;
-	while ((ret = __wt_tree_walk_custom_skip(session, &ref,
-	    __txn_rollback_to_stable_custom_skip,
-	    NULL, WT_READ_NO_EVICT)) == 0 && ref != NULL) {
-		page = ref->page;
+	while ((ret = __wt_tree_walk(session, &ref,
+	    WT_READ_CACHE | WT_READ_LOOKASIDE | WT_READ_NO_EVICT)) == 0 &&
+	    ref != NULL) {
+		if (ref->page_las != NULL &&
+		    ref->page_las->skew_newest &&
+		    __wt_timestamp_cmp(rollback_timestamp,
+		    &ref->page_las->unstable_timestamp) < 0)
+			ref->page_las->invalid = true;
 
 		/* Review deleted page saved to the ref */
 		if (ref->page_del != NULL && __wt_timestamp_cmp(
 		    rollback_timestamp, &ref->page_del->timestamp) < 0)
-			__wt_delete_page_rollback(session, ref);
+			WT_RET(__wt_delete_page_rollback(session, ref));
 
-		if (!__wt_page_is_modified(page))
+		if (!__wt_page_is_modified(ref->page))
 			continue;
 
 		WT_RET(__txn_abort_newer_updates(
@@ -369,7 +364,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    __wt_timestamp_set(
-		&rollback_timestamp, &txn_global->stable_timestamp));
+	    &rollback_timestamp, &txn_global->stable_timestamp));
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't
@@ -434,12 +429,19 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
 	conn = S2C(session);
 
+	WT_STAT_CONN_INCR(session, txn_rollback_to_stable);
 	/*
 	 * Mark that a rollback operation is in progress and wait for eviction
 	 * to drain.  This is necessary because lookaside eviction uses
 	 * transactions and causes the check for a quiescent system to fail.
+	 *
+	 * Configuring lookaside eviction off isn't atomic, safe because the
+	 * flag is only otherwise set when closing down the database. Assert
+	 * to avoid confusion in the future.
 	 */
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE));
 	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+
 	WT_ERR(__wt_conn_btree_apply(session,
 	    NULL, __txn_rollback_eviction_drain, NULL, cfg));
 

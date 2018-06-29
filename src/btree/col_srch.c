@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -191,8 +191,8 @@ descend:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
-		if ((ret = __wt_page_swap(
-		    session, current, descent, WT_READ_RESTART_OK)) == 0) {
+		if ((ret = __wt_page_swap(session,
+		    current, descent, WT_READ_RESTART_OK)) == 0) {
 			current = descent;
 			continue;
 		}

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -18,6 +18,19 @@ __wt_cursor_noop(WT_CURSOR *cursor)
 	WT_UNUSED(cursor);
 
 	return (0);
+}
+
+/*
+ * __wt_cursor_cached --
+ *	No actions on a closed and cached cursor are allowed.
+ */
+int
+__wt_cursor_cached(WT_CURSOR *cursor)
+{
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_RET_MSG(session, ENOTSUP, "Cursor has been closed");
 }
 
 /*
@@ -96,9 +109,17 @@ __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 int
 __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
+	WT_SESSION_IMPL *session;
+
 	WT_UNUSED(entries);
 	WT_UNUSED(nentries);
 
+	if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
+		session = (WT_SESSION_IMPL *)cursor->session;
+		WT_RET_MSG(session, ENOTSUP,
+		    "WT_CURSOR.modify only supported for 'S' and 'u' value "
+		    "formats");
+	}
 	return (__wt_cursor_notsup(cursor));
 }
 
@@ -122,6 +143,18 @@ int
 __wt_cursor_reconfigure_notsup(WT_CURSOR *cursor, const char *config)
 {
 	WT_UNUSED(config);
+
+	return (__wt_cursor_notsup(cursor));
+}
+
+/*
+ * __wt_cursor_reopen_notsup --
+ *	Unsupported cursor reopen.
+ */
+int
+__wt_cursor_reopen_notsup(WT_CURSOR *cursor, bool check_only)
+{
+	WT_UNUSED(check_only);
 
 	return (__wt_cursor_notsup(cursor));
 }
@@ -549,6 +582,256 @@ err:		cursor->saved_err = ret;
 }
 
 /*
+ * __wt_cursor_cache --
+ *	Add this cursor to the cache.
+ */
+int
+__wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	uint64_t bucket;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) &&
+	    dhandle != NULL);
+
+	WT_TRET(cursor->reset(cursor));
+
+	/*
+	 * Acquire a reference while decrementing the in-use counter.
+	 * After this point, the dhandle may be marked dead, but the
+	 * actual handle won't be removed.
+	 */
+	session->dhandle = dhandle;
+	WT_DHANDLE_ACQUIRE(dhandle);
+	__wt_cursor_dhandle_decr_use(session);
+
+	/* Move the cursor from the open list to the caching hash table. */
+	if (cursor->uri_hash == 0)
+		cursor->uri_hash = __wt_hash_city64(
+		    cursor->uri, strlen(cursor->uri));
+	bucket = cursor->uri_hash % WT_HASH_ARRAY_SIZE;
+	TAILQ_REMOVE(&session->cursors, cursor, q);
+	TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
+
+	(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
+	WT_STAT_DATA_DECR(session, session_cursor_open);
+	WT_STAT_DATA_INCR(session, session_cursor_cached);
+	F_SET(cursor, WT_CURSTD_CACHED);
+	return (ret);
+}
+
+/*
+ * __wt_cursor_reopen --
+ *	Reopen this cursor from the cached state.
+ */
+void
+__wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
+{
+	WT_SESSION_IMPL *session;
+	uint64_t bucket;
+
+	session = (WT_SESSION_IMPL *)cursor->session;
+	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
+
+	if (dhandle != NULL) {
+		session->dhandle = dhandle;
+		__wt_cursor_dhandle_incr_use(session);
+		WT_DHANDLE_RELEASE(dhandle);
+	}
+	(void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
+	WT_STAT_DATA_INCR(session, session_cursor_open);
+	WT_STAT_DATA_DECR(session, session_cursor_cached);
+
+	bucket = cursor->uri_hash % WT_HASH_ARRAY_SIZE;
+	TAILQ_REMOVE(&session->cursor_cache[bucket], cursor, q);
+	TAILQ_INSERT_HEAD(&session->cursors, cursor, q);
+	F_CLR(cursor, WT_CURSTD_CACHED);
+}
+
+/*
+ * __wt_cursor_cache_release --
+ *	Put the cursor into a cached state, called during cursor close
+ * operations.
+ */
+int
+__wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
+    bool *released)
+{
+	WT_DECL_RET;
+
+	*released = false;
+	if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) ||
+	    !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+		return (0);
+
+	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED));
+
+	/*
+	 * Do any sweeping first, if there are errors, it will
+	 * be easier to clean up if the cursor is not already cached.
+	 */
+	if (--session->cursor_sweep_countdown == 0) {
+		session->cursor_sweep_countdown =
+		    WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+		WT_RET(__wt_session_cursor_cache_sweep(session));
+	}
+
+	WT_ERR(cursor->cache(cursor));
+	WT_STAT_CONN_INCR(session, cursor_cache);
+	WT_STAT_DATA_INCR(session, cursor_cache);
+	WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
+	*released = true;
+
+	if (0) {
+		/*
+		 * If caching fails, we must restore the state of the
+		 * cursor back to open so that the close works from
+		 * a known state. The reopen may also fail, but that
+		 * doesn't matter at this point.
+		 */
+err:		WT_TRET(cursor->reopen(cursor, false));
+		WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
+	}
+
+	return (ret);
+}
+
+/*
+ * __wt_cursor_cache_get --
+ *	Open a matching cursor from the cache.
+ */
+int
+__wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
+    WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	uint64_t bucket, hash_value;
+	uint32_t overwrite_flag;
+	bool have_config;
+
+	if (!F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+		return (WT_NOTFOUND);
+
+	/* If original config string is NULL or "", don't check it. */
+	have_config = (cfg != NULL && cfg[0] != NULL && cfg[1] != NULL &&
+	    (cfg[2] != NULL || cfg[1][0] != '\0'));
+
+	/* Fast path overwrite configuration */
+	if (have_config && cfg[2] == NULL &&
+	    WT_STREQ(cfg[1], "overwrite=false")) {
+		have_config = false;
+		overwrite_flag = 0;
+	} else
+		overwrite_flag = WT_CURSTD_OVERWRITE;
+
+	if (have_config) {
+		/*
+		 * Any cursors that have special configuration cannot
+		 * be cached. There are some exceptions for configurations
+		 * that only differ by a cursor flag, which we can patch
+		 * up if we find a matching cursor.
+		 */
+		WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
+		if (cval.val)
+			return (WT_NOTFOUND);
+
+		WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
+		if (cval.len != 0)
+			return (WT_NOTFOUND);
+
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "next_random", 0, &cval));
+		if (cval.val != 0)
+			return (WT_NOTFOUND);
+
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "readonly", 0, &cval));
+		if (cval.val)
+			return (WT_NOTFOUND);
+
+		/* Checkpoints are readonly, we won't cache them. */
+		WT_RET(__wt_config_gets_def(
+		    session, cfg, "checkpoint", 0, &cval));
+		if (cval.val)
+			return (WT_NOTFOUND);
+	}
+
+	/*
+	 * Caller guarantees that exactly one of the URI and the
+	 * duplicate cursor is non-NULL.
+	 */
+	if (to_dup != NULL) {
+		WT_ASSERT(session, uri == NULL);
+		uri = to_dup->uri;
+		hash_value = to_dup->uri_hash;
+	} else {
+		WT_ASSERT(session, uri != NULL);
+		hash_value = __wt_hash_city64(uri, strlen(uri));
+	}
+
+	/*
+	 * Walk through all cursors, if there is a cached
+	 * cursor that matches uri and configuration, use it.
+	 */
+	bucket = hash_value % WT_HASH_ARRAY_SIZE;
+	TAILQ_FOREACH(cursor, &session->cursor_cache[bucket], q) {
+		if (cursor->uri_hash == hash_value &&
+		    WT_STREQ(cursor->uri, uri)) {
+			if ((ret = cursor->reopen(cursor, false)) != 0) {
+				F_CLR(cursor, WT_CURSTD_CACHEABLE);
+				session->dhandle = NULL;
+				(void)cursor->close(cursor);
+				return (ret);
+			}
+
+			/*
+			 * For these configuration values, there
+			 * is no difference in the resulting
+			 * cursor other than flag values, so fix
+			 * them up according to the given configuration.
+			 */
+			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW |
+			    WT_CURSTD_OVERWRITE);
+			F_SET(cursor, overwrite_flag);
+
+			if (have_config) {
+				/*
+				 * The append flag is only relevant to
+				 * column stores.
+				 */
+				if (WT_CURSOR_RECNO(cursor)) {
+					WT_RET(__wt_config_gets_def(
+					    session, cfg, "append", 0, &cval));
+					if (cval.val != 0)
+						F_SET(cursor, WT_CURSTD_APPEND);
+				}
+
+				WT_RET(__wt_config_gets_def(
+				    session, cfg, "overwrite", 1, &cval));
+				if (cval.val == 0)
+					F_CLR(cursor, WT_CURSTD_OVERWRITE);
+
+				WT_RET(__wt_config_gets_def(
+				    session, cfg, "raw", 0, &cval));
+				if (cval.val != 0)
+					F_SET(cursor, WT_CURSTD_RAW);
+			}
+
+			WT_STAT_CONN_INCR(session, cursor_reopen);
+			WT_STAT_DATA_INCR(session, cursor_reopen);
+
+			*cursorp = cursor;
+			return (0);
+		}
+	}
+	return (WT_NOTFOUND);
+}
+
+/*
  * __wt_cursor_close --
  *	WT_CURSOR->close default implementation.
  */
@@ -565,7 +848,6 @@ __wt_cursor_close(WT_CURSOR *cursor)
 		(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
 		WT_STAT_DATA_DECR(session, session_cursor_open);
 	}
-
 	__wt_buf_free(session, &cursor->key);
 	__wt_buf_free(session, &cursor->value);
 
@@ -626,8 +908,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 	/* Get the current value, apply the modifications. */
 	WT_ERR(cursor->search(cursor));
-	WT_ERR(__wt_modify_apply_api(
-	    session, &cursor->value, entries, nentries));
+	WT_ERR(__wt_modify_apply_api(session, cursor, entries, nentries));
 
 	/* We know both key and value are set, "overwrite" doesn't matter. */
 	ret = cursor->update(cursor);
@@ -646,10 +927,10 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
-	session = (WT_SESSION_IMPL *)cursor->session;
+	CURSOR_API_CALL(cursor, session, reconfigure, NULL);
 
 	/* Reconfiguration resets the cursor. */
-	WT_RET(cursor->reset(cursor));
+	WT_ERR(cursor->reset(cursor));
 
 	/*
 	 * append
@@ -663,7 +944,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 			else
 				F_CLR(cursor, WT_CURSTD_APPEND);
 		} else
-			WT_RET_NOTFOUND_OK(ret);
+			WT_ERR_NOTFOUND_OK(ret);
 	}
 
 	/*
@@ -676,9 +957,9 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 		else
 			F_CLR(cursor, WT_CURSTD_OVERWRITE);
 	} else
-		WT_RET_NOTFOUND_OK(ret);
+		WT_ERR_NOTFOUND_OK(ret);
 
-	return (0);
+err:	API_END_RET(session, ret);
 }
 
 /*
@@ -775,6 +1056,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		cursor->remove = __wt_cursor_notsup;
 		cursor->reserve = __wt_cursor_notsup;
 		cursor->update = __wt_cursor_notsup;
+		F_CLR(cursor, WT_CURSTD_CACHEABLE);
 	}
 
 	/*
@@ -798,6 +1080,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		 */
 		WT_RET(__wt_curdump_create(cursor, owner, &cdump));
 		owner = cdump;
+		F_CLR(cursor, WT_CURSTD_CACHEABLE);
 	} else
 		cdump = NULL;
 
@@ -814,10 +1097,11 @@ __wt_cursor_init(WT_CURSOR *cursor,
 		F_SET(cursor, WT_CURSTD_RAW);
 
 	/*
-	 * WT_CURSOR.modify supported on 'u' value formats, but may have been
-	 * already initialized (file cursors have a faster implementation).
+	 * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have
+	 * been already initialized (file cursors have a faster implementation).
 	 */
-	if (WT_STREQ(cursor->value_format, "u") &&
+	if ((WT_STREQ(cursor->value_format, "S") ||
+	    WT_STREQ(cursor->value_format, "u")) &&
 	    cursor->modify == __wt_cursor_modify_notsup)
 		cursor->modify = __cursor_modify;
 

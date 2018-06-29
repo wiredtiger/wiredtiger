@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,7 +57,7 @@ __curbackup_reset(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	cb = (WT_CURSOR_BACKUP *)cursor;
-	CURSOR_API_CALL(cursor, session, reset, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
 	cb->next = 0;
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
@@ -78,7 +78,7 @@ __curbackup_close(WT_CURSOR *cursor)
 
 	cb = (WT_CURSOR_BACKUP *)cursor;
 
-	CURSOR_API_CALL(cursor, session, close, NULL);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 
 	/*
 	 * When starting a hot backup, we serialize hot backup cursors and set
@@ -124,6 +124,8 @@ __wt_curbackup_open(WT_SESSION_IMPL *session,
 	    __wt_cursor_notsup,			/* remove */
 	    __wt_cursor_notsup,			/* reserve */
 	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
+	    __wt_cursor_notsup,			/* cache */
+	    __wt_cursor_reopen_notsup,		/* reopen */
 	    __curbackup_close);			/* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_BACKUP *cb;
@@ -468,12 +470,13 @@ __backup_list_uri_append(
 	    !WT_PREFIX_MATCH(name, "colgroup:") &&
 	    !WT_PREFIX_MATCH(name, "index:") &&
 	    !WT_PREFIX_MATCH(name, "lsm:") &&
+	    !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) &&
 	    !WT_PREFIX_MATCH(name, "table:"))
 		WT_RET_MSG(session, ENOTSUP,
 		    "hot backup is not supported for objects of type %s",
 		    name);
 
-	/* Ignore the lookaside table. */
+	/* Ignore the lookaside table or system info. */
 	if (strcmp(name, WT_LAS_URI) == 0)
 		return (0);
 
@@ -482,6 +485,13 @@ __backup_list_uri_append(
 	ret = __wt_fprintf(session, cb->bfs, "%s\n%s\n", name, value);
 	__wt_free(session, value);
 	WT_RET(ret);
+
+	/*
+	 * We want to retain the system information in the backup metadata
+	 * file above, but there is no file object to copy so return now.
+	 */
+	if (WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX))
+		return (0);
 
 	/* Add file type objects to the list of files to be copied. */
 	if (WT_PREFIX_MATCH(name, "file:"))

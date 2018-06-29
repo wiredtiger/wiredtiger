@@ -138,6 +138,7 @@ FULLFSYNC
 Facebook
 FindClose
 FindFirstFile
+FindNextFileW
 Fixup
 Fk
 FlushFileBuffers
@@ -145,6 +146,7 @@ Fprintf
 FreeBSD
 FreeBSD's
 FreeLibrary
+Fsync
 Fuerst
 GCC
 GIDs
@@ -162,6 +164,7 @@ HFS
 HHHH
 HHHHLL
 HHHLL
+HILQr
 Hendrik
 HyperLevelDB
 ID's
@@ -174,6 +177,7 @@ INCR
 INIT
 INITIALIZER
 INMEM
+INPROGRESS
 INSN
 INTL
 INULL
@@ -210,6 +214,7 @@ LSM
 LSN
 LSNs
 LTE
+LWN
 LZ
 LZO
 LeafGreen
@@ -268,6 +273,7 @@ Noll
 Nul
 OOB
 OPLOG
+OPTRACK
 OPTYPE
 OUTBUFF
 OVFL
@@ -289,6 +295,7 @@ Pandis
 Phong
 PlatformSDK
 Posix
+PostgreSQL
 PowerPC
 Pre
 Preload
@@ -467,6 +474,7 @@ autocommit
 autoconf
 automake
 bInheritHandle
+backoff
 bal
 basecfg
 basho
@@ -521,7 +529,7 @@ ccr
 cd
 centric
 cfg
-cfkos
+cfko
 change's
 changelog
 chdir
@@ -601,6 +609,7 @@ curtable
 cust
 customp
 cv
+cval
 cx
 cxa
 dT
@@ -681,6 +690,7 @@ enqueue
 enqueued
 env
 eof
+epi
 eq
 equalp
 errhandler
@@ -746,6 +756,7 @@ fsyncLock
 fsyncs
 ftruncate
 func
+funcid
 fvisibility
 gcc
 gdb
@@ -775,6 +786,7 @@ hashval
 havesize
 hdr
 highjack
+hilq
 hotbackup
 hselasky
 html
@@ -941,6 +953,7 @@ mkdir
 mmap
 mmrand
 mnt
+movemask
 msecs
 msg
 msvc
@@ -986,11 +999,13 @@ notsup
 notused
 novalue
 nowait
+nsec
 nset
 nsnap
 nul
 nullptr
 nuls
+num
 numSymbols
 numbare
 offpage
@@ -1006,6 +1021,7 @@ openfile
 oplist
 oplog
 optimizations
+optrack
 optype
 ori
 os
@@ -1078,6 +1094,7 @@ rbrace
 rbracket
 rcursor
 rdonly
+rdtsc
 rduppo
 readlock
 readonly
@@ -1177,6 +1194,7 @@ subgetraw
 subgets
 subinit
 sublicense
+subone
 subtest
 subtree
 sunique
@@ -1187,16 +1205,19 @@ sx
 sy
 sys
 syscall
+sysinfo
 sz
 t's
 tV
 tablename
 tcbench
 td
+teardown
 tempdir
 testutil
 th
 tid
+timedwait
 timestamp
 timestamps
 tmp
@@ -1216,6 +1237,7 @@ trk
 trk's
 trunc
 trylock
+tsc
 tupdate
 tvalue
 txn

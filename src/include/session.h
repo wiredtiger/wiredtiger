@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -37,6 +37,16 @@ struct __wt_hazard {
 #define	S2BT(session)	   ((WT_BTREE *)(session)->dhandle->handle)
 #define	S2BT_SAFE(session) ((session)->dhandle == NULL ? NULL : S2BT(session))
 
+typedef TAILQ_HEAD(__wt_cursor_list, __wt_cursor)	WT_CURSOR_LIST;
+
+/* Number of cursors cached to trigger cursor sweep. */
+#define	WT_SESSION_CURSOR_SWEEP_COUNTDOWN	20
+
+/* Minimum number of buckets to visit during cursor sweep. */
+#define	WT_SESSION_CURSOR_SWEEP_MIN		5
+
+/* Maximum number of buckets to visit during cursor sweep. */
+#define	WT_SESSION_CURSOR_SWEEP_MAX		32
 /*
  * WT_SESSION_IMPL --
  *	Implementation of WT_SESSION.
@@ -68,8 +78,10 @@ struct __wt_session_impl {
 	time_t last_sweep;		/* Last sweep for dead handles */
 	struct timespec last_epoch;	/* Last epoch time returned */
 
-					/* Cursors closed with the session */
-	TAILQ_HEAD(__cursors, __wt_cursor) cursors;
+	WT_CURSOR_LIST cursors;		/* Cursors closed with the session */
+	uint32_t cursor_sweep_position;	/* Position in cursor_cache for sweep */
+	uint32_t cursor_sweep_countdown;/* Countdown to cursor sweep */
+	time_t last_cursor_sweep;	/* Last sweep for dead cursors */
 
 	WT_CURSOR_BACKUP *bkp_cursor;	/* Hot backup cursor */
 
@@ -148,6 +160,32 @@ struct __wt_session_impl {
 	/* Sessions have an associated statistics bucket based on its ID. */
 	u_int	stat_bucket;		/* Statistics bucket offset */
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_SESSION_CACHE_CURSORS		0x000001u
+#define	WT_SESSION_CAN_WAIT			0x000002u
+#define	WT_SESSION_IGNORE_CACHE_SIZE		0x000004u
+#define	WT_SESSION_INTERNAL			0x000008u
+#define	WT_SESSION_LOCKED_CHECKPOINT		0x000010u
+#define	WT_SESSION_LOCKED_HANDLE_LIST_READ	0x000020u
+#define	WT_SESSION_LOCKED_HANDLE_LIST_WRITE	0x000040u
+#define	WT_SESSION_LOCKED_METADATA		0x000080u
+#define	WT_SESSION_LOCKED_PASS			0x000100u
+#define	WT_SESSION_LOCKED_SCHEMA		0x000200u
+#define	WT_SESSION_LOCKED_SLOT			0x000400u
+#define	WT_SESSION_LOCKED_TABLE_READ		0x000800u
+#define	WT_SESSION_LOCKED_TABLE_WRITE		0x001000u
+#define	WT_SESSION_LOCKED_TURTLE		0x002000u
+#define	WT_SESSION_LOGGING_INMEM		0x004000u
+#define	WT_SESSION_LOOKASIDE_CURSOR		0x008000u
+#define	WT_SESSION_NO_DATA_HANDLES		0x010000u
+#define	WT_SESSION_NO_LOGGING			0x020000u
+#define	WT_SESSION_NO_RECONCILE			0x040000u
+#define	WT_SESSION_NO_SCHEMA_LOCK		0x080000u
+#define	WT_SESSION_QUIET_CORRUPT_FILE		0x100000u
+#define	WT_SESSION_READ_WONT_NEED		0x200000u
+#define	WT_SESSION_SCHEMA_TXN			0x400000u
+#define	WT_SESSION_SERVER_ASYNC			0x800000u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 
 	/*
@@ -163,15 +201,22 @@ struct __wt_session_impl {
 	 */
 	WT_RAND_STATE rnd;		/* Random number generation state */
 
+	/*
+	 * Hash tables are allocated lazily as sessions are used to keep the
+	 * size of this structure from growing too large.
+	 */
+	WT_CURSOR_LIST *cursor_cache;	/* Hash table of cached cursors */
+
 					/* Hashed handle reference list array */
 	TAILQ_HEAD(__dhandles_hash, __wt_data_handle_cache) *dhhash;
 
 					/* Generations manager */
 #define	WT_GEN_CHECKPOINT	0	/* Checkpoint generation */
-#define	WT_GEN_EVICT		1	/* Eviction generation */
-#define	WT_GEN_HAZARD		2	/* Hazard pointer */
-#define	WT_GEN_SPLIT		3	/* Page splits */
-#define	WT_GENERATIONS		4	/* Total generation manager entries */
+#define	WT_GEN_COMMIT		1	/* Commit generation */
+#define	WT_GEN_EVICT		2	/* Eviction generation */
+#define	WT_GEN_HAZARD		3	/* Hazard pointer */
+#define	WT_GEN_SPLIT		4	/* Page splits */
+#define	WT_GENERATIONS		5	/* Total generation manager entries */
 	volatile uint64_t generations[WT_GENERATIONS];
 
 	/*
@@ -213,4 +258,12 @@ struct __wt_session_impl {
 	uint32_t   hazard_inuse;	/* Hazard pointer array slots in-use */
 	uint32_t   nhazard;		/* Count of active hazard pointers */
 	WT_HAZARD *hazard;		/* Hazard pointer array */
+
+	/*
+	 * Operation tracking.
+	 */
+	WT_OPTRACK_RECORD *optrack_buf;
+	u_int optrackbuf_ptr;
+	uint64_t optrack_offset;
+	WT_FH *optrack_fh;
 };

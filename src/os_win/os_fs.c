@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -605,7 +605,7 @@ directory_open:
 	file_handle->fh_sync = __win_file_sync;
 
 	/* Extend and truncate share the same implementation. */
-	file_handle->fh_extend = __win_file_set_end;
+	file_handle->fh_extend = NULL;
 	file_handle->fh_truncate = __win_file_set_end;
 
 	file_handle->fh_write = __win_file_write;
@@ -651,6 +651,7 @@ __wt_os_win(WT_SESSION_IMPL *session)
 
 	/* Initialize the Windows jump table. */
 	file_system->fs_directory_list = __wt_win_directory_list;
+	file_system->fs_directory_list_single = __wt_win_directory_list_single;
 	file_system->fs_directory_list_free = __wt_win_directory_list_free;
 	file_system->fs_exist = __win_fs_exist;
 	file_system->fs_open_file = __win_open_file;

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -54,12 +54,17 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * insert is aborted, we simply return zero (empty), regardless of
 	 * whether we are at the end of the data.
 	 */
-	if (cbt->recno < WT_INSERT_RECNO(cbt->ins) ||
-	    (upd = __wt_txn_read(session, cbt->ins->upd)) == NULL) {
+	if (cbt->recno < WT_INSERT_RECNO(cbt->ins)) {
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
-	} else
-		cbt->iface.value.data = upd->data;
+	} else {
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (upd == NULL) {
+			cbt->v = 0;
+			cbt->iface.value.data = &cbt->v;
+		} else
+			cbt->iface.value.data = upd->data;
+	}
 	cbt->iface.value.size = 1;
 	return (0);
 }
@@ -79,6 +84,7 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	btree = S2BT(session);
 	page = cbt->ref->page;
+	upd = NULL;
 
 	/* Initialize for each new page. */
 	if (newpage) {
@@ -101,7 +107,8 @@ new_page:
 	    cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
-	upd = cbt->ins == NULL ? NULL : __wt_txn_read(session, cbt->ins->upd);
+	if (cbt->ins != NULL)
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
 		cbt->iface.value.data = &cbt->v;
@@ -134,10 +141,12 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-		if ((upd = __wt_txn_read(session, cbt->ins->upd)) == NULL)
+		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+		if (upd == NULL)
 			continue;
-		if (upd->type == WT_UPDATE_DELETED) {
-			if (__wt_txn_upd_visible_all(session, upd))
+		if (upd->type == WT_UPDATE_TOMBSTONE) {
+			if (upd->txnid != WT_TXN_NONE &&
+			    __wt_txn_upd_visible_all(session, upd))
 				++cbt->page_deleted_count;
 			continue;
 		}
@@ -192,11 +201,13 @@ new_page:	/* Find the matching WT_COL slot. */
 		/* Check any insert list for a matching record. */
 		cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
-		upd = cbt->ins == NULL ?
-		    NULL : __wt_txn_read(session, cbt->ins->upd);
+		upd = NULL;
+		if (cbt->ins != NULL)
+			WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 		if (upd != NULL) {
-			if (upd->type == WT_UPDATE_DELETED) {
-				if (__wt_txn_upd_visible_all(session, upd))
+			if (upd->type == WT_UPDATE_TOMBSTONE) {
+				if (upd->txnid != WT_TXN_NONE &&
+				    __wt_txn_upd_visible_all(session, upd))
 					++cbt->page_deleted_count;
 				continue;
 			}
@@ -309,10 +320,12 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 			cbt->ins = WT_SKIP_NEXT(cbt->ins);
 
 new_insert:	if ((ins = cbt->ins) != NULL) {
-			if ((upd = __wt_txn_read(session, ins->upd)) == NULL)
+			WT_RET(__wt_txn_read(session, ins->upd, &upd));
+			if (upd == NULL)
 				continue;
-			if (upd->type == WT_UPDATE_DELETED) {
-				if (__wt_txn_upd_visible_all(session, upd))
+			if (upd->type == WT_UPDATE_TOMBSTONE) {
+				if (upd->txnid != WT_TXN_NONE &&
+				    __wt_txn_upd_visible_all(session, upd))
 					++cbt->page_deleted_count;
 				continue;
 			}
@@ -341,9 +354,10 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 		rip = &page->pg_row[cbt->slot];
-		upd = __wt_txn_read(session, WT_ROW_UPDATE(page, rip));
-		if (upd != NULL && upd->type == WT_UPDATE_DELETED) {
-			if (__wt_txn_upd_visible_all(session, upd))
+		WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
+		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
+			if (upd->txnid != WT_TXN_NONE &&
+			    __wt_txn_upd_visible_all(session, upd))
 				++cbt->page_deleted_count;
 			continue;
 		}
@@ -415,11 +429,13 @@ __cursor_key_order_check_row(
 	WT_ERR(__wt_scr_alloc(session, 512, &b));
 
 	WT_PANIC_ERR(session, EINVAL,
-	    "WT_CURSOR.%s out-of-order returns: returned key %s then key %s",
+	    "WT_CURSOR.%s out-of-order returns: returned key %.1024s then "
+	    "key %.1024s",
 	    next ? "next" : "prev",
-	    __wt_buf_set_printable(
-	    session, cbt->lastkey->data, cbt->lastkey->size, a),
-	    __wt_buf_set_printable(session, key->data, key->size, b));
+	    __wt_buf_set_printable_format(session,
+	    cbt->lastkey->data, cbt->lastkey->size, btree->key_format, a),
+	    __wt_buf_set_printable_format(session,
+	    key->data, key->size, btree->key_format, b));
 
 err:	__wt_scr_free(session, &a);
 	__wt_scr_free(session, &b);
@@ -566,8 +582,9 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
+	WT_UPDATE *upd;
 	uint32_t flags;
-	bool newpage;
+	bool newpage, valid;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -576,6 +593,26 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_STAT_DATA_INCR(session, cursor_next);
 
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+
+	/*
+	 * In case of retrying a next operation due to a prepare conflict,
+	 * cursor would have been already positioned at an update structure
+	 * which resulted in conflict. So, now when retrying we should examine
+	 * the same update again instead of starting from the next one in the
+	 * update chain.
+	 */
+	F_CLR(cbt, WT_CBT_RETRY_PREV);
+	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
+		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
+		F_CLR(cbt, WT_CBT_RETRY_NEXT);
+		if (valid) {
+			/*
+			 * If the update, which returned prepared conflict is
+			 * visible, return the value.
+			 */
+			return (__cursor_kv_return(session, cbt, upd));
+		}
+	}
 
 	WT_RET(__cursor_func_init(cbt, false));
 
@@ -591,8 +628,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * found.  Then, move to the next page, until we reach the end of the
 	 * file.
 	 */
-	flags = WT_READ_SKIP_INTL;			/* tree walk flags */
-	LF_SET(WT_READ_NO_SPLIT);			/* don't try to split */
+	flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL;	/* tree walk flags */
 	if (truncating)
 		LF_SET(WT_READ_TRUNCATE);
 	for (newpage = false;; newpage = true) {
@@ -658,15 +694,24 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
 	}
-
 #ifdef HAVE_DIAGNOSTIC
 	if (ret == 0)
 		WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
 #endif
-	if (ret == 0)
+err:	switch (ret) {
+	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
-
-err:	if (ret != 0)
+		break;
+	case WT_PREPARE_CONFLICT:
+		/*
+		 * If prepare conflict occurs, cursor should not be reset,
+		 * as current cursor position will be reused in case of a
+		 * retry from user.
+		 */
+		F_SET(cbt, WT_CBT_RETRY_NEXT);
+		break;
+	default:
 		WT_TRET(__cursor_reset(cbt));
+	}
 	return (ret);
 }

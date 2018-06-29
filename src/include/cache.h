@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -54,6 +54,10 @@ typedef enum __wt_cache_op {
 	WT_SYNC_WRITE_LEAVES
 } WT_CACHE_OP;
 
+#define	WT_LAS_NUM_SESSIONS	5
+#define	WT_LAS_SWEEP_ENTRIES	(20 * WT_THOUSAND)
+#define	WT_LAS_SWEEP_SEC	2
+
 /*
  * WiredTiger cache structure.
  */
@@ -89,9 +93,7 @@ struct __wt_cache {
 	uint64_t worker_evicts;		/* Pages evicted by worker threads */
 
 	uint64_t evict_max_page_size;	/* Largest page seen at eviction */
-#if defined(HAVE_DIAGNOSTIC) || defined(HAVE_VERBOSE)
 	struct timespec stuck_time;	/* Stuck time */
-#endif
 
 	/*
 	 * Read information.
@@ -107,16 +109,18 @@ struct __wt_cache {
 	WT_CONDVAR *evict_cond;		/* Eviction server condition */
 	WT_SPINLOCK evict_walk_lock;	/* Eviction walk location */
 
-	u_int eviction_dirty_target;    /* Percent to allow dirty */
-	u_int eviction_dirty_trigger;	/* Percent to trigger dirty eviction */
-	u_int eviction_trigger;		/* Percent to trigger eviction */
-	u_int eviction_target;		/* Percent to end eviction */
+	/*
+	 * Eviction threshold percentages use double type to allow for
+	 * specifying percentages less than one.
+	 */
+	double eviction_dirty_target;	/* Percent to allow dirty */
+	double eviction_dirty_trigger;	/* Percent to trigger dirty eviction */
+	double eviction_trigger;	/* Percent to trigger eviction */
+	double eviction_target;		/* Percent to end eviction */
 
-	u_int eviction_checkpoint_target;/* Percent to reduce dirty
+	double eviction_checkpoint_target;/* Percent to reduce dirty
 					   to during checkpoint scrubs */
-	double eviction_scrub_limit;	/* Percent of cache to trigger
-					   dirty eviction during checkpoint
-					   scrubs */
+	double eviction_scrub_target;	/* Current scrub target */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
 
@@ -142,7 +146,8 @@ struct __wt_cache {
 	 */
 	WT_SPINLOCK evict_pass_lock;	/* Eviction pass lock */
 	WT_SESSION_IMPL *walk_session;	/* Eviction pass session */
-	WT_DATA_HANDLE *evict_file_next;/* LRU next file to search */
+	WT_DATA_HANDLE *walk_tree;	/* LRU walk current tree */
+	uint32_t walk_progress, walk_target;/* Progress in current tree */
 
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
@@ -188,16 +193,18 @@ struct __wt_cache {
 	 * the lookaside table (other than eviction server and worker threads
 	 * and the sweep thread, all of which have their own lookaside cursors).
 	 */
-#define	WT_LAS_NUM_SESSIONS 5
 	WT_SPINLOCK	 las_lock;
 	WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
 	bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
 	uint32_t las_fileid;            /* Lookaside table file ID */
-	uint64_t las_entry_count;       /* Count of entries in lookaside */
+	uint64_t las_insert_count;      /* Count of inserts to lookaside */
+	uint64_t las_remove_count;      /* Count of removes from lookaside */
 	uint64_t las_pageid;		/* Lookaside table page ID counter */
 
-	WT_SPINLOCK	 las_sweep_lock;
+	bool las_reader;		/* Indicate an LAS reader to sweep */
+	WT_RWLOCK las_sweepwalk_lock;
+	WT_SPINLOCK las_sweep_lock;
 	WT_ITEM las_sweep_key;		/* Track sweep position. */
 	uint32_t las_sweep_dropmin;	/* Minimum btree ID in current set. */
 	uint8_t *las_sweep_dropmap;	/* Bitmap of dropped btree IDs. */
@@ -232,17 +239,21 @@ struct __wt_cache {
 	/*
 	 * Flags.
 	 */
-#define	WT_CACHE_POOL_MANAGER	  0x001 /* The active cache pool manager */
-#define	WT_CACHE_POOL_RUN	  0x002 /* Cache pool thread running */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CACHE_POOL_MANAGER	  0x1u	/* The active cache pool manager */
+#define	WT_CACHE_POOL_RUN	  0x2u	/* Cache pool thread running */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t pool_flags;		/* Cache pool flags */
 
-#define	WT_CACHE_EVICT_CLEAN	  0x001 /* Evict clean pages */
-#define	WT_CACHE_EVICT_CLEAN_HARD 0x002 /* Clean % blocking app threads */
-#define	WT_CACHE_EVICT_DIRTY	  0x004 /* Evict dirty pages */
-#define	WT_CACHE_EVICT_DIRTY_HARD 0x008 /* Dirty % blocking app threads */
-#define	WT_CACHE_EVICT_LOOKASIDE  0x010 /* Try lookaside eviction */
-#define	WT_CACHE_EVICT_SCRUB	  0x020 /* Scrub dirty pages */
-#define	WT_CACHE_EVICT_URGENT	  0x040 /* Pages are in the urgent queue */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CACHE_EVICT_CLEAN	  0x01u	/* Evict clean pages */
+#define	WT_CACHE_EVICT_CLEAN_HARD 0x02u	/* Clean % blocking app threads */
+#define	WT_CACHE_EVICT_DIRTY	  0x04u	/* Evict dirty pages */
+#define	WT_CACHE_EVICT_DIRTY_HARD 0x08u	/* Dirty % blocking app threads */
+#define	WT_CACHE_EVICT_LOOKASIDE  0x10u	/* Try lookaside eviction */
+#define	WT_CACHE_EVICT_SCRUB	  0x20u	/* Scrub dirty pages */
+#define	WT_CACHE_EVICT_URGENT	  0x40u	/* Pages are in the urgent queue */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 #define	WT_CACHE_EVICT_ALL	(WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY)
 	uint32_t flags;
 };
@@ -271,6 +282,8 @@ struct __wt_cache_pool {
 
 	uint8_t pool_managed;		/* Cache pool has a manager thread */
 
-#define	WT_CACHE_POOL_ACTIVE	0x01	/* Cache pool is active */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CACHE_POOL_ACTIVE	0x1u	/* Cache pool is active */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t flags;
 };

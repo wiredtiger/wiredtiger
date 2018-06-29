@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -320,9 +320,14 @@ __wt_conn_dhandle_close(
 		 * We can't discard non-durable trees yet: first we have to
 		 * close the underlying btree handle, then we can mark the
 		 * data handle dead.
+		 *
+		 * If we are closing with timestamps enforced, then we have
+		 * already checkpointed as of the timestamp as needed and any
+		 * remaining dirty data should be discarded.
 		 */
 		if (!discard && !marked_dead) {
-			if (F_ISSET(conn, WT_CONN_IN_MEMORY) ||
+			if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP) ||
+			    F_ISSET(conn, WT_CONN_IN_MEMORY) ||
 			    F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
 				discard = true;
 			else {
@@ -593,7 +598,7 @@ err:	WT_DHANDLE_RELEASE(dhandle);
  */
 static int
 __conn_dhandle_close_one(WT_SESSION_IMPL *session,
-    const char *uri, const char *checkpoint, bool mark_dead)
+    const char *uri, const char *checkpoint, bool removed, bool mark_dead)
 {
 	WT_DECL_RET;
 
@@ -623,6 +628,8 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session,
 		if (ret == 0)
 			ret = __wt_meta_track_sub_off(session);
 	}
+	if (removed)
+		F_SET(session->dhandle, WT_DHANDLE_DROPPED);
 
 	if (!WT_META_TRACKING(session))
 		WT_TRET(__wt_session_release_dhandle(session));
@@ -637,7 +644,7 @@ __conn_dhandle_close_one(WT_SESSION_IMPL *session,
  */
 int
 __wt_conn_dhandle_close_all(
-    WT_SESSION_IMPL *session, const char *uri, bool mark_dead)
+    WT_SESSION_IMPL *session, const char *uri, bool removed, bool mark_dead)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -655,7 +662,8 @@ __wt_conn_dhandle_close_all(
 	 * locking the live handle to fail fast if the tree is busy (e.g., with
 	 * cursors open or in a checkpoint).
 	 */
-	WT_ERR(__conn_dhandle_close_one(session, uri, NULL, mark_dead));
+	WT_ERR(__conn_dhandle_close_one(
+	    session, uri, NULL, removed, mark_dead));
 
 	bucket = __wt_hash_city64(uri, strlen(uri)) % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(dhandle, &conn->dhhash[bucket], hashq) {
@@ -665,7 +673,8 @@ __wt_conn_dhandle_close_all(
 			continue;
 
 		WT_ERR(__conn_dhandle_close_one(
-		    session, dhandle->name, dhandle->checkpoint, mark_dead));
+		    session, dhandle->name, dhandle->checkpoint, removed,
+		    mark_dead));
 	}
 
 err:	session->dhandle = NULL;
@@ -689,7 +698,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 
 	WT_ASSERT(session,
 	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));
-	WT_ASSERT(session, dhandle != conn->cache->evict_file_next);
+	WT_ASSERT(session, dhandle != conn->cache->walk_tree);
 
 	/* Check if the handle was reacquired by a session while we waited. */
 	if (!final &&
@@ -781,7 +790,8 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
 restart:
 	TAILQ_FOREACH(dhandle, &conn->dhqh, q) {
 		if (WT_IS_METADATA(dhandle) ||
-		    strcmp(dhandle->name, WT_LAS_URI) == 0)
+		    strcmp(dhandle->name, WT_LAS_URI) == 0 ||
+		    WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
 			continue;
 
 		WT_WITH_DHANDLE(session, dhandle,

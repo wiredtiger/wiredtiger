@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -114,15 +114,15 @@ __sync_dup_walk(
 static int
 __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
-	struct timespec end, start;
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
+	WT_PAGE_MODIFY *mod;
 	WT_REF *prev, *walk;
 	WT_TXN *txn;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
-	uint64_t oldest_id, saved_pinned_id;
+	uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
 	uint32_t flags;
 	bool timer, tried_eviction;
 
@@ -131,14 +131,28 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	prev = walk = NULL;
 	txn = &session->txn;
 	tried_eviction = false;
+	time_start = time_stop = 0;
 
+	/* Only visit pages in cache and don't bump page read generations. */
 	flags = WT_READ_CACHE | WT_READ_NO_GEN;
+
+	/*
+	 * Skip all deleted pages.  For a page to be marked deleted, it must
+	 * have been evicted from cache and marked clean.  Checkpoint should
+	 * never instantiate deleted pages: if a truncate is not visible to the
+	 * checkpoint, the on-disk version is correct.  If the truncate is
+	 * visible, we skip over the child page when writing its parent.  We
+	 * check whether a truncate is visible in the checkpoint as part of
+	 * reconciling internal pages (specifically in __rec_child_modify).
+	 */
+	LF_SET(WT_READ_DELETED_SKIP);
+
 	internal_bytes = leaf_bytes = 0;
 	internal_pages = leaf_pages = 0;
 	saved_pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
 	timer = WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT);
 	if (timer)
-		__wt_epoch(session, &start);
+		time_start = __wt_clock(session);
 
 	switch (syncop) {
 	case WT_SYNC_WRITE_LEAVES:
@@ -243,9 +257,24 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (walk == NULL)
 				break;
 
-			/* Skip clean pages. */
-			if (!__wt_page_is_modified(walk->page))
+			/*
+			 * Skip clean pages, but need to make sure maximum
+			 * transaction ID is always updated.
+			 */
+			if (!__wt_page_is_modified(walk->page)) {
+				if (((mod = walk->page->modify) != NULL) &&
+				    mod->rec_max_txn > btree->rec_max_txn)
+					btree->rec_max_txn = mod->rec_max_txn;
+#ifdef HAVE_TIMESTAMPS
+				if (mod != NULL && __wt_timestamp_cmp(
+				    &btree->rec_max_timestamp,
+				    &mod->rec_max_timestamp) < 0)
+					__wt_timestamp_set(
+					    &btree->rec_max_timestamp,
+					    &mod->rec_max_timestamp);
+#endif
 				continue;
+			}
 
 			/*
 			 * Take a local reference to the page modify structure
@@ -330,7 +359,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	}
 
 	if (timer) {
-		__wt_epoch(session, &end);
+		time_stop = __wt_clock(session);
 		__wt_verbose(session, WT_VERB_CHECKPOINT,
 		    "__sync_file WT_SYNC_%s wrote: %" PRIu64
 		    " leaf pages (%" PRIu64 "B), %" PRIu64
@@ -338,7 +367,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		    syncop == WT_SYNC_WRITE_LEAVES ?
 		    "WRITE_LEAVES" : "CHECKPOINT",
 		    leaf_pages, leaf_bytes, internal_pages, internal_bytes,
-		    WT_TIMEDIFF_MS(end, start));
+		    WT_CLOCKDIFF_MS(time_stop, time_start));
 	}
 
 err:	/* On error, clear any left-over tree walk. */
