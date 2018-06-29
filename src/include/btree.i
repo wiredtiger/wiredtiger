@@ -1329,6 +1329,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 static inline bool
 __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
+	WT_DECL_TIMESTAMP(pinned_ts)
 	WT_PAGE_MODIFY *mod;
 	WT_TXN_GLOBAL *txn_global;
 
@@ -1357,17 +1358,12 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (true);
 
 #ifdef HAVE_TIMESTAMPS
-	{
-	bool same_timestamp;
-
-	same_timestamp = false;
-	if (!__wt_timestamp_iszero(&mod->last_eviction_timestamp))
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    same_timestamp = __wt_timestamp_cmp(
+	if (!__wt_timestamp_iszero(&mod->last_eviction_timestamp)) {
+		__wt_txn_pinned_timestamp(session, &pinned_ts);
+		if (__wt_timestamp_cmp(
 		    &mod->last_eviction_timestamp,
-		    &txn_global->pinned_timestamp) == 0);
-	if (!same_timestamp)
-		return (true);
+		    &txn_global->pinned_timestamp) != 0)
+			return (true);
 	}
 #endif
 

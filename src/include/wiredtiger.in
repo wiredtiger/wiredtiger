@@ -5680,19 +5680,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PINNED_SNAPSHOT_RANGE		1348
 /*! transaction: transaction range of timestamps currently pinned */
 #define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1349
+/*! transaction: transaction range of timestamps pinned by a checkpoint */
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1350
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1350
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1351
 /*! transaction: transaction sync calls */
-#define	WT_STAT_CONN_TXN_SYNC				1351
+#define	WT_STAT_CONN_TXN_SYNC				1352
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1352
+#define	WT_STAT_CONN_TXN_COMMIT				1353
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1353
+#define	WT_STAT_CONN_TXN_ROLLBACK			1354
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1354
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1355
 
 /*!
  * @}
