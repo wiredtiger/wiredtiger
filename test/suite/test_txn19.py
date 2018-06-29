@@ -281,7 +281,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
 
         if expect_fail:
             self.check_file_contains_one_of(errfile,
-            ['/log file.*corrupted/', 'pread: failed to read'])
+            ['/log file.*corrupted/', 'WT_ERROR: non-specific WiredTiger error'])
         else:
             self.check_empty_file(errfile)
             self.check_file_contains(outfile, self.uri)
