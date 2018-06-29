@@ -189,7 +189,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "verbose", "list",
 	    NULL, "choices=[\"api\",\"block\",\"checkpoint\","
@@ -879,7 +879,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -982,7 +982,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1082,7 +1082,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1180,7 +1180,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1253,7 +1253,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "async=(enabled=false,ops_max=1024,threads=2),cache_overhead=8,"
 	  "cache_size=100MB,checkpoint=(log_size=0,wait=0),"
 	  "compatibility=(release=),error_prefix=,eviction=(threads_max=8,"
-	  "threads_min=1),eviction_checkpoint_target=5,"
+	  "threads_min=1),eviction_checkpoint_target=1,"
 	  "eviction_dirty_target=5,eviction_dirty_trigger=20,"
 	  "eviction_target=80,eviction_trigger=95,"
 	  "file_manager=(close_handle_minimum=250,close_idle_time=30,"
@@ -1495,7 +1495,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "require_min=),config_base=true,create=false,direct_io=,"
 	  "encryption=(keyid=,name=,secretkey=),error_prefix=,"
 	  "eviction=(threads_max=8,threads_min=1),"
-	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
+	  "eviction_checkpoint_target=1,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",exclusive=false,extensions=,file_extend=,"
 	  "file_manager=(close_handle_minimum=250,close_idle_time=30,"
@@ -1522,7 +1522,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "require_min=),config_base=true,create=false,direct_io=,"
 	  "encryption=(keyid=,name=,secretkey=),error_prefix=,"
 	  "eviction=(threads_max=8,threads_min=1),"
-	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
+	  "eviction_checkpoint_target=1,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",exclusive=false,extensions=,file_extend=,"
 	  "file_manager=(close_handle_minimum=250,close_idle_time=30,"
@@ -1548,7 +1548,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "checkpoint_sync=true,compatibility=(release=,require_max=,"
 	  "require_min=),direct_io=,encryption=(keyid=,name=,secretkey=),"
 	  "error_prefix=,eviction=(threads_max=8,threads_min=1),"
-	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
+	  "eviction_checkpoint_target=1,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",extensions=,file_extend=,file_manager=(close_handle_minimum=250"
 	  ",close_idle_time=30,close_scan_interval=10),hazard_max=1000,"
@@ -1572,7 +1572,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "checkpoint_sync=true,compatibility=(release=,require_max=,"
 	  "require_min=),direct_io=,encryption=(keyid=,name=,secretkey=),"
 	  "error_prefix=,eviction=(threads_max=8,threads_min=1),"
-	  "eviction_checkpoint_target=5,eviction_dirty_target=5,"
+	  "eviction_checkpoint_target=1,eviction_dirty_target=5,"
 	  "eviction_dirty_trigger=20,eviction_target=80,eviction_trigger=95"
 	  ",extensions=,file_extend=,file_manager=(close_handle_minimum=250"
 	  ",close_idle_time=30,close_scan_interval=10),hazard_max=1000,"

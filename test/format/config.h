@@ -366,6 +366,10 @@ static CONFIG c[] = {
 	  "configure slow splits (#7)",				/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_7, NULL },
 
+	{ "timing_stress_split_8",
+	  "configure slow splits (#8)",				/* 2% */
+	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_8, NULL },
+
 	{ "transaction_timestamps",				/* 10% */
 	  "enable transaction timestamp support",
 	  C_BOOL, 10, 0, 0, &g.c_txn_timestamps, NULL },
