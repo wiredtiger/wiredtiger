@@ -444,7 +444,8 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 	    __wt_timestamp_set(&checkpoint_ts,
 	    &txn_global->checkpoint_timestamp));
 
-	if (__wt_timestamp_cmp(&checkpoint_ts, &pinned_ts))
+	if (!__wt_timestamp_iszero(&checkpoint_ts) &&
+	    __wt_timestamp_cmp(&checkpoint_ts, &pinned_ts))
 		__wt_timestamp_set(pinned_tsp, &checkpoint_ts);
 }
 #endif
