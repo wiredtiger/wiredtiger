@@ -351,7 +351,8 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 	    &oldest_timestamp, &txn_global->oldest_timestamp));
 
 	/* Scan to find the global pinned timestamp. */
-	if (__txn_get_pinned_timestamp(session, &active_timestamp, false) != 0)
+	if ((ret = __txn_get_pinned_timestamp(
+	    session, &active_timestamp, false)) != 0)
 		return (ret == WT_NOTFOUND ? 0 : ret);
 
 	if (__wt_timestamp_cmp(&oldest_timestamp, &active_timestamp) < 0) {
