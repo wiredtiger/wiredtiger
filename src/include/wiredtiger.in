@@ -1647,6 +1647,12 @@ struct __wt_session {
 	 * the WT_CURSOR::next (WT_CURSOR::prev) method will iterate from the
 	 * beginning (end) of the table.
 	 *
+	 * When a range truncate is in progress, and another transaction inserts
+	 * a key into that range, the behavior is not well defined - a conflict
+	 * may be detected or both transactions may be permitted to commit. If
+	 * they do commit, and if there is a crash and recovery runs, the result
+	 * may be different than what was in cache before the crash.
+	 *
 	 * @param session the session handle
 	 * @param name the URI of the table or file to truncate
 	 * @param start optional cursor marking the first record discarded;
