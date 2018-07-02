@@ -1775,27 +1775,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 * thing we do during initialization is rename a turtle file into place,
 	 * and there's never a database home after that point without a turtle
 	 * file. If the turtle file doesn't exist, it's a create.
-	 *	That said, we re-write the turtle file at checkpoint end, first
-	 * creating the "set" file and then renaming it into place. Renames on
-	 * Windows aren't guaranteed to be atomic, a power failure could leave
-	 * us with only the set file. The turtle file is the file we regularly
-	 * rename when WiredTiger is running, so if we're going to get caught,
-	 * the turtle file is where it will happen. If we have a set file and no
-	 * turtle file, rename the set file into place. We don't know what went
-	 * wrong for sure, so this can theoretically make it worse, but there
-	 * aren't any alternatives other than human intervention.
 	 */
-	WT_ERR(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
-	if (!exist) {
-		WT_ERR(__wt_fs_exist(session, WT_METADATA_TURTLE_SET, &exist));
-		if (exist) {
-			__wt_errx(session,
-			    "wiredtiger_open: renaming %s into place as %s",
-			    WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE);
-			WT_ERR(__wt_fs_rename(session,
-			    WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE, true));
-		}
-	}
+	WT_ERR(__wt_turtle_exists(session, &exist));
 	conn->is_new = exist ? 0 : 1;
 
 	if (conn->is_new) {

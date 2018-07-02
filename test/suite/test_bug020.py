@@ -37,8 +37,8 @@ class test_bug020(wttest.WiredTigerTestCase):
         SimpleDataSet(self, "table:bug020", 1000).populate()
         self.close_conn()
         os.rename("WiredTiger.turtle", "WiredTiger.turtle.set")
-        expectMessage = 'renaming WiredTiger.turtle.set into place'
-        with self.expectedStderrPattern(expectMessage):
+        expectMessage = 'WiredTiger.turtle not found'
+        with self.expectedStdoutPattern(expectMessage):
             self.open_conn()
 
 if __name__ == '__main__':
