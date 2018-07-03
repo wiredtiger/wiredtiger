@@ -137,7 +137,7 @@ __conn_add_collator(WT_CONNECTION *wt_conn,
 	CONNECTION_API_CALL(conn, session, add_collator, config, cfg);
 	WT_UNUSED(cfg);
 
-	if (WT_STREQ(name, "none"))
+	if (strcmp(name, "none") == 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "invalid name for a collator: %s", name);
 
@@ -243,7 +243,7 @@ __conn_add_compressor(WT_CONNECTION *wt_conn,
 	CONNECTION_API_CALL(conn, session, add_compressor, config, cfg);
 	WT_UNUSED(cfg);
 
-	if (WT_STREQ(name, "none"))
+	if (strcmp(name, "none") == 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "invalid name for a compressor: %s", name);
 
@@ -482,7 +482,7 @@ __conn_add_encryptor(WT_CONNECTION *wt_conn,
 	CONNECTION_API_CALL(conn, session, add_encryptor, config, cfg);
 	WT_UNUSED(cfg);
 
-	if (WT_STREQ(name, "none"))
+	if (strcmp(name, "none") == 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "invalid name for an encryptor: %s", name);
 
@@ -578,7 +578,7 @@ __conn_add_extractor(WT_CONNECTION *wt_conn,
 	CONNECTION_API_CALL(conn, session, add_extractor, config, cfg);
 	WT_UNUSED(cfg);
 
-	if (WT_STREQ(name, "none"))
+	if (strcmp(name, "none") == 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "invalid name for an extractor: %s", name);
 
