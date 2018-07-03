@@ -1692,11 +1692,11 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	    is_create || exist ? WT_FS_OPEN_CREATE : 0, &conn->lock_fh);
 
 	/*
-	 * If this is a read-only connection and we cannot grab the lock
-	 * file, check if it is because there is not write permission or
-	 * if the file does not exist.  If so, then ignore the error.
-	 * XXX Ignoring the error does allow multiple read-only
-	 * connections to exist at the same time on a read-only directory.
+	 * If this is a read-only connection and we cannot grab the lock file,
+	 * check if it is because there's no write permission or if the file
+	 * does not exist. If so, then ignore the error.
+	 * XXX Ignoring the error does allow multiple read-only connections to
+	 * exist at the same time on a read-only directory.
 	 *
 	 * If we got an expected permission or non-existence error then skip
 	 * the byte lock.
