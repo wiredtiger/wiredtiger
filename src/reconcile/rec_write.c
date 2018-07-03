@@ -2184,12 +2184,11 @@ __rec_need_split(WT_RECONCILE *r, size_t len)
 }
 
 /*
- * __rec_split_page_size_from_pct --
+ * __wt_split_page_size --
  *	Given a split percentage, calculate split page size in bytes.
  */
-static uint32_t
-__rec_split_page_size_from_pct(
-    int split_pct, uint32_t maxpagesize, uint32_t allocsize)
+uint32_t
+__wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
 {
 	uintmax_t a;
 	uint32_t split_size;
@@ -2213,48 +2212,6 @@ __rec_split_page_size_from_pct(
 	 */
 	if (split_size == 0 || split_size == maxpagesize)
 		split_size = (uint32_t)((a * (u_int)split_pct) / 100);
-
-	return (split_size);
-}
-
-/*
- * __wt_split_page_size --
- *	Split page size calculation: we don't want to repeatedly split every
- *	time a new entry is added, so we split to a smaller-than-maximum page
- *	size.
- */
-uint32_t
-__wt_split_page_size(WT_BTREE *btree, uint32_t maxpagesize)
-{
-	return (__rec_split_page_size_from_pct(
-	    btree->split_pct, maxpagesize, btree->allocsize));
-}
-
-/*
- * __rec_split_page_size --
- *	Split page size calculation: we don't want to repeatedly split every
- *	time a new entry is added, so we split to a smaller-than-maximum page
- *	size. Internal version that also adjusts based on standard compression.
- */
-static uint32_t
-__rec_split_page_size(WT_BTREE *btree, int split_pct, uint32_t maxpagesize)
-{
-	uint32_t compression_adj, split_size;
-
-	split_size = __rec_split_page_size_from_pct(
-	    split_pct, maxpagesize, btree->allocsize);
-
-	/*
-	 * Adjust for compression. Compression can be too effective, bound the
-	 * page split size at the maximum in-memory page image size, so point
-	 * updates don't cause forced eviction.
-	 */
-	compression_adj = (uint32_t)btree->compression_adj;
-	if (compression_adj != 0) {
-		split_size = (split_size * compression_adj) / WT_COMPRESS_SHIFT;
-		if (split_size > btree->maxmempage_image)
-			split_size = btree->maxmempage_image;
-	}
 
 	return (split_size);
 }
@@ -2304,7 +2261,7 @@ __rec_split_chunk_init(
  */
 static int
 __rec_split_init(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_PAGE *page, uint64_t recno, uint32_t max)
+    WT_RECONCILE *r, WT_PAGE *page, uint64_t recno, uint64_t max)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -2340,7 +2297,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	 * records, in those cases we split the pages once they have crossed
 	 * the maximum size for a page with raw compression.
 	 */
-	r->page_size = r->page_size_orig = max;
+	r->page_size = r->page_size_orig = (uint32_t)max;
 	if (r->raw_compression)
 		r->max_raw_page_size = r->page_size =
 		    (uint32_t)WT_MIN((uint64_t)r->page_size * 10,
@@ -2390,12 +2347,12 @@ __rec_split_init(WT_SESSION_IMPL *session,
 		r->space_avail =
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 	} else {
-		r->split_size = __rec_split_page_size(
-		    btree, btree->split_pct, r->page_size);
+		r->split_size = __wt_split_page_size(
+		    btree->split_pct, r->page_size, btree->allocsize);
 		r->space_avail =
 		    r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-		r->min_split_size = __rec_split_page_size(
-		    btree, WT_BTREE_MIN_SPLIT_PCT, r->page_size);
+		r->min_split_size = __wt_split_page_size(
+		    WT_BTREE_MIN_SPLIT_PCT, r->page_size, btree->allocsize);
 		r->min_space_avail =
 		    r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 	}
@@ -3601,6 +3558,85 @@ __rec_split_write_reuse(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __rec_compression_adjust --
+ *	Adjust the pre-compression page size based on compression results.
+ */
+static inline void
+__rec_compression_adjust(WT_SESSION_IMPL *session,
+    uint32_t max, size_t compressed_size, bool last_block, uint64_t *adjustp)
+{
+	WT_BTREE *btree;
+	uint64_t adjust, current, new;
+	u_int ten_percent;
+
+	btree = S2BT(session);
+	ten_percent = max / 10;
+
+	/*
+	 * Changing the pre-compression size updates a shared memory location
+	 * and it's not uncommon to be pushing out large numbers of pages from
+	 * the same file. If compression creates a page larger than the target
+	 * size, decrease the pre-compression size. If compression creates a
+	 * page smaller than the target size, increase the pre-compression size.
+	 * Once we get under the target size, try and stay there to minimize
+	 * shared memory updates, but don't go over the target size, that means
+	 * we're writing bad page sizes.
+	 *	Writing a shared memory location without a lock and letting it
+	 * race, minor trickiness so we only read and write the value once.
+	 */
+	WT_ORDERED_READ(current, *adjustp);
+	WT_ASSERT(session, current >= max);
+
+	if (compressed_size > max) {
+		/*
+		 * The compressed size is GT the page maximum.
+		 * Check if the pre-compression size is larger than the maximum.
+		 * If 10% of the page size larger than the maximum, decrease it
+		 * by that amount. Else if it's not already at the page maximum,
+		 * set it there.
+		 *
+		 * Note we're using 10% of the maximum page size as our test for
+		 * when to adjust the pre-compression size as well as the amount
+		 * by which we adjust it. Not updating the value when it's close
+		 * to the page size keeps us from constantly updating a shared
+		 * memory location, and 10% of the page size is an OK step value
+		 * as well, so we use it in both cases.
+		 */
+		adjust = current - max;
+		if (adjust > ten_percent)
+			new = current - ten_percent;
+		else if (adjust != 0)
+			new = max;
+		else
+			return;
+	} else {
+		/*
+		 * The compressed size is LTE the page maximum.
+		 *
+		 * Don't increase the pre-compressed size on the last block, the
+		 * last block might be tiny.
+		 *
+		 * If the compressed size is less than the page maximum by 10%,
+		 * increase the pre-compression size by 10% of the page, or up
+		 * to the maximum in-memory image size.
+		 *
+		 * Note we're using 10% of the maximum page size... see above.
+		 */
+		if (last_block || compressed_size > max - ten_percent)
+			return;
+
+		adjust = current + ten_percent;
+		if (adjust < btree->maxmempage_image)
+			new = adjust;
+		else if (current != btree->maxmempage_image)
+			new = btree->maxmempage_image;
+		else
+			return;
+	}
+	*adjustp = new;
+}
+
+/*
  * __rec_split_write --
  *	Write a disk block out for the split helper functions.
  */
@@ -3612,7 +3648,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	WT_MULTI *multi;
 	WT_PAGE *page;
 	size_t addr_size, compressed_size;
-	uint64_t compression_adj, pct;
 	uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
 #ifdef HAVE_DIAGNOSTIC
 	bool verify_image;
@@ -3747,35 +3782,21 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	    compressed_image == NULL ? &chunk->image : compressed_image,
 	    addr, &addr_size, &compressed_size,
 	    false, F_ISSET(r, WT_REC_CHECKPOINT), compressed_image != NULL));
-	WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
-	multi->addr.size = (uint8_t)addr_size;
 #ifdef HAVE_DIAGNOSTIC
 	verify_image = false;
 #endif
+	WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
+	multi->addr.size = (uint8_t)addr_size;
 
-	/*
-	 * Track our compression ratio for this file. We don't want to lock the
-	 * WT_BTREE.compression_adj field, so let it race. For that to work, we
-	 * need a integral value, not a double. Do the compression calculation
-	 * as a double, multiply the result to pick up some decimal places, and
-	 * then truncate it to store it as an integral value. Second, it's a
-	 * shared memory location and it's not uncommon to be pushing out large
-	 * numbers of pages from the same file, don't bother updating the value
-	 * if there's not at least a 20% movement (of the shifted value, so 20%
-	 * is a small change in the real value). Finally, only adjust the value
-	 * 10% each time so outliers don't move it too far.
-	 */
-	if (!btree->compressor_is_snappy &&
-	    btree->type != BTREE_COL_FIX && compressed_size != 0) {
-		compression_adj = (uint64_t)(((double)
-		    chunk->image.size / compressed_size) * WT_COMPRESS_SHIFT);
-		pct = btree->compression_adj / 20;
-		if (btree->compression_adj > pct &&
-		    compression_adj < btree->compression_adj - pct)
-			btree->compression_adj -= btree->compression_adj / 10;
-		else if (compression_adj > btree->compression_adj + pct)
-			btree->compression_adj += btree->compression_adj / 10;
-	}
+	/* Adjust the pre-compression page size based on compression results. */
+	if (WT_PAGE_IS_INTERNAL(page) &&
+	    compressed_size != 0 && btree->intlpage_compadjust)
+		__rec_compression_adjust(session, btree->maxintlpage,
+		    compressed_size, last_block, &btree->maxintlpage_precomp);
+	if (!WT_PAGE_IS_INTERNAL(page) &&
+	    compressed_size != 0 && btree->leafpage_compadjust)
+		__rec_compression_adjust(session, btree->maxleafpage,
+		compressed_size, last_block, &btree->maxleafpage_precomp);
 
 copy_image:
 #ifdef HAVE_DIAGNOSTIC
@@ -3837,8 +3858,8 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 
 	recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : 1;
 
-	return (__rec_split_init(
-	    session, r, cbulk->leaf, recno, btree->maxleafpage));
+	return (__rec_split_init(session,
+	    r, cbulk->leaf, recno, btree->maxleafpage_precomp));
 }
 
 /*
@@ -4136,8 +4157,8 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 	val = &r->v;
 	vpack = &_vpack;
 
-	WT_RET(__rec_split_init(
-	    session, r, page, pageref->ref_recno, btree->maxintlpage));
+	WT_RET(__rec_split_init(session,
+	    r, page, pageref->ref_recno, btree->maxintlpage_precomp));
 
 	/* For each entry in the in-memory page... */
 	WT_INTL_FOREACH_BEGIN(session, page, ref) {
@@ -4592,8 +4613,8 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	vpack = &_vpack;
 	cbt = &r->update_modify_cbt;
 
-	WT_RET(__rec_split_init(
-	    session, r, page, pageref->ref_recno, btree->maxleafpage));
+	WT_RET(__rec_split_init(session,
+	    r, page, pageref->ref_recno, btree->maxleafpage_precomp));
 
 	WT_RET(__wt_scr_alloc(session, 0, &orig));
 	data = NULL;
@@ -5085,7 +5106,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	cell = NULL;
 	key_onpage_ovfl = false;
 
-	WT_RET(__rec_split_init(session, r, page, 0, btree->maxintlpage));
+	WT_RET(__rec_split_init(
+	    session, r, page, 0, btree->maxintlpage_precomp));
 
 	/*
 	 * Ideally, we'd never store the 0th key on row-store internal pages
@@ -5370,7 +5392,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	val = &r->v;
 	vpack = &_vpack;
 
-	WT_RET(__rec_split_init(session, r, page, 0, btree->maxleafpage));
+	WT_RET(__rec_split_init(
+	    session, r, page, 0, btree->maxleafpage_precomp));
 
 	/*
 	 * Write any K/V pairs inserted into the page before the first from-disk

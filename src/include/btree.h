@@ -130,14 +130,15 @@ struct __wt_btree {
 	int   split_pct;		/* Split page percent */
 
 	WT_COMPRESSOR *compressor;	/* Page compressor */
-	bool compressor_is_snappy;	/* Page compressor is snappy */
 	/*
-	 * When doing standard compression, the in-memory chunk size handed to
-	 * the compression engine is adjusted based on previous compression.
+	 * When doing compression, the pre-compression in-memory byte size is
+	 * optionally adjusted based on previous compressions.
 	 * It's an 8B value because it's updated without a lock.
 	 */
-#define	WT_COMPRESS_SHIFT	100	/* Float-to-integer shift constant */
-	uint64_t compression_adj;	/* Page compression adjustment */
+	bool	 leafpage_compadjust;	/* Run-time compression adjustment */
+	uint64_t maxleafpage_precomp;	/* Leaf page pre-compression size */
+	bool	 intlpage_compadjust;	/* Run-time compression adjustment */
+	uint64_t maxintlpage_precomp;	/* Internal page pre-compression size */
 
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Page encryptor */
 

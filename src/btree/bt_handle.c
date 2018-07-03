@@ -447,24 +447,37 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
 
 	/*
-	 * When doing standard compression, assume it gives us 4x. Adjust the
-	 * value as soon as there's better information, the exception is bulk
-	 * load where we don't get better information until after it's too late.
+	 * Configure compression adjustment.
+	 * When doing compression, assume compression rates that will result in
+	 * pages larger than the maximum in-memory images allowed. If we're
+	 * wrong, we adjust downward (but we're almost certainly correct, the
+	 * maximum in-memory images allowed are only 4x the maximum page size,
+	 * and compression always gives us more than 4x).
+	 *	Don't do compression adjustment for fixed-size column store, the
+	 * leaf page sizes don't change. (We could adjust internal pages but not
+	 * internal pages, but that seems an unlikely use case.)
+	 *	Don't do compression adjustment when page sizes are less than
+	 * 16KB. There's not enough compression going on to fine-tune the size,
+	 * all we end up doing is hammering on shared memory.
+	 *	XXX
+	 *	Don't do compression adjustment of snappy-compressed blocks.
 	 */
-	if (btree->compressor != NULL &&
-	    btree->compressor->compress != NULL)
-		btree->compression_adj = 4 * WT_COMPRESS_SHIFT;
-
-	/*
-	 * XXX
-	 * We don't try to increase the size of snappy-compressed blocks, set a
-	 * flag so reconciliation knows to ignore snappy. To increase the size
-	 * of snappy-compressed blocks, remove all usage of this flag.
-	 */
-	btree->compressor_is_snappy =
-	    WT_STRING_MATCH("snappy", cval.str, cval.len);
-	if (btree->compressor_is_snappy)
-		btree->compression_adj = 0;
+	btree->intlpage_compadjust = false;
+	btree->maxintlpage_precomp = btree->maxintlpage;
+	btree->leafpage_compadjust = false;
+	btree->maxleafpage_precomp = btree->maxleafpage;
+	if (btree->compressor != NULL && btree->compressor->compress != NULL &&
+	    !WT_STRING_MATCH("snappy", cval.str, cval.len) &&
+	    btree->type != BTREE_COL_FIX) {
+		if (btree->maxintlpage >= 16 * 1024) {
+			btree->intlpage_compadjust = true;
+			btree->maxintlpage_precomp = btree->maxmempage_image;
+		}
+		if (btree->maxleafpage >= 16 * 1024) {
+			btree->leafpage_compadjust = true;
+			btree->maxleafpage_precomp = btree->maxmempage_image;
+		}
+	}
 
 	/*
 	 * We do not use __wt_config_gets_none here because "none" and the empty
@@ -858,8 +871,10 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		    "%d%%.", session->dhandle->name, WT_BTREE_MIN_SPLIT_PCT));
 	} else
 		btree->split_pct = (int)cval.val;
-	intl_split_size = __wt_split_page_size(btree, btree->maxintlpage);
-	leaf_split_size = __wt_split_page_size(btree, btree->maxleafpage);
+	intl_split_size = __wt_split_page_size(
+	    btree->split_pct, btree->maxintlpage, btree->allocsize);
+	leaf_split_size = __wt_split_page_size(
+	    btree->split_pct, btree->maxleafpage, btree->allocsize);
 
 	/*
 	 * In-memory split configuration.
