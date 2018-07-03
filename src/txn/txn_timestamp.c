@@ -727,7 +727,7 @@ __wt_txn_parse_prepare_timestamp(
 		txn_global = &S2C(session)->txn_global;
 
 		if (F_ISSET(&session->txn, WT_TXN_HAS_TS_COMMIT))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "commit timestamp should not have been set before "
 			    "prepare transaction");
 
@@ -774,11 +774,13 @@ __wt_txn_parse_prepare_timestamp(
 		 }
 #else
 		WT_UNUSED(timestamp);
-		WT_RET_MSG(session, EINVAL, "prepare_timestamp requires a "
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "prepare_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
 #endif
 	} else
-		WT_RET_MSG(session, EINVAL, "prepare timestamp is required");
+		WT_RET_MSG(session, EINVAL, "%s",
+		    "prepare timestamp is required");
 
 	return (0);
 }
@@ -809,13 +811,15 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		if (!F_ISSET(txn, WT_TXN_RUNNING))
 			txn->isolation = WT_ISO_SNAPSHOT;
 		else if (txn->isolation != WT_ISO_SNAPSHOT)
-			WT_RET_MSG(session, EINVAL, "setting a read_timestamp"
+			WT_RET_MSG(session, EINVAL,
+			    "%s", "setting a read_timestamp"
 			    " requires a transaction running at snapshot"
 			    " isolation");
 
 		/* Read timestamps can't change once set. */
 		if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
-			WT_RET_MSG(session, EINVAL, "a read_timestamp"
+			WT_RET_MSG(session, EINVAL,
+			    "%s", "a read_timestamp"
 			    " may only be set once per transaction");
 
 		/*
@@ -882,7 +886,8 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 #else
 		WT_UNUSED(txn);
-		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "read_timestamp requires a "
 		    "version of WiredTiger built with timestamp support");
 #endif
 	}

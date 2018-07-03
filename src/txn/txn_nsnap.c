@@ -165,8 +165,9 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (!F_ISSET(txn, WT_TXN_RUNNING)) {
 		if (include_updates)
-			WT_RET_MSG(session, EINVAL, "A transaction must be "
-			    "running to include updates in a named snapshot");
+			WT_RET_MSG(session, EINVAL,
+			    "%s", "A transaction must be running "
+			    "to include updates in a named snapshot");
 
 		WT_RET(__wt_txn_begin(session, txn_cfg));
 		started_txn = true;
@@ -360,18 +361,18 @@ __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session,
 	WT_RET(__wt_config_gets_def(session, cfg, "name", 0, &cval));
 	if (cval.len != 0) {
 		if (WT_STRING_MATCH("all", cval.str, cval.len))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Can't create snapshot with reserved \"all\" name");
 
 		WT_RET(__wt_name_check(session, cval.str, cval.len));
 
 		if (F_ISSET(txn, WT_TXN_RUNNING) &&
 		    txn->isolation != WT_ISO_SNAPSHOT)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Can't create a named snapshot from a running "
 			    "transaction that isn't snapshot isolation");
 		else if (F_ISSET(txn, WT_TXN_RUNNING) && txn->mod_count != 0)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Can't create a named snapshot from a running "
 			    "transaction that has made updates");
 		*has_create = true;
@@ -389,19 +390,19 @@ __wt_txn_named_snapshot_config(WT_SESSION_IMPL *session,
 	if (all_config.val != 0 || names_config.len != 0 ||
 	    before_config.len != 0 || to_config.len != 0) {
 		if (before_config.len != 0 && to_config.len != 0)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Illegal configuration; named snapshot drop can't "
 			    "specify both before and to options");
 		if (all_config.val != 0 && (names_config.len != 0 ||
 		    to_config.len != 0 || before_config.len != 0))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Illegal configuration; named snapshot drop can't "
 			    "specify all and any other options");
 		*has_drops = true;
 	}
 
 	if (!*has_create && !*has_drops)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "WT_SESSION::snapshot API called without any drop or "
 		    "name option");
 

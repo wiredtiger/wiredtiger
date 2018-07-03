@@ -38,7 +38,7 @@ err:	if (thread->stop_func != NULL)
 		ret = thread->stop_func(session, thread);
 
 	if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
-		WT_PANIC_MSG(session, ret,
+		WT_PANIC_MSG(session, ret, "%s",
 		    "Unrecoverable utility thread error");
 
 	/*
@@ -247,7 +247,7 @@ err:	/*
 	group->min = new_min;
 	WT_TRET(__wt_thread_group_destroy(session, group));
 
-	WT_PANIC_RET(session, ret, "Error while resizing thread group");
+	WT_PANIC_RET(session, ret, "%s", "Error while resizing thread group");
 }
 
 /*

@@ -353,7 +353,7 @@ __sweep_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "handle sweep server error");
+err:		WT_PANIC_MSG(session, ret, "%s", "handle sweep server error");
 	}
 	return (WT_THREAD_RET_VALUE);
 }

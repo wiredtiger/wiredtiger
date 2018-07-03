@@ -217,12 +217,12 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 
 	switch (btree->type) {		/* Check file type compatibility. */
 	case BTREE_COL_FIX:
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "fixed-size column-store files may not be Huffman encoded");
 		/* NOTREACHED */
 	case BTREE_COL_VAR:
 		if (key_conf.len != 0)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "the keys of variable-length column-store files "
 			    "may not be Huffman encoded");
 		break;

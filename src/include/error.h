@@ -19,6 +19,13 @@
 #define	WT_DIAGNOSTIC_YIELD
 #endif
 
+#define	__wt_err(session, error, fmt, ...)				\
+	__wt_err_func(session, error, "%s: %d: " fmt,			\
+	    __func__, __LINE__, __VA_ARGS__)
+#define	__wt_errx(session, fmt, ...)			\
+	__wt_errx_func(session, "%s: %d: " fmt,		\
+	    __func__, __LINE__, __VA_ARGS__)
+
 /* Set "ret" and branch-to-err-label tests. */
 #define	WT_ERR(a) do {							\
 	if ((ret = (a)) != 0)						\

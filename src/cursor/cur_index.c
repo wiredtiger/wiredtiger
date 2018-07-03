@@ -38,7 +38,7 @@ __curindex_set_value(WT_CURSOR *cursor, ...)
 	WT_SESSION_IMPL *session;
 
 	JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
-	WT_ERR_MSG(session, ENOTSUP,
+	WT_ERR_MSG(session, ENOTSUP, "%s",
 	    "WT_CURSOR.set_value not supported for index cursors");
 
 err:	cursor->saved_err = ret;
@@ -63,7 +63,7 @@ __curindex_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	/* Check both cursors are "index:" type. */
 	if (!WT_PREFIX_MATCH(a->uri, "index:") ||
 	    strcmp(a->uri, b->uri) != 0)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "Cursors must reference the same object");
 
 	WT_ERR(__cursor_checkkey(a));
@@ -515,7 +515,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	 * now.
 	 */
 	if (WT_CURSOR_RECNO(cursor))
-		WT_ERR_MSG(session, WT_ERROR,
+		WT_ERR_MSG(session, WT_ERROR, "%s",
 		    "Column store indexes based on a record number primary "
 		    "key are not supported");
 

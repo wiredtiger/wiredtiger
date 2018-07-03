@@ -589,8 +589,8 @@ __wt_async_new_op(WT_SESSION_IMPL *session, const char *uri,
 
 	conn = S2C(session);
 	if (!conn->async_cfg)
-		WT_RET_MSG(
-		    session, ENOTSUP, "Asynchronous operations not configured");
+		WT_RET_MSG(session, ENOTSUP,
+		    "%s", "Asynchronous operations not configured");
 
 	op = NULL;
 	WT_ERR(__async_new_op_alloc(session, uri, config, &op));

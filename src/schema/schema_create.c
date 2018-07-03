@@ -501,7 +501,7 @@ __create_index(WT_SESSION_IMPL *session,
 		 */
 		if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0) {
 			if (have_extractor)
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "an index with a custom extractor may not "
 				    "include primary key columns");
 			continue;
@@ -530,7 +530,7 @@ __create_index(WT_SESSION_IMPL *session,
 	/* Check for a record number index key, which makes no sense. */
 	WT_ERR(__wt_config_getones(session, fmt.data, "key_format", &cval));
 	if (cval.len == 1 && cval.str[0] == 'r')
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "column-store index may not use the record number as its "
 		    "index key");
 
@@ -669,7 +669,7 @@ __create_data_source(WT_SESSION_IMPL *session,
 	 */
 	if (__wt_config_getones_none(
 	    session, config, "collator", &cval) != WT_NOTFOUND && cval.len != 0)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "WT_DATA_SOURCE objects do not support WT_COLLATOR "
 		    "ordering");
 

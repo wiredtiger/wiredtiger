@@ -19,7 +19,7 @@ static int __session_rollback_transaction(WT_SESSION *, const char *);
 int
 __wt_session_notsup(WT_SESSION_IMPL *session)
 {
-	WT_RET_MSG(session, ENOTSUP, "Unsupported session method");
+	WT_RET_MSG(session, ENOTSUP, "%s", "Unsupported session method");
 }
 
 /*
@@ -613,7 +613,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 	if (!statjoin) {
 		if ((to_dup == NULL && uri == NULL) ||
 		    (to_dup != NULL && uri != NULL))
-			WT_ERR_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL, "%s",
 			    "should be passed either a URI or a cursor to "
 			    "duplicate, but not both");
 
@@ -838,7 +838,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
 	 * If logging is not enabled there is nothing to do.
 	 */
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-		WT_ERR_MSG(session, EINVAL, "logging not enabled");
+		WT_ERR_MSG(session, EINVAL, "%s", "logging not enabled");
 
 	WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
 	if (WT_STRING_MATCH("background", cval.str, cval.len))
@@ -1159,7 +1159,7 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 	count = 0;
 
 	if (!WT_PREFIX_MATCH(join_cursor->uri, "join:"))
-		WT_ERR_MSG(session, EINVAL, "not a join cursor");
+		WT_ERR_MSG(session, EINVAL, "%s", "not a join cursor");
 
 	if (WT_PREFIX_MATCH(ref_cursor->uri, "index:")) {
 		cindex = (WT_CURSOR_INDEX *)ref_cursor;
@@ -1176,19 +1176,20 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 		table = ((WT_CURSOR_JOIN *)ref_cursor)->table;
 		nested = true;
 	} else
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "ref_cursor must be an index, table or join cursor");
 
 	if (firstcg != NULL && !F_ISSET(firstcg, WT_CURSTD_KEY_SET))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "requires reference cursor be positioned");
 	cjoin = (WT_CURSOR_JOIN *)join_cursor;
 	if (cjoin->table != table)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "table for join cursor does not match table for "
 		    "ref_cursor");
 	if (F_ISSET(ref_cursor, WT_CURSTD_JOINED))
-		WT_ERR_MSG(session, EINVAL, "cursor already used in a join");
+		WT_ERR_MSG(session, EINVAL,
+		    "%s", "cursor already used in a join");
 
 	/* "ge" is the default */
 	range = WT_CURJOIN_END_GT | WT_CURJOIN_END_EQ;
@@ -1223,15 +1224,16 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 	}
 	WT_ERR(__wt_config_gets(session, cfg, "bloom_bit_count", &cval));
 	if ((uint64_t)cval.val > UINT32_MAX)
-		WT_ERR_MSG(session, EINVAL, "bloom_bit_count: value too large");
+		WT_ERR_MSG(session, EINVAL,
+		    "%s", "bloom_bit_count: value too large");
 	bloom_bit_count = (uint32_t)cval.val;
 	WT_ERR(__wt_config_gets(session, cfg, "bloom_hash_count", &cval));
 	if ((uint64_t)cval.val > UINT32_MAX)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "bloom_hash_count: value too large");
 	bloom_hash_count = (uint32_t)cval.val;
 	if (LF_ISSET(WT_CURJOIN_ENTRY_BLOOM) && count == 0)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "count must be nonzero when strategy=bloom");
 	WT_ERR(__wt_config_gets_def(
 	    session, cfg, "bloom_false_positives", 0, &cval));
@@ -1244,7 +1246,7 @@ __session_join(WT_SESSION *wt_session, WT_CURSOR *join_cursor,
 
 	if (nested && (count != 0 || range != WT_CURJOIN_END_EQ ||
 	    LF_ISSET(WT_CURJOIN_ENTRY_BLOOM)))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "joining a nested join cursor is incompatible with "
 		    "setting \"strategy\", \"compare\" or \"count\"");
 
@@ -1376,7 +1378,7 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 	if (start != NULL && stop != NULL && start->compare != NULL) {
 		WT_ERR(start->compare(start, stop, &cmp));
 		if (cmp > 0)
-			WT_ERR_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL, "%s",
 			    "the start cursor position is after the stop "
 			    "cursor position");
 	}
@@ -1477,7 +1479,7 @@ __session_truncate(WT_SESSION *wt_session,
 	if ((uri == NULL && start == NULL && stop == NULL) ||
 	    (uri != NULL && !WT_PREFIX_MATCH(uri, "log:") &&
 	    (start != NULL || stop != NULL)))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "the truncate method should be passed either a URI or "
 		    "start/stop cursors, but not both");
 
@@ -1491,7 +1493,7 @@ __session_truncate(WT_SESSION *wt_session,
 			 * a specific target name after that.
 			 */
 			if (!WT_STREQ(uri, "log:"))
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "the truncate method should not specify any"
 				    "target after the log: URI prefix");
 			WT_ERR(__wt_log_truncate_files(session, start, false));
@@ -1870,7 +1872,7 @@ __session_transaction_sync(WT_SESSION *wt_session, const char *config)
 	 * If logging is not enabled there is nothing to do.
 	 */
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-		WT_ERR_MSG(session, EINVAL, "logging not enabled");
+		WT_ERR_MSG(session, EINVAL, "%s", "logging not enabled");
 
 	log = conn->log;
 

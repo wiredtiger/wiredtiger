@@ -344,7 +344,7 @@ __block_off_remove(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		__block_size_srch(el->sz, ext->size, sstack);
 		szp = *sstack[0];
 		if (szp == NULL || szp->size != ext->size)
-			WT_PANIC_RET(session, EINVAL,
+			WT_PANIC_RET(session, EINVAL, "%s",
 			    "extent not found in by-size list during remove");
 		__block_off_srch(szp->off, off, astack, true);
 		ext = *astack[0];
@@ -384,7 +384,7 @@ __block_off_remove(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	return (0);
 
 corrupt:
-	WT_BLOCK_RET(session, block, EINVAL,
+	WT_BLOCK_RET(session, block, EINVAL, "%s",
 	    "attempt to remove non-existent offset from an extent list");
 }
 
@@ -470,7 +470,7 @@ __block_extend(
 	 * We should never be allocating from an empty file.
 	 */
 	if (block->size < block->allocsize)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "file has no description information");
 
 	/*
@@ -480,7 +480,7 @@ __block_extend(
 	 * don't think we're likely to see anything bigger for awhile.
 	 */
 	if (block->size > (wt_off_t)INT64_MAX - size)
-		WT_RET_MSG(session, WT_ERROR,
+		WT_RET_MSG(session, WT_ERROR, "%s",
 		    "block allocation failed, file cannot grow further");
 
 	*offp = block->size;

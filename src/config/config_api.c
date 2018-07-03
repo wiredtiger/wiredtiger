@@ -109,7 +109,7 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 	 * It's a logic error to specify both a session and an event handler.
 	 */
 	if (session != NULL && event_handler != NULL)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "wiredtiger_config_validate event handler ignored when "
 		    "a session also specified");
 
@@ -130,9 +130,9 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 		conn = S2C(session);
 
 	if (name == NULL)
-		WT_RET_MSG(session, EINVAL, "no name specified");
+		WT_RET_MSG(session, EINVAL, "%s", "no name specified");
 	if (config == NULL)
-		WT_RET_MSG(session, EINVAL, "no configuration specified");
+		WT_RET_MSG(session, EINVAL, "%s", "no configuration specified");
 
 	/*
 	 * If we don't have a real connection, look for a matching name in the
@@ -240,12 +240,13 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 
 	/* Argument checking; we only support a limited number of types. */
 	if (config == NULL)
-		WT_RET_MSG(session, EINVAL, "no configuration specified");
+		WT_RET_MSG(session, EINVAL, "%s", "no configuration specified");
 	if (type == NULL)
-		WT_RET_MSG(session, EINVAL, "no configuration type specified");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "no configuration type specified");
 	if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 &&
 	    strcmp(type, "list") != 0 && strcmp(type, "string") != 0)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "type must be one of \"boolean\", \"int\", \"list\" or "
 		    "\"string\"");
 

@@ -290,7 +290,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	txn = &session->txn;
 
 	if (F_ISSET(txn, WT_TXN_READONLY))
-		WT_RET_MSG(session, WT_ROLLBACK,
+		WT_RET_MSG(session, WT_ROLLBACK, "%s",
 		    "Attempt to update in a read-only transaction");
 
 	WT_RET(__txn_next_op(session, &op));
@@ -849,7 +849,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 	 * more we can do.
 	 */
 	if (txn->id == WT_TXN_ABORTED)
-		WT_RET_MSG(session, WT_ERROR, "out of transaction IDs");
+		WT_RET_MSG(session, WT_ERROR, "%s", "out of transaction IDs");
 	F_SET(txn, WT_TXN_HAS_ID);
 
 	return (0);
@@ -875,12 +875,13 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 	 */
 	if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
 	    !F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
-		WT_RET_MSG(session, EINVAL, "read_timestamp required and "
+		WT_RET_MSG(session, EINVAL, "%s", "read_timestamp required and "
 		    "none set on this transaction");
 	if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
 	    F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
-		WT_RET_MSG(session, EINVAL, "no read_timestamp required and "
-		    "timestamp set on this transaction");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "no read_timestamp required "
+		    "and timestamp set on this transaction");
 #endif
 	WT_UNUSED(session);
 	return (0);

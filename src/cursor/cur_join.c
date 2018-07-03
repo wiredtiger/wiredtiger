@@ -40,7 +40,7 @@ __wt_curjoin_joined(WT_CURSOR *cursor)
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_RET_MSG(session, ENOTSUP, "cursor is being used in a join");
+	WT_RET_MSG(session, ENOTSUP, "%s", "cursor is being used in a join");
 }
 
 /*
@@ -658,7 +658,7 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 			if ((ret = c->search(c)) == 0)
 				ret = c->get_value(c, &v);
 			else if (ret == WT_NOTFOUND)
-				WT_ERR_MSG(session, WT_ERROR,
+				WT_ERR_MSG(session, WT_ERROR, "%s",
 				    "main table for join is missing entry");
 			WT_TRET(c->reset(c));
 			WT_ERR(ret);
@@ -709,7 +709,7 @@ __curjoin_get_key(WT_CURSOR *cursor, ...)
 
 	if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) ||
 	    !cjoin->iter->positioned)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "join cursor must be advanced with next()");
 	WT_ERR(__wt_cursor_get_keyv(cursor, cursor->flags, ap));
 
@@ -736,7 +736,7 @@ __curjoin_get_value(WT_CURSOR *cursor, ...)
 
 	if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED) ||
 	    !cjoin->iter->positioned)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "join cursor must be advanced with next()");
 
 	WT_ERR(__wt_curtable_get_valuev(cjoin->main, ap));
@@ -919,7 +919,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 
 	mainbuf = NULL;
 	if (cjoin->entries_next == 0)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "join cursor has not yet been joined with any other "
 		    "cursors");
 
@@ -978,7 +978,7 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		 */
 		if (!iterable && F_ISSET(je, WT_CURJOIN_ENTRY_BLOOM)) {
 			if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
-			       WT_ERR_MSG(session, EINVAL,
+			       WT_ERR_MSG(session, EINVAL, "%s",
 				    "join cursors with Bloom filters cannot be "
 				    "used with read-uncommitted isolation");
 			if (je->bloom == NULL) {
@@ -1085,7 +1085,7 @@ __curjoin_next(WT_CURSOR *cursor)
 	JOINABLE_CURSOR_API_CALL(cursor, session, next, NULL);
 
 	if (F_ISSET(cjoin, WT_CURJOIN_ERROR))
-		WT_ERR_MSG(session, WT_ERROR,
+		WT_ERR_MSG(session, WT_ERROR, "%s",
 		    "join cursor encountered previous error");
 	if (!F_ISSET(cjoin, WT_CURJOIN_INITIALIZED))
 		WT_ERR(__curjoin_init_next(session, cjoin, true));
@@ -1120,7 +1120,8 @@ __curjoin_next(WT_CURSOR *cursor)
 		if ((ret = c->search(c)) != 0) {
 			if (ret == WT_NOTFOUND)
 				ret = WT_ERROR;
-			WT_ERR_MSG(session, ret, "join cursor failed search");
+			WT_ERR_MSG(session, ret,
+			    "%s", "join cursor failed search");
 		}
 
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
@@ -1319,7 +1320,7 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_JOIN, iface) == 0);
 
 	if (owner != NULL)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "unable to initialize a join cursor with existing owner");
 
 	tablename = uri;
@@ -1391,11 +1392,11 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 			F_SET(cjoin, WT_CURJOIN_DISJUNCTION);
 	} else if (LF_ISSET(WT_CURJOIN_ENTRY_DISJUNCTION) &&
 	    !F_ISSET(cjoin, WT_CURJOIN_DISJUNCTION))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "operation=or does not match previous operation=and");
 	else if (!LF_ISSET(WT_CURJOIN_ENTRY_DISJUNCTION) &&
 	    F_ISSET(cjoin, WT_CURJOIN_DISJUNCTION))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "operation=and does not match previous operation=or");
 
 	nested = WT_PREFIX_MATCH(ref_cursor->uri, "join:");
@@ -1415,7 +1416,7 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 		}
 	else {
 		if (LF_ISSET(WT_CURJOIN_ENTRY_BLOOM))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Bloom filters cannot be used with subjoins");
 	}
 
@@ -1455,12 +1456,12 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 			    count, entry->count);
 		if (LF_MASK(WT_CURJOIN_ENTRY_BLOOM) !=
 		    F_MASK(entry, WT_CURJOIN_ENTRY_BLOOM))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "join has incompatible strategy "
 			    "values for the same index");
 		if (LF_MASK(WT_CURJOIN_ENTRY_FALSE_POSITIVES) !=
 		    F_MASK(entry, WT_CURJOIN_ENTRY_FALSE_POSITIVES))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "join has incompatible bloom_false_positives "
 			    "values for the same index");
 
@@ -1491,12 +1492,12 @@ __wt_curjoin_join(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 			    (endrange == WT_CURJOIN_END_EQ &&
 			    (range & (WT_CURJOIN_END_LT | WT_CURJOIN_END_GT))
 			    != 0))
-				WT_RET_MSG(session, EINVAL,
+				WT_RET_MSG(session, EINVAL, "%s",
 				    "join has overlapping ranges");
 			if (range == WT_CURJOIN_END_EQ &&
 			    endrange == WT_CURJOIN_END_EQ &&
 			    !F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))
-				WT_RET_MSG(session, EINVAL,
+				WT_RET_MSG(session, EINVAL, "%s",
 				    "compare=eq can only be combined "
 				    "using operation=or");
 

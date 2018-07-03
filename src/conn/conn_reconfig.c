@@ -27,15 +27,15 @@ __conn_compat_parse(WT_SESSION_IMPL *session,
 	    "%" SCNu16 ".%" SCNu16, majorp, minorp) != 2 &&
 	    sscanf(cvalp->str, "%" SCNu16 ".%" SCNu16 ".%" SCNu16,
 	    majorp, minorp, &unused_patch) != 3)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "illegal compatibility release");
 	if (*majorp > WIREDTIGER_VERSION_MAJOR)
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    WT_COMPAT_MSG_PREFIX
 		    "unsupported major version");
 	if (*majorp == WIREDTIGER_VERSION_MAJOR &&
 	    *minorp > WIREDTIGER_VERSION_MINOR)
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    WT_COMPAT_MSG_PREFIX
 		    "unsupported minor version");
 	return (0);
@@ -79,7 +79,7 @@ __wt_conn_compat_config(
 		 */
 		WT_RET(__wt_txn_activity_check(session, &txn_active));
 		if (txn_active)
-			WT_RET_MSG(session, ENOTSUP,
+			WT_RET_MSG(session, ENOTSUP, "%s",
 			    "system must be quiescent"
 			    " for upgrade or downgrade");
 		F_SET(conn, WT_CONN_COMPATIBILITY);
@@ -272,7 +272,7 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 	}
 	if (F_ISSET(conn, WT_CONN_READONLY))
 		/* Operation tracking isn't supported in read-only mode */
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "Operation tracking is incompatible with read only "
 		    "configuration.");
 	if (F_ISSET(conn, WT_CONN_OPTRACK))
@@ -382,7 +382,7 @@ __wt_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_NOTFOUND_OK(ret);
 
 	if (set > 1)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "Only one of all, fast, none configuration values should "
 		    "be specified");
 
@@ -414,7 +414,7 @@ __wt_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
 		if (!LF_ISSET(WT_STAT_TYPE_ALL | WT_STAT_TYPE_CACHE_WALK |
 		    WT_STAT_TYPE_FAST | WT_STAT_TYPE_TREE_WALK))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "the value \"clear\" can only be specified if "
 			    "statistics are enabled");
 		LF_SET(WT_STAT_CLEAR);

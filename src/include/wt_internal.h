@@ -356,7 +356,6 @@ union __wt_rand_state;
 #include "config.h"
 #include "cursor.h"
 #include "dlh.h"
-#include "error.h"
 #include "log.h"
 #include "lsm.h"
 #include "meta.h"
@@ -369,13 +368,15 @@ union __wt_rand_state;
 #include "session.h"			/* required by connection.h */
 #include "connection.h"
 
-#include "extern.h"
+#include "extern.h"			/* required by error.h */
 #ifdef _WIN32
 #include "extern_win.h"
 #else
 #include "extern_posix.h"
 #endif
 #include "verify_build.h"
+
+#include "error.h"
 
 #include "ctype.i"			/* required by packing.i */
 #include "intpack.i"			/* required by cell.i, packing.i */

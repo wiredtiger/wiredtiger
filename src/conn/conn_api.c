@@ -413,7 +413,8 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 	WT_ERR(__encryptor_confchk(session, cval, &nenc));
 	if (nenc == NULL) {
 		if (keyid->len != 0)
-			WT_ERR_MSG(session, EINVAL, "encryption.keyid "
+			WT_ERR_MSG(session, EINVAL,
+			    "%s", "encryption.keyid "
 			    "requires encryption.name to be set");
 		goto out;
 	}
@@ -424,7 +425,8 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
 	 * configured on the database as well.
 	 */
 	if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
-		WT_ERR_MSG(session, EINVAL, "table encryption "
+		WT_ERR_MSG(session, EINVAL,
+		    "%s", "table encryption "
 		    "requires connection encryption to be set");
 	hash = __wt_hash_city64(keyid->str, keyid->len);
 	bucket = hash % WT_HASH_ARRAY_SIZE;
@@ -1139,7 +1141,7 @@ err:	/*
 	__wt_txn_global_shutdown(session);
 
 	if (ret != 0) {
-		__wt_err(session, ret,
+		__wt_err(session, ret, "%s",
 		    "failure during close, disabling further writes");
 		F_SET(conn, WT_CONN_PANIC);
 	}
@@ -1354,7 +1356,7 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
 	 if (vmajor.val > WIREDTIGER_VERSION_MAJOR ||
 	     (vmajor.val == WIREDTIGER_VERSION_MAJOR &&
 	     vminor.val > WIREDTIGER_VERSION_MINOR))
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    "WiredTiger configuration is from an incompatible release "
 		    "of the WiredTiger engine");
 
@@ -1651,7 +1653,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 			break;
 		}
 	if (match)
-		WT_ERR_MSG(session, EBUSY,
+		WT_ERR_MSG(session, EBUSY, "%s",
 		    "WiredTiger database is already being managed by another "
 		    "thread in this process");
 
@@ -1715,7 +1717,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 		 * locking past the end-of-file.
 		 */
 		if (__wt_file_lock(session, conn->lock_fh, true) != 0)
-			WT_ERR_MSG(session, EBUSY,
+			WT_ERR_MSG(session, EBUSY, "%s",
 			    "WiredTiger database is already being managed by "
 			    "another process");
 
@@ -1761,7 +1763,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 		 * just a test.
 		 */
 		if (__wt_file_lock(session, fh, true) != 0) {
-			WT_ERR_MSG(session, EBUSY,
+			WT_ERR_MSG(session, EBUSY, "%s",
 			    "WiredTiger database is already being managed by "
 			    "another process");
 		}
@@ -1781,7 +1783,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (conn->is_new) {
 		if (F_ISSET(conn, WT_CONN_READONLY))
-			WT_ERR_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL, "%s",
 			    "Creating a new database is incompatible with "
 			    "read-only configuration");
 		WT_ERR(__wt_snprintf_len_set(buf, sizeof(buf), &len,
@@ -1798,7 +1800,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 		WT_ERR(__wt_config_gets(session, cfg, "exclusive", &cval));
 		if (cval.val != 0)
-			WT_ERR_MSG(session, EEXIST,
+			WT_ERR_MSG(session, EEXIST, "%s",
 			    "WiredTiger database already exists and exclusive "
 			    "option configured");
 	}
@@ -2192,7 +2194,7 @@ __conn_set_file_system(
 	 * set and we've already configured the default file system.
 	 */
 	if (conn->file_system != NULL)
-		WT_ERR_MSG(session, EPERM,
+		WT_ERR_MSG(session, EPERM, "%s",
 		    "filesystem already configured; custom filesystems should "
 		    "enable \"early_load\" configuration");
 
@@ -2622,7 +2624,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		conn->buffer_alignment = (size_t)cval.val;
 #ifndef HAVE_POSIX_MEMALIGN
 	if (conn->buffer_alignment != 0)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "buffer_alignment requires posix_memalign");
 #endif
 

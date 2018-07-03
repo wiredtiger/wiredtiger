@@ -82,7 +82,7 @@ __wt_log_recover_system(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 
 	if ((ret = __wt_logop_prev_lsn_unpack(session, pp, end, lsnp)) != 0)
-		WT_RET_MSG(session, ret,
+		WT_RET_MSG(session, ret, "%s",
 		    "log_recover_prevlsn: unpack failure");
 
 	return (0);

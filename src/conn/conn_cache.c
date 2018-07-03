@@ -137,7 +137,7 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 	evict_threads_min = (uint32_t)cval.val;
 
 	if (evict_threads_min > evict_threads_max)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "eviction=(threads_min) cannot be greater than "
 		    "eviction=(threads_max)");
 	conn->evict_threads_max = evict_threads_max;
@@ -242,7 +242,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	 * get any work done.
 	 */
 	if (cache->eviction_target >= cache->eviction_trigger)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "eviction target must be lower than the eviction trigger");
 
 	WT_RET(__wt_cond_auto_alloc(session,
@@ -253,7 +253,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_spin_init(session, &cache->evict_walk_lock, "cache walk"));
 	if ((ret = __wt_open_internal_session(conn, "evict pass",
 	    false, WT_SESSION_NO_DATA_HANDLES, &cache->walk_session)) != 0)
-		WT_RET_MSG(NULL, ret,
+		WT_RET_MSG(NULL, ret, "%s",
 		    "Failed to create session for eviction walks");
 
 	WT_RET(__wt_rwlock_init(session, &cache->las_sweepwalk_lock));

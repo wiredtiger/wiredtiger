@@ -392,7 +392,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 		else if (ret == EBUSY) {
 			WT_NOT_READ(ret, 0);
 		} else
-			WT_RET_MSG(session, ret, "discard handle");
+			WT_RET_MSG(session, ret, "%s", "discard handle");
 	}
 	if (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK)) {
 		__wt_verbose(session, WT_VERB_LSM,
@@ -459,7 +459,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	    WT_WITH_SCHEMA_LOCK(session,
 		ret = __lsm_checkpoint_chunk(session)));
 	if (ret != 0)
-		WT_ERR_MSG(session, ret, "LSM checkpoint");
+		WT_ERR_MSG(session, ret, "%s", "LSM checkpoint");
 
 	/* Now the file is written, get the chunk size. */
 	WT_ERR(__wt_lsm_tree_set_chunk_size(session, lsm_tree, chunk));
@@ -478,7 +478,7 @@ __wt_lsm_checkpoint_chunk(WT_SESSION_IMPL *session,
 	__wt_lsm_tree_throttle(session, lsm_tree, true);
 	__wt_lsm_tree_writeunlock(session, lsm_tree);
 	if (ret != 0)
-		WT_ERR_MSG(session, ret, "LSM metadata write");
+		WT_ERR_MSG(session, ret, "%s", "LSM metadata write");
 
 	/*
 	 * Enable eviction on the live chunk so it doesn't block the cache.
@@ -631,7 +631,8 @@ __lsm_bloom_create(WT_SESSION_IMPL *session,
 	__wt_lsm_tree_writeunlock(session, lsm_tree);
 
 	if (ret != 0)
-		WT_ERR_MSG(session, ret, "LSM bloom worker metadata write");
+		WT_ERR_MSG(session, ret,
+		    "%s", "LSM bloom worker metadata write");
 
 err:	if (bloom != NULL)
 		WT_TRET(__wt_bloom_close(bloom));

@@ -345,7 +345,7 @@ __wt_txn_checkpoint_logread(WT_SESSION_IMPL *session,
 	    &ckpt_file, &ckpt_offset,
 	    &ckpt_nsnapshot_unused, &ckpt_snapshot_unused)) != 0)
 		WT_RET_MSG(session,
-		    ret, "txn_checkpoint_logread: unpack failure");
+		    ret, "%s", "txn_checkpoint_logread: unpack failure");
 	WT_SET_LSN(ckpt_lsn, ckpt_file, ckpt_offset);
 	*pp = end;
 	return (0);

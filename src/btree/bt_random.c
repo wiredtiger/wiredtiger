@@ -313,7 +313,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	 * value from a column-store, if there were any reason to do so.
 	 */
 	if (btree->type != BTREE_ROW)
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    "WT_CURSOR.next_random only supported by row-store tables");
 
 	WT_STAT_CONN_INCR(session, cursor_next);

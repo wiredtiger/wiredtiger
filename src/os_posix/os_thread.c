@@ -32,7 +32,7 @@ __wt_thread_create(WT_SESSION_IMPL *session,
 		tidret->created = true;
 		return (0);
 	}
-	WT_RET_MSG(session, ret, "pthread_create");
+	WT_RET_MSG(session, ret, "%s", "pthread_create");
 }
 
 /*
@@ -62,7 +62,7 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 		return (0);
 	}
 
-	WT_RET_MSG(session, ret, "pthread_join");
+	WT_RET_MSG(session, ret, "%s", "pthread_join");
 }
 
 /*

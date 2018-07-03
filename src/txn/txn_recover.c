@@ -329,8 +329,8 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	case WT_LOGREC_COMMIT:
 		if ((ret = __wt_vunpack_uint(
 		    &p, WT_PTRDIFF(end, p), &txnid_unused)) != 0)
-			WT_RET_MSG(
-			    session, ret, "txn_log_recover: unpack failure");
+			WT_RET_MSG(session, ret,
+			    "%s", "txn_log_recover: unpack failure");
 		WT_RET(__txn_commit_apply(r, lsnp, &p, end));
 		break;
 	}
@@ -603,7 +603,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 			    session, &metafile->ckpt_lsn, &needs_rec));
 			if (needs_rec)
 				WT_ERR_MSG(session, WT_RUN_RECOVERY,
-				    "Read-only database needs recovery");
+				    "%s", "Read-only database needs recovery");
 		}
 		if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
 			WT_ERR(__wt_log_scan(session,
@@ -658,7 +658,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	     F_ISSET(conn, WT_CONN_READONLY))) {
 		if (F_ISSET(conn, WT_CONN_READONLY))
 			WT_ERR_MSG(session, WT_RUN_RECOVERY,
-			    "Read-only database needs recovery");
+			    "%s", "Read-only database needs recovery");
 		WT_ERR(WT_RUN_RECOVERY);
 	}
 
@@ -718,7 +718,7 @@ err:	WT_TRET(__recovery_free(&r));
 	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
 	if (ret != 0)
-		__wt_err(session, ret, "Recovery failed");
+		__wt_err(session, ret, "%s", "Recovery failed");
 
 	/*
 	 * Destroy the eviction threads that were started in support of

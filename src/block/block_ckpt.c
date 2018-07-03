@@ -715,7 +715,7 @@ live_update:
 	if ((a = ckpt->bpriv) == NULL)
 		a = &block->live;
 	if (a->discard.entries != 0)
-		WT_ERR_MSG(session, WT_ERROR,
+		WT_ERR_MSG(session, WT_ERROR, "%s",
 		    "first checkpoint incorrectly has blocks on the discard "
 		    "list");
 #endif

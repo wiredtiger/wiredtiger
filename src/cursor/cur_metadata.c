@@ -235,7 +235,7 @@ __curmetadata_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	    compare, ((WT_CURSOR_BTREE *)a_file_cursor)->btree);
 
 	if (b->compare != __curmetadata_compare)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "Can only compare cursors of the same type");
 
 	WT_MD_CURSOR_NEEDKEY(a);

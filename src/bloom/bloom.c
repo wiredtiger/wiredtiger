@@ -65,7 +65,7 @@ __bloom_setup(
     WT_BLOOM *bloom, uint64_t n, uint64_t m, uint32_t factor, uint32_t k)
 {
 	if (k < 2)
-		WT_RET_MSG(bloom->session, EINVAL,
+		WT_RET_MSG(bloom->session, EINVAL, "%s",
 		    "bloom filter hash values to be set/tested must be "
 		    "greater than 2");
 
@@ -314,7 +314,7 @@ err:	if (c != NULL)
 		return (ret);
 	WT_RET_MSG(bloom->session,
 	    ret == WT_NOTFOUND ? WT_ERROR : ret,
-	    "Failed lookup in bloom filter");
+	    "%s", "Failed lookup in bloom filter");
 }
 
 /*

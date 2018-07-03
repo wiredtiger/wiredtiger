@@ -98,10 +98,10 @@ __verify_config_offsets(
 		 */
 		*quitp = true;
 		if (v.len != 0 || sscanf(k.str, "%" SCNu64, &offset) != 1)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "unexpected dump offset format");
 #if !defined(HAVE_DIAGNOSTIC)
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    "the WiredTiger library was not built in diagnostic mode");
 #else
 		WT_TRET(

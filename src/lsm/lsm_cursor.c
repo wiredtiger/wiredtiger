@@ -868,7 +868,7 @@ __clsm_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	 * compare the keys.
 	 */
 	if (strcmp(a->uri, b->uri) != 0)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "comparison method cursors must reference the same object");
 
 	WT_ERR(__cursor_needkey(a));
@@ -1814,7 +1814,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 
 	WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
 	if (cval.len != 0)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "LSM does not support opening by checkpoint");
 
 	WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
@@ -1828,7 +1828,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	 * if it did ensure that it's safe to bulk load into the tree.
 	 */
 	if (bulk && (ret == EBUSY || (ret == 0 &&  lsm_tree->nchunks > 1)))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "bulk-load is only supported on newly created LSM trees");
 	/* Flag any errors from the tree get. */
 	WT_ERR(ret);

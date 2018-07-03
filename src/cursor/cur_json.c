@@ -509,7 +509,7 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 					if (__wt_hex2byte(&uc[1], &ignored) ||
 					    __wt_hex2byte(&uc[3], &ignored))
 						WT_RET_MSG(session, EINVAL,
-				    "invalid Unicode within JSON string");
+			       "%s", "invalid Unicode within JSON string");
 					src += 4;
 				}
 				backslash = false;
@@ -518,7 +518,8 @@ __wt_json_token(WT_SESSION *wt_session, const char *src, int *toktype,
 		}
 		if (result == 's')
 			break;
-		WT_RET_MSG(session, EINVAL, "unterminated string in JSON");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "unterminated string in JSON");
 	case '-':
 	case '0':
 	case '1':
@@ -657,7 +658,7 @@ json_int_arg(WT_SESSION_IMPL *session, const char **jstr, int64_t *ip)
 		/* JSON only allows decimal */
 		*ip = strtoll(tokstart, &end, 10);
 		if (end != tokstart + toksize)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "JSON <int> extraneous input");
 		*jstr = tokstart + toksize;
 	} else
@@ -685,7 +686,7 @@ json_uint_arg(WT_SESSION_IMPL *session, const char **jstr, uint64_t *up)
 		/* JSON only allows decimal */
 		*up = strtoull(tokstart, &end, 10);
 		if (end != tokstart + toksize)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "JSON <int> extraneous input");
 		*jstr = tokstart + toksize;
 	} else
@@ -896,7 +897,7 @@ __wt_json_strncpy(WT_SESSION *wt_session,
 			case 'u':
 				if (__wt_hex2byte((const u_char *)src, &hi) ||
 				    __wt_hex2byte((const u_char *)src + 2, &lo))
-					WT_RET_MSG(session, EINVAL,
+					WT_RET_MSG(session, EINVAL, "%s",
 				    "invalid Unicode within JSON string");
 				src += 4;
 				if (hi != 0)
@@ -928,8 +929,8 @@ __wt_json_strncpy(WT_SESSION *wt_session,
 			*dst++ = ch;
 	}
 	if (src != srcend)
-		WT_RET_MSG(session,
-		    ENOMEM, "JSON string copy destination buffer too small");
+		WT_RET_MSG(session, ENOMEM, "%s",
+		    "JSON string copy destination buffer too small");
 	*pdst = dst;
 	while (dst < dstend)
 		*dst++ = '\0';

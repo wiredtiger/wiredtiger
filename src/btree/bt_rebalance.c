@@ -418,7 +418,7 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
 	if (btree->root.page->dsk == NULL)
 		return (0);
 	if (btree->modified)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "tree is modified, only clean trees may be rebalanced");
 
 	WT_CLEAR(_rstuff);

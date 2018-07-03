@@ -1033,7 +1033,8 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	end = (const uint8_t *)buf->data + allocsize;
 	WT_ERR(__wt_logrec_read(session, &p, end, &rectype));
 	if (rectype != WT_LOGREC_SYSTEM)
-		WT_ERR_MSG(session, WT_ERROR, "System log record missing");
+		WT_ERR_MSG(session, WT_ERROR,
+		    "%s", "System log record missing");
 	WT_ERR(__wt_log_recover_system(session, &p, end, lsnp));
 
 err:	__wt_scr_free(session, &buf);
@@ -1976,7 +1977,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 
 	if (lsnp != NULL &&
 	    LF_ISSET(WT_LOGSCAN_FIRST|WT_LOGSCAN_FROM_CKP))
-		WT_RET_MSG(session, WT_ERROR,
+		WT_RET_MSG(session, WT_ERROR, "%s",
 		    "choose either a start LSN or a start flag");
 	/*
 	 * Set up the allocation size, starting and ending LSNs.  The values
@@ -1991,8 +1992,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 			if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
 				start_lsn = log->ckpt_lsn;
 			else if (!LF_ISSET(WT_LOGSCAN_FIRST))
-				WT_RET_MSG(session, WT_ERROR,
-				    "%s: WT_LOGSCAN_FIRST not set", __func__);
+				WT_RET_MSG(session, WT_ERROR, "%s",
+				    "WT_LOGSCAN_FIRST not set");
 		}
 		lastlog = log->fileid;
 	} else {
@@ -2011,7 +2012,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		WT_RET(__log_get_files(session,
 		    WT_LOG_FILENAME, &logfiles, &logcount));
 		if (logcount == 0)
-			WT_RET_MSG(session, ENOTSUP, "no log files found");
+			WT_RET_MSG(session, ENOTSUP,
+			    "%s", "no log files found");
 		for (i = 0; i < logcount; i++) {
 			WT_ERR(__wt_log_extract_lognum(session, logfiles[i],
 			    &lognum));
@@ -2301,12 +2303,12 @@ err:	WT_STAT_CONN_INCR(session, log_scans);
 	 * a helpful failure message.
 	 */
 	if (ret != 0 && firstrecord) {
-		__wt_errx(session,
+		__wt_errx(session, "%s",
 		    "WiredTiger is unable to read the recovery log.");
-		__wt_errx(session, "This may be due to the log"
+		__wt_errx(session, "%s", "This may be due to the log"
 		    " files being encrypted, being from an older"
 		    " version or due to corruption on disk");
-		__wt_errx(session, "You should confirm that you have"
+		__wt_errx(session, "%s", "You should confirm that you have"
 		    " opened the database with the correct options including"
 		    " all encryption and compression options");
 	}

@@ -101,7 +101,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	 */
 	creation = ckpt.raw.size == 0;
 	if (!creation && F_ISSET(btree, WT_BTREE_BULK))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "bulk-load is only supported on newly created objects");
 
 	/* Handle salvage configuration. */
@@ -117,7 +117,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	/* Connect to the underlying block manager. */
 	filename = dhandle->name;
 	if (!WT_PREFIX_SKIP(filename, "file:"))
-		WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
+		WT_ERR_MSG(session, EINVAL, "%s", "expected a 'file:' URI");
 
 	WT_ERR(__wt_block_manager_open(session, filename, dhandle->cfg,
 	    forced_salvage, readonly, btree->allocsize, &btree->bm));
@@ -344,7 +344,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		    session, cval.str, cval.len, &fixed, &bitcnt));
 		if (fixed) {
 			if (bitcnt == 0 || bitcnt > 8)
-				WT_RET_MSG(session, EINVAL,
+				WT_RET_MSG(session, EINVAL, "%s",
 				    "fixed-width field sizes must be greater "
 				    "than 0 and less than or equal to 8");
 			btree->bitcnt = (uint8_t)bitcnt;
@@ -365,7 +365,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	    cfg, "ignore_in_memory_cache_size", &cval));
 	if (cval.val) {
 		if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "ignore_in_memory_cache_size setting is only valid "
 			    "with databases configured to run in-memory");
 		F_SET(btree, WT_BTREE_IGNORE_CACHE);
@@ -546,12 +546,12 @@ __wt_btree_tree_open(
 	 * Try to provide a helpful failure message.
 	 */
 	if (ret != 0 && WT_IS_METADATA(session->dhandle)) {
-		__wt_errx(session,
+		__wt_errx(session, "%s",
 		    "WiredTiger has failed to open its metadata");
-		__wt_errx(session, "This may be due to the database"
+		__wt_errx(session, "%s", "This may be due to the database"
 		    " files being encrypted, being from an older"
 		    " version or due to corruption on disk");
-		__wt_errx(session, "You should confirm that you have"
+		__wt_errx(session, "%s", "You should confirm that you have"
 		    " opened the database with the correct options including"
 		    " all encryption and compression options");
 	}
@@ -767,8 +767,8 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	WT_RET(__wt_direct_io_size_check(
 	    session, cfg, "allocation_size", &btree->allocsize));
 	if (!__wt_ispo2(btree->allocsize))
-		WT_RET_MSG(session,
-		    EINVAL, "the allocation size must be a power of two");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "the allocation size must be a power of two");
 
 	/*
 	 * Get the internal/leaf page sizes.

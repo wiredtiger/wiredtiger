@@ -111,7 +111,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 #ifdef HAVE_PTHREAD_COND_MONOTONIC
 		WT_SYSCALL_RETRY(clock_gettime(CLOCK_MONOTONIC, &ts), ret);
 		if (ret != 0)
-			WT_PANIC_MSG(session, ret, "clock_gettime");
+			WT_PANIC_MSG(session, ret, "%s", "clock_gettime");
 #else
 		__wt_epoch_raw(session, &ts);
 #endif

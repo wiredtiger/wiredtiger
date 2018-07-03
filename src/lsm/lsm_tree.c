@@ -373,7 +373,7 @@ __wt_lsm_tree_create(WT_SESSION_IMPL *session,
 		/* LSM doesn't yet support the 'r' format. */
 		WT_ERR(__wt_config_gets(session, cfg, "key_format", &cval));
 		if (WT_STRING_MATCH("r", cval.str, cval.len))
-			WT_ERR_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL, "%s",
 			    "LSM trees do not support a key format of 'r'");
 
 		WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
@@ -861,7 +861,7 @@ err:	__wt_lsm_tree_writeunlock(session, lsm_tree);
 	 * where we can't make progress. Error out of WiredTiger.
 	 */
 	if (ret != 0)
-		WT_PANIC_RET(session, ret, "Failed doing LSM switch");
+		WT_PANIC_RET(session, ret, "%s", "Failed doing LSM switch");
 	else if (!first_switch)
 		WT_RET(__wt_lsm_manager_push_entry(
 		    session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
@@ -1172,7 +1172,7 @@ __wt_lsm_compact(WT_SESSION_IMPL *session, const char *name, bool *skipp)
 	WT_RET(__wt_lsm_tree_get(session, name, false, &lsm_tree));
 
 	if (!F_ISSET(S2C(session), WT_CONN_LSM_MERGE))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "LSM compaction requires active merge threads");
 
 	/*
