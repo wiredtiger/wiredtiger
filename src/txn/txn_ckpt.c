@@ -417,10 +417,6 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	for (;;) {
 		__wt_sleep(0, 100 * WT_THOUSAND);
 
-		time_stop = __wt_clock(session);
-		bytes_written_total =
-		    cache->bytes_written - bytes_written_start;
-
 		prev_dirty = current_dirty;
 		current_dirty =
 		    (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
@@ -442,6 +438,8 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		 * that can't be evicted.  If we can't meet the target,
 		 * give up and start the checkpoint for real.
 		 */
+		bytes_written_total =
+		    cache->bytes_written - bytes_written_start;
 		if (bytes_written_total > max_write)
 			break;
 	}
@@ -616,8 +614,7 @@ __checkpoint_prepare(
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
-	txn_global->checkpoint_txn = txn;
-	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
+	txn_global->checkpoint_state.pinned_id = txn->snap_min;
 
 	/*
 	 * Sanity check that the oldest ID hasn't moved on before we have
@@ -659,6 +656,8 @@ __checkpoint_prepare(
 		if (txn_global->has_stable_timestamp) {
 			__wt_timestamp_set(&txn->read_timestamp,
 			    &txn_global->stable_timestamp);
+			__wt_timestamp_set(&txn_global->checkpoint_timestamp,
+			    &txn->read_timestamp);
 			F_SET(txn, WT_TXN_HAS_TS_READ);
 			if (!F_ISSET(conn, WT_CONN_RECOVERING))
 				__wt_timestamp_set(

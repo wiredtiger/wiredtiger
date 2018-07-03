@@ -1776,7 +1776,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 	 * and there's never a database home after that point without a turtle
 	 * file. If the turtle file doesn't exist, it's a create.
 	 */
-	WT_ERR(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist));
+	WT_ERR(__wt_turtle_exists(session, &exist));
 	conn->is_new = exist ? 0 : 1;
 
 	if (conn->is_new) {
@@ -2025,6 +2025,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "split_6",		WT_TIMING_STRESS_SPLIT_6 },
 		{ "split_7",		WT_TIMING_STRESS_SPLIT_7 },
 		{ "split_8",		WT_TIMING_STRESS_SPLIT_8 },
+		{ "split_9",		WT_TIMING_STRESS_SPLIT_9 },
 		{ NULL, 0 }
 	};
 	WT_CONFIG_ITEM cval, sval;
