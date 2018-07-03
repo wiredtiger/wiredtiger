@@ -132,7 +132,7 @@ struct __wt_btree {
 	WT_COMPRESSOR *compressor;	/* Page compressor */
 	/*
 	 * When doing compression, the pre-compression in-memory byte size is
-	 * optionally adjusted based on previous compressions.
+	 * optionally adjusted based on previous compression results.
 	 * It's an 8B value because it's updated without a lock.
 	 */
 	bool	 leafpage_compadjust;	/* Run-time compression adjustment */
