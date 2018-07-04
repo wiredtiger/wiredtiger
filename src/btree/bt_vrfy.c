@@ -67,7 +67,7 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
 #if !defined(HAVE_DIAGNOSTIC)
 	if (vs->dump_blocks || vs->dump_pages)
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    "the WiredTiger library was not built in diagnostic mode");
 #endif
 	return (0);
