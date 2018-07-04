@@ -26,7 +26,7 @@ __wt_abort(WT_SESSION_IMPL *session)
 	for (i = 0; i < WT_MILLION; ++i)
 		__wt_sleep(100, 0);
 #else
-	__wt_errx(session, "aborting WiredTiger library");
+	__wt_errx(session, "%s", "aborting WiredTiger library");
 #endif
 	abort();
 	/* NOTREACHED */
