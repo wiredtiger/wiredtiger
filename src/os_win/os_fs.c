@@ -558,7 +558,7 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 				__wt_err(session, ret,
 				    "%s: handle-open: CreateFileW: failed with "
 				    "direct I/O configured, some filesystem "
-				    "types do not support direct I/O: %s"
+				    "types do not support direct I/O: %s",
 				    name,
 				    __wt_formatmessage(session, windows_error));
 			else
