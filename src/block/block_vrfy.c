@@ -69,7 +69,7 @@ __wt_block_verify_start(WT_SESSION_IMPL *session,
 
 	/* The file size should be a multiple of the allocation size. */
 	if (size % block->allocsize != 0)
-		WT_RET_MSG(session, WT_ERROR,
+		WT_RET_MSG(session, WT_ERROR, "%s",
 		    "the file size is not a multiple of the allocation size");
 
 	/*

@@ -225,7 +225,7 @@ __logmgr_config(
 	if (reconfig &&
 	    ((enabled && !FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) ||
 	    (!enabled && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "log manager reconfigure: enabled mismatch with existing "
 		    "setting");
 
@@ -233,7 +233,7 @@ __logmgr_config(
 	if (enabled) {
 		WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
 		if (cval.val != 0)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "In-memory configuration incompatible with "
 			    "log=(enabled=true)");
 	}
@@ -304,7 +304,7 @@ __logmgr_config(
 	WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
 	if (cval.val != 0) {
 		if (F_ISSET(conn, WT_CONN_READONLY))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Read-only configuration incompatible with "
 			    "zero-filling log files");
 		FLD_SET(conn->log_flags, WT_CONN_LOG_ZERO_FILL);
@@ -397,7 +397,7 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	WT_SET_LSN(&log->first_lsn, min_lognum, 0);
 
 	if (0)
-err:		__wt_err(session, ret, "log archive server error");
+err:		__wt_err(session, ret, "%s", "log archive server error");
 	if (locked)
 		__wt_readunlock(session, &conn->hot_backup_lock);
 	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
@@ -457,7 +457,7 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 	log->prep_missed = 0;
 
 	if (0)
-err:		__wt_err(session, ret, "log pre-alloc server error");
+err:		__wt_err(session, ret, "%s", "log pre-alloc server error");
 	WT_TRET(__wt_fs_directory_list_free(session, &recfiles, reccount));
 	return (ret);
 }
@@ -480,7 +480,7 @@ __wt_log_truncate_files(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool force)
 		return (0);
 	if (!force && F_ISSET(conn, WT_CONN_SERVER_LOG) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "Attempt to archive manually while a server is running");
 
 	log = conn->log;
@@ -663,7 +663,7 @@ __log_file_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "log close server error");
+err:		WT_PANIC_MSG(session, ret, "%s", "log close server error");
 	}
 	WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_count);
 	if (locked)
@@ -882,7 +882,7 @@ __log_wrlsn_server(void *arg)
 	WT_ERR(__wt_log_force_write(session, 1, NULL));
 	__wt_log_wrlsn(session, NULL);
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "log wrlsn server error");
+err:		WT_PANIC_MSG(session, ret, "%s", "log wrlsn server error");
 
 	}
 	return (WT_THREAD_RET_VALUE);
@@ -1004,7 +1004,7 @@ __log_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "log server error");
+err:		WT_PANIC_MSG(session, ret, "%s", "log server error");
 	}
 	return (WT_THREAD_RET_VALUE);
 }

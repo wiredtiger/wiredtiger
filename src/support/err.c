@@ -286,7 +286,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
 	 * call.
 	 */
 	if (ret == 0 && remain == 0)
-		__wt_err(session, ENOMEM,
+		__wt_err(session, ENOMEM, "%s",
 		    "error or message truncated: internal WiredTiger buffer "
 		    "too small");
 
@@ -309,11 +309,11 @@ err:		if (fprintf(stderr,
 }
 
 /*
- * __wt_err --
+ * __wt_err_func --
  * 	Report an error.
  */
 void
-__wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
+__wt_err_func(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
@@ -330,11 +330,11 @@ __wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
 }
 
 /*
- * __wt_errx --
+ * __wt_errx_func --
  * 	Report an error with no error code.
  */
 void
-__wt_errx(WT_SESSION_IMPL *session, const char *fmt, ...)
+__wt_errx_func(WT_SESSION_IMPL *session, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
 {
@@ -540,7 +540,7 @@ __wt_panic(WT_SESSION_IMPL *session)
 		F_SET(conn, WT_CONN_PANIC);
 	}
 
-	__wt_err(session, WT_PANIC, "the process must exit and restart");
+	__wt_err(session, WT_PANIC, "%s", "the process must exit and restart");
 
 #if defined(HAVE_DIAGNOSTIC)
 	__wt_abort(session);			/* Drop core if testing. */

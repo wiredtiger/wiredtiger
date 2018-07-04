@@ -310,7 +310,7 @@ __compact_worker(WT_SESSION_IMPL *session)
 			 */
 			if (ret == EBUSY) {
 				if (__wt_cache_stuck(session)) {
-					WT_ERR_MSG(session, EBUSY,
+					WT_ERR_MSG(session, EBUSY, "%s",
 					    "compaction halted by eviction "
 					    "pressure");
 				}

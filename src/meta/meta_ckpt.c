@@ -358,7 +358,7 @@ __ckpt_load(WT_SESSION_IMPL *session,
 	return (0);
 
 format:
-	WT_RET_MSG(session, WT_ERROR, "corrupted checkpoint list");
+	WT_RET_MSG(session, WT_ERROR, "%s", "corrupted checkpoint list");
 }
 
 /*

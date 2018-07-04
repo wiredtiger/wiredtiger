@@ -151,7 +151,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 	return (0);
 
 err:	/* Something really bad just happened. */
-	WT_PANIC_RET(session, ret, "fatal error during page split");
+	WT_PANIC_RET(session, ret, "%s", "fatal error during page split");
 }
 #endif
 
@@ -613,13 +613,13 @@ err:	__split_ref_final(session, &locked);
 		__wt_free_ref_index(session, root, alloc_index, true);
 		break;
 	case WT_ERR_PANIC:
-		__wt_err(session, ret,
+		__wt_err(session, ret, "%s",
 		    "fatal error during root page split to deepen the tree");
 		ret = WT_PANIC;
 		break;
 	case WT_ERR_IGNORE:
 		if (ret != 0 && ret != WT_PANIC) {
-			__wt_err(session, ret,
+			__wt_err(session, ret, "%s",
 			    "ignoring not-fatal error during root page split "
 			    "to deepen the tree");
 			ret = 0;
@@ -918,12 +918,13 @@ err:	__wt_scr_free(session, &scr);
 			ret = EBUSY;
 		break;
 	case WT_ERR_PANIC:
-		__wt_err(session, ret, "fatal error during parent page split");
+		__wt_err(session, ret,
+		    "%s", "fatal error during parent page split");
 		ret = WT_PANIC;
 		break;
 	case WT_ERR_IGNORE:
 		if (ret != 0 && ret != WT_PANIC) {
-			__wt_err(session, ret,
+			__wt_err(session, ret, "%s",
 			    "ignoring not-fatal error during parent page "
 			    "split");
 			ret = 0;
@@ -1176,13 +1177,13 @@ err:	__split_ref_final(session, &locked);
 		__wt_free_ref_index(session, page, replace_index, false);
 		break;
 	case WT_ERR_PANIC:
-		__wt_err(session, ret,
+		__wt_err(session, ret, "%s",
 		    "fatal error during internal page split");
 		ret = WT_PANIC;
 		break;
 	case WT_ERR_IGNORE:
 		if (ret != 0 && ret != WT_PANIC) {
-			__wt_err(session, ret,
+			__wt_err(session, ret, "%s",
 			    "ignoring not-fatal error during internal page "
 			    "split");
 			ret = 0;

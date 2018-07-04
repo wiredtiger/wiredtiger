@@ -252,7 +252,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	/* Buffers should be aligned for writing. */
 	if (!F_ISSET(buf, WT_ITEM_ALIGNED)) {
 		WT_ASSERT(session, F_ISSET(buf, WT_ITEM_ALIGNED));
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "direct I/O check: write buffer incorrectly allocated");
 	}
 
@@ -266,12 +266,12 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	align_size = WT_ALIGN(buf->size, block->allocsize);
 	if (align_size > buf->memsize) {
 		WT_ASSERT(session, align_size <= buf->memsize);
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "buffer size check: write buffer incorrectly allocated");
 	}
 	if (align_size > UINT32_MAX) {
 		WT_ASSERT(session, align_size <= UINT32_MAX);
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "buffer size check: write buffer too large to write");
 	}
 

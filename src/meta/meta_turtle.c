@@ -225,7 +225,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 		 * and a destination database that incorrectly ran recovery.
 		 */
 		if (exist_incr && !exist_isrc)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Incremental backup after running recovery "
 			    "is not allowed");
 		/*

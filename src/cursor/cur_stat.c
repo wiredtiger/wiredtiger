@@ -498,7 +498,7 @@ __curstat_join_init(WT_SESSION_IMPL *session,
 	if (curjoin == NULL && cst->u.join_stats_group.join_cursor != NULL)
 		curjoin = &cst->u.join_stats_group.join_cursor->iface;
 	if (curjoin == NULL || !WT_PREFIX_MATCH(curjoin->uri, "join:"))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "join cursor must be used with statistics:join");
 	cjoin = (WT_CURSOR_JOIN *)curjoin;
 	memset(&cst->u.join_stats_group, 0, sizeof(WT_JOIN_STATS_GROUP));
@@ -617,7 +617,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_STAT_TYPE_ALL))
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "Only one of all, fast, none "
 				    "configuration values should be specified");
 			F_SET(cst, WT_STAT_TYPE_FAST);
@@ -649,7 +649,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "size", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_STAT_TYPE_FAST | WT_STAT_TYPE_ALL))
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "Only one of all, fast, none "
 				    "configuration values should be specified");
 			F_SET(cst, WT_STAT_TYPE_SIZE);
@@ -658,7 +658,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 		if ((ret = __wt_config_subgets(
 		    session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
 			if (F_ISSET(cst, WT_STAT_TYPE_SIZE))
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "clear is incompatible with size "
 				    "statistics");
 			F_SET(cst, WT_STAT_CLEAR);
@@ -716,7 +716,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
 
 	if (0) {
-config_err:	WT_ERR_MSG(session, EINVAL,
+config_err:	WT_ERR_MSG(session, EINVAL, "%s",
 		    "cursor's statistics configuration doesn't match the "
 		    "database statistics configuration");
 	}

@@ -337,12 +337,12 @@ __wt_huffman_open(WT_SESSION_IMPL *session,
 	 * input).  Validate the symbols are within range.
 	 */
 	if (numbytes != 1 && numbytes != 2)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "illegal number of symbol bytes specified for a huffman "
 		    "table");
 
 	if (symcnt == 0)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "illegal number of symbols specified for a huffman table");
 
 	huffman->numSymbols = numbytes == 2 ? UINT16_MAX : UINT8_MAX;
@@ -819,7 +819,7 @@ __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg,
 		 * where that's not true.
 		 */
 		if (from_len_bits < len)	/* corrupted */
-			WT_ERR_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL, "%s",
 			    "huffman decompression detected input corruption");
 		from_len_bits -= len;
 

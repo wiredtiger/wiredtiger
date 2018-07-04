@@ -141,7 +141,7 @@ __block_ext_discard(WT_SESSION_IMPL *session, u_int max)
 	bms->ext_cache = ext;
 
 	if (max == 0 && bms->ext_cache_cnt != 0)
-		WT_RET_MSG(session, WT_ERROR,
+		WT_RET_MSG(session, WT_ERROR, "%s",
 		    "incorrect count in session handle's block manager cache");
 	return (0);
 }
@@ -250,7 +250,7 @@ __block_size_discard(WT_SESSION_IMPL *session, u_int max)
 	bms->sz_cache = sz;
 
 	if (max == 0 && bms->sz_cache_cnt != 0)
-		WT_RET_MSG(session, WT_ERROR,
+		WT_RET_MSG(session, WT_ERROR, "%s",
 		    "incorrect count in session handle's block manager cache");
 	return (0);
 }

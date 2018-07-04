@@ -381,7 +381,7 @@ __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **scratchp
 	*scratchp = *best;
 	return (0);
 
-err:	WT_RET_MSG(session, ret,
+err:	WT_RET_MSG(session, ret, "%s",
 	    "session unable to allocate a scratch buffer");
 }
 
@@ -400,16 +400,16 @@ __wt_scr_discard(WT_SESSION_IMPL *session)
 		if (*bufp == NULL)
 			continue;
 		if (F_ISSET(*bufp, WT_ITEM_INUSE))
-			__wt_errx(session,
-			    "scratch buffer allocated and never discarded"
+			__wt_errx(session, "%s",
+			    "scratch buffer allocated and never discarded");
 #ifdef HAVE_DIAGNOSTIC
-			    ": %s: %d",
+			__wt_errx(session,
+			    "scratch buffer allocated by %s: %d",
 			    session->
 			    scratch_track[bufp - session->scratch].file,
 			    session->
-			    scratch_track[bufp - session->scratch].line
+			    scratch_track[bufp - session->scratch].line);
 #endif
-			    );
 
 		__wt_buf_free(session, *bufp);
 		__wt_free(session, *bufp);
@@ -464,5 +464,6 @@ __wt_ext_scr_free(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, void *p)
 			F_CLR(*bufp, WT_ITEM_INUSE);
 			return;
 		}
-	__wt_errx(session, "extension free'd non-existent scratch buffer");
+	__wt_errx(session,
+	    "%s", "extension free'd non-existent scratch buffer");
 }

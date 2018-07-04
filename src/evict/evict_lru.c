@@ -318,7 +318,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
 		WT_ERR(__evict_lru_pages(session, false));
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
+err:		WT_PANIC_MSG(session, ret, "%s", "cache eviction thread error");
 	}
 	return (ret);
 }
@@ -357,7 +357,7 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
 	    WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "cache eviction thread error");
+err:		WT_PANIC_MSG(session, ret, "%s", "cache eviction thread error");
 	}
 	return (ret);
 }
@@ -447,7 +447,7 @@ __evict_server(WT_SESSION_IMPL *session, bool *did_work)
 	__wt_epoch(session, &now);
 	if (WT_TIMEDIFF_SEC(now, cache->stuck_time) > WT_MINUTE * 5) {
 #if defined(HAVE_DIAGNOSTIC)
-		__wt_err(session, ETIMEDOUT,
+		__wt_err(session, ETIMEDOUT, "%s",
 		    "Cache stuck for too long, giving up");
 		WT_RET(__wt_verbose_dump_txn(session));
 		WT_RET(__wt_verbose_dump_cache(session));

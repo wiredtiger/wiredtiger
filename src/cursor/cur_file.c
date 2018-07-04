@@ -35,7 +35,7 @@ __curfile_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	 */
 	if (!WT_PREFIX_MATCH(a->internal_uri, "file:") ||
 	    !WT_PREFIX_MATCH(b->internal_uri, "file:"))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "Cursors must reference the same object");
 
 	WT_ERR(__cursor_checkkey(a));
@@ -67,7 +67,7 @@ __curfile_equals(WT_CURSOR *a, WT_CURSOR *b, int *equalp)
 	 */
 	if (!WT_PREFIX_MATCH(a->internal_uri, "file:") ||
 	    !WT_PREFIX_MATCH(b->internal_uri, "file:"))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "Cursors must reference the same object");
 
 	WT_ERR(__cursor_checkkey(a));
@@ -678,7 +678,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
 	if (cval.val != 0) {
 		if (WT_CURSOR_RECNO(cursor))
-			WT_ERR_MSG(session, ENOTSUP,
+			WT_ERR_MSG(session, ENOTSUP, "%s",
 			    "next_random configuration not supported for "
 			    "column-store objects");
 
@@ -772,7 +772,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri,
 			 * problems between LSM and index creation.
 			 */
 		else if (!WT_STRING_MATCH("unordered", cval.str, cval.len))
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Value for 'bulk' must be a boolean or 'bitmap'");
 
 		if (bulk) {

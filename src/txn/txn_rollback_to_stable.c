@@ -392,7 +392,7 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 
 	txn_global = &S2C(session)->txn_global;
 	if (!txn_global->has_stable_timestamp)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "rollback_to_stable requires a stable timestamp");
 
 	/*
@@ -403,7 +403,7 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 	 */
 	WT_RET(__wt_txn_activity_check(session, &txn_active));
 	if (txn_active)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "rollback_to_stable illegal with active transactions");
 
 	return (0);
@@ -421,7 +421,7 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 #ifndef HAVE_TIMESTAMPS
 	WT_UNUSED(cfg);
 
-	WT_RET_MSG(session, ENOTSUP, "rollback_to_stable "
+	WT_RET_MSG(session, ENOTSUP, "%s", "rollback_to_stable "
 	    "requires a version of WiredTiger built with timestamp support");
 #else
 	WT_CONNECTION_IMPL *conn;

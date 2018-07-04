@@ -1457,7 +1457,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 				F_CLR(ckpt, WT_CKPT_DELETE);
 				continue;
 			}
-			WT_ERR_MSG(session, ret,
+			WT_ERR_MSG(session, ret, "%s",
 			    "checkpoints cannot be dropped when in-use");
 		}
 

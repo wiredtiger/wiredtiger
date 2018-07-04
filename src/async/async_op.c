@@ -268,7 +268,7 @@ __wt_async_op_enqueue(WT_SESSION_IMPL *session, WT_ASYNC_OP_IMPL *op)
 	 * invalid object.
 	 */
 	if (op->state != WT_ASYNCOP_READY)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "application error: WT_ASYNC_OP already in use");
 
 	/*

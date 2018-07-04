@@ -1421,7 +1421,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	__cursor_state_save(cursor, &state);
 
 	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
-		WT_ERR_MSG(session, ENOTSUP,
+		WT_ERR_MSG(session, ENOTSUP, "%s",
 		    "not supported in read-uncommitted transactions");
 
 	/*
@@ -1548,8 +1548,8 @@ __wt_btcur_compare(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *cmpp)
 
 	/* Confirm both cursors reference the same object. */
 	if (a_arg->btree != b_arg->btree)
-		WT_RET_MSG(
-		    session, EINVAL, "Cursors must reference the same object");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "Cursors must reference the same object");
 
 	switch (a_arg->btree->type) {
 	case BTREE_COL_FIX:
@@ -1625,8 +1625,8 @@ __wt_btcur_equals(WT_CURSOR_BTREE *a_arg, WT_CURSOR_BTREE *b_arg, int *equalp)
 
 	/* Confirm both cursors reference the same object. */
 	if (a_arg->btree != b_arg->btree)
-		WT_RET_MSG(
-		    session, EINVAL, "Cursors must reference the same object");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "Cursors must reference the same object");
 
 	/*
 	 * The reason for an equals method is because we can avoid doing

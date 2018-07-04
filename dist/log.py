@@ -258,7 +258,7 @@ __wt_logop_%(name)s_unpack(
 
 \tif ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
 \t    &optype, &size%(unpack_args)s)) != 0)
-\t\tWT_RET_MSG(session, ret, "logop_%(name)s: unpack failure");
+\t\tWT_RET_MSG(session, ret, "%%s", "logop_%(name)s: unpack failure");
 \tWT_ASSERT(session, optype == %(macro)s);
 
 \t*pp += size;

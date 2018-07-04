@@ -904,7 +904,7 @@ __slvg_col_range_overlap(
 						/* Case #2/8, #10, #11 */
 	if (a_trk->col_start > b_trk->col_start)
 		WT_PANIC_RET(
-		    session, EINVAL, "unexpected merge array sort order");
+		    session, EINVAL, "%s", "unexpected merge array sort order");
 
 	if (a_trk->col_start == b_trk->col_start) {	/* Case #1, #4 and #9 */
 		/*
@@ -1332,8 +1332,8 @@ __slvg_col_ovfl_single(
 			return (__slvg_ovfl_ref(session, ovfl, false));
 	}
 
-	WT_PANIC_RET(session,
-	    EINVAL, "overflow record at column-store page merge not found");
+	WT_PANIC_RET(session, EINVAL, "%s",
+	    "overflow record at column-store page merge not found");
 }
 
 /*
@@ -1542,8 +1542,8 @@ __slvg_row_range_overlap(
 	    session, btree->collator, A_TRK_STOP, B_TRK_STOP, &stop_cmp));
 
 	if (start_cmp > 0)			/* Case #2/8, #10, #11 */
-		WT_PANIC_RET(
-		    session, EINVAL, "unexpected merge array sort order");
+		WT_PANIC_RET(session, EINVAL, "%s",
+		    "unexpected merge array sort order");
 
 	if (start_cmp == 0) {				/* Case #1, #4, #9 */
 		/*
@@ -2056,8 +2056,8 @@ __slvg_row_ovfl_single(
 			return (__slvg_ovfl_ref(session, ovfl, true));
 	}
 
-	WT_PANIC_RET(session,
-	    EINVAL, "overflow record at row-store page merge not found");
+	WT_PANIC_RET(session, EINVAL, "%s",
+	    "overflow record at row-store page merge not found");
 }
 
 /*
@@ -2351,7 +2351,7 @@ __slvg_ovfl_ref(WT_SESSION_IMPL *session, WT_TRACK *trk, bool multi_panic)
 	if (F_ISSET(trk, WT_TRACK_OVFL_REFD)) {
 		if (!multi_panic)
 			return (EBUSY);
-		WT_PANIC_RET(session, EINVAL,
+		WT_PANIC_RET(session, EINVAL, "%s",
 		    "overflow record unexpectedly referenced multiple times "
 		    "during leaf page merge");
 	}

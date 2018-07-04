@@ -336,7 +336,7 @@ __wt_async_worker(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "async worker error");
+err:		WT_PANIC_MSG(session, ret, "%s", "async worker error");
 	}
 	/*
 	 * Worker thread cleanup, close our cached cursors and free all the

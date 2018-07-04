@@ -30,7 +30,7 @@ __wt_cursor_cached(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET_MSG(session, ENOTSUP, "Cursor has been closed");
+	WT_RET_MSG(session, ENOTSUP, "%s", "Cursor has been closed");
 }
 
 /*
@@ -43,7 +43,7 @@ __wt_cursor_notsup(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_RET_MSG(session, ENOTSUP, "Unsupported cursor operation");
+	WT_RET_MSG(session, ENOTSUP, "%s", "Unsupported cursor operation");
 }
 
 /*
@@ -116,7 +116,7 @@ __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 	if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
 		session = (WT_SESSION_IMPL *)cursor->session;
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    "WT_CURSOR.modify only supported for 'S' and 'u' value "
 		    "formats");
 	}
@@ -417,7 +417,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 		}
 	}
 	if (sz == 0)
-		WT_ERR_MSG(session, EINVAL, "Empty keys not permitted");
+		WT_ERR_MSG(session, EINVAL, "%s", "Empty keys not permitted");
 	else if ((uint32_t)sz != sz)
 		WT_ERR_MSG(session, EINVAL,
 		    "Key size (%" PRIu64 ") out of range", (uint64_t)sz);
@@ -901,7 +901,7 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	 * a read-uncommitted transaction. Disallow it here for consistency.
 	 */
 	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
-		WT_ERR_MSG(session, ENOTSUP,
+		WT_ERR_MSG(session, ENOTSUP, "%s",
 		    "not supported in read-uncommitted transactions");
 
 	WT_ERR(__cursor_checkkey(cursor));

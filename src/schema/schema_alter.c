@@ -213,7 +213,7 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 	exclusive_refreshed = (bool)cv.val;
 
 	if (!exclusive_refreshed && !WT_PREFIX_MATCH(uri, "table:"))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "option \"exclusive_refreshed\" "
 		    "is applicable only on simple tables");
 

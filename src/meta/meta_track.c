@@ -344,7 +344,7 @@ err:	/*
 	}
 
 	if (ret != 0)
-		WT_PANIC_RET(session, ret,
+		WT_PANIC_RET(session, ret, "%s",
 		    "failed to apply or unroll all tracked operations");
 	return (saved_ret == 0 ? 0 : saved_ret);
 }

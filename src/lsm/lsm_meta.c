@@ -234,7 +234,7 @@ __lsm_meta_read_v1(
 
 	if (FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OFF) &&
 	    FLD_ISSET(lsm_tree->bloom, WT_LSM_BLOOM_OLDEST))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "Bloom filters can only be created on newest and oldest "
 		    "chunks if bloom filters are enabled");
 
@@ -267,7 +267,7 @@ __lsm_meta_read_v1(
 	lsm_tree->chunk_size = (uint64_t)cv.val;
 
 	if (lsm_tree->chunk_size > lsm_tree->chunk_max)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "Chunk size (chunk_size) must be smaller than or equal to "
 		    "the maximum chunk size (chunk_max)");
 
@@ -277,7 +277,7 @@ __lsm_meta_read_v1(
 	lsm_tree->merge_min = (uint32_t)cv.val;
 
 	if (lsm_tree->merge_min > lsm_tree->merge_max)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "LSM merge_min must be less than or equal to merge_max");
 
 	WT_ERR(__wt_config_getones(session, lsmconf, "last", &cv));

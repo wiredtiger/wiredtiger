@@ -500,7 +500,8 @@ __lsm_worker_manager(void *arg)
 	WT_ERR(__lsm_manager_worker_shutdown(session));
 
 	if (ret != 0) {
-err:		WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
+err:		WT_PANIC_MSG(session, ret,
+		    "%s", "LSM worker manager thread error");
 	}
 
 	/* Connection close waits on us to shutdown, let it know we're done. */

@@ -554,13 +554,18 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 		if (win_fh->filehandle == INVALID_HANDLE_VALUE) {
 			windows_error = __wt_getlasterror();
 			ret = __wt_map_windows_error(windows_error);
-			__wt_err(session, ret,
-			    win_fh->direct_io ?
-			    "%s: handle-open: CreateFileW: failed with direct "
-			    "I/O configured, some filesystem types do not "
-			    "support direct I/O: %s" :
-			    "%s: handle-open: CreateFileW: %s",
-			    name, __wt_formatmessage(session, windows_error));
+			if (win_fh->direct_io)
+				__wt_err(session, ret,
+				    "%s: handle-open: CreateFileW: failed with "
+				    "direct I/O configured, some filesystem "
+				    "types do not support direct I/O: %s",
+				    name,
+				    __wt_formatmessage(session, windows_error));
+			else
+				__wt_err(session, ret,
+				    "%s: handle-open: CreateFileW: %s",
+				    name,
+				    __wt_formatmessage(session, windows_error));
 			WT_ERR(ret);
 		}
 	}

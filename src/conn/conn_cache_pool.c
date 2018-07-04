@@ -71,7 +71,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 			 */
 			if (__wt_config_gets(session, &cfg[1],
 			    "shared_cache.size", &cval) != WT_NOTFOUND)
-				WT_RET_MSG(session, EINVAL,
+				WT_RET_MSG(session, EINVAL, "%s",
 				    "Shared cache configuration requires a "
 				    "pool name");
 			return (0);
@@ -79,7 +79,7 @@ __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
 
 		if (__wt_config_gets(session,
 		    &cfg[1], "cache_size", &cval_cache_size) != WT_NOTFOUND)
-			WT_RET_MSG(session, EINVAL,
+			WT_RET_MSG(session, EINVAL, "%s",
 			    "Only one of cache_size and shared_cache can be "
 			    "in the configuration");
 
@@ -254,7 +254,7 @@ __wt_conn_cache_pool_open(WT_SESSION_IMPL *session)
 	session_flags = WT_SESSION_NO_DATA_HANDLES;
 	if ((ret = __wt_open_internal_session(
 	    conn, "cache-pool", false, session_flags, &cache->cp_session)) != 0)
-		WT_RET_MSG(NULL, ret,
+		WT_RET_MSG(NULL, ret, "%s",
 		    "Failed to create session for cache pool");
 
 	/*

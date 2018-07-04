@@ -331,7 +331,7 @@ __curtable_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	 * call the underlying object's comparison routine.
 	 */
 	if (strcmp(a->internal_uri, b->internal_uri) != 0)
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "comparison method cursors must reference the same object");
 	WT_ERR(__cursor_checkkey(WT_CURSOR_PRIMARY(a)));
 	WT_ERR(__cursor_checkkey(WT_CURSOR_PRIMARY(b)));
@@ -928,7 +928,7 @@ __curtable_open_indices(WT_CURSOR_TABLE *ctable)
 	/* Check for bulk cursors. */
 	primary = *ctable->cg_cursors;
 	if (F_ISSET(primary, WT_CURSTD_BULK))
-		WT_RET_MSG(session, ENOTSUP,
+		WT_RET_MSG(session, ENOTSUP, "%s",
 		    "Bulk load is not supported for tables with indices");
 
 	WT_RET(__wt_calloc_def(session, table->nindices, &ctable->idx_cursors));

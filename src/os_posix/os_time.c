@@ -30,7 +30,7 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
 	WT_SYSCALL_RETRY(clock_gettime(CLOCK_REALTIME, tsp), ret);
 	if (ret == 0)
 		return;
-	WT_PANIC_MSG(session, ret, "clock_gettime");
+	WT_PANIC_MSG(session, ret, "%s", "clock_gettime");
 #elif defined(HAVE_GETTIMEOFDAY)
 	{
 	struct timeval v;

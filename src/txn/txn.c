@@ -600,13 +600,15 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) &&
 	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    txn->mod_count != 0)
-		WT_RET_MSG(session, EINVAL, "commit_timestamp required and "
-		    "none set on this transaction");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "commit_timestamp required "
+		    "and none set on this transaction");
 	if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    txn->mod_count != 0)
-		WT_RET_MSG(session, EINVAL, "no commit_timestamp required and "
-		    "timestamp set on this transaction");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "no commit_timestamp required "
+		    "and timestamp set on this transaction");
 
 	/*
 	 * If we're not doing any key consistency checking, we're done.
@@ -647,7 +649,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
 			upd_zero_ts = __wt_timestamp_iszero(&upd->timestamp);
 			if (op_zero_ts != upd_zero_ts)
-				WT_RET_MSG(session, EINVAL,
+				WT_RET_MSG(session, EINVAL, "%s",
 				    "per-key timestamps used inconsistently");
 			/*
 			 * If we aren't using timestamps for this transaction
@@ -665,7 +667,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 				op_timestamp = txn->commit_timestamp;
 			if (__wt_timestamp_cmp(&op_timestamp,
 			    &upd->timestamp) < 0)
-				WT_RET_MSG(session, EINVAL,
+				WT_RET_MSG(session, EINVAL, "%s",
 				    "out of order timestamps");
 		}
 	return (0);
@@ -724,7 +726,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 	if (F_ISSET(txn, WT_TXN_PREPARE) &&
 	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-		WT_ERR_MSG(session, EINVAL,
+		WT_ERR_MSG(session, EINVAL, "%s",
 		    "commit_timestamp is required for a prepared transaction");
 
 #ifdef HAVE_TIMESTAMPS
@@ -759,7 +761,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * Flag that as an error.
 		 */
 		if (F_ISSET(txn, WT_TXN_SYNC_SET))
-			WT_ERR_MSG(session, EINVAL,
+			WT_ERR_MSG(session, EINVAL, "%s",
 			    "Sync already set during begin_transaction");
 		if (WT_STRING_MATCH("background", cval.str, cval.len))
 			txn->txn_logsync = WT_LOG_BACKGROUND;
@@ -1140,8 +1142,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 #else
 	WT_UNUSED(cfg);
-	WT_RET_MSG(session, ENOTSUP, "prepare_transaction requires a version "
-	    "of WiredTiger built with timestamp support");
+	WT_RET_MSG(session, ENOTSUP, "%s", "prepare_transaction "
+	    "requires a version of WiredTiger built with timestamp support");
 #endif
 }
 

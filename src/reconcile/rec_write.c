@@ -1491,7 +1491,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-		WT_PANIC_RET(session, EINVAL,
+		WT_PANIC_RET(session, EINVAL, "%s",
 		    "reconciliation error, update not visible");
 
 	/*
@@ -1645,7 +1645,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
 	    __wt_page_del_active(session, ref, false))
-		WT_PANIC_RET(session, EINVAL,
+		WT_PANIC_RET(session, EINVAL, "%s",
 		    "reconciliation illegally skipped an update");
 
 	/*
@@ -3791,7 +3791,7 @@ __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	 * file -- see the checkpoint code for a discussion.
 	 */
 	if (!btree->original)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "bulk-load is only possible for newly created trees");
 
 	/*
@@ -4001,7 +4001,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	cursor = &cbulk->cbt.iface;
 
 	if (((r->recno - 1) * btree->bitcnt) & 0x7)
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "Bulk bitmap load not aligned on a byte boundary");
 	for (data = cursor->value.data,
 	    entries = (uint32_t)cursor->value.size;

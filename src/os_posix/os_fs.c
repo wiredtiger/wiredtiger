@@ -703,12 +703,16 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 
 	/* Create/Open the file. */
 	WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? -1 : 0), ret);
-	if (ret != 0)
-		WT_ERR_MSG(session, ret,
-		    pfh->direct_io ?
-		    "%s: handle-open: open: failed with direct I/O configured, "
-		    "some filesystem types do not support direct I/O" :
-		    "%s: handle-open: open", name);
+	if (ret != 0) {
+		if (pfh->direct_io)
+			WT_ERR_MSG(session, ret,
+			    "%s: handle-open: open: failed with direct I/O "
+			    " configured, some filesystem types do not support "
+			    "direct I/O", name);
+		else
+			WT_ERR_MSG(session, ret,
+			    "%s: handle-open: open", name);
+	}
 
 #ifdef __linux__
 	/*

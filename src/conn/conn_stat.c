@@ -177,7 +177,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 			 */
 			if (!WT_PREFIX_MATCH(k.str, "file:") &&
 			    !WT_PREFIX_MATCH(k.str, "lsm:"))
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "statistics_log sources configuration only "
 				    "supports objects of type \"file\" or "
 				    "\"lsm\"");
@@ -512,7 +512,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 
 	/* Create the logging path name for this time of day. */
 	if (strftime(tmp->mem, tmp->memsize, conn->stat_path, tm) == 0)
-		WT_RET_MSG(session, ENOMEM, "strftime path conversion");
+		WT_RET_MSG(session, ENOMEM, "%s", "strftime path conversion");
 
 	/* If the path has changed, cycle the log file. */
 	if (conn->stat_fs == NULL ||
@@ -528,7 +528,8 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 
 	/* Create the entry prefix for this time of day. */
 	if (strftime(tmp->mem, tmp->memsize, conn->stat_format, tm) == 0)
-		WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
+		WT_RET_MSG(session, ENOMEM,
+		    "%s", "strftime timestamp conversion");
 	conn->stat_stamp = tmp->mem;
 	WT_RET(__statlog_print_header(session));
 
@@ -577,7 +578,7 @@ __statlog_on_close(WT_SESSION_IMPL *session)
 		return (0);
 
 	if (F_ISSET(conn, WT_CONN_SERVER_STATISTICS))
-		WT_RET_MSG(session, EINVAL,
+		WT_RET_MSG(session, EINVAL, "%s",
 		    "Attempt to log statistics while a server is running");
 
 	WT_RET(__wt_scr_alloc(session, strlen(conn->stat_path) + 128, &tmp));
@@ -641,7 +642,7 @@ __statlog_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "statistics log server error");
+err:		WT_PANIC_MSG(session, ret, "%s", "statistics log server error");
 	}
 	__wt_buf_free(session, &path);
 	__wt_buf_free(session, &tmp);

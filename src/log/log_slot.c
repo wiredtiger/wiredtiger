@@ -273,7 +273,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 		if (count > WT_MILLION) {
 			time_stop = __wt_clock(session);
 			if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
-				__wt_errx(session,
+				__wt_errx(session, "%s",
 				    "SLOT_NEW: Timeout free slot");
 				__log_slot_dump(session);
 				__wt_abort(session);

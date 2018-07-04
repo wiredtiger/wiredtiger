@@ -219,8 +219,8 @@ __backup_start(
 	 * know we'll serialize with other attempts to start a hot backup.
 	 */
 	if (conn->hot_backup)
-		WT_RET_MSG(
-		    session, EINVAL, "there is already a backup cursor open");
+		WT_RET_MSG(session, EINVAL,
+		    "%s", "there is already a backup cursor open");
 
 	/*
 	 * The hot backup copy is done outside of WiredTiger, which means file
@@ -403,7 +403,7 @@ __backup_uri(WT_SESSION_IMPL *session,
 			 */
 			if (FLD_ISSET(
 			    S2C(session)->log_flags, WT_CONN_LOG_ARCHIVE))
-				WT_ERR_MSG(session, EINVAL,
+				WT_ERR_MSG(session, EINVAL, "%s",
 				    "incremental backup not possible when "
 				    "automatic log archival configured");
 			*log_only = !target_list;
