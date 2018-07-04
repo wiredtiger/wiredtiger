@@ -1289,7 +1289,7 @@ pythonAsyncCallback(WT_ASYNC_CALLBACK *cb, WT_ASYNC_OP *asyncop, int opret,
 	if (0) {
 		if (ret == 0)
 			ret = EINVAL;
-err:		__wt_err(session, ret, "python async callback error");
+err:		__wt_err(session, ret, "%s", "python async callback error");
 	}
 	Py_XDECREF(pyresult);
 	Py_XDECREF(notify_method);
