@@ -845,10 +845,13 @@ wiredtiger_open_common =\
         <code>extensions=(/path/ext.so={entry=my_entry})</code>)''',
         type='list'),
     Config('file_extend', '', r'''
-        file extension configuration.  If set, extend files of the set
-        type in allocations of the set size, instead of a block at a
-        time as each new block is written.  For example,
-        <code>file_extend=(data=16MB)</code>''',
+        file extension configuration.  If set for data files, extend
+        those in allocations of the set size, instead of a block at a
+        time as each new block is written. For example,
+        <code>file_extend=(data=16MB)</code>. Disables log file
+        extension when set to -1 for log file. The default is to extend
+        the log file in allocations of the <code>log_file_max</code>
+        size.''',
         type='list', choices=['data', 'log']),
     Config('hazard_max', '1000', r'''
         maximum number of simultaneous hazard pointers per session

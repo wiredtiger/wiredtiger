@@ -673,6 +673,10 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
 		return (__log_zero(session, fh,
 		    WT_LOG_END_HEADER, conn->log_file_max));
 
+	/* If configured to not extend the file, we're done. */
+	if (conn->log_extend_len == -1)
+		return (0);
+
 	/*
 	 * We have exclusive access to the log file and there are no other
 	 * writes happening concurrently, so there are no locking issues.
