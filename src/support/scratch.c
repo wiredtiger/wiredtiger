@@ -400,17 +400,18 @@ __wt_scr_discard(WT_SESSION_IMPL *session)
 		if (*bufp == NULL)
 			continue;
 		if (F_ISSET(*bufp, WT_ITEM_INUSE))
-			__wt_errx(session, "%s",
-			    "scratch buffer allocated and never discarded");
 #ifdef HAVE_DIAGNOSTIC
 			__wt_errx(session,
-			    "scratch buffer allocated by %s: %d",
+			    "scratch buffer allocated and never discarded: "
+			    "%s: %d",
 			    session->
 			    scratch_track[bufp - session->scratch].file,
 			    session->
 			    scratch_track[bufp - session->scratch].line);
+#else
+			__wt_errx(session, "%s",
+			    "scratch buffer allocated and never discarded");
 #endif
-
 		__wt_buf_free(session, *bufp);
 		__wt_free(session, *bufp);
 	}
