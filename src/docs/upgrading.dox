@@ -1,5 +1,20 @@
 /*! @page upgrading Upgrading WiredTiger applications
+@section version_310 Upgrading to Version 3.1.0
+<dl>
 
+<dt>WiredTiger on-disk log file format change</dt>
+<dd>
+The WiredTiger on-disk file format for write-ahead log files has changed
+as the log file version number was incremented.
+</dd>
+
+<dt>::wiredtiger_open compatibility configuration changes</dt>
+<dd>
+The compatibility setting now takes additional options that can define
+the minimum or maximum required version of existing data files.
+</dd>
+
+</dl><hr>
 @section version_300 Upgrading to Version 3.0.0
 <dl>
 
@@ -32,7 +47,7 @@ no longer supported.
 <dd>
 The cache configuration options \c eviction_checkpoint_target, \c
 eviction_dirty_target, \c eviction_dirty_trigger, \c eviction_target and \c
-eviction_trigger have changed. The options can now take absolute size. It would
+eviction_trigger have changed. The options can now take an absolute size. It would
 be a percentage of the cache size if the value is within the range of 0 to 100
 or an absolute size when greater than 100. This API change is compatible with
 existing usage.
