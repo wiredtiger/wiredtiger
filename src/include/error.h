@@ -25,6 +25,8 @@
 #define	__wt_errx(session, fmt, ...)					\
 	__wt_errx_func(session, "%s: %d: " fmt,				\
 	    __func__, __LINE__, __VA_ARGS__)
+#define	__wt_set_return(session, error)					\
+	__wt_set_return_func(session, __func__, __LINE__, error)
 
 /* Set "ret" and branch-to-err-label tests. */
 #define	WT_ERR(a) do {							\

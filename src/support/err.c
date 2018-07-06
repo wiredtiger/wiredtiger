@@ -350,6 +350,19 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *fmt, ...)
 }
 
 /*
+ * __wt_set_return_func --
+ * 	Conditionally log the source of an error code and return the error.
+ */
+int
+__wt_set_return_func(
+    WT_SESSION_IMPL *session, const char* func, int line, int err)
+{
+	__wt_verbose(session,
+	    WT_VERB_ERROR_RETURNS, "%s: %d Error: %d", func, line, err);
+	return (err);
+}
+
+/*
  * __wt_ext_err_printf --
  *	Extension API call to print to the error stream.
  */

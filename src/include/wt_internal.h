@@ -377,7 +377,6 @@ union __wt_rand_state;
 #endif
 #include "verify_build.h"
 
-
 #include "ctype.i"			/* required by packing.i */
 #include "intpack.i"			/* required by cell.i, packing.i */
 #include "misc.i"			/* required by mutex.i */
