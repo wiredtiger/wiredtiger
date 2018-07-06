@@ -710,8 +710,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 			    " configured, some filesystem types do not support "
 			    "direct I/O", name);
 		else
-			WT_ERR_MSG(session, ret,
-			    "%s: handle-open: open", name);
+			WT_ERR_MSG(session, ret, "%s: handle-open: open", name);
 	}
 
 #ifdef __linux__
