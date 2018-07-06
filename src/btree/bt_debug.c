@@ -435,8 +435,8 @@ int
 __wt_debug_disk(
     WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile)
 {
-	WT_DECL_RET;
 	WT_DBG *ds, _ds;
+	WT_DECL_RET;
 
 	ds = &_ds;
 	WT_RET(__debug_config(session, ds, ofile));
