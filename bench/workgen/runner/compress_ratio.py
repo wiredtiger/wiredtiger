@@ -80,7 +80,14 @@ def operations(optype, tables, key, value = None, ops_per_txn = 0, logtable = No
 context = Context()
 conn_config="create,cache_size=2GB,session_max=1000,eviction=(threads_min=4,threads_max=4),log=(enabled=false),transaction_sync=(enabled=false),checkpoint_sync=false,checkpoint=(wait=20),statistics=(fast),statistics_log=(json,wait=1)"
 table_config="allocation_size=4k,memory_page_max=10MB,prefix_compression=false,split_pct=90,leaf_page_max=32k,internal_page_max=16k,type=file"
-compression_opts = {"none" : "block_compressor=none", "zlib_noraw" : "block_compressor=zlib-noraw", "zlib_noraw_onepage" : "block_compressor=zlib-noraw,memory_page_image_max=32k", "zlib_noraw_tenpage" : "block_compressor=zlib-noraw,memory_page_image_max=320k", "zlib_raw" : "block_compressor=zlib", "snappy" : "block_compressor=snappy"}
+compression_opts = {
+    "none" : "block_compressor=none",
+    "zlib_noraw" : "block_compressor=zlib-noraw",
+    "zlib_noraw_onepage" : "block_compressor=zlib-noraw,memory_page_image_max=32k",
+    "zlib_noraw_tenpage" : "block_compressor=zlib-noraw,memory_page_image_max=320k",
+    "zlib_raw" : "block_compressor=zlib",
+    "snappy" : "block_compressor=snappy"
+}
 #conn_config += extensions_config(['compressors/snappy'])
 conn = wiredtiger_open("WT_TEST", conn_config)
 s = conn.open_session()
@@ -90,7 +97,7 @@ for name_ext, compress_config in compression_opts.iteritems():
     tname = "table:test_" + name_ext
     s.create(tname, 'key_format=S,value_format=S,' + table_config + "," + compress_config)
     table = Table(tname)
-    table.options.value_compressibility = 50
+    table.options.value_compressibility = 70
     tables.append(table)
 
 icount=500000
