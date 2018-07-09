@@ -309,13 +309,14 @@ err:		if (fprintf(stderr,
 }
 
 /*
- * __wt_err --
+ * __wt_err_func --
  * 	Report an error.
  */
 void
-__wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
+__wt_err_func(WT_SESSION_IMPL *session,
+    int error, const char *file_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 5, 6)))
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	va_list ap;
@@ -325,18 +326,20 @@ __wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
 	 * an error value to return.
 	 */
 	va_start(ap, fmt);
-	WT_IGNORE_RET(__eventv(session, false, error, NULL, 0, fmt, ap));
+	WT_IGNORE_RET(__eventv(session,
+	    false, error, file_name, line_number, fmt, ap));
 	va_end(ap);
 }
 
 /*
- * __wt_errx --
+ * __wt_errx_func --
  * 	Report an error with no error code.
  */
 void
-__wt_errx(WT_SESSION_IMPL *session, const char *fmt, ...)
+__wt_errx_func(WT_SESSION_IMPL *session,
+    const char *file_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
 {
 	va_list ap;
 
@@ -345,7 +348,8 @@ __wt_errx(WT_SESSION_IMPL *session, const char *fmt, ...)
 	 * an error value to return.
 	 */
 	va_start(ap, fmt);
-	WT_IGNORE_RET(__eventv(session, false, 0, NULL, 0, fmt, ap));
+	WT_IGNORE_RET(__eventv(session,
+	    false, 0, file_name, line_number, fmt, ap));
 	va_end(ap);
 }
 
