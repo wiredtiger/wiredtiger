@@ -449,7 +449,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	children = pindex->entries / btree->split_deepen_per_child;
 	if (children < 10) {
 		if (pindex->entries < 100)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		children = 10;
 	}
 	chunk = pindex->entries / children;
@@ -915,7 +915,7 @@ err:	__wt_scr_free(session, &scr);
 		 * being deleted, but don't be noisy, there's nothing wrong.
 		 */
 		if (empty_parent)
-			ret = EBUSY;
+			ret = __wt_set_return(session, EBUSY);
 		break;
 	case WT_ERR_PANIC:
 		__wt_err(session, ret, "fatal error during parent page split");
@@ -982,7 +982,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	children = pindex->entries / btree->split_deepen_per_child;
 	if (children < 10) {
 		if (pindex->entries < 100)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		children = 10;
 	}
 	chunk = pindex->entries / children;
@@ -1214,7 +1214,7 @@ __split_internal_lock(
 	 * the parent, give up to avoid that deadlock.
 	 */
 	if (!trylock && !__wt_btree_can_evict_dirty(session))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 
 	/*
 	 * Get a page-level lock on the parent to single-thread splits into the

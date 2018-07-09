@@ -42,7 +42,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system,
 	 */
 	WT_SYSCALL_RETRY(((dirp = opendir(directory)) == NULL ? -1 : 0), ret);
 	if (dirp == NULL && ret == 0)
-		ret = EINVAL;
+		ret = __wt_set_return(session, EINVAL);
 	if (ret != 0)
 		WT_RET_MSG(session, ret,
 		    "%s: directory-list: opendir", directory);

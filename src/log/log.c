@@ -1131,7 +1131,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 		WT_STAT_CONN_INCR(session, log_close_yields);
 		__wt_log_wrlsn(session, NULL);
 		if (++yield_cnt > 10000)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		__wt_yield();
 	}
 	/*
