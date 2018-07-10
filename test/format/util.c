@@ -587,13 +587,14 @@ checkpoint(void *arg)
 WT_THREAD_RET
 timestamp(void *arg)
 {
-	WT_CONNECTION *conn;
-	WT_SESSION *session;
 	TINFO **tinfo_list, *tinfo;
+	WT_CONNECTION *conn;
+	WT_DECL_RET;
+	WT_SESSION *session;
 	time_t last, now;
 	uint64_t oldest_timestamp, this_ts, usecs;
 	uint32_t i;
-	char config_buf[64];
+	char buf[64];
 
 	tinfo_list = arg;
 
@@ -608,25 +609,18 @@ timestamp(void *arg)
 	 */
 	while (!g.workers_finished) {
 		/*
-		 * Find the lowest in-use timestamp. The timestamp thread starts
-		 * before the operational threads, wait for them.
+		 * Find the lowest last-used timestamp.
+		 * The timestamp thread starts before the operational threads,
+		 * wait for them.
 		 */
-		oldest_timestamp = g.timestamp;
+		oldest_timestamp = UINT64_MAX;
 		for (i = 0; i < g.c_threads; ++i) {
 			tinfo = tinfo_list[i];
-			this_ts = tinfo->commit_timestamp;
-			if (this_ts != 0 && this_ts < oldest_timestamp)
-				oldest_timestamp = this_ts;
-			this_ts = tinfo->read_timestamp;
-			if (this_ts != 0 && this_ts < oldest_timestamp)
+			this_ts = tinfo->last_timestamp;
+			if (this_ts < oldest_timestamp)
 				oldest_timestamp = this_ts;
 		}
-
-		/*
-		 * Don't try to update until we've committed some transactions
-		 * with timestamps.
-		 */
-		if (oldest_timestamp == 0) {
+		if (oldest_timestamp < 1) {
 			__wt_sleep(1, 0);
 			continue;
 		}
@@ -636,7 +630,7 @@ timestamp(void *arg)
 		 * seconds before updating.
 		 */
 		WT_READ_BARRIER();
-		testutil_assert(oldest_timestamp <= g.timestamp);
+		testutil_assert(oldest_timestamp < g.timestamp);
 		if (g.timestamp - oldest_timestamp < 100) {
 			__wt_seconds((WT_SESSION_IMPL *)session, &now);
 			if (difftime(now, last) < 15) {
@@ -646,19 +640,31 @@ timestamp(void *arg)
 		}
 
 		testutil_check(__wt_snprintf(
-		    config_buf, sizeof(config_buf),
+		    buf, sizeof(buf),
 		    "oldest_timestamp=%" PRIx64, oldest_timestamp));
-		testutil_check(conn->set_timestamp(conn, config_buf));
+		testutil_check(conn->set_timestamp(conn, buf));
 		__wt_seconds((WT_SESSION_IMPL *)session, &last);
 
 		usecs = mmrand(NULL, 5, 40);
 		__wt_sleep(0, usecs);
 	}
 
+	/*
+	 * Do a final bump of the oldest timestamp as part of shutting down the
+	 * worker threads, otherwise recent operations can prevent verify from
+	 * running.
+	 */
+	testutil_check(
+	    __wt_snprintf(buf, sizeof(buf), "%s", "oldest_timestamp="));
+	ret = conn->query_timestamp(conn,
+	    buf + strlen("oldest_timestamp="), "get=all_committed");
+	testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+	if (ret == 0)
+		testutil_check(conn->set_timestamp(conn, buf));
+
 	testutil_check(session->close(session, NULL));
 	return (WT_THREAD_RET_VALUE);
 }
-
 /*
  * alter --
  *	Periodically alter a table's metadata.

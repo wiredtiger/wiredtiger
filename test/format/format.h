@@ -122,7 +122,12 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
-	pthread_rwlock_t prepare_lock;		/* Prepare running */
+	/*
+	 * Prepare will return an error if the prepare timestamp is less than
+	 * any active read timestamp. Lock across allocating prepare and read
+	 * timestamps.
+	 */
+	pthread_rwlock_t prepare_lock;
 
 	uint64_t timestamp;			/* Counter for timestamps */
 
@@ -283,8 +288,7 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* thread RNG state */
 
-	uint64_t commit_timestamp;		/* last committed timestamp */
-	uint64_t read_timestamp;		/* read timestamp */
+	uint64_t last_timestamp;		/* last used timestamp */
 
 	volatile bool quit;			/* thread should quit */
 

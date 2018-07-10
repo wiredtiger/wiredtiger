@@ -497,13 +497,11 @@ snap_check(WT_CURSOR *cursor,
 static void
 begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
+	WT_DECL_RET;
 	u_int v;
-	int ret;
+	char buf[64];
 	const char *config;
-	char config_buf[64];
 	bool locked;
-
-	locked = false;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
 		v = mmrand(&tinfo->rnd, 1, 3);
@@ -535,58 +533,30 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	testutil_check(ret);
 
 	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
-		/* Avoid starting a new reader when a prepare is in progress. */
+		/*
+		 * Prepare will return an error if the prepare timestamp is less
+		 * than any active read timestamp. Lock across allocating read
+		 * timestamps if prepare is configured, skip the read timestamp
+		 * if a prepare is in progress,
+		 */
+		locked = false;
 		if (g.c_prepare) {
-			testutil_check(pthread_rwlock_rdlock(&g.prepare_lock));
+			ret = pthread_rwlock_tryrdlock(&g.prepare_lock);
+			if (ret == EBUSY)
+				return;
+			testutil_check(ret);
 			locked = true;
 		}
 
-		/*
-		 * Set the thread's read timestamp to the current value before
-		 * allocating a new read timestamp. This guarantees the oldest
-		 * timestamp won't move past the allocated timestamp before the
-		 * transaction uses it.
-		 */
-		tinfo->read_timestamp = g.timestamp;
-		tinfo->read_timestamp = __wt_atomic_addv64(&g.timestamp, 1);
-		testutil_check(__wt_snprintf(
-		    config_buf, sizeof(config_buf),
-		    "read_timestamp=%" PRIx64, tinfo->read_timestamp));
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "read_timestamp=%" PRIx64,
+		    __wt_atomic_addv64(&g.timestamp, 1)));
 
-		testutil_check(
-		    session->timestamp_transaction(session, config_buf));
-
-		/*
-		 * It's OK for the oldest timestamp to move past a running
-		 * query, clear the thread's read timestamp, it no longer needs
-		 * to be pinned.
-		 */
-		tinfo->read_timestamp = 0;
+		testutil_check(session->timestamp_transaction(session, buf));
 
 		if (locked)
 			testutil_check(pthread_rwlock_unlock(&g.prepare_lock));
 	}
-}
-
-/*
- * set_commit_timestamp --
- *	Return the next commit timestamp.
- */
-static uint64_t
-set_commit_timestamp(TINFO *tinfo)
-{
-	/*
-	 * If the thread's commit timestamp hasn't been set yet, update it with
-	 * the current value to prevent the oldest timestamp moving past our
-	 * allocated timestamp before the commit completes. The sequence where
-	 * it's already set is after prepare, in which case we can't let the
-	 * oldest timestamp move past either the prepare or commit timestamps.
-	 *
-	 * Note the barrier included in the atomic call ensures proper ordering.
-	 */
-	if (tinfo->commit_timestamp == 0)
-		tinfo->commit_timestamp = g.timestamp;
-	return (__wt_atomic_addv64(&g.timestamp, 1));
 }
 
 /*
@@ -597,25 +567,23 @@ static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
 	uint64_t ts;
-	char config_buf[64];
+	char buf[64];
 
 	++tinfo->commit;
 
 	if (g.c_txn_timestamps) {
-		ts = set_commit_timestamp(tinfo);
+		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
-		    config_buf, sizeof(config_buf),
-		    "commit_timestamp=%" PRIx64, ts));
-		testutil_check(
-		    session->timestamp_transaction(session, config_buf));
+		    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
+		testutil_check(session->timestamp_transaction(session, buf));
+
 		/*
-		 * Clear the thread's active timestamp: it no longer needs to
-		 * be pinned.  Don't let the compiler re-order this statement,
-		 * if we were to race with the timestamp thread, it might see
-		 * our thread update before the commit_timestamp is set for the
-		 * transaction.
+		 * Update the last-used timestamp so the oldest timestamp can
+		 * move forward. (Use a barrier to avoid compiler reordering,
+		 * the commit must complete before the assignment.)
 		 */
-		WT_PUBLISH(tinfo->commit_timestamp, 0);
+		WT_BARRIER();
+		tinfo->last_timestamp = ts;
 	}
 	testutil_check(session->commit_transaction(session, NULL));
 }
@@ -632,13 +600,11 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 	testutil_check(session->rollback_transaction(session, NULL));
 
 	/*
-	 * Clear the thread's active timestamp: it no longer needs to be pinned.
-	 * Don't let the compiler re-order this statement, if we were to race
-	 * with the timestamp thread, it might see our thread update before the
-	 * transaction commit completes.
+	 * Update the last-used timestamp so the oldest timestamp can move
+	 * forward. (The atomic is a barrier to avoid compiler reordering,
+	 * the rollback must complete before the assignment.)
 	 */
-	if (g.c_txn_timestamps)
-		WT_PUBLISH(tinfo->commit_timestamp, 0);
+	tinfo->last_timestamp = __wt_atomic_addv64(&g.timestamp, 1);
 }
 
 /*
@@ -648,34 +614,25 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 static int
 prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	WT_DECL_RET;
 	uint64_t ts;
-	char config_buf[64];
+	WT_DECL_RET;
+	char buf[64];
 
-	/* Skip if no timestamp has yet been set. */
-	if (g.timestamp == 0)
-		return (0);
 	++tinfo->prepare;
-
-	/*
-	 * Synchronize prepare call with begin transaction to prevent a new
-	 * reader creeping in.
-	 */
-	testutil_check(pthread_rwlock_wrlock(&g.prepare_lock));
 
 	/*
 	 * Prepare timestamps must be less than or equal to the eventual commit
 	 * timestamp. Set the prepare timestamp to whatever the global value is
 	 * now. The subsequent commit will increment it, ensuring correctness.
 	 *
-	 * Prepare will return error if the prepare timestamp is less than any
-	 * active read timestamp.
+	 * Prepare will return an error if the prepare timestamp is less than
+	 * any active read timestamp, lock across allocating read timestamps.
 	 */
-	ts = set_commit_timestamp(tinfo);
+	testutil_check(pthread_rwlock_wrlock(&g.prepare_lock));
+	ts = __wt_atomic_addv64(&g.timestamp, 1);
 	testutil_check(__wt_snprintf(
-	    config_buf, sizeof(config_buf), "prepare_timestamp=%" PRIx64, ts));
-	ret = session->prepare_transaction(session, config_buf);
-
+	    buf, sizeof(buf), "prepare_timestamp=%" PRIx64, ts));
+	ret = session->prepare_transaction(session, buf);
 	testutil_check(pthread_rwlock_unlock(&g.prepare_lock));
 
 	return (ret);
