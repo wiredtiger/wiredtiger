@@ -614,8 +614,8 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 static int
 prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 {
-	uint64_t ts;
 	WT_DECL_RET;
+	uint64_t ts;
 	char buf[64];
 
 	++tinfo->prepare;
