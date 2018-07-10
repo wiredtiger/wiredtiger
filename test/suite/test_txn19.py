@@ -36,7 +36,7 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
 # This test uses an artificially small log file limit, and creates
-# large records so two fit into a lot file. This allows us to test
+# large records so two fit into a log file. This allows us to test
 # both the case when corruption happens at the beginning of a log file
 # (an even number of records have been created), and when corruption
 # happens in the middle of a log file (with an odd number of records).
@@ -75,9 +75,18 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         ('garbage-end', dict(kind='garbage-end', f=lambda fname:
             corrupt(fname, False, -1, 'Bad!' * 1024))),
     ]
+    # The list comprehension below expands each entry in the integer tuple
+    # list to a scenario.  For example, (3, 4, 2) expands to:
+    # ('corrupt=[3,4],checkpoint=2', dict(corruptpos=3, corruptpos2=4, chkpt=2))
+    #
+    # Each number corresponds to a log file, so for this example, we have
+    # corruption in log file 3 (using the style of corruption from
+    # corruption_type), there is a second corruption in log file 4,
+    # and there is a checkpoint in log file 2.  A value of 0 means no
+    # corruption or checkpoint.
     corruption_pos = [
         ('corrupt=[' + str(x) + ',' + str(y) + '],checkpoint=' + str(z),
-           dict(badpos=x,badpos2=y,chkpt=z)) for (x,y,z) in (
+           dict(corruptpos=x,corruptpos2=y,chkpt=z)) for (x,y,z) in (
                (0, 0, 0), (0, 0, 2), (6, 0, 0), (6, 0, 3), (3, 0, 0),
                (3, 0, 2), (3, 4, 2), (3, 5, 2), (3, 0, 4))]
     nrecords = [('nrecords=10', dict(nrecords=10)),
@@ -87,21 +96,21 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     # from the list of scenarios.
     def includeFunc(name, dictarg):
         kind = dictarg['kind']
-        badpos = dictarg['badpos']
+        corruptpos = dictarg['corruptpos']
         chkpt = dictarg['chkpt']
 
-        # badpos == 0 indicates there is no corruption.
+        # corruptpos == 0 indicates there is no corruption.
         # (i.e. corrupt log file 0, which doesn't exist)
         # We do want to test the case of no corruption, but we don't
         # need to try it against every type of corruption, only one.
-        if badpos == 0:
+        if corruptpos == 0:
             return kind == 'removal'
 
         # XXX
         # The removal or truncation of a middle log file (not first or last)
         # that would be used in recovery is not currently handled gracefully.
         if (kind == 'removal' or kind == 'truncate') and \
-           badpos != 6 and badpos > chkpt:
+           corruptpos != 6 and corruptpos > chkpt:
             return False
 
         # All the other cases are valid
@@ -130,8 +139,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     # If not corrupted, the log file will produce no errors,
     # and all the records originally written should be recovered.
     def corrupted(self):
-        # Badpos == 0 means to do no corruption in any log file
-        if self.badpos == 0:
+        # Corruptpos == 0 means to do no corruption in any log file
+        if self.corruptpos == 0:
             return False
 
         # Adding zeroes to the end of a log file is indistinguishable
@@ -203,19 +212,19 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     def corrupt_log(self, homedir):
         if not self.corrupted():
             return
-        self.f(self.log_number_to_file_name(homedir, self.badpos))
+        self.f(self.log_number_to_file_name(homedir, self.corruptpos))
 
         # Corrupt a second log file if needed
-        if self.badpos2 != 0:
-            self.f(self.log_number_to_file_name(homedir, self.badpos2))
+        if self.corruptpos2 != 0:
+            self.f(self.log_number_to_file_name(homedir, self.corruptpos2))
 
-    # Return true iff the  log has been damaged in a way that
+    # Return true iff the log has been damaged in a way that
     # is not detected as a corruption.
     # This includes:
     #  - removal of the last log
     #  - corruption in the middle of the pre-zeroed section of the last log
     def log_corrupt_but_valid(self):
-        if self.badpos == self.record_to_logfile(self.nrecords):
+        if self.corruptpos == self.record_to_logfile(self.nrecords):
             if self.kind == 'removal':
                 return True
             # Records in this test are sized about 60K, and 'garbage-middle',
@@ -239,13 +248,13 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
 
     def expect_recovery_failure(self):
         return self.corrupted() and \
-            self.badpos >= self.chkpt and \
+            self.corruptpos >= self.chkpt and \
             not self.log_corrupt_but_valid()
 
     def recovered_records(self):
-        if not self.corrupted() or self.chkpt > self.badpos:
+        if not self.corrupted() or self.chkpt > self.corruptpos:
             return self.nrecords
-        return self.logfile_to_record(self.badpos)
+        return self.logfile_to_record(self.corruptpos)
 
     def test_corrupt_log(self):
         ''' Corrupt the log and restart with different kinds of recovery '''
@@ -274,7 +283,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # Running any wt command externally to Python allows
         # us to observe the failure or success safely.
         # Use -R to force recover=on, which is the default for
-        # wiredtiger_open, ()wt utilities normally have recover=error)
+        # wiredtiger_open, (wt utilities normally have recover=error)
         self.runWt(['-h', newdir, '-C', self.base_config, '-R', 'list'],
             errfilename=errfile, outfilename=outfile, failure=expect_fail,
             closeconn=False)

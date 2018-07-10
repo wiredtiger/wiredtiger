@@ -927,7 +927,7 @@ err:	__wt_scr_free(session, &buf);
  */
 static int
 __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
-    WT_LSN *lsnp, uint16_t *versionp, bool salvage_mode, bool *need_salvagep)
+    WT_LSN *lsnp, uint16_t *versionp, bool *need_salvagep)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
@@ -938,15 +938,15 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	WT_LOG_RECORD *logrec;
 	uint32_t allocsize, rectype;
 	const uint8_t *end, *p;
-	bool need_salvage;
-
-	WT_ASSERT(session, !salvage_mode || need_salvagep != NULL);
+	bool need_salvage, salvage_mode;
 
 	conn = S2C(session);
 	fh = NULL;
 	log = conn->log;
 	need_salvage = false;
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
+	salvage_mode = (need_salvagep != NULL &&
+	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_SALVAGE));
 
 	if (log == NULL)
 		allocsize = WT_LOG_ALIGN;
@@ -1061,7 +1061,7 @@ err:	__wt_scr_free(session, &buf);
 	 */
 	if (fhp != NULL && ret == 0)
 		*fhp = fh;
-	else if (ret != 0 && salvage_mode && need_salvage) {
+	else if (ret != 0 && salvage_mode) {
 		/* Let the caller know this file must be salvaged. */
 		ret = 0;
 		WT_TRET(__wt_close(session, &fh));
@@ -1226,7 +1226,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * window where another thread could see a NULL log file handle.
 	 */
 	WT_RET(__log_open_verify(session, log->fileid, &log_fh, NULL, NULL,
-	    false, NULL));
+	    NULL));
 	/*
 	 * Write the LSN at the end of the last record in the previous log file
 	 * as the first record in this log file.
@@ -1438,10 +1438,10 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
  *	it will truncate between the given LSN and the trunc_lsn.  That is,
  *	since we pre-allocate log files, it will free that space and allow the
  *	log to be traversed.  We use the trunc_lsn because logging has already
- *	opened the new/next log file before recovery ran.  If salvage is set,
- *	we verify headers of log files visited and recreate them if they are
- *	damaged.  This function assumes we are in recovery or other dedicated
- *	time and not during live running.
+ *	opened the new/next log file before recovery ran.  If salvage_mode is
+ *	set, we verify headers of log files visited and recreate them if they
+ *	are damaged.  This function assumes we are in recovery or other
+ *	dedicated time and not during live running.
  */
 static int
 __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log,
@@ -1494,10 +1494,16 @@ __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log,
 		if (lognum > lsn->l.file && lognum < log->trunc_lsn.l.file) {
 			opened = false;
 			if (salvage_mode) {
+				/*
+				 * When salvaging, we verify that the
+				 * header of the log file is valid.
+				 * If not, create a new, empty one.
+				 */
+				need_salvage = false;
 				WT_ERR(__log_open_verify(session, lognum,
-				    &log_fh, NULL, NULL, true, &need_salvage));
+				    &log_fh, NULL, NULL, &need_salvage));
 				if (need_salvage) {
-					WT_ERR(__wt_close(session, &log_fh));
+					WT_ASSERT(session, log_fh == NULL);
 					WT_ERR(__wt_log_remove(session,
 					    WT_LOG_FILENAME, lognum));
 					WT_ERR(__wt_log_allocfile(session,
@@ -1632,13 +1638,12 @@ __wt_log_open(WT_SESSION_IMPL *session)
 	uint16_t version;
 	u_int i, logcount;
 	char **logfiles;
-	bool salvage_mode, need_salvage;
+	bool need_salvage;
 
 	conn = S2C(session);
 	log = conn->log;
 	logfiles = NULL;
 	logcount = 0;
-	salvage_mode = FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_SALVAGE);
 
 	/*
 	 * Open up a file handle to the log directory if we haven't.
@@ -1682,7 +1687,7 @@ again:
 		 * version before modifying the file space.
 		 */
 		WT_ERR(__log_open_verify(session, lastlog, NULL, NULL,
-		    &version, salvage_mode, &need_salvage));
+		    &version, &need_salvage));
 
 		/*
 		 * If we were asked to salvage and the last log file was
@@ -1727,7 +1732,7 @@ again:
 				 * have to close the file.
 				 */
 				WT_ERR(__log_open_verify(session,
-				    lognum, NULL, NULL, &version, false, NULL));
+				    lognum, NULL, NULL, &version, NULL));
 				/*
 				 * If we find any log file at the wrong version
 				 * set the flag and we're done.
@@ -2043,7 +2048,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	u_int i, logcount;
 	int firstrecord;
 	char **logfiles;
-	bool eol, partial_record, salvage_mode, need_salvage;
+	bool eol, partial_record, need_salvage;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -2053,7 +2058,6 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	eol = false;
 	firstrecord = 1;
 	need_salvage = false;
-	salvage_mode = FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_SALVAGE);
 
 	/*
 	 * If the caller did not give us a callback function there is nothing
@@ -2153,7 +2157,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 			start_lsn = *lsnp;
 	}
 	WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn,
-	    NULL, salvage_mode, &need_salvage));
+	    NULL, &need_salvage));
 	WT_ERR_TEST(need_salvage, WT_ERROR);
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
 	rd_lsn = start_lsn;
@@ -2219,7 +2223,7 @@ advance:
 				    rd_lsn.l.file, end_lsn.l.file);
 			WT_ERR(__log_open_verify(session,
 			    rd_lsn.l.file, &log_fh, &prev_lsn, &version,
-			    salvage_mode, &need_salvage));
+			    &need_salvage));
 			WT_ERR_TEST(need_salvage, WT_ERROR);
 			/*
 			 * Opening the log file reads with verify sets up the
@@ -2253,9 +2257,12 @@ advance:
 		}
 		/*
 		 * Read the minimum allocation size a record could be.
+		 * Conditionally set the need_salvage flag so that if the
+		 * read fails, we know this is an situation we can salvage.
 		 */
 		WT_ASSERT(session, buf->memsize >= allocsize);
-		need_salvage = true;
+		need_salvage = FLD_ISSET(conn->log_flags,
+		    WT_CONN_LOG_RECOVER_SALVAGE);
 		WT_ERR(__wt_read(session,
 		    log_fh, rd_lsn.l.offset, (size_t)allocsize, buf->mem));
 		need_salvage = false;
@@ -2327,7 +2334,8 @@ advance:
 			 */
 			if (LF_ISSET(WT_LOGSCAN_ONE))
 				ret = WT_NOTFOUND;
-			else if (salvage_mode) {
+			else if (FLD_ISSET(conn->log_flags,
+			    WT_CONN_LOG_RECOVER_SALVAGE)) {
 				need_salvage = true;
 				ret = WT_NOTFOUND;
 			} else
@@ -2392,7 +2400,7 @@ err:	WT_STAT_CONN_INCR(session, log_scans);
 	 * If we are salvaging and failed a salvageable operation, then
 	 * truncate the log at the fail point.
 	 */
-	if (ret != 0 && salvage_mode && need_salvage) {
+	if (ret != 0 && need_salvage) {
 		WT_TRET(__wt_close(session, &log_fh));
 		log_fh = NULL;
 		WT_TRET(__log_truncate(session, &rd_lsn, false, true));
