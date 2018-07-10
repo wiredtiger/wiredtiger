@@ -32,13 +32,10 @@ __posix_std_fallocate(
 	WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, (wt_off_t)0, offset), ret);
 	return (ret);
 #else
-	WT_SESSION_IMPL *session;
-
 	WT_UNUSED(file_handle);
 	WT_UNUSED(offset);
 
-	session = (WT_SESSION_IMPL *)wt_session;
-	return (__wt_set_return(session, ENOTSUP));
+	return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
 #endif
 }
 
@@ -68,13 +65,10 @@ __posix_sys_fallocate(
 	    syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
 	return (ret);
 #else
-	WT_SESSION_IMPL *session;
-
 	WT_UNUSED(file_handle);
 	WT_UNUSED(offset);
 
-	session = (WT_SESSION_IMPL *)wt_session;
-	return (__wt_set_return(session, ENOTSUP));
+	return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
 #endif
 }
 
@@ -97,13 +91,10 @@ __posix_posix_fallocate(
 	WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, (wt_off_t)0, offset), ret);
 	return (ret);
 #else
-	WT_SESSION_IMPL *session;
-
 	WT_UNUSED(file_handle);
 	WT_UNUSED(offset);
 
-	session = (WT_SESSION_IMPL *)wt_session;
-	return (__wt_set_return(session, ENOTSUP));
+	return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
 #endif
 }
 
