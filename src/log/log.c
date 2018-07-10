@@ -1061,7 +1061,7 @@ err:	__wt_scr_free(session, &buf);
 	 */
 	if (fhp != NULL && ret == 0)
 		*fhp = fh;
-	else if (ret != 0 && salvage_mode) {
+	else if (ret != 0 && need_salvage && salvage_mode) {
 		/* Let the caller know this file must be salvaged. */
 		ret = 0;
 		WT_TRET(__wt_close(session, &fh));
