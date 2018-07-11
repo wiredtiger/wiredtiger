@@ -101,7 +101,7 @@ class CapturedFd(object):
                                      ' unexpected ' + self.desc +
                                      ', contains:\n"' + contents + '"')
             testcase.fail('unexpected ' + self.desc + ', contains: "' +
-                      shortenWithEllipsis(contents,100) + '"')
+                      shortenWithEllipsis(contents, 1000) + '"')
         self.expectpos = filesize
 
     def checkAdditional(self, testcase, expect):
