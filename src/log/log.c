@@ -1454,7 +1454,7 @@ __log_truncate(WT_SESSION_IMPL *session, WT_LSN *lsn, bool this_log,
 	uint32_t lognum, salvage_first, salvage_last;
 	u_int i, logcount;
 	char **logfiles;
-	bool opened, need_salvage;
+	bool need_salvage, opened;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -2048,7 +2048,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	u_int i, logcount;
 	int firstrecord;
 	char **logfiles;
-	bool eol, partial_record, need_salvage;
+	bool eol, need_salvage, partial_record;
 
 	conn = S2C(session);
 	log = conn->log;
