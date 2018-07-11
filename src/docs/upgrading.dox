@@ -13,7 +13,19 @@ as the log file version number was incremented. See
 <dd>
 The compatibility setting now takes additional options that can define
 the minimum or maximum required version of existing data files. See
+<a href=https://jira.mongodb.org/browse/WT-4056>WT-4056</a> and
 <a href=https://jira.mongodb.org/browse/WT-4098>WT-4098</a> for details.
+</dd>
+
+<dt>::wiredtiger_open cache configuration changes</dt>
+<dd>
+The cache configuration options \c eviction_checkpoint_target, \c
+eviction_dirty_target, \c eviction_dirty_trigger, \c eviction_target and \c
+eviction_trigger have changed. The options can now take an absolute size. It would
+be a percentage of the cache size if the value is within the range of 0 to 100
+or an absolute size when greater than 100. This API change is compatible with
+existing usage. See <a href=https://jira.mongodb.org/browse/WT-3632>WT-3632</a> 
+for details.`
 </dd>
 
 <dt>Changed transaction semantics around schema operations</dt>
@@ -34,14 +46,6 @@ is not compatible with earlier versions. See
 <a href=https://jira.mongodb.org/browse/WT-3905>WT-3905</a> for details.
 </dd>
 
-<dt>::wiredtiger_open eviction_checkpoint_target configuration change</dt>
-<dd>
-The default value for the \c eviction_checkpoint_target configuration
-setting was changed from 5 to 1. This was due to a change in the algorithm
-to focus more on reducing dirty content in low throughput workloads. See
-<a href=https://jira.mongodb.org/browse/WT-4111>WT-4111</a> for details.
-</dd>
-
 <dt>Implement a per-session cursor cache</dt>
 <dd>
 WiredTiger now holds a cache of recently closed cursors in each
@@ -49,16 +53,6 @@ session. This improves performance for applications that open and
 close cursors frequently, but increases memory overhead. The cache
 is enabled by default, but can be disabled. See
 <a href=https://jira.mongodb.org/browse/WT-1228>WT-1228</a> for details.
-</dd>
-
-<dt>::wiredtiger_open cache configuration changes</dt>
-<dd>
-The cache configuration options \c eviction_checkpoint_target, \c
-eviction_dirty_target, \c eviction_dirty_trigger, \c eviction_target and \c
-eviction_trigger have changed. The options can now take an absolute size. It would
-be a percentage of the cache size if the value is within the range of 0 to 100
-or an absolute size when greater than 100. This API change is compatible with
-existing usage.
 </dd>
 
 </dl><hr>
