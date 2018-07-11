@@ -29,6 +29,8 @@
 #define	WT_BILLION	(1000000000)
 
 #define	WT_MINUTE	(60)
+#define	WT_TENTH_US	(100000)
+#define	WT_HUNDRETH_US	(10000)
 
 #define	WT_KILOBYTE	(1024)
 #define	WT_MEGABYTE	(1048576)
