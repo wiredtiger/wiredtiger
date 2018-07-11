@@ -6,14 +6,14 @@
 <dd>
 The WiredTiger on-disk file format for write-ahead log files has changed
 as the log file version number was incremented. See
-https://jira.mongodb.org/browse/WT-4029 for more information.
+<a href=https://jira.mongodb.org/browse/WT-4029>WT-4029</a> for details.
 </dd>
 
 <dt>::wiredtiger_open compatibility configuration changes</dt>
 <dd>
 The compatibility setting now takes additional options that can define
 the minimum or maximum required version of existing data files. See
-https://jira.mongodb.org/browse/WT-4098 for more information.
+<a href=https://jira.mongodb.org/browse/WT-4098>WT-4098</a> for details.
 </dd>
 
 <dt>Changed transaction semantics around schema operations</dt>
@@ -23,7 +23,7 @@ We have made some changes to how create and drop are implemented
 if done within the scope of an explicit transaction. If an application
 is relying on particular visibility/atomicity guarantees around table
 create or drop, care should be taken when upgrading. See
-https://jira.mongodb.org/browse/WT-3964 for more information.
+<a href=https://jira.mongodb.org/browse/WT-3964>WT-3964</a> for details.
 </dd>
 
 <dt>On-disk format change for metadata</dt>
@@ -31,7 +31,7 @@ https://jira.mongodb.org/browse/WT-3964 for more information.
 There was a change to the content stored in the WiredTiger owned metadata
 files, which means metadata created or updated by this version of WiredTiger
 is not compatible with earlier versions. See
-https://jira.mongodb.org/browse/WT-3905 for more information.
+<a href=https://jira.mongodb.org/browse/WT-3905>WT-3905</a> for details.
 </dd>
 
 <dt>::wiredtiger_open eviction_checkpoint_target configuration change</dt>
@@ -39,7 +39,7 @@ https://jira.mongodb.org/browse/WT-3905 for more information.
 The default value for the \c eviction_checkpoint_target configuration
 setting was changed from 5 to 1. This was due to a change in the algorithm
 to focus more on reducing dirty content in low throughput workloads. See
-https://jira.mongodb.org/browse/WT-4111 for more information.
+<a href=https://jira.mongodb.org/browse/WT-4111>WT-4111</a> for details.
 </dd>
 
 <dt>Implement a per-session cursor cache</dt>
@@ -48,7 +48,7 @@ WiredTiger now holds a cache of recently closed cursors in each
 session. This improves performance for applications that open and
 close cursors frequently, but increases memory overhead. The cache
 is enabled by default, but can be disabled. See
-https://jira.mongodb.org/browse/WT-1228 for more information.
+<a href=https://jira.mongodb.org/browse/WT-1228>WT-1228</a> for details.
 </dd>
 
 <dt>::wiredtiger_open cache configuration changes</dt>
