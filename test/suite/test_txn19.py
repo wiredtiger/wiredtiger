@@ -118,7 +118,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios(
         corruption_type, corruption_pos, nrecords,
-        include=includeFunc)
+        include=includeFunc, prune=20, prunelong=1000)
 
     uri = 'table:test_txn19'
     create_params = 'key_format=i,value_format=S'
