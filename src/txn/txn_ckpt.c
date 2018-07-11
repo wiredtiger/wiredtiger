@@ -581,7 +581,7 @@ __checkpoint_prepare(
 	 */
 	WT_RET(__wt_txn_begin(session, txn_cfg));
 
-	WT_DIAGNOSTIC_YIELD;
+	__wt_timing_stress_diagnostic(session);
 
 	/* Ensure a transaction ID is allocated prior to sharing it globally */
 	WT_RET(__wt_txn_id_check(session));

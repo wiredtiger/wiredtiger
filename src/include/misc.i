@@ -280,3 +280,16 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, u_int max_usecs)
 		__wt_sleep(0,
 		    i * ((max_usecs == 0 ? WT_TENTH_US : max_usecs) / 10));
 }
+
+/*
+ * __wt_timing_stress_diagnostic --
+ *	Add delay to stress code paths when HAVE_DIAGNOSTIC is configured. All
+ * current usage is without a separate configuration flag and with a maximum
+ * delay of a hundredth of a second, so the macro is simple.
+ */
+#ifdef HAVE_DIAGNOSTIC
+#define	__wt_timing_stress_diagnostic(session)				\
+	__wt_timing_stress(session, 0, WT_HUNDRETH_US)
+#else
+#define	__wt_timing_stress_diagnostic(s)
+#endif

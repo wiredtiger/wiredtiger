@@ -46,7 +46,7 @@ __nsnap_drop_one(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *name)
 		    session, txn_global->nsnap_oldest_id, NULL));
 		txn_global->nsnap_oldest_id = (TAILQ_NEXT(found, q) != NULL) ?
 		    TAILQ_NEXT(found, q)->pinned_id : WT_TXN_NONE;
-		WT_DIAGNOSTIC_YIELD;
+		__wt_timing_stress_diagnostic(session);
 		WT_ASSERT(session, txn_global->nsnap_oldest_id == WT_TXN_NONE ||
 		    !__wt_txn_visible_all(
 		    session, txn_global->nsnap_oldest_id, NULL));
@@ -127,7 +127,7 @@ __nsnap_drop_to(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *name, bool inclusive)
 	    (new_nsnap_oldest == WT_TXN_NONE ||
 	    WT_TXNID_LE(txn_global->nsnap_oldest_id, new_nsnap_oldest)));
 	txn_global->nsnap_oldest_id = new_nsnap_oldest;
-	WT_DIAGNOSTIC_YIELD;
+	__wt_timing_stress_diagnostic(session);
 	WT_ASSERT(session,
 	    new_nsnap_oldest == WT_TXN_NONE ||
 	    !__wt_txn_visible_all(session, new_nsnap_oldest, NULL));
@@ -224,7 +224,7 @@ err:	if (started_txn) {
 		uint64_t pinned_id = WT_SESSION_TXN_STATE(session)->pinned_id;
 #endif
 		WT_TRET(__wt_txn_rollback(session, NULL));
-		WT_DIAGNOSTIC_YIELD;
+		__wt_timing_stress_diagnostic(session);
 		WT_ASSERT(session,
 		    !__wt_txn_visible_all(session, pinned_id, NULL));
 	}

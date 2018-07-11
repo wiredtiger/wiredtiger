@@ -10,15 +10,6 @@
 #define	WT_DEBUG_POINT	((void *)(uintptr_t)0xdeadbeef)
 #define	WT_DEBUG_BYTE	(0xab)
 
-/* In DIAGNOSTIC mode, yield in places where we want to encourage races. */
-#ifdef HAVE_DIAGNOSTIC
-#define	WT_DIAGNOSTIC_YIELD do {					\
-	__wt_yield();							\
-} while (0)
-#else
-#define	WT_DIAGNOSTIC_YIELD
-#endif
-
 #define	__wt_err(session, error, ...)					\
 	__wt_err_func(session, error, __func__, __LINE__, __VA_ARGS__)
 #define	__wt_errx(session, ...)						\

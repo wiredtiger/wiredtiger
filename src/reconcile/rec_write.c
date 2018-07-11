@@ -1931,7 +1931,7 @@ in_memory:
 		WT_CHILD_RELEASE(session, *hazardp, ref);
 	}
 
-done:	WT_DIAGNOSTIC_YIELD;
+done:	__wt_timing_stress_diagnostic(session);
 	return (ret);
 }
 

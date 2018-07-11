@@ -78,7 +78,8 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	slot->slot_last_offset = log->alloc_lsn.l.offset;
 	slot->slot_fh = log->log_fh;
 	slot->slot_error = 0;
-	WT_DIAGNOSTIC_YIELD;
+	__wt_timing_stress_diagnostic(session);
+
 	/*
 	 * Set the slot state last.  Other threads may have a stale pointer
 	 * to this slot and could try to alter the state and other fields once
@@ -566,9 +567,9 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize,
 			/*
 			 * Braces used due to potential empty body warning.
 			 */
-			if (diag_yield) {
-				WT_DIAGNOSTIC_YIELD;
-			}
+			if (diag_yield)
+				__wt_timing_stress_diagnostic(session);
+
 			/*
 			 * Attempt to swap our size into the state.
 			 */
