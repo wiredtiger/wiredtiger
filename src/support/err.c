@@ -174,7 +174,7 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
  */
 static int
 __eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
-    const char *file_name, int line_number, const char *fmt, va_list ap)
+    const char *func_name, int line_number, const char *fmt, va_list ap)
     WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	struct timespec ts;
@@ -231,8 +231,8 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
 		WT_ERROR_APPEND(p, remain, ", %s", prefix);
 	WT_ERROR_APPEND(p, remain, ": ");
 
-	if (file_name != NULL)
-		WT_ERROR_APPEND(p, remain, "%s, %d: ", file_name, line_number);
+	if (func_name != NULL)
+		WT_ERROR_APPEND(p, remain, "%s, %d: ", func_name, line_number);
 
 	WT_ERROR_APPEND_AP(p, remain, fmt, ap);
 
@@ -309,13 +309,14 @@ err:		if (fprintf(stderr,
 }
 
 /*
- * __wt_err --
+ * __wt_err_func --
  * 	Report an error.
  */
 void
-__wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
+__wt_err_func(WT_SESSION_IMPL *session,
+    int error, const char *func_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 5, 6)))
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	va_list ap;
@@ -325,18 +326,20 @@ __wt_err(WT_SESSION_IMPL *session, int error, const char *fmt, ...)
 	 * an error value to return.
 	 */
 	va_start(ap, fmt);
-	WT_IGNORE_RET(__eventv(session, false, error, NULL, 0, fmt, ap));
+	WT_IGNORE_RET(__eventv(session,
+	    false, error, func_name, line_number, fmt, ap));
 	va_end(ap);
 }
 
 /*
- * __wt_errx --
+ * __wt_errx_func --
  * 	Report an error with no error code.
  */
 void
-__wt_errx(WT_SESSION_IMPL *session, const char *fmt, ...)
+__wt_errx_func(WT_SESSION_IMPL *session,
+    const char *func_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
+    WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
 {
 	va_list ap;
 
@@ -345,8 +348,22 @@ __wt_errx(WT_SESSION_IMPL *session, const char *fmt, ...)
 	 * an error value to return.
 	 */
 	va_start(ap, fmt);
-	WT_IGNORE_RET(__eventv(session, false, 0, NULL, 0, fmt, ap));
+	WT_IGNORE_RET(__eventv(session,
+	    false, 0, func_name, line_number, fmt, ap));
 	va_end(ap);
+}
+
+/*
+ * __wt_set_return_func --
+ * 	Conditionally log the source of an error code and return the error.
+ */
+int
+__wt_set_return_func(
+    WT_SESSION_IMPL *session, const char* func, int line, int err)
+{
+	__wt_verbose(session,
+	    WT_VERB_ERROR_RETURNS, "%s: %d Error: %d", func, line, err);
+	return (err);
 }
 
 /*
@@ -493,7 +510,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
  */
 void
 __wt_assert(WT_SESSION_IMPL *session,
-    int error, const char *file_name, int line_number, const char *fmt, ...)
+    int error, const char *func_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 5, 6)))
 #ifdef HAVE_DIAGNOSTIC
@@ -505,7 +522,7 @@ __wt_assert(WT_SESSION_IMPL *session,
 
 	va_start(ap, fmt);
 	WT_IGNORE_RET(__eventv(
-	    session, false, error, file_name, line_number, fmt, ap));
+	    session, false, error, func_name, line_number, fmt, ap));
 	va_end(ap);
 
 #ifdef HAVE_DIAGNOSTIC
