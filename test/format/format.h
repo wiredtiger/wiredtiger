@@ -99,6 +99,7 @@ typedef struct {
 #ifdef HAVE_BERKELEY_DB
 	void *bdb;				/* BDB comparison handle */
 	void *dbc;				/* BDB cursor handle */
+	bool dbc_reset;				/* BDB cursor needs reset */
 #endif
 
 	WT_CONNECTION	 *wts_conn;

@@ -128,19 +128,23 @@ bdb_np(bool next,
 	int ret;
 
 	*notfoundp = 0;
-	if ((ret =
-	    dbc->get(dbc, &key, &value, next ? DB_NEXT : DB_PREV)) != 0) {
-		if (ret != DB_NOTFOUND)
-			bdb_die(ret, "dbc.get: %s: {%.*s}",
-			    next ? "DB_NEXT" : "DB_PREV",
-			    (int)key.size, (char *)key.data);
-		*notfoundp = 1;
-	} else {
+	/* Match WT reset behavior so nextprev keeps working. */
+	if (g.dbc_reset) {
+		ret = dbc->get(dbc, &key, &value, next ? DB_FIRST : DB_LAST);
+		g.dbc_reset = false;
+	} else
+		ret = dbc->get(dbc, &key, &value, next ? DB_NEXT : DB_PREV);
+	if (ret ==0) {
 		*(void **)keyp = key.data;
 		*keysizep = key.size;
 		*(void **)valuep = value.data;
 		*valuesizep = value.size;
-	}
+	} else if (ret == DB_NOTFOUND)
+		*notfoundp = 1;
+	else
+		bdb_die(ret, "dbc.get: %s: {%.*s}",
+		    next ? "DB_NEXT" : "DB_PREV",
+		    (int)key.size, (char *)key.data);
 }
 
 void
@@ -159,7 +163,9 @@ bdb_read(uint64_t keyno, void *valuep, size_t *valuesizep, int *notfoundp)
 			bdb_die(ret, "dbc.get: DB_SET: {%.*s}",
 			    (int)key.size, (char *)key.data);
 		*notfoundp = 1;
+		g.dbc_reset = true;
 	} else {
+		g.dbc_reset = false;
 		*(void **)valuep = value.data;
 		*valuesizep = value.size;
 	}
@@ -181,6 +187,7 @@ bdb_update(const void *arg_key, size_t arg_key_size,
 		bdb_die(ret, "dbc.put: DB_KEYFIRST: {%.*s}{%.*s}",
 		    (int)key.size, (char *)key.data,
 		    (int)value.size, (char *)value.data);
+	g.dbc_reset = false;
 }
 
 void

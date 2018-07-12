@@ -34,6 +34,7 @@ static int   col_remove(TINFO *, WT_CURSOR *, bool);
 static int   col_reserve(TINFO *, WT_CURSOR *, bool);
 static int   col_truncate(TINFO *, WT_CURSOR *);
 static int   col_update(TINFO *, WT_CURSOR *, bool);
+static int   compare_db(TINFO *, WT_CURSOR *);
 static int   nextprev(TINFO *, WT_CURSOR *, bool);
 static WT_THREAD_RET ops(void *);
 static int   read_row(TINFO *, WT_CURSOR *);
@@ -1079,6 +1080,8 @@ update_instead_of_chosen_op:
 		 * a random direction.
 		 */
 		if (positioned) {
+			testutil_assert(F_ISSET(cursor, WT_CURSTD_KEY_INT));
+
 			next = mmrand(&tinfo->rnd, 0, 1) == 1;
 			j = mmrand(&tinfo->rnd, 1, 100);
 			for (i = 0; i < j; ++i) {
@@ -1141,6 +1144,9 @@ rollback:		rollback_transaction(tinfo, session);
 		intxn = false;
 		snap = NULL;
 	}
+
+	/* Check for data consistency */
+	testutil_check(compare_db(tinfo, cursor));
 
 	if (session != NULL)
 		testutil_check(session->close(session, NULL));
@@ -1246,8 +1252,10 @@ read_row_worker(
 
 	if (sn) {
 		ret = cursor->search_near(cursor, &exact);
-		if (ret == 0 && exact != 0)
+		if (ret == 0 && exact != 0) {
 			ret = WT_NOTFOUND;
+			testutil_check(cursor->reset(cursor));
+		}
 	} else
 		ret = cursor->search(cursor);
 	switch (ret) {
@@ -1319,7 +1327,47 @@ read_row(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	/* 25% of the time we call search-near. */
 	return (read_row_worker(cursor, tinfo->keyno,
-	    tinfo->key, tinfo->value, mmrand(&tinfo->rnd, 0, 3) == 1));
+	    tinfo->key, tinfo->value, mmrand(&tinfo->rnd, 0, 3)));
+}
+
+/*
+ * compare_db --
+ *	Compare the content of BerkeleyDB and WiredTiger databases.
+ */
+static int
+compare_db(TINFO *tinfo, WT_CURSOR *wt_cursor)
+{
+	WT_ITEM wt_key;
+	int ret, step_count = 0;
+
+	if (!SINGLETHREADED)
+		return (0);
+
+	/*
+	 * Move to the start of the tree, and setup cursors to do comparison
+	 * of the content between WiredTiger and BerkeleyDB.
+	 */
+	testutil_check(wt_cursor->reset(wt_cursor));
+	testutil_check(wt_cursor->next(wt_cursor));
+	testutil_check(wt_cursor->get_key(wt_cursor, &wt_key));
+	testutil_check(__wt_buf_set((WT_SESSION_IMPL *)
+	    wt_cursor->session, tinfo->key, wt_key.data, wt_key.size));
+	tinfo->keyno = strtoul((char*)tinfo->key->data, NULL, 10);
+	(void)g.wt_api->msg_printf(g.wt_api, wt_cursor->session,
+	    "Setting the key number to: %" PRIu64 "\n", tinfo->keyno);
+	/* Do a read operation so the last key is setup. */
+	ret = read_row(tinfo, wt_cursor);
+	if (ret == WT_NOTFOUND) {
+		(void)g.wt_api->msg_printf(g.wt_api,
+		    wt_cursor->session, "comparison failed with WT_NOTFOUND\n");
+		ret = 0;
+	}
+	testutil_check(ret);
+	while (nextprev(tinfo, wt_cursor, 1) == 0) { ++step_count; }
+
+	(void)g.wt_api->msg_printf(g.wt_api, wt_cursor->session,
+	    "format compare_db check step count: %d\n", step_count);
+	return (0);
 }
 
 /*
@@ -1716,7 +1764,7 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 		testutil_check(
 		    session->open_cursor(session, g.uri, NULL, NULL, &c2));
 		key_gen(tinfo->lastkey, tinfo->last);
-		cursor->set_key(c2, tinfo->lastkey);
+		c2->set_key(c2, tinfo->lastkey);
 
 		ret = session->truncate(session, NULL, cursor, c2, NULL);
 		testutil_check(c2->close(c2));
@@ -1784,8 +1832,9 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 		    tinfo->keyno, tinfo->last);
 
 #ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED)
+	if (SINGLETHREADED) {
 		bdb_truncate(tinfo->keyno, tinfo->last);
+	}
 #endif
 	return (0);
 }
