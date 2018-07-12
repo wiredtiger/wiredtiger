@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -124,6 +124,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
  */
 void
 __wt_checksum_init(void)
+    WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 #if defined(HAVE_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -299,13 +299,13 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 	WT_ERR(c->reset(c));
 	return (result);
 
-err:	/* Don't return WT_NOTFOUND from a failed search. */
-	if (ret == WT_NOTFOUND)
-		ret = WT_ERROR;
-	if (c != NULL)
-		(void)c->reset(c);
-	__wt_err(bloom->session, ret, "Failed lookup in bloom filter");
-	return (ret);
+err:	if (c != NULL)
+		WT_TRET(c->reset(c));
+
+	/* Don't return WT_NOTFOUND from a failed cursor open or search. */
+	WT_RET_MSG(bloom->session,
+	    ret == WT_NOTFOUND ? WT_ERROR : ret,
+	    "Failed lookup in bloom filter");
 }
 
 /*

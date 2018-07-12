@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -76,9 +76,6 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session,
 	WT_RET(__wt_calloc_one(session, &copy));
 	rs->leaf[rs->leaf_next++] = copy;
 
-	copy->page = NULL;
-	copy->home = NULL;
-	copy->pindex_hint = 0;
 	copy->state = WT_REF_DISK;
 
 	WT_RET(__wt_calloc_one(session, &copy_addr));
@@ -92,7 +89,6 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session,
 	else
 		copy->ref_recno = recno;
 
-	copy->page_del = NULL;
 	return (0);
 }
 

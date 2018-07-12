@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -44,9 +44,8 @@ struct __wt_rwlock {			/* Read/write lock */
 			uint8_t current;	/* Current ticket */
 			uint8_t next;		/* Next available ticket */
 			uint8_t reader;		/* Read queue ticket */
-			uint8_t __notused;	/* Padding */
-			uint16_t readers_active;/* Count of active readers */
-			uint16_t readers_queued;/* Count of queued readers */
+			uint8_t readers_queued; /* Count of queued readers */
+			uint32_t readers_active;/* Count of active readers */
 		} s;
 	} u;
 

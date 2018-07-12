@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -232,6 +232,7 @@ restart:	/*
 			descent =
 			    pindex->index[__wt_random(&session->rnd) % entries];
 			if (descent->state == WT_REF_DISK ||
+			    descent->state == WT_REF_LIMBO ||
 			    descent->state == WT_REF_LOOKASIDE ||
 			    descent->state == WT_REF_MEM)
 				break;
@@ -240,6 +241,7 @@ restart:	/*
 			for (i = 0; i < entries; ++i) {
 				descent = pindex->index[i];
 				if (descent->state == WT_REF_DISK ||
+				    descent->state == WT_REF_LIMBO ||
 				    descent->state == WT_REF_LOOKASIDE ||
 				    descent->state == WT_REF_MEM)
 					break;
@@ -259,8 +261,8 @@ restart:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
-descend:	if ((ret =
-		    __wt_page_swap(session, current, descent, flags)) == 0) {
+descend:	if ((ret = __wt_page_swap(
+		    session, current, descent, false, flags)) == 0) {
 			current = descent;
 			continue;
 		}
@@ -300,6 +302,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	WT_UPDATE *upd;
 	wt_off_t size;
 	uint64_t n, skip;
+	bool valid;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
@@ -419,7 +422,8 @@ random_page_entry:
 	 * the next entry, if that doesn't work, move to the previous entry.
 	 */
 	WT_ERR(__wt_row_random_leaf(session, cbt));
-	if (__wt_cursor_valid(cbt, &upd)) {
+	WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
+	if (valid) {
 		WT_ERR(__wt_key_return(session, cbt));
 		WT_ERR(__wt_value_return(session, cbt, upd));
 	} else {

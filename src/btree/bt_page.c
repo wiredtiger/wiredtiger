@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -71,6 +71,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session,
 		break;
 	case WT_PAGE_COL_INT:
 	case WT_PAGE_ROW_INT:
+		WT_ASSERT(session, alloc_entries != 0);
 		/*
 		 * Internal pages have an array of references to objects so they
 		 * can split.  Allocate the array of references and optionally,
@@ -102,11 +103,13 @@ err:			if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
 		}
 		break;
 	case WT_PAGE_COL_VAR:
-		page->pg_var = (WT_COL *)((uint8_t *)page + sizeof(WT_PAGE));
+		page->pg_var = alloc_entries == 0 ?
+		    NULL : (WT_COL *)((uint8_t *)page + sizeof(WT_PAGE));
 		page->entries = alloc_entries;
 		break;
 	case WT_PAGE_ROW_LEAF:
-		page->pg_row = (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE));
+		page->pg_row = alloc_entries == 0 ?
+		    NULL : (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE));
 		page->entries = alloc_entries;
 		break;
 	WT_ILLEGAL_VALUE(session);
@@ -465,14 +468,16 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 			 * and the deletion committed, but older transactions
 			 * in the system required the previous version of the
 			 * page to remain available, a special deleted-address
-			 * type cell is written.  The only reason we'd ever see
-			 * that cell on a page we're reading is if we crashed
-			 * and recovered (otherwise a version of the page w/o
-			 * that cell would have eventually been written).  If we
-			 * crash and recover to a page with a deleted-address
-			 * cell, we want to discard the page from the backing
-			 * store (it was never discarded), and, of course, by
-			 * definition no earlier transaction will ever need it.
+			 * type cell is written. We'll see that cell on a page
+			 * if we read from a checkpoint including a deleted
+			 * cell or if we crash/recover and start off from such
+			 * a checkpoint (absent running recovery, a version of
+			 * the page without the deleted cell would eventually
+			 * have been written). If we crash and recover to a
+			 * page with a deleted-address cell, we want to discard
+			 * the page from the backing store (it was never
+			 * discarded), and, of course, by definition no earlier
+			 * transaction will ever need it.
 			 *
 			 * Re-create the state of a deleted page.
 			 */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -154,7 +154,9 @@ corrupt:	if (ret == 0)
 		if (!F_ISSET(btree, WT_BTREE_VERIFY) &&
 		    !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
 			__wt_err(session, ret, "%s", fail_msg);
-			ret = __wt_illegal_value(session, btree->dhandle->name);
+			WT_TRET(bm->corrupt(bm, session, addr, addr_size));
+			WT_TRET(
+			    __wt_illegal_value(session, btree->dhandle->name));
 		}
 	}
 
@@ -173,7 +175,6 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
     uint8_t *addr, size_t *addr_sizep,
     bool checkpoint, bool checkpoint_io, bool compressed)
 {
-	struct timespec start, stop;
 	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_DECL_ITEM(ctmp);
@@ -183,6 +184,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	WT_KEYED_ENCRYPTOR *kencryptor;
 	WT_PAGE_HEADER *dsk;
 	size_t dst_len, len, result_len, size, src_len;
+	uint64_t time_start, time_stop;
 	uint8_t *dst, *src;
 	int compression_failed;		/* Extension API, so not a bool. */
 	bool data_checksum, encrypted, timer;
@@ -190,6 +192,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	btree = S2BT(session);
 	bm = btree->bm;
 	encrypted = false;
+	time_start = time_stop = 0;
 
 	/* Checkpoint calls are different than standard calls. */
 	WT_ASSERT(session,
@@ -352,7 +355,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	 * Checksum the data if the buffer isn't compressed or checksums are
 	 * configured.
 	 */
-	data_checksum = true;		/* -Werror=maybe-uninitialized */
+	WT_NOT_READ(data_checksum, true);
 	switch (btree->checksum) {
 	case CKSUM_ON:
 		data_checksum = true;
@@ -366,7 +369,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	}
 	timer = !F_ISSET(session, WT_SESSION_INTERNAL);
 	if (timer)
-		__wt_epoch(session, &start);
+		time_start = __wt_clock(session);
 
 	/* Call the block manager to write the block. */
 	WT_ERR(checkpoint ?
@@ -376,10 +379,10 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 
 	/* Update some statistics now that the write is done */
 	if (timer) {
-		__wt_epoch(session, &stop);
+		time_stop = __wt_clock(session);
 		WT_STAT_CONN_INCR(session, cache_write_app_count);
 		WT_STAT_CONN_INCRV(session, cache_write_app_time,
-		    WT_TIMEDIFF_US(stop, start));
+		    WT_CLOCKDIFF_US(time_stop, time_start));
 	}
 
 	WT_STAT_CONN_INCR(session, cache_write);

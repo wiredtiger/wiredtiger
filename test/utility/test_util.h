@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -48,6 +48,7 @@
 /* Generic option parsing structure shared by all test cases. */
 typedef struct {
 	char  *home;
+	char  *progress_file_name;
 	const char  *progname;
 	enum {	TABLE_COL=1,	/* Fixed-length column store */
 		TABLE_FIX=2,	/* Variable-length column store */
@@ -141,10 +142,16 @@ typedef struct {
 
 /*
  * error_check --
- *	Complain and quit if a function call fails. The same as testutil_check,
- * but with a different name because it appears in the documentation.
+ *	Complain and quit if a function call fails. A special name because it
+ * appears in the documentation. Ignore ENOTSUP to allow library calls which
+ * might not be included in any particular build.
  */
-#define	error_check(call)	testutil_check(call)
+#define	error_check(call) do {						\
+	int __r;							\
+	if ((__r = (call)) != 0 && __r != ENOTSUP)			\
+		testutil_die(						\
+		    __r, "%s/%d: %s", __func__, __LINE__, #call);	\
+} while (0)
 
 /*
  * scan_end_check --
@@ -240,6 +247,7 @@ void testutil_cleanup(TEST_OPTS *);
 bool testutil_is_flag_set(const char *);
 void testutil_make_work_dir(const char *);
 int  testutil_parse_opts(int, char * const *, TEST_OPTS *);
+void testutil_progress(TEST_OPTS *, const char *);
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -32,7 +32,7 @@ __rename_file(
 	WT_RET(__wt_schema_backup_check(session, newfile));
 	/* Close any btree handles in the file. */
 	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-	    ret = __wt_conn_dhandle_close_all(session, uri, false));
+	    ret = __wt_conn_dhandle_close_all(session, uri, true, false));
 	WT_ERR(ret);
 
 	/*

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -14,7 +14,7 @@
  */
 int
 __wt_to_utf16_string(
-    WT_SESSION_IMPL *session, const char* utf8, WT_ITEM **outbuf)
+    WT_SESSION_IMPL *session, const char *utf8, WT_ITEM **outbuf)
 {
 	DWORD windows_error;
 	int bufferSize;
@@ -50,7 +50,7 @@ __wt_to_utf16_string(
  */
 int
 __wt_to_utf8_string(
-    WT_SESSION_IMPL *session, const wchar_t* wide, WT_ITEM **outbuf)
+    WT_SESSION_IMPL *session, const wchar_t *wide, WT_ITEM **outbuf)
 {
 	DWORD windows_error;
 	int bufferSize;

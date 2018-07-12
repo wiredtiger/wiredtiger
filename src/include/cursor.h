@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -27,6 +27,8 @@
 	remove,								\
 	reserve,							\
 	reconfigure,							\
+	cache,								\
+	reopen,								\
 	close)								\
 	static const WT_CURSOR n = {					\
 	NULL,				/* session */			\
@@ -51,6 +53,9 @@
 	reserve,							\
 	close,								\
 	reconfigure,							\
+	cache,								\
+	reopen,								\
+	0,				/* uri_hash */			\
 	{ NULL, NULL },			/* TAILQ_ENTRY q */		\
 	0,				/* recno key */			\
 	{ 0 },				/* recno raw buffer */		\
@@ -74,7 +79,9 @@ struct __wt_cursor_backup {
 	size_t list_allocated;
 	size_t list_next;
 
-#define	WT_CURBACKUP_LOCKER	0x01	/* Hot-backup started */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CURBACKUP_LOCKER	0x1u	/* Hot-backup started */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t	flags;
 };
 #define	WT_CURSOR_BACKUP_ID(cursor)	(((WT_CURSOR_BACKUP *)(cursor))->maxid)
@@ -82,7 +89,13 @@ struct __wt_cursor_backup {
 struct __wt_cursor_btree {
 	WT_CURSOR iface;
 
+	/*
+	 * The btree field is safe to use when the cursor is open.  When the
+	 * cursor is cached, the btree may be closed, so it is only safe
+	 * initially to look at the underlying data handle.
+	 */
 	WT_BTREE *btree;		/* Enclosing btree */
+	WT_DATA_HANDLE *dhandle;	/* Data handle for the btree */
 
 	/*
 	 * The following fields are set by the search functions as a precursor
@@ -209,20 +222,24 @@ struct __wt_cursor_btree {
 	uint64_t lastrecno;
 #endif
 
-#define	WT_CBT_ACTIVE		0x01	/* Active in the tree */
-#define	WT_CBT_ITERATE_APPEND	0x02	/* Col-store: iterating append list */
-#define	WT_CBT_ITERATE_NEXT	0x04	/* Next iteration configuration */
-#define	WT_CBT_ITERATE_PREV	0x08	/* Prev iteration configuration */
-#define	WT_CBT_NO_TXN   	0x10	/* Non-transactional cursor
-					   (e.g. on a checkpoint) */
-#define	WT_CBT_SEARCH_SMALLEST	0x20	/* Row-store: small-key insert list */
-#define	WT_CBT_VAR_ONPAGE_MATCH	0x40	/* Var-store: on-page recno match */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CBT_ACTIVE		0x001u	/* Active in the tree */
+#define	WT_CBT_ITERATE_APPEND	0x002u	/* Col-store: iterating append list */
+#define	WT_CBT_ITERATE_NEXT	0x004u	/* Next iteration configuration */
+#define	WT_CBT_ITERATE_PREV	0x008u	/* Prev iteration configuration */
+#define	WT_CBT_NO_TXN   	0x010u	/* Non-txn cursor (e.g. a checkpoint) */
+#define	WT_CBT_RETRY_NEXT	0x020u	/* Next, resulted in prepare conflict */
+#define	WT_CBT_RETRY_PREV	0x040u	/* Prev, resulted in prepare conflict */
+#define	WT_CBT_SEARCH_SMALLEST	0x080u	/* Row-store: small-key insert list */
+#define	WT_CBT_VAR_ONPAGE_MATCH	0x100u	/* Var-store: on-page recno match */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 #define	WT_CBT_POSITION_MASK		/* Flags associated with position */ \
 	(WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV | \
-	WT_CBT_SEARCH_SMALLEST | WT_CBT_VAR_ONPAGE_MATCH)
+	WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV | WT_CBT_SEARCH_SMALLEST |     \
+	WT_CBT_VAR_ONPAGE_MATCH)
 
-	uint8_t flags;
+	uint32_t flags;
 };
 
 struct __wt_cursor_bulk {
@@ -336,12 +353,14 @@ struct __wt_cursor_join_endpoint {
 	uint8_t			 recno_buf[10];	/* holds packed recno */
 	WT_CURSOR		*cursor;
 
-#define	WT_CURJOIN_END_LT	0x01		/* include values <  cursor */
-#define	WT_CURJOIN_END_EQ	0x02		/* include values == cursor */
-#define	WT_CURJOIN_END_GT	0x04		/* include values >  cursor */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CURJOIN_END_EQ		0x1u	/* include values == cursor */
+#define	WT_CURJOIN_END_GT		0x2u	/* include values >  cursor */
+#define	WT_CURJOIN_END_LT		0x4u	/* include values <  cursor */
+#define	WT_CURJOIN_END_OWN_CURSOR	0x8u	/* must close cursor */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 #define	WT_CURJOIN_END_GE	(WT_CURJOIN_END_GT | WT_CURJOIN_END_EQ)
 #define	WT_CURJOIN_END_LE	(WT_CURJOIN_END_LT | WT_CURJOIN_END_EQ)
-#define	WT_CURJOIN_END_OWN_CURSOR 0x08		/* must close cursor */
 	uint8_t			 flags;		/* range for this endpoint */
 };
 #define	WT_CURJOIN_END_RANGE(endp)					\
@@ -365,11 +384,12 @@ struct __wt_cursor_join_entry {
 	uint32_t		 bloom_hash_count; /* hash functions in bloom */
 	uint64_t		 count;		/* approx number of matches */
 
-#define	WT_CURJOIN_ENTRY_BLOOM		 0x01	/* use a bloom filter */
-#define	WT_CURJOIN_ENTRY_DISJUNCTION	 0x02	/* endpoints are or-ed */
-#define	WT_CURJOIN_ENTRY_FALSE_POSITIVES 0x04	/* after bloom filter do not
-						 * filter false positives */
-#define	WT_CURJOIN_ENTRY_OWN_BLOOM	 0x08	/* this entry owns the bloom */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CURJOIN_ENTRY_BLOOM		 0x1u	/* use a bloom filter */
+#define	WT_CURJOIN_ENTRY_DISJUNCTION	 0x2u	/* endpoints are or-ed */
+#define	WT_CURJOIN_ENTRY_FALSE_POSITIVES 0x4u	/* don't filter false pos */
+#define	WT_CURJOIN_ENTRY_OWN_BLOOM	 0x8u	/* this entry owns the bloom */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t			 flags;
 
 	WT_CURSOR_JOIN_ENDPOINT	*ends;		/* reference endpoints */
@@ -392,9 +412,11 @@ struct __wt_cursor_join {
 	u_int			 entries_next;
 	uint8_t			 recno_buf[10];	/* holds packed recno */
 
-#define	WT_CURJOIN_DISJUNCTION		0x01	/* Entries are or-ed */
-#define	WT_CURJOIN_ERROR		0x02	/* Error in initialization */
-#define	WT_CURJOIN_INITIALIZED		0x04	/* Successful initialization */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CURJOIN_DISJUNCTION		0x1u	/* Entries are or-ed */
+#define	WT_CURJOIN_ERROR		0x2u	/* Error in initialization */
+#define	WT_CURJOIN_INITIALIZED		0x4u	/* Successful initialization */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t			 flags;
 };
 
@@ -419,7 +441,9 @@ struct __wt_cursor_log {
 	uint32_t	rectype;	/* Record type */
 	uint64_t	txnid;		/* Record txnid */
 
-#define	WT_CURLOG_ARCHIVE_LOCK	0x01	/* Archive lock held */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_CURLOG_ARCHIVE_LOCK	0x1u	/* Archive lock held */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t		flags;
 };
 
@@ -429,9 +453,11 @@ struct __wt_cursor_metadata {
 	WT_CURSOR *file_cursor;		/* Queries of regular metadata */
 	WT_CURSOR *create_cursor;	/* Extra cursor for create option */
 
-#define	WT_MDC_CREATEONLY	0x01
-#define	WT_MDC_ONMETADATA	0x02
-#define	WT_MDC_POSITIONED	0x04
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_MDC_CREATEONLY	0x1u
+#define	WT_MDC_ONMETADATA	0x2u
+#define	WT_MDC_POSITIONED	0x4u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t	flags;
 };
 

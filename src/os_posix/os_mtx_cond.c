@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,14 +57,19 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 {
 	struct timespec ts;
 	WT_DECL_RET;
+	WT_TRACK_OP_DECL;
 	bool locked;
+
+	WT_TRACK_OP_INIT(session);
 
 	locked = false;
 
 	/* Fast path if already signalled. */
 	*signalled = true;
-	if (__wt_atomic_addi32(&cond->waiters, 1) == 0)
+	if (__wt_atomic_addi32(&cond->waiters, 1) == 0) {
+		WT_TRACK_OP_END(session);
 		return;
+	}
 
 	__wt_verbose(session, WT_VERB_MUTEX, "wait %s", cond->name);
 	WT_STAT_CONN_INCR(session, cond_wait);
@@ -135,6 +140,8 @@ err:	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)
 		WT_TRET(pthread_mutex_unlock(&cond->mtx));
+
+	WT_TRACK_OP_END(session);
 	if (ret == 0)
 		return;
 

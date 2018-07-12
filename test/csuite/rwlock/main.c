@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -50,8 +50,8 @@ void *thread_dump(void *);
 int
 main(int argc, char *argv[])
 {
-	TEST_OPTS *opts, _opts;
 	struct timespec te, ts;
+	TEST_OPTS *opts, _opts;
 	pthread_t dump_id, id[MAX_THREADS];
 	int i;
 
@@ -171,8 +171,8 @@ thread_dump(void *arg) {
 		sleep(1);
 		printf("\n"
 		    "rwlock { current %" PRIu8 ", next %" PRIu8
-		    ", reader %" PRIu8 ", readers_active %" PRIu16
-		    ", readers_queued %" PRIu16 " }\n",
+		    ", reader %" PRIu8 ", readers_active %" PRIu32
+		    ", readers_queued %" PRIu8 " }\n",
 		    rwlock.u.s.current,
 		    rwlock.u.s.next,
 		    rwlock.u.s.reader,

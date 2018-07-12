@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -147,6 +147,13 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	if (conn->lock_fh != NULL)
 		WT_TRET(__wt_close(session, &conn->lock_fh));
 
+	/* Close any optrack files */
+	if (session->optrack_fh != NULL)
+		WT_TRET(__wt_close(session, &session->optrack_fh));
+
+	/* Close operation tracking */
+	WT_TRET(__wt_conn_optrack_teardown(session, false));
+
 	/* Close any file handles left open. */
 	WT_TRET(__wt_close_connection_close(session));
 
@@ -168,6 +175,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	if (!F_ISSET(conn, WT_CONN_LEAK_MEMORY))
 		if ((s = conn->sessions) != NULL)
 			for (i = 0; i < conn->session_size; ++s, ++i) {
+				__wt_free(session, s->cursor_cache);
 				__wt_free(session, s->dhhash);
 				__wt_stash_discard_all(session, s);
 				__wt_free(session, s->hazard);

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2017 MongoDB, Inc.
+ * Copyright (c) 2014-2018 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -408,7 +408,7 @@ switch_and_jump:	/* Switching to a forward roll. */
 		}
 
 next:		switch (direction) {
-		case  BACKWARD:
+		case BACKWARD:
 			--rip;
 			++slot_offset;
 			break;

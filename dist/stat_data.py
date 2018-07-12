@@ -84,6 +84,10 @@ class LSMStat(Stat):
     prefix = 'LSM'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LSMStat.prefix, desc, flags)
+class PerfHistStat(Stat):
+    prefix = 'perf'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, PerfHistStat.prefix, desc, flags)
 class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
@@ -128,6 +132,7 @@ groups['memory'] = [
 groups['system'] = [
     ConnStat.prefix,
     DhandleStat.prefix,
+    PerfHistStat.prefix,
     SessionStat.prefix,
     ThreadStat.prefix
 ]
@@ -266,7 +271,13 @@ connection_stats = [
     CacheStat('cache_read', 'pages read into cache'),
     CacheStat('cache_read_app_count', 'application threads page read from disk to cache count'),
     CacheStat('cache_read_app_time', 'application threads page read from disk to cache time (usecs)'),
+    CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
+    CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_lookaside', 'pages read into cache requiring lookaside entries'),
+    CacheStat('cache_read_lookaside_checkpoint', 'pages read into cache requiring lookaside for checkpoint'),
+    CacheStat('cache_read_lookaside_delay', 'pages read into cache with skipped lookaside entries needed later'),
+    CacheStat('cache_read_lookaside_delay_checkpoint', 'pages read into cache with skipped lookaside entries needed later by checkpoint'),
+    CacheStat('cache_read_lookaside_skipped', 'pages read into cache skipping older lookaside entries'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
@@ -277,11 +288,13 @@ connection_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_cache', 'cursors cached on close'),
     CursorStat('cursor_create', 'cursor create calls'),
     CursorStat('cursor_insert', 'cursor insert calls'),
     CursorStat('cursor_modify', 'cursor modify calls'),
     CursorStat('cursor_next', 'cursor next calls'),
     CursorStat('cursor_prev', 'cursor prev calls'),
+    CursorStat('cursor_reopen', 'cursors reused from cache'),
     CursorStat('cursor_remove', 'cursor remove calls'),
     CursorStat('cursor_reserve', 'cursor reserve calls'),
     CursorStat('cursor_reset', 'cursor reset calls'),
@@ -290,6 +303,14 @@ connection_stats = [
     CursorStat('cursor_search_near', 'cursor search near calls'),
     CursorStat('cursor_truncate', 'truncate calls'),
     CursorStat('cursor_update', 'cursor update calls'),
+
+    ##########################################
+    # Cursor sweep
+    ##########################################
+    CursorStat('cursor_sweep', 'cursor sweeps'),
+    CursorStat('cursor_sweep_buckets', 'cursor sweep buckets'),
+    CursorStat('cursor_sweep_examined', 'cursor sweep cursors examined'),
+    CursorStat('cursor_sweep_closed', 'cursor sweep cursors closed'),
 
     ##########################################
     # Dhandle statistics
@@ -309,6 +330,10 @@ connection_stats = [
     LockStat('lock_checkpoint_count', 'checkpoint lock acquisitions'),
     LockStat('lock_checkpoint_wait_application', 'checkpoint lock application thread wait time (usecs)'),
     LockStat('lock_checkpoint_wait_internal', 'checkpoint lock internal thread wait time (usecs)'),
+    LockStat('lock_commit_timestamp_read_count', 'commit timestamp queue read lock acquisitions'),
+    LockStat('lock_commit_timestamp_wait_application', 'commit timestamp queue lock application thread time waiting for the dhandle lock (usecs)'),
+    LockStat('lock_commit_timestamp_wait_internal', 'commit timestamp queue lock internal thread time waiting for the dhandle lock (usecs)'),
+    LockStat('lock_commit_timestamp_write_count', 'commit timestamp queue write lock acquisitions'),
     LockStat('lock_dhandle_read_count', 'dhandle read lock acquisitions'),
     LockStat('lock_dhandle_wait_application', 'dhandle lock application thread time waiting for the dhandle lock (usecs)'),
     LockStat('lock_dhandle_wait_internal', 'dhandle lock internal thread time waiting for the dhandle lock (usecs)'),
@@ -316,6 +341,10 @@ connection_stats = [
     LockStat('lock_metadata_count', 'metadata lock acquisitions'),
     LockStat('lock_metadata_wait_application', 'metadata lock application thread wait time (usecs)'),
     LockStat('lock_metadata_wait_internal', 'metadata lock internal thread wait time (usecs)'),
+    LockStat('lock_read_timestamp_read_count', 'read timestamp queue read lock acquisitions'),
+    LockStat('lock_read_timestamp_wait_application', 'read timestamp queue lock application thread time waiting for the dhandle lock (usecs)'),
+    LockStat('lock_read_timestamp_wait_internal', 'read timestamp queue lock internal thread time waiting for the dhandle lock (usecs)'),
+    LockStat('lock_read_timestamp_write_count', 'read timestamp queue write lock acquisitions'),
     LockStat('lock_schema_count', 'schema lock acquisitions'),
     LockStat('lock_schema_wait_application', 'schema lock application thread wait time (usecs)'),
     LockStat('lock_schema_wait_internal', 'schema lock internal thread wait time (usecs)'),
@@ -323,6 +352,10 @@ connection_stats = [
     LockStat('lock_table_wait_application', 'table lock application thread time waiting for the table lock (usecs)'),
     LockStat('lock_table_wait_internal', 'table lock internal thread time waiting for the table lock (usecs)'),
     LockStat('lock_table_write_count', 'table write lock acquisitions'),
+    LockStat('lock_txn_global_read_count', 'txn global read lock acquisitions'),
+    LockStat('lock_txn_global_wait_application', 'txn global lock application thread time waiting for the dhandle lock (usecs)'),
+    LockStat('lock_txn_global_wait_internal', 'txn global lock internal thread time waiting for the dhandle lock (usecs)'),
+    LockStat('lock_txn_global_write_count', 'txn global write lock acquisitions'),
 
     ##########################################
     # Logging statistics
@@ -337,7 +370,7 @@ connection_stats = [
     LogStat('log_compress_write_fails', 'log records not compressed'),
     LogStat('log_compress_writes', 'log records compressed'),
     LogStat('log_flush', 'log flush operations'),
-    LogStat('log_force_ckpt_sleep', 'force checkpoint calls slept'),
+    LogStat('log_force_archive_sleep', 'force archive time sleeping (usecs)'),
     LogStat('log_force_write', 'log force write operations'),
     LogStat('log_force_write_skip', 'log force write operations skipped'),
     LogStat('log_max_filesize', 'maximum log file size', 'no_clear,no_scale,size'),
@@ -389,6 +422,32 @@ connection_stats = [
     LSMStat('lsm_work_units_done', 'tree maintenance operations executed'),
 
     ##########################################
+    # Performance Histogram Stats
+    ##########################################
+    PerfHistStat('perf_hist_fsread_latency_gt1000', 'file system read latency histogram (bucket 6) - 1000ms+'),
+    PerfHistStat('perf_hist_fsread_latency_lt50', 'file system read latency histogram (bucket 1) - 10-49ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt100', 'file system read latency histogram (bucket 2) - 50-99ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt250', 'file system read latency histogram (bucket 3) - 100-249ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt500', 'file system read latency histogram (bucket 4) - 250-499ms'),
+    PerfHistStat('perf_hist_fsread_latency_lt1000', 'file system read latency histogram (bucket 5) - 500-999ms'),
+    PerfHistStat('perf_hist_fswrite_latency_gt1000', 'file system write latency histogram (bucket 6) - 1000ms+'),
+    PerfHistStat('perf_hist_fswrite_latency_lt50', 'file system write latency histogram (bucket 1) - 10-49ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt100', 'file system write latency histogram (bucket 2) - 50-99ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt250', 'file system write latency histogram (bucket 3) - 100-249ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt500', 'file system write latency histogram (bucket 4) - 250-499ms'),
+    PerfHistStat('perf_hist_fswrite_latency_lt1000', 'file system write latency histogram (bucket 5) - 500-999ms'),
+    PerfHistStat('perf_hist_opread_latency_gt10000', 'operation read latency histogram (bucket 5) - 10000us+'),
+    PerfHistStat('perf_hist_opread_latency_lt250', 'operation read latency histogram (bucket 1) - 100-249us'),
+    PerfHistStat('perf_hist_opread_latency_lt500', 'operation read latency histogram (bucket 2) - 250-499us'),
+    PerfHistStat('perf_hist_opread_latency_lt1000', 'operation read latency histogram (bucket 3) - 500-999us'),
+    PerfHistStat('perf_hist_opread_latency_lt10000', 'operation read latency histogram (bucket 4) - 1000-9999us'),
+    PerfHistStat('perf_hist_opwrite_latency_gt10000', 'operation write latency histogram (bucket 5) - 10000us+'),
+    PerfHistStat('perf_hist_opwrite_latency_lt250', 'operation write latency histogram (bucket 1) - 100-249us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt500', 'operation write latency histogram (bucket 2) - 250-499us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt1000', 'operation write latency histogram (bucket 3) - 500-999us'),
+    PerfHistStat('perf_hist_opwrite_latency_lt10000', 'operation write latency histogram (bucket 4) - 1000-9999us'),
+
+##########################################
     # Reconciliation statistics
     ##########################################
     RecStat('rec_page_delete', 'pages deleted'),
@@ -447,19 +506,36 @@ connection_stats = [
     TxnStat('txn_checkpoint_time_recent', 'transaction checkpoint most recent time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_time_total', 'transaction checkpoint total time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_commit', 'transactions committed'),
-    TxnStat('txn_commit_queue_head', 'transactions commit timestamp queue inserts to head'),
-    TxnStat('txn_commit_queue_inserts', 'transactions commit timestamp queue inserts total'),
-    TxnStat('txn_commit_queue_len', 'transactions commit timestamp queue length'),
+    TxnStat('txn_commit_queue_empty', 'commit timestamp queue insert to empty'),
+    TxnStat('txn_commit_queue_tail', 'commit timestamp queue inserts to tail'),
+    TxnStat('txn_commit_queue_inserts', 'commit timestamp queue inserts total'),
+    TxnStat('txn_commit_queue_len', 'commit timestamp queue length'),
     TxnStat('txn_fail_cache', 'transaction failures due to cache overflow'),
     TxnStat('txn_pinned_checkpoint_range', 'transaction range of IDs currently pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_range', 'transaction range of IDs currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_snapshot_range', 'transaction range of IDs currently pinned by named snapshots', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp_oldest', 'transaction range of timestamps pinned by the oldest timestamp', 'no_clear,no_scale'),
-    TxnStat('txn_read_queue_head', 'transactions read timestamp queue inserts to head'),
-    TxnStat('txn_read_queue_inserts', 'transactions read timestamp queue inserts total'),
-    TxnStat('txn_read_queue_len', 'transactions read timestamp queue length'),
+    TxnStat('txn_prepare', 'prepared transactions'),
+    TxnStat('txn_prepare_active', 'prepared transactions currently active'),
+    TxnStat('txn_prepare_commit', 'prepared transactions committed'),
+    TxnStat('txn_prepare_rollback', 'prepared transactions rolled back'),
+    TxnStat('txn_query_ts', 'query timestamp calls'),
+    TxnStat('txn_read_queue_empty', 'read timestamp queue insert to empty'),
+    TxnStat('txn_read_queue_head', 'read timestamp queue inserts to head'),
+    TxnStat('txn_read_queue_inserts', 'read timestamp queue inserts total'),
+    TxnStat('txn_read_queue_len', 'read timestamp queue length'),
     TxnStat('txn_rollback', 'transactions rolled back'),
+    TxnStat('txn_rollback_las_removed', 'rollback to stable updates removed from lookaside'),
+    TxnStat('txn_rollback_to_stable', 'rollback to stable calls'),
+    TxnStat('txn_rollback_upd_aborted', 'rollback to stable updates aborted'),
+    TxnStat('txn_set_ts', 'set timestamp calls'),
+    TxnStat('txn_set_ts_commit', 'set timestamp commit calls'),
+    TxnStat('txn_set_ts_commit_upd', 'set timestamp commit updates'),
+    TxnStat('txn_set_ts_oldest', 'set timestamp oldest calls'),
+    TxnStat('txn_set_ts_oldest_upd', 'set timestamp oldest updates'),
+    TxnStat('txn_set_ts_stable', 'set timestamp stable calls'),
+    TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
     TxnStat('txn_snapshots_created', 'number of named snapshots created'),
     TxnStat('txn_snapshots_dropped', 'number of named snapshots dropped'),
     TxnStat('txn_sync', 'transaction sync calls'),
@@ -481,7 +557,7 @@ connection_stats = [
     YieldStat('page_locked_blocked', 'page acquire locked blocked'),
     YieldStat('page_read_blocked', 'page acquire read blocked'),
     YieldStat('page_sleep', 'page acquire time sleeping (usecs)'),
-    YieldStat('tree_descend_blocked', 'tree descend one level yielded for split page index update'),
+    YieldStat('prepared_transition_blocked_page', 'page access yielded due to prepare state change'),
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
 
@@ -561,6 +637,8 @@ dsrc_stats = [
     CacheStat('cache_inmem_splittable', 'in-memory page passed criteria to be split'),
     CacheStat('cache_pages_requested', 'pages requested from the cache'),
     CacheStat('cache_read', 'pages read into cache'),
+    CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
+    CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_lookaside', 'pages read into cache requiring lookaside entries'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_write', 'pages written from cache'),
@@ -606,6 +684,7 @@ dsrc_stats = [
     ##########################################
     # Cursor operations
     ##########################################
+    CursorStat('cursor_cache', 'cursors cached on close'),
     CursorStat('cursor_create', 'create calls'),
     CursorStat('cursor_insert', 'insert calls'),
     CursorStat('cursor_insert_bulk', 'bulk-loaded cursor-insert calls'),
@@ -615,6 +694,7 @@ dsrc_stats = [
     CursorStat('cursor_prev', 'prev calls'),
     CursorStat('cursor_remove', 'remove calls'),
     CursorStat('cursor_remove_bytes', 'cursor-remove key bytes removed', 'size'),
+    CursorStat('cursor_reopen', 'cursors reused from cache'),
     CursorStat('cursor_reserve', 'reserve calls'),
     CursorStat('cursor_reset', 'reset calls'),
     CursorStat('cursor_restart', 'restarted searches'),
@@ -661,6 +741,7 @@ dsrc_stats = [
     ##########################################
     # Session operations
     ##########################################
+    SessionStat('session_cursor_cached', 'cached cursor count', 'no_clear,no_scale'),
     SessionStat('session_compact', 'object compaction'),
     SessionStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
 

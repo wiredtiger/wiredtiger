@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2017 MongoDB, Inc.
+ * Public Domain 2014-2018 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -38,6 +38,10 @@ void
 testutil_die(int e, const char *fmt, ...)
 {
 	va_list ap;
+
+	/* Flush output to be sure it doesn't mix with fatal errors. */
+	(void)fflush(stdout);
+	(void)fflush(stderr);
 
 	/* Allow test programs to cleanup on fatal error. */
 	if (custom_die != NULL)
@@ -148,6 +152,24 @@ testutil_make_work_dir(const char *dir)
 }
 
 /*
+ * testutil_progress --
+ *	Print a progress message to the progress file.
+ */
+void
+testutil_progress(TEST_OPTS *opts, const char *message)
+{
+	FILE *fp;
+	time_t now;
+
+	if ((fp = fopen(opts->progress_file_name, "a")) == NULL)
+		testutil_die(errno, "fopen");
+	(void)time(&now);
+	fprintf(fp, "[%" PRIuMAX "] %s\n", (uintmax_t)now, message);
+	if (fclose(fp) != 0)
+		testutil_die(errno, "fclose");
+}
+
+/*
  * testutil_cleanup --
  *	Delete the existing work directory and free the options structure.
  */
@@ -161,6 +183,7 @@ testutil_cleanup(TEST_OPTS *opts)
 		testutil_clean_work_dir(opts->home);
 
 	free(opts->uri);
+	free(opts->progress_file_name);
 	free(opts->home);
 }
 
@@ -174,7 +197,7 @@ testutil_is_flag_set(const char *flag)
 	const char *res;
 	bool enable_long_tests;
 
-	if (__wt_getenv(NULL, flag, &res) == WT_NOTFOUND)
+	if (__wt_getenv(NULL, flag, &res) != 0 || res == NULL)
 		return (false);
 
 	/*
