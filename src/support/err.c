@@ -405,30 +405,6 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
 }
 
 /*
- * info_msg --
- * 	Informational message.
- */
-static int
-info_msg(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
-{
-	WT_EVENT_HANDLER *handler;
-	WT_SESSION *wt_session;
-
-	/*
-	 * !!!
-	 * SECURITY:
-	 * Buffer placed at the end of the stack in case snprintf overflows.
-	 */
-	char s[2048];
-
-	WT_RET(__wt_vsnprintf(s, sizeof(s), fmt, ap));
-
-	wt_session = (WT_SESSION *)session;
-	handler = session->event_handler;
-	return (handler->handle_message(handler, wt_session, s));
-}
-
-/*
  * __wt_msg --
  * 	Informational message.
  */
@@ -437,12 +413,20 @@ __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
 {
+	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	va_list ap;
+	WT_EVENT_HANDLER *handler;
+	WT_SESSION *wt_session;
 
-	va_start(ap, fmt);
-	ret = info_msg(session, fmt, ap);
-	va_end(ap);
+	WT_RET(__wt_scr_alloc(session, 0, &buf));
+
+	WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, false);
+
+	wt_session = (WT_SESSION *)session;
+	handler = session->event_handler;
+	ret = handler->handle_message(handler, wt_session, buf->data);
+
+	__wt_scr_free(session, &buf);
 
 	return (ret);
 }
@@ -456,16 +440,24 @@ __wt_ext_msg_printf(
     WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
 {
+	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+	WT_EVENT_HANDLER *handler;
 	WT_SESSION_IMPL *session;
-	va_list ap;
 
 	if ((session = (WT_SESSION_IMPL *)wt_session) == NULL)
 		session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
-	va_start(ap, fmt);
-	ret = info_msg(session, fmt, ap);
-	va_end(ap);
+	WT_RET(__wt_scr_alloc(session, 0, &buf));
+
+	WT_VA_ARGS_BUF_FORMAT(session, buf, fmt, false);
+
+	wt_session = (WT_SESSION *)session;
+	handler = session->event_handler;
+	ret = handler->handle_message(handler, wt_session, buf->data);
+
+	__wt_scr_free(session, &buf);
+
 	return (ret);
 }
 
