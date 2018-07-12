@@ -76,7 +76,7 @@ typedef CONDITION_VARIABLE pthread_cond_t;
 
 struct rwlock_wrapper {
 	SRWLOCK rwlock;
-	int exclusive_locked;
+	DWORD exclusive_locked;
 };
 
 struct rwlock_wrapper;

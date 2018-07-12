@@ -114,7 +114,7 @@ int
 pthread_rwlock_trywrlock(pthread_rwlock_t *rwlock)
 {
 	if (TryAcquireSRWLockExclusive(&rwlock->rwlock)) {
-		rwlock->exclusive_locked = 1;
+		rwlock->exclusive_locked = GetCurrentThreadId();
 		return (0);
 	}
 
@@ -126,7 +126,7 @@ pthread_rwlock_wrlock(pthread_rwlock_t *rwlock)
 {
 	AcquireSRWLockExclusive(&rwlock->rwlock);
 
-	rwlock->exclusive_locked = 1;
+	rwlock->exclusive_locked = GetCurrentThreadId();
 
 	return (0);
 }
