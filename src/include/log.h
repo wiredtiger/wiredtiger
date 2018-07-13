@@ -245,6 +245,7 @@ struct __wt_log {
 	 * Log file information
 	 */
 	uint32_t	 fileid;	/* Current log file number */
+	uint32_t	 lastid;	/* Previous last log file number */
 	uint32_t	 prep_fileid;	/* Pre-allocated file number */
 	uint32_t	 tmp_fileid;	/* Temporary file number */
 	uint32_t	 prep_missed;	/* Pre-allocated file misses */

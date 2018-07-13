@@ -150,12 +150,6 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # At any rate, we consider this particular corruption to be benign.
         if self.kind == 'zero-end':
             return False
-
-        # NOTE:
-        # If garbage is added to an otherwise valid log file, the invalid
-        # portion is effectively 'skipped over'.
-        if self.kind == 'garbage-end':
-            return False
         return True
 
     def show_logs(self, homedir, msg):
@@ -254,7 +248,11 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     def recovered_records(self):
         if not self.corrupted() or self.chkpt > self.corruptpos:
             return self.nrecords
-        return self.logfile_to_record(self.corruptpos)
+        if self.kind == 'garbage-end':
+            # All records in the corrupt file will be found.
+            return self.logfile_to_record(self.corruptpos + 1)
+        else:
+            return self.logfile_to_record(self.corruptpos)
 
     def test_corrupt_log(self):
         ''' Corrupt the log and restart with different kinds of recovery '''

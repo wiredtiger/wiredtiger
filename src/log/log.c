@@ -1672,7 +1672,7 @@ again:
 		lastlog = WT_MAX(lastlog, lognum);
 		firstlog = WT_MIN(firstlog, lognum);
 	}
-	log->fileid = lastlog;
+	log->fileid = log->lastid = lastlog;
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_open: first log %" PRIu32 " last log %" PRIu32,
 	    firstlog, lastlog);
@@ -2300,10 +2300,23 @@ advance:
 			/*
 			 * The log file end could be the middle of this
 			 * log record.  If we have a partially written record
-			 * then this is considered the end of the log.
+			 * in the last inherited file, then this is considered
+			 * the end of the log. If this isn't the previous last
+			 * log file, and the size is out of range, then we
+			 * have a corruption.
 			 */
 			if (rd_lsn.l.offset + rdup_len > log_size) {
-				eol = true;
+				if (rd_lsn.l.file == log->lastid)
+					eol = true;
+				else if (FLD_ISSET(conn->log_flags,
+				    WT_CONN_LOG_RECOVER_SALVAGE)) {
+					need_salvage = true;
+					ret = WT_NOTFOUND;
+				} else
+					WT_PANIC_ERR(session, WT_PANIC,
+					    "log_scan: log file %s corrupted:"
+					    " Bad size at position %" PRIu32,
+					    log_fh->name, rd_lsn.l.offset);
 				break;
 			}
 			/*
