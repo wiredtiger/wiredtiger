@@ -496,34 +496,6 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 }
 
 /*
- * __wt_assert --
- *	Assert and other unexpected failures, includes file/line information
- * for debugging.
- */
-void
-__wt_assert(WT_SESSION_IMPL *session,
-    int error, const char *func_name, int line_number, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 5, 6)))
-#ifdef HAVE_DIAGNOSTIC
-    WT_GCC_FUNC_ATTRIBUTE((noreturn))
-#endif
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	WT_IGNORE_RET(__eventv(
-	    session, false, error, func_name, line_number, fmt, ap));
-	va_end(ap);
-
-#ifdef HAVE_DIAGNOSTIC
-	__wt_abort(session);			/* Drop core if testing. */
-	/* NOTREACHED */
-#endif
-}
-
-/*
  * __wt_panic --
  *	A standard error message when we panic.
  */

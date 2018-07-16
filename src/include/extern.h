@@ -685,15 +685,6 @@ extern int __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_
 extern int __wt_ext_msg_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_ext_strerror(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, int error);
 extern int __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void
-__wt_assert(WT_SESSION_IMPL *session,
- int error, const char *func_name, int line_number, const char *fmt, ...)
- WT_GCC_FUNC_DECL_ATTRIBUTE((cold))
- WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 5, 6)))
-#ifdef HAVE_DIAGNOSTIC
- WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
-#endif
- WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern int __wt_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_illegal_value_func(WT_SESSION_IMPL *session, const char *tag, const char *file, int line) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -725,6 +716,7 @@ extern int __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_
 extern void __wt_hazard_close(WT_SESSION_IMPL *session);
 extern WT_HAZARD *__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref);
 extern u_int __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref);
+extern bool __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_fill_hex(const uint8_t *src, size_t src_max, uint8_t *dest, size_t dest_max, size_t *lenp);
 extern int __wt_raw_to_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_raw_to_esc_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
