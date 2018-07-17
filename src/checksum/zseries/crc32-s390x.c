@@ -6,10 +6,11 @@
  * Author(s): Hendrik Brueckner <brueckner@linux.vnet.ibm.com>
  *
  */
-#include "wt_internal.h"
 
 #include <sys/types.h>
 #include <endian.h>
+#include <inttypes.h>
+#include <stddef.h>
 
 #if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
 #include <sys/auxv.h>
@@ -92,23 +93,29 @@ __wt_checksum_hw(const void *chunk, size_t len)
 
 #endif
 
+extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+    __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+#endif
+
 /*
- * __wt_checksum_init --
- *      WiredTiger: detect CRC hardware and set the checksum function.
+ * wiredtiger_crc32c_func --
+ *	WiredTiger: detect CRC hardware and return the checksum function.
  */
-void
-__wt_checksum_init(void)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
 #if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
 	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_S390_VX)
-		__wt_process.checksum = __wt_checksum_hw;
+		return (__wt_checksum_hw);
 	else
-		__wt_process.checksum = __wt_checksum_sw;
+		return (__wt_checksum_sw);
 
 #else
-	__wt_process.checksum = __wt_checksum_sw;
+	return (__wt_checksum_sw);
 #endif
 }
