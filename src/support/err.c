@@ -340,6 +340,7 @@ __wt_errx_func(WT_SESSION_IMPL *session,
     const char *func_name, int line_number, const char *fmt, ...)
     WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	va_list ap;
 
