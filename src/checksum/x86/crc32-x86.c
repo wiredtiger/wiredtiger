@@ -29,7 +29,6 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-#if defined(HAVE_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
 /*
  * __wt_checksum_hw --
@@ -117,7 +116,6 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	return (~crc);
 }
 #endif
-#endif /* HAVE_CRC32_HARDWARE */
 
 extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
 #if defined(__GNUC__)
@@ -133,7 +131,6 @@ extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(HAVE_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
 	unsigned int eax, ebx, ecx, edx;
 
@@ -156,11 +153,8 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
 		return (__wt_checksum_hw);
 	return (__wt_checksum_sw);
+
 #else
 	return (__wt_checksum_sw);
 #endif
-
-#else /* !HAVE_CRC32_HARDWARE */
-	return (__wt_checksum_sw);
-#endif /* HAVE_CRC32_HARDWARE */
 }

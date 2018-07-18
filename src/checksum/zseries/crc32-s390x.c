@@ -12,7 +12,7 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__)
 #include <sys/auxv.h>
 
 /* RHEL 7 has kernel support, but does not define this constant in the lib c headers. */
@@ -107,7 +107,7 @@ extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__)
 	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_S390_VX)
