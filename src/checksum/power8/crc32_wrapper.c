@@ -94,6 +94,7 @@ extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
  *	WiredTiger: detect CRC hardware and return the checksum function.
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+{
 #if defined(HAVE_CRC32_HARDWARE)
 	return (__wt_checksum_hw);
 #else
