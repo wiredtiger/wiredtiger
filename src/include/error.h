@@ -132,8 +132,10 @@
  */
 #ifdef HAVE_DIAGNOSTIC
 #define	WT_ASSERT(session, exp) do {					\
-	if (!(exp))							\
-		__wt_assert(session, 0, __func__, __LINE__, "%s", #exp);\
+	if (!(exp)) {							\
+		__wt_errx(session, "%s", #exp);				\
+		__wt_abort(session);					\
+	}								\
 } while (0)
 #else
 #define	WT_ASSERT(session, exp)						\
