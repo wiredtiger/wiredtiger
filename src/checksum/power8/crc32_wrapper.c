@@ -95,7 +95,7 @@ extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(HAVE_CRC32_HARDWARE)
+#if defined(__powerpc64__)
 	return (__wt_checksum_hw);
 #else
 	return (__wt_checksum_sw);
