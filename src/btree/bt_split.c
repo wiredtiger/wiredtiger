@@ -548,7 +548,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1);
 
 	/*
 	 * Confirm the root page's index hasn't moved, then update it, which
@@ -559,7 +559,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	alloc_index = NULL;
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2);
 
 	/*
 	 * Get a generation for this split, mark the root page.  This must be
@@ -752,7 +752,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_NOT_READ(complete, WT_ERR_PANIC);
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3);
 
 	/*
 	 * Confirm the parent page's index hasn't moved then update it, which
@@ -763,7 +763,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	alloc_index = NULL;
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4);
 
 	/*
 	 * Get a generation for this split, mark the page.  This must be after
@@ -1105,7 +1105,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5);
 
 	/* Split into the parent. */
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
@@ -1119,7 +1119,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_INTL_INDEX_SET(page, replace_index);
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6);
 
 	/*
 	 * Get a generation for this split, mark the parent page.  This must be
@@ -1237,7 +1237,7 @@ __split_internal_lock(
 		parent = ref->home;
 
 		/* Encourage races. */
-		__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7, 0);
+		__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7);
 
 		/* Page locks live in the modify structure. */
 		WT_RET(__wt_page_modify_init(session, parent));

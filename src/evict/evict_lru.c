@@ -933,7 +933,7 @@ __wt_evict_file_exclusive_off(WT_SESSION_IMPL *session)
 	 * We have seen subtle bugs with multiple threads racing to turn
 	 * eviction on/off.  Make races more likely in diagnostic builds.
 	 */
-	__wt_timing_stress_diagnostic(session);
+	WT_DIAGNOSTIC_YIELD;
 
 	/*
 	 * Atomically decrement the evict-disabled count, without acquiring the

@@ -784,7 +784,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * done during prepare.
 	 */
 	if (session->ncursors > 0 && !F_ISSET(txn, WT_TXN_PREPARE)) {
-		__wt_timing_stress_diagnostic(session);
+		WT_DIAGNOSTIC_YIELD;
 		WT_ERR(__wt_session_copy_values(session));
 	}
 
@@ -1072,7 +1072,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * freed once we don't have a snapshot.
 	 */
 	if (session->ncursors > 0) {
-		__wt_timing_stress_diagnostic(session);
+		WT_DIAGNOSTIC_YIELD;
 		WT_RET(__wt_session_copy_values(session));
 	}
 

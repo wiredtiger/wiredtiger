@@ -249,12 +249,15 @@ __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 	__wt_sleep(0, (*sleep_usecs));
 }
 
+				/* Maximum stress delay is 1/10 of a second. */
+#define	WT_TIMING_STRESS_MAX_DELAY	(100000)
+
 /*
  * __wt_timing_stress --
  *	Optionally add delay to stress code paths.
  */
 static inline void
-__wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, u_int max_usecs)
+__wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
 {
 	uint64_t i;
 
@@ -277,22 +280,5 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag, u_int max_usecs)
 		__wt_yield();
 	else
 		/* The default maximum delay is 1/10th of a second. */
-		__wt_sleep(0,
-		    i * ((max_usecs == 0 ? WT_TENTH_US : max_usecs) / 10));
-}
-
-/*
- * __wt_timing_stress_diagnostic --
- *	Add delay to stress code paths when HAVE_DIAGNOSTIC is configured. All
- * current usage is without a separate configuration flag and with a maximum
- * delay of a hundredth of a second.
- */
-static inline void
-__wt_timing_stress_diagnostic(WT_SESSION_IMPL *session)
-{
-#ifdef HAVE_DIAGNOSTIC
-	__wt_timing_stress(session, 0, WT_HUNDRETH_US);
-#else
-	WT_UNUSED(session);
-#endif
+		__wt_sleep(0, i * (WT_TIMING_STRESS_MAX_DELAY / 10));
 }

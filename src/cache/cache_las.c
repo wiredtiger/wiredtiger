@@ -1024,7 +1024,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	locked = true;
 
 	/* Encourage a race */
-	__wt_timing_stress(session, WT_TIMING_STRESS_LOOKASIDE_SWEEP, 0);
+	__wt_timing_stress(session, WT_TIMING_STRESS_LOOKASIDE_SWEEP);
 
 	/*
 	 * When continuing a sweep, position the cursor using the key from the

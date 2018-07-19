@@ -183,7 +183,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 
 	WT_STAT_CONN_INCR(session, rwlock_read);
 
-	__wt_timing_stress_diagnostic(session);
+	WT_DIAGNOSTIC_YIELD;
 
 	for (;;) {
 		/*
@@ -492,7 +492,7 @@ __wt_writeunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	else if (new.u.s.current != new.u.s.next)
 		__wt_cond_signal(session, l->cond_writers);
 
-	__wt_timing_stress_diagnostic(session);
+	WT_DIAGNOSTIC_YIELD;
 }
 
 #ifdef HAVE_DIAGNOSTIC

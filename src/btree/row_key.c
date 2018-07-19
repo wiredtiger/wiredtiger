@@ -518,7 +518,7 @@ __wt_row_ikey(WT_SESSION_IMPL *session,
 	uintptr_t oldv;
 
 	oldv = (uintptr_t)ref->ref_ikey;
-	__wt_timing_stress_diagnostic(session);
+	WT_DIAGNOSTIC_YIELD;
 
 	/*
 	 * We should never overwrite an instantiated key, and we should

@@ -431,8 +431,7 @@ restart:		/*
 			}
 
 			/* Encourage races. */
-			__wt_timing_stress(
-			    session, WT_TIMING_STRESS_SPLIT_8, 0);
+			__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_8);
 		}
 
 		if (prev)
