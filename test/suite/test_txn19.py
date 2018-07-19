@@ -222,22 +222,15 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     # is not detected as a corruption.
     # This includes:
     #  - removal of the last log
-    #  - corruption in the middle of the pre-zeroed section of the last log
+    #  - corruption in the middle of a log file.
     def log_corrupt_but_valid(self):
+        # NOTE:
+        # Currently, corruption in the middle of a log file is not yet
+        # detected.
+        if self.kind == 'garbage-middle':
+            return True
         if self.corruptpos == self.record_to_logfile(self.nrecords):
             if self.kind == 'removal':
-                return True
-            # Records in this test are sized about 60K, and 'garbage-middle',
-            # places corruption at about the 25K point in the log file.
-            # If there are an even number of records, then the last log
-            # is mostly empty, the garbage placed in it defines the end
-            # of the 'hole'.  If there is an odd number of records, the
-            # garbage will be in the middle of the record.
-            #
-            # NOTE:
-            # Ideally, recovery would view such holes as corruption and
-            # require salvaging.
-            if self.kind == 'garbage-middle' and self.nrecords % 2 == 0:
                 return True
         return False
 
