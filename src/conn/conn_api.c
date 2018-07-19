@@ -2645,7 +2645,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 			 * log file size gets initialized as part log server
 			 * initialization.
 			 */
-			if (ft->name == "log")
+			if (ft->flag == WT_DIRECT_IO_LOG)
 				conn->log_extend_len = -1;
 
 			WT_ERR_NOTFOUND_OK(ret);
