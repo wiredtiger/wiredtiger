@@ -2636,8 +2636,20 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 				conn->log_extend_len = sval.val;
 				break;
 			}
-		} else
+		} else {
+			/*
+			 * Set the default log extend length to -1 as an
+			 * indicator that the default for log files is to extend
+			 * by configured maximum log file size. Update the
+			 * extend length with actual desired size when maximum
+			 * log file size gets initialized as part log server
+			 * initialization.
+			 */
+			if (ft->name == "log")
+				conn->log_extend_len = -1;
+
 			WT_ERR_NOTFOUND_OK(ret);
+		}
 	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));

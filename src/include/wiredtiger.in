@@ -2837,12 +2837,12 @@ struct __wt_connection {
  * WT_CONNECTION::load_extension as the \c config parameter (for example\,
  * <code>extensions=(/path/ext.so={entry=my_entry})</code>)., a list of strings;
  * default empty.}
- * @config{file_extend, file extension configuration.  If set for data files\,
- * extend those in allocations of the set size\, instead of a block at a time as
+ * @config{file_extend, file extension configuration.  If set\, extend files of
+ * the set type in allocations of the set size\, instead of a block at a time as
  * each new block is written.  For example\,
- * <code>file_extend=(data=16MB)</code>. Disables log file extension when set to
- * -1 for log file.  The default is to extend the log file in allocations of the
- * <code>log_file_max</code> size., a list\, with values chosen from the
+ * <code>file_extend=(data=16MB)</code>. If set to 0\, disables the file
+ * extension for the set type.  For log files\, default is to extend in
+ * allocations of maximum log file size., a list\, with values chosen from the
  * following options: \c "data"\, \c "log"; default empty.}
  * @config{file_manager = (, control how file handles are managed., a set of
  * related configuration options defined below.}

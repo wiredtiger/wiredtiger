@@ -277,6 +277,16 @@ __logmgr_config(
 	if (!reconfig) {
 		WT_RET(__wt_config_gets(session, cfg, "log.file_max", &cval));
 		conn->log_file_max = (wt_off_t)cval.val;
+
+		/*
+		 * With default log file extend configuration i.e. when log file
+		 * extend configuration is not provided or config string is like
+		 * this "file_extend=(log=)", extend the log files by configured
+		 * maximum log file size.
+		 */
+		if (conn->log_extend_len == -1 || conn->log_extend_len == 1)
+			conn->log_extend_len = conn->log_file_max;
+
 		WT_STAT_CONN_SET(session, log_max_filesize, conn->log_file_max);
 	}
 
