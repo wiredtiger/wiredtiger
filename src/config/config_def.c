@@ -190,7 +190,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\",\"split_8\",\"split_9\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "verbose", "list",
 	    NULL, "choices=[\"api\",\"block\",\"checkpoint\","
@@ -882,7 +882,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\",\"split_8\",\"split_9\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -987,7 +987,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\",\"split_8\",\"split_9\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1089,7 +1089,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\",\"split_8\",\"split_9\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
@@ -1189,7 +1189,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	{ "timing_stress_for_test", "list",
 	    NULL, "choices=[\"checkpoint_slow\",\"lookaside_sweep_race\","
 	    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-	    "\"split_6\",\"split_7\",\"split_8\",\"split_9\"]",
+	    "\"split_6\",\"split_7\",\"split_8\"]",
 	    NULL, 0 },
 	{ "transaction_sync", "category",
 	    NULL, NULL,
