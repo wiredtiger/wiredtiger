@@ -2316,7 +2316,9 @@ advance:
 			WT_STAT_CONN_INCR(session, log_scan_rereads);
 		}
 		/*
-		 * We read in the record, verify checksum.
+		 * We read in the record, verify checksum. A failed checksum
+		 * does not imply corruption, it may be the result of a
+		 * partial write.
 		 *
 		 * Handle little- and big-endian objects. Objects are written
 		 * in little-endian format: save the header checksum, and
@@ -2329,20 +2331,20 @@ advance:
 		logrec = (WT_LOG_RECORD *)buf->mem;
 		if (!__log_checksum_match(session, buf, reclen)) {
 			/*
+			 * A checksum mismatch means we have reached the end of
+			 * the useful part of the log.  This should be found on
+			 * the first pass through recovery.  In the second pass
+			 * where we truncate the log, this is where it should
+			 * end.
+			 */
+			if (log != NULL)
+				log->trunc_lsn = rd_lsn;
+			/*
 			 * If the user asked for a specific LSN and it is not
 			 * a valid LSN, return WT_NOTFOUND.
 			 */
 			if (LF_ISSET(WT_LOGSCAN_ONE))
 				ret = WT_NOTFOUND;
-			else if (FLD_ISSET(conn->log_flags,
-			    WT_CONN_LOG_RECOVER_SALVAGE)) {
-				need_salvage = true;
-				ret = WT_NOTFOUND;
-			} else
-				WT_PANIC_ERR(session, WT_PANIC,
-				    "log_scan: log file %s corrupted:"
-				    " Bad checksum at position %" PRIu32,
-				    log_fh->name, rd_lsn.l.offset);
 			break;
 		}
 		__wt_log_record_byteswap(logrec);
