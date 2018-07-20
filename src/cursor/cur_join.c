@@ -651,15 +651,17 @@ __curjoin_entry_member(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 		if (iter != NULL && entry == iter->entry)
 			WT_ITEM_SET(v, iter->idxkey);
 		else {
-			memset(&v, 0, sizeof(v));  /* Keep lint quiet. */
+			memset(&v, 0, sizeof(v));	/* Keep lint quiet. */
 			c = entry->main;
 			c->set_key(c, key);
 			entry->stats.main_access++;
 			if ((ret = c->search(c)) == 0)
 				ret = c->get_value(c, &v);
-			else if (ret == WT_NOTFOUND)
-				WT_ERR_MSG(session, WT_ERROR,
+			else if (ret == WT_NOTFOUND) {
+				__wt_err(session, ret,
 				    "main table for join is missing entry");
+				ret = WT_ERROR;
+			}
 			WT_TRET(c->reset(c));
 			WT_ERR(ret);
 		}
