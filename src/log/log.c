@@ -1075,6 +1075,42 @@ err:	__wt_scr_free(session, &buf);
 }
 
 /*
+ * __log_record_verify --
+ *	Check that values of the log record header are valid.
+ */
+static int
+__log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh,
+    WT_LOG_RECORD *logrec, bool *corrupt)
+{
+	size_t i;
+
+	*corrupt = false;
+	if (F_ISSET(logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
+		WT_RET(__wt_msg(session,
+		    "%s: log record flag corruption", log_fh->name));
+		*corrupt = true;
+	}
+	for (i = 0; i < sizeof(logrec->unused); i++)
+		if (logrec->unused[i] != 0) {
+			WT_RET(__wt_msg(session,
+			    "%s: log record unused corruption", log_fh->name));
+			*corrupt = true;
+		}
+	if (logrec->mem_len != 0 && !F_ISSET(logrec,
+	    WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
+		WT_RET(__wt_msg(session,
+		    "%s: log record memory len corruption", log_fh->name));
+		*corrupt = true;
+	}
+	if (logrec->len <= offsetof(WT_LOG_RECORD, record)) {
+		WT_RET(__wt_msg(session,
+		    "%s: log record len corruption", log_fh->name));
+		*corrupt = true;
+	}
+	return (0);
+}
+
+/*
  * __log_alloc_prealloc --
  *	Look for a pre-allocated log file and rename it to use as the next
  *	real log file.  Called locked.
@@ -1802,17 +1838,20 @@ __wt_log_close(WT_SESSION_IMPL *session)
  *	file is zeroes.
  */
 static int
-__log_has_hole(WT_SESSION_IMPL *session,
-    WT_FH *fh, wt_off_t log_size, wt_off_t offset, bool *hole)
+__log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
+    wt_off_t offset, wt_off_t *error_offset, bool *hole)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
+	WT_LOG_RECORD *logrec;
 	wt_off_t off, remainder;
 	size_t bufsz, rdlen;
-	char *buf, *zerobuf;
+	char *buf, *p, *zerobuf;
+	bool corrupt;
 
-	*hole = false;
+	*error_offset = 0;
+	corrupt = *hole = false;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -1844,6 +1883,29 @@ __log_has_hole(WT_SESSION_IMPL *session,
 		rdlen = WT_MIN(bufsz, (size_t)remainder);
 		WT_ERR(__wt_read(session, fh, off, rdlen, buf));
 		if (memcmp(buf, zerobuf, rdlen) != 0) {
+			/*
+			 * Find where the next log record starts after the
+			 * hole.  We can do some simple data verification to
+			 * ensure that this part of the file is not corrupted.
+			 */
+			for (p = buf; remainder > 0;
+			     remainder -= (wt_off_t)rdlen, p += rdlen) {
+				rdlen = WT_MIN(WT_LOG_ALIGN, (size_t)remainder);
+				if (memcmp(p, zerobuf, rdlen) != 0)
+					break;
+			}
+			/*
+			 * A presumed log record begins here.  Try some
+			 * basic verification if enough of the record is
+			 * present.  This record may also be partially written.
+			 */
+			logrec = (WT_LOG_RECORD *)p;
+			if (remainder >= (wt_off_t)sizeof(WT_LOG_RECORD)) {
+				WT_ERR(__log_record_verify(
+				    session, fh, logrec, &corrupt));
+				if (corrupt)
+					*error_offset = off + (p - buf);
+			}
 			*hole = true;
 			break;
 		}
@@ -1852,6 +1914,31 @@ __log_has_hole(WT_SESSION_IMPL *session,
 err:	__wt_free(session, buf);
 	__wt_free(session, zerobuf);
 	return (ret);
+}
+
+/*
+ * __log_check_partial_write --
+ *	Determine if the log record is not a partial write. A partial write
+ *	is initially detected by a mismatched checksum. A partial write
+ *	will have zeroes for some portion at the end.  If there are no zeroes,
+ *	the write cannot be partial, and the checksum error must be the
+ *	result of corruption.
+ */
+static void
+__log_check_partial_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
+    uint32_t reclen, bool *corrupt)
+{
+	uint8_t *rec;
+
+	WT_UNUSED(session);
+
+	/*
+	 * We only check the final byte. An actual partial write would likely
+	 * end on an aligned memory boundary, but I don't think there are any
+	 * guarantees of this.
+	 */
+	rec = buf->mem;
+	*corrupt = (rec[reclen - 1] != 0);
 }
 
 /*
@@ -2023,6 +2110,22 @@ err:	if (locked)
 }
 
 /*
+ * __log_salvageable_error --
+ *	Show error messages consistently for a salvageable error.
+ */
+static int
+__log_salvageable_error(WT_SESSION_IMPL *session, const char *log_name,
+    const char *extra_msg, wt_off_t offset)
+{
+	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_RECOVER_SALVAGE))
+		WT_PANIC_RET(session, WT_ERROR,
+		    "log file %s corrupted%s at position %" PRIuMAX
+		    ", use salvage to fix", log_name, extra_msg,
+		    (uintmax_t)offset);
+	return (WT_ERROR);
+}
+
+/*
  * __wt_log_scan --
  *	Scan the logs, calling a function on each record found.
  */
@@ -2042,20 +2145,20 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	WT_LOG *log;
 	WT_LOG_RECORD *logrec;
 	WT_LSN end_lsn, next_lsn, prev_eof, prev_lsn, rd_lsn, start_lsn;
-	wt_off_t log_size;
+	wt_off_t bad_offset, log_size;
 	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
 	uint16_t version;
 	u_int i, logcount;
 	int firstrecord;
 	char **logfiles;
-	bool eol, need_salvage, partial_record;
+	bool corrupt, eol, need_salvage, partial_record;
 
 	conn = S2C(session);
 	log = conn->log;
 	log_fh = NULL;
 	logcount = 0;
 	logfiles = NULL;
-	eol = false;
+	corrupt = eol = false;
 	firstrecord = 1;
 	need_salvage = false;
 
@@ -2174,14 +2277,21 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 advance:
 			if (rd_lsn.l.offset == log_size)
 				partial_record = false;
-			else
+			else {
 				/*
 				 * See if there is anything non-zero at the
 				 * end of this log file.
 				 */
 				WT_ERR(__log_has_hole(
 				    session, log_fh, log_size,
-				    rd_lsn.l.offset, &partial_record));
+				    rd_lsn.l.offset, &bad_offset,
+				    &partial_record));
+				if (bad_offset != 0) {
+					need_salvage = true;
+					WT_ERR(__log_salvageable_error(session,
+					    log_fh->name, "", bad_offset));
+				}
+			}
 			/*
 			 * If we read the last record, go to the next file.
 			 */
@@ -2288,7 +2398,13 @@ advance:
 		 */
 		if (reclen == 0) {
 			WT_ERR(__log_has_hole(
-			    session, log_fh, log_size, rd_lsn.l.offset, &eol));
+			    session, log_fh, log_size, rd_lsn.l.offset,
+			    &bad_offset, &eol));
+			if (bad_offset != 0) {
+				need_salvage = true;
+				WT_ERR(__log_salvageable_error(session,
+				    log_fh->name, "", bad_offset));
+			}
 			if (eol)
 				/* Found a hole. This LSN is the end. */
 				break;
@@ -2316,19 +2432,23 @@ advance:
 			WT_STAT_CONN_INCR(session, log_scan_rereads);
 		}
 		/*
-		 * We read in the record, verify checksum. A failed checksum
-		 * does not imply corruption, it may be the result of a
-		 * partial write.
-		 *
-		 * Handle little- and big-endian objects. Objects are written
-		 * in little-endian format: save the header checksum, and
-		 * calculate the checksum for the header in its little-endian
-		 * form. Then, restore the header's checksum, and byte-swap
-		 * the whole thing as necessary, leaving us with a calculated
-		 * checksum that should match the checksum in the header.
+		 * We read in the record, now make some checks.
+		 * These checks are conservative, if they fail, there
+		 * is definitely corruption.
 		 */
 		buf->size = reclen;
 		logrec = (WT_LOG_RECORD *)buf->mem;
+		WT_ERR(__log_record_verify(session, log_fh, logrec, &corrupt));
+		if (corrupt) {
+			need_salvage = true;
+			WT_ERR(__log_salvageable_error(session, log_fh->name,
+			    "", rd_lsn.l.offset));
+		}
+
+		/*
+		 * Now verify checksum. A failed checksum does not imply
+		 * corruption, it may be the result of a partial write.
+		 */
 		if (!__log_checksum_match(session, buf, reclen)) {
 			/*
 			 * A checksum mismatch means we have reached the end of
@@ -2339,6 +2459,15 @@ advance:
 			 */
 			if (log != NULL)
 				log->trunc_lsn = rd_lsn;
+			/* Make a check to ensure it's a partial write. */
+			__log_check_partial_write(session, buf, reclen,
+			    &corrupt);
+			if (corrupt) {
+				need_salvage = true;
+				WT_ERR(__log_salvageable_error(session,
+				    log_fh->name, ", bad checksum",
+				    rd_lsn.l.offset));
+			}
 			/*
 			 * If the user asked for a specific LSN and it is not
 			 * a valid LSN, return WT_NOTFOUND.
@@ -2402,7 +2531,7 @@ err:	WT_STAT_CONN_INCR(session, log_scans);
 	 * If we are salvaging and failed a salvageable operation, then
 	 * truncate the log at the fail point.
 	 */
-	if (ret != 0 && need_salvage) {
+	if (ret != 0 && ret != WT_PANIC && need_salvage) {
 		WT_TRET(__wt_close(session, &log_fh));
 		log_fh = NULL;
 		WT_TRET(__log_truncate(session, &rd_lsn, false, true));
