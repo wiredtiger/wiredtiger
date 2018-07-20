@@ -500,9 +500,9 @@ err:	if (locked)
 static int
 __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 {
-	WT_CONNECTION_IMPL *conn;
 	struct timespec ts;
 	struct tm localt;
+	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
 
