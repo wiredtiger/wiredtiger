@@ -473,44 +473,31 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
 /* pre_load_data --
  *	Pull everything into cache before starting the workload phase.
  */
-static int
+static void
 pre_load_data(WTPERF *wtperf)
 {
 	CONFIG_OPTS *opts;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
-	char *key;
-	int ret;
 	size_t i;
+	int ret;
+	char *key;
 
 	opts = wtperf->opts;
 	conn = wtperf->conn;
 
-	if ((ret = conn->open_session(
-	    conn, NULL, opts->sess_config, &session)) != 0) {
-		lprintf(wtperf, ret, 0, "worker: WT_CONNECTION.open_session");
-		goto err;
-	}
+	testutil_check(conn->open_session(
+	    conn, NULL, opts->sess_config, &session));
 	for (i = 0; i < opts->table_count; i++) {
-		if ((ret = session->open_cursor(session,
-		    wtperf->uris[i], NULL, NULL, &cursor)) != 0) {
-			lprintf(wtperf, ret, 0,
-			    "worker: WT_SESSION.open_cursor: %s",
-			    wtperf->uris[i]);
-			goto err;
-		}
-		while (cursor->next(cursor) == 0)
-			if ((ret = cursor->get_key(cursor, &key)) != 0)
-				goto err;
-		if ((ret = cursor->close(cursor)) != 0)
-			goto err;
+		testutil_check(session->open_cursor(
+		    session, wtperf->uris[i], NULL, NULL, &cursor));
+		while ((ret = cursor->next(cursor)) == 0)
+			testutil_check(cursor->get_key(cursor, &key));
+		testutil_assert(ret == WT_NOTFOUND);
+		testutil_check(cursor->close(cursor));
 	}
-	if ((ret = session->close(session, NULL)) != 0)
-		goto err;
-	if (ret != 0)
-err:		lprintf(wtperf, ret, 0, "Pre-workload traverse error");
-	return (ret);
+	testutil_check(session->close(session, NULL));
 }
 
 static WT_THREAD_RET
@@ -2286,8 +2273,9 @@ start_run(WTPERF *wtperf)
 			start_threads(wtperf, NULL, wtperf->ckptthreads,
 			    opts->checkpoint_threads, checkpoint_worker);
 		}
-		if (opts->pre_load_data && (ret = pre_load_data(wtperf)) != 0)
-			goto err;
+		if (opts->pre_load_data)
+			pre_load_data(wtperf);
+
 		/* Execute the workload. */
 		if ((ret = execute_workload(wtperf)) != 0)
 			goto err;
