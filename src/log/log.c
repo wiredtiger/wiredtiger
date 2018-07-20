@@ -2158,7 +2158,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	}
 	WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn,
 	    NULL, &need_salvage));
-	WT_ERR_TEST(need_salvage, WT_ERROR);
+	if (need_salvage)
+		WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
 	rd_lsn = start_lsn;
 	if (LF_ISSET(WT_LOGSCAN_RECOVER))
@@ -2224,7 +2225,9 @@ advance:
 			WT_ERR(__log_open_verify(session,
 			    rd_lsn.l.file, &log_fh, &prev_lsn, &version,
 			    &need_salvage));
-			WT_ERR_TEST(need_salvage, WT_ERROR);
+			if (need_salvage)
+				WT_ERR_MSG(session, WT_ERROR,
+				    "log file requires salvage");
 			/*
 			 * Opening the log file reads with verify sets up the
 			 * previous LSN from the first record.  This detects
