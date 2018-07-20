@@ -532,7 +532,7 @@ __wt_log_extract_lognum(
 
 	if (id == NULL || name == NULL)
 		WT_RET_MSG(session, EINVAL,
-		    "%s: unexpected usage: no id or no name", __func__);
+		    "unexpected usage: no id or no name");
 	if ((p = strrchr(name, '.')) == NULL ||
 	    sscanf(++p, "%" SCNu32, id) != 1)
 		WT_RET_MSG(session, WT_ERROR, "Bad log file name '%s'", name);
@@ -717,8 +717,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	compressor = conn->log_compressor;
 	if (compressor == NULL || compressor->decompress == NULL)
 		WT_RET_MSG(session, WT_ERROR,
-		    "%s: Compressed record with no configured compressor",
-		    __func__);
+		    "Compressed record with no configured compressor");
 	uncompressed_size = logrec->mem_len;
 	WT_RET(__wt_buf_initsize(session, out, uncompressed_size));
 	memcpy(out->mem, in->mem, skip);
@@ -735,7 +734,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	 */
 	if (result_len != uncompressed_size - WT_LOG_COMPRESS_SKIP)
 		WT_RET_MSG(session, WT_ERROR,
-		    "%s: decompression failed with incorrect size", __func__);
+		    "decompression failed with incorrect size");
 
 	return (0);
 }
@@ -757,8 +756,7 @@ __log_decrypt(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	    (encryptor = kencryptor->encryptor) == NULL ||
 	    encryptor->decrypt == NULL)
 		WT_RET_MSG(session, WT_ERROR,
-		    "%s: Encrypted record with no configured decrypt method",
-		    __func__);
+		    "Encrypted record with no configured decrypt method");
 
 	return (__wt_decrypt(session, encryptor, WT_LOG_ENCRYPT_SKIP, in, out));
 }
@@ -2084,7 +2082,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 				start_lsn = log->ckpt_lsn;
 			else if (!LF_ISSET(WT_LOGSCAN_FIRST))
 				WT_RET_MSG(session, WT_ERROR,
-				    "%s: WT_LOGSCAN_FIRST not set", __func__);
+				    "WT_LOGSCAN_FIRST not set");
 		}
 		lastlog = log->fileid;
 	} else {
