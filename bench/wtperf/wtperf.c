@@ -608,8 +608,7 @@ worker(void *arg)
 
 	/* Setup for truncate */
 	if (workload->truncate != 0)
-		if ((ret = setup_truncate(wtperf, thread, session)) != 0)
-			goto err;
+		setup_truncate(wtperf, thread, session);
 
 	key_buf = thread->key_buf;
 	value_buf = thread->value_buf;
