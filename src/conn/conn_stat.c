@@ -500,18 +500,18 @@ err:	if (locked)
 static int
 __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 {
-	struct timespec ts;
-	struct tm *tm, _tm;
 	WT_CONNECTION_IMPL *conn;
+	struct timespec ts;
+	struct tm localt;
 
 	conn = S2C(session);
 
 	/* Get the current local time of day. */
 	__wt_epoch(session, &ts);
-	tm = localtime_r(&ts.tv_sec, &_tm);
+	WT_RET(__wt_localtime(session, &ts.tv_sec, &localt));
 
 	/* Create the logging path name for this time of day. */
-	if (strftime(tmp->mem, tmp->memsize, conn->stat_path, tm) == 0)
+	if (strftime(tmp->mem, tmp->memsize, conn->stat_path, &localt) == 0)
 		WT_RET_MSG(session, ENOMEM, "strftime path conversion");
 
 	/* If the path has changed, cycle the log file. */
@@ -527,7 +527,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	}
 
 	/* Create the entry prefix for this time of day. */
-	if (strftime(tmp->mem, tmp->memsize, conn->stat_format, tm) == 0)
+	if (strftime(tmp->mem, tmp->memsize, conn->stat_format, &localt) == 0)
 		WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
 	conn->stat_stamp = tmp->mem;
 	WT_RET(__statlog_print_header(session));

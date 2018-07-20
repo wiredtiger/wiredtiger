@@ -32,4 +32,5 @@ extern void __wt_thread_id(uintmax_t *id) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility
 extern int __wt_thread_str(char *buf, size_t buflen) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uintmax_t __wt_process_id(void);
 extern void __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp);
+extern int __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct tm *result) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_yield(void) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
