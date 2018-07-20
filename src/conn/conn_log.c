@@ -1066,7 +1066,7 @@ __wt_logmgr_create(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_INIT_LSN(&log->trunc_lsn);
 	WT_INIT_LSN(&log->write_lsn);
 	WT_INIT_LSN(&log->write_start_lsn);
-	log->fileid = 0;
+	log->fileid = log->lastid = 0;
 	WT_RET(__logmgr_version(session, false));
 
 	WT_RET(__wt_cond_alloc(session, "log sync", &log->log_sync_cond));
