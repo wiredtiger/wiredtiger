@@ -1323,7 +1323,7 @@ monitor(void *arg)
 			continue;
 
 		__wt_epoch(NULL, &t);
-		testutil_assert(localtime_r(&t.tv_sec, &localt) != NULL);
+		testutil_check(__wt_localtime(NULL, &t.tv_sec, &localt));
 		testutil_assert(
 		    strftime(buf, sizeof(buf), "%b %d %H:%M:%S", &localt) != 0);
 

@@ -54,6 +54,7 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
  */
 int
 __wt_localtime(WT_SESSION_IMPL *session, const time_t *timep, struct tm *result)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	if (localtime_r(timep, result) != NULL)
 		return (0);
