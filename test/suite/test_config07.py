@@ -28,6 +28,7 @@
 
 import fnmatch, os
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 # test_config07.py
 #    Test that log files extend as configured and as documented.
@@ -35,6 +36,15 @@ class test_config07(wttest.WiredTigerTestCase):
     uri = "table:test"
     entries = 100000
     K = 1024
+
+    extend_len = [
+        ('default', dict(log_extend_len='()', expected_log_size = 100 * K)),
+        ('empty', dict(log_extend_len='(log=)', expected_log_size = 100 * K)),
+        ('disable', dict(log_extend_len='(log=0)', expected_log_size = 128)),
+        ('20K', dict(log_extend_len='(log=20K)', expected_log_size = 20 * K)),
+    ]
+
+    scenarios = make_scenarios(extend_len)
 
     def populate(self):
         cur = self.session.open_cursor(self.uri, None, None)
@@ -48,8 +58,10 @@ class test_config07(wttest.WiredTigerTestCase):
         file_size = os.stat(f).st_size
         self.assertEqual(size, file_size)
 
-    def log_extend_test(self, config, size):
+    def test_log_extend(self):
         self.conn.close()
+
+        config = 'log=(enabled,file_max=100K),file_extend=' + self.log_extend_len
         # Create a table, insert data in it to trigger log file writes.
         configarg = 'create,statistics=(fast)' + ',' + config
         self.conn = self.wiredtiger_open('.', configarg)
@@ -58,23 +70,7 @@ class test_config07(wttest.WiredTigerTestCase):
         self.populate()
         self.session.checkpoint()
 
-        self.checkLogFileSize(size)
-
-    def test_log_extend_default(self):
-        conn_config = 'log=(enabled,file_max=100K),file_extend=(log=)'
-        self.log_extend_test(conn_config, 100 * self.K)
-
-    def test_log_extend_empty(self):
-        conn_config = 'log=(enabled,file_max=100K),file_extend=(log=)'
-        self.log_extend_test(conn_config, 100 * self.K)
-
-    def test_log_extend_disable(self):
-        conn_config = 'log=(enabled,file_max=100K),file_extend=(log=0)'
-        self.log_extend_test(conn_config, 128)
-
-    def test_log_extend_by_size(self):
-        conn_config = 'log=(enabled,file_max=100K),file_extend=(log=20K)'
-        self.log_extend_test(conn_config, 20 * self.K)
+        self.checkLogFileSize(self.expected_log_size)
 
 if __name__ == '__main__':
     wttest.run()
