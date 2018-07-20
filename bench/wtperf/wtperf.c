@@ -1268,7 +1268,7 @@ static WT_THREAD_RET
 monitor(void *arg)
 {
 	struct timespec t;
-	struct tm *tm, _tm;
+	struct tm localt;
 	CONFIG_OPTS *opts;
 	FILE *fp;
 	WTPERF *wtperf;
@@ -1337,8 +1337,9 @@ monitor(void *arg)
 			continue;
 
 		__wt_epoch(NULL, &t);
-		tm = localtime_r(&t.tv_sec, &_tm);
-		(void)strftime(buf, sizeof(buf), "%b %d %H:%M:%S", tm);
+		testutil_assert(localtime_r(&t.tv_sec, &localt) != NULL);
+		testutil_assert(
+		    strftime(buf, sizeof(buf), "%b %d %H:%M:%S", &localt) != 0);
 
 		reads = sum_read_ops(wtperf);
 		inserts = sum_insert_ops(wtperf);
