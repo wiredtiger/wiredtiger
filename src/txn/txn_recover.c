@@ -659,7 +659,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 		if (F_ISSET(conn, WT_CONN_READONLY))
 			WT_ERR_MSG(session, WT_RUN_RECOVERY,
 			    "Read-only database needs recovery");
-		WT_ERR(WT_RUN_RECOVERY);
+		WT_ERR_MSG(session, WT_RUN_RECOVERY, "Database needs recovery");
 	}
 
 	if (F_ISSET(conn, WT_CONN_READONLY)) {
