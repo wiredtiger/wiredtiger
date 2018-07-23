@@ -218,7 +218,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         return self.corruptpos == self.record_to_logfile(self.nrecords)
 
     # Corruption past the last written record in a log file can sometimes
-    # be detected. In our test case, the last log file zero or one large
+    # be detected. In our test case, the last log file has zero or one large
     # 60K record written into it, but it is presized to 100K.  Corruption
     # at the end of this file creates a hole, and the corruption starts
     # a new log record, where it can be detected as phony.  Similarly,

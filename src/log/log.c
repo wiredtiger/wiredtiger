@@ -1079,7 +1079,7 @@ err:	__wt_scr_free(session, &buf);
  *	Check that values of the log record header are valid.
  */
 static int
-__log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh,
+__log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh, uint32_t offset,
     WT_LOG_RECORD *logrec, bool *corrupt)
 {
 	size_t i;
@@ -1087,24 +1087,28 @@ __log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh,
 	*corrupt = false;
 	if (F_ISSET(logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
 		WT_RET(__wt_msg(session,
-		    "%s: log record flag corruption", log_fh->name));
+		    "%s: log record at position %" PRIu32
+		    " has flag corruption", log_fh->name, offset));
 		*corrupt = true;
 	}
 	for (i = 0; i < sizeof(logrec->unused); i++)
 		if (logrec->unused[i] != 0) {
 			WT_RET(__wt_msg(session,
-			    "%s: log record unused corruption", log_fh->name));
+			    "%s: log record at position %" PRIu32
+			    " has unused corruption", log_fh->name, offset));
 			*corrupt = true;
 		}
 	if (logrec->mem_len != 0 && !F_ISSET(logrec,
 	    WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
 		WT_RET(__wt_msg(session,
-		    "%s: log record memory len corruption", log_fh->name));
+		    "%s: log record at position %" PRIu32
+		    " has memory len corruption", log_fh->name, offset));
 		*corrupt = true;
 	}
 	if (logrec->len <= offsetof(WT_LOG_RECORD, record)) {
 		WT_RET(__wt_msg(session,
-		    "%s: log record len corruption", log_fh->name));
+		    "%s: log record at position %" PRIu32
+		    " has record len corruption", log_fh->name, offset));
 		*corrupt = true;
 	}
 	return (0);
@@ -1901,10 +1905,11 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 			 */
 			logrec = (WT_LOG_RECORD *)p;
 			if (remainder >= (wt_off_t)sizeof(WT_LOG_RECORD)) {
-				WT_ERR(__log_record_verify(
-				    session, fh, logrec, &corrupt));
+				off += p - buf;
+				WT_ERR(__log_record_verify(session, fh,
+				    (uint32_t)off, logrec, &corrupt));
 				if (corrupt)
-					*error_offset = off + (p - buf);
+					*error_offset = off;
 			}
 			*hole = true;
 			break;
@@ -1918,27 +1923,38 @@ err:	__wt_free(session, buf);
 
 /*
  * __log_check_partial_write --
- *	Determine if the log record is not a partial write. A partial write
- *	is initially detected by a mismatched checksum. A partial write
- *	will have zeroes for some portion at the end.  If there are no zeroes,
- *	the write cannot be partial, and the checksum error must be the
- *	result of corruption.
+ *	Determine if the log record may be a partial write. If that's
+ *	possible, return true, otherwise false.
+ *
+ *	Since the log file is initially zeroed up to a predetermined size,
+ *	any record that falls within that boundary that ends in one or
+ *	more zeroes may be partial (or the initial record may have been
+ *	padded with zeroes before writing). The only way we have any certainty
+ *	is if the last byte is non-zero, when that happens, we know that
+ *	the write cannot be partial.
+ *
+ *	When we have a checksum mismatch, it is important to know that whether
+ *	it may be 1) the result of a partial write or 2) the result of
+ *	corruption. The former can happen in normal operations, and we
+ *	will silently truncate the log when it occurs. The latter will
+ *	result in an error during recovery, and requires salvage to fix.
  */
-static void
+static bool
 __log_check_partial_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
-    uint32_t reclen, bool *corrupt)
+    uint32_t reclen)
 {
 	uint8_t *rec;
 
 	WT_UNUSED(session);
 
 	/*
-	 * We only check the final byte. An actual partial write would likely
-	 * end on an aligned memory boundary, but I don't think there are any
-	 * guarantees of this.
+	 * We only check the final byte since that's the only way have any
+	 * certainty. Even if the second to last byte is non-zero and the
+	 * last byte is zero, that could still technically be the result of
+	 * a partial write, however unlikely it may be.
 	 */
 	rec = buf->mem;
-	*corrupt = (rec[reclen - 1] != 0);
+	return (reclen > 0 && rec[reclen - 1] == 0);
 }
 
 /*
@@ -2438,7 +2454,8 @@ advance:
 		 */
 		buf->size = reclen;
 		logrec = (WT_LOG_RECORD *)buf->mem;
-		WT_ERR(__log_record_verify(session, log_fh, logrec, &corrupt));
+		WT_ERR(__log_record_verify(session, log_fh, rd_lsn.l.offset,
+		    logrec, &corrupt));
 		if (corrupt) {
 			need_salvage = true;
 			WT_ERR(__log_salvageable_error(session, log_fh->name,
@@ -2459,10 +2476,13 @@ advance:
 			 */
 			if (log != NULL)
 				log->trunc_lsn = rd_lsn;
-			/* Make a check to ensure it's a partial write. */
-			__log_check_partial_write(session, buf, reclen,
-			    &corrupt);
-			if (corrupt) {
+			/* Make a check to see if it may be a partial write. */
+			if (!__log_check_partial_write(session, buf, reclen)) {
+				/*
+				 * It's not a partial write, and we have a bad
+				 * checksum. We treat it as a corruption that
+				 * must be salvaged.
+				 */
 				need_salvage = true;
 				WT_ERR(__log_salvageable_error(session,
 				    log_fh->name, ", bad checksum",
