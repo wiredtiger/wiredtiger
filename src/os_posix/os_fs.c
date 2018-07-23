@@ -552,9 +552,13 @@ __posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	size_t chunk;
 	ssize_t nw;
 	const uint8_t *addr;
+	wt_off_t orig_off;
+	size_t orig_len;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+	orig_off = offset;
+	orig_len = len;
 
 	/* Assert direct I/O is aligned and a multiple of the alignment. */
 	WT_ASSERT(session,
@@ -573,6 +577,14 @@ __posix_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 			    "%s: handle-write: pwrite: failed to write %"
 			    WT_SIZET_FMT " bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);
+	}
+	if (((WT_SESSION *)session)->app_private != NULL) {
+		__wt_verbose(session, WT_VERB_TEMPORARY,
+		  "WRITE: %s: %s: offset %" PRIu64 " len %" PRIu64,
+		  ((WT_SESSION *)session)->app_private,
+		  file_handle->name,
+		  (uint64_t)orig_off, (uint64_t)orig_len);
+		fflush(stdout);
 	}
 	return (0);
 }
