@@ -247,7 +247,7 @@ __txn_op_apply(
 			stop = cursor;
 			break;
 
-		WT_ILLEGAL_VALUE_ERR(session);
+		WT_ILLEGAL_VALUE_ERR(session, mode);
 		}
 
 		/* Set the keys. */
@@ -264,7 +264,7 @@ __txn_op_apply(
 		WT_ERR(ret);
 		break;
 
-	WT_ILLEGAL_VALUE_ERR(session);
+	WT_ILLEGAL_VALUE_ERR(session, optype);
 	}
 
 	/* Reset the cursor so it doesn't block eviction. */

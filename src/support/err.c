@@ -546,12 +546,14 @@ __wt_panic(WT_SESSION_IMPL *session)
  *	A standard error message when we detect an illegal value.
  */
 int
-__wt_illegal_value_func(WT_SESSION_IMPL *session, const char *func, int line)
+__wt_illegal_value_func(
+    WT_SESSION_IMPL *session, uintmax_t v, const char *func, int line)
     WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	__wt_err_func(session, EINVAL,
-	    func, line, "encountered an illegal file format or internal value");
+	    func, line, "%s: 0x%" PRIxMAX,
+	    "encountered an illegal file format or internal value", v);
 	return (__wt_panic(session));
 }
 

@@ -1321,7 +1321,7 @@ done:		switch (modify_type) {
 			break;
 		case WT_UPDATE_BIRTHMARK:
 		case WT_UPDATE_TOMBSTONE:
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, modify_type);
 		}
 	}
 

@@ -500,7 +500,7 @@ __curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 			passed = (cmp < 0);
 			break;
 
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, WT_CURJOIN_END_RANGE(end));
 		}
 
 		if (!passed) {
