@@ -96,6 +96,10 @@
 #define	WT_TRET_BUSY_OK(a)	WT_TRET_ERROR_OK(a, EBUSY)
 #define	WT_TRET_NOTFOUND_OK(a)	WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
+/* Called on unexpected code path: locate the failure. */
+#define	__wt_illegal_value(session, msg)				\
+	__wt_illegal_value_func(session, msg, __func__, __LINE__)
+
 /* Return and branch-to-err-label cases for switch statements. */
 #define	WT_ILLEGAL_VALUE(session)					\
 	default:							\
