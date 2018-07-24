@@ -97,21 +97,17 @@
 #define	WT_TRET_NOTFOUND_OK(a)	WT_TRET_ERROR_OK(a, WT_NOTFOUND)
 
 /* Called on unexpected code path: locate the failure. */
-#define	__wt_illegal_value(session, msg)				\
-	__wt_illegal_value_func(session, msg, __func__, __LINE__)
+#define	__wt_illegal_value(session)					\
+	__wt_illegal_value_func(session, __func__, __LINE__)
 
 /* Return and branch-to-err-label cases for switch statements. */
 #define	WT_ILLEGAL_VALUE(session)					\
 	default:							\
-		return (__wt_illegal_value(session, NULL))
+		return (__wt_illegal_value(session))
 #define	WT_ILLEGAL_VALUE_ERR(session)					\
 	default:							\
-		ret = __wt_illegal_value(session, NULL);		\
+		ret = __wt_illegal_value(session);			\
 		goto err
-#define	WT_ILLEGAL_VALUE_SET(session)					\
-	default:							\
-		ret = __wt_illegal_value(session, NULL);		\
-		break
 
 #define	WT_PANIC_MSG(session, v, ...) do {				\
 	__wt_err(session, v, __VA_ARGS__);				\
