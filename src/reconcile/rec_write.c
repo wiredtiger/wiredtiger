@@ -481,7 +481,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	case WT_PAGE_ROW_LEAF:
 		ret = __rec_row_leaf(session, r, page, salvage);
 		break;
-	WT_ILLEGAL_VALUE_SET(session);
+	default:
+		ret = __wt_illegal_value(session);
+		break;
 	}
 
 	/*
@@ -4161,11 +4163,10 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			break;
 		case WT_CHILD_PROXY:
 			/*
-			 * Deleted child where we write a proxy cell, not
-			 * yet supported for column-store.
+			 * Deleted child where we write a proxy cell, not yet
+			 * supported for column-store.
 			 */
-			ret = __wt_illegal_value(session, NULL);
-			goto err;
+			WT_ERR(__wt_illegal_value(session));
 		}
 
 		/*
