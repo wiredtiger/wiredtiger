@@ -630,7 +630,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * Clear this out.  We no longer need it and it could have been
 	 * re-allocated when scanning the files.
 	 */
-	metafile = NULL;
+	WT_NOT_READ(metafile, NULL);
 
 	/*
 	 * We no longer need the metadata cursor: close it to avoid pinning any
