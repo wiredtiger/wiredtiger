@@ -1088,27 +1088,31 @@ __log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh, uint32_t offset,
 	if (F_ISSET(logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
 		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
-		    " has flag corruption", log_fh->name, offset));
+		    " has flag corruption %" PRIx16, log_fh->name, offset,
+		    logrec->flags));
 		*corrupt = true;
 	}
 	for (i = 0; i < sizeof(logrec->unused); i++)
 		if (logrec->unused[i] != 0) {
 			WT_RET(__wt_msg(session,
 			    "%s: log record at position %" PRIu32
-			    " has unused corruption", log_fh->name, offset));
+			    " has unused[%" WT_SIZET_FMT "] corruption %" PRIx8,
+			    log_fh->name, offset, i, logrec->unused[i]));
 			*corrupt = true;
 		}
 	if (logrec->mem_len != 0 && !F_ISSET(logrec,
 	    WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
 		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
-		    " has memory len corruption", log_fh->name, offset));
+		    " has memory len corruption %" PRIx32, log_fh->name,
+		    offset, logrec->mem_len));
 		*corrupt = true;
 	}
 	if (logrec->len <= offsetof(WT_LOG_RECORD, record)) {
 		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
-		    " has record len corruption", log_fh->name, offset));
+		    " has record len corruption %" PRIx32, log_fh->name,
+		    offset, logrec->len));
 		*corrupt = true;
 	}
 	return (0);
