@@ -115,6 +115,31 @@ usage(void)
 static const char * const config = NULL;
 
 /*
+ * schema_abort_error_handler --
+ *     Error event handler.
+ */
+static int
+schema_abort_error_handler(WT_EVENT_HANDLER *handler,
+    WT_SESSION *session, int error, const char *message)
+{
+	(void)(handler);
+	(void)(session);
+	(void)(error);
+
+	/* Filter out errors about bulk load usage - they are annoying */
+	if (strstr(message, "bulk-load is only supported on newly") == NULL)
+		fprintf(stderr, "%s", message);
+	return (0);
+}
+
+static WT_EVENT_HANDLER event_handler = {
+	schema_abort_error_handler,
+	NULL,   /* Message handler */
+	NULL,   /* Progress handler */
+	NULL    /* Close handler */
+};
+
+/*
  * The following are various schema-related functions to have some threads
  * performing during the test. The goal is to make sure that after a random
  * abort, the database is left in a recoverable state. Yield during the
@@ -786,7 +811,7 @@ run_workload(uint32_t nth)
 	if (compat)
 		strcat(envconf, ENV_CONFIG_COMPAT);
 
-	testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
+	testutil_check(wiredtiger_open(NULL, &event_handler, envconf, &conn));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	/*
 	 * Create all the tables.
@@ -834,7 +859,7 @@ run_workload(uint32_t nth)
 	 */
 	fflush(stdout);
 	for (i = 0; i <= ts_id; ++i)
-		testutil_check(__wt_thread_join(NULL, thr[i]));
+		testutil_check(__wt_thread_join(NULL, &thr[i]));
 	/*
 	 * NOTREACHED
 	 */
@@ -1087,7 +1112,8 @@ main(int argc, char *argv[])
 	/*
 	 * Open the connection which forces recovery to be run.
 	 */
-	testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+	testutil_check(wiredtiger_open(
+	    NULL, &event_handler, ENV_CONFIG_REC, &conn));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	/*
 	 * Open a cursor on all the tables.
