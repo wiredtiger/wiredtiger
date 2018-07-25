@@ -100,7 +100,7 @@ typedef struct {
 	uint32_t info;
 } THREAD_DATA;
 
-static void handler(int)
+static void sig_handler(int)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -918,7 +918,7 @@ print_missing(REPORT *r, const char *fname, const char *msg)
  * Signal handler to catch if the child died unexpectedly.
  */
 static void
-handler(int sig)
+sig_handler(int sig)
 {
 	pid_t pid;
 
@@ -1054,7 +1054,7 @@ main(int argc, char *argv[])
 		 * exist after recovery runs.
 		 */
 		memset(&sa, 0, sizeof(sa));
-		sa.sa_handler = handler;
+		sa.sa_handler = sig_handler;
 		testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
 		testutil_checksys((pid = fork()) < 0);
 
