@@ -915,7 +915,6 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
 {
-	WT_BTREE *btree;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -925,8 +924,7 @@ __wt_btcur_insert_check(WT_CURSOR_BTREE *cbt)
 	session = (WT_SESSION_IMPL *)cursor->session;
 	yield_count = sleep_usecs = 0;
 
-	btree = cbt->btree;
-	WT_ASSERT(session, btree->type == BTREE_ROW);
+	WT_ASSERT(session, cbt->btree->type == BTREE_ROW);
 
 	/*
 	 * The pinned page goes away if we do a search, get a local copy of any
