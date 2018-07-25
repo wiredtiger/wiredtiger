@@ -2798,8 +2798,10 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	/*
 	 * If the caller's record only partially fills the necessary
 	 * space, we need to zero-fill the remainder.
+	 *
+	 * The cast is safe, we've already checked to make sure it's in range.
 	 */
-	fill_size = rdup_len - record->size;
+	fill_size = rdup_len - (uint32_t)record->size;
 	if (fill_size != 0) {
 		memset((uint8_t *)record->mem + record->size, 0, fill_size);
 		/*
