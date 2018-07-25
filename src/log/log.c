@@ -2769,7 +2769,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	WT_LSN lsn;
 	WT_MYSLOT myslot;
 	int64_t release_size;
-	uint32_t force, rdup_len;
+	uint32_t fill_size, force, rdup_len;
 	bool free_slot;
 
 	conn = S2C(session);
@@ -2798,10 +2798,39 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	/*
 	 * If the caller's record only partially fills the necessary
 	 * space, we need to zero-fill the remainder.
+	 *
+	 * The cast is safe, we've already checked to make sure it's in range.
 	 */
-	if (record->size != rdup_len) {
-		memset((uint8_t *)record->mem + record->size, 0,
-		    rdup_len - record->size);
+	fill_size = rdup_len - (uint32_t)record->size;
+	if (fill_size != 0) {
+		memset((uint8_t *)record->mem + record->size, 0, fill_size);
+		/*
+		 * Set the last byte of the log record to a non-zero value,
+		 * that allows us, on the input side, to tell that a log
+		 * record was completely written; there couldn't have been
+		 * a partial write. That means that any checksum mismatch
+		 * in those conditions is a log corruption.
+		 *
+		 * Without this changed byte, when we see a zeroed last byte,
+		 * we must always treat a checksum error as a possible partial
+		 * write. Since partial writes can happen as a result of an
+		 * interrupted process (for example, a shutdown), we must
+		 * treat a checksum error as a normal occurrence, and merely
+		 * the place where the log must be truncated. So any real
+		 * corruption within log records is hard to detect as such.
+		 *
+		 * However, we can only make this modification if there is
+		 * more than one byte being filled, as the first zero byte
+		 * past the actual record is needed to terminate the loop
+		 * in txn_commit_apply.
+		 *
+		 * This is not a log format change, as we only are changing a
+		 * byte in the padding portion of a record, and no logging code
+		 * has ever checked that it is any particular value up to now.
+		 */
+		if (fill_size > 1)
+			*((uint8_t *)record->mem + rdup_len - 1) =
+			    WT_DEBUG_BYTE;
 		record->size = rdup_len;
 	}
 	/*
