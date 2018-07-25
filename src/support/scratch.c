@@ -189,7 +189,7 @@ err:	__wt_scr_free(session, &tmp);
 		return ((const char *)buf->data);
 
 	retp = "failed to create printable output";
-	__wt_err(session, ret, "%s: %s", __func__, retp);
+	__wt_err(session, ret, "%s", retp);
 	return (retp);
 }
 
