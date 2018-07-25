@@ -1077,42 +1077,52 @@ err:	__wt_scr_free(session, &buf);
 /*
  * __log_record_verify --
  *	Check that values of the log record header are valid.
+ *	No byteswap of the header has been done at this point.
  */
 static int
 __log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh, uint32_t offset,
-    WT_LOG_RECORD *logrec, bool *corrupt)
+    WT_LOG_RECORD *logrecp, bool *corrupt)
 {
+	WT_LOG_RECORD logrec;
 	size_t i;
 
 	*corrupt = false;
-	if (F_ISSET(logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
+
+	/*
+	 * Make our own copy of the header so we can get the bytes in the
+	 * proper order.
+	 */
+	logrec = *logrecp;
+	__wt_log_record_byteswap(&logrec);
+
+	if (F_ISSET(&logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
 		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
-		    " has flag corruption %" PRIx16, log_fh->name, offset,
-		    logrec->flags));
+		    " has flag corruption 0x%" PRIx16, log_fh->name, offset,
+		    logrec.flags));
 		*corrupt = true;
 	}
-	for (i = 0; i < sizeof(logrec->unused); i++)
-		if (logrec->unused[i] != 0) {
+	for (i = 0; i < sizeof(logrec.unused); i++)
+		if (logrec.unused[i] != 0) {
 			WT_RET(__wt_msg(session,
 			    "%s: log record at position %" PRIu32
-			    " has unused[%" WT_SIZET_FMT "] corruption %" PRIx8,
-			    log_fh->name, offset, i, logrec->unused[i]));
+			    " has unused[%" WT_SIZET_FMT "] corruption 0x%"
+			    PRIx8, log_fh->name, offset, i, logrec.unused[i]));
 			*corrupt = true;
 		}
-	if (logrec->mem_len != 0 && !F_ISSET(logrec,
+	if (logrec.mem_len != 0 && !F_ISSET(&logrec,
 	    WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
 		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
-		    " has memory len corruption %" PRIx32, log_fh->name,
-		    offset, logrec->mem_len));
+		    " has memory len corruption 0x%" PRIx32, log_fh->name,
+		    offset, logrec.mem_len));
 		*corrupt = true;
 	}
-	if (logrec->len <= offsetof(WT_LOG_RECORD, record)) {
+	if (logrec.len <= offsetof(WT_LOG_RECORD, record)) {
 		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
-		    " has record len corruption %" PRIx32, log_fh->name,
-		    offset, logrec->len));
+		    " has record len corruption 0x%" PRIx32, log_fh->name,
+		    offset, logrec.len));
 		*corrupt = true;
 	}
 	return (0);
@@ -2452,24 +2462,12 @@ advance:
 			WT_STAT_CONN_INCR(session, log_scan_rereads);
 		}
 		/*
-		 * We read in the record, now make some checks.
-		 * These checks are conservative, if they fail, there
-		 * is definitely corruption.
+		 * We read in the record, now verify the checksum.  A failed
+		 * checksum does not imply corruption, it may be the result
+		 * of a partial write.
 		 */
 		buf->size = reclen;
 		logrec = (WT_LOG_RECORD *)buf->mem;
-		WT_ERR(__log_record_verify(session, log_fh, rd_lsn.l.offset,
-		    logrec, &corrupt));
-		if (corrupt) {
-			need_salvage = true;
-			WT_ERR(__log_salvageable_error(session, log_fh->name,
-			    "", rd_lsn.l.offset));
-		}
-
-		/*
-		 * Now verify checksum. A failed checksum does not imply
-		 * corruption, it may be the result of a partial write.
-		 */
 		if (!__log_checksum_match(session, buf, reclen)) {
 			/*
 			 * A checksum mismatch means we have reached the end of
@@ -2491,6 +2489,19 @@ advance:
 				WT_ERR(__log_salvageable_error(session,
 				    log_fh->name, ", bad checksum",
 				    rd_lsn.l.offset));
+			} else {
+				/*
+				 * It may be a partial write, or it's possible
+				 * that the header is corrupt.  Make a sanity
+				 * check of the log record header.
+				 */
+				WT_ERR(__log_record_verify(session, log_fh,
+				    rd_lsn.l.offset, logrec, &corrupt));
+				if (corrupt) {
+					need_salvage = true;
+					WT_ERR(__log_salvageable_error(session,
+					    log_fh->name, "", rd_lsn.l.offset));
+				}
 			}
 			/*
 			 * If the user asked for a specific LSN and it is not
