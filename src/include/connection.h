@@ -178,8 +178,10 @@ struct __wt_connection_impl {
 	uint16_t compat_major;		/* Compatibility major version */
 	uint16_t compat_minor;		/* Compatibility minor version */
 #define	WT_CONN_COMPAT_NONE	UINT16_MAX
-	uint16_t compat_req_major;	/* Compatibility required major */
-	uint16_t compat_req_minor;	/* Compatibility required minor */
+	uint16_t req_max_major;		/* Compatibility maximum major */
+	uint16_t req_max_minor;		/* Compatibility maximum minor */
+	uint16_t req_min_major;		/* Compatibility minimum major */
+	uint16_t req_min_minor;		/* Compatibility minimum minor */
 
 	WT_EXTENSION_API extension_api;	/* Extension API */
 
@@ -320,7 +322,8 @@ struct __wt_connection_impl {
 #define	WT_CONN_LOG_RECOVER_DIRTY	0x020u	/* Recovering unclean */
 #define	WT_CONN_LOG_RECOVER_DONE	0x040u	/* Recovery completed */
 #define	WT_CONN_LOG_RECOVER_ERR		0x080u	/* Error if recovery required */
-#define	WT_CONN_LOG_ZERO_FILL		0x100u	/* Manually zero files */
+#define	WT_CONN_LOG_RECOVER_SALVAGE	0x100u	/* Salvage log files */
+#define	WT_CONN_LOG_ZERO_FILL		0x200u	/* Manually zero files */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t	 log_flags;	/* Global logging configuration */
 	WT_CONDVAR	*log_cond;	/* Log server wait mutex */
@@ -341,7 +344,8 @@ struct __wt_connection_impl {
 	wt_off_t	 log_file_max;	/* Log file max size */
 	const char	*log_path;	/* Logging path format */
 	uint32_t	 log_prealloc;	/* Log file pre-allocation */
-	uint16_t	 log_req_version;/* Required log version */
+	uint16_t	 log_req_max;	/* Max required log version */
+	uint16_t	 log_req_min;	/* Min required log version */
 	uint32_t	 txn_logsync;	/* Log sync configuration */
 
 	WT_SESSION_IMPL *meta_ckpt_session;/* Metadata checkpoint session */
@@ -410,34 +414,35 @@ struct __wt_connection_impl {
 #define	WT_VERB_CHECKPOINT		0x000000004u
 #define	WT_VERB_CHECKPOINT_PROGRESS	0x000000008u
 #define	WT_VERB_COMPACT			0x000000010u
-#define	WT_VERB_EVICT			0x000000020u
-#define	WT_VERB_EVICTSERVER		0x000000040u
-#define	WT_VERB_EVICT_STUCK		0x000000080u
-#define	WT_VERB_FILEOPS			0x000000100u
-#define	WT_VERB_HANDLEOPS		0x000000200u
-#define	WT_VERB_LOG			0x000000400u
-#define	WT_VERB_LOOKASIDE		0x000000800u
-#define	WT_VERB_LOOKASIDE_ACTIVITY	0x000001000u
-#define	WT_VERB_LSM			0x000002000u
-#define	WT_VERB_LSM_MANAGER		0x000004000u
-#define	WT_VERB_METADATA		0x000008000u
-#define	WT_VERB_MUTEX			0x000010000u
-#define	WT_VERB_OVERFLOW		0x000020000u
-#define	WT_VERB_READ			0x000040000u
-#define	WT_VERB_REBALANCE		0x000080000u
-#define	WT_VERB_RECONCILE		0x000100000u
-#define	WT_VERB_RECOVERY		0x000200000u
-#define	WT_VERB_RECOVERY_PROGRESS	0x000400000u
-#define	WT_VERB_SALVAGE			0x000800000u
-#define	WT_VERB_SHARED_CACHE		0x001000000u
-#define	WT_VERB_SPLIT			0x002000000u
-#define	WT_VERB_TEMPORARY		0x004000000u
-#define	WT_VERB_THREAD_GROUP		0x008000000u
-#define	WT_VERB_TIMESTAMP		0x010000000u
-#define	WT_VERB_TRANSACTION		0x020000000u
-#define	WT_VERB_VERIFY			0x040000000u
-#define	WT_VERB_VERSION			0x080000000u
-#define	WT_VERB_WRITE			0x100000000u
+#define	WT_VERB_ERROR_RETURNS		0x000000020u
+#define	WT_VERB_EVICT			0x000000040u
+#define	WT_VERB_EVICTSERVER		0x000000080u
+#define	WT_VERB_EVICT_STUCK		0x000000100u
+#define	WT_VERB_FILEOPS			0x000000200u
+#define	WT_VERB_HANDLEOPS		0x000000400u
+#define	WT_VERB_LOG			0x000000800u
+#define	WT_VERB_LOOKASIDE		0x000001000u
+#define	WT_VERB_LOOKASIDE_ACTIVITY	0x000002000u
+#define	WT_VERB_LSM			0x000004000u
+#define	WT_VERB_LSM_MANAGER		0x000008000u
+#define	WT_VERB_METADATA		0x000010000u
+#define	WT_VERB_MUTEX			0x000020000u
+#define	WT_VERB_OVERFLOW		0x000040000u
+#define	WT_VERB_READ			0x000080000u
+#define	WT_VERB_REBALANCE		0x000100000u
+#define	WT_VERB_RECONCILE		0x000200000u
+#define	WT_VERB_RECOVERY		0x000400000u
+#define	WT_VERB_RECOVERY_PROGRESS	0x000800000u
+#define	WT_VERB_SALVAGE			0x001000000u
+#define	WT_VERB_SHARED_CACHE		0x002000000u
+#define	WT_VERB_SPLIT			0x004000000u
+#define	WT_VERB_TEMPORARY		0x008000000u
+#define	WT_VERB_THREAD_GROUP		0x010000000u
+#define	WT_VERB_TIMESTAMP		0x020000000u
+#define	WT_VERB_TRANSACTION		0x040000000u
+#define	WT_VERB_VERIFY			0x080000000u
+#define	WT_VERB_VERSION			0x100000000u
+#define	WT_VERB_WRITE			0x200000000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint64_t verbose;
 
@@ -446,14 +451,16 @@ struct __wt_connection_impl {
 	 * delays have been requested.
 	 */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TIMING_STRESS_CHECKPOINT_SLOW	0x01u
-#define	WT_TIMING_STRESS_SPLIT_1		0x02u
-#define	WT_TIMING_STRESS_SPLIT_2		0x04u
-#define	WT_TIMING_STRESS_SPLIT_3		0x08u
-#define	WT_TIMING_STRESS_SPLIT_4		0x10u
-#define	WT_TIMING_STRESS_SPLIT_5		0x20u
-#define	WT_TIMING_STRESS_SPLIT_6		0x40u
-#define	WT_TIMING_STRESS_SPLIT_7		0x80u
+#define	WT_TIMING_STRESS_CHECKPOINT_SLOW	0x001u
+#define	WT_TIMING_STRESS_LOOKASIDE_SWEEP	0x002u
+#define	WT_TIMING_STRESS_SPLIT_1		0x004u
+#define	WT_TIMING_STRESS_SPLIT_2		0x008u
+#define	WT_TIMING_STRESS_SPLIT_3		0x010u
+#define	WT_TIMING_STRESS_SPLIT_4		0x020u
+#define	WT_TIMING_STRESS_SPLIT_5		0x040u
+#define	WT_TIMING_STRESS_SPLIT_6		0x080u
+#define	WT_TIMING_STRESS_SPLIT_7		0x100u
+#define	WT_TIMING_STRESS_SPLIT_8		0x200u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint64_t timing_stress_flags;
 
@@ -474,23 +481,24 @@ struct __wt_connection_impl {
 #define	WT_CONN_CLOSING			0x000008u
 #define	WT_CONN_CLOSING_NO_MORE_OPENS	0x000010u
 #define	WT_CONN_CLOSING_TIMESTAMP	0x000020u
-#define	WT_CONN_EVICTION_NO_LOOKASIDE	0x000040u
-#define	WT_CONN_EVICTION_RUN		0x000080u
-#define	WT_CONN_IN_MEMORY		0x000100u
-#define	WT_CONN_LEAK_MEMORY		0x000200u
-#define	WT_CONN_LOOKASIDE_OPEN		0x000400u
-#define	WT_CONN_LSM_MERGE		0x000800u
-#define	WT_CONN_OPTRACK			0x001000u
-#define	WT_CONN_PANIC			0x002000u
-#define	WT_CONN_READONLY		0x004000u
-#define	WT_CONN_RECOVERING		0x008000u
-#define	WT_CONN_SERVER_ASYNC		0x010000u
-#define	WT_CONN_SERVER_CHECKPOINT	0x020000u
-#define	WT_CONN_SERVER_LOG		0x040000u
-#define	WT_CONN_SERVER_LSM		0x080000u
-#define	WT_CONN_SERVER_STATISTICS	0x100000u
-#define	WT_CONN_SERVER_SWEEP		0x200000u
-#define	WT_CONN_WAS_BACKUP		0x400000u
+#define	WT_CONN_COMPATIBILITY		0x000040u
+#define	WT_CONN_EVICTION_NO_LOOKASIDE	0x000080u
+#define	WT_CONN_EVICTION_RUN		0x000100u
+#define	WT_CONN_IN_MEMORY		0x000200u
+#define	WT_CONN_LEAK_MEMORY		0x000400u
+#define	WT_CONN_LOOKASIDE_OPEN		0x000800u
+#define	WT_CONN_LSM_MERGE		0x001000u
+#define	WT_CONN_OPTRACK			0x002000u
+#define	WT_CONN_PANIC			0x004000u
+#define	WT_CONN_READONLY		0x008000u
+#define	WT_CONN_RECOVERING		0x010000u
+#define	WT_CONN_SERVER_ASYNC		0x020000u
+#define	WT_CONN_SERVER_CHECKPOINT	0x040000u
+#define	WT_CONN_SERVER_LOG		0x080000u
+#define	WT_CONN_SERVER_LSM		0x100000u
+#define	WT_CONN_SERVER_STATISTICS	0x200000u
+#define	WT_CONN_SERVER_SWEEP		0x400000u
+#define	WT_CONN_WAS_BACKUP		0x800000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

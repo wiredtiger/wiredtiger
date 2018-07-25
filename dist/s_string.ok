@@ -208,8 +208,8 @@ LLLLLLL
 LOGREC
 LOGSCAN
 LOOKASIDE
+LRSVv
 LRU
-LRVv
 LSB
 LSM
 LSN
@@ -476,6 +476,7 @@ autocommit
 autoconf
 automake
 bInheritHandle
+backoff
 bal
 basecfg
 basho

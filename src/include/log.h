@@ -317,9 +317,15 @@ struct __wt_log_record {
 	/*
 	 * No automatic generation: flag values cannot change, they're written
 	 * to disk.
+	 *
+	 * Unused bits in the flags, as well as the 'unused' padding,
+	 * are expected to be zeroed; we check that to help detect file
+	 * corruption.
 	 */
 #define	WT_LOG_RECORD_COMPRESSED	0x01u	/* Compressed except hdr */
 #define	WT_LOG_RECORD_ENCRYPTED		0x02u	/* Encrypted except hdr */
+#define	WT_LOG_RECORD_ALL_FLAGS					\
+	(WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)
 	uint16_t	flags;		/* 08-09: Flags */
 	uint8_t		unused[2];	/* 10-11: Padding */
 	uint32_t	mem_len;	/* 12-15: Uncompressed len if needed */
@@ -368,8 +374,6 @@ struct __wt_log_desc {
 
 /*
  * WiredTiger release version where log format version changed.
- * We only have to check the major version for now.  It is minor
- * version 0 once release numbers move on.
  */
 #define	WT_LOG_V2_MAJOR	3
 #define	WT_LOG_V2_MINOR	0

@@ -630,7 +630,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * Clear this out.  We no longer need it and it could have been
 	 * re-allocated when scanning the files.
 	 */
-	metafile = NULL;
+	WT_NOT_READ(metafile, NULL);
 
 	/*
 	 * We no longer need the metadata cursor: close it to avoid pinning any
@@ -704,6 +704,13 @@ done:	WT_ERR(__recovery_set_checkpoint_timestamp(&r));
 		 * archiving.
 		 */
 		WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+
+	/*
+	 * If we're downgrading and have newer log files, force an archive,
+	 * no matter what the archive setting is.
+	 */
+	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
+		WT_ERR(__wt_log_truncate_files(session, NULL, true));
 	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
 err:	WT_TRET(__recovery_free(&r));

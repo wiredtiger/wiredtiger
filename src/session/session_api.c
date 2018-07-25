@@ -259,7 +259,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
 			 */
 			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
 		else if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
+		    strcmp(cursor->internal_uri, WT_LAS_URI) != 0)
 			/*
 			 * Notify the user that we are closing the cursor
 			 * handle via the registered close callback.
@@ -609,7 +609,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 	SESSION_API_CALL(session, open_cursor, config, cfg);
 
 	statjoin = (to_dup != NULL && uri != NULL &&
-	    WT_STREQ(uri, "statistics:join"));
+	    strcmp(uri, "statistics:join") == 0);
 	if (!statjoin) {
 		if ((to_dup == NULL && uri == NULL) ||
 		    (to_dup != NULL && uri != NULL))
@@ -1490,7 +1490,7 @@ __session_truncate(WT_SESSION *wt_session,
 			 * Verify the user only gave the URI prefix and not
 			 * a specific target name after that.
 			 */
-			if (!WT_STREQ(uri, "log:"))
+			if (strcmp(uri, "log:") != 0)
 				WT_ERR_MSG(session, EINVAL,
 				    "the truncate method should not specify any"
 				    "target after the log: URI prefix");
@@ -1782,9 +1782,11 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
-	SESSION_API_CALL(session, timestamp_transaction, config, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    timestamp_transaction, config, cfg);
 #else
-	SESSION_API_CALL(session, timestamp_transaction, NULL, cfg);
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    timestamp_transaction, NULL, cfg);
 	cfg[1] = config;
 #endif
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));

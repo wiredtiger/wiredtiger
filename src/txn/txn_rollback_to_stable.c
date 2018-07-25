@@ -275,8 +275,9 @@ __txn_rollback_to_stable_btree_walk(
 	    WT_READ_CACHE | WT_READ_LOOKASIDE | WT_READ_NO_EVICT)) == 0 &&
 	    ref != NULL) {
 		if (ref->page_las != NULL &&
+		    ref->page_las->skew_newest &&
 		    __wt_timestamp_cmp(rollback_timestamp,
-		    &ref->page_las->onpage_timestamp) < 0)
+		    &ref->page_las->unstable_timestamp) < 0)
 			ref->page_las->invalid = true;
 
 		/* Review deleted page saved to the ref */
@@ -465,7 +466,8 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	 * trees in cache populates a list that is used to check which
 	 * lookaside records should be removed.
 	 */
-	WT_ERR(__txn_rollback_to_stable_lookaside_fixup(session));
+	if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
+		WT_ERR(__txn_rollback_to_stable_lookaside_fixup(session));
 
 err:	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
 	__wt_free(session, conn->stable_rollback_bitstring);

@@ -141,6 +141,46 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 }
 
 /*
+ * __wt_turtle_exists --
+ *	Return if the turtle file exists on startup.
+ */
+int
+__wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
+{
+	/*
+	 * The last thing we do in database initialization is rename a turtle
+	 * file into place, and there's never a database home after that point
+	 * without a turtle file. On startup we check if the turtle file exists
+	 * to decide if we're creating the database or re-opening an existing
+	 * database.
+	 *	Unfortunately, we re-write the turtle file at checkpoint end,
+	 * first creating the "set" file and then renaming it into place.
+	 * Renames on Windows aren't guaranteed to be atomic, a power failure
+	 * could leave us with only the set file. The turtle file is the file
+	 * we regularly rename when WiredTiger is running, so if we're going to
+	 * get caught, the turtle file is where it will happen. If we have a set
+	 * file and no turtle file, rename the set file into place. We don't
+	 * know what went wrong for sure, so this can theoretically make it
+	 * worse, but there aren't alternatives other than human intervention.
+	 */
+	WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, existp));
+	if (*existp)
+		return (0);
+
+	WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE_SET, existp));
+	if (!*existp)
+		return (0);
+
+	WT_RET(__wt_fs_rename(session,
+	    WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE, true));
+	WT_RET(__wt_msg(session,
+	    "%s not found, %s renamed to %s",
+	    WT_METADATA_TURTLE, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE));
+	*existp = true;
+	return  (0);
+}
+
+/*
  * __wt_turtle_init --
  *	Check the turtle file and create if necessary.
  */
@@ -286,9 +326,11 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 
 	/*
 	 * A file error or a missing key/value pair in the turtle file means
-	 * something has gone horribly wrong -- we're done.
+	 * something has gone horribly wrong, except for the compatibility
+	 * setting which is optional.
 	 */
-	return (ret == 0 ? 0 : __wt_illegal_value(session, WT_METADATA_TURTLE));
+	return (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 ? ret :
+	    __wt_illegal_value(session, WT_METADATA_TURTLE));
 }
 
 /*
@@ -298,12 +340,14 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 int
 __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FSTREAM *fs;
 	int vmajor, vminor, vpatch;
 	const char *version;
 
 	fs = NULL;
+	conn = S2C(session);
 
 	/* Require single-threading. */
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TURTLE));
@@ -314,6 +358,16 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
 	 */
 	WT_RET(__wt_fopen(session, WT_METADATA_TURTLE_SET,
 	    WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, WT_STREAM_WRITE, &fs));
+
+	/*
+	 * If a compatibility setting has been explicitly set, save it out
+	 * to the turtle file.
+	 */
+	if (F_ISSET(conn, WT_CONN_COMPATIBILITY))
+		WT_ERR(__wt_fprintf(session, fs,
+		    "%s\n" "major=%d,minor=%d\n",
+		    WT_METADATA_COMPAT,
+		    conn->compat_major, conn->compat_minor));
 
 	version = wiredtiger_version(&vmajor, &vminor, &vpatch);
 	WT_ERR(__wt_fprintf(session, fs,

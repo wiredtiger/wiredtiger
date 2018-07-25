@@ -127,7 +127,7 @@ wts_ops(int lastrun)
 	if (!SINGLETHREADED)
 		g.rand_log_stop = true;
 
-	/* Open a session. */
+	/* Logging requires a session. */
 	if (g.logging != 0) {
 		testutil_check(conn->open_session(conn, NULL, NULL, &session));
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -207,7 +207,7 @@ wts_ops(int lastrun)
 			case TINFO_COMPLETE:
 				tinfo->state = TINFO_JOINED;
 				testutil_check(
-				    __wt_thread_join(NULL, tinfo->tid));
+				    __wt_thread_join(NULL, &tinfo->tid));
 				break;
 			case TINFO_JOINED:
 				break;
@@ -241,6 +241,10 @@ wts_ops(int lastrun)
 			fprintf(stderr, "%s\n",
 			    "format run exceeded 15 minutes past the maximum "
 			    "time, aborting the process.");
+
+			(void)conn->debug_info(conn, "txn");
+			(void)conn->debug_info(conn, "cache");
+
 			abort();
 		}
 	}
@@ -248,17 +252,17 @@ wts_ops(int lastrun)
 	/* Wait for the other threads. */
 	g.workers_finished = true;
 	if (g.c_alter)
-		testutil_check(__wt_thread_join(NULL, alter_tid));
+		testutil_check(__wt_thread_join(NULL, &alter_tid));
 	if (g.c_backups)
-		testutil_check(__wt_thread_join(NULL, backup_tid));
+		testutil_check(__wt_thread_join(NULL, &backup_tid));
 	if (g.c_checkpoint_flag == CHECKPOINT_ON)
-		testutil_check(__wt_thread_join(NULL, checkpoint_tid));
+		testutil_check(__wt_thread_join(NULL, &checkpoint_tid));
 	if (g.c_compact)
-		testutil_check(__wt_thread_join(NULL, compact_tid));
+		testutil_check(__wt_thread_join(NULL, &compact_tid));
 	if (!SINGLETHREADED && g.c_long_running_txn)
-		testutil_check(__wt_thread_join(NULL, lrt_tid));
+		testutil_check(__wt_thread_join(NULL, &lrt_tid));
 	if (g.c_txn_timestamps)
-		testutil_check(__wt_thread_join(NULL, timestamp_tid));
+		testutil_check(__wt_thread_join(NULL, &timestamp_tid));
 	g.workers_finished = false;
 
 	if (g.logging != 0) {
@@ -452,10 +456,10 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "\t   found {deleted}\n");
+				fprintf(stderr, "found {deleted}\n");
 			else
 				print_item_data(
-				    "   found", value->data, value->size);
+				    "found", value->data, value->size);
 
 			testutil_die(ret,
 			    "snapshot-isolation: %.*s search mismatch",
@@ -472,10 +476,10 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "\t   found {deleted}\n");
+				fprintf(stderr, "found {deleted}\n");
 			else
 				print_item_data(
-				    "   found", value->data, value->size);
+				    "found", value->data, value->size);
 
 			testutil_die(ret,
 			    "snapshot-isolation: %" PRIu64 " search mismatch",
@@ -494,6 +498,7 @@ static void
 begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
 	u_int v;
+	int ret;
 	const char *config;
 	char config_buf[64];
 	bool locked;
@@ -519,7 +524,15 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	}
 	*iso_configp = v;
 
-	testutil_check(session->begin_transaction(session, config));
+	/*
+	 * Keep trying to start a new transaction if it's timing out - we
+	 * know there aren't any resources pinned so it should succeed
+	 * eventually.
+	 */
+	while ((ret =
+	    session->begin_transaction(session, config)) == WT_CACHE_FULL)
+		;
+	testutil_check(ret);
 
 	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
 		/* Avoid starting a new reader when a prepare is in progress. */
@@ -581,39 +594,30 @@ set_commit_timestamp(TINFO *tinfo)
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
+commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
 	uint64_t ts;
-	char *config, config_buf[64];
+	char config_buf[64];
 
 	++tinfo->commit;
 
-	config = NULL;
 	if (g.c_txn_timestamps) {
 		ts = set_commit_timestamp(tinfo);
 		testutil_check(__wt_snprintf(
 		    config_buf, sizeof(config_buf),
 		    "commit_timestamp=%" PRIx64, ts));
-		config = config_buf;
-	}
-
-	if (prepared)
-		testutil_check(session->commit_transaction(session, config));
-
-	if (!prepared)
-		testutil_check(session->timestamp_transaction(session, config));
-
-	/*
-	 * Clear the thread's active timestamp: it no longer needs to be pinned.
-	 * Don't let the compiler re-order this statement, if we were to race
-	 * with the timestamp thread, it might see our thread update before the
-	 * commit_timestamp is set for the transaction.
-	 */
-	if (g.c_txn_timestamps)
+		testutil_check(
+		    session->timestamp_transaction(session, config_buf));
+		/*
+		 * Clear the thread's active timestamp: it no longer needs to
+		 * be pinned.  Don't let the compiler re-order this statement,
+		 * if we were to race with the timestamp thread, it might see
+		 * our thread update before the commit_timestamp is set for the
+		 * transaction.
+		 */
 		WT_PUBLISH(tinfo->commit_timestamp, 0);
-
-	if (!prepared)
-		testutil_check(session->commit_transaction(session, NULL));
+	}
+	testutil_check(session->commit_transaction(session, NULL));
 }
 
 /*
@@ -708,7 +712,7 @@ ops(void *arg)
 	uint64_t reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
-	bool greater_than, intxn, next, positioned, prepared, readonly;
+	bool greater_than, intxn, next, positioned, readonly;
 
 	tinfo = arg;
 
@@ -749,7 +753,7 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session, false);
+				commit_transaction(tinfo, session);
 				intxn = false;
 			}
 
@@ -1112,14 +1116,12 @@ update_instead_of_chosen_op:
 		 * If prepare configured, prepare the transaction 10% of the
 		 * time.
 		 */
-		prepared = false;
 		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
 			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
 			if (ret == WT_PREPARE_CONFLICT)
 				goto rollback;
 
-			prepared = true;
 			__wt_yield();		/* Let other threads proceed. */
 		}
 
@@ -1129,7 +1131,7 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
-			commit_transaction(tinfo, session, prepared);
+			commit_transaction(tinfo, session);
 			break;
 		case 5:						/* 10% */
 rollback:		rollback_transaction(tinfo, session);

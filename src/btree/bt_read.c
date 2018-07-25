@@ -144,6 +144,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	__las_page_instantiate_verbose(session, las_pageid);
 	WT_STAT_CONN_INCR(session, cache_read_lookaside);
 	WT_STAT_DATA_INCR(session, cache_read_lookaside);
+	if (WT_SESSION_IS_CHECKPOINT(session))
+		WT_STAT_CONN_INCR(session, cache_read_lookaside_checkpoint);
 
 	__wt_btcur_init(session, &cbt);
 	__wt_btcur_open(&cbt);
@@ -274,13 +276,15 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
 
-		if (ref->page_las->las_skew_newest &&
+		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+
+		if (ref->page_las->skew_newest &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
-		    __wt_txn_visible_all(session, ref->page_las->las_max_txn,
-		    WT_TIMESTAMP_NULL(&ref->page_las->onpage_timestamp))) {
-			page->modify->rec_max_txn = ref->page_las->las_max_txn;
+		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
+		    WT_TIMESTAMP_NULL(&ref->page_las->unstable_timestamp))) {
+			page->modify->rec_max_txn = ref->page_las->max_txn;
 			__wt_timestamp_set(&page->modify->rec_max_timestamp,
-			    &ref->page_las->onpage_timestamp);
+			    &ref->page_las->max_timestamp);
 			__wt_page_modify_clear(session, page);
 		}
 	}
@@ -501,8 +505,12 @@ skip_read:
 		/* FALLTHROUGH */
 	case WT_REF_LIMBO:
 		/* Instantiate updates from the database's lookaside table. */
-		if (previous_state == WT_REF_LIMBO)
+		if (previous_state == WT_REF_LIMBO) {
 			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
+			if (WT_SESSION_IS_CHECKPOINT(session))
+				WT_STAT_CONN_INCR(session,
+				    cache_read_lookaside_delay_checkpoint);
+		}
 
 		WT_ERR(__las_page_instantiate(session, ref));
 		ref->page_las->eviction_to_lookaside = false;
@@ -810,7 +818,7 @@ skip_evict:		/*
 			if (cache_work)
 				continue;
 		}
-		__wt_state_yield_sleep(&yield_cnt, &sleep_usecs);
+		__wt_spin_backoff(&yield_cnt, &sleep_usecs);
 		WT_STAT_CONN_INCRV(session, page_sleep, sleep_usecs);
 	}
 }

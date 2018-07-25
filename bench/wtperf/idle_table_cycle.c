@@ -178,5 +178,5 @@ stop_idle_table_cycle(WTPERF *wtperf, wt_thread_t idle_table_cycle_thread)
 		return;
 
 	wtperf->idle_cycle_run = false;
-	testutil_check(__wt_thread_join(NULL, idle_table_cycle_thread));
+	testutil_check(__wt_thread_join(NULL, &idle_table_cycle_thread));
 }

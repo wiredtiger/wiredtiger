@@ -31,24 +31,6 @@ typedef enum {
 } WT_SPLIT_ERROR_PHASE;
 
 /*
- * __page_split_timing_stress --
- *	Optionally add delay to simulate the race conditions in page split for
- * debug purposes. The purpose is to uncover the race conditions in page split.
- */
-static void
-__page_split_timing_stress(
-    WT_SESSION_IMPL *session, uint64_t flag, uint64_t micro_seconds)
-{
-	WT_CONNECTION_IMPL *conn;
-
-	conn = S2C(session);
-
-	/* We only want to sleep when page split race flag is set. */
-	if (FLD_ISSET(conn->timing_stress_flags, flag))
-		__wt_sleep(0, micro_seconds);
-}
-
-/*
  * __split_safe_free --
  *	Free a buffer if we can be sure no thread is accessing it, or schedule
  *	it to be freed otherwise.
@@ -467,7 +449,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	children = pindex->entries / btree->split_deepen_per_child;
 	if (children < 10) {
 		if (pindex->entries < 100)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		children = 10;
 	}
 	chunk = pindex->entries / children;
@@ -566,8 +548,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, false));
 
 	/* Encourage a race */
-	__page_split_timing_stress(
-	    session, WT_TIMING_STRESS_SPLIT_1, 100 * WT_THOUSAND);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_1);
 
 	/*
 	 * Confirm the root page's index hasn't moved, then update it, which
@@ -578,8 +559,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 	alloc_index = NULL;
 
 	/* Encourage a race */
-	__page_split_timing_stress(
-	    session, WT_TIMING_STRESS_SPLIT_2, 100 * WT_THOUSAND);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_2);
 
 	/*
 	 * Get a generation for this split, mark the root page.  This must be
@@ -772,8 +752,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	WT_NOT_READ(complete, WT_ERR_PANIC);
 
 	/* Encourage a race */
-	__page_split_timing_stress(
-	    session, WT_TIMING_STRESS_SPLIT_3, 100 * WT_THOUSAND);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_3);
 
 	/*
 	 * Confirm the parent page's index hasn't moved then update it, which
@@ -784,8 +763,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	alloc_index = NULL;
 
 	/* Encourage a race */
-	__page_split_timing_stress(
-	    session, WT_TIMING_STRESS_SPLIT_4, 100 * WT_THOUSAND);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_4);
 
 	/*
 	 * Get a generation for this split, mark the page.  This must be after
@@ -894,6 +872,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		/* Free the backing block and address. */
 		WT_TRET(__wt_ref_block_free(session, next_ref));
 
+		WT_ASSERT(session,
+		    __wt_hazard_check_assert(session, next_ref, false));
 		WT_TRET(__split_safe_free(
 		    session, split_gen, exclusive, next_ref, sizeof(WT_REF)));
 		parent_decr += sizeof(WT_REF);
@@ -937,7 +917,7 @@ err:	__wt_scr_free(session, &scr);
 		 * being deleted, but don't be noisy, there's nothing wrong.
 		 */
 		if (empty_parent)
-			ret = EBUSY;
+			ret = __wt_set_return(session, EBUSY);
 		break;
 	case WT_ERR_PANIC:
 		__wt_err(session, ret, "fatal error during parent page split");
@@ -1004,7 +984,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	children = pindex->entries / btree->split_deepen_per_child;
 	if (children < 10) {
 		if (pindex->entries < 100)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		children = 10;
 	}
 	chunk = pindex->entries / children;
@@ -1125,8 +1105,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_ERR(__split_ref_prepare(session, alloc_index, &locked, true));
 
 	/* Encourage a race */
-	__page_split_timing_stress(
-	    session, WT_TIMING_STRESS_SPLIT_5, 100 * WT_THOUSAND);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_5);
 
 	/* Split into the parent. */
 	WT_ERR(__split_parent(session, page_ref, alloc_index->index,
@@ -1140,8 +1119,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 	WT_INTL_INDEX_SET(page, replace_index);
 
 	/* Encourage a race */
-	__page_split_timing_stress(
-	    session, WT_TIMING_STRESS_SPLIT_6, 100 * WT_THOUSAND);
+	__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_6);
 
 	/*
 	 * Get a generation for this split, mark the parent page.  This must be
@@ -1238,7 +1216,7 @@ __split_internal_lock(
 	 * the parent, give up to avoid that deadlock.
 	 */
 	if (!trylock && !__wt_btree_can_evict_dirty(session))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 
 	/*
 	 * Get a page-level lock on the parent to single-thread splits into the
@@ -1259,8 +1237,7 @@ __split_internal_lock(
 		parent = ref->home;
 
 		/* Encourage races. */
-		__page_split_timing_stress(
-		    session, WT_TIMING_STRESS_SPLIT_7, WT_THOUSAND);
+		__wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_7);
 
 		/* Page locks live in the modify structure. */
 		WT_RET(__wt_page_modify_init(session, parent));
@@ -1439,6 +1416,7 @@ __split_multi_inmem(
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_PAGE *page;
+	WT_PAGE_MODIFY *mod;
 	WT_SAVE_UPD *supd;
 	WT_UPDATE *upd;
 	uint64_t recno;
@@ -1545,17 +1523,26 @@ __split_multi_inmem(
 	 * might be older than that. Set the first dirty transaction to an
 	 * impossibly old value so this page is never skipped in a checkpoint.
 	 */
-	page->modify->first_dirty_txn = WT_TXN_FIRST;
+	mod = page->modify;
+	mod->first_dirty_txn = WT_TXN_FIRST;
 
 	/*
 	 * If the new page is modified, save the eviction generation to avoid
 	 * repeatedly attempting eviction on the same page.
 	 */
-	page->modify->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
-	page->modify->last_eviction_id = orig->modify->last_eviction_id;
-	__wt_timestamp_set(&page->modify->last_eviction_timestamp,
+	mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
+	mod->last_eviction_id = orig->modify->last_eviction_id;
+	__wt_timestamp_set(&mod->last_eviction_timestamp,
 	    &orig->modify->last_eviction_timestamp);
-	page->modify->update_restored = 1;
+
+	/* Add the update/restore flag to any previous state. */
+	__wt_timestamp_set(&mod->last_stable_timestamp,
+	    &orig->modify->last_stable_timestamp);
+	mod->rec_max_txn = orig->modify->rec_max_txn;
+	__wt_timestamp_set(&mod->rec_max_timestamp,
+	    &orig->modify->rec_max_timestamp);
+	mod->restore_state = orig->modify->restore_state;
+	FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
 err:	/* Free any resources that may have been cached in the cursor. */
 	WT_TRET(__wt_btcur_close(&cbt, true));
@@ -1709,7 +1696,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 
 		WT_RET(__wt_calloc_one(session, &ref->page_las));
 		*ref->page_las = multi->page_las;
-		WT_ASSERT(session, ref->page_las->las_max_txn != WT_TXN_NONE);
+		WT_ASSERT(session, ref->page_las->max_txn != WT_TXN_NONE);
 		ref->state = WT_REF_LOOKASIDE;
 	}
 
