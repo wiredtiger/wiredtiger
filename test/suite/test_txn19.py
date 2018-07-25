@@ -236,9 +236,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     # the file is mangled, that is always an unexpected corruption. Situations
     # where we cannot reliably detect corruption include:
     #  - removal of the last log
-    #  - corruption in the middle of a log record
-    #  - certain corruptions at the beginning of a log record (we don't have
-    #      specific tests for these)
+    #  - certain corruptions at the beginning of a log record (adding garbage
+    #      at the end of a log file can trigger this).
     def log_corrupt_but_valid(self):
         if self.corrupt_last_file() and self.kind == 'removal':
             return True
@@ -246,7 +245,6 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         if self.corrupt_hole_in_last_file():
             return False
         if self.kind == 'truncate-middle' or \
-           self.kind == 'garbage-middle' or \
            self.kind == 'garbage-end':
             return True
         return False
