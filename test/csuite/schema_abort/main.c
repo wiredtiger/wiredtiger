@@ -115,11 +115,11 @@ usage(void)
 static const char * const config = NULL;
 
 /*
- * schema_abort_error_handler --
+ * subtest_error_handler --
  *     Error event handler.
  */
 static int
-schema_abort_error_handler(WT_EVENT_HANDLER *handler,
+subtest_error_handler(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *message)
 {
 	(void)(handler);
@@ -133,7 +133,7 @@ schema_abort_error_handler(WT_EVENT_HANDLER *handler,
 }
 
 static WT_EVENT_HANDLER event_handler = {
-	schema_abort_error_handler,
+	subtest_error_handler,
 	NULL,   /* Message handler */
 	NULL,   /* Progress handler */
 	NULL    /* Close handler */
