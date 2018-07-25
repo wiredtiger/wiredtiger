@@ -13,12 +13,12 @@
 #include <stddef.h>
 
 /*
- * The WiredTiger checksum code doesn't include any WiredTiger configuration or
- * include files. This means the HAVE_CRC32_HARDWARE #define isn't configurable
- * as part of standalone WiredTiger configuration and there's no way to turn off
- * the checksum hardware.
+ * The checksum code doesn't include WiredTiger configuration or include files.
+ * This means the HAVE_NO_CRC32_HARDWARE #define isn't configurable as part of
+ * standalone WiredTiger configuration, there's no way to turn off the checksum
+ * hardware.
  */
-#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__) && !defined(HAVE_NO_CRC32_HARDWARE)
 #include <sys/auxv.h>
 
 /* RHEL 7 has kernel support, but does not define this constant in the lib c headers. */
@@ -112,7 +112,7 @@ extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__) && !defined(HAVE_NO_CRC32_HARDWARE)
 	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_S390_VX)

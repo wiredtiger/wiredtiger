@@ -30,13 +30,12 @@
 #include <stddef.h>
 
 /*
- * The WiredTiger checksum code doesn't include any WiredTiger configuration or
- * include files. This means the HAVE_CRC32_HARDWARE #define isn't configurable
- * as part of standalone WiredTiger configuration and there's no way to turn off
- * the checksum hardware.
+ * The checksum code doesn't include WiredTiger configuration or include files.
+ * This means the HAVE_NO_CRC32_HARDWARE #define isn't configurable as part of
+ * standalone WiredTiger configuration, there's no way to turn off the checksum
+ * hardware.
  */
-#if defined(HAVE_CRC32_HARDWARE)
-
+#if !defined(HAVE_NO_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
 /*
  * __wt_checksum_hw --
@@ -140,7 +139,7 @@ extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
  */
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(HAVE_CRC32_HARDWARE)
+#if !defined(HAVE_NO_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
 	unsigned int eax, ebx, ecx, edx;
 
