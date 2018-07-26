@@ -129,7 +129,7 @@ cycle_idle_tables(void *arg)
 		    session, uri, "force,checkpoint_wait=false")) == EBUSY)
 			__wt_sleep(1, 0);
 
-		if (ret != 0 && ret != EBUSY) {
+		if (ret != 0) {
 			lprintf(wtperf, ret, 0,
 			     "Table drop failed in cycle_idle_tables.");
 			wtperf->error = true;
