@@ -742,7 +742,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 	F_CLR(conn, WT_CONN_SERVER_STATISTICS);
 	if (conn->stat_tid_set) {
 		__wt_cond_signal(session, conn->stat_cond);
-		WT_TRET(__wt_thread_join(session, conn->stat_tid));
+		WT_TRET(__wt_thread_join(session, &conn->stat_tid));
 		conn->stat_tid_set = false;
 	}
 	__wt_cond_destroy(session, &conn->stat_cond);

@@ -2197,7 +2197,7 @@ start_all_runs(WTPERF *wtperf)
 
 	/* Wait for threads to finish. */
 	for (i = 0; i < opts->database_count; i++)
-		testutil_check(__wt_thread_join(NULL, threads[i]));
+		testutil_check(__wt_thread_join(NULL, &threads[i]));
 
 	for (i = 0; i < opts->database_count && wtperfs[i] != NULL; i++) {
 		wtperf_free(wtperfs[i]);
@@ -2341,7 +2341,7 @@ err:		if (ret == 0)
 	stop_threads(1, wtperf->ckptthreads);
 
 	if (monitor_created != 0)
-		testutil_check(__wt_thread_join(NULL, monitor_thread));
+		testutil_check(__wt_thread_join(NULL, &monitor_thread));
 
 	if (wtperf->conn != NULL && opts->close_conn &&
 	    (t_ret = wtperf->conn->close(wtperf->conn, NULL)) != 0) {
@@ -2761,7 +2761,7 @@ stop_threads(u_int num, WTPERF_THREAD *threads)
 		return;
 
 	for (i = 0; i < num; ++i, ++threads) {
-		testutil_check(__wt_thread_join(NULL, threads->handle));
+		testutil_check(__wt_thread_join(NULL, &threads->handle));
 
 		free(threads->key_buf);
 		threads->key_buf = NULL;

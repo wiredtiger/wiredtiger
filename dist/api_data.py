@@ -598,8 +598,7 @@ connection_runtime_config = [
         type='list', undoc=True,
         choices=[
         'checkpoint_slow', 'lookaside_sweep_race', 'split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8',
-        'split_9']),
+        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
@@ -609,6 +608,7 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_progress',
             'compact',
+            'error_returns',
             'evict',
             'evict_stuck',
             'evictserver',
@@ -717,7 +717,7 @@ wiredtiger_open_log_configuration = [
         Config('recover', 'on', r'''
             run recovery or error if recovery needs to run after an
             unclean shutdown''',
-            choices=['error','on'])
+            choices=['error', 'on', 'salvage'])
     ]),
 ]
 
