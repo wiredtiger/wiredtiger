@@ -499,7 +499,7 @@ err:
 	WT_ASSERT(session, session->dhandle == NULL ||
 	    session->dhandle->session_inuse > 0);
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	/*
 	 * Note: release the data handle last so that cursor statistics are

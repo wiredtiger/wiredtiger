@@ -345,7 +345,7 @@ err:
 	/* We shared the child's URI. */
 	cursor->internal_uri = NULL;
 	__wt_json_close(session, cursor);
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

@@ -21,7 +21,7 @@ __curconfig_close(WT_CURSOR *cursor)
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 err:
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

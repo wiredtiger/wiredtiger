@@ -561,7 +561,7 @@ err:
 		WT_TRET(c->close(c));
 	if ((c = mdc->create_cursor) != NULL)
 		WT_TRET(c->close(c));
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

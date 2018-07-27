@@ -385,7 +385,7 @@ err:
 	WT_TRET(__wt_schema_release_table(session, cindex->table));
 	/* The URI is owned by the index. */
 	cursor->internal_uri = NULL;
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

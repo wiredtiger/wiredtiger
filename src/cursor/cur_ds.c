@@ -464,7 +464,7 @@ err:
 	__wt_free(session, cursor->key_format);
 	__wt_free(session, cursor->value_format);
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

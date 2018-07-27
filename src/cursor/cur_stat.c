@@ -332,7 +332,7 @@ err:
 	__wt_buf_free(session, &cst->pv);
 	__wt_free(session, cst->desc_buf);
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

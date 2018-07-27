@@ -362,7 +362,7 @@ err:
 		WT_TRET(cjoin->main->close(cjoin->main));
 
 	__wt_free(session, cjoin->entries);
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
 	API_END_RET(session, ret);
 }

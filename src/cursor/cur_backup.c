@@ -92,7 +92,7 @@ err:
 	if (F_ISSET(cb, WT_CURBACKUP_LOCKER))
 		WT_TRET(__backup_stop(session, cb));
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 	session->bkp_cursor = NULL;
 
 	API_END_RET(session, ret);
