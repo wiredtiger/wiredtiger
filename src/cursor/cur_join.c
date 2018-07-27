@@ -1339,11 +1339,12 @@ __wt_curjoin_open(WT_SESSION_IMPL *session,
 	    session, tablename, size, false, 0, &table));
 
 	WT_RET(__wt_calloc_one(session, &cjoin));
-	cursor = &cjoin->iface;
+	cursor = (WT_CURSOR *)cjoin;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 	cursor->key_format = table->key_format;
 	cursor->value_format = table->value_format;
+
 	cjoin->table = table;
 
 	/* Handle projections. */

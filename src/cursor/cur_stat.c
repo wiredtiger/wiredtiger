@@ -595,9 +595,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	conn = S2C(session);
 
 	WT_RET(__wt_calloc_one(session, &cst));
-	cursor = &cst->iface;
+	cursor = (WT_CURSOR *)cst;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 
 	/*
 	 * Statistics cursor configuration: must match (and defaults to), the

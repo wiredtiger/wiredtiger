@@ -375,22 +375,22 @@ __wt_curlog_open(WT_SESSION_IMPL *session,
 	WT_LOG *log;
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_LOG, iface) == 0);
-	conn = S2C(session);
 
+	conn = S2C(session);
 	log = conn->log;
-	cl = NULL;
+
 	WT_RET(__wt_calloc_one(session, &cl));
-	cursor = &cl->iface;
+	cursor = (WT_CURSOR *)cl;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
+	cursor->key_format = WT_LOGC_KEY_FORMAT;
+	cursor->value_format = WT_LOGC_VALUE_FORMAT;
+
 	WT_ERR(__wt_calloc_one(session, &cl->cur_lsn));
 	WT_ERR(__wt_calloc_one(session, &cl->next_lsn));
 	WT_ERR(__wt_scr_alloc(session, 0, &cl->logrec));
 	WT_ERR(__wt_scr_alloc(session, 0, &cl->opkey));
 	WT_ERR(__wt_scr_alloc(session, 0, &cl->opvalue));
-	cursor->key_format = WT_LOGC_KEY_FORMAT;
-	cursor->value_format = WT_LOGC_VALUE_FORMAT;
-
 	WT_INIT_LSN(cl->cur_lsn);
 	WT_INIT_LSN(cl->next_lsn);
 

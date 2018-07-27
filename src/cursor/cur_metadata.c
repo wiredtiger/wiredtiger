@@ -606,10 +606,9 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session,
 	WT_CONFIG_ITEM cval;
 
 	WT_RET(__wt_calloc_one(session, &mdc));
-
-	cursor = &mdc->iface;
+	cursor = (WT_CURSOR *)mdc;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 	cursor->key_format = "S";
 	cursor->value_format = "S";
 

@@ -1837,10 +1837,9 @@ __wt_clsm_open(WT_SESSION_IMPL *session,
 	WT_ASSERT(session, !bulk || lsm_tree->excl_session != NULL);
 
 	WT_ERR(__wt_calloc_one(session, &clsm));
-
-	cursor = &clsm->iface;
+	cursor = (WT_CURSOR *)clsm;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 	WT_ERR(__wt_strdup(session, lsm_tree->name, &cursor->uri));
 	cursor->key_format = lsm_tree->key_format;
 	cursor->value_format = lsm_tree->value_format;

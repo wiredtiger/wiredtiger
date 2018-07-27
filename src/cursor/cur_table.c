@@ -979,8 +979,6 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_TABLE, iface) == 0);
 
-	ctable = NULL;
-
 	tablename = uri;
 	WT_PREFIX_SKIP_REQUIRED(session, tablename, "table:");
 	columns = strchr(tablename, '(');
@@ -1011,10 +1009,9 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	}
 
 	WT_RET(__wt_calloc_one(session, &ctable));
-
-	cursor = &ctable->iface;
+	cursor = (WT_CURSOR *)ctable;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 	cursor->internal_uri = table->iface.name;
 	cursor->key_format = table->key_format;
 	cursor->value_format = table->value_format;

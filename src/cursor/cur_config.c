@@ -60,10 +60,9 @@ __wt_curconfig_open(WT_SESSION_IMPL *session,
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_CONFIG, iface) == 0);
 
 	WT_RET(__wt_calloc_one(session, &cconfig));
-
-	cursor = &cconfig->iface;
+	cursor = (WT_CURSOR *)cconfig;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 	cursor->key_format = cursor->value_format = "S";
 
 	WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));

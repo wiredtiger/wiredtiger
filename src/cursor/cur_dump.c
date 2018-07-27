@@ -389,7 +389,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
 	session = (WT_SESSION_IMPL *)child->session;
 
 	WT_RET(__wt_calloc_one(session, &cdump));
-	cursor = &cdump->iface;
+	cursor = (WT_CURSOR *)cdump;
 	*cursor = iface;
 	cursor->session = child->session;
 	cursor->internal_uri = child->internal_uri;
