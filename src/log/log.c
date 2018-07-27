@@ -1862,7 +1862,7 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 	WT_LOG *log;
 	WT_LOG_RECORD *logrec;
 	wt_off_t off, remainder;
-	size_t bufsz, rdlen;
+	size_t buf_left, bufsz, rdlen;
 	char *buf, *p, *zerobuf;
 	bool corrupt;
 
@@ -1901,22 +1901,23 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 		if (memcmp(buf, zerobuf, rdlen) != 0) {
 			/*
 			 * Find where the next log record starts after the
-			 * hole.  We can do some simple data verification to
-			 * ensure that this part of the file is not corrupted.
+			 * hole.
 			 */
-			for (p = buf; remainder > 0;
-			     remainder -= (wt_off_t)rdlen, p += rdlen) {
-				rdlen = WT_MIN(WT_LOG_ALIGN, (size_t)remainder);
+			for (p = buf, buf_left = rdlen; buf_left > 0;
+			     buf_left -= rdlen, p += rdlen) {
+				rdlen = WT_MIN(log->allocsize, buf_left);
 				if (memcmp(p, zerobuf, rdlen) != 0)
 					break;
 			}
 			/*
-			 * A presumed log record begins here.  Try some
-			 * basic verification if enough of the record is
-			 * present.  This record may also be partially written.
+			 * A presumed log record begins here where the buffer
+			 * becomes non-zero.  If we have enough of a log record
+			 * present in the buffer, we either have a valid header
+			 * or corruption.  Verify the header of this record to
+			 * determine whether it is just a hole or corruption.
 			 */
 			logrec = (WT_LOG_RECORD *)p;
-			if (remainder >= (wt_off_t)sizeof(WT_LOG_RECORD)) {
+			if (buf_left >= sizeof(WT_LOG_RECORD)) {
 				off += p - buf;
 				WT_ERR(__log_record_verify(session, fh,
 				    (uint32_t)off, logrec, &corrupt));
