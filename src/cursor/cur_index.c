@@ -494,9 +494,9 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	}
 	WT_RET(__wt_calloc_one(session, &cindex));
 
-	cursor = &cindex->iface;
+	cursor = (WT_CURSOR *)cindex;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 
 	cindex->table = table;
 	cindex->index = idx;
