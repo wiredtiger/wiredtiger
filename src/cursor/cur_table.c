@@ -808,6 +808,7 @@ __curtable_close(WT_CURSOR *cursor)
 
 	ctable = (WT_CURSOR_TABLE *)cursor;
 	JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if (ctable->cg_cursors != NULL)
 		for (i = 0, cp = ctable->cg_cursors;
@@ -843,7 +844,7 @@ __curtable_close(WT_CURSOR *cursor)
 	cursor->internal_uri = NULL;
 	WT_TRET(__wt_cursor_close(cursor));
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*

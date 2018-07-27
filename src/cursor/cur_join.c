@@ -324,8 +324,8 @@ __curjoin_close(WT_CURSOR *cursor)
 	u_int i;
 
 	cjoin = (WT_CURSOR_JOIN *)cursor;
-
 	JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	WT_TRET(__wt_schema_release_table(session, cjoin->table));
 
@@ -364,7 +364,7 @@ __curjoin_close(WT_CURSOR *cursor)
 	__wt_free(session, cjoin->entries);
 	WT_TRET(__wt_cursor_close(cursor));
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*

@@ -469,15 +469,20 @@ __curfile_close(WT_CURSOR *cursor)
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, cbt->btree);
-	released = false;
+err:
 
 	/*
-	 * If releasing the cursor fails in any way, it will be left
-	 * in a state that allows it to be normally closed.
+	 * If releasing the cursor fails in any way, it will be left in a state
+	 * that allows it to be normally closed.
 	 */
 	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
-	if (released)
+	if (released) {
+		/*
+		 * XXX
+		 * We're ignoring there might have already been an error.
+		 */
 		goto done;
+	}
 
 	dead = F_ISSET(cursor, WT_CURSTD_DEAD);
 	if (F_ISSET(cursor, WT_CURSTD_BULK)) {
@@ -513,8 +518,7 @@ __curfile_close(WT_CURSOR *cursor)
 			WT_TRET(__wt_session_release_dhandle(session));
 	}
 
-done:
-err:	API_END_RET(session, ret);
+done:	API_END_RET(session, ret);
 }
 
 /*

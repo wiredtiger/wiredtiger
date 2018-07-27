@@ -359,8 +359,8 @@ __curindex_close(WT_CURSOR *cursor)
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	idx = cindex->index;
-
 	JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if ((cp = cindex->cg_cursors) != NULL)
 		for (i = 0, cp = cindex->cg_cursors;
@@ -387,7 +387,7 @@ __curindex_close(WT_CURSOR *cursor)
 	cursor->internal_uri = NULL;
 	WT_TRET(__wt_cursor_close(cursor));
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*

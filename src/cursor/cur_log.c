@@ -317,10 +317,11 @@ __curlog_close(WT_CURSOR *cursor)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
-	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
 	cl = (WT_CURSOR_LOG *)cursor;
-	conn = S2C(session);
+	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
+	conn = S2C(session);
 	if (F_ISSET(cl, WT_CURLOG_ARCHIVE_LOCK)) {
 		(void)__wt_atomic_sub32(&conn->log_cursors, 1);
 		__wt_readunlock(session, &conn->log->log_archive_lock);
@@ -336,7 +337,7 @@ __curlog_close(WT_CURSOR *cursor)
 
 	WT_TRET(__wt_cursor_close(cursor));
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*
