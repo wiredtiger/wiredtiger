@@ -138,6 +138,7 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
 	REVINT_COLLATOR *revint_collator;
+	int ret;
 
 	(void)config;				/* Unused parameters */
 
@@ -148,6 +149,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	revint_collator->collator.terminate = revint_terminate;
 	revint_collator->wt_api = connection->get_extension_api(connection);
 
-	return (connection->add_collator(
-	    connection, "revint", &revint_collator->collator, NULL));
+	if ((ret = connection->add_collator(
+	    connection, "revint", (WT_COLLATOR *)revint_collator, NULL)) == 0)
+		return (0);
+
+	free(revint_collator);
+	return (ret);
 }

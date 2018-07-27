@@ -207,6 +207,7 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
 	CSV_EXTRACTOR *csv_extractor;
+	int ret;
 
 	(void)config;				/* Unused parameters */
 
@@ -218,6 +219,10 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	csv_extractor->extractor.terminate = csv_terminate;
 	csv_extractor->wt_api = connection->get_extension_api(connection);
 
-	return (connection->add_extractor(
-	    connection, "csv", (WT_EXTRACTOR *)csv_extractor, NULL));
+	if ((ret = connection->add_extractor(
+	    connection, "csv", (WT_EXTRACTOR *)csv_extractor, NULL)) == 0)
+		return (0);
+
+	free(csv_extractor);
+	return (ret);
 }
