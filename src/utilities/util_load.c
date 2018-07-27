@@ -551,20 +551,21 @@ insert(WT_CURSOR *cursor, const char *name)
 		 * and ignore it (a dump with "append" set), or not read it at
 		 * all (flat-text load).
 		 */
-		if (util_read_line(session, &key, true, &eof))
-			return (1);
+		if ((ret = util_read_line(session, &key, true, &eof)) != 0)
+			goto err;
 		if (eof)
 			break;
 		if (!append)
 			cursor->set_key(cursor, key.mem);
 
-		if (util_read_line(session, &value, false, &eof))
-			return (1);
+		if ((ret = util_read_line(session, &value, false, &eof)) != 0)
+			goto err;
 		cursor->set_value(cursor, value.mem);
 
-		if ((ret = cursor->insert(cursor)) != 0)
-			return (
-			    util_err(session, ret, "%s: cursor.insert", name));
+		if ((ret = cursor->insert(cursor)) != 0) {
+			ret = util_err(session, ret, "%s: cursor.insert", name);
+			goto err;
+		}
 
 		/* Report on progress every 100 inserts. */
 		if (verbose && ++insert_count % 100 == 0) {
@@ -576,7 +577,10 @@ insert(WT_CURSOR *cursor, const char *name)
 	if (verbose)
 		printf("\r\t%s: %" PRIu64 "\n", name, insert_count);
 
-	return (0);
+err:	free(key.mem);
+	free(value.mem);
+
+	return (ret);
 }
 
 static int
