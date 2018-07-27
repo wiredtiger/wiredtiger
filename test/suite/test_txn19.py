@@ -90,9 +90,9 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
            dict(corruptpos=x,corruptpos2=y,chkpt=z)) for (x,y,z) in (
                (0, 0, 0), (0, 0, 2), (6, 0, 0), (6, 0, 3), (3, 0, 0),
                (3, 0, 2), (3, 4, 2), (3, 5, 2), (3, 0, 4))]
-    alignment_config = [
-        ('align128', dict(alignment_config='')),
-        ('align1K', dict(alignment_config='buffer_alignment=1k'))]
+    align_config = [
+        ('align128', dict(align_config='')),
+        ('align4K', dict(align_config='buffer_alignment=4k'))]
     nrecords = [('nrecords=10', dict(nrecords=10)),
                 ('nrecords=11', dict(nrecords=11))]
 
@@ -121,7 +121,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         return True
 
     scenarios = make_scenarios(
-        corruption_type, corruption_pos, nrecords, alignment_config,
+        corruption_type, corruption_pos, nrecords, align_config,
         include=includeFunc, prune=20, prunelong=1000)
 
     uri = 'table:test_txn19'
@@ -130,7 +130,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     # Override the connection configuration to use our defaults.
     # The buffer alignment affects the minimum size of log records.
     def conn_config(self):
-        return self.base_config + ',' + self.alignment_config
+        return self.base_config + ',' + self.align_config
 
     # Return the log file number that contains the given record
     # number.  In this test, two records fit into each log file, and
