@@ -147,7 +147,6 @@ csv_customize(WT_EXTRACTOR *extractor, WT_SESSION *session,
 	long field_num;
 	int ret;
 
-	(void)session;				/* Unused parameters */
 	(void)uri;				/* Unused parameters */
 
 	orig = (const CSV_EXTRACTOR *)extractor;
