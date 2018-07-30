@@ -471,17 +471,15 @@ __curfile_close(WT_CURSOR *cursor)
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, cbt->btree);
 err:
 
-	/*
-	 * If releasing the cursor fails in any way, it will be left in a state
-	 * that allows it to be normally closed.
-	 */
-	WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
-	if (released) {
+	/* Only try to cache the cursor if there's no error. */
+	if (ret == 0) {
 		/*
-		 * XXX
-		 * We're ignoring there might have already been an error.
+		 * If releasing the cursor fails in any way, it will be left in
+		 * a state that allows it to be normally closed.
 		 */
-		goto done;
+		ret = __wt_cursor_cache_release(session, cursor, &released);
+		if (released)
+			goto done;
 	}
 
 	dead = F_ISSET(cursor, WT_CURSTD_DEAD);
