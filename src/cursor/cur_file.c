@@ -477,7 +477,7 @@ err:
 		 * If releasing the cursor fails in any way, it will be left in
 		 * a state that allows it to be normally closed.
 		 */
-		WT_TRET(__wt_cursor_cache_release(session, cursor, &released));
+		ret = __wt_cursor_cache_release(session, cursor, &released);
 		if (released)
 			goto done;
 	}
