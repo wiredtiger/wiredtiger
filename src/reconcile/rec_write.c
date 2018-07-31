@@ -420,7 +420,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	if (LF_ISSET(WT_REC_EVICT) &&
 	    !__wt_page_can_evict(session, ref, NULL)) {
 		WT_PAGE_UNLOCK(session, page);
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 	}
 
 	/* Initialize the reconciliation structure for each new run. */
@@ -442,8 +442,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	if (LF_ISSET(WT_REC_EVICT)) {
 		mod->last_eviction_id = oldest_id;
 #ifdef HAVE_TIMESTAMPS
-		__wt_txn_pinned_timestamp(
-		    session, &mod->last_eviction_timestamp);
+		if (S2C(session)->txn_global.has_pinned_timestamp)
+			__wt_txn_pinned_timestamp(
+			    session, &mod->last_eviction_timestamp);
 #endif
 		mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
 	}
@@ -480,7 +481,9 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	case WT_PAGE_ROW_LEAF:
 		ret = __rec_row_leaf(session, r, page, salvage);
 		break;
-	WT_ILLEGAL_VALUE_SET(session);
+	default:
+		ret = __wt_illegal_value(session, page->type);
+		break;
 	}
 
 	/*
@@ -651,7 +654,7 @@ __rec_write_check_complete(
 		return (0);
 
 	*lookaside_retryp = true;
-	return (EBUSY);
+	return (__wt_set_return(session, EBUSY));
 }
 
 /*
@@ -767,7 +770,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 		return (0);
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, mod->rec_result);
 	}
 
 	__wt_verbose(session, WT_VERB_SPLIT,
@@ -1397,7 +1400,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
 			    *updp != NULL && uncommitted) {
 				r->leave_dirty = true;
-				return (EBUSY);
+				return (__wt_set_return(session, EBUSY));
 			}
 
 			if (upd->type == WT_UPDATE_BIRTHMARK)
@@ -1517,9 +1520,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * the WT_REC_LOOKASIDE flag.
 	 */
 	if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 	if (uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 
 	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
@@ -1704,7 +1707,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 * the original page and which should see the deleted page).
 	 */
 	if (F_ISSET(r, WT_REC_EVICT))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 
 	/*
 	 * If there are deleted child pages we can't discard immediately, keep
@@ -1789,7 +1792,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 			if (F_ISSET(r, WT_REC_EVICT))
-				return (EBUSY);
+				return (__wt_set_return(session, EBUSY));
 
 			/*
 			 * If called during checkpoint, the child is being
@@ -1817,7 +1820,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			if (F_ISSET(r, WT_REC_EVICT) &&
 			    __wt_page_las_active(session, ref)) {
 				WT_ASSERT(session, false);
-				return (EBUSY);
+				return (__wt_set_return(session, EBUSY));
 			}
 
 			/*
@@ -1842,7 +1845,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 			if (F_ISSET(r, WT_REC_EVICT))
-				return (EBUSY);
+				return (__wt_set_return(session, EBUSY));
 
 			/*
 			 * If called during checkpoint, acquire a hazard pointer
@@ -1877,7 +1880,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
 			if (F_ISSET(r, WT_REC_EVICT))
-				return (EBUSY);
+				return (__wt_set_return(session, EBUSY));
 			goto done;
 
 		case WT_REF_SPLIT:
@@ -1894,9 +1897,9 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * for checkpoint.
 			 */
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, r->tested_ref_state);
 		}
 		WT_STAT_CONN_INCR(session, child_modify_blocked_page);
 	}
@@ -2919,7 +2922,7 @@ __rec_split_raw(WT_SESSION_IMPL *session,
 			}
 			r->raw_entries[slots] = entry;
 			continue;
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, unpack->type);
 		}
 
 		/*
@@ -3638,7 +3641,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	case WT_PAGE_ROW_INT:
 		multi->addr.type = WT_ADDR_INT;
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, page->type);
 	}
 	multi->size = WT_STORE_SIZE(chunk->image.size);
 	multi->checksum = 0;
@@ -3704,7 +3707,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * allocate a zero-length array.
 		 */
 		if (r->page->type != WT_PAGE_ROW_LEAF && chunk->entries == 0)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 
 		if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 			r->cache_write_lookaside = true;
@@ -4152,7 +4155,8 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			case WT_PM_REC_REPLACE:
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(
+			    session, child->modify->rec_result);
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -4160,11 +4164,10 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			break;
 		case WT_CHILD_PROXY:
 			/*
-			 * Deleted child where we write a proxy cell, not
-			 * yet supported for column-store.
+			 * Deleted child where we write a proxy cell, not yet
+			 * supported for column-store.
 			 */
-			ret = __wt_illegal_value(session, NULL);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, state));
 		}
 
 		/*
@@ -4703,7 +4706,7 @@ record_loop:	/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session);
+				WT_ILLEGAL_VALUE_ERR(session, upd->type);
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
 				/*
@@ -4948,7 +4951,7 @@ compare:		/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session);
+				WT_ILLEGAL_VALUE_ERR(session, upd->type);
 				}
 
 			/*
@@ -5166,7 +5169,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				 */
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(
+			    session, child->modify->rec_result);
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -5551,7 +5555,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 
 				/* Proceed with appended key/value pairs. */
 				goto leaf_insert;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(session, upd->type);
 			}
 		}
 
@@ -5761,7 +5765,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			continue;
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, upd->type);
 		}
 
 		/* Build key cell. */
@@ -5971,7 +5975,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		mod->mod_replace.size = 0;
 		__wt_free(session, mod->mod_disk_image);
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, mod->rec_result);
 	}
 
 	/* Reset the reconciliation state. */
