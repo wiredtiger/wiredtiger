@@ -1375,6 +1375,14 @@ struct __wt_session {
 	 * value of merge_max is used., an integer no more than 100; default \c
 	 * 0.}
 	 * @config{ ),,}
+	 * @config{memory_page_image_max, the maximum in-memory page image
+	 * represented by a single storage block.  Depending on compression
+	 * efficiency\, compression can create storage blocks which require
+	 * significant resources to re-instantiate in the cache\, penalizing the
+	 * performance of future point updates.  The value limits the maximum
+	 * in-memory page image a storage block will need.  If set to 0\, a
+	 * default of 4 times \c leaf_page_max is used., an integer greater than
+	 * or equal to 0; default \c 0.}
 	 * @config{memory_page_max, the maximum size a page can grow to in
 	 * memory before being reconciled to disk.  The specified size will be
 	 * adjusted to a lower bound of <code>leaf_page_max</code>\, and an

@@ -447,6 +447,39 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	WT_RET(__wt_compressor_config(session, &cval, &btree->compressor));
 
 	/*
+	 * Configure compression adjustment.
+	 * When doing compression, assume compression rates that will result in
+	 * pages larger than the maximum in-memory images allowed. If we're
+	 * wrong, we adjust downward (but we're almost certainly correct, the
+	 * maximum in-memory images allowed are only 4x the maximum page size,
+	 * and compression always gives us more than 4x).
+	 *	Don't do compression adjustment for fixed-size column store, the
+	 * leaf page sizes don't change. (We could adjust internal pages but not
+	 * internal pages, but that seems an unlikely use case.)
+	 *	Don't do compression adjustment when page sizes are less than
+	 * 16KB. There's not enough compression going on to fine-tune the size,
+	 * all we end up doing is hammering on shared memory.
+	 *	XXX
+	 *	Don't do compression adjustment of snappy-compressed blocks.
+	 */
+	btree->intlpage_compadjust = false;
+	btree->maxintlpage_precomp = btree->maxintlpage;
+	btree->leafpage_compadjust = false;
+	btree->maxleafpage_precomp = btree->maxleafpage;
+	if (btree->compressor != NULL && btree->compressor->compress != NULL &&
+	    !WT_STRING_MATCH("snappy", cval.str, cval.len) &&
+	    btree->type != BTREE_COL_FIX) {
+		if (btree->maxintlpage >= 16 * 1024) {
+			btree->intlpage_compadjust = true;
+			btree->maxintlpage_precomp = btree->maxmempage_image;
+		}
+		if (btree->maxleafpage >= 16 * 1024) {
+			btree->leafpage_compadjust = true;
+			btree->maxleafpage_precomp = btree->maxmempage_image;
+		}
+	}
+
+	/*
 	 * We do not use __wt_config_gets_none here because "none" and the empty
 	 * string have different meanings. The empty string means inherit the
 	 * system encryption setting and "none" means this table is in the clear
@@ -787,6 +820,17 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		    "size (%" PRIu32 "B)", btree->allocsize);
 
 	/*
+	 * Default in-memory page image size for compression: 4x the maximum
+	 * leaf page size, enforce a lower-limit of the leaf page size.
+	 */
+	WT_RET(__wt_config_gets(session, cfg, "memory_page_image_max", &cval));
+	btree->maxmempage_image = (uint32_t)cval.val;
+	if (btree->maxmempage_image == 0)
+		btree->maxmempage_image = 4 * btree->maxleafpage;
+	else if (btree->maxmempage_image < btree->maxleafpage)
+		btree->maxmempage_image = btree->maxleafpage;
+
+	/*
 	 * Don't let pages grow large compared to the cache size or we can end
 	 * up in a situation where nothing can be evicted.  Make sure at least
 	 * 10 pages fit in cache when it is at the dirty trigger where threads
@@ -811,7 +855,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 	 * size.  This gives multi-threaded append workloads a better chance of
 	 * not stalling.
 	 */
-	btree->splitmempage = 8 * btree->maxmempage / 10;
+	btree->splitmempage = (8 * btree->maxmempage) / 10;
 
 	/*
 	 * Get the split percentage (reconciliation splits pages into smaller
@@ -827,8 +871,10 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		    "%d%%.", session->dhandle->name, WT_BTREE_MIN_SPLIT_PCT));
 	} else
 		btree->split_pct = (int)cval.val;
-	intl_split_size = __wt_split_page_size(btree, btree->maxintlpage);
-	leaf_split_size = __wt_split_page_size(btree, btree->maxleafpage);
+	intl_split_size = __wt_split_page_size(
+	    btree->split_pct, btree->maxintlpage, btree->allocsize);
+	leaf_split_size = __wt_split_page_size(
+	    btree->split_pct, btree->maxleafpage, btree->allocsize);
 
 	/*
 	 * In-memory split configuration.
