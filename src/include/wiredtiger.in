@@ -5298,28 +5298,19 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! lock: checkpoint lock internal thread wait time (usecs) */
 #define	WT_STAT_CONN_LOCK_CHECKPOINT_WAIT_INTERNAL	1168
 /*!
- * lock: commit timestamp queue lock application thread time waiting for
- * the dhandle lock (usecs)
+ * lock: commit timestamp queue lock application thread time waiting
+ * (usecs)
  */
 #define	WT_STAT_CONN_LOCK_COMMIT_TIMESTAMP_WAIT_APPLICATION	1169
-/*!
- * lock: commit timestamp queue lock internal thread time waiting for the
- * dhandle lock (usecs)
- */
+/*! lock: commit timestamp queue lock internal thread time waiting (usecs) */
 #define	WT_STAT_CONN_LOCK_COMMIT_TIMESTAMP_WAIT_INTERNAL	1170
 /*! lock: commit timestamp queue read lock acquisitions */
 #define	WT_STAT_CONN_LOCK_COMMIT_TIMESTAMP_READ_COUNT	1171
 /*! lock: commit timestamp queue write lock acquisitions */
 #define	WT_STAT_CONN_LOCK_COMMIT_TIMESTAMP_WRITE_COUNT	1172
-/*!
- * lock: dhandle lock application thread time waiting for the dhandle
- * lock (usecs)
- */
+/*! lock: dhandle lock application thread time waiting (usecs) */
 #define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_APPLICATION	1173
-/*!
- * lock: dhandle lock internal thread time waiting for the dhandle lock
- * (usecs)
- */
+/*! lock: dhandle lock internal thread time waiting (usecs) */
 #define	WT_STAT_CONN_LOCK_DHANDLE_WAIT_INTERNAL		1174
 /*! lock: dhandle read lock acquisitions */
 #define	WT_STAT_CONN_LOCK_DHANDLE_READ_COUNT		1175
@@ -5332,14 +5323,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! lock: metadata lock internal thread wait time (usecs) */
 #define	WT_STAT_CONN_LOCK_METADATA_WAIT_INTERNAL	1179
 /*!
- * lock: read timestamp queue lock application thread time waiting for
- * the dhandle lock (usecs)
+ * lock: read timestamp queue lock application thread time waiting
+ * (usecs)
  */
 #define	WT_STAT_CONN_LOCK_READ_TIMESTAMP_WAIT_APPLICATION	1180
-/*!
- * lock: read timestamp queue lock internal thread time waiting for the
- * dhandle lock (usecs)
- */
+/*! lock: read timestamp queue lock internal thread time waiting (usecs) */
 #define	WT_STAT_CONN_LOCK_READ_TIMESTAMP_WAIT_INTERNAL	1181
 /*! lock: read timestamp queue read lock acquisitions */
 #define	WT_STAT_CONN_LOCK_READ_TIMESTAMP_READ_COUNT	1182
@@ -5365,15 +5353,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_LOCK_TABLE_READ_COUNT		1189
 /*! lock: table write lock acquisitions */
 #define	WT_STAT_CONN_LOCK_TABLE_WRITE_COUNT		1190
-/*!
- * lock: txn global lock application thread time waiting for the dhandle
- * lock (usecs)
- */
+/*! lock: txn global lock application thread time waiting (usecs) */
 #define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_APPLICATION	1191
-/*!
- * lock: txn global lock internal thread time waiting for the dhandle
- * lock (usecs)
- */
+/*! lock: txn global lock internal thread time waiting (usecs) */
 #define	WT_STAT_CONN_LOCK_TXN_GLOBAL_WAIT_INTERNAL	1192
 /*! lock: txn global read lock acquisitions */
 #define	WT_STAT_CONN_LOCK_TXN_GLOBAL_READ_COUNT		1193
