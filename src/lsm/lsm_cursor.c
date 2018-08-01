@@ -1752,6 +1752,8 @@ __wt_clsm_close(WT_CURSOR *cursor)
 	 */
 	clsm = (WT_CURSOR_LSM *)cursor;
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
+
 	WT_TRET(__clsm_close_cursors(session, clsm, 0, clsm->nchunks));
 	__clsm_free_chunks(session, clsm);
 
@@ -1760,9 +1762,9 @@ __wt_clsm_close(WT_CURSOR *cursor)
 
 	if (clsm->lsm_tree != NULL)
 		__wt_lsm_tree_release(session, clsm->lsm_tree);
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*

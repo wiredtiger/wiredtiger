@@ -321,6 +321,7 @@ __curstat_close(WT_CURSOR *cursor)
 
 	cst = (WT_CURSOR_STAT *)cursor;
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if (cst->cfg != NULL) {
 		for (i = 0; cst->cfg[i] != NULL; ++i)
@@ -331,9 +332,9 @@ __curstat_close(WT_CURSOR *cursor)
 	__wt_buf_free(session, &cst->pv);
 	__wt_free(session, cst->desc_buf);
 
-	WT_ERR(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*

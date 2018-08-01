@@ -443,11 +443,11 @@ __curds_close(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	cds = (WT_CURSOR_DATA_SOURCE *)cursor;
-
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if (cds->source != NULL)
-		ret = cds->source->close(cds->source);
+		WT_TRET(cds->source->close(cds->source));
 
 	if (cds->collator_owned) {
 		if (cds->collator->terminate != NULL)
@@ -464,9 +464,9 @@ __curds_close(WT_CURSOR *cursor)
 	__wt_free(session, cursor->key_format);
 	__wt_free(session, cursor->value_format);
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*

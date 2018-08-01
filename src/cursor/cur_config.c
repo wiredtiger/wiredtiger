@@ -19,9 +19,11 @@ __curconfig_close(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
-	WT_TRET(__wt_cursor_close(cursor));
+err:
 
-err:	API_END_RET(session, ret);
+	__wt_cursor_close(cursor);
+
+	API_END_RET(session, ret);
 }
 
 /*
