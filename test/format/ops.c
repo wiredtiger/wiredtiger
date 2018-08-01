@@ -600,7 +600,6 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	++tinfo->prepare;
 
-
 	/*
 	 * Prepare timestamps must be less than or equal to the eventual commit
 	 * timestamp. Set the prepare timestamp to whatever the global value is
