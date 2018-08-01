@@ -522,12 +522,6 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 	*iso_configp = v;
 
 	/*
-	 * Lock out the oldest timestamp update and single-thread transaction
-	 * begin and prepare.
-	 */
-	testutil_check(pthread_rwlock_wrlock(&g.txn_lock));
-
-	/*
 	 * Keep trying to start a new transaction if it's timing out - we know
 	 * there aren't any resources pinned so it should succeed eventually.
 	 */
@@ -538,17 +532,21 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 
 	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
 		/*
-		 * Prepare will return an error if the prepare timestamp is less
-		 * than any active read timestamp. OK as we've single-threaded
-		 * prepare and transaction begin to handle updating the oldest
-		 * timestamp.
+		 * Prepare returns an error if the prepare timestamp is less
+		 * than any active read timestamp, single-thread transaction
+		 * prepare and begin.
+		 *
+		 * Lock out the oldest timestamp update.
 		 */
+		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
+
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "read_timestamp=%" PRIx64,
 		    __wt_atomic_addv64(&g.timestamp, 1)));
 		testutil_check(session->timestamp_transaction(session, buf));
+
+		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
-	testutil_check(pthread_rwlock_unlock(&g.txn_lock));
 }
 
 /*
@@ -564,18 +562,15 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	++tinfo->commit;
 
 	if (g.c_txn_timestamps) {
-		/*
-		 * Lock out the oldest timestamp update and single-thread
-		 * transaction begin and prepare.
-		 */
-		testutil_check(pthread_rwlock_wrlock(&g.txn_lock));
+		/* Lock out the oldest timestamp update. */
+		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
 		    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
 		testutil_check(session->timestamp_transaction(session, buf));
 
-		testutil_check(pthread_rwlock_unlock(&g.txn_lock));
+		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
 	testutil_check(session->commit_transaction(session, NULL));
 }
@@ -605,27 +600,25 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	++tinfo->prepare;
 
-	/*
-	 * Lock out the oldest timestamp update and single-thread transaction
-	 * begin and prepare.
-	 */
-	testutil_check(pthread_rwlock_wrlock(&g.txn_lock));
 
 	/*
 	 * Prepare timestamps must be less than or equal to the eventual commit
 	 * timestamp. Set the prepare timestamp to whatever the global value is
 	 * now. The subsequent commit will increment it, ensuring correctness.
 	 *
-	 * Prepare will return an error if the prepare timestamp is less than
-	 * any active read timestamp. OK as we've single-threaded prepare and
-	 * transaction begin to handle updating the oldest timestamp.
+	 * Prepare returns an error if the prepare timestamp is less than any
+	 * active read timestamp, single-thread transaction prepare and begin.
+	 *
+	 * Lock out the oldest timestamp update.
 	 */
+	testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
+
 	ts = __wt_atomic_addv64(&g.timestamp, 1);
 	testutil_check(__wt_snprintf(
 	    buf, sizeof(buf), "prepare_timestamp=%" PRIx64, ts));
 	ret = session->prepare_transaction(session, buf);
 
-	testutil_check(pthread_rwlock_unlock(&g.txn_lock));
+	testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	return (ret);
 }
 

@@ -128,9 +128,10 @@ typedef struct {
 	 * timestamps.
 	 *
 	 * We get the last committed timestamp periodically in order to update
-	 * the oldest timestamp. That requires locking out transactional ops.
+	 * the oldest timestamp, that requires locking out transactional ops
+	 * that set a timestamp.
 	 */
-	pthread_rwlock_t txn_lock;
+	pthread_rwlock_t ts_lock;
 
 	uint64_t timestamp;			/* Counter for timestamps */
 

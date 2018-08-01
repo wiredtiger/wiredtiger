@@ -615,11 +615,11 @@ timestamp(void *arg)
 			random_sleep(&g.rnd, 15);
 
 		/*
-		 * Lock out transaction begin/prepare activity. The lock should
-		 * act as a barrier, ensuring we've checked if the workers have
-		 * finished, we don't want that line rescheduled.
+		 * Lock out transaction timestamp operations. The lock acts as a
+		 * barrier ensuring we've checked if the workers have finished,
+		 * we don't want that line reordered.
 		 */
-		testutil_check(pthread_rwlock_wrlock(&g.txn_lock));
+		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
 		ret = conn->query_timestamp(conn,
 		    buf + strlen("oldest_timestamp="), "get=all_committed");
@@ -627,7 +627,7 @@ timestamp(void *arg)
 		if (ret == 0)
 			testutil_check(conn->set_timestamp(conn, buf));
 
-		testutil_check(pthread_rwlock_unlock(&g.txn_lock));
+		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	} while (!done);
 
 	testutil_check(session->close(session, NULL));
