@@ -632,18 +632,16 @@ __curfile_create(WT_SESSION_IMPL *session,
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_BTREE, iface) == 0);
 
-	cbt = NULL;
-	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
-
 	btree = S2BT(session);
 	WT_ASSERT(session, btree != NULL);
 
 	csize = bulk ? sizeof(WT_CURSOR_BULK) : sizeof(WT_CURSOR_BTREE);
-	WT_RET(__wt_calloc(session, 1, csize, &cbt));
+	cacheable = F_ISSET(session, WT_SESSION_CACHE_CURSORS) && !bulk;
 
-	cursor = &cbt->iface;
+	WT_RET(__wt_calloc(session, 1, csize, &cbt));
+	cursor = (WT_CURSOR *)cbt;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 	cursor->internal_uri = btree->dhandle->name;
 	cursor->key_format = btree->key_format;
 	cursor->value_format = btree->value_format;

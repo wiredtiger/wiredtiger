@@ -507,13 +507,12 @@ __wt_curds_open(
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_DATA_SOURCE, iface) == 0);
 
-	data_source = NULL;
 	metaconf = NULL;
 
 	WT_RET(__wt_calloc_one(session, &data_source));
-	cursor = &data_source->iface;
+	cursor = (WT_CURSOR *)data_source;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 
 	/*
 	 * XXX
