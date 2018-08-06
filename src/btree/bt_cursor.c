@@ -1415,18 +1415,6 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	__cursor_state_save(cursor, &state);
 
 	/*
-	 * We are about to read and save a copy of the existing value, then
-	 * apply the modification.  For correctness, we need to do that as part
-	 * of the transaction that performs the update, otherwise we could race
-	 * with another thread and end up with the wrong value in the cursor.
-	 */
-	WT_ERR(__wt_txn_autocommit_check(session));
-
-	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
-		WT_ERR_MSG(session, ENOTSUP,
-		    "not supported in read-uncommitted transactions");
-
-	/*
 	 * Get the current value and apply the modification to it, for a few
 	 * reasons: first, we set the updated value so the application can
 	 * retrieve the cursor's value; second, we use the updated value as
@@ -1437,6 +1425,17 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 * fifth reason, verify we're not in a read-uncommitted transaction,
 	 * that implies a value that might disappear out from under us.
 	 */
+	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
+		WT_ERR_MSG(session, ENOTSUP,
+		    "not supported in read-uncommitted transactions");
+	/*
+	 * We are about to read and save a copy of the existing value, then
+	 * apply the modification.  For correctness, we need to do that as part
+	 * of the transaction that performs the update, otherwise we could race
+	 * with another thread and end up with the wrong value in the cursor.
+	 */
+	WT_ERR(__wt_txn_autocommit_check(session));
+
 	if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) ||
 	    !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
 		WT_ERR(__wt_btcur_search(cbt));
