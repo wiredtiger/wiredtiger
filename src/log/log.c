@@ -1862,7 +1862,7 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 	WT_LOG *log;
 	WT_LOG_RECORD *logrec;
 	wt_off_t off, remainder;
-	size_t buf_left, bufsz, rdlen;
+	size_t allocsize, buf_left, bufsz, rdlen;
 	char *buf, *p, *zerobuf;
 	bool corrupt;
 
@@ -1898,6 +1898,7 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 	    remainder -= (wt_off_t)rdlen, off += (wt_off_t)rdlen) {
 		rdlen = WT_MIN(bufsz, (size_t)remainder);
 		WT_ERR(__wt_read(session, fh, off, rdlen, buf));
+		allocsize = (log == NULL ? WT_LOG_ALIGN : log->allocsize);
 		if (memcmp(buf, zerobuf, rdlen) != 0) {
 			/*
 			 * Find where the next log record starts after the
@@ -1905,7 +1906,7 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 			 */
 			for (p = buf, buf_left = rdlen; buf_left > 0;
 			     buf_left -= rdlen, p += rdlen) {
-				rdlen = WT_MIN(log->allocsize, buf_left);
+				rdlen = WT_MIN(allocsize, buf_left);
 				if (memcmp(p, zerobuf, rdlen) != 0)
 					break;
 			}
