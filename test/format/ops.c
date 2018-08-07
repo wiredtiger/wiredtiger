@@ -353,8 +353,15 @@ snap_check(WT_CURSOR *cursor,
 			testutil_assert(start->keyno != 0);
 		}
 
-		/* Check for subsequent changes to this record. */
+		/*
+		 * Check for subsequent changes to this record. If we find a
+		 * read, don't treat it was a subsequent change, that way we
+		 * verify the results of the change as well as the results of
+		 * the read.
+		 */
 		for (p = start + 1; p < stop; ++p) {
+			if (p->op == READ)
+				continue;
 			if (p->keyno == start->keyno)
 				break;
 

@@ -890,7 +890,6 @@ __log_wrlsn_server(void *arg)
 	__wt_log_wrlsn(session, NULL);
 	if (0) {
 err:		WT_PANIC_MSG(session, ret, "log wrlsn server error");
-
 	}
 	return (WT_THREAD_RET_VALUE);
 }
