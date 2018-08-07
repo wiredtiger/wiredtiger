@@ -41,7 +41,11 @@ class test_config07(wttest.WiredTigerTestCase):
         ('default', dict(log_extend_len='()', expected_log_size = 100 * K)),
         ('empty', dict(log_extend_len='(log=)', expected_log_size = 100 * K)),
         ('disable', dict(log_extend_len='(log=0)', expected_log_size = 128)),
-        ('20K', dict(log_extend_len='(log=20K)', expected_log_size = 20 * K)),
+        ('100K', dict(log_extend_len='(log=100K)', expected_log_size = 100 * K)),
+        ('too_small', dict(log_extend_len='(log=20K)', expected_log_size = None)),
+        ('too_large', dict(log_extend_len='(log=20G)', expected_log_size = None)),
+        ('larger_than_log_file_size', dict(log_extend_len='(log=20M)',
+                                          expected_log_size = 100 * K)),
     ]
 
     scenarios = make_scenarios(extend_len)
@@ -60,12 +64,21 @@ class test_config07(wttest.WiredTigerTestCase):
 
     def test_log_extend(self):
         self.conn.close()
+        msg = '/invalid log extend length/'
 
         config = 'log=(enabled,file_max=100K),file_extend=' + self.log_extend_len
-        # Create a table, insert data in it to trigger log file writes.
         configarg = 'create,statistics=(fast)' + ',' + config
+
+        # Expect an error when an invalid log extend size is provided.
+        if self.expected_log_size is None:
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.wiredtiger_open('.', configarg), msg)
+            return
+
         self.conn = self.wiredtiger_open('.', configarg)
         self.session = self.conn.open_session(None)
+
+        # Create a table, insert data in it to trigger log file writes.
         self.session.create(self.uri, 'key_format=i,value_format=i')
         self.populate()
         self.session.checkpoint()

@@ -2626,6 +2626,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	WT_ERR(__wt_config_gets(session, cfg, "file_extend", &cval));
 	for (ft = file_types; ft->name != NULL; ft++) {
+		/*
+		 * An unset log extend length is an indicator to set it
+		 * with configured maximum log file size in case of the default
+		 * configuration. Update the log extend length with actual
+		 * desired size when maximum log file size gets initialized as
+		 * part log server initialization.
+		 */
+		conn->log_extend_len = WT_CONFIG_UNSET;
 		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
 		if (ret == 0) {
 			switch (ft->flag) {
@@ -2633,23 +2641,24 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 				conn->data_extend_len = sval.val;
 				break;
 			case WT_DIRECT_IO_LOG:
-				conn->log_extend_len = sval.val;
+				/*
+				 * In the case of the "file_extend=(log=)",
+				 * unset the log extend length.
+				 */
+				if (sval.val == 1)
+					conn->log_extend_len = WT_CONFIG_UNSET;
+				else if (sval.val == 0 ||
+				    (sval.val >= WT_LOG_FILE_MIN &&
+				    sval.val <= WT_LOG_FILE_MAX))
+					conn->log_extend_len = sval.val;
+				else
+					WT_ERR_MSG(session, EINVAL,
+					    "invalid log extend length: %ld",
+					    sval.val);
 				break;
 			}
-		} else {
-			/*
-			 * Set the default log extend length to -1 as an
-			 * indicator that the default for log files is to extend
-			 * by configured maximum log file size. Update the
-			 * extend length with actual desired size when maximum
-			 * log file size gets initialized as part log server
-			 * initialization.
-			 */
-			if (ft->flag == WT_DIRECT_IO_LOG)
-				conn->log_extend_len = -1;
-
+		} else
 			WT_ERR_NOTFOUND_OK(ret);
-		}
 	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
