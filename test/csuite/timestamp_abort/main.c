@@ -58,7 +58,7 @@ static char home[1024];			/* Program working dir */
  */
 #define	INVALID_KEY	UINT64_MAX
 #define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
-#define	MAX_TH		12
+#define	MAX_TH		120
 #define	MAX_TIME	40
 #define	MAX_VAL		1024
 #define	MIN_TH		5
@@ -81,7 +81,7 @@ static volatile uint64_t th_ts[MAX_TH];
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
-    "create,log=(archive=false,file_max=10M,enabled)"
+    "create,log=(archive=false,file_max=10M,enabled),session_max=1000"
 #define	ENV_CONFIG_TXNSYNC					\
     "create,log=(archive=false,file_max=10M,enabled),"			\
     "transaction_sync=(enabled,method=none)"
@@ -272,6 +272,8 @@ thread_run(void *arg)
 	 * are in use.
 	 */
 	use_prep = (use_ts && td->info % 2 == 0) ? true : false;
+	use_prep = false;
+
 	/*
 	 * We may have two sessions so that the oplog session can have its own
 	 * transaction in parallel with the collection session for threads
@@ -320,6 +322,12 @@ thread_run(void *arg)
 		if (use_prep)
 			testutil_check(oplog_session->begin_transaction(
 			    oplog_session, NULL));
+		if (use_ts) {
+			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
+			    "commit_timestamp=%" PRIx64, stable_ts));
+			testutil_check(
+			    session->timestamp_transaction(session, tscfg));
+		}
 		cur_coll->set_key(cur_coll, kname);
 		cur_local->set_key(cur_local, kname);
 		cur_oplog->set_key(cur_oplog, kname);
@@ -359,10 +367,8 @@ thread_run(void *arg)
 				if (i % PREPARE_YIELD == 0)
 					__wt_yield();
 			}
-			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-			    "commit_timestamp=%" PRIx64, stable_ts));
 			testutil_check(
-			    session->commit_transaction(session, tscfg));
+			    session->commit_transaction(session, NULL));
 			if (use_prep)
 				testutil_check(
 				    oplog_session->commit_transaction(

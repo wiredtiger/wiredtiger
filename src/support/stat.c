@@ -1056,7 +1056,7 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page delete rollback time sleeping for state change (usecs)",
 	"thread-yield: page reconciliation yielded due to child modification",
 	"transaction: commit timestamp queue insert to empty",
-	"transaction: commit timestamp queue inserts to tail",
+	"transaction: commit timestamp queue inserts to head",
 	"transaction: commit timestamp queue inserts total",
 	"transaction: commit timestamp queue length",
 	"transaction: number of named snapshots created",
@@ -1455,7 +1455,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_del_rollback_blocked = 0;
 	stats->child_modify_blocked_page = 0;
 	stats->txn_commit_queue_empty = 0;
-	stats->txn_commit_queue_tail = 0;
+	stats->txn_commit_queue_head = 0;
 	stats->txn_commit_queue_inserts = 0;
 	stats->txn_commit_queue_len = 0;
 	stats->txn_snapshots_created = 0;
@@ -1986,8 +1986,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, child_modify_blocked_page);
 	to->txn_commit_queue_empty +=
 	    WT_STAT_READ(from, txn_commit_queue_empty);
-	to->txn_commit_queue_tail +=
-	    WT_STAT_READ(from, txn_commit_queue_tail);
+	to->txn_commit_queue_head +=
+	    WT_STAT_READ(from, txn_commit_queue_head);
 	to->txn_commit_queue_inserts +=
 	    WT_STAT_READ(from, txn_commit_queue_inserts);
 	to->txn_commit_queue_len += WT_STAT_READ(from, txn_commit_queue_len);
