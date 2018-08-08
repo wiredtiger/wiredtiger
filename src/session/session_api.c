@@ -1794,6 +1794,30 @@ err:	API_END_RET(session, ret);
 }
 
 /*
+ * __session_query_timestamp --
+ *	WT_SESSION->query_timestamp method.
+ */
+static int
+__session_query_timestamp(
+    WT_SESSION *wt_session, char *hex_timestamp, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+#ifdef HAVE_DIAGNOSTIC
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    query_timestamp, config, cfg);
+#else
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    query_transaction, NULL, cfg);
+	cfg[1] = config;
+#endif
+	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg));
+err:	API_END_RET(session, ret);
+}
+
+/*
  * __session_transaction_pinned_range --
  *	WT_SESSION->transaction_pinned_range method.
  */
@@ -2105,6 +2129,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_prepare_transaction,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
+		__session_query_timestamp,
 		__session_checkpoint,
 		__session_snapshot,
 		__session_transaction_pinned_range,
@@ -2136,6 +2161,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_prepare_transaction_readonly,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
+		__session_query_timestamp,
 		__session_checkpoint_readonly,
 		__session_snapshot,
 		__session_transaction_pinned_range,

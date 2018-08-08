@@ -1018,6 +1018,7 @@ static const char * const __stats_connection_desc[] = {
 	"reconciliation: split objects currently awaiting free",
 	"session: open cursor count",
 	"session: open session count",
+	"session: session query timestamp calls",
 	"session: table alter failed calls",
 	"session: table alter successful calls",
 	"session: table alter unchanged and skipped",
@@ -1417,6 +1418,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing rec_split_stashed_objects */
 		/* not clearing session_cursor_open */
 		/* not clearing session_open */
+	stats->session_query_ts = 0;
 		/* not clearing session_table_alter_fail */
 		/* not clearing session_table_alter_success */
 		/* not clearing session_table_alter_skip */
@@ -1919,6 +1921,7 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_objects);
 	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
+	to->session_query_ts += WT_STAT_READ(from, session_query_ts);
 	to->session_table_alter_fail +=
 	    WT_STAT_READ(from, session_table_alter_fail);
 	to->session_table_alter_success +=

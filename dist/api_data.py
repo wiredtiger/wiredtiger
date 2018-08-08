@@ -1162,6 +1162,14 @@ methods = {
         type='list'),
 ]),
 
+'WT_SESSION.query_timestamp' : Method([
+    Config('get', 'read_timestamp', r'''
+        specify which timestamp to query: \c read_timestamp returns the
+        timestamp the transaction is reading at.  See @ref
+        transaction_timestamps''',
+        choices=['read_timestamp']),
+]),
+
 'WT_SESSION.rebalance' : Method([]),
 'WT_SESSION.rename' : Method([]),
 'WT_SESSION.reset' : Method([]),
