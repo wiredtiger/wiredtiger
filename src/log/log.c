@@ -2505,7 +2505,7 @@ advance:
 			 */
 			if (F_ISSET(conn, WT_CONN_WAS_BACKUP))
 				break;
-			
+
 			if (!__log_check_partial_write(session, buf, reclen)) {
 				/*
 				 * It's not a partial write, and we have a bad
