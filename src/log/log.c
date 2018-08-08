@@ -2482,6 +2482,12 @@ advance:
 			 */
 			if (log != NULL)
 				log->trunc_lsn = rd_lsn;
+			/*
+			 * If the user asked for a specific LSN and it is not
+			 * a valid LSN, return WT_NOTFOUND.
+			 */
+			if (LF_ISSET(WT_LOGSCAN_ONE))
+				ret = WT_NOTFOUND;
 
 			/*
 			 * When we have a checksum mismatch, we determine
@@ -2497,42 +2503,33 @@ advance:
 			 * it occurs. The third will result in an error during
 			 * recovery, and requires salvage to fix.
 			 */
-			if (!F_ISSET(conn, WT_CONN_WAS_BACKUP)) {
-				if (!__log_check_partial_write(session, buf,
-				    reclen)) {
-					/*
-					 * It's not a partial write, and we
-					 * have a bad checksum. We treat it as
-					 * a corruption that must be salvaged.
-					 */
+			if (F_ISSET(conn, WT_CONN_WAS_BACKUP))
+				break;
+			
+			if (!__log_check_partial_write(session, buf, reclen)) {
+				/*
+				 * It's not a partial write, and we have a bad
+				 * checksum. We treat it as a corruption that
+				 * must be salvaged.
+				 */
+				need_salvage = true;
+				WT_ERR(__log_salvageable_error(session,
+				    log_fh->name, ", bad checksum",
+				    rd_lsn.l.offset));
+			} else {
+				/*
+				 * It may be a partial write, or it's possible
+				 * that the header is corrupt.  Make a sanity
+				 * check of the log record header.
+				 */
+				WT_ERR(__log_record_verify(session, log_fh,
+				    rd_lsn.l.offset, logrec, &corrupt));
+				if (corrupt) {
 					need_salvage = true;
 					WT_ERR(__log_salvageable_error(session,
-					    log_fh->name, ", bad checksum",
-					    rd_lsn.l.offset));
-				} else {
-					/*
-					 * It may be a partial write, or it's
-					 * possible that the header is corrupt.
-					 * Make a sanity check of the log
-					 * record header.
-					 */
-					WT_ERR(__log_record_verify(session,
-					    log_fh, rd_lsn.l.offset, logrec,
-					    &corrupt));
-					if (corrupt) {
-						need_salvage = true;
-						WT_ERR(__log_salvageable_error(
-						    session, log_fh->name, "",
-						    rd_lsn.l.offset));
-					}
+					    log_fh->name, "", rd_lsn.l.offset));
 				}
 			}
-			/*
-			 * If the user asked for a specific LSN and it is not
-			 * a valid LSN, return WT_NOTFOUND.
-			 */
-			if (LF_ISSET(WT_LOGSCAN_ONE))
-				ret = WT_NOTFOUND;
 			break;
 		}
 		__wt_log_record_byteswap(logrec);
