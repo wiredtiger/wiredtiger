@@ -90,7 +90,7 @@ union __wt_lsn {
 /*
  * Size range for the log files.
  */
-#define	WT_LOG_FILE_MAX ((uint64_t)2 * WT_GIGABYTE)
+#define	WT_LOG_FILE_MAX ((int64_t)2 * WT_GIGABYTE)
 #define	WT_LOG_FILE_MIN (100 * WT_KILOBYTE)
 
 #define	WT_LOG_SKIP_HEADER(data)					\
