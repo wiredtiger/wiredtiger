@@ -1916,14 +1916,21 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 			 * present in the buffer, we either have a valid header
 			 * or corruption.  Verify the header of this record to
 			 * determine whether it is just a hole or corruption.
+			 *
+			 * We don't bother making this check for backup copies,
+			 * as records may have their beginning zeroed, hence
+			 * the part after a hole may in fact be the middle of
+			 * the record.
 			 */
-			logrec = (WT_LOG_RECORD *)p;
-			if (buf_left >= sizeof(WT_LOG_RECORD)) {
-				off += p - buf;
-				WT_ERR(__log_record_verify(session, fh,
-				    (uint32_t)off, logrec, &corrupt));
-				if (corrupt)
-					*error_offset = off;
+			if (!F_ISSET(conn, WT_CONN_WAS_BACKUP)) {
+				logrec = (WT_LOG_RECORD *)p;
+				if (buf_left >= sizeof(WT_LOG_RECORD)) {
+					off += p - buf;
+					WT_ERR(__log_record_verify(session, fh,
+					    (uint32_t)off, logrec, &corrupt));
+					if (corrupt)
+						*error_offset = off;
+				}
 			}
 			*hole = true;
 			break;
@@ -1946,12 +1953,6 @@ err:	__wt_free(session, buf);
  *	padded with zeroes before writing). The only way we have any certainty
  *	is if the last byte is non-zero, when that happens, we know that
  *	the write cannot be partial.
- *
- *	When we have a checksum mismatch, it is important to know that whether
- *	it may be 1) the result of a partial write or 2) the result of
- *	corruption. The former can happen in normal operations, and we
- *	will silently truncate the log when it occurs. The latter will
- *	result in an error during recovery, and requires salvage to fix.
  */
 static bool
 __log_check_partial_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
@@ -2481,29 +2482,49 @@ advance:
 			 */
 			if (log != NULL)
 				log->trunc_lsn = rd_lsn;
-			/* Make a check to see if it may be a partial write. */
-			if (!__log_check_partial_write(session, buf, reclen)) {
-				/*
-				 * It's not a partial write, and we have a bad
-				 * checksum. We treat it as a corruption that
-				 * must be salvaged.
-				 */
-				need_salvage = true;
-				WT_ERR(__log_salvageable_error(session,
-				    log_fh->name, ", bad checksum",
-				    rd_lsn.l.offset));
-			} else {
-				/*
-				 * It may be a partial write, or it's possible
-				 * that the header is corrupt.  Make a sanity
-				 * check of the log record header.
-				 */
-				WT_ERR(__log_record_verify(session, log_fh,
-				    rd_lsn.l.offset, logrec, &corrupt));
-				if (corrupt) {
+
+			/*
+			 * When we have a checksum mismatch, we determine
+			 * whether it may be the result of:
+			 *  1) some expected corruption that can occur during
+			 *     backups
+			 *  2) a partial write that can naturally occur when
+			 *     an application crashes
+			 *  3) some other corruption
+			 *
+			 * As the first and second happen commonly in normal
+			 * operations, we will silently truncate the log when
+			 * it occurs. The third will result in an error during
+			 * recovery, and requires salvage to fix.
+			 */
+			if (!F_ISSET(conn, WT_CONN_WAS_BACKUP)) {
+				if (!__log_check_partial_write(session, buf,
+				    reclen)) {
+					/*
+					 * It's not a partial write, and we
+					 * have a bad checksum. We treat it as
+					 * a corruption that must be salvaged.
+					 */
 					need_salvage = true;
 					WT_ERR(__log_salvageable_error(session,
-					    log_fh->name, "", rd_lsn.l.offset));
+					    log_fh->name, ", bad checksum",
+					    rd_lsn.l.offset));
+				} else {
+					/*
+					 * It may be a partial write, or it's
+					 * possible that the header is corrupt.
+					 * Make a sanity check of the log
+					 * record header.
+					 */
+					WT_ERR(__log_record_verify(session,
+					    log_fh, rd_lsn.l.offset, logrec,
+					    &corrupt));
+					if (corrupt) {
+						need_salvage = true;
+						WT_ERR(__log_salvageable_error(
+						    session, log_fh->name, "",
+						    rd_lsn.l.offset));
+					}
 				}
 			}
 			/*
