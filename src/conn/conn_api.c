@@ -2625,15 +2625,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 #endif
 
 	WT_ERR(__wt_config_gets(session, cfg, "file_extend", &cval));
+	/*
+	 * If the log extend length is not set use the default of the configured
+	 * maximum log file size. That size is not known until it is initialized
+	 * as part of the log server initialization.
+	 */
+	conn->log_extend_len = WT_CONFIG_UNSET;
 	for (ft = file_types; ft->name != NULL; ft++) {
-		/*
-		 * An unset log extend length is an indicator to set it
-		 * with configured maximum log file size in case of the default
-		 * configuration. Update the log extend length with actual
-		 * desired size when maximum log file size gets initialized as
-		 * part log server initialization.
-		 */
-		conn->log_extend_len = WT_CONFIG_UNSET;
 		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
 		if (ret == 0) {
 			switch (ft->flag) {
@@ -2642,8 +2640,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 				break;
 			case WT_DIRECT_IO_LOG:
 				/*
-				 * In the case of the "file_extend=(log=)",
-				 * unset the log extend length.
+				 * When using "file_extend=(log=)", the val
+				 * returned is 1. Unset the log extend length
+				 * in that case to use the default.
 				 */
 				if (sval.val == 1)
 					conn->log_extend_len = WT_CONFIG_UNSET;

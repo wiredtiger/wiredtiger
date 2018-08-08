@@ -36,16 +36,23 @@ class test_config07(wttest.WiredTigerTestCase):
     uri = "table:test"
     entries = 100000
     K = 1024
+    log_size = K * K
 
     extend_len = [
-        ('default', dict(log_extend_len='()', expected_log_size = 100 * K)),
-        ('empty', dict(log_extend_len='(log=)', expected_log_size = 100 * K)),
+        ('default', dict(log_extend_len='()', expected_log_size = log_size)),
+        ('empty', dict(log_extend_len='(log=)', expected_log_size = log_size)),
         ('disable', dict(log_extend_len='(log=0)', expected_log_size = 128)),
         ('100K', dict(log_extend_len='(log=100K)', expected_log_size = 100 * K)),
         ('too_small', dict(log_extend_len='(log=20K)', expected_log_size = None)),
         ('too_large', dict(log_extend_len='(log=20G)', expected_log_size = None)),
+        ('small_in_allowed range', dict(log_extend_len='(log=200K)',
+                                       expected_log_size = 200 * K)),
+        ('large_in_allowed_range', dict(log_extend_len='(log=900K)',
+                                       expected_log_size = 900 * K)),
         ('larger_than_log_file_size', dict(log_extend_len='(log=20M)',
-                                          expected_log_size = 100 * K)),
+                                       expected_log_size = log_size)),
+        ('with_data_file_extend_conf', dict(log_extend_len='(log=100K,data=16M)',
+                                       expected_log_size = 100 * K)),
     ]
 
     scenarios = make_scenarios(extend_len)
@@ -66,7 +73,7 @@ class test_config07(wttest.WiredTigerTestCase):
         self.conn.close()
         msg = '/invalid log extend length/'
 
-        config = 'log=(enabled,file_max=100K),file_extend=' + self.log_extend_len
+        config = 'log=(enabled,file_max=1M),file_extend=' + self.log_extend_len
         configarg = 'create,statistics=(fast)' + ',' + config
 
         # Expect an error when an invalid log extend size is provided.

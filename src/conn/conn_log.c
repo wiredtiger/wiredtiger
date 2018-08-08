@@ -280,7 +280,7 @@ __logmgr_config(
 		/*
 		 * With the default log file extend configuration or log file
 		 * extension size larger than configured maximum log file size,
-		 * set the log file extension size to configured maximum log
+		 * set the log file extension size to the configured maximum log
 		 * file size.
 		 */
 		if (conn->log_extend_len == WT_CONFIG_UNSET ||
