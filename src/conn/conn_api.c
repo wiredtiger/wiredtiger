@@ -2652,8 +2652,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 					conn->log_extend_len = sval.val;
 				else
 					WT_ERR_MSG(session, EINVAL,
-					    "invalid log extend length: %ld",
-					    sval.val);
+					    "invalid log extend length: %"
+					    PRId64, sval.val);
 				break;
 			}
 		} else
