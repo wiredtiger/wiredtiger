@@ -1426,7 +1426,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	 * that implies a value that might disappear out from under us.
 	 *
 	 * Also, an application might read a value outside of a transaction and
-	 * then called modify. For that to work, the read must be part of the
+	 * then call modify. For that to work, the read must be part of the
 	 * transaction that performs the update for correctness, otherwise we
 	 * could race with another thread and end up modifying the wrong value.
 	 * A clever application could get this right (imagine threads that only
