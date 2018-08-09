@@ -81,7 +81,7 @@ static volatile uint64_t th_ts[MAX_TH];
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
-    "create,log=(archive=false,file_max=10M,enabled),session_max=1000"
+    "create,log=(archive=false,file_max=10M,enabled),session_max=1000,statistics=(fast),statistics_log=(wait=3)"
 #define	ENV_CONFIG_TXNSYNC					\
     "create,log=(archive=false,file_max=10M,enabled),"			\
     "transaction_sync=(enabled,method=none)"
@@ -272,7 +272,6 @@ thread_run(void *arg)
 	 * are in use.
 	 */
 	use_prep = (use_ts && td->info % 2 == 0) ? true : false;
-	use_prep = false;
 
 	/*
 	 * We may have two sessions so that the oplog session can have its own
@@ -322,7 +321,12 @@ thread_run(void *arg)
 		if (use_prep)
 			testutil_check(oplog_session->begin_transaction(
 			    oplog_session, NULL));
-		if (use_ts) {
+		/*
+		 * If not using prepared transactions set the timestamp now
+		 * before performning the operation. If we are using prepared
+		 * transactions, it must be set after the prepare.
+		 */
+		if (use_ts && !use_prep) {
 			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
 			    "commit_timestamp=%" PRIx64, stable_ts));
 			testutil_check(
@@ -367,8 +371,21 @@ thread_run(void *arg)
 				if (i % PREPARE_YIELD == 0)
 					__wt_yield();
 			}
-			testutil_check(
-			    session->commit_transaction(session, NULL));
+			/*
+			 * If we did not set the timestamp above via
+			 * timestamp_transaction send it now on commit.
+			 */
+			if (use_ts && !use_prep)
+				testutil_check(
+				    session->commit_transaction(session, NULL));
+			else {
+				testutil_check(
+				    __wt_snprintf(tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64, stable_ts));
+				testutil_check(
+				    session->commit_transaction(session,
+				    tscfg));
+			}
 			if (use_prep)
 				testutil_check(
 				    oplog_session->commit_transaction(
