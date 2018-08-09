@@ -2842,10 +2842,10 @@ struct __wt_connection {
  * each new block is written.  For example\,
  * <code>file_extend=(data=16MB)</code>. If set to 0\, disable the file
  * extension for the set type.  For log files\, the allowed range is between
- * 100KB and 2GB; values larger than configured maximum log size and the default
- * config would extend log files in allocations of the maximum log file size., a
- * list\, with values chosen from the following options: \c "data"\, \c "log";
- * default empty.}
+ * 100KB and 2GB; values larger than the configured maximum log size and the
+ * default config would extend log files in allocations of the maximum log file
+ * size., a list\, with values chosen from the following options: \c "data"\, \c
+ * "log"; default empty.}
  * @config{file_manager = (, control how file handles are managed., a set of
  * related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_handle_minimum, number of handles open
