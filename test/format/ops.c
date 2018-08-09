@@ -879,10 +879,11 @@ ops(void *arg)
 			break;
 		case MODIFY:
 			/*
-			 * Change modify into update if in a read-uncommitted
-			 * transaction, modify isn't supported in that case.
+			 * Change modify into update if not in a transaction
+			 * or in a read-uncommitted transaction, modify isn't
+			 * supported in those cases.
 			 */
-			if (iso_config == ISOLATION_READ_UNCOMMITTED)
+			if (!intxn || iso_config == ISOLATION_READ_UNCOMMITTED)
 				goto update_instead_of_chosen_op;
 
 			++tinfo->update;
