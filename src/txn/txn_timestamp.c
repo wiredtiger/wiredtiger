@@ -323,6 +323,12 @@ __txn_query_timestamp(
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
 	if (WT_STRING_MATCH("read", cval.str, cval.len))
 		__wt_timestamp_set(&ts, &txn->read_timestamp);
+	else if (WT_STRING_MATCH("commit", cval.str, cval.len))
+		__wt_timestamp_set(&ts, &txn->commit_timestamp);
+	else if (WT_STRING_MATCH("first_commit", cval.str, cval.len))
+		__wt_timestamp_set(&ts, &txn->first_commit_timestamp);
+	else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
+		__wt_timestamp_set(&ts, &txn->prepare_timestamp);
 
 	__wt_timestamp_set(tsp, &ts);
 	return (0);

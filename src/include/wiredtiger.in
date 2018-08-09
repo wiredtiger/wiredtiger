@@ -1897,9 +1897,12 @@ struct __wt_session {
 	 * size plus one byte for NUL termination).
 	 * @configstart{WT_SESSION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c read returns the
-	 * timestamp the transaction is reading at.  See @ref
-	 * transaction_timestamps., a string\, chosen from the following
-	 * options: \c "read"; default \c read.}
+	 * timestamp the transaction is reading at.  \c commit returns the most
+	 * recently set commit_timestamp.  \c first_commit returns the first set
+	 * commit_timestamp.  \c prepare returns the timestamp used in preparing
+	 * a transaction.  See @ref transaction_timestamps., a string\, chosen
+	 * from the following options: \c "read"\, \c "commit"\, \c
+	 * "first_commit"\, \c "prepare"; default \c read.}
 	 * @configend
 	 * @errors
 	 * If the session is not in a transaction ::WT_NOTFOUND will be
