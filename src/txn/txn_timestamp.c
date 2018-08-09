@@ -313,24 +313,26 @@ __txn_query_timestamp(
 {
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
-	wt_timestamp_t ts;
 
 	txn = &session->txn;
 
 	WT_STAT_CONN_INCR(session, session_query_ts);
 	if (!F_ISSET(txn, WT_TXN_RUNNING))
 		return (WT_NOTFOUND);
+
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
 	if (WT_STRING_MATCH("read", cval.str, cval.len))
-		__wt_timestamp_set(&ts, &txn->read_timestamp);
+		__wt_timestamp_set(tsp, &txn->read_timestamp);
 	else if (WT_STRING_MATCH("commit", cval.str, cval.len))
-		__wt_timestamp_set(&ts, &txn->commit_timestamp);
+		__wt_timestamp_set(tsp, &txn->commit_timestamp);
 	else if (WT_STRING_MATCH("first_commit", cval.str, cval.len))
-		__wt_timestamp_set(&ts, &txn->first_commit_timestamp);
+		__wt_timestamp_set(tsp, &txn->first_commit_timestamp);
 	else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
-		__wt_timestamp_set(&ts, &txn->prepare_timestamp);
+		__wt_timestamp_set(tsp, &txn->prepare_timestamp);
+	else
+		WT_RET_MSG(session, EINVAL,
+		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
-	__wt_timestamp_set(tsp, &ts);
 	return (0);
 }
 #endif
