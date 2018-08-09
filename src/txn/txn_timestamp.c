@@ -232,7 +232,7 @@ __txn_get_pinned_timestamp(
 
 /*
  * __txn_global_query_timestamp --
- *	Query a timestamp.
+ *	Query a timestamp on the global txn.
  */
 static int
 __txn_global_query_timestamp(
@@ -305,7 +305,7 @@ done:	__wt_timestamp_set(tsp, &ts);
 
 /*
  * __txn_query_timestamp --
- *	Query a timestamp.
+ *	Query a timestamp within this session's txn.
  */
 static int
 __txn_query_timestamp(
@@ -318,12 +318,11 @@ __txn_query_timestamp(
 	txn = &session->txn;
 
 	WT_STAT_CONN_INCR(session, session_query_ts);
+	if (!F_ISSET(txn, WT_TXN_RUNNING))
+		return (WT_NOTFOUND);
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
-	if (WT_STRING_MATCH("read_timestamp", cval.str, cval.len)) {
-		if (!F_ISSET(txn, WT_TXN_RUNNING))
-			return (WT_NOTFOUND);
+	if (WT_STRING_MATCH("read", cval.str, cval.len))
 		__wt_timestamp_set(&ts, &txn->read_timestamp);
-	}
 
 	__wt_timestamp_set(tsp, &ts);
 	return (0);
@@ -332,7 +331,7 @@ __txn_query_timestamp(
 
 /*
  * __wt_txn_global_query_timestamp --
- *	Query a timestamp.
+ *	Query a timestamp on the global txn.
  */
 int
 __wt_txn_global_query_timestamp(

@@ -148,10 +148,10 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.assertRaises(
             wiredtiger.WiredTigerError,
-            lambda: self.session.query_timestamp('get=read_timestamp'))
+            lambda: self.session.query_timestamp('get=read'))
         self.session.begin_transaction('read_timestamp=10')
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=read_timestamp'), '10')
+            self.session.query_timestamp('get=read'), '10')
         self.session.timestamp_transaction('commit_timestamp=20')
         c[k] = 1
         # We should see the value we just inserted
@@ -159,7 +159,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.commit_transaction()
         self.assertRaises(
             wiredtiger.WiredTigerError,
-            lambda: self.session.query_timestamp('get=read_timestamp'))
+            lambda: self.session.query_timestamp('get=read'))
 
 if __name__ == '__main__':
     wttest.run()

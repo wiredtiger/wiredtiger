@@ -458,9 +458,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
-	{ "get", "string",
-	    NULL, "choices=[\"read_timestamp\"]",
-	    NULL, 0 },
+	{ "get", "string", NULL, "choices=[\"read\"]", NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1388,7 +1386,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_prepare_transaction, 1
 	},
 	{ "WT_SESSION.query_timestamp",
-	  "get=read_timestamp",
+	  "get=read",
 	  confchk_WT_SESSION_query_timestamp, 1
 	},
 	{ "WT_SESSION.rebalance",

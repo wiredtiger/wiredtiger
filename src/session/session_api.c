@@ -1805,14 +1805,8 @@ __session_query_timestamp(
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)wt_session;
-#ifdef HAVE_DIAGNOSTIC
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
 	    query_timestamp, config, cfg);
-#else
-	SESSION_API_CALL_PREPARE_ALLOWED(session,
-	    query_transaction, NULL, cfg);
-	cfg[1] = config;
-#endif
 	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg));
 err:	API_END_RET(session, ret);
 }
