@@ -54,25 +54,30 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri,
             'key_format=i,value_format=i' + self.extra_config)
 
-        times_to_query = ['read', 'commit', 'first_commit', 'prepare']
+        query_choices = ['commit', 'first_commit', 'prepare', 'read']
         # Querying a session's timestamps will error when not in a transaction.
-        for time_to_query in times_to_query:
+        for query in query_choices:
             self.assertRaises(
                 wiredtiger.WiredTigerError,
-                lambda: self.session.query_timestamp('get=' + time_to_query))
+                lambda: self.session.query_timestamp('get=' + query))
 
         self.session.begin_transaction()
         # Nothing has been set, all queries will return timestamp 0.
-        for time_to_query in times_to_query:
+        for query in query_choices:
             self.assertTimestampsEqual(
-                self.session.query_timestamp('get=' + time_to_query), '0')
+                self.session.query_timestamp('get=' + query), '0')
+
+        self.assertRaisesWithMessage(
+            wiredtiger.WiredTigerError,
+            lambda: self.session.query_timestamp('get=unknown'),
+            '/not a permitted choice for key/')
 
         self.session.commit_transaction()
         # Querying a session's timestamps will error when not in a transaction.
-        for time_to_query in times_to_query:
+        for query in query_choices:
             self.assertRaises(
                 wiredtiger.WiredTigerError,
-                lambda: self.session.query_timestamp('get=' + time_to_query))
+                lambda: self.session.query_timestamp('get=' + query))
 
     def test_query_read_commit_timestamps(self):
         if not wiredtiger.timestamp_build():

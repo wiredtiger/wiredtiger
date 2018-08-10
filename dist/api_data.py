@@ -1164,12 +1164,12 @@ methods = {
 
 'WT_SESSION.query_timestamp' : Method([
     Config('get', 'read', r'''
-        specify which timestamp to query: \c read returns the timestamp the
-        transaction is reading at.  \c commit returns the most recently set
-        commit_timestamp. \c first_commit returns the first set
-        commit_timestamp. \c prepare returns the timestamp used in preparing a
-        transaction. See @ref transaction_timestamps''',
-        choices=['read', 'commit', 'first_commit', 'prepare']),
+        specify which timestamp to query: \c commit returns the most recently
+        set commit_timestamp.  \c first_commit returns the first set
+        commit_timestamp.  \c prepare returns the timestamp used in preparing a
+        transaction.  \c read returns the timestamp at which the transaction is
+        reading at.  See @ref transaction_timestamps''',
+        choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
 'WT_SESSION.rebalance' : Method([]),

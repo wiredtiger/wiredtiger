@@ -232,7 +232,7 @@ __txn_get_pinned_timestamp(
 
 /*
  * __txn_global_query_timestamp --
- *	Query a timestamp on the global txn.
+ *	Query a timestamp on the global transaction.
  */
 static int
 __txn_global_query_timestamp(
@@ -305,7 +305,7 @@ done:	__wt_timestamp_set(tsp, &ts);
 
 /*
  * __txn_query_timestamp --
- *	Query a timestamp within this session's txn.
+ *	Query a timestamp within this session's transaction.
  */
 static int
 __txn_query_timestamp(
@@ -321,14 +321,14 @@ __txn_query_timestamp(
 		return (WT_NOTFOUND);
 
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
-	if (WT_STRING_MATCH("read", cval.str, cval.len))
-		__wt_timestamp_set(tsp, &txn->read_timestamp);
-	else if (WT_STRING_MATCH("commit", cval.str, cval.len))
+	if (WT_STRING_MATCH("commit", cval.str, cval.len))
 		__wt_timestamp_set(tsp, &txn->commit_timestamp);
 	else if (WT_STRING_MATCH("first_commit", cval.str, cval.len))
 		__wt_timestamp_set(tsp, &txn->first_commit_timestamp);
 	else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
 		__wt_timestamp_set(tsp, &txn->prepare_timestamp);
+	else if (WT_STRING_MATCH("read", cval.str, cval.len))
+		__wt_timestamp_set(tsp, &txn->read_timestamp);
 	else
 		WT_RET_MSG(session, EINVAL,
 		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
@@ -339,7 +339,7 @@ __txn_query_timestamp(
 
 /*
  * __wt_txn_global_query_timestamp --
- *	Query a timestamp on the global txn.
+ *	Query a timestamp on the global transaction.
  */
 int
 __wt_txn_global_query_timestamp(
@@ -740,7 +740,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_txn_query_timestamp --
- *	Query a timestamp.
+ *	Query a timestamp within this session's transaction.
  */
 int
 __wt_txn_query_timestamp(
