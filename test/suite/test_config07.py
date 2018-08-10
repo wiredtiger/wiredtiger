@@ -74,8 +74,7 @@ class test_config07(wttest.WiredTigerTestCase):
                 self.assertEqual(size, file_size)
                 return
             time.sleep(1)
-        if (not logs):
-            print('**** ERROR: The preplogs were not created within one minute after a checkpoint. **** ')
+        self.assertTrue(logs)
 
     def test_log_extend(self):
         self.conn.close()
