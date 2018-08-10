@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os
+import fnmatch, os, time
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
@@ -64,10 +64,16 @@ class test_config07(wttest.WiredTigerTestCase):
         cur.close()
 
     def checkLogFileSize(self, size):
-        logs = fnmatch.filter(os.listdir('.'), "*Prep*")
-        f = logs[-1]
-        file_size = os.stat(f).st_size
-        self.assertEqual(size, file_size)
+        # Wait for a log file to be preallocated. Avoid timing problems, but
+        # assert that a file is created within 15 seconds.
+        for i in range(1,15):
+            logs = fnmatch.filter(os.listdir('.'), "*Prep*")
+            if logs:
+                f = logs[-1]
+                file_size = os.stat(f).st_size
+                self.assertEqual(size, file_size)
+                return
+            time.sleep(1)
 
     def test_log_extend(self):
         self.conn.close()
