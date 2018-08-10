@@ -72,7 +72,7 @@ class test_config07(wttest.WiredTigerTestCase):
                 f = logs[-1]
                 file_size = os.stat(f).st_size
                 self.assertEqual(size, file_size)
-                return
+                break
             time.sleep(1)
         self.assertTrue(logs)
 
