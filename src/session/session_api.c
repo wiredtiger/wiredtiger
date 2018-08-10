@@ -1803,12 +1803,11 @@ __session_query_timestamp(
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool query_global_txn = false;
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
 	    query_timestamp, config, cfg);
-	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg, query_global_txn));
+	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg, false));
 err:	API_END_RET(session, ret);
 }
 

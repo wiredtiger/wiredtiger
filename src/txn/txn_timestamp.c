@@ -343,8 +343,8 @@ __txn_query_timestamp(
  *      session's transaction.
  */
 int
-__wt_txn_query_timestamp(
-    WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[], bool global_txn)
+__wt_txn_query_timestamp(WT_SESSION_IMPL *session,
+    char *hex_timestamp, const char *cfg[], bool global_txn)
 {
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t ts;
