@@ -338,17 +338,22 @@ __txn_query_timestamp(
 #endif
 
 /*
- * __wt_txn_global_query_timestamp --
- *	Query a timestamp on the global transaction.
+ * __wt_txn_query_timestamp --
+ *	Query a timestamp. The caller may query the global transaction or the
+ *      session's transaction.
  */
 int
-__wt_txn_global_query_timestamp(
-    WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[])
+__wt_txn_query_timestamp(
+    WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[], bool global_txn)
 {
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t ts;
 
-	WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
+	if (global_txn)
+		WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
+	else
+		WT_RET(__txn_query_timestamp(session, &ts, cfg));
+
 	return (__wt_timestamp_to_hex_string(session, hex_timestamp, &ts));
 #else
 	WT_UNUSED(hex_timestamp);
@@ -736,28 +741,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_txn_parse_read_timestamp(session, cfg));
 
 	return (0);
-}
-
-/*
- * __wt_txn_query_timestamp --
- *	Query a timestamp within this session's transaction.
- */
-int
-__wt_txn_query_timestamp(
-    WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[])
-{
-#ifdef HAVE_TIMESTAMPS
-	wt_timestamp_t ts;
-
-	WT_RET(__txn_query_timestamp(session, &ts, cfg));
-	return (__wt_timestamp_to_hex_string(session, hex_timestamp, &ts));
-#else
-	WT_UNUSED(hex_timestamp);
-	WT_UNUSED(cfg);
-
-	WT_RET_MSG(session, ENOTSUP,
-	    "requires a version of WiredTiger built with timestamp support");
-#endif
 }
 
 /*

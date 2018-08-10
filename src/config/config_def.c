@@ -459,8 +459,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
 	{ "get", "string",
-	    NULL, "choices=[\"read\",\"commit\",\"first_commit\","
-	    "\"prepare\"]",
+	    NULL, "choices=[\"commit\",\"first_commit\",\"prepare\","
+	    "\"read\"]",
 	    NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };

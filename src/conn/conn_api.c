@@ -1252,11 +1252,12 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn,
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool query_global_txn = true;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 
 	CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
-	WT_TRET(__wt_txn_global_query_timestamp(session, hex_timestamp, cfg));
+	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg, query_global_txn));
 err:	API_END_RET(session, ret);
 }
 
