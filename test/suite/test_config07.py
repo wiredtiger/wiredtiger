@@ -75,7 +75,7 @@ class test_config07(wttest.WiredTigerTestCase):
                 return
             time.sleep(1)
         if (not logs):
-            print('**** ERROR: Preplogs were not created within onew minute after a checkpoint **** ')
+            print('**** ERROR: The preplogs were not created within one minute after a checkpoint. **** ')
 
     def test_log_extend(self):
         self.conn.close()
