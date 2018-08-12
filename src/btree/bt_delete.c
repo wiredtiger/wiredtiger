@@ -363,7 +363,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * able to do so.)
 	 */
 	WT_RET(__wt_page_modify_init(session, page));
-	if (btree->modified)
+	if (session->dhandle->checkpoint == NULL)
 		__wt_page_modify_set(session, page);
 
 	if (ref->page_del != NULL &&
