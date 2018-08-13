@@ -232,7 +232,7 @@ __txn_get_pinned_timestamp(
 
 /*
  * __txn_global_query_timestamp --
- *	Query a timestamp.
+ *	Query a timestamp on the global transaction.
  */
 static int
 __txn_global_query_timestamp(
@@ -302,24 +302,63 @@ __txn_global_query_timestamp(
 done:	__wt_timestamp_set(tsp, &ts);
 	return (0);
 }
+
+/*
+ * __txn_query_timestamp --
+ *	Query a timestamp within this session's transaction.
+ */
+static int
+__txn_query_timestamp(
+    WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+	WT_TXN *txn;
+
+	txn = &session->txn;
+
+	WT_STAT_CONN_INCR(session, session_query_ts);
+	if (!F_ISSET(txn, WT_TXN_RUNNING))
+		return (WT_NOTFOUND);
+
+	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
+	if (WT_STRING_MATCH("commit", cval.str, cval.len))
+		__wt_timestamp_set(tsp, &txn->commit_timestamp);
+	else if (WT_STRING_MATCH("first_commit", cval.str, cval.len))
+		__wt_timestamp_set(tsp, &txn->first_commit_timestamp);
+	else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
+		__wt_timestamp_set(tsp, &txn->prepare_timestamp);
+	else if (WT_STRING_MATCH("read", cval.str, cval.len))
+		__wt_timestamp_set(tsp, &txn->read_timestamp);
+	else
+		WT_RET_MSG(session, EINVAL,
+		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
+
+	return (0);
+}
 #endif
 
 /*
- * __wt_txn_global_query_timestamp --
- *	Query a timestamp.
+ * __wt_txn_query_timestamp --
+ *	Query a timestamp. The caller may query the global transaction or the
+ *      session's transaction.
  */
 int
-__wt_txn_global_query_timestamp(
-    WT_SESSION_IMPL *session, char *hex_timestamp, const char *cfg[])
+__wt_txn_query_timestamp(WT_SESSION_IMPL *session,
+    char *hex_timestamp, const char *cfg[], bool global_txn)
 {
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t ts;
 
-	WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
+	if (global_txn)
+		WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
+	else
+		WT_RET(__txn_query_timestamp(session, &ts, cfg));
+
 	return (__wt_timestamp_to_hex_string(session, hex_timestamp, &ts));
 #else
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
+	WT_UNUSED(global_txn);
 
 	WT_RET_MSG(session, ENOTSUP,
 	    "requires a version of WiredTiger built with timestamp support");

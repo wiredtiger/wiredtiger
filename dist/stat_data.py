@@ -463,6 +463,7 @@ connection_stats = [
     ##########################################
     SessionStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
     SessionStat('session_open', 'open session count', 'no_clear,no_scale'),
+    SessionStat('session_query_ts', 'session query timestamp calls'),
     SessionStat('session_table_alter_fail', 'table alter failed calls', 'no_clear,no_scale'),
     SessionStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
     SessionStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
