@@ -268,10 +268,11 @@ thread_run(void *arg)
 	__wt_stream_set_line_buffer(fp);
 
 	/*
-	 * Have half the threads use prepared transactions if timestamps
-	 * are in use.
+	 * Have 10% of the threads use prepared transactions if timestamps
+	 * are in use. Thread numbers start at 0 so we're always guaranteed
+	 * that at least one thread is using prepared transactions.
 	 */
-	use_prep = (use_ts && td->info % 2 == 0) ? true : false;
+	use_prep = (use_ts && td->info % 10 == 0) ? true : false;
 
 	/*
 	 * We may have two sessions so that the oplog session can have its own
