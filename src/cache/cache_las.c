@@ -638,7 +638,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	 * There should never be any entries with the page ID we are about to
 	 * use.
 	 */
-	WT_ERR_BUSY_OK(
+	WT_RET_BUSY_OK(
 	    __las_remove_block(cursor, las_pageid, false, &remove_cnt));
 	WT_ASSERT(session, remove_cnt == 0);
 	}
