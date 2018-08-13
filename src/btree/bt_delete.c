@@ -337,6 +337,7 @@ __tombstone_update_alloc(WT_SESSION_IMPL *session,
 int
 __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_INSERT *ins;
 	WT_INSERT_HEAD *insert;
@@ -347,6 +348,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	size_t size;
 	uint32_t count, i;
 
+	btree = S2BT(session);
 	page = ref->page;
 
 	WT_STAT_CONN_INCR(session, cache_read_deleted);
@@ -361,7 +363,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * able to do so.)
 	 */
 	WT_RET(__wt_page_modify_init(session, page));
-	if (session->dhandle->checkpoint == NULL)
+	if (!F_ISSET(btree, WT_BTREE_READONLY))
 		__wt_page_modify_set(session, page);
 
 	if (ref->page_del != NULL &&
