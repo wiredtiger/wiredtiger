@@ -1145,19 +1145,19 @@ void
 __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
-	WT_TXN_GLOBAL *txn_global;
 	uint32_t flags;
 
 	txn = &session->txn;
-	txn_global = &S2C(session)->txn_global;
 
 	if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
 		return;
 
 #ifdef HAVE_DIAGNOSTIC
 	{
+	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t pinned_ts;
 
+	txn_global = &S2C(session)->txn_global;
 	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 	    __wt_timestamp_set(&pinned_ts, &txn_global->pinned_timestamp));
 	WT_ASSERT(session,
