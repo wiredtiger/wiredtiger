@@ -358,6 +358,7 @@ __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
 #else
 	WT_UNUSED(hex_timestamp);
 	WT_UNUSED(cfg);
+	WT_UNUSED(global_txn);
 
 	WT_RET_MSG(session, ENOTSUP,
 	    "requires a version of WiredTiger built with timestamp support");
