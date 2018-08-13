@@ -940,6 +940,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 	WT_TXN *qtxn, *txn, *txn_tmp;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts;
+	uint64_t walked;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -977,8 +978,10 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		    &txn_global->commit_timestamph, txn, commit_timestampq);
 		WT_STAT_CONN_INCR(session, txn_commit_queue_empty);
 	} else {
+		walked = 0;
 		TAILQ_FOREACH_SAFE(qtxn, &txn_global->commit_timestamph,
 		    commit_timestampq, txn_tmp) {
+			++walked;
 			if (qtxn->clear_ts_queue) {
 				TAILQ_REMOVE(&txn_global->commit_timestamph,
 				    qtxn, commit_timestampq);
@@ -999,6 +1002,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		 * If we got to the end, then our timestamp is larger than
 		 * the last element's timestamp. Insert at the end.
 		 */
+		WT_STAT_CONN_INCRV(session, txn_commit_queue_walked, walked);
 		if (qtxn == NULL) {
 			TAILQ_INSERT_TAIL(&txn_global->commit_timestamph,
 			    txn, commit_timestampq);
@@ -1049,6 +1053,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_TXN *prev, *txn;
 	WT_TXN_GLOBAL *txn_global;
+	uint64_t walked;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -1060,10 +1065,11 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 	prev = TAILQ_LAST(&txn_global->read_timestamph, __wt_txn_rts_qh);
 	if (prev == NULL)
 		WT_STAT_CONN_INCR(session, txn_read_queue_empty);
+	walked = 0;
 	for (; prev != NULL && __wt_timestamp_cmp(
 	    &prev->read_timestamp, &txn->read_timestamp) > 0;
 	    prev = TAILQ_PREV(prev, __wt_txn_rts_qh, read_timestampq))
-		;
+		++walked;
 	if (prev == NULL) {
 		TAILQ_INSERT_HEAD(
 		    &txn_global->read_timestamph, txn, read_timestampq);
@@ -1072,6 +1078,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		TAILQ_INSERT_AFTER(
 		    &txn_global->read_timestamph, prev, txn, read_timestampq);
 	++txn_global->read_timestampq_len;
+	WT_STAT_CONN_INCRV(session, txn_read_queue_walked, walked);
 	WT_STAT_CONN_INCR(session, txn_read_queue_inserts);
 	__wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 	F_SET(txn, WT_TXN_HAS_TS_READ | WT_TXN_PUBLIC_TS_READ);
