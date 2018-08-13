@@ -117,12 +117,10 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 			__wt_timestamp_set_zero(&next_upd->timestamp);
 
 			/*
-			* If any updates are aborted, all newer updates
-			* better be aborted as well.
-			*/
-			if (!aborted_one)
-				WT_ASSERT(session,
-				    !aborted_one || upd == next_upd);
+			 * If any updates are aborted, all newer updates
+			 * better be aborted as well.
+			 */
+			WT_ASSERT(session, !aborted_one || upd == next_upd);
 			aborted_one = true;
 		}
 	}
@@ -230,9 +228,47 @@ static int
 __txn_abort_newer_updates(
     WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t *rollback_timestamp)
 {
+	WT_DECL_RET;
 	WT_PAGE *page;
+	uint32_t read_flags;
+	bool local_read;
 
-	page = ref->page;
+	local_read = false;
+	read_flags = WT_READ_WONT_NEED;
+	if (ref->page_las != NULL && ref->page_las->skew_newest &&
+	    __wt_timestamp_cmp(rollback_timestamp,
+	    &ref->page_las->unstable_timestamp) < 0) {
+		/* Make sure get back a page with history, not limbo page */
+		WT_ASSERT(session,
+		    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
+		WT_RET(__wt_page_in(session, ref, read_flags));
+		WT_ASSERT(session, ref->state != WT_REF_LIMBO &&
+		    ref->page != NULL && __wt_page_is_modified(ref->page));
+		local_read = true;
+	}
+
+	/* Review deleted page saved to the ref */
+	if (ref->page_del != NULL && __wt_timestamp_cmp(
+	    rollback_timestamp, &ref->page_del->timestamp) < 0)
+		WT_ERR(__wt_delete_page_rollback(session, ref));
+
+	/*
+	 * If we have a ref with no page, or the page is clean, there is
+	 * nothing to roll back.
+	 *
+	 * This check for a clean page is partly an optimization (checkpoint
+	 * only marks pages clean when they have no unwritten updates so
+	 * there's no point visiting them again), but also covers a corner case
+	 * of a checkpoint with use_timestamp=false.  Such a checkpoint
+	 * effectively moves the stable timestamp forward, because changes that
+	 * are written in the checkpoint cannot be reliably rolled back.  The
+	 * actual stable timestamp doesn't change, though, so if we try to roll
+	 * back clean pages the in-memory tree can get out of sync with the
+	 * on-disk tree.
+	 */
+	if ((page = ref->page) == NULL || !__wt_page_is_modified(page))
+		goto err;
+
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
 		__txn_abort_newer_col_fix(session, page, rollback_timestamp);
@@ -252,10 +288,12 @@ __txn_abort_newer_updates(
 	case WT_PAGE_ROW_LEAF:
 		__txn_abort_newer_row_leaf(session, page, rollback_timestamp);
 		break;
-	WT_ILLEGAL_VALUE(session, page->type);
+	WT_ILLEGAL_VALUE_ERR(session, page->type);
 	}
 
-	return (0);
+err:	if (local_read)
+		WT_TRET(__wt_page_release(session, ref, read_flags));
+	return (ret);
 }
 
 /*
@@ -267,29 +305,21 @@ __txn_rollback_to_stable_btree_walk(
     WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
 {
 	WT_DECL_RET;
-	WT_REF *ref;
+	WT_REF *child_ref, *ref;
 
 	/* Walk the tree, marking commits aborted where appropriate. */
 	ref = NULL;
 	while ((ret = __wt_tree_walk(session, &ref,
-	    WT_READ_CACHE | WT_READ_LOOKASIDE | WT_READ_NO_EVICT)) == 0 &&
+	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
 	    ref != NULL) {
-		if (ref->page_las != NULL &&
-		    ref->page_las->skew_newest &&
-		    __wt_timestamp_cmp(rollback_timestamp,
-		    &ref->page_las->unstable_timestamp) < 0)
-			ref->page_las->invalid = true;
-
-		/* Review deleted page saved to the ref */
-		if (ref->page_del != NULL && __wt_timestamp_cmp(
-		    rollback_timestamp, &ref->page_del->timestamp) < 0)
-			WT_RET(__wt_delete_page_rollback(session, ref));
-
-		if (!__wt_page_is_modified(ref->page))
-			continue;
-
-		WT_RET(__txn_abort_newer_updates(
-		    session, ref, rollback_timestamp));
+		if (WT_PAGE_IS_INTERNAL(ref->page)) {
+			WT_INTL_FOREACH_BEGIN(session, ref->page, child_ref) {
+				WT_RET(__txn_abort_newer_updates(
+				    session, child_ref, rollback_timestamp));
+			} WT_INTL_FOREACH_END;
+		} else
+			WT_RET(__txn_abort_newer_updates(
+			    session, ref, rollback_timestamp));
 	}
 	return (ret);
 }
@@ -373,8 +403,8 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 * be in.
 	 */
 	WT_RET(__wt_evict_file_exclusive_on(session));
-	ret = __txn_rollback_to_stable_btree_walk(
-	    session, &rollback_timestamp);
+	WT_WITH_PAGE_INDEX(session, ret = __txn_rollback_to_stable_btree_walk(
+	    session, &rollback_timestamp));
 	__wt_evict_file_exclusive_off(session);
 
 	return (ret);
