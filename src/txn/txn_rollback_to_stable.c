@@ -120,7 +120,8 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 			 * If any updates are aborted, all newer updates
 			 * better be aborted as well.
 			 */
-			WT_ASSERT(session, !aborted_one || upd == next_upd);
+			if (!aborted_one)
+				WT_ASSERT(session, upd == next_upd);
 			aborted_one = true;
 		}
 	}
