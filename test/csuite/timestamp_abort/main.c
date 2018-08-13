@@ -324,7 +324,7 @@ thread_run(void *arg)
 			    oplog_session, NULL));
 		/*
 		 * If not using prepared transactions set the timestamp now
-		 * before performning the operation. If we are using prepared
+		 * before performing the operation. If we are using prepared
 		 * transactions, it must be set after the prepare.
 		 */
 		if (use_ts && !use_prep) {
