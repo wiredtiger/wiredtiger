@@ -978,37 +978,43 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		    &txn_global->commit_timestamph, txn, commit_timestampq);
 		WT_STAT_CONN_INCR(session, txn_commit_queue_empty);
 	} else {
+		/* Walk from the start, removing cleared entries. */
 		walked = 0;
 		TAILQ_FOREACH_SAFE(qtxn, &txn_global->commit_timestamph,
 		    commit_timestampq, txn_tmp) {
 			++walked;
-			if (qtxn->clear_ts_queue) {
-				TAILQ_REMOVE(&txn_global->commit_timestamph,
-				    qtxn, commit_timestampq);
-				WT_PUBLISH(qtxn->clear_ts_queue, false);
-				--txn_global->commit_timestampq_len;
-				continue;
-			}
 			/*
-			 * Only walk the list up until we get to the place where
-			 * we want to insert our timestamp. Some other thread
-			 * will remove any later transactions.
+			 * Stop on the first entry that we cannot clear.
 			 */
-			if (__wt_timestamp_cmp(
-			    &qtxn->first_commit_timestamp, &ts) > 0)
+			if (!qtxn->clear_ts_queue)
 				break;
+
+			TAILQ_REMOVE(&txn_global->commit_timestamph,
+			    qtxn, commit_timestampq);
+			WT_PUBLISH(qtxn->clear_ts_queue, false);
+			--txn_global->commit_timestampq_len;
 		}
+
 		/*
-		 * If we got to the end, then our timestamp is larger than
-		 * the last element's timestamp. Insert at the end.
+		 * Now walk backwards from the end to find the correct position
+		 * for the insert.
 		 */
-		WT_STAT_CONN_INCRV(session, txn_commit_queue_walked, walked);
+		qtxn = TAILQ_LAST(
+		     &txn_global->commit_timestamph, __wt_txn_cts_qh);
+		while (qtxn != NULL && __wt_timestamp_cmp(
+		    &qtxn->first_commit_timestamp, &ts) > 0) {
+			++walked;
+			qtxn = TAILQ_PREV(
+			    qtxn, __wt_txn_cts_qh, commit_timestampq);
+		}
 		if (qtxn == NULL) {
-			TAILQ_INSERT_TAIL(&txn_global->commit_timestamph,
-			    txn, commit_timestampq);
-			WT_STAT_CONN_INCR(session, txn_commit_queue_tail);
+			TAILQ_INSERT_HEAD(&txn_global->commit_timestamph,
+			   txn, commit_timestampq);
+			WT_STAT_CONN_INCR(session, txn_commit_queue_head);
 		} else
-			TAILQ_INSERT_BEFORE(qtxn, txn, commit_timestampq);
+			TAILQ_INSERT_AFTER(&txn_global->commit_timestamph,
+			    qtxn, txn, commit_timestampq);
+		WT_STAT_CONN_INCRV(session, txn_commit_queue_walked, walked);
 	}
 	__wt_timestamp_set(&txn->first_commit_timestamp, &ts);
 	++txn_global->commit_timestampq_len;
