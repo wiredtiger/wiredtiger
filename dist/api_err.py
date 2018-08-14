@@ -66,9 +66,9 @@ errors = [
         the update is in prepared state.'''),
     Error('WT_DATA_CORRUPTION', -31809,
         'database corruption detected', '''
-        This error is generated when 'wiredtiger_open' detects corruption
-        in WiredTiger-owned database files. The application may choose to
-        retry with the 'salvage=true' configuration setting.'''),
+        This error is generated when corruption is detected in an on-disk file.
+        The application may choose to salvage the file or retry wiredtiger_open
+        with the 'salvage=true' configuration setting.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.

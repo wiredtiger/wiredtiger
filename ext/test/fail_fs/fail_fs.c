@@ -269,7 +269,7 @@ fail_file_read(WT_FILE_HANDLE *file_handle,
 			    fail_fh->iface.name,
 			    (uintmax_t)len, (uintmax_t)offset,
 			    wtext->strerror(wtext, NULL, errno));
-			ret = (nr == 0 ? WT_ERROR : errno);
+			ret = (nr == 0 ? WT_DATA_CORRUPTION : errno);
 			break;
 		}
 	}
