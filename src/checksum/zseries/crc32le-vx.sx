@@ -281,11 +281,11 @@ crc32_le_vgfm_generic:
 	br	%r14
 #endif
 
-/*
- * Make sure the stack isn't executable with GCC (regardless of platform).
- * Note: this section must always be output and can never be #ifdef'd out as
- * part of conditional compilation.
- */
+/* Make sure the stack isn't executable with GCC (regardless of platform). */
 #ifdef __ELF__
 .section	.note.GNU-stack,"",@progbits
 #endif
+/*
+ * DO NOT add an #endif after this line, this section must always be output
+ * and can never be #ifdef'd out as part of conditional compilation.
+ */
