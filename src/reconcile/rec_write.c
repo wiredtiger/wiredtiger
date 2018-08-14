@@ -1238,13 +1238,13 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	append = NULL;			/* -Wconditional-uninitialized */
 	size = 0;			/* -Wconditional-uninitialized */
 	if (unpack == NULL || unpack->type == WT_CELL_DEL)
-		WT_RET(__wt_update_alloc(session,
-		    NULL, &append, &size, WT_UPDATE_TOMBSTONE));
+		WT_RET(__wt_update_alloc(session, NULL,
+		    &append, &size, WT_UPDATE_TOMBSTONE, WT_PREPARE_INIT));
 	else {
 		WT_RET(__wt_scr_alloc(session, 0, &tmp));
 		WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-		WT_ERR(__wt_update_alloc(
-		    session, tmp, &append, &size, WT_UPDATE_STANDARD));
+		WT_ERR(__wt_update_alloc(session,
+		    tmp, &append, &size, WT_UPDATE_STANDARD, WT_PREPARE_INIT));
 	}
 
 	/*

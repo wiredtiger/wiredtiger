@@ -127,7 +127,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
 	uint32_t las_id, session_flags;
 	const uint8_t *p;
-	uint8_t upd_type;
+	uint8_t prepare_state, upd_type;
 	bool locked;
 
 	cursor = NULL;
@@ -181,9 +181,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		/* Allocate the WT_UPDATE structure. */
 		WT_ERR(cursor->get_value(cursor,
-		    &las_txnid, &las_timestamp, &upd_type, &las_value));
+		    &las_txnid, &las_timestamp,
+		    &upd_type, &las_value, &prepare_state));
 		WT_ERR(__wt_update_alloc(
-		    session, &las_value, &upd, &incr, upd_type));
+		    session, &las_value, &upd, &incr, upd_type, prepare_state));
 		total_incr += incr;
 		upd->txnid = las_txnid;
 #ifdef HAVE_TIMESTAMPS
