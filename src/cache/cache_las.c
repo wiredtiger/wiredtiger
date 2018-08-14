@@ -725,8 +725,8 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 				    &las_value, upd->prepare_state);
 			} else
 				cursor->set_value(cursor,
-				    upd->txnid, &las_timestamp, upd->type,
-				    &las_value, upd->prepare_state);
+				    upd->txnid, &las_timestamp,
+				    upd->type, &las_value, upd->prepare_state);
 
 			/*
 			 * Using update looks a little strange because the keys
