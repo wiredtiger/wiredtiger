@@ -948,7 +948,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 	need_salvage = false;
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 	salvage_mode = (need_salvagep != NULL &&
-	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_SALVAGE));
+	    F_ISSET(conn, WT_CONN_SALVAGE));
 
 	if (log == NULL)
 		allocsize = WT_LOG_ALIGN;
@@ -2152,12 +2152,12 @@ static int
 __log_salvageable_error(WT_SESSION_IMPL *session, const char *log_name,
     const char *extra_msg, wt_off_t offset)
 {
-	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_RECOVER_SALVAGE))
-		WT_PANIC_RET(session, WT_ERROR,
+	if (!F_ISSET(S2C(session), WT_CONN_SALVAGE))
+		WT_PANIC_RET(session, WT_DATA_CORRUPTION,
 		    "log file %s corrupted%s at position %" PRIuMAX
 		    ", use salvage to fix", log_name, extra_msg,
 		    (uintmax_t)offset);
-	return (WT_ERROR);
+	return (WT_DATA_CORRUPTION);
 }
 
 /*
@@ -2409,8 +2409,7 @@ advance:
 		 * read fails, we know this is an situation we can salvage.
 		 */
 		WT_ASSERT(session, buf->memsize >= allocsize);
-		need_salvage = FLD_ISSET(conn->log_flags,
-		    WT_CONN_LOG_RECOVER_SALVAGE);
+		need_salvage = F_ISSET(conn, WT_CONN_SALVAGE);
 		WT_ERR(__wt_read(session,
 		    log_fh, rd_lsn.l.offset, (size_t)allocsize, buf->mem));
 		need_salvage = false;

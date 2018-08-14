@@ -718,7 +718,7 @@ wiredtiger_open_log_configuration = [
         Config('recover', 'on', r'''
             run recovery or error if recovery needs to run after an
             unclean shutdown''',
-            choices=['error', 'on', 'salvage'])
+            choices=['error', 'on'])
     ]),
 ]
 
@@ -885,6 +885,11 @@ wiredtiger_open_common =\
         open connection in read-only mode.  The database must exist.  All
         methods that may modify a database are disabled.  See @ref readonly
         for more information''',
+        type='boolean'),
+    Config('salvage', 'false', r'''
+        open connection and salvage any WiredTiger database files that it
+        detects as corrupted. Should only be used after getting an error
+        return of WT_DATA_CORRUPTION. This may be a destructive setting.''',
         type='boolean'),
     Config('session_max', '100', r'''
         maximum expected number of sessions (including server

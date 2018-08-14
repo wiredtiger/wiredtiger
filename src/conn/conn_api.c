@@ -2585,30 +2585,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
 	conn->session_scratch_max = (size_t)cval.val;
 
-	WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
-	if (cval.val)
-		F_SET(conn, WT_CONN_CKPT_SYNC);
-
-	WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
-	for (ft = file_types; ft->name != NULL; ft++) {
-		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
-		if (ret == 0) {
-			if (sval.val)
-				FLD_SET(conn->direct_io, ft->flag);
-		} else
-			WT_ERR_NOTFOUND_OK(ret);
-	}
-
-	WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
-	for (ft = file_types; ft->name != NULL; ft++) {
-		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
-		if (ret == 0) {
-			if (sval.val)
-				FLD_SET(conn->write_through, ft->flag);
-		} else
-			WT_ERR_NOTFOUND_OK(ret);
-	}
-
 	/*
 	 * If buffer alignment is not configured, use zero unless direct I/O is
 	 * also configured, in which case use the build-time default.
@@ -2624,6 +2600,24 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		WT_ERR_MSG(session, EINVAL,
 		    "buffer_alignment requires posix_memalign");
 #endif
+
+	WT_ERR(__wt_config_gets(session, cfg, "cache_cursors", &cval));
+	if (cval.val)
+		F_SET(conn, WT_CONN_CACHE_CURSORS);
+
+	WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
+	if (cval.val)
+		F_SET(conn, WT_CONN_CKPT_SYNC);
+
+	WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
+	for (ft = file_types; ft->name != NULL; ft++) {
+		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
+		if (ret == 0) {
+			if (sval.val)
+				FLD_SET(conn->direct_io, ft->flag);
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
+	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "file_extend", &cval));
 	/*
@@ -2664,9 +2658,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
 	conn->mmap = cval.val != 0;
 
-	WT_ERR(__wt_config_gets(session, cfg, "cache_cursors", &cval));
+	WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
 	if (cval.val)
-		F_SET(conn, WT_CONN_CACHE_CURSORS);
+		F_SET(conn, WT_CONN_SALVAGE);
+
+	WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
+	for (ft = file_types; ft->name != NULL; ft++) {
+		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
+		if (ret == 0) {
+			if (sval.val)
+				FLD_SET(conn->write_through, ft->flag);
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
+	}
 
 	WT_ERR(__wt_conn_statistics_config(session, cfg));
 	WT_ERR(__wt_lsm_manager_config(session, cfg));
