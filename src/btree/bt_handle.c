@@ -86,8 +86,8 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	/* Set the data handle first, our called functions reasonably use it. */
 	btree->dhandle = dhandle;
 
-	/* Checkpoint files are readonly. */
-	if (dhandle->checkpoint != NULL ||
+	/* Checkpoint and verify files are readonly. */
+	if (dhandle->checkpoint != NULL || F_ISSET(btree, WT_BTREE_VERIFY) ||
 	    F_ISSET(S2C(session), WT_CONN_READONLY))
 		F_SET(btree, WT_BTREE_READONLY);
 
