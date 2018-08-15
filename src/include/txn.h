@@ -250,8 +250,7 @@ struct __wt_txn {
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
-	bool clear_commit_q;	/* Set if need to clear from the commit queue */
-	bool clear_read_q;	/* Set if need to clear from the read queue */
+	bool clear_ts_queue;	/* Set if we need to clear from the queue */
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
