@@ -2743,7 +2743,18 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 */
 	WT_ERR(__wt_turtle_init(session));
 
-	WT_ERR(__wt_metadata_cursor(session, NULL));
+	if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
+		/*
+		 * If the metadata is corrupted, and salvage is desired do
+		 * so now. If that is successful, retry opening the cursor.
+		 */
+		if (ret == WT_DATA_CORRUPTION &&
+		    F_ISSET(conn, WT_CONN_SALVAGE)) {
+			WT_ERR(__wt_metadata_salvage(session));
+			WT_ERR(__wt_metadata_cursor(session, NULL));
+		} else
+			WT_ERR(ret);
+	}
 
 	/* Start the worker threads and run recovery. */
 	WT_ERR(__wt_connection_workers(session, cfg));

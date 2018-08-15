@@ -524,6 +524,7 @@ extern int __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const
 extern int __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_metadata_salvage(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern int __wt_meta_track_on(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
