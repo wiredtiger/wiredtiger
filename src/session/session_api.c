@@ -182,6 +182,37 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __session_clear_commit_queue --
+ *	We're about to clear the session and overwrite the txn structure.
+ *	Remove ourselves from the commit timestamp queue if we're on it.
+ */
+static void
+__session_clear_commit_queue(WT_SESSION_IMPL *session)
+{
+	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+
+	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
+
+	if (!txn->clear_ts_queue)
+		return;
+
+	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
+	/*
+	 * Recheck after acquiring the lock.
+	 */
+	if (txn->clear_ts_queue) {
+		TAILQ_REMOVE(
+		    &txn_global->commit_timestamph, txn, commit_timestampq);
+		--txn_global->commit_timestampq_len;
+		txn->clear_ts_queue = false;
+	}
+	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
+
+}
+
+/*
  * __session_clear --
  *	Clear a session structure.
  */
@@ -200,7 +231,7 @@ __session_clear(WT_SESSION_IMPL *session)
 	 *
 	 * For these reasons, be careful when clearing the session structure.
 	 */
-	__wt_txn_clear_timestamp_queues(session);
+	__session_clear_commit_queue(session);
 	memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
 	WT_INIT_LSN(&session->bg_sync_lsn);

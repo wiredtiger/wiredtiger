@@ -853,4 +853,3 @@ extern void __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
-extern void __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session);

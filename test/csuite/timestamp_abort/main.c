@@ -268,12 +268,10 @@ thread_run(void *arg)
 	__wt_stream_set_line_buffer(fp);
 
 	/*
-	 * Have 10% of the threads use prepared transactions if timestamps
-	 * are in use. Thread numbers start at 0 so we're always guaranteed
-	 * that at least one thread is using prepared transactions.
+	 * Have half the threads use prepared transactions if timestamps
+	 * are in use.
 	 */
-	use_prep = (use_ts && td->info % 10 == 0) ? true : false;
-
+	use_prep = (use_ts && td->info % 2 == 0) ? true : false;
 	/*
 	 * We may have two sessions so that the oplog session can have its own
 	 * transaction in parallel with the collection session for threads
@@ -322,17 +320,6 @@ thread_run(void *arg)
 		if (use_prep)
 			testutil_check(oplog_session->begin_transaction(
 			    oplog_session, NULL));
-		/*
-		 * If not using prepared transactions set the timestamp now
-		 * before performing the operation. If we are using prepared
-		 * transactions, it must be set after the prepare.
-		 */
-		if (use_ts && !use_prep) {
-			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-			    "commit_timestamp=%" PRIx64, stable_ts));
-			testutil_check(
-			    session->timestamp_transaction(session, tscfg));
-		}
 		cur_coll->set_key(cur_coll, kname);
 		cur_local->set_key(cur_local, kname);
 		cur_oplog->set_key(cur_oplog, kname);
@@ -372,21 +359,10 @@ thread_run(void *arg)
 				if (i % PREPARE_YIELD == 0)
 					__wt_yield();
 			}
-			/*
-			 * If we did not set the timestamp above via
-			 * timestamp_transaction send it now on commit.
-			 */
-			if (use_ts && !use_prep)
-				testutil_check(
-				    session->commit_transaction(session, NULL));
-			else {
-				testutil_check(
-				    __wt_snprintf(tscfg, sizeof(tscfg),
-				    "commit_timestamp=%" PRIx64, stable_ts));
-				testutil_check(
-				    session->commit_transaction(session,
-				    tscfg));
-			}
+			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
+			    "commit_timestamp=%" PRIx64, stable_ts));
+			testutil_check(
+			    session->commit_transaction(session, tscfg));
 			if (use_prep)
 				testutil_check(
 				    oplog_session->commit_transaction(
