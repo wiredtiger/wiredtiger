@@ -223,7 +223,7 @@ __txn_get_pinned_timestamp(
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 	TAILQ_FOREACH(txn, &txn_global->read_timestamph, read_timestampq) {
 		/*
-		 * Skip any txns on the queue that are not active.
+		 * Skip any transactions on the queue that are not active.
 		 */
 		if (txn->clear_read_q)
 			continue;
@@ -791,7 +791,7 @@ __wt_txn_parse_prepare_timestamp(
 		    __wt_txn_rts_qh);
 		while (prev != NULL) {
 			/*
-			 * Skip any txns on the queue that are not active.
+			 * Skip any transactions that are not active.
 			 */
 			if (prev->clear_read_q) {
 				prev = TAILQ_PREV(
