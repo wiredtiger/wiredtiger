@@ -221,10 +221,19 @@ __txn_get_pinned_timestamp(
 
 	/* Look for the oldest ordinary reader. */
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
-	txn = TAILQ_FIRST(&txn_global->read_timestamph);
-	if (txn != NULL &&
-	    __wt_timestamp_cmp(&txn->read_timestamp, tsp) < 0)
-		__wt_timestamp_set(tsp, &txn->read_timestamp);
+	TAILQ_FOREACH(txn, &txn_global->read_timestamph, read_timestampq) {
+		/*
+		 * Skip any txns on the queue that are not active.
+		 */
+		if (txn->clear_read_q)
+			continue;
+		if (__wt_timestamp_cmp(&txn->read_timestamp, tsp) < 0)
+			__wt_timestamp_set(tsp, &txn->read_timestamp);
+		/*
+		 * We break on the first active txn on the list.
+		 */
+		break;
+	}
 	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 
 	return (0);
@@ -780,16 +789,27 @@ __wt_txn_parse_prepare_timestamp(
 		__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 		prev = TAILQ_LAST(&txn_global->read_timestamph,
 		    __wt_txn_rts_qh);
-		if (prev != NULL &&
-		    __wt_timestamp_cmp(&prev->read_timestamp, timestamp) >= 0) {
-			__wt_readunlock(session,
-			    &txn_global->read_timestamp_rwlock);
-			WT_RET(__wt_timestamp_to_hex_string(session,
-			    hex_timestamp, &prev->read_timestamp));
-			WT_RET_MSG(session, EINVAL,
-			    "prepare timestamp %.*s not later than an active "
-			    "read timestamp %s ", (int)cval.len, cval.str,
-			    hex_timestamp);
+		while (prev != NULL) {
+			/*
+			 * Skip any txns on the queue that are not active.
+			 */
+			if (prev->clear_read_q) {
+				prev = TAILQ_PREV(
+				    prev, __wt_txn_rts_qh, read_timestampq);
+				continue;
+			}
+			if (__wt_timestamp_cmp(
+			    &prev->read_timestamp, timestamp) >= 0) {
+				__wt_readunlock(session,
+				    &txn_global->read_timestamp_rwlock);
+				WT_RET(__wt_timestamp_to_hex_string(session,
+				    hex_timestamp, &prev->read_timestamp));
+				WT_RET_MSG(session, EINVAL,
+				    "prepare timestamp %.*s not later than "
+				    "an active read timestamp %s ",
+				    (int)cval.len, cval.str, hex_timestamp);
+			}
+			break;
 		}
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 
@@ -1133,8 +1153,8 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 	++txn_global->read_timestampq_len;
 	WT_STAT_CONN_INCR(session, txn_read_queue_inserts);
 	txn->clear_read_q = false;
-	__wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 	F_SET(txn, WT_TXN_HAS_TS_READ | WT_TXN_PUBLIC_TS_READ);
+	__wt_writeunlock(session, &txn_global->read_timestamp_rwlock);
 }
 
 /*
