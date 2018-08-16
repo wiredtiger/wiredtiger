@@ -748,9 +748,11 @@ fopen
 formatmessage
 fp
 fprintf
+fread
 free'd
 fs
 fscanf
+fseek
 fstat
 fstream
 fsync
@@ -760,6 +762,7 @@ ftruncate
 func
 funcid
 fvisibility
+fwrite
 gcc
 gdb
 ge

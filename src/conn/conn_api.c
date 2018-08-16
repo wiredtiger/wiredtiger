@@ -2748,7 +2748,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		 * If the metadata is corrupted, and salvage is desired do
 		 * so now. If that is successful, retry opening the cursor.
 		 */
-		if (ret == WT_DATA_CORRUPTION &&
+		if ((ret == WT_DATA_CORRUPTION || ret == WT_PANIC) &&
 		    F_ISSET(conn, WT_CONN_SALVAGE)) {
 			WT_ERR(__wt_metadata_salvage(session));
 			WT_ERR(__wt_metadata_cursor(session, NULL));

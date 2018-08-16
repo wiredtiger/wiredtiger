@@ -31,7 +31,8 @@
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
 
-static int ignore_errors;
+static bool saw_corruption = false;
+static bool test_abort = false;
 
 static int
 handle_error(WT_EVENT_HANDLER *handler,
@@ -40,15 +41,15 @@ handle_error(WT_EVENT_HANDLER *handler,
 	(void)(handler);
 
 	/* Skip the error messages we're expecting to see. */
-	if (ignore_errors > 0 &&
-	    (strstr(message, "requires key be set") != NULL ||
-	    strstr(message, "requires value be set") != NULL)) {
-		--ignore_errors;
-		return (0);
-	}
+	if ((strstr(message, "database corruption detected") != NULL))
+		saw_corruption = true;
 
 	(void)fprintf(stderr, "%s: %s\n",
 	    message, session->strerror(session, error));
+	if (test_abort) {
+		fprintf(stderr, "Got unexpected error. Aborting\n");
+		abort();
+	}
 	return (0);
 }
 
@@ -66,6 +67,47 @@ typedef struct table_info {
 } TABLE_INFO;
 
 /*
+ * byte_str --
+ * 	A byte-string version to find a sub-string. The metadata we read
+ * 	contains a lot of zeroes so we cannot use string-based functions.
+ */
+static uint8_t *
+byte_str(uint8_t *buf, size_t bufsize, const char *str)
+{
+	size_t buflen, slen;
+	uint8_t *end, *p, *s;
+	int c;
+
+	p = buf;
+	end = buf + bufsize;
+	s = NULL;
+	c = (int)str[0];
+	buflen = bufsize;
+	slen = strlen(str);
+	/*
+	 * Find the first character and then compare.
+	 */
+	while ((s = memchr(p, c, buflen)) != NULL) {
+		/*
+		 * If we don't have enough buffer left to compare we do not
+		 * have a match.
+		 */
+		buflen = (size_t)(end - s);
+		if (buflen < slen)
+			return (NULL);
+		if (memcmp(s, str, slen) == 0)
+			return (s);
+		/*
+		 * This one didn't match, increment in the buffer and find the
+		 * next one.
+		 */
+		++s;
+		p = s;
+	}
+	return (NULL);
+}
+
+/*
  * cursor_insert --
  *	Insert some data into a table.
  */
@@ -74,14 +116,12 @@ cursor_insert(WT_SESSION *session, const char *uri)
 {
 	WT_CURSOR *cursor;
 	WT_ITEM vu;
-	const char *key, *vs;
 	char keybuf[100], valuebuf[100];
 	bool recno;
 
 	/* Reserve requires a running transaction. */
 	testutil_check(session->begin_transaction(session, NULL));
 
-	key = vs = NULL;
 	memset(&vu, 0, sizeof(vu));
 
 	/* Open a cursor. */
@@ -121,29 +161,31 @@ create_data(WT_CONNECTION *conn, TABLE_INFO *t)
  *	Corrupt the metadata by scribbling on the "corrupt" URI string.
  */
 static void
-corrupt_metadata(void)
+corrupt_metadata(const char *home)
 {
 	FILE *fp;
 	struct stat sb;
 	long off;
 	size_t meta_size;
-	char *buf, *corrupt;
+	uint8_t *buf, *corrupt;
+	char path[256];
 
 	/*
 	 * Open the file, read its contents. Find the string "corrupt" and
 	 * modify one byte at that offset. That will cause a checksum error
 	 * when WiredTiger next reads it.
 	 */
-	testutil_check(stat(WT_METAFILE, &sb));
+	sprintf(path, "%s/%s", home, WT_METAFILE);
+	testutil_check(stat(path, &sb));
 	meta_size = (size_t)sb.st_size;
 	buf = dmalloc(meta_size);
 	memset(buf, 0, meta_size);
-	if ((fp = fopen(WT_METAFILE, "r+")) == NULL)
+	if ((fp = fopen(path, "r+")) == NULL)
 		testutil_die(errno, "fopen: %s", WT_METAFILE);
 	if (fread(buf, 1, meta_size, fp) != meta_size)
 		testutil_die(errno, "fread: %" PRIu64, (uint64_t)meta_size);
-	if ((corrupt = strstr(buf, "corrupt")) == NULL)
-		testutil_die(errno, "strstr: corrupt did not occur");
+	if ((corrupt = byte_str(buf, meta_size, "corrupt")) == NULL)
+		testutil_die(errno, "corrupt did not occur");
 	off = (long)(corrupt - buf);
 	if (fseek(fp, off, SEEK_SET) != 0)
 		testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
@@ -231,6 +273,11 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 int
 main(int argc, char *argv[])
 {
+#if defined(HAVE_DIAGNOSTIC)
+	WT_UNUSED(argc);
+	printf("%s: Must run without diagnostic mode\n", argv[0]);
+	return (EXIT_SUCCESS);
+#else
 	TABLE_INFO table_data[] = {
 		{ "file:file.SS", "key_format=S,value_format=S", false },
 		{ "file:file.rS", "key_format=r,value_format=S", false },
@@ -256,7 +303,6 @@ main(int argc, char *argv[])
 	/*
 	 * Create a bunch of different tables.
 	 */
-	printf("creating tables and data\n");
 	for (t = table_data; t->name != NULL; t++)
 		create_data(opts->conn, t);
 
@@ -264,15 +310,12 @@ main(int argc, char *argv[])
 	opts->conn = NULL;
 
 	/*
-	 * Make copy of directory.
+	 * Make copy of original directory.
 	 */
-	printf("copy directory\n");
-	if (chdir(opts->home) != 0)
-		testutil_die(errno, "chdir %s", opts->home);
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "rm -rf ../%s.SAVE; mkdir ../%s.SAVE; "
-	    "cp -p * ../%s.SAVE;",
-	    opts->home, opts->home, opts->home));
+	    "rm -rf ./%s.SAVE; mkdir ./%s.SAVE; "
+	    "cp -p %s/* ./%s.SAVE;",
+	    opts->home, opts->home, opts->home, opts->home));
 	printf("copy: %s\n", buf);
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
@@ -281,24 +324,27 @@ main(int argc, char *argv[])
 	 * Damage/corrupt WiredTiger.wt.
 	 */
 	printf("corrupt metadata\n");
-	corrupt_metadata();
+	corrupt_metadata(opts->home);
 
 	/*
-	 * Call wiredtiger_open. We expect to get back WT_DATA_CORRUPTION.
+	 * Call wiredtiger_open. We expect to see a corruption panic.
 	 * Then call wiredtiger_open with the salvage configuration setting.
 	 * That should succeed. We should be able to then verify the contents
 	 * of the metadata file.
 	 */
 	printf("wt_open\n");
 	ret = wiredtiger_open(opts->home, &event_handler, NULL, &opts->conn);
-	testutil_assert(ret == WT_DATA_CORRUPTION);
 	testutil_assert(opts->conn == NULL);
+	testutil_assert(ret == WT_PANIC);
+	testutil_assert(saw_corruption == true);
 
-	printf("wt_open with salvage\n");
+	printf("=== wt_open with salvage ===\n");
+	test_abort = true;
 	testutil_check(wiredtiger_open(opts->home,
 	    &event_handler, "salvage=true", &opts->conn));
 	testutil_assert(opts->conn != NULL);
-	testutil_assert(file_exists(WT_METAFILE_SLVG));
+	sprintf(buf, "%s/%s", opts->home, WT_METAFILE_SLVG);
+	testutil_assert(file_exists(buf));
 
 	/*
 	 * Confirm we salvaged the metadata file by looking for the saved
@@ -312,11 +358,13 @@ main(int argc, char *argv[])
 	 */
 	testutil_check(opts->conn->close(opts->conn, NULL));
 	opts->conn = NULL;
-	ret = wiredtiger_open(opts->home, &event_handler, NULL, &opts->conn);
+	testutil_check(wiredtiger_open(opts->home,
+	    &event_handler, NULL, &opts->conn));
 	printf("verify 2\n");
 	verify_metadata(opts->conn, &table_data[0]);
 
 	testutil_cleanup(opts);
 
 	return (EXIT_SUCCESS);
+#endif
 }
