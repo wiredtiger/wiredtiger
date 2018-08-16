@@ -73,7 +73,7 @@ __wt_col_search(WT_SESSION_IMPL *session,
 	WT_PAGE_INDEX *pindex, *parent_pindex;
 	WT_REF *current, *descent;
 	uint64_t recno;
-	uint32_t base, indx, limit;
+	uint32_t base, indx, limit, page_swap_flags;
 	int depth;
 
 	btree = S2BT(session);
@@ -194,8 +194,11 @@ descend:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
+		page_swap_flags = WT_READ_RESTART_OK;
+		if (F_ISSET(cbt, WT_CBT_READ_WONT_NEED))
+			FLD_SET(page_swap_flags, WT_READ_WONT_NEED);
 		if ((ret = __wt_page_swap(session,
-		    current, descent, WT_READ_RESTART_OK)) == 0) {
+		    current, descent, page_swap_flags)) == 0) {
 			current = descent;
 			continue;
 		}

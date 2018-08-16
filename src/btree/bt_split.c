@@ -139,6 +139,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 		 * there's no in-memory structure to check.
 		 */
 		if ((ret =
+		    // WT-4090: Should this respect a cursor's `read_once` setting?
 		    __wt_page_in(session, ref, read_flags)) == WT_NOTFOUND)
 			continue;
 		WT_ERR(ret);

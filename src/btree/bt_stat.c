@@ -85,6 +85,7 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
 	WT_STAT_SET(session, stats, btree_row_leaf, 0);
 
 	next_walk = NULL;
+	// WT-4090: Is there a `read_once` cursor setting to obey?
 	while ((ret = __wt_tree_walk(
 	    session, &next_walk, 0)) == 0 && next_walk != NULL) {
 		WT_WITH_PAGE_INDEX(session,

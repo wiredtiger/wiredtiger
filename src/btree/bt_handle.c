@@ -775,6 +775,7 @@ __btree_get_last_recno(WT_SESSION_IMPL *session)
 	btree = S2BT(session);
 
 	next_walk = NULL;
+	// WT-4090: Is there a `read_once` cursor setting to obey?
 	WT_RET(__wt_tree_walk(session, &next_walk, WT_READ_PREV));
 	if (next_walk == NULL)
 		return (WT_NOTFOUND);

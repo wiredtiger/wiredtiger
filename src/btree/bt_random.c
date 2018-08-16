@@ -261,6 +261,7 @@ restart:	/*
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
+		// WT-4090: Any `read_once` cursor flags to consider?
 descend:	if ((ret = __wt_page_swap(
 		    session, current, descent, flags)) == 0) {
 			current = descent;
