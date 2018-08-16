@@ -64,7 +64,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 			continue;
 
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
-		    &las_timestamp, &upd_type, &las_value, &prepare_state));
+		    &las_timestamp, &prepare_state, &upd_type, &las_value));
 
 		/*
 		 * Entries with no timestamp will have a timestamp of zero,
