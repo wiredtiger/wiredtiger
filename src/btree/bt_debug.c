@@ -253,24 +253,25 @@ static int
 __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 {
 	WT_BTREE *btree;
+	WT_DECL_RET;
 
 	memset(ds, 0, sizeof(WT_DBG));
 
 	ds->session = session;
 
-	WT_RET(__wt_scr_alloc(session, 512, &ds->t1));
-	WT_RET(__wt_scr_alloc(session, 512, &ds->t2));
+	WT_ERR(__wt_scr_alloc(session, 512, &ds->t1));
+	WT_ERR(__wt_scr_alloc(session, 512, &ds->t2));
 
 	/*
 	 * If we weren't given a file, we use the default event handler, and
 	 * we'll have to buffer messages.
 	 */
 	if (ofile == NULL) {
-		WT_RET(__wt_scr_alloc(session, 512, &ds->msg));
+		WT_ERR(__wt_scr_alloc(session, 512, &ds->msg));
 		ds->f = __dmsg_event;
 	} else {
 		if ((ds->fp = fopen(ofile, "w")) == NULL)
-			return (__wt_set_return(session, EIO));
+			WT_ERR(__wt_set_return(session, EIO));
 		__wt_stream_set_line_buffer(ds->fp);
 		ds->f = __dmsg_file;
 	}
@@ -279,6 +280,9 @@ __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 	ds->key_format = btree->key_format;
 	ds->value_format = btree->value_format;
 	return (0);
+
+err:	WT_TRET(__debug_wrapup(ds));
+	return (ret);
 }
 
 /*
