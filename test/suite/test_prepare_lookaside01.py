@@ -94,7 +94,7 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
         # Check to see lookaside working with prepare transactions.
         bigvalue1 = "bbbbb" * 100
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
-        self.prepare_updates(self.session, uri, bigvalue4, ds, nrows)
+        self.prepare_updates(self.session, uri, bigvalue1, ds, nrows)
 
 if __name__ == '__main__':
     wttest.run()
