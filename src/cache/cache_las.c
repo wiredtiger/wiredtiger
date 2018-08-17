@@ -755,7 +755,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 err:	/* Resolve the transaction. */
 	if (local_txn) {
 		if (ret == 0)
-			WT_TRET(__wt_txn_commit(session, NULL));
+			ret = __wt_txn_commit(session, NULL);
 		else
 			WT_TRET(__wt_txn_rollback(session, NULL));
 

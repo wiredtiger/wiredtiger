@@ -234,6 +234,13 @@ __txn_abort_newer_updates(
 	uint32_t read_flags;
 	bool local_read;
 
+	/*
+	 * If we created a page image with updates the need to be rolled back,
+	 * read the history into cache now and make sure the page is marked
+	 * dirty.  Otherwise, the history we need could be swept from the
+	 * lookaside table before the page is read because the lookaside sweep
+	 * code has no way to tell that the page image is invalid.
+	 */
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
 	if (ref->page_las != NULL && ref->page_las->skew_newest &&
