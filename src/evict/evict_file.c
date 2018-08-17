@@ -68,7 +68,6 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	    WT_READ_CACHE | WT_READ_NO_EVICT |
 	    (syncop == WT_SYNC_CLOSE ? WT_READ_LOOKASIDE : 0);
 	next_ref = NULL;
-	// WT-4090: Any `read_once` cursor flags to consider?
 	WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
 	while ((ref = next_ref) != NULL) {
 		page = ref->page;
@@ -106,7 +105,6 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * the reconciliation, the next walk call could miss a page in
 		 * the tree.
 		 */
-		// WT-4090: Any `read_once` cursor flags to consider?
 		WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
 
 		switch (syncop) {

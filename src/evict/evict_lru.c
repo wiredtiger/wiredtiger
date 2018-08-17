@@ -1821,7 +1821,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	for (evict = start, pages_queued = pages_seen = refs_walked = 0;
 	    evict < end && (ret == 0 || ret == WT_NOTFOUND);
 	    last_parent = ref == NULL ? NULL : ref->home,
-	    // WT-4090: Any `read_once` cursor flags to consider?
 	    ret = __wt_tree_walk_count(
 	    session, &ref, &refs_walked, walk_flags)) {
 		/*
@@ -2065,7 +2064,6 @@ fast:		/* If the page can't be evicted, give up. */
 			    cache->walk_session, ref, walk_flags));
 			ref = NULL;
 		} else
-			// WT-4090: Any `read_once` cursor flags to consider?
 			while (ref != NULL && (ref->state != WT_REF_MEM ||
 			    WT_READGEN_EVICT_SOON(ref->page->read_gen)))
 				WT_RET_NOTFOUND_OK(__wt_tree_walk_count(
@@ -2548,7 +2546,6 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 	leaf_dirty_bytes_max = leaf_dirty_pages = leaf_pages = 0;
 
 	next_walk = NULL;
-	// WT-4090: Any `read_once` cursor flags to consider?
 	while (__wt_tree_walk(session, &next_walk,
 	    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT) == 0 &&
 	    next_walk != NULL) {

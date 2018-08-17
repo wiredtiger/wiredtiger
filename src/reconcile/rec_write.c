@@ -1856,7 +1856,6 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * change WT_REF state during our read, and then return
 			 * WT_NOTFOUND to us. In that case, loop and look again.
 			 */
-			// WT-4090: Any `read_once` cursor flags to consider?
 			ret = __wt_page_in(session, ref,
 			    WT_READ_CACHE | WT_READ_NO_EVICT |
 			    WT_READ_NO_GEN | WT_READ_NO_WAIT);

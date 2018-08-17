@@ -168,7 +168,6 @@ __wt_compact(WT_SESSION_IMPL *session)
 		 * read, set its generation to a low value so it is evicted
 		 * quickly.
 		 */
-		// WT-4090: Any `read_once` cursor flags to consider?
 		WT_ERR(__wt_tree_walk_custom_skip(session, &ref,
 		    __wt_compact_page_skip, NULL,
 		    WT_READ_NO_GEN | WT_READ_WONT_NEED));

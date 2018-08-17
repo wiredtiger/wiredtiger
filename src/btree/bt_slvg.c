@@ -1235,7 +1235,6 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 	WT_CLEAR(*cookie);
 
 	/* Get the original page, including the full in-memory setup. */
-	// WT-4090: Pass in `WT_READ_WONT_NEED`?
 	WT_RET(__wt_page_in(session, ref, 0));
 	page = ref->page;
 
@@ -1907,7 +1906,6 @@ __slvg_row_build_leaf(
 	WT_RET(__wt_scr_alloc(session, 0, &key));
 
 	/* Get the original page, including the full in-memory setup. */
-	// WT-4090: Pass in `WT_READ_WONT_NEED`?
 	WT_ERR(__wt_page_in(session, ref, 0));
 	page = ref->page;
 

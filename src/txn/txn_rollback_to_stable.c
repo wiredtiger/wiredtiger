@@ -271,7 +271,6 @@ __txn_rollback_to_stable_btree_walk(
 
 	/* Walk the tree, marking commits aborted where appropriate. */
 	ref = NULL;
-	// WT-4090: Any `read_once` cursor flags to consider?
 	while ((ret = __wt_tree_walk(session, &ref,
 	    WT_READ_CACHE | WT_READ_LOOKASIDE | WT_READ_NO_EVICT)) == 0 &&
 	    ref != NULL) {

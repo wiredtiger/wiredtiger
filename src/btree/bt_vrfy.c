@@ -527,7 +527,6 @@ celltype_err:			WT_RET_MSG(session, WT_ERROR,
 
 			/* Verify the subtree. */
 			++vs->depth;
-			// WT-4090: Any `read_once` cursor flags to consider?
 			WT_RET(__wt_page_in(session, child_ref, 0));
 			ret = __verify_tree(session, child_ref, vs);
 			WT_TRET(__wt_page_release(session, child_ref, 0));
@@ -558,7 +557,6 @@ celltype_err:			WT_RET_MSG(session, WT_ERROR,
 
 			/* Verify the subtree. */
 			++vs->depth;
-			// WT-4090: Any `read_once` cursor flags to consider?
 			WT_RET(__wt_page_in(session, child_ref, 0));
 			ret = __verify_tree(session, child_ref, vs);
 			WT_TRET(__wt_page_release(session, child_ref, 0));

@@ -37,7 +37,6 @@ __evict_stat_walk(WT_SESSION_IMPL *session)
 	walk_count = written_size_cnt = written_size_sum = 0;
 	min_written_size = UINT64_MAX;
 
-	// WT-4090: Any `read_once` cursor flags to consider?
 	while (__wt_tree_walk_count(session, &next_walk, &walk_count,
 	    WT_READ_CACHE | WT_READ_NO_EVICT |
 	    WT_READ_NO_GEN | WT_READ_NO_WAIT) == 0 &&

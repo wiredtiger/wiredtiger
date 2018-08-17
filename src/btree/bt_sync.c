@@ -182,7 +182,6 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 		LF_SET(WT_READ_NO_WAIT | WT_READ_SKIP_INTL);
 		for (;;) {
-			// WT-4090: Can this be associated with a `read_once` cursor?
 			WT_ERR(__wt_tree_walk(session, &walk, flags));
 			if (walk == NULL)
 				break;
@@ -253,7 +252,6 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 		for (;;) {
 			WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-			// WT-4090: Can this be associated with a `read_once` cursor?
 			WT_ERR(__wt_tree_walk(session, &walk, flags));
 
 			if (walk == NULL)
