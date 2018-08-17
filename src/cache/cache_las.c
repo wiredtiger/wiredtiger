@@ -720,12 +720,12 @@ __wt_las_insert_block(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
-				cursor->set_value(cursor,
-				    upd->txnid, &las_timestamp,
+				cursor->set_value(cursor, upd->txnid,
+				    &las_timestamp, upd->prepare_state,
 				    WT_UPDATE_BIRTHMARK, &las_value);
 			} else
-				cursor->set_value(cursor,
-				    upd->txnid, &las_timestamp,
+				cursor->set_value(cursor, upd->txnid,
+				    &las_timestamp, upd->prepare_state,
 				    upd->type, &las_value);
 
 			/*
@@ -993,7 +993,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
 	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
-	uint8_t upd_type;
+	uint8_t prepare_state, upd_type;
 	int notused;
 	bool local_txn, locked;
 
@@ -1113,8 +1113,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Remove entries from the lookaside that have aged out and are
 		 * now no longer needed.
 		 */
-		WT_ERR(cursor->get_value(cursor,
-		    &las_txnid, &las_timestamp, &upd_type, &las_value));
+		WT_ERR(cursor->get_value(cursor, &las_txnid,
+		    &las_timestamp, &prepare_state, &upd_type, &las_value));
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
@@ -1124,11 +1124,13 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 #endif
 
 		/*
-		 * If this entry isn't globally visible we cannot remove it.
-		 * If it is visible then perform additional checks to see
-		 * whether it has aged out of a live file.
+		 * If this entry isn't globally visible or if it is a part of a
+		 * prepared transaction, then we cannot remove it. Otherwise,
+		 * perform additional checks to see whether it has aged out of a
+		 * live file.
 		 */
-		if (!__wt_txn_visible_all(session, las_txnid, val_ts)) {
+		if (!__wt_txn_visible_all(session, las_txnid, val_ts) ||
+		    prepare_state == WT_PREPARE_INPROGRESS) {
 			saved_key->size = 0;
 			continue;
 		}

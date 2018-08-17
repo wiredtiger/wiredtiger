@@ -24,7 +24,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t las_counter, las_pageid, las_total, las_txnid;
 	uint32_t las_id, session_flags;
-	uint8_t upd_type;
+	uint8_t prepare_state, upd_type;
 
 	conn = S2C(session);
 	cursor = NULL;
@@ -63,8 +63,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		if (__bit_test(conn->stable_rollback_bitstring, las_id))
 			continue;
 
-		WT_ERR(cursor->get_value(cursor,
-		    &las_txnid, &las_timestamp, &upd_type, &las_value));
+		WT_ERR(cursor->get_value(cursor, &las_txnid,
+		    &las_timestamp, &prepare_state, &upd_type, &las_value));
 
 		/*
 		 * Entries with no timestamp will have a timestamp of zero,
