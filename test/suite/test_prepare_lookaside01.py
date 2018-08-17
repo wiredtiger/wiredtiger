@@ -33,9 +33,9 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_prepare_las01.py
-# test to ensure lookaside tables are working for prepared transactions.
-class test_prepare_las01(wttest.WiredTigerTestCase):
+# test_prepare_lookaside01.py
+# test to ensure lookaside eviction is working for prepared transactions.
+class test_prepare_lookaside01(wttest.WiredTigerTestCase):
     # Force a small cache.
     def conn_config(self):
         return 'cache_size=50MB'
@@ -54,9 +54,13 @@ class test_prepare_las01(wttest.WiredTigerTestCase):
         cursors = [0] * nsessions
         for j in range (0, nsessions):
             sessions[j] = self.conn.open_session()
-            sessions[j].begin_transaction()
+            sessions[j].begin_transaction("isolation=snapshot")
             cursors[j] = sessions[j].open_cursor(uri)
-            for i in range(1, 4000):
+            # Each session will update many consecutive keys.
+            nkeys = 4000
+            start = (j * nkeys)
+            end = start + nkeys
+            for i in range(start, end):
                 cursors[j].set_key(ds.key(nrows + i))
                 cursors[j].set_value(value)
                 self.assertEquals(cursors[j].update(), 0)
@@ -67,12 +71,12 @@ class test_prepare_las01(wttest.WiredTigerTestCase):
             cursors[j].close()
             sessions[j].close()
 
-    def test_prepare_las(self):
+    def test_prepare_lookaside(self):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
         # Create a small table.
-        uri = "table:test_prepare_las01"
+        uri = "table:test_prepare_lookaside01"
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()
@@ -88,7 +92,7 @@ class test_prepare_las01(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Check to see lookaside working with prepare transactions.
-        bigvalue4 = "bbbbb" * 100
+        bigvalue1 = "bbbbb" * 100
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
         self.prepare_updates(self.session, uri, bigvalue4, ds, nrows)
 
