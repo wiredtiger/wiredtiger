@@ -1793,7 +1793,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 		if (btree->evict_ref == NULL) {
 			/* Ensure internal pages indexes remain valid */
 			WT_WITH_PAGE_INDEX(session, ret = __wt_random_descent(
-			    session, &btree->evict_ref, true));
+			    session, &btree->evict_ref, true, 0));
 			WT_RET_NOTFOUND_OK(ret);
 		}
 		break;
