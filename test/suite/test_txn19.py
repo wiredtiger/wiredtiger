@@ -296,9 +296,6 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         outfile = 'list.out'
         expect_fail = self.expect_recovery_failure()
 
-        # Certain corruptions are only reported as verbose output.
-        verbose_config = self.base_config + ',verbose=[recovery]'
-
         # In cases of corruption, we cannot always call wiredtiger_open
         # directly, because there may be a panic, and abort() is called
         # in diagnostic mode which terminates the Python interpreter.
@@ -307,7 +304,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # us to observe the failure or success safely.
         # Use -R to force recover=on, which is the default for
         # wiredtiger_open, (wt utilities normally have recover=error)
-        self.runWt(['-h', newdir, '-C', verbose_config, '-R', 'list'],
+        self.runWt(['-h', newdir, '-C', self.base_config, '-R', 'list'],
             errfilename=errfile, outfilename=outfile, failure=expect_fail,
             closeconn=False)
 

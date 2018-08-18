@@ -1081,7 +1081,7 @@ err:	__wt_scr_free(session, &buf);
  *	Check that values of the log record header are valid.
  *	No byteswap of the header has been done at this point.
  */
-static void
+static int
 __log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh, uint32_t offset,
     WT_LOG_RECORD *logrecp, bool *corrupt)
 {
@@ -1098,35 +1098,36 @@ __log_record_verify(WT_SESSION_IMPL *session, WT_FH *log_fh, uint32_t offset,
 	__wt_log_record_byteswap(&logrec);
 
 	if (F_ISSET(&logrec, ~(WT_LOG_RECORD_ALL_FLAGS))) {
-		__wt_verbose(session, WT_VERB_RECOVERY,
+		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
 		    " has flag corruption 0x%" PRIx16, log_fh->name, offset,
-		    logrec.flags);
+		    logrec.flags));
 		*corrupt = true;
 	}
 	for (i = 0; i < sizeof(logrec.unused); i++)
 		if (logrec.unused[i] != 0) {
-			__wt_verbose(session, WT_VERB_RECOVERY,
+			WT_RET(__wt_msg(session,
 			    "%s: log record at position %" PRIu32
 			    " has unused[%" WT_SIZET_FMT "] corruption 0x%"
-			    PRIx8, log_fh->name, offset, i, logrec.unused[i]);
+			    PRIx8, log_fh->name, offset, i, logrec.unused[i]));
 			*corrupt = true;
 		}
 	if (logrec.mem_len != 0 && !F_ISSET(&logrec,
 	    WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)) {
-		__wt_verbose(session, WT_VERB_RECOVERY,
+		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
 		    " has memory len corruption 0x%" PRIx32, log_fh->name,
-		    offset, logrec.mem_len);
+		    offset, logrec.mem_len));
 		*corrupt = true;
 	}
 	if (logrec.len <= offsetof(WT_LOG_RECORD, record)) {
-		__wt_verbose(session, WT_VERB_RECOVERY,
+		WT_RET(__wt_msg(session,
 		    "%s: log record at position %" PRIu32
 		    " has record len corruption 0x%" PRIx32, log_fh->name,
-		    offset, logrec.len);
+		    offset, logrec.len));
 		*corrupt = true;
 	}
+	return (0);
 }
 
 /*
@@ -1929,8 +1930,8 @@ __log_has_hole(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t log_size,
 				logrec = (WT_LOG_RECORD *)p;
 				if (buf_left >= sizeof(WT_LOG_RECORD)) {
 					off += p - buf;
-					__log_record_verify(session, fh,
-					    (uint32_t)off, logrec, &corrupt);
+					WT_ERR(__log_record_verify(session, fh,
+					    (uint32_t)off, logrec, &corrupt));
 					if (corrupt)
 						*error_offset = off;
 				}
@@ -2151,9 +2152,9 @@ static int
 __log_salvage_message(WT_SESSION_IMPL *session, const char *log_name,
     const char *extra_msg, wt_off_t offset)
 {
-	__wt_verbose(session, WT_VERB_RECOVERY,
+	WT_RET(__wt_msg(session,
 	    "log file %s corrupted%s at position %" PRIuMAX
-	    ", truncated", log_name, extra_msg, (uintmax_t)offset);
+	    ", truncated", log_name, extra_msg, (uintmax_t)offset));
 	return (WT_ERROR);
 }
 
@@ -2504,7 +2505,7 @@ advance:
 			 * be lost, and this can readily be triggered with
 			 * normal operations. Rather than force users to
 			 * salvage in these situations, we merely truncate the
-			 * log at this point and issue a verbose message.
+			 * log at this point and issue a message.
 			 */
 			if (F_ISSET(conn, WT_CONN_WAS_BACKUP))
 				break;
@@ -2525,8 +2526,8 @@ advance:
 				 * that the header is corrupt.  Make a sanity
 				 * check of the log record header.
 				 */
-				__log_record_verify(session, log_fh,
-				    rd_lsn.l.offset, logrec, &corrupt);
+				WT_ERR(__log_record_verify(session, log_fh,
+				    rd_lsn.l.offset, logrec, &corrupt));
 				if (corrupt) {
 					need_salvage = true;
 					WT_ERR(__log_salvage_message(session,
