@@ -241,11 +241,18 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     def log_corrupt_but_valid(self):
         if self.corrupt_last_file() and self.kind == 'removal':
             return True
-        # Certain corruptions in the last file can be detected.
-        if self.corrupt_hole_in_last_file():
-            return False
         if self.kind == 'truncate-middle' or \
+           self.kind == 'garbage-middle' or \
            self.kind == 'garbage-end':
+            return True
+        return False
+
+    # In certain cases, we detect log corruption, but only report it on
+    # verbose output.
+    def expect_verbose_corruption(self):
+        if self.kind == 'garbage-middle' and self.chkpt <= self.corruptpos:
+            return True
+        if self.corrupt_hole_in_last_file():
             return True
         return False
 
@@ -289,6 +296,9 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         outfile = 'list.out'
         expect_fail = self.expect_recovery_failure()
 
+        # Certain corruptions are only reported as verbose output.
+        verbose_config = self.base_config + ',verbose=[recovery]'
+
         # In cases of corruption, we cannot always call wiredtiger_open
         # directly, because there may be a panic, and abort() is called
         # in diagnostic mode which terminates the Python interpreter.
@@ -297,7 +307,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # us to observe the failure or success safely.
         # Use -R to force recover=on, which is the default for
         # wiredtiger_open, (wt utilities normally have recover=error)
-        self.runWt(['-h', newdir, '-C', self.base_config, '-R', 'list'],
+        self.runWt(['-h', newdir, '-C', verbose_config, '-R', 'list'],
             errfilename=errfile, outfilename=outfile, failure=expect_fail,
             closeconn=False)
 
@@ -306,6 +316,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
             ['/log file.*corrupted/', 'WT_ERROR: non-specific WiredTiger error'])
         else:
             self.check_empty_file(errfile)
+            if self.expect_verbose_corruption():
+                self.check_file_contains(outfile, '/log file .* corrupted/')
             self.check_file_contains(outfile, self.uri)
 
         found_records = self.recovered_records()
