@@ -239,7 +239,6 @@ struct __wt_page_lookaside {
 	WT_DECL_TIMESTAMP(max_timestamp)/* Maximum timestamp */
 	WT_DECL_TIMESTAMP(unstable_timestamp)/* First timestamp not on page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
-	bool invalid;			/* History is required correct reads */
 	bool skew_newest;		/* Page image has newest versions */
 };
 
