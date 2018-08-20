@@ -27,12 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-# Drive a constant high workload through, even if WiredTiger isn't keeping
-# up by dividing the workload across a lot of threads. This needs to be
-# tuned to the particular machine so the workload is close to capacity in the
-# steady state, but not overwhelming.
-#
-################
 # A workload with small cache, small internal and leaf page sizes, faster splits
 # and multiple threads inserting keys in random order. It stresses the page
 # splits in order to catch split races.
@@ -43,7 +37,7 @@ from workgen import *
 
 context = Context()
 # Connection configuration.
-conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=5,json=false)"
+conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=1,json=false)"
 conn = wiredtiger_open("WT_TEST", "create," + conn_config)
 s = conn.open_session("")
 
@@ -52,7 +46,7 @@ table_config = "leaf_page_max=8k,internal_page_max=8k,leaf_item_max=1433,interna
 tables = []
 table_count = 3
 for i in range(0, table_count):
-    tname = "file:test" + str(i) + ".wt"
+    tname = "file:test" + str(i)
     table = Table(tname)
     s.create(tname, 'key_format=S,value_format=S,' + table_config)
     table.options.key_size = 64
