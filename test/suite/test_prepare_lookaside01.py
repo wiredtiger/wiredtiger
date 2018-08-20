@@ -49,7 +49,7 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
         # uncommitted updates, instead of prepared updates.
         #
         # If we increase nsessions below, then hang will occur.
-        nsessions = 3
+        nsessions = 1
         sessions = [0] * nsessions
         cursors = [0] * nsessions
         for j in range (0, nsessions):
