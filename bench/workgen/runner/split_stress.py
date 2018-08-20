@@ -41,71 +41,49 @@ from runner import *
 from wiredtiger import *
 from workgen import *
 
-# Helper functions.
-def op_append(ops, op):
-    if ops == None:
-        ops = op
-    else:
-        ops += op
-    return ops
-
-def make_op(optype, table, key, value = None):
-    if value == None:
-        return Operation(optype, table, key)
-    else:
-        return Operation(optype, table, key, value)
-
-def operations(optype, tables, key, value = None, ops_per_txn = 0, logtable = None):
-    txn_list = []
-    ops = None
-    nops = 0
-    for table in tables:
-        ops = op_append(ops, make_op(optype, table, key, value))
-        if logtable != None:
-            ops = op_append(ops, make_op(optype, logtable, logkey, value))
-        nops += 1
-        if ops_per_txn > 0 and nops % ops_per_txn == 0:
-            txn_list.append(txn(ops))
-            ops = None
-    if ops_per_txn > 0:
-        if ops != None:
-            txn_list.append(txn(ops))
-            ops = None
-        for t in txn_list:
-            ops = op_append(ops, t)
-    return ops
-
-# Connection and table configuration.
 context = Context()
-conn_config="create,cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=5,json=false)"
-conn = wiredtiger_open("WT_TEST", conn_config)
-s = conn.open_session()
+# Connection configuration.
+conn_config = "cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=5,json=false)"
+conn = wiredtiger_open("WT_TEST", "create," + conn_config)
+s = conn.open_session("")
 
-table_config="leaf_page_max=8k,internal_page_max=8k,leaf_item_max=1433,internal_item_max=3100,type=file,memory_page_max=1MB,split_deepen_min_child=100"
-
+# Table configuration.
+table_config = "leaf_page_max=8k,internal_page_max=8k,leaf_item_max=1433,internal_item_max=3100,type=file,memory_page_max=1MB,split_deepen_min_child=100"
 tables = []
-for i in range(0, 3):
-    tname = "file:test_" + str(i)
-    s.create(tname, 'key_format=S,value_format=S,' + table_config)
+table_count = 3
+for i in range(0, table_count):
+    tname = "file:test" + str(i) + ".wt"
     table = Table(tname)
+    s.create(tname, 'key_format=S,value_format=S,' + table_config)
+    table.options.key_size = 64
+    table.options.value_size = 200
     table.options.range = 100000000 # 100 million
     tables.append(table)
 
 # Populate phase.
-icount=50000
-ins_op = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 64), Value(200))
-thread = Thread(ins_op * icount)
-pop_workload = Workload(context, thread)
-print('populating...')
+populate_threads = 1
+icount = 50000
+# There are multiple tables to be filled during populate,
+# the icount is split between them all.
+pop_ops = Operation(Operation.OP_INSERT, tables[0])
+pop_ops = op_multi_table(pop_ops, tables)
+nops_per_thread = icount / (populate_threads * table_count)
+pop_thread = Thread(pop_ops * nops_per_thread)
+pop_workload = Workload(context, populate_threads * pop_thread)
+print('Populating...')
 pop_workload.run(conn)
 
 # Run phase.
-ins_ops = operations(Operation.OP_INSERT, tables, Key(Key.KEYGEN_APPEND, 64), Value(200))
-ins_thread = Thread(ins_ops)
-ins_thread.options.name = "Insert"
-threads = ins_thread * 20
-workload = Workload(context, threads)
-workload.options.run_time = 10
-workload.options.report_interval = 5
+ops = Operation(Operation.OP_INSERT, tables[0])
+ops = op_multi_table(ops, tables, False)
+thread0 = Thread(ops)
+
+workload = Workload(context, 20 * thread0)
+workload.options.report_interval=5
+workload.options.run_time=10
 print('Split stress workload running...')
 workload.run(conn)
+
+latency_filename = "WT_TEST/latency.out"
+latency.workload_latency(workload, latency_filename)
+conn.close()
