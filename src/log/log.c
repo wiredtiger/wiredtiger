@@ -2146,7 +2146,7 @@ err:	if (locked)
 
 /*
  * __log_salvage_message --
- *	Show verbose messages consistently for a salvageable error.
+ *	Show messages consistently for a salvageable error.
  */
 static int
 __log_salvage_message(WT_SESSION_IMPL *session, const char *log_name,

@@ -247,9 +247,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
             return True
         return False
 
-    # In certain cases, we detect log corruption, but only report it on
-    # verbose output.
-    def expect_verbose_corruption(self):
+    # In certain cases, we detect log corruption, but just issue warnings.
+    def expect_warning_corruption(self):
         if self.kind == 'garbage-middle' and self.chkpt <= self.corruptpos:
             return True
         if self.corrupt_hole_in_last_file():
@@ -313,7 +312,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
             ['/log file.*corrupted/', 'WT_ERROR: non-specific WiredTiger error'])
         else:
             self.check_empty_file(errfile)
-            if self.expect_verbose_corruption():
+            if self.expect_warning_corruption():
                 self.check_file_contains(outfile, '/log file .* corrupted/')
             self.check_file_contains(outfile, self.uri)
 
