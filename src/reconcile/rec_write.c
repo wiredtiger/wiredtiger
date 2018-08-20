@@ -397,7 +397,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * while we were waiting to acquire the lock (e.g., the page could have
 	 * split).
 	 */
-	if (LF_ISSET(WT_REC_EVICT) &&
+	if (LF_ISSET(WT_EVICTING) &&
 	    !__wt_page_can_evict(session, ref, NULL)) {
 		WT_PAGE_UNLOCK(session, page);
 		return (EBUSY);
