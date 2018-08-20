@@ -622,8 +622,9 @@ struct __wt_connection_stats {
 	int64_t page_sleep;
 	int64_t page_del_rollback_blocked;
 	int64_t child_modify_blocked_page;
+	int64_t txn_commit_queue_walked;
 	int64_t txn_commit_queue_empty;
-	int64_t txn_commit_queue_tail;
+	int64_t txn_commit_queue_head;
 	int64_t txn_commit_queue_inserts;
 	int64_t txn_commit_queue_len;
 	int64_t txn_snapshots_created;
@@ -633,6 +634,7 @@ struct __wt_connection_stats {
 	int64_t txn_prepare_active;
 	int64_t txn_prepare_rollback;
 	int64_t txn_query_ts;
+	int64_t txn_read_queue_walked;
 	int64_t txn_read_queue_empty;
 	int64_t txn_read_queue_head;
 	int64_t txn_read_queue_inserts;
