@@ -194,6 +194,7 @@ corrupt_metadata(const char *home)
 	struct stat sb;
 	long off;
 	size_t meta_size;
+	bool corrupted;
 	uint8_t *buf, *corrupt;
 	char path[256];
 
@@ -211,14 +212,23 @@ corrupt_metadata(const char *home)
 		testutil_die(errno, "fopen: %s", WT_METAFILE);
 	if (fread(buf, 1, meta_size, fp) != meta_size)
 		testutil_die(errno, "fread: %" PRIu64, (uint64_t)meta_size);
-	if ((corrupt = byte_str(buf, meta_size, CORRUPT)) == NULL)
-		testutil_die(errno, "corrupt did not occur");
-	testutil_assert(*(char *)corrupt != 'X');
-	off = (long)(corrupt - buf);
-	if (fseek(fp, off, SEEK_SET) != 0)
-		testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
-	if (fwrite("X", 1, 1, fp) != 1)
-		testutil_die(errno, "fwrite");
+	corrupted = false;
+	/*
+	 * Corrupt all occurrences of the string in the file.
+	 */
+	while ((corrupt = byte_str(buf, meta_size, CORRUPT)) != NULL) {
+		corrupted = true;
+		testutil_assert(*(char *)corrupt != 'X');
+		*(char *)corrupt = 'X';
+		off = (long)(corrupt - buf);
+		printf("Corrupting at offset 0x%x\n", off);
+		if (fseek(fp, off, SEEK_SET) != 0)
+			testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
+		if (fwrite("X", 1, 1, fp) != 1)
+			testutil_die(errno, "fwrite");
+	}
+	if (!corrupted)
+		testutil_die(errno, "corrupt string did not occur");
 	if (fclose(fp) != 0)
 		testutil_die(errno, "fclose");
 }
