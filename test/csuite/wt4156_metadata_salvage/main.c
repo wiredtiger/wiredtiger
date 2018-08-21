@@ -221,7 +221,7 @@ corrupt_metadata(const char *home)
 		testutil_assert(*(char *)corrupt != 'X');
 		*(char *)corrupt = 'X';
 		off = (long)(corrupt - buf);
-		printf("Corrupting at offset 0x%x\n", off);
+		printf("Corrupting at offset 0x%lx\n", off);
 		if (fseek(fp, off, SEEK_SET) != 0)
 			testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
 		if (fwrite("X", 1, 1, fp) != 1)
