@@ -310,18 +310,6 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	}
 }
 
-#if 0
-static void
-handler(int sig)
-{
-	pid_t pid;
-
-	WT_UNUSED(sig);
-	pid = wait(NULL);
-
-}
-#endif
-
 static int
 wt_open_corrupt(const char *home)
 {
@@ -344,9 +332,6 @@ main(int argc, char *argv[])
 	 * other pages and a good number of tables are available after
 	 * salvage completes.
 	 */
-#if 0
-	struct sigaction sa;
-#endif
 	TABLE_INFO table_data[] = {
 		{ "file:aaa-file.SS", "key_format=S,value_format=S", false },
 		{ "file:bbb-file.rS", "key_format=r,value_format=S", false },
@@ -410,13 +395,9 @@ main(int argc, char *argv[])
 	/*
 	 * Call wiredtiger_open. We expect to see a corruption panic so we
 	 * run this in a forked process. In diagnostic mode, the panic will
-	 * cause an abort and core dump. So we want to catch that.
+	 * cause an abort and core dump. So we want to catch that and
+	 * continue running with salvage.
 	 */
-#if 0
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = handler;
-	testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-#endif
 	if ((pid = fork()) < 0)
 		testutil_die(errno, "fork");
 	if (pid == 0) { /* child */
@@ -430,8 +411,6 @@ main(int argc, char *argv[])
 	 * Check the child exited successfully and did not fail any of
 	 * the assertions tested on return.
 	 */
-	printf("waitpid status %d WIFEXIT %d WIFSIG %d CORE %d\n", status,
-	    WIFEXITED(status), WIFSIGNALED(status), WCOREDUMP(status));
 #ifdef HAVE_DIAGNOSTIC
 	testutil_assert(WIFSIGNALED(status) == true);
 #else
@@ -455,7 +434,7 @@ main(int argc, char *argv[])
 	 * Confirm we salvaged the metadata file by looking for the saved
 	 * copy of the original metadata.
 	 */
-	printf("verify 1\n");
+	printf("verify with salvaged connection\n");
 	verify_metadata(opts->conn, &table_data[0]);
 
 	/*
@@ -465,7 +444,7 @@ main(int argc, char *argv[])
 	opts->conn = NULL;
 	testutil_check(wiredtiger_open(opts->home,
 	    &event_handler, NULL, &opts->conn));
-	printf("verify 2\n");
+	printf("close and reopen connection, verify\n");
 	verify_metadata(opts->conn, &table_data[0]);
 
 	testutil_cleanup(opts);
