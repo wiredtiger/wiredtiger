@@ -27,7 +27,8 @@
  */
 #include "test_util.h"
 
-#define	CORRUPT "file:zzz-corrupt.SS"
+#ifndef HAVE_DIAGNOSTICS
+#define	CORRUPT "table:zzz-corrupt.SS"
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
 
@@ -306,11 +307,12 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 		}
 	}
 }
+#endif
 
 int
 main(int argc, char *argv[])
 {
-#if defined(HAVE_DIAGNOSTIC)
+#ifdef HAVE_DIAGNOSTIC
 	/*
 	 * We cannot run this test in diagnostic mode as-is because the
 	 * corruption causes a panic on the first post-corruption call to
