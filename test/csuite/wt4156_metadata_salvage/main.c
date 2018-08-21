@@ -427,23 +427,15 @@ main(int argc, char *argv[])
 	if (waitpid(pid, &status, 0) == -1)
 		testutil_die(errno, "waitpid");
 	/*
-	 * In diagnostic mode the call will abort and dump core.
-	 * In non-diagnostic mode the call will return WT_PANIC and all
-	 * the assertions tested on return should be true and the child
-	 * should exit successfully.
+	 * Check the child exited successfully and did not fail any of
+	 * the assertions tested on return.
 	 */
+	printf("waitpid status %d WIFEXIT %d WIFSIG %d CORE %d\n", status,
+	    WIFEXITED(status), WIFSIGNALED(status), WCOREDUMP(status));
 #ifdef HAVE_DIAGNOSTIC
-	testutil_assert(WCOREDUMP(status) == true);
+	testutil_assert(WIFSIGNALED(status) == true);
 #else
-	testutil_assert(WCOREDUMP(status) == false);
-#endif
-
-#if 0
-	printf("wt_open\n");
-	ret = wiredtiger_open(opts->home, &event_handler, NULL, &opts->conn);
-	testutil_assert(opts->conn == NULL);
-	testutil_assert(ret == WT_PANIC);
-	testutil_assert(saw_corruption == true);
+	testutil_assert(WIFSIGNALED(status) == false);
 #endif
 
 	printf("=== wt_open with salvage ===\n");
