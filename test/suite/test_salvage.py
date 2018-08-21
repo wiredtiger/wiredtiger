@@ -140,14 +140,6 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTrue(found)
         fp.close()
 
-    def metadata_common(self, do_ckpt):
-        table2 = "table:unique_str"
-        self.session.create('table:' + self.tablename, self.session_params)
-        self.session.create(table2, self.session_params)
-        self.populate(self.tablename)
-        if (do_ckpt):
-            self.session.checkpoint()
-
     def test_salvage_process_empty(self):
         """
         Test salvage in a 'wt' process, using an empty table
@@ -215,20 +207,6 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file(errfile)  # expect no output
         self.check_no_error_in_file(errfile)
         self.check_damaged(self.tablename)
-
-    def test_salvage_metadata(self):
-        """
-        Test salvage in a 'wt' process on a table that is purposely damaged.
-        """
-        metafile = "WiredTiger.wt"
-        conn_salvage = 'salvage=true'
-        self.metadata_common(False)
-        self.damage(metafile)
-        errfile = "salvageerr.out"
-        self.runWt(["list", "-v"], errfilename=errfile)
-        self.check_no_error_in_file(errfile)
-        self.wiredtiger_open(self.dir, conn_salvage)
-        #self.check_damaged(metafile)
 
 if __name__ == '__main__':
     wttest.run()
