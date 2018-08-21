@@ -169,30 +169,22 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	Find a random page in a tree for either sampling or eviction.
  */
 int
-__wt_random_descent(WT_SESSION_IMPL *session,
-    WT_REF **refp, bool eviction, uint32_t additional_flags)
+__wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *current, *descent;
-	uint32_t flags, i, entries, retry;
+	uint32_t i, entries, retry;
+	bool eviction;
 
 	*refp = NULL;
 
 	btree = S2BT(session);
 	current = NULL;
 	retry = 100;
-
-	/* Eviction should not be tapped to do eviction. */
-	if (eviction)
-		flags = additional_flags |
-			WT_READ_CACHE | WT_READ_NO_EVICT |
-			WT_READ_NO_GEN | WT_READ_NO_WAIT |
-			WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
-	else
-		flags = additional_flags | WT_READ_RESTART_OK;
+	eviction = LF_ISSET(WT_READ_CACHE);
 
 	if (0) {
 restart:	/*
@@ -305,15 +297,15 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	WT_UPDATE *upd;
 	wt_off_t size;
 	uint64_t n, skip;
-	uint32_t descent_flags;
+	uint32_t read_flags;
 	bool valid;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
-	descent_flags = 0;
+	read_flags = 0;
 	if (F_ISSET(cbt, WT_CBT_READ_WONT_NEED))
-		FLD_SET(descent_flags, WT_CBT_READ_WONT_NEED);
+		FLD_SET(read_flags, WT_CBT_READ_WONT_NEED);
 
 	/*
 	 * Only supports row-store: applications can trivially select a random
@@ -345,7 +337,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_WITH_PAGE_INDEX(session,
 		    ret = __wt_random_descent(
-			session, &cbt->ref, false, descent_flags));
+			session, &cbt->ref, read_flags));
 		if (ret == 0)
 			goto random_page_entry;
 
