@@ -27,8 +27,10 @@
  */
 #include "test_util.h"
 
-#ifndef HAVE_DIAGNOSTICS
-#define	CORRUPT "table:zzz-corrupt.SS"
+#include <sys/wait.h>
+#include <signal.h>
+
+#define	CORRUPT "file:zzz-corrupt.SS"
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
 
@@ -307,28 +309,44 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 		}
 	}
 }
+
+#if 0
+static void
+handler(int sig)
+{
+	pid_t pid;
+
+	WT_UNUSED(sig);
+	pid = wait(NULL);
+
+}
 #endif
+
+static int
+wt_open_corrupt(const char *home)
+{
+	WT_CONNECTION *conn;
+	int ret;
+
+	conn = NULL;
+	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
+	testutil_assert(conn == NULL);
+	testutil_assert(ret == WT_PANIC);
+	testutil_assert(saw_corruption == true);
+	exit (EXIT_SUCCESS);
+}
 
 int
 main(int argc, char *argv[])
 {
-#ifdef HAVE_DIAGNOSTIC
-	/*
-	 * We cannot run this test in diagnostic mode as-is because the
-	 * corruption causes a panic on the first post-corruption call to
-	 * wiredtiger_open which aborts and dumps core in diagnostic mode.
-	 * To run in diagnostic mode the test would have to reworked to use
-	 * a child process for the first open attempt.
-	 */
-	WT_UNUSED(argc);
-	printf("%s: Must run without diagnostic mode\n", argv[0]);
-	return (EXIT_SUCCESS);
-#else
 	/*
 	 * Add a bunch of tables so that some of the metadata ends up on
 	 * other pages and a good number of tables are available after
 	 * salvage completes.
 	 */
+#if 0
+	struct sigaction sa;
+#endif
 	TABLE_INFO table_data[] = {
 		{ "file:aaa-file.SS", "key_format=S,value_format=S", false },
 		{ "file:bbb-file.rS", "key_format=r,value_format=S", false },
@@ -345,7 +363,8 @@ main(int argc, char *argv[])
 	};
 	TABLE_INFO *t;
 	TEST_OPTS *opts, _opts;
-	int ret;
+	pid_t pid;
+	int ret, status;
 	char buf[1024];
 
 	opts = &_opts;
@@ -389,18 +408,50 @@ main(int argc, char *argv[])
 		testutil_die(ret, "system: %s", buf);
 
 	/*
-	 * Call wiredtiger_open. We expect to see a corruption panic.
-	 * Then call wiredtiger_open with the salvage configuration setting.
-	 * That should succeed. We should be able to then verify the contents
-	 * of the metadata file.
+	 * Call wiredtiger_open. We expect to see a corruption panic so we
+	 * run this in a forked process. In diagnostic mode, the panic will
+	 * cause an abort and core dump. So we want to catch that.
 	 */
+#if 0
+	memset(&sa, 0, sizeof(sa));
+	sa.sa_handler = handler;
+	testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
+#endif
+	if ((pid = fork()) < 0)
+		testutil_die(errno, "fork");
+	if (pid == 0) { /* child */
+		wt_open_corrupt(opts->home);
+		return (EXIT_SUCCESS);
+	}
+	/* parent */
+	if (waitpid(pid, &status, 0) == -1)
+		testutil_die(errno, "waitpid");
+	/*
+	 * In diagnostic mode the call will abort and dump core.
+	 * In non-diagnostic mode the call will return WT_PANIC and all
+	 * the assertions tested on return should be true and the child
+	 * should exit successfully.
+	 */
+#ifdef HAVE_DIAGNOSTIC
+	testutil_assert(WCOREDUMP(status) == true);
+#else
+	testutil_assert(WCOREDUMP(status) == false);
+#endif
+
+#if 0
 	printf("wt_open\n");
 	ret = wiredtiger_open(opts->home, &event_handler, NULL, &opts->conn);
 	testutil_assert(opts->conn == NULL);
 	testutil_assert(ret == WT_PANIC);
 	testutil_assert(saw_corruption == true);
+#endif
 
 	printf("=== wt_open with salvage ===\n");
+	/*
+	 * Then call wiredtiger_open with the salvage configuration setting.
+	 * That should succeed. We should be able to then verify the contents
+	 * of the metadata file.
+	 */
 	test_abort = true;
 	testutil_check(wiredtiger_open(opts->home,
 	    &event_handler, "salvage=true,verbose=(salvage)", &opts->conn));
@@ -428,5 +479,4 @@ main(int argc, char *argv[])
 	testutil_cleanup(opts);
 
 	return (EXIT_SUCCESS);
-#endif
 }
