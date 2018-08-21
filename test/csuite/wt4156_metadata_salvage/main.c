@@ -27,15 +27,23 @@
  */
 #include "test_util.h"
 
-#define	CORRUPT "table:corrupt.SS"
+#define	CORRUPT "file:zzz-corrupt.SS"
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
+
+/*
+ * NOTE: This assumes the default page size of 4096. If that changes these
+ * sizes need to change along with it.
+ */
+#define	APP_MD_SIZE 	4096
+#define	APP_BUF_SIZE	3 * 1024
+#define	APP_STR		"long app metadata. "
 
 static bool saw_corruption = false;
 static bool test_abort = false;
 
 static int
-handle_error(WT_EVENT_HANDLER *handler,
+handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *message)
 {
 	(void)(handler);
@@ -54,7 +62,7 @@ handle_error(WT_EVENT_HANDLER *handler,
 }
 
 static WT_EVENT_HANDLER event_handler = {
-	handle_error,
+	handle_message,
 	NULL,
 	NULL,
 	NULL
@@ -143,15 +151,31 @@ cursor_insert(WT_SESSION *session, const char *uri)
 
 /*
  * create_data --
- *	Create a table and insert a piece of data.
+ * 	Create a table and insert a piece of data.
  */
 static void
 create_data(WT_CONNECTION *conn, TABLE_INFO *t)
 {
 	WT_SESSION *session;
+	size_t len;
+	uint64_t i;
+	char buf[APP_BUF_SIZE], cfg[APP_MD_SIZE];
 
+	memset(buf, 0, sizeof(buf));
+	memset(cfg, 0, sizeof(cfg));
+
+	/*
+	 * Create an app-specific metadata string that fills most of page
+	 * so that each table in the metadata has its own page.
+	 */
+	len = strlen(APP_STR);
+	for (i = 0; i + len < APP_BUF_SIZE; i += len)
+		testutil_check(__wt_snprintf(
+		    &buf[i], APP_BUF_SIZE - i, "%s", APP_STR));
+	testutil_check(__wt_snprintf(cfg, sizeof(cfg),
+	    "%s,app_metadata=\"%s\"", t->kvformat, buf));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	testutil_check(session->create(session, t->name, t->kvformat));
+	testutil_check(session->create(session, t->name, cfg));
 	cursor_insert(session, t->name);
 	testutil_check(session->close(session, NULL));
 }
@@ -184,8 +208,9 @@ corrupt_metadata(const char *home)
 		testutil_die(errno, "fopen: %s", WT_METAFILE);
 	if (fread(buf, 1, meta_size, fp) != meta_size)
 		testutil_die(errno, "fread: %" PRIu64, (uint64_t)meta_size);
-	if ((corrupt = byte_str(buf, meta_size, "corrupt")) == NULL)
+	if ((corrupt = byte_str(buf, meta_size, CORRUPT)) == NULL)
 		testutil_die(errno, "corrupt did not occur");
+	testutil_assert(*(char *)corrupt != 'X');
 	off = (long)(corrupt - buf);
 	if (fseek(fp, off, SEEK_SET) != 0)
 		testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
@@ -232,7 +257,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
 	int ret;
-	char key[64];
+	const char *kv;
 
 	/*
 	 * Open a metadata cursor.
@@ -249,9 +274,9 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	 * of tables each time.
 	 */
 	while ((ret = cursor->next(cursor)) == 0) {
-		testutil_check(cursor->get_key(cursor, key));
+		testutil_check(cursor->get_key(cursor, &kv));
 		for (t = tables; t->name != NULL; t++) {
-			if (strcmp(t->name, key) == 0) {
+			if (strcmp(t->name, kv) == 0) {
 				testutil_assert(t->verified == false);
 				t->verified = true;
 				break;
@@ -260,13 +285,25 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	}
 	cursor->close(cursor);
 	/*
-	 * Make sure all tables exist except the corrupt one.
+	 * Any tables that were salvaged, make sure we can read the data.
+	 * The corrupt table should never be salvaged.
 	 */
 	for (t = tables; t->name != NULL; t++) {
 		if (strcmp(t->name, CORRUPT) == 0)
 			testutil_assert(t->verified == false);
-		else
-			testutil_assert(t->verified == true);
+		else if (t->verified != true)
+			printf("%s not seen in metadata\n", t->name);
+		else {
+			testutil_check(session->open_cursor(
+			    session, t->name, NULL, NULL, &cursor));
+			while ((ret = cursor->next(cursor)) == 0) {
+				testutil_check(cursor->get_value(cursor, &kv));
+				testutil_assert(strcmp(kv, VALUE) == 0);
+			}
+			cursor->close(cursor);
+			printf("%s metadata salvaged and data verified\n",
+			    t->name);
+		}
 	}
 }
 
@@ -274,16 +311,33 @@ int
 main(int argc, char *argv[])
 {
 #if defined(HAVE_DIAGNOSTIC)
+	/*
+	 * We cannot run this test in diagnostic mode as-is because the
+	 * corruption causes a panic on the first post-corruption call to
+	 * wiredtiger_open which aborts and dumps core in diagnostic mode.
+	 * To run in diagnostic mode the test would have to reworked to use
+	 * a child process for the first open attempt.
+	 */
 	WT_UNUSED(argc);
 	printf("%s: Must run without diagnostic mode\n", argv[0]);
 	return (EXIT_SUCCESS);
 #else
+	/*
+	 * Add a bunch of tables so that some of the metadata ends up on
+	 * other pages and a good number of tables are available after
+	 * salvage completes.
+	 */
 	TABLE_INFO table_data[] = {
-		{ "file:file.SS", "key_format=S,value_format=S", false },
-		{ "file:file.rS", "key_format=r,value_format=S", false },
-		{ "lsm:lsm.SS", "key_format=S,value_format=S", false },
-		{ "table:table.SS", "key_format=S,value_format=S", false },
-		{ "table:table.rS", "key_format=r,value_format=S", false },
+		{ "file:aaa-file.SS", "key_format=S,value_format=S", false },
+		{ "file:bbb-file.rS", "key_format=r,value_format=S", false },
+		{ "lsm:ccc-lsm.SS", "key_format=S,value_format=S", false },
+		{ "table:ddd-table.SS", "key_format=S,value_format=S", false },
+		{ "table:eee-table.rS", "key_format=r,value_format=S", false },
+		{ "file:fff-file.SS", "key_format=S,value_format=S", false },
+		{ "file:ggg-file.rS", "key_format=r,value_format=S", false },
+		{ "lsm:hhh-lsm.SS", "key_format=S,value_format=S", false },
+		{ "table:iii-table.SS", "key_format=S,value_format=S", false },
+		{ "table:jjj-table.rS", "key_format=r,value_format=S", false },
 		{ CORRUPT, "key_format=S,value_format=S", false },
 		{ NULL, NULL, false }
 	};
@@ -325,6 +379,12 @@ main(int argc, char *argv[])
 	 */
 	printf("corrupt metadata\n");
 	corrupt_metadata(opts->home);
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "cp -p %s/WiredTiger.wt ./%s.SAVE/WiredTiger.wt.CORRUPT",
+	    opts->home, opts->home));
+	printf("copy: %s\n", buf);
+	if ((ret = system(buf)) < 0)
+		testutil_die(ret, "system: %s", buf);
 
 	/*
 	 * Call wiredtiger_open. We expect to see a corruption panic.
@@ -341,7 +401,7 @@ main(int argc, char *argv[])
 	printf("=== wt_open with salvage ===\n");
 	test_abort = true;
 	testutil_check(wiredtiger_open(opts->home,
-	    &event_handler, "salvage=true", &opts->conn));
+	    &event_handler, "salvage=true,verbose=(salvage)", &opts->conn));
 	testutil_assert(opts->conn != NULL);
 	sprintf(buf, "%s/%s", opts->home, WT_METAFILE_SLVG);
 	testutil_assert(file_exists(buf));

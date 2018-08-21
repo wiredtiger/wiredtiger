@@ -352,7 +352,6 @@ __wt_metadata_salvage(WT_SESSION_IMPL *session)
 	 * Now salvage the metadata. We know we're in wiredtiger_open and
 	 * single threaded.
 	 */
-	WT_RET(__wt_msg(session, "salvage: %s", WT_METAFILE));
 	WT_RET(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
 	return (0);
 }
