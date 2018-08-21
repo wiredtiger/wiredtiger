@@ -20,6 +20,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(rollback_timestamp)
+	WT_DECL_TIMESTAMP(upd_timestamp)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t las_counter, las_pageid, las_total, las_txnid;
@@ -65,6 +66,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		memcpy(&upd_timestamp, las_timestamp.data, las_timestamp.size);
 
 		/*
 		 * Entries with no timestamp will have a timestamp of zero,
@@ -72,7 +75,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		 * be removed.
 		 */
 		if (__wt_timestamp_cmp(
-		    &rollback_timestamp, las_timestamp.data) < 0) {
+		    &rollback_timestamp, &upd_timestamp) < 0) {
 			WT_ERR(cursor->remove(cursor));
 			WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
 			--las_total;
