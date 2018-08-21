@@ -219,7 +219,7 @@ __wt_row_search(WT_SESSION_IMPL *session,
 	WT_REF *current, *descent;
 	WT_ROW *rip;
 	size_t match, skiphigh, skiplow;
-	uint32_t base, indx, limit, page_swap_flags;
+	uint32_t base, indx, limit, read_flags;
 	int cmp, depth;
 	bool append_check, descend_right, done;
 
@@ -446,11 +446,11 @@ descend:	/* Encourage races. */
 		 * On other error, simply return, the swap call ensures we're
 		 * holding nothing on failure.
 		 */
-		page_swap_flags = WT_READ_RESTART_OK;
+		read_flags = WT_READ_RESTART_OK;
 		if (F_ISSET(cbt, WT_CBT_READ_WONT_NEED))
-			FLD_SET(page_swap_flags, WT_READ_WONT_NEED);
+			FLD_SET(read_flags, WT_READ_WONT_NEED);
 		if ((ret = __wt_page_swap(session,
-		    current, descent, page_swap_flags)) == 0) {
+		    current, descent, read_flags)) == 0) {
 			current = descent;
 			continue;
 		}
