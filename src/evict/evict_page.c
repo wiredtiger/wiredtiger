@@ -450,6 +450,7 @@ static int
 __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 {
 	WT_REF *child;
+	bool active;
 
 	WT_INTL_FOREACH_BEGIN(session, parent->page, child) {
 		switch (child->state) {
@@ -460,11 +461,13 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			 * If the page was part of a truncate, transaction
 			 * rollback might switch this page into its previous
 			 * state at any time, so the delete must be resolved.
-			 * We don't have to lock the page, as no thread of
-			 * control can be running below our locked internal
-			 * page.
 			 */
-			if (__wt_page_del_active(session, child, true))
+			if (!__wt_atomic_casv32(
+			    &child->state, WT_REF_DELETED, WT_REF_LOCKED))
+				return (__wt_set_return(session, EBUSY));
+			active = __wt_page_del_active(session, child, true);
+			WT_PUBLISH(child->state, WT_REF_DELETED);
+			if (active)
 				return (__wt_set_return(session, EBUSY));
 			break;
 		case WT_REF_LOOKASIDE:
