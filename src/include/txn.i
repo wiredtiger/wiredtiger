@@ -510,6 +510,10 @@ __wt_txn_visible_all(
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+	if (upd->prepare_state == WT_PREPARE_LOCKED ||
+	    upd->prepare_state == WT_PREPARE_INPROGRESS)
+		return (false);
+
 	return (__wt_txn_visible_all(
 	    session, upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
 }
