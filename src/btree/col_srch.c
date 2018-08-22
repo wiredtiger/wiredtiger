@@ -195,7 +195,7 @@ descend:	/*
 		 * holding nothing on failure.
 		 */
 		read_flags = WT_READ_RESTART_OK;
-		if (F_ISSET(cbt, WT_CBT_READ_WONT_NEED))
+		if (F_ISSET(cbt, WT_CBT_READ_ONCE))
 			FLD_SET(read_flags, WT_READ_WONT_NEED);
 		if ((ret = __wt_page_swap(session,
 		    current, descent, read_flags)) == 0) {

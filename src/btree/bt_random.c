@@ -303,9 +303,9 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
-	read_flags = 0;
-	if (F_ISSET(cbt, WT_CBT_READ_WONT_NEED))
-		FLD_SET(read_flags, WT_CBT_READ_WONT_NEED);
+	read_flags = WT_READ_RESTART_OK;
+	if (F_ISSET(cbt, WT_CBT_READ_ONCE))
+		FLD_SET(read_flags, WT_READ_WONT_NEED);
 
 	/*
 	 * Only supports row-store: applications can trivially select a random
@@ -336,8 +336,7 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	if (cbt->ref == NULL || cbt->next_random_sample_size == 0) {
 		WT_ERR(__cursor_func_init(cbt, true));
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __wt_random_descent(
-			session, &cbt->ref, read_flags));
+		    ret = __wt_random_descent(session, &cbt->ref, read_flags));
 		if (ret == 0)
 			goto random_page_entry;
 
