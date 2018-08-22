@@ -562,7 +562,7 @@ __evict_review(
 		 * the page stays in memory and the tree is left in the desired
 		 * state: avoid the usual cleanup.
 		 */
-		if (*inmem_splitp)
+		if (!WT_SESSION_IS_CHECKPOINT(session) && *inmem_splitp)
 			return (__wt_split_insert(session, ref));
 	}
 
