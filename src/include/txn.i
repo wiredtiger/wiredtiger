@@ -303,6 +303,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 #ifdef HAVE_TIMESTAMPS
 	if (__wt_txn_update_needs_timestamp(session, op))
 		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
+#endif
 
 	/*
 	 * Store the key, to search the update incase of prepared transaction.
@@ -315,7 +316,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		    WT_TXN_OP_INMEM_ROW : WT_TXN_OP_BASIC_ROW;
 	} else
 		op->u.single_op.key.recno = cbt->recno;
-#endif
+
 	op->u.single_op.upd = upd;
 	upd->txnid = session->txn.id;
 	return (0);
