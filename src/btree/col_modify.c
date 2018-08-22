@@ -170,6 +170,16 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		ins_size += upd_size;
 
 		/*
+		 * During scans the search stack is not maintained, fill it in
+		 * with a search.
+		 */
+		if (F_ISSET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV) &&
+		    recno != WT_RECNO_OOB)
+			(void)__col_insert_search(cbt->ins_head,
+			    cbt->ins_stack, cbt->next_stack,
+			    recno);
+
+		/*
 		 * If there was no insert list during the search, or there was
 		 * no search because the record number has not been allocated
 		 * yet, the cursor's information cannot be correct, search
