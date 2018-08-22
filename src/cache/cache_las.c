@@ -662,10 +662,12 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			key->size = WT_PTRDIFF(p, key->data);
 			break;
 		case WT_PAGE_ROW_LEAF:
-			if (list->ins == NULL)
-				WT_ERR(__wt_row_leaf_key(
+			if (list->ins == NULL) {
+				WT_WITH_BTREE(session, btree,
+				    ret = __wt_row_leaf_key(
 				    session, page, list->ripcip, key, false));
-			else {
+				WT_ERR(ret);
+			} else {
 				key->data = WT_INSERT_KEY(list->ins);
 				key->size = WT_INSERT_KEY_SIZE(list->ins);
 			}
