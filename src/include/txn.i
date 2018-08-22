@@ -309,6 +309,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	 * Store the key, to search the update incase of prepared transaction.
 	 */
 	if (btree->type == BTREE_ROW) {
+		WT_CLEAR(op->u.single_op.key.row_key);
 		item = &op->u.single_op.key.row_key;
 		WT_RET(__wt_cursor_get_raw_key(&cbt->iface, item));
 		WT_RET(__wt_buf_set(session, item, item->data, item->size));
