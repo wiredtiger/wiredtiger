@@ -74,7 +74,7 @@ __txn_op_log(WT_SESSION_IMPL *session,
 
 	cursor = &cbt->iface;
 
-	upd = op->u.upd;
+	upd = op->u.single_op.upd;
 	value.data = upd->data;
 	value.size = upd->size;
 
@@ -171,6 +171,11 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	case WT_TXN_OP_TRUNCATE_COL:
 		break;
 
+	case WT_TXN_OP_BASIC_ROW:
+	case WT_TXN_OP_INMEM_ROW:
+		__wt_buf_free(session, &op->u.single_op.key.row_key);
+		break;
+
 	case WT_TXN_OP_TRUNCATE_ROW:
 		__wt_buf_free(session, &op->u.truncate_row.start);
 		__wt_buf_free(session, &op->u.truncate_row.stop);
@@ -247,10 +252,12 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	switch (op->type) {
 	case WT_TXN_OP_NONE:
 	case WT_TXN_OP_INMEM:
+	case WT_TXN_OP_INMEM_ROW:
 	case WT_TXN_OP_REF_DELETE:
 		/* Nothing to log, we're done. */
 		break;
 	case WT_TXN_OP_BASIC:
+	case WT_TXN_OP_BASIC_ROW:
 		ret = __txn_op_log(session, logrec, op, cbt);
 		break;
 	case WT_TXN_OP_TRUNCATE_COL:

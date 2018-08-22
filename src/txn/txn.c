@@ -624,7 +624,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
 			 */
-			upd = op->u.upd->next;
+			upd = op->u.single_op.upd->next;
 			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
 			    upd->txnid == txn->id))
 				upd = upd->next;
@@ -656,12 +656,12 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 */
 			if (op_zero_ts)
 				continue;
-			op_timestamp = op->u.upd->timestamp;
+			op_timestamp = op->u.single_op.upd->timestamp;
 			/*
 			 * Only if the update structure doesn't have a timestamp
 			 * then use the one in the transaction structure.
 			 */
-			if (__wt_timestamp_iszero(&op->u.upd->timestamp))
+			if (__wt_timestamp_iszero(&op_timestamp))
 				op_timestamp = txn->commit_timestamp;
 			if (__wt_timestamp_cmp(&op_timestamp,
 			    &upd->timestamp) < 0)
@@ -822,7 +822,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
-			upd = op->u.upd;
+		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_ROW:
+			upd = op->u.single_op.upd;
 
 			/*
 			 * Switch reserved operations to abort to
@@ -1087,13 +1089,15 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		if (op->fileid == WT_METAFILE_ID)
 			continue;
 
-		upd = op->u.upd;
+		upd = op->u.single_op.upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_ROW:
 			/*
 			 * Switch reserved operation to abort to simplify
 			 * obsolete update list truncation.  Clear the
@@ -1181,7 +1185,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		if (op->fileid == WT_METAFILE_ID)
 			continue;
 
-		upd = op->u.upd;
+		upd = op->u.single_op.upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
@@ -1189,6 +1193,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		case WT_TXN_OP_BASIC:
 		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_ROW:
 			WT_ASSERT(session,
 			    upd->txnid == txn->id ||
 			    upd->txnid == WT_TXN_ABORTED);

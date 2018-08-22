@@ -263,7 +263,8 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
 		    NULL : &op->u.ref->page_del->timestamp;
 	else
-		timestamp = op->u.upd == NULL ? NULL : &op->u.upd->timestamp;
+		timestamp = op->u.single_op.upd == NULL ?
+		    NULL : &op->u.single_op.upd->timestamp;
 
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
@@ -282,11 +283,14 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
  *	Mark a WT_UPDATE object modified by the current transaction.
  */
 static inline int
-__wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+	WT_BTREE *btree;
+	WT_ITEM *item;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
+	btree = S2BT(session);
 	txn = &session->txn;
 
 	if (F_ISSET(txn, WT_TXN_READONLY))
@@ -299,8 +303,20 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 #ifdef HAVE_TIMESTAMPS
 	if (__wt_txn_update_needs_timestamp(session, op))
 		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
+
+	/*
+	 * Store the key, to search the update incase of prepared transaction.
+	 */
+	if (btree->type == BTREE_ROW) {
+		item = &op->u.single_op.key.row_key;
+		WT_RET(__wt_cursor_get_raw_key(&cbt->iface, item));
+		WT_RET(__wt_buf_set(session, item, item->data, item->size));
+		op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
+		    WT_TXN_OP_INMEM_ROW : WT_TXN_OP_BASIC_ROW;
+	} else
+		op->u.single_op.key.recno = cbt->recno;
 #endif
-	op->u.upd = upd;
+	op->u.single_op.upd = upd;
 	upd->txnid = session->txn.id;
 	return (0);
 }

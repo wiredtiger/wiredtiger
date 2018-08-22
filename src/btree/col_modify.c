@@ -98,7 +98,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		/* Allocate a WT_UPDATE structure and transaction ID. */
 		WT_ERR(__wt_update_alloc(session,
 		    value, &upd, &upd_size, modify_type));
-		WT_ERR(__wt_txn_modify(session, upd));
+		WT_ERR(__wt_txn_modify(session, cbt, upd));
 		logged = true;
 
 		/* Avoid a data copy in WT_CURSOR.update. */
@@ -159,7 +159,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		if (upd_arg == NULL) {
 			WT_ERR(__wt_update_alloc(session,
 			    value, &upd, &upd_size, modify_type));
-			WT_ERR(__wt_txn_modify(session, upd));
+			WT_ERR(__wt_txn_modify(session, cbt, upd));
 			logged = true;
 
 			/* Avoid a data copy in WT_CURSOR.update. */
