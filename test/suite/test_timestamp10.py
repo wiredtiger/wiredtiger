@@ -99,6 +99,8 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.checkpoint()
             q = self.conn.query_timestamp('get=last_checkpoint')
             self.assertTimestampsEqual(q, timestamp_str(ts))
+            q = self.conn.query_timestamp('get=oldest_active_reader')
+            self.assertTimestampsEqual(q, timestamp_str(ts))
         return ts
 
     def close_and_recover(self, expected_rec_ts):
