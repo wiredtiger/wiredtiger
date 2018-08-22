@@ -113,6 +113,7 @@ byte_str(uint8_t *buf, size_t bufsize, const char *str)
 		 * next one.
 		 */
 		++s;
+		--buflen;
 		p = s;
 	}
 	return (NULL);
