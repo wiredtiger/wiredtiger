@@ -556,14 +556,20 @@ __evict_review(
 			return (__wt_set_return(session, EBUSY));
 
 		/*
-		 * Check for an append-only workload needing an in-memory
-		 * split; we can't do this earlier because in-memory splits
-		 * require exclusive access. If an in-memory split completes,
-		 * the page stays in memory and the tree is left in the desired
-		 * state: avoid the usual cleanup.
+		 * Check for an append-only workload needing an in-memory split;
+		 * we can't do this earlier because in-memory splits require
+		 * exclusive access. If an in-memory split completes, the page
+		 * stays in memory and the tree is left in the desired state:
+		 * avoid the usual cleanup.
+		 *
+		 * Note that checkpoints may not split pages in-memory, it can
+		 * lead to corruption when the parent internal page is updated.
 		 */
-		if (!WT_SESSION_IS_CHECKPOINT(session) && *inmem_splitp)
+		if (*inmem_splitp) {
+			 if (WT_SESSION_IS_CHECKPOINT(session))
+				return (__wt_set_return(session, EBUSY));
 			return (__wt_split_insert(session, ref));
+		}
 	}
 
 	/* If the page is clean, we're done and we can evict. */
