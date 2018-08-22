@@ -2587,8 +2587,30 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	/*
 	 * If buffer alignment is not configured, use zero unless direct I/O is
-	 * also configured, in which case use the build-time default.
+	 * also configured, in which case use the build-time default. The code
+	 * to parse write through is also here because it is nearly identical
+	 * to direct I/O.
 	 */
+	WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
+	for (ft = file_types; ft->name != NULL; ft++) {
+		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
+		if (ret == 0) {
+			if (sval.val)
+				FLD_SET(conn->direct_io, ft->flag);
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
+	}
+
+	WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
+	for (ft = file_types; ft->name != NULL; ft++) {
+		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
+		if (ret == 0) {
+			if (sval.val)
+				FLD_SET(conn->write_through, ft->flag);
+		} else
+			WT_ERR_NOTFOUND_OK(ret);
+	}
+
 	WT_ERR(__wt_config_gets(session, cfg, "buffer_alignment", &cval));
 	if (cval.val == -1)
 		conn->buffer_alignment =
@@ -2608,16 +2630,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
 	if (cval.val)
 		F_SET(conn, WT_CONN_CKPT_SYNC);
-
-	WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
-	for (ft = file_types; ft->name != NULL; ft++) {
-		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
-		if (ret == 0) {
-			if (sval.val)
-				FLD_SET(conn->direct_io, ft->flag);
-		} else
-			WT_ERR_NOTFOUND_OK(ret);
-	}
 
 	WT_ERR(__wt_config_gets(session, cfg, "file_extend", &cval));
 	/*
@@ -2665,16 +2677,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 			    "Readonly configuration incompatible with "
 			    "salvage.");
 		F_SET(conn, WT_CONN_SALVAGE);
-	}
-
-	WT_ERR(__wt_config_gets(session, cfg, "write_through", &cval));
-	for (ft = file_types; ft->name != NULL; ft++) {
-		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
-		if (ret == 0) {
-			if (sval.val)
-				FLD_SET(conn->write_through, ft->flag);
-		} else
-			WT_ERR_NOTFOUND_OK(ret);
 	}
 
 	WT_ERR(__wt_conn_statistics_config(session, cfg));
@@ -2745,10 +2747,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	/*
 	 * If the user wants to salvage, do so before opening the
-	 * metadata cursor.
+	 * metadata cursor. We do this after the call to wt_turtle_init
+	 * because that moves metadata files around from backups and
+	 * would overwrite any salvage we did if done before that call.
 	 */
 	if (F_ISSET(conn, WT_CONN_SALVAGE))
 		WT_ERR(__wt_metadata_salvage(session));
+
 	WT_ERR(__wt_metadata_cursor(session, NULL));
 
 	/* Start the worker threads and run recovery. */

@@ -887,9 +887,12 @@ wiredtiger_open_common =\
         for more information''',
         type='boolean'),
     Config('salvage', 'false', r'''
-        open connection and salvage any WiredTiger database files that it
-        detects as corrupted. Should only be used after getting an error
-        return of WT_DATA_CORRUPTION. This may be a destructive setting.''',
+        open connection and salvage any WiredTiger-owned database and log
+        files that it detects as corrupted. This API should only be used
+        after getting an error return of WT_DATA_CORRUPTION.
+        Salvage rebuilds files in place, overwriting existing files.
+        We recommend making a backup copy of all files with the
+        WiredTiger prefix prior to passing this flag.''',
         type='boolean'),
     Config('session_max', '100', r'''
         maximum expected number of sessions (including server

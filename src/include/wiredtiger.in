@@ -2978,9 +2978,11 @@ struct __wt_connection {
  * @config{readonly, open connection in read-only mode.  The database must
  * exist.  All methods that may modify a database are disabled.  See @ref
  * readonly for more information., a boolean flag; default \c false.}
- * @config{salvage, open connection and salvage any WiredTiger database files
- * that it detects as corrupted.  Should only be used after getting an error
- * return of WT_DATA_CORRUPTION. This may be a destructive setting., a boolean
+ * @config{salvage, open connection and salvage any WiredTiger-owned database
+ * and log files that it detects as corrupted.  This API should only be used
+ * after getting an error return of WT_DATA_CORRUPTION. Salvage rebuilds files
+ * in place\, overwriting existing files.  We recommend making a backup copy of
+ * all files with the WiredTiger prefix prior to passing this flag., a boolean
  * flag; default \c false.}
  * @config{session_max, maximum expected number of sessions (including server
  * threads)., an integer greater than or equal to 1; default \c 100.}
