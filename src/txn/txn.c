@@ -619,7 +619,8 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC) {
+		if (op->type == WT_TXN_OP_BASIC ||
+		    op->type == WT_TXN_OP_BASIC_ROW) {
 			/*
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.

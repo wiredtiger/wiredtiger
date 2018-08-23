@@ -301,23 +301,36 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
 	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
 #ifdef HAVE_TIMESTAMPS
-	if (__wt_txn_update_needs_timestamp(session, op))
+	if (__wt_txn_update_needs_timestamp(session, op)) {
 		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
+
+		/*
+		 * Checkpoint transactions and lookaside transactions will not
+		 * be prepared.
+		 */
+		if (!WT_SESSION_IS_CHECKPOINT(session) &&
+		    op->fileid != S2C(session)->cache->las_fileid) {
+			/*
+			 * Store the key, to search the update incase of
+			 * prepared transaction.
+			 */
+			if (btree->type == BTREE_ROW) {
+				WT_CLEAR(op->u.single_op.key.row_key);
+				item = &op->u.single_op.key.row_key;
+				WT_RET(__wt_cursor_get_raw_key(
+				    &cbt->iface, item));
+				WT_RET(__wt_buf_set(session,
+				    item, item->data, item->size));
+				op->type = F_ISSET(session,
+				    WT_SESSION_LOGGING_INMEM) ?
+				    WT_TXN_OP_INMEM_ROW : WT_TXN_OP_BASIC_ROW;
+			} else
+				op->u.single_op.key.recno = cbt->recno;
+		}
+	}
+#else
+	WT_UNUSED(btree);
 #endif
-
-	/*
-	 * Store the key, to search the update incase of prepared transaction.
-	 */
-	if (btree->type == BTREE_ROW) {
-		WT_CLEAR(op->u.single_op.key.row_key);
-		item = &op->u.single_op.key.row_key;
-		WT_RET(__wt_cursor_get_raw_key(&cbt->iface, item));
-		WT_RET(__wt_buf_set(session, item, item->data, item->size));
-		op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
-		    WT_TXN_OP_INMEM_ROW : WT_TXN_OP_BASIC_ROW;
-	} else
-		op->u.single_op.key.recno = cbt->recno;
-
 	op->u.single_op.upd = upd;
 	upd->txnid = session->txn.id;
 	return (0);
