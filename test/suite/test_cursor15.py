@@ -26,56 +26,54 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_timestamp13.py
-#   Timestamps: session query_timestamp
+# test_cursor15.py
+#   Cursors: read_once configuration
 #
 
-import random
-import wiredtiger, wttest
-from suite_subprocess import suite_subprocess
+import wttest
 from wiredtiger import stat
-from wtscenario import make_scenarios
 
-class test_read_once(wttest.WiredTigerTestCase, suite_subprocess):
+class test_cursor15(wttest.WiredTigerTestCase):
     tablename = 'test_read_once'
     uri = 'table:' + tablename
 
-    def ConnectionOpen(self):
-        '''
-        Specify a custom ConnectionOpen method to flush WT's cache during a test
-        after inserting data.
-        '''
-        self.home = '.'
+    conn_config = 'cache_size=1M,statistics=(all)'
 
-        conn_config = 'cache_size=1M,statistics=(all)'
-        self.conn = wiredtiger.wiredtiger_open(self.home, conn_config)
-        self.session = self.conn.open_session()
-
-    def test_read_once(self):
+    def test_cursor15(self):
         # This test is configured to use 1MB of cache. It will insert 20
         # documents, each 100KB. Manipulate the table to result in one page per
         # document.
         self.session.create(self.uri,
-                            'key_format=i,value_format=S,leaf_page_max=108K,leaf_value_max=108K')
+            'key_format=i,value_format=S,leaf_page_max=108K,leaf_value_max=108K')
 
         cursor = self.session.open_cursor(self.uri, None, None)
         for key in range(0, 20):
             cursor[key] = '1' * (100 * 1024)
         cursor.close()
 
-        # Restart the database to clear the cache.
-        self.conn.close()
-        self.ConnectionOpen()
+        for cursor_conf, stats_are_zero in \
+            [("read_once=true", True), (None, False)]:
 
-        # Table scan ~2MB of data when only given 1MB of cache.
-        cursor = self.session.open_cursor(self.uri, None, "read_once=true")
-        for key, value in cursor:
-            pass
-        cursor.close()
+            # Restart the database to clear the cache and reset statistics.
+            self.reopen_conn()
 
-        # Although 2MB of data was touched, paging in from disk never had to
-        # perform eviction. Additionally, the eviction server was not enlisted
-        # in performing eviction.
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        self.assertEqual(stat_cursor[stat.conn.cache_eviction_get_ref][2], 0)
-        self.assertEqual(stat_cursor[stat.conn.cache_eviction_server_evicting][2], 0)
+            # Table scan ~2MB of data when only given 1MB of cache.
+            cursor = self.session.open_cursor(self.uri, None, cursor_conf)
+            for key, value in cursor:
+                pass
+            cursor.close()
+
+            # With the `read_once` flag, the cursor paging in from disk never
+            # has to perform eviction. Additionally, the eviction server was not
+            # enlisted in performing eviction.
+            #
+            # Without the flag, the same statistics can be observed to be
+            # non-zero.
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            if stats_are_zero:
+                self.assertEqual(stat_cursor[stat.conn.cache_eviction_get_ref][2], 0)
+                self.assertEqual(stat_cursor[stat.conn.cache_eviction_server_evicting][2], 0)
+            else:
+                self.assertGreater(stat_cursor[stat.conn.cache_eviction_get_ref][2], 0)
+                self.assertGreater(stat_cursor[stat.conn.cache_eviction_server_evicting][2], 0)
+            stat_cursor.close()

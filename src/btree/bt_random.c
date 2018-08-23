@@ -184,6 +184,11 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 	btree = S2BT(session);
 	current = NULL;
 	retry = 100;
+	/*
+	 * This function is called by eviction to find a random page in the
+	 * cache. That case is indicated by the WT_READ_CACHE flag. Ordinary
+	 * lookups in a tree will read pages into cache as needed.
+	 */
 	eviction = LF_ISSET(WT_READ_CACHE);
 
 	if (0) {
