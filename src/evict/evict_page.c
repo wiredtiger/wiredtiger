@@ -458,15 +458,25 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			break;
 		case WT_REF_DELETED:		/* Deleted */
 			/*
-			 * If the page was part of a truncate, transaction
-			 * rollback might switch this page into its previous
-			 * state at any time, so the delete must be resolved.
+			 * If the child page was part of a truncate,
+			 * transaction rollback might switch this page into its
+			 * previous state at any time, so the delete must be
+			 * resolved before the parent can be evicted.
+			 *
+			 * We have the internal page locked, which prevents a
+			 * search from descending into it.  However, a walk
+			 * from an adjacent leaf page could attempt to hazard
+			 * couple into a child page and free the page_del
+			 * structure as we are examining it.  Flip the state to
+			 * locked to make this check safe: if that fails, we
+			 * have raced with a read and should give up on
+			 * evicting the parent.
 			 */
 			if (!__wt_atomic_casv32(
 			    &child->state, WT_REF_DELETED, WT_REF_LOCKED))
 				return (__wt_set_return(session, EBUSY));
 			active = __wt_page_del_active(session, child, true);
-			WT_PUBLISH(child->state, WT_REF_DELETED);
+			child->state = WT_REF_DELETED;
 			if (active)
 				return (__wt_set_return(session, EBUSY));
 			break;
