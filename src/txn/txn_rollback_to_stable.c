@@ -110,8 +110,8 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 		/*
 		 * Updates with no timestamp will have a timestamp of zero and
 		 * will never be rolled back.  If the table is configured for
-		 * strict timestamp checking, assert that we never have such
-		 * updates in the list ahead of updates we do roll back.
+		 * strict timestamp checking, assert that all more recent
+		 * updates were also rolled back.
 		 */
 		if (upd->txnid == WT_TXN_ABORTED && upd == first_upd)
 			first_upd = upd->next;
