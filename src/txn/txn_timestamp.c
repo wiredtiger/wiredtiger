@@ -1029,7 +1029,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		}
 		if (qtxn == NULL) {
 			TAILQ_INSERT_HEAD(&txn_global->commit_timestamph,
-			   txn, commit_timestampq);
+			    txn, commit_timestampq);
 			WT_STAT_CONN_INCR(session, txn_commit_queue_head);
 		} else
 			TAILQ_INSERT_AFTER(&txn_global->commit_timestamph,
@@ -1139,7 +1139,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		}
 		if (qtxn == NULL) {
 			TAILQ_INSERT_HEAD(&txn_global->read_timestamph,
-			   txn, read_timestampq);
+			    txn, read_timestampq);
 			WT_STAT_CONN_INCR(session, txn_read_queue_head);
 		} else
 			TAILQ_INSERT_AFTER(&txn_global->read_timestamph,
