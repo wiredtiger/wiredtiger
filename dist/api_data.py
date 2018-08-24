@@ -1133,10 +1133,6 @@ methods = {
         ignore the encodings for the key and value, manage data as if
         the formats were \c "u".  See @ref cursor_raw for details''',
         type='boolean'),
-    Config('read_once', 'false', r'''
-        results that are brought into cache from disk by this cursor will be
-        given less priority in the cache.''',
-        type='boolean'),
     Config('readonly', 'false', r'''
         only query operations are supported by this cursor. An error is
         returned if a modification is attempted using the cursor.  The
