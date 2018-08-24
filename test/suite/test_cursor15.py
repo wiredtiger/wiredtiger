@@ -51,11 +51,16 @@ class test_cursor15(wttest.WiredTigerTestCase):
             cursor[key] = '1' * (100 * 1024)
         cursor.close()
 
+        # Restart the database to clear the cache and reset statistics.
+        self.reopen_conn()
+
+        # We don't restart the database between runs to exercise that
+        # `read_once` plays nice with cursor caching. Because the eviction
+        # statistics this test asserts are counters, we run the `read_once`
+        # table scan first and assert the counters stay zero. The second run
+        # without `read_once` should increment the eviction statistics.
         for cursor_conf, stats_are_zero in \
             [("read_once=true", True), (None, False)]:
-
-            # Restart the database to clear the cache and reset statistics.
-            self.reopen_conn()
 
             # Table scan ~2MB of data when only given 1MB of cache.
             cursor = self.session.open_cursor(self.uri, None, cursor_conf)
@@ -77,3 +82,6 @@ class test_cursor15(wttest.WiredTigerTestCase):
                 self.assertGreater(stat_cursor[stat.conn.cache_eviction_get_ref][2], 0)
                 self.assertGreater(stat_cursor[stat.conn.cache_eviction_server_evicting][2], 0)
             stat_cursor.close()
+
+if __name__ == '__main__':
+    wttest.run()
