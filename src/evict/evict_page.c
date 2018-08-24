@@ -579,7 +579,7 @@ __evict_review(
 		 * lead to corruption when the parent internal page is updated.
 		 */
 		if (*inmem_splitp) {
-			 if (WT_SESSION_IS_CHECKPOINT(session))
+			if (WT_SESSION_IS_CHECKPOINT(session))
 				return (__wt_set_return(session, EBUSY));
 			return (__wt_split_insert(session, ref));
 		}
