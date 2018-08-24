@@ -801,7 +801,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			/*
 			 * If this is a btree cursor, clear its read_once flag.
 			 */
-			if (uri[0] == 'f' || cursor->internal_uri[0] == 'f') {
+			if (WT_PREFIX_MATCH(cursor->internal_uri, "file:")) {
 				cbt = (WT_CURSOR_BTREE *)cursor;
 				F_CLR(cbt, WT_CBT_READ_ONCE);
 			} else {
