@@ -823,15 +823,17 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		}
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_STANDARD);
-	} else {
+	} else if (append_key) {
 		/*
 		 * Optionally insert a new record (ignoring the application's
 		 * record number). The real record number is allocated by the
 		 * serialized append operation.
 		 */
-		if (append_key)
-			cbt->iface.recno = WT_RECNO_OOB;
-
+		cbt->iface.recno = WT_RECNO_OOB;
+		WT_ERR(__cursor_col_search(session, cbt, NULL));
+		WT_ERR(__cursor_col_modify(session, cbt, WT_UPDATE_STANDARD));
+		cursor->recno = cbt->recno;
+	} else {
 		WT_ERR(__cursor_col_search(session, cbt, NULL));
 
 		/*
@@ -850,9 +852,6 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		}
 
 		WT_ERR(__cursor_col_modify(session, cbt, WT_UPDATE_STANDARD));
-
-		if (append_key)
-			cursor->recno = cbt->recno;
 	}
 
 err:	if (ret == WT_RESTART) {
