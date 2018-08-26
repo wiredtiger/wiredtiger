@@ -771,7 +771,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	 * for append aren't included, regardless of whether or not they meet
 	 * all other criteria.
 	 */
-	if (__cursor_page_pinned(cbt) &&
+	if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt) &&
 	    F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 		/*
@@ -1031,7 +1031,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * that's all a positioned cursor implies), but it's probably safer to
 	 * avoid page eviction entirely in the positioned case.
 	 */
-	if (__cursor_page_pinned(cbt)) {
+	if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*
@@ -1209,7 +1209,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	 * because regardless of the overwrite setting, any existing record is
 	 * updated, and the record must exist with a positioned cursor.
 	 */
-	if (__cursor_page_pinned(cbt)) {
+	if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
 
 		/*
