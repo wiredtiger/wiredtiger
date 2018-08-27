@@ -207,7 +207,6 @@ __txn_get_pinned_timestamp(
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
-	__wt_timestamp_set_zero(tsp);
 
 	if (include_oldest && !txn_global->has_oldest_timestamp)
 		return (WT_NOTFOUND);
@@ -215,6 +214,8 @@ __txn_get_pinned_timestamp(
 	__wt_readlock(session, &txn_global->rwlock);
 	if (include_oldest)
 		__wt_timestamp_set(tsp, &txn_global->oldest_timestamp);
+	else
+		__wt_timestamp_set_zero(tsp);
 
 	/* Check for a running checkpoint */
 	if (include_checkpoint &&
@@ -307,7 +308,7 @@ __txn_global_query_timestamp(
 			return (WT_NOTFOUND);
 		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
 		    __wt_timestamp_set(&ts, &txn_global->oldest_timestamp));
-	} else if (WT_STRING_MATCH("oldest_active_reader", cval.str, cval.len))
+	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len))
 		WT_RET(__txn_get_pinned_timestamp(session, &ts, true, false));
 	else if (WT_STRING_MATCH("pinned", cval.str, cval.len))
 		WT_RET(__txn_get_pinned_timestamp(session, &ts, true, true));

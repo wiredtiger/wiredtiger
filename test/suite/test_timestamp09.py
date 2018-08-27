@@ -185,8 +185,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(c[7], 7)
         self.assertEqual(c[8], 8)
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_active_reader'),
-            timestamp_str(8))
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(8))
         self.session.commit_transaction()
 
         # We can move the oldest timestamp backwards with "force"
@@ -198,8 +197,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
                 '/older than oldest timestamp/')
         self.session.begin_transaction('read_timestamp=' + timestamp_str(6))
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_active_reader'),
-            timestamp_str(6))
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(6))
         self.session.commit_transaction()
 
 if __name__ == '__main__':

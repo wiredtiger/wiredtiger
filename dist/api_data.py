@@ -1441,14 +1441,14 @@ methods = {
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
         \c oldest returns the most recent \c oldest_timestamp set with
-        WT_CONNECTION::set_timestamp, \c oldest_active_reader returns the
+        WT_CONNECTION::set_timestamp, \c oldest_reader returns the
         minimum of the read timestamps of all active readers including the
         checkpoint \c pinned returns the minimum of the\c oldest_timestamp and
         the read timestamps of all active readers, and \c stable returns the
         most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
         See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
-            'oldest','oldest_active_reader','pinned','recovery','stable']),
+            'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
