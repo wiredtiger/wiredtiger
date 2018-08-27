@@ -55,10 +55,10 @@ class test_cursor15(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         # We don't restart the database between runs to exercise that
-        # `read_once` plays nice with cursor caching. Because the eviction
-        # statistics this test asserts are counters, we run the `read_once`
-        # table scan first and assert the counters stay zero. The second run
-        # without `read_once` should increment the eviction statistics.
+        # `read_once` plays nice with cursor caching. Note, there are no
+        # reliable statistics to check that `read_once` behaved as expected. The
+        # future may introduce a statistic for `WT_READ_WONT_NEED` being
+        # exercised. That may work as a suitable side-effect to observe here.
         for cursor_conf, stats_are_zero in \
             [("read_once=true", True), (None, False)]:
 
@@ -67,21 +67,6 @@ class test_cursor15(wttest.WiredTigerTestCase):
             for key, value in cursor:
                 pass
             cursor.close()
-
-            # With the `read_once` flag, the cursor paging in from disk never
-            # has to perform eviction. Additionally, the eviction server was not
-            # enlisted in performing eviction.
-            #
-            # Without the flag, the same statistics can be observed to be
-            # non-zero.
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            if stats_are_zero:
-                self.assertEqual(stat_cursor[stat.conn.cache_eviction_get_ref][2], 0)
-                self.assertEqual(stat_cursor[stat.conn.cache_eviction_server_evicting][2], 0)
-            else:
-                self.assertGreater(stat_cursor[stat.conn.cache_eviction_get_ref][2], 0)
-                self.assertGreater(stat_cursor[stat.conn.cache_eviction_server_evicting][2], 0)
-            stat_cursor.close()
 
 if __name__ == '__main__':
     wttest.run()
