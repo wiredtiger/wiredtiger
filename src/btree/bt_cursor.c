@@ -770,6 +770,10 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
 	 * key, the update doesn't require another search. Cursors configured
 	 * for append aren't included, regardless of whether or not they meet
 	 * all other criteria.
+	 *
+	 * Fixed-length column store can never use a positioned cursor to update
+	 * because the cursor may not be positioned to the correct record in the
+	 * case of implicit records in the append list.
 	 */
 	if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt) &&
 	    F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
@@ -1029,6 +1033,10 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	 * arguably safe to simply leave the key initialized in the cursor (as
 	 * that's all a positioned cursor implies), but it's probably safer to
 	 * avoid page eviction entirely in the positioned case.
+	 *
+	 * Fixed-length column store can never use a positioned cursor to update
+	 * because the cursor may not be positioned to the correct record in the
+	 * case of implicit records in the append list.
 	 */
 	if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
@@ -1207,6 +1215,10 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 	 * another search. We don't care about the "overwrite" configuration
 	 * because regardless of the overwrite setting, any existing record is
 	 * updated, and the record must exist with a positioned cursor.
+	 *
+	 * Fixed-length column store can never use a positioned cursor to update
+	 * because the cursor may not be positioned to the correct record in the
+	 * case of implicit records in the append list.
 	 */
 	if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt)) {
 		WT_ERR(__wt_txn_autocommit_check(session));
