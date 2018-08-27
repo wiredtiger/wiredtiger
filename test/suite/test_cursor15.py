@@ -54,11 +54,11 @@ class test_cursor15(wttest.WiredTigerTestCase):
         # Restart the database to clear the cache and reset statistics.
         self.reopen_conn()
 
-        # We don't restart the database between runs to exercise that
-        # `read_once` plays nice with cursor caching. Note, there are no
-        # reliable statistics to check that `read_once` behaved as expected. The
-        # future may introduce a statistic for `WT_READ_WONT_NEED` being
-        # exercised. That may work as a suitable side-effect to observe here.
+        # We don't restart the database between runs to exercise that read_once
+        # plays nice with cursor caching. Note, there are no reliable statistics
+        # to check that read_once behaves as expected. The future may introduce a
+        # statistic for WT_READ_WONT_NEED being exercised. That may work as a
+        # suitable side-effect to observe here.
         for cursor_conf, stats_are_zero in \
             [("read_once=true", True), (None, False)]:
 
