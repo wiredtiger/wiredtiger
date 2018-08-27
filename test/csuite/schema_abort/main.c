@@ -105,16 +105,16 @@ typedef struct {
 	const char *op;
 } THREAD_DATA;
 
-#define	NOOP		"NOOP"
-#define	BULK		"BULK"
-#define	BULK_UNQ	"BULK_UNIQUE"
-#define	CREATE		"CREATE"
-#define	CREATE_UNQ	"CREATE_UNIQUE"
-#define	CURSOR		"CURSOR"
-#define	DROP		"DROP"
-#define	REBALANCE	"REBALANCE"
-#define	UPGRADE		"UPGRADE"
-#define	VERIFY		"VERIFY"
+#define	NOOP		"noop"
+#define	BULK		"bulk"
+#define	BULK_UNQ	"bulk_unique"
+#define	CREATE		"create"
+#define	CREATE_UNQ	"create_unique"
+#define	CURSOR		"cursor"
+#define	DROP		"drop"
+#define	REBALANCE	"rebalance"
+#define	UPGRADE		"upgrade"
+#define	VERIFY		"verify"
 
 static void sig_handler(int)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
