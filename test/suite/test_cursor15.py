@@ -59,9 +59,7 @@ class test_cursor15(wttest.WiredTigerTestCase):
         # to check that read_once behaves as expected. The future may introduce a
         # statistic for WT_READ_WONT_NEED being exercised. That may work as a
         # suitable side-effect to observe here.
-        for cursor_conf, stats_are_zero in \
-            [("read_once=true", True), (None, False)]:
-
+        for cursor_conf in ["read_once=true", None]:
             # Table scan ~2MB of data when only given 1MB of cache.
             cursor = self.session.open_cursor(self.uri, None, cursor_conf)
             for key, value in cursor:
