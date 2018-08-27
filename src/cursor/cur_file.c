@@ -505,7 +505,7 @@ err:
 	 */
 	if (session->dhandle != NULL) {
 		/* Decrement the data-source's in-use counter. */
-		__wt_dhandle_decr_use(session);
+		__wt_cursor_dhandle_decr_use(session);
 
 		/*
 		 * If the cursor was marked dead, we got here from reopening
@@ -654,7 +654,7 @@ __curfile_create(WT_SESSION_IMPL *session,
 	 * the cursor will decrement it, and all failure paths from here close
 	 * the cursor.
 	 */
-	__wt_dhandle_incr_use(session);
+	__wt_cursor_dhandle_incr_use(session);
 
 	if (session->dhandle->checkpoint != NULL)
 		F_SET(cbt, WT_CBT_NO_TXN);
@@ -724,7 +724,7 @@ err:		/*
 		 * Our caller expects to release the data handle if we fail.
 		 * Disconnect it from the cursor before closing.
 		 */
-		__wt_dhandle_decr_use(session);
+		__wt_cursor_dhandle_decr_use(session);
 		cbt->btree = NULL;
 		WT_TRET(__curfile_close(cursor));
 		*cursorp = NULL;

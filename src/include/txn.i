@@ -219,7 +219,7 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 	*opp = &txn->mod[txn->mod_count++];
 	WT_CLEAR(**opp);
 	(*opp)->dhandle = (WT_DATA_HANDLE *)session->dhandle;
-	__wt_dhandle_incr_use(session);
+	__wt_dhandle_incr_use((*opp)->dhandle);
 	return (0);
 }
 
