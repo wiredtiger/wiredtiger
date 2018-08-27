@@ -519,17 +519,6 @@ skip_read:
 		break;
 	}
 
-	/*
-	 * We no longer need lookaside entries once the page is instantiated.
-	 * There's no reason for the lookaside remove to fail, but ignore it
-	 * if for some reason it fails, we've got a valid page.
-	 *
-	 * Don't free WT_REF.page_las, there may be concurrent readers.
-	 */
-	if (final_state == WT_REF_MEM && ref->page_las != NULL)
-		WT_IGNORE_RET(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid, false));
-
 	WT_PUBLISH(ref->state, final_state);
 	return (ret);
 
