@@ -218,7 +218,8 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 
 	*opp = &txn->mod[txn->mod_count++];
 	WT_CLEAR(**opp);
-	(*opp)->fileid = S2BT(session)->id;
+	(*opp)->dhandle = (WT_DATA_HANDLE *)session->dhandle;
+	__wt_dhandle_incr_use(session);
 	return (0);
 }
 
@@ -271,7 +272,7 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	 * commit): metadata cannot be read at a point in time, only the most
 	 * recently committed data matches files on disk.
 	 */
-	return (op->fileid != WT_METAFILE_ID &&
+	return (!WT_IS_METADATA(op->dhandle) &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
 	    F_ISSET(txn, WT_TXN_PREPARE)));
@@ -309,7 +310,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		 * be prepared.
 		 */
 		if (!WT_SESSION_IS_CHECKPOINT(session) &&
-		    op->fileid != S2C(session)->cache->las_fileid) {
+		    ((WT_BTREE *)op->dhandle->handle)->id !=
+		    S2C(session)->cache->las_fileid) {
 			/*
 			 * Store the key, to search the update incase of
 			 * prepared transaction.

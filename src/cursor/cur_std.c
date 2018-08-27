@@ -605,7 +605,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	 */
 	session->dhandle = dhandle;
 	WT_DHANDLE_ACQUIRE(dhandle);
-	__wt_cursor_dhandle_decr_use(session);
+	__wt_dhandle_decr_use(session);
 
 	/* Move the cursor from the open list to the caching hash table. */
 	if (cursor->uri_hash == 0)
@@ -637,7 +637,7 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
 	if (dhandle != NULL) {
 		session->dhandle = dhandle;
-		__wt_cursor_dhandle_incr_use(session);
+		__wt_dhandle_incr_use(session);
 		WT_DHANDLE_RELEASE(dhandle);
 	}
 	(void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);

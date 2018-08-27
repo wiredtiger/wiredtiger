@@ -172,7 +172,7 @@ typedef enum __wt_txn_isolation {
  *	records during commit or undo the operations during rollback.
  */
 struct __wt_txn_op {
-	uint32_t fileid;
+	WT_DATA_HANDLE *dhandle;
 	enum {
 		WT_TXN_OP_NONE,
 		WT_TXN_OP_BASIC,

@@ -71,9 +71,11 @@ __txn_op_log(WT_SESSION_IMPL *session,
 	WT_ITEM value;
 	WT_UPDATE *upd;
 	uint64_t recno;
+	uint32_t fileid;
 
 	cursor = &cbt->iface;
 
+	fileid = ((WT_BTREE *)op->dhandle->handle)->id;
 	upd = op->u.single_op.upd;
 	value.data = upd->data;
 	value.size = upd->size;
@@ -89,15 +91,15 @@ __txn_op_log(WT_SESSION_IMPL *session,
 		switch (upd->type) {
 		case WT_UPDATE_MODIFY:
 			WT_RET(__wt_logop_row_modify_pack(
-			    session, logrec, op->fileid, &cursor->key, &value));
+			    session, logrec, fileid, &cursor->key, &value));
 			break;
 		case WT_UPDATE_STANDARD:
 			WT_RET(__wt_logop_row_put_pack(
-			    session, logrec, op->fileid, &cursor->key, &value));
+			    session, logrec, fileid, &cursor->key, &value));
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			WT_RET(__wt_logop_row_remove_pack(
-			    session, logrec, op->fileid, &cursor->key));
+			    session, logrec, fileid, &cursor->key));
 			break;
 		WT_ILLEGAL_VALUE(session, upd->type);
 		}
@@ -108,15 +110,15 @@ __txn_op_log(WT_SESSION_IMPL *session,
 		switch (upd->type) {
 		case WT_UPDATE_MODIFY:
 			WT_RET(__wt_logop_col_modify_pack(
-			    session, logrec, op->fileid, recno, &value));
+			    session, logrec, fileid, recno, &value));
 			break;
 		case WT_UPDATE_STANDARD:
 			WT_RET(__wt_logop_col_put_pack(
-			    session, logrec, op->fileid, recno, &value));
+			    session, logrec, fileid, recno, &value));
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			WT_RET(__wt_logop_col_remove_pack(
-			    session, logrec, op->fileid, recno));
+			    session, logrec, fileid, recno));
 			break;
 		WT_ILLEGAL_VALUE(session, upd->type);
 		}
@@ -181,6 +183,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		__wt_buf_free(session, &op->u.truncate_row.stop);
 		break;
 	}
+	__wt_dhandle_decr_use(session);
 }
 
 /*
@@ -232,6 +235,8 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
+	uint32_t fileid;
+
 	txn = &session->txn;
 
 	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
@@ -245,6 +250,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	WT_ASSERT(session, txn->mod_count > 0);
 	op = txn->mod + txn->mod_count - 1;
+	fileid = ((WT_BTREE *)op->dhandle->handle)->id;
 
 	WT_RET(__txn_logrec_init(session));
 	logrec = txn->logrec;
@@ -261,13 +267,11 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		ret = __txn_op_log(session, logrec, op, cbt);
 		break;
 	case WT_TXN_OP_TRUNCATE_COL:
-		ret = __wt_logop_col_truncate_pack(session, logrec,
-		    op->fileid,
+		ret = __wt_logop_col_truncate_pack(session, logrec, fileid,
 		    op->u.truncate_col.start, op->u.truncate_col.stop);
 		break;
 	case WT_TXN_OP_TRUNCATE_ROW:
-		ret = __wt_logop_row_truncate_pack(session, txn->logrec,
-		    op->fileid,
+		ret = __wt_logop_row_truncate_pack(session, logrec, fileid,
 		    &op->u.truncate_row.start, &op->u.truncate_row.stop,
 		    (uint32_t)op->u.truncate_row.mode);
 		break;

@@ -687,6 +687,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
+	uint32_t fileid;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
@@ -817,6 +818,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		fileid = ((WT_BTREE *)op->dhandle->handle)->id;
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
@@ -841,7 +843,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 * as they commit.
 			 */
 			if (conn->cache->las_fileid != 0 &&
-			    op->fileid == conn->cache->las_fileid) {
+			    fileid == conn->cache->las_fileid) {
 				upd->txnid = WT_TXN_NONE;
 				break;
 			}
@@ -1082,12 +1084,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Prepare updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
-		WT_ASSERT(session,
-		    S2C(session)->cache->las_fileid == 0 ||
-		    op->fileid != S2C(session)->cache->las_fileid);
+		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
+		    ((WT_BTREE *)op->dhandle->handle)->id !=
+		    S2C(session)->cache->las_fileid);
 
 		/* Metadata updates are never prepared. */
-		if (op->fileid == WT_METAFILE_ID)
+		if (WT_IS_METADATA(op->dhandle))
 			continue;
 
 		upd = op->u.single_op.upd;
@@ -1178,12 +1180,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
-		WT_ASSERT(session,
-		    S2C(session)->cache->las_fileid == 0 ||
-		    op->fileid != S2C(session)->cache->las_fileid);
+		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
+		    ((WT_BTREE *)op->dhandle->handle)->id !=
+		    S2C(session)->cache->las_fileid);
 
 		/* Metadata updates are never rolled back. */
-		if (op->fileid == WT_METAFILE_ID)
+		if (WT_IS_METADATA(op->dhandle))
 			continue;
 
 		upd = op->u.single_op.upd;
