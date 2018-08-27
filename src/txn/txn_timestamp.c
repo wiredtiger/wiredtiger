@@ -194,7 +194,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
 
 /*
  * __txn_get_pinned_timestamp --
- * 	Calculate the current pinned timestamp.
+ *	Calculate the current pinned timestamp.
  */
 static int
 __txn_get_pinned_timestamp(
