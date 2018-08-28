@@ -482,7 +482,7 @@ open_with_salvage(const char *sfx, TABLE_INFO *table_data)
 	else
 		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
 	testutil_check(wiredtiger_open(buf,
-	    &event_handler, "salvage=true,verbose=(salvage)", &conn));
+	    &event_handler, "salvage=true", &conn));
 	testutil_assert(conn != NULL);
 	if (sfx != NULL)
 		sprintf(buf, "%s.%s/%s", home, sfx, WT_METAFILE_SLVG);
@@ -610,21 +610,6 @@ out_of_sync(TABLE_INFO *table_data)
 	 */
 	printf("#\n# OUT OF SYNC: %s with old turtle from %s\n#\n", DB1, DB0);
 	setup_database(DB1, DB0, NULL);
-	run_all_verification(DB1, table_data);
-
-	/*
-	 * Run in DB1, bring in future metadata file from DB2.
-	 */
-	printf(
-	    "#\n# OUT OF SYNC: %s with future metadata from %s\n#\n", DB1, DB2);
-	setup_database(DB1, NULL, DB2);
-	run_all_verification(DB1, table_data);
-
-	/*
-	 * Run in DB1, bring in future turtle file from DB2.
-	 */
-	printf("#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB1, DB2);
-	setup_database(DB1, DB2, NULL);
 	run_all_verification(DB1, table_data);
 
 	/*
