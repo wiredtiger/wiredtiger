@@ -442,6 +442,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 	{ "next_random_sample_size", "string", NULL, NULL, NULL, 0 },
 	{ "overwrite", "boolean", NULL, NULL, NULL, 0 },
 	{ "raw", "boolean", NULL, NULL, NULL, 0 },
+	{ "read_once", "boolean", NULL, NULL, NULL, 0 },
 	{ "readonly", "boolean", NULL, NULL, NULL, 0 },
 	{ "skip_sort_check", "boolean", NULL, NULL, NULL, 0 },
 	{ "statistics", "list",
@@ -1380,9 +1381,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "WT_SESSION.open_cursor",
 	  "append=false,bulk=false,checkpoint=,checkpoint_wait=true,dump=,"
 	  "next_random=false,next_random_sample_size=0,overwrite=true,"
-	  "raw=false,readonly=false,skip_sort_check=false,statistics=,"
-	  "target=",
-	  confchk_WT_SESSION_open_cursor, 13
+	  "raw=false,read_once=false,readonly=false,skip_sort_check=false,"
+	  "statistics=,target=",
+	  confchk_WT_SESSION_open_cursor, 14
 	},
 	{ "WT_SESSION.prepare_transaction",
 	  "prepare_timestamp=",

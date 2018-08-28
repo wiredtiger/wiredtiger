@@ -1693,7 +1693,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	WT_PAGE *last_parent, *page;
 	WT_REF *ref;
 	uint64_t min_pages, pages_seen, pages_queued, refs_walked;
-	uint32_t remaining_slots, target_pages, walk_flags;
+	uint32_t read_flags, remaining_slots, target_pages, walk_flags;
 	int restarts;
 	bool give_up, modified, urgent_queued;
 
@@ -1789,10 +1789,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 		FLD_SET(walk_flags, WT_READ_PREV);
 		/* FALLTHROUGH */
 	case WT_EVICT_WALK_RAND_NEXT:
+		read_flags = WT_READ_CACHE | WT_READ_NO_EVICT |
+			WT_READ_NO_GEN | WT_READ_NO_WAIT |
+			WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK;
 		if (btree->evict_ref == NULL) {
 			/* Ensure internal pages indexes remain valid */
 			WT_WITH_PAGE_INDEX(session, ret = __wt_random_descent(
-			    session, &btree->evict_ref, true));
+			    session, &btree->evict_ref, read_flags));
 			WT_RET_NOTFOUND_OK(ret);
 		}
 		break;
