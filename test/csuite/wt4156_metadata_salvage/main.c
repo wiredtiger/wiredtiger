@@ -38,6 +38,7 @@
 #define	DB1	"CKPT1"
 #define	DB2	"CKPT2"
 #define	SAVE	"SAVE"
+#define TEST	"TEST"
 
 /*
  * NOTE: This assumes the default page size of 4096. If that changes these
@@ -408,14 +409,20 @@ make_database_copies(TABLE_INFO *table_data)
  *	Call wiredtiger_open and expect a corruption error.
  */
 static int
-wt_open_corrupt(void)
+wt_open_corrupt(const char *sfx)
 {
 	WT_CONNECTION *conn;
 	int ret;
+	char buf[1024];
 
 	conn = NULL;
 	saw_corruption = false;
-	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
+	if (sfx != NULL)
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "%s.%s", home, sfx));
+	else
+		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
+	ret = wiredtiger_open(buf, &event_handler, NULL, &conn);
 	testutil_assert(conn == NULL);
 	testutil_assert(ret == WT_PANIC);
 	testutil_assert(saw_corruption == true);
@@ -423,7 +430,7 @@ wt_open_corrupt(void)
 }
 
 static int
-open_with_error(void)
+open_with_error(const char *sfx)
 {
 	pid_t pid;
 	int status;
@@ -437,7 +444,7 @@ open_with_error(void)
 	if ((pid = fork()) < 0)
 		testutil_die(errno, "fork");
 	if (pid == 0) { /* child */
-		wt_open_corrupt();
+		wt_open_corrupt(sfx);
 		return (EXIT_SUCCESS);
 	}
 	/* parent */
@@ -456,7 +463,7 @@ open_with_error(void)
 }
 
 static void
-open_with_salvage(TABLE_INFO *table_data)
+open_with_salvage(const char *sfx, TABLE_INFO *table_data)
 {
 	WT_CONNECTION *conn;
 	char buf[1024];
@@ -468,10 +475,18 @@ open_with_salvage(TABLE_INFO *table_data)
 	 * of the metadata file.
 	 */
 	test_abort = true;
-	testutil_check(wiredtiger_open(home,
+	if (sfx != NULL)
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "%s.%s", home, sfx));
+	else
+		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
+	testutil_check(wiredtiger_open(buf,
 	    &event_handler, "salvage=true,verbose=(salvage)", &conn));
 	testutil_assert(conn != NULL);
-	sprintf(buf, "%s/%s", home, WT_METAFILE_SLVG);
+	if (sfx != NULL)
+		sprintf(buf, "%s.%s/%s", home, sfx, WT_METAFILE_SLVG);
+	else
+		sprintf(buf, "%s/%s", home, WT_METAFILE_SLVG);
 	testutil_assert(file_exists(buf));
 
 	/*
@@ -484,23 +499,144 @@ open_with_salvage(TABLE_INFO *table_data)
 }
 
 static void
-open_normal(TABLE_INFO *table_data)
+open_normal(const char *sfx, TABLE_INFO *table_data)
 {
 	WT_CONNECTION *conn;
+	char buf[1024];
 
 	printf("=== wt_open normal ===\n");
-	testutil_check(wiredtiger_open(home, &event_handler, NULL, &conn));
+	if (sfx != NULL)
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "%s.%s", home, sfx));
+	else
+		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
+	testutil_check(wiredtiger_open(buf, &event_handler, NULL, &conn));
 	verify_metadata(conn, &table_data[0]);
 	testutil_check(conn->close(conn, NULL));
 }
 
-#if 0
-static int
+static void
+run_all_verification(const char *sfx, TABLE_INFO *t)
+{
+	testutil_check(open_with_error(sfx));
+	open_with_salvage(sfx, t);
+	open_normal(sfx, t);
+}
+
+static void
+setup_database(const char *src, const char *turtle_dir, const char *meta_dir)
+{
+	int ret;
+	char buf[1024];
+
+	/*
+	 * Remove the test home directory and copy the source to it.
+	 * Then copy the saved turtle and/or metadata file from the
+	 * given args.
+	 */
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "rm -rf ./%s.%s; mkdir ./%s.%s; "
+	    "cp -p %s.%s/* ./%s.%s",
+	    home, TEST, home, TEST, home, src, home, TEST));
+	printf("copy: %s\n", buf);
+	if ((ret = system(buf)) < 0)
+		testutil_die(ret, "system: %s", buf);
+
+	/* Copy turtle if given. */
+	if (turtle_dir != NULL) {
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "cp -p %s.%s/%s.%s %s.%s/%s",
+		    home, turtle_dir, WT_METADATA_TURTLE, SAVE,
+		    home, src, WT_METADATA_TURTLE));
+		printf("copy: %s\n", buf);
+		if ((ret = system(buf)) < 0)
+			testutil_die(ret, "system: %s", buf);
+	}
+	/* Copy metadata if given. */
+	if (meta_dir != NULL) {
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "cp -p %s.%s/%s.%s %s.%s/%s",
+		    home, meta_dir, WT_METAFILE, SAVE,
+		    home, src, WT_METAFILE));
+		printf("copy: %s\n", buf);
+		if ((ret = system(buf)) < 0)
+			testutil_die(ret, "system: %s", buf);
+	}
+
+}
+
+static void
 out_of_sync(TABLE_INFO *table_data)
 {
-	return (0);
+	/*
+	 * We have five directories:
+	 * - The main database directory that we just corrupted/salvaged.
+	 * - A .SAVE copy of the main directory that is coherent prior to
+	 *   corrupting. Essentially a copy of the second checkpoint dir.
+	 * - A copy of the main directory before the first checkpoint. DB0
+	 * - A copy of the main directory after the first checkpoint. DB1
+	 * - A copy of the main directory after the second checkpoint. DB2
+	 *
+	 * We want to make a copy of a source directory and then copy a
+	 * turtle or metadata file from another directory. Then detect the
+	 * error, run with salvage and confirm.
+	 */
+	/*
+	 * Run in DB0, bring in future metadata from DB1.
+	 */
+	printf("# OUT OF SYNC: %s with future metadata from %s\n", DB0, DB1);
+	setup_database(DB0, NULL, DB1);
+	run_all_verification(DB0, table_data);
+
+	/*
+	 * Run in DB0, bring in future turtle file from DB1.
+	 */
+	printf("# OUT OF SYNC: %s with future turtle from %s\n", DB0, DB1);
+	setup_database(DB0, DB1, NULL);
+	run_all_verification(DB0, table_data);
+
+	/*
+	 * Run in DB1, bring in old metadata file from DB0.
+	 */
+	printf("# OUT OF SYNC: %s with old metadata from %s\n", DB1, DB0);
+	setup_database(DB1, NULL, DB0);
+	run_all_verification(DB1, table_data);
+
+	/*
+	 * Run in DB1, bring in old turtle file from DB0.
+	 */
+	printf("# OUT OF SYNC: %s with old turtle from %s\n", DB1, DB0);
+	setup_database(DB1, DB0, NULL);
+	run_all_verification(DB1, table_data);
+
+	/*
+	 * Run in DB1, bring in future metadata file from DB2.
+	 */
+	printf("# OUT OF SYNC: %s with future metadata from %s\n", DB1, DB2);
+	setup_database(DB1, NULL, DB2);
+	run_all_verification(DB1, table_data);
+
+	/*
+	 * Run in DB1, bring in future turtle file from DB2.
+	 */
+	printf("# OUT OF SYNC: %s with future turtle from %s\n", DB1, DB2);
+	setup_database(DB1, DB2, NULL);
+	run_all_verification(DB1, table_data);
+
+	/*
+	 * Run in DB2, bring in old metadata file from DB1.
+	 */
+	printf("# OUT OF SYNC: %s with old metadata from %s\n", DB2, DB1);
+	setup_database(DB2, NULL, DB1);
+	run_all_verification(DB2, table_data);
+
+	/*
+	 * Run in DB2, bring in old turtle file from DB1.
+	 */
+	printf("# OUT OF SYNC: %s with old turtle from %s\n", DB2, DB1);
+	setup_database(DB2, DB1, NULL);
+	run_all_verification(DB2, table_data);
 }
-#endif
 
 int
 main(int argc, char *argv[])
@@ -571,16 +707,18 @@ main(int argc, char *argv[])
 	printf("copy: %s\n", buf);
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
+	run_all_verification(NULL, &table_data[0]);
 
-	testutil_check(open_with_error());
-	open_with_salvage(&table_data[0]);
-	open_normal(&table_data[0]);
+	out_of_sync(&table_data[0]);
 
-#if 0
-	testutil_check(out_of_sync(&table_data[0]));
-#endif
-
-	testutil_cleanup(opts);
+	/*
+	 * We've created a lot of directories. Manually clean them up.
+	 */
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "rm -rf %s*", home));
+	printf("cleanup and remove: %s\n", buf);
+	if ((ret = system(buf)) < 0)
+		testutil_die(ret, "system: %s", buf);
 
 	return (EXIT_SUCCESS);
 }
