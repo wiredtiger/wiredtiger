@@ -195,11 +195,10 @@ reverse(char *s)
  * There is also a reverse table where the keys/values are swapped.
  */
 static void
-gen_kv(char *buf, size_t buf_size, uint32_t id, uint32_t threadid,
+gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
     const char *large_buf, bool forward)
 {
-	size_t keyid_size;
-	int large_size;
+	size_t keyid_size, large_size;
 	char keyid[64];
 
 	testutil_check(__wt_snprintf(keyid, sizeof(keyid),
@@ -211,18 +210,18 @@ gen_kv(char *buf, size_t buf_size, uint32_t id, uint32_t threadid,
 	large_size = buf_size - 4 - keyid_size;
 	testutil_check(__wt_snprintf(buf, buf_size,
 	    "%s" KEY_SEP "%1.1x" KEY_SEP "%.*s",
-	    keyid, threadid, large_size, large_buf));
+	    keyid, threadid, (int)large_size, large_buf));
 }
 
 static void
-gen_table_name(char *buf, size_t buf_size, uint32_t id, uint32_t threadid)
+gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
 	testutil_check(__wt_snprintf(buf, buf_size,
 	    "table:A%" PRIu64 "-%" PRIu32, id, threadid));
 }
 
 static void
-gen_table2_name(char *buf, size_t buf_size, uint32_t id, uint32_t threadid)
+gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
 	testutil_check(__wt_snprintf(buf, buf_size,
 	    "table:B%" PRIu64 "-%" PRIu32, id, threadid));
