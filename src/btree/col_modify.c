@@ -77,13 +77,12 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	/*
 	 * Delete, insert or update a column-store entry.
 	 *
-	 * If modifying a previously modified record, create a new WT_UPDATE
-	 * entry and have a serialized function link it into an existing
-	 * WT_INSERT entry's WT_UPDATE list.
+	 * If modifying a previously modified record, cursor.ins will be set to
+	 * point to the correct update list. Create a new update entry and link
+	 * it into the existing list.
 	 *
-	 * Else, allocate an insert array as necessary, build a WT_INSERT and
-	 * WT_UPDATE structure pair, and call a serialized function to insert
-	 * the WT_INSERT structure.
+	 * Else, allocate an insert array as necessary, build an insert/update
+	 * structure pair, and link it into place.
 	 */
 	if (cbt->compare == 0 && cbt->ins != NULL) {
 		/*
@@ -136,6 +135,31 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 
 		/* Choose a skiplist depth for this insert. */
 		skipdepth = __wt_skip_choose_depth(session);
+
+		/*
+		 * If modifying a record not previously modified, but which
+		 * is in the same update slot as a previously modified record,
+		 * cursor.ins will not be set because there's no list of update
+		 * records for this recno, but cursor.ins_head will be set to
+		 * point to the correct update slot.  Acquire the necessary
+		 * insert information, then create a new update entry and link
+		 * link it into the existing list. We get here if a page has a
+		 * single cell representing multiple records (the records have
+		 * the same value), and then a record in the cell is updated or
+		 * removed, creating the update list for the cell, and then a
+		 * cursor iterates into that same cell to update/remove a
+		 * different record. We find the correct slot in the update
+		 * array, but we don't find an update list (because it doesn't
+		 * exist), and don't have the information we need to do the
+		 * insert. Normally, we wouldn't care (we could fail and do a
+		 * search for the record which would configure everything for
+		 * the insert), but range truncation does this pattern for every
+		 * record in the cell, and the performance is terrible. For that
+		 * reason, catch it here.
+		 */
+		if (cbt->ins_stack[0] == NULL && cbt->ins_head != NULL)
+			(void)__col_insert_search(cbt->ins_head,
+			    cbt->ins_stack, cbt->next_stack, recno);
 
 		/*
 		 * Allocate a WT_INSERT/WT_UPDATE pair and transaction ID, and
