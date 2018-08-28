@@ -202,7 +202,7 @@ __txn_get_pinned_timestamp(
    bool include_oldest)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_TIMESTAMP(tmp_ts);
+	WT_DECL_TIMESTAMP(tmp_ts)
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 
