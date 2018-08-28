@@ -316,8 +316,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 			 * prepared transaction.
 			 */
 			if (btree->type == BTREE_ROW) {
-				WT_CLEAR(op->u.single_op.key.row_key);
 				item = &op->u.single_op.key.row_key;
+				WT_CLEAR(*item);
 				WT_RET(__wt_cursor_get_raw_key(
 				    &cbt->iface, item));
 				WT_RET(__wt_buf_set(session,
