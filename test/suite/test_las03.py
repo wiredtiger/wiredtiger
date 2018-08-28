@@ -39,7 +39,7 @@ def timestamp_str(t):
 class test_las03(wttest.WiredTigerTestCase):
     # Force a small cache.
     def conn_config(self):
-        return 'cache_size=50MB,statistics=(fast)'
+        return 'cache_size=50MB,statistics=(fast),statistics_log=(wait=1,json=false)'
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -95,7 +95,7 @@ class test_las03(wttest.WiredTigerTestCase):
             las_reads_start = self.get_stat(stat.conn.cache_read_lookaside)
             self.session.checkpoint()
             las_reads = self.get_stat(stat.conn.cache_read_lookaside) - las_reads_start
-
+            print las_reads
             # Since we're dealing with eviction concurrent with checkpoints
             # and skewing is controlled by a heuristic, we can't put too tight
             # a bound on this.
