@@ -58,8 +58,10 @@ handle_message(WT_EVENT_HANDLER *handler,
 	(void)(handler);
 
 	/* Skip the error messages we're expecting to see. */
-	if ((strstr(message, "database corruption detected") != NULL))
+	if ((strstr(message, "database corruption detected") != NULL)) {
 		saw_corruption = true;
+		testutil_assert(error == WT_DATA_CORRUPTION);
+	}
 
 	(void)fprintf(stderr, "%s: %s\n",
 	    message, session->strerror(session, error));
@@ -137,14 +139,11 @@ cursor_insert(const char *uri, uint64_t i)
 	char keybuf[100], valuebuf[100];
 	bool recno;
 
-	/* Reserve requires a running transaction. */
-	testutil_check(wt_session->begin_transaction(wt_session, NULL));
-
 	memset(&vu, 0, sizeof(vu));
 
 	/* Open a cursor. */
-	testutil_check(wt_session->open_cursor(wt_session, uri, NULL, NULL, &cursor));
-
+	testutil_check(wt_session->open_cursor(
+	    wt_session, uri, NULL, NULL, &cursor));
 	/* Operations change based on the key/value formats. */
 	recno = strcmp(cursor->key_format, "r") == 0;
 	if (recno)
@@ -186,7 +185,6 @@ create_data(TABLE_INFO *t)
 	    "%s,app_metadata=\"%s\"", t->kvformat, buf));
 	testutil_check(wt_session->create(wt_session, t->name, cfg));
 	cursor_insert(t->name, 1);
-	testutil_check(wt_session->close(wt_session, NULL));
 }
 
 /*
@@ -325,7 +323,12 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	}
 }
 
-static int
+/*
+ * copy_database --
+ *	Copy the database to the specified suffix. In addition, make a copy
+ *	of the metadata and turtle files in that new directory.
+ */
+static void
 copy_database(const char *home, const char *sfx)
 {
 	WT_DECL_RET;
@@ -334,7 +337,7 @@ copy_database(const char *home, const char *sfx)
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "rm -rf ./%s.%s; mkdir ./%s.%s; "
 	    "cp -p %s/* ./%s.%s",
-	    home, sfx, home, sfx, home, sfx));
+	    home, sfx, home, sfx, home, home, sfx));
 	printf("copy: %s\n", buf);
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
@@ -345,18 +348,17 @@ copy_database(const char *home, const char *sfx)
 	 * as needed during testing.
 	 */
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "cp -p %s.%s/%s %s.%s/%s.%s.%s",
+	    "cp -p %s.%s/%s %s.%s/%s.%s",
 	    home, sfx, WT_METADATA_TURTLE,
 	    home, sfx, WT_METADATA_TURTLE, SAVE));
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "cp -p %s.%s/%s %s.%s/%s.%s.%s",
+	    "cp -p %s.%s/%s %s.%s/%s.%s",
 	    home, sfx, WT_METAFILE,
 	    home, sfx, WT_METAFILE, SAVE));
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
-	return (0);
 }
 
 /*
@@ -365,7 +367,7 @@ copy_database(const char *home, const char *sfx)
  *	of turtle files and metadata files. We take some checkpoints and
  *	update the data too.
  */
-static int
+static void
 make_database_copies(TABLE_INFO *table_data, const char *home)
 {
 	TABLE_INFO *t;
@@ -398,9 +400,12 @@ make_database_copies(TABLE_INFO *table_data, const char *home)
 	 */
 	testutil_check(wt_session->checkpoint(wt_session, NULL));
 	copy_database(home, DB2);
-	return (0);
 }
 
+/*
+ * wt_open_corrupt --
+ *	Call wiredtiger_open and expect a corruption error.
+ */
 static int
 wt_open_corrupt(const char *home)
 {
@@ -449,7 +454,7 @@ open_with_error(const char *home)
 	return (EXIT_SUCCESS);
 }
 
-static int
+static void
 open_with_salvage(const char *home, TABLE_INFO *table_data)
 {
 	WT_CONNECTION *conn;
@@ -475,9 +480,9 @@ open_with_salvage(const char *home, TABLE_INFO *table_data)
 	printf("verify with salvaged connection\n");
 	verify_metadata(conn, &table_data[0]);
 	testutil_check(conn->close(conn, NULL));
-	return (0);
 }
-static int
+
+static void
 open_normal(const char *home, TABLE_INFO *table_data)
 {
 	WT_CONNECTION *conn;
@@ -486,7 +491,6 @@ open_normal(const char *home, TABLE_INFO *table_data)
 	testutil_check(wiredtiger_open(home, &event_handler, NULL, &conn));
 	verify_metadata(conn, &table_data[0]);
 	testutil_check(conn->close(conn, NULL));
-	return (0);
 }
 
 int
@@ -524,7 +528,8 @@ main(int argc, char *argv[])
 	testutil_check(
 	    wiredtiger_open(opts->home, &event_handler, "create", &opts->conn));
 
-	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
+	testutil_check(opts->conn->open_session(
+	    opts->conn, NULL, NULL, &wt_session));
 	/*
 	 * Create a bunch of different tables.
 	 */
@@ -555,8 +560,8 @@ main(int argc, char *argv[])
 		testutil_die(ret, "system: %s", buf);
 
 	testutil_check(open_with_error(opts->home));
-	testutil_check(open_with_salvage(opts->home, &table_data[0]));
-	testutil_check(open_normal(opts->home, &table_data[0]));
+	open_with_salvage(opts->home, &table_data[0]);
+	open_normal(opts->home, &table_data[0]);
 
 	testutil_cleanup(opts);
 
