@@ -34,6 +34,11 @@
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
 
+#define	DB0	"NO_CKPT"
+#define	DB1	"CKPT1"
+#define	DB2	"CKPT2"
+#define	SAVE	"SAVE"
+
 /*
  * NOTE: This assumes the default page size of 4096. If that changes these
  * sizes need to change along with it.
@@ -44,6 +49,7 @@
 
 static bool saw_corruption = false;
 static bool test_abort = false;
+static WT_SESSION *wt_session;
 
 static int
 handle_message(WT_EVENT_HANDLER *handler,
@@ -124,7 +130,7 @@ byte_str(uint8_t *buf, size_t bufsize, const char *str)
  *	Insert some data into a table.
  */
 static void
-cursor_insert(WT_SESSION *session, const char *uri)
+cursor_insert(const char *uri, uint64_t i)
 {
 	WT_CURSOR *cursor;
 	WT_ITEM vu;
@@ -132,19 +138,20 @@ cursor_insert(WT_SESSION *session, const char *uri)
 	bool recno;
 
 	/* Reserve requires a running transaction. */
-	testutil_check(session->begin_transaction(session, NULL));
+	testutil_check(wt_session->begin_transaction(wt_session, NULL));
 
 	memset(&vu, 0, sizeof(vu));
 
 	/* Open a cursor. */
-	testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+	testutil_check(wt_session->open_cursor(wt_session, uri, NULL, NULL, &cursor));
 
 	/* Operations change based on the key/value formats. */
 	recno = strcmp(cursor->key_format, "r") == 0;
 	if (recno)
-		cursor->set_key(cursor, (uint64_t)1);
+		cursor->set_key(cursor, i);
 	else {
-		strcpy(keybuf, KEY);
+		testutil_check(__wt_snprintf(keybuf, sizeof(keybuf),
+		    "%s-%" PRIu64, KEY, i));
 		cursor->set_key(cursor, keybuf);
 	}
 	strcpy(valuebuf, VALUE);
@@ -158,9 +165,8 @@ cursor_insert(WT_SESSION *session, const char *uri)
  * 	Create a table and insert a piece of data.
  */
 static void
-create_data(WT_CONNECTION *conn, TABLE_INFO *t)
+create_data(TABLE_INFO *t)
 {
-	WT_SESSION *session;
 	size_t len;
 	uint64_t i;
 	char buf[APP_BUF_SIZE], cfg[APP_MD_SIZE];
@@ -178,10 +184,9 @@ create_data(WT_CONNECTION *conn, TABLE_INFO *t)
 		    &buf[i], APP_BUF_SIZE - i, "%s", APP_STR));
 	testutil_check(__wt_snprintf(cfg, sizeof(cfg),
 	    "%s,app_metadata=\"%s\"", t->kvformat, buf));
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	testutil_check(session->create(session, t->name, cfg));
-	cursor_insert(session, t->name);
-	testutil_check(session->close(session, NULL));
+	testutil_check(wt_session->create(wt_session, t->name, cfg));
+	cursor_insert(t->name, 1);
+	testutil_check(wt_session->close(wt_session, NULL));
 }
 
 /*
@@ -269,16 +274,15 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 {
 	TABLE_INFO *t;
 	WT_CURSOR *cursor;
-	WT_SESSION *session;
 	int ret;
 	const char *kv;
 
 	/*
 	 * Open a metadata cursor.
 	 */
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	testutil_check(session->open_cursor(
-	    session, "metadata:", NULL, NULL, &cursor));
+	testutil_check(conn->open_session(conn, NULL, NULL, &wt_session));
+	testutil_check(wt_session->open_cursor(
+	    wt_session, "metadata:", NULL, NULL, &cursor));
 	reset_verified(tables);
 
 	/*
@@ -308,8 +312,8 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 		else if (t->verified != true)
 			printf("%s not seen in metadata\n", t->name);
 		else {
-			testutil_check(session->open_cursor(
-			    session, t->name, NULL, NULL, &cursor));
+			testutil_check(wt_session->open_cursor(
+			    wt_session, t->name, NULL, NULL, &cursor));
 			while ((ret = cursor->next(cursor)) == 0) {
 				testutil_check(cursor->get_value(cursor, &kv));
 				testutil_assert(strcmp(kv, VALUE) == 0);
@@ -322,17 +326,167 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 }
 
 static int
+copy_database(const char *home, const char *sfx)
+{
+	WT_DECL_RET;
+	char buf[1024];
+
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "rm -rf ./%s.%s; mkdir ./%s.%s; "
+	    "cp -p %s/* ./%s.%s",
+	    home, sfx, home, sfx, home, sfx));
+	printf("copy: %s\n", buf);
+	if ((ret = system(buf)) < 0)
+		testutil_die(ret, "system: %s", buf);
+
+	/*
+	 * Now, in the copied directory make a save copy of the
+	 * metadata and turtle files to move around and restore
+	 * as needed during testing.
+	 */
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "cp -p %s.%s/%s %s.%s/%s.%s.%s",
+	    home, sfx, WT_METADATA_TURTLE,
+	    home, sfx, WT_METADATA_TURTLE, SAVE));
+	if ((ret = system(buf)) < 0)
+		testutil_die(ret, "system: %s", buf);
+	testutil_check(__wt_snprintf(buf, sizeof(buf),
+	    "cp -p %s.%s/%s %s.%s/%s.%s.%s",
+	    home, sfx, WT_METAFILE,
+	    home, sfx, WT_METAFILE, SAVE));
+	if ((ret = system(buf)) < 0)
+		testutil_die(ret, "system: %s", buf);
+	return (0);
+}
+
+/*
+ * make_database_copies --
+ *	Make copies of the database so that we can test various mix and match
+ *	of turtle files and metadata files. We take some checkpoints and
+ *	update the data too.
+ */
+static int
+make_database_copies(TABLE_INFO *table_data, const char *home)
+{
+	TABLE_INFO *t;
+
+	/*
+	 * If we're running an out-of-sync test, then we want to make copies
+	 * of the turtle and metadata file, then checkpoint and again save a
+	 * copy of the turtle file and the metadata file. Then we add more data
+	 * and checkpoint again. Using the original and current files we can
+	 * test various out of sync scenarios.
+	 */
+	/*
+	 * First make a copy of the files before the first checkpoint.
+	 */
+	copy_database(home, DB0);
+
+	/*
+	 * Take a checkpoint and make another copy.
+	 */
+	testutil_check(wt_session->checkpoint(wt_session, NULL));
+	copy_database(home, DB1);
+
+	/*
+	 * Update the tables with new data.
+	 */
+	for (t = table_data; t->name != NULL; t++)
+		cursor_insert(t->name, 2);
+	/*
+	 * Take another checkpoint.
+	 */
+	testutil_check(wt_session->checkpoint(wt_session, NULL));
+	copy_database(home, DB2);
+	return (0);
+}
+
+static int
 wt_open_corrupt(const char *home)
 {
 	WT_CONNECTION *conn;
 	int ret;
 
 	conn = NULL;
+	saw_corruption = false;
 	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
 	testutil_assert(conn == NULL);
 	testutil_assert(ret == WT_PANIC);
 	testutil_assert(saw_corruption == true);
 	exit (EXIT_SUCCESS);
+}
+
+static int
+open_with_error(const char *home)
+{
+	pid_t pid;
+	int status;
+
+	/*
+	 * Call wiredtiger_open. We expect to see a corruption panic so we
+	 * run this in a forked process. In diagnostic mode, the panic will
+	 * cause an abort and core dump. So we want to catch that and
+	 * continue running with salvage.
+	 */
+	if ((pid = fork()) < 0)
+		testutil_die(errno, "fork");
+	if (pid == 0) { /* child */
+		wt_open_corrupt(home);
+		return (EXIT_SUCCESS);
+	}
+	/* parent */
+	if (waitpid(pid, &status, 0) == -1)
+		testutil_die(errno, "waitpid");
+	/*
+	 * Check the child exited successfully and did not fail any of
+	 * the assertions tested on return.
+	 */
+#ifdef HAVE_DIAGNOSTIC
+	testutil_assert(WIFSIGNALED(status) == true);
+#else
+	testutil_assert(WIFSIGNALED(status) == false);
+#endif
+	return (EXIT_SUCCESS);
+}
+
+static int
+open_with_salvage(const char *home, TABLE_INFO *table_data)
+{
+	WT_CONNECTION *conn;
+	char buf[1024];
+
+	printf("=== wt_open with salvage ===\n");
+	/*
+	 * Then call wiredtiger_open with the salvage configuration setting.
+	 * That should succeed. We should be able to then verify the contents
+	 * of the metadata file.
+	 */
+	test_abort = true;
+	testutil_check(wiredtiger_open(home,
+	    &event_handler, "salvage=true,verbose=(salvage)", &conn));
+	testutil_assert(conn != NULL);
+	sprintf(buf, "%s/%s", home, WT_METAFILE_SLVG);
+	testutil_assert(file_exists(buf));
+
+	/*
+	 * Confirm we salvaged the metadata file by looking for the saved
+	 * copy of the original metadata.
+	 */
+	printf("verify with salvaged connection\n");
+	verify_metadata(conn, &table_data[0]);
+	testutil_check(conn->close(conn, NULL));
+	return (0);
+}
+static int
+open_normal(const char *home, TABLE_INFO *table_data)
+{
+	WT_CONNECTION *conn;
+
+	printf("=== wt_open normal ===\n");
+	testutil_check(wiredtiger_open(home, &event_handler, NULL, &conn));
+	verify_metadata(conn, &table_data[0]);
+	testutil_check(conn->close(conn, NULL));
+	return (0);
 }
 
 int
@@ -359,8 +513,7 @@ main(int argc, char *argv[])
 	};
 	TABLE_INFO *t;
 	TEST_OPTS *opts, _opts;
-	pid_t pid;
-	int ret, status;
+	int ret;
 	char buf[1024];
 
 	opts = &_opts;
@@ -371,26 +524,24 @@ main(int argc, char *argv[])
 	testutil_check(
 	    wiredtiger_open(opts->home, &event_handler, "create", &opts->conn));
 
+	testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &wt_session));
 	/*
 	 * Create a bunch of different tables.
 	 */
 	for (t = table_data; t->name != NULL; t++)
-		create_data(opts->conn, t);
+		create_data(t);
 
+	/*
+	 * Take some checkpoints and add more data for out of sync testing.
+	 */
+	make_database_copies(table_data, opts->home);
 	testutil_check(opts->conn->close(opts->conn, NULL));
 	opts->conn = NULL;
 
 	/*
 	 * Make copy of original directory.
 	 */
-	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "rm -rf ./%s.SAVE; mkdir ./%s.SAVE; "
-	    "cp -p %s/* ./%s.SAVE;",
-	    opts->home, opts->home, opts->home, opts->home));
-	printf("copy: %s\n", buf);
-	if ((ret = system(buf)) < 0)
-		testutil_die(ret, "system: %s", buf);
-
+	copy_database(opts->home, SAVE);
 	/*
 	 * Damage/corrupt WiredTiger.wt.
 	 */
@@ -403,60 +554,9 @@ main(int argc, char *argv[])
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
 
-	/*
-	 * Call wiredtiger_open. We expect to see a corruption panic so we
-	 * run this in a forked process. In diagnostic mode, the panic will
-	 * cause an abort and core dump. So we want to catch that and
-	 * continue running with salvage.
-	 */
-	if ((pid = fork()) < 0)
-		testutil_die(errno, "fork");
-	if (pid == 0) { /* child */
-		wt_open_corrupt(opts->home);
-		return (EXIT_SUCCESS);
-	}
-	/* parent */
-	if (waitpid(pid, &status, 0) == -1)
-		testutil_die(errno, "waitpid");
-	/*
-	 * Check the child exited successfully and did not fail any of
-	 * the assertions tested on return.
-	 */
-#ifdef HAVE_DIAGNOSTIC
-	testutil_assert(WIFSIGNALED(status) == true);
-#else
-	testutil_assert(WIFSIGNALED(status) == false);
-#endif
-
-	printf("=== wt_open with salvage ===\n");
-	/*
-	 * Then call wiredtiger_open with the salvage configuration setting.
-	 * That should succeed. We should be able to then verify the contents
-	 * of the metadata file.
-	 */
-	test_abort = true;
-	testutil_check(wiredtiger_open(opts->home,
-	    &event_handler, "salvage=true,verbose=(salvage)", &opts->conn));
-	testutil_assert(opts->conn != NULL);
-	sprintf(buf, "%s/%s", opts->home, WT_METAFILE_SLVG);
-	testutil_assert(file_exists(buf));
-
-	/*
-	 * Confirm we salvaged the metadata file by looking for the saved
-	 * copy of the original metadata.
-	 */
-	printf("verify with salvaged connection\n");
-	verify_metadata(opts->conn, &table_data[0]);
-
-	/*
-	 * Close and reopen the connection and verify again.
-	 */
-	testutil_check(opts->conn->close(opts->conn, NULL));
-	opts->conn = NULL;
-	testutil_check(wiredtiger_open(opts->home,
-	    &event_handler, NULL, &opts->conn));
-	printf("close and reopen connection, verify\n");
-	verify_metadata(opts->conn, &table_data[0]);
+	testutil_check(open_with_error(opts->home));
+	testutil_check(open_with_salvage(opts->home, &table_data[0]));
+	testutil_check(open_normal(opts->home, &table_data[0]));
 
 	testutil_cleanup(opts);
 
