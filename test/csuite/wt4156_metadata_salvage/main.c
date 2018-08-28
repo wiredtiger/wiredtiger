@@ -50,6 +50,7 @@
 static bool saw_corruption = false;
 static bool test_abort = false;
 static WT_SESSION *wt_session;
+static const char *home;
 
 static int
 handle_message(WT_EVENT_HANDLER *handler,
@@ -192,7 +193,7 @@ create_data(TABLE_INFO *t)
  *	Corrupt the metadata by scribbling on the "corrupt" URI string.
  */
 static void
-corrupt_metadata(const char *home)
+corrupt_metadata(void)
 {
 	FILE *fp;
 	struct stat sb;
@@ -329,7 +330,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
  *	of the metadata and turtle files in that new directory.
  */
 static void
-copy_database(const char *home, const char *sfx)
+copy_database(const char *sfx)
 {
 	WT_DECL_RET;
 	char buf[1024];
@@ -368,7 +369,7 @@ copy_database(const char *home, const char *sfx)
  *	update the data too.
  */
 static void
-make_database_copies(TABLE_INFO *table_data, const char *home)
+make_database_copies(TABLE_INFO *table_data)
 {
 	TABLE_INFO *t;
 
@@ -382,13 +383,13 @@ make_database_copies(TABLE_INFO *table_data, const char *home)
 	/*
 	 * First make a copy of the files before the first checkpoint.
 	 */
-	copy_database(home, DB0);
+	copy_database(DB0);
 
 	/*
 	 * Take a checkpoint and make another copy.
 	 */
 	testutil_check(wt_session->checkpoint(wt_session, NULL));
-	copy_database(home, DB1);
+	copy_database(DB1);
 
 	/*
 	 * Update the tables with new data.
@@ -399,7 +400,7 @@ make_database_copies(TABLE_INFO *table_data, const char *home)
 	 * Take another checkpoint.
 	 */
 	testutil_check(wt_session->checkpoint(wt_session, NULL));
-	copy_database(home, DB2);
+	copy_database(DB2);
 }
 
 /*
@@ -407,7 +408,7 @@ make_database_copies(TABLE_INFO *table_data, const char *home)
  *	Call wiredtiger_open and expect a corruption error.
  */
 static int
-wt_open_corrupt(const char *home)
+wt_open_corrupt(void)
 {
 	WT_CONNECTION *conn;
 	int ret;
@@ -422,7 +423,7 @@ wt_open_corrupt(const char *home)
 }
 
 static int
-open_with_error(const char *home)
+open_with_error(void)
 {
 	pid_t pid;
 	int status;
@@ -436,7 +437,7 @@ open_with_error(const char *home)
 	if ((pid = fork()) < 0)
 		testutil_die(errno, "fork");
 	if (pid == 0) { /* child */
-		wt_open_corrupt(home);
+		wt_open_corrupt();
 		return (EXIT_SUCCESS);
 	}
 	/* parent */
@@ -455,7 +456,7 @@ open_with_error(const char *home)
 }
 
 static void
-open_with_salvage(const char *home, TABLE_INFO *table_data)
+open_with_salvage(TABLE_INFO *table_data)
 {
 	WT_CONNECTION *conn;
 	char buf[1024];
@@ -483,7 +484,7 @@ open_with_salvage(const char *home, TABLE_INFO *table_data)
 }
 
 static void
-open_normal(const char *home, TABLE_INFO *table_data)
+open_normal(TABLE_INFO *table_data)
 {
 	WT_CONNECTION *conn;
 
@@ -492,6 +493,14 @@ open_normal(const char *home, TABLE_INFO *table_data)
 	verify_metadata(conn, &table_data[0]);
 	testutil_check(conn->close(conn, NULL));
 }
+
+#if 0
+static int
+out_of_sync(TABLE_INFO *table_data)
+{
+	return (0);
+}
+#endif
 
 int
 main(int argc, char *argv[])
@@ -523,10 +532,14 @@ main(int argc, char *argv[])
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
 	testutil_check(testutil_parse_opts(argc, argv, opts));
-	testutil_make_work_dir(opts->home);
+	/*
+	 * Set a global. We use this everywhere.
+	 */
+	home = opts->home;
+	testutil_make_work_dir(home);
 
 	testutil_check(
-	    wiredtiger_open(opts->home, &event_handler, "create", &opts->conn));
+	    wiredtiger_open(home, &event_handler, "create", &opts->conn));
 
 	testutil_check(opts->conn->open_session(
 	    opts->conn, NULL, NULL, &wt_session));
@@ -539,29 +552,33 @@ main(int argc, char *argv[])
 	/*
 	 * Take some checkpoints and add more data for out of sync testing.
 	 */
-	make_database_copies(table_data, opts->home);
+	make_database_copies(table_data);
 	testutil_check(opts->conn->close(opts->conn, NULL));
 	opts->conn = NULL;
 
 	/*
 	 * Make copy of original directory.
 	 */
-	copy_database(opts->home, SAVE);
+	copy_database(SAVE);
 	/*
 	 * Damage/corrupt WiredTiger.wt.
 	 */
 	printf("corrupt metadata\n");
-	corrupt_metadata(opts->home);
+	corrupt_metadata();
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "cp -p %s/WiredTiger.wt ./%s.SAVE/WiredTiger.wt.CORRUPT",
-	    opts->home, opts->home));
+	    home, home));
 	printf("copy: %s\n", buf);
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
 
-	testutil_check(open_with_error(opts->home));
-	open_with_salvage(opts->home, &table_data[0]);
-	open_normal(opts->home, &table_data[0]);
+	testutil_check(open_with_error());
+	open_with_salvage(&table_data[0]);
+	open_normal(&table_data[0]);
+
+#if 0
+	testutil_check(out_of_sync(&table_data[0]));
+#endif
 
 	testutil_cleanup(opts);
 
