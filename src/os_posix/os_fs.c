@@ -440,7 +440,8 @@ __posix_file_read(WT_FILE_HANDLE *file_handle,
 	for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
 		if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
-			WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
+			WT_RET_MSG(session,
+			    nr == 0 ? WT_DATA_CORRUPTION : __wt_errno(),
 			    "%s: handle-read: pread: failed to read %"
 			    WT_SIZET_FMT " bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);

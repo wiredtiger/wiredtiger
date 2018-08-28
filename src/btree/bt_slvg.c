@@ -396,7 +396,7 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			valid = true;
 		else {
 			valid = false;
-			if (ret == WT_ERROR)
+			if (ret == WT_DATA_CORRUPTION)
 				ret = 0;
 			WT_ERR(ret);
 		}
