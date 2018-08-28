@@ -50,6 +50,7 @@
 
 static bool saw_corruption = false;
 static bool test_abort = false;
+static bool test_out_of_sync = false;
 static WT_SESSION *wt_session;
 static const char *home;
 
@@ -307,7 +308,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	 * The corrupt table should never be salvaged.
 	 */
 	for (t = tables; t->name != NULL; t++) {
-		if (strcmp(t->name, CORRUPT) == 0)
+		if (strcmp(t->name, CORRUPT) == 0 && !test_out_of_sync)
 			testutil_assert(t->verified == false);
 		else if (t->verified != true)
 			printf("%s not seen in metadata\n", t->name);
@@ -584,56 +585,59 @@ out_of_sync(TABLE_INFO *table_data)
 	/*
 	 * Run in DB0, bring in future metadata from DB1.
 	 */
-	printf("# OUT OF SYNC: %s with future metadata from %s\n", DB0, DB1);
+	test_out_of_sync = true;
+	printf(
+	    "#\n# OUT OF SYNC: %s with future metadata from %s\n#\n", DB0, DB1);
 	setup_database(DB0, NULL, DB1);
 	run_all_verification(DB0, table_data);
 
 	/*
 	 * Run in DB0, bring in future turtle file from DB1.
 	 */
-	printf("# OUT OF SYNC: %s with future turtle from %s\n", DB0, DB1);
+	printf("#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB0, DB1);
 	setup_database(DB0, DB1, NULL);
 	run_all_verification(DB0, table_data);
 
 	/*
 	 * Run in DB1, bring in old metadata file from DB0.
 	 */
-	printf("# OUT OF SYNC: %s with old metadata from %s\n", DB1, DB0);
+	printf("#\n# OUT OF SYNC: %s with old metadata from %s\n#\n", DB1, DB0);
 	setup_database(DB1, NULL, DB0);
 	run_all_verification(DB1, table_data);
 
 	/*
 	 * Run in DB1, bring in old turtle file from DB0.
 	 */
-	printf("# OUT OF SYNC: %s with old turtle from %s\n", DB1, DB0);
+	printf("#\n# OUT OF SYNC: %s with old turtle from %s\n#\n", DB1, DB0);
 	setup_database(DB1, DB0, NULL);
 	run_all_verification(DB1, table_data);
 
 	/*
 	 * Run in DB1, bring in future metadata file from DB2.
 	 */
-	printf("# OUT OF SYNC: %s with future metadata from %s\n", DB1, DB2);
+	printf(
+	    "#\n# OUT OF SYNC: %s with future metadata from %s\n#\n", DB1, DB2);
 	setup_database(DB1, NULL, DB2);
 	run_all_verification(DB1, table_data);
 
 	/*
 	 * Run in DB1, bring in future turtle file from DB2.
 	 */
-	printf("# OUT OF SYNC: %s with future turtle from %s\n", DB1, DB2);
+	printf("#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB1, DB2);
 	setup_database(DB1, DB2, NULL);
 	run_all_verification(DB1, table_data);
 
 	/*
 	 * Run in DB2, bring in old metadata file from DB1.
 	 */
-	printf("# OUT OF SYNC: %s with old metadata from %s\n", DB2, DB1);
+	printf("#\n# OUT OF SYNC: %s with old metadata from %s\n#\n", DB2, DB1);
 	setup_database(DB2, NULL, DB1);
 	run_all_verification(DB2, table_data);
 
 	/*
 	 * Run in DB2, bring in old turtle file from DB1.
 	 */
-	printf("# OUT OF SYNC: %s with old turtle from %s\n", DB2, DB1);
+	printf("#\n# OUT OF SYNC: %s with old turtle from %s\n#\n", DB2, DB1);
 	setup_database(DB2, DB1, NULL);
 	run_all_verification(DB2, table_data);
 }
