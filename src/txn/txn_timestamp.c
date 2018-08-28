@@ -202,6 +202,7 @@ __txn_get_pinned_timestamp(
    bool include_oldest)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_TIMESTAMP(tmp_ts);
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 
@@ -213,16 +214,17 @@ __txn_get_pinned_timestamp(
 
 	__wt_readlock(session, &txn_global->rwlock);
 	if (include_oldest)
-		__wt_timestamp_set(tsp, &txn_global->oldest_timestamp);
+		__wt_timestamp_set(&tmp_ts, &txn_global->oldest_timestamp);
 	else
-		__wt_timestamp_set_zero(tsp);
+		__wt_timestamp_set_zero(&tmp_ts);
 
 	/* Check for a running checkpoint */
 	if (include_checkpoint &&
 	    !__wt_timestamp_iszero(&txn_global->checkpoint_timestamp) &&
-	    (!include_oldest ||
-	    __wt_timestamp_cmp(&txn_global->checkpoint_timestamp, tsp) < 0))
-		__wt_timestamp_set(tsp, &txn_global->checkpoint_timestamp);
+	    (__wt_timestamp_iszero(&tmp_ts) ||
+	    __wt_timestamp_cmp(&txn_global->checkpoint_timestamp, &tmp_ts) <
+	    0))
+		__wt_timestamp_set(&tmp_ts, &txn_global->checkpoint_timestamp);
 	__wt_readunlock(session, &txn_global->rwlock);
 
 	/* Look for the oldest ordinary reader. */
@@ -237,9 +239,9 @@ __txn_get_pinned_timestamp(
 		 * A zero timestamp is possible here only when the oldest
 		 * timestamp is not accounted for.
 		 */
-		if (__wt_timestamp_iszero(tsp) ||
-		    __wt_timestamp_cmp(&txn->read_timestamp, tsp) < 0)
-			__wt_timestamp_set(tsp, &txn->read_timestamp);
+		if (__wt_timestamp_iszero(&tmp_ts) ||
+		    __wt_timestamp_cmp(&txn->read_timestamp, &tmp_ts) < 0)
+			__wt_timestamp_set(&tmp_ts, &txn->read_timestamp);
 		/*
 		 * We break on the first active txn on the list.
 		 */
@@ -247,8 +249,9 @@ __txn_get_pinned_timestamp(
 	}
 	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 
-	if (!include_oldest && __wt_timestamp_iszero(tsp))
+	if (!include_oldest && __wt_timestamp_iszero(&tmp_ts))
 		return (WT_NOTFOUND);
+	__wt_timestamp_set(tsp, &tmp_ts);
 
 	return (0);
 }
