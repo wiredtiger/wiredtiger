@@ -61,7 +61,6 @@ static const char * const fs_main = "main.wt";
     "create,log=(file_max=10M,enabled),"				\
     "transaction_sync=(enabled,method=%s)"
 #define	ENV_CONFIG_REC "log=(recover=on)"
-#define	MAX_VAL	4096
 
 /* 64 spaces */
 #define	SPACES								\
@@ -760,7 +759,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 			    (*gotkey == 'A' || *gotkey == 'B')) {
 				gotid = (uint64_t)strtol(gotkey + 1, &p, 10);
 				testutil_assert(*p == '-');
-				th = (uint64_t)strtol(p + 1, &p, 10);
+				th = (uint32_t)strtol(p + 1, &p, 10);
 				testutil_assert(*p == '\0');
 				/*
 				 * XXX
