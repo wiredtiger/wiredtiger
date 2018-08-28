@@ -231,6 +231,7 @@ corrupt_metadata(const char *home)
 		testutil_die(errno, "corrupt string did not occur");
 	if (fclose(fp) != 0)
 		testutil_die(errno, "fclose");
+	free(buf);
 }
 
 /*
