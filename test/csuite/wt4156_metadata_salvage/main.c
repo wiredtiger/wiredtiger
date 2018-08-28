@@ -38,7 +38,7 @@
 #define	DB1	"CKPT1"
 #define	DB2	"CKPT2"
 #define	SAVE	"SAVE"
-#define TEST	"TEST"
+#define	TEST	"TEST"
 
 /*
  * NOTE: This assumes the default page size of 4096. If that changes these
