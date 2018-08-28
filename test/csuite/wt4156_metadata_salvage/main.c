@@ -594,7 +594,8 @@ out_of_sync(TABLE_INFO *table_data)
 	/*
 	 * Run in DB0, bring in future turtle file from DB1.
 	 */
-	printf("#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB0, DB1);
+	printf(
+	    "#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB0, DB1);
 	setup_database(DB0, DB1, NULL);
 	run_all_verification(DB0, table_data);
 
