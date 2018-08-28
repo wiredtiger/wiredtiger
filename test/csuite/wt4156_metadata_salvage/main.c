@@ -548,7 +548,7 @@ setup_database(const char *src, const char *turtle_dir, const char *meta_dir)
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "cp -p %s.%s/%s.%s %s.%s/%s",
 		    home, turtle_dir, WT_METADATA_TURTLE, SAVE,
-		    home, src, WT_METADATA_TURTLE));
+		    home, TEST, WT_METADATA_TURTLE));
 		printf("copy: %s\n", buf);
 		if ((ret = system(buf)) < 0)
 			testutil_die(ret, "system: %s", buf);
@@ -558,7 +558,7 @@ setup_database(const char *src, const char *turtle_dir, const char *meta_dir)
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "cp -p %s.%s/%s.%s %s.%s/%s",
 		    home, meta_dir, WT_METAFILE, SAVE,
-		    home, src, WT_METAFILE));
+		    home, TEST, WT_METAFILE));
 		printf("copy: %s\n", buf);
 		if ((ret = system(buf)) < 0)
 			testutil_die(ret, "system: %s", buf);
