@@ -218,8 +218,8 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 
 	*opp = &txn->mod[txn->mod_count++];
 	WT_CLEAR(**opp);
-	(*opp)->dhandle = (WT_DATA_HANDLE *)session->dhandle;
-	__wt_dhandle_incr_use((*opp)->dhandle);
+	(*opp)->dhandle = session->dhandle;
+	(void)__wt_atomic_addi32(&(*opp)->dhandle->session_inuse, 1);
 	return (0);
 }
 
@@ -310,8 +310,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		 * be prepared.
 		 */
 		if (!WT_SESSION_IS_CHECKPOINT(session) &&
-		    ((WT_BTREE *)op->dhandle->handle)->id !=
-		    S2C(session)->cache->las_fileid) {
+		    !F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
 			/*
 			 * Store the key, to search the update incase of
 			 * prepared transaction.

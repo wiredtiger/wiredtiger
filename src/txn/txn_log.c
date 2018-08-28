@@ -183,7 +183,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		__wt_buf_free(session, &op->u.truncate_row.stop);
 		break;
 	}
-	__wt_dhandle_decr_use(op->dhandle);
+	(void)__wt_atomic_subi32(&op->dhandle->session_inuse, 1);
 }
 
 /*
