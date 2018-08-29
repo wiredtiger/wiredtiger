@@ -297,7 +297,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 			}
 		}
 	}
-	cursor->close(cursor);
+	testutil_check(cursor->close(cursor));
 	/*
 	 * Any tables that were salvaged, make sure we can read the data.
 	 * The corrupt table should never be salvaged.
@@ -314,7 +314,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 				testutil_check(cursor->get_value(cursor, &kv));
 				testutil_assert(strcmp(kv, VALUE) == 0);
 			}
-			cursor->close(cursor);
+			testutil_check(cursor->close(cursor));
 			printf("%s metadata salvaged and data verified\n",
 			    t->name);
 		}
