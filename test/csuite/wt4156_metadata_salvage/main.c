@@ -297,6 +297,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 			}
 		}
 	}
+	testutil_assert(ret == WT_NOTFOUND);
 	testutil_check(cursor->close(cursor));
 	/*
 	 * Any tables that were salvaged, make sure we can read the data.
