@@ -2788,8 +2788,8 @@ err:	/* Discard the scratch buffers. */
 		/*
 		 * If we detected a data corruption issue, the system is
 		 * returning WT_PANIC, but we really want to send indicate the
-		 * corruption instead. We cannot use WT_TRET because we don't
-		 * want to generalize this.
+		 * corruption instead. We cannot use standard return macros
+		 * because we don't want to generalize this.
 		 */
 		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && ret == WT_PANIC)
 			ret = WT_DATA_CORRUPTION;
