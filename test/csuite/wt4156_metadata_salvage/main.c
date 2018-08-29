@@ -204,15 +204,15 @@ corrupt_metadata(const char *home)
 	 * modify one byte at that offset. That will cause a checksum error
 	 * when WiredTiger next reads it.
 	 */
-	sprintf(path, "%s/%s", home, WT_METAFILE);
-	testutil_check(stat(path, &sb));
-	meta_size = (size_t)sb.st_size;
-	buf = dmalloc(meta_size);
-	memset(buf, 0, meta_size);
+	testutil_check(__wt_snprintf(
+	    path, sizeof(path), "%s/%s", home, WT_METAFILE));
 	if ((fp = fopen(path, "r+")) == NULL)
-		testutil_die(errno, "fopen: %s", WT_METAFILE);
+		testutil_die(errno, "fopen: %s", path);
+	testutil_check(fstat(fileno(fp), &sb));
+	meta_size = (size_t)sb.st_size;
+	buf = dcalloc(meta_size, 1);
 	if (fread(buf, 1, meta_size, fp) != meta_size)
-		testutil_die(errno, "fread: %" PRIu64, (uint64_t)meta_size);
+		testutil_die(errno, "fread: %" WT_SIZET_FMT, meta_size);
 	corrupted = false;
 	/*
 	 * Corrupt all occurrences of the string in the file.
@@ -438,7 +438,8 @@ main(int argc, char *argv[])
 	testutil_check(wiredtiger_open(opts->home,
 	    &event_handler, "salvage=true,verbose=(salvage)", &opts->conn));
 	testutil_assert(opts->conn != NULL);
-	sprintf(buf, "%s/%s", opts->home, WT_METAFILE_SLVG);
+	testutil_check(__wt_snprintf(
+	    buf, sizeof(buf), "%s/%s", opts->home, WT_METAFILE_SLVG));
 	testutil_assert(file_exists(buf));
 
 	/*
