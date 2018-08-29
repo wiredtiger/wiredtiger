@@ -50,6 +50,8 @@ types = [
     'double',
     'float',
     'size_t',
+    'u_long',
+    'long',
     'uint64_t',
     'int64_t',
     'uint32_t',
