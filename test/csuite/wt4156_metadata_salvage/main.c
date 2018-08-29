@@ -338,7 +338,7 @@ wt_open_corrupt(const char *home)
 #else
 	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
 	testutil_assert(conn == NULL);
-	testutil_assert(ret == WT_DATA_CORRUPTION);
+	testutil_assert(ret == WT_TRY_SALVAGE);
 #endif
 	exit (EXIT_SUCCESS);
 }

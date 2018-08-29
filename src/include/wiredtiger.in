@@ -2983,10 +2983,10 @@ struct __wt_connection {
  * readonly for more information., a boolean flag; default \c false.}
  * @config{salvage, open connection and salvage any WiredTiger-owned database
  * and log files that it detects as corrupted.  This API should only be used
- * after getting an error return of WT_DATA_CORRUPTION. Salvage rebuilds files
- * in place\, overwriting existing files.  We recommend making a backup copy of
- * all files with the WiredTiger prefix prior to passing this flag., a boolean
- * flag; default \c false.}
+ * after getting an error return of WT_TRY_SALVAGE. Salvage rebuilds files in
+ * place\, overwriting existing files.  We recommend making a backup copy of all
+ * files with the WiredTiger prefix prior to passing this flag., a boolean flag;
+ * default \c false.}
  * @config{session_max, maximum expected number of sessions (including server
  * threads)., an integer greater than or equal to 1; default \c 100.}
  * @config{shared_cache = (, shared cache configuration options.  A database
@@ -3718,7 +3718,7 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * application may choose to salvage the file or retry wiredtiger_open with the
  * 'salvage=true' configuration setting.
  */
-#define	WT_DATA_CORRUPTION	(-31809)
+#define	WT_TRY_SALVAGE	(-31809)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

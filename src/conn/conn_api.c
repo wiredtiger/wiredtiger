@@ -2792,7 +2792,7 @@ err:	/* Discard the scratch buffers. */
 		 * because we don't want to generalize this.
 		 */
 		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && ret == WT_PANIC)
-			ret = WT_DATA_CORRUPTION;
+			ret = WT_TRY_SALVAGE;
 		WT_TRET(__wt_connection_close(conn));
 	}
 
