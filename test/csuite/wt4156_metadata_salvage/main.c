@@ -223,7 +223,7 @@ corrupt_metadata(const char *home)
 		*(char *)corrupt = 'X';
 		off = (long)(corrupt - buf);
 		if (fseek(fp, off, SEEK_SET) != 0)
-			testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
+			testutil_die(errno, "fseek: %ld" off);
 		if (fwrite("X", 1, 1, fp) != 1)
 			testutil_die(errno, "fwrite");
 	}
