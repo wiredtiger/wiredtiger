@@ -39,7 +39,7 @@
  * sizes need to change along with it.
  */
 #define	APP_MD_SIZE 	4096
-#define	APP_BUF_SIZE	3 * 1024
+#define	APP_BUF_SIZE	(3 * 1024)
 #define	APP_STR		"long app metadata. "
 
 static bool saw_corruption = false;
@@ -315,6 +315,7 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 				testutil_check(cursor->get_value(cursor, &kv));
 				testutil_assert(strcmp(kv, VALUE) == 0);
 			}
+			testutil_assert(ret == WT_NOTFOUND);
 			testutil_check(cursor->close(cursor));
 			printf("%s metadata salvaged and data verified\n",
 			    t->name);
@@ -322,8 +323,11 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	}
 }
 
-static int
+static void wt_open_corrupt(const char *)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void
 wt_open_corrupt(const char *home)
+
 {
 	WT_CONNECTION *conn;
 	int ret;
