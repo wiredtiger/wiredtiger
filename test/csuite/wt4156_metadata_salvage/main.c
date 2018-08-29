@@ -42,7 +42,6 @@
 #define	APP_BUF_SIZE	3 * 1024
 #define	APP_STR		"long app metadata. "
 
-static bool saw_corruption = false;
 static bool test_abort = false;
 
 static int
@@ -50,10 +49,6 @@ handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *message)
 {
 	(void)(handler);
-
-	/* Skip the error messages we're expecting to see. */
-	if ((strstr(message, "database corruption detected") != NULL))
-		saw_corruption = true;
 
 	(void)fprintf(stderr, "%s: %s\n",
 	    message, session->strerror(session, error));
@@ -331,7 +326,6 @@ wt_open_corrupt(const char *home)
 	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
 	testutil_assert(conn == NULL);
 	testutil_assert(ret == WT_PANIC);
-	testutil_assert(saw_corruption == true);
 	exit (EXIT_SUCCESS);
 }
 

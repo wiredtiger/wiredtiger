@@ -2785,6 +2785,17 @@ err:	/* Discard the scratch buffers. */
 		 */
 		if (ret == WT_RUN_RECOVERY)
 			F_SET(conn, WT_CONN_PANIC);
+		/*
+		 * If we detected a data corruption issue, the system is
+		 * returning WT_PANIC, but we really want to send indicate the
+		 * corruption instead. We cannot use WT_TRET because we don't
+		 * want to generalize this.
+		 */
+		__wt_errx(session, "WT_OPEN: conn flags 0x%lx ret %d",
+		    (unsigned long)conn->flags, ret);
+		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && ret == WT_PANIC)
+			ret = WT_DATA_CORRUPTION;
+		__wt_errx(session, "WT_OPEN: after ret %d", ret);
 		WT_TRET(__wt_connection_close(conn));
 	}
 

@@ -2155,7 +2155,8 @@ __log_salvage_message(WT_SESSION_IMPL *session, const char *log_name,
 	WT_RET(__wt_msg(session,
 	    "log file %s corrupted%s at position %" PRIuMAX
 	    ", truncated", log_name, extra_msg, (uintmax_t)offset));
-	return (WT_DATA_CORRUPTION);
+	F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+	return (WT_ERROR);
 }
 
 /*

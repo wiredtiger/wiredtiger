@@ -106,7 +106,7 @@ snappy_error(WT_COMPRESSOR *compressor,
 
 	(void)wt_api->err_printf(wt_api,
 	    session, "snappy error: %s: %s: %d", call, msg, snret);
-	return (WT_DATA_CORRUPTION);
+	return (WT_ERROR);
 }
 
 /*
@@ -189,7 +189,7 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		    session,
 		    "WT_COMPRESSOR.decompress: stored size exceeds source "
 		    "size");
-		return (WT_DATA_CORRUPTION);
+		return (WT_ERROR);
 	}
 
 	/* dst_len is an input and an output arg. */

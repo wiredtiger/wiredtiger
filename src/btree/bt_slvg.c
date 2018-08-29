@@ -396,7 +396,8 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			valid = true;
 		else {
 			valid = false;
-			if (ret == WT_DATA_CORRUPTION)
+			__wt_errx(session, "SLVG_READ: bt_read ret %d", ret);
+			if (ret == WT_ERROR)
 				ret = 0;
 			WT_ERR(ret);
 		}
