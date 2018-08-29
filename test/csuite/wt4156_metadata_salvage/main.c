@@ -316,6 +316,14 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	}
 }
 
+/*
+ * wt_open_corrupt --
+ *	This function is run in a child process because when the corruption
+ *	is detected the connection panics. On some configurations that
+ *	causes a core dump. On other configurations we can check the return
+ *	values. If the user has enabled attaching, skip this call because
+ *	then it will hang.
+ */
 static int
 wt_open_corrupt(const char *home)
 {
@@ -323,9 +331,15 @@ wt_open_corrupt(const char *home)
 	int ret;
 
 	conn = NULL;
+#ifdef HAVE_ATTACH
+	WT_UNUSED(conn);
+	WT_UNUSED(home);
+	WT_UNUSED(ret);
+#else
 	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
 	testutil_assert(conn == NULL);
-	testutil_assert(ret == WT_PANIC);
+	testutil_assert(ret == WT_DATA_CORRUPTION);
+#endif
 	exit (EXIT_SUCCESS);
 }
 

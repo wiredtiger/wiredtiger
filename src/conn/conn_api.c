@@ -2787,7 +2787,7 @@ err:	/* Discard the scratch buffers. */
 			F_SET(conn, WT_CONN_PANIC);
 		/*
 		 * If we detected a data corruption issue, the system is
-		 * returning WT_PANIC, but we really want to send indicate the
+		 * returning WT_PANIC, but we really want to indicate the
 		 * corruption instead. We cannot use standard return macros
 		 * because we don't want to generalize this.
 		 */
