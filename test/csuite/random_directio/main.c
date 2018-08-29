@@ -195,7 +195,7 @@ reverse(char *s)
  */
 static void
 gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
-    const char *large_buf, bool forward)
+    const char *large, bool forward)
 {
 	size_t keyid_size, large_size;
 	char keyid[64];
@@ -209,7 +209,7 @@ gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
 	large_size = buf_size - 4 - keyid_size;
 	testutil_check(__wt_snprintf(buf, buf_size,
 	    "%s" KEY_SEP "%1.1x" KEY_SEP "%.*s",
-	    keyid, threadid, (int)large_size, large_buf));
+	    keyid, threadid, (int)large_size, large));
 }
 
 static void
