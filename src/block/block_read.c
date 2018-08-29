@@ -296,8 +296,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 
 	/* Panic if a checksum fails during an ordinary read. */
 	F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
-	__wt_errx(session, "BLOCK_RD_OFF: CORRUPT conn flags 0x%lx",
-	    (unsigned long)S2C(session)->flags);
 	if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
 		return (WT_ERROR);
 	WT_PANIC_RET(
