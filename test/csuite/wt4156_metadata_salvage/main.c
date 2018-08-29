@@ -45,7 +45,7 @@
  * sizes need to change along with it.
  */
 #define	APP_MD_SIZE 	4096
-#define	APP_BUF_SIZE	3 * 1024
+#define	APP_BUF_SIZE	(3 * 1024)
 #define	APP_STR		"long app metadata. "
 
 static bool saw_corruption = false;
@@ -210,15 +210,15 @@ corrupt_metadata(void)
 	 * modify one byte at that offset. That will cause a checksum error
 	 * when WiredTiger next reads it.
 	 */
-	sprintf(path, "%s/%s", home, WT_METAFILE);
-	testutil_check(stat(path, &sb));
-	meta_size = (size_t)sb.st_size;
-	buf = dmalloc(meta_size);
-	memset(buf, 0, meta_size);
+	testutil_check(__wt_snprintf(
+	    path, sizeof(path), "%s/%s", home, WT_METAFILE));
 	if ((fp = fopen(path, "r+")) == NULL)
-		testutil_die(errno, "fopen: %s", WT_METAFILE);
+		testutil_die(errno, "fopen: %s", path);
+	testutil_check(fstat(fileno(fp), &sb));
+	meta_size = (size_t)sb.st_size;
+	buf = dcalloc(meta_size, 1);
 	if (fread(buf, 1, meta_size, fp) != meta_size)
-		testutil_die(errno, "fread: %" PRIu64, (uint64_t)meta_size);
+		testutil_die(errno, "fread: %" WT_SIZET_FMT, meta_size);
 	corrupted = false;
 	/*
 	 * Corrupt all occurrences of the string in the file.
@@ -229,7 +229,7 @@ corrupt_metadata(void)
 		*(char *)corrupt = 'X';
 		off = (long)(corrupt - buf);
 		if (fseek(fp, off, SEEK_SET) != 0)
-			testutil_die(errno, "fseek: %" PRIu64, (uint64_t)off);
+			testutil_die(errno, "fseek: %ld", off);
 		if (fwrite("X", 1, 1, fp) != 1)
 			testutil_die(errno, "fwrite");
 	}
@@ -302,7 +302,8 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 			}
 		}
 	}
-	cursor->close(cursor);
+	testutil_assert(ret == WT_NOTFOUND);
+	testutil_check(cursor->close(cursor));
 	/*
 	 * Any tables that were salvaged, make sure we can read the data.
 	 * The corrupt table should never be salvaged.
@@ -319,7 +320,8 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 				testutil_check(cursor->get_value(cursor, &kv));
 				testutil_assert(strcmp(kv, VALUE) == 0);
 			}
-			cursor->close(cursor);
+			testutil_assert(ret == WT_NOTFOUND);
+			testutil_check(cursor->close(cursor));
 			printf("%s metadata salvaged and data verified\n",
 			    t->name);
 		}
@@ -409,7 +411,9 @@ make_database_copies(TABLE_INFO *table_data)
  * wt_open_corrupt --
  *	Call wiredtiger_open and expect a corruption error.
  */
-static int
+static void wt_open_corrupt(const char *)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void
 wt_open_corrupt(const char *sfx)
 {
 	WT_CONNECTION *conn;
@@ -485,9 +489,11 @@ open_with_salvage(const char *sfx, TABLE_INFO *table_data)
 	    &event_handler, "salvage=true", &conn));
 	testutil_assert(conn != NULL);
 	if (sfx != NULL)
-		sprintf(buf, "%s.%s/%s", home, sfx, WT_METAFILE_SLVG);
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "%s.%s/%s", home, sfx, WT_METAFILE_SLVG));
 	else
-		sprintf(buf, "%s/%s", home, WT_METAFILE_SLVG);
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "%s/%s", home, WT_METAFILE_SLVG));
 	testutil_assert(file_exists(buf));
 
 	/*
@@ -705,7 +711,7 @@ main(int argc, char *argv[])
 	 * We've created a lot of directories. Manually clean them up.
 	 */
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "rm -rf %s*", home));
+	    "rm -rf core* %s*", home));
 	printf("cleanup and remove: %s\n", buf);
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
