@@ -2791,7 +2791,7 @@ err:	/* Discard the scratch buffers. */
 		 * indicate the corruption instead of whatever error was set.
 		 * We cannot use standard return macros because we don't want
 		 * to generalize this. Record it here while we have the
-		 * connectionand set it after we destroy the connection.
+		 * connection and set it after we destroy the connection.
 		 */
 		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) &&
 		    ret != WT_RUN_RECOVERY)
