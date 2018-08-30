@@ -1094,6 +1094,9 @@ struct __wt_session {
 	 * @config{raw, ignore the encodings for the key and value\, manage data
 	 * as if the formats were \c "u". See @ref cursor_raw for details., a
 	 * boolean flag; default \c false.}
+	 * @config{read_once, results that are brought into cache from disk by
+	 * this cursor will be given less priority in the cache., a boolean
+	 * flag; default \c false.}
 	 * @config{readonly, only query operations are supported by this cursor.
 	 * An error is returned if a modification is attempted using the cursor.
 	 * The default is false for all cursor types except for log and metadata
@@ -2944,10 +2947,9 @@ struct __wt_connection {
  * flag; default \c true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery
  * or error if recovery needs to run after an unclean shutdown., a string\,
- * chosen from the following options: \c "error"\, \c "on"\, \c "salvage";
- * default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write
- * zeroes into log files., a boolean flag; default \c false.}
+ * chosen from the following options: \c "error"\, \c "on"; default \c on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log
+ * files., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree
  * management.  The LSM manager is started automatically the first time an LSM
@@ -2979,6 +2981,12 @@ struct __wt_connection {
  * @config{readonly, open connection in read-only mode.  The database must
  * exist.  All methods that may modify a database are disabled.  See @ref
  * readonly for more information., a boolean flag; default \c false.}
+ * @config{salvage, open connection and salvage any WiredTiger-owned database
+ * and log files that it detects as corrupted.  This API should only be used
+ * after getting an error return of WT_DATA_CORRUPTION. Salvage rebuilds files
+ * in place\, overwriting existing files.  We recommend making a backup copy of
+ * all files with the WiredTiger prefix prior to passing this flag., a boolean
+ * flag; default \c false.}
  * @config{session_max, maximum expected number of sessions (including server
  * threads)., an integer greater than or equal to 1; default \c 100.}
  * @config{shared_cache = (, shared cache configuration options.  A database
@@ -3704,6 +3712,13 @@ const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
  * state.
  */
 #define	WT_PREPARE_CONFLICT	(-31808)
+/*!
+ * Database corruption detected.
+ * This error is generated when corruption is detected in an on-disk file. The
+ * application may choose to salvage the file or retry wiredtiger_open with the
+ * 'salvage=true' configuration setting.
+ */
+#define	WT_DATA_CORRUPTION	(-31809)
 /*
  * Error return section: END
  * DO NOT EDIT: automatically built by dist/api_err.py.

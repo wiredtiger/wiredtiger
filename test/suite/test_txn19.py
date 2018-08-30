@@ -290,7 +290,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         #self.show_logs(newdir, 'before corruption')
         self.corrupt_log(newdir)
         #self.show_logs(newdir, 'after corruption')
-        salvage_config = self.base_config + ',log=(recover=salvage)'
+        salvage_config = self.base_config + ',salvage=true'
         errfile = 'list.err'
         outfile = 'list.out'
         expect_fail = self.expect_recovery_failure()
@@ -309,7 +309,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
 
         if expect_fail:
             self.check_file_contains_one_of(errfile,
-            ['/log file.*corrupted/', 'WT_ERROR: non-specific WiredTiger error'])
+            ['/log file.*corrupted/', 'WT_DATA_CORRUPTION: database corruption detected'])
         else:
             self.check_empty_file(errfile)
             if self.expect_warning_corruption():

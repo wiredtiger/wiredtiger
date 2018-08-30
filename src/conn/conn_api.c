@@ -2585,10 +2585,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "session_scratch_max", &cval));
 	conn->session_scratch_max = (size_t)cval.val;
 
-	WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
-	if (cval.val)
-		F_SET(conn, WT_CONN_CKPT_SYNC);
-
+	/*
+	 * If buffer alignment is not configured, use zero unless direct I/O is
+	 * also configured, in which case use the build-time default. The code
+	 * to parse write through is also here because it is nearly identical
+	 * to direct I/O.
+	 */
 	WT_ERR(__wt_config_gets(session, cfg, "direct_io", &cval));
 	for (ft = file_types; ft->name != NULL; ft++) {
 		ret = __wt_config_subgets(session, &cval, ft->name, &sval);
@@ -2609,10 +2611,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 			WT_ERR_NOTFOUND_OK(ret);
 	}
 
-	/*
-	 * If buffer alignment is not configured, use zero unless direct I/O is
-	 * also configured, in which case use the build-time default.
-	 */
 	WT_ERR(__wt_config_gets(session, cfg, "buffer_alignment", &cval));
 	if (cval.val == -1)
 		conn->buffer_alignment =
@@ -2624,6 +2622,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		WT_ERR_MSG(session, EINVAL,
 		    "buffer_alignment requires posix_memalign");
 #endif
+
+	WT_ERR(__wt_config_gets(session, cfg, "cache_cursors", &cval));
+	if (cval.val)
+		F_SET(conn, WT_CONN_CACHE_CURSORS);
+
+	WT_ERR(__wt_config_gets(session, cfg, "checkpoint_sync", &cval));
+	if (cval.val)
+		F_SET(conn, WT_CONN_CKPT_SYNC);
 
 	WT_ERR(__wt_config_gets(session, cfg, "file_extend", &cval));
 	/*
@@ -2664,9 +2670,14 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
 	conn->mmap = cval.val != 0;
 
-	WT_ERR(__wt_config_gets(session, cfg, "cache_cursors", &cval));
-	if (cval.val)
-		F_SET(conn, WT_CONN_CACHE_CURSORS);
+	WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
+	if (cval.val) {
+		if (F_ISSET(conn, WT_CONN_READONLY))
+			WT_ERR_MSG(session, EINVAL,
+			    "Readonly configuration incompatible with "
+			    "salvage.");
+		F_SET(conn, WT_CONN_SALVAGE);
+	}
 
 	WT_ERR(__wt_conn_statistics_config(session, cfg));
 	WT_ERR(__wt_lsm_manager_config(session, cfg));
@@ -2733,6 +2744,15 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 * DATABASE HOME, IT'S WHAT WE USE TO DECIDE IF WE'RE CREATING OR NOT.
 	 */
 	WT_ERR(__wt_turtle_init(session));
+
+	/*
+	 * If the user wants to salvage, do so before opening the
+	 * metadata cursor. We do this after the call to wt_turtle_init
+	 * because that moves metadata files around from backups and
+	 * would overwrite any salvage we did if done before that call.
+	 */
+	if (F_ISSET(conn, WT_CONN_SALVAGE))
+		WT_ERR(__wt_metadata_salvage(session));
 
 	WT_ERR(__wt_metadata_cursor(session, NULL));
 

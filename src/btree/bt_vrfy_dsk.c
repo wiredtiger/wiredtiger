@@ -34,7 +34,7 @@ static int __verify_dsk_row(
 #define	WT_RET_VRFY(session, ...) do {					\
 	if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)))		\
 		__wt_errx(session, __VA_ARGS__);			\
-	return (WT_ERROR);						\
+	return (WT_DATA_CORRUPTION);					\
 } while (0)
 
 /*
