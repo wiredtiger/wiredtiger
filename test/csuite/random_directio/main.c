@@ -31,19 +31,19 @@
  * runs only on Linux.
  *
  * Our strategy is to run a subordinate 'writer' process that creates/modifies
- * data, including schema modifications. Every N seconds, asynchronously,
- * we send a SIGSTOP to the writer and then copy (with direct IO) the entire
+ * data, including schema modifications. Every N seconds, asynchronously, we
+ * send a stop signal to the writer and then copy (with direct IO) the entire
  * contents of its database home to a new saved location where we can run and
- * verify the recovered home. Then we send a SIGCONT. We repeat this:
- *   sleep N, SIGSTOP, copy, run recovery, SIGCONT
+ * verify the recovered home. Then we send a continue signal. We repeat this:
+ *   sleep N, STOP, copy, run recovery, CONTINUE
  * which allows the writer to make continuing progress, while the main
  * process is verifying what's on disk.
  *
- * By using SIGSTOP and direct IO, we are roughly simulating a system crash,
- * by seeing what's actually on disk (not in file system buffer cache) at
- * the moment that the copy is made. It's not quite as harsh as a system crash,
- * as a SIGSTOP does not halt writes that are in-flight. Still, it's a
- * reasonable proxy for testing.
+ * By using stop signal to suspend the process and copying with direct IO,
+ * we are roughly simulating a system crash, by seeing what's actually on
+ * disk (not in file system buffer cache) at the moment that the copy is
+ * made. It's not quite as harsh as a system crash, as suspending does not
+ * halt writes that are in-flight. Still, it's a reasonable proxy for testing.
  */
 
 #include "test_util.h"
