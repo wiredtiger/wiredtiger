@@ -58,14 +58,18 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * inserting a new WT_INSERT/WT_UPDATE pair, it goes on the
 		 * append list, not the update list. Also, an out-of-band recno
 		 * implies an append operation, we're allocating a new row.
+		 * Ignore any information obtained from the search.
 		 */
 		WT_ASSERT(session, recno != WT_RECNO_OOB || cbt->compare != 0);
 		if (cbt->compare != 0 &&
 		    (recno == WT_RECNO_OOB ||
 		    recno > (btree->type == BTREE_COL_VAR ?
 		    __col_var_last_recno(cbt->ref) :
-		    __col_fix_last_recno(cbt->ref))))
+		    __col_fix_last_recno(cbt->ref)))) {
 			append = true;
+			cbt->ins = NULL;
+			cbt->ins_head = NULL;
+		}
 	}
 
 	/* We're going to modify the page, we should have loaded history. */
@@ -94,15 +98,20 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	 * the cell, and the performance is terrible. For that reason, catch it
 	 * here.
 	 */
-	if (cbt->compare != 0 && cbt->ins == NULL && cbt->ins_head != NULL) {
+	if (cbt->ins == NULL && cbt->ins_head != NULL) {
 		cbt->ins = __col_insert_search(
 		    cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
 		if (cbt->ins != NULL) {
 			if (WT_INSERT_RECNO(cbt->ins) == recno)
 				cbt->compare = 0;
 			else {
+				/*
+				 * The test below is for cursor.compare set to 0
+				 * and cursor.ins set: cursor.compare wasn't set
+				 * by the search we just did, and has an unknown
+				 * value. Clear cursor.ins to avoid the test.
+				 */
 				cbt->ins = NULL;
-				WT_ASSERT(session, cbt->compare != 0);
 			}
 		}
 	}
