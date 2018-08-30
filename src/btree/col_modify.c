@@ -50,24 +50,25 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 				modify_type = WT_UPDATE_STANDARD;
 				value = &col_fix_remove;
 			}
-		} else {
-			/*
-			 * There's a chance the application specified a record
-			 * past the last record on the page.  If that's the
-			 * case, and we're inserting a new WT_INSERT/WT_UPDATE
-			 * pair, it goes on the append list, not the update
-			 * list. Also, an out-of-band recno implies an append
-			 * operation, we're allocating a new row. Ignore any
-			 * information obtained from the search.
-			 */
-			if (recno == WT_RECNO_OOB ||
-			    recno > (btree->type == BTREE_COL_VAR ?
-			    __col_var_last_recno(cbt->ref) :
-			    __col_fix_last_recno(cbt->ref))) {
-				append = true;
-				cbt->ins = NULL;
-				cbt->ins_head = NULL;
-			}
+		}
+
+		/*
+		 * There's a chance the application specified a record past the
+		 * last record on the page. If that's the case and we're
+		 * inserting a new WT_INSERT/WT_UPDATE pair, it goes on the
+		 * append list, not the update list. Also, an out-of-band recno
+		 * implies an append operation, we're allocating a new row.
+		 * Ignore any information obtained from the search.
+		 */
+		WT_ASSERT(session, recno != WT_RECNO_OOB || cbt->compare != 0);
+		if (cbt->compare != 0 &&
+		    (recno == WT_RECNO_OOB ||
+		    recno > (btree->type == BTREE_COL_VAR ?
+		    __col_var_last_recno(cbt->ref) :
+		    __col_fix_last_recno(cbt->ref)))) {
+			append = true;
+			cbt->ins = NULL;
+			cbt->ins_head = NULL;
 		}
 	}
 
