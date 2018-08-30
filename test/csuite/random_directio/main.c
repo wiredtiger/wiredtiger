@@ -26,6 +26,26 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ * This test simulates system crashes. It uses direct IO, and currently
+ * runs only on Linux.
+ *
+ * Our strategy is to run a subordinate 'writer' process that creates/modifies
+ * data, including schema modifications. Every N seconds, asynchronously,
+ * we send a SIGSTOP to the writer and then copy (with direct IO) the entire
+ * contents of its database home to a new saved location where we can run and
+ * verify the recovered home. Then we send a SIGCONT. We repeat this:
+ *   sleep N, SIGSTOP, copy, run recovery, SIGCONT
+ * which allows the writer to make continuing progress, while the main
+ * process is verifying what's on disk.
+ *
+ * By using SIGSTOP and direct IO, we are roughly simulating a system crash,
+ * by seeing what's actually on disk (not in file system buffer cache) at
+ * the moment that the copy is made. It's not quite as harsh as a system crash,
+ * as a SIGSTOP does not halt writes that are in-flight. Still, it's a
+ * reasonable proxy for testing.
+ */
+
 #include "test_util.h"
 
 #include <sys/wait.h>
@@ -803,7 +823,7 @@ handler(int sig)
 		if (termsig == SIGCONT || termsig == SIGSTOP)
 			return;
 		printf("Child got signal %d (status = %d, 0x%x)\n",
-		    termsig, status, status);
+		    termsig, status, (unsigned int)status);
 #ifdef WCOREDUMP
 		if (WCOREDUMP(status))
 			printf("Child process id=%d created core file\n", pid);
@@ -879,7 +899,7 @@ main(int argc, char *argv[])
 			    datasize < MIN_DATA_SIZE) {
 				fprintf(stderr,
 				    "-d value is larger than maximum %"
-				    PRIu32 "\n",
+				    PRId32 "\n",
 				    LARGE_WRITE_SIZE);
 				exit (EXIT_FAILURE);
 			}
@@ -990,12 +1010,11 @@ main(int argc, char *argv[])
 		sleep_wait(timeout, pid);
 
 		/*
-		 * !!! It should be plenty long enough to make sure more than
-		 * one log file exists.  If wanted, that check would be added
-		 * here.
+		 * Begin our cycles of suspend, copy, recover.
 		 */
 		for (i = 0; i < ncycles; i++) {
-			printf("Beginning cycle %d/%d\n", i + 1, ncycles);
+			printf("Beginning cycle %" PRIu32 "/%" PRIu32 "\n",
+			    i + 1, ncycles);
 			if (i != 0)
 				sleep_wait(interval, pid);
 			printf("Suspend child\n");
