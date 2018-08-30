@@ -2361,7 +2361,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_DECL_RET;
 	const WT_NAME_FLAG *ft;
 	WT_SESSION_IMPL *session;
-	bool config_base_set;
+	bool config_base_set, try_salvage;
 	const char *enc_cfg[] = { NULL, NULL }, *merge_cfg;
 	char version[64];
 
@@ -2374,6 +2374,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	conn = NULL;
 	session = NULL;
 	merge_cfg = NULL;
+	try_salvage = false;
 
 	WT_RET(__wt_library_init());
 
@@ -2786,14 +2787,23 @@ err:	/* Discard the scratch buffers. */
 		if (ret == WT_RUN_RECOVERY)
 			F_SET(conn, WT_CONN_PANIC);
 		/*
-		 * If we detected a data corruption issue, the system is
-		 * returning WT_PANIC, but we really want to indicate the
-		 * corruption instead. We cannot use standard return macros
-		 * because we don't want to generalize this.
+		 * If we detected a data corruption issue, we really want to
+		 * indicate the corruption instead of whatever error was set.
+		 * We cannot use standard return macros because we don't want
+		 * to generalize this. Record it here while we have the
+		 * connectionand set it after we destroy the connection.
 		 */
-		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) && ret == WT_PANIC)
-			ret = WT_TRY_SALVAGE;
+		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) &&
+		    ret != WT_RUN_RECOVERY)
+			try_salvage = true;
 		WT_TRET(__wt_connection_close(conn));
+		/*
+		 * Depending on the error, shutting down the connection may
+		 * again return WT_PANIC. So if we translated the error above
+		 * do it again in case it was overwritten.
+		 */
+		if (try_salvage)
+			ret = WT_TRY_SALVAGE;
 	}
 
 	return (ret);
