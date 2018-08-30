@@ -2794,7 +2794,7 @@ err:	/* Discard the scratch buffers. */
 		 * connection and set it after we destroy the connection.
 		 */
 		if (F_ISSET(conn, WT_CONN_DATA_CORRUPTION) &&
-		    ret != WT_RUN_RECOVERY)
+		    (ret == WT_PANIC || ret == WT_ERROR))
 			try_salvage = true;
 		WT_TRET(__wt_connection_close(conn));
 		/*
