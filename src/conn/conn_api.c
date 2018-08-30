@@ -2799,8 +2799,8 @@ err:	/* Discard the scratch buffers. */
 		WT_TRET(__wt_connection_close(conn));
 		/*
 		 * Depending on the error, shutting down the connection may
-		 * again return WT_PANIC. So if we translated the error above
-		 * do it again in case it was overwritten.
+		 * again return WT_PANIC. So if we detected the corruption
+		 * above, set it here after closing.
 		 */
 		if (try_salvage)
 			ret = WT_TRY_SALVAGE;
