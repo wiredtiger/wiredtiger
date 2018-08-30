@@ -834,6 +834,7 @@ retry:	WT_ERR(__cursor_func_init(cbt, true));
 		 * serialized append operation.
 		 */
 		cbt->iface.recno = WT_RECNO_OOB;
+		cbt->compare = 1;
 		WT_ERR(__cursor_col_search(session, cbt, NULL));
 		WT_ERR(__cursor_col_modify(session, cbt, WT_UPDATE_STANDARD));
 		cursor->recno = cbt->recno;
