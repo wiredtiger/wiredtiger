@@ -119,7 +119,7 @@ lz4_error(
 
 	(void)wt_api->err_printf(wt_api,
 	    session, "lz4 error: %s: %d", call, error);
-	return (WT_DATA_CORRUPTION);
+	return (WT_ERROR);
 }
 
 /*
@@ -195,7 +195,7 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		    session,
 		    "WT_COMPRESSOR.decompress: stored size exceeds source "
 		    "size");
-		return (WT_DATA_CORRUPTION);
+		return (WT_ERROR);
 	}
 
 	/*

@@ -42,7 +42,6 @@
 #define	APP_BUF_SIZE	(3 * 1024)
 #define	APP_STR		"long app metadata. "
 
-static bool saw_corruption = false;
 static bool test_abort = false;
 
 static int
@@ -50,10 +49,6 @@ handle_message(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *message)
 {
 	(void)(handler);
-
-	/* Skip the error messages we're expecting to see. */
-	if ((strstr(message, "database corruption detected") != NULL))
-		saw_corruption = true;
 
 	(void)fprintf(stderr, "%s: %s\n",
 	    message, session->strerror(session, error));
@@ -323,20 +318,32 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	}
 }
 
+/*
+ * wt_open_corrupt --
+ *	This function is run in a child process because when the corruption
+ *	is detected the connection panics. On some configurations that
+ *	causes a core dump. On other configurations we can check the return
+ *	values. If the user has enabled attaching, skip this call because
+ *	then it will hang.
+ */
 static void wt_open_corrupt(const char *)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 wt_open_corrupt(const char *home)
-
 {
 	WT_CONNECTION *conn;
 	int ret;
 
 	conn = NULL;
+#ifdef HAVE_ATTACH
+	WT_UNUSED(conn);
+	WT_UNUSED(home);
+	WT_UNUSED(ret);
+#else
 	ret = wiredtiger_open(home, &event_handler, NULL, &conn);
 	testutil_assert(conn == NULL);
-	testutil_assert(ret == WT_PANIC);
-	testutil_assert(saw_corruption == true);
+	testutil_assert(ret == WT_TRY_SALVAGE);
+#endif
 	exit (EXIT_SUCCESS);
 }
 

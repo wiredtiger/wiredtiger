@@ -280,7 +280,7 @@ __win_file_read(WT_FILE_HANDLE *file_handle,
 			windows_error = __wt_getlasterror();
 			ret = __wt_map_windows_error(windows_error);
 			if (ret == WT_ERROR)
-				ret = WT_DATA_CORRUPTION;
+				F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
 			__wt_err(session, ret,
 			    "%s: handle-read: ReadFile: failed to read %lu "
 			    "bytes at offset %" PRIuMAX ": %s",

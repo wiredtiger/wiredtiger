@@ -95,7 +95,7 @@ zstd_error(WT_COMPRESSOR *compressor,
 
 	(void)wt_api->err_printf(wt_api, session,
 	    "zstd error: %s: %s", call, ZSTD_getErrorName(error));
-	return (WT_DATA_CORRUPTION);
+	return (WT_ERROR);
 }
 
 /*
@@ -177,7 +177,7 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		    session,
 		    "WT_COMPRESSOR.decompress: stored size exceeds source "
 		    "size");
-		return (WT_DATA_CORRUPTION);
+		return (WT_ERROR);
 	}
 
 	zstd_ret =

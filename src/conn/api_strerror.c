@@ -40,8 +40,8 @@ __wt_wiredtiger_error(int error)
 		return ("WT_CACHE_FULL: operation would overflow cache");
 	case WT_PREPARE_CONFLICT:
 		return ("WT_PREPARE_CONFLICT: conflict with a prepared update");
-	case WT_DATA_CORRUPTION:
-		return ("WT_DATA_CORRUPTION: database corruption detected");
+	case WT_TRY_SALVAGE:
+		return ("WT_TRY_SALVAGE: database corruption detected");
 	}
 
 	/* Windows strerror doesn't support ENOTSUP. */
