@@ -989,22 +989,32 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 #else
 	wt_timestamp_t *val_ts;
 #endif
-	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
-	uint64_t las_counter, las_txnid;
+	uint64_t cnt, obsolete_cnt, remove_cnt, saved_pageid, visit_cnt;
+	uint64_t las_counter, las_pageid, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
 	int notused;
 	bool local_txn, locked;
+#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
+	uint64_t prev_txnid;
+	WT_DECL_TIMESTAMP(prev_ts);
+#endif
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
 	sweep_key = &cache->las_sweep_key;
 	remove_cnt = 0;
+	obsolete_cnt = 0;		/* [-Werror=maybe-uninitialized] */
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	local_txn = locked = false;
 
 	WT_RET(__wt_scr_alloc(session, 0, &saved_key));
 	saved_pageid = 0;
+
+#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
+	prev_txnid = WT_TXN_NONE;
+	__wt_timestamp_set_zero(&prev_ts);
+#endif
 
 	/*
 	 * Prevent other threads removing entries from underneath the sweep.
@@ -1058,6 +1068,13 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
+		__wt_verbose(session,
+		    WT_VERB_LOOKASIDE_ACTIVITY,
+		    "Sweep reviewing lookaside entry with lookaside "
+		    "page ID %" PRIu64 " btree ID %" PRIu32
+		    " saved key size: %zu",
+		    las_pageid, las_id, saved_key->size);
+
 		/*
 		 * If we have switched to a different page, clear the saved key.
 		 * Otherwise, sweep could incorrectly remove records after
@@ -1108,12 +1125,12 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			continue;
 		}
 
+		WT_ERR(cursor->get_value(cursor, &las_txnid,
+		    &las_timestamp, &prepare_state, &upd_type, &las_value));
 		/*
 		 * Remove entries from the lookaside that have aged out and are
 		 * now no longer needed.
 		 */
-		WT_ERR(cursor->get_value(cursor, &las_txnid,
-		    &las_timestamp, &prepare_state, &upd_type, &las_value));
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
@@ -1135,8 +1152,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		}
 
 		/*
-		 * Save our key for comparing with older entries if we
-		 * don't have one or it is different.
+		 * Check to see if the key has changed this iteration, and
+		 * if it has remember it and setup context for safely
+		 * removing obsolete updates.
 		 */
 		if (saved_key->size != las_key.size ||
 		    memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
@@ -1144,23 +1162,47 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			if (cnt == 0)
 				break;
 
-			/* We can only start removing from a full value. */
-			if (upd_type == WT_UPDATE_MODIFY) {
-				saved_key->size = 0;
-				continue;
-			}
-
+			obsolete_cnt = 0;
 			WT_ERR(__wt_buf_set(session, saved_key,
 			    las_key.data, las_key.size));
-
-			/*
-			 * If the first stable record contains data, we have to
-			 * keep it.
-			 */
-			if (upd_type != WT_UPDATE_BIRTHMARK)
-				continue;
+#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
+			prev_txnid = las_txnid;
+			__wt_timestamp_set(&prev_ts, val_ts);
+#endif
 		}
 
+		/*
+		 * The chain always needs to terminate in a full value start
+		 * removing from before the entry before that in the chain.
+		 * TODO: This means sweep won't remove updates where the full
+		 * record is written to a page in the database.
+		 */
+		if (obsolete_cnt == 0 && (upd_type == WT_UPDATE_MODIFY ||
+		    upd_type == WT_UPDATE_BIRTHMARK))
+			continue;
+
+		/*
+		 * The first complete visible update needs to be kept, but
+		 * others can be removed.
+		 */
+		if (++obsolete_cnt == 1)
+			continue;
+
+#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
+		/* Enforce that we are seeing updates in the expected order */
+		WT_ASSERT(session, WT_TXNID_LE(las_txnid, prev_txnid) &&
+		    (__wt_timestamp_iszero(&prev_ts) ||
+		    __wt_timestamp_cmp(val_ts, &prev_ts) <= 0));
+		__wt_timestamp_set(&prev_ts, val_ts);
+		prev_txnid = las_txnid;
+#endif
+
+		__wt_verbose(session,
+		    WT_VERB_LOOKASIDE_ACTIVITY,
+		    "Sweep removing lookaside entry with "
+		    "page ID %" PRIu64 " btree ID %" PRIu32
+		    " saved key size: %zu, record type: %" PRIu8,
+		    las_pageid, las_id, saved_key->size, upd_type);
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}
