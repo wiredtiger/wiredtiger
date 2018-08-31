@@ -331,7 +331,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 #else
 	WT_UNUSED(btree);
 	WT_UNUSED(cbt);
-	WT_UNUSED(item);
 #endif
 	op->u.op_upd = upd;
 	upd->txnid = session->txn.id;
