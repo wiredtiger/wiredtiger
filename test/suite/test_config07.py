@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 #    Test that log files extend as configured and as documented.
 class test_config07(wttest.WiredTigerTestCase):
     uri = "table:test"
-    entries = 100000
+    entries = 5000
     K = 1024
     log_size = K * K
 
@@ -60,7 +60,9 @@ class test_config07(wttest.WiredTigerTestCase):
     def populate(self):
         cur = self.session.open_cursor(self.uri, None, None)
         for i in range(0, self.entries):
-            cur[i] = i
+            # Make the values about 200 bytes - that about 1MB of data for
+            # 5000 records; sufficient to generate enough log files.
+            cur[i] = "abcde" * 40
         cur.close()
 
     def checkLogFileSize(self, size):
@@ -93,7 +95,7 @@ class test_config07(wttest.WiredTigerTestCase):
         self.session = self.conn.open_session(None)
 
         # Create a table, insert data in it to trigger log file writes.
-        self.session.create(self.uri, 'key_format=i,value_format=i')
+        self.session.create(self.uri, 'key_format=i,value_format=S')
         self.populate()
         self.session.checkpoint()
 
