@@ -264,8 +264,8 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
 		    NULL : &op->u.ref->page_del->timestamp;
 	else
-		timestamp = op->u.single_op.upd == NULL ?
-		    NULL : &op->u.single_op.upd->timestamp;
+		timestamp = op->u.op_upd == NULL ?
+		    NULL : &op->u.op_upd->timestamp;
 
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
@@ -287,7 +287,6 @@ static inline int
 __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
 	WT_BTREE *btree;
-	WT_ITEM *item;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
@@ -310,23 +309,23 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		 * be prepared.
 		 */
 		if (!WT_SESSION_IS_CHECKPOINT(session) &&
-		    !F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
+		    !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
+		    !WT_IS_METADATA(op->dhandle)) {
 			/*
-			 * Store the key, to search the update incase of
-			 * prepared transaction.
+			 * Store the key, to search the prepared update in case
+			 * of prepared transaction.
 			 */
 			if (btree->type == BTREE_ROW) {
-				item = &op->u.single_op.key.row_key;
-				WT_CLEAR(*item);
-				WT_RET(__wt_cursor_get_raw_key(
-				    &cbt->iface, item));
-				WT_RET(__wt_buf_set(session,
-				    item, item->data, item->size));
+				WT_ITEM key;
+				WT_RET(__wt_cursor_get_raw_key(&cbt->iface,
+				    &key));
+				WT_RET(__wt_buf_set(session, &op->u.op_row.key,
+				    key.data, key.size));
 				op->type = F_ISSET(session,
 				    WT_SESSION_LOGGING_INMEM) ?
 				    WT_TXN_OP_INMEM_ROW : WT_TXN_OP_BASIC_ROW;
 			} else
-				op->u.single_op.key.recno = cbt->recno;
+				op->u.op_col.recno = cbt->recno;
 		}
 	}
 #else
@@ -334,7 +333,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	WT_UNUSED(cbt);
 	WT_UNUSED(item);
 #endif
-	op->u.single_op.upd = upd;
+	op->u.op_upd = upd;
 	upd->txnid = session->txn.id;
 	return (0);
 }

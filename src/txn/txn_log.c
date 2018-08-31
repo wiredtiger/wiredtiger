@@ -76,7 +76,8 @@ __txn_op_log(WT_SESSION_IMPL *session,
 	cursor = &cbt->iface;
 
 	fileid = ((WT_BTREE *)op->dhandle->handle)->id;
-	upd = op->u.single_op.upd;
+
+	upd = op->u.op_upd;
 	value.data = upd->data;
 	value.size = upd->size;
 
@@ -175,7 +176,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
 	case WT_TXN_OP_BASIC_ROW:
 	case WT_TXN_OP_INMEM_ROW:
-		__wt_buf_free(session, &op->u.single_op.key.row_key);
+		__wt_buf_free(session, &op->u.op_row.key);
 		break;
 
 	case WT_TXN_OP_TRUNCATE_ROW:

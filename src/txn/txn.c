@@ -625,7 +625,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
 			 */
-			upd = op->u.single_op.upd->next;
+			upd = op->u.op_upd->next;
 			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
 			    upd->txnid == txn->id))
 				upd = upd->next;
@@ -657,7 +657,8 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 */
 			if (op_zero_ts)
 				continue;
-			op_timestamp = op->u.single_op.upd->timestamp;
+
+			op_timestamp = op->u.op_upd->timestamp;
 			/*
 			 * Only if the update structure doesn't have a timestamp
 			 * then use the one in the transaction structure.
@@ -827,7 +828,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM:
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_ROW:
-			upd = op->u.single_op.upd;
+			upd = op->u.op_upd;
 
 			/*
 			 * Switch reserved operations to abort to
@@ -1092,7 +1093,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		if (WT_IS_METADATA(op->dhandle))
 			continue;
 
-		upd = op->u.single_op.upd;
+		upd = op->u.op_upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
@@ -1188,7 +1189,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		if (WT_IS_METADATA(op->dhandle))
 			continue;
 
-		upd = op->u.single_op.upd;
+		upd = op->u.op_upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
