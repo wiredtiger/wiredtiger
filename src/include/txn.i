@@ -194,6 +194,51 @@ __wt_timestamp_subone(wt_timestamp_t *ts)
 #endif /* HAVE_TIMESTAMPS */
 
 /*
+ * __txn_op_resolve --
+ *      Resolve a transaction operation indirect references.
+ */
+static inline int
+__txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+{
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_UPDATE *upd;
+	const char *open_cursor_cfg[] = {
+	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
+
+	if (WT_SESSION_IS_CHECKPOINT(session) ||
+	    F_ISSET(op->btree, WT_BTREE_LOOKASIDE) ||
+	    WT_IS_METADATA(op->btree->dhandle))
+		return (ret);
+
+	switch (op->type) {
+	case WT_TXN_OP_NONE:
+		break;
+	case WT_TXN_OP_BASIC_COL:
+	case WT_TXN_OP_INMEM_COL:
+		break;
+	case WT_TXN_OP_BASIC_ROW:
+	case WT_TXN_OP_INMEM_ROW:
+		WT_WITH_BTREE(session, op->btree,
+		    ret = __wt_open_cursor(session, op->btree->dhandle->name,
+		    NULL, open_cursor_cfg, &cursor));
+		WT_ERR(ret);
+		__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
+		WT_WITH_BTREE(session, op->btree,
+		    ret = __wt_btcur_search_uncommitted(
+		    (WT_CURSOR_BTREE *)cursor, &upd));
+		WT_ERR(ret);
+		WT_ASSERT(session, upd == op->u.op_upd);
+	break;
+	case WT_TXN_OP_REF_DELETE:
+	case WT_TXN_OP_TRUNCATE_COL:
+	case WT_TXN_OP_TRUNCATE_ROW:
+		break;
+	}
+err:    return (ret);
+}
+
+/*
  * __txn_next_op --
  *	Mark a WT_UPDATE object modified by the current transaction.
  */

@@ -471,6 +471,39 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 }
 
 /*
+ * __wt_btcur_search_uncommitted --
+ *	Search for a matching record in the tree.
+ */
+int
+__wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
+{
+	WT_BTREE *btree;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	WT_UPDATE *upd;
+	bool valid;
+
+	btree = cbt->btree;
+	cursor = &cbt->iface;
+	session = (WT_SESSION_IMPL *)cursor->session;
+	upd = NULL;					/* -Wuninitialized */
+
+	WT_ERR(__cursor_func_init(cbt, true));
+
+	WT_ERR(btree->type == BTREE_ROW ?
+	    __cursor_row_search(session, cbt, NULL, false) :
+	    __cursor_col_search(session, cbt, NULL));
+
+	/* Return, if prepare conflict encountered. */
+	if (cbt->compare == 0)
+		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
+
+	*updp = upd;
+err:	return (ret);
+}
+
+/*
  * __wt_btcur_search --
  *	Search for a matching record in the tree.
  */

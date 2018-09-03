@@ -828,6 +828,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
+#ifdef HAVE_TIMESTAMPS
+			WT_ERR(__txn_op_resolve(session, op));
+#endif
 			upd = op->u.op_upd;
 
 			/*
@@ -1197,6 +1200,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
+#ifdef HAVE_TIMESTAMPS
+			WT_RET(__txn_op_resolve(session, op));
+#endif
 			WT_ASSERT(session,
 			    upd->txnid == txn->id ||
 			    upd->txnid == WT_TXN_ABORTED);
