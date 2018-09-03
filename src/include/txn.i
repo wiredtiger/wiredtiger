@@ -218,8 +218,8 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 
 	*opp = &txn->mod[txn->mod_count++];
 	WT_CLEAR(**opp);
-	(*opp)->dhandle = session->dhandle;
-	(void)__wt_atomic_addi32(&(*opp)->dhandle->session_inuse, 1);
+	(*opp)->btree = (WT_BTREE *)session->dhandle->handle;
+	(void)__wt_atomic_addi32(&(*opp)->btree->dhandle->session_inuse, 1);
 	return (0);
 }
 
@@ -272,7 +272,7 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	 * commit): metadata cannot be read at a point in time, only the most
 	 * recently committed data matches files on disk.
 	 */
-	return (!WT_IS_METADATA(op->dhandle) &&
+	return (!WT_IS_METADATA(op->btree->dhandle) &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
 	    F_ISSET(txn, WT_TXN_PREPARE)));
@@ -299,7 +299,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 
 	WT_RET(__txn_next_op(session, &op));
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
-	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
+	    WT_TXN_OP_INMEM_COL : WT_TXN_OP_BASIC_COL;
 #ifdef HAVE_TIMESTAMPS
 	if (__wt_txn_update_needs_timestamp(session, op)) {
 		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
@@ -310,7 +310,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		 */
 		if (!WT_SESSION_IS_CHECKPOINT(session) &&
 		    !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-		    !WT_IS_METADATA(op->dhandle)) {
+		    !WT_IS_METADATA(op->btree->dhandle)) {
 			/*
 			 * Store the key, to search the prepared update in case
 			 * of prepared transaction.

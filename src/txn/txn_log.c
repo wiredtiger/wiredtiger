@@ -75,7 +75,7 @@ __txn_op_log(WT_SESSION_IMPL *session,
 
 	cursor = &cbt->iface;
 
-	fileid = ((WT_BTREE *)op->dhandle->handle)->id;
+	fileid = op->btree->id;
 
 	upd = op->u.op_upd;
 	value.data = upd->data;
@@ -168,8 +168,8 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	switch (op->type) {
 	case WT_TXN_OP_NONE:
-	case WT_TXN_OP_BASIC:
-	case WT_TXN_OP_INMEM:
+	case WT_TXN_OP_BASIC_COL:
+	case WT_TXN_OP_INMEM_COL:
 	case WT_TXN_OP_REF_DELETE:
 	case WT_TXN_OP_TRUNCATE_COL:
 		break;
@@ -184,7 +184,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		__wt_buf_free(session, &op->u.truncate_row.stop);
 		break;
 	}
-	(void)__wt_atomic_subi32(&op->dhandle->session_inuse, 1);
+	(void)__wt_atomic_subi32(&op->btree->dhandle->session_inuse, 1);
 }
 
 /*
@@ -251,19 +251,19 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	WT_ASSERT(session, txn->mod_count > 0);
 	op = txn->mod + txn->mod_count - 1;
-	fileid = ((WT_BTREE *)op->dhandle->handle)->id;
+	fileid = op->btree->id;
 
 	WT_RET(__txn_logrec_init(session));
 	logrec = txn->logrec;
 
 	switch (op->type) {
 	case WT_TXN_OP_NONE:
-	case WT_TXN_OP_INMEM:
+	case WT_TXN_OP_INMEM_COL:
 	case WT_TXN_OP_INMEM_ROW:
 	case WT_TXN_OP_REF_DELETE:
 		/* Nothing to log, we're done. */
 		break;
-	case WT_TXN_OP_BASIC:
+	case WT_TXN_OP_BASIC_COL:
 	case WT_TXN_OP_BASIC_ROW:
 		ret = __txn_op_log(session, logrec, op, cbt);
 		break;

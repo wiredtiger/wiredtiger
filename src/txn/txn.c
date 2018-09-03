@@ -619,7 +619,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC ||
+		if (op->type == WT_TXN_OP_BASIC_COL ||
 		    op->type == WT_TXN_OP_BASIC_ROW) {
 			/*
 			 * Skip over any aborted update structures or ones
@@ -819,14 +819,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-		fileid = ((WT_BTREE *)op->dhandle->handle)->id;
+		fileid = op->btree->id;
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
 
-		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
 			upd = op->u.op_upd;
 
@@ -1086,11 +1086,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
-		    ((WT_BTREE *)op->dhandle->handle)->id !=
-		    S2C(session)->cache->las_fileid);
+		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
 		/* Metadata updates are never prepared. */
-		if (WT_IS_METADATA(op->dhandle))
+		if (WT_IS_METADATA(op->btree->dhandle))
 			continue;
 
 		upd = op->u.op_upd;
@@ -1098,9 +1097,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
-		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
 			/*
 			 * Switch reserved operation to abort to simplify
@@ -1182,11 +1181,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
-		    ((WT_BTREE *)op->dhandle->handle)->id !=
-		    S2C(session)->cache->las_fileid);
+		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
 		/* Metadata updates are never rolled back. */
-		if (WT_IS_METADATA(op->dhandle))
+		if (WT_IS_METADATA(op->btree->dhandle))
 			continue;
 
 		upd = op->u.op_upd;
@@ -1195,9 +1193,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_NONE:
 			break;
 
-		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
 			WT_ASSERT(session,
 			    upd->txnid == txn->id ||
