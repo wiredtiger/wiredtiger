@@ -143,21 +143,9 @@
  * return WT_NOTFOUND.
  */
 #define	API_END_RET(s, ret)						\
-	/*								\
-	 * Convert WT_DATA_CORRUPTION to WT_ERROR so APIs		\
-	 * don't have to change error handling.				\
-	 */								\
-	if ((ret) == WT_DATA_CORRUPTION)				\
-		(ret) = WT_ERROR;					\
 	API_END(s, ret);						\
 	return (ret)
 #define	API_END_RET_NOTFOUND_MAP(s, ret)				\
-	/*								\
-	 * Convert WT_DATA_CORRUPTION to WT_ERROR so APIs		\
-	 * don't have to change error handling.				\
-	 */								\
-	if ((ret) == WT_DATA_CORRUPTION)				\
-		(ret) = WT_ERROR;					\
 	API_END(s, ret);						\
 	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
@@ -167,12 +155,6 @@
  * method is about to return WT_NOTFOUND map it to ENOENT.
  */
 #define	API_END_RET_NO_TXN_ERROR(s, ret)				\
-	/*								\
-	 * Convert WT_DATA_CORRUPTION to WT_ERROR so APIs		\
-	 * don't have to change error handling.				\
-	 */								\
-	if ((ret) == WT_DATA_CORRUPTION)				\
-		(ret) = WT_ERROR;					\
 	API_END(s, 0);							\
 	return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 

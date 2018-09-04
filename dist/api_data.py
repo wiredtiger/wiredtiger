@@ -889,7 +889,7 @@ wiredtiger_open_common =\
     Config('salvage', 'false', r'''
         open connection and salvage any WiredTiger-owned database and log
         files that it detects as corrupted. This API should only be used
-        after getting an error return of WT_DATA_CORRUPTION.
+        after getting an error return of WT_TRY_SALVAGE.
         Salvage rebuilds files in place, overwriting existing files.
         We recommend making a backup copy of all files with the
         WiredTiger prefix prior to passing this flag.''',
@@ -1453,12 +1453,14 @@ methods = {
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
         \c oldest returns the most recent \c oldest_timestamp set with
-        WT_CONNECTION::set_timestamp, \c pinned returns the minimum of the
-        \c oldest_timestamp and the read timestamps of all active readers, and
-        \c stable returns the most recent \c stable_timestamp set with
-        WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps''',
+        WT_CONNECTION::set_timestamp, \c oldest_reader returns the
+        minimum of the read timestamps of all active readers \c pinned returns
+        the minimum of the\c oldest_timestamp and the read timestamps of all
+        active readers, and \c stable returns the most recent
+        \c stable_timestamp set with WT_CONNECTION::set_timestamp. See
+        @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
-            'oldest','pinned','recovery','stable']),
+            'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

@@ -78,7 +78,7 @@ zlib_error(
 
 	(void)wt_api->err_printf(wt_api, session,
 	    "zlib error: %s: %s: %d", call, zError(error), error);
-	return (WT_DATA_CORRUPTION);
+	return (WT_ERROR);
 }
 
 /*
@@ -411,7 +411,7 @@ err:	if ((tret = deflateEnd(zs)) != Z_OK && tret != Z_DATA_ERROR)
 				(void)wt_api->err_printf(wt_api, session,
 				    "zlib_compress_raw: "
 				    "deflate compare with original source");
-				return (WT_DATA_CORRUPTION);
+				return (WT_ERROR);
 			}
 		zfree(&opaque, decomp);
 	}
