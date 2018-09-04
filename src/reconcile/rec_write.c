@@ -1352,11 +1352,14 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			   !__txn_visible_id(session, txnid))
 			       uncommitted = r->update_uncommitted = true;
 
-		       // TODO:
-		       // The following portion of code under ifdef is there
-		       // to disable lookaside eviction of the prepared updates
-		       // temporarily. Once we have all the pieces put together
-		       // to enable the feature, remove this temporary code.
+		       /*
+			* TODO:
+			* The following portion of code under #ifdef is there
+			* to temporarily disable lookaside eviction of the
+			* prepared updates. Once we have all the pieces put
+			* together to enable the feature, remove this temporary
+			* code.
+			*/
 #define	DISABLE_LOOKASIDE_FOR_PREPARED
 #ifdef DISABLE_LOOKASIDE_FOR_PREPARED
 		       if (prepared) {

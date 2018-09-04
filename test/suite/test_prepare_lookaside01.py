@@ -46,19 +46,18 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
         # updates.
         #
         # Follow this by updating a number of records in prepared transactions
-        # under mulitple sessions. We'll hang if lookaside table isn't doing its
+        # under multiple sessions. We'll hang if lookaside table isn't doing its
         # thing. If we do all updates in a single session, then hang will be due
         # to uncommitted updates, instead of prepared updates.
         #
-        # Do another set of updates in that many trasanctions. This forces the
+        # Do another set of updates in that many transactions. This forces the
         # pages that have been evicted to lookaside to be re-read and brought in
         # memory. Hence testing if we can read prepared updates from lookaside.
-        #
 
         # Start with setting a stable timestamp to pin history in cache
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
 
-        # Commit some updates to get eviction and lookaside going
+        # Commit some updates to get eviction and lookaside fired up
         bigvalue1 = "bbbbb" * 100
         cursor = self.session.open_cursor(uri)
         for i in range(1, nsessions * nkeys):
