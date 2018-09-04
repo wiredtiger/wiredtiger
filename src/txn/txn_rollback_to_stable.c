@@ -20,6 +20,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_DECL_TIMESTAMP(rollback_timestamp)
+	WT_DECL_TIMESTAMP(upd_timestamp)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_TXN_GLOBAL *txn_global;
 	uint64_t las_counter, las_pageid, las_total, las_txnid;
@@ -65,6 +66,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
+		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		memcpy(&upd_timestamp, las_timestamp.data, las_timestamp.size);
 
 		/*
 		 * Entries with no timestamp will have a timestamp of zero,
@@ -72,7 +75,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		 * be removed.
 		 */
 		if (__wt_timestamp_cmp(
-		    &rollback_timestamp, las_timestamp.data) < 0) {
+		    &rollback_timestamp, &upd_timestamp) < 0) {
 			WT_ERR(cursor->remove(cursor));
 			WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
 			--las_total;
@@ -98,31 +101,38 @@ err:	if (ret == 0) {
  */
 static void
 __txn_abort_newer_update(WT_SESSION_IMPL *session,
-    WT_UPDATE *upd, wt_timestamp_t *rollback_timestamp)
+    WT_UPDATE *first_upd, wt_timestamp_t *rollback_timestamp)
 {
-	WT_UPDATE *next_upd;
-	bool aborted_one;
+	WT_UPDATE *upd;
+	bool skip_zero_timestamps;
 
-	aborted_one = false;
-	for (next_upd = upd; next_upd != NULL; next_upd = next_upd->next) {
+	skip_zero_timestamps = !FLD_ISSET(S2BT(session)->assert_flags,
+	    WT_ASSERT_COMMIT_TS_ALWAYS | WT_ASSERT_COMMIT_TS_KEYS);
+
+	for (upd = first_upd; upd != NULL; upd = upd->next) {
 		/*
-		 * Updates with no timestamp will have a timestamp of zero
-		 * which will fail the following check and cause them to never
-		 * be aborted.
+		 * Updates with no timestamp will have a timestamp of zero and
+		 * will never be rolled back.  If the table is configured for
+		 * strict timestamp checking, assert that all more recent
+		 * updates were also rolled back.
 		 */
-		if (__wt_timestamp_cmp(
-		    rollback_timestamp, &next_upd->timestamp) < 0) {
-			next_upd->txnid = WT_TXN_ABORTED;
+		if (upd->txnid == WT_TXN_ABORTED && upd == first_upd)
+			first_upd = upd->next;
+		else if (__wt_timestamp_iszero(&upd->timestamp)) {
+			if (skip_zero_timestamps && upd == first_upd)
+				first_upd = upd->next;
+		} else if (__wt_timestamp_cmp(
+		    rollback_timestamp, &upd->timestamp) < 0) {
+			upd->txnid = WT_TXN_ABORTED;
 			WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
-			__wt_timestamp_set_zero(&next_upd->timestamp);
+			__wt_timestamp_set_zero(&upd->timestamp);
 
 			/*
 			 * If any updates are aborted, all newer updates
 			 * better be aborted as well.
 			 */
-			if (!aborted_one)
-				WT_ASSERT(session, upd == next_upd);
-			aborted_one = true;
+			WT_ASSERT(session, upd == first_upd);
+			first_upd = upd->next;
 		}
 	}
 }

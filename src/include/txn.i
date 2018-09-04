@@ -201,6 +201,7 @@ static inline int
 __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
 
 	*opp = NULL;
 
@@ -216,9 +217,11 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 	WT_RET(__wt_realloc_def(session, &txn->mod_alloc,
 	    txn->mod_count + 1, &txn->mod));
 
-	*opp = &txn->mod[txn->mod_count++];
-	WT_CLEAR(**opp);
-	(*opp)->fileid = S2BT(session)->id;
+	op = &txn->mod[txn->mod_count++];
+	WT_CLEAR(*op);
+	op->btree = S2BT(session);
+	(void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+	*opp = op;
 	return (0);
 }
 
@@ -257,7 +260,7 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
         bool needs_timestamp;
 
 	txn = &session->txn;
-        upd = op->u.upd;
+        upd = op->u.op_upd;
         if (was_set != NULL)
                 *was_set = false;
 
@@ -269,14 +272,15 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
 		    NULL : &op->u.ref->page_del->timestamp;
 	else
-		timestamp = op->u.upd == NULL ? NULL : &op->u.upd->timestamp;
+		timestamp = op->u.op_upd == NULL ?
+		    NULL : &op->u.op_upd->timestamp;
 
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
 	 * commit): metadata cannot be read at a point in time, only the most
 	 * recently committed data matches files on disk.
 	 */
-	needs_timestamp = op->fileid != WT_METAFILE_ID &&
+	needs_timestamp = !WT_IS_METADATA(op->btree->dhandle) &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
 	    F_ISSET(txn, WT_TXN_PREPARE));
@@ -309,7 +313,7 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
         /* TODO: After we have a btree in the txn op we can do this:
         if (F_ISSET(S2BT(session)>assert_flags, WT_ASSERT_COMMIT_TS_ORDERED) {
         */
-        for (prev_upd = op->u.upd->next;
+        for (prev_upd = op->u.op_upd->next;
             prev_upd != NULL && __wt_timestamp_iszero(&prev_upd->timestamp);
             prev_upd = prev_upd->next) {}
         if (op->type != WT_TXN_OP_REF_DELETE && prev_upd != NULL) {
@@ -329,11 +333,14 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
  *	Mark a WT_UPDATE object modified by the current transaction.
  */
 static inline int
-__wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+	WT_BTREE *btree;
+        WT_ITEM key;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
+	btree = S2BT(session);
 	txn = &session->txn;
 
 	if (F_ISSET(txn, WT_TXN_READONLY))
@@ -341,12 +348,48 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		    "Attempt to update in a read-only transaction");
 
 	WT_RET(__txn_next_op(session, &op));
-	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
-	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
-	op->u.upd = upd;
+        if (F_ISSET(session, WT_SESSION_LOGGING_INMEM)) {
+                if (btree->type == BTREE_ROW)
+                        op->type = WT_TXN_OP_INMEM_ROW;
+                else
+                        op->type = WT_TXN_OP_INMEM_COL;
+        } else {
+                if (btree->type == BTREE_ROW)
+                        op->type = WT_TXN_OP_BASIC_ROW;
+                else
+                        op->type = WT_TXN_OP_BASIC_COL;
+        }
+	op->u.op_upd = upd;
 	upd->txnid = session->txn.id;
+
 #ifdef HAVE_TIMESTAMPS
 	__wt_txn_update_set_timestamp(session, op, false, NULL);
+        /*
+         * Copy the key into the transaction op structure, so the update
+         * can be evicted to lookaside, and we have a chance of finding it
+         * again. This is only possible for transactions that are in the
+         * prepared state, but we don't know at this stage if a transaction
+         * will be prepared or not.
+         */
+        if (!WT_SESSION_IS_CHECKPOINT(session) &&
+            !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
+            !WT_IS_METADATA(op->btree->dhandle)) {
+                /*
+                 * Store the key, to search the prepared update in case of
+                 * prepared transaction.
+                 */
+                if (btree->type == BTREE_ROW) {
+                        WT_RET(__wt_cursor_get_raw_key(&cbt->iface,
+                            &key));
+                        WT_RET(__wt_buf_set(session, &op->u.op_row.key,
+                            key.data, key.size));
+                } else
+                        op->u.op_col.recno = cbt->recno;
+        }
+#else
+	WT_UNUSED(btree);
+	WT_UNUSED(cbt);
+        WT_UNUSED(key);
 #endif
 	return (0);
 }
@@ -554,6 +597,10 @@ __wt_txn_visible_all(
 static inline bool
 __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+	if (upd->prepare_state == WT_PREPARE_LOCKED ||
+	    upd->prepare_state == WT_PREPARE_INPROGRESS)
+		return (false);
+
 	return (__wt_txn_visible_all(
 	    session, upd->txnid, WT_TIMESTAMP_NULL(&upd->timestamp)));
 }
