@@ -1522,8 +1522,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
 		return (__wt_set_return(session, EBUSY));
-	if ((uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE)) ||
-	    (prepared && !F_ISSET(r, WT_REC_LOOKASIDE)))
+	if (uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
 		return (__wt_set_return(session, EBUSY));
 
 	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
