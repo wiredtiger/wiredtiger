@@ -616,7 +616,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	uint64_t las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
-	bool local_txn;
+	bool first_entry_for_key, local_txn;
+	WT_DECL_TIMESTAMP(prev_timestamp);
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	conn = S2C(session);
@@ -693,6 +694,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		upd = list->ins == NULL ?
 		    page->modify->mod_row_update[slot] : list->ins->upd;
 
+		first_entry_for_key = true;
 		/*
 		 * Walk the list of updates, storing each key/value pair into
 		 * the lookaside table. Skip aborted items (there's no point
@@ -721,6 +723,18 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 #ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = &upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
+			if (first_entry_for_key) {
+				first_entry_for_key = false;
+				__wt_timestamp_set(
+				    &prev_timestamp, &upd->timestamp);
+			} else {
+				WT_ASSERT(session,
+				    __wt_timestamp_iszero(&prev_timestamp) ||
+				    __wt_timestamp_cmp(
+				    &prev_timestamp, &upd->timestamp) >= 0);
+				__wt_timestamp_set(
+				    &prev_timestamp, &upd->timestamp);
+			}
 #endif
 			/*
 			 * If saving a non-zero length value on the page, save a
@@ -1201,8 +1215,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Sweep removing lookaside entry with "
 		    "page ID %" PRIu64 " btree ID %" PRIu32
-		    " saved key size: %zu, record type: %" PRIu8,
-		    las_pageid, las_id, saved_key->size, upd_type);
+		    " saved key size: %zu, record type: %" PRIu8
+		    " txnID: %" PRIu64 " prev txnID: %" PRIu64
+		    " timestamp: %" PRIu64 " prev timestamp: %" PRIu64 "\n",
+		    las_pageid, las_id, saved_key->size, upd_type,
+		    las_txnid, prev_txnid, val_ts->val, prev_ts.val);
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}

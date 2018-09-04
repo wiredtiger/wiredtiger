@@ -242,18 +242,24 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 
 #ifdef HAVE_TIMESTAMPS
 /*
- * __wt_txn_update_needs_timestamp --
+ * __wt_txn_update_set_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
  *	structure doesn't have a populated update or ref field or in prepared
  *      state there won't be any check for an existing timestamp.
  */
-static inline bool
-__wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+static inline void
+__wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
+    WT_TXN_OP *op, bool for_prepare, bool *was_set)
 {
 	WT_TXN *txn;
+        WT_UPDATE *upd;
 	wt_timestamp_t *timestamp;
+        bool needs_timestamp;
 
 	txn = &session->txn;
+        upd = op->u.upd;
+        if (was_set != NULL)
+                *was_set = false;
 
 	/*
 	 * The timestamp is in the page deleted structure for truncates, or
@@ -270,10 +276,51 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	 * commit): metadata cannot be read at a point in time, only the most
 	 * recently committed data matches files on disk.
 	 */
-	return (op->fileid != WT_METAFILE_ID &&
+	needs_timestamp = op->fileid != WT_METAFILE_ID &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
-	    F_ISSET(txn, WT_TXN_PREPARE)));
+	    F_ISSET(txn, WT_TXN_PREPARE));
+
+        if (!needs_timestamp)
+                return;
+
+        if (for_prepare) {
+                /*
+                 * In case of a prepared transaction, the order
+                 * of modification of the prepare timestamp to
+                 * the commit timestamp in the update chain will
+                 * not affect the data visibility, a reader will
+                 * encounter a prepared update resulting in
+                 * prepare conflict.
+                 *
+                 * As updating timestamp might not be an atomic
+                 * operation, we will manage using state.
+                 */
+                upd->prepare_state = WT_PREPARE_LOCKED;
+                WT_WRITE_BARRIER();
+                __wt_timestamp_set(timestamp, &txn->commit_timestamp);
+                WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+        } else
+                __wt_timestamp_set(timestamp, &txn->commit_timestamp);
+
+#ifdef HAVE_DIAGNOSTIC
+        {
+        WT_UPDATE *prev_upd;
+        /* TODO: After we have a btree in the txn op we can do this:
+        if (F_ISSET(S2BT(session)>assert_flags, WT_ASSERT_COMMIT_TS_ORDERED) {
+        */
+        for (prev_upd = op->u.upd->next;
+            prev_upd != NULL && __wt_timestamp_iszero(&prev_upd->timestamp);
+            prev_upd = prev_upd->next) {}
+        if (op->type != WT_TXN_OP_REF_DELETE && prev_upd != NULL) {
+                WT_ASSERT(session, __wt_timestamp_cmp(
+                    timestamp, &prev_upd->timestamp) >= 0);
+        }
+        }
+#endif
+
+        if (was_set != NULL)
+                *was_set = true;
 }
 #endif
 
@@ -296,12 +343,11 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	WT_RET(__txn_next_op(session, &op));
 	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
 	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
-#ifdef HAVE_TIMESTAMPS
-	if (__wt_txn_update_needs_timestamp(session, op))
-		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
-#endif
 	op->u.upd = upd;
 	upd->txnid = session->txn.id;
+#ifdef HAVE_TIMESTAMPS
+	__wt_txn_update_set_timestamp(session, op, false, NULL);
+#endif
 	return (0);
 }
 
@@ -321,13 +367,11 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_RET(__txn_next_op(session, &op));
 	op->type = WT_TXN_OP_REF_DELETE;
 
-#ifdef HAVE_TIMESTAMPS
-	if (__wt_txn_update_needs_timestamp(session, op))
-		__wt_timestamp_set(
-		    &ref->page_del->timestamp, &txn->commit_timestamp);
-#endif
 	op->u.ref = ref;
 	ref->page_del->txnid = txn->id;
+#ifdef HAVE_TIMESTAMPS
+	__wt_txn_update_set_timestamp(session, op, false, NULL);
+#endif
 
 	WT_ERR(__wt_txn_log_op(session, NULL));
 	return (0);
@@ -897,6 +941,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	bool ignore_prepare_set;
 
 	txn = &session->txn;
+
 	if (txn->isolation != WT_ISO_SNAPSHOT)
 		return (0);
 

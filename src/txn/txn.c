@@ -693,7 +693,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
 	uint32_t previous_state;
-	bool prepared_transaction, update_timestamp;
+	bool prepared_transaction, timestamp_set, update_timestamp;
 #endif
 
 	txn = &session->txn;
@@ -844,55 +844,19 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 #ifdef HAVE_TIMESTAMPS
-			if (!__wt_txn_update_needs_timestamp(session, op))
-				break;
-
-			if (prepared_transaction) {
-				/*
-				 * In case of a prepared transaction, the order
-				 * of modification of the prepare timestamp to
-				 * the commit timestamp in the update chain will
-				 * not affect the data visibility, a reader will
-				 * encounter a prepared update resulting in
-				 * prepare conflict.
-				 *
-				 * As updating timestamp might not be an atomic
-				 * operation, we will manage using state.
-				 */
-				upd->prepare_state = WT_PREPARE_LOCKED;
-				WT_WRITE_BARRIER();
-				__wt_timestamp_set(
-				    &upd->timestamp, &txn->commit_timestamp);
-				WT_PUBLISH(upd->prepare_state,
-				    WT_PREPARE_RESOLVED);
-			} else
-				__wt_timestamp_set(
-				    &upd->timestamp, &txn->commit_timestamp);
+			__wt_txn_update_set_timestamp(
+			    session, op, prepared_transaction, NULL);
 #endif
 			break;
 
 		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
-			if (!__wt_txn_update_needs_timestamp(session, op))
+			__wt_txn_update_set_timestamp(
+			    session, op, prepared_transaction, &timestamp_set);
+			if (!timestamp_set)
 				break;
 
 			ref = op->u.ref;
-			if (prepared_transaction) {
-				/*
-				 * As updating timestamp might not be an atomic
-				 * operation, we will manage using state.
-				 */
-				ref->page_del->prepare_state =
-				    WT_PREPARE_LOCKED;
-				WT_WRITE_BARRIER();
-				__wt_timestamp_set(&ref->page_del->timestamp,
-				    &txn->commit_timestamp);
-				WT_PUBLISH(ref->page_del->prepare_state,
-				    WT_PREPARE_RESOLVED);
-			} else
-				__wt_timestamp_set(&ref->page_del->timestamp,
-				    &txn->commit_timestamp);
-
 			/*
 			 * The page-deleted list can be discarded by eviction,
 			 * lock the WT_REF to ensure we don't race.
