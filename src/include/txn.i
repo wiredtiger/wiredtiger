@@ -201,6 +201,7 @@ static inline int
 __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
 
 	*opp = NULL;
 
@@ -216,10 +217,11 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 	WT_RET(__wt_realloc_def(session, &txn->mod_alloc,
 	    txn->mod_count + 1, &txn->mod));
 
-	*opp = &txn->mod[txn->mod_count++];
-	WT_CLEAR(**opp);
-	(*opp)->btree = (WT_BTREE *)session->dhandle->handle;
-	(void)__wt_atomic_addi32(&(*opp)->btree->dhandle->session_inuse, 1);
+	op = &txn->mod[txn->mod_count++];
+	WT_CLEAR(*op);
+	op->btree = S2BT(session);
+	(void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+	*opp = op;
 	return (0);
 }
 
