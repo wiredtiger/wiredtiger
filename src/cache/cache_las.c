@@ -627,6 +627,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	btree_id = btree->id;
 	local_txn = false;
 
+	__wt_timestamp_set_zero(&prev_timestamp);
+
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
 
 	if (!btree->lookaside_entries)
