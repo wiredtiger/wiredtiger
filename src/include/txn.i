@@ -219,16 +219,16 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		break;
 	case WT_TXN_OP_BASIC_ROW:
 	case WT_TXN_OP_INMEM_ROW:
-		WT_WITH_BTREE(session, op->btree,
-		    ret = __wt_open_cursor(session, op->btree->dhandle->name,
+		cursor = NULL;
+		WT_ERR(__wt_open_cursor(session, op->btree->dhandle->name,
 		    NULL, open_cursor_cfg, &cursor));
-		WT_ERR(ret);
 		__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
 		WT_WITH_BTREE(session, op->btree,
 		    ret = __wt_btcur_search_uncommitted(
 		    (WT_CURSOR_BTREE *)cursor, &upd));
 		WT_ERR(ret);
 		WT_ASSERT(session, upd == op->u.op_upd);
+		WT_ERR(cursor->close(cursor));
 	break;
 	case WT_TXN_OP_REF_DELETE:
 	case WT_TXN_OP_TRUNCATE_COL:
