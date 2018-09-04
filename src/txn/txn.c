@@ -619,12 +619,13 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC) {
+		if (op->type == WT_TXN_OP_BASIC_COL ||
+		    op->type == WT_TXN_OP_BASIC_ROW) {
 			/*
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
 			 */
-			upd = op->u.upd->next;
+			upd = op->u.op_upd->next;
 			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
 			    upd->txnid == txn->id))
 				upd = upd->next;
@@ -656,12 +657,13 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 */
 			if (op_zero_ts)
 				continue;
-			op_timestamp = op->u.upd->timestamp;
+
+			op_timestamp = op->u.op_upd->timestamp;
 			/*
 			 * Only if the update structure doesn't have a timestamp
 			 * then use the one in the transaction structure.
 			 */
-			if (__wt_timestamp_iszero(&op->u.upd->timestamp))
+			if (__wt_timestamp_iszero(&op_timestamp))
 				op_timestamp = txn->commit_timestamp;
 			if (__wt_timestamp_cmp(&op_timestamp,
 			    &upd->timestamp) < 0)
@@ -686,6 +688,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
+	uint32_t fileid;
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
@@ -816,13 +819,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+		fileid = op->btree->id;
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
 
-		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_INMEM:
-			upd = op->u.upd;
+		case WT_TXN_OP_BASIC_COL:
+		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_COL:
+		case WT_TXN_OP_INMEM_ROW:
+			upd = op->u.op_upd;
 
 			/*
 			 * Switch reserved operations to abort to
@@ -838,7 +844,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			 * as they commit.
 			 */
 			if (conn->cache->las_fileid != 0 &&
-			    op->fileid == conn->cache->las_fileid) {
+			    fileid == conn->cache->las_fileid) {
 				upd->txnid = WT_TXN_NONE;
 				break;
 			}
@@ -1079,21 +1085,22 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Prepare updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
-		WT_ASSERT(session,
-		    S2C(session)->cache->las_fileid == 0 ||
-		    op->fileid != S2C(session)->cache->las_fileid);
+		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
+		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
 		/* Metadata updates are never prepared. */
-		if (op->fileid == WT_METAFILE_ID)
+		if (WT_IS_METADATA(op->btree->dhandle))
 			continue;
 
-		upd = op->u.upd;
+		upd = op->u.op_upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
-		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_COL:
+		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_COL:
+		case WT_TXN_OP_INMEM_ROW:
 			/*
 			 * Switch reserved operation to abort to simplify
 			 * obsolete update list truncation.  Clear the
@@ -1173,22 +1180,23 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
-		WT_ASSERT(session,
-		    S2C(session)->cache->las_fileid == 0 ||
-		    op->fileid != S2C(session)->cache->las_fileid);
+		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
+		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
 		/* Metadata updates are never rolled back. */
-		if (op->fileid == WT_METAFILE_ID)
+		if (WT_IS_METADATA(op->btree->dhandle))
 			continue;
 
-		upd = op->u.upd;
+		upd = op->u.op_upd;
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
 
-		case WT_TXN_OP_BASIC:
-		case WT_TXN_OP_INMEM:
+		case WT_TXN_OP_BASIC_COL:
+		case WT_TXN_OP_BASIC_ROW:
+		case WT_TXN_OP_INMEM_COL:
+		case WT_TXN_OP_INMEM_ROW:
 			WT_ASSERT(session,
 			    upd->txnid == txn->id ||
 			    upd->txnid == WT_TXN_ABORTED);
