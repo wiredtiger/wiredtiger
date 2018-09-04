@@ -56,6 +56,8 @@ static char home[1024];			/* Program working dir */
  */
 #define	INVALID_KEY	UINT64_MAX
 #define	MAX_CKPT_INVL	2	/* Maximum interval between checkpoints */
+/* Set large, some slow I/O systems take tens of seconds to fsync. */
+#define	MAX_STARTUP	30	/* Seconds to start up and set stable */
 #define	MAX_TH		12
 #define	MAX_TIME	40
 #define	MAX_VAL		1024
@@ -573,10 +575,11 @@ thread_ckpt_run(void *arg)
 					printf("CKPT: !stable_set time %"
 					    PRIu64 "\n",
 					    WT_TIMEDIFF_SEC(now, start));
-				if (WT_TIMEDIFF_SEC(now, start) > 10) {
+				if (WT_TIMEDIFF_SEC(now, start) >
+				    MAX_STARTUP) {
 					fprintf(stderr,
-					    "After 10 seconds stable still "
-					    "not set. Aborting.\n");
+					    "After %d seconds stable still not "
+					    "set. Aborting.\n", MAX_STARTUP);
 					/*
 					 * For the checkpoint thread the info
 					 * contains the number of threads.
