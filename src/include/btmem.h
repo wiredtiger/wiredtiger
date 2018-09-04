@@ -233,7 +233,7 @@ struct __wt_ovfl_reuse {
  * feature is ready to be enabled.
  * TODO: Remove all occurrences of the following macro once ready.
  */
-#define	WT_LOOKASIDE_PREPARED_DISABLE false
+#define	WT_LOOKASIDE_PREPARED_DISABLE true
 
 /*
  * WT_PAGE_LOOKASIDE --

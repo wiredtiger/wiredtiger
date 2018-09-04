@@ -1345,12 +1345,20 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (F_ISSET(r, WT_REC_EVICT)) {
 		       if (upd->prepare_state == WT_PREPARE_LOCKED ||
 			   upd->prepare_state == WT_PREPARE_INPROGRESS)
-			       prepared = WT_LOOKASIDE_PREPARED_DISABLE && true;
+			       prepared = true;
 
 		       if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			   WT_TXNID_LE(r->last_running, txnid) :
 			   !__txn_visible_id(session, txnid))
 			       uncommitted = r->update_uncommitted = true;
+
+		       // TODO: Once commit and rollback of a prepared
+		       // transaction can read lookaside, remove the following
+		       // and the WT_LOOKASIDE_PREPARED_DISABLE macro
+		       if (WT_LOOKASIDE_PREPARED_DISABLE && prepared) {
+			       prepared = false;
+			       uncommitted = r->update_uncommitted = true;
+		       }
 
 		       if (prepared || uncommitted)
 			       continue;
