@@ -229,13 +229,6 @@ struct __wt_ovfl_reuse {
     ",prefix_compression=true"
 
 /*
- * The following macro prevents lookaside eviction of prepared updates until the
- * feature is ready to be enabled.
- * TODO: Remove all occurrences of the following macro once ready.
- */
-#define	WT_LOOKASIDE_PREPARED_DISABLE true
-
-/*
  * WT_PAGE_LOOKASIDE --
  *	Related information for on-disk pages with lookaside entries.
  */

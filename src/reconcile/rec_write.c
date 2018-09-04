@@ -1352,13 +1352,19 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			   !__txn_visible_id(session, txnid))
 			       uncommitted = r->update_uncommitted = true;
 
-		       // TODO: Once commit and rollback of a prepared
-		       // transaction can read lookaside, remove the following
-		       // and the WT_LOOKASIDE_PREPARED_DISABLE macro
-		       if (WT_LOOKASIDE_PREPARED_DISABLE && prepared) {
+		       // TODO:
+		       // The following portion of code under ifdef is there
+		       // to disable lookaside eviction of the prepared updates
+		       // temporarily. Once we have all the pieces put together
+		       // to enable the feature, remove this temporary code.
+#define	DISABLE_LOOKASIDE_FOR_PREPARED
+#ifdef DISABLE_LOOKASIDE_FOR_PREPARED
+		       if (prepared) {
 			       prepared = false;
 			       uncommitted = r->update_uncommitted = true;
 		       }
+#endif
+#undef DISABLE_LOOKASIDE_FOR_PREPARED
 
 		       if (prepared || uncommitted)
 			       continue;
