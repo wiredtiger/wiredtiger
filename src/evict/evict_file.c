@@ -112,7 +112,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			/*
 			 * Evict the page.
 			 */
-			WT_ERR(__wt_evict(session, ref, true));
+			WT_ERR(__wt_evict(session, ref, true, WT_REF_MEM));
 			break;
 		case WT_SYNC_DISCARD:
 			/*

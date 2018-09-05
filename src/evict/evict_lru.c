@@ -2088,12 +2088,13 @@ fast:		/* If the page can't be evicted, give up. */
  */
 static int
 __evict_get_ref(
-    WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_REF **refp)
+    WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_REF **refp,
+    uint32_t *previous_state)
 {
 	WT_CACHE *cache;
 	WT_EVICT_ENTRY *evict;
 	WT_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
-	uint32_t candidates, previous_state;
+	uint32_t candidates;
 	bool is_app, server_only, urgent_ok;
 
 	*btreep = NULL;
@@ -2218,10 +2219,10 @@ __evict_get_ref(
 		 * multiple attempts to evict it.  For pages that are already
 		 * being evicted, this operation will fail and we will move on.
 		 */
-		if (((previous_state = evict->ref->state) != WT_REF_MEM &&
-		    previous_state != WT_REF_LIMBO) ||
+		if (((*previous_state = evict->ref->state) != WT_REF_MEM &&
+		    *previous_state != WT_REF_LIMBO) ||
 		    !__wt_atomic_casv32(
-		    &evict->ref->state, previous_state, WT_REF_LOCKED)) {
+		    &evict->ref->state, *previous_state, WT_REF_LOCKED)) {
 			__evict_list_clear(session, evict);
 			continue;
 		}
@@ -2268,11 +2269,13 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	WT_REF *ref;
 	WT_TRACK_OP_DECL;
 	uint64_t time_start, time_stop;
+	uint32_t previous_state;
 	bool app_timer;
 
 	WT_TRACK_OP_INIT(session);
 
-	WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref));
+	WT_RET_TRACK(__evict_get_ref(
+	    session, is_server, &btree, &ref, &previous_state));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
 	app_timer = false;
@@ -2311,7 +2314,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	 */
 	__wt_cache_read_gen_bump(session, ref->page);
 
-	WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, false));
+	WT_WITH_BTREE(session, btree,
+	     ret = __wt_evict(session, ref, false, previous_state));
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
