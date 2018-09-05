@@ -70,7 +70,10 @@
 
 #include "test_util.h"
 
+#include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
+#include <fcntl.h>
 #include <signal.h>
 
 static char home[1024];			/* Program working dir */
@@ -920,6 +923,20 @@ sleep_wait(uint32_t seconds, pid_t pid)
 }
 
 /*
+ * has_direct_io --
+ *	Check for direct I/O support.
+ */
+static bool
+has_direct_io()
+{
+#ifdef O_DIRECT
+	return (true);
+#else
+	return (false);
+#endif
+}
+
+/*
  * main --
  *	Top level test.
  */
@@ -949,6 +966,11 @@ main(int argc, char *argv[])
 	method = "none";
 	pid = 0;
 
+	if (!has_direct_io()) {
+		fprintf(stderr, "**** test_random_directio: this system does "
+		    "not support direct I/O.\n**** Skipping test.\n");
+		return (EXIT_SUCCESS);
+	}
 	while ((ch = __wt_getopt(progname, argc, argv,
 	    "dh:i:m:n:pST:t:v")) != EOF)
 		switch (ch) {
