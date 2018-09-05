@@ -1064,7 +1064,7 @@ main(int argc, char *argv[])
 		 */
 		testutil_check(__wt_snprintf(
 		    buf, sizeof(buf), "%s/%s", home, fs_main));
-		while (stat(buf, &sb) != 0)
+		while (stat(buf, &sb) != 0 || sb.st_size < 4096)
 			sleep_wait(1, pid);
 		sleep_wait(timeout, pid);
 
