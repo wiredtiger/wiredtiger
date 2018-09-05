@@ -307,22 +307,6 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
         } else
                 __wt_timestamp_set(timestamp, &txn->commit_timestamp);
 
-#ifdef HAVE_DIAGNOSTIC
-        {
-        WT_UPDATE *prev_upd;
-        /* TODO: After we have a btree in the txn op we can do this:
-        if (F_ISSET(S2BT(session)>assert_flags, WT_ASSERT_COMMIT_TS_ORDERED) {
-        */
-        for (prev_upd = op->u.op_upd->next;
-            prev_upd != NULL && __wt_timestamp_iszero(&prev_upd->timestamp);
-            prev_upd = prev_upd->next) {}
-        if (op->type != WT_TXN_OP_REF_DELETE && prev_upd != NULL) {
-                WT_ASSERT(session, __wt_timestamp_cmp(
-                    timestamp, &prev_upd->timestamp) >= 0);
-        }
-        }
-#endif
-
         if (was_set != NULL)
                 *was_set = true;
 }
