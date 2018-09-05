@@ -927,7 +927,7 @@ sleep_wait(uint32_t seconds, pid_t pid)
  *	Check for direct I/O support.
  */
 static bool
-has_direct_io()
+has_direct_io(void)
 {
 #ifdef O_DIRECT
 	return (true);
