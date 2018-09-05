@@ -2275,6 +2275,7 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
 	WT_TRACK_OP_INIT(session);
 
+	previous_state = WT_REF_MEM;
 	WT_RET_TRACK(__evict_get_ref(
 	    session, is_server, &btree, &ref, &previous_state));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
