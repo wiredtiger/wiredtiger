@@ -607,6 +607,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	WT_DECL_TIMESTAMP(prev_timestamp)
 	WT_ITEM las_timestamp, las_value;
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *session;
@@ -617,7 +618,6 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool local_txn;
-	WT_DECL_TIMESTAMP(prev_timestamp);
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	conn = S2C(session);
@@ -986,6 +986,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(saved_key);
 	WT_DECL_RET;
+	WT_DECL_TIMESTAMP(prev_ts)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
@@ -1000,7 +1001,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	uint8_t prepare_state, upd_type;
 	int notused;
 	bool local_txn, locked;
-	WT_DECL_TIMESTAMP(prev_ts);
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
@@ -1071,7 +1071,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Sweep reviewing lookaside entry with lookaside "
 		    "page ID %" PRIu64 " btree ID %" PRIu32
-		    " saved key size: %zu",
+		    " saved key size: %" WT_SIZET_FMT,
 		    las_pageid, las_id, saved_key->size);
 
 		/*
@@ -1193,9 +1193,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Sweep removing lookaside entry with "
-		    "page ID %" PRIu64 " btree ID %" PRIu32
-		    " saved key size: %zu, record type: %" PRIu8
-		    " txnID: %" PRIu64
+		    "page ID: %" PRIu64 " btree ID: %" PRIu32
+		    " saved key size: %" WT_SIZET_FMT ", record type: %" PRIu8
+		    " transaction ID: %" PRIu64
 		    " timestamp: %" PRIu64 " prev timestamp: %" PRIu64,
 		    las_pageid, las_id, saved_key->size, upd_type,
 		    las_txnid, val_ts->val, prev_ts.val);
