@@ -613,7 +613,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
 	uint64_t insert_cnt;
-	uint64_t las_counter, las_pageid;
+	uint64_t las_counter, las_pageid, prev_txnid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool first_entry_for_key, local_txn;
@@ -627,6 +627,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	btree_id = btree->id;
 	local_txn = false;
 
+	prev_txnid = WT_TXN_NONE;
 	__wt_timestamp_set_zero(&prev_timestamp);
 
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
@@ -729,13 +730,16 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
 			if (first_entry_for_key) {
 				first_entry_for_key = false;
+				prev_txnid = upd->txnid;
 				__wt_timestamp_set(
 				    &prev_timestamp, &upd->timestamp);
 			} else {
 				WT_ASSERT(session,
-				    __wt_timestamp_iszero(&prev_timestamp) ||
+				    WT_TXNID_LE(upd->txnid, prev_txnid) &&
+				    (__wt_timestamp_iszero(&prev_timestamp) ||
 				    __wt_timestamp_cmp(
-				    &prev_timestamp, &upd->timestamp) >= 0);
+				    &prev_timestamp, &upd->timestamp) >= 0));
+				prev_txnid = upd->txnid;
 				__wt_timestamp_set(
 				    &prev_timestamp, &upd->timestamp);
 			}
@@ -1086,12 +1090,18 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
+		WT_ERR(cursor->get_value(cursor, &las_txnid,
+		    &las_timestamp, &prepare_state, &upd_type, &las_value));
+
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Sweep reviewing lookaside entry with lookaside "
 		    "page ID %" PRIu64 " btree ID %" PRIu32
-		    " saved key size: %zu",
-		    las_pageid, las_id, saved_key->size);
+		    " saved key size: %zu"
+		    " txnID: %" PRIu64 " prev txnID: %" PRIu64
+		    " timestamp: %" PRIu64 " prev timestamp: %" PRIu64 "\n",
+		    las_pageid, las_id, saved_key->size,
+		    las_txnid, prev_txnid, val_ts->val, prev_ts.val);
 
 		/*
 		 * If we have switched to a different page, clear the saved key.
@@ -1142,9 +1152,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			saved_key->size = 0;
 			continue;
 		}
-
-		WT_ERR(cursor->get_value(cursor, &las_txnid,
-		    &las_timestamp, &prepare_state, &upd_type, &las_value));
 		/*
 		 * Remove entries from the lookaside that have aged out and are
 		 * now no longer needed.
