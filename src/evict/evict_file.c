@@ -111,8 +111,12 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		case WT_SYNC_CLOSE:
 			/*
 			 * Evict the page.
+			 *
+			 * We are closing a tree, if the eviction of a page in
+			 * WT_REF_LIMBO state fails due to some reason, retain
+			 * that page state after the failure.
 			 */
-			WT_ERR(__wt_evict(session, ref, true, WT_REF_MEM));
+			WT_ERR(__wt_evict(session, ref, true, ref->state));
 			break;
 		case WT_SYNC_DISCARD:
 			/*

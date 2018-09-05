@@ -21,10 +21,7 @@ __evict_exclusive_clear(
     WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state)
 {
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
-	/*
-	 * If we were evicting a page that is not an ordinary in-memory page
-	 * (i.e. WT_REF_LIMBO), restore the previous state.
-	 */
+
 	ref->state = previous_state;
 }
 
@@ -121,7 +118,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
  */
 int
 __wt_evict(WT_SESSION_IMPL *session,
-    WT_REF *ref, bool closing, uint32_t prev_state)
+    WT_REF *ref, bool closing, uint32_t previous_state)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -229,7 +226,7 @@ __wt_evict(WT_SESSION_IMPL *session,
 	if (0) {
 err:		if (!closing)
 			__evict_exclusive_clear(
-			    session, ref, prev_state);
+			    session, ref, previous_state);
 
 		WT_STAT_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_DATA_INCR(session, cache_eviction_fail);

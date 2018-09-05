@@ -2089,12 +2089,12 @@ fast:		/* If the page can't be evicted, give up. */
 static int
 __evict_get_ref(
     WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_REF **refp,
-    uint32_t *previous_state)
+    uint32_t *previous_statep)
 {
 	WT_CACHE *cache;
 	WT_EVICT_ENTRY *evict;
 	WT_EVICT_QUEUE *queue, *other_queue, *urgent_queue;
-	uint32_t candidates;
+	uint32_t candidates, previous_state;
 	bool is_app, server_only, urgent_ok;
 
 	*btreep = NULL;
@@ -2219,10 +2219,10 @@ __evict_get_ref(
 		 * multiple attempts to evict it.  For pages that are already
 		 * being evicted, this operation will fail and we will move on.
 		 */
-		if (((*previous_state = evict->ref->state) != WT_REF_MEM &&
-		    *previous_state != WT_REF_LIMBO) ||
+		if (((previous_state = evict->ref->state) != WT_REF_MEM &&
+		    previous_state != WT_REF_LIMBO) ||
 		    !__wt_atomic_casv32(
-		    &evict->ref->state, *previous_state, WT_REF_LOCKED)) {
+		    &evict->ref->state, previous_state, WT_REF_LOCKED)) {
 			__evict_list_clear(session, evict);
 			continue;
 		}
@@ -2235,6 +2235,7 @@ __evict_get_ref(
 
 		*btreep = evict->btree;
 		*refp = evict->ref;
+		*previous_statep = previous_state;
 
 		/*
 		 * Remove the entry so we never try to reconcile the same page
@@ -2274,7 +2275,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 
 	WT_TRACK_OP_INIT(session);
 
-	previous_state = WT_REF_MEM;
 	WT_RET_TRACK(__evict_get_ref(
 	    session, is_server, &btree, &ref, &previous_state));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
