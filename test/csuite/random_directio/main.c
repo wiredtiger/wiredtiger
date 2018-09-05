@@ -35,7 +35,9 @@
  * send a stop signal to the writer and then copy (with direct IO) the entire
  * contents of its database home to a new saved location where we can run and
  * verify the recovered home. Then we send a continue signal. We repeat this:
+ *
  *   sleep N, STOP, copy, run recovery, CONTINUE
+ *
  * which allows the writer to make continuing progress, while the main
  * process is verifying what's on disk.
  *
@@ -44,6 +46,26 @@
  * disk (not in file system buffer cache) at the moment that the copy is
  * made. It's not quite as harsh as a system crash, as suspending does not
  * halt writes that are in-flight. Still, it's a reasonable proxy for testing.
+ *
+ * In the main table, the keys look like:
+ *
+ *   xxxx:T:LARGE_STRING
+ *
+ * where xxxx represents an increasing decimal id (0 padded to 12 digits).
+ * These ids are only unique per thread, so this key is the xxxx-th key
+ * written by a thread.  T represents the thread id reduced to a single
+ * hex digit. LARGE_STRING is a portion of a large string that includes
+ * the thread id and a lot of spaces, over and over (see the large_buf
+ * function).  When forming the key, the large string is truncated so
+ * that the key is effectively padded to the right length.
+ *
+ * The key space for the main table is designed to be interleaved tightly
+ * among all the threads.  The matching values in the main table are the
+ * same, except with the xxxx string reversed.  So the keys and values
+ * are the same size.
+ *
+ * There is also a reverse table where the keys/values are swapped.
+
  */
 
 #include "test_util.h"
@@ -57,10 +79,14 @@ static char home[1024];			/* Program working dir */
  * These two names for the URI and file system must be maintained in tandem.
  */
 static const char * const uri_main = "table:main";
-static const char * const uri_rev = "table:rev";
 static const char * const fs_main = "main.wt";
 
-/* Cannot be more than 16, we are using a hex digit to encode this in the key */
+static const char * const uri_rev = "table:rev";
+
+/*
+ * The number of threads cannot be more than 16, we are using a hex digit
+ * to encode this in the key.
+ */
 #define	MAX_TH			16
 #define	MIN_TH			5
 
@@ -74,8 +100,7 @@ static const char * const fs_main = "main.wt";
 #define	DEFAULT_CYCLES		5
 #define	DEFAULT_INTERVAL	3
 
-#define	KEY_SEP			"_"
-#define	KEY_SEP_CHAR		'_'
+#define	KEY_SEP			"_"		/* Must be one char string */
 
 #define	ENV_CONFIG							\
     "create,log=(file_max=10M,enabled),"				\
@@ -106,25 +131,25 @@ usage(void)
 {
 	fprintf(stderr, "usage: %s [options]\n", progname);
 	fprintf(stderr, "options:\n"
-	    "  -d data_size\t"
+	    "  -d data_size   \t"
 	    "approximate size of keys and values [1000]\n"
-	    "  -h home     \t"
+	    "  -h home        \t"
 	    "WiredTiger home directory [WT_TEST.directio]\n"
-	    "  -i interval \t"
+	    "  -i interval    \t"
 	    "interval timeout between copy/recover cycles [3]\n"
-	    "  -m method   \t"
+	    "  -m method      \t"
 	    "sync method: fsync, dsync, none [none]\n"
 	    "  -n num_cycles  \t"
 	    "number of copy/recover cycles [5]\n"
-	    "  -p          \t"
+	    "  -p             \t"
 	    "populate only [false]\n"
-	    "  -S          \t"
+	    "  -S             \t"
 	    "schema operations on [false]\n"
 	    "  -T num_threads \t"
 	    "number of threads in writer[ 4]\n"
-	    "  -t timeout  \t"
+	    "  -t timeout     \t"
 	    "initial timeout before first copy [10]\n"
-	    "  -v          \t"
+	    "  -v             \t"
 	    "verify only [false]\n");
 	exit(EXIT_FAILURE);
 }
@@ -147,7 +172,8 @@ typedef struct {
 	} while (0)
 
 /*
- * Fill or check a large buffer
+ * large_buf --
+ *	Fill or check a large buffer.
  */
 static void
 large_buf(char *large, size_t lsize, uint32_t id, bool fill)
@@ -177,7 +203,8 @@ large_buf(char *large, size_t lsize, uint32_t id, bool fill)
 }
 
 /*
- * Reverse a string in place.
+ * reverse --
+ *	Reverse a string in place.
  */
 static void
 reverse(char *s)
@@ -194,24 +221,8 @@ reverse(char *s)
 }
 
 /*
- * In the main table, the keys looks like:
- *
- *   xxxx:T:LARGE_STRING
- *
- * where xxxx represents an increasing decimal id (0 padded to 12 digits).
- * These ids are only unique per thread, so this key is the xxxx-th key
- * written by a thread.  T represents the thread id reduced to a single
- * hex digit. LARGE_STRING is a portion of a large string that includes
- * the thread id and a lot of spaces, over and over (see the large_buf
- * function).  When forming the key, the large string is truncated so
- * that the key is effectively padded to the right length.
- *
- * The key space for the main table is designed to be interleaved tightly
- * among all the threads.  The matching values in the main table are the
- * same, except with the xxxx string reversed.  So the keys and values
- * are the same size.
- *
- * There is also a reverse table where the keys/values are swapped.
+ * gen_kv --
+ *	Generate a key/value.
  */
 static void
 gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
@@ -232,6 +243,10 @@ gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
 	    keyid, threadid, (int)large_size, large));
 }
 
+/*
+ * gen_table_name --
+ *	Generate a table name used for the schema test.
+ */
 static void
 gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
@@ -239,6 +254,10 @@ gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 	    "table:A%" PRIu64 "-%" PRIu32, id, threadid));
 }
 
+/*
+ * gen_table2_name --
+ *	Generate a second table name used for the schema test.
+ */
 static void
 gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 {
@@ -246,6 +265,12 @@ gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
 	    "table:B%" PRIu64 "-%" PRIu32, id, threadid));
 }
 
+/*
+ * thread_run --
+ *	Run a writer thread.
+ */
+static WT_THREAD_RET thread_run(void *)
+	WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static WT_THREAD_RET
 thread_run(void *arg)
 {
@@ -420,8 +445,9 @@ thread_run(void *arg)
 }
 
 /*
- * Child process creates the database and table, and then creates worker
- * threads to add data until it is killed by the parent.
+ * fill_db --
+ *	The child process creates the database and table, and then creates
+ *	worker threads to add data until it is killed by the parent.
  */
 static void fill_db(uint32_t, uint32_t, const char *, bool)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -483,6 +509,10 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, bool schema_test)
 	exit(EXIT_SUCCESS);
 }
 
+/*
+ * check_kv --
+ *	Check that a key exists with a value, or does not exist.
+ */
 static void
 check_kv(WT_CURSOR *cursor, const char *key, const char *value, bool exists)
 {
@@ -508,6 +538,10 @@ check_kv(WT_CURSOR *cursor, const char *key, const char *value, bool exists)
 	}
 }
 
+/*
+ * check_dropped --
+ *	Check that the uri has been dropped.
+ */
 static void
 check_dropped(WT_SESSION *session, const char *uri)
 {
@@ -518,6 +552,10 @@ check_dropped(WT_SESSION *session, const char *uri)
 	testutil_assert(ret == WT_NOTFOUND);
 }
 
+/*
+ * check_empty --
+ *	Check that the uri exists and is empty.
+ */
 static void
 check_empty(WT_SESSION *session, const char *uri)
 {
@@ -530,6 +568,10 @@ check_empty(WT_SESSION *session, const char *uri)
 	testutil_check(cursor->close(cursor));
 }
 
+/*
+ * check_empty --
+ *	Check that the uri exists and has one entry.
+ */
 static void
 check_one_entry(WT_SESSION *session, const char *uri, const char *key,
     const char *value)
@@ -551,6 +593,8 @@ check_one_entry(WT_SESSION *session, const char *uri, const char *key,
 
 /*
  * check_schema
+ *	Check that the database has the expected schema according to the
+ *	last id seen for this thread.
  */
 static void
 check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid)
@@ -587,6 +631,10 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid)
 	}
 }
 
+/*
+ * check_db --
+ *	Make a copy of the database and verify its contents.
+ */
 static bool
 check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 {
@@ -689,7 +737,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 		testutil_check(ret);
 		cursor->get_key(cursor, &gotkey);
 		gotid = (uint64_t)strtol(gotkey, &p, 10);
-		testutil_assert(*p == KEY_SEP_CHAR);
+		testutil_assert(*p == KEY_SEP[0]);
 		p++;
 		testutil_assert(isxdigit(*p));
 		if (isdigit(*p))
@@ -699,7 +747,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 		else
 			gotth = (uint32_t)(*p - 'A' + 10);
 		p++;
-		testutil_assert(*p == KEY_SEP_CHAR);
+		testutil_assert(*p == KEY_SEP[0]);
 		p++;
 
 		/*
@@ -805,6 +853,10 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 	return (true);
 }
 
+/*
+ * handler --
+ *	Child signal handler
+ */
 static void
 handler(int sig)
 {
@@ -838,6 +890,10 @@ handler(int sig)
 	    (uint64_t)pid, status, status);
 }
 
+/*
+ * sleep_wait --
+ *	Wait for a process up to a number of seconds.
+ */
 static void
 sleep_wait(uint32_t seconds, pid_t pid)
 {
@@ -864,6 +920,10 @@ sleep_wait(uint32_t seconds, pid_t pid)
 	}
 }
 
+/*
+ * main --
+ *	Top level test.
+ */
 int
 main(int argc, char *argv[])
 {
