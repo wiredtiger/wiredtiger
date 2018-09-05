@@ -470,17 +470,6 @@ open_with_error(const char *sfx)
 	/* parent */
 	if (waitpid(pid, &status, 0) == -1)
 		testutil_die(errno, "waitpid");
-#if 0
-	/*
-	 * Check the child exited successfully and did not fail any of
-	 * the assertions tested on return.
-	 */
-#ifdef HAVE_DIAGNOSTIC
-	testutil_assert(WIFSIGNALED(status) == true);
-#else
-	testutil_assert(WIFSIGNALED(status) == false);
-#endif
-#endif
 	return (EXIT_SUCCESS);
 }
 
@@ -613,6 +602,7 @@ out_of_sync(TABLE_INFO *table_data)
 	    "#\n# OUT OF SYNC: %s with future metadata from %s\n#\n", DB0, DB1);
 	setup_database(DB0, NULL, DB1);
 	run_all_verification(TEST, table_data);
+#endif
 
 	/*
 	 * Run in DB0, bring in future turtle file from DB1.
@@ -621,7 +611,7 @@ out_of_sync(TABLE_INFO *table_data)
 	    "#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB0, DB1);
 	setup_database(DB0, DB1, NULL);
 	run_all_verification(TEST, table_data);
-#endif
+#if 0
 
 	/*
 	 * Run in DB1, bring in old metadata file from DB0.
@@ -629,6 +619,7 @@ out_of_sync(TABLE_INFO *table_data)
 	printf("#\n# OUT OF SYNC: %s with old metadata from %s\n#\n", DB1, DB0);
 	setup_database(DB1, NULL, DB0);
 	run_all_verification(TEST, table_data);
+#endif
 
 	/*
 	 * Run in DB1, bring in old turtle file from DB0.
@@ -637,12 +628,14 @@ out_of_sync(TABLE_INFO *table_data)
 	setup_database(DB1, DB0, NULL);
 	run_all_verification(TEST, table_data);
 
+#if 0
 	/*
 	 * Run in DB2, bring in old metadata file from DB1.
 	 */
 	printf("#\n# OUT OF SYNC: %s with old metadata from %s\n#\n", DB2, DB1);
 	setup_database(DB2, NULL, DB1);
 	run_all_verification(TEST, table_data);
+#endif
 
 	/*
 	 * Run in DB2, bring in old turtle file from DB1.
