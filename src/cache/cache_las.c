@@ -1000,9 +1000,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	uint8_t prepare_state, upd_type;
 	int notused;
 	bool local_txn, locked;
-#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
 	WT_DECL_TIMESTAMP(prev_ts);
-#endif
 
 	cache = S2C(session)->cache;
 	cursor = NULL;
@@ -1015,9 +1013,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_RET(__wt_scr_alloc(session, 0, &saved_key));
 	saved_pageid = 0;
 
-#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
 	__wt_timestamp_set_zero(&prev_ts);
-#endif
 
 	/*
 	 * Prevent other threads removing entries from underneath the sweep.
@@ -1169,10 +1165,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			    las_key.data, las_key.size));
 		}
 
-#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
 		if (obsolete_cnt == 0)
 			__wt_timestamp_set(&prev_ts, val_ts);
-#endif
 
 		/*
 		 * The chain always needs to terminate in a full value.
@@ -1188,13 +1182,13 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		if (++obsolete_cnt == 1)
 			continue;
 
-#if defined(HAVE_DIAGNOSTIC) && defined(HAVE_TIMESTAMPS)
-		/* Enforce that we are seeing updates in the expected order */
+#ifdef	HAVE_TIMESTAMPS
+		/* Enforce that updates are in the expected order */
 		WT_ASSERT(session,
 		    __wt_timestamp_iszero(&prev_ts) ||
 		    __wt_timestamp_cmp(val_ts, &prev_ts) <= 0);
-		__wt_timestamp_set(&prev_ts, val_ts);
 #endif
+		__wt_timestamp_set(&prev_ts, val_ts);
 
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE_ACTIVITY,
