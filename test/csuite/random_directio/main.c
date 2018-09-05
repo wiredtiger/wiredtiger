@@ -861,8 +861,7 @@ static void
 handler(int sig)
 {
 	pid_t pid;
-	int status;
-	int termsig;
+	int status, termsig;
 
 	WT_UNUSED(sig);
 	pid = waitpid(-1, &status, WNOHANG|WUNTRACED);
@@ -935,7 +934,7 @@ main(int argc, char *argv[])
 	int ch, status;
 	const char *method, *working_dir;
 	char buf[1024];
-	bool rand_th, populate_only, rand_time, verify_only, schema_test;
+	bool populate_only, rand_th, rand_time, schema_test, verify_only;
 
 	(void)testutil_set_progname(argv);
 
