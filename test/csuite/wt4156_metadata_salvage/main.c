@@ -289,7 +289,6 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 	 */
 	while ((ret = cursor->next(cursor)) == 0) {
 		testutil_check(cursor->get_key(cursor, &kv));
-		printf("VERIFY_META: Read key %s\n", kv);
 		for (t = tables; t->name != NULL; t++) {
 			if (strcmp(t->name, kv) == 0) {
 				testutil_assert(t->verified == false);
@@ -310,7 +309,6 @@ verify_metadata(WT_CONNECTION *conn, TABLE_INFO *tables)
 		else if (t->verified != true)
 			printf("%s not seen in metadata\n", t->name);
 		else {
-			printf("VERIFY_META: Open cursor %s\n", t->name);
 			testutil_check(wt_session->open_cursor(
 			    wt_session, t->name, NULL, NULL, &cursor));
 			while ((ret = cursor->next(cursor)) == 0) {
@@ -442,7 +440,6 @@ wt_open_corrupt(const char *sfx)
 	else
 		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
 	ret = wiredtiger_open(buf, &event_handler, NULL, &conn);
-	fprintf(stderr, "OPEN_CORRUPT: home %s ret %d\n", buf, ret);
 	testutil_assert(ret == WT_TRY_SALVAGE);
 #endif
 	exit (EXIT_SUCCESS);
@@ -492,7 +489,7 @@ open_with_salvage(const char *sfx, TABLE_INFO *table_data)
 	else
 		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
 	testutil_check(wiredtiger_open(buf,
-	    &event_handler, "salvage=true,verbose=(salvage)", &conn));
+	    &event_handler, "salvage=true", &conn));
 	testutil_assert(conn != NULL);
 	if (sfx != NULL)
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
