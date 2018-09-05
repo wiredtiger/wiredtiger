@@ -30,7 +30,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
-#define CKPT_DISTANCE 1
+#define	CKPT_DISTANCE 1
 #define	CORRUPT "file:zzz-corrupt.SS"
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
