@@ -497,7 +497,7 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 
 	/* Return, if prepare conflict encountered. */
 	if (cbt->compare == 0)
-		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
+		ret = __wt_cursor_valid(cbt, &upd, &valid);
 
 	*updp = upd;
 err:	return (ret);

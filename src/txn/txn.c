@@ -828,56 +828,38 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-#ifdef HAVE_TIMESTAMPS
-			WT_ERR(__txn_op_resolve(session, op));
-#endif
 			upd = op->u.op_upd;
 
-			/*
-			 * Switch reserved operations to abort to
-			 * simplify obsolete update list truncation.
-			 */
-			if (upd->type == WT_UPDATE_RESERVE) {
-				upd->txnid = WT_TXN_ABORTED;
-				break;
-			}
+			if (upd != NULL) {
+				/*
+				 * Switch reserved operations to abort to
+				 * simplify obsolete update list truncation.
+				 */
+				if (upd->type == WT_UPDATE_RESERVE) {
+					upd->txnid = WT_TXN_ABORTED;
+					break;
+				}
 
-			/*
-			 * Writes to the lookaside file can be evicted as soon
-			 * as they commit.
-			 */
-			if (conn->cache->las_fileid != 0 &&
-			    fileid == conn->cache->las_fileid) {
-				upd->txnid = WT_TXN_NONE;
-				break;
-			}
+				/*
+				 * Writes to the lookaside file can be evicted
+				 * as soon as they commit.
+				 */
+				if (conn->cache->las_fileid != 0 &&
+				    fileid == conn->cache->las_fileid) {
+					upd->txnid = WT_TXN_NONE;
+					break;
+				}
 
 #ifdef HAVE_TIMESTAMPS
-			if (!__wt_txn_update_needs_timestamp(session, op))
-				break;
-
-			if (prepared_transaction) {
-				/*
-				 * In case of a prepared transaction, the order
-				 * of modification of the prepare timestamp to
-				 * the commit timestamp in the update chain will
-				 * not affect the data visibility, a reader will
-				 * encounter a prepared update resulting in
-				 * prepare conflict.
-				 *
-				 * As updating timestamp might not be an atomic
-				 * operation, we will manage using state.
-				 */
-				upd->prepare_state = WT_PREPARE_LOCKED;
-				WT_WRITE_BARRIER();
-				__wt_timestamp_set(
-				    &upd->timestamp, &txn->commit_timestamp);
-				WT_PUBLISH(upd->prepare_state,
-				    WT_PREPARE_RESOLVED);
-			} else
-				__wt_timestamp_set(
-				    &upd->timestamp, &txn->commit_timestamp);
+				if (__wt_txn_update_needs_timestamp(
+				    session, op))
+					__wt_timestamp_set(
+					    &upd->timestamp,
+					    &txn->commit_timestamp);
 #endif
+			} else
+				WT_ERR(__txn_op_resolve(session, op, true));
+
 			break;
 
 		case WT_TXN_OP_REF_DELETE:
@@ -1167,7 +1149,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool readonly;
+	bool prepare, readonly;
 
 	WT_UNUSED(cfg);
 
@@ -1180,6 +1162,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session,
 		    txn->id, 0));
 
+	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
@@ -1200,13 +1183,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-#ifdef HAVE_TIMESTAMPS
-			WT_RET(__txn_op_resolve(session, op));
-#endif
-			WT_ASSERT(session,
-			    upd->txnid == txn->id ||
-			    upd->txnid == WT_TXN_ABORTED);
-			upd->txnid = WT_TXN_ABORTED;
+			if (prepare)
+				WT_RET(__txn_op_resolve(session, op, false));
+			else {
+				WT_ASSERT(session, upd->txnid == txn->id ||
+				    upd->txnid == WT_TXN_ABORTED);
+				upd->txnid = WT_TXN_ABORTED;
+			}
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));

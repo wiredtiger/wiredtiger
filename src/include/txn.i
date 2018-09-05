@@ -198,18 +198,16 @@ __wt_timestamp_subone(wt_timestamp_t *ts)
  *      Resolve a transaction operation indirect references.
  */
 static inline int
-__txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+__txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
+	WT_TXN *txn;
 	WT_UPDATE *upd;
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
 
-	if (WT_SESSION_IS_CHECKPOINT(session) ||
-	    F_ISSET(op->btree, WT_BTREE_LOOKASIDE) ||
-	    WT_IS_METADATA(op->btree->dhandle))
-		return (ret);
+	txn = &session->txn;
 
 	switch (op->type) {
 	case WT_TXN_OP_NONE:
@@ -227,15 +225,107 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		    ret = __wt_btcur_search_uncommitted(
 		    (WT_CURSOR_BTREE *)cursor, &upd));
 		WT_ERR(ret);
-		WT_ASSERT(session, upd == op->u.op_upd);
 		WT_ERR(cursor->close(cursor));
-	break;
+		for (; upd != NULL; upd = upd->next) {
+
+			/*
+			 * Uncommitted updates will always be at the head of the
+			 * update chain, and the current txn has an uncommitted
+			 * update for this key, so should get its own update for
+			 * this transaction.
+			 *
+			 * There can never be uncommitted updates for same key,
+			 * from different transactions.
+			 */
+			if (upd->txnid != txn->id)
+				break;
+
+			if (!commit) {
+				/*
+				 * Assert in comments can be removed, but kept
+				 * for discussion before confirming the removal.
+				 *
+
+				WT_ASSERT(session, upd->txnid == txn->id ||
+				    upd->txnid == WT_TXN_ABORTED);
+				*/
+				/* Rollback is just to update txn id. */
+				upd->txnid = WT_TXN_ABORTED;
+				continue;
+			}
+
+			/*
+			 * Newer updates are inserted at head of update chain,
+			 * and txn operation are added at the tail of the txn
+			 * modify chain.
+			 *
+			 * For example, a transaction has modified [k,v] as
+			 * [k,v] -> [k, u1]   (txn_op : txn_op1)
+			 * [k, u1] -> [k, u2] (txn_op : txn_op2)
+			 * update chain : u2->u1
+			 * txn_mod      : txn_op1->txn_op2.
+			 *
+			 * we save only key in the txn op, hence during
+			 * commit/rollback we cannot identify "txn_op1"
+			 * corresponds to either "u2" or "u1".
+			 *
+			 * To make things simpler we will handle all the updates
+			 * that match the key saved in a txn op. As a result,
+			 * multiple updates of a key will be resolved as part of
+			 * the first txn op resolution, and subsequent txn op of
+			 * the same key will be effectively a no-op.
+			 *
+			 * In the above example, we will resolve "u2" and "u1"
+			 * as part of resolving "txn_op1" and will not do any
+			 * significant thing as part of "txn_op2".
+			 */
+			if ( upd->prepare_state == WT_PREPARE_RESOLVED)
+				break;
+
+			/*
+			 * In case of a prepared transaction, the order of
+			 * modification of the prepare timestamp to commit
+			 * timestamp in the update chain will not affect the
+			 * data visibility, a reader will encounter a prepared
+			 * update resulting in prepare conflict.
+			 *
+			 * As updating timestamp might not be an atomic
+			 * operation, we will manage using state.
+			 */
+			upd->prepare_state = WT_PREPARE_LOCKED;
+			WT_WRITE_BARRIER();
+			__wt_timestamp_set(&upd->timestamp,
+			    &txn->commit_timestamp);
+			WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+
+		}
+#ifdef HAVE_DIAGNOSTIC
+		/* Ensure that we have not missed any prepared update. */
+		for (; upd != NULL; upd = upd->next) {
+			/*
+			 * For commit, no updates of this txn should be in
+			 * prepared state.
+			 * For rollback, all updates should have been marked as
+			 * aborted.
+			 */
+			if (commit && upd->txnid == txn->id)
+				WT_ASSERT(session,
+				    upd->prepare_state !=
+				    WT_PREPARE_INPROGRESS);
+			else
+				WT_ASSERT(session, upd->txnid != txn->id);
+
+		}
+#endif
+		break;
 	case WT_TXN_OP_REF_DELETE:
 	case WT_TXN_OP_TRUNCATE_COL:
 	case WT_TXN_OP_TRUNCATE_ROW:
 		break;
 	}
-err:    return (ret);
+	if (0)
+err:            cursor->close(cursor);
+	return (ret);
 }
 
 /*
