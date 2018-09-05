@@ -30,6 +30,7 @@
 #include <sys/wait.h>
 #include <signal.h>
 
+#define CKPT_DISTANCE 1
 #define	CORRUPT "file:zzz-corrupt.SS"
 #define	KEY	"key"
 #define	VALUE	"value,value,value"
@@ -374,7 +375,7 @@ move_data_ahead(TABLE_INFO *table_data)
 	uint64_t i;
 
 	i = 0;
-	while (i < 2) {
+	while (i < CKPT_DISTANCE) {
 		++data_val;
 		for (t = table_data; t->name != NULL; t++)
 			cursor_insert(t->name, data_val);
@@ -594,12 +595,10 @@ out_of_sync(TABLE_INFO *table_data)
 	 * Run in DB0, bring in future metadata from DB1.
 	 */
 	test_out_of_sync = true;
-#if 0
 	printf(
 	    "#\n# OUT OF SYNC: %s with future metadata from %s\n#\n", DB0, DB1);
 	setup_database(DB0, NULL, DB1);
 	run_all_verification(TEST, table_data);
-#endif
 
 	/*
 	 * Run in DB0, bring in future turtle file from DB1.
@@ -608,7 +607,6 @@ out_of_sync(TABLE_INFO *table_data)
 	    "#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB0, DB1);
 	setup_database(DB0, DB1, NULL);
 	run_all_verification(TEST, table_data);
-#if 0
 
 	/*
 	 * Run in DB1, bring in old metadata file from DB0.
@@ -616,7 +614,6 @@ out_of_sync(TABLE_INFO *table_data)
 	printf("#\n# OUT OF SYNC: %s with old metadata from %s\n#\n", DB1, DB0);
 	setup_database(DB1, NULL, DB0);
 	run_all_verification(TEST, table_data);
-#endif
 
 	/*
 	 * Run in DB1, bring in old turtle file from DB0.
@@ -625,14 +622,28 @@ out_of_sync(TABLE_INFO *table_data)
 	setup_database(DB1, DB0, NULL);
 	run_all_verification(TEST, table_data);
 
-#if 0
+	/*
+	 * Run in DB1, bring in future metadata file from DB2.
+	 */
+	printf(
+	    "#\n# OUT OF SYNC: %s with future metadata from %s\n#\n", DB1, DB2);
+	setup_database(DB1, NULL, DB2);
+	run_all_verification(TEST, table_data);
+
+	/*
+	 * Run in DB1, bring in future turtle file from DB2.
+	 */
+	printf(
+	    "#\n# OUT OF SYNC: %s with future turtle from %s\n#\n", DB1, DB2);
+	setup_database(DB1, DB2, NULL);
+	run_all_verification(TEST, table_data);
+
 	/*
 	 * Run in DB2, bring in old metadata file from DB1.
 	 */
 	printf("#\n# OUT OF SYNC: %s with old metadata from %s\n#\n", DB2, DB1);
 	setup_database(DB2, NULL, DB1);
 	run_all_verification(TEST, table_data);
-#endif
 
 	/*
 	 * Run in DB2, bring in old turtle file from DB1.
