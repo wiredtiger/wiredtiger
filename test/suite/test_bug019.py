@@ -43,8 +43,8 @@ class test_bug019(wttest.WiredTigerTestCase):
     def populate(self, nentries):
         c = self.session.open_cursor(self.uri, None, None)
         for i in range(0, nentries):
-            # Make the values about 200 bytes - that's about 1MB of data for
-            # 5000 records, so at 10 log files used plus more for overhead.
+            # Make the values about 200 bytes. That's about 1MB of data for
+            # 5000 records, generating 10 log files used plus more for overhead.
             c[i] = "abcde" * 40
         c.close()
 

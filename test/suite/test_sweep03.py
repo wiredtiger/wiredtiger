@@ -58,7 +58,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Wait for the sweep server to run - let it run twice, since the statistic
     # is incrememented at the start of a sweep and the test relies on sweep
-    # completing it's work
+    # completing it's work.
     def wait_for_sweep(self, baseline):
         # Check regularly for up to 5 seconds total.
         for i in range(10):
@@ -70,7 +70,7 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
             time.sleep(0.5)
 
         # If the statistic didn't increase in 5 seconds the sweep server isn't
-        # working as expected
+        # working as expected.
         self.assertTrue(sweeps > baseline + 1)
         return (sweeps)
 
@@ -90,7 +90,8 @@ class test_sweep03(wttest.WiredTigerTestCase, suite_subprocess):
 
         #
         # The idle timeout is disabled - we don't expect the sweep server to
-        # close any regular handles.
+        # close any regular handles. The function returns the current sweep
+        # count to allow for incremental waits - which this test doesn't need.
         #
         self.wait_for_sweep(0)
 

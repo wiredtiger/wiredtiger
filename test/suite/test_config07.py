@@ -60,8 +60,8 @@ class test_config07(wttest.WiredTigerTestCase):
     def populate(self):
         cur = self.session.open_cursor(self.uri, None, None)
         for i in range(0, self.entries):
-            # Make the values about 200 bytes - that about 1MB of data for
-            # 5000 records; sufficient to generate enough log files.
+            # Make the values about 200 bytes. That's about 1MB of data for
+            # 5000 records, generating 10 log files used plus more for overhead.
             cur[i] = "abcde" * 40
         cur.close()
 
