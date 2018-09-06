@@ -235,10 +235,13 @@ static inline void
 __wt_txn_unmodify(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, txn->mod_count > 0);
+		op = txn->mod + txn->mod_count - 1;
+		__wt_txn_op_free(session, op);
 		txn->mod_count--;
 	}
 }
@@ -363,10 +366,9 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		 * prepared transaction.
 		 */
 		if (btree->type == BTREE_ROW) {
-			WT_RET(__wt_cursor_get_raw_key(&cbt->iface,
-			    &key));
-			WT_RET(__wt_buf_set(session, &op->u.op_row.key,
-			    key.data, key.size));
+			WT_RET(__wt_cursor_get_raw_key(&cbt->iface, &key));
+			WT_RET(__wt_buf_set(session,
+			    &op->u.op_row.key, key.data, key.size));
 		} else
 			op->u.op_col.recno = cbt->recno;
 	}
