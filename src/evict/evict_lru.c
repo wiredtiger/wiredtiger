@@ -2097,6 +2097,11 @@ __evict_get_ref(WT_SESSION_IMPL *session,
 	bool is_app, server_only, urgent_ok;
 
 	*btreep = NULL;
+	/*
+	 * It is polite to initialize output variables, but it isn't safe for
+	 * callers to use the previous state if we don't return a locked ref.
+	 */
+	*previous_statep = WT_REF_MEM;
 	*refp = NULL;
 
 	cache = S2C(session)->cache;
@@ -2273,7 +2278,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	bool app_timer;
 
 	WT_TRACK_OP_INIT(session);
-	previous_state = WT_REF_MEM;	/* -Werror=maybe-uninitialized */
 
 	WT_RET_TRACK(__evict_get_ref(
 	    session, is_server, &btree, &ref, &previous_state));
