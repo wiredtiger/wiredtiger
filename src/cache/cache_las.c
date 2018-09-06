@@ -995,7 +995,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 #else
 	wt_timestamp_t *val_ts;
 #endif
-	uint64_t cnt, obsolete_cnt, remove_cnt, saved_pageid, visit_cnt;
+	uint64_t cnt, remove_cnt, saved_pageid, visit_cnt;
 	uint64_t las_counter, las_pageid, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
@@ -1006,7 +1006,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	cursor = NULL;
 	sweep_key = &cache->las_sweep_key;
 	remove_cnt = 0;
-	obsolete_cnt = 0;		/* [-Werror=maybe-uninitialized] */
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	local_txn = locked = removing_key_block = false;
 
