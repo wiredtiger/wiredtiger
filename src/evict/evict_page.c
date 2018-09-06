@@ -57,6 +57,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint64_t time_start, time_stop;
+	uint32_t previous_state;
 	bool locked, too_big;
 
 	btree = S2BT(session);
@@ -68,10 +69,13 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * reference without first locking the page, it could be evicted in
 	 * between.
 	 */
-	locked = __wt_atomic_casv32(&ref->state, WT_REF_MEM, WT_REF_LOCKED);
+	locked = ((previous_state = ref->state) == WT_REF_MEM ||
+	    previous_state == WT_REF_LIMBO) ?
+	    __wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED) :
+	    false;
 	if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
 		if (locked)
-			ref->state = WT_REF_MEM;
+			ref->state = previous_state;
 		return (ret == 0 ? EBUSY : ret);
 	}
 
@@ -83,7 +87,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Track how long the call to evict took. If eviction is successful then
 	 * we have one of two pairs of stats to increment.
 	 */
-	ret = __wt_evict(session, ref, false, WT_REF_MEM);
+	ret = __wt_evict(session, ref, false, previous_state);
 	time_stop = __wt_clock(session);
 	if (ret == 0) {
 		if (too_big) {
