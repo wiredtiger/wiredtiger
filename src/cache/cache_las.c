@@ -986,7 +986,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(saved_key);
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(prev_ts)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
@@ -1011,8 +1010,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_scr_alloc(session, 0, &saved_key));
 	saved_pageid = 0;
-
-	__wt_timestamp_set_zero(&prev_ts);
 
 	/*
 	 * Prevent other threads removing entries from underneath the sweep.
@@ -1160,15 +1157,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 				removing_key_block = true;
 			else
 				removing_key_block = false;
-			__wt_timestamp_set(&prev_ts, val_ts);
-		} else {
-#ifdef	HAVE_TIMESTAMPS
-			/* Check that updates are in the expected order */
-			WT_ASSERT(session,
-			    __wt_timestamp_iszero(&prev_ts) ||
-			    __wt_timestamp_cmp(val_ts, &prev_ts) <= 0);
-#endif
-			__wt_timestamp_set(&prev_ts, val_ts);
 		}
 
 		if (!removing_key_block)
@@ -1179,10 +1167,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    "Sweep removing lookaside entry with "
 		    "page ID: %" PRIu64 " btree ID: %" PRIu32
 		    " saved key size: %" WT_SIZET_FMT ", record type: %" PRIu8
-		    " transaction ID: %" PRIu64
-		    " timestamp: %" PRIu64 " prev timestamp: %" PRIu64,
-		    las_pageid, las_id, saved_key->size, upd_type,
-		    las_txnid, val_ts->val, prev_ts.val);
+		    " transaction ID: %" PRIu64,
+		    las_pageid, las_id, saved_key->size, upd_type, las_txnid);
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}
