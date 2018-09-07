@@ -622,6 +622,9 @@ __wt_block_off_free(
 {
 	WT_DECL_RET;
 
+	WT_ASSERT(session, S2BT(session)->checkpointing != WT_CKPT_RUNNING ||
+	   WT_SESSION_TREE_SYNC(session));
+
 	/*
 	 * Callers of this function are expected to have already acquired any
 	 * locks required to manipulate the extent lists.

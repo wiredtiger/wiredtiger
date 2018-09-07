@@ -66,6 +66,10 @@ struct __wt_session_impl {
 
 	WT_DATA_HANDLE *dhandle;	/* Current data handle */
 
+	WT_DATA_HANDLE *sync_dhandle;	/* Data handle being synced */
+#define	WT_SESSION_TREE_SYNC(session)					\
+	(session->dhandle == session->sync_dhandle)
+
 	/*
 	 * Each session keeps a cache of data handles. The set of handles can
 	 * grow quite large so we maintain both a simple list and a hash table

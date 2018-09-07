@@ -195,7 +195,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 		 */
 		WT_ASSERT(session,
 		    S2BT(session)->checkpointing != WT_CKPT_RUNNING ||
-		    WT_SESSION_IS_CHECKPOINT(session));
+		    WT_SESSION_TREE_SYNC(session));
 
 		WT_RET(__wt_ovfl_discard(session, cell));
 	}
