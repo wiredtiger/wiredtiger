@@ -2087,8 +2087,8 @@ fast:		/* If the page can't be evicted, give up. */
  *	Get a page for eviction.
  */
 static int
-__evict_get_ref(
-    WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_REF **refp)
+__evict_get_ref(WT_SESSION_IMPL *session,
+    bool is_server, WT_BTREE **btreep, WT_REF **refp, uint32_t *previous_statep)
 {
 	WT_CACHE *cache;
 	WT_EVICT_ENTRY *evict;
@@ -2097,6 +2097,11 @@ __evict_get_ref(
 	bool is_app, server_only, urgent_ok;
 
 	*btreep = NULL;
+	/*
+	 * It is polite to initialize output variables, but it isn't safe for
+	 * callers to use the previous state if we don't return a locked ref.
+	 */
+	*previous_statep = WT_REF_MEM;
 	*refp = NULL;
 
 	cache = S2C(session)->cache;
@@ -2234,6 +2239,7 @@ __evict_get_ref(
 
 		*btreep = evict->btree;
 		*refp = evict->ref;
+		*previous_statep = previous_state;
 
 		/*
 		 * Remove the entry so we never try to reconcile the same page
@@ -2268,11 +2274,13 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	WT_REF *ref;
 	WT_TRACK_OP_DECL;
 	uint64_t time_start, time_stop;
+	uint32_t previous_state;
 	bool app_timer;
 
 	WT_TRACK_OP_INIT(session);
 
-	WT_RET_TRACK(__evict_get_ref(session, is_server, &btree, &ref));
+	WT_RET_TRACK(__evict_get_ref(
+	    session, is_server, &btree, &ref, &previous_state));
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
 	app_timer = false;
@@ -2311,7 +2319,8 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
 	 */
 	__wt_cache_read_gen_bump(session, ref->page);
 
-	WT_WITH_BTREE(session, btree, ret = __wt_evict(session, ref, false));
+	WT_WITH_BTREE(session, btree,
+	     ret = __wt_evict(session, ref, false, previous_state));
 
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
