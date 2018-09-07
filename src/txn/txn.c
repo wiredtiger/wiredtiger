@@ -857,8 +857,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					    &upd->timestamp,
 					    &txn->commit_timestamp);
 #endif
-			} else
+			} else {
+				F_CLR(txn, WT_TXN_PREPARE);
 				WT_ERR(__txn_op_resolve(session, op, true));
+				F_SET(txn, WT_TXN_PREPARE);
+			}
 
 			break;
 
@@ -1102,6 +1105,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			__wt_timestamp_set(&upd->timestamp, &ts);
 
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+			op->u.op_upd = NULL;
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
@@ -1183,8 +1187,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-			if (prepare)
+			if (prepare) {
+				F_CLR(txn, WT_TXN_PREPARE);
 				WT_RET(__txn_op_resolve(session, op, false));
+				F_SET(txn, WT_TXN_PREPARE);
+			}
 			else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
