@@ -194,6 +194,27 @@ __wt_timestamp_subone(wt_timestamp_t *ts)
 #endif /* HAVE_TIMESTAMPS */
 
 /*
+ * __txn_op_modify_recno --
+ *      Modify the recno in the latest txn op.
+ */
+static inline void
+__txn_op_modify_recno(WT_SESSION_IMPL *session, uint64_t recno)
+{
+	WT_TXN *txn;
+	WT_TXN_OP *op;
+
+	txn = &session->txn;
+
+	WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
+	op = txn->mod + txn->mod_count -1;
+
+	WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL ||
+	    op->type == WT_TXN_OP_INMEM_COL);
+
+	op->u.op_col.recno = recno;
+}
+
+/*
  * __txn_op_resolve --
  *      Resolve a transaction operation indirect references.
  */
@@ -213,14 +234,17 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 	case WT_TXN_OP_NONE:
 		break;
 	case WT_TXN_OP_BASIC_COL:
-	case WT_TXN_OP_INMEM_COL:
-		break;
 	case WT_TXN_OP_BASIC_ROW:
+	case WT_TXN_OP_INMEM_COL:
 	case WT_TXN_OP_INMEM_ROW:
 		cursor = NULL;
 		WT_ERR(__wt_open_cursor(session, op->btree->dhandle->name,
 		    NULL, open_cursor_cfg, &cursor));
-		__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
+		if (op->type == WT_TXN_OP_BASIC_ROW ||
+		    op->type == WT_TXN_OP_INMEM_ROW)
+			__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
+		else
+			((WT_CURSOR_BTREE *)cursor)->recno = op->u.op_col.recno;
 		WT_WITH_BTREE(session, op->btree,
 		    ret = __wt_btcur_search_uncommitted(
 		    (WT_CURSOR_BTREE *)cursor, &upd));
@@ -375,9 +399,9 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, txn->mod_count > 0);
-		--txn->mod_count;
-		op = txn->mod + txn->mod_count;
+		op = txn->mod + txn->mod_count -1;
 		__wt_txn_op_free(session, op);
+		txn->mod_count--;
 	}
 }
 
@@ -524,7 +548,9 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	upd->txnid = session->txn.id;
 
 #ifdef HAVE_TIMESTAMPS
-	__wt_txn_op_set_timestamp(session, op);
+	if (__wt_txn_update_needs_timestamp(session, op))
+		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
+	else {
 
 	/*
 	 * TODO:

@@ -241,6 +241,12 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 			WT_ERR(__wt_insert_serial(
 			    session, page, cbt->ins_head, cbt->ins_stack,
 			    &ins, ins_size, skipdepth, exclusive));
+
+		/*
+		 * We need to update the recno in txn op, as recno is retrieved
+		 * now only.
+		 */
+		__txn_op_modify_recno(session, cbt->recno);
 	}
 
 	/* If the update was successful, add it to the in-memory log. */

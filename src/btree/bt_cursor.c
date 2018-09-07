@@ -482,22 +482,29 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
-	bool valid;
 
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 	upd = NULL;					/* -Wuninitialized */
 
-	WT_ERR(__cursor_func_init(cbt, true));
-
 	WT_ERR(btree->type == BTREE_ROW ?
 	    __cursor_row_search(session, cbt, NULL, false) :
 	    __cursor_col_search(session, cbt, NULL));
 
-	/* Return, if prepare conflict encountered. */
-	if (cbt->compare == 0)
-		ret = __wt_cursor_valid(cbt, &upd, &valid);
+	WT_ASSERT(session, cbt->compare == 0);
+
+	/*
+	 * Get the update from the cursor.
+	 */
+	if (cbt->ins != NULL) {
+		upd = cbt->ins->upd;
+	}
+
+	/*
+	 * TODO
+	 */
+	WT_ASSERT(session, upd != NULL);
 
 	*updp = upd;
 err:	return (ret);
