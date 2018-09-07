@@ -519,6 +519,23 @@ skip_read:
 		break;
 	}
 
+	/*
+	 * Once the page is instantiated, we no longer need the history in
+	 * lookaside.  We leave the lookaside sweep thread to do most cleanup,
+	 * but it can only remove keys that skew newest (if there are entries
+	 * in the lookaside newer than the page, they need to be read back into
+	 * cache or they will be lost).
+	 *
+	 * There is no reason for the lookaside remove should fail, but ignore
+	 * it if for some reason it fails, we've got a valid page.
+	 *
+	 * Don't free WT_REF.page_las, there may be concurrent readers.
+	 */
+	if (final_state == WT_REF_MEM &&
+	    ref->page_las != NULL && !ref->page_las->skew_newest)
+		WT_IGNORE_RET(__wt_las_remove_block(
+		    session, ref->page_las->las_pageid, false));
+
 	WT_PUBLISH(ref->state, final_state);
 	return (ret);
 
