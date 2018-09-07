@@ -1102,14 +1102,14 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    las_id <= cache->las_sweep_dropmax &&
 		    __bit_test(cache->las_sweep_dropmap,
 		    las_id - cache->las_sweep_dropmin)) {
-			/*
-			 * This isn't considered a key block - allow sweep to
-			 * break while removing entries from a dead file.
-			 */
-			removing_key_block = false;
 			WT_ERR(cursor->remove(cursor));
 			++remove_cnt;
 			saved_key->size = 0;
+			/*
+			 * Allow sweep to break while removing entries from a
+			 * dead file.
+			 */
+			removing_key_block = false;
 			continue;
 		}
 
@@ -1129,8 +1129,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 		/*
 		 * Check to see if the page or key has changed this iteration,
-		 * and if they have setup context for safely removing obsolete
+		 * and if they have, setup context for safely removing obsolete
 		 * updates.
+		 *
 		 * It's important to check for page boundaries explicitly
 		 * because it is possible for the same key to be at the start
 		 * of the next block. See WT-3982 for details.
@@ -1139,19 +1140,18 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    saved_key->size != las_key.size ||
 		    memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
 			saved_pageid = las_pageid;
+			WT_ERR(__wt_buf_set(
+			    session, saved_key, las_key.data, las_key.size));
 
-			WT_ERR(__wt_buf_set(session, saved_key,
-			    las_key.data, las_key.size));
 			/*
 			 * There are several conditions that need to be met
 			 * before we choose to remove a key block:
-			 *  * We haven't already done the required work.
 			 *  * The entries were written with skew newest.
 			 *    Indicated by the first entry being a birthmark.
 			 *  * The first entry is globally visible.
 			 *  * The entry wasn't from a prepared transaction.
 			 */
-			if (cnt != 0 && upd_type == WT_UPDATE_BIRTHMARK &&
+			if (upd_type == WT_UPDATE_BIRTHMARK &&
 			    __wt_txn_visible_all(session, las_txnid, val_ts) &&
 			    prepare_state != WT_PREPARE_INPROGRESS)
 				removing_key_block = true;
