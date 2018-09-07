@@ -575,8 +575,7 @@ thread_ckpt_run(void *arg)
 					printf("CKPT: !stable_set time %"
 					    PRIu64 "\n",
 					    WT_TIMEDIFF_SEC(now, start));
-				if (WT_TIMEDIFF_SEC(now, start) >
-				    MAX_STARTUP) {
+				if (WT_TIMEDIFF_SEC(now, start) > MAX_STARTUP) {
 					fprintf(stderr,
 					    "After %d seconds stable still not "
 					    "set. Aborting.\n", MAX_STARTUP);
