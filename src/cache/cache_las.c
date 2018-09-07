@@ -1139,6 +1139,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		if (las_pageid != saved_pageid ||
 		    saved_key->size != las_key.size ||
 		    memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
+			/* If we've examined enough entries, give up. */
+			if (cnt == 0)
+				break;
+
 			saved_pageid = las_pageid;
 			WT_ERR(__wt_buf_set(
 			    session, saved_key, las_key.data, las_key.size));
