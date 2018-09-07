@@ -424,16 +424,13 @@ static void wt_open_corrupt(const char *)
 static void
 wt_open_corrupt(const char *sfx)
 {
+#ifdef HAVE_ATTACH
+	WT_UNUSED(sfx);
+#else
 	WT_CONNECTION *conn;
 	int ret;
 	char buf[1024];
 
-#ifdef HAVE_ATTACH
-	WT_UNUSED(sfx);
-	WT_UNUSED(conn);
-	WT_UNUSED(ret);
-#else
-	conn = NULL;
 	if (sfx != NULL)
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "%s.%s", home, sfx));
