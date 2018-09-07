@@ -298,6 +298,5 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
 	if (block->verify || F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
 		return (WT_ERROR);
-	WT_PANIC_RET(
-	    session, WT_ERROR, "%s: fatal read error", block->name);
+	WT_PANIC_RET(session, WT_ERROR, "%s: fatal read error", block->name);
 }
