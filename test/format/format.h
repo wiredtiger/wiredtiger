@@ -401,13 +401,13 @@ random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
 	 * That means we'll hit the maximum roughly every 1K calls.
 	 */
 	for (i = 0;;)
-		if (rng(rnd) & 0x1 || ++i > 4)
+		if (rng(rnd) & 0x1 || ++i > 9)
 			break;
 
 	if (i == 0)
 		__wt_yield();
 	else {
 		micro_seconds = (uint64_t)max_seconds * WT_MILLION;
-		__wt_sleep(0, i * (micro_seconds / 5));
+		__wt_sleep(0, i * (micro_seconds / 10));
 	}
 }

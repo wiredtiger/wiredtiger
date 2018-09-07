@@ -56,7 +56,7 @@ typedef enum __wt_cache_op {
 
 #define	WT_LAS_NUM_SESSIONS	5
 #define	WT_LAS_SWEEP_ENTRIES	(20 * WT_THOUSAND)
-#define	WT_LAS_SWEEP_SEC	1
+#define	WT_LAS_SWEEP_SEC	2
 
 /*
  * WiredTiger cache structure.

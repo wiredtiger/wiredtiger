@@ -994,8 +994,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 #else
 	wt_timestamp_t *val_ts;
 #endif
-	uint64_t cnt, remove_cnt, saved_pageid, visit_cnt;
-	uint64_t las_counter, las_pageid, las_txnid;
+	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
+	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
 	int notused;

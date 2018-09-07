@@ -278,13 +278,13 @@ __sweep_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	time_t last, now;
-	uint64_t last_las_sweep_id, /*min_sleep, */oldest_id;
+	uint64_t last_las_sweep_id, min_sleep, oldest_id;
 	u_int dead_handles;
 
 	session = arg;
 	conn = S2C(session);
 	last_las_sweep_id = WT_TXN_NONE;
-	//min_sleep = WT_MIN(WT_LAS_SWEEP_SEC, conn->sweep_interval);
+	min_sleep = WT_MIN(WT_LAS_SWEEP_SEC, conn->sweep_interval);
 
 	/*
 	 * Sweep for dead and excess handles.
@@ -293,7 +293,7 @@ __sweep_server(void *arg)
 	for (;;) {
 		/* Wait until the next event. */
 		__wt_cond_wait(session, conn->sweep_cond,
-		    10000, __sweep_server_run_chk);
+		    min_sleep * WT_MILLION, __sweep_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__sweep_server_run_chk(session))
@@ -312,9 +312,9 @@ __sweep_server(void *arg)
 		 * bringing in and evicting pages from the lookaside table,
 		 * which will stop the cache from moving into the stuck state.
 		 */
-		if (/*now - last >= WT_LAS_SWEEP_SEC &&*/
-		    !__wt_las_empty(session)/* &&
-		    !__wt_cache_stuck(session)*/) {
+		if (now - last >= WT_LAS_SWEEP_SEC &&
+		    !__wt_las_empty(session) &&
+		    !__wt_cache_stuck(session)) {
 			oldest_id = __wt_txn_oldest_id(session);
 			if (WT_TXNID_LT(last_las_sweep_id, oldest_id)) {
 				WT_ERR(__wt_las_sweep(session));
