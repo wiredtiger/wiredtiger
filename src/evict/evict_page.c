@@ -58,25 +58,27 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_PAGE *page;
 	uint64_t time_start, time_stop;
 	uint32_t previous_state;
-	bool too_big;
+	bool locked, too_big;
 
 	btree = S2BT(session);
+	locked = false;
 	page = ref->page;
 	time_start = __wt_clock(session);
 
 	/*
-	 * Take some care with order of operations: if we release the hazard
-	 * reference without first locking the page, it could be evicted in
-	 * between.
+	 * This function always releases the hazard pointer - ensure that's
+	 * done regardless of whether we can get exclusive access.  Take some
+	 * care with order of operations: if we release the hazard pointer
+	 * without first locking the page, it could be evicted in between.
 	 */
 	previous_state = ref->state;
-	if ((previous_state != WT_REF_MEM && previous_state != WT_REF_LIMBO) ||
-	    !__wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED))
-		return (EBUSY);
-
-	if ((ret = __wt_hazard_clear(session, ref)) != 0) {
-		ref->state = previous_state;
-		return (ret);
+	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	    __wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED))
+		locked = true;
+	if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
+		if (locked)
+			ref->state = previous_state;
+		return (ret == 0 ? EBUSY : ret);
 	}
 
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
