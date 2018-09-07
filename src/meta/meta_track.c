@@ -301,18 +301,17 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 		    session, false, WT_TXN_LOG_CKPT_SYNC, NULL));
 	else {
 		WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+
 		ckpt_session = S2C(session)->meta_ckpt_session;
 		/*
 		 * If this operation is part of a running transaction, that
 		 * should be included in the checkpoint.
 		 */
 		ckpt_session->txn.id = session->txn.id;
-		F_SET(ckpt_session, WT_SESSION_LOCKED_METADATA);
-		WT_WITH_METADATA_LOCK(session,
+		WT_WITH_METADATA_LOCK(ckpt_session,
 		    WT_WITH_DHANDLE(ckpt_session,
 		    WT_SESSION_META_DHANDLE(session),
 		    ret = __wt_checkpoint(ckpt_session, NULL)));
-		F_CLR(ckpt_session, WT_SESSION_LOCKED_METADATA);
 		ckpt_session->txn.id = WT_TXN_NONE;
 		if (ret == 0)
 			WT_WITH_DHANDLE(session,
