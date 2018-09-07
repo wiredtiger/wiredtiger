@@ -559,8 +559,7 @@ thread_ckpt_run(void *arg)
 	 * Keep writing checkpoints until killed by parent.
 	 */
 	__wt_epoch(NULL, &start);
-	i = 0;
-	while (true) {
+	for (i = 0;;) {
 		sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
 		sleep(sleep_time);
 		if (use_ts) {
