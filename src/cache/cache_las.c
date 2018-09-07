@@ -310,6 +310,7 @@ __wt_las_cursor(
 			 *
 			 * XXX better as a condition variable.
 			 */
+			WT_STAT_CONN_INCR(session, cache_lookaside_cursor);
 			__wt_sleep(0, 1000);
 		}
 	}
