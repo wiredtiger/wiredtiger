@@ -17,11 +17,12 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, bool, bool *);
  *	Release exclusive access to a page.
  */
 static inline void
-__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref)
+__evict_exclusive_clear(
+    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state)
 {
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
 
-	ref->state = WT_REF_MEM;
+	ref->state = previous_state;
 }
 
 /*
@@ -56,21 +57,27 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint64_t time_start, time_stop;
+	uint32_t previous_state;
 	bool locked, too_big;
 
 	btree = S2BT(session);
+	locked = false;
 	page = ref->page;
 	time_start = __wt_clock(session);
 
 	/*
-	 * Take some care with order of operations: if we release the hazard
-	 * reference without first locking the page, it could be evicted in
-	 * between.
+	 * This function always releases the hazard pointer - ensure that's
+	 * done regardless of whether we can get exclusive access.  Take some
+	 * care with order of operations: if we release the hazard pointer
+	 * without first locking the page, it could be evicted in between.
 	 */
-	locked = __wt_atomic_casv32(&ref->state, WT_REF_MEM, WT_REF_LOCKED);
+	previous_state = ref->state;
+	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	    __wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED))
+		locked = true;
 	if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
 		if (locked)
-			ref->state = WT_REF_MEM;
+			ref->state = previous_state;
 		return (ret == 0 ? EBUSY : ret);
 	}
 
@@ -82,7 +89,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Track how long the call to evict took. If eviction is successful then
 	 * we have one of two pairs of stats to increment.
 	 */
-	ret = __wt_evict(session, ref, false);
+	ret = __wt_evict(session, ref, false, previous_state);
 	time_stop = __wt_clock(session);
 	if (ret == 0) {
 		if (too_big) {
@@ -116,7 +123,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
+__wt_evict(WT_SESSION_IMPL *session,
+    WT_REF *ref, bool closing, uint32_t previous_state)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -223,7 +231,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 
 	if (0) {
 err:		if (!closing)
-			__evict_exclusive_clear(session, ref);
+			__evict_exclusive_clear(
+			    session, ref, previous_state);
 
 		WT_STAT_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_DATA_INCR(session, cache_eviction_fail);

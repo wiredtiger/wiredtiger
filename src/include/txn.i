@@ -201,6 +201,7 @@ static inline int
 __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
 
 	*opp = NULL;
 
@@ -216,9 +217,11 @@ __txn_next_op(WT_SESSION_IMPL *session, WT_TXN_OP **opp)
 	WT_RET(__wt_realloc_def(session, &txn->mod_alloc,
 	    txn->mod_count + 1, &txn->mod));
 
-	*opp = &txn->mod[txn->mod_count++];
-	WT_CLEAR(**opp);
-	(*opp)->fileid = S2BT(session)->id;
+	op = &txn->mod[txn->mod_count++];
+	WT_CLEAR(*op);
+	op->btree = S2BT(session);
+	(void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+	*opp = op;
 	return (0);
 }
 
@@ -232,28 +235,37 @@ static inline void
 __wt_txn_unmodify(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, txn->mod_count > 0);
+		op = txn->mod + txn->mod_count - 1;
+		__wt_txn_op_free(session, op);
 		txn->mod_count--;
 	}
 }
 
 #ifdef HAVE_TIMESTAMPS
 /*
- * __wt_txn_update_needs_timestamp --
+ * __wt_txn_update_set_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
  *	structure doesn't have a populated update or ref field or in prepared
  *      state there won't be any check for an existing timestamp.
  */
-static inline bool
-__wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
+static inline void
+__wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
+    WT_TXN_OP *op, bool for_prepare, bool *was_set)
 {
 	WT_TXN *txn;
+	WT_UPDATE *upd;
 	wt_timestamp_t *timestamp;
+	bool needs_timestamp;
 
 	txn = &session->txn;
+	upd = op->u.op_upd;
+	if (was_set != NULL)
+		*was_set = false;
 
 	/*
 	 * The timestamp is in the page deleted structure for truncates, or
@@ -263,17 +275,43 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
 		    NULL : &op->u.ref->page_del->timestamp;
 	else
-		timestamp = op->u.upd == NULL ? NULL : &op->u.upd->timestamp;
+		timestamp = op->u.op_upd == NULL ?
+		    NULL : &op->u.op_upd->timestamp;
 
 	/*
 	 * Updates in the metadata never get timestamps (either now or at
 	 * commit): metadata cannot be read at a point in time, only the most
 	 * recently committed data matches files on disk.
 	 */
-	return (op->fileid != WT_METAFILE_ID &&
+	needs_timestamp = !WT_IS_METADATA(op->btree->dhandle) &&
 	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
-	    F_ISSET(txn, WT_TXN_PREPARE)));
+	    F_ISSET(txn, WT_TXN_PREPARE));
+
+	if (!needs_timestamp)
+		return;
+
+	if (for_prepare) {
+		/*
+		 * In case of a prepared transaction, the order
+		 * of modification of the prepare timestamp to
+		 * the commit timestamp in the update chain will
+		 * not affect the data visibility, a reader will
+		 * encounter a prepared update resulting in
+		 * prepare conflict.
+		 *
+		 * As updating timestamp might not be an atomic
+		 * operation, we will manage using state.
+		 */
+		upd->prepare_state = WT_PREPARE_LOCKED;
+		WT_WRITE_BARRIER();
+		__wt_timestamp_set(timestamp, &txn->commit_timestamp);
+		WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+	} else
+		__wt_timestamp_set(timestamp, &txn->commit_timestamp);
+
+	if (was_set != NULL)
+		*was_set = true;
 }
 #endif
 
@@ -282,11 +320,14 @@ __wt_txn_update_needs_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
  *	Mark a WT_UPDATE object modified by the current transaction.
  */
 static inline int
-__wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
+	WT_BTREE *btree;
+	WT_ITEM key;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 
+	btree = S2BT(session);
 	txn = &session->txn;
 
 	if (F_ISSET(txn, WT_TXN_READONLY))
@@ -294,14 +335,48 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		    "Attempt to update in a read-only transaction");
 
 	WT_RET(__txn_next_op(session, &op));
-	op->type = F_ISSET(session, WT_SESSION_LOGGING_INMEM) ?
-	    WT_TXN_OP_INMEM : WT_TXN_OP_BASIC;
-#ifdef HAVE_TIMESTAMPS
-	if (__wt_txn_update_needs_timestamp(session, op))
-		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
-#endif
-	op->u.upd = upd;
+	if (F_ISSET(session, WT_SESSION_LOGGING_INMEM)) {
+		if (btree->type == BTREE_ROW)
+			op->type = WT_TXN_OP_INMEM_ROW;
+		else
+			op->type = WT_TXN_OP_INMEM_COL;
+	} else {
+		if (btree->type == BTREE_ROW)
+			op->type = WT_TXN_OP_BASIC_ROW;
+		else
+			op->type = WT_TXN_OP_BASIC_COL;
+	}
+	op->u.op_upd = upd;
 	upd->txnid = session->txn.id;
+
+#ifdef HAVE_TIMESTAMPS
+	__wt_txn_update_set_timestamp(session, op, false, NULL);
+	/*
+	 * Copy the key into the transaction op structure, so the update
+	 * can be evicted to lookaside, and we have a chance of finding it
+	 * again. This is only possible for transactions that are in the
+	 * prepared state, but we don't know at this stage if a transaction
+	 * will be prepared or not.
+	 */
+	if (!WT_SESSION_IS_CHECKPOINT(session) &&
+	    !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
+	    !WT_IS_METADATA(op->btree->dhandle)) {
+		/*
+		 * Store the key, to search the prepared update in case of
+		 * prepared transaction.
+		 */
+		if (btree->type == BTREE_ROW) {
+			WT_RET(__wt_cursor_get_raw_key(&cbt->iface, &key));
+			WT_RET(__wt_buf_set(session,
+			    &op->u.op_row.key, key.data, key.size));
+		} else
+			op->u.op_col.recno = cbt->recno;
+	}
+#else
+	WT_UNUSED(btree);
+	WT_UNUSED(cbt);
+	WT_UNUSED(key);
+#endif
 	return (0);
 }
 
@@ -321,13 +396,11 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_RET(__txn_next_op(session, &op));
 	op->type = WT_TXN_OP_REF_DELETE;
 
-#ifdef HAVE_TIMESTAMPS
-	if (__wt_txn_update_needs_timestamp(session, op))
-		__wt_timestamp_set(
-		    &ref->page_del->timestamp, &txn->commit_timestamp);
-#endif
 	op->u.ref = ref;
 	ref->page_del->txnid = txn->id;
+#ifdef HAVE_TIMESTAMPS
+	__wt_txn_update_set_timestamp(session, op, false, NULL);
+#endif
 
 	WT_ERR(__wt_txn_log_op(session, NULL));
 	return (0);
@@ -901,6 +974,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	bool ignore_prepare_set;
 
 	txn = &session->txn;
+
 	if (txn->isolation != WT_ISO_SNAPSHOT)
 		return (0);
 
