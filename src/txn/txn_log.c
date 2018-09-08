@@ -168,6 +168,11 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	switch (op->type) {
 	case WT_TXN_OP_NONE:
+		/*
+		 * The free function can be called more than once: when there's
+		 * no operation, a free is unnecessary or has already been done.
+		 */
+		return;
 	case WT_TXN_OP_BASIC_COL:
 	case WT_TXN_OP_INMEM_COL:
 	case WT_TXN_OP_REF_DELETE:
@@ -184,7 +189,10 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		__wt_buf_free(session, &op->u.truncate_row.stop);
 		break;
 	}
+
 	(void)__wt_atomic_subi32(&op->btree->dhandle->session_inuse, 1);
+
+	op->type = WT_TXN_OP_NONE;
 }
 
 /*
