@@ -263,7 +263,6 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	bool needs_timestamp;
 
 	txn = &session->txn;
-	upd = op->u.op_upd;
 	if (was_set != NULL)
 		*was_set = false;
 
@@ -291,7 +290,7 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	if (!needs_timestamp)
 		return;
 
-	if (for_prepare) {
+	if (for_prepare && op->type != WT_TXN_OP_REF_DELETE) {
 		/*
 		 * In case of a prepared transaction, the order
 		 * of modification of the prepare timestamp to
@@ -303,6 +302,7 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 		 * As updating timestamp might not be an atomic
 		 * operation, we will manage using state.
 		 */
+		upd = op->u.op_upd;
 		upd->prepare_state = WT_PREPARE_LOCKED;
 		WT_WRITE_BARRIER();
 		__wt_timestamp_set(timestamp, &txn->commit_timestamp);
