@@ -235,14 +235,11 @@ static inline void
 __wt_txn_unmodify(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
-	WT_TXN_OP *op;
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, txn->mod_count > 0);
-		op = txn->mod + txn->mod_count - 1;
-		__wt_txn_op_free(session, op);
-		txn->mod_count--;
+		__wt_txn_op_free(session, txn->mod + --txn->mod_count);
 	}
 }
 
@@ -262,9 +259,10 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	wt_timestamp_t *timestamp;
 	bool needs_timestamp;
 
-	txn = &session->txn;
 	if (was_set != NULL)
 		*was_set = false;
+
+	txn = &session->txn;
 
 	/*
 	 * The timestamp is in the page deleted structure for truncates, or
