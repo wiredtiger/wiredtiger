@@ -277,14 +277,9 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	 * The timestamp is in the page deleted structure for truncates, or
 	 * in the update for other operations.
 	 */
-	if (op->type == WT_TXN_OP_REF_DELETE)
-		timestamp = op->u.ref == NULL || op->u.ref->page_del == NULL ?
-		    NULL : &op->u.ref->page_del->timestamp;
-	else
-		timestamp = op->u.op_upd == NULL ?
-		    NULL : &op->u.op_upd->timestamp;
-
-	needs_timestamp = timestamp == NULL ||
+	timestamp = op->type == WT_TXN_OP_REF_DELETE ?
+	    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
+	needs_timestamp = 
 	    __wt_timestamp_iszero(timestamp) || F_ISSET(txn, WT_TXN_PREPARE);
 	if (!needs_timestamp)
 		return;
