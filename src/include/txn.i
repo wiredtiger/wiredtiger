@@ -265,6 +265,15 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	txn = &session->txn;
 
 	/*
+	 * Updates in the metadata never get timestamps (either now or at
+	 * commit): metadata cannot be read at a point in time, only the most
+	 * recently committed data matches files on disk.
+	 */
+	if (WT_IS_METADATA(op->btree->dhandle) ||
+	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+		return;
+
+	/*
 	 * The timestamp is in the page deleted structure for truncates, or
 	 * in the update for other operations.
 	 */
@@ -275,16 +284,8 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 		timestamp = op->u.op_upd == NULL ?
 		    NULL : &op->u.op_upd->timestamp;
 
-	/*
-	 * Updates in the metadata never get timestamps (either now or at
-	 * commit): metadata cannot be read at a point in time, only the most
-	 * recently committed data matches files on disk.
-	 */
-	needs_timestamp = !WT_IS_METADATA(op->btree->dhandle) &&
-	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    (timestamp == NULL || __wt_timestamp_iszero(timestamp) ||
-	    F_ISSET(txn, WT_TXN_PREPARE));
-
+	needs_timestamp = timestamp == NULL ||
+	    __wt_timestamp_iszero(timestamp) || F_ISSET(txn, WT_TXN_PREPARE);
 	if (!needs_timestamp)
 		return;
 
