@@ -279,7 +279,7 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	 */
 	timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 	    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
-	needs_timestamp = 
+	needs_timestamp =
 	    __wt_timestamp_iszero(timestamp) || F_ISSET(txn, WT_TXN_PREPARE);
 	if (!needs_timestamp)
 		return;
