@@ -235,16 +235,18 @@ static inline void
 __wt_txn_unmodify(WT_SESSION_IMPL *session)
 {
 	WT_TXN *txn;
+	WT_TXN_OP *op;
 
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, txn->mod_count > 0);
-		__wt_txn_op_free(session, txn->mod + --txn->mod_count);
+		--txn->mod_count;
+		op = txn->mod + txn->mod_count;
+		__wt_txn_op_free(session, op);
 	}
 }
 
 #ifdef HAVE_TIMESTAMPS
-
 /*
  * __wt_txn_op_commit_page_del --
  *	Make the transaction ID and timestamp updates necessary to a ref that
