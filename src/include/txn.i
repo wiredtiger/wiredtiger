@@ -244,23 +244,85 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 }
 
 #ifdef HAVE_TIMESTAMPS
+
 /*
- * __wt_txn_update_set_timestamp --
+ * __wt_txn_op_commit_page_del --
+ *	Make the transaction ID and timestamp updates necessary to a ref that
+ *      was created by a fast delete truncate operation.
+ */
+static inline void
+__wt_txn_op_commit_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_TXN *txn;
+	WT_UPDATE **updp;
+	uint32_t previous_state;
+
+	txn = &session->txn;
+
+	/*
+	 * The page-deleted list can be discarded by eviction,
+	 * lock the WT_REF to ensure we don't race.
+	 */
+	if (ref->page_del->update_list == NULL)
+		return;
+
+	for (;; __wt_yield()) {
+		previous_state = ref->state;
+		if (previous_state != WT_REF_LOCKED &&
+		    __wt_atomic_casv32(
+		    &ref->state, previous_state, WT_REF_LOCKED))
+			return;
+	}
+
+	if ((updp = ref->page_del->update_list) == NULL) {
+		/*
+		 * Publish to ensure we don't let the page be
+		 * evicted and the updates discarded before
+		 * being written.
+		 */
+		WT_PUBLISH(ref->state, previous_state);
+		return;
+	}
+
+	for (; *updp != NULL; ++updp) {
+		if (F_ISSET(txn, WT_TXN_PREPARE)) {
+			/*
+			 * As ref state is LOCKED, timestamp
+			 * and prepare state are updated in
+			 * exclusive access, hence no need for
+			 * temporary state WT_PREPARE_LOCKED
+			 * and BARRIER.
+			 */
+			__wt_timestamp_set(
+			    &(*updp)->timestamp,
+			    &txn->commit_timestamp);
+			(*updp)->prepare_state =
+			    WT_PREPARE_RESOLVED;
+		} else
+			__wt_timestamp_set(
+			    &(*updp)->timestamp,
+			    &txn->commit_timestamp);
+	}
+
+	/*
+	 * Publish to ensure we don't let the page be evicted
+	 * and the updates discarded before being written.
+	 */
+	WT_PUBLISH(ref->state, previous_state);
+}
+
+/*
+ * __wt_txn_op_set_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
  *	structure doesn't have a populated update or ref field or in prepared
  *      state there won't be any check for an existing timestamp.
  */
 static inline void
-__wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
-    WT_TXN_OP *op, bool for_prepare, bool *was_set)
+__wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	WT_TXN *txn;
 	WT_UPDATE *upd;
 	wt_timestamp_t *timestamp;
-	bool needs_timestamp;
-
-	if (was_set != NULL)
-		*was_set = false;
 
 	txn = &session->txn;
 
@@ -273,39 +335,37 @@ __wt_txn_update_set_timestamp(WT_SESSION_IMPL *session,
 	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
 		return;
 
-	/*
-	 * The timestamp is in the page deleted structure for truncates, or
-	 * in the update for other operations.
-	 */
-	timestamp = op->type == WT_TXN_OP_REF_DELETE ?
-	    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
-	needs_timestamp =
-	    __wt_timestamp_iszero(timestamp) || F_ISSET(txn, WT_TXN_PREPARE);
-	if (!needs_timestamp)
-		return;
-
-	if (for_prepare && op->type != WT_TXN_OP_REF_DELETE) {
+	if (F_ISSET(txn, WT_TXN_PREPARE)) {
+		if (op->type == WT_TXN_OP_REF_DELETE)
+			__wt_txn_op_commit_page_del(session, op->u.ref);
+		else {
+			/*
+			 * In case of a prepared transaction, the order of
+			 * modification of the prepare timestamp to the commit
+			 * timestamp in the update chain will not affect the
+			 * data visibility, a reader will encounter a prepared
+			 * update resulting in prepare conflict.
+			 *
+			 * As updating timestamp might not be an atomic
+			 * operation, we will manage using state.
+			 */
+			upd = op->u.op_upd;
+			upd->prepare_state = WT_PREPARE_LOCKED;
+			WT_WRITE_BARRIER();
+			__wt_timestamp_set(
+			    &upd->timestamp, &txn->commit_timestamp);
+			WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+		}
+	} else {
 		/*
-		 * In case of a prepared transaction, the order
-		 * of modification of the prepare timestamp to
-		 * the commit timestamp in the update chain will
-		 * not affect the data visibility, a reader will
-		 * encounter a prepared update resulting in
-		 * prepare conflict.
-		 *
-		 * As updating timestamp might not be an atomic
-		 * operation, we will manage using state.
+		 * The timestamp is in the page deleted structure for
+		 * truncates, or in the update for other operations.
 		 */
-		upd = op->u.op_upd;
-		upd->prepare_state = WT_PREPARE_LOCKED;
-		WT_WRITE_BARRIER();
-		__wt_timestamp_set(timestamp, &txn->commit_timestamp);
-		WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
-	} else
-		__wt_timestamp_set(timestamp, &txn->commit_timestamp);
-
-	if (was_set != NULL)
-		*was_set = true;
+		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
+		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
+		if (!__wt_timestamp_iszero(timestamp))
+			__wt_timestamp_set(timestamp, &txn->commit_timestamp);
+	}
 }
 #endif
 
@@ -344,7 +404,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	upd->txnid = session->txn.id;
 
 #ifdef HAVE_TIMESTAMPS
-	__wt_txn_update_set_timestamp(session, op, false, NULL);
+	__wt_txn_op_set_timestamp(session, op);
 	/*
 	 * Copy the key into the transaction op structure, so the update
 	 * can be evicted to lookaside, and we have a chance of finding it
@@ -393,7 +453,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 	op->u.ref = ref;
 	ref->page_del->txnid = txn->id;
 #ifdef HAVE_TIMESTAMPS
-	__wt_txn_update_set_timestamp(session, op, false, NULL);
+	__wt_txn_op_set_timestamp(session, op);
 #endif
 
 	WT_ERR(__wt_txn_log_op(session, NULL));
