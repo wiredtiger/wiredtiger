@@ -397,8 +397,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	 * performance penalty. This block will be enabled, once an alternative
 	 * is figured out, or we have to live with this penalty.
 	 */
-#define	DISABLE_LOOKASIDE_FOR_PREPARED
-#ifdef DISABLE_LOOKASIDE_FOR_PREPARED
+#ifdef HAVE_LONG_RUNNING_PREPARE
 	/*
 	 * Transaction operation with timestamp cannot be prepared.
 	 * Copy the key into the transaction op structure, so the update
@@ -422,7 +421,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 			op->u.op_col.recno = cbt->recno;
 	}
 #endif
-#undef DISABLE_LOOKASIDE_FOR_PREPARED
 
 #endif
 	WT_UNUSED(btree);
