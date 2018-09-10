@@ -206,7 +206,7 @@ __txn_op_modify_recno(WT_SESSION_IMPL *session, uint64_t recno)
 	txn = &session->txn;
 
 	WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
-	op = txn->mod + txn->mod_count -1;
+	op = txn->mod + txn->mod_count - 1;
 
 	WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_COL ||
 	    op->type == WT_TXN_OP_INMEM_COL);
@@ -244,7 +244,9 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 		    op->type == WT_TXN_OP_INMEM_ROW)
 			__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
 		else
-			((WT_CURSOR_BTREE *)cursor)->recno = op->u.op_col.recno;
+			((WT_CURSOR_BTREE *)cursor)->iface.recno =
+			    op->u.op_col.recno;
+
 		WT_WITH_BTREE(session, op->btree,
 		    ret = __wt_btcur_search_uncommitted(
 		    (WT_CURSOR_BTREE *)cursor, &upd));
