@@ -526,7 +526,7 @@ __evict_review(
 	conn = S2C(session);
 	page = ref->page;
 	flags = WT_REC_EVICT;
-	if (!WT_SESSION_IS_CHECKPOINT(session))
+	if (!WT_SESSION_BTREE_SYNC(session))
 		LF_SET(WT_REC_VISIBLE_ALL);
 
 	/*
