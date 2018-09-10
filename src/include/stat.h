@@ -354,6 +354,7 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
+	int64_t cache_lookaside_cursor_wait;
 	int64_t cache_lookaside_score;
 	int64_t cache_lookaside_entries;
 	int64_t cache_lookaside_insert;
@@ -434,7 +435,6 @@ struct __wt_connection_stats {
 	int64_t cache_write;
 	int64_t cache_write_restore;
 	int64_t cache_overhead;
-	int64_t cache_lookaside_cursor;
 	int64_t cache_bytes_internal;
 	int64_t cache_bytes_leaf;
 	int64_t cache_bytes_dirty;

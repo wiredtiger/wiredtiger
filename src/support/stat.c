@@ -788,6 +788,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: bytes not belonging to page images in the cache",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
+	"cache: cache overflow cursor wait time (usecs)",
 	"cache: cache overflow score",
 	"cache: cache overflow table entries",
 	"cache: cache overflow table insert calls",
@@ -868,7 +869,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: percentage overhead",
-	"cache: sleep for cache overflow table cursor",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
 	"cache: tracked dirty bytes in the cache",
@@ -1191,6 +1191,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_other */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
+	stats->cache_lookaside_cursor_wait = 0;
 		/* not clearing cache_lookaside_score */
 		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
@@ -1271,7 +1272,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_overhead */
-	stats->cache_lookaside_cursor = 0;
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
 		/* not clearing cache_bytes_dirty */
@@ -1577,6 +1577,8 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
+	to->cache_lookaside_cursor_wait +=
+	    WT_STAT_READ(from, cache_lookaside_cursor_wait);
 	to->cache_lookaside_score +=
 	    WT_STAT_READ(from, cache_lookaside_score);
 	to->cache_lookaside_entries +=
@@ -1717,8 +1719,6 @@ __wt_stat_connection_aggregate(
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
-	to->cache_lookaside_cursor +=
-	    WT_STAT_READ(from, cache_lookaside_cursor);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
