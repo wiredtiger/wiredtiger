@@ -336,6 +336,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		return;
 
 	if (F_ISSET(txn, WT_TXN_PREPARE)) {
+                WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
 		if (op->type == WT_TXN_OP_REF_DELETE)
 			__wt_txn_op_commit_page_del(session, op->u.ref);
 		else {
@@ -363,7 +364,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
-		if (!__wt_timestamp_iszero(timestamp))
+		if (__wt_timestamp_iszero(timestamp))
 			__wt_timestamp_set(timestamp, &txn->commit_timestamp);
 	}
 }
@@ -404,6 +405,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	upd->txnid = session->txn.id;
 
 #ifdef HAVE_TIMESTAMPS
+        WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
 	__wt_txn_op_set_timestamp(session, op);
 	/*
 	 * Copy the key into the transaction op structure, so the update
@@ -453,6 +455,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 	op->u.ref = ref;
 	ref->page_del->txnid = txn->id;
 #ifdef HAVE_TIMESTAMPS
+        WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
 	__wt_txn_op_set_timestamp(session, op);
 #endif
 
