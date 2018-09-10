@@ -31,11 +31,14 @@
 #
 
 import os, shutil, stat
-import wiredtiger, wttest
+import helper, wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_backup09(wttest.WiredTigerTestCase):
-    conn_config = 'config_base=false,create,log=(enabled)'
+    # Have log writes go directly to the OS to avoid log_flush calls before
+    # performing file copies not technically part of the backup cursor.
+    conn_config = 'config_base=false,create,' \
+        'log=(enabled),transaction_sync=(enabled,method=none)'
     uri = 'table:coll1'
     backup_dir = 'backup.dir'
 
@@ -46,9 +49,9 @@ class test_backup09(wttest.WiredTigerTestCase):
         # all_log_files: whether to copy all files in the source directory, or
         #   only the files returned from the backup cursor. Copying the
         #   additional log files will result in more operations being recovered.
-        ('checkpoint', {'checkpoint': True, 'all_log_files': False}),
-        ('no_checkpoint', {'checkpoint': False, 'all_log_files': False}),
-        ('all_log_files', {'checkpoint': True, 'all_log_files': True}),
+        ('checkpoint', dict(checkpoint=True, all_log_files=False)),
+        ('no_checkpoint', dict(checkpoint=False, all_log_files=False)),
+        ('all_log_files', dict(checkpoint=True, all_log_files=True)),
     ]
     scenarios = make_scenarios(types)
 
@@ -73,11 +76,6 @@ class test_backup09(wttest.WiredTigerTestCase):
         self.assertEqual(1, len(filter(lambda x:
             x.startswith('WiredTigerLog.'), os.listdir('.'))))
         backup_cursor = self.session.open_cursor('backup:')
-        # This test asserts that writes after a checkpoint will not be part of
-        # the data/log files returned by a backup cursor that was opened prior
-        # to the checkpoint. Taking a checkpoint will also force a log write to
-        # a new file, due to the lazy-evaluated flag set by the backup cursor.
-        self.session.checkpoint()
         self.assertEqual(2, len(filter(lambda x:
             x.startswith('WiredTigerLog.'), os.listdir('.'))))
 
@@ -92,19 +90,9 @@ class test_backup09(wttest.WiredTigerTestCase):
         log_files_to_copy = 0
         os.mkdir(self.backup_dir)
         if self.all_log_files:
-            log_files_copied = 0
-            for file_name in os.listdir('.'):
-                is_dir = stat.S_ISDIR(os.stat(file_name).st_mode)
-                is_turtle = file_name == 'WiredTiger.turtle'
-                is_wiredtiger_table = file_name == 'WiredTiger.wt'
-                if is_dir or is_turtle or is_wiredtiger_table:
-                    continue
-
-                shutil.copy(file_name, self.backup_dir)
-                if file_name.startswith('WiredTigerLog.'):
-                    log_files_copied += 1
-
-            self.assertEqual(log_files_copied, 2)
+            helper.copy_wiredtiger_home('.', self.backup_dir)
+            log_files_copied = filter(lambda x: x.startswith('WiredTigerLog.'), os.listdir(self.backup_dir))
+            self.assertEqual(len(log_files_copied), 2)
         else:
             while True:
                 ret = backup_cursor.next()
@@ -118,6 +106,9 @@ class test_backup09(wttest.WiredTigerTestCase):
             self.assertEqual(log_files_to_copy, 1)
 
         backup_conn = self.wiredtiger_open(self.backup_dir, self.conn_config)
+        if self.all_log_files:
+            self.captureout.checkAdditionalPattern(self, 'Both WiredTiger.turtle and WiredTiger.backup exist.*')
+
         session = backup_conn.open_session()
         cursor = session.open_cursor(self.uri)
 

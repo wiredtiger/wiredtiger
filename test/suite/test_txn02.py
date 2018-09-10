@@ -97,7 +97,6 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
     def debug(self, msg):
         if not self._debug:
             return
-
         print(msg)
 
     def conn_config(self):

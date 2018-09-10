@@ -457,8 +457,7 @@ __wt_log_get_backup_files(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	WT_LOG *log;
-	WT_LSN min_lsn, max_lsn;
-	uint32_t id, max;
+	uint32_t id, max, max_file, min_file;
 	u_int count, i;
 	char **files;
 
@@ -470,35 +469,36 @@ __wt_log_get_backup_files(WT_SESSION_IMPL *session,
 	log = S2C(session)->log;
 
 	/*
-	 * Capture the LSN written, before forcing a new log file. This LSN
-	 * represents the latest journal file that needs to be copied. Note the
-	 * checkpoint selected for backup may exceed this value. In that case,
-	 * the journal files are wasted.
+	 * Capture the next file utilized for writing to the log, before forcing
+	 * a new log file. This represents the latest journal file that needs to
+	 * be copied. Note the checkpoint selected for backup may be writing to
+	 * an even later log file. In that case, copying the journal files is
+	 * correct, but wasteful.
 	 */
-	max_lsn = log->write_lsn;
+	max_file = log->alloc_lsn.l.file;
 
 	/*
-	 * Capture the current checkpoint LSN. The current checkpoint or a later
-	 * one may be selected for backing up, requiring log files as early as
-	 * this LSN. Together with max_lsn, this defines the range of journal
-	 * files to include.
+	 * Capture the journal file the current checkpoint started in. The
+	 * current checkpoint or a later one may be selected for backing up,
+	 * requiring log files as early as this file. Together with max_file,
+	 * this defines the range of journal files to include.
 	 */
-	min_lsn = log->ckpt_lsn;
+	min_file = log->ckpt_lsn.l.file;
 
 	/*
-	 * These may be files needed by backup.  Force the current slot to get
-	 * written to the file. Also switch to using a new log file.  That log
-	 * file will be removed from the list of files returned. New writes will
-	 * not be included in the backup.
+	 * Force the current slot to get written to the file. Also switch to
+	 * using a new log file. That log file will be removed from the list of
+	 * files returned. New writes will not be included in the backup.
 	 */
-	F_SET(log, WT_LOG_FORCE_NEWFILE);
+	if (active_only)
+		F_SET(log, WT_LOG_FORCE_NEWFILE);
 	WT_RET(__wt_log_force_write(session, 1, NULL));
 	WT_RET(__log_get_files(session, WT_LOG_FILENAME, &files, &count));
 
 	for (max = 0, i = 0; i < count; ) {
 		WT_ERR(__wt_log_extract_lognum(session, files[i], &id));
 		if (active_only &&
-		    (id < min_lsn.l.file || id > max_lsn.l.file)) {
+		    (id < min_file || id > max_file)) {
 			/*
 			 * Any files not being returned are individually freed
 			 * and the array adjusted.
