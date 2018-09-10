@@ -171,10 +171,14 @@ struct __wt_btree {
 	} syncing;			/* Sync status */
 
 	/*
-	 * Helper macros: WT_BTREE_SYNC_ACTIVE indicates if a sync is either
-	 * waiting to start or already running (so no new operations should
-	 * start that would conflict with the sync).  WT_BTREE_SYNCING should
-	 * be used in assertions that operations do not conflict.
+	 * Helper macros:
+	 * WT_BTREE_SYNCING indicates if a sync is active (either waiting to
+	 * start or already running), so no new operations should start that
+	 * would conflict with the sync.
+	 * WT_SESSION_BTREE_SYNC indicates if the session is performing a sync
+	 * on its current tree.
+	 * WT_SESSION_BTREE_SYNC_SAFE checks whether it is safe to perfom an
+	 * operation that would conflict with a sync.
 	 */
 #define	WT_BTREE_SYNCING(btree)						\
 	(btree->syncing != WT_BTREE_SYNC_OFF)
