@@ -174,7 +174,7 @@ typedef enum __wt_txn_isolation {
 struct __wt_txn_op {
 	WT_BTREE *btree;
 	enum {
-		WT_TXN_OP_NONE,
+		WT_TXN_OP_NONE=0,
 		WT_TXN_OP_BASIC_COL,
 		WT_TXN_OP_BASIC_ROW,
 		WT_TXN_OP_INMEM_COL,

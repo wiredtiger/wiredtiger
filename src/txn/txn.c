@@ -823,7 +823,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
-
 		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
@@ -1067,13 +1066,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM_ROW:
 			/*
 			 * Switch reserved operation to abort to simplify
-			 * obsolete update list truncation.  Clear the
-			 * operation type so we don't try to visit this update
-			 * again: it can now be evicted.
+			 * obsolete update list truncation. The object free
+			 * function clears the operation type so we don't
+			 * try to visit this update again: it can be evicted.
 			 */
 			if (upd->type == WT_UPDATE_RESERVE) {
 				upd->txnid = WT_TXN_ABORTED;
-				op->type = WT_TXN_OP_NONE;
+				__wt_txn_op_free(session, op);
 				break;
 			}
 
@@ -1156,7 +1155,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;
-
 		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
@@ -1180,7 +1178,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			break;
 		}
 
-		/* Free any memory allocated for the operation. */
 		__wt_txn_op_free(session, op);
 	}
 	txn->mod_count = 0;
