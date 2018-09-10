@@ -259,54 +259,37 @@ __wt_txn_op_commit_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	txn = &session->txn;
 
-	/*
-	 * The page-deleted list can be discarded by eviction,
-	 * lock the WT_REF to ensure we don't race.
-	 */
+	/* Avoid locking the page if a previous eviction already cleaned up. */
 	if (ref->page_del->update_list == NULL)
 		return;
 
+	/*
+	 * Lock the ref to ensure we don't race with eviction freeing the
+	 * page deleted update list.
+	 */
 	for (;; __wt_yield()) {
 		previous_state = ref->state;
 		if (previous_state != WT_REF_LOCKED &&
 		    __wt_atomic_casv32(
 		    &ref->state, previous_state, WT_REF_LOCKED))
-			return;
+			break;
 	}
 
-	if ((updp = ref->page_del->update_list) == NULL) {
-		/*
-		 * Publish to ensure we don't let the page be
-		 * evicted and the updates discarded before
-		 * being written.
-		 */
-		WT_PUBLISH(ref->state, previous_state);
-		return;
-	}
-
-	for (; *updp != NULL; ++updp) {
-		if (F_ISSET(txn, WT_TXN_PREPARE)) {
+	for (updp = ref->page_del->update_list;
+	    updp != NULL && *updp != NULL; ++updp) {
+		__wt_timestamp_set(&(*updp)->timestamp, &txn->commit_timestamp);
+		if (F_ISSET(txn, WT_TXN_PREPARE))
 			/*
-			 * As ref state is LOCKED, timestamp
-			 * and prepare state are updated in
-			 * exclusive access, hence no need for
-			 * temporary state WT_PREPARE_LOCKED
-			 * and BARRIER.
+			 * Holding the ref locked means we have exclusive
+			 * access, so don't need to use the prepare locked
+			 * transition state.
 			 */
-			__wt_timestamp_set(
-			    &(*updp)->timestamp,
-			    &txn->commit_timestamp);
-			(*updp)->prepare_state =
-			    WT_PREPARE_RESOLVED;
-		} else
-			__wt_timestamp_set(
-			    &(*updp)->timestamp,
-			    &txn->commit_timestamp);
+			(*updp)->prepare_state = WT_PREPARE_RESOLVED;
 	}
 
 	/*
-	 * Publish to ensure we don't let the page be evicted
-	 * and the updates discarded before being written.
+	 * Publish to ensure we don't let the page be evicted and the updates
+	 * discarded before being written.
 	 */
 	WT_PUBLISH(ref->state, previous_state);
 }
