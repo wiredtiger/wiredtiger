@@ -441,6 +441,9 @@ wt_open_corrupt(const char *sfx)
 	else
 		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
 	ret = wiredtiger_open(buf, &event_handler, NULL, &conn);
+	if (ret != WT_TRY_SALVAGE)
+		fprintf(stderr,
+		    "OPEN_CORRUPT: wiredtiger_open returned %d\n", ret);
 	testutil_assert(ret == WT_TRY_SALVAGE);
 #endif
 	exit (EXIT_SUCCESS);
@@ -727,10 +730,18 @@ main(int argc, char *argv[])
 	out_of_sync(&table_data[0]);
 
 	/*
-	 * We've created a lot of directories. Manually clean them up.
+	 * We need to set up the string before we clean up
+	 * the structure. Then after the clean up we will
+	 * run this command.
 	 */
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "rm -rf core* %s*", home));
+	testutil_cleanup(opts);
+
+	/*
+	 * We've created a lot of extra directories and possibly some core
+	 * files from child process aborts. Manually clean them up.
+	 */
 	printf("cleanup and remove: %s\n", buf);
 	if ((ret = system(buf)) < 0)
 		testutil_die(ret, "system: %s", buf);
