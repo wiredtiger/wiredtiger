@@ -631,7 +631,7 @@ __evict_review(
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
-		else if (WT_SESSION_TREE_SYNC(session))
+		else if (WT_SESSION_BTREE_SYNC(session))
 			LF_SET(WT_REC_LOOKASIDE);
 		else if (!WT_IS_METADATA(session->dhandle)) {
 			LF_SET(WT_REC_UPDATE_RESTORE);
@@ -659,7 +659,7 @@ __evict_review(
 	 * to evict.  Give up evicting in that case: checkpoint will include
 	 * the reconciled page when it visits the parent.
 	 */
-	if (WT_SESSION_TREE_SYNC(session) && !__wt_page_is_modified(page) &&
+	if (WT_SESSION_BTREE_SYNC(session) && !__wt_page_is_modified(page) &&
 	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
 	    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp)))
 		return (__wt_set_return(session, EBUSY));
@@ -687,7 +687,7 @@ __evict_review(
 	 * very unlikely.  However, since checkpoint is partway through
 	 * reconciling the parent page, a split can corrupt the checkpoint.
 	 */
-	if (WT_SESSION_TREE_SYNC(session) &&
+	if (WT_SESSION_BTREE_SYNC(session) &&
 	    page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
 		return (__wt_set_return(session, EBUSY));
 

@@ -1216,9 +1216,8 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	return ((btree->checkpointing == WT_CKPT_OFF &&
-	    !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) ||
-	    WT_SESSION_TREE_SYNC(session));
+	return (F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP) ||
+	    !WT_BTREE_SYNCING(btree) || WT_SESSION_BTREE_SYNC(session));
 }
 
 /*
@@ -1237,11 +1236,11 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	btree = S2BT(session);
 
 	/*
-	 * Checkpoints can not do in-memory splits in the tree they are
-	 * walking: that can lead to corruption when the parent internal page
-	 * is updated.
+	 * Checkpoints can't do in-memory splits in the tree they are walking:
+	 * that can lead to corruption when the parent internal page is
+	 * updated.
 	 */
-	if (WT_SESSION_TREE_SYNC(session))
+	if (WT_SESSION_BTREE_SYNC(session))
 		return (false);
 
 	/*
@@ -1512,7 +1511,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		if (!__wt_page_evict_clean(page) &&
 		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
-			if (!WT_SESSION_TREE_SYNC(session))
+			if (!WT_SESSION_BTREE_SYNC(session))
 				WT_IGNORE_RET(
 				    __wt_page_evict_urgent(session, ref));
 		} else {
