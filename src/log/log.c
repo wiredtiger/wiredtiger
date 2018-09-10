@@ -446,17 +446,18 @@ __wt_log_written_reset(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_log_get_all_files --
- *	Retrieve the list of log files, either all of them or only the active
- *	ones (those that are not candidates for archiving).  The caller is
- *	responsible for freeing the directory list returned.
+ * __wt_log_get_backup_files --
+ *	Retrieve the list of log files for taking a backup, either all of them
+ *	or only the active ones (those that are not candidates for archiving).
+ *	The caller is responsible for freeing the directory list returned.
  */
 int
-__wt_log_get_all_files(WT_SESSION_IMPL *session,
+__wt_log_get_backup_files(WT_SESSION_IMPL *session,
     char ***filesp, u_int *countp, uint32_t *maxid, bool active_only)
 {
 	WT_DECL_RET;
 	WT_LOG *log;
+	WT_LSN min_lsn, max_lsn;
 	uint32_t id, max;
 	u_int count, i;
 	char **files;
@@ -469,16 +470,35 @@ __wt_log_get_all_files(WT_SESSION_IMPL *session,
 	log = S2C(session)->log;
 
 	/*
-	 * These may be files needed by backup.  Force the current slot
-	 * to get written to the file.
+	 * Capture the LSN written, before forcing a new log file. This LSN
+	 * represents the latest journal file that needs to be copied. Note the
+	 * checkpoint selected for backup may exceed this value. In that case,
+	 * the journal files are wasted.
 	 */
+	max_lsn = log->write_lsn;
+
+	/*
+	 * Capture the current checkpoint LSN. The current checkpoint or a later
+	 * one may be selected for backing up, requiring log files as early as
+	 * this LSN. Together with max_lsn, this defines the range of journal
+	 * files to include.
+	 */
+	min_lsn = log->ckpt_lsn;
+
+	/*
+	 * These may be files needed by backup.  Force the current slot to get
+	 * written to the file. Also switch to using a new log file.  That log
+	 * file will be removed from the list of files returned. New writes will
+	 * not be included in the backup.
+	 */
+	F_SET(log, WT_LOG_FORCE_NEWFILE);
 	WT_RET(__wt_log_force_write(session, 1, NULL));
 	WT_RET(__log_get_files(session, WT_LOG_FILENAME, &files, &count));
 
-	/* Filter out any files that are below the checkpoint LSN. */
 	for (max = 0, i = 0; i < count; ) {
 		WT_ERR(__wt_log_extract_lognum(session, files[i], &id));
-		if (active_only && id < log->ckpt_lsn.l.file) {
+		if (active_only &&
+		    (id < min_lsn.l.file || id > max_lsn.l.file)) {
 			/*
 			 * Any files not being returned are individually freed
 			 * and the array adjusted.
@@ -672,7 +692,7 @@ __log_prealloc(WT_SESSION_IMPL *session, WT_FH *fh)
 	 */
 	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL))
 		return (__log_zero(session, fh,
-		    WT_LOG_END_HEADER, conn->log_file_max));
+		    log->first_record, conn->log_file_max));
 
 	/* If configured to not extend the file, we're done. */
 	if (conn->log_extend_len == 0)
