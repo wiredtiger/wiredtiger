@@ -441,10 +441,15 @@ wt_open_corrupt(const char *sfx)
 	else
 		testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", home));
 	ret = wiredtiger_open(buf, &event_handler, NULL, &conn);
-	if (ret != WT_TRY_SALVAGE)
+	/*
+	 * Not all out of sync combinations lead to corruption. We keep
+	 * the previous checkpoint in the file so some combinations of
+	 * future or old turtle files and metadata files will succeed.
+	 */
+	if (ret != WT_TRY_SALVAGE && ret != 0)
 		fprintf(stderr,
 		    "OPEN_CORRUPT: wiredtiger_open returned %d\n", ret);
-	testutil_assert(ret == WT_TRY_SALVAGE);
+	testutil_assert(ret == WT_TRY_SALVAGE || ret == 0);
 #endif
 	exit (EXIT_SUCCESS);
 }
