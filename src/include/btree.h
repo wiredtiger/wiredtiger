@@ -177,7 +177,7 @@ struct __wt_btree {
 	 * would conflict with the sync.
 	 * WT_SESSION_BTREE_SYNC indicates if the session is performing a sync
 	 * on its current tree.
-	 * WT_SESSION_BTREE_SYNC_SAFE checks whether it is safe to perfom an
+	 * WT_SESSION_BTREE_SYNC_SAFE checks whether it is safe to perform an
 	 * operation that would conflict with a sync.
 	 */
 #define	WT_BTREE_SYNCING(btree)						\
