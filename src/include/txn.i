@@ -326,6 +326,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	WT_ITEM key;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
+	bool timestamp_set;
 
 	btree = S2BT(session);
 	txn = &session->txn;
@@ -350,15 +351,17 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	upd->txnid = session->txn.id;
 
 #ifdef HAVE_TIMESTAMPS
-	__wt_txn_update_set_timestamp(session, op, false, NULL);
+	__wt_txn_update_set_timestamp(session, op, false, &timestamp_set);
+
 	/*
+	 * Transactions with timestamped operations cannot be prepared.
 	 * Copy the key into the transaction op structure, so the update
 	 * can be evicted to lookaside, and we have a chance of finding it
 	 * again. This is only possible for transactions that are in the
 	 * prepared state, but we don't know at this stage if a transaction
 	 * will be prepared or not.
 	 */
-	if (!WT_SESSION_IS_CHECKPOINT(session) &&
+	if (!timestamp_set && !WT_SESSION_IS_CHECKPOINT(session) &&
 	    !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
 	    !WT_IS_METADATA(op->btree->dhandle)) {
 		/*
@@ -376,6 +379,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	WT_UNUSED(btree);
 	WT_UNUSED(cbt);
 	WT_UNUSED(key);
+	WT_UNUSED(timestamp_set);
 #endif
 	return (0);
 }
