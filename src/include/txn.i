@@ -354,7 +354,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	__wt_txn_update_set_timestamp(session, op, false, &timestamp_set);
 
 	/*
-	 * Transactions with timestamped operations cannot be prepared.
+	 * Transaction operation with timestamp cannot be prepared.
 	 * Copy the key into the transaction op structure, so the update
 	 * can be evicted to lookaside, and we have a chance of finding it
 	 * again. This is only possible for transactions that are in the
