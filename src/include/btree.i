@@ -1216,8 +1216,8 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	return (F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP) ||
-	    !WT_BTREE_SYNCING(btree) || WT_SESSION_BTREE_SYNC(session));
+	return ((!WT_BTREE_SYNCING(btree) || WT_SESSION_BTREE_SYNC(session)) &&
+            !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP));
 }
 
 /*
