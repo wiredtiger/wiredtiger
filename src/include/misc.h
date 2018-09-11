@@ -387,4 +387,4 @@ union __wt_rand_state {
  * 	To enable functionality of evicting prepared transactions using
  * cache overflow mechanism.
  */
-#define	HAVE_LONG_RUNNING_PREPARE 0
+#undef	HAVE_LONG_RUNNING_PREPARE
