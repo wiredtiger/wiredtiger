@@ -252,6 +252,8 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 		    (WT_CURSOR_BTREE *)cursor, &upd));
 		WT_ERR(ret);
 		WT_ERR(cursor->close(cursor));
+		WT_ASSERT(session, upd != NULL);
+		op->u.op_upd = upd;
 		for (; upd != NULL; upd = upd->next) {
 
 			/*
@@ -267,14 +269,6 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 				break;
 
 			if (!commit) {
-				/*
-				 * Assert in comments can be removed, but kept
-				 * for discussion before confirming the removal.
-				 *
-
-				WT_ASSERT(session, upd->txnid == txn->id ||
-				    upd->txnid == WT_TXN_ABORTED);
-				*/
 				/* Rollback is just to update txn id. */
 				upd->txnid = WT_TXN_ABORTED;
 				continue;
