@@ -644,11 +644,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	parent = ref->home;
 
 	alloc_index = pindex = NULL;
-	deleted_entries = 0;
 	parent_decr = 0;
 	empty_parent = false;
 	complete = WT_ERR_RETURN;
-	WT_RET(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
 
 	/* Mark the page dirty. */
 	WT_RET(__wt_page_modify_init(session, parent));
@@ -671,14 +669,14 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	 * session: removing the refs frees the blocks for the deleted pages,
 	 * which can corrupt the free list calculated by the sync.
 	 */
-	if (WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session))
-		goto skip_deletes;
-
-	for (i = 0; i < parent_entries; ++i) {
+	WT_ERR(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
+	for (deleted_entries = 0, i = 0; i < parent_entries; ++i) {
 		next_ref = pindex->index[i];
 		WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 		if ((discard && next_ref == ref) ||
-		    (next_ref->state == WT_REF_DELETED &&
+		    ((!WT_BTREE_SYNCING(btree) ||
+		    WT_SESSION_BTREE_SYNC(session)) &&
+		    next_ref->state == WT_REF_DELETED &&
 		    __wt_delete_page_skip(session, next_ref, true) &&
 		    __wt_atomic_casv32(
 		    &next_ref->state, WT_REF_DELETED, WT_REF_SPLIT))) {
@@ -689,7 +687,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		}
 	}
 
-skip_deletes:
 	/*
 	 * The final entry count consists of the original count, plus any new
 	 * pages, less any WT_REFs we're removing (deleted entries plus the
