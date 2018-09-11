@@ -1360,14 +1360,12 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			* together to enable the feature, remove this temporary
 			* code.
 			*/
-#define	DISABLE_LOOKASIDE_FOR_PREPARED
-#ifdef DISABLE_LOOKASIDE_FOR_PREPARED
+#ifndef HAVE_LONG_RUNNING_PREPARE
 		       if (prepared) {
 			       prepared = false;
 			       uncommitted = r->update_uncommitted = true;
 		       }
 #endif
-#undef DISABLE_LOOKASIDE_FOR_PREPARED
 
 		       if (prepared || uncommitted)
 			       continue;
