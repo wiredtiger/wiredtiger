@@ -625,6 +625,7 @@ static int
 __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
     uint32_t new_entries, size_t parent_incr, bool exclusive, bool discard)
 {
+	WT_BTREE *btree;
 	WT_DECL_ITEM(scr);
 	WT_DECL_RET;
 	WT_IKEY *ikey;
@@ -639,12 +640,15 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	uint32_t hint, i, j;
 	bool empty_parent;
 
+	btree = S2BT(session);
 	parent = ref->home;
 
 	alloc_index = pindex = NULL;
+	deleted_entries = 0;
 	parent_decr = 0;
 	empty_parent = false;
 	complete = WT_ERR_RETURN;
+	WT_RET(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
 
 	/* Mark the page dirty. */
 	WT_RET(__wt_page_modify_init(session, parent));
@@ -658,13 +662,19 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	parent_entries = pindex->entries;
 
 	/*
-	 * Remove any refs to deleted pages while we are splitting, we have
-	 * the internal page locked down, and are copying the refs into a new
-	 * array anyway.  Switch them to the special split state, so that any
-	 * reading thread will restart.
+	 * Remove any refs to deleted pages while we are splitting, we have the
+	 * internal page locked down, and are copying the refs into a new array
+	 * anyway.  Switch them to the special split state, so that any reading
+	 * thread will restart.
+	 *
+	 * We can't do this if there is a sync running in the tree in another
+	 * session: removing the refs frees the blocks for the deleted pages,
+	 * which can corrupt the free list calculated by the sync.
 	 */
-	WT_ERR(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
-	for (deleted_entries = 0, i = 0; i < parent_entries; ++i) {
+	if (WT_BTREE_SYNCING(btree) && !WT_SESSION_BTREE_SYNC(session))
+		goto skip_deletes;
+
+	for (i = 0; i < parent_entries; ++i) {
 		next_ref = pindex->index[i];
 		WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 		if ((discard && next_ref == ref) ||
@@ -679,6 +689,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		}
 	}
 
+skip_deletes:
 	/*
 	 * The final entry count consists of the original count, plus any new
 	 * pages, less any WT_REFs we're removing (deleted entries plus the
