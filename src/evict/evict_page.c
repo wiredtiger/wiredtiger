@@ -526,7 +526,7 @@ __evict_review(
 	conn = S2C(session);
 	page = ref->page;
 	flags = WT_REC_EVICT;
-	if (!WT_SESSION_IS_CHECKPOINT(session))
+	if (!WT_SESSION_BTREE_SYNC(session))
 		LF_SET(WT_REC_VISIBLE_ALL);
 
 	/*
@@ -583,15 +583,9 @@ __evict_review(
 		 * exclusive access. If an in-memory split completes, the page
 		 * stays in memory and the tree is left in the desired state:
 		 * avoid the usual cleanup.
-		 *
-		 * Note that checkpoints may not split pages in-memory, it can
-		 * lead to corruption when the parent internal page is updated.
 		 */
-		if (*inmem_splitp) {
-			 if (WT_SESSION_IS_CHECKPOINT(session))
-				return (__wt_set_return(session, EBUSY));
+		if (*inmem_splitp)
 			return (__wt_split_insert(session, ref));
-		}
 	}
 
 	/* If the page is clean, we're done and we can evict. */
@@ -646,7 +640,7 @@ __evict_review(
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
 			LF_SET(WT_REC_IN_MEMORY |
 			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
-		else if (WT_SESSION_IS_CHECKPOINT(session))
+		else if (WT_SESSION_BTREE_SYNC(session))
 			LF_SET(WT_REC_LOOKASIDE);
 		else if (!WT_IS_METADATA(session->dhandle)) {
 			LF_SET(WT_REC_UPDATE_RESTORE);
@@ -674,7 +668,7 @@ __evict_review(
 	 * to evict.  Give up evicting in that case: checkpoint will include
 	 * the reconciled page when it visits the parent.
 	 */
-	if (WT_SESSION_IS_CHECKPOINT(session) && !__wt_page_is_modified(page) &&
+	if (WT_SESSION_BTREE_SYNC(session) && !__wt_page_is_modified(page) &&
 	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
 	    WT_TIMESTAMP_NULL(&page->modify->rec_max_timestamp)))
 		return (__wt_set_return(session, EBUSY));
@@ -702,7 +696,7 @@ __evict_review(
 	 * very unlikely.  However, since checkpoint is partway through
 	 * reconciling the parent page, a split can corrupt the checkpoint.
 	 */
-	if (WT_SESSION_IS_CHECKPOINT(session) &&
+	if (WT_SESSION_BTREE_SYNC(session) &&
 	    page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
 		return (__wt_set_return(session, EBUSY));
 

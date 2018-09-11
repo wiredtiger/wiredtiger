@@ -692,11 +692,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	u_int i;
 	bool locked, readonly;
 #ifdef HAVE_TIMESTAMPS
-	WT_REF *ref;
-	WT_UPDATE **updp;
 	wt_timestamp_t prev_commit_timestamp, ts;
-	uint32_t previous_state;
-	bool prepared_transaction, timestamp_set, update_timestamp;
+	bool update_timestamp;
 #endif
 
 	txn = &session->txn;
@@ -814,9 +811,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Note: we're going to commit: nothing can fail after this point. */
 
-#ifdef HAVE_TIMESTAMPS
-	prepared_transaction = F_ISSET(txn, WT_TXN_PREPARE);
-#endif
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		fileid = op->btree->id;
@@ -850,8 +844,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				}
 
 #ifdef HAVE_TIMESTAMPS
-				__wt_txn_update_set_timestamp(
-				    session, op, prepared_transaction, NULL);
+				__wt_txn_op_set_timestamp(session, op);
 			} else {
 				F_CLR(txn, WT_TXN_PREPARE);
 				WT_ERR(__txn_op_resolve(session, op, true));
@@ -860,65 +853,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			break;
-
 		case WT_TXN_OP_REF_DELETE:
 #ifdef HAVE_TIMESTAMPS
-			__wt_txn_update_set_timestamp(
-			    session, op, prepared_transaction, &timestamp_set);
-			if (!timestamp_set)
-				break;
-
-			ref = op->u.ref;
-			/*
-			 * The page-deleted list can be discarded by eviction,
-			 * lock the WT_REF to ensure we don't race.
-			 */
-			if (ref->page_del->update_list == NULL)
-				break;
-
-			for (;; __wt_yield()) {
-				previous_state = ref->state;
-				if (previous_state != WT_REF_LOCKED &&
-				    __wt_atomic_casv32(
-				    &ref->state, previous_state, WT_REF_LOCKED))
-					break;
-			}
-
-			if ((updp = ref->page_del->update_list) == NULL) {
-				/*
-				 * Publish to ensure we don't let the page be
-				 * evicted and the updates discarded before
-				 * being written.
-				 */
-				WT_PUBLISH(ref->state, previous_state);
-				break;
-			}
-
-			for (; *updp != NULL; ++updp) {
-				if (prepared_transaction) {
-					/*
-					 * As ref state is LOCKED, timestamp
-					 * and prepare state are updated in
-					 * exclusive access, hence no need for
-					 * temporary state WT_PREPARE_LOCKED
-					 * and BARRIER.
-					 */
-					__wt_timestamp_set(
-					    &(*updp)->timestamp,
-					    &txn->commit_timestamp);
-					(*updp)->prepare_state =
-					    WT_PREPARE_RESOLVED;
-				} else
-					__wt_timestamp_set(
-					    &(*updp)->timestamp,
-					    &txn->commit_timestamp);
-			}
-
-			/*
-			 * Publish to ensure we don't let the page be evicted
-			 * and the updates discarded before being written.
-			 */
-			WT_PUBLISH(ref->state, previous_state);
+			__wt_txn_op_set_timestamp(session, op);
 #endif
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
