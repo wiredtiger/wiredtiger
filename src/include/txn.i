@@ -547,13 +547,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	__wt_txn_op_set_timestamp(session, op);
 
 	/*
-	 * TODO:
-	 * Following code block is under #ifdef temporarily, to avoid
-	 * performance penalty. This block will be enabled, once an alternative
-	 * is figured out, or we have to live with this penalty.
-	 */
-#ifdef HAVE_LONG_RUNNING_PREPARE
-	/*
 	 * Transaction operation with timestamp cannot be prepared.
 	 * Copy the key into the transaction op structure, so the update
 	 * can be evicted to lookaside, and we have a chance of finding it
@@ -575,12 +568,12 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 		} else
 			op->u.op_col.recno = cbt->recno;
 	}
-#endif
 
-#endif
+#else
 	WT_UNUSED(btree);
 	WT_UNUSED(cbt);
 	WT_UNUSED(key);
+#endif
 
 	return (0);
 }
