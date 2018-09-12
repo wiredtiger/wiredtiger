@@ -585,7 +585,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 			WT_ERR(__wt_log_reset(session, r.max_lsn.l.file));
 		else
 			do_checkpoint = false;
-		goto done;
+		goto err;
 	}
 
 	/*
@@ -666,7 +666,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 	if (F_ISSET(conn, WT_CONN_READONLY)) {
 		do_checkpoint = false;
-		goto done;
+		goto err;
 	}
 
 	/*
@@ -698,24 +698,33 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 	conn->next_file_id = r.max_fileid;
 
-done:	WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-	if (do_checkpoint)
+err:	if (ret == 0 || F_ISSET(conn, WT_CONN_SALVAGE)) {
 		/*
-		 * Forcibly log a checkpoint so the next open is fast and keep
-		 * the metadata up to date with the checkpoint LSN and
-		 * archiving.
+		 * If we're salvaging we want to checkpoint and recover
+		 * what we can. So even on error, with salvage, checkpoint
+		 * the data and complete recovery.
 		 */
-		WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
+		ret = 0;
+		WT_TRET(__recovery_set_checkpoint_timestamp(&r));
+		if (do_checkpoint)
+			/*
+			 * Forcibly log a checkpoint so the next open is
+			 * fast and keep the metadata up to date with the
+			 * checkpoint LSN and archiving.
+			 */
+			WT_TRET(session->iface.checkpoint(
+			    &session->iface, "force=1"));
 
-	/*
-	 * If we're downgrading and have newer log files, force an archive,
-	 * no matter what the archive setting is.
-	 */
-	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
-		WT_ERR(__wt_log_truncate_files(session, NULL, true));
-	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
+		/*
+		 * If we're downgrading and have newer log files, force
+		 * an archive, no matter what the archive setting is.
+		 */
+		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
+			WT_TRET(__wt_log_truncate_files(session, NULL, true));
+		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
+	}
 
-err:	WT_TRET(__recovery_free(&r));
+	WT_TRET(__recovery_free(&r));
 	__wt_free(session, config);
 	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
