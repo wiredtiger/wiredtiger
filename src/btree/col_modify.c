@@ -246,7 +246,8 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * We need to update the recno in txn op, as recno is retrieved
 		 * now only.
 		 */
-		__txn_op_modify_recno(session, cbt->recno);
+		if (logged)
+			__txn_op_modify_recno(session, cbt->recno);
 	}
 
 	/* If the update was successful, add it to the in-memory log. */
