@@ -265,8 +265,17 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 			 * There can never be uncommitted updates for same key,
 			 * from different transactions.
 			 */
-			if (upd->txnid != txn->id)
-				break;
+			 /*
+			  * Uncommitted updates will be at the head of the chain
+			  * only in case of snapshot isolation. But in case of
+			  * system with mixed isolation levels, there can be
+			  * committed updates at head and some prepared updates
+			  * after that. So, we traverse the whole update chain
+			  * instead of breaking the loop when we encounter an
+			  * update from a different txn.
+			  */
+			 if (upd->txnid != txn->id)
+				continue;
 
 			if (!commit) {
 				/* Rollback is just to update txn id. */
@@ -292,8 +301,9 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 			 * To make things simpler we will handle all the updates
 			 * that match the key saved in a txn op. As a result,
 			 * multiple updates of a key will be resolved as part of
-			 * the first txn op resolution, and subsequent txn op of
-			 * the same key will be effectively a no-op.
+			 * the first txn op resolution of that key, and
+			 * subsequent txn op resolution of the same key will be
+			 * effectively a no-op.
 			 *
 			 * In the above example, we will resolve "u2" and "u1"
 			 * as part of resolving "txn_op1" and will not do any
@@ -320,7 +330,8 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 
 		}
 #ifdef HAVE_DIAGNOSTIC
-		/* Ensure that we have not missed any prepared update. */
+		upd = op->u.op_upd;
+		/* Ensure that we have not missed update of this txn. */
 		for (; upd != NULL; upd = upd->next) {
 			/*
 			 * For commit, no updates of this txn should be in
