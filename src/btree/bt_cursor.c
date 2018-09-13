@@ -504,9 +504,6 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
 	}
 
-	/*
-	 * TODO
-	 */
 	WT_ASSERT(session, upd != NULL);
 
 	*updp = upd;
