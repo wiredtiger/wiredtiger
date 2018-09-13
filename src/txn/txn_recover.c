@@ -22,10 +22,11 @@ typedef struct {
 	WT_RECOVERY_FILE *files;
 	size_t file_alloc;		/* Allocated size of files array. */
 	u_int max_fileid;		/* Maximum file ID seen. */
-	WT_LSN max_lsn;			/* Maximum checkpoint LSN seen. */
 	u_int nfiles;			/* Number of files in the metadata. */
 
 	WT_LSN ckpt_lsn;		/* Start LSN for main recovery loop. */
+	WT_LSN max_ckpt_lsn;		/* Maximum checkpoint LSN seen. */
+	WT_LSN max_rec_lsn;		/* Maximum recovery LSN seen. */
 
 	bool missing;			/* Were there missing files? */
 	bool metadata_only;		/*
@@ -311,8 +312,6 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	uint32_t rectype;
 	const uint8_t *end, *p;
 
-	WT_UNUSED(next_lsnp);
-
 	r = cookie;
 	p = WT_LOG_SKIP_HEADER(logrec->data);
 	end = (const uint8_t *)logrec->data + logrec->size;
@@ -321,11 +320,16 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	/* First, peek at the log record type. */
 	WT_RET(__wt_logrec_read(session, &p, end, &rectype));
 
+	if (!r->metadata_only)
+		WT_ASSERT(session,
+		    __wt_log_cmp(lsnp, &r->max_rec_lsn) < 0);
 	switch (rectype) {
 	case WT_LOGREC_CHECKPOINT:
-		if (r->metadata_only)
+		if (r->metadata_only) {
 			WT_RET(__wt_txn_checkpoint_logread(
 			    session, &p, end, &r->ckpt_lsn));
+			r->max_rec_lsn = *next_lsnp;
+		}
 		break;
 
 	case WT_LOGREC_COMMIT:
@@ -453,8 +457,9 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	    uri, fileid, lsn.l.file, lsn.l.offset);
 
 	if ((!WT_IS_MAX_LSN(&lsn) && !WT_IS_INIT_LSN(&lsn)) &&
-	    (WT_IS_MAX_LSN(&r->max_lsn) || __wt_log_cmp(&lsn, &r->max_lsn) > 0))
-		r->max_lsn = lsn;
+	    (WT_IS_MAX_LSN(&r->max_ckpt_lsn) ||
+	    __wt_log_cmp(&lsn, &r->max_ckpt_lsn) > 0))
+		r->max_ckpt_lsn = lsn;
 
 	return (0);
 }
@@ -543,7 +548,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	WT_RET(__wt_open_internal_session(conn, "txn-recover",
 	    false, WT_SESSION_NO_LOGGING, &session));
 	r.session = session;
-	WT_MAX_LSN(&r.max_lsn);
+	WT_MAX_LSN(&r.max_ckpt_lsn);
+	WT_MAX_LSN(&r.max_rec_lsn);
 #ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
 	__wt_timestamp_set_zero(&conn->txn_global.meta_ckpt_timestamp);
@@ -581,17 +587,23 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 		    WT_IS_MAX_LSN(&metafile->ckpt_lsn) &&
-		    !WT_IS_MAX_LSN(&r.max_lsn))
-			WT_ERR(__wt_log_reset(session, r.max_lsn.l.file));
+		    !WT_IS_MAX_LSN(&r.max_ckpt_lsn))
+			WT_ERR(__wt_log_reset(session, r.max_ckpt_lsn.l.file));
 		else
 			do_checkpoint = false;
-		goto err;
+		goto done;
 	}
 
 	/*
 	 * First, do a pass through the log to recover the metadata, and
 	 * establish the last checkpoint LSN.  Skip this when opening a hot
 	 * backup: we already have the correct metadata in that case.
+	 *
+	 * If we're running with salvage and we hit an error, we ignore it
+	 * and continue. In salvage we want to recover whatever part of the
+	 * data we can from the last checkpoint up until whatever problem we
+	 * detect in the log file. In salvage we only care about errors from
+	 * scanning the log. Other errors remain errors.
 	 */
 	if (!was_backup) {
 		r.metadata_only = true;
@@ -607,10 +619,12 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 				WT_ERR_MSG(session, WT_RUN_RECOVERY,
 				    "Read-only database needs recovery");
 		}
-		if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
-			WT_ERR(__wt_log_scan(session,
-			    NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r));
-		else {
+		if (WT_IS_INIT_LSN(&metafile->ckpt_lsn)) {
+			ret = __wt_log_scan(session,
+			    NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
+			if (F_ISSET(conn, WT_CONN_SALVAGE))
+				ret = 0;
+		} else {
 			/*
 			 * Start at the last checkpoint LSN referenced in the
 			 * metadata.  If we see the end of a checkpoint while
@@ -620,10 +634,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 			r.ckpt_lsn = metafile->ckpt_lsn;
 			ret = __wt_log_scan(session,
 			    &metafile->ckpt_lsn, 0, __txn_log_recover, &r);
-			if (ret == ENOENT)
+			if (ret == ENOENT || F_ISSET(conn, WT_CONN_SALVAGE))
 				ret = 0;
-			WT_ERR(ret);
 		}
+		WT_ERR(ret);
 	}
 
 	/* Scan the metadata to find the live files and their IDs. */
@@ -666,7 +680,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 	if (F_ISSET(conn, WT_CONN_READONLY)) {
 		do_checkpoint = false;
-		goto err;
+		goto done;
 	}
 
 	/*
@@ -684,47 +698,41 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 */
 	if (needs_rec)
 		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
-	if (WT_IS_INIT_LSN(&r.ckpt_lsn))
-		WT_ERR(__wt_log_scan(session, NULL,
+	if (WT_IS_INIT_LSN(&r.ckpt_lsn)) {
+		ret = __wt_log_scan(session, NULL,
 		    WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER,
-		    __txn_log_recover, &r));
-	else {
+		    __txn_log_recover, &r);
+		if (F_ISSET(conn, WT_CONN_SALVAGE))
+			ret = 0;
+	} else {
 		ret = __wt_log_scan(session, &r.ckpt_lsn,
 		    WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
-		if (ret == ENOENT)
+		if (ret == ENOENT || F_ISSET(conn, WT_CONN_SALVAGE))
 			ret = 0;
-		WT_ERR(ret);
 	}
+	WT_ERR(ret);
 
 	conn->next_file_id = r.max_fileid;
 
-err:	if (ret == 0 || F_ISSET(conn, WT_CONN_SALVAGE)) {
+done:	WT_TRET(__recovery_set_checkpoint_timestamp(&r));
+	if (do_checkpoint)
 		/*
-		 * If we're salvaging we want to checkpoint and recover
-		 * what we can. So even on error, with salvage, checkpoint
-		 * the data and complete recovery.
+		 * Forcibly log a checkpoint so the next open is
+		 * fast and keep the metadata up to date with the
+		 * checkpoint LSN and archiving.
 		 */
-		ret = 0;
-		WT_TRET(__recovery_set_checkpoint_timestamp(&r));
-		if (do_checkpoint)
-			/*
-			 * Forcibly log a checkpoint so the next open is
-			 * fast and keep the metadata up to date with the
-			 * checkpoint LSN and archiving.
-			 */
-			WT_TRET(session->iface.checkpoint(
-			    &session->iface, "force=1"));
+		WT_TRET(session->iface.checkpoint(
+		    &session->iface, "force=1"));
 
-		/*
-		 * If we're downgrading and have newer log files, force
-		 * an archive, no matter what the archive setting is.
-		 */
-		if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
-			WT_TRET(__wt_log_truncate_files(session, NULL, true));
-		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
-	}
+	/*
+	 * If we're downgrading and have newer log files, force
+	 * an archive, no matter what the archive setting is.
+	 */
+	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
+		WT_TRET(__wt_log_truncate_files(session, NULL, true));
+	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
-	WT_TRET(__recovery_free(&r));
+err:	WT_TRET(__recovery_free(&r));
 	__wt_free(session, config);
 	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
