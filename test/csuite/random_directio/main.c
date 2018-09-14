@@ -65,16 +65,13 @@
  * are the same size.
  *
  * There is also a reverse table where the keys/values are swapped.
-
  */
 
 #include "test_util.h"
 
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <sys/wait.h>
 
 static char home[1024];			/* Program working dir */
 
@@ -115,55 +112,58 @@ static const char * const uri_rev = "table:rev";
 	"                                                                "
 
 /*
- * Set higher to be less stressful for schema operations.
+ * Set the "schema operation frequency" higher to be less stressful for schema
+ * operations.  With the current value, 100, there are sequences of schema
+ * operations that are begun when the id is in the range 0 to 9, 100 to 109,
+ * 200 to 209, etc. That is, 10 sequences per 100.  A higher number (say 1000)
+ * means there are 10 sequences started per 1000.  A sequence of schema
+ * operations lasts for 4 ids.  So, for example, if thread 3 is inserting id
+ * 100 into the main table, an additional schema operation is done (creating a
+ * table), and operations on this table continue (while other schema operations
+ * continue).
+ *
+ * Starting at the insert of id 99 (which has no schema operations), here's
+ * what will happen (for thread #3).
+ *
+ * insert k/v 99 into table:main      (with no additional schema operations)
+ *
+ * insert k/v 100 into table:main
+ * create table:A100-3       (3 for thread #3)
+ *
+ * insert k/v 101 into table:main
+ * insert into table:A100-3     (continuing the sequence)
+ * create table:A101-3          (starts a new sequence)
+ *
+ * insert k/v 102 into table:main
+ * rename table:A100-3 -> table:B100-3  (third step in sequence)
+ * insert into table:A101-3             (second step in sequence)
+ * create table:A102-3                  (starting new sequence)
+ *
+ * insert k/v 103 into table:main
+ * update key in table:B100-3          (fourth step)
+ * rename table:A101-3 -> table:B101-3 (third step)
+ * insert into table:A102-3
+ * create table:A103-3
+ *
+ * insert k/v 104 into table:main
+ * drop table:B100-3                   (fifth and last step)
+ * update key in table:B101-3          (fourth step)
+ * rename table:A102-3 -> table:B102-3
+ * insert into table:A103-3
+ * create table:A104-3
+ * ...
+ *
+ * This continues, with the last table created when k/v 109 is inserted into
+ * table:main and the last sequence finishing at k/v 113.  Each clump above
+ * separated by a blank line represents a transaction.  Meanwhile, other
+ * threads are doing the same thing.  That stretch, from id 100 to id 113
+ * that has schema operations happens again at id 200, assuming frequency
+ * set to 100. So it is a good test of schema operations 'in flight'.
  */
 #define	SCHEMA_OP_FREQUENCY	100
 #define	SCHEMA_OP(id, offset)						\
 	(((offset) == 0 || (id) > (offset)) &&				\
-	    (((id) - (offset)) % SCHEMA_OP_FREQUENCY < 10 ||		\
-	    ((id) - (offset)) % SCHEMA_OP_FREQUENCY == 0))
-
-extern int __wt_optind;
-extern char *__wt_optarg;
-
-static void handler(int);
-static void usage(void)
-    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void
-usage(void)
-{
-	fprintf(stderr, "usage: %s [options]\n", progname);
-	fprintf(stderr, "options:\n"
-	    "  -d data_size   \t"
-	    "approximate size of keys and values [1000]\n"
-	    "  -h home        \t"
-	    "WiredTiger home directory [WT_TEST.directio]\n"
-	    "  -i interval    \t"
-	    "interval timeout between copy/recover cycles [3]\n"
-	    "  -m method      \t"
-	    "sync method: fsync, dsync, none [none]\n"
-	    "  -n num_cycles  \t"
-	    "number of copy/recover cycles [5]\n"
-	    "  -p             \t"
-	    "populate only [false]\n"
-	    "  -S             \t"
-	    "schema operations on [false]\n"
-	    "  -T num_threads \t"
-	    "number of threads in writer[ 4]\n"
-	    "  -t timeout     \t"
-	    "initial timeout before first copy [10]\n"
-	    "  -v             \t"
-	    "verify only [false]\n");
-	exit(EXIT_FAILURE);
-}
-
-typedef struct {
-	WT_CONNECTION *conn;
-	char *data;
-	uint32_t datasize;
-	uint32_t id;
-	bool schema_test;
-} WT_THREAD_DATA;
+	    ((id) - (offset)) % SCHEMA_OP_FREQUENCY < 10)
 
 #define	TEST_STREQ(expect, got, message)				\
 	do {								\
@@ -173,6 +173,89 @@ typedef struct {
 			testutil_assert(WT_STREQ(expect, got));		\
 		}							\
 	} while (0)
+
+/*
+ * Values for flags used in various places.
+ */
+#define	SCHEMA_CREATE		0x0001
+#define	SCHEMA_CREATE_CHECK	0x0002
+#define	SCHEMA_DATA_CHECK	0x0004
+#define	SCHEMA_DROP		0x0008
+#define	SCHEMA_DROP_CHECK	0x0010
+#define	SCHEMA_RENAME		0x0020
+#define	SCHEMA_VERBOSE		0x0040
+#define	SCHEMA_ALL					\
+	(SCHEMA_CREATE | SCHEMA_CREATE_CHECK |	\
+	    SCHEMA_DATA_CHECK | SCHEMA_DROP |	\
+	    SCHEMA_DROP_CHECK | SCHEMA_RENAME)
+
+extern int __wt_optind;
+extern char *__wt_optarg;
+
+static void handler(int);
+
+typedef struct {
+	WT_CONNECTION *conn;
+	char *data;
+	uint32_t datasize;
+	uint32_t id;
+
+	uint32_t flags;		/* Uses SCHEMA_* values above */
+} WT_THREAD_DATA;
+
+/*
+ * usage --
+ *	Print usage and exit.
+ */
+static void usage(void)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void
+usage(void)
+{
+	fprintf(stderr, "usage: %s [options]\n", progname);
+	fprintf(stderr, "options:\n");
+	fprintf(stderr, "  %-20s%s\n", "-d data_size",
+	    "approximate size of keys and values [1000]");
+	fprintf(stderr, "  %-20s%s\n", "-h home",
+	    "WiredTiger home directory [WT_TEST.directio]");
+	fprintf(stderr, "  %-20s%s\n", "-i interval",
+	    "interval timeout between copy/recover cycles [3]");
+	fprintf(stderr, "  %-20s%s\n", "-m method",
+	    "sync method: fsync, dsync, none [none]");
+	fprintf(stderr, "  %-20s%s\n", "-n num_cycles",
+	    "number of copy/recover cycles [5]");
+	fprintf(stderr, "  %-20s%s\n", "-p", "populate only [false]");
+	fprintf(stderr, "  %-20s%s\n", "-S arg1,arg2,...",
+	    "comma separated schema operations, from the following:");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "none",
+	    "no schema operations [default]");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "all",
+	    "all of the below operations, except verbose");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "create",
+	    "create tables");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "create_check",
+	    "newly created tables are checked (requires create)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "data_check",
+	    "check contents of files for various ops (requires create)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "rename",
+	    "rename tables (requires create)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "drop",
+	    "drop tables (requires create)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "drop_check",
+	    "after recovery, dropped tables are checked (requires drop)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "",
+	    "that they no longer exist (requires drop)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "verbose",
+	    "verbose print during schema operation checks,");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "",
+	    "done after recovery, so does not effect test timing");
+	fprintf(stderr, "  %-20s%s\n", "-T num_threads",
+	    "number of threads in writer [random]");
+	fprintf(stderr, "  %-20s%s\n", "-t timeout",
+	    "initial timeout before first copy [random]");
+	fprintf(stderr, "  %-20s%s\n", "-v", "verify only [false]");
+	exit(EXIT_FAILURE);
+}
 
 /*
  * large_buf --
@@ -262,10 +345,96 @@ gen_table_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
  *	Generate a second table name used for the schema test.
  */
 static void
-gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid)
+gen_table2_name(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
+    uint32_t flags)
 {
-	testutil_check(__wt_snprintf(buf, buf_size,
-	    "table:B%" PRIu64 "-%" PRIu32, id, threadid));
+	if (!LF_ISSET(SCHEMA_RENAME))
+		/* table is not renamed, so use original table name */
+		gen_table_name(buf, buf_size, id, threadid);
+	else
+		testutil_check(__wt_snprintf(buf, buf_size,
+		    "table:B%" PRIu64 "-%" PRIu32, id, threadid));
+}
+
+static int
+schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
+    uint32_t op, uint32_t flags)
+{
+	WT_CURSOR *cursor;
+	int ret;
+	const char *retry_opname;
+	char uri1[50], uri2[50];
+
+	if (!SCHEMA_OP(id, op))
+		return (0);
+
+	id -= op;
+	ret = 0;
+	retry_opname = NULL;
+
+	switch (op) {
+	case 0:
+		/* Create a table. */
+		gen_table_name(uri1, sizeof(uri1), id, threadid);
+		testutil_check(session->create(session, uri1,
+		    "key_format=S,value_format=S"));
+		break;
+	case 1:
+		/* Insert a value into the table. */
+		gen_table_name(uri1, sizeof(uri1), id, threadid);
+		testutil_check(session->open_cursor(
+		    session, uri1, NULL, NULL, &cursor));
+		cursor->set_key(cursor, uri1);
+		cursor->set_value(cursor, uri1);
+		testutil_check(cursor->insert(cursor));
+		cursor->close(cursor);
+		break;
+	case 2:
+		/* Rename the table. */
+		if (LF_ISSET(SCHEMA_RENAME)) {
+			gen_table_name(uri1, sizeof(uri1), id, threadid);
+			gen_table2_name(uri2, sizeof(uri2), id, threadid,
+			    flags);
+			retry_opname = "rename";
+			ret = session->rename(session, uri1, uri2, NULL);
+		}
+		break;
+	case 3:
+		/* Update the single value in the table. */
+		gen_table_name(uri1, sizeof(uri1), id, threadid);
+		gen_table2_name(uri2, sizeof(uri2), id, threadid, flags);
+		testutil_check(session->open_cursor(session,
+		    uri2, NULL, NULL, &cursor));
+		cursor->set_key(cursor, uri1);
+		cursor->set_value(cursor, uri2);
+		testutil_check(cursor->update(cursor));
+		cursor->close(cursor);
+		break;
+	case 4:
+		/* Drop the table. */
+		if (LF_ISSET(SCHEMA_DROP)) {
+			gen_table2_name(uri1, sizeof(uri1), id, threadid,
+			    flags);
+			retry_opname = "drop";
+			ret = session->drop(session, uri1, NULL);
+		}
+	}
+	/*
+	 * XXX
+	 * We notice occasional EBUSY errors from
+	 * rename or drop, even though neither URI should be
+	 * used by any other thread.  Report it, and retry.
+	 */
+	if (retry_opname != NULL && ret == EBUSY)
+		printf("%s(\"%s\", ....) failed, retrying transaction\n",
+		    retry_opname, uri1);
+	else if (ret != 0) {
+		printf("FAIL: %s(\"%s\", ....) returns %d: %s\n",
+		    retry_opname, uri1, ret, wiredtiger_strerror(ret));
+		testutil_check(ret);
+	}
+
+	return (ret);
 }
 
 /*
@@ -277,17 +446,16 @@ static WT_THREAD_RET thread_run(void *)
 static WT_THREAD_RET
 thread_run(void *arg)
 {
-	WT_CURSOR *cursor, *rev, *sch;
+	WT_CURSOR *cursor, *rev;
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	size_t lsize;
 	uint64_t i;
-	uint32_t kvsize;
+	uint32_t kvsize, op;
 	int ret;
 	char *buf1, *buf2;
 	char large[LARGE_WRITE_SIZE];
-	bool retryable_error;
 
 	__wt_random_init(&rnd);
 	lsize = sizeof(large);
@@ -315,8 +483,7 @@ thread_run(void *arg)
 	 */
 	printf("Thread %" PRIu32 "\n", td->id);
 	for (i = 0; ; ++i) {
-	again:
-		retryable_error = false;
+again:
 		/*
 		if (i > 0 && i % 10000 == 0)
 			printf("Thread %d completed %d entries\n",
@@ -351,96 +518,25 @@ thread_run(void *arg)
 		 * for additional tables.  Each table has a 'lifetime'
 		 * of 4 values of the id.
 		 */
-		if (td->schema_test) {
-			if (!retryable_error && SCHEMA_OP(i, 0)) {
-				/* Create a table. */
-				gen_table_name(buf1, kvsize, i, td->id);
-				testutil_check(session->create(session, buf1,
-				    "key_format=S,value_format=S"));
+		if (F_ISSET(td, SCHEMA_ALL)) {
+			/* Create is implied by any schema operation. */
+			testutil_assert(F_ISSET(td, SCHEMA_CREATE));
+
+			/*
+			 * Any or all of the schema operations may be
+			 * performed as part of this transaction.
+			 * See the comment for schema operation frequency.
+			 */
+			ret = 0;
+			for (op = 0; op <= 4 && ret == 0; op++)
+				ret = schema_operation(session, td->id, i, op,
+				    td->flags);
+			if (ret == EBUSY) {
+				testutil_check(session->rollback_transaction(
+				    session, NULL));
+				sleep(1);
+				goto again;
 			}
-			if (!retryable_error && SCHEMA_OP(i, 1)) {
-				/* Insert a value into the table. */
-				gen_table_name(buf1, kvsize, i - 1, td->id);
-				testutil_check(session->open_cursor(session,
-				    buf1, NULL, NULL, &sch));
-				sch->set_key(sch, buf1);
-				sch->set_value(sch, buf1);
-				testutil_check(sch->insert(sch));
-				sch->close(sch);
-			}
-			if (!retryable_error && SCHEMA_OP(i, 2)) {
-				/* Rename the table. */
-				gen_table_name(buf1, kvsize, i - 2, td->id);
-				gen_table2_name(buf2, kvsize, i - 2, td->id);
-				/*
-				 * XXX
-				 * We notice occasional EBUSY errors from
-				 * rename, even though neither URI should be
-				 * used by any other thread.
-				 */
-				/*
-				printf(" rename(\"%s\", \"%s\")\n", buf1, buf2);
-				*/
-				if ((ret = session->rename(session, buf1, buf2,
-				    NULL)) == EBUSY) {
-					printf("rename(\"%s\", \"%s\") failed,"
-					    " retrying transaction\n", buf1,
-					    buf2);
-					retryable_error = true;
-				} else {
-					if (ret != 0)
-						printf("FAIL: "
-						    "rename(\"%s\", \"%s\") "
-						    "returns %d: %s\n",
-						    buf1, buf2, ret,
-						    wiredtiger_strerror(ret));
-					testutil_check(ret);
-				}
-			}
-			if (!retryable_error && SCHEMA_OP(i, 3)) {
-				/* Update the single value in the table. */
-				gen_table_name(buf1, kvsize, i - 3, td->id);
-				gen_table2_name(buf2, kvsize, i - 3, td->id);
-				testutil_check(session->open_cursor(session,
-				    buf2, NULL, NULL, &sch));
-				sch->set_key(sch, buf1);
-				sch->set_value(sch, buf2);
-				testutil_check(sch->insert(sch));
-				sch->close(sch);
-			}
-			if (!retryable_error && SCHEMA_OP(i, 4)) {
-				/* Drop the table. */
-				gen_table2_name(buf1, kvsize, i - 4, td->id);
-				/*
-				 * XXX
-				 * We notice occasional EBUSY errors from drop,
-				 * even though the URI should not be used by
-				 * any other thread.
-				 */
-				/*
-				printf(" drop(\"%s\")\n", buf1);
-				*/
-				if ((ret = session->drop(session, buf1, NULL))
-				    == EBUSY) {
-					printf("drop(\"%s\") failed,"
-					    " retrying transaction\n", buf1);
-					retryable_error = true;
-				} else {
-					if (ret != 0)
-						printf("FAIL: "
-						    "drop(\"%s\") "
-						    "returns %d: %s\n",
-						    buf1, ret,
-						    wiredtiger_strerror(ret));
-					testutil_check(ret);
-				}
-			}
-		}
-		if (retryable_error) {
-			testutil_check(session->rollback_transaction(
-			    session, NULL));
-			sleep(1);
-			goto again;
 		}
 		testutil_check(session->commit_transaction(session, NULL));
 	}
@@ -452,10 +548,10 @@ thread_run(void *arg)
  *	The child process creates the database and table, and then creates
  *	worker threads to add data until it is killed by the parent.
  */
-static void fill_db(uint32_t, uint32_t, const char *, bool)
+static void fill_db(uint32_t, uint32_t, const char *, uint32_t)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
-fill_db(uint32_t nth, uint32_t datasize, const char *method, bool schema_test)
+    fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
@@ -490,7 +586,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, bool schema_test)
 		td[i].data = dcalloc(datasize, 1);
 		td[i].datasize = datasize;
 		td[i].id = i;
-		td[i].schema_test = schema_test;
+		td[i].flags = flags;
 		testutil_check(__wt_thread_create(
 		    NULL, &thr[i], thread_run, &td[i]));
 	}
@@ -535,7 +631,6 @@ check_kv(WT_CURSOR *cursor, const char *key, const char *value, bool exists)
 			printf("FAIL: unexpected key in rev file: %s\n", key);
 			testutil_assert(exists);
 		}
-
 		cursor->get_value(cursor, &got);
 		TEST_STREQ(value, got, "value");
 	}
@@ -600,36 +695,61 @@ check_one_entry(WT_SESSION *session, const char *uri, const char *key,
  *	last id seen for this thread.
  */
 static void
-check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid)
+check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
+    uint32_t flags)
 {
 	char uri[50], uri2[50];
 
+	if (!LF_ISSET(SCHEMA_ALL))
+		return;
+
+	if (LF_ISSET(SCHEMA_VERBOSE))
+		fprintf(stderr, "check_schema(%d, thread=%d)\n",
+	    (int)lastid, (int)threadid);
 	if (SCHEMA_OP(lastid, 0)) {
 		/* Create table operation. */
 		gen_table_name(uri, sizeof(uri), lastid, threadid);
-		check_empty(session, uri);
+		if (LF_ISSET(SCHEMA_VERBOSE))
+			fprintf(stderr, " create %s\n", uri);
+		if (LF_ISSET(SCHEMA_CREATE_CHECK))
+			check_empty(session, uri);
 	}
 	if (SCHEMA_OP(lastid, 1)) {
 		/* Insert value operation. */
 		gen_table_name(uri, sizeof(uri), lastid - 1, threadid);
-		check_one_entry(session, uri, uri, uri);
+		if (LF_ISSET(SCHEMA_VERBOSE))
+			fprintf(stderr, " insert %s\n", uri);
+		if (LF_ISSET(SCHEMA_DATA_CHECK))
+			check_one_entry(session, uri, uri, uri);
 	}
-	if (SCHEMA_OP(lastid, 2)) {
+	if (LF_ISSET(SCHEMA_RENAME) && SCHEMA_OP(lastid, 2)) {
 		/* Table rename operation. */
 		gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
-		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
-		check_dropped(session, uri);
-		check_one_entry(session, uri2, uri, uri);
+		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid,
+		    flags);
+		if (LF_ISSET(SCHEMA_VERBOSE))
+			fprintf(stderr, " rename %s,%s\n", uri, uri2);
+		if (LF_ISSET(SCHEMA_DROP_CHECK))
+			check_dropped(session, uri);
+		if (LF_ISSET(SCHEMA_CREATE_CHECK))
+			check_one_entry(session, uri2, uri, uri);
 	}
 	if (SCHEMA_OP(lastid, 3)) {
 		/* Value update operation. */
 		gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
-		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
-		check_one_entry(session, uri2, uri, uri2);
+		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid,
+		    flags);
+		if (LF_ISSET(SCHEMA_VERBOSE))
+			fprintf(stderr, " update %s\n", uri2);
+		if (LF_ISSET(SCHEMA_DATA_CHECK))
+			check_one_entry(session, uri2, uri, uri2);
 	}
-	if (SCHEMA_OP(lastid, 4)) {
+	if (LF_ISSET(SCHEMA_DROP_CHECK) && SCHEMA_OP(lastid, 4)) {
 		/* Drop table operation. */
-		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid);
+		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid,
+		    flags);
+		if (LF_ISSET(SCHEMA_VERBOSE))
+			fprintf(stderr, " drop %s\n", uri2);
 		check_dropped(session, uri2);
 	}
 }
@@ -639,7 +759,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid)
  *	Make a copy of the database and verify its contents.
  */
 static bool
-check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
+check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 {
 	struct sigaction sa;
 	WT_CONNECTION *conn;
@@ -669,10 +789,13 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 	 */
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "H='%s'; C=$H.CHECK; S=$H.SAVE; rm -rf $C $S;"
-	    " mkdir $C $S; for f in `ls $H/`; do "
+	    " mkdir $C; for f in `ls $H/`; do "
 	    " dd if=$H/$f of=$C/$f bs=4096 %s >/dev/null 2>&1 || exit 1; done;"
 	    " cp -pr $C $S",
 	    home, directio ? "iflag=direct" : ""));
+	printf(
+	    "Copy database home directory using direct I/O to run recovery,\n"
+	    "along with a saved 'pre-recovery' copy.\n");
 	printf("Shell command: %s\n", buf);
 
 	/* Temporarily turn off the child handler while running 'system' */
@@ -704,7 +827,6 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 	 * where some keys may be missing, we'll back up to do a scan
 	 * from that point.
 	 */
-
 #define	CHECK_INCR	1000
 	for (id = 0; ; id += CHECK_INCR) {
 		gen_kv(keybuf, kvsize, id, 0, large_arr[0], true);
@@ -762,16 +884,15 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 				threadmap &= ~(0x1U << th);
 				lastid[th] = id - 1;
 				/*
-				 * Any newly removed should not be present
-				 * in the reverse table, since they
-				 * were transactionally inserted at the
-				 * same time.
+				 * Any newly removed value in the main table
+				 * should not be present as a key in the
+				 * reverse table, since they were
+				 * transactionally inserted at the same time.
 				 */
 				gen_kv(keybuf, kvsize, id, th, large_arr[th],
 				    false);
 				check_kv(rev, keybuf, NULL, false);
-				if (schema_test)
-					check_schema(session, id - 1, th);
+				check_schema(session, id - 1, th, flags);
 			}
 			th = (th + 1) % nth;
 			if (th == 0)
@@ -801,6 +922,8 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 		 */
 		check_kv(rev, &keybuf[kvsize], keybuf, true);
 
+		check_schema(session, id, th, flags);
+
 		/* Bump thread number and id to the next expected key. */
 		th = (th + 1) % nth;
 		if (th == 0)
@@ -808,7 +931,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, bool schema_test)
 	}
 	printf("scanned to %" PRIu64 "\n", id);
 
-	if (schema_test) {
+	if (LF_ISSET(SCHEMA_ALL)) {
 		/*
 		 * Check metadata to see if there are any tables
 		 * present that shouldn't be there.
@@ -893,36 +1016,6 @@ handler(int sig)
 }
 
 /*
- * sleep_wait --
- *	Wait for a process up to a number of seconds.
- */
-static void
-sleep_wait(uint32_t seconds, pid_t pid)
-{
-	pid_t got;
-	int status;
-
-	while (seconds > 0) {
-		if ((got = waitpid(pid, &status, WNOHANG|WUNTRACED)) == pid) {
-			if (WIFEXITED(status))
-				testutil_die(EINVAL,
-				    "Child process %" PRIu64 " exited early"
-				    " with status %d", (uint64_t)pid,
-				    WEXITSTATUS(status));
-			if (WIFSIGNALED(status))
-				testutil_die(EINVAL,
-				    "Child process %" PRIu64 " terminated "
-				    " with signal %d", (uint64_t)pid,
-				    WTERMSIG(status));
-		} else if (got == -1)
-			testutil_die(errno, "waitpid");
-
-		--seconds;
-		sleep(1);
-	}
-}
-
-/*
  * has_direct_io --
  *	Check for direct I/O support.
  */
@@ -947,11 +1040,13 @@ main(int argc, char *argv[])
 	struct stat sb;
 	WT_RAND_STATE rnd;
 	pid_t pid;
-	uint32_t datasize, i, interval, ncycles, nth, timeout;
+	size_t size;
+	uint32_t datasize, flags, i, interval, ncycles, nth, timeout;
 	int ch, status;
 	const char *method, *working_dir;
-	char buf[1024];
-	bool populate_only, rand_th, rand_time, schema_test, verify_only;
+	char *arg, *p;
+	char args[1024], buf[1024];
+	bool populate_only, rand_th, rand_time, verify_only;
 
 	(void)testutil_set_progname(argv);
 
@@ -961,18 +1056,26 @@ main(int argc, char *argv[])
 	rand_th = rand_time = true;
 	timeout = MIN_TIME;
 	interval = DEFAULT_INTERVAL;
-	populate_only = schema_test = verify_only = false;
+	flags = 0;
+	populate_only = verify_only = false;
 	working_dir = "WT_TEST.random-directio";
 	method = "none";
 	pid = 0;
+	WT_CLEAR(args);
 
 	if (!has_direct_io()) {
 		fprintf(stderr, "**** test_random_directio: this system does "
 		    "not support direct I/O.\n**** Skipping test.\n");
 		return (EXIT_SUCCESS);
 	}
+	for (i = 0, p = args; i < (uint32_t)argc; i++) {
+		testutil_check(__wt_snprintf_len_set(p,
+		    sizeof(args) - (size_t)(p - args), &size, " %s",
+		    argv[i]));
+		p += size;
+	}
 	while ((ch = __wt_getopt(progname, argc, argv,
-	    "dh:i:m:n:pST:t:v")) != EOF)
+	    "d:h:i:m:n:pS:T:t:v")) != EOF)
 		switch (ch) {
 		case 'd':
 			datasize = (uint32_t)atoi(__wt_optarg);
@@ -982,7 +1085,7 @@ main(int argc, char *argv[])
 				    "-d value is larger than maximum %"
 				    PRId32 "\n",
 				    LARGE_WRITE_SIZE);
-				exit (EXIT_FAILURE);
+				return (EXIT_FAILURE);
 			}
 			break;
 		case 'h':
@@ -998,7 +1101,7 @@ main(int argc, char *argv[])
 			    !WT_STREQ(method, "none")) {
 				fprintf(stderr,
 				    "-m option requires fsync|dsync|none\n");
-				exit (EXIT_FAILURE);
+				return (EXIT_FAILURE);
 			}
 			break;
 		case 'n':
@@ -1008,7 +1111,32 @@ main(int argc, char *argv[])
 			populate_only = true;
 			break;
 		case 'S':
-			schema_test = true;
+			p = __wt_optarg;
+			while ((arg = strtok_r(p, ",", &p)) != NULL) {
+				if (WT_STREQ(arg, "all"))
+					LF_SET(SCHEMA_ALL);
+				else if (WT_STREQ(arg, "create"))
+					LF_SET(SCHEMA_CREATE);
+				else if (WT_STREQ(arg, "create_check"))
+					LF_SET(SCHEMA_CREATE_CHECK);
+				else if (WT_STREQ(arg, "data_check"))
+					LF_SET(SCHEMA_DATA_CHECK);
+				else if (WT_STREQ(arg, "drop"))
+					LF_SET(SCHEMA_DROP);
+				else if (WT_STREQ(arg, "drop_check"))
+					LF_SET(SCHEMA_DROP_CHECK);
+				else if (WT_STREQ(arg, "rename"))
+					LF_SET(SCHEMA_RENAME);
+				else if (WT_STREQ(arg, "verbose"))
+					LF_SET(SCHEMA_VERBOSE);
+				else if (WT_STREQ(arg, "none"))
+					flags = 0;
+				else {
+					fprintf(stderr,
+					    "Unknown -S arg '%s'\n", arg);
+					usage();
+				}
+			}
 			break;
 		case 'T':
 			rand_th = false;
@@ -1036,8 +1164,17 @@ main(int argc, char *argv[])
 	if (verify_only && rand_th) {
 		fprintf(stderr,
 		    "Verify option requires specifying number of threads\n");
-		exit (EXIT_FAILURE);
+		return (EXIT_FAILURE);
 	}
+	if ((LF_ISSET(SCHEMA_RENAME|SCHEMA_DROP|SCHEMA_CREATE_CHECK|
+	    SCHEMA_DATA_CHECK) &&
+	    !LF_ISSET(SCHEMA_CREATE)) ||
+	    (LF_ISSET(SCHEMA_DROP_CHECK) &&
+	    !LF_ISSET(SCHEMA_DROP))) {
+		fprintf(stderr, "Schema operations incompatible\n");
+		usage();
+	}
+	printf("CONFIG:%s\n", args);
 	if (!verify_only) {
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "rm -rf %s", home));
@@ -1073,7 +1210,7 @@ main(int argc, char *argv[])
 				testutil_die(errno, "fork");
 		}
 		if (pid == 0) { /* child, or populate_only */
-			fill_db(nth, datasize, method, schema_test);
+			fill_db(nth, datasize, method, flags);
 			return (EXIT_SUCCESS);
 		}
 
@@ -1087,8 +1224,8 @@ main(int argc, char *argv[])
 		testutil_check(__wt_snprintf(
 		    buf, sizeof(buf), "%s/%s", home, fs_main));
 		while (stat(buf, &sb) != 0 || sb.st_size < 4096)
-			sleep_wait(1, pid);
-		sleep_wait(timeout, pid);
+			testutil_sleep_wait(1, pid);
+		testutil_sleep_wait(timeout, pid);
 
 		/*
 		 * Begin our cycles of suspend, copy, recover.
@@ -1097,13 +1234,13 @@ main(int argc, char *argv[])
 			printf("Beginning cycle %" PRIu32 "/%" PRIu32 "\n",
 			    i + 1, ncycles);
 			if (i != 0)
-				sleep_wait(interval, pid);
+				testutil_sleep_wait(interval, pid);
 			printf("Suspend child\n");
 			if (kill(pid, SIGSTOP) != 0)
 				testutil_die(errno, "kill");
 			printf("Check DB\n");
 			fflush(stdout);
-			if (!check_db(nth, datasize, true, schema_test))
+			if (!check_db(nth, datasize, true, flags))
 				return (EXIT_FAILURE);
 			if (kill(pid, SIGCONT) != 0)
 				testutil_die(errno, "kill");
@@ -1118,7 +1255,7 @@ main(int argc, char *argv[])
 		if (waitpid(pid, &status, 0) == -1)
 			testutil_die(errno, "waitpid");
 	}
-	if (verify_only && !check_db(nth, datasize, false, schema_test)) {
+	if (verify_only && !check_db(nth, datasize, false, flags)) {
 		printf("FAIL\n");
 		return (EXIT_FAILURE);
 	}
