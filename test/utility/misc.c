@@ -213,6 +213,7 @@ testutil_is_flag_set(const char *flag)
 	return (enable_long_tests);
 }
 
+#ifndef _WIN32
 /*
  * testutil_sleep_wait --
  *	Wait for a process up to a number of seconds.
@@ -242,6 +243,7 @@ testutil_sleep_wait(uint32_t seconds, pid_t pid)
 		sleep(1);
 	}
 }
+#endif
 
 /*
  * dcalloc --
