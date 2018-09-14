@@ -27,7 +27,9 @@
  */
 #include "test_util.h"
 
+#ifndef _WIN32
 #include <sys/wait.h>
+#endif
 
 void (*custom_die)(void) = NULL;
 const char *progname = "program name not set";
