@@ -161,9 +161,6 @@ static const char * const uri_rev = "table:rev";
  * set to 100. So it is a good test of schema operations 'in flight'.
  */
 #define	SCHEMA_OP_FREQUENCY	100
-#define	SCHEMA_OP(id, offset)						\
-	(((offset) == 0 || (id) > (offset)) &&				\
-	    ((id) - (offset)) % SCHEMA_OP_FREQUENCY < 10)
 
 #define	TEST_STREQ(expect, got, message)				\
 	do {								\
@@ -255,6 +252,18 @@ usage(void)
 	    "initial timeout before first copy [random]");
 	fprintf(stderr, "  %-20s%s\n", "-v", "verify only [false]");
 	exit(EXIT_FAILURE);
+}
+
+/*
+ * has_schema_operation --
+ *	Return true if a schema operation should be performed for this id.
+ * See the comment above describing schema operation frequency.
+ */
+static bool
+has_schema_operation(uint64_t id, uint32_t offset)
+{
+	return (id >= offset &&
+	    (id - offset) % SCHEMA_OP_FREQUENCY < 10);
 }
 
 /*
@@ -365,7 +374,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 	const char *retry_opname;
 	char uri1[50], uri2[50];
 
-	if (!SCHEMA_OP(id, op))
+	if (!has_schema_operation(id, op))
 		return (0);
 
 	id -= op;
@@ -376,12 +385,18 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 	case 0:
 		/* Create a table. */
 		gen_table_name(uri1, sizeof(uri1), id, threadid);
+		/*
+		fprintf(stderr, "CREATE: %s\n", uri1);
+		*/
 		testutil_check(session->create(session, uri1,
 		    "key_format=S,value_format=S"));
 		break;
 	case 1:
 		/* Insert a value into the table. */
 		gen_table_name(uri1, sizeof(uri1), id, threadid);
+		/*
+		fprintf(stderr, "INSERT: %s\n", uri1);
+		*/
 		testutil_check(session->open_cursor(
 		    session, uri1, NULL, NULL, &cursor));
 		cursor->set_key(cursor, uri1);
@@ -396,6 +411,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 			gen_table2_name(uri2, sizeof(uri2), id, threadid,
 			    flags);
 			retry_opname = "rename";
+			/*
+			fprintf(stderr, "RENAME: %s->%s\n", uri1, uri2);
+			*/
 			ret = session->rename(session, uri1, uri2, NULL);
 		}
 		break;
@@ -407,6 +425,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 		    uri2, NULL, NULL, &cursor));
 		cursor->set_key(cursor, uri1);
 		cursor->set_value(cursor, uri2);
+		/*
+		fprintf(stderr, "UPDATE: %s\n", uri2);
+		*/
 		testutil_check(cursor->update(cursor));
 		cursor->close(cursor);
 		break;
@@ -416,6 +437,9 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 			gen_table2_name(uri1, sizeof(uri1), id, threadid,
 			    flags);
 			retry_opname = "drop";
+			/*
+			fprintf(stderr, "DROP: %s\n", uri1);
+			*/
 			ret = session->drop(session, uri1, NULL);
 		}
 	}
@@ -706,7 +730,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 	if (LF_ISSET(SCHEMA_VERBOSE))
 		fprintf(stderr, "check_schema(%d, thread=%d)\n",
 	    (int)lastid, (int)threadid);
-	if (SCHEMA_OP(lastid, 0)) {
+	if (has_schema_operation(lastid, 0)) {
 		/* Create table operation. */
 		gen_table_name(uri, sizeof(uri), lastid, threadid);
 		if (LF_ISSET(SCHEMA_VERBOSE))
@@ -714,7 +738,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 		if (LF_ISSET(SCHEMA_CREATE_CHECK))
 			check_empty(session, uri);
 	}
-	if (SCHEMA_OP(lastid, 1)) {
+	if (has_schema_operation(lastid, 1)) {
 		/* Insert value operation. */
 		gen_table_name(uri, sizeof(uri), lastid - 1, threadid);
 		if (LF_ISSET(SCHEMA_VERBOSE))
@@ -722,7 +746,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 		if (LF_ISSET(SCHEMA_DATA_CHECK))
 			check_one_entry(session, uri, uri, uri);
 	}
-	if (LF_ISSET(SCHEMA_RENAME) && SCHEMA_OP(lastid, 2)) {
+	if (LF_ISSET(SCHEMA_RENAME) && has_schema_operation(lastid, 2)) {
 		/* Table rename operation. */
 		gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
 		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid,
@@ -734,7 +758,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 		if (LF_ISSET(SCHEMA_CREATE_CHECK))
 			check_one_entry(session, uri2, uri, uri);
 	}
-	if (SCHEMA_OP(lastid, 3)) {
+	if (has_schema_operation(lastid, 3)) {
 		/* Value update operation. */
 		gen_table_name(uri, sizeof(uri), lastid - 2, threadid);
 		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid,
@@ -744,7 +768,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 		if (LF_ISSET(SCHEMA_DATA_CHECK))
 			check_one_entry(session, uri2, uri, uri2);
 	}
-	if (LF_ISSET(SCHEMA_DROP_CHECK) && SCHEMA_OP(lastid, 4)) {
+	if (LF_ISSET(SCHEMA_DROP_CHECK) && has_schema_operation(lastid, 4)) {
 		/* Drop table operation. */
 		gen_table2_name(uri2, sizeof(uri2), lastid - 2, threadid,
 		    flags);
@@ -942,7 +966,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 			testutil_check(ret);
 			meta->get_key(meta, &gotkey);
 			/*
-			 * Names involved in schema testing are off the form:
+			 * Names involved in schema testing are of the form:
 			 *   table:Axxx-t
 			 *   table:Bxxx-t
 			 * xxx corresponds to the id inserted into the main
@@ -956,10 +980,12 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 				th = (uint32_t)strtol(p + 1, &p, 10);
 				testutil_assert(*p == '\0');
 				/*
-				 * XXX
-				 * If table operations are transactional,
-				 * then there is more to do here.
+				 * If table operations are truly
+				 * transactional, then there shouldn't
+				 * be any extra files that unaccounted for.
 				 */
+				if (LF_ISSET(SCHEMA_DROP_CHECK))
+					testutil_assert(gotid == lastid[th]);
 			}
 		}
 		testutil_check(meta->close(meta));
@@ -1125,12 +1151,12 @@ main(int argc, char *argv[])
 					LF_SET(SCHEMA_DROP);
 				else if (WT_STREQ(arg, "drop_check"))
 					LF_SET(SCHEMA_DROP_CHECK);
+				else if (WT_STREQ(arg, "none"))
+					flags = 0;
 				else if (WT_STREQ(arg, "rename"))
 					LF_SET(SCHEMA_RENAME);
 				else if (WT_STREQ(arg, "verbose"))
 					LF_SET(SCHEMA_VERBOSE);
-				else if (WT_STREQ(arg, "none"))
-					flags = 0;
 				else {
 					fprintf(stderr,
 					    "Unknown -S arg '%s'\n", arg);
@@ -1159,7 +1185,7 @@ main(int argc, char *argv[])
 	testutil_work_dir_from_path(home, sizeof(home), working_dir);
 	/*
 	 * If the user wants to verify they need to tell us how many threads
-	 * there were so we can find the old record files.
+	 * there were so we know what records we can expect.
 	 */
 	if (verify_only && rand_th) {
 		fprintf(stderr,
