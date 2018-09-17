@@ -655,7 +655,8 @@ __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (ref->addr == NULL)
 		return;
 
-	if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
+	if (ref->home == NULL || (S2BT(session)->bm != NULL &&
+	    __wt_off_page(ref->home, ref->addr))) {
 		__wt_free(session, ((WT_ADDR *)ref->addr)->addr);
 		__wt_free(session, ref->addr);
 	}

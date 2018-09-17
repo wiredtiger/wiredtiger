@@ -51,9 +51,12 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
 void
 __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 {
+	WT_BTREE *btree;
 	WT_PAGE *page;
 	WT_PAGE_HEADER *dsk;
 	WT_PAGE_MODIFY *mod;
+
+	btree = S2BT(session);
 
 	/*
 	 * Kill our caller's reference, do our best to catch races.
@@ -95,17 +98,17 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_ALLOC))
 		__wt_cache_page_image_decr(session, dsk->mem_size);
 
-	/* Discard any mapped image. */
-	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED))
-		(void)S2BT(session)->bm->map_discard(
-		    S2BT(session)->bm, session, dsk, (size_t)dsk->mem_size);
-
 	/*
 	 * If discarding the page as part of process exit, the application may
 	 * configure to leak the memory rather than do the work.
 	 */
 	if (F_ISSET(S2C(session), WT_CONN_LEAK_MEMORY))
 		return;
+
+	/* Discard any mapped image. */
+	if (F_ISSET_ATOMIC(page, WT_PAGE_DISK_MAPPED) && btree->bm != NULL)
+		WT_IGNORE_RET(btree->bm->map_discard(
+		    btree->bm, session, dsk, (size_t)dsk->mem_size));
 
 	/* Free the page modification information. */
 	if (page->modify != NULL)
