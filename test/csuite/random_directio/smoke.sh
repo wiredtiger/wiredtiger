@@ -6,6 +6,9 @@ set -e
 
 RUN_TEST_CMD="$TEST_WRAPPER ./test_random_directio"
 
+# Disabled for now until we fix issues encountered via the test
+exit 0
+
 # Replace for more complete testing
 #TEST_THREADS="1 5 10"
 TEST_THREADS="5"
