@@ -598,9 +598,10 @@ static void
 	testutil_check(session->create(
 	    session, uri_rev, "key_format=S,value_format=S"));
 	/*
-	 * TODO: consider putting data size, etc. into the database,
-	 * or into a text file.
+	 * Checkpoint to help ensure that at least the main tables
+	 * can be opened after recovery.
 	 */
+	testutil_check(session->checkpoint(session, NULL));
 	testutil_check(session->close(session, NULL));
 
 	datasize += 1;   /* Add an extra byte for string termination */
