@@ -1076,7 +1076,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool prepare, readonly;
+	bool readonly;
 
 	WT_UNUSED(cfg);
 
@@ -1089,7 +1089,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session,
 		    txn->id, 0));
 
-	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
