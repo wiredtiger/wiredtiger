@@ -472,7 +472,7 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_btcur_search_uncommitted --
- *	Search for a matching record in the tree.
+ *	Search for a matching uncommitted record in the tree.
  */
 int
 __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
