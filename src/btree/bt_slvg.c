@@ -2160,9 +2160,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
 	 * If an overflow page is referenced more than once, discard leaf pages
 	 * with the lowest LSNs until overflow pages are only referenced once.
 	 *
-	 * This requires sorting the page list by LSN, and the overflow array
-
-	 * by address cookie.
+	 * This requires sorting the page list by LSN, and the overflow array by
+	 * address cookie.
 	 */
 	__wt_qsort(ss->pages,
 	    (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_gen);
