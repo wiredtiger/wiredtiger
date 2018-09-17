@@ -195,7 +195,7 @@ __wt_timestamp_subone(wt_timestamp_t *ts)
 
 /*
  * __txn_op_modify_recno --
- *      Modify the recno in the latest txn op.
+ *      Modify the latest txn op with the given recno.
  */
 static inline void
 __txn_op_modify_recno(WT_SESSION_IMPL *session, uint64_t recno)
@@ -215,11 +215,16 @@ __txn_op_modify_recno(WT_SESSION_IMPL *session, uint64_t recno)
 }
 
 /*
- * __txn_op_resolve --
+ * __txn_prepared_op_resolve --
  *      Resolve a transaction operation indirect references.
+ * In case of prepared transactions, the prepared updates could be evicted using
+ * cache overflow mechanism. Transaction operations referring these prepared
+ * updates would be referring to them using indirect references
+ * (i.e keys/recnos), which need to be resolved as part of that transaction
+ * commit/rollback.
  */
 static inline int
-__txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
+__txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -237,43 +242,32 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 	case WT_TXN_OP_BASIC_ROW:
 	case WT_TXN_OP_INMEM_COL:
 	case WT_TXN_OP_INMEM_ROW:
-		cursor = NULL;
-		WT_ERR(__wt_open_cursor(session, op->btree->dhandle->name,
-		    NULL, open_cursor_cfg, &cursor));
+		WT_RET(__wt_open_cursor(session,
+		    op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+
+		/*
+		 * Transaction prepare is cleared temporarily as cursor
+		 * functions are not allowed for prepared transactions.
+		 */
+		F_CLR(txn, WT_TXN_PREPARE);
 		if (op->type == WT_TXN_OP_BASIC_ROW ||
 		    op->type == WT_TXN_OP_INMEM_ROW)
 			__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
 		else
 			((WT_CURSOR_BTREE *)cursor)->iface.recno =
 			    op->u.op_col.recno;
+		F_SET(txn, WT_TXN_PREPARE);
 
-		WT_WITH_BTREE(session, op->btree,
-		    ret = __wt_btcur_search_uncommitted(
+		WT_WITH_BTREE(session,
+		    op->btree, ret = __wt_btcur_search_uncommitted(
 		    (WT_CURSOR_BTREE *)cursor, &upd));
-		WT_ERR(ret);
-		WT_ERR(cursor->close(cursor));
+		WT_TRET(cursor->close(cursor));
+		WT_RET(ret);
 		WT_ASSERT(session, upd != NULL);
 		op->u.op_upd = upd;
-		for (; upd != NULL; upd = upd->next) {
 
-			/*
-			 * Uncommitted updates will always be at the head of the
-			 * update chain, and the current txn has an uncommitted
-			 * update for this key, so should get its own update for
-			 * this transaction.
-			 *
-			 * There can never be uncommitted updates for same key,
-			 * from different transactions.
-			 */
-			 /*
-			  * Uncommitted updates will be at the head of the chain
-			  * only in case of snapshot isolation. But in case of
-			  * system with mixed isolation levels, there can be
-			  * committed updates at head and some prepared updates
-			  * after that. So, we traverse the whole update chain
-			  * instead of breaking the loop when we encounter an
-			  * update from a different txn.
-			  */
+		for (; upd != NULL; upd = upd->next) {
+			/* Process all the uncommitted updates of this txn. */
 			 if (upd->txnid != txn->id)
 				continue;
 
@@ -285,7 +279,7 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 
 			/*
 			 * Newer updates are inserted at head of update chain,
-			 * and txn operation are added at the tail of the txn
+			 * and txn operations are added at the tail of the txn
 			 * modify chain.
 			 *
 			 * For example, a transaction has modified [k,v] as
@@ -324,8 +318,8 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 			 */
 			upd->prepare_state = WT_PREPARE_LOCKED;
 			WT_WRITE_BARRIER();
-			__wt_timestamp_set(&upd->timestamp,
-			    &txn->commit_timestamp);
+			__wt_timestamp_set(
+			    &upd->timestamp, &txn->commit_timestamp);
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
 
 		}
@@ -354,8 +348,6 @@ __txn_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 	case WT_TXN_OP_TRUNCATE_ROW:
 		break;
 	}
-	if (0)
-err:            cursor->close(cursor);
 	return (ret);
 }
 

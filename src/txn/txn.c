@@ -823,6 +823,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM_ROW:
 			upd = op->u.op_upd;
 
+			/* upd will be NULL, in case of prepared txn. */
 			if (upd != NULL) {
 				/*
 				 * Switch reserved operations to abort to
@@ -849,11 +850,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					__wt_timestamp_set(
 					    &upd->timestamp,
 					    &txn->commit_timestamp);
-#endif
 			} else {
-				F_CLR(txn, WT_TXN_PREPARE);
-				WT_ERR(__txn_op_resolve(session, op, true));
-				F_SET(txn, WT_TXN_PREPARE);
+				WT_ERR(__txn_prepared_op_resolve(
+				    session, op, true));
+#endif
 			}
 
 			break;
@@ -1109,16 +1109,14 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-			if (prepare) {
-				F_CLR(txn, WT_TXN_PREPARE);
-				WT_RET(__txn_op_resolve(session, op, false));
-				F_SET(txn, WT_TXN_PREPARE);
-			}
-			else {
+			/* upd will be NULL, in case of prepared txn. */
+			if (upd != NULL) {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;
-			}
+			} else
+				WT_RET(__txn_prepared_op_resolve(
+				    session, op, false));
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
