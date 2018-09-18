@@ -713,14 +713,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 
 	conn->next_file_id = r.max_fileid;
 
-done:	WT_TRET(__recovery_set_checkpoint_timestamp(&r));
+done:	WT_ERR(__recovery_set_checkpoint_timestamp(&r));
 	if (do_checkpoint)
 		/*
 		 * Forcibly log a checkpoint so the next open is
 		 * fast and keep the metadata up to date with the
 		 * checkpoint LSN and archiving.
 		 */
-		WT_TRET(session->iface.checkpoint(
+		WT_ERR(session->iface.checkpoint(
 		    &session->iface, "force=1"));
 
 	/*
@@ -728,7 +728,7 @@ done:	WT_TRET(__recovery_set_checkpoint_timestamp(&r));
 	 * an archive, no matter what the archive setting is.
 	 */
 	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
-		WT_TRET(__wt_log_truncate_files(session, NULL, true));
+		WT_ERR(__wt_log_truncate_files(session, NULL, true));
 	FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
 err:	WT_TRET(__recovery_free(&r));
