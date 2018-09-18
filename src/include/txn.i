@@ -328,10 +328,12 @@ __txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 		/* Ensure that we have not missed update of this txn. */
 		for (; upd != NULL; upd = upd->next) {
 			/*
-			 * For commit, no updates of this txn should be in
-			 * prepared state.
-			 * For rollback, all updates should have been marked as
-			 * aborted.
+			 * Should not have an unprocessed uncommitted update
+			 * of this txn.
+			 * For commit, no uncommitted update of this txn should
+			 * be in prepared state.
+			 * For rollback, there should not be any more
+			 * uncommitted updates from this txn.
 			 */
 			if (commit && upd->txnid == txn->id)
 				WT_ASSERT(session,
