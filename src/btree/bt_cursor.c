@@ -495,11 +495,11 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	WT_ASSERT(session, cbt->compare == 0);
 
 	/*
-	 * Get the update from the cursor.
+	 * Get the uncommitted update from the cursor.
 	 */
-	if (cbt->ins != NULL) {
+	if (cbt->ins != NULL)
 		upd = cbt->ins->upd;
-	} else if (btree->type == BTREE_ROW) {
+	else {
 		WT_ASSERT(session, cbt->ref->page->modify != NULL);
 		upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
 	}
