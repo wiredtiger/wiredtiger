@@ -716,16 +716,15 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 done:	WT_ERR(__recovery_set_checkpoint_timestamp(&r));
 	if (do_checkpoint)
 		/*
-		 * Forcibly log a checkpoint so the next open is
-		 * fast and keep the metadata up to date with the
-		 * checkpoint LSN and archiving.
+		 * Forcibly log a checkpoint so the next open is fast and keep
+		 * the metadata up to date with the checkpoint LSN and
+		 * archiving.
 		 */
-		WT_ERR(session->iface.checkpoint(
-		    &session->iface, "force=1"));
+		WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
 	/*
-	 * If we're downgrading and have newer log files, force
-	 * an archive, no matter what the archive setting is.
+	 * If we're downgrading and have newer log files, force an archive,
+	 * no matter what the archive setting is.
 	 */
 	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_FORCE_DOWNGRADE))
 		WT_ERR(__wt_log_truncate_files(session, NULL, true));
