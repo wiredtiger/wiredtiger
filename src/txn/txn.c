@@ -690,7 +690,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE *upd;
 	uint32_t fileid;
 	u_int i;
-	bool locked, readonly;
+	bool locked, prepare, readonly;
 #ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t prev_commit_timestamp, ts;
 	bool update_timestamp;
@@ -722,8 +722,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    "version of WiredTiger built with timestamp support");
 #endif
 	}
-	if (F_ISSET(txn, WT_TXN_PREPARE) &&
-	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+
+	prepare = F_ISSET(txn, WT_TXN_PREPARE);
+	if (prepare && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
 		WT_ERR_MSG(session, EINVAL,
 		    "commit_timestamp is required for a prepared transaction");
 
@@ -783,7 +784,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * If this transaction is prepared, then copying values would have been
 	 * done during prepare.
 	 */
-	if (session->ncursors > 0 && !F_ISSET(txn, WT_TXN_PREPARE)) {
+	if (session->ncursors > 0 && !prepare) {
 		WT_DIAGNOSTIC_YIELD;
 		WT_ERR(__wt_session_copy_values(session));
 	}
@@ -823,8 +824,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM_ROW:
 			upd = op->u.op_upd;
 
-			/* upd will be NULL, in case of prepared txn. */
-			if (upd != NULL) {
+			/* Need to resolve txn op, in case of prepared txn */
+			if (!prepare) {
 				/*
 				 * Switch reserved operations to abort to
 				 * simplify obsolete update list truncation.
@@ -1076,7 +1077,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool readonly;
+	bool prepare, readonly;
 
 	WT_UNUSED(cfg);
 
@@ -1088,6 +1089,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	if (txn->notify != NULL)
 		WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session,
 		    txn->id, 0));
+
+	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1108,14 +1111,15 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-			/* upd will be NULL, in case of prepared txn. */
-			if (upd != NULL) {
+			/* Need to resolve txn op, in case of prepared txn */
+			if (prepare)
+				WT_RET(__txn_prepared_op_resolve(
+				    session, op, false));
+			else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;
-			} else
-				WT_RET(__txn_prepared_op_resolve(
-				    session, op, false));
+			}
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			WT_TRET(__wt_delete_page_rollback(session, op->u.ref));
