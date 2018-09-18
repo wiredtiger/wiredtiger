@@ -329,7 +329,10 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
             #   salvage: log file x truncated at beginning
             #   salvage: log file x truncated
             #   salvage: log file x removed
-            outpat = 'salvage: log file'
+            if self.kind == 'removal':
+                outpat = '^$'
+            else:
+                outpat = 'salvage: log file'
         else:
             errpat = '^$'
             outpat = '^$'

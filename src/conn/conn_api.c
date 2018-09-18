@@ -2781,10 +2781,12 @@ err:	/* Discard the scratch buffers. */
 
 	if (ret != 0) {
 		/*
-		 * Set panic if we're returning the run recovery error so that
-		 * we don't try to checkpoint data handles.
+		 * Set panic if we're returning the run recovery error or if
+		 * recovery did not complete so that we don't try to checkpoint
+		 * data handles.
 		 */
-		if (ret == WT_RUN_RECOVERY)
+		if (ret == WT_RUN_RECOVERY ||
+		    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
 			F_SET(conn, WT_CONN_PANIC);
 		/*
 		 * If we detected a data corruption issue, we really want to

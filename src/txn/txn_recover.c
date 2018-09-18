@@ -320,16 +320,20 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	/* First, peek at the log record type. */
 	WT_RET(__wt_logrec_read(session, &p, end, &rectype));
 
-	if (!r->metadata_only)
-		WT_ASSERT(session,
-		    __wt_log_cmp(lsnp, &r->max_rec_lsn) < 0);
+	/*
+	 * Record the highest LSN we process during the metadata phase.
+	 * If not the metadata phase, then stop at that LSN.
+	 */
+	if (r->metadata_only)
+		r->max_rec_lsn = *next_lsnp;
+	else if (__wt_log_cmp(lsnp, &r->max_rec_lsn) > 0)
+		return (0);
+
 	switch (rectype) {
 	case WT_LOGREC_CHECKPOINT:
-		if (r->metadata_only) {
+		if (r->metadata_only)
 			WT_RET(__wt_txn_checkpoint_logread(
 			    session, &p, end, &r->ckpt_lsn));
-			r->max_rec_lsn = *next_lsnp;
-		}
 		break;
 
 	case WT_LOGREC_COMMIT:
@@ -619,12 +623,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 				WT_ERR_MSG(session, WT_RUN_RECOVERY,
 				    "Read-only database needs recovery");
 		}
-		if (WT_IS_INIT_LSN(&metafile->ckpt_lsn)) {
+		if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
 			ret = __wt_log_scan(session,
 			    NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
-			if (F_ISSET(conn, WT_CONN_SALVAGE))
-				ret = 0;
-		} else {
+		else {
 			/*
 			 * Start at the last checkpoint LSN referenced in the
 			 * metadata.  If we see the end of a checkpoint while
@@ -634,9 +636,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 			r.ckpt_lsn = metafile->ckpt_lsn;
 			ret = __wt_log_scan(session,
 			    &metafile->ckpt_lsn, 0, __txn_log_recover, &r);
-			if (ret == ENOENT || F_ISSET(conn, WT_CONN_SALVAGE))
-				ret = 0;
 		}
+		if (F_ISSET(conn, WT_CONN_SALVAGE))
+			ret = 0;
 		WT_ERR(ret);
 	}
 
@@ -698,18 +700,15 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 */
 	if (needs_rec)
 		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
-	if (WT_IS_INIT_LSN(&r.ckpt_lsn)) {
+	if (WT_IS_INIT_LSN(&r.ckpt_lsn))
 		ret = __wt_log_scan(session, NULL,
 		    WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER,
 		    __txn_log_recover, &r);
-		if (F_ISSET(conn, WT_CONN_SALVAGE))
-			ret = 0;
-	} else {
+	else
 		ret = __wt_log_scan(session, &r.ckpt_lsn,
 		    WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
-		if (ret == ENOENT || F_ISSET(conn, WT_CONN_SALVAGE))
-			ret = 0;
-	}
+	if (F_ISSET(conn, WT_CONN_SALVAGE))
+		ret = 0;
 	WT_ERR(ret);
 
 	conn->next_file_id = r.max_fileid;
