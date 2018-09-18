@@ -112,6 +112,7 @@ struct __wt_txn_global {
 	bool has_oldest_timestamp;
 	bool has_pinned_timestamp;
 	bool has_stable_timestamp;
+	bool has_write_lock;
 	bool oldest_is_pinned;
 	bool stable_is_pinned;
 
