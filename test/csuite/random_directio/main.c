@@ -68,6 +68,7 @@
  */
 
 #include "test_util.h"
+#include "util.h"
 
 #include <fcntl.h>
 #include <signal.h>
@@ -786,15 +787,14 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 static bool
 check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 {
-	struct sigaction sa;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor, *meta, *rev;
 	WT_SESSION *session;
 	uint64_t gotid, id;
 	uint64_t *lastid;
 	uint32_t gotth, kvsize, th, threadmap;
-	int ret, status;
-	char buf[4096];
+	int ret;
+	char checkdir[4096], savedir[4096];
 	char *gotkey, *gotvalue, *keybuf, *p;
 	char **large_arr;
 
@@ -806,36 +806,24 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 		large_arr[th] = dcalloc(LARGE_WRITE_SIZE, 1);
 		large_buf(large_arr[th], LARGE_WRITE_SIZE, th, true);
 	}
+	testutil_check(__wt_snprintf(checkdir, sizeof(checkdir),
+	    "%s.CHECK", home));
+	testutil_check(__wt_snprintf(savedir, sizeof(savedir),
+	    "%s.SAVE", home));
 
 	/*
 	 * We make a copy of the directory (possibly using direct IO)
 	 * for recovery and checking, and an identical copy that
 	 * keeps the state of all files before recovery starts.
 	 */
-	testutil_check(__wt_snprintf(buf, sizeof(buf),
-	    "H='%s'; C=$H.CHECK; S=$H.SAVE; rm -rf $C $S;"
-	    " mkdir $C; for f in `ls $H/`; do "
-	    " dd if=$H/$f of=$C/$f bs=4096 %s >/dev/null 2>&1 || exit 1; done;"
-	    " cp -pr $C $S",
-	    home, directio ? "iflag=direct" : ""));
 	printf(
 	    "Copy database home directory using direct I/O to run recovery,\n"
 	    "along with a saved 'pre-recovery' copy.\n");
-	printf("Shell command: %s\n", buf);
-
-	/* Temporarily turn off the child handler while running 'system' */
-	memset(&sa, 0, sizeof(sa));
-	sa.sa_handler = SIG_DFL;
-	testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-	if ((status = system(buf)) < 0)
-		testutil_die(status, "system: %s", buf);
-	sa.sa_handler = handler;
-	testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-
-	testutil_check(__wt_snprintf(buf, sizeof(buf), "%s.CHECK", home));
+	copy_directory(home, checkdir, directio);
+	copy_directory(checkdir, savedir, false);
 
 	printf("Open database, run recovery and verify content\n");
-	testutil_check(wiredtiger_open(buf, NULL, ENV_CONFIG_REC, &conn));
+	testutil_check(wiredtiger_open(checkdir, NULL, ENV_CONFIG_REC, &conn));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	testutil_check(session->open_cursor(session, uri_main, NULL, NULL,
 	    &cursor));
