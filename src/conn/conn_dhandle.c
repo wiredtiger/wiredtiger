@@ -247,8 +247,8 @@ __wt_conn_dhandle_close(
 	bool close_handle, is_btree, is_mapped, no_schema_lock;
 
 	conn = S2C(session);
-	close_handle = true;
 	dhandle = session->dhandle;
+	close_handle = true;
 	is_mapped = false;
 
 	if (!F_ISSET(dhandle, WT_DHANDLE_OPEN))
