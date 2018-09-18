@@ -663,8 +663,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 */
 	r.metadata_only = false;
 	__wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
-	    "Main recovery loop: starting at %" PRIu32 "/%" PRIu32,
-	    r.ckpt_lsn.l.file, r.ckpt_lsn.l.offset);
+	    "Main recovery loop: starting at %" PRIu32 "/%" PRIu32
+	    " to %" PRIu32 "/%" PRIu32, r.ckpt_lsn.l.file, r.ckpt_lsn.l.offset,
+	    r.max_rec_lsn.l.file, r.max_rec_lsn.l.offset);
 	WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
 	/*
 	 * Check if the database was shut down cleanly.  If not
@@ -734,8 +735,10 @@ err:	WT_TRET(__recovery_free(&r));
 	__wt_free(session, config);
 	FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 
-	if (ret != 0)
+	if (ret != 0) {
+		FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_FAILED);
 		__wt_err(session, ret, "Recovery failed");
+	}
 
 	/*
 	 * Destroy the eviction threads that were started in support of
