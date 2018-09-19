@@ -108,13 +108,6 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         if corruptpos == 0:
             return kind == 'removal'
 
-        # NOTE:
-        # The removal or truncation of a middle log file (not first or last)
-        # that would be used in recovery is not currently handled gracefully.
-        #if (kind == 'removal' or kind == 'truncate') and \
-        #   corruptpos != 6 and corruptpos > chkpt:
-        #    return False
-
         # All the other cases are valid
         return True
 

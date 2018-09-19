@@ -326,7 +326,7 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	 */
 	if (r->metadata_only)
 		r->max_rec_lsn = *next_lsnp;
-	else if (__wt_log_cmp(lsnp, &r->max_rec_lsn) > 0)
+	else if (__wt_log_cmp(lsnp, &r->max_rec_lsn) >= 0)
 		return (0);
 
 	switch (rectype) {
@@ -606,8 +606,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	 * If we're running with salvage and we hit an error, we ignore it
 	 * and continue. In salvage we want to recover whatever part of the
 	 * data we can from the last checkpoint up until whatever problem we
-	 * detect in the log file. In salvage we only care about errors from
-	 * scanning the log. Other errors remain errors.
+	 * detect in the log file. In salvage, we ignore errors from scanning
+	 * the log so recovery can continue. Other errors remain errors.
 	 */
 	if (!was_backup) {
 		r.metadata_only = true;
