@@ -212,7 +212,7 @@ __txn_get_pinned_timestamp(
 	if (include_oldest && !txn_global->has_oldest_timestamp)
 		return (WT_NOTFOUND);
 
-	if(!F_ISSET(session, WT_SESSION_LOCKED_TXN_GLOBAL))
+	if (!F_ISSET(session, WT_SESSION_LOCKED_TXN_GLOBAL))
 		__wt_readlock(session, &txn_global->rwlock);
 	if (include_oldest)
 		__wt_timestamp_set(&tmp_ts, &txn_global->oldest_timestamp);
@@ -226,7 +226,7 @@ __txn_get_pinned_timestamp(
 	    __wt_timestamp_cmp(&txn_global->checkpoint_timestamp, &tmp_ts) <
 	    0))
 		__wt_timestamp_set(&tmp_ts, &txn_global->checkpoint_timestamp);
-	if(!F_ISSET(session, WT_SESSION_LOCKED_TXN_GLOBAL))
+	if (!F_ISSET(session, WT_SESSION_LOCKED_TXN_GLOBAL))
 		__wt_readunlock(session, &txn_global->rwlock);
 
 	/* Look for the oldest ordinary reader. */
