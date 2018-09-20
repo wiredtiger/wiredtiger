@@ -45,9 +45,9 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
     txn_config = 'isolation=snapshot'
 
     types = [
-        ('col', dict(extra_config=',log=(enabled=false),key_format=r')),
-        ('row', dict(extra_config=',log=(enabled=false)')),
-        #('lsm', dict(extra_config=',log=(enabled=false),type=lsm')),
+        ('col', dict(s_config='value_format=i,log=(enabled=false),key_format=r')),
+        ('row', dict(s_config='key_format=i,value_format=i,log=(enabled=false)')),
+        #('lsm', dict(s_config='key_format=i, value_format=i,log=(enabled=false),type=lsm')),
     ]
 
     # Transaction end types
@@ -63,8 +63,7 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         if not wiredtiger.timestamp_build():
             self.skipTest('requires a timestamp build')
 
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
+        self.session.create(self.uri, self.s_config)
         c = self.session.open_cursor(self.uri)
 
         # Insert keys 1..100 each with timestamp=key, in some order
@@ -76,13 +75,14 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         # Check insert operation
         self.session.begin_transaction(self.txn_config)
         c[1] = 1
-        # update the value with in this txn
+        # update the value with in this transaction
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(100))
         if self.txn_commit == True:
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(101))
         else:
             self.session.rollback_transaction()
 
+        # Trigger a checkpoint, which could trigger reconcilation
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(150))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(150))
         self.session.checkpoint()
@@ -103,6 +103,7 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.session.rollback_transaction()
 
+        # Trigger a checkpoint, which could trigger reconcilation
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(250))
         self.session.checkpoint()
@@ -110,7 +111,7 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario: 3
         # Check remove operation
         #   remove an existing key.
-        #   remove an previously updated key.
+        #   remove a previously updated key.
         #   remove a newly inserted and updated key.
         self.session.begin_transaction(self.txn_config)
         # update a committed value, key 1 is inserted above.
@@ -135,6 +136,7 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         c[3] = 1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(301))
 
+        # Trigger a checkpoint, which could trigger reconcilation
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(350))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(350))
         self.session.checkpoint()
@@ -144,10 +146,10 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         # creating the modify update_chain for key instead of insert update
         # chain.
         self.reopen_conn()
-        self.session.create(self.uri,
-            'key_format=i,value_format=i' + self.extra_config)
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(350))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(350))
+
+        self.session.create(self.uri, self.s_config)
         cur = self.session.open_cursor(self.uri)
         self.session.begin_transaction(self.txn_config)
         cur[1] = 2
@@ -164,9 +166,11 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             self.session.rollback_transaction()
 
+        # Trigger a checkpoint, which could trigger reconcilation
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(450))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(450))
         self.session.checkpoint()
+
         cur.close()
         self.session.close()
 

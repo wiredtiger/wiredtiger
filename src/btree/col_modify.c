@@ -248,7 +248,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * operation need to be updated.
 		 */
 		if (append && logged)
-			__txn_op_modify_recno(session, cbt->recno);
+			__wt_txn_op_set_recno(session, cbt->recno);
 	}
 
 	/* If the update was successful, add it to the in-memory log. */

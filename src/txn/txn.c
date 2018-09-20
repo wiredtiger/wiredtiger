@@ -1077,7 +1077,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	u_int i;
-	bool prepare, readonly;
+	bool readonly;
 
 	WT_UNUSED(cfg);
 
@@ -1089,8 +1089,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	if (txn->notify != NULL)
 		WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session,
 		    txn->id, 0));
-
-	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1112,7 +1110,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
 			/* Need to resolve txn op, in case of prepared txn */
-			if (prepare)
+			if (F_ISSET(txn, WT_TXN_PREPARE))
 				WT_RET(__txn_prepared_op_resolve(
 				    session, op, false));
 			else {
