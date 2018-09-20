@@ -219,8 +219,12 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
  *      Resolve a prepared update as committed update.
  */
 static inline void
-__txn_resolve_prepared_update(WT_TXN *txn, WT_UPDATE *upd)
+__txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+#ifdef HAVE_TIMESTAMPS
+	WT_TXN *txn;
+
+	txn = &session->txn;
 	/*
 	 * In case of a prepared transaction, the order of modification of the
 	 * prepare timestamp to commit timestamp in the update chain will not
@@ -234,6 +238,10 @@ __txn_resolve_prepared_update(WT_TXN *txn, WT_UPDATE *upd)
 	WT_WRITE_BARRIER();
 	__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
 	WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(upd);
+#endif
 }
 /*
  * __txn_prepared_op_resolve --
@@ -326,7 +334,7 @@ __txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 			break;
 
 		/* Resolve the prepared update to be committed update. */
-		__txn_resolve_prepared_update(txn, upd);
+		__txn_resolve_prepared_update(session, upd);
 	}
 
 #ifdef HAVE_DIAGNOSTIC
@@ -488,7 +496,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 			upd = op->u.op_upd;
 
 			/* Resolve prepared update to be committed update. */
-			__txn_resolve_prepared_update(txn, upd);
+			__txn_resolve_prepared_update(session, upd);
 		}
 	} else {
 		/*
