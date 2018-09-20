@@ -243,6 +243,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	WT_UNUSED(upd);
 #endif
 }
+
 /*
  * __txn_prepared_op_resolve --
  *      Resolve a transaction operation indirect references.
