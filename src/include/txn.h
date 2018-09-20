@@ -23,6 +23,12 @@
 #define	WT_TXN_OLDEST_WAIT	0x2u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_TS_GET_CKPT	0x1u
+#define	WT_TXN_TS_GET_OLDEST	0x2u
+#define	WT_TXN_TS_WRITE_LOCK	0x4u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
 /*
  * Transaction ID comparison dealing with edge cases.
  *
