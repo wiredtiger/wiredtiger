@@ -243,9 +243,9 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 			    &ins, ins_size, skipdepth, exclusive));
 
 		/*
-		 * In case of append, the recno(key) for the value is assigned
-		 * now, hence the recno in the latest txn op representing this
-		 * operation need to be updated.
+		 * In case of append, the recno (key) for the value is assigned
+		 * now, hence the recno in the latest transaction op
+		 * representing this operation needs to be updated.
 		 */
 		if (append && logged)
 			__wt_txn_op_set_recno(session, cbt->recno);
