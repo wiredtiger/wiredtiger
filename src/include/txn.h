@@ -275,6 +275,13 @@ struct __wt_txn {
 	WT_TXN_OP      *mod;
 	size_t		mod_alloc;
 	u_int		mod_count;
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * Reference count of pre-processed updates of a prepared transaction
+	 * as part of commit.
+	 */
+	u_int		pre_processed_count;
+#endif
 
 	/* Scratch buffer for in-memory log records. */
 	WT_ITEM	       *logrec;

@@ -472,14 +472,14 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_btcur_search_uncommitted --
- *	Search for a matching uncommitted record in the tree.
+ *	Search and return exact matching records only, including uncommitted
+ *	ones.
  */
 int
 __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
 	WT_BTREE *btree;
 	WT_CURSOR *cursor;
-	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
 
@@ -488,11 +488,21 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	session = (WT_SESSION_IMPL *)cursor->session;
 	upd = NULL;					/* -Wuninitialized */
 
-	WT_ERR(btree->type == BTREE_ROW ?
+	WT_RET(btree->type == BTREE_ROW ?
 	    __cursor_row_search(session, cbt, NULL, false) :
 	    __cursor_col_search(session, cbt, NULL));
 
-	WT_ASSERT(session, cbt->compare == 0);
+	/*
+	 * Ideally exact match should be found, as this transaction has
+	 * searched for updates done by itself. But, we cannot be sure of
+	 * finding one, as pre processing of this prepared transaction updates
+	 * could have happened as part of resolving earlier transaction
+	 * operations.
+	 */
+	if (cbt->compare != 0) {
+		*updp = upd;
+		return (0);
+	}
 
 	/* Get the uncommitted update from the cursor.  */
 	if (cbt->ins != NULL)
@@ -503,10 +513,8 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 		upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
 	}
 
-	WT_ASSERT(session, upd != NULL);
-
 	*updp = upd;
-err:	return (ret);
+	return (0);
 }
 
 /*

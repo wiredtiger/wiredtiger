@@ -249,9 +249,9 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *      Resolve a transaction operation indirect references.
  *
  *      In case of prepared transactions, the prepared updates could be evicted
- *      using cache overflow mechanism. Transaction operations referring these
- *      prepared updates would be referring to them using indirect references
- *      (i.e keys/recnos), which need to be resolved as part of that
+ *      using cache overflow mechanism. Transaction operations referring to
+ *      these prepared updates would be referring to them using indirect
+ *      references (i.e keys/recnos), which need to be resolved as part of that
  *      transaction commit/rollback.
  */
 static inline int
@@ -261,6 +261,9 @@ __txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_UPDATE *upd;
+#ifdef HAVE_DIAGNOSTIC
+	u_int pre_processed_count;
+#endif
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
 
@@ -291,7 +294,14 @@ __txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 	    op->btree, ret = __wt_btcur_search_uncommitted(
 	    (WT_CURSOR_BTREE *)cursor, &upd));
 	WT_ERR(ret);
-	WT_ASSERT(session, upd != NULL);
+
+#ifdef HAVE_DIAGNOSTIC
+	if (upd == NULL)
+		WT_ASSERT(session, txn->pre_processed_count != 0);
+
+	pre_processed_count = txn->pre_processed_count;
+#endif
+
 	op->u.op_upd = upd;
 
 	for (; upd != NULL; upd = upd->next) {
@@ -299,7 +309,6 @@ __txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 			continue;
 
 		if (!commit) {
-			/* Abort the updates of this transaction. */
 			upd->txnid = WT_TXN_ABORTED;
 			continue;
 		}
@@ -330,25 +339,45 @@ __txn_prepared_op_resolve(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 		 * In the above example, we will resolve "u2" and "u1" as part
 		 * of resolving "txn_op1" and will not do any significant
 		 * thing as part of "txn_op2".
+		 *
+		 * When an update is not identified for resolution of a txn_op,
+		 * we need to distinguish whether the update is already pre
+		 * processed or not. Transaction maintains a reference count to
+		 * keep track of pre-processed updates. Having only one
+		 * reference count, will not solve all cases, but better than
+		 * void.
 		 */
-		if (upd->prepare_state == WT_PREPARE_RESOLVED)
+		if (upd->prepare_state == WT_PREPARE_RESOLVED) {
+#ifdef HAVE_DIAGNOSTIC
+			txn->pre_processed_count--;
+#endif
 			break;
+		}
 
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
+#ifdef HAVE_DIAGNOSTIC
+		txn->pre_processed_count++;
+#endif
 	}
 
 #ifdef HAVE_DIAGNOSTIC
+	/*
+	 * Reduce by one, to exclude the current processed one as to keep track
+	 * of only pre-processed ones.
+	 */
+	if (pre_processed_count < txn->pre_processed_count)
+		txn->pre_processed_count--;
+
 	upd = op->u.op_upd;
 	/* Ensure that we have not missed any of this transaction updates. */
 	for (; upd != NULL; upd = upd->next) {
 		/*
 		 * Should not have an unprocessed uncommitted update of this
+		 * transaction. For commit, no uncommitted update of this
+		 * transaction should be in prepared state. For rollback, there
+		 * should not be any more uncommitted updates from this
 		 * transaction.
-		 * For commit, no uncommitted update of this transaction should
-		 * be in prepared state.
-		 * For rollback, there should not be any more uncommitted
-		 * updates from this transaction.
 		 */
 		if (commit && upd->txnid == txn->id)
 			WT_ASSERT(session,
