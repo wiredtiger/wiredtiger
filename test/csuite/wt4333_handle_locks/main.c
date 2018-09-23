@@ -63,8 +63,7 @@ uri_init(void)
 			testutil_check(__wt_snprintf(
 			    buf, sizeof(buf), "key:%020u", key));
 			cursor->set_key(cursor, buf);
-			cursor->set_value(cursor,
-			    "XXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+			cursor->set_value(cursor, buf);
 			testutil_check(cursor->insert(cursor));
 		}
 		testutil_check(cursor->close(cursor));
@@ -102,8 +101,7 @@ uthread(void *arg)
 				testutil_check(__wt_snprintf(
 				    buf, sizeof(buf), "key:%020u", key));
 				cursor->set_key(cursor, buf);
-				cursor->set_value(cursor,
-				    "XXXXXXXXXXXXXXXXXXXXXXXXXXXX");
+				cursor->set_value(cursor, buf);
 				testutil_check(cursor->insert(cursor));
 				__wt_yield();
 			}
