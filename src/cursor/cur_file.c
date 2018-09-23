@@ -550,11 +550,12 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool notused;
+	bool is_dead;
 
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	dhandle = cbt->dhandle;
 	session = (WT_SESSION_IMPL *)cursor->session;
+	is_dead = false;
 
 	if (!WT_DHANDLE_CAN_REOPEN(dhandle))
 		ret = WT_NOTFOUND;
@@ -565,7 +566,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 		 * Lock the handle: we're only interested in open handles, any
 		 * other state disqualifies the cache.
 		 */
-		ret = __wt_session_lock_dhandle(session, 0, &notused);
+		ret = __wt_session_lock_dhandle(session, 0, &is_dead);
 		if (ret == 0 && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
 			WT_RET(__wt_session_release_dhandle(session));
 			ret = __wt_set_return(session, EBUSY);
@@ -576,7 +577,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 		 * like a dead handle: fail the reopen, and flag the cursor so
 		 * that the handle won't be unlocked when subsequently closed.
 		 */
-		if (ret == EBUSY) {
+		if (is_dead || ret == EBUSY) {
 			F_SET(cursor, WT_CURSTD_DEAD);
 			ret = WT_NOTFOUND;
 		}
