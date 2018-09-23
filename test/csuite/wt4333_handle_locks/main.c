@@ -206,7 +206,7 @@ main(int argc, char *argv[])
 	(void)testutil_set_progname(argv);
 
 	(void)signal(SIGALRM, on_alarm);
-	
+
 	done = false;
 	run(true);
 	done = false;
