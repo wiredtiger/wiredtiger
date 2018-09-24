@@ -56,9 +56,10 @@ static char home[1024];			/* Program working dir */
  * Each worker thread creates its own records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
  */
+#define	INT_SESSION_BUF	36
 #define	INVALID_KEY	UINT64_MAX
 #define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
-#define	MAX_TH		12
+#define	MAX_TH		200
 #define	MAX_TIME	40
 #define	MAX_VAL		1024
 #define	MIN_TH		5
@@ -67,6 +68,7 @@ static char home[1024];			/* Program working dir */
 #define	PREPARE_YIELD	(PREPARE_FREQ * 10)
 #define	RECORDS_FILE	"records-%" PRIu32
 #define	STABLE_PERIOD	100
+#define	SESSION_MAX	100
 
 static const char * table_pfx = "table";
 static const char * const uri_local = "local";
@@ -438,7 +440,7 @@ run_workload(uint32_t nth)
 	THREAD_DATA *td;
 	wt_thread_t *thr;
 	uint32_t ckpt_id, i, ts_id;
-	char envconf[512], uri[128];
+	char envconf[512], uri[128], session_conf[32];
 
 	thr = dcalloc(nth+2, sizeof(*thr));
 	td = dcalloc(nth+2, sizeof(THREAD_DATA));
@@ -450,6 +452,12 @@ run_workload(uint32_t nth)
 		strcpy(envconf, ENV_CONFIG_TXNSYNC);
 	if (compat)
 		strcat(envconf, ENV_CONFIG_COMPAT);
+
+	if (nth > SESSION_MAX) {
+		(void)__wt_snprintf(session_conf, sizeof(session_conf),
+		    ",session_max=%" PRIu32 , nth + INT_SESSION_BUF);
+		strcat(envconf, session_conf);
+	}
 
 	testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -628,6 +636,12 @@ main(int argc, char *argv[])
 		case 'T':
 			rand_th = false;
 			nth = (uint32_t)atoi(__wt_optarg);
+			if (nth > MAX_TH) {
+				fprintf(stderr,
+				    "Number of threads is larger than the"
+				    " maximum %" PRId32 "\n", MAX_TH);
+				return (EXIT_FAILURE);
+			}
 			break;
 		case 't':
 			rand_time = false;
