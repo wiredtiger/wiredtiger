@@ -8,6 +8,12 @@
 
 #include "wt_internal.h"
 
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_TS_ALREADY_LOCKED	0x1u
+#define	WT_TXN_TS_INCLUDE_CKPT		0x2u
+#define	WT_TXN_TS_INCLUDE_OLDEST	0x4u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
 #ifdef HAVE_TIMESTAMPS
 /*
  * __wt_timestamp_to_hex_string --
@@ -208,8 +214,8 @@ __txn_get_pinned_timestamp(
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
-	include_oldest = LF_ISSET(WT_TXN_TS_GET_OLDEST);
-	txn_has_write_lock = LF_ISSET(WT_TXN_TS_WRITE_LOCK);
+	include_oldest = LF_ISSET(WT_TXN_TS_INCLUDE_OLDEST);
+	txn_has_write_lock = LF_ISSET(WT_TXN_TS_ALREADY_LOCKED);
 
 	if (include_oldest && !txn_global->has_oldest_timestamp)
 		return (WT_NOTFOUND);
@@ -222,7 +228,7 @@ __txn_get_pinned_timestamp(
 		__wt_timestamp_set_zero(&tmp_ts);
 
 	/* Check for a running checkpoint */
-	if (LF_ISSET(WT_TXN_TS_GET_CKPT) &&
+	if (LF_ISSET(WT_TXN_TS_INCLUDE_CKPT) &&
 	    !__wt_timestamp_iszero(&txn_global->checkpoint_timestamp) &&
 	    (__wt_timestamp_iszero(&tmp_ts) ||
 	    __wt_timestamp_cmp(&txn_global->checkpoint_timestamp, &tmp_ts) <
@@ -317,10 +323,10 @@ __txn_global_query_timestamp(
 		    __wt_timestamp_set(&ts, &txn_global->oldest_timestamp));
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len))
 		WT_RET(__txn_get_pinned_timestamp(
-		    session, &ts, WT_TXN_TS_GET_CKPT));
+		    session, &ts, WT_TXN_TS_INCLUDE_CKPT));
 	else if (WT_STRING_MATCH("pinned", cval.str, cval.len))
 		WT_RET(__txn_get_pinned_timestamp(session, &ts,
-		    WT_TXN_TS_GET_CKPT | WT_TXN_TS_GET_OLDEST));
+		    WT_TXN_TS_INCLUDE_CKPT | WT_TXN_TS_INCLUDE_OLDEST));
 	else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
 		__wt_timestamp_set(&ts, &txn_global->recovery_timestamp);
@@ -420,7 +426,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 
 	/* Scan to find the global pinned timestamp. */
 	if ((ret = __txn_get_pinned_timestamp(
-	    session, &pinned_timestamp, WT_TXN_TS_GET_OLDEST)) != 0)
+	    session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST)) != 0)
 		return (ret == WT_NOTFOUND ? 0 : ret);
 
 	if (txn_global->has_pinned_timestamp && !force) {
@@ -434,9 +440,13 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 	}
 
 	__wt_writelock(session, &txn_global->rwlock);
+	/*
+	 * Scan the global pinned timestamp again, it's possible that it got
+	 * changed after the previous scan.
+	 */
 	if ((ret = __txn_get_pinned_timestamp(
 	    session, &pinned_timestamp,
-	    WT_TXN_TS_WRITE_LOCK | WT_TXN_TS_GET_OLDEST)) != 0) {
+	    WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST)) != 0) {
 		__wt_writeunlock(session, &txn_global->rwlock);
 		return (ret == WT_NOTFOUND ? 0 : ret);
 	}
