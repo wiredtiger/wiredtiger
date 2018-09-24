@@ -849,11 +849,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				}
 
 #ifdef HAVE_TIMESTAMPS
-				if (__wt_txn_update_needs_timestamp(
-				    session, op))
-					__wt_timestamp_set(
-					    &upd->timestamp,
-					    &txn->commit_timestamp);
+				__wt_txn_op_set_timestamp(session, op);
 			} else {
 				WT_ERR(__txn_prepared_op_resolve(
 				    session, op, true));
