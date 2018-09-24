@@ -824,7 +824,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM_ROW:
 			upd = op->u.op_upd;
 
-			/* 
+			/*
 			 * Need to resolve indirect references of transaction
 			 * operation, in case of prepared transaction.
 			 */
@@ -1112,7 +1112,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-			/* 
+			/*
 			 * Need to resolve indirect references of transaction
 			 * operation, in case of prepared transaction.
 			 */
