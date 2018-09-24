@@ -64,7 +64,7 @@ __snapsort(uint64_t *array, uint32_t size)
 
 /*
  * __txn_remove_from_global_table --
- *	Remove the txn id from the global txn table.
+ *	Remove the transaction id from the global transaction table.
  */
 static inline void
 __txn_remove_from_global_table(WT_SESSION_IMPL *session)
@@ -824,7 +824,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_INMEM_ROW:
 			upd = op->u.op_upd;
 
-			/* Need to resolve txn op, in case of prepared txn */
+			/* 
+			 * Need to resolve indirect references of transaction
+			 * operation, in case of prepared transaction.
+			 */
 			if (!prepare) {
 				/*
 				 * Switch reserved operations to abort to
@@ -1048,7 +1051,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/*
 	 * Clear the transaction's ID from the global table, to facilitate
-	 * prepared data visibility, but not from local txn structure.
+	 * prepared data visibility, but not from local transaction structure.
 	 */
 	if (F_ISSET(txn, WT_TXN_HAS_ID))
 		__txn_remove_from_global_table(session);
@@ -1105,7 +1108,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_BASIC_ROW:
 		case WT_TXN_OP_INMEM_COL:
 		case WT_TXN_OP_INMEM_ROW:
-			/* Need to resolve txn op, in case of prepared txn */
+			/* 
+			 * Need to resolve indirect references of transaction
+			 * operation, in case of prepared transaction.
+			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE))
 				WT_RET(__txn_prepared_op_resolve(
 				    session, op, false));
