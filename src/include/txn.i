@@ -576,9 +576,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 	upd->txnid = session->txn.id;
 
 #ifdef HAVE_TIMESTAMPS
-	if (__wt_txn_update_needs_timestamp(session, op))
-		__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
-	else {
+	__wt_txn_op_set_timestamp(session, op);
 
 	/*
 	 * Copy the key into the transaction operation structure, so when
