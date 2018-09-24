@@ -54,8 +54,7 @@ uri_init(void)
 		fflush(stdout);
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "key_format=S,value_format=S,"
-		    "allocation_size=4K,leaf_page_max=32KB,"
-		    "block_compressor=\"snappy\""));
+		    "allocation_size=4K,leaf_page_max=32KB,"));
 		testutil_check(session->create(session, uri[i], buf));
 		testutil_check(session->open_cursor(
 		    session, uri[i], NULL, NULL, &cursor));
