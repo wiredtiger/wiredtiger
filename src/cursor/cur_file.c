@@ -557,45 +557,44 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	session = (WT_SESSION_IMPL *)cursor->session;
 	is_dead = false;
 
-	if (!WT_DHANDLE_CAN_REOPEN(dhandle))
+	if (check_only)
+		return (WT_DHANDLE_CAN_REOPEN(dhandle) ? 0 : WT_NOTFOUND);
+
+	session->dhandle = dhandle;
+
+	/*
+	 * Lock the handle: we're only interested in open handles, any other
+	 * state disqualifies the cache.
+	 */
+	ret = __wt_session_lock_dhandle(session, 0, &is_dead);
+	if (ret == 0 && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+		WT_RET(__wt_session_release_dhandle(session));
+		ret = __wt_set_return(session, EBUSY);
+	}
+
+	/*
+	 * The data handle may not be available, in which case handle it like a
+	 * dead handle: fail the reopen, and flag the cursor so that the handle
+	 * won't be unlocked when subsequently closed.
+	 */
+	if (is_dead || ret == EBUSY) {
+		F_SET(cursor, WT_CURSTD_DEAD);
 		ret = WT_NOTFOUND;
-	if (!check_only) {
-		session->dhandle = dhandle;
+	}
+	__wt_cursor_reopen(cursor, dhandle);
 
-		/*
-		 * Lock the handle: we're only interested in open handles, any
-		 * other state disqualifies the cache.
-		 */
-		ret = __wt_session_lock_dhandle(session, 0, &is_dead);
-		if (ret == 0 && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
-			WT_RET(__wt_session_release_dhandle(session));
-			ret = __wt_set_return(session, EBUSY);
-		}
-
-		/*
-		 * The data handle may not be available, in which case handle it
-		 * like a dead handle: fail the reopen, and flag the cursor so
-		 * that the handle won't be unlocked when subsequently closed.
-		 */
-		if (is_dead || ret == EBUSY) {
-			F_SET(cursor, WT_CURSTD_DEAD);
-			ret = WT_NOTFOUND;
-		}
-		__wt_cursor_reopen(cursor, dhandle);
-
-		/*
-		 * The btree handle may have been reopened since we last
-		 * accessed it.  Reset fields in the cursor that point to
-		 * memory owned by the btree handle.
-		 */
-		if (ret == 0) {
-			WT_ASSERT(session,
-			    dhandle->type == WT_DHANDLE_TYPE_BTREE);
-			cbt->btree = dhandle->handle;
-			cursor->internal_uri = cbt->btree->dhandle->name;
-			cursor->key_format = cbt->btree->key_format;
-			cursor->value_format = cbt->btree->value_format;
-		}
+	/*
+	 * The btree handle may have been reopened since we last accessed it.
+	 * Reset fields in the cursor that point to memory owned by the btree
+	 * handle.
+	 */
+	if (ret == 0) {
+		WT_ASSERT(session,
+		    dhandle->type == WT_DHANDLE_TYPE_BTREE);
+		cbt->btree = dhandle->handle;
+		cursor->internal_uri = cbt->btree->dhandle->name;
+		cursor->key_format = cbt->btree->key_format;
+		cursor->value_format = cbt->btree->value_format;
 	}
 	return (ret);
 }
