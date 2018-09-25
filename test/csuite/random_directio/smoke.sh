@@ -22,10 +22,10 @@ for threads in $TEST_THREADS; do
 
         # Here are successively tougher schema tests that do not yet
         # reliably pass.  'verbose' can be added to any.
-        #$RUN_TEST -T $threads -S create,create_check       || exit 1
-        #$RUN_TEST -T $threads -S create,drop,drop_check    || exit 1
-        #$RUN_TEST -T $threads -S create,rename             || exit 1
-        #$RUN_TEST -T $threads -S create,rename,drop_check  || exit 1
-        #$RUN_TEST -T $threads -S all,verbose               || exit 1
+        #$RUN_TEST -T $threads -S create,integrated,create_check      || exit 1
+        #$RUN_TEST -T $threads -S create,integrated,drop,drop_check   || exit 1
+        #$RUN_TEST -T $threads -S create,integratedrename             || exit 1
+        #$RUN_TEST -T $threads -S create,integrated,rename,drop_check || exit 1
+        #$RUN_TEST -T $threads -S all,verbose                         || exit 1
     done
 done

@@ -180,12 +180,13 @@ static const char * const uri_rev = "table:rev";
 #define	SCHEMA_DATA_CHECK	0x0004
 #define	SCHEMA_DROP		0x0008
 #define	SCHEMA_DROP_CHECK	0x0010
-#define	SCHEMA_RENAME		0x0020
-#define	SCHEMA_VERBOSE		0x0040
+#define	SCHEMA_INTEGRATED	0x0020
+#define	SCHEMA_RENAME		0x0040
+#define	SCHEMA_VERBOSE		0x0080
 #define	SCHEMA_ALL					\
 	(SCHEMA_CREATE | SCHEMA_CREATE_CHECK |	\
 	    SCHEMA_DATA_CHECK | SCHEMA_DROP |	\
-	    SCHEMA_DROP_CHECK | SCHEMA_RENAME)
+	    SCHEMA_DROP_CHECK | SCHEMA_INTEGRATED | SCHEMA_RENAME)
 
 extern int __wt_optind;
 extern char *__wt_optarg;
@@ -235,6 +236,8 @@ usage(void)
 	    "newly created tables are checked (requires create)");
 	fprintf(stderr, "  %-5s%-15s%s\n", "", "data_check",
 	    "check contents of files for various ops (requires create)");
+	fprintf(stderr, "  %-5s%-15s%s\n", "", "integrated",
+	    "schema operations are integrated into main table transactions");
 	fprintf(stderr, "  %-5s%-15s%s\n", "", "rename",
 	    "rename tables (requires create)");
 	fprintf(stderr, "  %-5s%-15s%s\n", "", "drop",
@@ -539,6 +542,13 @@ again:
 		testutil_check(rev->insert(rev));
 
 		/*
+		 * If we are running 'integrated' tests, then schema operations
+		 * are integrated into the transactions for the main table.
+		 */
+		if (!F_ISSET(td, SCHEMA_INTEGRATED))
+			testutil_check(session->commit_transaction(session,
+			    NULL));
+		/*
 		 * If we are doing a schema test, generate operations
 		 * for additional tables.  Each table has a 'lifetime'
 		 * of 4 values of the id.
@@ -563,7 +573,9 @@ again:
 				goto again;
 			}
 		}
-		testutil_check(session->commit_transaction(session, NULL));
+		if (F_ISSET(td, SCHEMA_INTEGRATED))
+			testutil_check(session->commit_transaction(session,
+			    NULL));
 	}
 	/* NOTREACHED */
 }
@@ -726,7 +738,7 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 {
 	char uri[50], uri2[50];
 
-	if (!LF_ISSET(SCHEMA_ALL))
+	if (!LF_ISSET(SCHEMA_ALL) || !LF_ISSET(SCHEMA_INTEGRATED))
 		return;
 
 	if (LF_ISSET(SCHEMA_VERBOSE))
@@ -1140,6 +1152,8 @@ main(int argc, char *argv[])
 					LF_SET(SCHEMA_DROP);
 				else if (WT_STREQ(arg, "drop_check"))
 					LF_SET(SCHEMA_DROP_CHECK);
+				else if (WT_STREQ(arg, "integrated"))
+					LF_SET(SCHEMA_INTEGRATED);
 				else if (WT_STREQ(arg, "none"))
 					flags = 0;
 				else if (WT_STREQ(arg, "rename"))
