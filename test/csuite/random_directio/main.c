@@ -542,8 +542,11 @@ again:
 		testutil_check(rev->insert(rev));
 
 		/*
-		 * If we are running 'integrated' tests, then schema operations
-		 * are integrated into the transactions for the main table.
+		 * If we are not running integrated tests, then we commit the
+		 * transaction now so that schema operations are not part of
+		 * the transaction operations for the main table.  If we are
+		 * running 'integrated' then we'll first do the schema
+		 * operations and commit later.
 		 */
 		if (!F_ISSET(td, SCHEMA_INTEGRATED))
 			testutil_check(session->commit_transaction(session,
@@ -573,6 +576,10 @@ again:
 				goto again;
 			}
 		}
+		/*
+		 * If schema operations are integrated, commit the transaction
+		 * now that they're complete.
+		 */
 		if (F_ISSET(td, SCHEMA_INTEGRATED))
 			testutil_check(session->commit_transaction(session,
 			    NULL));
@@ -1201,6 +1208,12 @@ main(int argc, char *argv[])
 	    (LF_ISSET(SCHEMA_DROP_CHECK) &&
 	    !LF_ISSET(SCHEMA_DROP))) {
 		fprintf(stderr, "Schema operations incompatible\n");
+		usage();
+	}
+	if (!LF_ISSET(SCHEMA_INTEGRATED) &&
+	    LF_ISSET(SCHEMA_CREATE_CHECK|SCHEMA_DATA_CHECK|SCHEMA_DROP_CHECK)) {
+		fprintf(stderr, "Schema '*check' options cannot be used "
+		    "without 'integrated'\n");
 		usage();
 	}
 	printf("CONFIG:%s\n", args);
