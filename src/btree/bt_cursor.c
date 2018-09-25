@@ -486,7 +486,7 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
-	upd = NULL;					/* -Wuninitialized */
+	*updp = upd = NULL;				/* -Wuninitialized */
 
 	WT_RET(btree->type == BTREE_ROW ?
 	    __cursor_row_search(session, cbt, NULL, false) :
@@ -499,16 +499,20 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 	 * could have happened as part of resolving earlier transaction
 	 * operations.
 	 */
-	if (cbt->compare != 0) {
-		*updp = upd;
+	if (cbt->compare != 0)
 		return (0);
-	}
 
-	/* Get the uncommitted update from the cursor.  */
+	/*
+	 * Get the uncommitted update from the cursor.
+	 * For column store there will be always a insert structure for updates
+	 * irrespective of fixed length or variable length.
+	 */
 	if (cbt->ins != NULL)
 		upd = cbt->ins->upd;
 	else if (cbt->btree->type == BTREE_ROW) {
-		WT_ASSERT(session, cbt->ref->page->modify != NULL &&
+		WT_ASSERT(session,
+		    cbt->btree->type == BTREE_ROW &&
+		    cbt->ref->page->modify != NULL &&
 		    cbt->ref->page->modify->mod_row_update != NULL);
 		upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
 	}

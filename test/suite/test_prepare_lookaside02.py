@@ -47,7 +47,7 @@ class test_prepare_lookaside02(wttest.WiredTigerTestCase, suite_subprocess):
     types = [
         ('col', dict(s_config='value_format=i,log=(enabled=false),key_format=r')),
         ('row', dict(s_config='key_format=i,value_format=i,log=(enabled=false)')),
-        #('lsm', dict(s_config='key_format=i, value_format=i,log=(enabled=false),type=lsm')),
+        ('lsm', dict(s_config='key_format=i, value_format=i,log=(enabled=false),type=lsm')),
     ]
 
     # Transaction end types

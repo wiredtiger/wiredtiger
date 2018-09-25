@@ -851,7 +851,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_TIMESTAMPS
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
-				WT_ERR(__txn_prepared_op_resolve(
+				WT_ERR(__wt_txn_resolve_prepared_op(
 				    session, op, true));
 #endif
 			}
@@ -1113,7 +1113,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * operation, in case of prepared transaction.
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE))
-				WT_RET(__txn_prepared_op_resolve(
+				WT_RET(__wt_txn_resolve_prepared_op(
 				    session, op, false));
 			else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
@@ -1274,6 +1274,10 @@ __wt_txn_release_resources(WT_SESSION_IMPL *session)
 	__wt_free(session, txn->mod);
 	txn->mod_alloc = 0;
 	txn->mod_count = 0;
+#ifdef HAVE_DIAGNOSTIC
+	WT_ASSERT(session, txn->multi_update_count == 0);
+	txn->multi_update_count = 0;
+#endif
 }
 
 /*

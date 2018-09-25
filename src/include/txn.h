@@ -277,10 +277,11 @@ struct __wt_txn {
 	u_int		mod_count;
 #ifdef HAVE_DIAGNOSTIC
 	/*
-	 * Reference count of pre-processed updates of a prepared transaction
-	 * as part of commit.
+	 * Reference count of multiple updates processed, as part of a single
+	 * transaction operation processing for resolving the indirect update
+	 * references in a prepared transaction as part of commit.
 	 */
-	u_int		pre_processed_count;
+	u_int		multi_update_count;
 #endif
 
 	/* Scratch buffer for in-memory log records. */
