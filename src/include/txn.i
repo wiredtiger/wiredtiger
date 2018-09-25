@@ -495,9 +495,9 @@ __wt_txn_unmodify(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	if (F_ISSET(txn, WT_TXN_HAS_ID)) {
 		WT_ASSERT(session, txn->mod_count > 0);
-		op = txn->mod + txn->mod_count -1;
+		--txn->mod_count;
+		op = txn->mod + txn->mod_count;
 		__wt_txn_op_free(session, op);
-		txn->mod_count--;
 	}
 }
 
