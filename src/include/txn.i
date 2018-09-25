@@ -264,6 +264,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 	 */
 	return (__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
 #else
+	WT_UNUSED(key);
 	return (0);
 #endif
 }
