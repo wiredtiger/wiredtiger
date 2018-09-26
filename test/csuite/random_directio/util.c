@@ -99,7 +99,11 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
 		    "%s/%s", fromdir, dp->d_name));
 		testutil_check(__wt_snprintf(tofile, sizeof(tofile),
 		    "%s/%s", todir, dp->d_name));
-		testutil_check(stat(fromfile, &sb));
+		rfd = open(fromfile, O_RDONLY | openflags, 0);
+		testutil_assert(rfd >= 0);
+		wfd = open(tofile, O_WRONLY | O_CREAT, 0666);
+		testutil_assert(wfd >= 0);
+		testutil_check(fstat(rfd, &sb));
 
 		/*
 		 * Do any alignment on the buffer required for direct IO.
@@ -126,10 +130,6 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
 			}
 		} else if (directio)
 			testutil_assert(blksize == (size_t)sb.st_blksize);
-		rfd = open(fromfile, O_RDONLY | openflags, 0);
-		testutil_assert(rfd >= 0);
-		wfd = open(tofile, O_WRONLY | O_CREAT, 0666);
-		testutil_assert(wfd >= 0);
 		remaining = (size_t)sb.st_size;
 		while (remaining > 0) {
 			readbytes = n = WT_MIN(remaining, bufsize);
