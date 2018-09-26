@@ -555,7 +555,6 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	cbt = (WT_CURSOR_BTREE *)cursor;
 	dhandle = cbt->dhandle;
 	session = (WT_SESSION_IMPL *)cursor->session;
-	is_dead = false;
 
 	if (check_only)
 		return (WT_DHANDLE_CAN_REOPEN(dhandle) ? 0 : WT_NOTFOUND);
