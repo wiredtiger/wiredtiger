@@ -56,7 +56,6 @@ static char home[1024];			/* Program working dir */
  * Each worker thread creates its own records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
  */
-#define	INT_SESSION_CNT 36
 #define	INVALID_KEY	UINT64_MAX
 #define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
 #define	MAX_TH		200
@@ -68,6 +67,7 @@ static char home[1024];			/* Program working dir */
 #define	PREPARE_YIELD	(PREPARE_FREQ * 10)
 #define	RECORDS_FILE	"records-%" PRIu32
 #define	STABLE_PERIOD	100
+#define	SESSION_MAX	MAX_TH + 3	/* Include program worker threads */
 
 static const char * table_pfx = "table";
 static const char * const uri_local = "local";
@@ -449,7 +449,7 @@ run_workload(uint32_t nth)
 		strcpy(envconf, ENV_CONFIG_DEF);
 	else
 		(void)__wt_snprintf(envconf, sizeof(envconf),
-		    ENV_CONFIG_TXNSYNC, MAX_TH + INT_SESSION_CNT);
+		    ENV_CONFIG_TXNSYNC, SESSION_MAX);
 	if (compat)
 		strcat(envconf, ENV_CONFIG_COMPAT);
 
