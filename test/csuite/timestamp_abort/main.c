@@ -66,7 +66,6 @@ static char home[1024];			/* Program working dir */
 #define	PREPARE_FREQ	5
 #define	PREPARE_YIELD	(PREPARE_FREQ * 10)
 #define	RECORDS_FILE	"records-%" PRIu32
-#define	STABLE_PERIOD	100
 
 static const char * table_pfx = "table";
 static const char * const uri_local = "local";
@@ -101,6 +100,8 @@ typedef struct {
 	uint32_t info;
 } THREAD_DATA;
 
+pthread_rwlock_t ts_lock;
+
 static void handler(int)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void)
@@ -120,13 +121,12 @@ usage(void)
 static WT_THREAD_RET
 thread_ts_run(void *arg)
 {
+	WT_DECL_RET;
 	WT_SESSION *session;
 	THREAD_DATA *td;
-	uint64_t i, last_ts, oldest_ts, this_ts;
-	char tscfg[64];
+	char tscfg[64], ts_buf[WT_TIMESTAMP_SIZE];
 
 	td = (THREAD_DATA *)arg;
-	last_ts = 0;
 
 	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 	/*
@@ -135,26 +135,12 @@ thread_ts_run(void *arg)
 	 * after recovery.
 	 */
 	for (;;) {
-		oldest_ts = UINT64_MAX;
-		/*
-		 * For the timestamp thread, the info field contains the number
-		 * of worker threads.
-		 */
-		for (i = 0; i < td->info; ++i) {
-			/*
-			 * We need to let all threads get started, so if we find
-			 * any thread still with a zero timestamp we go to
-			 * sleep.
-			 */
-			this_ts = th_ts[i];
-			if (this_ts == 0)
-				goto ts_wait;
-			else if (this_ts < oldest_ts)
-				oldest_ts = this_ts;
-		}
-
-		if (oldest_ts != UINT64_MAX &&
-		    oldest_ts - last_ts > STABLE_PERIOD) {
+		testutil_check(pthread_rwlock_wrlock(&ts_lock));
+		ret = td->conn->query_timestamp(
+		    td->conn, ts_buf, "get=all_committed");
+		testutil_check(pthread_rwlock_unlock(&ts_lock));
+		testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+		if (ret == 0) {
 			/*
 			 * Set both the oldest and stable timestamp so that we
 			 * don't need to maintain read availability at older
@@ -162,14 +148,12 @@ thread_ts_run(void *arg)
 			 */
 			testutil_check(__wt_snprintf(
 			    tscfg, sizeof(tscfg),
-			    "oldest_timestamp=%" PRIx64
-			    ",stable_timestamp=%" PRIx64,
-			    oldest_ts, oldest_ts));
+			    "oldest_timestamp=%s,stable_timestamp=%s",
+			    ts_buf, ts_buf));
 			testutil_check(
 			    td->conn->set_timestamp(td->conn, tscfg));
-			last_ts = oldest_ts;
-		} else
-ts_wait:		__wt_sleep(0, 1000);
+		}
+		__wt_sleep(0, 1000);
 	}
 	/* NOTREACHED */
 }
@@ -313,8 +297,6 @@ thread_run(void *arg)
 	    td->info, td->start);
 	stable_ts = 0;
 	for (i = td->start;; ++i) {
-		if (use_ts)
-			stable_ts = __wt_atomic_addv64(&global_ts, 1);
 		testutil_check(__wt_snprintf(
 		    kname, sizeof(kname), "%" PRIu64, i));
 
@@ -322,17 +304,6 @@ thread_run(void *arg)
 		if (use_prep)
 			testutil_check(oplog_session->begin_transaction(
 			    oplog_session, NULL));
-		/*
-		 * If not using prepared transactions set the timestamp now
-		 * before performing the operation. If we are using prepared
-		 * transactions, it must be set after the prepare.
-		 */
-		if (use_ts && !use_prep) {
-			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-			    "commit_timestamp=%" PRIx64, stable_ts));
-			testutil_check(
-			    session->timestamp_transaction(session, tscfg));
-		}
 		cur_coll->set_key(cur_coll, kname);
 		cur_local->set_key(cur_local, kname);
 		cur_oplog->set_key(cur_oplog, kname);
@@ -341,14 +312,14 @@ thread_run(void *arg)
 		 * can be viewed well in a binary dump.
 		 */
 		testutil_check(__wt_snprintf(cbuf, sizeof(cbuf),
-		    "COLL: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-		    td->info, stable_ts, i));
+		    "COLL: thread:%" PRIu64 " key: %" PRIu64,
+		    td->info, i));
 		testutil_check(__wt_snprintf(lbuf, sizeof(lbuf),
-		    "LOCAL: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-		    td->info, stable_ts, i));
+		    "LOCAL: thread:%" PRIu64 " key: %" PRIu64,
+		    td->info, i));
 		testutil_check(__wt_snprintf(obuf, sizeof(obuf),
-		    "OPLOG: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
-		    td->info, stable_ts, i));
+		    "OPLOG: thread:%" PRIu64 " key: %" PRIu64,
+		    td->info, i));
 		data.size = __wt_random(&rnd) % MAX_VAL;
 		data.data = cbuf;
 		cur_coll->set_value(cur_coll, &data);
@@ -357,7 +328,23 @@ thread_run(void *arg)
 		data.data = obuf;
 		cur_oplog->set_value(cur_oplog, &data);
 		testutil_check(cur_oplog->insert(cur_oplog));
+
 		if (use_ts) {
+			testutil_check(pthread_rwlock_wrlock(&ts_lock));
+			stable_ts = __wt_atomic_addv64(&global_ts, 1);
+			/*
+			 * If not using prepared transactions set the timestamp
+			 * now before performing the operation. If we are using
+			 * prepared transactions, it must be set after the
+			 * prepare.
+			 */
+			if (!use_prep) {
+				testutil_check(__wt_snprintf(tscfg,
+				    sizeof(tscfg), "commit_timestamp=%" PRIx64,
+				    stable_ts));
+				testutil_check(session->timestamp_transaction(
+				    session, tscfg));
+			}
 			/*
 			 * Run with prepare every once in a while. And also
 			 * yield after prepare sometimes too. This is only done
@@ -376,7 +363,7 @@ thread_run(void *arg)
 			 * If we did not set the timestamp above via
 			 * timestamp_transaction send it now on commit.
 			 */
-			if (use_ts && !use_prep)
+			if (!use_prep)
 				testutil_check(
 				    session->commit_transaction(session, NULL));
 			else {
@@ -387,17 +374,11 @@ thread_run(void *arg)
 				    session->commit_transaction(session,
 				    tscfg));
 			}
+			testutil_check(pthread_rwlock_unlock(&ts_lock));
 			if (use_prep)
 				testutil_check(
 				    oplog_session->commit_transaction(
-				    oplog_session, tscfg));
-			/*
-			 * Update the thread's last-committed timestamp.
-			 * Don't let the compiler re-order this statement,
-			 * if we were to race with the timestamp thread, it
-			 * might see our thread update before the commit.
-			 */
-			WT_PUBLISH(th_ts[td->info], stable_ts);
+				    oplog_session, NULL));
 		} else {
 			testutil_check(
 			    session->commit_transaction(session, NULL));
@@ -780,6 +761,7 @@ main(int argc, char *argv[])
 	count = 0;
 	absent_coll = absent_local = absent_oplog = 0;
 	fatal = false;
+	testutil_check(pthread_rwlock_destroy(&ts_lock));
 	for (i = 0; i < nth; ++i) {
 		initialize_rep(&c_rep[i]);
 		initialize_rep(&l_rep[i]);
@@ -945,6 +927,7 @@ main(int argc, char *argv[])
 		    absent_oplog, count);
 		fatal = true;
 	}
+	testutil_check(pthread_rwlock_destroy(&ts_lock));
 	if (fatal)
 		return (EXIT_FAILURE);
 	printf("%" PRIu64 " records verified\n", count);
