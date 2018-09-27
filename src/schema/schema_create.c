@@ -692,10 +692,7 @@ __wt_schema_create(
 	bool exclusive;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	if (int_session != session)
-		wt_session = &int_session->iface;
-	else
-		wt_session = NULL;
+	wt_session = &int_session->iface;
 
 	exclusive =
 	    __wt_config_getones(int_session, config, "exclusive", &cval) == 0 &&
@@ -726,8 +723,7 @@ __wt_schema_create(
 
 	int_session->dhandle = NULL;
 	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
-err:	if (wt_session != NULL)
-		WT_TRET(wt_session->close(wt_session, NULL));
+err:	WT_TRET(wt_session->close(wt_session, NULL));
 
 	return (ret);
 }

@@ -199,10 +199,7 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	force = cval.val != 0;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	if (int_session != session)
-		wt_session = &int_session->iface;
-	else
-		wt_session = NULL;
+	wt_session = &int_session->iface;
 	WT_ERR(__wt_meta_track_on(int_session));
 
 	/* Paranoia: clear any handle from our caller. */
@@ -222,12 +219,8 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	else if ((dsrc = __wt_schema_get_source(int_session, uri)) != NULL)
 		ret = dsrc->drop == NULL ?
 		    __wt_object_unsupported(int_session, uri) :
-		    /*
-		     * We cannot use wt_session here because it may be
-		     * NULL if we used the passed in session handle.
-		     */
 		    dsrc->drop(
-		    dsrc, &int_session->iface, uri, (WT_CONFIG_ARG *)cfg);
+		    dsrc, wt_session, uri, (WT_CONFIG_ARG *)cfg);
 	else
 		ret = __wt_bad_object_type(int_session, uri);
 
@@ -239,8 +232,7 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		ret = force ? 0 : ENOENT;
 
 	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
-err:	if (wt_session != NULL)
-		WT_TRET(wt_session->close(wt_session, NULL));
+err:	WT_TRET(wt_session->close(wt_session, NULL));
 
 	return (ret);
 }

@@ -277,10 +277,7 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 		    "rename target type must match URI: %s to %s", uri, newuri);
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	if (int_session != session)
-		wt_session = &int_session->iface;
-	else
-		wt_session = NULL;
+	wt_session = &int_session->iface;
 	/*
 	 * We track rename operations, if we fail in the middle, we want to
 	 * back it all out.
@@ -297,14 +294,13 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 		ret = dsrc->rename == NULL ?
 		    __wt_object_unsupported(int_session, uri) :
 		    dsrc->rename(dsrc,
-		    &int_session->iface, uri, newuri, (WT_CONFIG_ARG *)cfg);
+		    wt_session, uri, newuri, (WT_CONFIG_ARG *)cfg);
 	else
 		ret = __wt_bad_object_type(int_session, uri);
 
 	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
 
-err:	if (wt_session != NULL)
-		WT_TRET(wt_session->close(wt_session, NULL));
+err:	WT_TRET(wt_session->close(wt_session, NULL));
 
 	/* If we didn't find a metadata entry, map that error to ENOENT. */
 	return (ret == WT_NOTFOUND ? ENOENT : ret);
