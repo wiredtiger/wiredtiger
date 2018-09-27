@@ -265,6 +265,8 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 {
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
+	WT_SESSION *wt_session;
+	WT_SESSION_IMPL *int_session;
 	const char *p, *t;
 
 	/* The target type must match the source type. */
@@ -274,27 +276,35 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EINVAL,
 		    "rename target type must match URI: %s to %s", uri, newuri);
 
+	WT_RET(__wt_schema_internal_session(session, &int_session));
+	if (int_session != session)
+		wt_session = &int_session->iface;
+	else
+		wt_session = NULL;
 	/*
 	 * We track rename operations, if we fail in the middle, we want to
 	 * back it all out.
 	 */
-	WT_RET(__wt_meta_track_on(session));
+	WT_ERR(__wt_meta_track_on(int_session));
 
 	if (WT_PREFIX_MATCH(uri, "file:"))
-		ret = __rename_file(session, uri, newuri);
+		ret = __rename_file(int_session, uri, newuri);
 	else if (WT_PREFIX_MATCH(uri, "lsm:"))
-		ret = __wt_lsm_tree_rename(session, uri, newuri, cfg);
+		ret = __wt_lsm_tree_rename(int_session, uri, newuri, cfg);
 	else if (WT_PREFIX_MATCH(uri, "table:"))
-		ret = __rename_table(session, uri, newuri, cfg);
-	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
+		ret = __rename_table(int_session, uri, newuri, cfg);
+	else if ((dsrc = __wt_schema_get_source(int_session, uri)) != NULL)
 		ret = dsrc->rename == NULL ?
-		    __wt_object_unsupported(session, uri) :
+		    __wt_object_unsupported(int_session, uri) :
 		    dsrc->rename(dsrc,
-		    &session->iface, uri, newuri, (WT_CONFIG_ARG *)cfg);
+		    &int_session->iface, uri, newuri, (WT_CONFIG_ARG *)cfg);
 	else
-		ret = __wt_bad_object_type(session, uri);
+		ret = __wt_bad_object_type(int_session, uri);
 
-	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
+
+err:	if (wt_session != NULL)
+		WT_TRET(wt_session->close(wt_session, NULL));
 
 	/* If we didn't find a metadata entry, map that error to ENOENT. */
 	return (ret == WT_NOTFOUND ? ENOENT : ret);

@@ -63,6 +63,34 @@ __wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
 }
 
 /*
+ * __wt_schema_internal_session --
+ *	Find a matching data source or report an error.
+ */
+int
+__wt_schema_internal_session(
+    WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+{
+	WT_SESSION_IMPL *s;
+
+	*int_sessionp = session;
+	/*
+	 * If a transaction is active, open an internal session so that the
+	 * schema operations are not logged and buffered with those records.
+	 * Open the new session with the same flags as the original but
+	 * clear the transaction flag.
+	 */
+	if (F_ISSET(&session->txn, WT_TXN_RUNNING)) {
+		/* We should not have a schema txn running now. */
+		WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
+		WT_RET(__wt_open_internal_session(S2C(session), "schema",
+		    true, session->flags, &s));
+		F_CLR(&s->txn, WT_TXN_RUNNING);
+		*int_sessionp = s;
+	}
+	return (0);
+}
+
+/*
  * __wt_str_name_check --
  *	Disallow any use of the WiredTiger name space.
  */

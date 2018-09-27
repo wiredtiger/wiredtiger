@@ -191,33 +191,45 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
+	WT_SESSION *wt_session;
+	WT_SESSION_IMPL *int_session;
 	bool force;
 
 	WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
 	force = cval.val != 0;
 
-	WT_RET(__wt_meta_track_on(session));
+	WT_RET(__wt_schema_internal_session(session, &int_session));
+	if (int_session != session)
+		wt_session = &int_session->iface;
+	else
+		wt_session = NULL;
+	WT_ERR(__wt_meta_track_on(int_session));
 
 	/* Paranoia: clear any handle from our caller. */
+	int_session->dhandle = NULL;
 	session->dhandle = NULL;
 
 	if (WT_PREFIX_MATCH(uri, "colgroup:"))
-		ret = __drop_colgroup(session, uri, force, cfg);
+		ret = __drop_colgroup(int_session, uri, force, cfg);
 	else if (WT_PREFIX_MATCH(uri, "file:"))
-		ret = __drop_file(session, uri, force, cfg);
+		ret = __drop_file(int_session, uri, force, cfg);
 	else if (WT_PREFIX_MATCH(uri, "index:"))
-		ret = __drop_index(session, uri, force, cfg);
+		ret = __drop_index(int_session, uri, force, cfg);
 	else if (WT_PREFIX_MATCH(uri, "lsm:"))
-		ret = __wt_lsm_tree_drop(session, uri, cfg);
+		ret = __wt_lsm_tree_drop(int_session, uri, cfg);
 	else if (WT_PREFIX_MATCH(uri, "table:"))
-		ret = __drop_table(session, uri, cfg);
-	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
+		ret = __drop_table(int_session, uri, cfg);
+	else if ((dsrc = __wt_schema_get_source(int_session, uri)) != NULL)
 		ret = dsrc->drop == NULL ?
-		    __wt_object_unsupported(session, uri) :
+		    __wt_object_unsupported(int_session, uri) :
+		    /*
+		     * We cannot use wt_session here because it may be
+		     * NULL if we used the passed in session handle.
+		     */
 		    dsrc->drop(
-		    dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
+		    dsrc, &int_session->iface, uri, (WT_CONFIG_ARG *)cfg);
 	else
-		ret = __wt_bad_object_type(session, uri);
+		ret = __wt_bad_object_type(int_session, uri);
 
 	/*
 	 * Map WT_NOTFOUND to ENOENT, based on the assumption WT_NOTFOUND means
@@ -226,7 +238,9 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	if (ret == WT_NOTFOUND || ret == ENOENT)
 		ret = force ? 0 : ENOENT;
 
-	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
+err:	if (wt_session != NULL)
+		WT_TRET(wt_session->close(wt_session, NULL));
 
 	return (ret);
 }
