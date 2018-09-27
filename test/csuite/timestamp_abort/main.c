@@ -304,30 +304,6 @@ thread_run(void *arg)
 		if (use_prep)
 			testutil_check(oplog_session->begin_transaction(
 			    oplog_session, NULL));
-		cur_coll->set_key(cur_coll, kname);
-		cur_local->set_key(cur_local, kname);
-		cur_oplog->set_key(cur_oplog, kname);
-		/*
-		 * Put an informative string into the value so that it
-		 * can be viewed well in a binary dump.
-		 */
-		testutil_check(__wt_snprintf(cbuf, sizeof(cbuf),
-		    "COLL: thread:%" PRIu64 " key: %" PRIu64,
-		    td->info, i));
-		testutil_check(__wt_snprintf(lbuf, sizeof(lbuf),
-		    "LOCAL: thread:%" PRIu64 " key: %" PRIu64,
-		    td->info, i));
-		testutil_check(__wt_snprintf(obuf, sizeof(obuf),
-		    "OPLOG: thread:%" PRIu64 " key: %" PRIu64,
-		    td->info, i));
-		data.size = __wt_random(&rnd) % MAX_VAL;
-		data.data = cbuf;
-		cur_coll->set_value(cur_coll, &data);
-		testutil_check(cur_coll->insert(cur_coll));
-		data.size = __wt_random(&rnd) % MAX_VAL;
-		data.data = obuf;
-		cur_oplog->set_value(cur_oplog, &data);
-		testutil_check(cur_oplog->insert(cur_oplog));
 
 		if (use_ts) {
 			testutil_check(pthread_rwlock_wrlock(&ts_lock));
@@ -344,7 +320,36 @@ thread_run(void *arg)
 				    stable_ts));
 				testutil_check(session->timestamp_transaction(
 				    session, tscfg));
+				testutil_check(pthread_rwlock_unlock(&ts_lock));
 			}
+		}
+
+		cur_coll->set_key(cur_coll, kname);
+		cur_local->set_key(cur_local, kname);
+		cur_oplog->set_key(cur_oplog, kname);
+		/*
+		 * Put an informative string into the value so that it
+		 * can be viewed well in a binary dump.
+		 */
+		testutil_check(__wt_snprintf(cbuf, sizeof(cbuf),
+		    "COLL: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
+		    td->info, stable_ts, i));
+		testutil_check(__wt_snprintf(lbuf, sizeof(lbuf),
+		    "LOCAL: thread:%" PRIu64 " ts:%" PRIu64  " key: %" PRIu64,
+		    td->info, stable_ts, i));
+		testutil_check(__wt_snprintf(obuf, sizeof(obuf),
+		    "OPLOG: thread:%" PRIu64 " ts:%" PRIu64 " key: %" PRIu64,
+		    td->info, stable_ts, i));
+		data.size = __wt_random(&rnd) % MAX_VAL;
+		data.data = cbuf;
+		cur_coll->set_value(cur_coll, &data);
+		testutil_check(cur_coll->insert(cur_coll));
+		data.size = __wt_random(&rnd) % MAX_VAL;
+		data.data = obuf;
+		cur_oplog->set_value(cur_oplog, &data);
+		testutil_check(cur_oplog->insert(cur_oplog));
+
+		if (use_ts) {
 			/*
 			 * Run with prepare every once in a while. And also
 			 * yield after prepare sometimes too. This is only done
@@ -374,11 +379,12 @@ thread_run(void *arg)
 				    session->commit_transaction(session,
 				    tscfg));
 			}
-			testutil_check(pthread_rwlock_unlock(&ts_lock));
-			if (use_prep)
+			if (use_prep) {
 				testutil_check(
 				    oplog_session->commit_transaction(
-				    oplog_session, NULL));
+				    oplog_session, tscfg));
+				testutil_check(pthread_rwlock_unlock(&ts_lock));
+			}
 		} else {
 			testutil_check(
 			    session->commit_transaction(session, NULL));
