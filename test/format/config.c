@@ -260,12 +260,13 @@ config_setup(void)
 static void
 config_cache(void)
 {
-	uint32_t max_dirty_bytes, required;
+	uint32_t required, v;
 
 	/* Page sizes are powers-of-two for bad historic reasons. */
 	g.intl_page_max = 1U << g.c_intl_page_max;
 	g.leaf_page_max = 1U << g.c_leaf_page_max;
 
+	/* Check if a minimum cache size has been specified. */
 	if (config_is_perm("cache")) {
 		if (config_is_perm("cache_minimum") &&
 		    g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
@@ -275,36 +276,29 @@ config_cache(void)
 			    g.c_cache_minimum, g.c_cache);
 		return;
 	}
-
-	/* Check if a minimum cache size has been specified. */
 	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
 		g.c_cache = g.c_cache_minimum;
-
-	/* Ensure there is at least 1MB of cache per thread. */
-	if (g.c_cache < g.c_threads)
-		g.c_cache = g.c_threads;
 
 	/*
 	 * Maximum internal/leaf page size sanity.
 	 *
 	 * Ensure we can service at least one operation per-thread concurrently
 	 * without filling the cache with pinned pages, that is, every thread
-	 * consuming an internal page and a leaf page. Page-size configurations
-	 * control on-disk sizes and in-memory pages are often larger than their
-	 * disk counterparts, so it's hard to translate from one to the other.
-	 * Use a size-adjustment multiplier as an estimate.
+	 * consuming an internal page and a leaf page (or a pair of leaf pages
+	 * for cursor movements).
 	 *
 	 * Assuming all of those pages are dirty, don't let the maximum dirty
 	 * bytes exceed 40% of the cache (the default eviction trigger is 20%).
+	 *
+	 * Maximum memory pages are in units of MB.
+	 *
+	 * This code is what dramatically increases the cache size when there
+	 * are lots of threads, it grows the cache to N megabytes per thread.
 	 */
-#define	SIZE_ADJUSTMENT	3
-	for (;;) {
-		max_dirty_bytes = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
-		if (SIZE_ADJUSTMENT * g.c_threads *
-		    (g.intl_page_max + g.leaf_page_max) <= max_dirty_bytes)
-			break;
-		++g.c_cache;
-	}
+	v = 2 * g.c_threads * MEGABYTE(g.c_memory_page_max);
+	g.c_cache = WT_MAX(g.c_cache, (v + (WT_MEGABYTE - 1)) / WT_MEGABYTE);
+	v = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
+	g.c_cache = WT_MAX(g.c_cache, (v + (WT_MEGABYTE - 1)) / WT_MEGABYTE);
 
 	/*
 	 * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
