@@ -122,7 +122,7 @@ extern int __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t
 extern int __wt_debug_offset_blind(WT_SESSION_IMPL *session, wt_off_t offset, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_offset(WT_SESSION_IMPL *session, wt_off_t offset, uint32_t size, uint32_t checksum, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_disk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_debug_tree_shape(WT_SESSION_IMPL *session, WT_PAGE *page, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_debug_tree_shape(WT_SESSION_IMPL *session, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_tree_all(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
