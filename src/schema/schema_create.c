@@ -677,6 +677,52 @@ __create_data_source(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __schema_create --
+ *	Process a WT_SESSION::create operation for all supported types.
+ */
+static int
+__schema_create(
+    WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+	WT_CONFIG_ITEM cval;
+	WT_DATA_SOURCE *dsrc;
+	WT_DECL_RET;
+	bool exclusive;
+
+	exclusive =
+	    __wt_config_getones(session, config, "exclusive", &cval) == 0 &&
+	    cval.val != 0;
+
+	/*
+	 * We track create operations: if we fail in the middle of creating a
+	 * complex object, we want to back it all out.
+	 */
+	WT_RET(__wt_meta_track_on(session));
+
+	if (WT_PREFIX_MATCH(uri, "colgroup:"))
+		ret = __create_colgroup(session, uri, exclusive, config);
+	else if (WT_PREFIX_MATCH(uri, "file:"))
+		ret = __create_file(session, uri, exclusive, config);
+	else if (WT_PREFIX_MATCH(uri, "lsm:"))
+		ret = __wt_lsm_tree_create(session, uri, exclusive, config);
+	else if (WT_PREFIX_MATCH(uri, "index:"))
+		ret = __create_index(session, uri, exclusive, config);
+	else if (WT_PREFIX_MATCH(uri, "table:"))
+		ret = __create_table(session, uri, exclusive, config);
+	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
+		ret = dsrc->create == NULL ?
+		    __wt_object_unsupported(session, uri) :
+		    __create_data_source(session, uri, config, dsrc);
+	else
+		ret = __wt_bad_object_type(session, uri);
+
+	session->dhandle = NULL;
+	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+
+	return (ret);
+}
+
+/*
  * __wt_schema_create --
  *	Process a WT_SESSION::create operation for all supported types.
  */
@@ -684,46 +730,13 @@ int
 __wt_schema_create(
     WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
-	WT_CONFIG_ITEM cval;
-	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *int_session;
-	bool exclusive;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
 	wt_session = &int_session->iface;
-
-	exclusive =
-	    __wt_config_getones(int_session, config, "exclusive", &cval) == 0 &&
-	    cval.val != 0;
-
-	/*
-	 * We track create operations: if we fail in the middle of creating a
-	 * complex object, we want to back it all out.
-	 */
-	WT_ERR(__wt_meta_track_on(int_session));
-
-	if (WT_PREFIX_MATCH(uri, "colgroup:"))
-		ret = __create_colgroup(int_session, uri, exclusive, config);
-	else if (WT_PREFIX_MATCH(uri, "file:"))
-		ret = __create_file(int_session, uri, exclusive, config);
-	else if (WT_PREFIX_MATCH(uri, "lsm:"))
-		ret = __wt_lsm_tree_create(int_session, uri, exclusive, config);
-	else if (WT_PREFIX_MATCH(uri, "index:"))
-		ret = __create_index(int_session, uri, exclusive, config);
-	else if (WT_PREFIX_MATCH(uri, "table:"))
-		ret = __create_table(int_session, uri, exclusive, config);
-	else if ((dsrc = __wt_schema_get_source(int_session, uri)) != NULL)
-		ret = dsrc->create == NULL ?
-		    __wt_object_unsupported(int_session, uri) :
-		    __create_data_source(int_session, uri, config, dsrc);
-	else
-		ret = __wt_bad_object_type(int_session, uri);
-
-	int_session->dhandle = NULL;
-	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
-err:	WT_TRET(wt_session->close(wt_session, NULL));
-
+	ret = __schema_create(int_session, uri, config);
+	WT_TRET(wt_session->close(wt_session, NULL));
 	return (ret);
 }
