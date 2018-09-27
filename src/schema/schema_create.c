@@ -742,6 +742,5 @@ __wt_schema_create(
 	ret = __schema_create(int_session, uri, config);
 	if (wt_session != NULL)
 		WT_TRET(wt_session->close(wt_session, NULL));
-	WT_TRET(wt_session->close(wt_session, NULL));
 	return (ret);
 }
