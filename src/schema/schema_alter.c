@@ -254,10 +254,14 @@ __wt_schema_alter(WT_SESSION_IMPL *session,
 	WT_SESSION_IMPL *int_session;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	wt_session = &int_session->iface;
+	if (int_session != session)
+		wt_session = &int_session->iface;
+	else
+		wt_session = NULL;
 	WT_ERR(__wt_meta_track_on(int_session));
 	ret = __schema_alter(int_session, uri, newcfg);
 	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
-err:	WT_TRET(wt_session->close(wt_session, NULL));
+err:	if (wt_session != NULL)
+		WT_TRET(wt_session->close(wt_session, NULL));
 	return (ret);
 }

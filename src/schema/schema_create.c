@@ -735,8 +735,13 @@ __wt_schema_create(
 	WT_SESSION_IMPL *int_session;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	wt_session = &int_session->iface;
+	if (int_session != session)
+		wt_session = &int_session->iface;
+	else
+		wt_session = NULL;
 	ret = __schema_create(int_session, uri, config);
+	if (wt_session != NULL)
+		WT_TRET(wt_session->close(wt_session, NULL));
 	WT_TRET(wt_session->close(wt_session, NULL));
 	return (ret);
 }

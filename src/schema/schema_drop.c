@@ -243,8 +243,12 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	WT_SESSION_IMPL *int_session;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	wt_session = &int_session->iface;
+	if (int_session != session)
+		wt_session = &int_session->iface;
+	else
+		wt_session = NULL;
 	ret = __schema_drop(int_session, uri, cfg);
-	WT_TRET(wt_session->close(wt_session, NULL));
+	if (wt_session != NULL)
+		WT_TRET(wt_session->close(wt_session, NULL));
 	return (ret);
 }

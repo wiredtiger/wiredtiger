@@ -313,8 +313,12 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 	WT_SESSION_IMPL *int_session;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	wt_session = &int_session->iface;
+	if (int_session != session)
+		wt_session = &int_session->iface;
+	else
+		wt_session = NULL;
 	ret = __schema_rename(int_session, uri, newuri, cfg);
-	WT_TRET(wt_session->close(wt_session, NULL));
+	if (wt_session != NULL)
+		WT_TRET(wt_session->close(wt_session, NULL));
 	return (ret);
 }

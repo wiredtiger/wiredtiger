@@ -73,17 +73,21 @@ __wt_schema_internal_session(
 	WT_SESSION_IMPL *s;
 
 	/*
-	 * Open an internal session so that the schema operations are not logged
-	 * and buffered with any records in an active transaction.
+	 * Open an internal session if a transaction is running so that the
+	 * schema operations are not logged and buffered with any log records
+	 * in the transaction.
 	 * Open the new session with the same flags as the original but
 	 * clear the transaction flag.
 	 */
-	/* We should not have a schema txn running now. */
-	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
-	WT_RET(__wt_open_internal_session(S2C(session), "schema",
-	    true, session->flags, &s));
-	F_CLR(&s->txn, WT_TXN_RUNNING);
-	*int_sessionp = s;
+	*int_sessionp = session;
+	if (F_ISSET(&session->txn, WT_TXN_RUNNING)) {
+		/* We should not have a schema txn running now. */
+		WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
+		WT_RET(__wt_open_internal_session(S2C(session), "schema",
+		    true, session->flags, &s));
+		F_CLR(&s->txn, WT_TXN_RUNNING);
+		*int_sessionp = s;
+	}
 	return (0);
 }
 
