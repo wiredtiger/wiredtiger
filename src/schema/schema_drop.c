@@ -200,7 +200,6 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
 	/* Paranoia: clear any handle from our caller. */
 	session->dhandle = NULL;
-	session->dhandle = NULL;
 
 	if (WT_PREFIX_MATCH(uri, "colgroup:"))
 		ret = __drop_colgroup(session, uri, force, cfg);
