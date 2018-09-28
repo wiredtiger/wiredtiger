@@ -870,6 +870,9 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: percentage overhead",
+	"cache: prepared updates active in the cache",
+	"cache: prepared updates added to cache overflow",
+	"cache: prepared updates resolved in the cache",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
 	"cache: tracked dirty bytes in the cache",
@@ -1274,6 +1277,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_overhead */
+	stats->cache_prepared_updates_active = 0;
+	stats->cache_lookaside_prepare_insert = 0;
+	stats->cache_prepared_updates_resolved = 0;
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
 		/* not clearing cache_bytes_dirty */
@@ -1723,6 +1729,12 @@ __wt_stat_connection_aggregate(
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
+	to->cache_prepared_updates_active +=
+	    WT_STAT_READ(from, cache_prepared_updates_active);
+	to->cache_lookaside_prepare_insert +=
+	    WT_STAT_READ(from, cache_lookaside_prepare_insert);
+	to->cache_prepared_updates_resolved +=
+	    WT_STAT_READ(from, cache_prepared_updates_resolved);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
