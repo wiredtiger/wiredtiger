@@ -731,16 +731,10 @@ __wt_schema_create(
     WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
 	WT_DECL_RET;
-	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *int_session;
 
 	WT_RET(__wt_schema_internal_session(session, &int_session));
-	if (int_session != session)
-		wt_session = &int_session->iface;
-	else
-		wt_session = NULL;
 	ret = __schema_create(int_session, uri, config);
-	if (wt_session != NULL)
-		WT_TRET(wt_session->close(wt_session, NULL));
+	WT_TRET(__wt_schema_session_release(session, int_session));
 	return (ret);
 }

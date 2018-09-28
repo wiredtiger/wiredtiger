@@ -64,7 +64,7 @@ __wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
 
 /*
  * __wt_schema_internal_session --
- *	Find a matching data source or report an error.
+ *	Create and return an internal schema session if necessary.
  */
 int
 __wt_schema_internal_session(
@@ -88,6 +88,24 @@ __wt_schema_internal_session(
 		F_CLR(&s->txn, WT_TXN_RUNNING);
 		*int_sessionp = s;
 	}
+	return (0);
+}
+
+/*
+ * __wt_schema_session_release --
+ *	Release an internal schema session if needed.
+ */
+int
+__wt_schema_session_release(
+    WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+{
+	WT_SESSION *wt_session;
+
+	if (session != int_session) {
+		wt_session = &int_session->iface;
+		WT_RET(wt_session->close(wt_session, NULL));
+	} else
+		WT_UNUSED(wt_session);
 	return (0);
 }
 
