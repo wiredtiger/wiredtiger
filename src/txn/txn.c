@@ -1590,3 +1590,5 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 }
 
 // Dummy change to test Pull Request
+
+// Dummy change 2
