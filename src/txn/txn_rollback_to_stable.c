@@ -122,11 +122,13 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 			 * If any updates are aborted, all newer updates
 			 * better be aborted as well.
 			 *
-			 * Validate timestamp ordering only if configured.
+			 * Timestamp ordering relies on the validations at
+			 * the time of commit. Thus if the table is not
+			 * configured for key consistency check, the
+			 * the timestamps could be out of order here.
 			 */
 			WT_ASSERT(session,
 			    !FLD_ISSET(S2BT(session)->assert_flags,
-			    WT_ASSERT_COMMIT_TS_ALWAYS |
 			    WT_ASSERT_COMMIT_TS_KEYS) ||
 			    upd == first_upd);
 			first_upd = upd->next;
