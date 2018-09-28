@@ -104,10 +104,6 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
     WT_UPDATE *first_upd, wt_timestamp_t *rollback_timestamp)
 {
 	WT_UPDATE *upd;
-	bool skip_timestamp_checks;
-
-	skip_timestamp_checks = !FLD_ISSET(S2BT(session)->assert_flags,
-	    WT_ASSERT_COMMIT_TS_ALWAYS | WT_ASSERT_COMMIT_TS_KEYS);
 
 	for (upd = first_upd; upd != NULL; upd = upd->next) {
 		/*
@@ -128,7 +124,10 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 			 *
 			 * Validate timestamp ordering only if configured.
 			 */
-			WT_ASSERT(session, skip_timestamp_checks ||
+			WT_ASSERT(session,
+			    !FLD_ISSET(S2BT(session)->assert_flags,
+			    WT_ASSERT_COMMIT_TS_ALWAYS |
+			    WT_ASSERT_COMMIT_TS_KEYS) ||
 			    upd == first_upd);
 			first_upd = upd->next;
 
