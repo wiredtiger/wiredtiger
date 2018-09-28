@@ -296,8 +296,7 @@ config_cache(void)
 	 * are lots of threads, it grows the cache to N megabytes per thread.
 	 */
 	v = 2 * g.c_threads * MEGABYTE(g.c_memory_page_max);
-	g.c_cache = WT_MAX(g.c_cache, (v + (WT_MEGABYTE - 1)) / WT_MEGABYTE);
-	v = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
+	v = (v / 4) * 10;
 	g.c_cache = WT_MAX(g.c_cache, (v + (WT_MEGABYTE - 1)) / WT_MEGABYTE);
 
 	/*
