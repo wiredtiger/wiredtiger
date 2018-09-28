@@ -436,9 +436,6 @@ struct __wt_connection_stats {
 	int64_t cache_write;
 	int64_t cache_write_restore;
 	int64_t cache_overhead;
-	int64_t cache_prepared_updates_active;
-	int64_t cache_lookaside_prepare_insert;
-	int64_t cache_prepared_updates_resolved;
 	int64_t cache_bytes_internal;
 	int64_t cache_bytes_leaf;
 	int64_t cache_bytes_dirty;
@@ -634,10 +631,13 @@ struct __wt_connection_stats {
 	int64_t txn_commit_queue_len;
 	int64_t txn_snapshots_created;
 	int64_t txn_snapshots_dropped;
+	int64_t txn_prepared_updates_active;
+	int64_t txn_prepared_updates_resolved;
 	int64_t txn_prepare;
 	int64_t txn_prepare_commit;
 	int64_t txn_prepare_active;
 	int64_t txn_prepare_rollback;
+	int64_t txn_prepared_updates_in_lookaside;
 	int64_t txn_query_ts;
 	int64_t txn_read_queue_walked;
 	int64_t txn_read_queue_empty;

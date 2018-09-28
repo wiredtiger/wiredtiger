@@ -757,7 +757,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 
 			if (upd->prepare_state == WT_PREPARE_INPROGRESS)
 				WT_STAT_CONN_INCR(session,
-				    cache_lookaside_prepare_insert);
+				    txn_prepared_updates_in_lookaside);
 			/*
 			 * Using update looks a little strange because the keys
 			 * are guaranteed to not exist, but since we're
