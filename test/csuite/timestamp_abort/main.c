@@ -100,7 +100,7 @@ typedef struct {
 	uint32_t info;
 } THREAD_DATA;
 
-pthread_rwlock_t ts_lock;
+static pthread_rwlock_t ts_lock;
 
 static void handler(int)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
