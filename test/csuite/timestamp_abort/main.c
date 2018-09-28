@@ -454,7 +454,6 @@ run_workload(uint32_t nth)
 	if (compat)
 		strcat(envconf, ENV_CONFIG_COMPAT);
 
-	printf("Using CONF: %s\n", envconf);
 	testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	/*
