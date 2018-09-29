@@ -82,9 +82,9 @@ static volatile uint64_t th_ts[MAX_TH];
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
-    "create,log=(archive=false,file_max=10M,enabled)"
+    "create,log=(archive=false,file_max=10M,enabled),session_max=%" PRIu32
 #define	ENV_CONFIG_TXNSYNC					\
-    "create,log=(archive=false,file_max=10M,enabled),"			\
+    "create,log=(archive=false,file_max=10M,enabled),"		\
     "transaction_sync=(enabled,method=none),session_max=%" PRIu32
 #define	ENV_CONFIG_REC "log=(archive=false,recover=on)"
 
@@ -446,7 +446,8 @@ run_workload(uint32_t nth)
 	if (chdir(home) != 0)
 		testutil_die(errno, "Child chdir: %s", home);
 	if (inmem)
-		strcpy(envconf, ENV_CONFIG_DEF);
+		(void)__wt_snprintf(envconf, sizeof(envconf),
+		    ENV_CONFIG_DEF, SESSION_MAX);
 	else
 		(void)__wt_snprintf(envconf, sizeof(envconf),
 		    ENV_CONFIG_TXNSYNC, SESSION_MAX);
