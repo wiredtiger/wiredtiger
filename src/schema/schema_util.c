@@ -99,8 +99,8 @@ __wt_schema_session_release(
 	if (session != int_session) {
 		wt_session = &int_session->iface;
 		WT_RET(wt_session->close(wt_session, NULL));
-	} else
-		WT_UNUSED(wt_session);
+	}
+
 	return (0);
 }
 
