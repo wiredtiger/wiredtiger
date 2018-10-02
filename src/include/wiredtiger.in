@@ -5652,34 +5652,34 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_PAGE_DEL_ROLLBACK_BLOCKED		1309
 /*! thread-yield: page reconciliation yielded due to child modification */
 #define	WT_STAT_CONN_CHILD_MODIFY_BLOCKED_PAGE		1310
+/*! transaction: Number of prepared updates */
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_COUNT		1311
+/*! transaction: Number of prepared updates added to cache overflow */
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_LOOKASIDE_INSERTS	1312
+/*! transaction: Number of prepared updates resolved */
+#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_RESOLVED	1313
 /*! transaction: commit timestamp queue entries walked */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_WALKED		1311
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_WALKED		1314
 /*! transaction: commit timestamp queue insert to empty */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_EMPTY		1312
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_EMPTY		1315
 /*! transaction: commit timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_HEAD		1313
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_HEAD		1316
 /*! transaction: commit timestamp queue inserts total */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_INSERTS		1314
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_INSERTS		1317
 /*! transaction: commit timestamp queue length */
-#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_LEN		1315
+#define	WT_STAT_CONN_TXN_COMMIT_QUEUE_LEN		1318
 /*! transaction: number of named snapshots created */
-#define	WT_STAT_CONN_TXN_SNAPSHOTS_CREATED		1316
+#define	WT_STAT_CONN_TXN_SNAPSHOTS_CREATED		1319
 /*! transaction: number of named snapshots dropped */
-#define	WT_STAT_CONN_TXN_SNAPSHOTS_DROPPED		1317
-/*! transaction: prepared active updates */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ACTIVE	1318
-/*! transaction: prepared resolved updates */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_RESOLVED	1319
+#define	WT_STAT_CONN_TXN_SNAPSHOTS_DROPPED		1320
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1320
+#define	WT_STAT_CONN_TXN_PREPARE			1321
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1321
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1322
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1322
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1323
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1323
-/*! transaction: prepared updates in cache overflow */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_IN_LOOKASIDE	1324
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1324
 /*! transaction: query timestamp calls */
 #define	WT_STAT_CONN_TXN_QUERY_TS			1325
 /*! transaction: read timestamp queue entries walked */

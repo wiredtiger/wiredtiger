@@ -1058,6 +1058,9 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page acquire time sleeping (usecs)",
 	"thread-yield: page delete rollback time sleeping for state change (usecs)",
 	"thread-yield: page reconciliation yielded due to child modification",
+	"transaction: Number of prepared updates",
+	"transaction: Number of prepared updates added to cache overflow",
+	"transaction: Number of prepared updates resolved",
 	"transaction: commit timestamp queue entries walked",
 	"transaction: commit timestamp queue insert to empty",
 	"transaction: commit timestamp queue inserts to head",
@@ -1065,13 +1068,10 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: commit timestamp queue length",
 	"transaction: number of named snapshots created",
 	"transaction: number of named snapshots dropped",
-	"transaction: prepared active updates",
-	"transaction: prepared resolved updates",
 	"transaction: prepared transactions",
 	"transaction: prepared transactions committed",
 	"transaction: prepared transactions currently active",
 	"transaction: prepared transactions rolled back",
-	"transaction: prepared updates in cache overflow",
 	"transaction: query timestamp calls",
 	"transaction: read timestamp queue entries walked",
 	"transaction: read timestamp queue insert to empty",
@@ -1465,6 +1465,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_sleep = 0;
 	stats->page_del_rollback_blocked = 0;
 	stats->child_modify_blocked_page = 0;
+	stats->txn_prepared_updates_count = 0;
+	stats->txn_prepared_updates_lookaside_inserts = 0;
+	stats->txn_prepared_updates_resolved = 0;
 	stats->txn_commit_queue_walked = 0;
 	stats->txn_commit_queue_empty = 0;
 	stats->txn_commit_queue_head = 0;
@@ -1472,13 +1475,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_commit_queue_len = 0;
 	stats->txn_snapshots_created = 0;
 	stats->txn_snapshots_dropped = 0;
-	stats->txn_prepared_updates_active = 0;
-	stats->txn_prepared_updates_resolved = 0;
 	stats->txn_prepare = 0;
 	stats->txn_prepare_commit = 0;
 	stats->txn_prepare_active = 0;
 	stats->txn_prepare_rollback = 0;
-	stats->txn_prepared_updates_in_lookaside = 0;
 	stats->txn_query_ts = 0;
 	stats->txn_read_queue_walked = 0;
 	stats->txn_read_queue_empty = 0;
@@ -2005,6 +2005,12 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, page_del_rollback_blocked);
 	to->child_modify_blocked_page +=
 	    WT_STAT_READ(from, child_modify_blocked_page);
+	to->txn_prepared_updates_count +=
+	    WT_STAT_READ(from, txn_prepared_updates_count);
+	to->txn_prepared_updates_lookaside_inserts +=
+	    WT_STAT_READ(from, txn_prepared_updates_lookaside_inserts);
+	to->txn_prepared_updates_resolved +=
+	    WT_STAT_READ(from, txn_prepared_updates_resolved);
 	to->txn_commit_queue_walked +=
 	    WT_STAT_READ(from, txn_commit_queue_walked);
 	to->txn_commit_queue_empty +=
@@ -2018,16 +2024,10 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_snapshots_created);
 	to->txn_snapshots_dropped +=
 	    WT_STAT_READ(from, txn_snapshots_dropped);
-	to->txn_prepared_updates_active +=
-	    WT_STAT_READ(from, txn_prepared_updates_active);
-	to->txn_prepared_updates_resolved +=
-	    WT_STAT_READ(from, txn_prepared_updates_resolved);
 	to->txn_prepare += WT_STAT_READ(from, txn_prepare);
 	to->txn_prepare_commit += WT_STAT_READ(from, txn_prepare_commit);
 	to->txn_prepare_active += WT_STAT_READ(from, txn_prepare_active);
 	to->txn_prepare_rollback += WT_STAT_READ(from, txn_prepare_rollback);
-	to->txn_prepared_updates_in_lookaside +=
-	    WT_STAT_READ(from, txn_prepared_updates_in_lookaside);
 	to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
 	to->txn_read_queue_walked +=
 	    WT_STAT_READ(from, txn_read_queue_walked);
