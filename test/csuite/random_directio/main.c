@@ -27,12 +27,12 @@
  */
 
 /*
- * This test simulates system crashes. It uses direct IO, and currently
+ * This test simulates system crashes. It uses direct I/O, and currently
  * runs only on Linux.
  *
  * Our strategy is to run a subordinate 'writer' process that creates/modifies
  * data, including schema modifications. Every N seconds, asynchronously, we
- * send a stop signal to the writer and then copy (with direct IO) the entire
+ * send a stop signal to the writer and then copy (with direct I/O) the entire
  * contents of its database home to a new saved location where we can run and
  * verify the recovered home. Then we send a continue signal. We repeat this:
  *
@@ -41,7 +41,7 @@
  * which allows the writer to make continuing progress, while the main
  * process is verifying what's on disk.
  *
- * By using stop signal to suspend the process and copying with direct IO,
+ * By using stop signal to suspend the process and copying with direct I/O,
  * we are roughly simulating a system crash, by seeing what's actually on
  * disk (not in file system buffer cache) at the moment that the copy is
  * made. It's not quite as harsh as a system crash, as suspending does not
@@ -591,7 +591,7 @@ again:
 /*
  * create_db --
  *	Creates the database and tables so they are fully ready to
- *	be checked.
+ *	accessed by subordinate threads, and copied/recovered.
  */
 static void
 create_db(const char *method)
@@ -610,8 +610,9 @@ create_db(const char *method)
 	testutil_check(session->create(
 	    session, uri_rev, "key_format=S,value_format=S"));
 	/*
-	 * Checkpoint to help ensure that at least the main tables
-	 * can be opened after recovery.
+	 * Checkpoint to help ensure that everything gets out to disk,
+	 * so any direct I/O copy will have at least have tables that
+	 * can be opened.
 	 */
 	testutil_check(session->checkpoint(session, NULL));
 	testutil_check(session->close(session, NULL));
@@ -862,7 +863,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 	    "%s.SAVE", home));
 
 	/*
-	 * We make a copy of the directory (possibly using direct IO)
+	 * We make a copy of the directory (possibly using direct I/O)
 	 * for recovery and checking, and an identical copy that
 	 * keeps the state of all files before recovery starts.
 	 */
