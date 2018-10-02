@@ -76,12 +76,7 @@
 
 static char home[1024];			/* Program working dir */
 
-/*
- * These two names for the URI and file system must be maintained in tandem.
- */
 static const char * const uri_main = "table:main";
-static const char * const fs_main = "main.wt";
-
 static const char * const uri_rev = "table:rev";
 
 /*
@@ -594,6 +589,36 @@ again:
 }
 
 /*
+ * create_db --
+ *	Creates the database and tables so they are fully ready to
+ *	be checked.
+ */
+static void
+create_db(const char *method)
+{
+	WT_CONNECTION *conn;
+	WT_SESSION *session;
+	char envconf[512];
+
+	testutil_check(__wt_snprintf(envconf, sizeof(envconf),
+	    ENV_CONFIG, method));
+
+	testutil_check(wiredtiger_open(home, NULL, envconf, &conn));
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+	testutil_check(session->create(
+	    session, uri_main, "key_format=S,value_format=S"));
+	testutil_check(session->create(
+	    session, uri_rev, "key_format=S,value_format=S"));
+	/*
+	 * Checkpoint to help ensure that at least the main tables
+	 * can be opened after recovery.
+	 */
+	testutil_check(session->checkpoint(session, NULL));
+	testutil_check(session->close(session, NULL));
+	testutil_check(conn->close(conn, NULL));
+}
+
+/*
  * fill_db --
  *	The child process creates the database and table, and then creates
  *	worker threads to add data until it is killed by the parent.
@@ -601,7 +626,7 @@ again:
 static void fill_db(uint32_t, uint32_t, const char *, uint32_t)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
-    fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
+fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
 {
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
@@ -1077,7 +1102,6 @@ int
 main(int argc, char *argv[])
 {
 	struct sigaction sa;
-	struct stat sb;
 	WT_RAND_STATE rnd;
 	pid_t pid;
 	size_t size;
@@ -1244,6 +1268,7 @@ main(int argc, char *argv[])
 		printf("Parent: Create %" PRIu32
 		    " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
 
+		create_db(method);
 		if (!populate_only) {
 			/*
 			 * Fork a child to insert as many items.  We will
@@ -1265,14 +1290,8 @@ main(int argc, char *argv[])
 		/* parent */
 		/*
 		 * Sleep for the configured amount of time before killing
-		 * the child.  Start the timeout from the time we notice that
-		 * the table has been created.  That allows the test to run
-		 * correctly on really slow machines.
+		 * the child.
 		 */
-		testutil_check(__wt_snprintf(
-		    buf, sizeof(buf), "%s/%s", home, fs_main));
-		while (stat(buf, &sb) != 0 || sb.st_size < 4096)
-			testutil_sleep_wait(1, pid);
 		testutil_sleep_wait(timeout, pid);
 
 		/*
