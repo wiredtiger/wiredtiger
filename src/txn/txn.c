@@ -1035,6 +1035,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_LONG_RUNNING_PREPARE
 			op->u.op_upd = NULL;
 #endif
+			WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_timestamp_set(
