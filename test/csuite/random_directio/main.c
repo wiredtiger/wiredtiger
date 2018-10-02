@@ -570,8 +570,14 @@ again:
 				ret = schema_operation(session, td->id, i, op,
 				    td->flags);
 			if (ret == EBUSY) {
-				testutil_check(session->rollback_transaction(
-				    session, NULL));
+				/*
+				 * Only rollback if integrated and we have
+				 * an active transaction.
+				 */
+				if (F_ISSET(td, SCHEMA_INTEGRATED))
+					testutil_check(
+					    session->rollback_transaction(
+					    session, NULL));
 				sleep(1);
 				goto again;
 			}

@@ -1003,7 +1003,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
 		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
-		/* Metadata updates are never prepared. */
+		/* Metadata updates should never be prepared. */
+		WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
 		if (WT_IS_METADATA(op->btree->dhandle))
 			continue;
 
@@ -1102,7 +1103,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
 		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
-		/* Metadata updates are never rolled back. */
+		/* Metadata updates should never be rolled back. */
+		WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
 		if (WT_IS_METADATA(op->btree->dhandle))
 			continue;
 
