@@ -70,23 +70,18 @@ int
 __wt_schema_internal_session(
     WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
 {
-	WT_SESSION_IMPL *s;
-
 	/*
 	 * Open an internal session if a transaction is running so that the
 	 * schema operations are not logged and buffered with any log records
-	 * in the transaction.
-	 * Open the new session with the same flags as the original but
-	 * clear the transaction flag.
+	 * in the transaction.  The new session inherits its flags from the
+	 * original.
 	 */
 	*int_sessionp = session;
 	if (F_ISSET(&session->txn, WT_TXN_RUNNING)) {
 		/* We should not have a schema txn running now. */
 		WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
 		WT_RET(__wt_open_internal_session(S2C(session), "schema",
-		    true, session->flags, &s));
-		F_CLR(&s->txn, WT_TXN_RUNNING);
-		*int_sessionp = s;
+		    true, session->flags, int_sessionp));
 	}
 	return (0);
 }
