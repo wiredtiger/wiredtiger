@@ -227,7 +227,7 @@ thread_run(void *arg)
 	WT_CURSOR *cur_coll, *cur_local, *cur_oplog;
 	WT_ITEM data;
 	WT_RAND_STATE rnd;
-	WT_SESSION *oplog_session, *session;
+	WT_SESSION *prepared_session, *session;
 	THREAD_DATA *td;
 	uint64_t i, active_ts;
 	char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
@@ -262,36 +262,40 @@ thread_run(void *arg)
 	use_prep = (use_ts && td->info % 10 == 0) ? true : false;
 
 	/*
-	 * We may have two sessions so that the oplog session can have its own
-	 * transaction in parallel with the collection session for threads
-	 * that are going to be using prepared transactions. We need this
-	 * because prepared transactions cannot have any operations that modify
-	 * a table that is logged. But we also want to test mixed logged and
-	 * not-logged transactions.
+	 * For the prepared case we have two sessions so that the oplog session
+	 * can have its own transaction in parallel with the collection session
+	 * We need this because prepared transactions cannot have any operations
+	 * that modify a table that is logged. But we also want to test mixed
+	 * logged and not-logged transactions.
 	 */
 	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	prepared_session = NULL;
+	if (use_prep)
+		testutil_check(td->conn->open_session(
+		    td->conn, NULL, NULL, &prepared_session));
 	/*
 	 * Open a cursor to each table.
 	 */
 	testutil_check(__wt_snprintf(
 	    uri, sizeof(uri), "%s:%s", table_pfx, uri_collection));
-	testutil_check(session->open_cursor(session,
-	    uri, NULL, NULL, &cur_coll));
+	if (use_prep)
+		testutil_check(prepared_session->open_cursor(prepared_session,
+		    uri, NULL, NULL, &cur_coll));
+	else
+		testutil_check(session->open_cursor(session,
+		    uri, NULL, NULL, &cur_coll));
 	testutil_check(__wt_snprintf(
 	    uri, sizeof(uri), "%s:%s", table_pfx, uri_local));
-	testutil_check(session->open_cursor(session,
-	    uri, NULL, NULL, &cur_local));
+	if (use_prep)
+		testutil_check(prepared_session->open_cursor(prepared_session,
+		    uri, NULL, NULL, &cur_local));
+	else
+		testutil_check(session->open_cursor(session,
+		    uri, NULL, NULL, &cur_local));
 	testutil_check(__wt_snprintf(
 	    uri, sizeof(uri), "%s:%s", table_pfx, uri_oplog));
-	oplog_session = NULL;
-	if (use_prep) {
-		testutil_check(td->conn->open_session(
-		    td->conn, NULL, NULL, &oplog_session));
-		testutil_check(session->open_cursor(oplog_session,
-		    uri, NULL, NULL, &cur_oplog));
-	} else
-		testutil_check(session->open_cursor(session,
-		    uri, NULL, NULL, &cur_oplog));
+	testutil_check(session->open_cursor(session,
+	    uri, NULL, NULL, &cur_oplog));
 
 	/*
 	 * Write our portion of the key space until we're killed.
@@ -305,8 +309,8 @@ thread_run(void *arg)
 
 		testutil_check(session->begin_transaction(session, NULL));
 		if (use_prep)
-			testutil_check(oplog_session->begin_transaction(
-			    oplog_session, NULL));
+			testutil_check(prepared_session->begin_transaction(
+			    prepared_session, NULL));
 
 		if (use_ts) {
 			testutil_check(pthread_rwlock_wrlock(&ts_lock));
@@ -317,17 +321,12 @@ thread_run(void *arg)
 			/*
 			 * Set the transaction's timestamp now before performing
 			 * the operation. If we are using prepared transactions,
-			 * set the timestamp for the oplog session. The
-			 * collection session in that case would also use this
-			 * timestamp.
+			 * set the timestamp for the session used for oplog. The
+			 * collection session in that case would continue to use
+			 * this timestamp.
 			 */
-			if (use_prep)
-				testutil_check(
-				    oplog_session->timestamp_transaction(
-				    oplog_session, tscfg));
-			else
-				testutil_check(session->timestamp_transaction(
-				    session, tscfg));
+			testutil_check(session->timestamp_transaction(
+			    session, tscfg));
 			testutil_check(pthread_rwlock_unlock(&ts_lock));
 		}
 
@@ -355,44 +354,31 @@ thread_run(void *arg)
 		data.data = obuf;
 		cur_oplog->set_value(cur_oplog, &data);
 		testutil_check(cur_oplog->insert(cur_oplog));
-		if (use_ts) {
+		if (use_prep) {
 			/*
 			 * Run with prepare every once in a while. And also
 			 * yield after prepare sometimes too. This is only done
-			 * on the regular session.
+			 * on the collection session.
 			 */
-			if (use_prep) {
-				if (i % PREPARE_FREQ == 0) {
-					testutil_check(__wt_snprintf(
-					    tscfg, sizeof(tscfg),
-					    "prepare_timestamp=%"
-					    PRIx64, active_ts));
-					testutil_check(
-					    session->prepare_transaction(
-					    session, tscfg));
-					if (i % PREPARE_YIELD == 0)
-						__wt_yield();
-				}
+			if (i % PREPARE_FREQ == 0) {
+				testutil_check(__wt_snprintf(tscfg,
+				    sizeof(tscfg), "prepare_timestamp=%"
+				    PRIx64, active_ts));
 				testutil_check(
-				    __wt_snprintf(tscfg, sizeof(tscfg),
-				    "commit_timestamp=%" PRIx64, active_ts));
-				testutil_check(
-				    session->commit_transaction(session,
-				    tscfg));
-				testutil_check(
-				    oplog_session->commit_transaction(
-				    oplog_session, tscfg));
-			} else
-				testutil_check(
-				    session->commit_transaction(session, NULL));
-		} else {
+				    prepared_session->prepare_transaction(
+				    prepared_session, tscfg));
+				if (i % PREPARE_YIELD == 0)
+					__wt_yield();
+			}
 			testutil_check(
-			    session->commit_transaction(session, NULL));
-			if (use_prep)
-				testutil_check(
-				    oplog_session->commit_transaction(
-				    oplog_session, NULL));
+			    __wt_snprintf(tscfg, sizeof(tscfg),
+			    "commit_timestamp=%" PRIx64, active_ts));
+			testutil_check(
+			    prepared_session->commit_transaction(
+			    prepared_session, tscfg));
 		}
+		testutil_check(
+		    session->commit_transaction(session, NULL));
 		/*
 		 * Insert into the local table outside the timestamp txn.
 		 */
@@ -767,7 +753,7 @@ main(int argc, char *argv[])
 	count = 0;
 	absent_coll = absent_local = absent_oplog = 0;
 	fatal = false;
-	testutil_check(pthread_rwlock_destroy(&ts_lock));
+	testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 	for (i = 0; i < nth; ++i) {
 		initialize_rep(&c_rep[i]);
 		initialize_rep(&l_rep[i]);
