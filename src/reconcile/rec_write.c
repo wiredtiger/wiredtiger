@@ -1360,12 +1360,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			* together to enable the feature, remove this temporary
 			* code.
 			*/
-#ifndef HAVE_LONG_RUNNING_PREPARE
 		       if (prepared) {
 			       prepared = false;
 			       uncommitted = r->update_uncommitted = true;
 		       }
-#endif
 
 		       if (prepared || uncommitted)
 			       continue;
