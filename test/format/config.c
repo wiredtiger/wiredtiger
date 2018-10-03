@@ -260,7 +260,7 @@ config_setup(void)
 static void
 config_cache(void)
 {
-	uint32_t required, v;
+	uint32_t required;
 
 	/* Page sizes are powers-of-two for bad historic reasons. */
 	g.intl_page_max = 1U << g.c_intl_page_max;
@@ -276,8 +276,8 @@ config_cache(void)
 			    g.c_cache_minimum, g.c_cache);
 		return;
 	}
-	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
-		g.c_cache = g.c_cache_minimum;
+
+	g.c_cache = WT_MAX(g.c_cache, g.c_cache_minimum);
 
 	/*
 	 * Maximum internal/leaf page size sanity.
@@ -287,17 +287,14 @@ config_cache(void)
 	 * consuming an internal page and a leaf page (or a pair of leaf pages
 	 * for cursor movements).
 	 *
-	 * Assuming all of those pages are dirty, don't let the maximum dirty
-	 * bytes exceed 40% of the cache (the default eviction trigger is 20%).
-	 *
 	 * Maximum memory pages are in units of MB.
 	 *
 	 * This code is what dramatically increases the cache size when there
-	 * are lots of threads, it grows the cache to N megabytes per thread.
+	 * are lots of threads, it grows the cache to several megabytes per
+	 * thread.
 	 */
-	v = 2 * g.c_threads * MEGABYTE(g.c_memory_page_max);
-	v = (v / 4) * 10;
-	g.c_cache = WT_MAX(g.c_cache, (v + (WT_MEGABYTE - 1)) / WT_MEGABYTE);
+	g.c_cache = WT_MAX(g.c_cache,
+	    2 * g.c_threads * g.c_memory_page_max);
 
 	/*
 	 * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
