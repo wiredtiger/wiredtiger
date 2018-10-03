@@ -590,7 +590,7 @@ again:
 
 /*
  * create_db --
- *	Creates the database and tables so they are fully ready to
+ *	Creates the database and tables so they are fully ready to be
  *	accessed by subordinate threads, and copied/recovered.
  */
 static void
@@ -621,8 +621,8 @@ create_db(const char *method)
 
 /*
  * fill_db --
- *	The child process creates the database and table, and then creates
- *	worker threads to add data until it is killed by the parent.
+ *	The child process creates worker threads to add data until it is
+ *	killed by the parent.
  */
 static void fill_db(uint32_t, uint32_t, const char *, uint32_t)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -630,7 +630,6 @@ static void
 fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
 {
 	WT_CONNECTION *conn;
-	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	wt_thread_t *thr;
 	uint32_t i;
@@ -644,17 +643,6 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
 	    ENV_CONFIG, method));
 
 	testutil_check(wiredtiger_open(".", NULL, envconf, &conn));
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	testutil_check(session->create(
-	    session, uri_main, "key_format=S,value_format=S"));
-	testutil_check(session->create(
-	    session, uri_rev, "key_format=S,value_format=S"));
-	/*
-	 * Checkpoint to help ensure that at least the main tables
-	 * can be opened after recovery.
-	 */
-	testutil_check(session->checkpoint(session, NULL));
-	testutil_check(session->close(session, NULL));
 
 	datasize += 1;   /* Add an extra byte for string termination */
 	printf("Create %" PRIu32 " writer threads\n", nth);
