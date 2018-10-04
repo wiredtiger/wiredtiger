@@ -138,7 +138,7 @@ thread_ts_run(void *arg)
 		 * update the oldest timestamp, that requires locking out
 		 * transactional ops that set or query a timestamp.
 		 */
-		testutil_check(pthread_rwlock_rdlock(&ts_lock));
+		testutil_check(pthread_rwlock_wrlock(&ts_lock));
 		ret = td->conn->query_timestamp(
 		    td->conn, ts_buf, "get=all_committed");
 		testutil_check(pthread_rwlock_unlock(&ts_lock));
@@ -313,7 +313,7 @@ thread_run(void *arg)
 			    prepared_session, NULL));
 
 		if (use_ts) {
-			testutil_check(pthread_rwlock_wrlock(&ts_lock));
+			testutil_check(pthread_rwlock_rdlock(&ts_lock));
 			active_ts = __wt_atomic_addv64(&global_ts, 1);
 			testutil_check(__wt_snprintf(tscfg,
 			    sizeof(tscfg), "commit_timestamp=%" PRIx64,
