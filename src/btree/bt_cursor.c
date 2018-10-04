@@ -1016,21 +1016,20 @@ err:	if (ret == WT_RESTART) {
 int
 __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 {
-	enum { NONE, SEARCH, SEARCH_NOTFOUND } search;
 	WT_BTREE *btree;
 	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	uint64_t yield_count, sleep_usecs;
-	bool iterating, valid;
+	bool iterating, searched, valid;
 
-	search = NONE;
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 	yield_count = sleep_usecs = 0;
 	iterating = F_ISSET(cbt, WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV);
+	searched = false;
 
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
@@ -1083,40 +1082,36 @@ retry:	/*
 	 * Note these steps must be repeatable, we'll continue to take this path
 	 * as long as we encounter WT_RESTART.
 	 *
-	 * Set/reset search to "none", as we may jump to the error label without
-	 * doing a search. (I don't see a path where any previously set value is
-	 * a problem, but future code changes could introduce problems.)
-	 */
-	search = NONE;
-
-	/*
 	 * Any pinned page goes away if we do a search, including as a result of
 	 * a restart. Get a local copy of any pinned key and re-save the cursor
 	 * state: we may retry but eventually fail.
 	 */
 	WT_ERR(__cursor_localkey(cursor));
 	__cursor_state_save(cursor, &state);
+	searched = true;
 
 	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
 		ret = __cursor_row_search(session, cbt, NULL, false);
-		search = ret == WT_NOTFOUND ? SEARCH_NOTFOUND : SEARCH;
+		if (ret == WT_NOTFOUND)
+			goto search_notfound;
 		WT_ERR(ret);
 
 		/* Check whether an update would conflict. */
 		WT_ERR(__curfile_update_check(cbt));
 
 		if (cbt->compare != 0)
-			WT_ERR(WT_NOTFOUND);
+			goto search_notfound;
 		WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
 		if (!valid)
-			WT_ERR(WT_NOTFOUND);
+			goto search_notfound;
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_TOMBSTONE);
 	} else {
 		ret = __cursor_col_search(session, cbt, NULL);
-		search = ret == WT_NOTFOUND ? SEARCH_NOTFOUND : SEARCH;
+		if (ret == WT_NOTFOUND)
+			goto search_notfound;
 		WT_ERR(ret);
 
 		/*
@@ -1132,7 +1127,7 @@ retry:	/*
 			WT_ERR(__wt_cursor_valid(cbt, NULL, &valid));
 		if (cbt->compare != 0 || !valid) {
 			if (!__cursor_fix_implicit(btree, cbt))
-				WT_ERR(WT_NOTFOUND);
+				goto search_notfound;
 			/*
 			 * Creating a record past the end of the tree in a
 			 * fixed-length column-store implicitly fills the
@@ -1163,7 +1158,7 @@ err:	if (ret == WT_RESTART) {
 		 * key and reset the cursor.
 		 */
 		if (positioned) {
-			if (search == SEARCH)
+			if (searched)
 				WT_TRET(__wt_key_return(session, cbt));
 		} else {
 			F_CLR(cursor, WT_CURSTD_KEY_SET);
@@ -1189,9 +1184,11 @@ err:	if (ret == WT_RESTART) {
 		 * we've lost the cursor position. Since no subsequent iteration
 		 * can succeed, we cannot return success.)
 		 */
-		if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-		    search == SEARCH_NOTFOUND && !iterating && !positioned)
-			ret = 0;
+		if (0) {
+search_notfound:	if (!iterating && !positioned &&
+			    F_ISSET(cursor, WT_CURSTD_OVERWRITE))
+				ret = 0;
+		}
 
 		/*
 		 * Reset the cursor and restore the original cursor key: done
