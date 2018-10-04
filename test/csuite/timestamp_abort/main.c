@@ -131,9 +131,7 @@ thread_ts_run(void *arg)
 	td = (THREAD_DATA *)arg;
 
 	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-	/*
-	 * Update the oldest timestamp every 1 second.
-	 */
+	/* Update the oldest timestamp every 1 millisecond. */
 	for (;;) {
 		/*
 		 * We get the last committed timestamp periodically in order to
@@ -242,6 +240,7 @@ thread_run(void *arg)
 	memset(obuf, 0, sizeof(obuf));
 	memset(kname, 0, sizeof(kname));
 
+	prepared_session = NULL;
 	td = (THREAD_DATA *)arg;
 	/*
 	 * Set up the separate file for checking.
@@ -271,7 +270,6 @@ thread_run(void *arg)
 	 * logged and not-logged transactions.
 	 */
 	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-	prepared_session = NULL;
 	if (use_prep)
 		testutil_check(td->conn->open_session(
 		    td->conn, NULL, NULL, &prepared_session));
