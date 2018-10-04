@@ -560,7 +560,7 @@ skip_read:
 	if (final_state == WT_REF_MEM &&
 	    ref->page_las != NULL && (prepared || !ref->page_las->skew_newest))
 		WT_IGNORE_RET(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid, false));
+		    session, ref->page_las->las_pageid, true));
 
 	WT_PUBLISH(ref->state, final_state);
 	return (ret);
