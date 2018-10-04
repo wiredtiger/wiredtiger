@@ -188,7 +188,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, bool *preparedp)
 		total_incr += incr;
 		upd->txnid = las_txnid;
 		upd->prepare_state = prepare_state;
-		// If it isn't already done, set that we found prepared updates.
+		/*
+		 * If it isn't already done, set that we found prepared updates.
+		 */
 		if (preparedp &&
 		    !*preparedp && prepare_state == WT_PREPARE_INPROGRESS)
 			*preparedp = true;
@@ -552,12 +554,15 @@ skip_read:
 	 * (if there are entries in the lookaside newer than the page, they need
 	 * to be read back into cache or they will be lost).
 	 *
+	 * Prepared updates can not be removed by the lookaside sweep, remove
+	 * them as we read the page back in memory.
+	 *
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
 	if (final_state == WT_REF_MEM &&
 	    ref->page_las != NULL && (prepared || !ref->page_las->skew_newest))
 		WT_ERR(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid, true));
+		    session, ref->page_las->las_pageid));
 
 	WT_PUBLISH(ref->state, final_state);
 	return (ret);
