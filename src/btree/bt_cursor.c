@@ -1025,6 +1025,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 	uint64_t yield_count, sleep_usecs;
 	bool iterating, valid;
 
+	search = NONE;
 	btree = cbt->btree;
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
