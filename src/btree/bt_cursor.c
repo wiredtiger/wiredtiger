@@ -1185,7 +1185,8 @@ err:	if (ret == WT_RESTART) {
 		 * can succeed, we cannot return success.)
 		 */
 		if (0) {
-search_notfound:	if (!iterating && !positioned &&
+search_notfound:	ret = WT_NOTFOUND;
+			if (!iterating && !positioned &&
 			    F_ISSET(cursor, WT_CURSTD_OVERWRITE))
 				ret = 0;
 		}
