@@ -1014,9 +1014,9 @@ err:	if (ret == WT_RESTART) {
  *	Remove a record from the tree.
  */
 int
-__wt_btcur_remove(WT_CURSOR_BTREE *cbt)
+__wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
 {
-	enum { NO_POSITION, POSITIONED, SEARCH_POSITION } positioned;
+	enum { NONE, SEARCH, SEARCH_NOTFOUND } search;
 	WT_BTREE *btree;
 	WT_CURFILE_STATE state;
 	WT_CURSOR *cursor;
@@ -1034,31 +1034,6 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
-
-	/*
-	 * WT_CURSOR.remove has a unique semantic, the cursor stays positioned
-	 * if it starts positioned, otherwise clear the cursor on completion.
-	 *
-	 * However, if we unpin the page (because the page is in WT_REF_LIMBO or
-	 * it was selected for forcible eviction), and every item on the page is
-	 * deleted, eviction can delete the page and our subsequent search will
-	 * re-instantiate an empty page for us, with no key/value pairs. Cursor
-	 * remove will search that page and return not-found, which is OK unless
-	 * cursor-overwrite is configured (which causes cursor remove to return
-	 * success even if there's no item to delete). In that case, we're
-	 * supposed to return a positioned cursor, but there's nothing to which
-	 * we can position, and we'll fail attempting to point the cursor at the
-	 * key on the page to satisfy the positioned requirement.
-	 *
-	 * Do the best we can: If we start with a positioned cursor, and we let
-	 * go of our pinned page, reset our state to use the search position,
-	 * that is, use a successful search to return to a "positioned" state.
-	 * If we start with a positioned cursor, let go of our pinned page, and
-	 * the search fails, leave the cursor's key set so the cursor appears
-	 * positioned to the application.
-	 */
-	positioned =
-	    F_ISSET(cursor, WT_CURSTD_KEY_INT) ? POSITIONED : NO_POSITION;
 
 	/* Save the cursor state. */
 	__cursor_state_save(cursor, &state);
@@ -1103,23 +1078,30 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt)
 		goto err;
 	}
 
-	/*
-	 * The pinned page goes away if we do a search, including as a result of
-	 * a restart. Get a local copy of any pinned key and re-save the cursor
-	 * state: we may retry but eventually fail.
-	 *
+retry:	/*
 	 * Note these steps must be repeatable, we'll continue to take this path
 	 * as long as we encounter WT_RESTART.
+	 *
+	 * Set/reset search to "none", as we may jump to the error label without
+	 * doing a search. (I don't see a path where any previously set value is
+	 * a problem, but future code changes could introduce problems.)
 	 */
-retry:	if (positioned == POSITIONED)
-		positioned = SEARCH_POSITION;
+	search = NONE;
+
+	/*
+	 * Any pinned page goes away if we do a search, including as a result of
+	 * a restart. Get a local copy of any pinned key and re-save the cursor
+	 * state: we may retry but eventually fail.
+	 */
 	WT_ERR(__cursor_localkey(cursor));
 	__cursor_state_save(cursor, &state);
 
 	WT_ERR(__cursor_func_init(cbt, true));
 
 	if (btree->type == BTREE_ROW) {
-		WT_ERR(__cursor_row_search(session, cbt, NULL, false));
+		ret = __cursor_row_search(session, cbt, NULL, false);
+		search = ret == WT_NOTFOUND ? SEARCH_NOTFOUND : SEARCH;
+		WT_ERR(ret);
 
 		/* Check whether an update would conflict. */
 		WT_ERR(__curfile_update_check(cbt));
@@ -1132,7 +1114,9 @@ retry:	if (positioned == POSITIONED)
 
 		ret = __cursor_row_modify(session, cbt, WT_UPDATE_TOMBSTONE);
 	} else {
-		WT_ERR(__cursor_col_search(session, cbt, NULL));
+		ret = __cursor_col_search(session, cbt, NULL);
+		search = ret == WT_NOTFOUND ? SEARCH_NOTFOUND : SEARCH;
+		WT_ERR(ret);
 
 		/*
 		 * If we find a matching record, check whether an update would
@@ -1170,58 +1154,54 @@ err:	if (ret == WT_RESTART) {
 	}
 
 	if (ret == 0) {
-done:		switch (positioned) {
-		case NO_POSITION:
-			/*
-			 * Never positioned and we leave it that way, clear any
-			 * key and reset the cursor.
-			 */
+		/*
+		 * If positioned originally, but we had to do a search, acquire
+		 * a position so we can return success.
+		 *
+		 * If not positioned originally, leave it that way, clear any
+		 * key and reset the cursor.
+		 */
+		if (positioned) {
+			if (search == SEARCH)
+				WT_TRET(__wt_key_return(session, cbt));
+		} else {
 			F_CLR(cursor, WT_CURSTD_KEY_SET);
 			WT_TRET(__cursor_reset(cbt));
-			break;
-		case POSITIONED:
-			/*
-			 * Positioned and we used the pinned page, leave the key
-			 * alone, whatever it is.
-			 */
-			break;
-		case SEARCH_POSITION:
-			/*
-			 * Positioned and we did a search anyway, get a key to
-			 * return.
-			 */
-			WT_TRET(__wt_key_return(session, cbt));
-			break;
 		}
-	}
-
-	if (ret != 0) {
-		WT_TRET(__cursor_reset(cbt));
-		__cursor_state_restore(cursor, &state);
 
 		/*
-		 * If the record isn't found and the cursor is configured for
-		 * overwrite, that is what we want, try to return success.
-		 *
-		 * We set the return to 0 after testing for success, the clause
-		 * above dealing with the cursor position is only correct if we
-		 * were successful. If search failed after positioned is set to
-		 * SEARCH_POSITION, we cannot return a key. The only action to
-		 * take is to set the cursor to its original key, which we just
-		 * did.
-		 *
-		 * Finally, if an iterating or positioned cursor was forced to
-		 * give up its pinned page and then a search failed, we've
-		 * lost our cursor position. Since no subsequent iteration can
-		 * succeed, we cannot return success.
+		 * Check the return status again as we might have encountered an
+		 * error setting the return key or resetting the cursor after an
+		 * otherwise successful remove.
 		 */
-		if (ret == WT_NOTFOUND &&
-		    F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
-		    !iterating && positioned == NO_POSITION)
+		if (ret != 0) {
+			WT_TRET(__cursor_reset(cbt));
+			__cursor_state_restore(cursor, &state);
+		}
+	} else {
+		/*
+		 * If the cursor is configured for overwrite and search returned
+		 * not-found, that is what we want, try to return success. We
+		 * can do that as long as it's not an iterating or positioned
+		 * cursor. (Iterating or positioned cursors would have been
+		 * forced to give up any pinned page, and when the search failed
+		 * we've lost the cursor position. Since no subsequent iteration
+		 * can succeed, we cannot return success.)
+		 */
+		if (F_ISSET(cursor, WT_CURSTD_OVERWRITE) &&
+		    search == SEARCH_NOTFOUND && !iterating && !positioned)
 			ret = 0;
+
+		/*
+		 * Reset the cursor and restore the original cursor key: done
+		 * after clearing the return value in the clause immediately
+		 * above so we don't lose an error value if cursor reset fails.
+		 */
+		WT_TRET(__cursor_reset(cbt));
+		__cursor_state_restore(cursor, &state);
 	}
 
-	/*
+done:	/*
 	 * Upper level cursor removes don't expect the cursor value to be set
 	 * after a successful remove (and check in diagnostic mode). Error
 	 * handling may have converted failure to a success, do a final check.
