@@ -552,14 +552,11 @@ skip_read:
 	 * (if there are entries in the lookaside newer than the page, they need
 	 * to be read back into cache or they will be lost).
 	 *
-	 * There is no reason for the lookaside remove should fail, but ignore
-	 * it if for some reason it fails, we've got a valid page.
-	 *
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
 	if (final_state == WT_REF_MEM &&
 	    ref->page_las != NULL && (prepared || !ref->page_las->skew_newest))
-		WT_IGNORE_RET(__wt_las_remove_block(
+		WT_ERR(__wt_las_remove_block(
 		    session, ref->page_las->las_pageid, true));
 
 	WT_PUBLISH(ref->state, final_state);
