@@ -192,6 +192,7 @@ buildvariants:
 
 - name: large-scale-test
   display_name: Large scale testing
+  batchtime: 1440 # 1 day
   run_on:
   - rhel62-large
   expansions:
