@@ -628,6 +628,8 @@ main(int argc, char *argv[])
 		usage();
 
 	testutil_work_dir_from_path(home, sizeof(home), working_dir);
+	testutil_check(pthread_rwlock_init(&ts_lock, NULL));
+
 	/*
 	 * If the user wants to verify they need to tell us how many threads
 	 * there were so we can find the old record files.
@@ -761,7 +763,6 @@ main(int argc, char *argv[])
 	count = 0;
 	absent_coll = absent_local = absent_oplog = 0;
 	fatal = false;
-	testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 	for (i = 0; i < nth; ++i) {
 		initialize_rep(&c_rep[i]);
 		initialize_rep(&l_rep[i]);
