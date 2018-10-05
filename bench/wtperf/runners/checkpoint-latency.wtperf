@@ -16,7 +16,6 @@ report_interval=1
 run_time=1200
 sample_interval=1
 sample_rate=1
-sample_file="mon.json"
 # MongoDB always has multiple tables, and checkpoints behave differently when
 # there is more than a single table.
 table_count=10

@@ -693,7 +693,7 @@ int ThreadRunner::op_run(Operation *op) {
               &_throttle_limit));
             _throttle_ops = 0;
         }
-        if (op->_optype != Operation::OP_NONE)
+        if (op->is_table_op())
             ++_throttle_ops;
     }
 
@@ -1112,12 +1112,12 @@ void Operation::get_static_counts(Stats &stats, int multiplier) {
         case OP_UPDATE:
             stats.update.ops += multiplier;
             break;
-        case OP_CHECKPOINT:
-            stats.checkpoint.ops += multiplier;
-            break;
         default:
             ASSERT(false);
         }
+    else if (_optype == OP_CHECKPOINT)
+        stats.checkpoint.ops += multiplier;
+
     if (_group != NULL)
         for (std::vector<Operation>::iterator i = _group->begin();
           i != _group->end(); i++)
@@ -1676,7 +1676,7 @@ TableInternal::~TableInternal() {}
 
 WorkloadOptions::WorkloadOptions() : max_latency(0),
     report_file("workload.stat"), report_interval(0), run_time(0),
-    sample_file("sample.json"), sample_interval(0), sample_rate(1), warmup(0),
+    sample_file("monitor.json"), sample_interval(0), sample_rate(1), warmup(0),
     _options() {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "

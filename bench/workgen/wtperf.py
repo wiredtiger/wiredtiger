@@ -481,10 +481,9 @@ class Translator:
                 if len(line) == 0:
                     continue
                 (key, val) = self.split_assign(line)
-                # Note: 'sample_file' is not an original wtperf option.
                 if key in [ 'max_latency', 'report_file', 'report_interval',
-                            'run_time', 'sample_file', 'sample_interval',
-                            'sample_rate', 'warmup' ]:
+                            'run_time', 'sample_interval', 'sample_rate',
+                            'warmup' ]:
                     workloadopts += 'workload.options.' + key + '=' + val + '\n'
                 else:
                     self.set_opt(key, val)
