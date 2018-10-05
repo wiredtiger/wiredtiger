@@ -706,6 +706,10 @@ int ThreadRunner::op_run(Operation *op) {
     // (and most likely when the threads are first beginning).  Any
     // WT_NOTFOUND returns are allowed and get their own statistic bumped.
     switch (op->_optype) {
+    case Operation::OP_CHECKPOINT:
+        recno = 0;
+        track = &_stats.checkpoint;
+        break;
     case Operation::OP_INSERT:
         track = &_stats.insert;
         if (op->_key._keytype == Key::KEYGEN_APPEND ||
@@ -714,6 +718,10 @@ int ThreadRunner::op_run(Operation *op) {
               &_icontext->_table_runtime[tint]._max_recno, 1);
         else
             recno = op_get_key_recno(op, range, tint);
+        break;
+    case Operation::OP_NONE:
+    case Operation::OP_NOOP:
+        recno = 0;
         break;
     case Operation::OP_REMOVE:
         track = &_stats.remove;
@@ -726,14 +734,6 @@ int ThreadRunner::op_run(Operation *op) {
     case Operation::OP_UPDATE:
         track = &_stats.update;
         recno = op_get_key_recno(op, range, tint);
-        break;
-    case Operation::OP_NONE:
-    case Operation::OP_NOOP:
-        recno = 0;
-        break;
-    case Operation::OP_CHECKPOINT:
-        recno = 0;
-        track = &_stats.checkpoint;
         break;
     case Operation::OP_SLEEP:
         recno = 0;
@@ -1026,12 +1026,12 @@ void Operation::init_internal(OperationInternal *other) {
     ASSERT(_internal == NULL);
 
     switch (_optype) {
-    case OP_NONE:
-    case OP_NOOP:
+    case OP_CHECKPOINT:
         if (other == NULL)
-            _internal = new OperationInternal();
+            _internal = new CheckpointOperationInternal();
         else
-            _internal = new OperationInternal(*other);
+            _internal = new CheckpointOperationInternal(
+              *(CheckpointOperationInternal *)other);
         break;
     case OP_INSERT:
     case OP_REMOVE:
@@ -1043,19 +1043,19 @@ void Operation::init_internal(OperationInternal *other) {
             _internal = new TableOperationInternal(
               *(TableOperationInternal *)other);
         break;
+    case OP_NONE:
+    case OP_NOOP:
+        if (other == NULL)
+            _internal = new OperationInternal();
+        else
+            _internal = new OperationInternal(*other);
+        break;
     case OP_SLEEP:
         if (other == NULL)
             _internal = new SleepOperationInternal();
         else
             _internal = new SleepOperationInternal(
               *(SleepOperationInternal *)other);
-        break;
-    case OP_CHECKPOINT:
-        if (other == NULL)
-            _internal = new CheckpointOperationInternal();
-        else
-            _internal = new CheckpointOperationInternal(
-              *(CheckpointOperationInternal *)other);
         break;
     default:
         ASSERT(false);

@@ -77,7 +77,7 @@ class Translator:
         raise TranslateException(errtype)
 
     supported_opt_list = [ 'checkpoint_interval', 'checkpoint_threads',
-                           'close_conn', 'compression', 'compact',
+                           'close_conn', 'compact', 'compression',
                            'conn_config', 'create', 'icount',
                            'key_sz', 'log_like_table', 'pareto',
                            'populate_ops_per_txn', 'populate_threads',
