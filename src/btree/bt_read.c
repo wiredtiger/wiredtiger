@@ -166,6 +166,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, bool *preparedp)
 	__wt_readlock(session, &cache->las_sweepwalk_lock);
 	WT_PUBLISH(cache->las_reader, false);
 	locked = true;
+	*preparedp = false;
 	for (ret = __wt_las_cursor_position(cursor, las_pageid);
 	    ret == 0;
 	    ret = cursor->next(cursor)) {
@@ -188,11 +189,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref, bool *preparedp)
 		total_incr += incr;
 		upd->txnid = las_txnid;
 		upd->prepare_state = prepare_state;
-		/*
-		 * If it isn't already done, set that we found prepared updates.
-		 */
-		if (preparedp &&
-		    !*preparedp && prepare_state == WT_PREPARE_INPROGRESS)
+		if (prepare_state == WT_PREPARE_INPROGRESS)
 			*preparedp = true;
 #ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
