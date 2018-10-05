@@ -20,7 +20,7 @@ functions:
     command: shell.exec
     params:
       script: | 
-        git clone https://github.com/wiredtiger/mongo-tests -b million-collect-test-evg
+        git clone https://github.com/wiredtiger/mongo-tests
 
 pre:
   - command: shell.exec
