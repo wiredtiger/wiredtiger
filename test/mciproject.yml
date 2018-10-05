@@ -173,6 +173,8 @@ tasks:
           script: | 
             set -o errexit
             set -o verbose
+            ulimit -n 1000000
+            ulimit -c unlimited 
             largescale/run-million-collection-test.sh .
 
 buildvariants:
