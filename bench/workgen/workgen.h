@@ -283,7 +283,7 @@ struct Value {
 struct Operation {
     enum OpType {
 	OP_CHECKPOINT, OP_INSERT, OP_NONE, OP_NOOP, OP_REMOVE, OP_SEARCH,
-        OP_SLEEP, OP_UPDATE };
+	OP_SLEEP, OP_UPDATE };
     OpType _optype;
     OperationInternal *_internal;
 
