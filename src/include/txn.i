@@ -354,16 +354,24 @@ __wt_txn_resolve_prepared_op(
 	 * case.
 	 */
 	WT_ASSERT(session, upd != NULL || txn->multi_update_count != 0);
-	if (upd == NULL)
+
+	/*
+	 * We track the update count only for commit, but not for rollback, as
+	 * our tracking is based on transaction id, and in case of rollback, we
+	 * set it to aborted.
+	 */
+	if (upd == NULL && commit)
 		--txn->multi_update_count;
 #endif
 
-	op->u.op_upd = upd;
 	WT_STAT_CONN_INCR(session, txn_prepared_updates_resolved);
 
 	for (; upd != NULL; upd = upd->next) {
 		 if (upd->txnid != txn->id)
 			continue;
+
+		if (op->u.op_upd == NULL)
+			op->u.op_upd = upd;
 
 		if (!commit) {
 			upd->txnid = WT_TXN_ABORTED;
