@@ -249,7 +249,6 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 	    WT_IS_METADATA(op->btree->dhandle))
 		return (0);
 
-#ifdef HAVE_LONG_RUNNING_PREPARE
 	WT_ASSERT(session, op->type == WT_TXN_OP_BASIC_ROW ||
 	    op->type == WT_TXN_OP_INMEM_ROW);
 
@@ -263,10 +262,6 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 	 * prepared.
 	 */
 	return (__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
-#else
-	WT_UNUSED(key);
-	return (0);
-#endif
 }
 
 /*
