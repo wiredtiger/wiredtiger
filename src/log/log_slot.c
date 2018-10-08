@@ -23,13 +23,14 @@ __log_slot_dump(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	log = conn->log;
+	(void)__wt_verbose_dump_log(session);
 	earliest = 0;
 	for (i = 0; i < WT_SLOT_POOL; i++) {
 		slot = &log->slot_pool[i];
 		if (__wt_log_cmp(&slot->slot_release_lsn,
 		    &log->slot_pool[earliest].slot_release_lsn) < 0)
 			earliest = i;
-		__wt_errx(session, "Slot %d:", i);
+		__wt_errx(session, "Slot %d (0x%p):", i, slot);
 		__wt_errx(session, "    State: %" PRIx64 " Flags: %" PRIx32,
 		    (uint64_t)slot->slot_state, slot->flags);
 		__wt_errx(session, "    Start LSN: %" PRIu32 "/%" PRIu32,
@@ -212,9 +213,10 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
 	int32_t i, pool_i;
+	int wait_count;
+	bool unlocked;
 #ifdef	HAVE_DIAGNOSTIC
 	uint64_t time_start, time_stop;
-	int count;
 #endif
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
@@ -225,12 +227,13 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	 * be trying to set a new active slot sequentially.  If we find an
 	 * active slot that is valid, return.
 	 */
-	if ((slot = log->active_slot) != NULL &&
+retry:	if ((slot = log->active_slot) != NULL &&
 	    WT_LOG_SLOT_OPEN(slot->slot_state))
 		return (0);
 
+	wait_count = 0;
+	unlocked = false;
 #ifdef	HAVE_DIAGNOSTIC
-	count = 0;
 	time_start = __wt_clock(session);
 #endif
 	/*
@@ -264,13 +267,25 @@ __log_slot_new(WT_SESSION_IMPL *session)
 		}
 		/*
 		 * If we didn't find any free slots signal the worker thread.
+		 * Release the lock so that any threads waiting for it can
+		 * acquire and possibly move things forward.
 		 */
 		WT_STAT_CONN_INCR(session, log_slot_no_free_slots);
 		__wt_cond_signal(session, conn->log_wrlsn_cond);
-		__wt_yield();
+		++wait_count;
+		if (wait_count < WT_THOUSAND)
+			__wt_yield();
+		else {
+			__wt_spin_unlock(session, &log->log_slot_lock);
+			unlocked = true;
+			__wt_sleep(0, WT_THOUSAND);
+		}
+		if (unlocked) {
+			__wt_spin_lock(session, &log->log_slot_lock);
+			goto retry;
+		}
 #ifdef	HAVE_DIAGNOSTIC
-		++count;
-		if (count > WT_MILLION) {
+		if (wait_count > WT_MILLION) {
 			time_stop = __wt_clock(session);
 			if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
 				__wt_errx(session,
@@ -278,7 +293,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 				__log_slot_dump(session);
 				__wt_abort(session);
 			}
-			count = 0;
+			wait_count = 0;
 		}
 #endif
 	}

@@ -2899,17 +2899,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	 * detects a panic.
 	 */
 	__wt_log_slot_join(session, rdup_len, flags, &myslot);
-	/*
-	 * If the addition of this record crosses the buffer boundary,
-	 * switch in a new slot.
-	 */
 	force = LF_ISSET(WT_LOG_FLUSH | WT_LOG_FSYNC);
-	ret = 0;
-	if (myslot.end_offset >= WT_LOG_SLOT_BUF_MAX ||
-	    F_ISSET(&myslot, WT_MYSLOT_UNBUFFERED) || force)
-		ret = __wt_log_slot_switch(session, &myslot, true, false, NULL);
-	if (ret == 0)
-		ret = __wt_log_fill(session, &myslot, false, record, &lsn);
+	ret = __wt_log_fill(session, &myslot, false, record, &lsn);
 	release_size = __wt_log_slot_release(&myslot, (int64_t)rdup_len);
 	/*
 	 * If we get an error we still need to do proper accounting in
@@ -2918,7 +2909,15 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	 */
 	if (ret != 0)
 		myslot.slot->slot_error = ret;
-	WT_ASSERT(session, ret == 0);
+	/*
+	 * If the addition of this record crosses the buffer boundary,
+	 * switch in a new slot. We have to do it after we release the
+	 * slot so that we cannot deadlock ourselves if all slots are in use.
+	 */
+	if (myslot.end_offset >= WT_LOG_SLOT_BUF_MAX ||
+	    F_ISSET(&myslot, WT_MYSLOT_UNBUFFERED) || force)
+		WT_TRET(__wt_log_slot_switch(
+		session, &myslot, true, false, NULL));
 	if (WT_LOG_SLOT_DONE(release_size)) {
 		WT_ERR(__wt_log_release(session, myslot.slot, &free_slot));
 		if (free_slot)
