@@ -17,13 +17,15 @@ static void
 __log_slot_dump(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
 	int earliest, i;
 
 	conn = S2C(session);
 	log = conn->log;
-	(void)__wt_verbose_dump_log(session);
+	ret = __wt_verbose_dump_log(session);
+	WT_ASSERT(session, ret == 0);
 	earliest = 0;
 	for (i = 0; i < WT_SLOT_POOL; i++) {
 		slot = &log->slot_pool[i];
