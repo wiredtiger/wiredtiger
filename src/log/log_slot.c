@@ -30,7 +30,7 @@ __log_slot_dump(WT_SESSION_IMPL *session)
 		if (__wt_log_cmp(&slot->slot_release_lsn,
 		    &log->slot_pool[earliest].slot_release_lsn) < 0)
 			earliest = i;
-		__wt_errx(session, "Slot %d (0x%p):", i, slot);
+		__wt_errx(session, "Slot %d (0x%p):", i, (void *)slot);
 		__wt_errx(session, "    State: %" PRIx64 " Flags: %" PRIx32,
 		    (uint64_t)slot->slot_state, slot->flags);
 		__wt_errx(session, "    Start LSN: %" PRIu32 "/%" PRIu32,
