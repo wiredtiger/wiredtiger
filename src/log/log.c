@@ -2919,10 +2919,11 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 		WT_TRET(__wt_log_slot_switch(
 		session, &myslot, true, false, NULL));
 	if (WT_LOG_SLOT_DONE(release_size)) {
+		/* XXX maybe race not locked */
 		WT_ERR(__wt_log_release(session, myslot.slot, &free_slot));
 		if (free_slot)
 			__wt_log_slot_free(session, myslot.slot);
-	} else if (force) {
+	} else if (force && WT_LOG_SLOT_ACTIVE(myslot.slot->slot_state)) {
 		/*
 		 * If we are going to wait for this slot to get written,
 		 * signal the wrlsn thread.

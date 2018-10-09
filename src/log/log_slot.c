@@ -216,7 +216,6 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	WT_LOGSLOT *slot;
 	int32_t i, pool_i;
 	int wait_count;
-	bool unlocked;
 #ifdef	HAVE_DIAGNOSTIC
 	uint64_t time_start, time_stop;
 #endif
@@ -229,15 +228,14 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	 * be trying to set a new active slot sequentially.  If we find an
 	 * active slot that is valid, return.
 	 */
+#ifdef	HAVE_DIAGNOSTIC
+	time_start = __wt_clock(session);
+#endif
 retry:	if ((slot = log->active_slot) != NULL &&
 	    WT_LOG_SLOT_OPEN(slot->slot_state))
 		return (0);
 
 	wait_count = 0;
-	unlocked = false;
-#ifdef	HAVE_DIAGNOSTIC
-	time_start = __wt_clock(session);
-#endif
 	/*
 	 * Keep trying until we can find a free slot.
 	 */
@@ -279,10 +277,7 @@ retry:	if ((slot = log->active_slot) != NULL &&
 			__wt_yield();
 		else {
 			__wt_spin_unlock(session, &log->log_slot_lock);
-			unlocked = true;
 			__wt_sleep(0, WT_THOUSAND);
-		}
-		if (unlocked) {
 			__wt_spin_lock(session, &log->log_slot_lock);
 			goto retry;
 		}
