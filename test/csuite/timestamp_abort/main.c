@@ -58,7 +58,6 @@ static char home[1024];			/* Program working dir */
  */
 #define	INVALID_KEY	UINT64_MAX
 #define	MAX_CKPT_INVL	5	/* Maximum interval between checkpoints */
-#define	MAX_DEFAULT_TH	12
 #define	MAX_TH		200	/* Maximum configurable threads */
 #define	MAX_TIME	40
 #define	MAX_VAL		1024
@@ -649,7 +648,7 @@ main(int argc, char *argv[])
 				timeout = MIN_TIME;
 		}
 		if (rand_th) {
-			nth = __wt_random(&rnd) % MAX_DEFAULT_TH;
+			nth = __wt_random(&rnd) % MAX_TH;
 			if (nth < MIN_TH)
 				nth = MIN_TH;
 		}
