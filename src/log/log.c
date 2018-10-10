@@ -2070,7 +2070,6 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	log->write_start_lsn = slot->slot_start_lsn;
 	log->write_lsn = slot->slot_end_lsn;
 
-	WT_ASSERT(session, slot != log->active_slot);
 	__wt_cond_signal(session, log->log_write_cond);
 	F_CLR(slot, WT_SLOT_FLUSH);
 
