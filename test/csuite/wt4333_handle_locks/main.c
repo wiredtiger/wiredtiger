@@ -172,7 +172,7 @@ on_alarm(int signo)
 }
 
 static void
-sweep_stats()
+sweep_stats(void)
 {
 	static const int list[] = {
 		WT_STAT_CONN_CURSOR_SWEEP_BUCKETS,
