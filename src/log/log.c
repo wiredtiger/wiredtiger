@@ -1236,8 +1236,11 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 		 * thread directly here.
 		 */
 		__wt_log_wrlsn(session, NULL);
-		if (++yield_cnt % WT_THOUSAND == 0)
+		if (++yield_cnt % WT_THOUSAND == 0) {
+			__wt_spin_unlock(session, &log->log_slot_lock);
 			__wt_cond_signal(session, conn->log_file_cond);
+			__wt_spin_lock(session, &log->log_slot_lock);
+		}
 		if (yield_cnt > WT_THOUSAND * 10)
 			return (__wt_set_return(session, EBUSY));
 		__wt_yield();
