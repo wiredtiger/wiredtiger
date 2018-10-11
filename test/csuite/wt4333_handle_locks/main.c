@@ -309,7 +309,7 @@ main(int argc, char *argv[])
 	 * This test takes 4 minutes per slot in the runs table, only do the
 	 * first two slots unless specifically requested.
 	 */
-	n = run_long ? 2 : WT_ELEMENTS(runs);
+	n = run_long ? WT_ELEMENTS(runs) : 2;
 	for (i = 0; i < n; ++i) {
 		workers = runs[i].workers;
 		uris = runs[i].uris;
