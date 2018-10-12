@@ -35,7 +35,8 @@
 static WT_CONNECTION *conn;
 static uint64_t worker, worker_busy, verify, verify_busy;
 static u_int workers, uris;
-static bool done;
+static bool done = false;
+static bool verbose = false;
 static char *uri_list[750];
 
 static void
@@ -54,8 +55,9 @@ uri_init(void)
 		}
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+	/* Initialize the file contents. */
 	for (i = 0; i < uris; ++i) {
-		fflush(stdout);
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "key_format=S,value_format=S,"
 		    "allocation_size=4K,leaf_page_max=32KB,"));
@@ -71,6 +73,10 @@ uri_init(void)
 		}
 		testutil_check(cursor->close(cursor));
 	}
+
+	/* Create a checkpoint we can use for readonly handles. */
+	testutil_check(session->checkpoint(session, NULL));
+
 	testutil_check(session->close(session, NULL));
 }
 
@@ -102,8 +108,12 @@ wthread(void *arg)
 	do {
 		cursor = NULL;
 		for (i = __wt_random(&rnd) % uris; !done;) {
+			/* Use a checkpoint handle for 50% of reads. */
 			ret = session->open_cursor(
-			    session, uri_list[i], NULL, NULL, &cursor);
+			    session, uri_list[i], NULL,
+			        readonly && (i % 2 == 0) ?
+			        "checkpoint=WiredTigerCheckpoint" : NULL,
+			        &cursor);
 			if (ret != EBUSY) {
 				testutil_check(ret);
 				break;
@@ -222,26 +232,28 @@ run(bool config_cache)
 
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "create"
-	    ", cache_size=5GB"
 	    ", cache_cursors=%s"
+	    ", cache_size=5GB"
+	    ", checkpoint_sync=true"
 	    ", eviction=(threads_max=5)"
 	    ", file_manager=("
 	    "close_handle_minimum=1,close_idle_time=1,close_scan_interval=1)"
+	    ", mmap=true"
 	    ", session_max=%u"
 	    ", statistics=(all)",
 	    config_cache ? "true" : "false",
 	    workers + 100));
 	testutil_check(wiredtiger_open(home, NULL, buf, &conn));
 
-	printf("%s: %d seconds\n", progname, PERIOD);
-	printf("\t" "cache_cursors=%s, %u workers, %u files\n",
-	    config_cache ? "true" : "false", workers,  uris);
+	printf("%s: %d seconds, cache_cursors=%s, %u workers, %u files\n",
+	    progname, PERIOD, config_cache ? "true" : "false", workers,  uris);
 
 	uri_init();
 
+	/* 75% readers, 25% writers. */
 	for (i = 0; i < workers; ++i)
 		testutil_check(pthread_create(
-		    &idlist[i], NULL, wthread, i % 2 == 0 ? NULL : (void *)&i));
+		    &idlist[i], NULL, wthread, i % 4 == 0 ? NULL : (void *)&i));
 	testutil_check(pthread_create(&idlist[i], NULL, vthread, NULL));
 	++i;
 
@@ -258,7 +270,8 @@ run(bool config_cache)
 	    "\n",
 	    worker, worker_busy, verify, verify_busy);
 
-	sweep_stats();
+	if (verbose)
+		sweep_stats();
 
 	testutil_check(conn->close(conn, NULL));
 }
@@ -270,10 +283,10 @@ main(int argc, char *argv[])
 		u_int workers;
 		u_int uris;
 	} runs[] = {
-		{  2,   1},
+		{  4,   1},
 		{  8,   1},
-		{  8,   WT_ELEMENTS(uri_list)},
 		{ 16,   1},
+		{ 16,   WT_ELEMENTS(uri_list)},
 		{200, 100},
 		{300, 100},
 		{200, WT_ELEMENTS(uri_list)},
@@ -286,10 +299,13 @@ main(int argc, char *argv[])
 	(void)testutil_set_progname(argv);
 
 	run_long = false;
-	while ((ch = __wt_getopt(argv[0], argc, argv, "a")) != EOF) {
+	while ((ch = __wt_getopt(argv[0], argc, argv, "av")) != EOF) {
 		switch (ch) {
 		case 'a':
 			run_long = true;
+			break;
+		case 'v':
+			verbose = true;
 			break;
 		default:
 			fprintf(stderr, "usage: %s -a", argv[0]);
