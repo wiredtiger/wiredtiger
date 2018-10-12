@@ -111,9 +111,9 @@ wthread(void *arg)
 			/* Use a checkpoint handle for 50% of reads. */
 			ret = session->open_cursor(
 			    session, uri_list[i], NULL,
-			        readonly && (i % 2 == 0) ?
-			        "checkpoint=WiredTigerCheckpoint" : NULL,
-			        &cursor);
+				readonly && (i % 2 == 0) ?
+				"checkpoint=WiredTigerCheckpoint" : NULL,
+				&cursor);
 			if (ret != EBUSY) {
 				testutil_check(ret);
 				break;
