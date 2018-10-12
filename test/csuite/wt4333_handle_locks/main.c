@@ -208,7 +208,7 @@ sweep_stats(void)
 }
 
 static void
-run(bool config_cache, bool readonly)
+run(bool config_cache)
 {
 	pthread_t idlist[1000];
 	u_int i, j;
@@ -234,15 +234,14 @@ run(bool config_cache, bool readonly)
 	testutil_check(wiredtiger_open(home, NULL, buf, &conn));
 
 	printf("%s: %d seconds\n", progname, PERIOD);
-	printf("\t" "cache_cursors=%s, readonly=%s, %u workers, %u files\n",
-	    config_cache ? "true" : "false",
-	    readonly ? "true" : "false", workers,  uris);
+	printf("\t" "cache_cursors=%s, %u workers, %u files\n",
+	    config_cache ? "true" : "false", workers,  uris);
 
 	uri_init();
 
 	for (i = 0; i < workers; ++i)
 		testutil_check(pthread_create(
-		    &idlist[i], NULL, wthread, readonly ? NULL : (void *)&i));
+		    &idlist[i], NULL, wthread, i % 2 == 0 ? NULL : (void *)&i));
 	testutil_check(pthread_create(&idlist[i], NULL, vthread, NULL));
 	++i;
 
@@ -271,7 +270,7 @@ main(int argc, char *argv[])
 		u_int workers;
 		u_int uris;
 	} runs[] = {
-		{  1,   1},
+		{  2,   1},
 		{  8,   1},
 		{  8,   WT_ELEMENTS(uri_list)},
 		{ 16,   1},
@@ -306,17 +305,23 @@ main(int argc, char *argv[])
 	(void)signal(SIGALRM, on_alarm);
 
 	/*
-	 * This test takes 4 minutes per slot in the runs table, only do the
-	 * first two slots unless specifically requested.
+	 * This test takes 2 minutes per slot in the runs table, only do the
+	 * first 2 and last 2 slots, unless specifically requested.
 	 */
-	n = run_long ? WT_ELEMENTS(runs) : 2;
-	for (i = 0; i < n; ++i) {
+	n = WT_ELEMENTS(runs);
+	for (i = 0; i < 2; ++i) {
 		workers = runs[i].workers;
 		uris = runs[i].uris;
-		run(true, false);
-		run(true, true);
-		run(false, false);
-		run(false, true);
+		run(true);
+		run(false);
+	}
+	if (!run_long)
+		i = n - 2;
+	for (; i < n; ++i) {
+		workers = runs[i].workers;
+		uris = runs[i].uris;
+		run(true);
+		run(false);
 	}
 
 	uri_teardown();
