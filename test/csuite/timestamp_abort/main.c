@@ -64,9 +64,11 @@ static char home[1024];			/* Program working dir */
 #define	MIN_TH		5
 #define	MIN_TIME	10
 #define	PREPARE_FREQ	5
+#define	PREPARE_PCT	10
 #define	PREPARE_YIELD	(PREPARE_FREQ * 10)
 #define	RECORDS_FILE	"records-%" PRIu32
-#define	SESSION_MAX	MAX_TH + 3	/* Include program worker threads */
+/* Include worker threads and prepare extra sessions */
+#define	SESSION_MAX	MAX_TH + 3 + MAX_TH * PREPARE_PCT
 
 static const char * table_pfx = "table";
 static const char * const uri_local = "local";
@@ -259,7 +261,7 @@ thread_run(void *arg)
 	 * are in use. Thread numbers start at 0 so we're always guaranteed
 	 * that at least one thread is using prepared transactions.
 	 */
-	use_prep = (use_ts && td->info % 10 == 0) ? true : false;
+	use_prep = (use_ts && td->info % PREPARE_PCT == 0) ? true : false;
 
 	/*
 	 * For the prepared case we have two sessions so that the oplog session
