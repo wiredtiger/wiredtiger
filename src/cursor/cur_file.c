@@ -603,11 +603,8 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
 	 * handle.
 	 */
 	if (ret == 0) {
-		/* Assert a valid tree (we didn't race with eviction). */
-		WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_BTREE);
 		WT_ASSERT(session,
-		    ((WT_BTREE *)dhandle->handle)->root.page != NULL);
-
+		    dhandle->type == WT_DHANDLE_TYPE_BTREE);
 		cbt->btree = dhandle->handle;
 		cursor->internal_uri = cbt->btree->dhandle->name;
 		cursor->key_format = cbt->btree->key_format;
