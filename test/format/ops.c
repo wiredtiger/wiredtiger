@@ -292,23 +292,25 @@ read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
 	 * isolation checks, we repeat reads that succeeded before, they should
 	 * be repeatable.)
 	 */
-	do {
-		switch (op) {
-		case NEXT:
-		    ret = cursor->next(cursor);
-		    break;
-		case PREV:
-		    ret = cursor->prev(cursor);
-		    break;
-		case SEARCH:
-		    ret = cursor->search(cursor);
-		    break;
-		case SEARCH_NEAR:
-		    ret = cursor->search_near(cursor, exactp);
-		    break;
-		}
-	} while (ret == WT_PREPARE_CONFLICT);
-
+	switch (op) {
+	case NEXT:
+		while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT)
+			__wt_yield();
+		break;
+	case PREV:
+		while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT)
+			__wt_yield();
+		break;
+	case SEARCH:
+		while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT)
+			__wt_yield();
+		break;
+	case SEARCH_NEAR:
+		while ((ret =
+		    cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT)
+			__wt_yield();
+		break;
+	}
 	return (ret);
 }
 
