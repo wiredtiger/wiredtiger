@@ -857,6 +857,8 @@ struct __wt_ref {
 #define	WT_REF_SPLIT	 7		/* Parent page split (WT_REF dead) */
 	volatile uint32_t state;	/* Page state */
 
+#ifdef HAVE_DIAGNOSTIC
+	/* Capture history of ref state changes. */
 	struct {
 		WT_SESSION_IMPL *session;
 		const char *name;
@@ -874,6 +876,9 @@ struct __wt_ref {
 	ref->histoff = (ref->histoff + 1) % (int)WT_ELEMENTS(ref->hist);\
 	WT_PUBLISH(ref->state, s);					\
 } while (0)
+#else
+#define	WT_REF_SETSTATE(ref, s) WT_PUBLISH(ref->state, s)
+#endif
 
 	/*
 	 * Address: on-page cell if read from backing block, off-page WT_ADDR
@@ -901,7 +906,11 @@ struct __wt_ref {
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
  * the compiler hasn't inserted padding which would break the world.
  */
+#ifdef HAVE_DIAGNOSTIC
 #define	WT_REF_SIZE	56 + 3*32 + 8
+#else
+#define	WT_REF_SIZE	56
+#endif
 
 /*
  * WT_ROW --

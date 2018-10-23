@@ -401,7 +401,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * image with updates in the future of the checkpoint.
 	 *
 	 * We also need to instantiate a lookaside page if this is an update
-	 * operation in progress.
+	 * operation in progress or transaction is in prepared state.
 	 */
 	if (F_ISSET(txn, WT_TXN_PREPARE | WT_TXN_UPDATE))
 		return (false);
