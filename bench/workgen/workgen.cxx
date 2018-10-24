@@ -1937,7 +1937,6 @@ int WorkloadRunner::run_all() {
 
     // Clear stats after any warmup period completes.
     for (size_t i = 0; i < _trunners.size(); i++) {
-        pthread_t thandle;
         ThreadRunner *runner = &_trunners[i];
         runner->_stats.clear();
     }
