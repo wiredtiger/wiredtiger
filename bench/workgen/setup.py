@@ -62,7 +62,7 @@ wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
 setup(name='workgen', version=wt_ver,
     ext_modules=[Extension('_workgen',
                 [os.path.join(dir, 'workgen_wrap.cxx')],
-        libraries=['wiredtiger', 'pthread', 'workgen'],
+        libraries=['workgen', 'wiredtiger', 'pthread'],
         extra_compile_args=extra_cflags,
     )],
     package_dir={'' : dir},
