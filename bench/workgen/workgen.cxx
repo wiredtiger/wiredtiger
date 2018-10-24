@@ -807,14 +807,13 @@ int ThreadRunner::op_run(Operation *op) {
 		WT_ERR(ret);
             if (ret == WT_NOTFOUND && notfound_ok)
                 track = &_stats.not_found;
-	    else
-	        ASSERT(ret != WT_NOTFOUND);
 	    if (ret != WT_ROLLBACK)
                 cursor->reset(cursor);
 	    else {
                 retry_op = true;
 		track->rollbacks++;
                 WT_TRET(_session->rollback_transaction(_session, NULL));
+		_in_transaction = false;
 	    }
             ret = 0;  // WT_NOTFOUND and WT_ROLLBACK allowed.
         } else {
@@ -843,7 +842,7 @@ err:
     if (op->_transaction != NULL) {
         if (ret != 0 || op->_transaction->_rollback)
             WT_TRET(_session->rollback_transaction(_session, NULL));
-        else
+        else if (_in_transaction)
             ret = _session->commit_transaction(_session,
               op->_transaction->_commit_config.c_str());
         _in_transaction = false;
