@@ -1186,7 +1186,7 @@ __slvg_col_build_internal(
 		addr = NULL;
 
 		ref->ref_recno = trk->col_start;
-		WT_REF_SETSTATE(ref, WT_REF_DISK);
+		WT_REF_SET_STATE(ref, WT_REF_DISK);
 
 		/*
 		 * If the page's key range is unmodified from when we read it
@@ -1844,7 +1844,7 @@ __slvg_row_build_internal(
 		addr = NULL;
 
 		__wt_ref_key_clear(ref);
-		WT_REF_SETSTATE(ref, WT_REF_DISK);
+		WT_REF_SET_STATE(ref, WT_REF_DISK);
 
 		/*
 		 * If the page's key range is unmodified from when we read it

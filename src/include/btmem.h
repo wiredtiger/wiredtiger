@@ -867,7 +867,7 @@ struct __wt_ref {
 		uint32_t state;
 	} hist[3];
 	int histoff;
-#define	WT_REF_SETSTATE(ref, s) do {					\
+#define	WT_REF_SET_STATE(ref, s) do {					\
 	ref->hist[ref->histoff].session = session;			\
 	ref->hist[ref->histoff].name = session->name;			\
 	ref->hist[ref->histoff].file = __FILE__;			\
@@ -877,7 +877,7 @@ struct __wt_ref {
 	WT_PUBLISH(ref->state, s);					\
 } while (0)
 #else
-#define	WT_REF_SETSTATE(ref, s) WT_PUBLISH(ref->state, s)
+#define	WT_REF_SET_STATE(ref, s) WT_PUBLISH(ref->state, s)
 #endif
 
 	/*

@@ -465,7 +465,7 @@ __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 	skip = __wt_las_page_skip_locked(session, ref);
 
 	/* Restore the state and push the change. */
-	WT_REF_SETSTATE(ref, previous_state);
+	WT_REF_SET_STATE(ref, previous_state);
 	WT_FULL_BARRIER();
 
 	return (skip);
@@ -834,14 +834,13 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint64_t pageid)
 			WT_RET(cursor->next(cursor));
 
 		/*
-		 * Because of the special visibility rules for
-		 * lookaside, a new block can appear in between our
-		 * search and the block of interest.  Keep trying while
-		 * we have a key lower than we expect.
+		 * Because of the special visibility rules for lookaside, a new
+		 * block can appear in between our search and the block of
+		 * interest. Keep trying while we have a key lower than we
+		 * expect.
 		 *
-		 * There may be no block of lookaside entries if they
-		 * have been removed by
-		 * WT_CONNECTION::rollback_to_stable.
+		 * There may be no block of lookaside entries if they have been
+		 * removed by WT_CONNECTION::rollback_to_stable.
 		 */
 		WT_RET(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));

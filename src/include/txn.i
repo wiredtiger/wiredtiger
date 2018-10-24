@@ -550,7 +550,7 @@ __wt_txn_op_commit_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Publish to ensure we don't let the page be evicted and the updates
 	 * discarded before being written.
 	 */
-	WT_REF_SETSTATE(ref, previous_state);
+	WT_REF_SET_STATE(ref, previous_state);
 }
 
 /*
