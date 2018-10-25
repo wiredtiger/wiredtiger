@@ -563,7 +563,13 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			/*
 			 * If the update, which returned prepared conflict is
 			 * visible, return the value.
+			 *
+			 * The underlying key-return function uses a comparison
+			 * of 0 to indicate the search function has pre-built
+			 * the key we want to return. That's not the case here,
+			 * make sure we don't take that path.
 			 */
+			cbt->compare = 1;
 			return (__cursor_kv_return(session, cbt, upd));
 		}
 	}
