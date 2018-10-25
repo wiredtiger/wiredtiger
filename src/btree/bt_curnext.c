@@ -603,7 +603,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 */
 	F_CLR(cbt, WT_CBT_RETRY_PREV);
 	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
-		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
+		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
 		F_CLR(cbt, WT_CBT_RETRY_NEXT);
 		if (valid) {
 			/*
@@ -616,11 +616,15 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 			 * make sure we don't take that path.
 			 */
 			cbt->compare = 1;
-			return (__cursor_kv_return(session, cbt, upd));
+			WT_ERR(__cursor_kv_return(session, cbt, upd));
+#ifdef HAVE_DIAGNOSTIC
+			WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
+#endif
+			return (0);
 		}
 	}
 
-	WT_RET(__cursor_func_init(cbt, false));
+	WT_ERR(__cursor_func_init(cbt, false));
 
 	/*
 	 * If we aren't already iterating in the right direction, there's
@@ -702,13 +706,13 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
 	}
-#ifdef HAVE_DIAGNOSTIC
-	if (ret == 0)
-		WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
-#endif
+
 err:	switch (ret) {
 	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+#ifdef HAVE_DIAGNOSTIC
+		ret = __wt_cursor_key_order_check(session, cbt, true);
+#endif
 		break;
 	case WT_PREPARE_CONFLICT:
 		/*
