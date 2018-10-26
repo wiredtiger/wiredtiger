@@ -357,6 +357,7 @@ int Monitor::run() {
                 int _i;                                                    \
                 (f) << "\"" << (name) << "\":{" << extra                   \
                     << "\"ops per sec\":" << ((t).ops / interval_secs)     \
+                    << ",\"rollbacks\":" << ((t).rollbacks)                \
                     << ",\"average latency\":" << (t).average_latency()    \
                     << ",\"min latency\":" << (t).min_latency              \
                     << ",\"max latency\":" << (t).max_latency;             \
@@ -774,53 +775,56 @@ int ThreadRunner::op_run(Operation *op) {
     }
     // Retry on rollback until success.
     while (retry_op) {
-	if (op->_transaction != NULL) {
+        if (op->_transaction != NULL) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
             _session->begin_transaction(_session,
               op->_transaction->_begin_config.c_str());
             _in_transaction = true;
-	}
-	if (op->is_table_op()) {
-	    bool notfound_ok = false;
+        }
+        if (op->is_table_op()) {
             switch (op->_optype) {
             case Operation::OP_INSERT:
                 ret = cursor->insert(cursor);
                 break;
             case Operation::OP_REMOVE:
-		notfound_ok = true;
                 ret = cursor->remove(cursor);
+                if (ret == WT_NOTFOUND)
+                    ret = 0;
                 break;
             case Operation::OP_SEARCH:
                 ret = cursor->search(cursor);
+                if (ret == WT_NOTFOUND) {
+                    ret = 0;
+                    track = &_stats.not_found;
+		}
                 break;
             case Operation::OP_UPDATE:
-		notfound_ok = true;
                 ret = cursor->update(cursor);
+                if (ret == WT_NOTFOUND)
+                    ret = 0;
                 break;
             default:
                 ASSERT(false);
             }
-	    // Assume success and no retry unless ROLLBACK.
+            // Assume success and no retry unless ROLLBACK.
             retry_op = false;
-            if (ret != 0 && ret != WT_ROLLBACK && ret != WT_NOTFOUND)
-		WT_ERR(ret);
-            if (ret == WT_NOTFOUND && notfound_ok)
-                track = &_stats.not_found;
-	    if (ret != WT_ROLLBACK)
+            if (ret != 0 && ret != WT_ROLLBACK)
+                WT_ERR(ret);
+            if (ret == 0)
                 cursor->reset(cursor);
-	    else {
+            else {
                 retry_op = true;
-		track->rollbacks++;
+                track->rollbacks++;
                 WT_TRET(_session->rollback_transaction(_session, NULL));
-		_in_transaction = false;
-	    }
-            ret = 0;  // WT_NOTFOUND and WT_ROLLBACK allowed.
+                _in_transaction = false;
+                ret = 0;
+            }
         } else {
-	    // Never retry on an internal op.
-	    retry_op = false;
+            // Never retry on an internal op.
+            retry_op = false;
             WT_ERR(op->_internal->run(this, _session));
-	}
+        }
     }
 
     if (measure_latency) {
