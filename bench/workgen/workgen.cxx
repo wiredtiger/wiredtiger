@@ -1301,14 +1301,15 @@ void TableOperationInternal::parse_config(const std::string &config)
     }
 }
 
-Track::Track(bool latency_tracking) : ops_in_progress(0), ops(0),
+Track::Track(bool latency_tracking) : ops_in_progress(0), ops(0), rollbacks(0),
     latency_ops(0), latency(0), bucket_ops(0), min_latency(0), max_latency(0),
     us(NULL), ms(NULL), sec(NULL) {
     track_latency(latency_tracking);
 }
 
 Track::Track(const Track &other) : ops_in_progress(other.ops_in_progress),
-    ops(other.ops), latency_ops(other.latency_ops), latency(other.latency),
+    ops(other.ops), rollbacks(other.rollbacks),
+    latency_ops(other.latency_ops), latency(other.latency),
     bucket_ops(other.bucket_ops), min_latency(other.min_latency),
     max_latency(other.max_latency), us(NULL), ms(NULL), sec(NULL) {
     if (other.us != NULL) {
