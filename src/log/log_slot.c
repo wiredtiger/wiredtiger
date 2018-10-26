@@ -277,7 +277,8 @@ __log_slot_new(WT_SESSION_IMPL *session)
 		__wt_yield();
 		__wt_spin_lock(session, &log->log_slot_lock);
 #ifdef	HAVE_DIAGNOSTIC
-		if (++count > WT_MILLION) {
+		++count;
+		if (count > WT_MILLION) {
 			time_stop = __wt_clock(session);
 			if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
 				__wt_errx(session,
