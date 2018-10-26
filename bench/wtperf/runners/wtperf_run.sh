@@ -20,11 +20,10 @@ wttest=$1
 shift # Consume this arg
 runmax=$1
 shift # Consume this arg
-# Jenkins removes the quotes from the passed in arg so we may
-# have 3 or 4 args.
+# Jenkins removes the quotes from the passed in arg so deal with an arbitrary
+# number of arguments
 wtarg=""
 create=1
-#if test "$#" -gt "2"; then
 while [[ $# -gt 0 ]] ; do
 	if test "$1" == "NOCREATE"; then
 		create=0
