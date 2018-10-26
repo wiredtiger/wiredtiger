@@ -352,16 +352,14 @@ __wt_txn_resolve_prepared_op(
 	 * eviction free those updates before subsequent ops are processed,
 	 * which means a search could reasonably not find an update in that
 	 * case.
-	 */
-	WT_ASSERT(session, upd != NULL || txn->multi_update_count != 0);
-
-	/*
 	 * We track the update count only for commit, but not for rollback, as
 	 * our tracking is based on transaction id, and in case of rollback, we
 	 * set it to aborted.
 	 */
-	if (upd == NULL && commit)
+	if (upd == NULL && commit) {
+		WT_ASSERT(session, txn->multi_update_count > 0);
 		--txn->multi_update_count;
+	}
 #endif
 
 	WT_STAT_CONN_INCR(session, txn_prepared_updates_resolved);
@@ -552,7 +550,7 @@ __wt_txn_op_commit_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Publish to ensure we don't let the page be evicted and the updates
 	 * discarded before being written.
 	 */
-	WT_PUBLISH(ref->state, previous_state);
+	WT_REF_SET_STATE(ref, previous_state);
 }
 
 /*
@@ -1341,7 +1339,7 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	txn_global = &conn->txn_global;
 
-	if (txn->id == WT_TXN_NONE)
+	if (txn->id == WT_TXN_NONE || F_ISSET(txn, WT_TXN_PREPARE))
 		return (false);
 
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
