@@ -215,31 +215,32 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
 	int32_t i, pool_i;
-	int wait_count;
 #ifdef	HAVE_DIAGNOSTIC
 	uint64_t time_start, time_stop;
+	int count;
 #endif
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
 	conn = S2C(session);
 	log = conn->log;
-	/*
-	 * Although this function is single threaded, multiple threads could
-	 * be trying to set a new active slot sequentially.  If we find an
-	 * active slot that is valid, return.
-	 */
 #ifdef	HAVE_DIAGNOSTIC
+	count = 0;
 	time_start = __wt_clock(session);
 #endif
-retry:	if ((slot = log->active_slot) != NULL &&
-	    WT_LOG_SLOT_OPEN(slot->slot_state))
-		return (0);
-
-	wait_count = 0;
 	/*
 	 * Keep trying until we can find a free slot.
 	 */
 	for (;;) {
+		/*
+		 * Although this function is single threaded, multiple threads
+		 * could be trying to set a new active slot sequentially.  If
+		 * we find an active slot that is valid, return. This check is
+		 * inside the loop because this function may release the lock
+		 * and needs to check again after acquiring it again.
+		 */
+		if ((slot = log->active_slot) != NULL &&
+		    WT_LOG_SLOT_OPEN(slot->slot_state))
+			return (0);
 		/*
 		 * Rotate among the slots to lessen collisions.
 		 */
@@ -272,17 +273,11 @@ retry:	if ((slot = log->active_slot) != NULL &&
 		 */
 		WT_STAT_CONN_INCR(session, log_slot_no_free_slots);
 		__wt_cond_signal(session, conn->log_wrlsn_cond);
-		++wait_count;
-		if (wait_count < WT_THOUSAND)
-			__wt_yield();
-		else {
-			__wt_spin_unlock(session, &log->log_slot_lock);
-			__wt_sleep(0, WT_THOUSAND);
-			__wt_spin_lock(session, &log->log_slot_lock);
-			goto retry;
-		}
+		__wt_spin_unlock(session, &log->log_slot_lock);
+		__wt_yield();
+		__wt_spin_lock(session, &log->log_slot_lock);
 #ifdef	HAVE_DIAGNOSTIC
-		if (wait_count > WT_MILLION) {
+		if (++count > WT_MILLION) {
 			time_stop = __wt_clock(session);
 			if (WT_CLOCKDIFF_SEC(time_stop, time_start) > 10) {
 				__wt_errx(session,
@@ -290,7 +285,7 @@ retry:	if ((slot = log->active_slot) != NULL &&
 				__log_slot_dump(session);
 				__wt_abort(session);
 			}
-			wait_count = 0;
+			count = 0;
 		}
 #endif
 	}
