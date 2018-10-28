@@ -144,11 +144,15 @@ __wt_curbackup_open(WT_SESSION_IMPL *session,
 
 	/*
 	 * Start the backup and fill in the cursor's list.  Acquire the schema
-	 * lock, we need a consistent view when creating a copy.
+	 * lock, we need a consistent view when creating a copy.  Further, if
+	 * backing up individual tables, we have to include indexes, which may
+	 * involve opening those indexes.  Acquire the table lock in write mode
+	 * for that case.
 	 */
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __backup_start(session, cb, cfg)));
+		WT_WITH_TABLE_WRITE_LOCK(session,
+		    ret = __backup_start(session, cb, cfg))));
 	WT_ERR(ret);
 
 	WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));

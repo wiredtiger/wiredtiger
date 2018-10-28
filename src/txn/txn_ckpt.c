@@ -697,7 +697,7 @@ __checkpoint_prepare(
 	 * then release any clean handles.
 	 */
 	WT_ASSERT(session, session->ckpt_handle_next == 0);
-	WT_WITH_TABLE_WRITE_LOCK(session, ret =
+	WT_WITH_TABLE_READ_LOCK(session, ret =
 	    __checkpoint_apply_all(session, cfg, __wt_checkpoint_get_handles));
 	return (ret);
 }
