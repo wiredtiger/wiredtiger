@@ -368,7 +368,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
     uint32_t op, uint32_t flags)
 {
 	WT_CURSOR *cursor;
-	int ret;
+	WT_DECL_RET;
 	const char *retry_opname;
 	char uri1[50], uri2[50];
 
@@ -376,7 +376,6 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 		return (0);
 
 	id -= op;
-	ret = 0;
 	retry_opname = NULL;
 
 	switch (op) {
@@ -469,13 +468,13 @@ static WT_THREAD_RET
 thread_run(void *arg)
 {
 	WT_CURSOR *cursor, *rev;
+	WT_DECL_RET;
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
 	size_t lsize;
 	uint64_t i;
 	uint32_t kvsize, op;
-	int ret;
 	char *buf1, *buf2;
 	char large[LARGE_WRITE_SIZE];
 
@@ -680,7 +679,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
 static void
 check_kv(WT_CURSOR *cursor, const char *key, const char *value, bool exists)
 {
-	int ret;
+	WT_DECL_RET;
 	char *got;
 
 	cursor->set_key(cursor, key);
@@ -709,7 +708,7 @@ static void
 check_dropped(WT_SESSION *session, const char *uri)
 {
 	WT_CURSOR *cursor;
-	int ret;
+	WT_DECL_RET;
 
 	ret = session->open_cursor(session, uri, NULL, NULL, &cursor);
 	testutil_assert(ret == WT_NOTFOUND);
@@ -723,7 +722,7 @@ static void
 check_empty(WT_SESSION *session, const char *uri)
 {
 	WT_CURSOR *cursor;
-	int ret;
+	WT_DECL_RET;
 
 	testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 	ret = cursor->next(cursor);
@@ -740,7 +739,7 @@ check_one_entry(WT_SESSION *session, const char *uri, const char *key,
     const char *value)
 {
 	WT_CURSOR *cursor;
-	int ret;
+	WT_DECL_RET;
 	char *gotkey, *gotvalue;
 
 	testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
@@ -829,11 +828,11 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 {
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor, *meta, *rev;
+	WT_DECL_RET;
 	WT_SESSION *session;
 	uint64_t gotid, id;
 	uint64_t *lastid;
 	uint32_t gotth, kvsize, th, threadmap;
-	int ret;
 	char checkdir[4096], savedir[4096];
 	char *gotkey, *gotvalue, *keybuf, *p;
 	char **large_arr;
@@ -1099,9 +1098,9 @@ main(int argc, char *argv[])
 	size_t size;
 	uint32_t datasize, flags, i, interval, ncycles, nth, timeout;
 	int ch, status;
-	const char *method, *working_dir;
 	char *arg, *p;
 	char args[1024], buf[1024];
+	const char *method, *working_dir;
 	bool populate_only, rand_th, rand_time, verify_only;
 
 	(void)testutil_set_progname(argv);
