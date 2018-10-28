@@ -1054,7 +1054,7 @@ handler(int sig)
 		if (termsig == SIGCONT || termsig == SIGSTOP)
 			return;
 		printf("Child got signal %d (status = %d, 0x%x)\n",
-		    termsig, status, status);
+		    termsig, status, (u_int)status);
 #ifdef WCOREDUMP
 		if (WCOREDUMP(status))
 			printf(
@@ -1068,7 +1068,7 @@ handler(int sig)
 	 */
 	testutil_die(EINVAL,
 	    "Child process %" PRIuMAX " abnormally exited, status=%d (0x%x)",
-	    (uintmax_t)pid, status, status);
+	    (uintmax_t)pid, status, (u_int)status);
 }
 
 /*
