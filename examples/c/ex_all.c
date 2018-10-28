@@ -332,6 +332,9 @@ cursor_ops(WT_SESSION *session)
 	}
 
 	{
+	/* Modify requires an explicit transaction. */
+	error_check(session->begin_transaction(session, NULL));
+
 	/*! [Modify an existing record] */
 	WT_MODIFY entries[3];
 	const char *key = "some key";
@@ -360,6 +363,8 @@ cursor_ops(WT_SESSION *session)
 
 	error_check(cursor->modify(cursor, entries, 3));
 	/*! [Modify an existing record] */
+
+	error_check(session->commit_transaction(session, NULL));
 	}
 
 	{
