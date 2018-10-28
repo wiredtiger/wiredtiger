@@ -242,7 +242,7 @@ test_bulk_unique(THREAD_DATA *td, int force)
 	/* Generate a unique object name. */
 	my_uid = __wt_atomic_addv64(&uid, 1);
 	testutil_check(__wt_snprintf(
-	    new_uri, sizeof(new_uri), "%s.%u", uri, my_uid));
+	    new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, my_uid));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
@@ -345,7 +345,7 @@ test_create_unique(THREAD_DATA *td, int force)
 	/* Generate a unique object name. */
 	my_uid = __wt_atomic_addv64(&uid, 1);
 	testutil_check(__wt_snprintf(
-	    new_uri, sizeof(new_uri), "%s.%u", uri, my_uid));
+	    new_uri, sizeof(new_uri), "%s.%" PRIu64, uri, my_uid));
 
 	if (use_txn)
 		testutil_check(session->begin_transaction(session, NULL));
