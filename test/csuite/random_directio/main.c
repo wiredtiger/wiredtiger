@@ -508,8 +508,9 @@ thread_run(void *arg)
 again:
 		/*
 		if (i > 0 && i % 10000 == 0)
-			printf("Thread %d completed %d entries\n",
-			    (int)td->id, (int)i);
+			printf("Thread %" PRIu32
+			    " completed %" PRIu64 " entries\n",
+			    td->id, i);
 		*/
 
 		gen_kv(buf1, kvsize, i, td->id, large, true);
@@ -768,8 +769,9 @@ check_schema(WT_SESSION *session, uint64_t lastid, uint32_t threadid,
 		return;
 
 	if (LF_ISSET(SCHEMA_VERBOSE))
-		fprintf(stderr, "check_schema(%d, thread=%d)\n",
-	    (int)lastid, (int)threadid);
+		fprintf(stderr,
+		    "check_schema(%" PRIu64 ", thread=%" PRIu32 ")\n",
+		    lastid, threadid);
 	if (has_schema_operation(lastid, 0)) {
 		/* Create table operation. */
 		gen_table_name(uri, sizeof(uri), lastid, threadid);
@@ -1053,10 +1055,12 @@ handler(int sig)
 		if (termsig == SIGCONT || termsig == SIGSTOP)
 			return;
 		printf("Child got signal %d (status = %d, 0x%x)\n",
-		    termsig, status, (unsigned int)status);
+		    termsig, status, status);
 #ifdef WCOREDUMP
 		if (WCOREDUMP(status))
-			printf("Child process id=%d created core file\n", pid);
+			printf(
+			    "Child process id=%" PRIuMAX " created core file\n",
+			    (uintmax_t)pid);
 #endif
 	}
 
@@ -1064,8 +1068,8 @@ handler(int sig)
 	 * The core file will indicate why the child exited. Choose EINVAL here.
 	 */
 	testutil_die(EINVAL,
-	    "Child process %" PRIu64 " abnormally exited, status=%d (0x%x)",
-	    (uint64_t)pid, status, status);
+	    "Child process %" PRIuMAX " abnormally exited, status=%d (0x%x)",
+	    (uintmax_t)pid, status, status);
 }
 
 /*
