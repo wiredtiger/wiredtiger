@@ -70,7 +70,6 @@
 #include "test_util.h"
 #include "util.h"
 
-#include <fcntl.h>
 #include <signal.h>
 #include <sys/wait.h>
 
