@@ -330,7 +330,7 @@ gen_kv(char *buf, size_t buf_size, uint64_t id, uint32_t threadid,
 	if (!forward)
 		reverse(keyid);
 	testutil_assert(keyid_size + 4 <= buf_size);
-	large_size = buf_size - 4 - keyid_size;
+	large_size = (buf_size - 4) - keyid_size;
 	testutil_check(__wt_snprintf(buf, buf_size,
 	    "%s" KEY_SEP "%1.1x" KEY_SEP "%.*s",
 	    keyid, threadid, (int)large_size, large));
