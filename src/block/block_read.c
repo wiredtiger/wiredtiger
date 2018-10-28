@@ -94,8 +94,8 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
 	 * In diagnostic mode, verify the block we're about to read isn't on
 	 * the available list, or for live systems, the discard list.
 	 */
-	WT_RET(__wt_block_misplaced(
-	    session, block, "read", offset, size, bm->is_live));
+	WT_RET(__wt_block_misplaced(session,
+	    block, "read", offset, size, bm->is_live, __func__, __LINE__));
 #endif
 	/* Read the block. */
 	WT_RET(
