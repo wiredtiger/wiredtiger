@@ -919,9 +919,9 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 		if (isdigit(*p))
 			gotth = (uint32_t)(*p - '0');
 		else if (*p >= 'a' && *p <= 'f')
-			gotth = (uint32_t)(*p - 'a' + 10);
+			gotth = (uint32_t)((*p - 'a') + 10);
 		else
-			gotth = (uint32_t)(*p - 'A' + 10);
+			gotth = (uint32_t)((*p - 'A') + 10);
 		p++;
 		testutil_assert(*p == KEY_SEP[0]);
 		p++;
