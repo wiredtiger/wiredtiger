@@ -1113,7 +1113,7 @@ main(int argc, char *argv[])
 	working_dir = "WT_TEST.random-directio";
 	method = "none";
 	pid = 0;
-	WT_CLEAR(args);
+	memset(args, 0, sizeof(args));
 
 	if (!has_direct_io()) {
 		fprintf(stderr, "**** test_random_directio: this system does "
@@ -1122,8 +1122,7 @@ main(int argc, char *argv[])
 	}
 	for (i = 0, p = args; i < (uint32_t)argc; i++) {
 		testutil_check(__wt_snprintf_len_set(p,
-		    sizeof(args) - (size_t)(p - args), &size, " %s",
-		    argv[i]));
+		    sizeof(args) - (size_t)(p - args), &size, " %s", argv[i]));
 		p += size;
 	}
 	while ((ch = __wt_getopt(progname, argc, argv,
