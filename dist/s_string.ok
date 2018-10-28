@@ -24,6 +24,7 @@ Async
 AsyncOp
 Athanassoulis
 Athlon
+Axxx
 BBBBB
 BBBBBB
 BBBBBBBBBB
@@ -46,6 +47,7 @@ Brueckner
 Bsearch
 Btree
 Buf
+Bxxx
 Bzip
 CAS
 CCCCCCCCCCCCCCCCCC
@@ -263,6 +265,7 @@ NEEDVALUE
 NOLL
 NOLOCK
 NONINFRINGEMENT
+NOOP
 NOTFOUND
 NOTREACHED
 NOVALUE
@@ -500,6 +503,7 @@ bool
 boolean
 br
 breakpoint
+bs
 bswap
 bt
 btcur
@@ -658,6 +662,7 @@ dhandle
 dhandles
 difftime
 dir
+directio
 dirlist
 disjunction
 disjunctions
@@ -814,6 +819,7 @@ idlems
 idx
 ifdef
 ifdef's
+iflag
 iiSii
 iiiS
 iiii
@@ -1044,6 +1050,7 @@ other's
 ovfl
 ownp
 pR
+pS
 packv
 pagesize
 parens
@@ -1151,6 +1158,7 @@ rwlock
 sH
 sHQ
 sT
+sanitizers
 scalability
 sched
 scr

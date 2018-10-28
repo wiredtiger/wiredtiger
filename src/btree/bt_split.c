@@ -186,19 +186,8 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 
 	cell = WT_PAGE_REF_OFFSET(page, cell_offset);
 	__wt_cell_unpack(cell, &kpack);
-	if (kpack.ovfl && kpack.raw != WT_CELL_KEY_OVFL_RM) {
-		/*
-		 * Eviction cannot free overflow items once a checkpoint is
-		 * running in a tree: that can corrupt the checkpoint's block
-		 * management.  Assert that checkpoints aren't running to make
-		 * sure we're catching all paths and to avoid regressions.
-		 */
-		WT_ASSERT(session,
-		    S2BT(session)->checkpointing != WT_CKPT_RUNNING ||
-		    WT_SESSION_IS_CHECKPOINT(session));
-
+	if (kpack.ovfl && kpack.raw != WT_CELL_KEY_OVFL_RM)
 		WT_RET(__wt_ovfl_discard(session, cell));
-	}
 
 	return (0);
 }
@@ -506,7 +495,7 @@ __split_root(WT_SESSION_IMPL *session, WT_PAGE *root)
 			root_incr += sizeof(WT_IKEY) + size;
 		} else
 			ref->ref_recno = (*root_refp)->ref_recno;
-		ref->state = WT_REF_MEM;
+		WT_REF_SET_STATE(ref, WT_REF_MEM);
 
 		/*
 		 * Initialize the child page.
@@ -636,6 +625,7 @@ static int
 __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
     uint32_t new_entries, size_t parent_incr, bool exclusive, bool discard)
 {
+	WT_BTREE *btree;
 	WT_DECL_ITEM(scr);
 	WT_DECL_RET;
 	WT_IKEY *ikey;
@@ -650,6 +640,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	uint32_t hint, i, j;
 	bool empty_parent;
 
+	btree = S2BT(session);
 	parent = ref->home;
 
 	alloc_index = pindex = NULL;
@@ -669,17 +660,23 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 	parent_entries = pindex->entries;
 
 	/*
-	 * Remove any refs to deleted pages while we are splitting, we have
-	 * the internal page locked down, and are copying the refs into a new
-	 * array anyway.  Switch them to the special split state, so that any
-	 * reading thread will restart.
+	 * Remove any refs to deleted pages while we are splitting, we have the
+	 * internal page locked down, and are copying the refs into a new array
+	 * anyway.  Switch them to the special split state, so that any reading
+	 * thread will restart.
+	 *
+	 * We can't do this if there is a sync running in the tree in another
+	 * session: removing the refs frees the blocks for the deleted pages,
+	 * which can corrupt the free list calculated by the sync.
 	 */
 	WT_ERR(__wt_scr_alloc(session, 10 * sizeof(uint32_t), &scr));
 	for (deleted_entries = 0, i = 0; i < parent_entries; ++i) {
 		next_ref = pindex->index[i];
 		WT_ASSERT(session, next_ref->state != WT_REF_SPLIT);
 		if ((discard && next_ref == ref) ||
-		    (next_ref->state == WT_REF_DELETED &&
+		    ((!WT_BTREE_SYNCING(btree) ||
+		    WT_SESSION_BTREE_SYNC(session)) &&
+		    next_ref->state == WT_REF_DELETED &&
 		    __wt_delete_page_skip(session, next_ref, true) &&
 		    __wt_atomic_casv32(
 		    &next_ref->state, WT_REF_DELETED, WT_REF_SPLIT))) {
@@ -787,7 +784,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		 * Set the discarded WT_REF state to split, ensuring we don't
 		 * race with any discard of the WT_REF deleted fields.
 		 */
-		WT_PUBLISH(ref->state, WT_REF_SPLIT);
+		WT_REF_SET_STATE(ref, WT_REF_SPLIT);
 
 		/*
 		 * Push out the change: not required for correctness, but stops
@@ -906,7 +903,7 @@ err:	__wt_scr_free(session, &scr);
 		for (i = 0; i < parent_entries; ++i) {
 			next_ref = pindex->index[i];
 			if (next_ref->state == WT_REF_SPLIT)
-				next_ref->state = WT_REF_DELETED;
+				WT_REF_SET_STATE(next_ref, WT_REF_DELETED);
 		}
 
 		__wt_free_ref_index(session, NULL, alloc_index, false);
@@ -1063,7 +1060,7 @@ __split_internal(WT_SESSION_IMPL *session, WT_PAGE *parent, WT_PAGE *page)
 			parent_incr += sizeof(WT_IKEY) + size;
 		} else
 			ref->ref_recno = (*page_refp)->ref_recno;
-		ref->state = WT_REF_MEM;
+		WT_REF_SET_STATE(ref, WT_REF_MEM);
 
 		/*
 		 * Initialize the child page.
@@ -1678,7 +1675,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		WT_RET(__wt_memdup(session,
 		    multi->addr.addr, addr->size, &addr->addr));
 
-		ref->state = WT_REF_DISK;
+		WT_REF_SET_STATE(ref, WT_REF_DISK);
 	}
 
 	/*
@@ -1696,7 +1693,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 		WT_RET(__wt_calloc_one(session, &ref->page_las));
 		*ref->page_las = multi->page_las;
 		WT_ASSERT(session, ref->page_las->max_txn != WT_TXN_NONE);
-		ref->state = WT_REF_LOOKASIDE;
+		WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
 	}
 
 	/*
@@ -1707,7 +1704,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	 */
 	if (multi->disk_image != NULL && !closing) {
 		WT_RET(__split_multi_inmem(session, page, multi, ref));
-		ref->state = WT_REF_MEM;
+		WT_REF_SET_STATE(ref, WT_REF_MEM);
 	}
 	__wt_free(session, multi->disk_image);
 
@@ -2306,7 +2303,7 @@ __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi)
 	/* Swap the new page into place. */
 	ref->page = new->page;
 
-	WT_PUBLISH(ref->state, WT_REF_MEM);
+	WT_REF_SET_STATE(ref, WT_REF_MEM);
 
 	__wt_free(session, new);
 	return (0);

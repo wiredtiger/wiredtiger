@@ -354,6 +354,8 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
+	int64_t cache_lookaside_cursor_wait_application;
+	int64_t cache_lookaside_cursor_wait_internal;
 	int64_t cache_lookaside_score;
 	int64_t cache_lookaside_entries;
 	int64_t cache_lookaside_insert;
@@ -622,6 +624,9 @@ struct __wt_connection_stats {
 	int64_t page_sleep;
 	int64_t page_del_rollback_blocked;
 	int64_t child_modify_blocked_page;
+	int64_t txn_prepared_updates_count;
+	int64_t txn_prepared_updates_lookaside_inserts;
+	int64_t txn_prepared_updates_resolved;
 	int64_t txn_commit_queue_walked;
 	int64_t txn_commit_queue_empty;
 	int64_t txn_commit_queue_head;

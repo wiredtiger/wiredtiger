@@ -310,7 +310,16 @@ __wt_las_cursor(
 			 *
 			 * XXX better as a condition variable.
 			 */
-			__wt_sleep(0, 1000);
+			__wt_sleep(0, WT_THOUSAND);
+			if (F_ISSET(session, WT_SESSION_INTERNAL))
+				WT_STAT_CONN_INCRV(session,
+				    cache_lookaside_cursor_wait_internal,
+				    WT_THOUSAND);
+			else
+				WT_STAT_CONN_INCRV(session,
+				    cache_lookaside_cursor_wait_application,
+				    WT_THOUSAND);
+
 		}
 	}
 
@@ -392,9 +401,9 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * image with updates in the future of the checkpoint.
 	 *
 	 * We also need to instantiate a lookaside page if this is an update
-	 * operation in progress.
+	 * operation in progress or transaction is in prepared state.
 	 */
-	if (F_ISSET(txn, WT_TXN_UPDATE))
+	if (F_ISSET(txn, WT_TXN_PREPARE | WT_TXN_UPDATE))
 		return (false);
 
 	if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
@@ -456,7 +465,7 @@ __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 	skip = __wt_las_page_skip_locked(session, ref);
 
 	/* Restore the state and push the change. */
-	ref->state = previous_state;
+	WT_REF_SET_STATE(ref, previous_state);
 	WT_FULL_BARRIER();
 
 	return (skip);
@@ -613,7 +622,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
-	uint64_t insert_cnt;
+	uint64_t insert_cnt, prepared_insert_cnt;
 	uint64_t las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
@@ -623,7 +632,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	conn = S2C(session);
 	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
-	insert_cnt = 0;
+	insert_cnt = prepared_insert_cnt = 0;
 	btree_id = btree->id;
 	local_txn = false;
 
@@ -754,6 +763,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			 */
 			WT_ERR(cursor->update(cursor));
 			++insert_cnt;
+			if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+				++prepared_insert_cnt;
 		} while ((upd = upd->next) != NULL);
 	}
 
@@ -765,15 +776,20 @@ err:	/* Resolve the transaction. */
 			WT_TRET(__wt_txn_rollback(session, NULL));
 
 		/* Adjust the entry count. */
-		if (ret == 0)
+		if (ret == 0) {
 			(void)__wt_atomic_add64(
 			    &conn->cache->las_insert_count, insert_cnt);
+			WT_STAT_CONN_INCRV(session,
+			    txn_prepared_updates_lookaside_inserts,
+			    prepared_insert_cnt);
+		}
 	}
 
 	__las_restore_isolation(session, saved_isolation);
 
 	if (ret == 0 && insert_cnt > 0) {
 		multi->page_las.las_pageid = las_pageid;
+		multi->page_las.has_prepares = prepared_insert_cnt > 0;
 		ret = __las_insert_block_verbose(session, btree, multi);
 	}
 
@@ -814,26 +830,22 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint64_t pageid)
 		cursor->set_key(cursor,
 		    pageid, (uint32_t)0, (uint64_t)0, &las_key);
 		WT_RET(cursor->search_near(cursor, &exact));
-		if (exact < 0) {
+		if (exact < 0)
 			WT_RET(cursor->next(cursor));
 
-			/*
-			 * Because of the special visibility rules for
-			 * lookaside, a new block can appear in between our
-			 * search and the block of interest.  Keep trying while
-			 * we have a key lower than we expect.
-			 *
-			 * There may be no block of lookaside entries if they
-			 * have been removed by
-			 * WT_CONNECTION::rollback_to_stable.
-			 */
-			WT_RET(cursor->get_key(cursor,
-			    &las_pageid, &las_id, &las_counter, &las_key));
-			if (las_pageid < pageid)
-				continue;
-		}
-
-		return (0);
+		/*
+		 * Because of the special visibility rules for lookaside, a new
+		 * block can appear in between our search and the block of
+		 * interest. Keep trying while we have a key lower than we
+		 * expect.
+		 *
+		 * There may be no block of lookaside entries if they have been
+		 * removed by WT_CONNECTION::rollback_to_stable.
+		 */
+		WT_RET(cursor->get_key(cursor,
+		    &las_pageid, &las_id, &las_counter, &las_key));
+		if (las_pageid >= pageid)
+			return (0);
 	}
 
 	/* NOTREACHED */
@@ -844,8 +856,7 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint64_t pageid)
  *	Remove all records for a given page from the lookaside table.
  */
 int
-__wt_las_remove_block(
-    WT_SESSION_IMPL *session, uint64_t pageid, bool lock_wait)
+__wt_las_remove_block(WT_SESSION_IMPL *session, uint64_t pageid)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
@@ -863,8 +874,7 @@ __wt_las_remove_block(
 	 */
 	__wt_las_cursor(session, &cursor, &session_flags);
 
-	if ((ret = __las_remove_block(
-	    cursor, pageid, lock_wait, &remove_cnt)) == 0)
+	if ((ret = __las_remove_block(cursor, pageid, true, &remove_cnt)) == 0)
 		(void)__wt_atomic_add64(
 		    &conn->cache->las_remove_count, remove_cnt);
 

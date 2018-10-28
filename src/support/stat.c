@@ -788,6 +788,8 @@ static const char * const __stats_connection_desc[] = {
 	"cache: bytes not belonging to page images in the cache",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
+	"cache: cache overflow cursor application thread wait time (usecs)",
+	"cache: cache overflow cursor internal thread wait time (usecs)",
 	"cache: cache overflow score",
 	"cache: cache overflow table entries",
 	"cache: cache overflow table insert calls",
@@ -1056,6 +1058,9 @@ static const char * const __stats_connection_desc[] = {
 	"thread-yield: page acquire time sleeping (usecs)",
 	"thread-yield: page delete rollback time sleeping for state change (usecs)",
 	"thread-yield: page reconciliation yielded due to child modification",
+	"transaction: Number of prepared updates",
+	"transaction: Number of prepared updates added to cache overflow",
+	"transaction: Number of prepared updates resolved",
 	"transaction: commit timestamp queue entries walked",
 	"transaction: commit timestamp queue insert to empty",
 	"transaction: commit timestamp queue inserts to head",
@@ -1190,6 +1195,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_other */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
+	stats->cache_lookaside_cursor_wait_application = 0;
+	stats->cache_lookaside_cursor_wait_internal = 0;
 		/* not clearing cache_lookaside_score */
 		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
@@ -1458,6 +1465,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->page_sleep = 0;
 	stats->page_del_rollback_blocked = 0;
 	stats->child_modify_blocked_page = 0;
+	stats->txn_prepared_updates_count = 0;
+	stats->txn_prepared_updates_lookaside_inserts = 0;
+	stats->txn_prepared_updates_resolved = 0;
 	stats->txn_commit_queue_walked = 0;
 	stats->txn_commit_queue_empty = 0;
 	stats->txn_commit_queue_head = 0;
@@ -1575,6 +1585,10 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
+	to->cache_lookaside_cursor_wait_application +=
+	    WT_STAT_READ(from, cache_lookaside_cursor_wait_application);
+	to->cache_lookaside_cursor_wait_internal +=
+	    WT_STAT_READ(from, cache_lookaside_cursor_wait_internal);
 	to->cache_lookaside_score +=
 	    WT_STAT_READ(from, cache_lookaside_score);
 	to->cache_lookaside_entries +=
@@ -1991,6 +2005,12 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, page_del_rollback_blocked);
 	to->child_modify_blocked_page +=
 	    WT_STAT_READ(from, child_modify_blocked_page);
+	to->txn_prepared_updates_count +=
+	    WT_STAT_READ(from, txn_prepared_updates_count);
+	to->txn_prepared_updates_lookaside_inserts +=
+	    WT_STAT_READ(from, txn_prepared_updates_lookaside_inserts);
+	to->txn_prepared_updates_resolved +=
+	    WT_STAT_READ(from, txn_prepared_updates_resolved);
 	to->txn_commit_queue_walked +=
 	    WT_STAT_READ(from, txn_commit_queue_walked);
 	to->txn_commit_queue_empty +=

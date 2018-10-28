@@ -1257,7 +1257,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		queue->evict_current = NULL;
 
 	entries = queue->evict_entries;
-	qsort(queue->evict_queue,
+	__wt_qsort(queue->evict_queue,
 	    entries, sizeof(WT_EVICT_ENTRY), __evict_lru_cmp);
 
 	/* Trim empty entries from the end. */
@@ -1442,7 +1442,7 @@ retry:	while (slot < max_entries) {
 		 * Skip files that are checkpointing if we are only looking for
 		 * dirty pages.
 		 */
-		if (btree->checkpointing != WT_CKPT_OFF &&
+		if (WT_BTREE_SYNCING(btree) &&
 		    !F_ISSET(cache, WT_CACHE_EVICT_CLEAN))
 			continue;
 
@@ -1910,7 +1910,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 			continue;
 
 		/* Don't queue dirty pages in trees during checkpoints. */
-		if (modified && btree->checkpointing != WT_CKPT_OFF)
+		if (modified && WT_BTREE_SYNCING(btree))
 			continue;
 
 		/*

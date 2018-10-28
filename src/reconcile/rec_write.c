@@ -1352,23 +1352,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			    !__txn_visible_id(session, txnid))
 				uncommitted = r->update_uncommitted = true;
 
-		       /*
-			* TODO:
-			* The following portion of code under #ifdef is there
-			* to temporarily disable lookaside eviction of the
-			* prepared updates. Once we have all the pieces put
-			* together to enable the feature, remove this temporary
-			* code.
-			*/
-#define	DISABLE_LOOKASIDE_FOR_PREPARED
-#ifdef DISABLE_LOOKASIDE_FOR_PREPARED
-		       if (prepared) {
-			       prepared = false;
-			       uncommitted = r->update_uncommitted = true;
-		       }
-#endif
-#undef DISABLE_LOOKASIDE_FOR_PREPARED
-
 		       if (prepared || uncommitted)
 			       continue;
 		}
@@ -1797,7 +1780,7 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			    &ref->state, WT_REF_DELETED, WT_REF_LOCKED))
 				break;
 			ret = __rec_child_deleted(session, r, ref, statep);
-			WT_PUBLISH(ref->state, WT_REF_DELETED);
+			WT_REF_SET_STATE(ref, WT_REF_DELETED);
 			goto done;
 
 		case WT_REF_LOCKED:
@@ -6288,8 +6271,7 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 		if (multi->supd != NULL &&
 		    (las_pageid = multi->page_las.las_pageid) != 0)
-			WT_TRET(
-			    __wt_las_remove_block(session, las_pageid, true));
+			WT_TRET(__wt_las_remove_block(session, las_pageid));
 
 	return (ret);
 }

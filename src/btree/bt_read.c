@@ -281,6 +281,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
 		if (ref->page_las->skew_newest &&
+		    !ref->page_las->has_prepares &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
 		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
 		    WT_TIMESTAMP_NULL(&ref->page_las->unstable_timestamp))) {
@@ -374,8 +375,8 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
  *	page access.
  */
 static inline int
-__page_read_lookaside(WT_SESSION_IMPL *session,
-    WT_REF *ref, uint32_t previous_state, uint32_t *final_statep)
+__page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
+    uint32_t previous_state, uint32_t *final_statep)
 {
 	/*
 	 * Reading a lookaside ref for the first time, and not requiring the
@@ -387,8 +388,8 @@ __page_read_lookaside(WT_SESSION_IMPL *session,
 			WT_STAT_CONN_INCR(
 			    session, cache_read_lookaside_skipped);
 			ref->page_las->eviction_to_lookaside = true;
-			*final_statep = WT_REF_LIMBO;
 		}
+		*final_statep = WT_REF_LIMBO;
 		return (0);
 	}
 
@@ -541,17 +542,23 @@ skip_read:
 	}
 
 	/*
-	 * We no longer need lookaside entries once the page is instantiated.
-	 * There's no reason for the lookaside remove to fail, but ignore it
-	 * if for some reason it fails, we've got a valid page.
+	 * Once the page is instantiated, we no longer need the history in
+	 * lookaside.  We leave the lookaside sweep thread to do most cleanup,
+	 * but it can only remove committed updates and keys that skew newest
+	 * (if there are entries in the lookaside newer than the page, they need
+	 * to be read back into cache or they will be lost).
+	 *
+	 * Prepared updates can not be removed by the lookaside sweep, remove
+	 * them as we read the page back in memory.
 	 *
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
-	if (final_state == WT_REF_MEM && ref->page_las != NULL)
-		WT_IGNORE_RET(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid, false));
+	if (final_state == WT_REF_MEM && ref->page_las != NULL &&
+	    (!ref->page_las->skew_newest || ref->page_las->has_prepares))
+		WT_ERR(__wt_las_remove_block(
+		    session, ref->page_las->las_pageid));
 
-	WT_PUBLISH(ref->state, final_state);
+	WT_REF_SET_STATE(ref, final_state);
 	return (ret);
 
 err:	/*
@@ -561,7 +568,7 @@ err:	/*
 	 */
 	if (ref->page != NULL && previous_state != WT_REF_LIMBO)
 		__wt_ref_out(session, ref);
-	WT_PUBLISH(ref->state, previous_state);
+	WT_REF_SET_STATE(ref, previous_state);
 
 	__wt_buf_free(session, &tmp);
 
