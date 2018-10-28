@@ -46,11 +46,11 @@
 void
 copy_directory(const char *fromdir, const char *todir, bool directio)
 {
-	DIR *dirp;
 	struct dirent *dp;
 	struct stat sb;
-	ssize_t ioret;
+	DIR *dirp;
 	size_t blksize, bufsize, readbytes, n, remaining;
+	ssize_t ioret;
 	uintptr_t bufptr;
 	int openflags, rfd, wfd;
 	u_char *buf, *orig_buf;
