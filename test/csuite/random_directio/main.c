@@ -695,7 +695,7 @@ check_kv(WT_CURSOR *cursor, const char *key, const char *value, bool exists)
 			printf("FAIL: unexpected key in rev file: %s\n", key);
 			testutil_assert(exists);
 		}
-		cursor->get_value(cursor, &got);
+		testutil_check(cursor->get_value(cursor, &got));
 		TEST_STREQ(value, got, "value");
 	}
 }
@@ -744,8 +744,8 @@ check_one_entry(WT_SESSION *session, const char *uri, const char *key,
 
 	testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 	testutil_check(cursor->next(cursor));
-	cursor->get_key(cursor, &gotkey);
-	cursor->get_value(cursor, &gotvalue);
+	testutil_check(cursor->get_key(cursor, &gotkey));
+	testutil_check(cursor->get_value(cursor, &gotvalue));
 	testutil_assert(WT_STREQ(key, gotkey));
 	testutil_assert(WT_STREQ(value, gotvalue));
 	ret = cursor->next(cursor);
@@ -911,7 +911,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 	for (ret = 0; ret != WT_NOTFOUND && threadmap != 0;
 	     ret = cursor->next(cursor)) {
 		testutil_check(ret);
-		cursor->get_key(cursor, &gotkey);
+		testutil_check(cursor->get_key(cursor, &gotkey));
 		gotid = (uint64_t)strtol(gotkey, &p, 10);
 		testutil_assert(*p == KEY_SEP[0]);
 		p++;
@@ -955,7 +955,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 		 */
 		gen_kv(keybuf, kvsize, id, th, large_arr[th], true);
 		gen_kv(&keybuf[kvsize], kvsize, id, th, large_arr[th], false);
-		cursor->get_value(cursor, &gotvalue);
+		testutil_check(cursor->get_value(cursor, &gotvalue));
 		TEST_STREQ(keybuf, gotkey, "main table key");
 
 		/*
@@ -991,7 +991,7 @@ check_db(uint32_t nth, uint32_t datasize, bool directio, uint32_t flags)
 		    NULL, &meta));
 		while ((ret = meta->next(meta)) != WT_NOTFOUND) {
 			testutil_check(ret);
-			meta->get_key(meta, &gotkey);
+			testutil_check(meta->get_key(meta, &gotkey));
 			/*
 			 * Names involved in schema testing are of the form:
 			 *   table:Axxx-t
