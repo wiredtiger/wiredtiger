@@ -400,7 +400,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 		cursor->set_key(cursor, uri1);
 		cursor->set_value(cursor, uri1);
 		testutil_check(cursor->insert(cursor));
-		cursor->close(cursor);
+		testutil_check(cursor->close(cursor));
 		break;
 	case 2:
 		/* Rename the table. */
@@ -427,7 +427,7 @@ schema_operation(WT_SESSION *session, uint32_t threadid, uint64_t id,
 		fprintf(stderr, "UPDATE: %s\n", uri2);
 		*/
 		testutil_check(cursor->update(cursor));
-		cursor->close(cursor);
+		testutil_check(cursor->close(cursor));
 		break;
 	case 4:
 		/* Drop the table. */
