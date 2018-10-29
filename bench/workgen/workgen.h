@@ -86,6 +86,7 @@ struct Track {
 
     uint64_t ops_in_progress;           // Total operations not completed */
     uint64_t ops;                       // Total operations completed */
+    uint64_t rollbacks;                 // Total operations rolled back */
     uint64_t latency_ops;               // Total ops sampled for latency
     uint64_t latency;                   // Total latency */
     uint64_t bucket_ops;                // Computed for percentile_latency

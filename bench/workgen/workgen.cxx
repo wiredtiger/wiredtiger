@@ -357,6 +357,7 @@ int Monitor::run() {
                 int _i;                                                    \
                 (f) << "\"" << (name) << "\":{" << extra                   \
                     << "\"ops per sec\":" << ((t).ops / interval_secs)     \
+                    << ",\"rollbacks\":" << ((t).rollbacks)                \
                     << ",\"average latency\":" << (t).average_latency()    \
                     << ",\"min latency\":" << (t).min_latency              \
                     << ",\"max latency\":" << (t).max_latency;             \
@@ -680,12 +681,13 @@ int ThreadRunner::op_run(Operation *op) {
     WT_DECL_RET;
     uint64_t recno;
     uint64_t range;
-    bool measure_latency, own_cursor;
+    bool measure_latency, own_cursor, retry_op;
 
     track = NULL;
     cursor = NULL;
     recno = 0;
     own_cursor = false;
+    retry_op = true;
     range = op->_table.options.range;
     if (_throttle != NULL) {
         if (_throttle_ops >= _throttle_limit && !_in_transaction) {
@@ -759,13 +761,8 @@ int ThreadRunner::op_run(Operation *op) {
     if (track != NULL)
         track->begin();
 
-    if (op->_transaction != NULL) {
-        if (_in_transaction)
-            THROW("nested transactions not supported");
-        _session->begin_transaction(_session,
-          op->_transaction->_begin_config.c_str());
-        _in_transaction = true;
-    }
+    // Set up the key and value first, outside the transaction which may
+    // be retried.
     if (op->is_table_op()) {
         op->kv_gen(this, true, 100, recno, _keybuf);
         cursor->set_key(cursor, _keybuf);
@@ -775,30 +772,60 @@ int ThreadRunner::op_run(Operation *op) {
             op->kv_gen(this, false, compressibility, recno, _valuebuf);
             cursor->set_value(cursor, _valuebuf);
         }
-        switch (op->_optype) {
-        case Operation::OP_INSERT:
-            WT_ERR(cursor->insert(cursor));
-            break;
-        case Operation::OP_REMOVE:
-            WT_ERR_NOTFOUND_OK(cursor->remove(cursor));
-            break;
-        case Operation::OP_SEARCH:
-            ret = cursor->search(cursor);
-            break;
-        case Operation::OP_UPDATE:
-            WT_ERR_NOTFOUND_OK(cursor->update(cursor));
-            break;
-        default:
-            ASSERT(false);
+    }
+    // Retry on rollback until success.
+    while (retry_op) {
+        if (op->_transaction != NULL) {
+            if (_in_transaction)
+                THROW("nested transactions not supported");
+            WT_ERR(_session->begin_transaction(_session,
+              op->_transaction->_begin_config.c_str()));
+            _in_transaction = true;
         }
-        if (ret != 0) {
-            ASSERT(ret == WT_NOTFOUND);
-            track = &_stats.not_found;
-            ret = 0;  // WT_NOTFOUND allowed.
+        if (op->is_table_op()) {
+            switch (op->_optype) {
+            case Operation::OP_INSERT:
+                ret = cursor->insert(cursor);
+                break;
+            case Operation::OP_REMOVE:
+                ret = cursor->remove(cursor);
+                if (ret == WT_NOTFOUND)
+                    ret = 0;
+                break;
+            case Operation::OP_SEARCH:
+                ret = cursor->search(cursor);
+                if (ret == WT_NOTFOUND) {
+                    ret = 0;
+                    track = &_stats.not_found;
+                }
+                break;
+            case Operation::OP_UPDATE:
+                ret = cursor->update(cursor);
+                if (ret == WT_NOTFOUND)
+                    ret = 0;
+                break;
+            default:
+                ASSERT(false);
+            }
+            // Assume success and no retry unless ROLLBACK.
+            retry_op = false;
+            if (ret != 0 && ret != WT_ROLLBACK)
+                WT_ERR(ret);
+            if (ret == 0)
+                cursor->reset(cursor);
+            else {
+                retry_op = true;
+                track->rollbacks++;
+                WT_ERR(_session->rollback_transaction(_session, NULL));
+                _in_transaction = false;
+                ret = 0;
+            }
+        } else {
+            // Never retry on an internal op.
+            retry_op = false;
+            WT_ERR(op->_internal->run(this, _session));
         }
-        cursor->reset(cursor);
-    } else
-        WT_ERR(op->_internal->run(this, _session));
+    }
 
     if (measure_latency) {
         timespec stop;
@@ -819,7 +846,7 @@ err:
     if (op->_transaction != NULL) {
         if (ret != 0 || op->_transaction->_rollback)
             WT_TRET(_session->rollback_transaction(_session, NULL));
-        else
+        else if (_in_transaction)
             ret = _session->commit_transaction(_session,
               op->_transaction->_commit_config.c_str());
         _in_transaction = false;
@@ -1274,14 +1301,15 @@ void TableOperationInternal::parse_config(const std::string &config)
     }
 }
 
-Track::Track(bool latency_tracking) : ops_in_progress(0), ops(0),
+Track::Track(bool latency_tracking) : ops_in_progress(0), ops(0), rollbacks(0),
     latency_ops(0), latency(0), bucket_ops(0), min_latency(0), max_latency(0),
     us(NULL), ms(NULL), sec(NULL) {
     track_latency(latency_tracking);
 }
 
 Track::Track(const Track &other) : ops_in_progress(other.ops_in_progress),
-    ops(other.ops), latency_ops(other.latency_ops), latency(other.latency),
+    ops(other.ops), rollbacks(other.rollbacks),
+    latency_ops(other.latency_ops), latency(other.latency),
     bucket_ops(other.bucket_ops), min_latency(other.min_latency),
     max_latency(other.max_latency), us(NULL), ms(NULL), sec(NULL) {
     if (other.us != NULL) {
@@ -1367,6 +1395,7 @@ void Track::begin() {
 void Track::clear() {
     ops_in_progress = 0;
     ops = 0;
+    rollbacks = 0;
     latency_ops = 0;
     latency = 0;
     bucket_ops = 0;
@@ -1869,11 +1898,6 @@ int WorkloadRunner::run_all() {
     counts.report(out);
     out << std::endl;
 
-    workgen_epoch(&_start);
-    timespec end = _start + options->run_time;
-    timespec next_report = _start +
-      ((options->warmup > 0) ? options->warmup : options->report_interval);
-
     // Start all threads
     if (options->sample_interval > 0) {
         open_report_file(monitor_out, "monitor", "monitor output file");
@@ -1909,8 +1933,22 @@ int WorkloadRunner::run_all() {
             return (ret);
         }
         thread_handles.push_back(thandle);
+    }
+
+    // Treat warmup separately from report interval so that if we have a
+    // warmup period we clear and ignore stats after it ends.
+    if (options->warmup != 0)
+        sleep((unsigned int)options->warmup);
+
+    // Clear stats after any warmup period completes.
+    for (size_t i = 0; i < _trunners.size(); i++) {
+        ThreadRunner *runner = &_trunners[i];
         runner->_stats.clear();
     }
+
+    workgen_epoch(&_start);
+    timespec end = _start + options->run_time;
+    timespec next_report = _start + options->report_interval;
 
     // Let the test run, reporting as needed.
     Stats curstats(false);
