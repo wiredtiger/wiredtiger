@@ -230,9 +230,13 @@ class Translator:
         checkpoint_interval = self.get_int_opt('checkpoint_interval', 120)
         run_ops = self.get_int_opt('run_ops', -1)
         if log_like_table:
+            tdecls += '# Log like file, requires that logging be enabled ' + \
+                      'in the connection config.\n'
             tdecls += 'log_name = "table:log"\n'
-            tdecls += 's.create(log_name, "key_format=S,value_format=S," +' + \
-                      ' compress_table_config)\n'
+            tdecls += 's.create(log_name, wtperf_table_config +' \
+                      ' "key_format=S,value_format=S," +' + \
+                      ' compress_table_config + table_config +' \
+                      ' ",log=(enabled=true)")\n'
             tdecls += 'log_table = Table(log_name)\n\n'
         thread_count = 0
         tnames = ''
@@ -329,6 +333,15 @@ class Translator:
             tdecls += '\n'
             if checkpoint_threads > 1:
                 tnames += str(checkpoint_threads) + ' * '
+            tnames += thread_name + ' + '
+
+        if log_like_table:
+            thread_name = 'logging_thread'
+
+            tdecls += 'ops = Operation(Operation.OP_SLEEP, "0.1") + \\\n' + \
+                '      Operation(Operation.OP_LOG_FLUSH, "")\n'
+            tdecls += thread_name + ' = Thread(ops)\n'
+            tdecls += '\n'
             tnames += thread_name + ' + '
 
         tnames = tnames.rstrip(' +')
