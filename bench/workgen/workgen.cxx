@@ -778,8 +778,8 @@ int ThreadRunner::op_run(Operation *op) {
         if (op->_transaction != NULL) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
-            _session->begin_transaction(_session,
-              op->_transaction->_begin_config.c_str());
+            WT_ERR(_session->begin_transaction(_session,
+              op->_transaction->_begin_config.c_str()));
             _in_transaction = true;
         }
         if (op->is_table_op()) {
@@ -797,7 +797,7 @@ int ThreadRunner::op_run(Operation *op) {
                 if (ret == WT_NOTFOUND) {
                     ret = 0;
                     track = &_stats.not_found;
-		}
+                }
                 break;
             case Operation::OP_UPDATE:
                 ret = cursor->update(cursor);
@@ -816,7 +816,7 @@ int ThreadRunner::op_run(Operation *op) {
             else {
                 retry_op = true;
                 track->rollbacks++;
-                WT_TRET(_session->rollback_transaction(_session, NULL));
+                WT_ERR(_session->rollback_transaction(_session, NULL));
                 _in_transaction = false;
                 ret = 0;
             }
