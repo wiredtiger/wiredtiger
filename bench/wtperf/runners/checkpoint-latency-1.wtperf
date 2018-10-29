@@ -5,6 +5,8 @@ conn_config="cache_size=2GB,eviction=(threads_max=8),log=(enabled=true),session_
 table_config="memory_page_max=10m,leaf_value_max=64MB,checksum=on,split_pct=90,type=file,log=(enabled=false)"
 checkpoint_interval=60
 checkpoint_threads=1
+# Compressibility is an option that requires workgen
+compressibility=50
 compression="snappy"
 create=true
 close_conn=false
@@ -31,7 +33,6 @@ threads=((count=100,updates=1,throttle=700),(count=100,reads=1,throttle=2800))
 # compression on, and there is also the factor of any additional btree
 # overhead. Experimently, we've observed that workgen records sized as below
 # end up with a disk footprint close to 5K, at least in btree data files.
-#value_sz=7720
-value_sz=15000
+value_sz=7000
 # Wait for the throughput to stabilize
 warmup=120

@@ -77,8 +77,8 @@ class Translator:
         raise TranslateException(errtype)
 
     supported_opt_list = [ 'checkpoint_interval', 'checkpoint_threads',
-                           'close_conn', 'compact', 'compression',
-                           'conn_config', 'create', 'icount',
+                           'close_conn', 'compact', 'compressibility',
+                           'compression', 'conn_config', 'create', 'icount',
                            'key_sz', 'log_like_table', 'pareto',
                            'populate_ops_per_txn', 'populate_threads',
                            'random_range', 'random_value', 'range_partition',
@@ -237,7 +237,12 @@ class Translator:
                       ' "key_format=S,value_format=S," +' + \
                       ' compress_table_config + table_config +' \
                       ' ",log=(enabled=true)")\n'
-            tdecls += 'log_table = Table(log_name)\n\n'
+            tdecls += 'log_table = Table(log_name)\n'
+            if opts.compressibility != 100:
+                tdecls += 'log_table.options.value_compressibility = ' + \
+                str(opts.compressibility) + '\n'
+            tdecls += '\n'
+
         thread_count = 0
         tnames = ''
         multi = (table_count > 1)
@@ -396,6 +401,9 @@ class Translator:
             # In wtperf, the icount plus random_range is the key range
             table_range = (opts.random_range + opts.icount) / opts.table_count
             s += indent + 'table.options.range = ' + str(table_range) + '\n'
+        if opts.compressibility != 100:
+            s += indent + 'table.options.value_compressibility = ' + \
+                str(opts.compressibility) + '\n'
         s += indent + 'tables.append(table)\n'
         return s
 
@@ -508,6 +516,7 @@ class Translator:
         readonly = self.get_boolean_opt('readonly', False)
         close_conn = self.get_boolean_opt('close_conn', True)
         compression = self.get_string_opt('compression', '')
+        self.get_int_opt('compressibility', 100)
         self.get_int_opt('table_count', 1)
         self.get_string_opt('table_config', '')
         self.get_int_opt('key_sz', 20)
