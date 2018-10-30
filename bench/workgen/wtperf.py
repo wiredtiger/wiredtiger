@@ -83,8 +83,9 @@ class Translator:
                            'populate_ops_per_txn', 'populate_threads',
                            'random_range', 'random_value', 'range_partition',
                            'readonly', 'reopen_connection', 'run_ops',
-                           'sess_config', 'table_config', 'table_count',
-                           'threads', 'transaction_config', 'value_sz' ]
+                           'sample_interval', 'sess_config', 'table_config',
+                           'table_count', 'threads', 'transaction_config',
+                           'value_sz' ]
 
     def set_opt(self, optname, val):
         if optname not in self.supported_opt_list:
@@ -122,6 +123,17 @@ class Translator:
 
     def get_int_opt(self, optname, dfault):
         v = self._get_opt(optname, dfault) + 0
+        setattr(self.options, optname, v)
+        return v
+
+    # Convert a time value, by default a number of seconds, that can be
+    # modified to microseconds using 'ms' as a suffix.
+    def get_intms_opt(self, optname, wtperf_optname, dfault):
+        s = self._get_opt(wtperf_optname, str(dfault))
+        if s.endswith('ms'):
+            v = int(s[:-2])
+        else:
+            v = 1000 * int(s)
         setattr(self.options, optname, v)
         return v
 
@@ -503,7 +515,7 @@ class Translator:
                     continue
                 (key, val) = self.split_assign(line)
                 if key in [ 'max_latency', 'report_file', 'report_interval',
-                            'run_time', 'sample_interval', 'sample_rate',
+                            'run_time', 'sample_rate',
                             'warmup' ]:
                     workloadopts += 'workload.options.' + key + '=' + val + '\n'
                 else:
@@ -516,6 +528,7 @@ class Translator:
         readonly = self.get_boolean_opt('readonly', False)
         close_conn = self.get_boolean_opt('close_conn', True)
         compression = self.get_string_opt('compression', '')
+        self.get_intms_opt('sample_interval_ms', 'sample_interval', 0)
         self.get_int_opt('compressibility', 100)
         self.get_int_opt('table_count', 1)
         self.get_string_opt('table_config', '')
@@ -538,6 +551,11 @@ class Translator:
            opts.table_count != 1:
             self.fatal_error('random_range and multiple tables without ' + \
                              'range_partition is not supported')
+
+        if self.options.sample_interval_ms != 0:
+            workloadopts += 'workload.options.sample_interval_ms = ' + \
+                str(self.options.sample_interval_ms) + '\n'
+            print('X: ' + workloadopts)
 
         s = '#/usr/bin/env python\n'
         s += '# generated from ' + self.filename + '\n'
@@ -603,6 +621,7 @@ class Translator:
                 s += '\n'
             s += 'workload = Workload(context, ' + t_var + ')\n'
             s += workloadopts
+
             if self.verbose > 0:
                 s += 'print("workload:")\n'
             s += 'workload.run(conn)\n\n'

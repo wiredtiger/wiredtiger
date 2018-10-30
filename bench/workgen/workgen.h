@@ -402,7 +402,7 @@ struct WorkloadOptions {
     std::string report_file;
     int report_interval;
     int run_time;
-    double sample_interval;
+    int sample_interval_ms;
     int sample_rate;
     std::string sample_file;
     int warmup;
