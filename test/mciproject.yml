@@ -61,6 +61,7 @@ tasks:
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
@@ -80,7 +81,13 @@ tasks:
                 install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib .libs/wt
               fi
 
-              ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 ${make_command|make} VERBOSE=1 check 2>&1
+              # Exclude csuite test which is covered by a separate task
+              dirs=$(cat build_posix/Make.subdirs | grep -v ^# | grep -v ^$ | sed '/\./d' | cut -d' ' -f1 | grep -v test/csuite)
+              echo ${dirs}
+              for dir in ${dirs}
+              do
+                ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C ${dir} ${smp_command|} 
+              done
             fi
       - command: archive.targz_pack
         params:
@@ -98,6 +105,38 @@ tasks:
           content_type: application/tar
           display_name: Binaries
           remote_file: wiredtiger/${build_variant}/${revision}/binaries/${build_id}.tgz
+
+  - name: csuite-test
+    depends_on: []
+    commands:
+      - func: "fetch source"
+      - command: git.apply_patch
+        params:
+          directory: wiredtiger
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            if [ "Windows_NT" = "$OS" ]; then
+              scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
+            else
+              ./build_posix/reconf
+              ${configure_env_vars|} ./configure --enable-diagnostic --enable-python --enable-zlib --enable-strict
+              ${make_command|make} ${smp_command|} 2>&1
+
+              # On macOS, change the binary location with install_name_tool since DYLD_LIBRARY_PATH
+              # appears not to work for dynamic modules loaded by python. For wt, the libtool generated
+              # script has the wrong path for running on test machines.
+              if [ "$(uname -s)" == "Darwin" ]; then
+                WT_VERSION=$(m4 build_posix/aclocal/version.m4)
+                install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib lang/python/_wiredtiger*.so
+                install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib .libs/wt
+              fi
+
+              ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/csuite  ${smp_command|} 2>&1
+            fi
 
   - name: unit-test
     depends_on:
@@ -189,6 +228,7 @@ buildvariants:
     configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++
   tasks:
     - name: compile
+    - name: csuite-test
     - name: unit-test
     - name: fops
 
