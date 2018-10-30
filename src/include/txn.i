@@ -1317,7 +1317,8 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
 			txn_state->pinned_id = txn_global->last_running;
 		if (txn_state->metadata_pinned == WT_TXN_NONE)
 			txn_state->metadata_pinned = txn_state->pinned_id;
-	} else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
+	} else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) ||
+	    (txn->isolation == WT_ISO_READ_COMMITTED))
 		__wt_txn_get_snapshot(session);
 }
 
