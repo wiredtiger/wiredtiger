@@ -595,16 +595,17 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 	/*
-	 * In case of retrying a next operation due to a prepare conflict,
-	 * cursor would have been already positioned at an update structure
-	 * which resulted in conflict. So, now when retrying we should examine
-	 * the same update again instead of starting from the next one in the
-	 * update chain.
+	 * When retrying an operation due to a prepare conflict, the cursor is
+	 * is at an update list which resulted in conflict. So, when retrying
+	 * we should examine the same update again instead of iterating to the
+	 * next object. We'll eventually find a valid update, return prepare-
+	 * conflict until successful.
 	 */
 	F_CLR(cbt, WT_CBT_RETRY_PREV);
 	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
 		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
-		WT_ASSERT(session, valid == true);
+		if (!valid)
+			WT_ERR(WT_PREPARE_CONFLICT);
 
 		/* The update that returned prepared conflict is now visible. */
 		F_CLR(cbt, WT_CBT_RETRY_NEXT);
