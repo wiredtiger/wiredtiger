@@ -68,7 +68,7 @@ static char home[1024];			/* Program working dir */
 #define	PREPARE_YIELD	(PREPARE_FREQ * 10)
 #define	RECORDS_FILE	"records-%" PRIu32
 /* Include worker threads and prepare extra sessions */
-#define	SESSION_MAX	MAX_TH + 3 + MAX_TH * PREPARE_PCT
+#define	SESSION_MAX	(MAX_TH + 3 + MAX_TH * PREPARE_PCT)
 
 static const char * table_pfx = "table";
 static const char * const uri_local = "local";
