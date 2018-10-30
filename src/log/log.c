@@ -2537,7 +2537,7 @@ advance:
 				 * must be salvaged.
 				 */
 				need_salvage = true;
-				WT_ERR(__log_salvage_message(session,
+				WT_TRET(__log_salvage_message(session,
 				    log_fh->name, ", bad checksum",
 				    rd_lsn.l.offset));
 			} else {
@@ -2546,11 +2546,11 @@ advance:
 				 * that the header is corrupt.  Make a sanity
 				 * check of the log record header.
 				 */
-				WT_ERR(__log_record_verify(session, log_fh,
+				WT_TRET(__log_record_verify(session, log_fh,
 				    rd_lsn.l.offset, logrec, &corrupt));
 				if (corrupt) {
 					need_salvage = true;
-					WT_ERR(__log_salvage_message(session,
+					WT_TRET(__log_salvage_message(session,
 					    log_fh->name, "", rd_lsn.l.offset));
 				}
 			}
@@ -2623,7 +2623,7 @@ err:	WT_STAT_CONN_INCR(session, log_scans);
 	 * an error recovery is likely going to fail.  Try to provide
 	 * a helpful failure message.
 	 */
-	if (ret != 0 && firstrecord) {
+	if (ret != 0 && firstrecord && LF_ISSET(WT_LOGSCAN_RECOVER)) {
 		__wt_errx(session,
 		    "WiredTiger is unable to read the recovery log.");
 		__wt_errx(session, "This may be due to the log"
