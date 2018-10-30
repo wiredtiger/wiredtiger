@@ -2673,13 +2673,27 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 		    WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
 		if (dhandle == NULL)
 			break;
-		if (dhandle->type != WT_DHANDLE_TYPE_BTREE ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+		/*
+		 * Lock the handle to prevent changes in the handle's state
+		 * when it is being used to dump the cache information.
+		 */
+		if ((ret = __wt_try_readlock(session, &dhandle->rwlock)) ==
+		    EBUSY)
 			continue;
+		WT_RET(ret);
+
+		/* Skip if the tree is marked discarded by another thread. */
+		if (dhandle->type != WT_DHANDLE_TYPE_BTREE ||
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+		    F_ISSET(dhandle, WT_DHANDLE_DISCARD)) {
+			__wt_readunlock(session, &dhandle->rwlock);
+			continue;
+		}
 
 		WT_WITH_DHANDLE(session, dhandle,
 		    ret = __verbose_dump_cache_single(
 		    session, &total_bytes, &total_dirty_bytes));
+		__wt_readunlock(session, &dhandle->rwlock);
 		if (ret != 0)
 			break;
 	}
