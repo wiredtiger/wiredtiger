@@ -365,11 +365,11 @@ class Translator:
         s += 'tables = []\n'
         s += 'table_count = ' + str(opts.table_count) + '\n'
         if opts.table_count == 1:
-            s += 'tname = "table:test.wt"\n'
+            s += 'tname = "table:test"\n'
             indent = ''
         else:
             s += 'for i in range(0, table_count):\n'
-            s += '    tname = "table:test" + str(i) + ".wt"\n'
+            s += '    tname = "table:test" + str(i)\n'
             indent = '    '
 
         s += indent + 'table = Table(tname)\n'
