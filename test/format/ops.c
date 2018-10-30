@@ -1115,7 +1115,8 @@ update_instead_of_chosen_op:
 		 */
 		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
-			WRITE_OP_FAILED(false);
+			if (ret != 0)
+				WRITE_OP_FAILED(false);
 
 			__wt_yield();		/* Let other threads proceed. */
 		}
