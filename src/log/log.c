@@ -2501,6 +2501,8 @@ advance:
 			 * the first pass through recovery.  In the second pass
 			 * where we truncate the log, this is where it should
 			 * end.
+			 * Continue processing where possible, so remember any
+			 * error returns, but don't skip to the error handler.
 			 */
 			if (log != NULL)
 				log->trunc_lsn = rd_lsn;
@@ -2603,7 +2605,8 @@ advance:
 		__wt_verbose(session, WT_VERB_LOG,
 		    "End of recovery truncate end of log %" PRIu32 "/%" PRIu32,
 		    rd_lsn.l.file, rd_lsn.l.offset);
-		WT_ERR(__log_truncate(session, &rd_lsn, false, false));
+		/* Preserve prior error and fall through to error handling. */
+		WT_TRET(__log_truncate(session, &rd_lsn, false, false));
 	}
 
 err:	WT_STAT_CONN_INCR(session, log_scans);
