@@ -129,7 +129,7 @@ class Translator:
     # Convert a time value, by default a number of seconds, that can be
     # modified to microseconds using 'ms' as a suffix.
     def get_intms_opt(self, optname, wtperf_optname, dfault):
-        s = self._get_opt(wtperf_optname, str(dfault))
+        s = str(self._get_opt(wtperf_optname, str(dfault)))
         if s.endswith('ms'):
             v = int(s[:-2])
         else:
