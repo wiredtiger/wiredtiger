@@ -278,6 +278,7 @@ int Monitor::run() {
     Stats prev_totals;
     WorkloadOptions *options = &_wrunner._workload->options;
     uint64_t latency_max = (uint64_t)options->max_latency;
+    size_t buf_size;
     bool first;
 
     (*_out) << "#time,"
@@ -300,11 +301,30 @@ int Monitor::run() {
     first = true;
     workgen_version(version, sizeof(version));
     Stats prev_interval;
+
+    // The whole and fractional part of sample_interval are separated,
+    // we don't want to sleep longer than a second.
+    int sample_secs = ms_to_sec(options->sample_interval_ms);
+    useconds_t sample_usecs =
+      ms_to_us(options->sample_interval_ms) - sec_to_us(sample_secs);
+
     while (!_stop) {
-        int waitsecs = (first && options->warmup > 0) ? options->warmup :
-          options->sample_interval;
+        int waitsecs;
+        useconds_t waitusecs;
+
+        if (first && options->warmup > 0) {
+            waitsecs = options->warmup;
+            waitusecs = 0;
+        } else {
+            waitsecs = sample_secs;
+            waitusecs = sample_usecs;
+        }
         for (int i = 0; i < waitsecs && !_stop; i++)
             sleep(1);
+        if (_stop)
+            break;
+        if (waitusecs > 0)
+            usleep(waitusecs);
         if (_stop)
             break;
 
@@ -319,10 +339,10 @@ int Monitor::run() {
         Stats interval(new_totals);
         interval.subtract(prev_totals);
 
-        int interval_secs = options->sample_interval;
-        uint64_t cur_reads = interval.read.ops / interval_secs;
-        uint64_t cur_inserts = interval.insert.ops / interval_secs;
-        uint64_t cur_updates = interval.update.ops / interval_secs;
+        double interval_secs = options->sample_interval_ms / 1000.0;
+        uint64_t cur_reads = (uint64_t)(interval.read.ops / interval_secs);
+        uint64_t cur_inserts = (uint64_t)(interval.insert.ops / interval_secs);
+        uint64_t cur_updates = (uint64_t)(interval.update.ops / interval_secs);
         bool checkpointing = new_totals.checkpoint.ops_in_progress > 0 ||
           interval.checkpoint.ops > 0;
 
@@ -345,9 +365,12 @@ int Monitor::run() {
                 << std::endl;
 
         if (_json != NULL) {
-#define    WORKGEN_TIMESTAMP_JSON        "%Y-%m-%dT%H:%M:%S.000Z"
-            (void)strftime(time_buf, sizeof(time_buf),
+#define    WORKGEN_TIMESTAMP_JSON        "%Y-%m-%dT%H:%M:%S"
+            buf_size = strftime(time_buf, sizeof(time_buf),
               WORKGEN_TIMESTAMP_JSON, tm);
+            ASSERT(buf_size <= sizeof(time_buf));
+            snprintf(&time_buf[buf_size], sizeof(time_buf) - buf_size,
+              ".%3.3" PRIu64 "Z", (uint64_t)ns_to_ms(t.tv_nsec));
 
             // Note: we could allow this to be configurable.
             int percentiles[4] = {50, 95, 99, 0};
@@ -356,7 +379,8 @@ int Monitor::run() {
             do {                                                           \
                 int _i;                                                    \
                 (f) << "\"" << (name) << "\":{" << extra                   \
-                    << "\"ops per sec\":" << ((t).ops / interval_secs)     \
+                    << "\"ops per sec\":"                                  \
+                    << (uint64_t)((t).ops / interval_secs)                 \
                     << ",\"rollbacks\":" << ((t).rollbacks)                \
                     << ",\"average latency\":" << (t).average_latency()    \
                     << ",\"min latency\":" << (t).min_latency              \
@@ -441,7 +465,7 @@ int ThreadRunner::create_all(WT_CONNECTION *conn) {
     ASSERT(_session == NULL);
     WT_RET(conn->open_session(conn, NULL, NULL, &_session));
     _table_usage.clear();
-    _stats.track_latency(_workload->options.sample_interval > 0);
+    _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
     _throttle_ops = 0;
     _throttle_limit = 0;
@@ -721,6 +745,7 @@ int ThreadRunner::op_run(Operation *op) {
         else
             recno = op_get_key_recno(op, range, tint);
         break;
+    case Operation::OP_LOG_FLUSH:
     case Operation::OP_NONE:
     case Operation::OP_NOOP:
         recno = 0;
@@ -1070,6 +1095,9 @@ void Operation::init_internal(OperationInternal *other) {
             _internal = new TableOperationInternal(
               *(TableOperationInternal *)other);
         break;
+    case OP_LOG_FLUSH:
+        _internal = new LogFlushOperationInternal();
+        break;
     case OP_NONE:
     case OP_NOOP:
         if (other == NULL)
@@ -1268,12 +1296,18 @@ void Operation::size_check() const {
 
 int CheckpointOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
+    (void)runner;    /* not used */
     return (session->checkpoint(session, NULL));
+}
+
+int LogFlushOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
+{
+    (void)runner;    /* not used */
+    return (session->log_flush(session, NULL));
 }
 
 void SleepOperationInternal::parse_config(const std::string &config)
 {
-    int amount = 0;
     const char *configp;
     char *endp;
 
@@ -1286,6 +1320,7 @@ void SleepOperationInternal::parse_config(const std::string &config)
 
 int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
+    (void)runner;    /* not used */
     (void)session;   /* not used */
     sleep(_sleepvalue);
     return (0);
@@ -1705,8 +1740,8 @@ TableInternal::~TableInternal() {}
 
 WorkloadOptions::WorkloadOptions() : max_latency(0),
     report_file("workload.stat"), report_interval(0), run_time(0),
-    sample_file("monitor.json"), sample_interval(0), sample_rate(1), warmup(0),
-    _options() {
+    sample_file("monitor.json"), sample_interval_ms(0), sample_rate(1),
+    warmup(0), _options() {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
       "milliseconds. Requires sample_interval to be configured.");
@@ -1723,8 +1758,8 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
       "enabled by the report_interval option. "
       "The file name is relative to the connection's home directory. "
       "When set to the empty string, no JSON is emitted.");
-    _options.add_int("sample_interval", sample_interval,
-      "performance logging every interval seconds, 0 to disable");
+    _options.add_int("sample_interval_ms", sample_interval_ms,
+      "performance logging every interval milliseconds, 0 to disable");
     _options.add_int("sample_rate", sample_rate,
       "how often the latency of operations is measured. 1 for every operation, "
       "2 for every second operation, 3 for every third operation etc.");
@@ -1734,7 +1769,7 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
     max_latency(other.max_latency), report_interval(other.report_interval),
-    run_time(other.run_time), sample_interval(other.sample_interval),
+    run_time(other.run_time), sample_interval_ms(other.sample_interval_ms),
     sample_rate(other.sample_rate), _options(other._options) {}
 WorkloadOptions::~WorkloadOptions() {}
 
@@ -1783,7 +1818,7 @@ int WorkloadRunner::run(WT_CONNECTION *conn) {
     std::ofstream report_out;
 
     _wt_home = conn->get_home(conn);
-    if (options->sample_interval > 0 && options->sample_rate <= 0)
+    if (options->sample_interval_ms > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
     if (!options->report_file.empty()) {
         open_report_file(report_out, options->report_file.c_str(),
@@ -1873,7 +1908,7 @@ void WorkloadRunner::final_report(timespec &totalsecs) {
     Stats *stats = &_workload->stats;
 
     stats->clear();
-    stats->track_latency(_workload->options.sample_interval > 0);
+    stats->track_latency(_workload->options.sample_interval_ms > 0);
 
     get_stats(stats);
     stats->final_report(out, totalsecs);
@@ -1899,7 +1934,7 @@ int WorkloadRunner::run_all() {
     out << std::endl;
 
     // Start all threads
-    if (options->sample_interval > 0) {
+    if (options->sample_interval_ms > 0) {
         open_report_file(monitor_out, "monitor", "monitor output file");
         monitor._out = &monitor_out;
 
@@ -1979,7 +2014,7 @@ int WorkloadRunner::run_all() {
     if (options->run_time != 0)
         for (size_t i = 0; i < _trunners.size(); i++)
             _trunners[i]._stop = true;
-    if (options->sample_interval > 0)
+    if (options->sample_interval_ms > 0)
         monitor._stop = true;
 
     // wait for all threads
@@ -1996,7 +2031,7 @@ int WorkloadRunner::run_all() {
     }
 
     workgen_epoch(&now);
-    if (options->sample_interval > 0) {
+    if (options->sample_interval_ms > 0) {
         WT_TRET(pthread_join(monitor._handle, &status));
         if (monitor._errno != 0)
             std::cerr << "Monitor thread has errno " << monitor._errno
