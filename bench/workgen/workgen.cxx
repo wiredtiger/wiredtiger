@@ -27,6 +27,7 @@
  */
 
 #define __STDC_LIMIT_MACROS   // needed to get UINT64_MAX in C++
+#define __STDC_FORMAT_MACROS  // needed to get PRIuXX macros in C++
 #include <iomanip>
 #include <iostream>
 #include <fstream>
