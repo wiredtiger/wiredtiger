@@ -593,6 +593,8 @@ class Translator:
         if conn_config != '':
             s += 'conn_config += ",' + conn_config + '"   # explicitly added\n'
         if compression != '':
+            # We require WiredTiger to be configured with snappy built-in,
+            # so do not add snappy to the list of extensions to be loaded.
             if compression != 'snappy':
                 s += 'conn_config += extensions_config(["compressors/' + \
                     compression + '"])\n'
