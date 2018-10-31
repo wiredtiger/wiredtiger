@@ -555,7 +555,6 @@ class Translator:
         if self.options.sample_interval_ms != 0:
             workloadopts += 'workload.options.sample_interval_ms = ' + \
                 str(self.options.sample_interval_ms) + '\n'
-            print('X: ' + workloadopts)
 
         s = '#/usr/bin/env python\n'
         s += '# generated from ' + self.filename + '\n'
@@ -594,8 +593,9 @@ class Translator:
         if conn_config != '':
             s += 'conn_config += ",' + conn_config + '"   # explicitly added\n'
         if compression != '':
-            s += 'conn_config += extensions_config(["compressors/' + \
-                compression + '"])\n'
+            if compression != 'snappy':
+                s += 'conn_config += extensions_config(["compressors/' + \
+                    compression + '"])\n'
             compression = 'block_compressor=' + compression + ','
         s += 'conn = wiredtiger_open("' + self.homedir + \
              '", "create," + conn_config)\n'
