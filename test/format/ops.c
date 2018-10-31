@@ -1066,7 +1066,9 @@ update_instead_of_chosen_op:
 		 */
 		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
-			WRITE_OP_FAILED(false);
+			testutil_assert(ret == 0 || ret == WT_PREPARE_CONFLICT);
+			if (ret == WT_PREPARE_CONFLICT)
+				goto rollback;
 
 			__wt_yield();		/* Let other threads proceed. */
 		}
