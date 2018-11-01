@@ -1288,7 +1288,7 @@ monitor(void *arg)
 	size_t buf_size;
 	int msg_err;
 	const char *str;
-	char buf[64], *path, version[100];
+	char buf[64], *path;
 	bool first;
 
 	wtperf = (WTPERF *)arg;
@@ -1393,7 +1393,7 @@ monitor(void *arg)
 			testutil_assert((buf_size = strftime(buf,
 			    sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt)) != 0);
 			testutil_check(__wt_snprintf(&buf[buf_size],
-			    sizeof(buf) - buf_size,,
+			    sizeof(buf) - buf_size,
 			    ".%3.3" PRIu64 "Z", (uint64_t)ns_to_ms(t.tv_nsec)));
 			(void)fprintf(jfp, "{");
 			if (first) {
