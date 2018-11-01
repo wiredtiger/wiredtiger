@@ -1394,7 +1394,8 @@ monitor(void *arg)
 			    sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt)) != 0);
 			testutil_check(__wt_snprintf(&buf[buf_size],
 			    sizeof(buf) - buf_size,
-			    ".%3.3" PRIu64 "Z", (uint64_t)ns_to_ms(t.tv_nsec)));
+			    ".%3.3" PRIu64 "Z",
+			    ns_to_ms((uint64_t)t.tv_nsec)));
 			(void)fprintf(jfp, "{");
 			if (first) {
 				(void)fprintf(jfp, "\"version\":\"%s\",",
