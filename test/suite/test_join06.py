@@ -38,8 +38,8 @@ class test_join06(wttest.WiredTigerTestCase):
 
     isoscen = [
         ('isolation_read_uncommitted', dict(isolation='read-uncommitted')),
-        ('isolation_read_committed', dict(isolation='read-committed')),
-        ('isolation_default', dict(isolation='')),
+        #('isolation_read_committed', dict(isolation='read-committed')),
+        #('isolation_default', dict(isolation='')),
         ('isolation_snapshot', dict(isolation='snapshot'))
     ]
 
