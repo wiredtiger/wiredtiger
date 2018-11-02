@@ -558,25 +558,28 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	F_CLR(cbt, WT_CBT_RETRY_NEXT);
 	if (F_ISSET(cbt, WT_CBT_RETRY_PREV)) {
 		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
-		if (!valid)
-			WT_ERR(WT_PREPARE_CONFLICT);
 
 		/* The update that returned prepared conflict is now visible. */
 		F_CLR(cbt, WT_CBT_RETRY_PREV);
 
-		/*
-		 * The update that returned prepared conflict is now visible.
-		 *
-		 * The underlying key-return function uses a comparison value
-		 * of 0 to indicate the search function has pre-built the key
-		 * we want to return. That's not the case, don't take that path.
-		 */
-		cbt->compare = 1;
-		WT_ERR(__cursor_kv_return(session, cbt, upd));
+		if (valid) {
+			/*
+			 * The update that returned prepared conflict is now
+			 * visible.
+			 *
+			 * The underlying key-return function uses a comparison
+			 * value of 0 to indicate the search function has
+			 * pre-built the key we want to return. That's not the
+			 * case, don't take that path.
+			 */
+			cbt->compare = 1;
+			WT_ERR(__cursor_kv_return(session, cbt, upd));
 #ifdef HAVE_DIAGNOSTIC
-		WT_ERR(__wt_cursor_key_order_check(session, cbt, false));
+			WT_ERR(
+			    __wt_cursor_key_order_check(session, cbt, false));
 #endif
-		return (0);
+			return (0);
+		}
 	}
 
 	WT_ERR(__cursor_func_init(cbt, false));
