@@ -572,7 +572,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			 * pre-built the key we want to return. That's not the
 			 * case, don't take that path.
 			 */
-			cbt->compare = 1;
 			WT_ERR(__cursor_kv_return(session, cbt, upd));
 #ifdef HAVE_DIAGNOSTIC
 			WT_ERR(

@@ -31,6 +31,9 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet
 from wtdataset import SimpleLSMDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
 
+def timestamp_str(t):
+    return '%x' %t
+
 # test_prepare_cursor01.py
 #    WT_CURSOR position tests with prepared transactions
 class test_prepare_cursor01(wttest.WiredTigerTestCase):
@@ -52,8 +55,13 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         return self.keyfmt == 'r' and \
             (self.ds.is_lsm() or self.uri == 'lsm')
 
-    # Do an insert and confirm no key, value or position remains.
-    def test_cursor_prepare_insert(self):
+    # Test cursor navigate (next/prev) with prepared transactions.
+    # Cursor navigate with timestamp reads and non-timestamped reads.
+    #   before cursor  : with timestamp earlier to prepare timestamp.
+    #   between cursor : with timestamp between prepare and commit timestamps.
+    #   after cursor   : with timestamp after commit timestamp.
+    # Cursor with out read timestamp behaviour should be same after cursor behavior.
+    def test_cursor_navigate_prepare_transaction(self):
         if self.skip():
             return
 
@@ -61,139 +69,495 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         uri = self.uri + ':test_prepare_cursor01'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
+
+        # Session for non-timestamped reads.
         session = self.conn.open_session()
         cursor = session.open_cursor(uri, None)
+        cursor.set_key(ds.key(1))
+        cursor.remove()
+
+        # Session for timestamped reads before prepare timestamp.
+        before_ts_s = self.conn.open_session()
+        before_ts_c = before_ts_s.open_cursor(uri, None)
+        # Session for timestamped reads between prepare timestamp and commit timestamp.
+        between_ts_s = self.conn.open_session()
+        between_ts_c = between_ts_s.open_cursor(uri, None)
+        # Session for timestamped reads after commit timestamp.
+        after_ts_s = self.conn.open_session()
+        after_ts_c = after_ts_s.open_cursor(uri, None)
 
         prep_session = self.conn.open_session()
         prep_cursor = prep_session.open_cursor(uri, None)
 
-        # Scenario-1 : next / prev with insert as prepared updated.
+        # Scenario-1 : Check cursor navigate with insert in prepared transaction.
         # Begin of Scenario-1.
-        # Insert key 52, by leaving gap for 51, so that prev testing can
-        # use key 51.
-        prep_session.begin_transaction()
-        prep_cursor.set_key(ds.key(52))
-        prep_cursor.set_value(ds.value(52))
-        prep_cursor.insert()
-        prep_session.prepare_transaction("prepare_timestamp=100")
-
-        # Cursor points to key 50.
-        session.begin_transaction('isolation=' + self.isolation)
-        cursor.set_key(ds.key(50))
-        self.assertEquals(cursor.search(), 0)
-        # Next key will be 52, in prepared state.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.next())
-        prep_session.commit_transaction("commit_timestamp=100")
-
-        self.assertEquals(cursor.next(), 0)
-        self.assertEquals(cursor.get_key(), ds.key(52))
-        session.commit_transaction()
-
+        # Data set at start has keys {2,3,4 ... 50}
+        # Insert key 51 to check next operation.
+        # Insert key 1 to check prev operation.
         prep_session.begin_transaction()
         prep_cursor.set_key(ds.key(51))
         prep_cursor.set_value(ds.value(51))
         prep_cursor.insert()
-        prep_session.prepare_transaction("prepare_timestamp=100")
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(100))
 
-        # Cursor points to key 52.
-        # Search, so that new snapshot includes key 51.
+        # Point all cursors to key 50.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(50))
+        before_ts_c.set_key(ds.key(50))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(150))
+        between_ts_c.set_key(ds.key(50))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(250))
+        after_ts_c.set_key(ds.key(50))
+        self.assertEquals(after_ts_c.search(), 0)
+
         session.begin_transaction('isolation=' + self.isolation)
-        cursor.set_key(ds.key(52))
+        cursor.set_key(ds.key(50))
         self.assertEquals(cursor.search(), 0)
-        # Prev key will be 51, in prepared state.
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.prev())
-        prep_session.commit_transaction("commit_timestamp=100")
 
-        self.assertEquals(cursor.prev(), 0)
+        # Check the visibility of newly inserted, prepared update.
+
+        # As read is before prepare timestamp, next is not found.
+        self.assertEquals(before_ts_c.next(), wiredtiger.WT_NOTFOUND)
+        # As read is between, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.next())
+        # As read is after, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.next())
+        # As read is non-timestamped, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(200))
+
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), next is not found.
+        self.assertEquals(between_ts_c.next(), wiredtiger.WT_NOTFOUND)
+        between_ts_s.commit_transaction()
+        # As read is after, next will point to new key 51
+        self.assertEquals(after_ts_c.next(), 0)
+        self.assertEquals(after_ts_c.get_key(), ds.key(51))
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should find new key 51.
+        self.assertEquals(cursor.next(), 0)
         self.assertEquals(cursor.get_key(), ds.key(51))
+        session.commit_transaction()
+
+        # Insert key 1 to check prev operation.
+        prep_session.begin_transaction()
+        prep_cursor.set_key(ds.key(1))
+        prep_cursor.set_value(ds.value(1))
+        prep_cursor.insert()
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(100))
+
+        # Point all cursors to key 2.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(50))
+        before_ts_c.set_key(ds.key(2))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(150))
+        between_ts_c.set_key(ds.key(2))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(250))
+        after_ts_c.set_key(ds.key(2))
+        self.assertEquals(after_ts_c.search(), 0)
+
+        session.begin_transaction('isolation=' + self.isolation)
+        cursor.set_key(ds.key(2))
+        self.assertEquals(cursor.search(), 0)
+
+        # Check the visibility of newly inserted, prepared update.
+
+        # As read is before prepare timestamp, prev is not found.
+        self.assertEquals(before_ts_c.prev(), wiredtiger.WT_NOTFOUND)
+        before_ts_s.commit_transaction()
+        # As read is between, prev will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.prev())
+        # As read is after, prev will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.prev())
+        # As read is non-timestamped, prev will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(200))
+
+        # As read is between(i.e before commit), prev is not found.
+        self.assertEquals(between_ts_c.prev(), wiredtiger.WT_NOTFOUND)
+        between_ts_s.commit_transaction()
+        # As read is after, prev will point to new key 1.
+        self.assertEquals(after_ts_c.prev(), 0)
+        self.assertEquals(after_ts_c.get_key(), ds.key(1))
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should find new key 1.
+        self.assertEquals(cursor.prev(), 0)
+        self.assertEquals(cursor.get_key(), ds.key(1))
         session.commit_transaction()
 
         # End of Scenario-1.
 
-        # Scenario-2 : next / prev with update as prepared updated.
+        # Scenario-2 : Check cursor navigate with update in prepared transaction.
         # Begin of Scenario-2.
-        # Update key 52
-        prep_session.begin_transaction()
-        prep_cursor.set_key(ds.key(52))
-        prep_cursor.set_value(ds.value(152))
-        prep_cursor.update()
-        prep_session.prepare_transaction("prepare_timestamp=200")
-
-        # Cursor points to key 51.
-        session.begin_transaction('isolation=' + self.isolation)
-        cursor.set_key(ds.key(51))
-        self.assertEquals(cursor.search(), 0)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.next())
-        prep_session.commit_transaction("commit_timestamp=200")
-
-        self.assertEquals(cursor.next(), 0)
-        self.assertEquals(cursor.get_key(), ds.key(52))
-        session.commit_transaction()
-
+        # Data set at start has keys {1,2,3,4 ... 50,51}
+        # Update key 51 to check next operation.
+        # Update key 1 to check prev operation.
         prep_session.begin_transaction()
         prep_cursor.set_key(ds.key(51))
         prep_cursor.set_value(ds.value(151))
         prep_cursor.update()
-        prep_session.prepare_transaction("prepare_timestamp=200")
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(300))
 
-        # Cursor points to key 52.
-        # Search, so that new snapshot includes key 51.
+        # Point all cursors to key 51.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(250))
+        before_ts_c.set_key(ds.key(50))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(350))
+        between_ts_c.set_key(ds.key(50))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(450))
+        after_ts_c.set_key(ds.key(50))
+        self.assertEquals(after_ts_c.search(), 0)
+
         session.begin_transaction('isolation=' + self.isolation)
-        cursor.set_key(ds.key(52))
+        cursor.set_key(ds.key(50))
         self.assertEquals(cursor.search(), 0)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.prev())
-        prep_session.commit_transaction("commit_timestamp=200")
 
-        self.assertEquals(cursor.prev(), 0)
+        # Check the visibility of newly inserted, prepared update.
+
+        # As read is before prepare timestamp, next is found with previous value.
+        self.assertEquals(before_ts_c.next(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(51))
+        self.assertEquals(before_ts_c.get_value(), ds.value(51))
+        # As read is between, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.next())
+        # As read is after, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.next())
+        # As read is non-timestamped, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(400))
+
+        # Check to see before cursor still gets the old value.
+        before_ts_c.set_key(ds.key(51))
+        self.assertEquals(before_ts_c.search(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(51))
+        self.assertEquals(before_ts_c.get_value(), ds.value(51))
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), next is not found.
+        self.assertEquals(between_ts_c.next(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(51))
+        self.assertEquals(between_ts_c.get_value(), ds.value(51))
+        between_ts_s.commit_transaction()
+        # As read is after, next will point to new key 51.
+        self.assertEquals(after_ts_c.next(), 0)
+        self.assertEquals(after_ts_c.get_key(), ds.key(51))
+        self.assertEquals(after_ts_c.get_value(), ds.value(151))
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should find new key 51.
+        self.assertEquals(cursor.next(), 0)
         self.assertEquals(cursor.get_key(), ds.key(51))
+        self.assertEquals(cursor.get_value(), ds.value(151))
+        session.commit_transaction()
+
+        # Update key 1 to check prev operation.
+        prep_session.begin_transaction()
+        prep_cursor.set_key(ds.key(1))
+        prep_cursor.set_value(ds.value(111))
+        prep_cursor.update()
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(300))
+
+        # Point all cursors to key 2.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(250))
+        before_ts_c.set_key(ds.key(2))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(350))
+        between_ts_c.set_key(ds.key(2))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(450))
+        after_ts_c.set_key(ds.key(2))
+        self.assertEquals(after_ts_c.search(), 0)
+
+        session.begin_transaction('isolation=' + self.isolation)
+        cursor.set_key(ds.key(2))
+        self.assertEquals(cursor.search(), 0)
+
+        # Check the visibility of new update of prepared transaction.
+
+        # As read is before prepare timestamp, prev is not found.
+        self.assertEquals(before_ts_c.prev(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(1))
+        self.assertEquals(before_ts_c.get_value(), ds.value(1))
+        # As read is between, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.prev())
+        # As read is after, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.prev())
+        # As read is non-timestamped, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(400))
+
+        # Check to see before cursor still gets the old value.
+        before_ts_c.set_key(ds.key(1))
+        self.assertEquals(before_ts_c.search(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(1))
+        self.assertEquals(before_ts_c.get_value(), ds.value(1))
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), prev should get old value.
+        self.assertEquals(between_ts_c.prev(), 0)
+        self.assertEquals(between_ts_c.get_value(), ds.value(1))
+        between_ts_s.commit_transaction()
+        # As read is after, prev should get new value.
+        self.assertEquals(after_ts_c.prev(), 0)
+        self.assertEquals(after_ts_c.get_key(), ds.key(1))
+        self.assertEquals(after_ts_c.get_value(), ds.value(111))
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should find new key 1.
+        self.assertEquals(cursor.prev(), 0)
+        self.assertEquals(cursor.get_key(), ds.key(1))
+        self.assertEquals(cursor.get_value(), ds.value(111))
         session.commit_transaction()
 
         # End of Scenario-2.
 
-        # Scenario-3 : next / prev with remove as prepared updated.
+        # Scenario-3 : Check cursor navigate with remove in prepared transaction.
         # Begin of Scenario-3.
-        # Remove key 52
+        # Data set at start has keys {1,2,3,4 ... 50,51}
+        # Remove key 51 to check next operation.
+        # Remove key 1 to check prev operation.
         prep_session.begin_transaction()
-        prep_cursor.set_key(ds.key(52))
+        prep_cursor.set_key(ds.key(51))
         prep_cursor.remove()
-        prep_session.prepare_transaction("prepare_timestamp=300")
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(500))
 
-        # Cursor points to key 51.
+        # Point all cursors to key 51.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(450))
+        before_ts_c.set_key(ds.key(50))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(550))
+        between_ts_c.set_key(ds.key(50))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(650))
+        after_ts_c.set_key(ds.key(50))
+        self.assertEquals(after_ts_c.search(), 0)
+
         session.begin_transaction('isolation=' + self.isolation)
-        cursor.set_key(ds.key(51))
+        cursor.set_key(ds.key(50))
         self.assertEquals(cursor.search(), 0)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.next())
-        prep_session.commit_transaction("commit_timestamp=300")
 
-        # Key 52 is deleted and it is the last one, so should get NOT FOUND.
+        # Check the visibility of removed prepared update.
+
+        # As read is before prepare timestamp, next is found with key 51.
+        self.assertEquals(before_ts_c.next(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(51))
+        # As read is between, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.next())
+        # As read is after, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.next())
+        # As read is non-timestamped, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(600))
+
+        # Check to see before cursor still gets the old value.
+        before_ts_c.set_key(ds.key(51))
+        self.assertEquals(before_ts_c.search(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(51))
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), next is not found.
+        self.assertEquals(between_ts_c.next(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(51))
+        between_ts_s.commit_transaction()
+        # As read is after, next will point beyond end.
+        self.assertEquals(after_ts_c.next(), wiredtiger.WT_NOTFOUND)
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should not find a key.
         self.assertEquals(cursor.next(), wiredtiger.WT_NOTFOUND)
         session.commit_transaction()
 
+        # Remove key 1 to check prev operation.
         prep_session.begin_transaction()
-        prep_cursor.set_key(ds.key(50))
+        prep_cursor.set_key(ds.key(1))
         prep_cursor.remove()
-        prep_session.prepare_transaction("prepare_timestamp=300")
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(500))
 
-        # Cursor points to key 51.
-        # Search, so that new snapshot includes key 50, which is removed.
+        # Point all cursors to key 2.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(450))
+        before_ts_c.set_key(ds.key(2))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(550))
+        between_ts_c.set_key(ds.key(2))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(650))
+        after_ts_c.set_key(ds.key(2))
+        self.assertEquals(after_ts_c.search(), 0)
+
         session.begin_transaction('isolation=' + self.isolation)
-        cursor.set_key(ds.key(51))
+        cursor.set_key(ds.key(2))
         self.assertEquals(cursor.search(), 0)
-        self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: cursor.prev())
-        prep_session.commit_transaction("commit_timestamp=300")
 
-        # Key 50 is deleted, cursor was pointing to 50 now so should get 49.
-        self.assertEquals(cursor.prev(), 0)
-        self.assertEquals(cursor.get_key(), ds.key(49))
+        # Check the visibility of new update of prepared transaction.
+
+        # As read is before prepare timestamp, prev is not found.
+        self.assertEquals(before_ts_c.prev(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(1))
+        # As read is between, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.prev())
+        # As read is after, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.prev())
+        # As read is non-timestamped, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(600))
+
+        # Check to see before cursor still gets the old value.
+        before_ts_c.set_key(ds.key(1))
+        self.assertEquals(before_ts_c.search(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(1))
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), prev should get old value.
+        self.assertEquals(between_ts_c.prev(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(1))
+        between_ts_s.commit_transaction()
+        # As read is after, prev should get new value.
+        self.assertEquals(after_ts_c.prev(), wiredtiger.WT_NOTFOUND)
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should find new key 1.
+        self.assertEquals(cursor.prev(), wiredtiger.WT_NOTFOUND)
         session.commit_transaction()
 
         # End of Scenario-3.
+
+        # Scenario-4 : Check cursor navigate with remove in prepared transaction.
+        # remove keys not in the ends.
+        # Begin of Scenario-4.
+        # Data set at start has keys {2,3,4 ... 50}
+        # Remove key 49 to check next operation.
+        # Remove key 3 to check prev operation.
+        prep_session.begin_transaction()
+        prep_cursor.set_key(ds.key(49))
+        prep_cursor.remove()
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(700))
+
+        # Point all cursors to key 48.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(650))
+        before_ts_c.set_key(ds.key(48))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(750))
+        between_ts_c.set_key(ds.key(48))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(850))
+        after_ts_c.set_key(ds.key(48))
+        self.assertEquals(after_ts_c.search(), 0)
+
+        session.begin_transaction('isolation=' + self.isolation)
+        cursor.set_key(ds.key(48))
+        self.assertEquals(cursor.search(), 0)
+
+        # Check the visibility of removed prepared update.
+
+        # As read is before prepare timestamp, next is found with key 49.
+        self.assertEquals(before_ts_c.next(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(49))
+        # As read is between, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.next())
+        # As read is after, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.next())
+        # As read is non-timestamped, next will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(800))
+
+        # Check to see before cursor still gets the old value.
+        before_ts_c.set_key(ds.key(49))
+        self.assertEquals(before_ts_c.search(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(49))
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), next is not found.
+        self.assertEquals(between_ts_c.next(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(49))
+        between_ts_s.commit_transaction()
+        # As read is after, next will point beyond end.
+        self.assertEquals(after_ts_c.next(), 0)
+        self.assertEquals(after_ts_c.get_key(), ds.key(50))
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should not find a key.
+        self.assertEquals(cursor.next(), 0)
+        self.assertEquals(cursor.get_key(), ds.key(50))
+        session.commit_transaction()
+
+        # Remove key 3 to check prev operation.
+        prep_session.begin_transaction()
+        prep_cursor.set_key(ds.key(3))
+        prep_cursor.remove()
+        prep_session.prepare_transaction('prepare_timestamp=' + timestamp_str(700))
+
+        # Point all cursors to key 4.
+        before_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(650))
+        before_ts_c.set_key(ds.key(4))
+        self.assertEquals(before_ts_c.search(), 0)
+
+        between_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(750))
+        between_ts_c.set_key(ds.key(4))
+        self.assertEquals(between_ts_c.search(), 0)
+
+        after_ts_s.begin_transaction('isolation=' + self.isolation + ',read_timestamp=' + timestamp_str(850))
+        after_ts_c.set_key(ds.key(4))
+        self.assertEquals(after_ts_c.search(), 0)
+
+        session.begin_transaction('isolation=' + self.isolation)
+        cursor.set_key(ds.key(4))
+        self.assertEquals(cursor.search(), 0)
+
+        # Check the visibility of new update of prepared transaction.
+
+        # As read is before prepare timestamp, prev is not found.
+        self.assertEquals(before_ts_c.prev(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(3))
+        # As read is between, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.prev())
+        # As read is after, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.prev())
+        # As read is non-timestamped, prev should point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
+
+        # Commit the prepared transaction.
+        prep_session.commit_transaction('commit_timestamp=' + timestamp_str(800))
+
+        # Check to see before cursor still gets the old value.
+        before_ts_c.set_key(ds.key(3))
+        self.assertEquals(before_ts_c.search(), 0)
+        self.assertEquals(before_ts_c.get_key(), ds.key(3))
+        before_ts_s.commit_transaction()
+        # As read is between(i.e before commit), prev should get old value.
+        self.assertEquals(between_ts_c.prev(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(3))
+        between_ts_s.commit_transaction()
+        # As read is after, prev should get new value.
+        self.assertEquals(after_ts_c.prev(), 0)
+        self.assertEquals(after_ts_c.get_key(), ds.key(2))
+        after_ts_s.commit_transaction()
+        # Non-timestamped read should find new key 2.
+        self.assertEquals(cursor.prev(), 0)
+        self.assertEquals(cursor.get_key(), ds.key(2))
+        session.commit_transaction()
+
+        # End of Scenario-4.
 
 if __name__ == '__main__':
     wttest.run()
