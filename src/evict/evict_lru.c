@@ -2639,6 +2639,41 @@ __verbose_dump_cache_single(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __verbose_dump_cache_apply --
+ *	Apply dumping cache for all the dhandles.
+ */
+static int
+__verbose_dump_cache_apply(WT_SESSION_IMPL *session,
+    uint64_t *total_bytesp, uint64_t *total_dirty_bytesp)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DATA_HANDLE *dhandle;
+	WT_DECL_RET;
+
+	conn = S2C(session);
+	for (dhandle = NULL;;) {
+		WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q);
+		if (dhandle == NULL)
+			break;
+
+		/* Skip if the tree is marked discarded by another thread. */
+		if (dhandle->type != WT_DHANDLE_TYPE_BTREE ||
+		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+		    F_ISSET(dhandle, WT_DHANDLE_DISCARD))
+			continue;
+
+		WT_WITH_DHANDLE(session, dhandle,
+		    ret = __verbose_dump_cache_single(
+		    session, total_bytesp, total_dirty_bytesp));
+		if (ret != 0)
+			break;
+	}
+	WT_RET(ret);
+
+	return (0);
+}
+
+/*
  * __wt_verbose_dump_cache --
  *	Output diagnostic information about the cache.
  */
@@ -2646,7 +2681,6 @@ int
 __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	double pct;
 	uint64_t total_bytes, total_dirty_bytes;
@@ -2668,35 +2702,9 @@ __wt_verbose_dump_cache(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session,
 	    "cache dirty check: %s (%2.3f%%)", needed ? "yes" : "no", pct));
 
-	for (dhandle = NULL;;) {
-		WT_WITH_HANDLE_LIST_READ_LOCK(session,
-		    WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
-		if (dhandle == NULL)
-			break;
-		/*
-		 * Lock the handle to prevent changes in the handle's state
-		 * when it is being used to dump the cache information.
-		 */
-		if ((ret = __wt_try_readlock(session, &dhandle->rwlock)) ==
-		    EBUSY)
-			continue;
-		WT_RET(ret);
-
-		/* Skip if the tree is marked discarded by another thread. */
-		if (dhandle->type != WT_DHANDLE_TYPE_BTREE ||
-		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
-		    F_ISSET(dhandle, WT_DHANDLE_DISCARD)) {
-			__wt_readunlock(session, &dhandle->rwlock);
-			continue;
-		}
-
-		WT_WITH_DHANDLE(session, dhandle,
-		    ret = __verbose_dump_cache_single(
-		    session, &total_bytes, &total_dirty_bytes));
-		__wt_readunlock(session, &dhandle->rwlock);
-		if (ret != 0)
-			break;
-	}
+	WT_WITH_HANDLE_LIST_READ_LOCK(session,
+	    ret = __verbose_dump_cache_apply(
+	    session, &total_bytes, &total_dirty_bytes));
 	WT_RET(ret);
 
 	/*
