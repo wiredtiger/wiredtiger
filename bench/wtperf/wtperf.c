@@ -1390,8 +1390,9 @@ monitor(void *arg)
 		    insert_avg, insert_min, insert_max,
 		    update_avg, update_min, update_max);
 		if (jfp != NULL) {
-			testutil_assert((buf_size = strftime(buf,
-			    sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt)) != 0);
+			buf_size = strftime(buf,
+			    sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt);
+			testutil_assert(buf_size != 0);
 			testutil_check(__wt_snprintf(&buf[buf_size],
 			    sizeof(buf) - buf_size,
 			    ".%3.3" PRIu64 "Z",
@@ -1475,6 +1476,8 @@ err:		wtperf->error = wtperf->stop = true;
 
 	if (fp != NULL)
 		(void)fclose(fp);
+	if (jfp != NULL)
+		(void)fclose(jfp);
 	free(path);
 
 	return (WT_THREAD_RET_VALUE);
