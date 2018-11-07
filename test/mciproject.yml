@@ -145,11 +145,12 @@ tasks:
 
             if [ "Windows_NT" = "$OS" ]; then
               ${test_env_vars|} python ./test/suite/run.py -v 2 ${smp_command|} 2>&1
-            else
+            elif [ "$(uname -s)" == "Darwin" ]; then
               # Avoid /usr/bin/python, at least on macOS: with System Integrity
               # Protection enabled, it ignores DYLD_LIBRARY_PATH and hence
               # doesn't find the WiredTiger library in the local tree.
-              # 
+              ${test_env_vars|} python ./test/suite/run.py -v 2 ${smp_command|} 2>&1
+            else # Ubuntu
               # Change directory to where the local installed 'wt' binary is located, 
               # to avoid libtool generated 'wt' script from being selected by run.py,
               # which invokes relink_command that tries to changing to a non-existed 
@@ -264,7 +265,7 @@ buildvariants:
     smp_command: -j $(sysctl -n hw.logicalcpu)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v2/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
-    test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/../lib
+    test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs
   tasks:
     - name: compile
     - name: unit-test
