@@ -2668,9 +2668,7 @@ __verbose_dump_cache_apply(WT_SESSION_IMPL *session,
 		if (ret != 0)
 			break;
 	}
-	WT_RET(ret);
-
-	return (0);
+	return (ret);
 }
 
 /*
