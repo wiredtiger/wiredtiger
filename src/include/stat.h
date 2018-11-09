@@ -843,4 +843,18 @@ struct __wt_join_stats {
 	int64_t iterated;
 };
 
+/*
+ * Statistics entries for operations.
+ */
+#define	WT_OPERATION_STATS_BASE	4000
+struct __wt_operation_stats {
+	int64_t op_bytes_read;
+	int64_t op_bytes_written;
+	int64_t op_cache_full_wait;
+	int64_t op_handle_lock_wait;
+	int64_t op_read_time;
+	int64_t op_schema_lock_wait;
+	int64_t op_write_time;
+};
+
 /* Statistics section: END */

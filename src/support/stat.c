@@ -2147,3 +2147,39 @@ __wt_stat_join_aggregate(
 	to->bloom_insert += WT_STAT_READ(from, bloom_insert);
 	to->iterated += WT_STAT_READ(from, iterated);
 }
+
+static const char * const __stats_operation_desc[] = {
+	"operation: bytes read into cache",
+	"operation: bytes written from cache",
+	"operation: cache wait time (usecs)",
+	"operation: handle lock wait time (usecs)",
+	"operation: read from disk to cache time (usecs)",
+	"operation: schema lock wait time (usecs)",
+	"operation: write from cache to disk time (usecs)",
+};
+
+int
+__wt_stat_operation_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
+{
+	WT_UNUSED(cst);
+	*p = __stats_operation_desc[slot];
+	return (0);
+}
+
+void
+__wt_stat_operation_init_single(WT_OPERATION_STATS *stats)
+{
+	memset(stats, 0, sizeof(*stats));
+}
+
+void
+__wt_stat_operation_clear_single(WT_OPERATION_STATS *stats)
+{
+	stats->op_bytes_read = 0;
+	stats->op_bytes_written = 0;
+	stats->op_cache_full_wait = 0;
+	stats->op_handle_lock_wait = 0;
+	stats->op_read_time = 0;
+	stats->op_schema_lock_wait = 0;
+	stats->op_write_time = 0;
+}

@@ -84,6 +84,10 @@ class LSMStat(Stat):
     prefix = 'LSM'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LSMStat.prefix, desc, flags)
+class OpStat(Stat):
+    prefix = 'operation'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, OpStat.prefix, desc, flags)
 class PerfHistStat(Stat):
     prefix = 'perf'
     def __init__(self, name, desc, flags=''):
@@ -776,3 +780,18 @@ join_stats = [
 ]
 
 join_stats = sorted(join_stats, key=attrgetter('desc'))
+
+##########################################
+# Operation statistics
+##########################################
+op_stats = [
+    OpStat('op_bytes_read', 'bytes read into cache'),
+    OpStat('op_bytes_written', 'bytes written from cache'),
+    OpStat('op_read_time', 'read from disk to cache time (usecs)'),
+    OpStat('op_write_time', 'write from cache to disk time (usecs)'),
+    OpStat('op_cache_full_wait', 'cache wait time (usecs)'),
+    OpStat('op_schema_lock_wait', 'schema lock wait time (usecs)'),
+    OpStat('op_handle_lock_wait', 'handle lock wait time (usecs)'),
+]
+
+op_stats = sorted(op_stats, key=attrgetter('desc'))
