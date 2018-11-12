@@ -143,7 +143,7 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 	h = hstart = hend = 0;
 	i = gap = 0;
 	for (p2 = cms.s2, start = true;
-	    p2 + WT_CM_BLOCKSIZE <= cms.e2;
+	    p1 + WT_CM_BLOCKSIZE <= cms.e1 && p2 + WT_CM_BLOCKSIZE <= cms.e2;
 	    p2++, i++) {
 		if (start || i == gap) {
 			if (start) {
