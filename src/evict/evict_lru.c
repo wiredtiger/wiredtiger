@@ -1923,8 +1923,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 			__wt_cache_read_gen_new(session, page);
 
 		/* Pages being forcibly evicted go on the urgent queue. */
-		if (page->read_gen == WT_READGEN_OLDEST ||
-		    page->memory_footprint >= btree->splitmempage) {
+		if (modified && (page->read_gen == WT_READGEN_OLDEST ||
+		    page->memory_footprint >= btree->splitmempage)) {
 			WT_STAT_CONN_INCR(
 			    session, cache_eviction_pages_queued_oldest);
 			if (__wt_page_evict_urgent(session, ref))
