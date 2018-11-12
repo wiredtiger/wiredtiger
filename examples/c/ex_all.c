@@ -1357,8 +1357,8 @@ main(int argc, char *argv[])
 
 	{
 	/*! [Calculate a modify operation] */
+	WT_MODIFY mod[3];
 	int nmod = 3;
-	WT_MODIFY mod[nmod];
 	WT_ITEM prev, newv;
 	prev.data = "the quick brown fox jumped over the lazy dog. " \
 		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
