@@ -60,7 +60,7 @@ class test_bug019(wttest.WiredTigerTestCase):
         self.assertFalse(not f)
 
     def get_prealloc_stat(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None);
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
         prealloc = stat_cursor[stat.conn.log_prealloc_max][2]
         stat_cursor.close()
         return prealloc
