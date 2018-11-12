@@ -140,6 +140,8 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 	 * the gap, update the markers and keep trying.
 	 */
 	p1 = cms.s1;
+	h = hstart = hend = 0;
+	i = gap = 0;
 	for (p2 = cms.s2, start = true;
 	    p2 + WT_CM_BLOCKSIZE <= cms.e2;
 	    p2++, i++) {
