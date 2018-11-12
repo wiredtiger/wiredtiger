@@ -447,7 +447,14 @@ __log_prealloc_once(WT_SESSION_IMPL *session)
 		__wt_verbose(session, WT_VERB_LOG,
 		    "Missed %" PRIu32 ". Now pre-allocating up to %" PRIu32,
 		    log->prep_missed, conn->log_prealloc);
-	}
+	} else if (reccount > conn->log_prealloc / 2)
+		/*
+		 * If we used less than half, then adjust how many we allocate
+		 * downward. Cut in half, plus 1 so that we always allocate
+		 * at least one.
+		 */
+		conn->log_prealloc = conn->log_prealloc / 2 + 1;
+
 	WT_STAT_CONN_SET(session, log_prealloc_max, conn->log_prealloc);
 	/*
 	 * Allocate up to the maximum number that we just computed and detected.
