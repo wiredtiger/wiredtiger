@@ -79,15 +79,15 @@ __cm_add_modify(WT_CM_STATE *cms, const uint8_t *p1, size_t len1,
 {
 	WT_MODIFY *mod;
 
-	if (*nentriesp >= cms->maxentries || WT_MAX(len1, len2) > cms->maxdiff)
+	if (*nentriesp >= cms->maxentries || len2 > cms->maxdiff)
 		return (WT_NOTFOUND);
 
-	cms->maxdiff -= WT_MAX(len1, len2);
 	mod = entries + (*nentriesp)++;
 	mod->size = len1;
 	mod->offset = (size_t)(p1 - cms->s1);
 	mod->data.data = p2;
 	mod->data.size = len2;
+	cms->maxdiff -= len2;
 
 	return (0);
 }
@@ -104,7 +104,9 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 	WT_CM_STATE cms;
 	size_t gap, i;
 	uint64_t h, hend, hstart;
-	const uint8_t *p1, *p1end, *p2, *used1, *used2;
+	const uint8_t *p1, *p2, *used1, *used2;
+	int size_delta;
+	bool start;
 
 	cms.s1 = prev->data;
 	cms.e1 = cms.s1 + prev->size;
@@ -113,6 +115,7 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 	cms.maxdiff = maxdiff;
 	cms.maxentries = *nentriesp;
 	*nentriesp = 0;
+	size_delta = 0;
 
 	/* Ignore matches at the beginning / end. */
 	__cm_extend(&cms, cms.s1, cms.s2, &match);
@@ -136,45 +139,51 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 	 * in the post-image without finding a good match, double the size of
 	 * the gap, update the markers and keep trying.
 	 */
-	p1 = p1end = cms.s1;
-	hend = hstart = __cm_hash(p1);
-	for (p2 = cms.s2, i = gap = WT_CM_STARTGAP;
-	    p1 + WT_CM_BLOCKSIZE < cms.e1 && p2 + WT_CM_BLOCKSIZE < cms.e2;
-	    p1++, p2++, i++) {
-		if (i == gap) {
-			gap *= 2;
-			if (p1 + gap + WT_CM_BLOCKSIZE >= cms.e1)
-				gap = (size_t)(cms.e1 - p1 - WT_CM_BLOCKSIZE);
-			if (gap > maxdiff)
-				return (WT_NOTFOUND);
-			hstart = hend;
-			p1end = p1 + gap;
-			hend = __cm_hash(p1end);
+	p1 = cms.s1;
+	for (p2 = cms.s2, start = true;
+	    p2 + WT_CM_BLOCKSIZE <= cms.e2;
+	    p2++, i++) {
+		if (start || i == gap) {
+			if (start) {
+				start = false;
+				gap = WT_CM_STARTGAP;
+				hstart = __cm_hash(p1);
+			} else if (i == gap) {
+				p1 += gap;
+				gap *= 2;
+				gap = WT_MIN(gap, (size_t)(
+				    cms.e1 - p1 - WT_CM_BLOCKSIZE));
+				if (gap > maxdiff)
+					return (WT_NOTFOUND);
+				hstart = hend;
+			}
+			hend = __cm_hash(p1 + gap);
 			i = 0;
 		}
 		/* TODO: replace this with a shift-and-or. */
 		h = __cm_hash(p2);
 		match.len = 0;
 		if (h == hstart)
-			__cm_extend(&cms, p1 + i, p2, &match);
+			__cm_extend(&cms, p1, p2, &match);
 		else if (h == hend)
-			__cm_extend(&cms, p1end, p2, &match);
+			__cm_extend(&cms, p1 + gap, p2, &match);
 
 		if (match.len >= WT_CM_MINMATCH) {
 			WT_RET(__cm_add_modify(&cms,
-			    used1, (size_t)(match.m1 - used1),
+			    used1 - size_delta, (size_t)(match.m1 - used1),
 			    used2, (size_t)(match.m2 - used2),
 			    entries, nentriesp));
+			size_delta += (int)(match.m1 - used1);
+			size_delta -= (int)(match.m2 - used2);
 			used1 = p1 = match.m1 + match.len;
 			used2 = p2 = match.m2 + match.len;
-			gap = WT_CM_STARTGAP;
-			hend = hstart = __cm_hash(p1);
+			start = true;
 		}
 	}
 
 end:	if (used1 < cms.e1 || used2 < cms.e2)
 		WT_RET(__cm_add_modify(&cms,
-		    used1, (size_t)(cms.e1 - used1),
+		    used1 - size_delta, (size_t)(cms.e1 - used1),
 		    used2, (size_t)(cms.e2 - used2),
 		    entries, nentriesp));
 

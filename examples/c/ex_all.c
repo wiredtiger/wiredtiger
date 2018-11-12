@@ -1362,11 +1362,14 @@ main(int argc, char *argv[])
 	WT_ITEM prev, newv;
 	prev.data = "the quick brown fox jumped over the lazy dog. " \
 		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
-		"the quick brown fox jumped over the lazy dog. ";
+		"the quick brown fox jumped over the lazy dog. " \
+		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. ";
 	prev.size = strlen(prev.data);
 	newv.data = "A quick brown fox jumped over the lazy dog. " \
 		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
-		"then a quick brown fox jumped over the lazy dog. ";
+		"then a quick brown fox jumped over the lazy dog. " \
+		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
+		"then what?";
 	newv.size = strlen(newv.data);
 	error_check(wiredtiger_calc_modify(&prev, &newv, 20, mod, &nmod));
 	/*! [Calculate a modify operation] */
