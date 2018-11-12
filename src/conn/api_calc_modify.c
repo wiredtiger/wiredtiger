@@ -8,62 +8,6 @@
 
 #include "wt_internal.h"
 
-#if 0
-/*
- * wiredtiger_calc_modify --
- *	Calculate a set of WT_MODIFY operations to represent an update.
- */
-int
-wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
-    size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
-{
-	size_t i, end_match, len, start_match;
-	int max_entries, nentries;
-	const char *np, *pp;
-
-	len = WT_MIN(prev->size, newv->size);
-	max_entries = *nentriesp;
-	WT_UNUSED(max_entries);
-
-	nentries = prev->size == newv->size ? 1 : 2;
-	if (prev->size != newv->size) {
-	    entries[0].data.data = newv->data;
-	    entries[0].data.size = 4;
-	    entries[0].offset = 0;
-	    entries[0].size = 4;
-	}
-
-	pp = prev->data;
-	np = newv->data;
-	for (i = 4, pp += 4, np += 4;
-	    i < len && *pp == *np;
-	    pp++, np++, i++)
-	    ;
-	start_match = i;
-
-	pp = prev->data;
-	np = newv->data;
-	for (i = 0, pp += prev->size - 1, np += newv->size - 1;
-	    i < len && *pp == *np;
-	    pp--, np--, i++)
-	    ;
-	end_match = i;
-
-	entries[nentries - 1].data.data =
-	    (const char *)newv->data + start_match;
-	entries[nentries - 1].data.size = newv->size - end_match;
-	entries[nentries - 1].offset = start_match;
-	entries[nentries - 1].size = prev->size - end_match;
-
-	if (newv->size - end_match > maxdiff ||
-	    prev->size - end_match > maxdiff)
-		return (WT_NOTFOUND);
-
-	*nentriesp = nentries;
-	return (0);
-}
-#else
-
 #define	WT_CM_BLOCKSIZE 8
 #define	WT_CM_MINMATCH 64
 #define	WT_CM_STARTGAP (WT_CM_BLOCKSIZE / 2)
@@ -208,6 +152,7 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 			hend = __cm_hash(p1end);
 			i = 0;
 		}
+		/* TODO: replace this with a shift-and-or. */
 		h = __cm_hash(p2);
 		match.len = 0;
 		if (h == hstart)
@@ -235,5 +180,3 @@ end:	if (used1 < cms.e1 || used2 < cms.e2)
 
 	return (0);
 }
-
-#endif
