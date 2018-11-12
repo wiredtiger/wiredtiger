@@ -2666,9 +2666,9 @@ __verbose_dump_cache_apply(WT_SESSION_IMPL *session,
 		    ret = __verbose_dump_cache_single(
 		    session, total_bytesp, total_dirty_bytesp));
 		if (ret != 0)
-			break;
+			WT_RET(ret);
 	}
-	return (ret);
+	return (0);
 }
 
 /*
