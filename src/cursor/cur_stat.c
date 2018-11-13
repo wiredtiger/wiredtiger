@@ -514,6 +514,37 @@ __curstat_join_init(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __curstat_operation_init --
+ *	Initialize the statistics for an operation.
+ */
+static void
+__curstat_operation_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
+{
+	/* This is a stub at the moment, initialise the session stats to 0. */
+	session->op_stats.op_bytes_read = 0;
+	session->op_stats.op_bytes_written = 0;
+	session->op_stats.op_read_time = 0;
+	session->op_stats.op_write_time = 0;
+	session->op_stats.op_cache_full_wait = 0;
+	session->op_stats.op_schema_lock_wait = 0;
+	session->op_stats.op_handle_lock_wait = 0;
+
+	/*
+	 * Copy stats from the session to the cursor.
+	 * Optionally clear the connection statistics.
+	 */
+	memcpy(&cst->u.operation_stats,
+	    &session->op_stats, sizeof(WT_OPERATION_STATS));
+	if (F_ISSET(cst, WT_STAT_CLEAR))
+		__wt_stat_operation_clear_single(&session->op_stats);
+
+	cst->stats = (int64_t *)&cst->u.operation_stats;
+	cst->stats_base = WT_OPERATION_STATS_BASE;
+	cst->stats_count = sizeof(WT_OPERATION_STATS) / sizeof(int64_t);
+	cst->stats_desc = __wt_stat_operation_desc;
+}
+
+/*
  * __wt_curstat_init --
  *	Initialize a statistics cursor.
  */
@@ -532,6 +563,11 @@ __wt_curstat_init(WT_SESSION_IMPL *session,
 
 	if (strcmp(dsrc_uri, "join") == 0)
 		WT_RET(__curstat_join_init(session, curjoin, cfg, cst));
+
+	else if (strcmp(dsrc_uri, "session") == 0) {
+		__curstat_operation_init(session, cst);
+		return (0);
+	}
 
 	else if (WT_PREFIX_MATCH(dsrc_uri, "colgroup:"))
 		WT_RET(
