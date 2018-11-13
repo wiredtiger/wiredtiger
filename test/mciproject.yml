@@ -85,6 +85,21 @@ tasks:
           directory: wiredtiger
       - func: "compile wiredtiger"
 
+  - name: make-check-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+
   - name: csuite-test
     depends_on: []
     commands:
@@ -239,6 +254,7 @@ buildvariants:
     test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs
   tasks:
     - name: compile
+    - name: make-check-test
     - name: unit-test
     - name: fops
 
