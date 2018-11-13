@@ -487,6 +487,7 @@ struct __wt_cursor_stat {
 		WT_DSRC_STATS dsrc_stats;
 		WT_CONNECTION_STATS conn_stats;
 		WT_JOIN_STATS_GROUP join_stats_group;
+		WT_OPERATION_STATS operation_stats;
 	} u;
 
 	const char **cfg;		/* Original cursor configuration */
