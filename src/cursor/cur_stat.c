@@ -520,7 +520,7 @@ __curstat_join_init(WT_SESSION_IMPL *session,
 static void
 __curstat_operation_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 {
-	/* This is a stub at the moment, initialise the session stats to 0. */
+	/* This is a stub at the moment, initialize the session stats to 0. */
 	session->op_stats.op_bytes_read = 0;
 	session->op_stats.op_bytes_written = 0;
 	session->op_stats.op_read_time = 0;
