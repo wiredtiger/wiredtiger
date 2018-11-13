@@ -100,13 +100,11 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
 
-  - name: csuite-test
-    depends_on: []
+  - name: examples-c-test
+    depends_on:
+      - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: git.apply_patch
-        params:
-          directory: wiredtiger
       - func: "compile wiredtiger"
       - command: shell.exec
         params:
@@ -115,7 +113,22 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/csuite  ${smp_command|} 2>&1
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C examples/c  ${smp_command|} 2>&1
+
+  - name: csuite-col-append-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt2246_col_append 2>&1
 
   - name: unit-test
     depends_on:
@@ -142,7 +155,7 @@ tasks:
               # which invokes relink_command that tries to changing to a non-existed 
               # /data/mci/<uniq> directory, as 'make' is done by a separate 'compile' task.
               cd LOCAL_INSTALL/bin
-              ${test_env_vars|} python ../../test/suite/run.py -v 2 ${smp_command|} 2>&1
+              ${test_env_vars_py|} python ../../test/suite/run.py -v 2 ${smp_command|} 2>&1
             fi
 
   - name: compile-windows-alt
@@ -213,12 +226,14 @@ buildvariants:
   - ubuntu1404-test
   expansions:
     # It's ugly, but we need the absolute path here, not the relative
-    test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH LD_LIBRARY_PATH=$(pwd)/../lib
+    test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH LD_LIBRARY_PATH=$(pwd)/LOCAL_INSTALL/lib
+    test_env_vars_py: PATH=/opt/mongodbtoolchain/v2/bin:$PATH LD_LIBRARY_PATH=$(pwd)/../lib
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++ PATH=/opt/mongodbtoolchain/v2/bin:$PATH
   tasks:
     - name: compile
-    - name: csuite-test
+    - name: examples-c-test
+    - name: csuite-col-append-test
     - name: unit-test
     - name: fops
 
