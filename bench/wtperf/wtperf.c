@@ -2000,10 +2000,13 @@ static int
 create_tables(WTPERF *wtperf)
 {
 	CONFIG_OPTS *opts;
+	WT_CURSOR *cursor;
 	WT_SESSION *session;
+	uint64_t bytes, value;
 	size_t i;
 	int ret;
-	char buf[512];
+	char buf[512], tbuf[512];
+	const char *desc, *pvalue;
 
 	opts = wtperf->opts;
 
@@ -2030,6 +2033,21 @@ create_tables(WTPERF *wtperf)
 		return (ret);
 	}
 
+	if (strstr(opts->table_config, "os_cache_dirty_max") == NULL) {
+		testutil_check(session->open_cursor(session, "statistics:",
+		    NULL, NULL, &cursor));
+		cursor->set_key(cursor, WT_STAT_CONN_CACHE_BYTES_MAX);
+		testutil_check(cursor->search(cursor));
+		testutil_check(cursor->get_value(cursor, &desc, &pvalue, &value));
+		/* 1% cache bytes per table */
+		bytes = value / opts->table_count / 100;
+
+		testutil_check(__wt_snprintf(tbuf, 512,
+		    "%s,os_cache_dirty_max=%" PRIu64,
+		    opts->table_config, bytes));
+	} else
+		testutil_check(__wt_snprintf(tbuf, 512,
+		    "%s", opts->table_config));
 	for (i = 0; i < opts->table_count; i++) {
 		if (opts->log_partial && i > 0) {
 			if (((ret = session->create(session,
@@ -2039,7 +2057,7 @@ create_tables(WTPERF *wtperf)
 				return (ret);
 			}
 		} else if ((ret = session->create(
-		    session, wtperf->uris[i], opts->table_config)) != 0) {
+		    session, wtperf->uris[i], tbuf)) != 0) {
 			lprintf(wtperf, ret, 0,
 			    "Error creating table %s", wtperf->uris[i]);
 			return (ret);
