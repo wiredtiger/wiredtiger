@@ -92,12 +92,8 @@ class test_bug019(wttest.WiredTigerTestCase):
 
         # Sleep for a few seconds and we should see the number of files we want
         # to pre-allocate drop as the log server thread sees an idle system.
-        #
-        # NOTE: there is a problem with auto-adjusting conditions such that
-        # waiting 3 seconds is not long enough for the log server thread to run.
-        # It appears to need over 5 seconds to run once when idle.
         prealloc = self.get_prealloc_stat()
-        time.sleep(6)
+        time.sleep(3)
         new_prealloc = self.get_prealloc_stat()
         self.assertTrue(new_prealloc < prealloc)
 
