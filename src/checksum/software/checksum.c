@@ -44,8 +44,7 @@
 /*
  * The CRC slicing tables.
  */
-static const uint32_t g_crc_slicing[8][256] = {
-#ifdef WORDS_BIGENDIAN
+static const uint32_t g_crc_slicing_be[8][256] = {
 	/*
 	 * Big endian tables have entries that are byte reversed from little
 	 * endian tables.
@@ -571,7 +570,9 @@ static const uint32_t g_crc_slicing[8][256] = {
 	0xa1354ce5, 0x864870ac, 0xefcf3477, 0xc8b2083e,
 	0xccb751c4, 0xebca6d8d, 0x824d2956, 0xa530151f
 	}
-#else
+};
+
+static const uint32_t g_crc_slicing_le[8][256] = {
 	{
 	0x00000000, 0xf26b8303, 0xe13b70f7, 0x1350f3f4,
 	0xc79a971f, 0x35f1141c, 0x26a1e7e8, 0xd4ca64eb,
@@ -1093,17 +1094,15 @@ static const uint32_t g_crc_slicing[8][256] = {
 	0xe54c35a1, 0xac704886, 0x7734cfef, 0x3e08b2c8,
 	0xc451b7cc, 0x8d6dcaeb, 0x56294d82, 0x1f1530a5
 	}
-#endif
 };
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
-
 /*
- * __wt_checksum_sw --
- *	Return a checksum for a chunk of memory, computed in software.
+ * __checksum_sw_be --
+ *	Return a checksum for a chunk of memory, computed in software,
+ * big-endian version.
  */
-uint32_t
-__wt_checksum_sw(const void *chunk, size_t len)
+static uint32_t
+__checksum_sw_be(const void *chunk, size_t len)
 {
 	uint32_t crc, next;
 	size_t nqwords;
@@ -1115,11 +1114,8 @@ __wt_checksum_sw(const void *chunk, size_t len)
 	for (p = chunk;
 	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
 	    len > 0; ++p, --len)
-#ifdef WORDS_BIGENDIAN
-		crc = g_crc_slicing[0][((crc >> 24) ^ *p) & 0xFF] ^ (crc << 8);
-#else
-		crc = g_crc_slicing[0][(crc ^ *p) & 0xFF] ^ (crc >> 8);
-#endif
+		crc =
+		    g_crc_slicing_be[0][((crc >> 24) ^ *p) & 0xFF] ^ (crc << 8);
 
 	/* Checksum in 8B chunks. */
 	for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
@@ -1128,41 +1124,85 @@ __wt_checksum_sw(const void *chunk, size_t len)
 		next = *(uint32_t *)p;
 		p += sizeof(uint32_t);
 		crc =
-#ifdef WORDS_BIGENDIAN
-			g_crc_slicing[4][(crc      ) & 0xFF] ^
-			g_crc_slicing[5][(crc >>  8) & 0xFF] ^
-			g_crc_slicing[6][(crc >> 16) & 0xFF] ^
-			g_crc_slicing[7][(crc >> 24)] ^
-			g_crc_slicing[0][(next      ) & 0xFF] ^
-			g_crc_slicing[1][(next >>  8) & 0xFF] ^
-			g_crc_slicing[2][(next >> 16) & 0xFF] ^
-			g_crc_slicing[3][(next >> 24)];
-#else
-			g_crc_slicing[7][(crc      ) & 0xFF] ^
-			g_crc_slicing[6][(crc >>  8) & 0xFF] ^
-			g_crc_slicing[5][(crc >> 16) & 0xFF] ^
-			g_crc_slicing[4][(crc >> 24)] ^
-			g_crc_slicing[3][(next      ) & 0xFF] ^
-			g_crc_slicing[2][(next >>  8) & 0xFF] ^
-			g_crc_slicing[1][(next >> 16) & 0xFF] ^
-			g_crc_slicing[0][(next >> 24)];
-#endif
+		    g_crc_slicing_be[4][(crc      ) & 0xFF] ^
+		    g_crc_slicing_be[5][(crc >>  8) & 0xFF] ^
+		    g_crc_slicing_be[6][(crc >> 16) & 0xFF] ^
+		    g_crc_slicing_be[7][(crc >> 24)] ^
+		    g_crc_slicing_be[0][(next      ) & 0xFF] ^
+		    g_crc_slicing_be[1][(next >>  8) & 0xFF] ^
+		    g_crc_slicing_be[2][(next >> 16) & 0xFF] ^
+		    g_crc_slicing_be[3][(next >> 24)];
 	}
 
 	/* Checksum trailing bytes one byte at a time. */
-#ifdef WORDS_BIGENDIAN
 	for (len &= 0x7; len > 0; ++p, len--)
-		crc = g_crc_slicing[0][((crc >> 24) ^ *p) & 0xFF] ^ (crc << 8);
+		crc =
+		    g_crc_slicing_be[0][((crc >> 24) ^ *p) & 0xFF] ^ (crc << 8);
 
 	/* Do final byte swap to produce a result identical to little endian */
 	crc =
-		((crc << 24) & 0xFF000000) |
-		((crc <<  8) & 0x00FF0000) |
-		((crc >>  8) & 0x0000FF00) |
-		((crc >> 24) & 0x000000FF);
-#else
-	for (len &= 0x7; len > 0; ++p, len--)
-		crc = g_crc_slicing[0][(crc ^ *p) & 0xFF] ^ (crc >> 8);
-#endif
+	    ((crc << 24) & 0xFF000000) |
+	    ((crc <<  8) & 0x00FF0000) |
+	    ((crc >>  8) & 0x0000FF00) |
+	    ((crc >> 24) & 0x000000FF);
 	return (~crc);
+}
+
+/*
+ * __checksum_sw_le --
+ *	Return a checksum for a chunk of memory, computed in software,
+ * little-endian version.
+ */
+static uint32_t
+__checksum_sw_le(const void *chunk, size_t len)
+{
+	uint32_t crc, next;
+	size_t nqwords;
+	const uint8_t *p;
+
+	crc = 0xffffffff;
+
+	/* Checksum one byte at a time to the first 4B boundary. */
+	for (p = chunk;
+	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
+	    len > 0; ++p, --len)
+		crc = g_crc_slicing_le[0][(crc ^ *p) & 0xFF] ^ (crc >> 8);
+
+	/* Checksum in 8B chunks. */
+	for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
+		crc ^= *(uint32_t *)p;
+		p += sizeof(uint32_t);
+		next = *(uint32_t *)p;
+		p += sizeof(uint32_t);
+		crc =
+		    g_crc_slicing_le[7][(crc      ) & 0xFF] ^
+		    g_crc_slicing_le[6][(crc >>  8) & 0xFF] ^
+		    g_crc_slicing_le[5][(crc >> 16) & 0xFF] ^
+		    g_crc_slicing_le[4][(crc >> 24)] ^
+		    g_crc_slicing_le[3][(next      ) & 0xFF] ^
+		    g_crc_slicing_le[2][(next >>  8) & 0xFF] ^
+		    g_crc_slicing_le[1][(next >> 16) & 0xFF] ^
+		    g_crc_slicing_le[0][(next >> 24)];
+	}
+
+	/* Checksum trailing bytes one byte at a time. */
+	for (len &= 0x7; len > 0; ++p, len--)
+		crc = g_crc_slicing_le[0][(crc ^ *p) & 0xFF] ^ (crc >> 8);
+
+	return (~crc);
+}
+
+extern uint32_t (*__wt_checksum_sw(void))(const void *, size_t);
+
+/*
+ * __wt_checksum_sw --
+ *	Determine if on big- or little-endian system and return a checksum for
+ * a chunk of memory, computed in software.
+ */
+uint32_t (*__wt_checksum_sw(void))(const void *, size_t)
+{
+	uint64_t v;
+
+	v = 1;
+	return (*((uint8_t *)&v) == 0 ? __checksum_sw_be : __checksum_sw_le);
 }

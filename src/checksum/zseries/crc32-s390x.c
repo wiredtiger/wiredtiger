@@ -98,7 +98,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
 }
 #endif
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+extern uint32_t (*__wt_checksum_sw(void))(const void *, size_t);
 #if defined(__GNUC__)
 extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
     __attribute__((visibility("default")));
@@ -118,8 +118,8 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 	if (caps & HWCAP_S390_VX)
 		return (__wt_checksum_hw);
 	else
-		return (__wt_checksum_sw);
+		return (__wt_checksum_sw());
 #else
-	return (__wt_checksum_sw);
+	return (__wt_checksum_sw());
 #endif
 }

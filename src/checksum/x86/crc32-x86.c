@@ -125,7 +125,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
 #endif
 #endif
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+extern uint32_t (*__wt_checksum_sw(void))(const void *, size_t);
 #if defined(__GNUC__)
 extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
     __attribute__((visibility("default")));
@@ -151,7 +151,7 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 #define	CPUID_ECX_HAS_SSE42	(1 << 20)
 	if (ecx & CPUID_ECX_HAS_SSE42)
 		return (__wt_checksum_hw);
-	return (__wt_checksum_sw);
+	return (__wt_checksum_sw());
 
 #elif defined(_M_AMD64)
 	int cpuInfo[4];
@@ -161,11 +161,11 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 #define	CPUID_ECX_HAS_SSE42	(1 << 20)
 	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
 		return (__wt_checksum_hw);
-	return (__wt_checksum_sw);
+	return (__wt_checksum_sw());
 #else
-	return (__wt_checksum_sw);
+	return (__wt_checksum_sw());
 #endif
 #else
-	return (__wt_checksum_sw);
+	return (__wt_checksum_sw());
 #endif
 }
