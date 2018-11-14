@@ -146,20 +146,15 @@ wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
 	    p1 + WT_CM_BLOCKSIZE <= cms.e1 && p2 + WT_CM_BLOCKSIZE <= cms.e2;
 	    p2++, i++) {
 		if (start || i == gap) {
-			if (start) {
-				start = false;
-				gap = WT_CM_STARTGAP;
-				hstart = __cm_hash(p1);
-			} else if (i == gap) {
-				p1 += gap;
-				gap *= 2;
-				gap = WT_MIN(gap, (size_t)(
-				    cms.e1 - p1 - WT_CM_BLOCKSIZE));
-				if (gap > maxdiff)
-					return (WT_NOTFOUND);
-				hstart = hend;
-			}
+			p1 += gap;
+			gap = start ? WT_CM_STARTGAP : gap * 2;
+			if (p1 + gap + WT_CM_BLOCKSIZE >= cms.e1)
+				break;
+			if (gap > maxdiff)
+				return (WT_NOTFOUND);
+			hstart = start ? __cm_hash(p1) : hend;
 			hend = __cm_hash(p1 + gap);
+			start = false;
 			i = 0;
 		}
 		/* TODO: replace this with a shift-and-or. */
