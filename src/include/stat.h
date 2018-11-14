@@ -844,7 +844,7 @@ struct __wt_join_stats {
 };
 
 /*
- * Statistics entries for session_ops.
+ * Statistics entries for session operations.
  */
 #define	WT_SESSION_OP_STATS_BASE	4000
 struct __wt_session_op_stats {
