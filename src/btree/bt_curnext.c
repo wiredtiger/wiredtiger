@@ -601,7 +601,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * next object. We'll eventually find a valid update, return prepare-
 	 * conflict until successful.
 	 */
-	F_CLR(cbt, WT_CBT_RETRY_PREV);
 	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
 		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
 
@@ -704,7 +703,12 @@ err:	switch (ret) {
 	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 #ifdef HAVE_DIAGNOSTIC
-		ret = __wt_cursor_key_order_check(session, cbt, true);
+		/*
+		 * Skip key order check, if next is called after a prev returned
+		 * a prepare conflict error.
+		 */
+		if (!F_ISSET(cbt, WT_CBT_RETRY_PREV))
+			ret = __wt_cursor_key_order_check(session, cbt, true);
 #endif
 		break;
 	case WT_PREPARE_CONFLICT:
@@ -718,5 +722,6 @@ err:	switch (ret) {
 	default:
 		WT_TRET(__cursor_reset(cbt));
 	}
+	F_CLR(cbt, WT_CBT_RETRY_PREV);
 	return (ret);
 }

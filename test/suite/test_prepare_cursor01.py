@@ -124,6 +124,10 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertEquals(before_ts_c.next(), wiredtiger.WT_NOTFOUND)
         # As read is between, next will point to prepared update.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.next())
+        # Check to see prev works when a next returns prepare conflict.
+        self.assertEquals(between_ts_c.prev(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(50))
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.next())
         # As read is after, next will point to prepared update.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.next())
         # As read is non-timestamped, next will point to prepared update.
@@ -175,6 +179,10 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertEquals(before_ts_c.prev(), wiredtiger.WT_NOTFOUND)
         before_ts_s.commit_transaction()
         # As read is between, prev will point to prepared update.
+        self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.prev())
+        # Check to see next works when a prev returns prepare conflict.
+        self.assertEquals(between_ts_c.next(), 0)
+        self.assertEquals(between_ts_c.get_key(), ds.key(2))
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: between_ts_c.prev())
         # As read is after, prev will point to prepared update.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: after_ts_c.prev())
