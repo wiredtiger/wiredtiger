@@ -531,7 +531,7 @@ __curstat_session_op_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
 	/*
 	 * Copy stats from the session to the cursor.
-	 * Optionally clear the connection statistics.
+	 * Optionally clear the session's statistics.
 	 */
 	memcpy(&cst->u.operation_stats,
 	    &session->stats, sizeof(WT_SESSION_OP_STATS));
