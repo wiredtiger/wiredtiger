@@ -844,10 +844,10 @@ struct __wt_join_stats {
 };
 
 /*
- * Statistics entries for operations.
+ * Statistics entries for session_ops.
  */
-#define	WT_OPERATION_STATS_BASE	4000
-struct __wt_operation_stats {
+#define	WT_SESSION_OP_STATS_BASE	4000
+struct __wt_session_op_stats {
 	int64_t op_bytes_read;
 	int64_t op_bytes_written;
 	int64_t op_cache_full_wait;

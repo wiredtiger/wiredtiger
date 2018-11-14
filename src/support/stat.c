@@ -2148,32 +2148,32 @@ __wt_stat_join_aggregate(
 	to->iterated += WT_STAT_READ(from, iterated);
 }
 
-static const char * const __stats_operation_desc[] = {
-	"operation: bytes read into cache",
-	"operation: bytes written from cache",
-	"operation: cache wait time (usecs)",
-	"operation: handle lock wait time (usecs)",
-	"operation: read from disk to cache time (usecs)",
-	"operation: schema lock wait time (usecs)",
-	"operation: write from cache to disk time (usecs)",
+static const char * const __stats_session_op_desc[] = {
+	"session_op: bytes read into cache",
+	"session_op: bytes written from cache",
+	"session_op: cache wait time (usecs)",
+	"session_op: handle lock wait time (usecs)",
+	"session_op: read from disk to cache time (usecs)",
+	"session_op: schema lock wait time (usecs)",
+	"session_op: write from cache to disk time (usecs)",
 };
 
 int
-__wt_stat_operation_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
+__wt_stat_session_op_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 {
 	WT_UNUSED(cst);
-	*p = __stats_operation_desc[slot];
+	*p = __stats_session_op_desc[slot];
 	return (0);
 }
 
 void
-__wt_stat_operation_init_single(WT_OPERATION_STATS *stats)
+__wt_stat_session_op_init_single(WT_SESSION_OP_STATS *stats)
 {
 	memset(stats, 0, sizeof(*stats));
 }
 
 void
-__wt_stat_operation_clear_single(WT_OPERATION_STATS *stats)
+__wt_stat_session_op_clear_single(WT_SESSION_OP_STATS *stats)
 {
 	stats->op_bytes_read = 0;
 	stats->op_bytes_written = 0;
