@@ -2040,7 +2040,7 @@ create_tables(WTPERF *wtperf)
 		testutil_check(cursor->search(cursor));
 		testutil_check(cursor->get_value(cursor, &desc, &pvalue, &value));
 		/* 1% cache bytes per table */
-		bytes = value / opts->table_count / 100;
+		bytes = value / opts->table_count / 20;
 
 		testutil_check(__wt_snprintf(tbuf, 512,
 		    "%s,os_cache_dirty_max=%" PRIu64,
