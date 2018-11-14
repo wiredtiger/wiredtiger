@@ -582,9 +582,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
-	WT_UPDATE *upd;
 	uint32_t flags;
-	bool newpage, valid;
+	bool newpage, visible;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -595,26 +594,12 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 	/*
-	 * When retrying an operation due to a prepare conflict, the cursor is
-	 * is at an update list which resulted in conflict. So, when retrying
-	 * we should examine the same update again instead of iterating to the
-	 * next object. We'll eventually find a valid update, return prepare-
-	 * conflict until successful.
+	 * Check if prepared update at current cursor position is resolved,
+	 * if any.
 	 */
-	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
-		WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
-
-		/* The update that returned prepared conflict is now visible. */
-		F_CLR(cbt, WT_CBT_RETRY_NEXT);
-
-		if (valid) {
-			WT_ERR(__cursor_kv_return(session, cbt, upd));
-#ifdef HAVE_DIAGNOSTIC
-			WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
-#endif
-			return (0);
-		}
-	}
+	WT_ERR(__cursor_check_prepared_update(cbt, true, &visible));
+	if (visible)
+		return (0);
 
 	WT_ERR(__cursor_func_init(cbt, false));
 
