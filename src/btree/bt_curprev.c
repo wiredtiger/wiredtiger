@@ -563,15 +563,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 		F_CLR(cbt, WT_CBT_RETRY_PREV);
 
 		if (valid) {
-			/*
-			 * The update that returned prepared conflict is now
-			 * visible.
-			 *
-			 * The underlying key-return function uses a comparison
-			 * value of 0 to indicate the search function has
-			 * pre-built the key we want to return. That's not the
-			 * case, don't take that path.
-			 */
 			WT_ERR(__cursor_kv_return(session, cbt, upd));
 #ifdef HAVE_DIAGNOSTIC
 			WT_ERR(
@@ -621,7 +612,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 				break;
 			WT_ILLEGAL_VALUE_ERR(session, page->type);
 			}
-			if (ret == 0)
+			if (ret == 0 || ret == WT_PREPARE_CONFLICT)
 				break;
 			F_CLR(cbt, WT_CBT_ITERATE_APPEND);
 			if (ret != WT_NOTFOUND)

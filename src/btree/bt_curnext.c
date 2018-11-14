@@ -609,12 +609,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		F_CLR(cbt, WT_CBT_RETRY_NEXT);
 
 		if (valid) {
-			/*
-			 * The underlying key-return function uses a comparison
-			 * value of 0 to indicate the search function has
-			 * pre-built the key we want to return. That's not the
-			 * case, don't take that path.
-			 */
 			WT_ERR(__cursor_kv_return(session, cbt, upd));
 #ifdef HAVE_DIAGNOSTIC
 			WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
@@ -653,7 +647,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 				break;
 			WT_ILLEGAL_VALUE_ERR(session, page->type);
 			}
-			if (ret == 0)
+			if (ret == 0 || ret == WT_PREPARE_CONFLICT)
 				break;
 			F_CLR(cbt, WT_CBT_ITERATE_APPEND);
 			if (ret != WT_NOTFOUND)

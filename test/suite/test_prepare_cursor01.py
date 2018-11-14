@@ -35,11 +35,12 @@ def timestamp_str(t):
     return '%x' %t
 
 # test_prepare_cursor01.py
-#    WT_CURSOR position tests with prepared transactions
+#    WT_CURSOR navigation (next/prev) tests with prepared transactions
 class test_prepare_cursor01(wttest.WiredTigerTestCase):
 
     keyfmt = [
-        ('integer', dict(keyfmt='i')),
+        ('row-store', dict(keyfmt='i')),
+        ('column-store', dict(keyfmt='r')),
     ]
     types = [
         ('table-simple', dict(uri='table', ds=SimpleDataSet)),
