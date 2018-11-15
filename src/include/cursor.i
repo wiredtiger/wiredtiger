@@ -478,35 +478,25 @@ value:
  *	Return whether prepared update at current position is visible or not.
  */
 static inline int
-__cursor_check_prepared_update(WT_CURSOR_BTREE *cbt, bool next, bool *visible)
+__cursor_check_prepared_update(WT_CURSOR_BTREE *cbt, bool *visiblep)
 {
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
-	bool valid;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	/*
 	 * When retrying an operation due to a prepared conflict, the cursor is
 	 * at an update list which resulted in conflict. So, when retrying we
 	 * should examine the same update again instead of iterating to the next
-	 * object. We'll eventually find a valid update.
-	 *      return prepare-conflict until successful.
+	 * object. We'll eventually find a valid update, else return
+	 * prepare-conflict until resolved.
 	 */
-	*visible = false;
-	if ((next && F_ISSET(cbt, WT_CBT_RETRY_NEXT)) ||
-	    (!next && F_ISSET(cbt, WT_CBT_RETRY_PREV)))
-	{
-		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
+	WT_RET(__wt_cursor_valid(cbt, &upd, visiblep));
 
-		/* The update that returned prepared conflict is now visible. */
-		F_CLR(cbt, WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV);
-		if (valid) {
-			WT_RET(__cursor_kv_return(session, cbt, upd));
-#ifdef HAVE_DIAGNOSTIC
-			WT_RET(__wt_cursor_key_order_check(session, cbt, next));
-#endif
-			*visible = true;
-		}
-	}
+	/* The update that returned prepared conflict is now visible. */
+	F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT | WT_CBT_ITERATE_RETRY_PREV);
+	if (*visiblep)
+		WT_RET(__cursor_kv_return(session, cbt, upd));
+
 	return (0);
 }

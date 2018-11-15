@@ -548,12 +548,20 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 	/*
-	 * Check if prepared update at current cursor position is resolved,
-	 * if any.
+	 * If this cursor has returned prepare conflict earlier, check to see
+	 * whether that prepared update is resolved or not. If not resolved,
+	 * continue returning prepare conflict. If resolved, return the value
+	 * based on the visibility rules.
 	 */
-	WT_ERR(__cursor_check_prepared_update(cbt, false, &visible));
-	if (visible)
-		return (0);
+	if (F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV)) {
+		WT_ERR(__cursor_check_prepared_update(cbt, &visible));
+		if (visible) {
+#ifdef HAVE_DIAGNOSTIC
+			ret = __wt_cursor_key_order_check(session, cbt, false);
+#endif
+			return (0);
+		}
+	}
 
 	WT_ERR(__cursor_func_init(cbt, false));
 
@@ -643,10 +651,20 @@ err:	switch (ret) {
 	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 #ifdef HAVE_DIAGNOSTIC
-		/* Skip key order check, if prev is called after a next returned
-		 * a prepare conflict error.
+		/*
+		 * Skip key order check, if next is called after a prev returned
+		 * a prepare conflict error, i.e cursor has changed direction
+		 * at a prepared update, hence current key returned could be
+		 * same as earlier returned key.
+		 *
+		 * eg: Initial data set : {2,3,...10)
+		 * insert key 1 in a prepare transaction.
+		 * loop on prev will return 10,...3,2 and subsequent call to
+		 * prev will return a prepare conflict. Now if we call next
+		 * key 2 will be returned which will be same as earlier
+		 * returned key.
 		 */
-		if (!F_ISSET(cbt, WT_CBT_RETRY_NEXT))
+		if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
 			ret = __wt_cursor_key_order_check(session, cbt, false);
 #endif
 		break;
@@ -656,11 +674,11 @@ err:	switch (ret) {
 		 * as current cursor position will be reused in case of a
 		 * retry from user.
 		 */
-		F_SET(cbt, WT_CBT_RETRY_PREV);
+		F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
 		break;
 	default:
 		WT_TRET(__cursor_reset(cbt));
 	}
-	F_CLR(cbt, WT_CBT_RETRY_NEXT);
+	F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 	return (ret);
 }
