@@ -115,6 +115,300 @@ tasks:
 
             ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C examples/c  ${smp_command|} 2>&1
 
+  - name: csuite-random-abort-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/random_abort/smoke.sh 2>&1
+
+  - name: csuite-random-directio-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/random_directio/smoke.sh 2>&1
+
+  - name: csuite-schema-abort-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/schema_abort/smoke.sh 2>&1
+
+  - name: csuite-timestamp-abort-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/timestamp_abort/smoke.sh 2>&1
+
+  - name: csuite-scope-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_scope 2>&1
+
+  - name: csuite-truncated-log-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_truncated_log 2>&1
+
+  - name: csuite-col-efficiency-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt1965_col_efficiency 2>&1
+
+  - name: csuite-lsm-workload-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt2403_lsm_workload 2>&1
+
+  - name: csuite-join-main-table-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt2447_join_main_table 2>&1
+
+  - name: csuite-wt2695-checksum-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt2695_checksum 2>&1
+
+  - name: csuite-join-schema-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt2592_join_schema 2>&1
+
+  - name: csuite-reconfig-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt2719_reconfig 2>&1
+
+  - name: csuite-join-extractor-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt2999_join_extractor 2>&1
+
+  - name: csuite-filesys-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt3120_filesys 2>&1
+
+  - name: csuite-search-near-collator-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt3135_search_near_collator 2>&1
+
+  - name: csuite-dup-index-collator-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt3184_dup_index_collator 2>&1
+
+  - name: csuite-checkpoint-op-races-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt3363_checkpoint_op_races 2>&1
+
+  - name: csuite-pad-byte-collator-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt3874_pad_byte_collator 2>&1
+
+  - name: csuite-large-doc-small-upd-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt4105_large_doc_small_upd 2>&1
+
+  - name: csuite-wt4117-checksum-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt4117_checksum 2>&1
+
+  - name: csuite-metadata-salvage-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt4156_metadata_salvage 2>&1
+
   - name: csuite-rwlock-test
     depends_on:
       - name: compile
@@ -344,6 +638,27 @@ buildvariants:
   tasks:
     - name: compile
     - name: examples-c-test
+    - name: csuite-random-abort-test
+    - name: csuite-random-directio-test
+    - name: csuite-schema-abort-test
+    - name: csuite-timestamp-abort-test
+    - name: csuite-scope-test
+    - name: csuite-truncated-log-test
+    - name: csuite-col-efficiency-test
+    - name: csuite-lsm-workload-test
+    - name: csuite-join-main-table-test
+    - name: csuite-wt2695-checksum-test
+    - name: csuite-join-schema-test
+    - name: csuite-reconfig-test
+    - name: csuite-join-extractor-test
+    - name: csuite-filesys-test
+    - name: csuite-search-near-collator-test
+    - name: csuite-dup-index-collator-test
+    - name: csuite-checkpoint-op-races-test
+    - name: csuite-pad-byte-collator-test
+    - name: csuite-large-doc-small-upd-test
+    - name: csuite-wt4117-checksum-test
+    - name: csuite-metadata-salvage-test
     - name: csuite-rwlock-test
     - name: csuite-col-append-test
     - name: csuite-join-visibility-test
