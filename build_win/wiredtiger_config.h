@@ -76,6 +76,9 @@
 /* Define to 1 if you have the <memory.h> header file. */
 /* #undef HAVE_MEMORY_H */
 
+/* Define to 1 to disable any crc32 hardware support. */
+/* #undef HAVE_NO_CRC32_HARDWARE */
+
 /* Define to 1 if pthread condition variables support monotonic clocks. */
 /* #undef HAVE_PTHREAD_COND_MONOTONIC */
 
