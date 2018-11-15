@@ -115,6 +115,21 @@ tasks:
 
             ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C examples/c  ${smp_command|} 2>&1
 
+  - name: csuite-rwlock-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_rwlock 2>&1
+
   - name: csuite-col-append-test
     depends_on:
       - name: compile
@@ -129,6 +144,112 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt2246_col_append 2>&1
+
+  - name: csuite-join-visibility-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt2323_join_visibility 2>&1
+
+  - name: csuite-insert-race-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt2535_insert_race 2>&1
+
+  - name: csuite-join-bloom-fix-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt2834_join_bloom_fix 2>&1
+
+  - name: csuite-perf-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt2853_perf 2>&1
+
+  - name: csuite-checkpoint-integrity-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            cd test/csuite
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2909_checkpoint_integrity 2>&1
+
+  - name: csuite-partial-update-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt3338_partial_update 2>&1
+
+  - name: csuite-handle-locks-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test/csuite/test_wt4333_handle_locks 2>&1
 
   - name: unit-test
     depends_on:
@@ -233,7 +354,15 @@ buildvariants:
   tasks:
     - name: compile
     - name: examples-c-test
+    - name: csuite-rwlock-test
     - name: csuite-col-append-test
+    - name: csuite-join-visibility-test
+    - name: csuite-insert-race-test
+    - name: csuite-join-bloom-fix-test
+    - name: csuite-perf-test
+    - name: csuite-checkpoint-integrity-test
+    - name: csuite-partial-update-test
+    - name: csuite-handle-locks-test
     - name: unit-test
     - name: fops
 
