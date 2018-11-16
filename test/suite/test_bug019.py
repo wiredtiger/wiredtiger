@@ -73,6 +73,11 @@ class test_bug019(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_prealloc_stat(), 2)
         self.populate(self.entries)
         self.session.checkpoint()
+        #
+        # We should have used up all the pre-allocated files. Wait until
+        # the internal thread gets a chance to run and then check the stat.
+        #
+        orig = self.prepfiles()
         prealloc = self.get_prealloc_stat()
         self.assertTrue(prealloc > 2)
 
@@ -92,7 +97,10 @@ class test_bug019(wttest.WiredTigerTestCase):
 
         # Sleep for a few seconds and we should see the number of files we want
         # to pre-allocate drop as the log server thread sees an idle system.
+        # Wait for pre-allocated files to exist first and then sleep so that
+        # slow systems have a chance to let the internal thread run.
         prealloc = self.get_prealloc_stat()
+        orig = self.prepfiles()
         time.sleep(3)
         new_prealloc = self.get_prealloc_stat()
         self.assertTrue(new_prealloc < prealloc)
