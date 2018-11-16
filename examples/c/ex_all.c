@@ -1371,7 +1371,7 @@ main(int argc, char *argv[])
 		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
 		"then what?";
 	newv.size = strlen(newv.data);
-	error_check(wiredtiger_calc_modify(&prev, &newv, 20, mod, &nmod));
+	error_check(wiredtiger_calc_modify(NULL, &prev, &newv, 20, mod, &nmod));
 	/*! [Calculate a modify operation] */
 	}
 
