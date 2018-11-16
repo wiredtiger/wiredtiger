@@ -28,13 +28,12 @@
 
 import fnmatch, os, time
 import wiredtiger, wttest
-from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
 # test_bug019.py
 #    Test that pre-allocating log files only pre-allocates a small number.
 class test_bug019(wttest.WiredTigerTestCase):
-    conn_config = 'log=(enabled,file_max=100K),statistics=(fast)'
+    conn_config = 'log=(enabled,file_max=100K)'
     uri = "table:bug019"
     entries = 5000
 
@@ -59,22 +58,13 @@ class test_bug019(wttest.WiredTigerTestCase):
                 time.sleep(1)
         self.assertFalse(not f)
 
-    def get_prealloc_stat(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        prealloc = stat_cursor[stat.conn.log_prealloc_max][2]
-        stat_cursor.close()
-        return prealloc
-
     # There was a bug where pre-allocated log files accumulated on
     # Windows systems due to an issue with the directory list code.
     def test_bug019(self):
         # Create a table just to write something into the log.
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.assertEqual(self.get_prealloc_stat(), 2)
         self.populate(self.entries)
         self.session.checkpoint()
-        prealloc = self.get_prealloc_stat()
-        self.assertTrue(prealloc > 2)
 
         # Loop, making sure pre-allocation is working and the range is moving.
         older = self.prepfiles()
@@ -89,13 +79,6 @@ class test_bug019(wttest.WiredTigerTestCase):
 
             older = newer
             self.session.checkpoint()
-
-        # Sleep for a few seconds and we should see the number of files we want
-        # to pre-allocate drop as the log server thread sees an idle system.
-        prealloc = self.get_prealloc_stat()
-        time.sleep(3)
-        new_prealloc = self.get_prealloc_stat()
-        self.assertTrue(new_prealloc < prealloc)
 
 if __name__ == '__main__':
     wttest.run()
