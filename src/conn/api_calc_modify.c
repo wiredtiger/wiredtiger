@@ -117,9 +117,9 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 
 	cms.session = (WT_SESSION_IMPL *)wt_session;
 
-	cms.s1 = oldv->data;
+	cms.s1 = cms.used1 = oldv->data;
 	cms.e1 = cms.s1 + oldv->size;
-	cms.s2 = newv->data;
+	cms.s2 = cms.used2 = newv->data;
 	cms.e2 = cms.s2 + newv->size;
 	cms.maxdiff = maxdiff;
 	cms.maxentries = *nentriesp;
@@ -128,8 +128,8 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 
 	/* Ignore matches at the beginning / end. */
 	__cm_extend(&cms, cms.s1, cms.s2, &match);
-	cms.used1 = cms.s1 + match.len;
-	cms.used2 = cms.s2 + match.len;
+	cms.used1 += match.len;
+	cms.used2 += + match.len;
 	if (cms.used1 < cms.e1 && cms.used2 < cms.e2) {
 		__cm_extend(&cms, cms.e1 - 1, cms.e2 - 1, &match);
 		cms.e1 -= match.len;
