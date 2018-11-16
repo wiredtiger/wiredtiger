@@ -37,16 +37,27 @@ class test_bug019(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled,file_max=100K),statistics=(fast)'
     uri = "table:bug019"
     entries = 5000
+    max_prealloc = 1
 
     # Modify rows so we write log records. We're writing a lot more than a
     # single log file, so we know the underlying library will churn through
     # log files.
+    def get_prealloc_stat(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        prealloc = stat_cursor[stat.conn.log_prealloc_max][2]
+        stat_cursor.close()
+        return prealloc
+
     def populate(self, nentries):
         c = self.session.open_cursor(self.uri, None, None)
         for i in range(0, nentries):
             # Make the values about 200 bytes. That's about 1MB of data for
             # 5000 records, generating 10 log files used plus more for overhead.
             c[i] = "abcde" * 40
+            if i % 500 == 0:
+                prealloc = self.get_prealloc_stat()
+                if prealloc > self.max_prealloc:
+                    self.max_prealloc = prealloc
         c.close()
 
     # Wait for a log file to be pre-allocated. Avoid timing problems, but
@@ -59,12 +70,6 @@ class test_bug019(wttest.WiredTigerTestCase):
                 time.sleep(1)
         self.assertFalse(not f)
 
-    def get_prealloc_stat(self):
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        prealloc = stat_cursor[stat.conn.log_prealloc_max][2]
-        stat_cursor.close()
-        return prealloc
-
     # There was a bug where pre-allocated log files accumulated on
     # Windows systems due to an issue with the directory list code.
     def test_bug019(self):
@@ -73,13 +78,7 @@ class test_bug019(wttest.WiredTigerTestCase):
         self.assertEqual(self.get_prealloc_stat(), 2)
         self.populate(self.entries)
         self.session.checkpoint()
-        #
-        # We should have used up all the pre-allocated files. Wait until
-        # the internal thread gets a chance to run and then check the stat.
-        #
-        orig = self.prepfiles()
-        prealloc = self.get_prealloc_stat()
-        self.assertTrue(prealloc > 2)
+        self.assertTrue(self.max_prealloc > 2)
 
         # Loop, making sure pre-allocation is working and the range is moving.
         older = self.prepfiles()
@@ -99,11 +98,9 @@ class test_bug019(wttest.WiredTigerTestCase):
         # to pre-allocate drop as the log server thread sees an idle system.
         # Wait for pre-allocated files to exist first and then sleep so that
         # slow systems have a chance to let the internal thread run.
-        prealloc = self.get_prealloc_stat()
-        orig = self.prepfiles()
         time.sleep(3)
         new_prealloc = self.get_prealloc_stat()
-        self.assertTrue(new_prealloc < prealloc)
+        self.assertTrue(new_prealloc < self.max_prealloc)
 
 if __name__ == '__main__':
     wttest.run()
