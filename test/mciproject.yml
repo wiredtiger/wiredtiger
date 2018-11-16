@@ -100,6 +100,23 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
 
+  # Start of normal make check test tasks
+
+  - name: lang-python-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C lang/python ${smp_command|} 2>&1
+
   - name: examples-c-test
     depends_on:
       - name: compile
@@ -114,6 +131,190 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C examples/c  ${smp_command|} 2>&1
+
+  - name: bloom-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/bloom  ${smp_command|} 2>&1
+
+  - name: checkpoint-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/checkpoint ${smp_command|} 2>&1
+
+  - name: cursor-order-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/cursor_order ${smp_command|} 2>&1
+
+  - name: fops-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/fops ${smp_command|} 2>&1
+
+  - name: format-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/format ${smp_command|} 2>&1
+
+  - name: huge-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/huge ${smp_command|} 2>&1
+
+  - name: manydbs-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/manydbs ${smp_command|} 2>&1
+
+  - name: packing-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/packing ${smp_command|} 2>&1
+
+  - name: readonly-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/readonly ${smp_command|} 2>&1
+
+  - name: salvage-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/salvage ${smp_command|} 2>&1
+
+  - name: thread-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/thread ${smp_command|} 2>&1
+
+  - name: bench-wtperf-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C bench/wtperf ${smp_command|} 2>&1
+
+  # End of normal make check test tasks
+
+  # Start of csuite test tasks
 
   - name: csuite-random-abort-test
     depends_on:
@@ -535,6 +736,8 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt4333_handle_locks 2>&1
 
+  # End of csuite test tasks
+
   - name: unit-test
     depends_on:
     - name: compile
@@ -637,7 +840,20 @@ buildvariants:
     configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++ PATH=/opt/mongodbtoolchain/v2/bin:$PATH
   tasks:
     - name: compile
+    - name: lang-python-test
     - name: examples-c-test
+    - name: bloom-test
+    - name: checkpoint-test
+    - name: cursor-order-test
+    - name: fops-test
+    - name: format-test
+    - name: huge-test
+    - name: manydbs-test
+    - name: packing-test
+    - name: readonly-test
+    - name: salvage-test
+    - name: thread-test
+    - name: bench-wtperf-test
     - name: csuite-random-abort-test
     - name: csuite-random-directio-test
     - name: csuite-schema-abort-test
