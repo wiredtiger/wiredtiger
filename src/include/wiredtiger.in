@@ -3616,17 +3616,18 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 
 /*!
  * Calculate a set of WT_MODIFY operations to represent an update.
- * This call will calculate a set of modifications to the previous value that
- * produce the new value.  If more modifications are required than fit in the
- * array passed in by the caller, or if more bytes have changed than the
- * \c maxdiff parameter, the call will fail.
+ * This call will calculate a set of modifications to an old value that produce
+ * the new value.  If more modifications are required than fit in the array
+ * passed in by the caller, or if more bytes have changed than the \c maxdiff
+ * parameter, the call will fail.
  *
  * If the call succeeds, the new value must remain valid until
  * WT_CURSOR::modify completes: the modification.
  *
  * @snippet ex_all.c Calculate a modify operation
  *
- * @param prev previous value
+ * @param session the current WiredTiger session (may be NULL)
+ * @param oldv old value
  * @param newv new value
  * @param maxdiff maximum bytes difference
  * @param[out] entries array of modifications producing the new value
@@ -3634,7 +3635,8 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
  *	set to the number of entries used
  * @errors
  */
-int wiredtiger_calc_modify(const WT_ITEM *prev, const WT_ITEM *newv,
+int wiredtiger_calc_modify(WT_SESSION *session,
+    const WT_ITEM *oldv, const WT_ITEM *newv,
     size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
