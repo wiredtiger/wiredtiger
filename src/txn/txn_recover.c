@@ -372,7 +372,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	 * save the stable timestamp of the last checkpoint for later query.
 	 * This gets saved in the connection.
 	 */
-	__wt_timestamp_set_zero(&ckpt_timestamp);
+	ckpt_timestamp = 0;
 
 	/* Search in the metadata for the system information. */
 	WT_ERR_NOTFOUND_OK(
@@ -395,10 +395,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	 * timestamp so that the checkpoint after recovery writes the correct
 	 * value into the metadata.
 	 */
-	__wt_timestamp_set(
-	    &conn->txn_global.meta_ckpt_timestamp, &ckpt_timestamp);
-	__wt_timestamp_set(
-	    &conn->txn_global.recovery_timestamp, &ckpt_timestamp);
+	conn->txn_global.meta_ckpt_timestamp =
+	    conn->txn_global.recovery_timestamp = ckpt_timestamp;
 
 	if (WT_VERBOSE_ISSET(session,
 	    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS)) {
@@ -549,8 +547,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	r.session = session;
 	WT_MAX_LSN(&r.max_ckpt_lsn);
 	WT_MAX_LSN(&r.max_rec_lsn);
-	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
-	__wt_timestamp_set_zero(&conn->txn_global.meta_ckpt_timestamp);
+	conn->txn_global.recovery_timestamp =
+	    conn->txn_global.meta_ckpt_timestamp = 0;
 
 	F_SET(conn, WT_CONN_RECOVERING);
 	WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));

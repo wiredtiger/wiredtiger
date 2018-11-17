@@ -24,16 +24,16 @@ __wt_timestamp_to_hex_string(char *hex_timestamp, const wt_timestamp_t *ts_src)
 	wt_timestamp_t ts;
 	char *p, v;
 
-	__wt_timestamp_set(&ts, ts_src);
+	ts = *ts_src;
 
-	if (__wt_timestamp_iszero(&ts)) {
+	if (ts == 0) {
 		hex_timestamp[0] = '0';
 		hex_timestamp[1] = '\0';
 		return;
 	}
 
-	for (p = hex_timestamp; ts.val != 0; ts.val >>= 4)
-		*p++ = (char)__wt_hex((u_char)(ts.val & 0x0f));
+	for (p = hex_timestamp; ts != 0; ts >>= 4)
+		*p++ = (char)__wt_hex((u_char)(ts & 0x0f));
 	*p = '\0';
 
 	/* Reverse the string. */
@@ -90,7 +90,7 @@ __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
 	int hex_val;
 	const char *hex_itr;
 
-	__wt_timestamp_set_zero(timestamp);
+	*timestamp = 0;
 
 	if (cval->len == 0)
 		return (0);
@@ -101,7 +101,7 @@ __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
 		    "%s timestamp too long '%.*s'",
 		    name, (int)cval->len, cval->str);
 
-	for (ts.val = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
+	for (ts = 0, hex_itr = cval->str, len = cval->len; len > 0; --len) {
 		if ((size_t)*hex_itr < WT_ELEMENTS(hextable))
 			hex_val = hextable[(size_t)*hex_itr++];
 		else
@@ -110,9 +110,9 @@ __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
 			WT_RET_MSG(session, EINVAL,
 			    "Failed to parse %s timestamp '%.*s'",
 			    name, (int)cval->len, cval->str);
-		ts.val = (ts.val << 4) | (uint64_t)hex_val;
+		ts = (ts << 4) | (uint64_t)hex_val;
 	}
-	__wt_timestamp_set(timestamp, &ts);
+	*timestamp = ts;
 
 	return (0);
 }
@@ -126,7 +126,7 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
     wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
 {
 	WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
-	if (cval->len != 0 && __wt_timestamp_iszero(timestamp))
+	if (cval->len != 0 && *timestamp == 0)
 		WT_RET_MSG(session, EINVAL,
 		    "Failed to parse %s timestamp '%.*s': zero not permitted",
 		    name, (int)cval->len, cval->str);
@@ -158,18 +158,14 @@ __txn_get_pinned_timestamp(
 
 	if (!txn_has_write_lock)
 		__wt_readlock(session, &txn_global->rwlock);
-	if (include_oldest)
-		__wt_timestamp_set(&tmp_ts, &txn_global->oldest_timestamp);
-	else
-		__wt_timestamp_set_zero(&tmp_ts);
+
+	tmp_ts = include_oldest ? txn_global->oldest_timestamp : 0;
 
 	/* Check for a running checkpoint */
 	if (LF_ISSET(WT_TXN_TS_INCLUDE_CKPT) &&
-	    !__wt_timestamp_iszero(&txn_global->checkpoint_timestamp) &&
-	    (__wt_timestamp_iszero(&tmp_ts) ||
-	    __wt_timestamp_cmp(&txn_global->checkpoint_timestamp, &tmp_ts) <
-	    0))
-		__wt_timestamp_set(&tmp_ts, &txn_global->checkpoint_timestamp);
+	    txn_global->checkpoint_timestamp != 0 &&
+	    (tmp_ts == 0 || txn_global->checkpoint_timestamp < tmp_ts))
+		tmp_ts = txn_global->checkpoint_timestamp;
 	if (!txn_has_write_lock)
 		__wt_readunlock(session, &txn_global->rwlock);
 
@@ -185,9 +181,8 @@ __txn_get_pinned_timestamp(
 		 * A zero timestamp is possible here only when the oldest
 		 * timestamp is not accounted for.
 		 */
-		if (__wt_timestamp_iszero(&tmp_ts) ||
-		    __wt_timestamp_cmp(&txn->read_timestamp, &tmp_ts) < 0)
-			__wt_timestamp_set(&tmp_ts, &txn->read_timestamp);
+		if (tmp_ts == 0 || txn->read_timestamp < tmp_ts)
+			tmp_ts = txn->read_timestamp;
 		/*
 		 * We break on the first active txn on the list.
 		 */
@@ -195,9 +190,9 @@ __txn_get_pinned_timestamp(
 	}
 	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 
-	if (!include_oldest && __wt_timestamp_iszero(&tmp_ts))
+	if (!include_oldest && tmp_ts == 0)
 		return (WT_NOTFOUND);
-	__wt_timestamp_set(tsp, &tmp_ts);
+	*tsp = tmp_ts;
 
 	return (0);
 }
@@ -224,8 +219,8 @@ __txn_global_query_timestamp(
 	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
 		if (!txn_global->has_commit_timestamp)
 			return (WT_NOTFOUND);
-		__wt_timestamp_set(&ts, &txn_global->commit_timestamp);
-		WT_ASSERT(session, !__wt_timestamp_iszero(&ts));
+		ts = txn_global->commit_timestamp;
+		WT_ASSERT(session, ts != 0);
 
 		/* Skip the lock if there are no running transactions. */
 		if (TAILQ_EMPTY(&txn_global->commit_timestamph))
@@ -238,23 +233,22 @@ __txn_global_query_timestamp(
 			if (txn->clear_commit_q)
 				continue;
 
-			__wt_timestamp_set(
-			    &tmpts, &txn->first_commit_timestamp);
-			WT_ASSERT(session, !__wt_timestamp_iszero(&tmpts));
-			__wt_timestamp_subone(&tmpts);
+			tmpts = txn->first_commit_timestamp;
+			WT_ASSERT(session, tmpts != 0);
+			tmpts -= 1;
 
-			if (__wt_timestamp_cmp(&tmpts, &ts) < 0)
-				__wt_timestamp_set(&ts, &tmpts);
+			if (tmpts < ts)
+				ts = tmpts;
 			break;
 		}
 		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
 	} else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
-		__wt_timestamp_set(&ts, &txn_global->last_ckpt_timestamp);
+		ts = txn_global->last_ckpt_timestamp;
 	else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
 		if (!txn_global->has_oldest_timestamp)
 			return (WT_NOTFOUND);
-		__wt_timestamp_set(&ts, &txn_global->oldest_timestamp);
+		ts = txn_global->oldest_timestamp;
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len))
 		WT_RET(__txn_get_pinned_timestamp(
 		    session, &ts, WT_TXN_TS_INCLUDE_CKPT));
@@ -263,16 +257,16 @@ __txn_global_query_timestamp(
 		    WT_TXN_TS_INCLUDE_CKPT | WT_TXN_TS_INCLUDE_OLDEST));
 	else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
-		__wt_timestamp_set(&ts, &txn_global->recovery_timestamp);
+		ts = txn_global->recovery_timestamp;
 	else if (WT_STRING_MATCH("stable", cval.str, cval.len)) {
 		if (!txn_global->has_stable_timestamp)
 			return (WT_NOTFOUND);
-		__wt_timestamp_set(&ts, &txn_global->stable_timestamp);
+		ts = txn_global->stable_timestamp;
 	} else
 		WT_RET_MSG(session, EINVAL,
 		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
 
-done:	__wt_timestamp_set(tsp, &ts);
+done:	*tsp = ts;
 	return (0);
 }
 
@@ -295,13 +289,13 @@ __txn_query_timestamp(
 
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
 	if (WT_STRING_MATCH("commit", cval.str, cval.len))
-		__wt_timestamp_set(tsp, &txn->commit_timestamp);
+		*tsp = txn->commit_timestamp;
 	else if (WT_STRING_MATCH("first_commit", cval.str, cval.len))
-		__wt_timestamp_set(tsp, &txn->first_commit_timestamp);
+		*tsp = txn->first_commit_timestamp;
 	else if (WT_STRING_MATCH("prepare", cval.str, cval.len))
-		__wt_timestamp_set(tsp, &txn->prepare_timestamp);
+		*tsp = txn->prepare_timestamp;
 	else if (WT_STRING_MATCH("read", cval.str, cval.len))
-		__wt_timestamp_set(tsp, &txn->read_timestamp);
+		*tsp = txn->read_timestamp;
 	else
 		WT_RET_MSG(session, EINVAL,
 		    "unknown timestamp query %.*s", (int)cval.len, cval.str);
@@ -353,11 +347,9 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 		return (ret == WT_NOTFOUND ? 0 : ret);
 
 	if (txn_global->has_pinned_timestamp && !force) {
-		__wt_timestamp_set(
-		    &last_pinned_timestamp, &txn_global->pinned_timestamp);
+		last_pinned_timestamp = txn_global->pinned_timestamp;
 
-		if (__wt_timestamp_cmp(
-		    &pinned_timestamp, &last_pinned_timestamp) <= 0)
+		if (pinned_timestamp <= last_pinned_timestamp)
 			return (0);
 	}
 
@@ -372,17 +364,16 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 		return (ret == WT_NOTFOUND ? 0 : ret);
 	}
 
-	if (!txn_global->has_pinned_timestamp || force || __wt_timestamp_cmp(
-	    &txn_global->pinned_timestamp, &pinned_timestamp) < 0) {
-		__wt_timestamp_set(
-		    &txn_global->pinned_timestamp, &pinned_timestamp);
+	if (!txn_global->has_pinned_timestamp || force ||
+	    txn_global->pinned_timestamp < pinned_timestamp) {
+		txn_global->pinned_timestamp = pinned_timestamp;
 		txn_global->has_pinned_timestamp = true;
-		txn_global->oldest_is_pinned = __wt_timestamp_cmp(
-		    &txn_global->pinned_timestamp,
-		    &txn_global->oldest_timestamp) == 0;
-		txn_global->stable_is_pinned = __wt_timestamp_cmp(
-		    &txn_global->pinned_timestamp,
-		    &txn_global->stable_timestamp) == 0;
+		txn_global->oldest_is_pinned =
+		    txn_global->pinned_timestamp ==
+		    txn_global->oldest_timestamp;
+		txn_global->stable_is_pinned =
+		    txn_global->pinned_timestamp ==
+		    txn_global->stable_timestamp;
 		__wt_verbose_timestamp(session,
 		    &pinned_timestamp, "Updated pinned timestamp");
 	}
@@ -451,8 +442,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 	__wt_readlock(session, &txn_global->rwlock);
 
-	__wt_timestamp_set(&last_oldest_ts, &txn_global->oldest_timestamp);
-	__wt_timestamp_set(&last_stable_ts, &txn_global->stable_timestamp);
+	last_oldest_ts = txn_global->oldest_timestamp;
+	last_stable_ts = txn_global->stable_timestamp;
 
 	/*
 	 * First do error checking on the timestamp values.  The
@@ -462,18 +453,18 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 * setting both then compare the passed in values.
 	 */
 	if (!has_commit && txn_global->has_commit_timestamp)
-		__wt_timestamp_set(&commit_ts, &txn_global->commit_timestamp);
+		commit_ts = txn_global->commit_timestamp;
 	if (!has_oldest && txn_global->has_oldest_timestamp)
-		__wt_timestamp_set(&oldest_ts, &last_oldest_ts);
+		oldest_ts = last_oldest_ts;
 	if (!has_stable && txn_global->has_stable_timestamp)
-		__wt_timestamp_set(&stable_ts, &last_stable_ts);
+		stable_ts = last_stable_ts;
 
 	/*
 	 * If a commit timestamp was supplied, check that it is no older than
 	 * either the stable timestamp or the oldest timestamp.
 	 */
-	if (has_commit && (has_oldest || txn_global->has_oldest_timestamp) &&
-	    __wt_timestamp_cmp(&oldest_ts, &commit_ts) > 0) {
+	if (has_commit && (has_oldest ||
+	    txn_global->has_oldest_timestamp) && oldest_ts > commit_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		__wt_timestamp_to_hex_string(hex_timestamp[0], &oldest_ts);
 		__wt_timestamp_to_hex_string(hex_timestamp[1], &commit_ts);
@@ -482,8 +473,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		    "commit timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
-	if (has_commit && (has_stable || txn_global->has_stable_timestamp) &&
-	    __wt_timestamp_cmp(&stable_ts, &commit_ts) > 0) {
+	if (has_commit && (has_stable ||
+	    txn_global->has_stable_timestamp) && stable_ts > commit_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		__wt_timestamp_to_hex_string(hex_timestamp[0], &stable_ts);
 		__wt_timestamp_to_hex_string(hex_timestamp[1], &commit_ts);
@@ -498,8 +489,8 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if ((has_oldest || has_stable) &&
 	    (has_oldest || txn_global->has_oldest_timestamp) &&
-	    (has_stable || txn_global->has_stable_timestamp) &&
-	    __wt_timestamp_cmp(&oldest_ts, &stable_ts) > 0) {
+	    (has_stable ||
+	    txn_global->has_stable_timestamp) && oldest_ts > stable_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		__wt_timestamp_to_hex_string(hex_timestamp[0], &oldest_ts);
 		__wt_timestamp_to_hex_string(hex_timestamp[1], &stable_ts);
@@ -511,12 +502,12 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	__wt_readunlock(session, &txn_global->rwlock);
 
 	/* Check if we are actually updating anything. */
-	if (has_oldest && txn_global->has_oldest_timestamp &&
-	    __wt_timestamp_cmp(&oldest_ts, &last_oldest_ts) <= 0)
+	if (has_oldest &&
+	    txn_global->has_oldest_timestamp && oldest_ts <= last_oldest_ts)
 		has_oldest = false;
 
-	if (has_stable && txn_global->has_stable_timestamp &&
-	    __wt_timestamp_cmp(&stable_ts, &last_stable_ts) <= 0)
+	if (has_stable &&
+	    txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
 		has_stable = false;
 
 	if (!has_commit && !has_oldest && !has_stable)
@@ -534,17 +525,16 @@ set:	__wt_writelock(session, &txn_global->rwlock);
 	 * assigned timestamps).
 	 */
 	if (has_commit) {
-		__wt_timestamp_set(&txn_global->commit_timestamp, &commit_ts);
+		txn_global->commit_timestamp = commit_ts;
 		txn_global->has_commit_timestamp = true;
 		WT_STAT_CONN_INCR(session, txn_set_ts_commit_upd);
 		__wt_verbose_timestamp(session, &commit_ts,
 		    "Updated global commit timestamp");
 	}
 
-	if (has_oldest && (!txn_global->has_oldest_timestamp ||
-	    force || __wt_timestamp_cmp(
-	    &oldest_ts, &txn_global->oldest_timestamp) > 0)) {
-		__wt_timestamp_set(&txn_global->oldest_timestamp, &oldest_ts);
+	if (has_oldest && (!txn_global->has_oldest_timestamp || force ||
+	    oldest_ts > txn_global->oldest_timestamp)) {
+		txn_global->oldest_timestamp = oldest_ts;
 		WT_STAT_CONN_INCR(session, txn_set_ts_oldest_upd);
 		txn_global->has_oldest_timestamp = true;
 		txn_global->oldest_is_pinned = false;
@@ -552,10 +542,9 @@ set:	__wt_writelock(session, &txn_global->rwlock);
 		    "Updated global oldest timestamp");
 	}
 
-	if (has_stable && (!txn_global->has_stable_timestamp ||
-	    force || __wt_timestamp_cmp(
-	    &stable_ts, &txn_global->stable_timestamp) > 0)) {
-		__wt_timestamp_set(&txn_global->stable_timestamp, &stable_ts);
+	if (has_stable && (!txn_global->has_stable_timestamp || force ||
+	    stable_ts > txn_global->stable_timestamp)) {
+		txn_global->stable_timestamp = stable_ts;
 		WT_STAT_CONN_INCR(session, txn_set_ts_stable_upd);
 		txn_global->has_stable_timestamp = true;
 		txn_global->stable_is_pinned = false;
@@ -589,26 +578,25 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	/*
 	 * Added this redundant initialization to circumvent build failure.
 	 */
-	__wt_timestamp_set_zero(&oldest_ts);
-	__wt_timestamp_set_zero(&stable_ts);
+	oldest_ts = stable_ts = 0;
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
 	 * if the given timestamp is older than oldest and/or stable timestamp.
 	 */
 	has_oldest_ts = txn_global->has_oldest_timestamp;
 	if (has_oldest_ts)
-		__wt_timestamp_set(&oldest_ts, &txn_global->oldest_timestamp);
+		oldest_ts = txn_global->oldest_timestamp;
 	has_stable_ts = txn_global->has_stable_timestamp;
 	if (has_stable_ts)
-		__wt_timestamp_set(&stable_ts, &txn_global->stable_timestamp);
+		stable_ts = txn_global->stable_timestamp;
 
-	if (has_oldest_ts && __wt_timestamp_cmp(ts, &oldest_ts) < 0) {
+	if (has_oldest_ts && *ts < oldest_ts) {
 		__wt_timestamp_to_hex_string(hex_timestamp, &oldest_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than oldest timestamp %s",
 		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
-	if (has_stable_ts && __wt_timestamp_cmp(ts, &stable_ts) < 0) {
+	if (has_stable_ts && *ts < stable_ts) {
 		__wt_timestamp_to_hex_string(hex_timestamp, &stable_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than stable timestamp %s",
@@ -621,7 +609,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * commit timestamp.
 	 */
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-	    __wt_timestamp_cmp(ts, &txn->first_commit_timestamp) < 0) {
+	    *ts < txn->first_commit_timestamp) {
 		__wt_timestamp_to_hex_string(
 		    hex_timestamp, &txn->first_commit_timestamp);
 		WT_RET_MSG(session, EINVAL,
@@ -635,8 +623,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * Return an error if the given timestamp is older than the prepare
 	 * timestamp.
 	 */
-	if (F_ISSET(txn, WT_TXN_PREPARE) &&
-	    __wt_timestamp_cmp(ts, &txn->prepare_timestamp) < 0) {
+	if (F_ISSET(txn, WT_TXN_PREPARE) && *ts < txn->prepare_timestamp) {
 		__wt_timestamp_to_hex_string(
 		    hex_timestamp, &txn->prepare_timestamp);
 		WT_RET_MSG(session, EINVAL,
@@ -669,7 +656,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_RET(__wt_timestamp_validate(session, "commit", &ts, &cval));
-		__wt_timestamp_set(&txn->commit_timestamp, &ts);
+		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 	} else
 		/*
@@ -727,8 +714,7 @@ __wt_txn_parse_prepare_timestamp(
 				    prev, __wt_txn_rts_qh, read_timestampq);
 				continue;
 			}
-			if (__wt_timestamp_cmp(
-			    &prev->read_timestamp, timestamp) >= 0) {
+			if (prev->read_timestamp >= *timestamp) {
 				__wt_readunlock(session,
 				    &txn_global->read_timestamp_rwlock);
 				__wt_timestamp_to_hex_string(
@@ -747,10 +733,9 @@ __wt_txn_parse_prepare_timestamp(
 		 * be older than oldest timestamp.
 		 */
 		if (prev == NULL) {
-			__wt_timestamp_set(&oldest_ts,
-			    &txn_global->oldest_timestamp);
+			oldest_ts = txn_global->oldest_timestamp;
 
-			if (__wt_timestamp_cmp(timestamp, &oldest_ts) < 0) {
+			if (*timestamp < oldest_ts) {
 				__wt_timestamp_to_hex_string(
 				    hex_timestamp, &oldest_ts);
 				WT_RET_MSG(session, EINVAL,
@@ -812,8 +797,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 		__wt_timestamp_to_hex_string(hex_timestamp[0], &ts);
 		__wt_readlock(session, &txn_global->rwlock);
-		if (__wt_timestamp_cmp(
-		    &ts, &txn_global->oldest_timestamp) < 0) {
+		if (ts < txn_global->oldest_timestamp) {
 			__wt_timestamp_to_hex_string(
 			    hex_timestamp[1], &txn_global->oldest_timestamp);
 			/*
@@ -822,8 +806,8 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			 * oldest timestamp.
 			 */
 			if (round_to_oldest)
-				__wt_timestamp_set(&txn->read_timestamp,
-				    &txn_global->oldest_timestamp);
+				txn->read_timestamp =
+				    txn_global->oldest_timestamp;
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
 				WT_RET_MSG(session, EINVAL, "read timestamp "
@@ -831,7 +815,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 				    hex_timestamp[0], hex_timestamp[1]);
 			}
 		} else {
-			__wt_timestamp_set(&txn->read_timestamp, &ts);
+			txn->read_timestamp = ts;
 			/*
 			 * Reset to avoid a verbose message as read
 			 * timestamp is not rounded to oldest timestamp.
@@ -886,7 +870,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 	 * transaction is running) into the first_commit_timestamp, which is
 	 * fixed.
 	 */
-	__wt_timestamp_set(&ts, &txn->commit_timestamp);
+	ts = txn->commit_timestamp;
 
 	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
 	/*
@@ -934,8 +918,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 		 */
 		qtxn = TAILQ_LAST(
 		     &txn_global->commit_timestamph, __wt_txn_cts_qh);
-		while (qtxn != NULL && __wt_timestamp_cmp(
-		    &qtxn->first_commit_timestamp, &ts) > 0) {
+		while (qtxn != NULL && qtxn->first_commit_timestamp > ts) {
 			++walked;
 			qtxn = TAILQ_PREV(
 			    qtxn, __wt_txn_cts_qh, commit_timestampq);
@@ -949,7 +932,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 			    qtxn, txn, commit_timestampq);
 		WT_STAT_CONN_INCRV(session, txn_commit_queue_walked, walked);
 	}
-	__wt_timestamp_set(&txn->first_commit_timestamp, &ts);
+	txn->first_commit_timestamp = ts;
 	++txn_global->commit_timestampq_len;
 	WT_STAT_CONN_INCR(session, txn_commit_queue_inserts);
 	txn->clear_commit_q = false;
@@ -1044,8 +1027,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		qtxn = TAILQ_LAST(
 		     &txn_global->read_timestamph, __wt_txn_rts_qh);
 		while (qtxn != NULL &&
-		    __wt_timestamp_cmp(&qtxn->read_timestamp,
-		    &txn->read_timestamp) > 0) {
+		    qtxn->read_timestamp > txn->read_timestamp) {
 			++walked;
 			qtxn = TAILQ_PREV(
 			    qtxn, __wt_txn_rts_qh, read_timestampq);
@@ -1091,9 +1073,8 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 	wt_timestamp_t pinned_ts;
 
 	txn_global = &S2C(session)->txn_global;
-	__wt_timestamp_set(&pinned_ts, &txn_global->pinned_timestamp);
-	WT_ASSERT(session,
-	    __wt_timestamp_cmp(&txn->read_timestamp, &pinned_ts) >= 0);
+	pinned_ts = txn_global->pinned_timestamp;
+	WT_ASSERT(session, txn->read_timestamp >= pinned_ts);
 	}
 #endif
 	flags = txn->flags;

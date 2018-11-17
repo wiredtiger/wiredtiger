@@ -288,8 +288,8 @@ __wt_lsm_chunk_visible_all(
 			/* Set the timestamp if we won the race */
 			if (!F_ISSET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP)) {
 				__wt_readlock(session, &txn_global->rwlock);
-				__wt_timestamp_set(&chunk->switch_timestamp,
-				    &txn_global->commit_timestamp);
+				chunk->switch_timestamp =
+				    txn_global->commit_timestamp;
 				__wt_readunlock(session, &txn_global->rwlock);
 				F_SET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP);
 			}

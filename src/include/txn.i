@@ -38,66 +38,6 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_timestamp_cmp --
- *	Compare two timestamps.
- */
-static inline int
-__wt_timestamp_cmp(const wt_timestamp_t *ts1, const wt_timestamp_t *ts2)
-{
-	return (ts1->val == ts2->val ? 0 : (ts1->val > ts2->val ? 1 : -1));
-}
-
-/*
- * __wt_timestamp_set --
- *	Set a timestamp.
- */
-static inline void
-__wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
-{
-	dest->val = src->val;
-}
-
-/*
- * __wt_timestamp_subone --
- *	Subtract one from a timestamp.
- */
-static inline void
-__wt_timestamp_subone(wt_timestamp_t *ts)
-{
-	ts->val -= 1;
-}
-
-/*
- * __wt_timestamp_iszero --
- *	Check if a timestamp is equal to the special "zero" time.
- */
-static inline bool
-__wt_timestamp_iszero(const wt_timestamp_t *ts)
-{
-	return (ts->val == 0);
-}
-
-/*
- * __wt_timestamp_set_inf --
- *	Set a timestamp to the maximum value.
- */
-static inline void
-__wt_timestamp_set_inf(wt_timestamp_t *ts)
-{
-	ts->val = UINT64_MAX;
-}
-
-/*
- * __wt_timestamp_set_zero --
- *	Zero out a timestamp.
- */
-static inline void
-__wt_timestamp_set_zero(wt_timestamp_t *ts)
-{
-	ts->val = 0;
-}
-
-/*
  * __wt_txn_op_set_recno --
  *      Set the latest transaction operation with the given recno.
  */
@@ -189,7 +129,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	 */
 	upd->prepare_state = WT_PREPARE_LOCKED;
 	WT_WRITE_BARRIER();
-	__wt_timestamp_set(&upd->timestamp, &txn->commit_timestamp);
+	upd->timestamp = txn->commit_timestamp;
 	WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
 }
 
@@ -434,7 +374,7 @@ __wt_txn_op_commit_page_del(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	for (updp = ref->page_del->update_list;
 	    updp != NULL && *updp != NULL; ++updp) {
-		__wt_timestamp_set(&(*updp)->timestamp, &txn->commit_timestamp);
+		(*updp)->timestamp = txn->commit_timestamp;
 		if (F_ISSET(txn, WT_TXN_PREPARE))
 			/*
 			 * Holding the ref locked means we have exclusive
@@ -491,8 +431,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
-		if (__wt_timestamp_iszero(timestamp))
-			__wt_timestamp_set(timestamp, &txn->commit_timestamp);
+		if (*timestamp == 0)
+			*timestamp = txn->commit_timestamp;
 	}
 }
 
@@ -633,8 +573,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 	btree = S2BT_SAFE(session);
 	txn_global = &S2C(session)->txn_global;
 
-	__wt_timestamp_set(&pinned_ts, &txn_global->pinned_timestamp);
-	__wt_timestamp_set(pinned_tsp, &pinned_ts);
+	*pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
 
 	/*
 	 * Checkpoint transactions often fall behind ordinary application
@@ -660,11 +599,10 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 	 */
 	WT_READ_BARRIER();
 
-	__wt_timestamp_set(&checkpoint_ts, &txn_global->checkpoint_timestamp);
+	checkpoint_ts = txn_global->checkpoint_timestamp;
 
-	if (!__wt_timestamp_iszero(&checkpoint_ts) &&
-	    __wt_timestamp_cmp(&checkpoint_ts, &pinned_ts) < 0)
-		__wt_timestamp_set(pinned_tsp, &checkpoint_ts);
+	if (checkpoint_ts != 0 && checkpoint_ts < pinned_ts)
+		*pinned_tsp = checkpoint_ts;
 }
 
 /*
@@ -699,7 +637,7 @@ __wt_txn_visible_all(
 		return (false);
 
 	/* Timestamp check. */
-	if (timestamp == NULL || __wt_timestamp_iszero(timestamp))
+	if (timestamp == NULL || *timestamp == 0)
 		return (true);
 
 	/*
@@ -710,7 +648,7 @@ __wt_txn_visible_all(
 		return (F_ISSET(S2C(session), WT_CONN_CLOSING));
 
 	__wt_txn_pinned_timestamp(session, &pinned_ts);
-	return (__wt_timestamp_cmp(timestamp, &pinned_ts) <= 0);
+	return (*timestamp <= pinned_ts);
 }
 
 /*
@@ -803,7 +741,7 @@ __wt_txn_visible(
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
 		return (true);
 
-	return (__wt_timestamp_cmp(timestamp, &txn->read_timestamp) <= 0);
+	return (*timestamp <= txn->read_timestamp);
 }
 
 /*

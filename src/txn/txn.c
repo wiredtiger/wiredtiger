@@ -137,7 +137,7 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 	/* Clear a checkpoint's pinned ID. */
 	if (WT_SESSION_IS_CHECKPOINT(session)) {
 		txn_global->checkpoint_state.pinned_id = WT_TXN_NONE;
-		__wt_timestamp_set_zero(&txn_global->checkpoint_timestamp);
+		txn_global->checkpoint_timestamp = 0;
 	}
 
 	__wt_txn_clear_read_timestamp(session);
@@ -643,7 +643,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 * Check timestamps are used in order.
 			 */
 			op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
-			upd_zero_ts = __wt_timestamp_iszero(&upd->timestamp);
+			upd_zero_ts = upd->timestamp == 0;
 			if (op_zero_ts != upd_zero_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "per-key timestamps used inconsistently");
@@ -660,10 +660,9 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 * Only if the update structure doesn't have a timestamp
 			 * then use the one in the transaction structure.
 			 */
-			if (__wt_timestamp_iszero(&op_timestamp))
+			if (op_timestamp == 0)
 				op_timestamp = txn->commit_timestamp;
-			if (__wt_timestamp_cmp(&op_timestamp,
-			    &upd->timestamp) < 0)
+			if (op_timestamp < upd->timestamp)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order timestamps");
 		}
@@ -692,6 +691,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
+	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
 	locked = false;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -707,7 +707,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.len != 0) {
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_ERR(__wt_timestamp_validate(session, "commit", &ts, &cval));
-		__wt_timestamp_set(&txn->commit_timestamp, &ts);
+		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 	}
 
@@ -876,10 +876,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
-		__wt_timestamp_set(
-		    &prev_commit_timestamp, &txn_global->commit_timestamp);
-		update_timestamp = __wt_timestamp_cmp(
-		    &txn->commit_timestamp, &prev_commit_timestamp) > 0;
+		prev_commit_timestamp = txn_global->commit_timestamp;
+		update_timestamp =
+		    txn->commit_timestamp > prev_commit_timestamp;
 	}
 
 	/*
@@ -887,17 +886,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * write lock and re-check.
 	 */
 	if (update_timestamp)
-		while (__wt_timestamp_cmp(
-		    &txn->commit_timestamp, &prev_commit_timestamp) > 0) {
-			if (__wt_atomic_cas64(
-			    &txn_global->commit_timestamp.val,
-			    prev_commit_timestamp.val,
-			    txn->commit_timestamp.val)) {
+		while (txn->commit_timestamp > prev_commit_timestamp) {
+			if (__wt_atomic_cas64(&txn_global->commit_timestamp,
+			    prev_commit_timestamp, txn->commit_timestamp)) {
 				txn_global->has_commit_timestamp = true;
 				break;
 			}
-		    __wt_timestamp_set(
-			&prev_commit_timestamp, &txn_global->commit_timestamp);
+			prev_commit_timestamp = txn_global->commit_timestamp;
 		}
 
 	/*
@@ -945,7 +940,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Parse and validate the prepare timestamp.  */
 	WT_RET(__wt_txn_parse_prepare_timestamp(session, cfg, &ts));
-	__wt_timestamp_set(&txn->prepare_timestamp, &ts);
+	txn->prepare_timestamp = ts;
 
 	/*
 	 * We are about to release the snapshot: copy values into any
@@ -990,15 +985,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			/* Set prepare timestamp. */
-			__wt_timestamp_set(&upd->timestamp, &ts);
+			upd->timestamp = ts;
 
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
 			WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
 			break;
 		case WT_TXN_OP_REF_DELETE:
-			__wt_timestamp_set(
-			    &op->u.ref->page_del->timestamp, &ts);
+			op->u.ref->page_del->timestamp = ts;
 			WT_PUBLISH(op->u.ref->page_del->prepare_state,
 			    WT_PREPARE_INPROGRESS);
 			break;
@@ -1184,15 +1178,15 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	checkpoint_timestamp = txn_global->checkpoint_timestamp;
 	commit_timestamp = txn_global->commit_timestamp;
 	pinned_timestamp = txn_global->pinned_timestamp;
-	if (checkpoint_timestamp.val != 0 &&
-	    checkpoint_timestamp.val < pinned_timestamp.val)
+	if (checkpoint_timestamp != 0 &&
+	    checkpoint_timestamp < pinned_timestamp)
 		pinned_timestamp = checkpoint_timestamp;
 	WT_STAT_SET(session, stats, txn_pinned_timestamp,
-	    commit_timestamp.val - pinned_timestamp.val);
+	    commit_timestamp - pinned_timestamp);
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_checkpoint,
-	    commit_timestamp.val - checkpoint_timestamp.val);
+	    commit_timestamp - checkpoint_timestamp);
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
-	    commit_timestamp.val - txn_global->oldest_timestamp.val);
+	    commit_timestamp - txn_global->oldest_timestamp);
 
 	WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
 	    snapshot_pinned == WT_TXN_NONE ?

@@ -39,7 +39,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	 * violate protocol.
 	 */
 	txn_global = &conn->txn_global;
-	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
+	rollback_timestamp = txn_global->stable_timestamp;
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -72,8 +72,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		 * which will fail the following check and cause them to never
 		 * be removed.
 		 */
-		if (__wt_timestamp_cmp(
-		    &rollback_timestamp, &upd_timestamp) < 0) {
+		if (rollback_timestamp < upd_timestamp) {
 			WT_ERR(cursor->remove(cursor));
 			WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
 			--las_total;
@@ -110,12 +109,10 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 		 * strict timestamp checking, assert that all more recent
 		 * updates were also rolled back.
 		 */
-		if (upd->txnid == WT_TXN_ABORTED ||
-		    __wt_timestamp_iszero(&upd->timestamp)) {
+		if (upd->txnid == WT_TXN_ABORTED || upd->timestamp == 0) {
 			if (upd == first_upd)
 				first_upd = upd->next;
-		} else if (__wt_timestamp_cmp(
-		    rollback_timestamp, &upd->timestamp) < 0) {
+		} else if (*rollback_timestamp < upd->timestamp) {
 			/*
 			 * If any updates are aborted, all newer updates
 			 * better be aborted as well.
@@ -133,7 +130,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 
 			upd->txnid = WT_TXN_ABORTED;
 			WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
-			__wt_timestamp_set_zero(&upd->timestamp);
+			upd->timestamp = 0;
 		}
 	}
 }
@@ -255,8 +252,7 @@ __txn_abort_newer_updates(
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
 	if (ref->page_las != NULL && ref->page_las->skew_newest &&
-	    __wt_timestamp_cmp(rollback_timestamp,
-	    &ref->page_las->unstable_timestamp) < 0) {
+	    *rollback_timestamp < ref->page_las->unstable_timestamp) {
 		/* Make sure get back a page with history, not limbo page */
 		WT_ASSERT(session,
 		    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -267,8 +263,8 @@ __txn_abort_newer_updates(
 	}
 
 	/* Review deleted page saved to the ref */
-	if (ref->page_del != NULL && __wt_timestamp_cmp(
-	    rollback_timestamp, &ref->page_del->timestamp) < 0)
+	if (ref->page_del != NULL &&
+	    *rollback_timestamp < ref->page_del->timestamp)
 		WT_ERR(__wt_delete_page_rollback(session, ref));
 
 	/*
@@ -411,7 +407,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 * updated while rolling back, accessing it without a lock would
 	 * violate protocol.
 	 */
-	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
+	rollback_timestamp = txn_global->stable_timestamp;
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't

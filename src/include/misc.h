@@ -274,10 +274,7 @@
 } while (0)
 
 /* Timestamp type and helper macros. */
-struct __wt_timestamp_t {
-	uint64_t val;
-};
-typedef struct __wt_timestamp_t wt_timestamp_t;
+typedef uint64_t wt_timestamp_t;
 
 /*
  * In diagnostic mode we track the locations from which hazard pointers and

@@ -426,8 +426,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * versions of data and all the updates are in the past.
 	 */
 	if (ref->page_las->skew_newest &&
-	    __wt_timestamp_cmp(
-	    &txn->read_timestamp, &ref->page_las->unstable_timestamp) > 0)
+	    txn->read_timestamp > ref->page_las->unstable_timestamp)
 		return (true);
 
 	/*
@@ -435,8 +434,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * versions of data and all the unstable updates are in the future.
 	 */
 	if (!ref->page_las->skew_newest &&
-	    __wt_timestamp_cmp(
-	    &txn->read_timestamp, &ref->page_las->unstable_timestamp) < 0)
+	    txn->read_timestamp < ref->page_las->unstable_timestamp)
 		return (true);
 
 	return (false);
@@ -612,9 +610,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
-	wt_timestamp_t prev_timestamp;
-	uint64_t insert_cnt, prepared_insert_cnt;
-	uint64_t las_counter, las_pageid;
+	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool local_txn;
@@ -626,8 +622,6 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	insert_cnt = prepared_insert_cnt = 0;
 	btree_id = btree->id;
 	local_txn = false;
-
-	__wt_timestamp_set_zero(&prev_timestamp);
 
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
 

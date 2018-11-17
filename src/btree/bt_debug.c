@@ -1209,7 +1209,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		else
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
-		if (!__wt_timestamp_iszero(&upd->timestamp)) {
+		if (upd->timestamp != 0) {
 			__wt_timestamp_to_hex_string(
 			    hex_timestamp, &upd->timestamp);
 			WT_RET(ds->f(ds, ", stamp %s", hex_timestamp));

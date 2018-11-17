@@ -1363,11 +1363,11 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	    mod->last_eviction_id != __wt_txn_oldest_id(session))
 		return (true);
 
-	if (__wt_timestamp_iszero(&mod->last_eviction_timestamp))
+	if (mod->last_eviction_timestamp == 0)
 		return (true);
 
 	__wt_txn_pinned_timestamp(session, &pinned_ts);
-	if (__wt_timestamp_cmp(&pinned_ts, &mod->last_eviction_timestamp) > 0)
+	if (pinned_ts > mod->last_eviction_timestamp)
 		return (true);
 
 	return (false);
