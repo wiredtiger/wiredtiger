@@ -572,7 +572,7 @@ __las_insert_block_verbose(
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
 
 		__wt_timestamp_to_hex_string(
-		    hex_timestamp, &multi->page_las.unstable_timestamp);
+		    hex_timestamp, multi->page_las.unstable_timestamp);
 		ts = hex_timestamp;
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
@@ -983,7 +983,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
-	wt_timestamp_t timestamp, *val_ts;
+	wt_timestamp_t timestamp, val_ts;
 	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
 	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
@@ -1112,7 +1112,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		WT_ASSERT(session,
 		    las_timestamp.size == sizeof(wt_timestamp_t));
 		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
-		val_ts = &timestamp;
+		val_ts = timestamp;
 
 		/*
 		 * Check to see if the page or key has changed this iteration,

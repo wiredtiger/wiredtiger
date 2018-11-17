@@ -273,7 +273,7 @@ __wt_lsm_chunk_visible_all(
 		return (true);
 
 	if (chunk->switch_txn == WT_TXN_NONE ||
-	    !__wt_txn_visible_all(session, chunk->switch_txn, NULL))
+	    !__wt_txn_visible_all(session, chunk->switch_txn, 0))
 		return (false);
 
 	/*
@@ -296,7 +296,7 @@ __wt_lsm_chunk_visible_all(
 			__wt_spin_unlock(session, &chunk->timestamp_spinlock);
 		}
 		if (!__wt_txn_visible_all(
-		    session, chunk->switch_txn, &chunk->switch_timestamp))
+		    session, chunk->switch_txn, chunk->switch_timestamp))
 			return (false);
 	} else
 		/*

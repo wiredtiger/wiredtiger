@@ -98,7 +98,7 @@ err:	if (ret == 0) {
  */
 static void
 __txn_abort_newer_update(WT_SESSION_IMPL *session,
-    WT_UPDATE *first_upd, wt_timestamp_t *rollback_timestamp)
+    WT_UPDATE *first_upd, wt_timestamp_t rollback_timestamp)
 {
 	WT_UPDATE *upd;
 
@@ -112,7 +112,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 		if (upd->txnid == WT_TXN_ABORTED || upd->timestamp == 0) {
 			if (upd == first_upd)
 				first_upd = upd->next;
-		} else if (*rollback_timestamp < upd->timestamp) {
+		} else if (rollback_timestamp < upd->timestamp) {
 			/*
 			 * If any updates are aborted, all newer updates
 			 * better be aborted as well.
@@ -141,7 +141,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
  */
 static void
 __txn_abort_newer_insert(WT_SESSION_IMPL *session,
-    WT_INSERT_HEAD *head, wt_timestamp_t *rollback_timestamp)
+    WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp)
 {
 	WT_INSERT *ins;
 
@@ -156,7 +156,7 @@ __txn_abort_newer_insert(WT_SESSION_IMPL *session,
  */
 static void
 __txn_abort_newer_col_var(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t *rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
 	WT_COL *cip;
 	WT_INSERT_HEAD *ins;
@@ -180,7 +180,7 @@ __txn_abort_newer_col_var(
  */
 static void
 __txn_abort_newer_col_fix(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t *rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
 	WT_INSERT_HEAD *ins;
 
@@ -200,7 +200,7 @@ __txn_abort_newer_col_fix(
  */
 static void
 __txn_abort_newer_row_leaf(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t *rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
 	WT_INSERT_HEAD *insert;
 	WT_ROW *rip;
@@ -235,7 +235,7 @@ __txn_abort_newer_row_leaf(
  */
 static int
 __txn_abort_newer_updates(
-    WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t *rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -252,7 +252,7 @@ __txn_abort_newer_updates(
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
 	if (ref->page_las != NULL && ref->page_las->skew_newest &&
-	    *rollback_timestamp < ref->page_las->unstable_timestamp) {
+	    rollback_timestamp < ref->page_las->unstable_timestamp) {
 		/* Make sure get back a page with history, not limbo page */
 		WT_ASSERT(session,
 		    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
@@ -264,7 +264,7 @@ __txn_abort_newer_updates(
 
 	/* Review deleted page saved to the ref */
 	if (ref->page_del != NULL &&
-	    *rollback_timestamp < ref->page_del->timestamp)
+	    rollback_timestamp < ref->page_del->timestamp)
 		WT_ERR(__wt_delete_page_rollback(session, ref));
 
 	/*
@@ -317,7 +317,7 @@ err:	if (local_read)
  */
 static int
 __txn_rollback_to_stable_btree_walk(
-    WT_SESSION_IMPL *session, wt_timestamp_t *rollback_timestamp)
+    WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
 	WT_DECL_RET;
 	WT_REF *child_ref, *ref;
@@ -416,8 +416,8 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 * be in.
 	 */
 	WT_RET(__wt_evict_file_exclusive_on(session));
-	WT_WITH_PAGE_INDEX(session, ret = __txn_rollback_to_stable_btree_walk(
-	    session, &rollback_timestamp));
+	WT_WITH_PAGE_INDEX(session, ret =
+	    __txn_rollback_to_stable_btree_walk(session, rollback_timestamp));
 	__wt_evict_file_exclusive_off(session);
 
 	return (ret);

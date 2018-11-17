@@ -1274,7 +1274,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
-	wt_timestamp_t *timestampp;
+	wt_timestamp_t timestamp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
@@ -1456,11 +1456,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 * order), so we track the maximum transaction ID and the newest update
 	 * with a timestamp (if any).
 	 */
-	timestampp = first_ts_upd == NULL ? NULL : &first_ts_upd->timestamp;
+	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->timestamp;
 	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-	    __wt_txn_visible_all(session, max_txn, timestampp) :
-	    __wt_txn_visible(session, max_txn, timestampp));
+	    __wt_txn_visible_all(session, max_txn, timestamp) :
+	    __wt_txn_visible(session, max_txn, timestamp));
 
 	if (all_visible)
 		goto check_original_value;

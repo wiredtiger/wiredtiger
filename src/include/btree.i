@@ -1173,9 +1173,8 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 		return (true);
 	return (visible_all ?
 	    !__wt_txn_visible_all(session,
-	    page_del->txnid, &page_del->timestamp) :
-	    !__wt_txn_visible(session,
-	    page_del->txnid, &page_del->timestamp));
+	    page_del->txnid, page_del->timestamp) :
+	    !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
 }
 
 /*
@@ -1192,7 +1191,7 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (!page_las->skew_newest || page_las->has_prepares)
 		return (true);
 	if (__wt_txn_visible_all(session, page_las->max_txn,
-	    &page_las->max_timestamp))
+	    page_las->max_timestamp))
 		return (false);
 
 	return (true);
@@ -1455,7 +1454,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * evict, skip it.
 	 */
 	if (!modified && !__wt_txn_visible_all(session,
-	    mod->rec_max_txn, &mod->rec_max_timestamp))
+	    mod->rec_max_txn, mod->rec_max_timestamp))
 		return (false);
 
 	return (true);

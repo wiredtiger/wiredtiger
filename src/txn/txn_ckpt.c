@@ -668,7 +668,7 @@ __checkpoint_prepare(
 	__wt_writeunlock(session, &txn_global->rwlock);
 
 	if (F_ISSET(txn, WT_TXN_HAS_TS_READ)) {
-		__wt_verbose_timestamp(session, &txn->read_timestamp,
+		__wt_verbose_timestamp(session, txn->read_timestamp,
 		    "Checkpoint requested at stable timestamp");
 
 		/*
@@ -1865,7 +1865,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn,
-		    &btree->rec_max_timestamp) ?
+		    btree->rec_max_timestamp) ?
 		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 

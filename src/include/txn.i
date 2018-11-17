@@ -629,7 +629,7 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible_all(
-    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t *timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t timestamp)
 {
 	wt_timestamp_t pinned_ts;
 
@@ -637,7 +637,7 @@ __wt_txn_visible_all(
 		return (false);
 
 	/* Timestamp check. */
-	if (timestamp == NULL || *timestamp == 0)
+	if (timestamp == 0)
 		return (true);
 
 	/*
@@ -648,7 +648,7 @@ __wt_txn_visible_all(
 		return (F_ISSET(S2C(session), WT_CONN_CLOSING));
 
 	__wt_txn_pinned_timestamp(session, &pinned_ts);
-	return (*timestamp <= pinned_ts);
+	return (timestamp <= pinned_ts);
 }
 
 /*
@@ -662,7 +662,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	    upd->prepare_state == WT_PREPARE_INPROGRESS)
 		return (false);
 
-	return (__wt_txn_visible_all(session, upd->txnid, &upd->timestamp));
+	return (__wt_txn_visible_all(session, upd->txnid, upd->timestamp));
 }
 
 /*
@@ -724,7 +724,7 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible(
-    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t *timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t timestamp)
 {
 	WT_TXN *txn;
 
@@ -738,10 +738,10 @@ __wt_txn_visible(
 		return (true);
 
 	/* Timestamp check. */
-	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == NULL)
+	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
 		return (true);
 
-	return (*timestamp <= txn->read_timestamp);
+	return (timestamp <= txn->read_timestamp);
 }
 
 /*
@@ -761,7 +761,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			continue;
 
 		upd_visible = __wt_txn_visible(
-		    session, upd->txnid, &upd->timestamp);
+		    session, upd->txnid, upd->timestamp);
 
 		/*
 		 * The visibility check is only valid if the update does not
