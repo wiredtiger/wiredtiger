@@ -421,7 +421,6 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
 		return (ref->page_las->skew_newest);
 
-#ifdef HAVE_TIMESTAMPS
 	/*
 	 * Skip lookaside pages if reading as of a timestamp, we evicted new
 	 * versions of data and all the updates are in the past.
@@ -439,7 +438,6 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	    __wt_timestamp_cmp(
 	    &txn->read_timestamp, &ref->page_las->unstable_timestamp) < 0)
 		return (true);
-#endif
 
 	return (false);
 }
@@ -549,9 +547,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-#ifdef HAVE_TIMESTAMPS
 	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-#endif
 	const char *ts;
 
 	btree_id = btree->id;
@@ -577,13 +573,9 @@ __las_insert_block_verbose(
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
 
-#ifdef HAVE_TIMESTAMPS
 		WT_RET(__wt_timestamp_to_hex_string(session, hex_timestamp,
 		    &multi->page_las.unstable_timestamp));
 		ts = hex_timestamp;
-#else
-		ts = "disabled";
-#endif
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
@@ -616,12 +608,12 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(prev_timestamp)
 	WT_ITEM las_timestamp, las_value;
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
+	wt_timestamp_t prev_timestamp;
 	uint64_t insert_cnt, prepared_insert_cnt;
 	uint64_t las_counter, las_pageid;
 	uint32_t btree_id, i, slot;
@@ -732,10 +724,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			cursor->set_key(cursor,
 			    las_pageid, btree_id, ++las_counter, key);
 
-#ifdef HAVE_TIMESTAMPS
 			las_timestamp.data = &upd->timestamp;
 			las_timestamp.size = WT_TIMESTAMP_SIZE;
-#endif
+
 			/*
 			 * If saving a non-zero length value on the page, save a
 			 * birthmark instead of duplicating it in the lookaside
@@ -999,11 +990,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
-#ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t timestamp, *val_ts;
-#else
-	wt_timestamp_t *val_ts;
-#endif
 	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
 	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
@@ -1129,13 +1116,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
-#ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
 		val_ts = &timestamp;
-#else
-		val_ts = NULL;
-#endif
 
 		/*
 		 * Check to see if the page or key has changed this iteration,

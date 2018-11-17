@@ -188,10 +188,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		total_incr += incr;
 		upd->txnid = las_txnid;
 		upd->prepare_state = prepare_state;
-#ifdef HAVE_TIMESTAMPS
 		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
 		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);
-#endif
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
@@ -284,7 +282,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		    !ref->page_las->has_prepares &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
 		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
-		    WT_TIMESTAMP_NULL(&ref->page_las->unstable_timestamp))) {
+		    &ref->page_las->unstable_timestamp)) {
 			page->modify->rec_max_txn = ref->page_las->max_txn;
 			__wt_timestamp_set(&page->modify->rec_max_timestamp,
 			    &ref->page_las->max_timestamp);

@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_TIMESTAMPS
 /*
  * __txn_rollback_to_stable_lookaside_fixup --
  *	Remove any updates that need to be rolled back from the lookaside file.
@@ -19,10 +18,10 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(rollback_timestamp)
-	WT_DECL_TIMESTAMP(upd_timestamp)
 	WT_ITEM las_key, las_timestamp, las_value;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t rollback_timestamp;
+	wt_timestamp_t upd_timestamp;
 	uint64_t las_counter, las_pageid, las_total, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
@@ -369,8 +368,8 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(rollback_timestamp)
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t rollback_timestamp;
 
 	WT_UNUSED(cfg);
 
@@ -465,7 +464,6 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 
 	return (ret);
 }
-#endif
 
 /*
  * __wt_txn_rollback_to_stable --
@@ -475,12 +473,6 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 int
 __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 {
-#ifndef HAVE_TIMESTAMPS
-	WT_UNUSED(cfg);
-
-	WT_RET_MSG(session, ENOTSUP, "rollback_to_stable "
-	    "requires a version of WiredTiger built with timestamp support");
-#else
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
@@ -529,5 +521,4 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 err:	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
 	__wt_free(session, conn->stable_rollback_bitstring);
 	return (ret);
-#endif
 }

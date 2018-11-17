@@ -510,7 +510,6 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %exception wiredtiger_strerror;
 %exception wiredtiger_version;
 %exception diagnostic_build;
-%exception timestamp_build;
 
 /* WT_ASYNC_OP customization. */
 /* First, replace the varargs get / set methods with Python equivalents. */
@@ -1008,13 +1007,8 @@ int diagnostic_build() {
 	return 0;
 #endif
 }
-
-int timestamp_build() {
-	return WT_TIMESTAMP_SIZE > 0;
-}
 %}
 int diagnostic_build();
-int timestamp_build();
 
 /* Remove / rename parts of the C API that we don't want in Python. */
 %immutable __wt_cursor::session;

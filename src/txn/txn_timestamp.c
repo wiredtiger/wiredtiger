@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-#ifdef HAVE_TIMESTAMPS
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_TS_ALREADY_LOCKED	0x1u
 #define	WT_TXN_TS_INCLUDE_CKPT		0x2u
@@ -207,9 +206,9 @@ __txn_get_pinned_timestamp(
    WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_TIMESTAMP(tmp_ts)
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t tmp_ts;
 	bool include_oldest, txn_has_write_lock;
 
 	conn = S2C(session);
@@ -375,7 +374,6 @@ __txn_query_timestamp(
 
 	return (0);
 }
-#endif
 
 /*
  * __wt_txn_query_timestamp --
@@ -386,7 +384,6 @@ int
 __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
     char *hex_timestamp, const char *cfg[], bool global_txn)
 {
-#ifdef HAVE_TIMESTAMPS
 	wt_timestamp_t ts;
 
 	if (global_txn)
@@ -395,17 +392,8 @@ __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
 		WT_RET(__txn_query_timestamp(session, &ts, cfg));
 
 	return (__wt_timestamp_to_hex_string(session, hex_timestamp, &ts));
-#else
-	WT_UNUSED(hex_timestamp);
-	WT_UNUSED(cfg);
-	WT_UNUSED(global_txn);
-
-	WT_RET_MSG(session, ENOTSUP,
-	    "requires a version of WiredTiger built with timestamp support");
-#endif
 }
 
-#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_update_pinned_timestamp --
  *	Update the pinned timestamp (the oldest timestamp that has to be
@@ -468,7 +456,6 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 
 	return (0);
 }
-#endif
 
 /*
  * __wt_txn_global_set_timestamp --
@@ -478,7 +465,14 @@ int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM commit_cval, oldest_cval, stable_cval;
-	bool has_commit, has_oldest, has_stable;
+	WT_CONFIG_ITEM cval;
+	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
+	wt_timestamp_t last_oldest_ts, last_stable_ts;
+	char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
+	bool force, has_commit, has_oldest, has_stable;
+
+	txn_global = &S2C(session)->txn_global;
 
 	WT_STAT_CONN_INCR(session, txn_set_ts);
 	WT_RET(__wt_config_gets_def(session,
@@ -502,17 +496,6 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	/* If no timestamp was supplied, there's nothing to do. */
 	if (!has_commit && !has_oldest && !has_stable)
 		return (0);
-
-#ifdef HAVE_TIMESTAMPS
-	{
-	WT_CONFIG_ITEM cval;
-	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
-	wt_timestamp_t last_oldest_ts, last_stable_ts;
-	char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
-	bool force;
-
-	txn_global = &S2C(session)->txn_global;
 
 	/*
 	 * Parsing will initialize the timestamp to zero even if
@@ -655,15 +638,10 @@ set:	__wt_writelock(session, &txn_global->rwlock);
 
 	if (has_oldest || has_stable)
 		WT_RET(__wt_txn_update_pinned_timestamp(session, force));
-	}
+
 	return (0);
-#else
-	WT_RET_MSG(session, ENOTSUP, "set_timestamp requires a "
-	    "version of WiredTiger built with timestamp support");
-#endif
 }
 
-#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_timestamp_validate --
  *	Validate a timestamp to be not older than the global oldest and global
@@ -742,7 +720,6 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 
 	return (0);
 }
-#endif
 
 /*
  * __wt_txn_set_timestamp --
@@ -753,24 +730,20 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
+	WT_TXN *txn;
+	wt_timestamp_t ts;
+
+	txn = &session->txn;
 
 	/* Look for a commit timestamp. */
 	ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);
 	WT_RET_NOTFOUND_OK(ret);
 	if (ret == 0 && cval.len != 0) {
-#ifdef HAVE_TIMESTAMPS
-		WT_TXN *txn = &session->txn;
-		wt_timestamp_t ts;
-
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_RET(__wt_timestamp_validate(session, "commit", &ts, &cval));
 		__wt_timestamp_set(&txn->commit_timestamp, &ts);
 		__wt_txn_set_commit_timestamp(session);
-#else
-		WT_RET_MSG(session, ENOTSUP, "commit_timestamp requires a "
-		    "version of WiredTiger built with timestamp support");
-#endif
 	} else
 		/*
 		 * We allow setting the commit timestamp after a prepare
@@ -793,18 +766,16 @@ __wt_txn_parse_prepare_timestamp(
     WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t *timestamp)
 {
 	WT_CONFIG_ITEM cval;
+	WT_TXN *prev;
+	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t oldest_ts;
+	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+
+	txn_global = &S2C(session)->txn_global;
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "prepare_timestamp", 0, &cval));
 	if (cval.len > 0) {
-#ifdef HAVE_TIMESTAMPS
-		WT_TXN *prev;
-		WT_TXN_GLOBAL *txn_global;
-		wt_timestamp_t oldest_ts;
-		char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-
-		txn_global = &S2C(session)->txn_global;
-
 		if (F_ISSET(&session->txn, WT_TXN_HAS_TS_COMMIT))
 			WT_RET_MSG(session, EINVAL,
 			    "commit timestamp should not have been set before "
@@ -862,11 +833,6 @@ __wt_txn_parse_prepare_timestamp(
 				    cval.str, hex_timestamp);
 			}
 		 }
-#else
-		WT_UNUSED(timestamp);
-		WT_RET_MSG(session, EINVAL, "prepare_timestamp requires a "
-		    "version of WiredTiger built with timestamp support");
-#endif
 	} else
 		WT_RET_MSG(session, EINVAL, "prepare timestamp is required");
 
@@ -881,17 +847,15 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t ts;
+	char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
+	bool round_to_oldest;
 
 	txn = &session->txn;
 
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (cval.len > 0) {
-#ifdef HAVE_TIMESTAMPS
-		wt_timestamp_t ts;
-		WT_TXN_GLOBAL *txn_global;
-		char hex_timestamp[2][2 * WT_TIMESTAMP_SIZE + 1];
-		bool round_to_oldest;
-
 		txn_global = &S2C(session)->txn_global;
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
 
@@ -969,18 +933,11 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 		if (F_ISSET(txn, WT_TXN_RUNNING))
 			__wt_txn_get_snapshot(session);
-
-#else
-		WT_UNUSED(txn);
-		WT_RET_MSG(session, EINVAL, "read_timestamp requires a "
-		    "version of WiredTiger built with timestamp support");
-#endif
 	}
 
 	return (0);
 }
 
-#ifdef HAVE_TIMESTAMPS
 /*
  * __wt_txn_set_commit_timestamp --
  *	Publish a transaction's commit timestamp.
@@ -1226,7 +1183,6 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 	WT_PUBLISH(txn->clear_read_q, true);
 	WT_PUBLISH(txn->flags, flags);
 }
-#endif
 
 /*
  * __wt_txn_clear_timestamp_queues --

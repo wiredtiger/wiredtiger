@@ -101,13 +101,13 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-	WT_DECL_TIMESTAMP(commit_timestamp)
-	WT_DECL_TIMESTAMP(last_ckpt_timestamp)
-	WT_DECL_TIMESTAMP(meta_ckpt_timestamp)
-	WT_DECL_TIMESTAMP(oldest_timestamp)
-	WT_DECL_TIMESTAMP(pinned_timestamp)
-	WT_DECL_TIMESTAMP(recovery_timestamp)
-	WT_DECL_TIMESTAMP(stable_timestamp)
+	wt_timestamp_t commit_timestamp;
+	wt_timestamp_t last_ckpt_timestamp;
+	wt_timestamp_t meta_ckpt_timestamp;
+	wt_timestamp_t oldest_timestamp;
+	wt_timestamp_t pinned_timestamp;
+	wt_timestamp_t recovery_timestamp;
+	wt_timestamp_t stable_timestamp;
 	bool has_commit_timestamp;
 	bool has_oldest_timestamp;
 	bool has_pinned_timestamp;
@@ -147,7 +147,7 @@ struct __wt_txn_global {
 	volatile bool	  checkpoint_running;	/* Checkpoint running */
 	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
 	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
-	WT_DECL_TIMESTAMP(checkpoint_timestamp)	/* Checkpoint's timestamp */
+	wt_timestamp_t	  checkpoint_timestamp;	/* Checkpoint's timestamp */
 
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 
@@ -249,22 +249,22 @@ struct __wt_txn {
 	 * In some use cases, this can be updated while the transaction is
 	 * running.
 	 */
-	WT_DECL_TIMESTAMP(commit_timestamp)
+	wt_timestamp_t commit_timestamp;
 
 	/*
 	 * Set to the first commit timestamp used in the transaction and fixed
 	 * while the transaction is on the public list of committed timestamps.
 	 */
-	WT_DECL_TIMESTAMP(first_commit_timestamp)
+	wt_timestamp_t first_commit_timestamp;
 
 	/*
 	 * Timestamp copied into updates created by this transaction, when this
 	 * transaction is prepared.
 	 */
-	WT_DECL_TIMESTAMP(prepare_timestamp)
+	wt_timestamp_t prepare_timestamp;
 
 	/* Read updates committed as of this timestamp. */
-	WT_DECL_TIMESTAMP(read_timestamp)
+	wt_timestamp_t read_timestamp;
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;

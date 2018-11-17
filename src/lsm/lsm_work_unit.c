@@ -264,6 +264,10 @@ bool
 __wt_lsm_chunk_visible_all(
     WT_SESSION_IMPL *session, WT_LSM_CHUNK *chunk)
 {
+	WT_TXN_GLOBAL *txn_global;
+
+	txn_global = &S2C(session)->txn_global;
+
 	/* Once a chunk has been flushed it's contents must be visible */
 	if (F_ISSET(chunk, WT_LSM_CHUNK_ONDISK | WT_LSM_CHUNK_STABLE))
 		return (true);
@@ -271,12 +275,6 @@ __wt_lsm_chunk_visible_all(
 	if (chunk->switch_txn == WT_TXN_NONE ||
 	    !__wt_txn_visible_all(session, chunk->switch_txn, NULL))
 		return (false);
-
-#ifdef HAVE_TIMESTAMPS
-	{
-	WT_TXN_GLOBAL *txn_global;
-
-	txn_global = &S2C(session)->txn_global;
 
 	/*
 	 * Once all transactions with updates in the chunk are visible all
@@ -307,8 +305,7 @@ __wt_lsm_chunk_visible_all(
 		 * there could be confusion if timestamps start being used.
 		 */
 		F_SET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP);
-	}
-#endif
+
 	return (true);
 }
 

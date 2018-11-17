@@ -355,12 +355,11 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 static int
 __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 {
-#ifdef HAVE_TIMESTAMPS
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(ckpt_timestamp)
 	WT_SESSION_IMPL *session;
+	wt_timestamp_t ckpt_timestamp;
 	char *sys_config;
 
 	sys_config = NULL;
@@ -411,10 +410,6 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	}
 err:	__wt_free(session, sys_config);
 	return (ret);
-#else
-	WT_UNUSED(r);
-	return (0);
-#endif
 }
 
 /*
@@ -554,10 +549,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 	r.session = session;
 	WT_MAX_LSN(&r.max_ckpt_lsn);
 	WT_MAX_LSN(&r.max_rec_lsn);
-#ifdef HAVE_TIMESTAMPS
 	__wt_timestamp_set_zero(&conn->txn_global.recovery_timestamp);
 	__wt_timestamp_set_zero(&conn->txn_global.meta_ckpt_timestamp);
-#endif
 
 	F_SET(conn, WT_CONN_RECOVERING);
 	WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
