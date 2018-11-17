@@ -37,9 +37,6 @@ __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 		F_SET(&session->txn, WT_TXN_TS_COMMIT_NEVER);
 }
 
-#if WT_TIMESTAMP_SIZE == 8
-#define	WT_WITH_TIMESTAMP_READLOCK(session, l, e)       e
-
 /*
  * __wt_timestamp_cmp --
  *	Compare two timestamps.
@@ -99,87 +96,6 @@ __wt_timestamp_set_zero(wt_timestamp_t *ts)
 {
 	ts->val = 0;
 }
-
-#else /* WT_TIMESTAMP_SIZE != 8 */
-
-#define	WT_WITH_TIMESTAMP_READLOCK(s, l, e)	do {                    \
-	__wt_readlock((s), (l));                                        \
-	e;                                                              \
-	__wt_readunlock((s), (l));                                      \
-} while (0)
-
-/*
- * __wt_timestamp_cmp --
- *	Compare two timestamps.
- */
-static inline int
-__wt_timestamp_cmp(const wt_timestamp_t *ts1, const wt_timestamp_t *ts2)
-{
-	return (memcmp(ts1->ts, ts2->ts, WT_TIMESTAMP_SIZE));
-}
-
-/*
- * __wt_timestamp_set --
- *	Set a timestamp.
- */
-static inline void
-__wt_timestamp_set(wt_timestamp_t *dest, const wt_timestamp_t *src)
-{
-	(void)memcpy(dest->ts, src->ts, WT_TIMESTAMP_SIZE);
-}
-
-/*
- * __wt_timestamp_iszero --
- *	Check if a timestamp is equal to the special "zero" time.
- */
-static inline bool
-__wt_timestamp_iszero(const wt_timestamp_t *ts)
-{
-	static const wt_timestamp_t zero_timestamp;
-
-	return (memcmp(ts->ts, &zero_timestamp, WT_TIMESTAMP_SIZE) == 0);
-}
-
-/*
- * __wt_timestamp_set_inf --
- *	Set a timestamp to the maximum value.
- */
-static inline void
-__wt_timestamp_set_inf(wt_timestamp_t *ts)
-{
-	memset(ts->ts, 0xff, WT_TIMESTAMP_SIZE);
-}
-
-/*
- * __wt_timestamp_set_zero --
- *	Zero out a timestamp.
- */
-static inline void
-__wt_timestamp_set_zero(wt_timestamp_t *ts)
-{
-	memset(ts->ts, 0x00, WT_TIMESTAMP_SIZE);
-}
-
-/*
- * __wt_timestamp_subone --
- *	Subtract one from a timestamp.
- */
-static inline void
-__wt_timestamp_subone(wt_timestamp_t *ts)
-{
-	uint8_t *tsb;
-
-	/*
-	 * Complicated path for arbitrary-sized timestamps: start with the
-	 * least significant byte, subtract one, continue to more significant
-	 * bytes on underflow.
-	 */
-	for (tsb = ts->ts + WT_TIMESTAMP_SIZE - 1; tsb >= ts->ts; --tsb)
-		if (--*tsb != 0xff)
-			break;
-}
-
-#endif /* WT_TIMESTAMP_SIZE == 8 */
 
 /*
  * __wt_txn_op_set_recno --
@@ -717,8 +633,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 	btree = S2BT_SAFE(session);
 	txn_global = &S2C(session)->txn_global;
 
-	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    __wt_timestamp_set(&pinned_ts, &txn_global->pinned_timestamp));
+	__wt_timestamp_set(&pinned_ts, &txn_global->pinned_timestamp);
 	__wt_timestamp_set(pinned_tsp, &pinned_ts);
 
 	/*
@@ -745,9 +660,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 	 */
 	WT_READ_BARRIER();
 
-	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    __wt_timestamp_set(&checkpoint_ts,
-	    &txn_global->checkpoint_timestamp));
+	__wt_timestamp_set(&checkpoint_ts, &txn_global->checkpoint_timestamp);
 
 	if (!__wt_timestamp_iszero(&checkpoint_ts) &&
 	    __wt_timestamp_cmp(&checkpoint_ts, &pinned_ts) < 0)

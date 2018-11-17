@@ -188,7 +188,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		total_incr += incr;
 		upd->txnid = las_txnid;
 		upd->prepare_state = prepare_state;
-		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		WT_ASSERT(session,
+		    las_timestamp.size == sizeof(wt_timestamp_t));
 		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);
 
 		switch (page->type) {

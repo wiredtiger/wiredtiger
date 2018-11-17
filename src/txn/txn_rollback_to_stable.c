@@ -39,9 +39,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	 * violate protocol.
 	 */
 	txn_global = &conn->txn_global;
-	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    __wt_timestamp_set(
-	    &rollback_timestamp, &txn_global->stable_timestamp));
+	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -65,7 +63,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
-		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		WT_ASSERT(session,
+		    las_timestamp.size == sizeof(wt_timestamp_t));
 		memcpy(&upd_timestamp, las_timestamp.data, las_timestamp.size);
 
 		/*
@@ -412,9 +411,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 * updated while rolling back, accessing it without a lock would
 	 * violate protocol.
 	 */
-	WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-	    __wt_timestamp_set(
-	    &rollback_timestamp, &txn_global->stable_timestamp));
+	__wt_timestamp_set(&rollback_timestamp, &txn_global->stable_timestamp);
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't

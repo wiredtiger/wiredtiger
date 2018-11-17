@@ -876,9 +876,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    __wt_timestamp_set(
-			&prev_commit_timestamp, &txn_global->commit_timestamp));
+		__wt_timestamp_set(
+		    &prev_commit_timestamp, &txn_global->commit_timestamp);
 		update_timestamp = __wt_timestamp_cmp(
 		    &txn->commit_timestamp, &prev_commit_timestamp) > 0;
 	}
@@ -887,8 +886,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * If it looks like we need to move the global commit timestamp,
 	 * write lock and re-check.
 	 */
-	if (update_timestamp) {
-#if WT_TIMESTAMP_SIZE == 8
+	if (update_timestamp)
 		while (__wt_timestamp_cmp(
 		    &txn->commit_timestamp, &prev_commit_timestamp) > 0) {
 			if (__wt_atomic_cas64(
@@ -901,17 +899,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    __wt_timestamp_set(
 			&prev_commit_timestamp, &txn_global->commit_timestamp);
 		}
-#else
-		__wt_writelock(session, &txn_global->rwlock);
-		if (__wt_timestamp_cmp(&txn->commit_timestamp,
-		    &txn_global->commit_timestamp) > 0) {
-			__wt_timestamp_set(&txn_global->commit_timestamp,
-			    &txn->commit_timestamp);
-			txn_global->has_commit_timestamp = true;
-		}
-		__wt_writeunlock(session, &txn_global->rwlock);
-#endif
-	}
 
 	/*
 	 * We're between transactions, if we need to block for eviction, it's
@@ -1180,6 +1167,9 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t checkpoint_timestamp;
+	wt_timestamp_t commit_timestamp;
+	wt_timestamp_t pinned_timestamp;
 	uint64_t checkpoint_pinned, snapshot_pinned;
 
 	conn = S2C(session);
@@ -1190,12 +1180,6 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 
 	WT_STAT_SET(session, stats, txn_pinned_range,
 	    txn_global->current - txn_global->oldest_id);
-
-#if WT_TIMESTAMP_SIZE == 8
-	{
-	wt_timestamp_t checkpoint_timestamp;
-	wt_timestamp_t commit_timestamp;
-	wt_timestamp_t pinned_timestamp;
 
 	checkpoint_timestamp = txn_global->checkpoint_timestamp;
 	commit_timestamp = txn_global->commit_timestamp;
@@ -1209,8 +1193,6 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    commit_timestamp.val - checkpoint_timestamp.val);
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
 	    commit_timestamp.val - txn_global->oldest_timestamp.val);
-	}
-#endif
 
 	WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
 	    snapshot_pinned == WT_TXN_NONE ?
@@ -1389,7 +1371,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
-	char hex_timestamp[3][2 * WT_TIMESTAMP_SIZE + 1];
+	char hex_timestamp[3][2 * sizeof(wt_timestamp_t) + 1];
 	const char *iso_tag;
 
 	WT_NOT_READ(iso_tag, "INVALID");
@@ -1404,12 +1386,10 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 		iso_tag = "WT_ISO_SNAPSHOT";
 		break;
 	}
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[0], &txn->commit_timestamp));
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[1], &txn->first_commit_timestamp));
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[2], &txn->read_timestamp));
+	__wt_timestamp_to_hex_string(hex_timestamp[0], &txn->commit_timestamp);
+	__wt_timestamp_to_hex_string(
+	    hex_timestamp[1], &txn->first_commit_timestamp);
+	__wt_timestamp_to_hex_string(hex_timestamp[2], &txn->read_timestamp);
 	WT_RET(__wt_msg(session,
 	    "mod count: %u"
 	    ", snap min: %" PRIu64
@@ -1443,7 +1423,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_TXN_STATE *s;
 	uint64_t id;
 	uint32_t i, session_cnt;
-	char hex_timestamp[3][2 * WT_TIMESTAMP_SIZE + 1];
+	char hex_timestamp[3][2 * sizeof(wt_timestamp_t) + 1];
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -1458,17 +1438,17 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	    "metadata_pinned ID: %" PRIu64, txn_global->metadata_pinned));
 	WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
 
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[0], &txn_global->commit_timestamp));
+	__wt_timestamp_to_hex_string(
+	    hex_timestamp[0], &txn_global->commit_timestamp);
 	WT_RET(__wt_msg(session, "commit timestamp: %s", hex_timestamp[0]));
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[0], &txn_global->oldest_timestamp));
+	__wt_timestamp_to_hex_string(
+	    hex_timestamp[0], &txn_global->oldest_timestamp);
 	WT_RET(__wt_msg(session, "oldest timestamp: %s", hex_timestamp[0]));
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[0], &txn_global->pinned_timestamp));
+	__wt_timestamp_to_hex_string(
+	    hex_timestamp[0], &txn_global->pinned_timestamp);
 	WT_RET(__wt_msg(session, "pinned timestamp: %s", hex_timestamp[0]));
-	WT_RET(__wt_timestamp_to_hex_string(
-	    session, hex_timestamp[0], &txn_global->stable_timestamp));
+	__wt_timestamp_to_hex_string(
+	    hex_timestamp[0], &txn_global->stable_timestamp);
 	WT_RET(__wt_msg(session, "stable timestamp: %s", hex_timestamp[0]));
 	WT_RET(__wt_msg(session, "has_commit_timestamp: %s",
 	    txn_global->has_commit_timestamp ? "yes" : "no"));

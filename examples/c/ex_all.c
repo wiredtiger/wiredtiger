@@ -947,7 +947,7 @@ transaction_ops(WT_SESSION *session_arg)
 
 	{
 	/*! [query timestamp] */
-	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
+	char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
 	/*! [transaction timestamp] */
 	error_check(

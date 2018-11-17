@@ -360,6 +360,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	wt_timestamp_t ckpt_timestamp;
+	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
 	char *sys_config;
 
 	sys_config = NULL;
@@ -401,9 +402,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 
 	if (WT_VERBOSE_ISSET(session,
 	    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS)) {
-		char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
-		WT_TRET(__wt_timestamp_to_hex_string(session,
-		    hex_timestamp, &conn->txn_global.recovery_timestamp));
+		__wt_timestamp_to_hex_string(
+		    hex_timestamp, &conn->txn_global.recovery_timestamp);
 		__wt_verbose(session,
 		    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
 		    "Set global recovery timestamp: %s", hex_timestamp);

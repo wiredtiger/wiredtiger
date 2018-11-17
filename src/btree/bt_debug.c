@@ -1173,7 +1173,7 @@ __debug_modify(WT_DBG *ds, WT_UPDATE *upd)
 static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
-	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
 
 	for (; upd != NULL; upd = upd->next) {
 		switch (upd->type) {
@@ -1210,8 +1210,8 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
 		if (!__wt_timestamp_iszero(&upd->timestamp)) {
-			WT_RET(__wt_timestamp_to_hex_string(
-			    ds->session, hex_timestamp, &upd->timestamp));
+			__wt_timestamp_to_hex_string(
+			    hex_timestamp, &upd->timestamp);
 			WT_RET(ds->f(ds, ", stamp %s", hex_timestamp));
 		}
 		WT_RET(ds->f(ds, "\n"));

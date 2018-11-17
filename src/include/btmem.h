@@ -1048,9 +1048,7 @@ struct __wt_ikey {
  */
 struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
-#if WT_TIMESTAMP_SIZE == 8
 	wt_timestamp_t timestamp;	/* aligned uint64_t timestamp */
-#endif
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -1068,10 +1066,6 @@ struct __wt_update {
 #define	WT_UPDATE_DATA_VALUE(upd)					\
 	((upd)->type == WT_UPDATE_STANDARD ||				\
 	(upd)->type == WT_UPDATE_TOMBSTONE)
-
-#if WT_TIMESTAMP_SIZE != 8
-	wt_timestamp_t timestamp;	/* unaligned uint8_t array timestamp */
-#endif
 
 	/*
 	 * The update state is used for transaction prepare to manage
@@ -1091,7 +1085,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(22 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	30
 
 /*
  * The memory size of an update: include some padding because this is such a

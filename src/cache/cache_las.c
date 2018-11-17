@@ -538,7 +538,7 @@ err:	if (local_txn) {
  *	Display a verbose message once per checkpoint with details about the
  *	cache state when performing a lookaside table write.
  */
-static int
+static void
 __las_insert_block_verbose(
     WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *multi)
 {
@@ -547,14 +547,14 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 1];
+	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
 	const char *ts;
 
 	btree_id = btree->id;
 
 	if (!WT_VERBOSE_ISSET(session,
 	    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
-		return (0);
+		return;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -573,8 +573,8 @@ __las_insert_block_verbose(
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
 
-		WT_RET(__wt_timestamp_to_hex_string(session, hex_timestamp,
-		    &multi->page_las.unstable_timestamp));
+		__wt_timestamp_to_hex_string(
+		    hex_timestamp, &multi->page_las.unstable_timestamp);
 		ts = hex_timestamp;
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
@@ -595,7 +595,6 @@ __las_insert_block_verbose(
 	/* Never skip updating the tracked generation */
 	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE))
 		cache->las_verb_gen_write = ckpt_gen_current;
-	return (0);
 }
 
 /*
@@ -725,7 +724,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    las_pageid, btree_id, ++las_counter, key);
 
 			las_timestamp.data = &upd->timestamp;
-			las_timestamp.size = WT_TIMESTAMP_SIZE;
+			las_timestamp.size = sizeof(wt_timestamp_t);
 
 			/*
 			 * If saving a non-zero length value on the page, save a
@@ -781,7 +780,7 @@ err:	/* Resolve the transaction. */
 	if (ret == 0 && insert_cnt > 0) {
 		multi->page_las.las_pageid = las_pageid;
 		multi->page_las.has_prepares = prepared_insert_cnt > 0;
-		ret = __las_insert_block_verbose(session, btree, multi);
+		__las_insert_block_verbose(session, btree, multi);
 	}
 
 	return (ret);
@@ -1116,7 +1115,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
-		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
+		WT_ASSERT(session,
+		    las_timestamp.size == sizeof(wt_timestamp_t));
 		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
 		val_ts = &timestamp;
 

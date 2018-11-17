@@ -275,11 +275,7 @@
 
 /* Timestamp type and helper macros. */
 struct __wt_timestamp_t {
-#if WT_TIMESTAMP_SIZE == 8
 	uint64_t val;
-#else
-	uint8_t ts[1];
-#endif
 };
 typedef struct __wt_timestamp_t wt_timestamp_t;
 

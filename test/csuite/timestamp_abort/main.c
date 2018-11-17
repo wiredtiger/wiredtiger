@@ -127,7 +127,7 @@ thread_ts_run(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *session;
 	THREAD_DATA *td;
-	char tscfg[64], ts_buf[WT_TIMESTAMP_SIZE];
+	char tscfg[64], ts_buf[sizeof(wt_timestamp_t)];
 
 	td = (THREAD_DATA *)arg;
 

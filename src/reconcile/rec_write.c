@@ -505,10 +505,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * If reconciliation completes successfully, save the stable timestamp.
 	 */
 	if (ret == 0 && S2C(session)->txn_global.has_stable_timestamp)
-		WT_WITH_TIMESTAMP_READLOCK(session,
-		    &S2C(session)->txn_global.rwlock,
-		    __wt_timestamp_set(&mod->last_stable_timestamp,
-		    &S2C(session)->txn_global.stable_timestamp));
+		__wt_timestamp_set(&mod->last_stable_timestamp,
+		    &S2C(session)->txn_global.stable_timestamp);
 
 	/* Release the reconciliation lock. */
 	WT_PAGE_UNLOCK(session, page);
