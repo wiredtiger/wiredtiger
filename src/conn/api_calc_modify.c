@@ -30,47 +30,6 @@ typedef struct {
 } WT_CM_MATCH;
 
 /*
- * __cm_extend --
- *	Given a potential match size, extend to find the complete match.
- */
-static void
-__cm_extend(WT_CM_STATE *cms,
-    const uint8_t *m1, const uint8_t *m2, WT_CM_MATCH *match)
-{
-	const uint8_t *p1, *p2;
-
-	/* Step past the end and before the beginning of the matching block. */
-	for (p1 = m1, p2 = m2;
-	    p1 < cms->e1 && p2 < cms->e2 && *p1 == *p2;
-	    p1++, p2++)
-		;
-
-	for (; m1 >= cms->used1 && m2 >= cms->used2 && *m1 == *m2;
-	    m1--, m2--)
-		;
-
-	match->m1 = m1 + 1;
-	match->m2 = m2 + 1;
-	match->len = p1 > m1 ? (size_t)(p1 - m1 - 1) : 0;
-}
-
-/*
- * __cm_hash --
- *	Calculate a "hash" of a block of bytes.
- */
-static uint64_t
-__cm_hash(const uint8_t *p)
-{
-	uint64_t h;
-
-	memcpy(&h, p, sizeof h);
-#ifndef WORDS_BIGENDIAN
-	h = __wt_bswap64(h);
-#endif
-	return (h);
-}
-
-/*
  * __cm_add_modify --
  *	Add a modify operation to the list of entries.
  *
@@ -96,6 +55,47 @@ __cm_add_modify(WT_CM_STATE *cms, const uint8_t *p1, size_t len1,
 	cms->maxdiff -= len2;
 
 	return (0);
+}
+
+/*
+ * __cm_extend --
+ *	Given a potential match size, extend to find the complete match.
+ */
+static void
+__cm_extend(WT_CM_STATE *cms,
+    const uint8_t *m1, const uint8_t *m2, WT_CM_MATCH *match)
+{
+	const uint8_t *p1, *p2;
+
+	/* Step past the end and before the beginning of the matching block. */
+	for (p1 = m1, p2 = m2;
+	    p1 < cms->e1 && p2 < cms->e2 && *p1 == *p2;
+	    p1++, p2++)
+		;
+
+	for (; m1 > cms->used1 && m2 >= cms->used2 && *m1 == *m2;
+	    m1--, m2--)
+		;
+
+	match->m1 = m1 + 1;
+	match->m2 = m2 + 1;
+	match->len = p1 > m1 ? (size_t)(p1 - m1 - 1) : 0;
+}
+
+/*
+ * __cm_hash --
+ *	Calculate a "hash" of a block of bytes.
+ */
+static uint64_t
+__cm_hash(const uint8_t *p)
+{
+	uint64_t h;
+
+	memcpy(&h, p, sizeof h);
+#ifndef WORDS_BIGENDIAN
+	h = __wt_bswap64(h);
+#endif
+	return (h);
 }
 
 /*
@@ -129,7 +129,7 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	/* Ignore matches at the beginning / end. */
 	__cm_extend(&cms, cms.s1, cms.s2, &match);
 	cms.used1 += match.len;
-	cms.used2 += + match.len;
+	cms.used2 += match.len;
 	if (cms.used1 < cms.e1 && cms.used2 < cms.e2) {
 		__cm_extend(&cms, cms.e1 - 1, cms.e2 - 1, &match);
 		cms.e1 -= match.len;
@@ -148,10 +148,10 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	 * in the post-image without finding a good match, double the size of
 	 * the gap, update the markers and keep trying.
 	 */
-	p1 = cms.s1;
+	p1 = cms.used1;
 	h = hstart = hend = 0;
 	i = gap = 0;
-	for (p2 = cms.s2, start = true;
+	for (p2 = cms.used2, start = true;
 	    p1 + WT_CM_BLOCKSIZE <= cms.e1 && p2 + WT_CM_BLOCKSIZE <= cms.e2;
 	    p2++, i++) {
 		if (start || i == gap) {
