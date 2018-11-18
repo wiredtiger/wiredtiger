@@ -603,7 +603,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		WT_ERR(__cursor_check_prepared_update(cbt, &visible));
 		if (visible) {
 #ifdef HAVE_DIAGNOSTIC
-			ret = __wt_cursor_key_order_check(session, cbt, true);
+			WT_ERR(
+			    __wt_cursor_key_order_check(session, cbt, true));
 #endif
 			return (0);
 		}
