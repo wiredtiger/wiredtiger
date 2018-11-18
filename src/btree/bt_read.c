@@ -123,9 +123,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_ITEM las_key, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
-	wt_timestamp_t las_timestamp;
 	size_t incr, total_incr;
-	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
+	uint64_t current_recno, recno;
+	uint64_t las_counter, las_pageid, las_timestamp, las_txnid;
 	uint32_t las_id, session_flags;
 	const uint8_t *p;
 	uint8_t prepare_state, upd_type;

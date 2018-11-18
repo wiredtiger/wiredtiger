@@ -1336,7 +1336,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_PAGE_MODIFY *mod;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t pinned_ts;
+	uint64_t pinned_ts;
 
 	txn_global = &S2C(session)->txn_global;
 

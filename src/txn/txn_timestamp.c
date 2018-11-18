@@ -19,7 +19,7 @@
  *	Convert a timestamp to hex string representation.
  */
 void
-__wt_timestamp_to_hex_string(char *hex_timestamp, wt_timestamp_t ts)
+__wt_timestamp_to_hex_string(char *hex_timestamp, uint64_t ts)
 {
 	char *p, v;
 
@@ -46,10 +46,10 @@ __wt_timestamp_to_hex_string(char *hex_timestamp, wt_timestamp_t ts)
  *	Output a verbose message along with the specified timestamp.
  */
 void
-__wt_verbose_timestamp(WT_SESSION_IMPL *session,
-    const wt_timestamp_t ts, const char *msg)
+__wt_verbose_timestamp(
+    WT_SESSION_IMPL *session, const uint64_t ts, const char *msg)
 {
-	char timestamp_buf[2 * sizeof(wt_timestamp_t) + 1];
+	char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
 	if (!WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP))
 		return;
@@ -64,8 +64,8 @@ __wt_verbose_timestamp(WT_SESSION_IMPL *session,
  *	Decodes and sets a timestamp. Don't do any checking.
  */
 int
-__wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
-    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
+__wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session,
+    const char *name, uint64_t *timestamp, WT_CONFIG_ITEM *cval)
 {
 	static const int8_t hextable[] = {
 	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
@@ -82,8 +82,8 @@ __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
 	    -1, -1,  -1,  -1,  -1,  -1,  -1,  -1,
 	    -1, 10,  11,  12,  13,  14,  15,  -1
 	};
-	wt_timestamp_t ts;
 	size_t len;
+	uint64_t ts;
 	int hex_val;
 	const char *hex_itr;
 
@@ -93,7 +93,7 @@ __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
 		return (0);
 
 	/* Protect against unexpectedly long hex strings. */
-	if (cval->len > 2 * sizeof(wt_timestamp_t))
+	if (cval->len > 2 * sizeof(uint64_t))
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp too long '%.*s'",
 		    name, (int)cval->len, cval->str);
@@ -119,8 +119,8 @@ __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *name,
  *	Decodes and sets a timestamp checking it is non-zero.
  */
 int
-__wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
-    wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval)
+__wt_txn_parse_timestamp(WT_SESSION_IMPL *session,
+    const char *name, uint64_t *timestamp, WT_CONFIG_ITEM *cval)
 {
 	WT_RET(__wt_txn_parse_timestamp_raw(session, name, timestamp, cval));
 	if (cval->len != 0 && *timestamp == 0)
@@ -137,12 +137,12 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
  */
 static int
 __txn_get_pinned_timestamp(
-   WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags)
+   WT_SESSION_IMPL *session, uint64_t *tsp, uint32_t flags)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t tmp_ts;
+	uint64_t tmp_ts;
 	bool include_oldest, txn_has_write_lock;
 
 	conn = S2C(session);
@@ -200,13 +200,13 @@ __txn_get_pinned_timestamp(
  */
 static int
 __txn_global_query_timestamp(
-    WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char *cfg[])
+    WT_SESSION_IMPL *session, uint64_t *tsp, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t ts, tmpts;
+	uint64_t ts, tmpts;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -273,7 +273,7 @@ done:	*tsp = ts;
  */
 static int
 __txn_query_timestamp(
-    WT_SESSION_IMPL *session, wt_timestamp_t *tsp, const char *cfg[])
+    WT_SESSION_IMPL *session, uint64_t *tsp, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
@@ -309,7 +309,7 @@ int
 __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
     char *hex_timestamp, const char *cfg[], bool global_txn)
 {
-	wt_timestamp_t ts;
+	uint64_t ts;
 
 	if (global_txn)
 		WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
@@ -330,7 +330,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 {
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t last_pinned_timestamp, pinned_timestamp;
+	uint64_t last_pinned_timestamp, pinned_timestamp;
 
 	txn_global = &S2C(session)->txn_global;
 
@@ -389,9 +389,9 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM commit_cval, oldest_cval, stable_cval;
 	WT_CONFIG_ITEM cval;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
-	wt_timestamp_t last_oldest_ts, last_stable_ts;
-	char hex_timestamp[2][2 * sizeof(wt_timestamp_t) + 1];
+	uint64_t commit_ts, oldest_ts, stable_ts;
+	uint64_t last_oldest_ts, last_stable_ts;
+	char hex_timestamp[2][2 * sizeof(uint64_t) + 1];
 	bool force, has_commit, has_oldest, has_stable;
 
 	txn_global = &S2C(session)->txn_global;
@@ -563,13 +563,13 @@ set:	__wt_writelock(session, &txn_global->rwlock);
  *	prepare timestamp.
  */
 int
-__wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
-    wt_timestamp_t ts, WT_CONFIG_ITEM *cval)
+__wt_timestamp_validate(WT_SESSION_IMPL *session,
+    const char *name, uint64_t ts, WT_CONFIG_ITEM *cval)
 {
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-	wt_timestamp_t oldest_ts, stable_ts;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	uint64_t oldest_ts, stable_ts;
+	char hex_timestamp[2 * sizeof(uint64_t) + 1];
 	bool has_oldest_ts, has_stable_ts;
 
 	/*
@@ -642,7 +642,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
 	WT_TXN *txn;
-	wt_timestamp_t ts;
+	uint64_t ts;
 
 	txn = &session->txn;
 
@@ -674,13 +674,13 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
  */
 int
 __wt_txn_parse_prepare_timestamp(
-    WT_SESSION_IMPL *session, const char *cfg[], wt_timestamp_t *timestamp)
+    WT_SESSION_IMPL *session, const char *cfg[], uint64_t *timestamp)
 {
 	WT_CONFIG_ITEM cval;
 	WT_TXN *prev;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t oldest_ts;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	uint64_t oldest_ts;
+	char hex_timestamp[2 * sizeof(uint64_t) + 1];
 
 	txn_global = &S2C(session)->txn_global;
 
@@ -756,8 +756,8 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t ts;
-	char hex_timestamp[2][2 * sizeof(wt_timestamp_t) + 1];
+	uint64_t ts;
+	char hex_timestamp[2][2 * sizeof(uint64_t) + 1];
 	bool round_to_oldest;
 
 	txn = &session->txn;
@@ -853,8 +853,7 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_TXN *qtxn, *txn, *txn_tmp;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t ts;
-	uint64_t walked;
+	uint64_t ts, walked;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -1067,7 +1066,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 #ifdef HAVE_DIAGNOSTIC
 	{
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t pinned_ts;
+	uint64_t pinned_ts;
 
 	txn_global = &S2C(session)->txn_global;
 	pinned_ts = txn_global->pinned_timestamp;

@@ -47,11 +47,11 @@ typedef struct {
 
 	/* Track the page's min/maximum transactions. */
 	uint64_t max_txn;
-	wt_timestamp_t max_timestamp;
+	uint64_t max_timestamp;
 
 	/* Lookaside boundary tracking. */
 	uint64_t unstable_txn;
-	wt_timestamp_t unstable_timestamp;
+	uint64_t unstable_timestamp;
 
 	u_int updates_seen;		/* Count of updates seen. */
 	u_int updates_unstable;		/* Count of updates not visible_all. */
@@ -1274,9 +1274,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
-	wt_timestamp_t timestamp;
 	size_t upd_memsize;
-	uint64_t max_txn, txnid;
+	uint64_t max_txn, timestamp, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	if (upd_savedp != NULL)

@@ -1173,7 +1173,7 @@ __debug_modify(WT_DBG *ds, WT_UPDATE *upd)
 static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[2 * sizeof(uint64_t) + 1];
 
 	for (; upd != NULL; upd = upd->next) {
 		switch (upd->type) {

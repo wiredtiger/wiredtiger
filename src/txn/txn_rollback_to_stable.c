@@ -20,8 +20,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	WT_ITEM las_key, las_value;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t las_timestamp, rollback_timestamp;
-	uint64_t las_counter, las_pageid, las_total, las_txnid;
+	uint64_t las_counter, las_pageid, las_timestamp, las_total, las_txnid;
+	uint64_t rollback_timestamp;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
 
@@ -93,7 +93,7 @@ err:	if (ret == 0) {
  */
 static void
 __txn_abort_newer_update(WT_SESSION_IMPL *session,
-    WT_UPDATE *first_upd, wt_timestamp_t rollback_timestamp)
+    WT_UPDATE *first_upd, uint64_t rollback_timestamp)
 {
 	WT_UPDATE *upd;
 
@@ -136,7 +136,7 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
  */
 static void
 __txn_abort_newer_insert(WT_SESSION_IMPL *session,
-    WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp)
+    WT_INSERT_HEAD *head, uint64_t rollback_timestamp)
 {
 	WT_INSERT *ins;
 
@@ -151,7 +151,7 @@ __txn_abort_newer_insert(WT_SESSION_IMPL *session,
  */
 static void
 __txn_abort_newer_col_var(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t rollback_timestamp)
 {
 	WT_COL *cip;
 	WT_INSERT_HEAD *ins;
@@ -175,7 +175,7 @@ __txn_abort_newer_col_var(
  */
 static void
 __txn_abort_newer_col_fix(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t rollback_timestamp)
 {
 	WT_INSERT_HEAD *ins;
 
@@ -195,7 +195,7 @@ __txn_abort_newer_col_fix(
  */
 static void
 __txn_abort_newer_row_leaf(
-    WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t rollback_timestamp)
 {
 	WT_INSERT_HEAD *insert;
 	WT_ROW *rip;
@@ -230,7 +230,7 @@ __txn_abort_newer_row_leaf(
  */
 static int
 __txn_abort_newer_updates(
-    WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, WT_REF *ref, uint64_t rollback_timestamp)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -312,7 +312,7 @@ err:	if (local_read)
  */
 static int
 __txn_rollback_to_stable_btree_walk(
-    WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
+    WT_SESSION_IMPL *session, uint64_t rollback_timestamp)
 {
 	WT_DECL_RET;
 	WT_REF *child_ref, *ref;
@@ -359,7 +359,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t rollback_timestamp;
+	uint64_t rollback_timestamp;
 
 	WT_UNUSED(cfg);
 

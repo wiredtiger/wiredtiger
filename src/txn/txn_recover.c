@@ -359,8 +359,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	wt_timestamp_t ckpt_timestamp;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	uint64_t ckpt_timestamp;
+	char hex_timestamp[2 * sizeof(uint64_t) + 1];
 	char *sys_config;
 
 	sys_config = NULL;
