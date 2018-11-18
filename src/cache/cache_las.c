@@ -605,7 +605,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_ITEM las_timestamp, las_value;
+	WT_ITEM las_value;
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
@@ -617,7 +617,6 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	conn = S2C(session);
-	WT_CLEAR(las_timestamp);
 	WT_CLEAR(las_value);
 	insert_cnt = prepared_insert_cnt = 0;
 	btree_id = btree->id;
@@ -717,9 +716,6 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			cursor->set_key(cursor,
 			    las_pageid, btree_id, ++las_counter, key);
 
-			las_timestamp.data = &upd->timestamp;
-			las_timestamp.size = sizeof(wt_timestamp_t);
-
 			/*
 			 * If saving a non-zero length value on the page, save a
 			 * birthmark instead of duplicating it in the lookaside
@@ -732,11 +728,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
 				cursor->set_value(cursor, upd->txnid,
-				    &las_timestamp, upd->prepare_state,
+				    upd->timestamp, upd->prepare_state,
 				    WT_UPDATE_BIRTHMARK, &las_value);
 			} else
 				cursor->set_value(cursor, upd->txnid,
-				    &las_timestamp, upd->prepare_state,
+				    upd->timestamp, upd->prepare_state,
 				    upd->type, &las_value);
 
 			/*
@@ -980,10 +976,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(saved_key);
 	WT_DECL_RET;
-	WT_ITEM las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
-	wt_timestamp_t timestamp, val_ts;
+	wt_timestamp_t las_timestamp;
 	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
 	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
@@ -1109,10 +1105,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
-		WT_ASSERT(session,
-		    las_timestamp.size == sizeof(wt_timestamp_t));
-		memcpy(&timestamp, las_timestamp.data, las_timestamp.size);
-		val_ts = timestamp;
 
 		/*
 		 * Check to see if the page or key has changed this iteration,
@@ -1143,7 +1135,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 *  * The entry wasn't from a prepared transaction.
 			 */
 			if (upd_type == WT_UPDATE_BIRTHMARK &&
-			    __wt_txn_visible_all(session, las_txnid, val_ts) &&
+			    __wt_txn_visible_all(
+			    session, las_txnid, las_timestamp) &&
 			    prepare_state != WT_PREPARE_INPROGRESS)
 				removing_key_block = true;
 			else

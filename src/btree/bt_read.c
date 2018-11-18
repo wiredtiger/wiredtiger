@@ -120,9 +120,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
 	WT_DECL_RET;
-	WT_ITEM las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
+	wt_timestamp_t las_timestamp;
 	size_t incr, total_incr;
 	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
 	uint32_t las_id, session_flags;
@@ -187,10 +188,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = las_txnid;
+		upd->timestamp = las_timestamp;
 		upd->prepare_state = prepare_state;
-		WT_ASSERT(session,
-		    las_timestamp.size == sizeof(wt_timestamp_t));
-		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:

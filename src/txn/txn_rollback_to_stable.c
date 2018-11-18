@@ -18,10 +18,9 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
-	WT_ITEM las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_value;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t rollback_timestamp;
-	wt_timestamp_t upd_timestamp;
+	wt_timestamp_t las_timestamp, rollback_timestamp;
 	uint64_t las_counter, las_pageid, las_total, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
@@ -30,7 +29,6 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	cursor = NULL;
 	las_total = 0;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
-	WT_CLEAR(las_timestamp);
 
 	/*
 	 * Copy the stable timestamp, otherwise we'd need to lock it each time
@@ -63,16 +61,13 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
 		WT_ERR(cursor->get_value(cursor, &las_txnid,
 		    &las_timestamp, &prepare_state, &upd_type, &las_value));
-		WT_ASSERT(session,
-		    las_timestamp.size == sizeof(wt_timestamp_t));
-		memcpy(&upd_timestamp, las_timestamp.data, las_timestamp.size);
 
 		/*
 		 * Entries with no timestamp will have a timestamp of zero,
 		 * which will fail the following check and cause them to never
 		 * be removed.
 		 */
-		if (rollback_timestamp < upd_timestamp) {
+		if (rollback_timestamp < las_timestamp) {
 			WT_ERR(cursor->remove(cursor));
 			WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
 			--las_total;
