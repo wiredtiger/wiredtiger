@@ -46,8 +46,7 @@ __wt_timestamp_to_hex_string(char *hex_timestamp, uint64_t ts)
  *	Output a verbose message along with the specified timestamp.
  */
 void
-__wt_verbose_timestamp(
-    WT_SESSION_IMPL *session, const uint64_t ts, const char *msg)
+__wt_verbose_timestamp(WT_SESSION_IMPL *session, uint64_t ts, const char *msg)
 {
 	char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
