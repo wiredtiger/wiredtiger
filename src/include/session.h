@@ -269,5 +269,5 @@ struct __wt_session_impl {
 	uint64_t optrack_offset;
 	WT_FH *optrack_fh;
 
-	WT_SESSION_OP_STATS stats;
+	WT_SESSION_STATS stats;
 };

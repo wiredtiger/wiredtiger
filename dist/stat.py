@@ -6,7 +6,7 @@ from dist import compare_srcfile
 
 # Read the source files.
 from stat_data import groups, dsrc_stats, connection_stats, join_stats, \
-    session_op_stats
+    session_stats
 
 def print_struct(title, name, base, stats):
     '''Print the structures for the stat.h file.'''
@@ -37,7 +37,7 @@ for line in open('../src/include/stat.h', 'r'):
             'connections', 'connection', 1000, connection_stats)
         print_struct('data sources', 'dsrc', 2000, dsrc_stats)
         print_struct('join cursors', 'join', 3000, join_stats)
-        print_struct('session operations', 'session_op', 4000, session_op_stats)
+        print_struct('sessions', 'session', 4000, session_stats)
 f.close()
 compare_srcfile(tmp_file, '../src/include/stat.h')
 
@@ -95,12 +95,12 @@ def print_defines():
     f.write('''
 /*!
  * @}
- * @name Statistics for session operation
- * @anchor statistics_session_op
+ * @name Statistics for session
+ * @anchor statistics_session
  * @{
  */
 ''')
-    print_defines_one('SESN', 4000, session_op_stats)
+    print_defines_one('SESSION', 4000, session_stats)
     f.write('/*! @} */\n')
 
 # Update the #defines in the wiredtiger.in file.
@@ -186,7 +186,7 @@ __wt_stat_''' + name + '_clear_single(WT_' + name.upper() + '''_STATS *stats)
             f.write('\tstats->' + l.name + ' = 0;\n')
     f.write('}\n')
 
-    if name != 'session_op':
+    if name != 'session':
         f.write('''
 void
 __wt_stat_''' + name + '_clear_all(WT_' + name.upper() + '''_STATS **stats)
@@ -217,7 +217,7 @@ __wt_stat_''' + name + '''_aggregate_single(
             f.write(o)
         f.write('}\n')
 
-    if name != 'session_op':
+    if name != 'session':
         f.write('''
 void
 __wt_stat_''' + name + '''_aggregate(
@@ -254,6 +254,6 @@ f.write('#include "wt_internal.h"\n')
 print_func('dsrc', 'WT_DATA_HANDLE', dsrc_stats)
 print_func('connection', 'WT_CONNECTION_IMPL', connection_stats)
 print_func('join', None, join_stats)
-print_func('session_op', None, session_op_stats)
+print_func('session', None, session_stats)
 f.close()
 compare_srcfile(tmp_file, '../src/support/stat.c')

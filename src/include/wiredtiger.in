@@ -6196,24 +6196,24 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 
 /*!
  * @}
- * @name Statistics for session operation
- * @anchor statistics_session_op
+ * @name Statistics for session
+ * @anchor statistics_session
  * @{
  */
-/*! session_op: bytes read into cache */
-#define	WT_STAT_SESN_OP_BYTES_READ			4000
-/*! session_op: bytes written from cache */
-#define	WT_STAT_SESN_OP_BYTES_WRITTEN			4001
-/*! session_op: handle lock wait time (usecs) */
-#define	WT_STAT_SESN_OP_HANDLE_LOCK_WAIT		4002
-/*! session_op: page read from disk to cache time (usecs) */
-#define	WT_STAT_SESN_OP_READ_TIME			4003
-/*! session_op: page write from cache to disk time (usecs) */
-#define	WT_STAT_SESN_OP_WRITE_TIME			4004
-/*! session_op: schema lock wait time (usecs) */
-#define	WT_STAT_SESN_OP_SCHEMA_LOCK_WAIT		4005
-/*! session_op: time waiting for cache (usecs) */
-#define	WT_STAT_SESN_OP_CACHE_FULL_WAIT			4006
+/*! session: bytes read into cache */
+#define	WT_STAT_SESSION_OP_BYTES_READ			4000
+/*! session: bytes written from cache */
+#define	WT_STAT_SESSION_OP_BYTES_WRITTEN		4001
+/*! session: handle lock wait time (usecs) */
+#define	WT_STAT_SESSION_OP_HANDLE_LOCK_WAIT		4002
+/*! session: page read from disk to cache time (usecs) */
+#define	WT_STAT_SESSION_OP_READ_TIME			4003
+/*! session: page write from cache to disk time (usecs) */
+#define	WT_STAT_SESSION_OP_WRITE_TIME			4004
+/*! session: schema lock wait time (usecs) */
+#define	WT_STAT_SESSION_OP_SCHEMA_LOCK_WAIT		4005
+/*! session: time waiting for cache (usecs) */
+#define	WT_STAT_SESSION_OP_CACHE_FULL_WAIT		4006
 /*! @} */
 /*
  * Statistics section: END

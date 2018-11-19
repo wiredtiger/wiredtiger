@@ -84,8 +84,8 @@ class LSMStat(Stat):
     prefix = 'LSM'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, LSMStat.prefix, desc, flags)
-class SessionOpStat(Stat):
-    prefix = 'session_op'
+class SessionStat(Stat):
+    prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class PerfHistStat(Stat):
@@ -96,10 +96,10 @@ class RecStat(Stat):
     prefix = 'reconciliation'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, RecStat.prefix, desc, flags)
-class SessionStat(Stat):
+class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
-        Stat.__init__(self, name, SessionStat.prefix, desc, flags)
+        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
@@ -119,7 +119,7 @@ class YieldStat(Stat):
 # list of prefix tags that comprise that group.
 ##########################################
 groups = {}
-groups['cursor'] = [CursorStat.prefix, SessionStat.prefix]
+groups['cursor'] = [CursorStat.prefix, SessionOpStat.prefix]
 groups['evict'] = [
     BlockStat.prefix,
     CacheStat.prefix,
@@ -137,7 +137,7 @@ groups['system'] = [
     ConnStat.prefix,
     DhandleStat.prefix,
     PerfHistStat.prefix,
-    SessionStat.prefix,
+    SessionOpStat.prefix,
     ThreadStat.prefix
 ]
 
@@ -468,28 +468,28 @@ connection_stats = [
     ##########################################
     # Session operations
     ##########################################
-    SessionStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
-    SessionStat('session_open', 'open session count', 'no_clear,no_scale'),
-    SessionStat('session_query_ts', 'session query timestamp calls'),
-    SessionStat('session_table_alter_fail', 'table alter failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
-    SessionStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_compact_fail', 'table compact failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_compact_success', 'table compact successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_rebalance_fail', 'table rebalance failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_rebalance_success', 'table rebalance successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_rename_success', 'table rename successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_truncate_success', 'table truncate successful calls', 'no_clear,no_scale'),
-    SessionStat('session_table_verify_fail', 'table verify failed calls', 'no_clear,no_scale'),
-    SessionStat('session_table_verify_success', 'table verify successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
+    SessionOpStat('session_open', 'open session count', 'no_clear,no_scale'),
+    SessionOpStat('session_query_ts', 'session query timestamp calls'),
+    SessionOpStat('session_table_alter_fail', 'table alter failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
+    SessionOpStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_compact_fail', 'table compact failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_compact_success', 'table compact successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_create_success', 'table create successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_fail', 'table drop failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_drop_success', 'table drop successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_rebalance_fail', 'table rebalance failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_rebalance_success', 'table rebalance successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_rename_fail', 'table rename failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_rename_success', 'table rename successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_salvage_fail', 'table salvage failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_salvage_success', 'table salvage successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_truncate_fail', 'table truncate failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_truncate_success', 'table truncate successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_verify_fail', 'table verify failed calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_verify_success', 'table verify successful calls', 'no_clear,no_scale'),
 
     ##########################################
     # Thread Count statistics
@@ -756,9 +756,9 @@ dsrc_stats = [
     ##########################################
     # Session operations
     ##########################################
-    SessionStat('session_compact', 'object compaction'),
-    SessionStat('session_cursors_cached', 'cached cursor count', 'no_clear,no_scale'),
-    SessionStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
+    SessionOpStat('session_compact', 'object compaction'),
+    SessionOpStat('session_cursors_cached', 'cached cursor count', 'no_clear,no_scale'),
+    SessionOpStat('session_cursor_open', 'open cursor count', 'no_clear,no_scale'),
 
     ##########################################
     # Transaction statistics
@@ -782,16 +782,16 @@ join_stats = [
 join_stats = sorted(join_stats, key=attrgetter('desc'))
 
 ##########################################
-# Session operation statistics
+# Session statistics
 ##########################################
-session_op_stats = [
-    SessionOpStat('op_cache_full_wait', 'time waiting for cache (usecs)'),
-    SessionOpStat('op_bytes_read', 'bytes read into cache'),
-    SessionOpStat('op_bytes_written', 'bytes written from cache'),
-    SessionOpStat('op_handle_lock_wait', 'handle lock wait time (usecs)'),
-    SessionOpStat('op_read_time', 'page read from disk to cache time (usecs)'),
-    SessionOpStat('op_write_time', 'page write from cache to disk time (usecs)'),
-    SessionOpStat('op_schema_lock_wait', 'schema lock wait time (usecs)'),
+session_stats = [
+    SessionStat('op_cache_full_wait', 'time waiting for cache (usecs)'),
+    SessionStat('op_bytes_read', 'bytes read into cache'),
+    SessionStat('op_bytes_written', 'bytes written from cache'),
+    SessionStat('op_handle_lock_wait', 'handle lock wait time (usecs)'),
+    SessionStat('op_read_time', 'page read from disk to cache time (usecs)'),
+    SessionStat('op_write_time', 'page write from cache to disk time (usecs)'),
+    SessionStat('op_schema_lock_wait', 'schema lock wait time (usecs)'),
 ]
 
-session_op_stats = sorted(session_op_stats, key=attrgetter('desc'))
+session_stats = sorted(session_stats, key=attrgetter('desc'))
