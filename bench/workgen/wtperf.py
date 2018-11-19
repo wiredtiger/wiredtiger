@@ -129,7 +129,7 @@ class Translator:
     # Convert a time value, by default a number of seconds, that can be
     # modified to microseconds using 'ms' as a suffix.
     def get_intms_opt(self, optname, wtperf_optname, dfault):
-        s = self._get_opt(wtperf_optname, str(dfault))
+        s = str(self._get_opt(wtperf_optname, str(dfault)))
         if s.endswith('ms'):
             v = int(s[:-2])
         else:
@@ -214,23 +214,23 @@ class Translator:
 
     # Wtperf's throttle is based on the number of regular operations,
     # not including log_like operations.  Workgen counts all operations,
-    # it doesn't treat log operations any differently.  Adjust the throttle
-    # number to account for the difference.
+    # it doesn't treat log operations any differently.
     def calc_throttle(self, thread_opts, log_like_table):
         throttle = thread_opts.throttle
-        if not log_like_table:
-            return (throttle, '')
-        modify = thread_opts.inserts + thread_opts.updates
-        regular = modify + thread_opts.reads
-        total = regular + modify
-        factor = (total + 0.0) / regular
-        new_throttle = int(throttle * factor)
-        if new_throttle == throttle:
-            comment = ''
-        else:
-            comment = '# wtperf throttle=' + str(throttle) + ' adjusted by ' + \
-                      str(factor) + ' to compensate for log_like operations.\n'
-        return (new_throttle, comment)
+        comment = ''
+        factor = 1.0
+        if log_like_table:
+            modify = thread_opts.inserts + thread_opts.updates
+            regular = modify + thread_opts.reads
+            total = regular + modify
+            factor = (total + 0.0) / regular
+        if factor != 1.0:
+            comment = \
+                '# These operations include log_like operations, which ' + \
+                'will increase the number\n# of insert/update operations ' + \
+                'by a factor of ' + str(factor) + '. This may cause the\n' + \
+                '# actual operations performed to be above the throttle.\n'
+        return (throttle, comment)
 
     def parse_threads(self, threads_config, checkpoint_threads):
         opts = self.options
@@ -555,7 +555,6 @@ class Translator:
         if self.options.sample_interval_ms != 0:
             workloadopts += 'workload.options.sample_interval_ms = ' + \
                 str(self.options.sample_interval_ms) + '\n'
-            print('X: ' + workloadopts)
 
         s = '#/usr/bin/env python\n'
         s += '# generated from ' + self.filename + '\n'
@@ -594,8 +593,11 @@ class Translator:
         if conn_config != '':
             s += 'conn_config += ",' + conn_config + '"   # explicitly added\n'
         if compression != '':
-            s += 'conn_config += extensions_config(["compressors/' + \
-                compression + '"])\n'
+            # We require WiredTiger to be configured with snappy built-in,
+            # so do not add snappy to the list of extensions to be loaded.
+            if compression != 'snappy':
+                s += 'conn_config += extensions_config(["compressors/' + \
+                    compression + '"])\n'
             compression = 'block_compressor=' + compression + ','
         s += 'conn = wiredtiger_open("' + self.homedir + \
              '", "create," + conn_config)\n'
