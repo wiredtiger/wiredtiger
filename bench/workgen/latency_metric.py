@@ -98,24 +98,52 @@ class Metric:
         self.value = value
 
 # A set of latency metrics collected for a single run.
+# A user will see the short name, and if the script is run with the '--raw'
+# option, the elaborated description will also be shown.
 class FileMetrics:
     def __init__(self, filename):
         self.filename = filename
         all = []
+
+        # This is the average latency for all read operations.
+        # Lower is better.
         self.latency_avg = m = Metric('Average latency reads us',
             'total latency of read ops divided by operations')
         all.append(m)
+
+        # This is the maximum latency over all read operations.
+        # Lower is better.
         self.latency_max = m = Metric('Max latency reads us',
             'maximum of all read op latencies')
         all.append(m)
+
+        # This is the ratio of the two previously reported numbers, latency_max
+        # and latency_avg.
+        #
+        # Lower is better (best is 1.0), it means more predictable response
+        # times.
         self.ratio_max_avg = m = Metric('Max vs average latency',
             'ratio of maximum latency to average latency for read ops')
         all.append(m)
-        # The ratio of 99% latency reads, checkpoint vs normal
+
+        # This is the ratio of 99% latency reads, checkpoint vs normal.
+        # That is, for all 1-second intervals that occur during a checkpoint,
+        # we take the 99 percentile latency for read operations, and average
+        # them, weighted by how many read operations were performed in each
+        # interval.  We do the same for all 1-second intervals that occur
+        # outside of a checkpoint, and finally take the ratio between these
+        # two numbers.  This is a more sophisticated measure of the smoothness
+        # of overall response times, looking at all latencies, rather than
+        # focusing on the one worst latency.
+        #
+        # Lower is better (best is 1.0), it means more predictable response
+        # times.
         self.ratio_latency_99 = m = Metric('Checkpoint vs normal 99%',
             'ratio of the average of all 99% latency operations, ' +
             'during checkpoint times vs normal')
         all.append(m)
+
+        # The proportion of time spent in a checkpoint
         self.proportion_checkpoint_time = m = Metric('Proportion of ckpt time',
             'the proportion of time doing checkpoints')
         all.append(m)
@@ -240,5 +268,8 @@ if raw:
         fm.read_normal.dump('    ')
         print('  digested metrics collected for reads during checkpoints:')
         fm.read_ckpt.dump('    ')
+        print('')
         for m in fm.all_metrics:
             print('  ' + m.name + ' (' + m.desc + '): ' + str(m.value))
+        print('\nSee ' + __file__ +
+            ' for a more detailed description of each metric.')
