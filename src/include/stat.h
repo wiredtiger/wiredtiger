@@ -850,11 +850,11 @@ struct __wt_join_stats {
 struct __wt_session_op_stats {
 	int64_t op_bytes_read;
 	int64_t op_bytes_written;
-	int64_t op_cache_full_wait;
 	int64_t op_handle_lock_wait;
 	int64_t op_read_time;
-	int64_t op_schema_lock_wait;
 	int64_t op_write_time;
+	int64_t op_schema_lock_wait;
+	int64_t op_cache_full_wait;
 };
 
 /* Statistics section: END */

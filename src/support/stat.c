@@ -2151,11 +2151,11 @@ __wt_stat_join_aggregate(
 static const char * const __stats_session_op_desc[] = {
 	"session_op: bytes read into cache",
 	"session_op: bytes written from cache",
-	"session_op: cache wait time (usecs)",
 	"session_op: handle lock wait time (usecs)",
-	"session_op: read from disk to cache time (usecs)",
+	"session_op: page read from disk to cache time (usecs)",
+	"session_op: page write from cache to disk time (usecs)",
 	"session_op: schema lock wait time (usecs)",
-	"session_op: write from cache to disk time (usecs)",
+	"session_op: time waiting for cache (usecs)",
 };
 
 int
@@ -2177,9 +2177,9 @@ __wt_stat_session_op_clear_single(WT_SESSION_OP_STATS *stats)
 {
 	stats->op_bytes_read = 0;
 	stats->op_bytes_written = 0;
-	stats->op_cache_full_wait = 0;
 	stats->op_handle_lock_wait = 0;
 	stats->op_read_time = 0;
-	stats->op_schema_lock_wait = 0;
 	stats->op_write_time = 0;
+	stats->op_schema_lock_wait = 0;
+	stats->op_cache_full_wait = 0;
 }
