@@ -2175,11 +2175,11 @@ __wt_stat_session_init_single(WT_SESSION_STATS *stats)
 void
 __wt_stat_session_clear_single(WT_SESSION_STATS *stats)
 {
-	stats->op_bytes_read = 0;
-	stats->op_bytes_written = 0;
-	stats->op_handle_lock_wait = 0;
-	stats->op_read_time = 0;
-	stats->op_write_time = 0;
-	stats->op_schema_lock_wait = 0;
-	stats->op_cache_full_wait = 0;
+	stats->bytes_read = 0;
+	stats->bytes_written = 0;
+	stats->handle_lock_wait = 0;
+	stats->read_time = 0;
+	stats->write_time = 0;
+	stats->schema_lock_wait = 0;
+	stats->cache_full_wait = 0;
 }

@@ -37,7 +37,7 @@ for line in open('../src/include/stat.h', 'r'):
             'connections', 'connection', 1000, connection_stats)
         print_struct('data sources', 'dsrc', 2000, dsrc_stats)
         print_struct('join cursors', 'join', 3000, join_stats)
-        print_struct('sessions', 'session', 4000, session_stats)
+        print_struct('session', 'session', 4000, session_stats)
 f.close()
 compare_srcfile(tmp_file, '../src/include/stat.h')
 

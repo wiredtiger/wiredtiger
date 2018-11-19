@@ -785,13 +785,13 @@ join_stats = sorted(join_stats, key=attrgetter('desc'))
 # Session statistics
 ##########################################
 session_stats = [
-    SessionStat('op_cache_full_wait', 'time waiting for cache (usecs)'),
-    SessionStat('op_bytes_read', 'bytes read into cache'),
-    SessionStat('op_bytes_written', 'bytes written from cache'),
-    SessionStat('op_handle_lock_wait', 'handle lock wait time (usecs)'),
-    SessionStat('op_read_time', 'page read from disk to cache time (usecs)'),
-    SessionStat('op_write_time', 'page write from cache to disk time (usecs)'),
-    SessionStat('op_schema_lock_wait', 'schema lock wait time (usecs)'),
+    SessionStat('cache_full_wait', 'time waiting for cache (usecs)'),
+    SessionStat('bytes_read', 'bytes read into cache'),
+    SessionStat('bytes_written', 'bytes written from cache'),
+    SessionStat('handle_lock_wait', 'handle lock wait time (usecs)'),
+    SessionStat('read_time', 'page read from disk to cache time (usecs)'),
+    SessionStat('write_time', 'page write from cache to disk time (usecs)'),
+    SessionStat('schema_lock_wait', 'schema lock wait time (usecs)'),
 ]
 
 session_stats = sorted(session_stats, key=attrgetter('desc'))
