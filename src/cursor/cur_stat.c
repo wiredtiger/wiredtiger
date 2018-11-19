@@ -530,8 +530,8 @@ __curstat_session_op_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 	session->stats.op_handle_lock_wait = 0;
 
 	/*
-	 * Copy stats from the session to the cursor.
-	 * Optionally clear the session's statistics.
+	 * Copy stats from the session to the cursor. Optionally clear the
+	 * session's statistics.
 	 */
 	memcpy(&cst->u.operation_stats,
 	    &session->stats, sizeof(WT_SESSION_OP_STATS));
