@@ -5058,12 +5058,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_BYTES_LOOKASIDE		1036
 /*! cache: bytes currently in the cache */
 #define	WT_STAT_CONN_CACHE_BYTES_INUSE			1037
+/*! cache: bytes dirty in the cache cumulative */
+#define	WT_STAT_CONN_CACHE_BYTES_DIRTY_TOTAL		1038
 /*! cache: bytes not belonging to page images in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_OTHER			1038
+#define	WT_STAT_CONN_CACHE_BYTES_OTHER			1039
 /*! cache: bytes read into cache */
-#define	WT_STAT_CONN_CACHE_BYTES_READ			1039
-/*! cache: bytes that have been dirtied in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_DIRTY_TOTAL		1040
+#define	WT_STAT_CONN_CACHE_BYTES_READ			1040
 /*! cache: bytes written from cache */
 #define	WT_STAT_CONN_CACHE_BYTES_WRITE			1041
 /*! cache: cache overflow cursor application thread wait time (usecs) */

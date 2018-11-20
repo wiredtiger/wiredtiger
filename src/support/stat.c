@@ -790,9 +790,9 @@ static const char * const __stats_connection_desc[] = {
 	"cache: bytes belonging to page images in the cache",
 	"cache: bytes belonging to the cache overflow table in the cache",
 	"cache: bytes currently in the cache",
+	"cache: bytes dirty in the cache cumulative",
 	"cache: bytes not belonging to page images in the cache",
 	"cache: bytes read into cache",
-	"cache: bytes that have been dirtied in the cache",
 	"cache: bytes written from cache",
 	"cache: cache overflow cursor application thread wait time (usecs)",
 	"cache: cache overflow cursor internal thread wait time (usecs)",
@@ -1199,9 +1199,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_image */
 		/* not clearing cache_bytes_lookaside */
 		/* not clearing cache_bytes_inuse */
+		/* not clearing cache_bytes_dirty_total */
 		/* not clearing cache_bytes_other */
 	stats->cache_bytes_read = 0;
-		/* not clearing cache_bytes_dirty_total */
 	stats->cache_bytes_write = 0;
 	stats->cache_lookaside_cursor_wait_application = 0;
 	stats->cache_lookaside_cursor_wait_internal = 0;
@@ -1591,10 +1591,10 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_lookaside +=
 	    WT_STAT_READ(from, cache_bytes_lookaside);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
-	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
-	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_dirty_total +=
 	    WT_STAT_READ(from, cache_bytes_dirty_total);
+	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
+	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
 	to->cache_lookaside_cursor_wait_application +=
 	    WT_STAT_READ(from, cache_lookaside_cursor_wait_application);
