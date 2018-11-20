@@ -843,4 +843,18 @@ struct __wt_join_stats {
 	int64_t iterated;
 };
 
+/*
+ * Statistics entries for session.
+ */
+#define	WT_SESSION_STATS_BASE	4000
+struct __wt_session_stats {
+	int64_t bytes_read;
+	int64_t bytes_written;
+	int64_t handle_lock_wait;
+	int64_t read_time;
+	int64_t write_time;
+	int64_t schema_lock_wait;
+	int64_t cache_full_wait;
+};
+
 /* Statistics section: END */

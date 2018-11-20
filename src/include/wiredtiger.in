@@ -6193,6 +6193,27 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_JOIN_BLOOM_INSERT			3003
 /*! : items iterated */
 #define	WT_STAT_JOIN_ITERATED				3004
+
+/*!
+ * @}
+ * @name Statistics for session
+ * @anchor statistics_session
+ * @{
+ */
+/*! session: bytes read into cache */
+#define	WT_STAT_SESSION_BYTES_READ			4000
+/*! session: bytes written from cache */
+#define	WT_STAT_SESSION_BYTES_WRITTEN			4001
+/*! session: handle lock wait time (usecs) */
+#define	WT_STAT_SESSION_HANDLE_LOCK_WAIT		4002
+/*! session: page read from disk to cache time (usecs) */
+#define	WT_STAT_SESSION_READ_TIME			4003
+/*! session: page write from cache to disk time (usecs) */
+#define	WT_STAT_SESSION_WRITE_TIME			4004
+/*! session: schema lock wait time (usecs) */
+#define	WT_STAT_SESSION_SCHEMA_LOCK_WAIT		4005
+/*! session: time waiting for cache (usecs) */
+#define	WT_STAT_SESSION_CACHE_FULL_WAIT			4006
 /*! @} */
 /*
  * Statistics section: END
