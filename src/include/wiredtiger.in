@@ -5898,10 +5898,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BTREE_ROW_LEAF			2039
 /*! cache: bytes currently in the cache */
 #define	WT_STAT_DSRC_CACHE_BYTES_INUSE			2040
+/*! cache: bytes dirty in the cache cumulative */
+#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_TOTAL		2041
 /*! cache: bytes read into cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_READ			2041
-/*! cache: bytes that have been dirtied in the cache */
-#define	WT_STAT_DSRC_CACHE_BYTES_DIRTY_TOTAL		2042
+#define	WT_STAT_DSRC_CACHE_BYTES_READ			2042
 /*! cache: bytes written from cache */
 #define	WT_STAT_DSRC_CACHE_BYTES_WRITE			2043
 /*! cache: checkpoint blocked page eviction */

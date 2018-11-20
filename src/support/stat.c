@@ -44,8 +44,8 @@ static const char * const __stats_dsrc_desc[] = {
 	"btree: row-store internal pages",
 	"btree: row-store leaf pages",
 	"cache: bytes currently in the cache",
+	"cache: bytes dirty in the cache cumulative",
 	"cache: bytes read into cache",
-	"cache: bytes that have been dirtied in the cache",
 	"cache: bytes written from cache",
 	"cache: checkpoint blocked page eviction",
 	"cache: data source pages selected for eviction unable to be evicted",
@@ -230,8 +230,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->btree_row_internal = 0;
 	stats->btree_row_leaf = 0;
 		/* not clearing cache_bytes_inuse */
-	stats->cache_bytes_read = 0;
 		/* not clearing cache_bytes_dirty_total */
+	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_fail = 0;
@@ -401,8 +401,8 @@ __wt_stat_dsrc_aggregate_single(
 	to->btree_row_internal += from->btree_row_internal;
 	to->btree_row_leaf += from->btree_row_leaf;
 	to->cache_bytes_inuse += from->cache_bytes_inuse;
-	to->cache_bytes_read += from->cache_bytes_read;
 	to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
+	to->cache_bytes_read += from->cache_bytes_read;
 	to->cache_bytes_write += from->cache_bytes_write;
 	to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
 	to->cache_eviction_fail += from->cache_eviction_fail;
@@ -593,9 +593,9 @@ __wt_stat_dsrc_aggregate(
 	to->btree_row_internal += WT_STAT_READ(from, btree_row_internal);
 	to->btree_row_leaf += WT_STAT_READ(from, btree_row_leaf);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
-	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_dirty_total +=
 	    WT_STAT_READ(from, cache_bytes_dirty_total);
+	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
 	to->cache_eviction_checkpoint +=
 	    WT_STAT_READ(from, cache_eviction_checkpoint);

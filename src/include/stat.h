@@ -728,8 +728,8 @@ struct __wt_dsrc_stats {
 	int64_t btree_row_internal;
 	int64_t btree_row_leaf;
 	int64_t cache_bytes_inuse;
-	int64_t cache_bytes_read;
 	int64_t cache_bytes_dirty_total;
+	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
 	int64_t cache_eviction_fail;
