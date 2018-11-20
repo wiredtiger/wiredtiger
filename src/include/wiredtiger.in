@@ -1168,6 +1168,15 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, if false\, this object has
 	 * checkpoint-level durability., a boolean flag; default \c true.}
 	 * @config{ ),,}
+	 * @config{os_cache_dirty_max, maximum dirty system buffer cache usage\,
+	 * in bytes.  If non-zero\, schedule writes for dirty blocks belonging
+	 * to this object in the system buffer cache after that many bytes from
+	 * this object are written into the buffer cache., an integer greater
+	 * than or equal to 0; default \c 0.}
+	 * @config{os_cache_max, maximum system buffer cache usage\, in bytes.
+	 * If non-zero\, evict object blocks from the system buffer cache after
+	 * that many bytes from this object are read or written into the buffer
+	 * cache., an integer greater than or equal to 0; default \c 0.}
 	 * @configend
 	 * @errors
 	 */
