@@ -585,7 +585,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	uint64_t op_timestamp;
+	wt_timestamp_t op_timestamp;
 	u_int i;
 	bool op_zero_ts, upd_zero_ts;
 
@@ -683,7 +683,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	uint64_t prev_commit_timestamp, ts;
+	wt_timestamp_t prev_commit_timestamp, ts;
 	uint32_t fileid;
 	u_int i;
 	bool locked, prepare, readonly, update_timestamp;
@@ -926,7 +926,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	uint64_t ts;
+	wt_timestamp_t ts;
 	u_int i;
 
 	txn = &session->txn;
@@ -1161,8 +1161,10 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_CONNECTION_STATS **stats;
 	WT_TXN_GLOBAL *txn_global;
-	uint64_t checkpoint_pinned, checkpoint_timestamp;
-	uint64_t commit_timestamp, pinned_timestamp, snapshot_pinned;
+	wt_timestamp_t checkpoint_timestamp;
+	wt_timestamp_t commit_timestamp;
+	wt_timestamp_t pinned_timestamp;
+	uint64_t checkpoint_pinned, snapshot_pinned;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -1363,7 +1365,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
-	char hex_timestamp[3][2 * sizeof(uint64_t) + 1];
+	char hex_timestamp[3][2 * sizeof(wt_timestamp_t) + 1];
 	const char *iso_tag;
 
 	WT_NOT_READ(iso_tag, "INVALID");
@@ -1415,7 +1417,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_TXN_STATE *s;
 	uint64_t id;
 	uint32_t i, session_cnt;
-	char hex_timestamp[3][2 * sizeof(uint64_t) + 1];
+	char hex_timestamp[3][2 * sizeof(wt_timestamp_t) + 1];
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;

@@ -545,7 +545,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char hex_timestamp[2 * sizeof(uint64_t) + 1];
+	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
 	const char *ts;
 
 	btree_id = btree->id;
@@ -979,8 +979,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_ITEM las_key, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
-	uint64_t cnt, remove_cnt, saved_pageid, visit_cnt;
-	uint64_t las_counter, las_pageid, las_timestamp, las_txnid;
+	wt_timestamp_t las_timestamp;
+	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
+	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type;
 	int notused;

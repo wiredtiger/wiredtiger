@@ -402,7 +402,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
 	WT_TXN *txn;
 	WT_UPDATE *upd;
-	uint64_t *timestamp;
+	wt_timestamp_t *timestamp;
 
 	txn = &session->txn;
 
@@ -563,11 +563,11 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
  *	Get the first timestamp that has to be kept for the current tree.
  */
 static inline void
-__wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, uint64_t *pinned_tsp)
+__wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
 	WT_BTREE *btree;
 	WT_TXN_GLOBAL *txn_global;
-	uint64_t checkpoint_ts, pinned_ts;
+	wt_timestamp_t checkpoint_ts, pinned_ts;
 	bool include_checkpoint_txn;
 
 	btree = S2BT_SAFE(session);
@@ -629,9 +629,9 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible_all(
-    WT_SESSION_IMPL *session, uint64_t id, const uint64_t timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t timestamp)
 {
-	uint64_t pinned_ts;
+	wt_timestamp_t pinned_ts;
 
 	if (!__txn_visible_all_id(session, id))
 		return (false);
@@ -724,7 +724,7 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible(
-    WT_SESSION_IMPL *session, uint64_t id, const uint64_t timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t timestamp)
 {
 	WT_TXN *txn;
 

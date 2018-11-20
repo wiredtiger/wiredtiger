@@ -502,7 +502,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	char hex_timestamp[2 * sizeof(uint64_t) + 2];
+	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 2];
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 	hex_timestamp[0] = '0';

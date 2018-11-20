@@ -236,8 +236,8 @@ struct __wt_page_lookaside {
 	uint64_t las_pageid;		/* Page ID in lookaside */
 	uint64_t max_txn;		/* Maximum transaction ID */
 	uint64_t unstable_txn;		/* First transaction ID not on page */
-	uint64_t max_timestamp;		/* Maximum timestamp */
-	uint64_t unstable_timestamp;	/* First timestamp not on page */
+	wt_timestamp_t max_timestamp;	/* Maximum timestamp */
+	wt_timestamp_t unstable_timestamp;/* First timestamp not on page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
 	bool skew_newest;		/* Page image has newest versions */
@@ -254,7 +254,7 @@ struct __wt_page_modify {
 	/* The transaction state last time eviction was attempted. */
 	uint64_t last_evict_pass_gen;
 	uint64_t last_eviction_id;
-	uint64_t last_eviction_timestamp;
+	wt_timestamp_t last_eviction_timestamp;
 
 #ifdef HAVE_DIAGNOSTIC
 	/* Check that transaction time moves forward. */
@@ -263,14 +263,14 @@ struct __wt_page_modify {
 
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
-	uint64_t obsolete_check_timestamp;
+	wt_timestamp_t obsolete_check_timestamp;
 
 	/* The largest transaction seen on the page by reconciliation. */
 	uint64_t rec_max_txn;
-	uint64_t rec_max_timestamp;
+	wt_timestamp_t rec_max_timestamp;
 
 	/* Stable timestamp at last reconciliation. */
-	uint64_t last_stable_timestamp;
+	wt_timestamp_t last_stable_timestamp;
 
 	/* The largest update transaction ID (approximate). */
 	uint64_t update_txn;
@@ -818,7 +818,7 @@ struct __wt_page {
  */
 struct __wt_page_deleted {
 	volatile uint64_t txnid;		/* Transaction ID */
-	uint64_t timestamp;
+	wt_timestamp_t timestamp;
 
 	/*
 	 * The state is used for transaction prepare to manage visibility
@@ -1048,7 +1048,7 @@ struct __wt_ikey {
  */
 struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
-	uint64_t timestamp;		/* aligned uint64_t timestamp */
+	wt_timestamp_t timestamp;	/* aligned uint64_t timestamp */
 
 	WT_UPDATE *next;		/* forward-linked list */
 

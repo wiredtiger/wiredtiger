@@ -787,8 +787,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
-	uint64_t ckpt_tmp_ts, fsync_duration_usecs, generation;
-	uint64_t time_start, time_stop;
+	wt_timestamp_t ckpt_tmp_ts;
+	uint64_t fsync_duration_usecs, generation, time_start, time_stop;
 	u_int i;
 	bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
 	void *saved_meta_next;

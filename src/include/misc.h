@@ -273,6 +273,9 @@
 	(dst).size = (src).size;					\
 } while (0)
 
+/* Timestamp type and helper macros. */
+typedef uint64_t wt_timestamp_t;
+
 /*
  * In diagnostic mode we track the locations from which hazard pointers and
  * scratch buffers were acquired.
