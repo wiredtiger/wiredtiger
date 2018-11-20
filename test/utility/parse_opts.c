@@ -27,6 +27,15 @@
  */
 #include "test_util.h"
 
+static void
+print_cmd_line_args(int argc, char *argv[])
+{
+	int i;
+	for (i = 0; i < argc; i++)
+		printf("%s ", argv[i]);
+	printf("\n");
+}
+
 extern char *__wt_optarg;		/* argument associated with option */
 
 /*
