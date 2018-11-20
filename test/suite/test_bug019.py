@@ -75,10 +75,10 @@ class test_bug019(wttest.WiredTigerTestCase):
     def test_bug019(self):
         # Create a table just to write something into the log.
         self.session.create(self.uri, 'key_format=i,value_format=S')
-        self.assertEqual(self.get_prealloc_stat(), 2)
+        start_prealloc = self.get_prealloc_stat()
         self.populate(self.entries)
         self.session.checkpoint()
-        self.assertTrue(self.max_prealloc > 2)
+        self.assertTrue(self.max_prealloc > start_prealloc)
 
         # Loop, making sure pre-allocation is working and the range is moving.
         older = self.prepfiles()
@@ -96,8 +96,6 @@ class test_bug019(wttest.WiredTigerTestCase):
 
         # Sleep for a few seconds and we should see the number of files we want
         # to pre-allocate drop as the log server thread sees an idle system.
-        # Wait for pre-allocated files to exist first and then sleep so that
-        # slow systems have a chance to let the internal thread run.
         time.sleep(3)
         new_prealloc = self.get_prealloc_stat()
         self.assertTrue(new_prealloc < self.max_prealloc)
