@@ -41,6 +41,8 @@
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
+#define	WT_TS_NONE	0		/* No timestamp */
+
 /*
  * Perform an operation at the specified isolation level.
  *

@@ -637,7 +637,7 @@ __wt_txn_visible_all(
 		return (false);
 
 	/* Timestamp check. */
-	if (timestamp == 0)
+	if (timestamp == WT_TS_NONE)
 		return (true);
 
 	/*
@@ -738,7 +738,7 @@ __wt_txn_visible(
 		return (true);
 
 	/* Timestamp check. */
-	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
+	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ) || timestamp == WT_TS_NONE)
 		return (true);
 
 	return (timestamp <= txn->read_timestamp);

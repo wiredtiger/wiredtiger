@@ -273,7 +273,7 @@ __wt_lsm_chunk_visible_all(
 		return (true);
 
 	if (chunk->switch_txn == WT_TXN_NONE ||
-	    !__wt_txn_visible_all(session, chunk->switch_txn, 0))
+	    !__wt_txn_visible_all(session, chunk->switch_txn, WT_TS_NONE))
 		return (false);
 
 	/*
