@@ -351,6 +351,7 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_image;
 	int64_t cache_bytes_lookaside;
 	int64_t cache_bytes_inuse;
+	int64_t cache_bytes_dirty_total;
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
@@ -727,6 +728,7 @@ struct __wt_dsrc_stats {
 	int64_t btree_row_internal;
 	int64_t btree_row_leaf;
 	int64_t cache_bytes_inuse;
+	int64_t cache_bytes_dirty_total;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
