@@ -360,8 +360,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	wt_timestamp_t ckpt_timestamp;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
-	char *sys_config;
+	char hex_timestamp[WT_TS_HEX_SIZE], *sys_config;
 
 	sys_config = NULL;
 

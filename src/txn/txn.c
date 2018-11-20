@@ -1365,7 +1365,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
-	char hex_timestamp[3][2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[3][WT_TS_HEX_SIZE];
 	const char *iso_tag;
 
 	WT_NOT_READ(iso_tag, "INVALID");
@@ -1417,7 +1417,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_TXN_STATE *s;
 	uint64_t id;
 	uint32_t i, session_cnt;
-	char hex_timestamp[3][2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[3][WT_TS_HEX_SIZE];
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;

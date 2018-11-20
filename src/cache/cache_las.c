@@ -545,7 +545,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[WT_TS_HEX_SIZE];
 	const char *ts;
 
 	btree_id = btree->id;

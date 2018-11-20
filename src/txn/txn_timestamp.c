@@ -49,7 +49,7 @@ void
 __wt_verbose_timestamp(
     WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg)
 {
-	char timestamp_buf[2 * sizeof(wt_timestamp_t) + 1];
+	char timestamp_buf[WT_TS_HEX_SIZE];
 
 	if (!WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP))
 		return;
@@ -391,7 +391,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
 	wt_timestamp_t last_oldest_ts, last_stable_ts;
-	char hex_timestamp[2][2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[2][WT_TS_HEX_SIZE];
 	bool force, has_commit, has_oldest, has_stable;
 
 	txn_global = &S2C(session)->txn_global;
@@ -569,7 +569,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	wt_timestamp_t oldest_ts, stable_ts;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[WT_TS_HEX_SIZE];
 	bool has_oldest_ts, has_stable_ts;
 
 	/*
@@ -680,7 +680,7 @@ __wt_txn_parse_prepare_timestamp(
 	WT_TXN *prev;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts;
-	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[WT_TS_HEX_SIZE];
 
 	txn_global = &S2C(session)->txn_global;
 
@@ -757,7 +757,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts;
-	char hex_timestamp[2][2 * sizeof(wt_timestamp_t) + 1];
+	char hex_timestamp[2][WT_TS_HEX_SIZE];
 	bool round_to_oldest;
 
 	txn = &session->txn;
