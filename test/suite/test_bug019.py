@@ -94,11 +94,14 @@ class test_bug019(wttest.WiredTigerTestCase):
             older = newer
             self.session.checkpoint()
 
-        # Sleep for a few seconds and we should see the number of files we want
-        # to pre-allocate drop as the log server thread sees an idle system.
-        time.sleep(3)
-        new_prealloc = self.get_prealloc_stat()
-        self.assertTrue(new_prealloc < self.max_prealloc)
+        # Wait for up to 30 seconds for pre-allocate to drop in an idle system
+        # it should usually be fast, but on slow systems can take time.
+        for sleepcount in range(1,30):
+            new_prealloc = self.get_prealloc_stat()
+            if new_prealloc < self.max_prealloc:
+                break
+            time.sleep(1.0)
+        self.assertTruen(sleepcount < 30)
 
 if __name__ == '__main__':
     wttest.run()
