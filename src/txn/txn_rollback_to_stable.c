@@ -37,7 +37,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 	 * violate protocol.
 	 */
 	txn_global = &conn->txn_global;
-	rollback_timestamp = txn_global->stable_timestamp;
+	WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
 
 	__wt_las_cursor(session, &cursor, &session_flags);
 
@@ -402,7 +402,7 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 	 * updated while rolling back, accessing it without a lock would
 	 * violate protocol.
 	 */
-	rollback_timestamp = txn_global->stable_timestamp;
+	WT_ORDERED_READ(rollback_timestamp, txn_global->stable_timestamp);
 
 	/*
 	 * Ensure the eviction server is out of the file - we don't
