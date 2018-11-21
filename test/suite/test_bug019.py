@@ -67,7 +67,7 @@ class test_bug019(wttest.WiredTigerTestCase):
                 f = fnmatch.filter(os.listdir('.'), "*Prep*")
                 if f:
                         return f
-                time.sleep(1)
+                time.sleep(1.0)
         self.assertFalse(not f)
 
     # There was a bug where pre-allocated log files accumulated on
@@ -101,7 +101,7 @@ class test_bug019(wttest.WiredTigerTestCase):
             if new_prealloc < self.max_prealloc:
                 break
             time.sleep(1.0)
-        self.assertTruen(sleepcount < 30)
+        self.assertTrue(sleepcount < 30)
 
 if __name__ == '__main__':
     wttest.run()
