@@ -1902,8 +1902,7 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @param[out] hex_timestamp a buffer that will be set to the
 	 * hexadecimal encoding of the timestamp being queried.  Must be large
-	 * enough to hold a hex-encoded timestamp (i.e., double the timestamp
-	 * size plus one byte for NUL termination).
+	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
 	 * @configstart{WT_SESSION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c commit returns the
 	 * most recently set commit_timestamp.  \c first_commit returns the
@@ -2481,8 +2480,7 @@ struct __wt_connection {
 	 * @param connection the connection handle
 	 * @param[out] hex_timestamp a buffer that will be set to the
 	 * hexadecimal encoding of the timestamp being queried.  Must be large
-	 * enough to hold a hex-encoded timestamp (i.e., double the timestamp
-	 * size plus one byte for NUL termination).
+	 * enough to hold a NUL terminated, hex-encoded 8B timestamp (17 bytes).
 	 * @configstart{WT_CONNECTION.query_timestamp, see dist/api_data.py}
 	 * @config{get, specify which timestamp to query: \c all_committed
 	 * returns the largest timestamp such that all timestamps up to that
