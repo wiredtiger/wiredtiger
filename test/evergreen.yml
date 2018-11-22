@@ -399,7 +399,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_truncated_log 2>&1
 
-  - name: csuite-col-efficiency-test
+  - name: csuite-wt1965-col-efficiency-test
     depends_on:
       - name: compile
     commands:
@@ -413,7 +413,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt1965_col_efficiency 2>&1
 
-  - name: csuite-lsm-workload-test
+  - name: csuite-wt2403-lsm-workload-test
     depends_on:
       - name: compile
     commands:
@@ -427,7 +427,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt2403_lsm_workload 2>&1
 
-  - name: csuite-join-main-table-test
+  - name: csuite-wt2447-join-main-table-test
     depends_on:
       - name: compile
     commands:
@@ -455,7 +455,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt2695_checksum 2>&1
 
-  - name: csuite-join-schema-test
+  - name: csuite-wt2592-join-schema-test
     depends_on:
       - name: compile
     commands:
@@ -469,7 +469,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt2592_join_schema 2>&1
 
-  - name: csuite-reconfig-test
+  - name: csuite-wt2719-reconfig-test
     depends_on:
       - name: compile
     commands:
@@ -483,7 +483,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt2719_reconfig 2>&1
 
-  - name: csuite-join-extractor-test
+  - name: csuite-wt2999-join-extractor-test
     depends_on:
       - name: compile
     commands:
@@ -497,7 +497,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt2999_join_extractor 2>&1
 
-  - name: csuite-filesys-test
+  - name: csuite-wt3120-filesys-test
     depends_on:
       - name: compile
     commands:
@@ -511,7 +511,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt3120_filesys 2>&1
 
-  - name: csuite-search-near-collator-test
+  - name: csuite-wt3135-search-near-collator-test
     depends_on:
       - name: compile
     commands:
@@ -525,7 +525,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt3135_search_near_collator 2>&1
 
-  - name: csuite-dup-index-collator-test
+  - name: csuite-wt3184-dup-index-collator-test
     depends_on:
       - name: compile
     commands:
@@ -539,7 +539,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt3184_dup_index_collator 2>&1
 
-  - name: csuite-checkpoint-op-races-test
+  - name: csuite-wt3363-checkpoint-op-races-test
     depends_on:
       - name: compile
     commands:
@@ -553,7 +553,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt3363_checkpoint_op_races 2>&1
 
-  - name: csuite-pad-byte-collator-test
+  - name: csuite-wt3874-pad-byte-collator-test
     depends_on:
       - name: compile
     commands:
@@ -567,7 +567,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt3874_pad_byte_collator 2>&1
 
-  - name: csuite-large-doc-small-upd-test
+  - name: csuite-wt4105-large-doc-small-upd-test
     depends_on:
       - name: compile
     commands:
@@ -595,7 +595,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt4117_checksum 2>&1
 
-  - name: csuite-metadata-salvage-test
+  - name: csuite-wt4156-metadata-salvage-test
     depends_on:
       - name: compile
     commands:
@@ -623,7 +623,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_rwlock 2>&1
 
-  - name: csuite-col-append-test
+  - name: csuite-wt2246-col-append-test
     depends_on:
       - name: compile
     commands:
@@ -637,7 +637,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2246_col_append 2>&1
 
-  - name: csuite-join-visibility-test
+  - name: csuite-wt2323-join-visibility-test
     depends_on:
       - name: compile
     commands:
@@ -651,7 +651,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2323_join_visibility 2>&1
 
-  - name: csuite-insert-race-test
+  - name: csuite-wt2535-insert-race-test
     depends_on:
       - name: compile
     commands:
@@ -665,7 +665,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2535_insert_race 2>&1
 
-  - name: csuite-join-bloom-fix-test
+  - name: csuite-wt2834-join-bloom-fix-test
     depends_on:
       - name: compile
     commands:
@@ -679,7 +679,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2834_join_bloom_fix 2>&1
 
-  - name: csuite-perf-test
+  - name: csuite-wt2853-perf-test
     depends_on:
       - name: compile
     commands:
@@ -693,7 +693,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2853_perf 2>&1
 
-  - name: csuite-checkpoint-integrity-test
+  - name: csuite-wt2909-checkpoint-integrity-test
     depends_on:
       - name: compile
     commands:
@@ -707,7 +707,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt2909_checkpoint_integrity 2>&1
 
-  - name: csuite-partial-update-test
+  - name: csuite-wt3338-partial-update-test
     depends_on:
       - name: compile
     commands:
@@ -721,7 +721,7 @@ tasks:
 
             ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt3338_partial_update 2>&1
 
-  - name: csuite-handle-locks-test
+  - name: csuite-wt4333-handle-locks-test
     depends_on:
       - name: compile
     commands:
@@ -860,30 +860,30 @@ buildvariants:
     - name: csuite-timestamp-abort-test
     - name: csuite-scope-test
     - name: csuite-truncated-log-test
-    - name: csuite-col-efficiency-test
-    - name: csuite-lsm-workload-test
-    - name: csuite-join-main-table-test
+    - name: csuite-wt1965-col-efficiency-test
+    - name: csuite-wt2403-lsm-workload-test
+    - name: csuite-wt2447-join-main-table-test
     - name: csuite-wt2695-checksum-test
-    - name: csuite-join-schema-test
-    - name: csuite-reconfig-test
-    - name: csuite-join-extractor-test
-    - name: csuite-filesys-test
-    - name: csuite-search-near-collator-test
-    - name: csuite-dup-index-collator-test
-    - name: csuite-checkpoint-op-races-test
-    - name: csuite-pad-byte-collator-test
-    - name: csuite-large-doc-small-upd-test
+    - name: csuite-wt2592-join-schema-test
+    - name: csuite-wt2719-reconfig-test
+    - name: csuite-wt2999-join-extractor-test
+    - name: csuite-wt3120-filesys-test
+    - name: csuite-wt3135-search-near-collator-test
+    - name: csuite-wt3184-dup-index-collator-test
+    - name: csuite-wt3363-checkpoint-op-races-test
+    - name: csuite-wt3874-pad-byte-collator-test
+    - name: csuite-wt4105-large-doc-small-upd-test
     - name: csuite-wt4117-checksum-test
-    - name: csuite-metadata-salvage-test
+    - name: csuite-wt4156-metadata-salvage-test
     - name: csuite-rwlock-test
-    - name: csuite-col-append-test
-    - name: csuite-join-visibility-test
-    - name: csuite-insert-race-test
-    - name: csuite-join-bloom-fix-test
-    - name: csuite-perf-test
-    - name: csuite-checkpoint-integrity-test
-    - name: csuite-partial-update-test
-    - name: csuite-handle-locks-test
+    - name: csuite-wt2246-col-append-test
+    - name: csuite-wt2323-join-visibility-test
+    - name: csuite-wt2535-insert-race-test
+    - name: csuite-wt2834-join-bloom-fix-test
+    - name: csuite-wt2853-perf-test
+    - name: csuite-wt2909-checkpoint-integrity-test
+    - name: csuite-wt3338-partial-update-test
+    - name: csuite-wt4333-handle-locks-test
     - name: unit-test
     - name: fops
 
