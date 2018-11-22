@@ -216,11 +216,11 @@ testutil_is_flag_set(const char *flag)
 }
 
 /*
- * testutil_print_cmdline --
+ * testutil_print_command_line --
  *	Print command line arguments for csuite tests.
  */
 void
-testutil_print_cmdline(int argc, char * const *argv)
+testutil_print_command_line(int argc, char * const *argv)
 {
 	int i;
 	for (i = 0; i < argc; i++)

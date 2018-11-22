@@ -46,7 +46,7 @@ testutil_parse_opts(int argc, char * const *argv, TEST_OPTS *opts)
 
 	opts->progname = testutil_set_progname(argv);
 
-	testutil_print_cmdline(argc, argv);
+	testutil_print_command_line(argc, argv);
 
 	while ((ch = __wt_getopt(opts->progname,
 		argc, argv, "A:dh:n:o:pR:T:t:vW:")) != EOF)
