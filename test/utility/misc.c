@@ -215,6 +215,19 @@ testutil_is_flag_set(const char *flag)
 	return (enable_long_tests);
 }
 
+/*
+ * testutil_print_cmdline --
+ *	Print command line arguments for csuite tests.
+ */
+void
+testutil_print_cmdline(int argc, char * const *argv)
+{
+	int i;
+	for (i = 0; i < argc; i++)
+		printf("%s ", argv[i]);
+	printf("\n");
+}
+
 #ifndef _WIN32
 /*
  * testutil_sleep_wait --

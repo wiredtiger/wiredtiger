@@ -27,15 +27,6 @@
  */
 #include "test_util.h"
 
-static void
-print_cmd_line_args(int argc, char * const *argv)
-{
-	int i;
-	for (i = 0; i < argc; i++)
-		printf("%s ", argv[i]);
-	printf("\n");
-}
-
 extern char *__wt_optarg;		/* argument associated with option */
 
 /*
@@ -55,7 +46,7 @@ testutil_parse_opts(int argc, char * const *argv, TEST_OPTS *opts)
 
 	opts->progname = testutil_set_progname(argv);
 
-	print_cmd_line_args(argc, argv);
+	testutil_print_cmdline(argc, argv);
 
 	while ((ch = __wt_getopt(opts->progname,
 		argc, argv, "A:dh:n:o:pR:T:t:vW:")) != EOF)
