@@ -283,4 +283,18 @@ if test "$wt_cv_enable_zstd" = "yes"; then
 fi
 AM_CONDITIONAL([ZSTD], [test "$wt_cv_enable_zstd" = "yes"])
 
+AH_TEMPLATE(HAVE_NO_CRC32_HARDWARE,
+    [Define to 1 to disable any crc32 hardware support.])
+AC_MSG_CHECKING(if --disable-crc32-hardware option specified)
+AC_ARG_ENABLE(crc32-hardware,
+	[AS_HELP_STRING([--disable-crc32-hardware],
+	    [Disable any crc32 hardware support.])], r=$enableval, r=yes)
+case "$r" in
+no)	wt_cv_crc32_hardware=no
+	AC_DEFINE(HAVE_NO_CRC32_HARDWARE)
+	AC_MSG_RESULT(yes);;
+*)	wt_cv_crc32_hardware=yes
+	AC_MSG_RESULT(no);;
+esac
+
 ])
