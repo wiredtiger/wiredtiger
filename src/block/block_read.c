@@ -259,6 +259,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	blk = WT_BLOCK_HEADER_REF(buf->mem);
 	__wt_block_header_byteswap_copy(blk, &swap);
 	if (swap.checksum == checksum) {
+		checksum = blk->checksum;
 		blk->checksum = 0;
 		page_checksum = __wt_checksum(buf->mem,
 		    F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ?

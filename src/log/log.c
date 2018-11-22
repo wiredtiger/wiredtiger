@@ -48,15 +48,13 @@ __log_checksum_match(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t reclen)
 	uint32_t checksum_calculate, checksum_tmp;
 
 	WT_UNUSED(session);
+
 	logrec = (WT_LOG_RECORD *)buf->mem;
 	checksum_tmp = logrec->checksum;
 	logrec->checksum = 0;
 	checksum_calculate = __wt_checksum(logrec, reclen);
-#ifdef WORDS_BIGENDIAN
-	checksum_calculate = __wt_bswap32(checksum_calculate);
-#endif
 	logrec->checksum = checksum_tmp;
-	return (logrec->checksum == checksum_calculate);
+	return (checksum_tmp == checksum_calculate);
 }
 
 /*
@@ -865,16 +863,13 @@ __log_file_header(
 	 * Now that the record is set up, initialize the record header.
 	 *
 	 * Checksum a little-endian version of the header, and write everything
-	 * in little-endian format. The checksum is (potentially) returned in a
-	 * big-endian format, swap it into place in a separate step.
+	 * in little-endian format. As checksums are returned in little-endian
+	 * format, they don't need to be swapped before writing.
 	 */
 	logrec->len = log->allocsize;
 	logrec->checksum = 0;
 	__wt_log_record_byteswap(logrec);
 	logrec->checksum = __wt_checksum(logrec, log->allocsize);
-#ifdef WORDS_BIGENDIAN
-	logrec->checksum = __wt_bswap32(logrec->checksum);
-#endif
 
 	WT_CLEAR(tmp);
 	memset(&myslot, 0, sizeof(myslot));
@@ -2893,17 +2888,14 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	}
 	/*
 	 * Checksum a little-endian version of the header, and write everything
-	 * in little-endian format. The checksum is (potentially) returned in a
-	 * big-endian format, swap it into place in a separate step.
+	 * in little-endian format. As checksums are returned in little-endian
+	 * format, they don't need to be swapped before writing.
 	 */
 	logrec = (WT_LOG_RECORD *)record->mem;
 	logrec->len = (uint32_t)record->size;
 	logrec->checksum = 0;
 	__wt_log_record_byteswap(logrec);
 	logrec->checksum = __wt_checksum(logrec, record->size);
-#ifdef WORDS_BIGENDIAN
-	logrec->checksum = __wt_bswap32(logrec->checksum);
-#endif
 
 	WT_STAT_CONN_INCR(session, log_writes);
 

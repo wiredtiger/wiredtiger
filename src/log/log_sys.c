@@ -51,13 +51,16 @@ __wt_log_system_record(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
 	logrec_buf->size = logrec->len = log->allocsize;
 
 	/* We do not compress nor encrypt this record. */
-	logrec->checksum = 0;
 	logrec->flags = 0;
+
+	/*
+	 * As checksums are returned in little-endian format, they don't need to
+	 * be swapped before writing.
+	 */
+	logrec->checksum = 0;
 	__wt_log_record_byteswap(logrec);
 	logrec->checksum = __wt_checksum(logrec, log->allocsize);
-#ifdef WORDS_BIGENDIAN
-	logrec->checksum = __wt_bswap32(logrec->checksum);
-#endif
+
 	WT_CLEAR(tmp);
 	memset(&myslot, 0, sizeof(myslot));
 	myslot.slot = &tmp;
