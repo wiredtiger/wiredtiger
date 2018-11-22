@@ -28,7 +28,7 @@
 #include "test_util.h"
 
 static void
-print_cmd_line_args(int argc, char *argv[])
+print_cmd_line_args(int argc, char * const *argv)
 {
 	int i;
 	for (i = 0; i < argc; i++)
