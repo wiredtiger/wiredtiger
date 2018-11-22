@@ -567,6 +567,8 @@ copy(u_int gen, u_int recno)
 	FILE *ifp, *ofp;
 	WT_BLOCK_HEADER *blk;
 	WT_PAGE_HEADER *dsk;
+	uint32_t gen32;
+	uint64_t recno64;
 	char buf[PSIZE];
 
 	testutil_assert((ifp = fopen(LOAD, "r")) != NULL);
@@ -590,10 +592,22 @@ copy(u_int gen, u_int recno)
 	if (gen != 0) {
 		testutil_assert(fseek(ifp, (long)PSIZE, SEEK_SET) == 0);
 		testutil_assert(fread(buf, 1, PSIZE, ifp) == PSIZE);
+
+		/*
+		 * Page headers are written in little-endian format, swap before
+		 * calculating the checksum on big-endian hardware. Checksums
+		 * always returned in little-endian format, no swap is required.
+		 */
+		gen32 = gen;
+		recno64 = recno;
+#ifdef WORDS_BIGENDIAN
+		gen32 = __wt_bswap32(gen32);
+		recno64 = __wt_bswap64(recno64);
+#endif
 		dsk = (void *)buf;
 		if (page_type != WT_PAGE_ROW_LEAF)
-			dsk->recno = recno;
-		dsk->write_gen = gen;
+			dsk->recno = recno64;
+		dsk->write_gen = gen32;
 		blk = WT_BLOCK_HEADER_REF(buf);
 		blk->checksum = 0;
 		blk->checksum = __wt_checksum(dsk, PSIZE);
