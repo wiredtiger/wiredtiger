@@ -73,7 +73,7 @@ __cm_extend(WT_CM_STATE *cms,
 	    p1++, p2++)
 		;
 
-	for (; m1 > cms->used1 && m2 >= cms->used2 && *m1 == *m2;
+	for (; m1 >= cms->used1 && m2 >= cms->used2 && *m1 == *m2;
 	    m1--, m2--)
 		;
 
