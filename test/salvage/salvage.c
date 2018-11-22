@@ -567,8 +567,8 @@ copy(u_int gen, u_int recno)
 	FILE *ifp, *ofp;
 	WT_BLOCK_HEADER *blk;
 	WT_PAGE_HEADER *dsk;
-	uint32_t gen32;
 	uint64_t recno64;
+	uint32_t gen32;
 	char buf[PSIZE];
 
 	testutil_assert((ifp = fopen(LOAD, "r")) != NULL);
