@@ -160,8 +160,9 @@ from packing import pack, unpack
 }
 
 %typemap(argout) (WT_MODIFY *entries, int *nentriesp) {
+	int i;
 	$result = PyList_New(*$2);
-	for (int i = 0; i < *$2; i++) {
+	for (i = 0; i < *$2; i++) {
 		PyObject *o = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_modify, 0);
 		PyObject_SetAttrString(o, "data", PyString_FromStringAndSize(
 		    $1[i].data.data, $1[i].data.size));
