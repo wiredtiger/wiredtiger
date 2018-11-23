@@ -152,6 +152,7 @@ colgroups
 combinatorial
 command's
 comparator
+compressibility
 cond
 config
 configurign
@@ -381,9 +382,9 @@ perf
 petabyte
 pget
 php
+pid
 plantuml
 png
-pid
 posix
 pre
 prepends
@@ -464,7 +465,6 @@ substring
 superset
 sys
 sz
-tid
 tRuE
 tablename
 tcl
@@ -472,6 +472,7 @@ tcmalloc
 td
 th
 thang
+tid
 timestamp
 timestamps
 todo
