@@ -305,7 +305,6 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 		return (errno);
 
 	zstd_compressor->compressor.compress = zstd_compress;
-	zstd_compressor->compressor.compress_raw = NULL;
 	zstd_compressor->compressor.decompress = zstd_decompress;
 	zstd_compressor->compressor.pre_size = zstd_pre_size;
 	zstd_compressor->compressor.terminate = zstd_terminate;
