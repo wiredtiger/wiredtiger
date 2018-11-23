@@ -71,7 +71,7 @@ typedef struct {
  * The unused field is available for a mode flag if one is needed in the future,
  * we guarantee it's 0.
  *
- * 
+ *
  */
 typedef struct {
 	uint32_t compressed_len;	/* True compressed length */
