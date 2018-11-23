@@ -351,6 +351,7 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_image;
 	int64_t cache_bytes_lookaside;
 	int64_t cache_bytes_inuse;
+	int64_t cache_bytes_dirty_total;
 	int64_t cache_bytes_other;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
@@ -454,6 +455,7 @@ struct __wt_connection_stats {
 	int64_t fsync_io;
 	int64_t read_io;
 	int64_t write_io;
+	int64_t cursor_cache;
 	int64_t cursor_create;
 	int64_t cursor_insert;
 	int64_t cursor_modify;
@@ -470,7 +472,7 @@ struct __wt_connection_stats {
 	int64_t cursor_sweep_examined;
 	int64_t cursor_sweep;
 	int64_t cursor_update;
-	int64_t cursor_cache;
+	int64_t cursors_cached;
 	int64_t cursor_reopen;
 	int64_t cursor_truncate;
 	int64_t dh_conn_handle_count;
@@ -726,6 +728,7 @@ struct __wt_dsrc_stats {
 	int64_t btree_row_internal;
 	int64_t btree_row_leaf;
 	int64_t cache_bytes_inuse;
+	int64_t cache_bytes_dirty_total;
 	int64_t cache_bytes_read;
 	int64_t cache_bytes_write;
 	int64_t cache_eviction_checkpoint;
@@ -792,12 +795,12 @@ struct __wt_dsrc_stats {
 	int64_t compress_raw_fail;
 	int64_t compress_raw_ok;
 	int64_t cursor_insert_bulk;
+	int64_t cursor_cache;
 	int64_t cursor_create;
 	int64_t cursor_restart;
 	int64_t cursor_insert_bytes;
 	int64_t cursor_remove_bytes;
 	int64_t cursor_update_bytes;
-	int64_t cursor_cache;
 	int64_t cursor_reopen;
 	int64_t cursor_insert;
 	int64_t cursor_modify;
@@ -824,7 +827,7 @@ struct __wt_dsrc_stats {
 	int64_t rec_pages;
 	int64_t rec_pages_eviction;
 	int64_t rec_page_delete;
-	int64_t session_cursor_cached;
+	int64_t session_cursors_cached;
 	int64_t session_compact;
 	int64_t session_cursor_open;
 	int64_t txn_update_conflict;
@@ -840,6 +843,20 @@ struct __wt_join_stats {
 	int64_t membership_check;
 	int64_t bloom_insert;
 	int64_t iterated;
+};
+
+/*
+ * Statistics entries for session.
+ */
+#define	WT_SESSION_STATS_BASE	4000
+struct __wt_session_stats {
+	int64_t bytes_read;
+	int64_t bytes_write;
+	int64_t lock_dhandle_wait;
+	int64_t read_time;
+	int64_t write_time;
+	int64_t lock_schema_wait;
+	int64_t cache_time;
 };
 
 /* Statistics section: END */
