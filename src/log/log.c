@@ -54,7 +54,7 @@ __log_checksum_match(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t reclen)
 	logrec->checksum = 0;
 	checksum_calculate = __wt_checksum(logrec, reclen);
 	logrec->checksum = checksum_tmp;
-	return (checksum_tmp == checksum_calculate);
+	return (__wt_checksum_compare(checksum_tmp, checksum_calculate));
 }
 
 /*

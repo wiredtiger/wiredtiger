@@ -352,7 +352,8 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * may have entered the wrong file name, and is now frantically pounding
 	 * their interrupt key.
 	 */
-	if (desc->magic != WT_BLOCK_MAGIC || checksum_tmp != checksum_calculate)
+	if (desc->magic != WT_BLOCK_MAGIC ||
+	    !__wt_checksum_compare(checksum_tmp, checksum_calculate))
 		WT_ERR_MSG(session, WT_ERROR,
 		    "%s does not appear to be a WiredTiger file", block->name);
 
