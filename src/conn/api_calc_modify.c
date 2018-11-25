@@ -79,22 +79,20 @@ __cm_extend(WT_CM_STATE *cms,
 
 	match->m1 = m1 + 1;
 	match->m2 = m2 + 1;
-	match->len = p1 > m1 ? (size_t)(p1 - m1 - 1) : 0;
+	match->len = p1 > m1 ? (size_t)((p1 - m1) - 1) : 0;
 }
 
 /*
- * __cm_hash --
- *	Calculate a "hash" of a block of bytes.
+ * __cm_fingerprint --
+ *	Calculate an integral "fingerprint" of a block of bytes.
  */
-static uint64_t
-__cm_hash(const uint8_t *p)
+static inline uint64_t
+__cm_fingerprint(const uint8_t *p)
 {
 	uint64_t h;
 
-	memcpy(&h, p, sizeof h);
-#ifndef WORDS_BIGENDIAN
-	h = __wt_bswap64(h);
-#endif
+	WT_STATIC_ASSERT(sizeof(h) <= WT_CM_BLOCKSIZE);
+	memcpy(&h, p, WT_CM_BLOCKSIZE);
 	return (h);
 }
 
@@ -110,9 +108,9 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	WT_CM_MATCH match;
 	WT_CM_STATE cms;
 	size_t gap, i;
+	ssize_t size_delta;
 	uint64_t h, hend, hstart;
 	const uint8_t *p1, *p2;
-	int size_delta;
 	bool start;
 
 	cms.session = (WT_SESSION_IMPL *)wt_session;
@@ -148,10 +146,9 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	 * in the post-image without finding a good match, double the size of
 	 * the gap, update the markers and keep trying.
 	 */
-	p1 = cms.used1;
 	h = hstart = hend = 0;
 	i = gap = 0;
-	for (p2 = cms.used2, start = true;
+	for (p1 = cms.used1, p2 = cms.used2, start = true;
 	    p1 + WT_CM_BLOCKSIZE <= cms.e1 && p2 + WT_CM_BLOCKSIZE <= cms.e2;
 	    p2++, i++) {
 		if (start || i == gap) {
@@ -161,13 +158,12 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 				break;
 			if (gap > maxdiff)
 				return (WT_NOTFOUND);
-			hstart = start ? __cm_hash(p1) : hend;
-			hend = __cm_hash(p1 + gap);
+			hstart = start ? __cm_fingerprint(p1) : hend;
+			hend = __cm_fingerprint(p1 + gap);
 			start = false;
 			i = 0;
 		}
-		/* TODO: replace this with a shift-and-or. */
-		h = __cm_hash(p2);
+		h = __cm_fingerprint(p2);
 		match.len = 0;
 		if (h == hstart)
 			__cm_extend(&cms, p1, p2, &match);

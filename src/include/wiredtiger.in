@@ -3619,10 +3619,18 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
  * This call will calculate a set of modifications to an old value that produce
  * the new value.  If more modifications are required than fit in the array
  * passed in by the caller, or if more bytes have changed than the \c maxdiff
- * parameter, the call will fail.
+ * parameter, the call will fail.  The matching algorithm is approximate, so it
+ * may fail and return WT_NOTFOUND if a matching set of WT_MODIFY operations
+ * is not found.
  *
- * If the call succeeds, the new value must remain valid until
- * WT_CURSOR::modify completes: the modification.
+ * The \c maxdiff parameter bounds how much work will be done searching for a
+ * match: to ensure a match is found, it may need to be set larger than actual
+ * number of bytes that differ between the old and new values.  In particular,
+ * repeated patterns of bytes in the values can lead to suboptimal matching,
+ * and matching ranges less than 64 bytes long will not be detected.
+ *
+ * If the call succeeds, the WT_MODIFY operations will point into \c newv,
+ * which must remain valid until WT_CURSOR::modify is called.
  *
  * @snippet ex_all.c Calculate a modify operation
  *
