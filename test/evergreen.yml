@@ -808,7 +808,7 @@ tasks:
             set -o verbose
 
             cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [de] -v 2 ${smp_command|} 2>&1
+            ${python_test_env_vars|} python ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket03
     depends_on:
@@ -823,7 +823,7 @@ tasks:
             set -o verbose
 
             cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [hij] -v 2 ${smp_command|} 2>&1
+            ${python_test_env_vars|} python ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket04
     depends_on:
@@ -838,7 +838,7 @@ tasks:
             set -o verbose
 
             cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [lmnop] -v 2 ${smp_command|} 2>&1
+            ${python_test_env_vars|} python ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket05
     depends_on:
@@ -883,7 +883,7 @@ tasks:
             set -o verbose
 
             cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [uv] -v 2 ${smp_command|} 2>&1
+            ${python_test_env_vars|} python ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
 
   # End of Python unit test tasks
 
