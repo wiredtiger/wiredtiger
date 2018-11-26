@@ -46,7 +46,7 @@ class test_alter04(wttest.WiredTigerTestCase):
     ]
     sizes = [
         ('default', dict(ocreate='')),
-        ('20M', dict(ocreate='20M')),
+        ('1M', dict(ocreate='1M')),
         ('200K', dict(ocreate='200K')),
     ]
     reopen = [
@@ -82,7 +82,7 @@ class test_alter04(wttest.WiredTigerTestCase):
         cursor.close()
         self.assertTrue(found == True)
 
-    # Alter: Change the os_cache_max setting after creation
+    # Alter: Change the setting after creation
     def test_alter04_cache(self):
         uri = self.uri + self.name
         create_params = 'key_format=i,value_format=i,'
@@ -126,9 +126,7 @@ class test_alter04(wttest.WiredTigerTestCase):
         self.verify_metadata(new_param)
 
         # Run through all combinations of the alter commands
-        # for all allowed settings.  This tests having only one or
-        # the other set as well as having both set.  It will also
-        # cover trying to change the setting to its current value.
+        # for all allowed settings.  
         for a in self.cache_alter:
             alter_param = '%s=%s' % (self.setting, a)
             self.session.alter(uri, alter_param)
