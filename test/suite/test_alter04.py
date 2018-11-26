@@ -126,7 +126,7 @@ class test_alter04(wttest.WiredTigerTestCase):
         self.verify_metadata(new_param)
 
         # Run through all combinations of the alter commands
-        # for all allowed settings.  
+        # for all allowed settings.
         for a in self.cache_alter:
             alter_param = '%s=%s' % (self.setting, a)
             self.session.alter(uri, alter_param)
