@@ -79,7 +79,7 @@ typedef struct {
 	 * guaranteed to be set on every page that doesn't contain an overflow
 	 * item, only that if it is set, the page contains no overflow items.
 	 * XXX
-	 * This was original done because raw compression couldn't do better,
+	 * This was originally done because raw compression couldn't do better,
 	 * now that raw compression has been removed, we should do better.
 	 */
 	bool	ovfl_items;
