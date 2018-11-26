@@ -35,6 +35,7 @@ from wtscenario import make_scenarios
 class test_alter04(wttest.WiredTigerTestCase):
     name = "alter04"
     entries = 100
+    cache_alter=('1M', '100K')
     # Settings for os_cache[_dirty]_max.
     types = [
         ('file', dict(uri='file:', use_cg=False, use_index=False)),
@@ -45,16 +46,18 @@ class test_alter04(wttest.WiredTigerTestCase):
     ]
     sizes = [
         ('default', dict(ocreate='')),
-        ('1M', dict(ocreate='1M')),
-        ('100K', dict(ocreate='100K')),
+        ('20M', dict(ocreate='20M')),
+        ('200K', dict(ocreate='200K')),
     ]
-    cache_alter=('', '1M', '100K')
-    dirty_alter=('', '1M', '100K')
     reopen = [
         ('no-reopen', dict(reopen=False)),
         ('reopen', dict(reopen=True)),
     ]
-    scenarios = make_scenarios(types, sizes, reopen)
+    settings = [
+        ('cache', dict(setting='os_cache_max')),
+        ('cache_dirty', dict(setting='os_cache_dirty_max')),
+    ]
+    scenarios = make_scenarios(types, sizes, reopen, settings)
 
     def verify_metadata(self, metastr):
         if metastr == '':
@@ -89,13 +92,13 @@ class test_alter04(wttest.WiredTigerTestCase):
         # modify create_params to test using the default.
         #
         if self.ocreate != '':
-            new_param = 'os_cache_max=%s' % self.ocreate
+            new_param = '%s=%s' % (self.setting, self.ocreate)
             create_params += '%s,' % new_param
             complex_params += '%s,' % new_param
         else:
             # NOTE: This is hard-coding the default value.  If the default
             # changes then this will fail and need to be fixed.
-            new_param = 'os_cache_max=0'
+            new_param = '%s=0' % self.setting
 
         cgparam = ''
         if self.use_cg or self.use_index:
@@ -127,83 +130,16 @@ class test_alter04(wttest.WiredTigerTestCase):
         # the other set as well as having both set.  It will also
         # cover trying to change the setting to its current value.
         for a in self.cache_alter:
-            alter_param = ''
-            if a != '':
-                new_str = 'os_cache_max=%s' % a
-                alter_param += '%s' % new_str
-                if alter_param != '':
-                    self.session.alter(uri, alter_param)
-                    if self.reopen:
-                        self.reopen_conn()
-                    special = self.use_cg or self.use_index
-                    if not special:
-                        self.verify_metadata(new_str)
-                    else:
-                        self.session.alter(suburi, alter_param)
-                        self.verify_metadata(new_str)
-
-    # Alter: Change the os_cache_dirty_max setting after creation
-    def test_alter04_dirty(self):
-        uri = self.uri + self.name
-        create_params = 'key_format=i,value_format=i,'
-        complex_params = ''
-        #
-        # If we're not explicitly setting the parameter, then don't
-        # modify create_params to test using the default.
-        #
-        if self.ocreate != '':
-            new_param = 'os_cache_dirty_max=%s' % self.ocreate
-            create_params += '%s,' % new_param
-            complex_params += '%s,' % new_param
-        else:
-            # NOTE: This is hard-coding the default value.  If the default
-            # changes then this will fail and need to be fixed.
-            new_param = 'os_cache_dirty_max=0'
-
-        cgparam = ''
-        if self.use_cg or self.use_index:
-            cgparam = 'columns=(k,v),'
-        if self.use_cg:
-            cgparam += 'colgroups=(g0),'
-
-        self.session.create(uri, create_params + cgparam)
-        # Add in column group or index settings.
-        if self.use_cg:
-            cgparam = 'columns=(v),'
-            suburi = 'colgroup:' + self.name + ':g0'
-            self.session.create(suburi, complex_params + cgparam)
-        if self.use_index:
-            suburi = 'index:' + self.name + ':i0'
-            self.session.create(suburi, complex_params + cgparam)
-
-        # Put some data in table.
-        c = self.session.open_cursor(uri, None)
-        for k in range(self.entries):
-            c[k+1] = 1
-        c.close()
-
-        # Verify the string in the metadata
-        self.verify_metadata(new_param)
-
-        # Run through all combinations of the alter commands
-        # for all allowed settings.  This tests having only one or
-        # the other set as well as having both set.  It will also
-        # cover trying to change the setting to its current value.
-        for a in self.cache_alter:
-            alter_param = ''
-            if a != '':
-                new_str = 'os_cache_dirty_max=%s' % a
-                alter_param += '%s' % new_str
-                if alter_param != '':
-                    self.session.alter(uri, alter_param)
-                    if self.reopen:
-                        self.reopen_conn()
-                    special = self.use_cg or self.use_index
-                    if not special:
-                        self.verify_metadata(new_str)
-                    else:
-                        self.session.alter(suburi, alter_param)
-                        self.verify_metadata(new_str)
+            alter_param = '%s=%s' % (self.setting, a)
+            self.session.alter(uri, alter_param)
+            if self.reopen:
+                self.reopen_conn()
+            special = self.use_cg or self.use_index
+            if not special:
+                self.verify_metadata(alter_param)
+            else:
+                self.session.alter(suburi, alter_param)
+                self.verify_metadata(alter_param)
 
 if __name__ == '__main__':
     wttest.run()
