@@ -286,6 +286,13 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 	    S2C(session)->stats, lock_##name##_wait_internal);		\
 } while (0)
 
+#define	WT_SPIN_INIT_SESSION_TRACKED(session, t, name) {                \
+	WT_SPIN_INIT_TRACKED(session, t, name);                         \
+	(t)->stat_session_usecs_off = \
+	    (int16_t)WT_SESSION_STATS_FIELD_TO_OFFSET(                  \
+	    &(session->stats), lock_##name##_wait);                     \
+}
+
 /*
  * __wt_spin_lock_track --
  *	Spinlock acquisition, with tracking.
@@ -294,20 +301,24 @@ static inline void
 __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
 	uint64_t time_start, time_stop;
-	int64_t **stats;
+	int64_t *session_stats, **stats;
 
 	if (t->stat_count_off != -1 && WT_STAT_ENABLED(session)) {
 		time_start = __wt_clock(session);
 		__wt_spin_lock(session, t);
 		time_stop = __wt_clock(session);
 		stats = (int64_t **)S2C(session)->stats;
+		session_stats = (int64_t *)&(session->stats);
 		stats[session->stat_bucket][t->stat_count_off]++;
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][t->stat_int_usecs_off] +=
 			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
-		else
+		else {
 			stats[session->stat_bucket][t->stat_app_usecs_off] +=
 			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
+			session_stats[t->stat_session_usecs_off] +=
+			    (int64_t)WT_CLOCKDIFF_US(time_stop, time_start);
+		}
 	} else
 		__wt_spin_lock(session, t);
 }

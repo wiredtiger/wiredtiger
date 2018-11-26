@@ -84,6 +84,9 @@
 #define	WT_STATS_FIELD_TO_OFFSET(stats, fld)				\
 	(int)(&(stats)[0]->fld - (int64_t *)(stats)[0])
 
+#define	WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld)			\
+	(int)(&(stats)->fld - (int64_t *)(stats))
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_STAT_CLEAR		0x01u
 #define	WT_STAT_JSON		0x02u
@@ -257,6 +260,12 @@ __wt_stats_clear(void *stats_arg, int slot)
 		WT_STAT_SET(						\
 		    session, (session)->dhandle->stats, fld, value);	\
 } while (0)
+
+/*
+ * Update per session statistics.
+ */
+#define	WT_STAT_SESSION_INCRV(session, fld, value)			\
+       WT_STAT_INCRV_BASE(session, &session->stats, fld, value)
 
 /*
  * Construct histogram increment functions to put the passed value into the
