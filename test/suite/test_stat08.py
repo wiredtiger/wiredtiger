@@ -82,8 +82,7 @@ class test_stat08(wttest.WiredTigerTestCase):
             [desc, pvalue, value] = stat_cur.get_values()
             self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
                               pvalue + '\', ' + str(value))
-            if desc == 'session: page write from cache to disk time (usecs)' or \
-               desc == 'session: bytes written from cache':
+            if desc == 'session: bytes written from cache':
                 self.assertTrue(value > 0)
 
 if __name__ == '__main__':
