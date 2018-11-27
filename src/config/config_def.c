@@ -250,6 +250,8 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_alter[] = {
 	{ "log", "category",
 	    NULL, NULL,
 	    confchk_WT_SESSION_create_log_subconfigs, 1 },
+	{ "os_cache_dirty_max", "int", NULL, "min=0", NULL, 0 },
+	{ "os_cache_max", "int", NULL, "min=0", NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1317,8 +1319,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "WT_SESSION.alter",
 	  "access_pattern_hint=none,app_metadata=,"
 	  "assert=(commit_timestamp=none,read_timestamp=none),"
-	  "cache_resident=false,exclusive_refreshed=true,log=(enabled=true)",
-	  confchk_WT_SESSION_alter, 6
+	  "cache_resident=false,exclusive_refreshed=true,log=(enabled=true)"
+	  ",os_cache_dirty_max=0,os_cache_max=0",
+	  confchk_WT_SESSION_alter, 8
 	},
 	{ "WT_SESSION.begin_transaction",
 	  "ignore_prepare=false,isolation=,name=,priority=0,read_timestamp="
