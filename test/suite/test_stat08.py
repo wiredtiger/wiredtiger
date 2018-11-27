@@ -32,12 +32,12 @@ import wiredtiger, wttest
 #    Session statistics for cache writes and reads.
 class test_stat08(wttest.WiredTigerTestCase):
 
-    nentries = 5200
-    # Small cache and stats colleciton enabled.
-    conn_config = 'cache_size=1MB,statistics=(all)'
-    # Make the values about 200 bytes. That's little more than 1MB of
-    # data for 5200 records, triggering writes to the disk. Reading this
-    # data would also trigger disk reads.
+    nentries = 350000
+    conn_config = 'cache_size=50MB,statistics=(all)'
+    # Make the values about 200 bytes. That's little more than 70MB of data for
+    # 350 thousand records, triggering writes to the disk by this session
+    # thread. Reading this data would also trigger disk reads by this session
+    # thread.
     entry_value = "abcde" * 40
 
     def test_session_stats(self):
@@ -60,10 +60,10 @@ class test_stat08(wttest.WiredTigerTestCase):
             [desc, pvalue, value] = stat_cur.get_values()
             self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
                               pvalue + '\', ' + str(value))
-            if desc == 'session: bytes read into cache' or \
+            if desc == 'session: time waiting for cache (usecs)' or \
+               desc == 'session: bytes read into cache' or \
                desc == 'session: bytes written from cache' or \
-               desc == 'session: page read from disk to cache time (usecs)' or \
-               desc == 'session: page write from cache to disk time (usecs)':
+               desc == 'session: page read from disk to cache time (usecs)':
                 self.assertTrue(value > 0)
 
         # Session stats cursor reset should set all the stats values to zero.
@@ -72,14 +72,16 @@ class test_stat08(wttest.WiredTigerTestCase):
             [desc, pvalue, value] = stat_cur.get_values()
             self.assertTrue(value == 0)
 
-        # Write 1000 more records to the disk.
+        # Write 10000 more records to the disk.
         stat_cur.reset()
-        for i in range(0, 1000):
+        for i in range(0, 10000):
             cursor[i + self.nentries] = self.entry_value
         self.session.checkpoint()
 
         while stat_cur.next() == 0:
             [desc, pvalue, value] = stat_cur.get_values()
+            self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
+                              pvalue + '\', ' + str(value))
             if desc == 'session: page write from cache to disk time (usecs)' or \
                desc == 'session: bytes written from cache':
                 self.assertTrue(value > 0)
