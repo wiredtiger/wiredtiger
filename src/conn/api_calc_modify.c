@@ -37,19 +37,23 @@ typedef struct {
  *	exceeded.
  */
 static int
-__cm_add_modify(WT_CM_STATE *cms, const uint8_t *p1, size_t len1,
-    const uint8_t *p2, size_t len2, WT_MODIFY *entries, int *nentriesp)
+__cm_add_modify(WT_CM_STATE *cms, const uint8_t *p2,
+    const uint8_t *m1, const uint8_t *m2, WT_MODIFY *entries, int *nentriesp)
 {
 	WT_MODIFY *mod;
+	size_t len1, len2;
 
-	WT_ASSERT(cms->session, len2 < (size_t)UINT32_MAX);
+	WT_ASSERT(cms->session, m1 >= cms->used1 && m2 >= cms->used2);
+
+	len1 = (size_t)(m1 - cms->used1);
+	len2 = (size_t)(m2 - cms->used2);
 
 	if (*nentriesp >= cms->maxentries || len2 > cms->maxdiff)
 		return (WT_NOTFOUND);
 
 	mod = entries + (*nentriesp)++;
+	mod->offset = (size_t)(p2 - cms->s2);
 	mod->size = len1;
-	mod->offset = (size_t)(p1 - cms->s1);
 	mod->data.data = p2;
 	mod->data.size = len2;
 	cms->maxdiff -= len2;
@@ -108,7 +112,6 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	WT_CM_MATCH match;
 	WT_CM_STATE cms;
 	size_t gap, i;
-	ssize_t size_delta;
 	uint64_t h, hend, hstart;
 	const uint8_t *p1, *p2;
 	bool start;
@@ -122,7 +125,6 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	cms.maxdiff = maxdiff;
 	cms.maxentries = *nentriesp;
 	*nentriesp = 0;
-	size_delta = 0;
 
 	/* Ignore matches at the beginning / end. */
 	__cm_extend(&cms, cms.s1, cms.s2, &match);
@@ -173,21 +175,15 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 		if (match.len < WT_CM_MINMATCH)
 			continue;
 
-		WT_RET(__cm_add_modify(&cms,
-		    cms.used1 - size_delta, (size_t)(match.m1 - cms.used1),
-		    cms.used2, (size_t)(match.m2 - cms.used2),
+		WT_RET(__cm_add_modify(&cms, cms.used2, match.m1, match.m2,
 		    entries, nentriesp));
-		size_delta += (int)(match.m1 - cms.used1);
-		size_delta -= (int)(match.m2 - cms.used2);
 		cms.used1 = p1 = match.m1 + match.len;
 		cms.used2 = p2 = match.m2 + match.len;
 		start = true;
 	}
 
 end:	if (cms.used1 < cms.e1 || cms.used2 < cms.e2)
-		WT_RET(__cm_add_modify(&cms,
-		    cms.used1 - size_delta, (size_t)(cms.e1 - cms.used1),
-		    cms.used2, (size_t)(cms.e2 - cms.used2),
+		WT_RET(__cm_add_modify(&cms, cms.used2, cms.e1, cms.e2,
 		    entries, nentriesp));
 
 	return (0);
