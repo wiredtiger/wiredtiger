@@ -3633,8 +3633,41 @@ struct __wt_config_parser {
 uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
-/*! @} */
 #endif /* !defined(SWIG) */
+
+/*!
+ * Calculate a set of WT_MODIFY operations to represent an update.
+ * This call will calculate a set of modifications to an old value that produce
+ * the new value.  If more modifications are required than fit in the array
+ * passed in by the caller, or if more bytes have changed than the \c maxdiff
+ * parameter, the call will fail.  The matching algorithm is approximate, so it
+ * may fail and return WT_NOTFOUND if a matching set of WT_MODIFY operations
+ * is not found.
+ *
+ * The \c maxdiff parameter bounds how much work will be done searching for a
+ * match: to ensure a match is found, it may need to be set larger than actual
+ * number of bytes that differ between the old and new values.  In particular,
+ * repeated patterns of bytes in the values can lead to suboptimal matching,
+ * and matching ranges less than 64 bytes long will not be detected.
+ *
+ * If the call succeeds, the WT_MODIFY operations will point into \c newv,
+ * which must remain valid until WT_CURSOR::modify is called.
+ *
+ * @snippet ex_all.c Calculate a modify operation
+ *
+ * @param session the current WiredTiger session (may be NULL)
+ * @param oldv old value
+ * @param newv new value
+ * @param maxdiff maximum bytes difference
+ * @param[out] entries array of modifications producing the new value
+ * @param[in,out] nentriesp size of \c entries array passed in,
+ *	set to the number of entries used
+ * @errors
+ */
+int wiredtiger_calc_modify(WT_SESSION *session,
+    const WT_ITEM *oldv, const WT_ITEM *newv,
+    size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
+    WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
 /*!
  * Get version information.
@@ -3649,6 +3682,8 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
  */
 const char *wiredtiger_version(int *majorp, int *minorp, int *patchp)
     WT_ATTRIBUTE_LIBRARY_VISIBLE;
+
+/*! @} */
 
 /*******************************************
  * Error returns
