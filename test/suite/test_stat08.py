@@ -29,15 +29,15 @@
 import wiredtiger, wttest
 
 # test_stat08.py
-#    Session statistics for cache writes, reads and wait.
+#    Session statistics for cache writes and reads.
 class test_stat08(wttest.WiredTigerTestCase):
 
     nentries = 5200
     # Small cache and stats colleciton enabled.
     conn_config = 'cache_size=1MB,statistics=(all)'
     # Make the values about 200 bytes. That's little more than 1MB of
-    # data for 5200 records, triggering writes to the disk and cache
-    # full wait.
+    # data for 5200 records, triggering writes to the disk. Reading this
+    # data would also trigger disk reads.
     entry_value = "abcde" * 40
 
     def test_session_stats(self):
@@ -58,8 +58,9 @@ class test_stat08(wttest.WiredTigerTestCase):
         stat_cur = self.session.open_cursor('statistics:session', None, None)
         while stat_cur.next() == 0:
             [desc, pvalue, value] = stat_cur.get_values()
-            if desc == 'session: time waiting for cache (usecs)' or \
-               desc == 'session: bytes read into cache' or \
+            self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
+                              pvalue + '\', ' + str(value))
+            if desc == 'session: bytes read into cache' or \
                desc == 'session: bytes written from cache' or \
                desc == 'session: page read from disk to cache time (usecs)' or \
                desc == 'session: page write from cache to disk time (usecs)':
@@ -71,11 +72,12 @@ class test_stat08(wttest.WiredTigerTestCase):
             [desc, pvalue, value] = stat_cur.get_values()
             self.assertTrue(value == 0)
 
+        # Write 1000 more records to the disk.
         stat_cur.reset()
-        # Write 10 more records to the disk.
-        for i in range(0, 10):
+        for i in range(0, 1000):
             cursor[i + self.nentries] = self.entry_value
         self.session.checkpoint()
+
         while stat_cur.next() == 0:
             [desc, pvalue, value] = stat_cur.get_values()
             if desc == 'session: page write from cache to disk time (usecs)' or \
