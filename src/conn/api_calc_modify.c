@@ -116,8 +116,6 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	const uint8_t *p1, *p2;
 	bool start;
 
-	*nentriesp = 0;
-
 	if (oldv->size == 0 || newv->size == 0)
 		return (WT_NOTFOUND);
 
@@ -129,6 +127,7 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	cms.e2 = cms.s2 + newv->size;
 	cms.maxdiff = maxdiff;
 	cms.maxentries = *nentriesp;
+	*nentriesp = 0;
 
 	/* Ignore matches at the beginning / end. */
 	__cm_extend(&cms, cms.s1, cms.s2, &match);
