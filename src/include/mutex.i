@@ -286,12 +286,12 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 	    S2C(session)->stats, lock_##name##_wait_internal);		\
 } while (0)
 
-#define	WT_SPIN_INIT_SESSION_TRACKED(session, t, name) {                \
+#define	WT_SPIN_INIT_SESSION_TRACKED(session, t, name) do {                \
 	WT_SPIN_INIT_TRACKED(session, t, name);                         \
 	(t)->stat_session_usecs_off = \
 	    (int16_t)WT_SESSION_STATS_FIELD_TO_OFFSET(                  \
 	    &(session->stats), lock_##name##_wait);                     \
-}
+} while (0)
 
 /*
  * __wt_spin_lock_track --

@@ -78,12 +78,12 @@ struct __wt_rwlock {			/* Read/write lock */
 	    S2C(session)->stats, lock_##name##_wait_internal);		\
 } while (0)
 
-#define	WT_RWLOCK_INIT_SESSION_TRACKED(session, l, name) {		\
+#define	WT_RWLOCK_INIT_SESSION_TRACKED(session, l, name) do {		\
 	WT_RWLOCK_INIT_TRACKED(session, l, name);			\
 	(l)->stat_session_usecs_off =					\
 	    (int16_t)WT_SESSION_STATS_FIELD_TO_OFFSET(			\
 	    &(session->stats), lock_##name##_wait);			\
-}
+} while (0)
 
 /*
  * Spin locks:

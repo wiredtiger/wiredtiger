@@ -39,6 +39,24 @@ class test_stat08(wttest.WiredTigerTestCase):
     # thread. Reading this data would also trigger disk reads by this session
     # thread.
     entry_value = "abcde" * 40
+    BYTES_READ = 4000
+    BYTES_WRITE = 4001
+    READ_TIME = 4003
+    CACHE_TIME = 4006
+    session_stats = { BYTES_READ : "session: bytes read into cache",           \
+        BYTES_WRITE : "session: bytes written from cache",                     \
+        READ_TIME : "session: page read from disk to cache time (usecs)",      \
+        CACHE_TIME : "session: time waiting for cache (usecs)" }
+
+    def check_stats(self, cur, k):
+        exp_desc = self.session_stats[k]
+        cur.set_key(k)
+        cur.search()
+        [desc, pvalue, value] = cur.get_values()
+        self.printVerbose(2, '  stat: \'' + desc + '\', \'' + pvalue + '\', ' +
+                          str(value))
+        self.assertEqual(desc, exp_desc )
+        self.assertTrue(value > 0)
 
     def test_session_stats(self):
         self.session = self.conn.open_session()
@@ -51,20 +69,15 @@ class test_stat08(wttest.WiredTigerTestCase):
         cursor.reset()
 
         # Read the entries.
+        i = 0
         for key, value in cursor:
-            self.pr('read %d -> %s' % (key, value))
+            i = i + 1
         cursor.reset()
 
+        # Now check the session statistics.
         stat_cur = self.session.open_cursor('statistics:session', None, None)
-        while stat_cur.next() == 0:
-            [desc, pvalue, value] = stat_cur.get_values()
-            self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
-                              pvalue + '\', ' + str(value))
-            if desc == 'session: time waiting for cache (usecs)' or \
-               desc == 'session: bytes read into cache' or \
-               desc == 'session: bytes written from cache' or \
-               desc == 'session: page read from disk to cache time (usecs)':
-                self.assertTrue(value > 0)
+        for k in self.session_stats:
+            self.check_stats(stat_cur, k)
 
         # Session stats cursor reset should set all the stats values to zero.
         stat_cur.reset()
@@ -78,12 +91,7 @@ class test_stat08(wttest.WiredTigerTestCase):
             cursor[i + self.nentries] = self.entry_value
         self.session.checkpoint()
 
-        while stat_cur.next() == 0:
-            [desc, pvalue, value] = stat_cur.get_values()
-            self.printVerbose(2, '  stat: \'' + desc + '\', \'' +
-                              pvalue + '\', ' + str(value))
-            if desc == 'session: bytes written from cache':
-                self.assertTrue(value > 0)
+        self.check_stats(stat_cur, self.BYTES_WRITE)
 
 if __name__ == '__main__':
     wttest.run()
