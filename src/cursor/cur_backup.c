@@ -364,8 +364,8 @@ err:	/* Close the hot backup file. */
 		WT_TRET(__wt_fs_rename(session, WT_BACKUP_TMP, dest, false));
 		__wt_writelock(session, &conn->hot_backup_lock);
 		conn->hot_backup_list = cb->list;
-		F_SET(session, WT_SESSION_BACKUP_CURSOR);
 		__wt_writeunlock(session, &conn->hot_backup_lock);
+		F_SET(session, WT_SESSION_BACKUP_CURSOR);
 	}
 
 done:
