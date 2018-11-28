@@ -116,6 +116,9 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	const uint8_t *p1, *p2;
 	bool start;
 
+	if (oldv->size < WT_CM_MINMATCH || newv->size < WT_CM_MINMATCH)
+		return (WT_NOTFOUND);
+
 	cms.session = (WT_SESSION_IMPL *)wt_session;
 
 	cms.s1 = cms.used1 = oldv->data;
