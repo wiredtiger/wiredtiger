@@ -296,7 +296,7 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	 * ratio). In other words, position zstd as a zlib replacement, having
 	 * similar compression at much higher compression/decompression speeds.
 	 */
-	compression_level = 3;
+	compression_level = 6;
 	if ((ret =
 	    zstd_init_config(connection, config, &compression_level)) != 0)
 		return (ret);
