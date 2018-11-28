@@ -142,7 +142,6 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri,
 
 	session->bkp_cursor = cb;
 
-	__wt_errx(session, "CURBACKUP_OPEN: other %p", (void *)other);
 	/*
 	 * Start the backup and fill in the cursor's list.  Acquire the schema
 	 * lock, we need a consistent view when creating a copy.

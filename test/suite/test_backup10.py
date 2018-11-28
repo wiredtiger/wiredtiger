@@ -107,17 +107,19 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
             ret = dupc.next()
             if ret != 0:
                 break
-            newfile = bkup_c.get_key()
+            newfile = dupc.get_key()
             self.assertTrue("WiredTigerLog" in newfile)
             sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
+            if (newfile not in orig_logs):
+                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
+                shutil.copy(newfile, self.dir)
+            # Record all log files returned for later verification.
             dup_logs.append(newfile)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
 
         # We expect that the duplicate logs are a superset of the
         # original logs. And we expect the difference to be the
-        # addition of log file 3.
+        # addition of log file 3 only.
         orig_set = set(orig_logs)
         dup_set = set(dup_logs)
         self.assertTrue(dup_set.issuperset(orig_set))

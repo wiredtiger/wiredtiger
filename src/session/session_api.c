@@ -576,8 +576,6 @@ __session_open_cursor(WT_SESSION *wt_session,
 
 	dup_backup = false;
 	session = (WT_SESSION_IMPL *)wt_session;
-	__wt_errx(session, "OPEN_CURSOR: uri %s to_dup %p config %s",
-	    uri, (void *)to_dup, config);
 	SESSION_API_CALL(session, open_cursor, config, cfg);
 
 	statjoin = (to_dup != NULL && uri != NULL &&
@@ -597,7 +595,7 @@ __session_open_cursor(WT_SESSION *wt_session,
 		 * Detect if we're duplicating a backup cursor specifically.
 		 * That needs special handling.
 		 */
-		if (to_dup != NULL && strcmp(uri, "backup:") == 0)
+		if (to_dup != NULL && strcmp(to_dup->uri, "backup:") == 0)
 			dup_backup = true;
 		WT_ERR_NOTFOUND_OK(ret);
 
