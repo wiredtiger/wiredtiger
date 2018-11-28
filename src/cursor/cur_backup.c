@@ -65,6 +65,10 @@ __curbackup_reset(WT_CURSOR *cursor)
 err:	API_END_RET(session, ret);
 }
 
+/*
+ * __backup_free --
+ *	Free list resources for a backup cursor.
+ */
 static void
 __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 {
