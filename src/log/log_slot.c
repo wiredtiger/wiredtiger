@@ -204,6 +204,33 @@ retry:
 }
 
 /*
+ * __log_slot_dirty_max_check --
+ *	If we've passed the maximum of dirty system pages, schedule an
+ *	asynchronous sync that will be performed when this slot is written.
+ */
+static void
+__log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
+	WT_LSN *current;
+
+	if (S2C(session)->log_dirty_max == 0)
+		return;
+
+	conn = S2C(session);
+	log = conn->log;
+	current = &slot->slot_release_lsn;
+
+	if (current->l.file == log->dirty_lsn.l.file &&
+	    current->l.offset > log->dirty_lsn.l.offset &&
+	    current->l.offset - log->dirty_lsn.l.offset > conn->log_dirty_max) {
+		F_SET(slot, WT_SLOT_SYNC_DIRTY);
+		log->dirty_lsn = slot->slot_release_lsn;
+	}
+}
+
+/*
  * __log_slot_new --
  *	Find a free slot and switch it as the new active slot.
  *	Must be called holding the slot lock.
@@ -263,6 +290,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
 				 */
 				log->active_slot = slot;
 				log->pool_index = pool_i;
+				__log_slot_dirty_max_check(session, slot);
 				return (0);
 			}
 		}

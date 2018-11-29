@@ -676,6 +676,11 @@ log_configuration_common = [
     Config('archive', 'true', r'''
         automatically archive unneeded log files''',
         type='boolean'),
+    Config('dirty_max', '0', r'''
+        maximum dirty system buffer cache usage, in bytes.  If non-zero,
+        schedule writes for dirty blocks belonging to the log in the
+        system buffer cache after that many bytes from the log are
+        written into the buffer cache.'''),
     Config('prealloc', 'true', r'''
         pre-allocate log files''',
         type='boolean'),
