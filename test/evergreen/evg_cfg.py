@@ -9,10 +9,14 @@ import sys
 import re
 import docopt
 
-TEST_TYPES = ('make_check', 'csuite', 'all')
+TEST_TYPES = ('make_check', 'csuite')
 EVG_CFG_FILE = "test/evergreen.yml"
 MAKE_SUBDIRS_FILE = "build_posix/Make.subdirs"
 CSUITE_TEST_DIR = "test/csuite"
+MAKE_CHECK_TEST_TMPLT = "test/evergreen/make_check_test_evg_task.template"
+CSUITE_TEST_TMPLT = "test/evergreen/csuite_test_evg_task.template"
+MAKE_CHECK_TEST_SEARCH_STR = "  # End of normal make check test tasks"
+CSUITE_TEST_SEARCH_STR = "  # End of csuite test tasks"
 
 # This list of sub directories will be skipped from checking
 # They are not expected to trigger any 'make check' testing.
@@ -85,7 +89,8 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
     with open(evg_cfg_file, 'r') as f:
         evg_cfg = f.readlines()
 
-    missing_tests = []
+    debug('\n')
+    missing_tests = {}
     for dir in dirs: 
         # Figure out the Evergreen task name from the directory name
 
@@ -115,21 +120,20 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
             continue
         else:
             # Missing task/test found
-            missing_tests.append(evg_task_name)
+            missing_tests.update({evg_task_name: dir})
             print("Test '%s' (for directory %s) is missing in %s!" % (evg_task_name, dir, evg_cfg_file))
 
     return missing_tests
 
 
-def check_make_check_tests(test_type):
-    """ 
-    Check to see if any make check tests are missing from the Evergreen configuration.
+def get_make_check_dirs():
+    """
+    Figure out the 'make check' directories that are applicable for testing
     Loop through the list of directories in 'Make.subdirs' file and skip a few known 
     directories that do not require any test.
     """
 
     assert os.path.isfile(MAKE_SUBDIRS_FILE), "'%s' does not exist" % MAKE_SUBDIRS_FILE
-
     subdirs = []
     with open(MAKE_SUBDIRS_FILE, 'r') as f:
         lines = f.readlines()
@@ -145,14 +149,12 @@ def check_make_check_tests(test_type):
     make_check_dirs = [d for d in subdirs if d not in make_check_subdir_skips]
     debug("\nThe list of 'make check' directories that should be included in Evergreen configuration:\n %s" % make_check_dirs)
 
-    missing_tests = find_tests_missing_evg_cfg(test_type, make_check_dirs, EVG_CFG_FILE)
-
-    return missing_tests
+    return make_check_dirs
 
 
-def check_csuite_tests(test_type):
+def get_csuite_dirs():
     """
-    Check to see if any csuite tests are missing from the Evergreen configuration.
+    Figure out the 'make check' directories that are applicable for testing
     Loop through the list of sub directories under test/csuite/ and skip those WT_TEST.* directories.
     """
 
@@ -164,27 +166,118 @@ def check_csuite_tests(test_type):
     # Remove directories with name starting with 'WT_TEST' or '.'
     regex = re.compile(r'^(WT_TEST|\.)')
     csuite_dirs = [d for d in subdirs if not regex.search(d)]
-    debug("The list of 'csuite' directories that should be included in Evergreen configuration:\n %s" % csuite_dirs)
+    debug("\nThe list of 'csuite' directories that should be included in Evergreen configuration:\n %s" % csuite_dirs)
 
-    missing_tests = find_tests_missing_evg_cfg(test_type, csuite_dirs, EVG_CFG_FILE)
-    
+    return csuite_dirs
+
+def check_missing_tests(test_type):
+    """ 
+    Check to see if any tests are missing from the Evergreen configuration.
+    Loop through the list of directories in 'Make.subdirs' file and skip a few known 
+    directories that do not require any test.
+    """
+
+    # Retrive the directories that are applicable for testing based on test type
+    if test_type == 'make_check':
+        test_dirs = get_make_check_dirs()
+    elif test_type == 'csuite':
+        test_dirs = get_csuite_dirs()
+    else:
+        sys.exit("Unsupported test type '%s'" % test_type)
+
+    return find_tests_missing_evg_cfg(test_type, test_dirs, EVG_CFG_FILE)
+
+
+def get_evg_task_template(test_type):
+    """ Retrieve the Evergreen task template based on test type """
+
+    if test_type == 'make_check':
+        template_file = MAKE_CHECK_TEST_TMPLT
+    elif test_type == 'csuite':
+        template_file = CSUITE_TEST_TMPLT
+    else:
+        sys.exit("Unsupported test type '%s'" % test_type)
+
+    assert os.path.isfile(template_file), "'%s' does not exist" % template_file
+
+    with open(template_file, 'r') as f:
+        template = f.read()
+
+    return template
+
+
+def get_search_string(test_type):
+    """ Retrieve the search string based on test_type """
+
+    if test_type == 'make_check':
+        search_str = MAKE_CHECK_TEST_SEARCH_STR
+    elif test_type == 'csuite':
+        search_str = CSUITE_TEST_SEARCH_STR
+    else:
+        sys.exit("Unsupported test type '%s'" % test_type)
+
+    return search_str
+
+
+def generate_evg_cfg_for_missing_tests(test_type, missing_tests):
+    """ 
+    Generate the Evergreen configuration for the missing tests based on test type. 
+    Will apply the newly generated changes to the Evergreen configuration file directly. 
+    """
+
+    if not missing_tests:
+        sys.exit("No missing test is found, exiting ...")
+    debug("missing_tests: %s" % missing_tests)
+
+    template = get_evg_task_template(test_type) 
+
+    evg_cfg_to_add = ''
+    for task, dir in missing_tests.items():
+        # Replace variables in the template with valid values for each missing test
+        evg_cfg_to_add += template.replace('{{task_name}}', task).replace('{{test_dir}}', dir) 
+
+    print("\nBelow Evergreen configuration snippet will be added into existing %s file: \n\n%s" 
+          % (EVG_CFG_FILE, evg_cfg_to_add))
+
+    assert os.path.isfile(EVG_CFG_FILE), "'%s' does not exist" % EVG_CFG_FILE
+
+    search_str = get_search_string(test_type)
+    debug("search_str: %s" % search_str)
+
+    with open(EVG_CFG_FILE, 'r') as f:
+        evg_cfg = f.read()
+        # Insert the new Evergreen configuration for missing tests. 
+        # Use the search string to help locating the position for insert.
+        new_evg_cfg = evg_cfg.replace(search_str, evg_cfg_to_add + search_str)
+
+    # Write the changes back to the file
+    with open(EVG_CFG_FILE, 'w') as f:
+        f.write(new_evg_cfg)
+
+
 def evg_cfg(action, test_type):
-    """ The main entry function calls different functions based on action type """
-
-    assert test_type in TEST_TYPES, "Unknown test type '%s'" % test_type
+    """ The main entry function that calls different functions based on action type and test type """
 
     if action == 'check':
-        if test_type == 'make_check': 
-            check_make_check_tests(test_type)
-        elif test_type == 'csuite':
-            check_csuite_tests(test_type)
-        else: # 'all'
-            check_make_check_tests(test_type)
-            check_csuite_tests(test_type)
+        if test_type in TEST_TYPES:
+            check_missing_tests(test_type)
+        elif test_type == 'all': 
+            # Check each of the test type
+            for t in TEST_TYPES:
+                check_missing_tests(t)
+        else:
+            sys.exit("Unsupported test type '%s'" % test_type)
     elif action == 'generate':
-        pass
+        if test_type in TEST_TYPES:
+            missing_tests = check_missing_tests(test_type)
+            generate_evg_cfg_for_missing_tests(test_type, missing_tests)
+        elif test_type == 'all': 
+            # Check each of the test type
+            for t in TEST_TYPES:
+                missing_tests = check_missing_tests(t)
+                generate_evg_cfg_for_missing_tests(t, missing_tests)
     else:
-        sys.exit("Unknown action type '%s'" % action)
+        sys.exit("Unsupported action type '%s'" % action)
 
 
 if __name__ == '__main__':
