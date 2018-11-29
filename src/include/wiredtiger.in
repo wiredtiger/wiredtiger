@@ -361,7 +361,8 @@ struct __wt_cursor {
 	 * with WT_CURSOR::prev will move to the last record.
 	 *
 	 * In the case of a statistics cursor, resetting the cursor refreshes
-	 * the statistics information returned.
+	 * the statistics information returned. Resetting a session statistics
+	 * cursor sets all the session statistics values to zero.
 	 *
 	 * @snippet ex_all.c Reset the cursor
 	 *
