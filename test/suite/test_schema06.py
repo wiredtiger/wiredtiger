@@ -93,7 +93,8 @@ class test_schema06(wttest.WiredTigerTestCase):
         self.drop_index(1)
 
         # Test the session level schema lock wait statistic. The schema lock
-        # wait is seen for the lsm table only.
+        # wait is seen for the lsm table only. Concurrent lsm worker threads
+        # could require an in-memory chunk switch under a schema lock.
         if self.idx_config == ',type=lsm':
             found = False
             stat_cur = self.session.open_cursor('statistics:session', None, None)

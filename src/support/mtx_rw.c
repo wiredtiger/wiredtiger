@@ -269,9 +269,8 @@ stall:			__wt_cond_wait(session,
 		else {
 			stats[session->stat_bucket][l->stat_app_usecs_off] +=
 			    (int64_t)time_diff;
-			session_stats[l->stat_session_usecs_off] +=
-			    (int64_t)time_diff;
 		}
+		session_stats[l->stat_session_usecs_off] += (int64_t)time_diff;
 	}
 
 	/*
@@ -445,12 +444,10 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
 			stats[session->stat_bucket][l->stat_int_usecs_off] +=
 			    (int64_t)time_diff;
-		else {
+		else
 			stats[session->stat_bucket][l->stat_app_usecs_off] +=
 			    (int64_t)time_diff;
-			session_stats[l->stat_session_usecs_off] +=
-			    (int64_t)time_diff;
-		}
+		session_stats[l->stat_session_usecs_off] += (int64_t)time_diff;
 	}
 
 	/*
