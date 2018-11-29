@@ -119,7 +119,8 @@ unsigned 64-bit integral value, respectively.
 
 The cursor's statistics values  are loaded when the cursor is opened and
 remain unchanged for the life of the cursor, unless the cursor is reset
-by calling the WT_CURSOR::reset method, which reloads the values.
+by calling the WT_CURSOR::reset method, which reloads the values. A reset call
+on session statistics cursor would set the statistics values to zero.
 
 The following is an example of printing run-time statistics about the
 WiredTiger engine:
@@ -138,7 +139,7 @@ The following is an example of printing statistics about a session cursor:
 
 @snippet ex_stat.c statistics session function
 
-These three examples can use a common display routine that iterates through the
+These four examples can use a common display routine that iterates through the
 statistics until the cursor returns the end of the list.
 
 @snippet ex_stat.c statistics display function
