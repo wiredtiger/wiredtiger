@@ -129,6 +129,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         # Test a few error cases now.
         # - We cannot make multiple duplcate backup cursors.
         # - We cannot duplicate the duplicate backup cursor.
+        # - We must use the log target.
         msg = "/already a duplicate backup cursor open/"
         # Test multiple duplicate backup cursors.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -138,7 +139,14 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             dupc, config), 0), msg)
+
         dupc.close()
+
+        # Test we must use the log target.
+        msg = "/must be for logs/"
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.open_cursor(None,
+            bkup_c, None), 0), msg)
 
         # Open duplicate backup cursor again now that the first
         # one is closed. Test every log file returned is the same

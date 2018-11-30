@@ -578,6 +578,8 @@ __session_open_cursor(WT_SESSION *wt_session,
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
 
+	__wt_errx(session, "OPEN_CURSOR: uri: %s", uri);
+	__wt_errx(session, "OPEN_CURSOR: config: %s", config);
 	statjoin = (to_dup != NULL && uri != NULL &&
 	    strcmp(uri, "statistics:join") == 0);
 	if (!statjoin) {
