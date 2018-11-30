@@ -3,5 +3,5 @@
 toplevel_dir=$(git rev-parse --show-toplevel)
 program=${toplevel_dir}/test/evergreen/evg_cfg.py
 
-# Run checking program to identify missing tests in Evergreen configuration 
+# Run checking program to identify missing tests in Evergreen configuration
 ${program} check
