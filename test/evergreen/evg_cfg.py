@@ -57,10 +57,10 @@ Usage:
 
 Options:
   -h --help     Show this screen.
-  -t TEST_TYPE  The type of test to be checked/generated. 
+  -t TEST_TYPE  The type of test to be checked/generated.
   -v            Enable verbose logging.
-  check         Check if any missing tests that should be added into Evergreen configuration. 
-  generate      Generate Evergreen configuration for missing tests. 
+  check         Check if any missing tests that should be added into Evergreen configuration.
+  generate      Generate Evergreen configuration for missing tests.
 """.format(progname=PROGNAME)
 
 verbose = False
@@ -71,14 +71,13 @@ def debug(msg):
     if verbose is True:
         print(msg)
 
-
 def run(cmd):
     """ Run a shell command and return the output """
 
     if type(cmd) == type('str'):
         cmd = cmd.split()
 
-    try: 
+    try:
         output = subprocess.run(
             args=cmd,
             stderr=subprocess.PIPE,
@@ -89,10 +88,9 @@ def run(cmd):
 
     return output
 
-
 def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
-    """ 
-    Check the list of 'make check' directories to find out those 
+    """
+    Check the list of 'make check' directories to find out those
     that are missing from the Evergreen configuration file.
 
     The existing Evergreen configuration is expected to have
@@ -111,7 +109,7 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
 
     debug('\n')
     missing_tests = {}
-    for dir in dirs: 
+    for dir in dirs:
         # Figure out the Evergreen task name from the directory name
 
         if test_type == 'make_check':
@@ -125,7 +123,7 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
 
         elif test_type == 'csuite':
             # The Evergreen task name for each 'csuite' test is worked out from the sub directory name
-            # E.g. for 'test/csuite' sub directory 'wt3184_dup_index_collator', the corresponding Evergreen 
+            # E.g. for 'test/csuite' sub directory 'wt3184_dup_index_collator', the corresponding Evergreen
             # task name will be 'csuite-wt3184-dup-index-collator-test'.
 
             evg_task_name = 'csuite-' + dir.replace('_', '-') + '-test'
@@ -141,15 +139,14 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
         else:
             # Missing task/test found
             missing_tests.update({evg_task_name: dir})
-            print("Test '%s' (for directory %s) is missing in %s!" % (evg_task_name, dir, evg_cfg_file))
+            print("Task '%s' (for directory '%s') is missing in %s!" % (evg_task_name, dir, evg_cfg_file))
 
     return missing_tests
-
 
 def get_make_check_dirs():
     """
     Figure out the 'make check' directories that are applicable for testing
-    Loop through the list of directories in 'Make.subdirs' file and skip a few known 
+    Loop through the list of directories in 'Make.subdirs' file and skip a few known
     directories that do not require any test.
     """
 
@@ -157,11 +154,11 @@ def get_make_check_dirs():
     subdirs = []
     with open(MAKE_SUBDIRS_FILE, 'r') as f:
         lines = f.readlines()
-        for line in lines: 
+        for line in lines:
             # Retrieve directory info from the 1st column
             subdirs.append(line.strip().split(" ")[0])
 
-        # Remove comment and blank lines 
+        # Remove comment and blank lines
         subdirs = [d for d in subdirs if d not in ('#', '.', '')]
         debug("\nThe list of directories captured from 'Make.subdirs' file:\n %s" % subdirs)
 
@@ -170,7 +167,6 @@ def get_make_check_dirs():
     debug("\nThe list of 'make check' directories that should be included in Evergreen configuration:\n %s" % make_check_dirs)
 
     return make_check_dirs
-
 
 def get_csuite_dirs():
     """
@@ -191,9 +187,9 @@ def get_csuite_dirs():
     return csuite_dirs
 
 def check_missing_tests(test_type):
-    """ 
+    """
     Check to see if any tests are missing from the Evergreen configuration.
-    Loop through the list of directories in 'Make.subdirs' file and skip a few known 
+    Loop through the list of directories in 'Make.subdirs' file and skip a few known
     directories that do not require any test.
     """
 
@@ -206,7 +202,6 @@ def check_missing_tests(test_type):
         sys.exit("Unsupported test type '%s'" % test_type)
 
     return find_tests_missing_evg_cfg(test_type, test_dirs, EVG_CFG_FILE)
-
 
 def get_evg_task_template(test_type):
     """ Retrieve the Evergreen task template based on test type """
@@ -225,7 +220,6 @@ def get_evg_task_template(test_type):
 
     return template
 
-
 def get_search_string(test_type):
     """ Retrieve the search string based on test_type """
 
@@ -238,25 +232,24 @@ def get_search_string(test_type):
 
     return search_str
 
-
 def generate_evg_cfg_for_missing_tests(test_type, missing_tests):
-    """ 
-    Generate the Evergreen configuration for the missing tests based on test type. 
-    Will apply the newly generated changes to the Evergreen configuration file directly. 
+    """
+    Generate the Evergreen configuration for the missing tests based on test type.
+    Will apply the newly generated changes to the Evergreen configuration file directly.
     """
 
     if not missing_tests:
         sys.exit("No missing test is found, exiting ...")
     debug("missing_tests: %s" % missing_tests)
 
-    template = get_evg_task_template(test_type) 
+    template = get_evg_task_template(test_type)
 
     evg_cfg_to_add = ''
     for task, dir in missing_tests.items():
         # Replace variables in the template with valid values for each missing test
-        evg_cfg_to_add += template.replace('{{task_name}}', task).replace('{{test_dir}}', dir) 
+        evg_cfg_to_add += template.replace('{{task_name}}', task).replace('{{test_dir}}', dir)
 
-    print("\nBelow Evergreen configuration snippet will be added into existing %s file: \n\n%s" 
+    print("\nBelow Evergreen configuration snippet will be added into existing %s file: \n\n%s"
           % (EVG_CFG_FILE, evg_cfg_to_add))
 
     assert os.path.isfile(EVG_CFG_FILE), "'%s' does not exist" % EVG_CFG_FILE
@@ -266,14 +259,13 @@ def generate_evg_cfg_for_missing_tests(test_type, missing_tests):
 
     with open(EVG_CFG_FILE, 'r') as f:
         evg_cfg = f.read()
-        # Insert the new Evergreen configuration for missing tests. 
+        # Insert the new Evergreen configuration for missing tests.
         # Use the search string to help locating the position for insert.
         new_evg_cfg = evg_cfg.replace(search_str, evg_cfg_to_add + search_str)
 
     # Write the changes back to the file
     with open(EVG_CFG_FILE, 'w') as f:
         f.write(new_evg_cfg)
-
 
 def evg_cfg(action, test_type):
     """ The main entry function that calls different functions based on action type and test type """
@@ -282,30 +274,43 @@ def evg_cfg(action, test_type):
     if run('git config remote.origin.url') != WIREDTIGER_REPO:
         sys.exit("ERROR: need to run this script inside a wiredtiger repo")
 
-    # Change directory to repo top level 
+    # Change directory to repo top level
     os.chdir(run('git rev-parse --show-toplevel'))
 
+    missing_tests = {}
     if action == 'check':
         if test_type in TEST_TYPES:
-            check_missing_tests(test_type)
-        elif test_type == 'all': 
+            missing_tests = check_missing_tests(test_type)
+        elif test_type == 'all':
             # Check each of the test type
             for t in TEST_TYPES:
-                check_missing_tests(t)
+                # Aggregate the missing tests for each test type together here
+                missing_tests.update(check_missing_tests(t))
         else:
             sys.exit("Unsupported test type '%s'" % test_type)
+
+        # If any missing test is identified, prompt users to run the 'generate' action
+        # which will auto-generate the Evergreen configuration for those missing tests.
+        if missing_tests:
+            prompt=("\n*** Some tests are missing in Evergreen configuraiton ***\nPlease\n" +
+                    "\t1) Run '{prog} generate' to auto-generate and apply the Evergreen changes.\n" +
+                    "\t2) Run 'git diff' to see the detail of the Evergreen changes.\n" +
+                    "\t3) Trigger an Evergreen patch build to verify the changes before merging.\n"
+                   ).format(prog=sys.argv[0])
+            print(prompt)
+            sys.exit(1)
+
     elif action == 'generate':
         if test_type in TEST_TYPES:
             missing_tests = check_missing_tests(test_type)
             generate_evg_cfg_for_missing_tests(test_type, missing_tests)
-        elif test_type == 'all': 
+        elif test_type == 'all':
             # Check each of the test type
             for t in TEST_TYPES:
                 missing_tests = check_missing_tests(t)
                 generate_evg_cfg_for_missing_tests(t, missing_tests)
     else:
         sys.exit("Unsupported action type '%s'" % action)
-
 
 if __name__ == '__main__':
 
