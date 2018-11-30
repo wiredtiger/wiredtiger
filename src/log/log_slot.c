@@ -213,7 +213,7 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
-	WT_LSN *current;
+	WT_LSN *current, *last_sync;
 
 	if (S2C(session)->log_dirty_max == 0)
 		return;
@@ -222,9 +222,14 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
 	log = conn->log;
 	current = &slot->slot_release_lsn;
 
-	if (current->l.file == log->dirty_lsn.l.file &&
-	    current->l.offset > log->dirty_lsn.l.offset &&
-	    current->l.offset - log->dirty_lsn.l.offset > conn->log_dirty_max) {
+	if (__wt_log_cmp(&log->dirty_lsn, &log->sync_lsn) < 0)
+		last_sync = &log->sync_lsn;
+	else
+		last_sync = &log->dirty_lsn;
+	if (current->l.file == last_sync->l.file &&
+	    current->l.offset > last_sync->l.offset &&
+	    current->l.offset - last_sync->l.offset > conn->log_dirty_max) {
+		/* Schedule the asynchronous sync */
 		F_SET(slot, WT_SLOT_SYNC_DIRTY);
 		log->dirty_lsn = slot->slot_release_lsn;
 	}

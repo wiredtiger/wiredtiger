@@ -267,10 +267,6 @@ __logmgr_config(
 	if (cval.val != 0)
 		FLD_SET(conn->log_flags, WT_CONN_LOG_ARCHIVE);
 
-	WT_RET(__wt_config_gets(session, cfg, "log.dirty_max", &cval));
-	if (cval.val != 0)
-		conn->log_dirty_max = (wt_off_t)cval.val;
-
 	/*
 	 * The file size cannot be reconfigured. The amount of memory allocated
 	 * to the log slots may be based on the log file size at creation and we
@@ -292,6 +288,10 @@ __logmgr_config(
 			conn->log_extend_len = conn->log_file_max;
 		WT_STAT_CONN_SET(session, log_max_filesize, conn->log_file_max);
 	}
+
+	WT_RET(__wt_config_gets(session, cfg, "log.os_cache_dirty_max", &cval));
+	if (cval.val != 0)
+		conn->log_dirty_max = (conn->log_file_max * cval.val) / 100;
 
 	/*
 	 * If pre-allocation is configured, set the initial number to a few.

@@ -39,7 +39,7 @@ class test_log03(wttest.WiredTigerTestCase):
 
     homedir = 'HOME'
     uri = 'table:test_log03'
-    nentries = 10000
+    nentries = 20000
 
     # Tests need to setup the connection in their own way.
     def setUpConnectionOpen(self, dir):
@@ -65,7 +65,7 @@ class test_log03(wttest.WiredTigerTestCase):
     def with_log_sync(self, log_size, dirty_max):
         config = "cache_size=1G,create,statistics=(fast),log=(enabled"
         config += ",file_max=" + str(log_size) + "M"
-        config += ",dirty_max=" + str(dirty_max) + "M"
+        config += ",os_cache_dirty_max=" + str(dirty_max)
         config += "),transaction_sync=(enabled=false,method=none)"
         #self.tty('CONFIG: ' + config)
 
@@ -84,14 +84,14 @@ class test_log03(wttest.WiredTigerTestCase):
     def test_dirty_max(self):
         # With this test, we have a baseline of syncs performed for 12M
         # log files.  Then we set dirty_max to values that are half,
-        # a third, a quarter and a sixth of the log file, and we would
+        # a third, a quarter and a fifth of the log file, and we would
         # expect an increase of syncs each time.  The number of syncs
         # produced turns out to be a little variable, so we've picked
         # conservative increases.
         baseline = self.with_log_sync(12, 0)
         #self.tty('baseline: ' + str(baseline))
 
-        for dirty_max,increase in [6, 4], [4, 8], [3, 12], [2, 16]:
+        for dirty_max,increase in [50, 8], [33, 16], [25, 24], [20, 32]:
             result = self.with_log_sync(12, dirty_max)
             #self.tty('tried: ' + str(dirty_max) + ', got: ' + str(result))
             self.assertGreater(result, baseline + increase)

@@ -223,6 +223,11 @@ struct __wt_logslot {
 
 #define	WT_SLOT_INIT_FLAGS	0
 
+#define	WT_SLOT_SYNC_FLAGS						\
+	(WT_SLOT_SYNC |							\
+	 WT_SLOT_SYNC_DIR |						\
+	 WT_SLOT_SYNC_DIRTY)
+
 #define	WT_WITH_SLOT_LOCK(session, log, op) do {			\
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));	\
 	WT_WITH_LOCK_WAIT(session,					\

@@ -2054,8 +2054,7 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 	 * responsible for freeing the slot in that case.  Otherwise the
 	 * worker thread will free it.
 	 */
-	if (!F_ISSET(slot, WT_SLOT_FLUSH | WT_SLOT_SYNC | WT_SLOT_SYNC_DIR |
-	    WT_SLOT_SYNC_DIRTY)) {
+	if (!F_ISSET(slot, WT_SLOT_FLUSH | WT_SLOT_SYNC_FLAGS)) {
 		if (freep != NULL)
 			*freep = 0;
 		slot->slot_state = WT_LOG_SLOT_WRITTEN;
@@ -2093,15 +2092,13 @@ __wt_log_release(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *freep)
 		__wt_cond_signal(session, conn->log_file_cond);
 
 	if (F_ISSET(slot, WT_SLOT_SYNC_DIRTY) && !F_ISSET(slot, WT_SLOT_SYNC) &&
-	    conn->log_dirty_max != 0) {
-		if ((ret = __wt_fsync(session, log->log_fh, false)) != 0) {
-			/*
-			 * Ignore ENOTSUP, but don't try again.
-			 */
-			if (ret != ENOTSUP)
-				WT_ERR(ret);
-			conn->log_dirty_max = 0;
-		}
+	    (ret = __wt_fsync(session, log->log_fh, false)) != 0) {
+		/*
+		 * Ignore ENOTSUP, but don't try again.
+		 */
+		if (ret != ENOTSUP)
+			WT_ERR(ret);
+		conn->log_dirty_max = 0;
 	}
 
 	/*
