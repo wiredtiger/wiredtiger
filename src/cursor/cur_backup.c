@@ -243,6 +243,10 @@ __backup_start(WT_SESSION_IMPL *session,
 		WT_RET_MSG(
 		    session, EINVAL, "there is already a backup cursor open");
 
+	if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && other != NULL)
+		WT_RET_MSG(session, EINVAL,
+		    "there is already a duplicate backup cursor open");
+
 	if (other == NULL) {
 		/*
 		 * The hot backup copy is done outside of WiredTiger, which
@@ -279,8 +283,8 @@ __backup_start(WT_SESSION_IMPL *session,
 		 */
 		WT_ERR(__wt_fopen(session, WT_BACKUP_TMP,
 		    WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
-	} else
-		WT_ASSERT(session, WT_SESSION_BACKUP_CURSOR);
+	}
+
 	/*
 	 * If targets were specified, add them to the list. Otherwise it is a
 	 * full backup, add all database objects and log files to the list.
@@ -288,14 +292,13 @@ __backup_start(WT_SESSION_IMPL *session,
 	target_list = false;
 	WT_ERR(__backup_uri(session, cfg, &target_list, &log_only));
 	/*
-	 * We're either a top-level cursor, or if a duplicate cursor the target
-	 * must be log only.
-	 */
-	WT_ASSERT(session, other == NULL || log_only);
-	/*
-	 * For a duplicate cursor, all the work is done in backup_uri.
+	 * For a duplicate cursor, all the work is done in backup_uri. The only
+	 * usage accepted is "target=("log:")" so error if not log only.
 	 */
 	if (other != NULL) {
+		if (!log_only)
+			WT_ERR_MSG(session, EINVAL,
+			    "duplicate backup cursor must be for logs only.");
 		F_SET(cb, WT_CURBACKUP_DUP);
 		F_SET(session, WT_SESSION_BACKUP_DUP);
 		goto done;

@@ -39,11 +39,10 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
     newuri="table:newtable"
+    uri="table:test"
+    nops=100
 
     pfx = 'test_backup'
-    scenarios = make_scenarios([
-        ('table', dict(uri='table:test',dsize=100,nops=100,nthreads=1)),
-    ])
 
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self):
@@ -126,6 +125,33 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         diff = dup_set.difference(orig_set)
         self.assertEqual(len(diff), 1)
         self.assertTrue(log3 in dup_set)
+
+        # Test a few error cases now.
+        # - We cannot make multiple duplcate backup cursors.
+        # - We cannot duplicate the duplicate backup cursor.
+        msg = "/already a duplicate backup cursor open/"
+        # Test multiple duplicate backup cursors.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.open_cursor(None,
+            bkup_c, config), 0), msg)
+        # Test duplicate of duplicate backup cursor.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.open_cursor(None,
+            dupc, config), 0), msg)
+        dupc.close()
+
+        # Open duplicate backup cursor again now that the first
+        # one is closed. Test every log file returned is the same
+        # as the first time.
+        dupc = self.session.open_cursor(None, bkup_c, config)
+        while True:
+            ret = dupc.next()
+            if ret != 0:
+                break
+            newfile = dupc.get_key()
+            self.assertTrue("WiredTigerLog" in newfile)
+            self.assertTrue(newfile in dup_logs)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
 
         dupc.close()
         bkup_c.close()
