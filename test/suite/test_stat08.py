@@ -53,8 +53,7 @@ class test_stat08(wttest.WiredTigerTestCase):
         cur.set_key(k)
         cur.search()
         [desc, pvalue, value] = cur.get_values()
-        self.printVerbose(2, '  stat: \'' + desc + '\', \'' + pvalue + '\', ' +
-                          str(value))
+        self.pr('  stat: \'%s\', \'%s\', \'%s\'' % (desc, pvalue, str(value)))
         self.assertEqual(desc, exp_desc )
         self.assertTrue(value > 0)
 
