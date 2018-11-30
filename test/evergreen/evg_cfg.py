@@ -8,6 +8,7 @@ import os
 import sys
 import re
 import docopt
+import subprocess
 
 TEST_TYPES = ('make_check', 'csuite')
 EVG_CFG_FILE = "test/evergreen.yml"
@@ -17,6 +18,7 @@ MAKE_CHECK_TEST_TMPLT = "test/evergreen/make_check_test_evg_task.template"
 CSUITE_TEST_TMPLT = "test/evergreen/csuite_test_evg_task.template"
 MAKE_CHECK_TEST_SEARCH_STR = "  # End of normal make check test tasks"
 CSUITE_TEST_SEARCH_STR = "  # End of csuite test tasks"
+WIREDTIGER_REPO ="git@github.com:wiredtiger/wiredtiger.git"
 
 # This list of sub directories will be skipped from checking
 # They are not expected to trigger any 'make check' testing.
@@ -68,6 +70,24 @@ def debug(msg):
 
     if verbose is True:
         print(msg)
+
+
+def run(cmd):
+    """ Run a shell command and return the output """
+
+    if type(cmd) == type('str'):
+        cmd = cmd.split()
+
+    try: 
+        output = subprocess.run(
+            args=cmd,
+            stderr=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+        ).stdout.strip().decode()
+    except Exception as e:
+        sys.exit("ERROR: %s" % e)
+
+    return output
 
 
 def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
@@ -242,7 +262,7 @@ def generate_evg_cfg_for_missing_tests(test_type, missing_tests):
     assert os.path.isfile(EVG_CFG_FILE), "'%s' does not exist" % EVG_CFG_FILE
 
     search_str = get_search_string(test_type)
-    debug("search_str: %s" % search_str)
+    debug("search_str: '%s'" % search_str)
 
     with open(EVG_CFG_FILE, 'r') as f:
         evg_cfg = f.read()
@@ -257,6 +277,13 @@ def generate_evg_cfg_for_missing_tests(test_type, missing_tests):
 
 def evg_cfg(action, test_type):
     """ The main entry function that calls different functions based on action type and test type """
+
+    # Make sure the program is run under a checkout of wiredtiger repository
+    if run('git config remote.origin.url') != WIREDTIGER_REPO:
+        sys.exit("ERROR: need to run this script inside a wiredtiger repo")
+
+    # Change directory to repo top level 
+    os.chdir(run('git rev-parse --show-toplevel'))
 
     if action == 'check':
         if test_type in TEST_TYPES:
