@@ -362,7 +362,7 @@ struct __wt_cursor {
 	 *
 	 * In the case of a statistics cursor, resetting the cursor refreshes
 	 * the statistics information returned. Resetting a session statistics
-	 * cursor sets all the session statistics values to zero.
+	 * cursor resets all the session statistics values to zero.
 	 *
 	 * @snippet ex_all.c Reset the cursor
 	 *

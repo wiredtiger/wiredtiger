@@ -77,7 +77,7 @@ The following example configures WiredTiger to maintain only relatively
 inexpensive statistics, and to clear statistics after they are gathered or
 logged:
 
-@snippet ex_all.c Statistics cursor session
+@snippet ex_all.c Statistics clear configuration
 
 The following example opens a statistics cursor on an open join cursor:
 
