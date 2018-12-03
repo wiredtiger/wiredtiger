@@ -223,7 +223,7 @@ void
 testutil_print_command_line(int argc, char * const *argv)
 {
 	int i;
-	
+
 	printf("Running test command: ");
 	for (i = 0; i < argc; i++)
 		printf("%s ", argv[i]);
