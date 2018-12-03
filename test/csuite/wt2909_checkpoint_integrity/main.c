@@ -79,6 +79,7 @@
 #define	MAX_OP_RANGE			1000
 #define	STDERR_FILE			"stderr.txt"
 #define	STDOUT_FILE			"stdout.txt"
+#define	TESTS_PER_OP_VALUE		3
 #define	VERBOSE_PRINT			10000
 
 static int check_results(TEST_OPTS *, uint64_t *);
@@ -366,6 +367,7 @@ static void
 run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 {
 	uint64_t cutoff, high, low, mid, nops, nresults;
+	int i;
 	bool got_failure, got_success;
 
 	if (opts->verbose)
@@ -377,7 +379,7 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 	low = 0;
 	high = MAX_OP_RANGE;
 	mid = (low + high) / 2;
-	while (low < mid - 10 || high > mid + 10) {
+	while (low < mid - 5 || high > mid + 5) {
 		run_check_subtest(opts, debugger, mid, close_test,
 		    &nresults);
 		if (nresults > cutoff)
@@ -397,15 +399,19 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 		printf("Retesting around %" PRIu64 " operations.\n",
 		    mid);
 
-	got_failure = got_success = false;
-	for (nops = mid - 10; nops < mid + 10; nops++) {
-		run_check_subtest(opts, debugger, nops,
-		    close_test, &nresults);
-		if (nresults > cutoff)
-			got_failure = true;
-		else
-			got_success = true;
-	}
+	got_failure = false;
+	got_success = false;
+	for (i = 0;
+	    i < TESTS_PER_OP_VALUE && (!got_failure || !got_success); i++)
+		for (nops = mid - 10; nops < mid + 10; nops++) {
+			run_check_subtest(opts, debugger, nops,
+			    close_test, &nresults);
+			if (nresults > cutoff)
+				got_failure = true;
+			else
+				got_success = true;
+		}
+
 	/*
 	 * Check that it really ran with a crossover point.
 	 */
