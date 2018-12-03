@@ -347,7 +347,7 @@ main(int argc, char *argv[])
 			verbose = true;
 			break;
 		default:
-			fprintf(stderr, "usage: %s -v\n", argv[0]);
+			fprintf(stderr, "usage: %s [-v]\n", argv[0]);
 			return (EXIT_FAILURE);
 		}
 	}
