@@ -676,7 +676,7 @@ log_configuration_common = [
     Config('archive', 'true', r'''
         automatically archive unneeded log files''',
         type='boolean'),
-    Config('os_cache_dirty_max', '0', r'''
+    Config('os_cache_dirty_pct', '0', r'''
         maximum dirty system buffer cache usage, as a percentage of the
         log's \c file_max.  If non-zero, schedule writes for dirty blocks
         belonging to the log in the system buffer cache after that percentage

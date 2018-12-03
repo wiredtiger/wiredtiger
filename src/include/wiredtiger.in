@@ -2290,7 +2290,7 @@ struct __wt_connection {
 	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive
 	 * unneeded log files., a boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_max, maximum dirty
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty
 	 * system buffer cache usage\, as a percentage of the log's \c file_max.
 	 * If non-zero\, schedule writes for dirty blocks belonging to the log
 	 * in the system buffer cache after that percentage of the log has been
@@ -2953,7 +2953,7 @@ struct __wt_connection {
  * logging subsystem., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the maximum size of log files., an
  * integer between 100KB and 2GB; default \c 100MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_max, maximum dirty system
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system
  * buffer cache usage\, as a percentage of the log's \c file_max.  If non-zero\,
  * schedule writes for dirty blocks belonging to the log in the system buffer
  * cache after that percentage of the log has been written into the buffer cache

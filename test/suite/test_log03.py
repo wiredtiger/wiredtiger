@@ -62,10 +62,10 @@ class test_log03(wttest.WiredTigerTestCase):
         cursor.close()
         return result
 
-    def with_log_sync(self, log_size, dirty_max):
+    def with_log_sync(self, log_size, dirty_pct):
         config = "cache_size=1G,create,statistics=(fast),log=(enabled"
         config += ",file_max=" + str(log_size) + "M"
-        config += ",os_cache_dirty_max=" + str(dirty_max)
+        config += ",os_cache_dirty_pct=" + str(dirty_pct)
         config += "),transaction_sync=(enabled=false,method=none)"
         #self.tty('CONFIG: ' + config)
 
@@ -91,9 +91,9 @@ class test_log03(wttest.WiredTigerTestCase):
         baseline = self.with_log_sync(12, 0)
         #self.tty('baseline: ' + str(baseline))
 
-        for dirty_max,increase in [50, 8], [33, 16], [25, 24], [20, 32]:
-            result = self.with_log_sync(12, dirty_max)
-            #self.tty('tried: ' + str(dirty_max) + ', got: ' + str(result))
+        for dirty_pct,increase in [50, 8], [33, 16], [25, 24], [20, 32]:
+            result = self.with_log_sync(12, dirty_pct)
+            #self.tty('tried: ' + str(dirty_pct) + ', got: ' + str(result))
             self.assertGreater(result, baseline + increase)
 
 if __name__ == '__main__':
