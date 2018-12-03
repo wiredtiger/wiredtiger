@@ -327,26 +327,21 @@ __backup_start(WT_SESSION_IMPL *session,
 	/* Add the hot backup and standard WiredTiger files to the list. */
 	if (log_only) {
 		/*
-		 * If this is not a duplicate cursor, using the log target
-		 * is an incremental backup. If this is a duplicate cursor
-		 * then using the log target on an existing backup cursor
-		 * means this cursor returns the current list of log files.
-		 * That list was set up when parsing the URI so we don't
-		 * have anything to do here..
+		 * If this is not a duplicate cursor, using the log target is an
+		 * incremental backup. If this is a duplicate cursor then using
+		 * the log target on an existing backup cursor means this cursor
+		 * returns the current list of log files. That list was set up
+		 * when parsing the URI so we don't have anything to do here.
+		 *
+		 * We also open an incremental backup source file so that we can
+		 * detect a crash with an incremental backup existing in the
+		 * source directory versus an improper destination.
 		 */
-		if (other == NULL) {
-			/*
-			 * We also open an incremental backup source file so
-			 * that we can detect a crash with an incremental backup
-			 * existing in the source directory versus an improper
-			 * destination.
-			 */
-			dest = WT_INCREMENTAL_BACKUP;
-			WT_ERR(__wt_fopen(session, WT_INCREMENTAL_SRC,
-			    WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
-			WT_ERR(__backup_list_append(
-			    session, cb, WT_INCREMENTAL_BACKUP));
-		}
+		dest = WT_INCREMENTAL_BACKUP;
+		WT_ERR(__wt_fopen(session, WT_INCREMENTAL_SRC,
+		    WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
+		WT_ERR(__backup_list_append(
+		    session, cb, WT_INCREMENTAL_BACKUP));
 	} else {
 		dest = WT_METADATA_BACKUP;
 		WT_ERR(__backup_list_append(session, cb, WT_METADATA_BACKUP));
