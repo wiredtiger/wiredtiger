@@ -459,12 +459,15 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	 *	Don't do compression adjustment for fixed-size column store, the
 	 * leaf page sizes don't change. (We could adjust internal pages but not
 	 * internal pages, but that seems an unlikely use case.)
+	 * 	XXX
+	 * 	Don't do compression adjustment of snappy-compressed blocks.
 	 */
 	btree->intlpage_compadjust = false;
 	btree->maxintlpage_precomp = btree->maxintlpage;
 	btree->leafpage_compadjust = false;
 	btree->maxleafpage_precomp = btree->maxleafpage;
 	if (btree->compressor != NULL && btree->compressor->compress != NULL &&
+	    !WT_STRING_MATCH("snappy", cval.str, cval.len) &&
 	    btree->type != BTREE_COL_FIX) {
 		/*
 		 * Don't do compression adjustment when on-disk page sizes are
