@@ -86,6 +86,7 @@ run "sh ./s_style"
 COMMANDS="
 2>&1 ./s_define > ${t_pfx}s_define
 2>&1 ./s_docs > ${t_pfx}s_docs
+2>&1 ./s_evergreen > ${t_pfx}s_evergreen
 2>&1 ./s_export > ${t_pfx}s_export
 2>&1 ./s_funcs > ${t_pfx}s_funcs
 2>&1 ./s_function > ${t_pfx}s_function
@@ -100,7 +101,6 @@ COMMANDS="
 2>&1 ./s_void > ${t_pfx}s_void
 2>&1 ./s_whitespace > ${t_pfx}s_whitespace
 2>&1 ./s_win > ${t_pfx}s_win
-2>&1 ./s_evergreen > ${t_pfx}s_evergreen
 2>&1 python function.py > ${t_pfx}py_function
 2>&1 python style.py > ${t_pfx}py_style"
 

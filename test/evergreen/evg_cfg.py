@@ -8,7 +8,15 @@ import os
 import sys
 import re
 import subprocess
-import docopt
+
+try:
+    import docopt
+except Exception as e:
+    modules = "docopt"
+    print("ERROR: %s" % e)
+    print("Use pip to install the required library:")
+    print("  pip install %s" % modules)
+    sys.exit(1)
 
 TEST_TYPES = ('make_check', 'csuite')
 EVG_CFG_FILE = "test/evergreen.yml"
@@ -23,6 +31,9 @@ WIREDTIGER_REPO = "git@github.com:wiredtiger/wiredtiger.git"
 # This list of sub directories will be skipped from checking
 # They are not expected to trigger any 'make check' testing.
 make_check_subdir_skips = [
+    "api/leveldb",
+    "bench/workgen",
+    "examples/java",
     "ext/collators/reverse",
     "ext/collators/revint",
     "ext/compressors/lz4",
@@ -34,15 +45,12 @@ make_check_subdir_skips = [
     "ext/encryptors/nop",
     "ext/encryptors/rotn",
     "ext/extractors/csv",
-    "ext/test/kvs_bdb",
     "ext/test/fail_fs",
-    "api/leveldb",
+    "ext/test/kvs_bdb",
     "lang/java",
-    "test/utility",
-    "examples/java",
     "test/csuite",  # csuite has its own set of Evergreen tasks, skip the checking here
     "test/syscall",
-    "bench/workgen",
+    "test/utility",
 ]
 
 PROGNAME = os.path.basename(sys.argv[0])
@@ -126,7 +134,7 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
             debug("Evergreen task name for csuite sub directory '%s' is: %s" % (d, evg_task_name))
 
         else:
-            sys.exit("Unknow test_type '%s'" % test_type)
+            sys.exit("Unsupported test_type '%s'" % test_type)
 
         # Check if the Evergreen task name exists in current Evergreen configuration
         if evg_task_name in str(evg_cfg):
@@ -192,7 +200,7 @@ def check_missing_tests(test_type):
     directories that do not require any test.
     """
 
-    # Retrive the directories that are applicable for testing based on test type
+    # Retrieve the directories that are applicable for testing based on test type
     if test_type == 'make_check':
         test_dirs = get_make_check_dirs()
     elif test_type == 'csuite':
@@ -293,7 +301,7 @@ def evg_cfg(action, test_type):
         # If any missing test is identified, prompt users to run the 'generate' action
         # which will auto-generate the Evergreen configuration for those missing tests.
         if missing_tests:
-            prompt = ("\n*** Some tests are missing in Evergreen configuraiton ***\nPlease\n" +
+            prompt = ("\n*** Some tests are missing in Evergreen configuration ***\nPlease\n" +
                       "\t1) Run '{prog} generate' to generate and apply the Evergreen changes.\n" +
                       "\t2) Run 'git diff' to see the detail of the Evergreen changes.\n" +
                       "\t3) Trigger Evergreen patch build to verify the changes before merging.\n"
