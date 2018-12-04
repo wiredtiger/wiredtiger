@@ -182,11 +182,20 @@ __wt_modify_apply_api(WT_SESSION_IMPL *session,
     WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+	size_t modified;
 	int i;
 
-	for (i = 0; i < nentries; ++i)
+	for (modified = 0, i = 0; i < nentries; ++i) {
+		modified += entries[i].size;
 		WT_RET(__modify_apply_one(session, cursor, entries[i].data.size,
 		    entries[i].offset, entries[i].size, entries[i].data.data));
+	}
+	WT_STAT_CONN_INCR(session, cursor_modify);
+	WT_STAT_DATA_INCR(session, cursor_modify);
+	WT_STAT_CONN_INCRV(session, cursor_modify_bytes, cursor->value.size);
+	WT_STAT_DATA_INCRV(session, cursor_modify_bytes, cursor->value.size);
+	WT_STAT_CONN_INCRV(session, cursor_modify_bytes_touch, modified);
+	WT_STAT_DATA_INCRV(session, cursor_modify_bytes_touch, modified);
 
 	return (0);
 }
