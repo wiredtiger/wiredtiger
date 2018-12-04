@@ -29,24 +29,16 @@
 import wiredtiger, wttest
 
 # test_stat08.py
-#    Session statistics for cache writes and reads.
+#    Session statistics for bytes read into the cache.
 class test_stat08(wttest.WiredTigerTestCase):
 
     nentries = 350000
     conn_config = 'cache_size=50MB,statistics=(all)'
-    # Make the values about 200 bytes. That's little more than 70MB of data for
-    # 350 thousand records, triggering writes to the disk by this session
-    # thread. Reading this data would also trigger disk reads by this session
-    # thread.
     entry_value = "abcde" * 40
     BYTES_READ = 4000
-    BYTES_WRITE = 4001
     READ_TIME = 4003
-    CACHE_TIME = 4006
     session_stats = { BYTES_READ : "session: bytes read into cache",           \
-        BYTES_WRITE : "session: bytes written from cache",                     \
-        READ_TIME : "session: page read from disk to cache time (usecs)",      \
-        CACHE_TIME : "session: time waiting for cache (usecs)" }
+        READ_TIME : "session: page read from disk to cache time (usecs)"}
 
     def check_stats(self, cur, k):
         exp_desc = self.session_stats[k]
@@ -55,7 +47,8 @@ class test_stat08(wttest.WiredTigerTestCase):
         [desc, pvalue, value] = cur.get_values()
         self.pr('  stat: \'%s\', \'%s\', \'%s\'' % (desc, pvalue, str(value)))
         self.assertEqual(desc, exp_desc )
-        self.assertTrue(value > 0)
+        if k is self.BYTES_READ or k is self.READ_TIME:
+            self.assertTrue(value > 0)
 
     def test_session_stats(self):
         self.session = self.conn.open_session()
@@ -73,7 +66,7 @@ class test_stat08(wttest.WiredTigerTestCase):
             i = i + 1
         cursor.reset()
 
-        # Now check the session statistics.
+        # Now check the session statistics for bytes read into the cache.
         stat_cur = self.session.open_cursor('statistics:session', None, None)
         for k in self.session_stats:
             self.check_stats(stat_cur, k)
@@ -83,14 +76,6 @@ class test_stat08(wttest.WiredTigerTestCase):
         while stat_cur.next() == 0:
             [desc, pvalue, value] = stat_cur.get_values()
             self.assertTrue(value == 0)
-
-        # Write 10000 more records to the disk.
-        stat_cur.reset()
-        for i in range(0, 10000):
-            cursor[i + self.nentries] = self.entry_value
-        self.session.checkpoint()
-
-        self.check_stats(stat_cur, self.BYTES_WRITE)
 
 if __name__ == '__main__':
     wttest.run()
