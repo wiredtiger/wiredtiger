@@ -16,7 +16,7 @@ except Exception as e:
     print("ERROR: %s" % e)
     print("Use pip to install the required library:")
     print("  pip install %s" % modules)
-    sys.exit(1)
+    sys.exit(0)
 
 TEST_TYPES = ('make_check', 'csuite')
 EVG_CFG_FILE = "test/evergreen.yml"
