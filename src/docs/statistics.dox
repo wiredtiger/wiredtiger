@@ -92,9 +92,7 @@ The following example opens a statistics cursor on an open WiredTiger session:
 
 @snippet ex_all.c Statistics cursor session
 
-As this statistics cursor opened on a session, the statistics gathered are
-specific to the session. A reset call on this cursor would set the statistics
-values to zero.
+A reset call on this cursor would set the session statistics values to zero.
 
 @section statistics_log Statistics logging
 
