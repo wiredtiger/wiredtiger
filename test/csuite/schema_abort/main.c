@@ -911,19 +911,6 @@ run_workload(uint32_t nth)
 	exit(EXIT_SUCCESS);
 }
 
-/*
- * Determines whether this is a timestamp build or not
- */
-static bool
-timestamp_build(void)
-{
-#ifdef HAVE_TIMESTAMPS
-	return (true);
-#else
-	return (false);
-#endif
-}
-
 extern int __wt_optind;
 extern char *__wt_optarg;
 
@@ -995,10 +982,6 @@ main(int argc, char *argv[])
 	char fname[64], kname[64];
 	const char *working_dir;
 	bool fatal, rand_th, rand_time, verify_only;
-
-	/* We have nothing to do if this is not a timestamp build */
-	if (!timestamp_build())
-		return (EXIT_SUCCESS);
 
 	(void)testutil_set_progname(argv);
 
@@ -1113,7 +1096,7 @@ main(int argc, char *argv[])
 		testutil_check(__wt_snprintf(
 		    statname, sizeof(statname), "%s/%s", home, ckpt_file));
 		while (stat(statname, &sb) != 0)
-			sleep(1);
+			testutil_sleep_wait(1, pid);
 		sleep(timeout);
 		sa.sa_handler = SIG_DFL;
 		testutil_checksys(sigaction(SIGCHLD, &sa, NULL));

@@ -44,6 +44,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"btree: row-store internal pages",
 	"btree: row-store leaf pages",
 	"cache: bytes currently in the cache",
+	"cache: bytes dirty in the cache cumulative",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
 	"cache: checkpoint blocked page eviction",
@@ -106,9 +107,6 @@ static const char * const __stats_dsrc_desc[] = {
 	"compression: compressed pages written",
 	"compression: page written failed to compress",
 	"compression: page written was too small to compress",
-	"compression: raw compression call failed, additional data available",
-	"compression: raw compression call failed, no additional data available",
-	"compression: raw compression call succeeded",
 	"cursor: cache cursors reuse count",
 	"cursor: calls to bulk loaded cursor insert",
 	"cursor: calls to create",
@@ -232,6 +230,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->btree_row_internal = 0;
 	stats->btree_row_leaf = 0;
 		/* not clearing cache_bytes_inuse */
+		/* not clearing cache_bytes_dirty_total */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
 	stats->cache_eviction_checkpoint = 0;
@@ -294,9 +293,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->compress_write = 0;
 	stats->compress_write_fail = 0;
 	stats->compress_write_too_small = 0;
-	stats->compress_raw_fail_temporary = 0;
-	stats->compress_raw_fail = 0;
-	stats->compress_raw_ok = 0;
 	stats->cursor_reopen = 0;
 	stats->cursor_insert_bulk = 0;
 	stats->cursor_create = 0;
@@ -405,6 +401,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->btree_row_internal += from->btree_row_internal;
 	to->btree_row_leaf += from->btree_row_leaf;
 	to->cache_bytes_inuse += from->cache_bytes_inuse;
+	to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
 	to->cache_bytes_read += from->cache_bytes_read;
 	to->cache_bytes_write += from->cache_bytes_write;
 	to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
@@ -483,9 +480,6 @@ __wt_stat_dsrc_aggregate_single(
 	to->compress_write += from->compress_write;
 	to->compress_write_fail += from->compress_write_fail;
 	to->compress_write_too_small += from->compress_write_too_small;
-	to->compress_raw_fail_temporary += from->compress_raw_fail_temporary;
-	to->compress_raw_fail += from->compress_raw_fail;
-	to->compress_raw_ok += from->compress_raw_ok;
 	to->cursor_reopen += from->cursor_reopen;
 	to->cursor_insert_bulk += from->cursor_insert_bulk;
 	to->cursor_create += from->cursor_create;
@@ -599,6 +593,8 @@ __wt_stat_dsrc_aggregate(
 	to->btree_row_internal += WT_STAT_READ(from, btree_row_internal);
 	to->btree_row_leaf += WT_STAT_READ(from, btree_row_leaf);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
+	to->cache_bytes_dirty_total +=
+	    WT_STAT_READ(from, cache_bytes_dirty_total);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
 	to->cache_eviction_checkpoint +=
@@ -704,10 +700,6 @@ __wt_stat_dsrc_aggregate(
 	to->compress_write_fail += WT_STAT_READ(from, compress_write_fail);
 	to->compress_write_too_small +=
 	    WT_STAT_READ(from, compress_write_too_small);
-	to->compress_raw_fail_temporary +=
-	    WT_STAT_READ(from, compress_raw_fail_temporary);
-	to->compress_raw_fail += WT_STAT_READ(from, compress_raw_fail);
-	to->compress_raw_ok += WT_STAT_READ(from, compress_raw_ok);
 	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
@@ -799,6 +791,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: bytes belonging to page images in the cache",
 	"cache: bytes belonging to the cache overflow table in the cache",
 	"cache: bytes currently in the cache",
+	"cache: bytes dirty in the cache cumulative",
 	"cache: bytes not belonging to page images in the cache",
 	"cache: bytes read into cache",
 	"cache: bytes written from cache",
@@ -1214,6 +1207,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_image */
 		/* not clearing cache_bytes_lookaside */
 		/* not clearing cache_bytes_inuse */
+		/* not clearing cache_bytes_dirty_total */
 		/* not clearing cache_bytes_other */
 	stats->cache_bytes_read = 0;
 	stats->cache_bytes_write = 0;
@@ -1612,6 +1606,8 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_lookaside +=
 	    WT_STAT_READ(from, cache_bytes_lookaside);
 	to->cache_bytes_inuse += WT_STAT_READ(from, cache_bytes_inuse);
+	to->cache_bytes_dirty_total +=
+	    WT_STAT_READ(from, cache_bytes_dirty_total);
 	to->cache_bytes_other += WT_STAT_READ(from, cache_bytes_other);
 	to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
 	to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
@@ -2183,4 +2179,40 @@ __wt_stat_join_aggregate(
 	to->membership_check += WT_STAT_READ(from, membership_check);
 	to->bloom_insert += WT_STAT_READ(from, bloom_insert);
 	to->iterated += WT_STAT_READ(from, iterated);
+}
+
+static const char * const __stats_session_desc[] = {
+	"session: bytes read into cache",
+	"session: bytes written from cache",
+	"session: dhandle lock wait time (usecs)",
+	"session: page read from disk to cache time (usecs)",
+	"session: page write from cache to disk time (usecs)",
+	"session: schema lock wait time (usecs)",
+	"session: time waiting for cache (usecs)",
+};
+
+int
+__wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
+{
+	WT_UNUSED(cst);
+	*p = __stats_session_desc[slot];
+	return (0);
+}
+
+void
+__wt_stat_session_init_single(WT_SESSION_STATS *stats)
+{
+	memset(stats, 0, sizeof(*stats));
+}
+
+void
+__wt_stat_session_clear_single(WT_SESSION_STATS *stats)
+{
+	stats->bytes_read = 0;
+	stats->bytes_write = 0;
+	stats->lock_dhandle_wait = 0;
+	stats->read_time = 0;
+	stats->write_time = 0;
+	stats->lock_schema_wait = 0;
+	stats->cache_time = 0;
 }

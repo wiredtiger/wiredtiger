@@ -80,7 +80,8 @@ struct __wt_cursor_backup {
 	size_t list_next;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_CURBACKUP_LOCKER	0x1u	/* Hot-backup started */
+#define	WT_CURBACKUP_DUP	0x1u	/* Duplicated backup cursor */
+#define	WT_CURBACKUP_LOCKER	0x2u	/* Hot-backup started */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t	flags;
 };
@@ -487,6 +488,7 @@ struct __wt_cursor_stat {
 		WT_DSRC_STATS dsrc_stats;
 		WT_CONNECTION_STATS conn_stats;
 		WT_JOIN_STATS_GROUP join_stats_group;
+		WT_SESSION_STATS session_stats;
 	} u;
 
 	const char **cfg;		/* Original cursor configuration */
