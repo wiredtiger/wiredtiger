@@ -20,7 +20,6 @@ except Exception as e:
 
 TEST_TYPES = ('make_check', 'csuite')
 EVG_CFG_FILE = "test/evergreen.yml"
-MAKE_SUBDIRS_FILE = "build_posix/Make.subdirs"
 CSUITE_TEST_DIR = "test/csuite"
 MAKE_CHECK_TEST_TMPLT = "test/evergreen/make_check_test_evg_task.template"
 CSUITE_TEST_TMPLT = "test/evergreen/csuite_test_evg_task.template"
@@ -28,29 +27,11 @@ MAKE_CHECK_TEST_SEARCH_STR = "  # End of normal make check test tasks"
 CSUITE_TEST_SEARCH_STR = "  # End of csuite test tasks"
 WIREDTIGER_REPO = "git@github.com:wiredtiger/wiredtiger.git"
 
-# This list of sub directories will be skipped from checking
+# This list of sub directories will be skipped from checking.
 # They are not expected to trigger any 'make check' testing.
 make_check_subdir_skips = [
-    "api/leveldb",
-    "bench/workgen",
-    "examples/java",
-    "ext/collators/reverse",
-    "ext/collators/revint",
-    "ext/compressors/lz4",
-    "ext/compressors/nop",
-    "ext/compressors/snappy",
-    "ext/compressors/zlib",
-    "ext/compressors/zstd",
-    "ext/datasources/helium",
-    "ext/encryptors/nop",
-    "ext/encryptors/rotn",
-    "ext/extractors/csv",
-    "ext/test/fail_fs",
-    "ext/test/kvs_bdb",
-    "lang/java",
+    "api/leveldb",  # no need to test
     "test/csuite",  # csuite has its own set of Evergreen tasks, skip the checking here
-    "test/syscall",
-    "test/utility",
 ]
 
 PROGNAME = os.path.basename(sys.argv[0])
@@ -151,24 +132,27 @@ def find_tests_missing_evg_cfg(test_type, dirs, evg_cfg_file):
 def get_make_check_dirs():
     """
     Figure out the 'make check' directories that are applicable for testing
-    Loop through the list of directories in 'Make.subdirs' file and skip a few known
-    directories that do not require any test.
+    Directories with Makefile.am containing 'TESTS =' are the ones require test.
+    Skip a few known directories that do not require test or covered separately.
     """
 
-    assert os.path.isfile(MAKE_SUBDIRS_FILE), "'%s' does not exist" % MAKE_SUBDIRS_FILE
-    subdirs = []
-    with open(MAKE_SUBDIRS_FILE, 'r') as f:
-        lines = f.readlines()
-        for line in lines:
-            # Retrieve directory info from the 1st column
-            subdirs.append(line.strip().split(" ")[0])
+    # Make sure we are under the repo top level directory
+    os.chdir(run('git rev-parse --show-toplevel'))
 
-        # Remove comment and blank lines
-        subdirs = [d for d in subdirs if d not in ('#', '.', '')]
-        debug("\nThe list of directories captured from 'Make.subdirs' file:\n %s" % subdirs)
+    # Search keyword in Makefile.am to identify directories that involve test configuration.
+    # Need to use subprocess 'shell=True' to get the expected shell command output.
+    cmd = "find . -name Makefile.am -exec grep -H -e '^TESTS =' {} \; | cut -d: -f1 | cut -c3-"
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, shell=True)
+    mkfiles_with_tests = p.stdout.readlines()
+
+    # Need some string manipulation work here against the subprocess output.
+    # Cast elements to string, and strip the ending from the string to get directory names.
+    ending = '/Makefile.am\n'
+    dirs_with_tests = [d.decode('utf-8')[:-len(ending)] for d in mkfiles_with_tests]
+    debug("dirs_with_tests: %s" % dirs_with_tests)
 
     # Remove directories in the skip list
-    make_check_dirs = [d for d in subdirs if d not in make_check_subdir_skips]
+    make_check_dirs = [d for d in dirs_with_tests if d not in make_check_subdir_skips]
     debug("\nThe list of 'make check' dirs that should be included in Evergreen configuration:\n %s"
           % make_check_dirs)
 
