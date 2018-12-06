@@ -132,8 +132,8 @@ __handle_search(
  *	Optionally output a verbose message on handle open.
  */
 static inline int
-__open_verbose(
-    WT_SESSION_IMPL *session, const char *name, int file_type, u_int flags)
+__open_verbose(WT_SESSION_IMPL *session,
+    const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -146,7 +146,6 @@ __open_verbose(
 	 * It's useful to track file opens when debugging platforms, take some
 	 * effort to output good tracking information.
 	 */
-
 	switch (file_type) {
 	case WT_FS_OPEN_FILE_TYPE_CHECKPOINT:
 		file_type_tag = "checkpoint";
@@ -162,9 +161,6 @@ __open_verbose(
 		break;
 	case WT_FS_OPEN_FILE_TYPE_REGULAR:
 		file_type_tag = "regular";
-		break;
-	default:
-		file_type_tag = "unknown open type";
 		break;
 	}
 
