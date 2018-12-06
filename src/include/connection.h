@@ -226,7 +226,6 @@ struct __wt_connection_impl {
 	uint32_t next_file_id;		/* Locked: file ID counter */
 	uint32_t open_file_count;	/* Atomic: open file handle count */
 	uint32_t open_cursor_count;	/* Atomic: open cursor handle count */
-	uint32_t cached_cursor_count;	/* Atomic: cached cursor handle count */
 
 	/*
 	 * WiredTiger allocates space for 50 simultaneous sessions (threads of
