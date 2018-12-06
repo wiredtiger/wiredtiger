@@ -146,6 +146,7 @@ __open_verbose(WT_SESSION_IMPL *session,
 	 * It's useful to track file opens when debugging platforms, take some
 	 * effort to output good tracking information.
 	 */
+	file_type_tag = "unknown open type";
 	switch (file_type) {
 	case WT_FS_OPEN_FILE_TYPE_CHECKPOINT:
 		file_type_tag = "checkpoint";
