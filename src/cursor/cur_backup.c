@@ -13,7 +13,7 @@ static int __backup_list_append(
     WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, const char *);
 static int __backup_list_uri_append(WT_SESSION_IMPL *, const char *, bool *);
 static int __backup_start(
-    WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, WT_CURSOR *, const char *[]);
+    WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, bool, const char *[]);
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
 static int __backup_uri(
     WT_SESSION_IMPL *, const char *[], bool, bool *, bool *);
@@ -172,7 +172,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri,
 	 */
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    WT_WITH_SCHEMA_LOCK(session,
-		ret = __backup_start(session, cb, other, cfg)));
+		ret = __backup_start(session, cb, other != NULL, cfg)));
 	WT_ERR(ret);
 
 	WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
@@ -218,18 +218,17 @@ err:	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
  */
 static int
 __backup_start(WT_SESSION_IMPL *session,
-    WT_CURSOR_BACKUP *cb, WT_CURSOR *other, const char *cfg[])
+    WT_CURSOR_BACKUP *cb, bool is_dup, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_FSTREAM *srcfs;
 	const char *dest;
-	bool exist, is_dup, log_only, target_list;
+	bool exist, log_only, target_list;
 
 	conn = S2C(session);
 	srcfs = NULL;
 	dest = NULL;
-	is_dup = other != NULL;
 
 	cb->next = 0;
 	cb->list = NULL;
@@ -245,7 +244,7 @@ __backup_start(WT_SESSION_IMPL *session,
 		WT_RET_MSG(
 		    session, EINVAL, "there is already a backup cursor open");
 
-	if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && other != NULL)
+	if (F_ISSET(session, WT_SESSION_BACKUP_DUP) && is_dup)
 		WT_RET_MSG(session, EINVAL,
 		    "there is already a duplicate backup cursor open");
 
