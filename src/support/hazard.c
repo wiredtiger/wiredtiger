@@ -322,7 +322,7 @@ hazard_get_reference(
  *	Return if there's a hazard pointer to the page in the system.
  */
 WT_HAZARD *
-__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *session_i)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_HAZARD *hp;
@@ -366,6 +366,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref)
 			if (hp->ref == ref) {
 				WT_STAT_CONN_INCRV(session,
 				    cache_hazard_walks, walk_cnt);
+				if (session_i != NULL)
+					*session_i = i;
 				goto done;
 			}
 		}
@@ -408,18 +410,21 @@ bool
 __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 {
 	WT_HAZARD *hp;
+	uint32_t session_i;
 	int i;
 
+	session_i = UINT32_MAX;
 	for (i = 0;;) {
-		if ((hp = __wt_hazard_check(session, ref)) == NULL)
+		if ((hp = __wt_hazard_check(session, ref, &session_i)) == NULL)
 			return (true);
 		if (!waitfor || ++i > 100)
 			break;
 		__wt_sleep(0, 10000);
 	}
 	__wt_errx(session,
-	    "hazard pointer reference to discarded object: (%p: %s, line %d)",
-	    (void *)hp->ref, hp->func, hp->line);
+	    "hazard pointer reference to discarded object: "
+	    "(%p: session[%" PRIu32 "] %s, line %d)",
+	    (void *)hp->ref, session_i, hp->func, hp->line);
 	return (false);
 }
 
