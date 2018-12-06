@@ -264,7 +264,7 @@ def evg_cfg(action, test_type):
     """
 
     # Make sure the program is run under a checkout of wiredtiger repository
-    if run('git config remote.origin.url') != WIREDTIGER_REPO:
+    if run('git config remote.origin.url') in WIREDTIGER_REPO:
         sys.exit("ERROR: need to run this script inside a wiredtiger repo")
 
     # Change directory to repo top level
