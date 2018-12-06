@@ -97,7 +97,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
 
   # Start of normal make check test tasks
 
@@ -719,7 +719,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt3338_partial_update 2>&1
+            ${test_env_vars|} $(pwd)/test_wt3338_partial_update 2>&1
 
   - name: csuite-wt4333-handle-locks-test
     depends_on:
@@ -733,7 +733,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} TESTUTIL_ENABLE_LONG_TESTS=1 $(pwd)/test_wt4333_handle_locks 2>&1
+            ${test_env_vars|} $(pwd)/test_wt4333_handle_locks 2>&1
 
   # End of csuite test tasks
 
