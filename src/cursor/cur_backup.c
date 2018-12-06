@@ -15,7 +15,8 @@ static int __backup_list_uri_append(WT_SESSION_IMPL *, const char *, bool *);
 static int __backup_start(
     WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, WT_CURSOR *, const char *[]);
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
-static int __backup_uri(WT_SESSION_IMPL *, const char *[], bool *, bool *);
+static int __backup_uri(
+    WT_SESSION_IMPL *, const char *[], bool, bool *, bool *);
 
 /*
  * __curbackup_next --
@@ -223,11 +224,12 @@ __backup_start(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_FSTREAM *srcfs;
 	const char *dest;
-	bool exist, log_only, target_list;
+	bool exist, is_dup, log_only, target_list;
 
 	conn = S2C(session);
 	srcfs = NULL;
 	dest = NULL;
+	is_dup = other != NULL;
 
 	cb->next = 0;
 	cb->list = NULL;
@@ -239,7 +241,7 @@ __backup_start(WT_SESSION_IMPL *session,
 	 * Single thread hot backups: we're holding the schema lock, so we
 	 * know we'll serialize with other attempts to start a hot backup.
 	 */
-	if (conn->hot_backup && other == NULL)
+	if (conn->hot_backup && !is_dup)
 		WT_RET_MSG(
 		    session, EINVAL, "there is already a backup cursor open");
 
@@ -247,7 +249,7 @@ __backup_start(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EINVAL,
 		    "there is already a duplicate backup cursor open");
 
-	if (other == NULL) {
+	if (!is_dup) {
 		/*
 		 * The hot backup copy is done outside of WiredTiger, which
 		 * means file blocks can't be freed and re-allocated until the
@@ -290,12 +292,13 @@ __backup_start(WT_SESSION_IMPL *session,
 	 * full backup, add all database objects and log files to the list.
 	 */
 	target_list = false;
-	WT_ERR(__backup_uri(session, cfg, &target_list, &log_only));
+	WT_ERR(__backup_uri(session,
+	    cfg, is_dup, &target_list, &log_only));
 	/*
 	 * For a duplicate cursor, all the work is done in backup_uri. The only
 	 * usage accepted is "target=("log:")" so error if not log only.
 	 */
-	if (other != NULL) {
+	if (is_dup) {
 		if (!log_only)
 			WT_ERR_MSG(session, EINVAL,
 			    "duplicate backup cursor must be for logs only.");
@@ -424,8 +427,8 @@ __backup_all(WT_SESSION_IMPL *session)
  *	Backup a list of objects.
  */
 static int
-__backup_uri(WT_SESSION_IMPL *session,
-    const char *cfg[], bool *foundp, bool *log_only)
+__backup_uri(WT_SESSION_IMPL *session, const char *cfg[],
+    bool is_dup, bool *foundp, bool *log_only)
 {
 	WT_CONFIG targetconf;
 	WT_CONFIG_ITEM cval, k, v;
@@ -466,9 +469,10 @@ __backup_uri(WT_SESSION_IMPL *session,
 		if (WT_PREFIX_MATCH(uri, "log:")) {
 			/*
 			 * Log archive cannot mix with incremental backup, don't
-			 * let that happen.
+			 * let that happen. If we're a duplicate cursor
+			 * archiving is already temporarily suspended.
 			 */
-			if (FLD_ISSET(
+			if (!is_dup && FLD_ISSET(
 			    S2C(session)->log_flags, WT_CONN_LOG_ARCHIVE))
 				WT_ERR_MSG(session, EINVAL,
 				    "incremental backup not possible when "
