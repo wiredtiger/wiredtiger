@@ -268,7 +268,7 @@ def evg_cfg(action, test_type):
     #   - 'git@github.com:wiredtiger/wiredtiger.git' (if run locally)
     #   - 'ssh://git@github.com/wiredtiger/wiredtiger.git' (if run through SSH)
     output = run('git config remote.origin.url')
-    if 'git@github.com' in output and 'wiredtiger/wiredtiger.git' in output:
+    if not 'git@github.com' in output or not 'wiredtiger/wiredtiger.git' in output:
         sys.exit("ERROR [%s]: need to run this script inside a wiredtiger repo" % prog)
 
     # Change directory to repo top level
