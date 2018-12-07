@@ -13,7 +13,7 @@ try:
     import docopt
 except Exception as e:
     modules = "docopt"
-    print("ERROR: %s" % e)
+    print("ERROR [%s]: %s" % (sys.argv[0], e))
     print("Use pip to install the required library:")
     print("  pip install %s" % modules)
     sys.exit(0)
@@ -34,7 +34,8 @@ make_check_subdir_skips = [
     "test/csuite",  # csuite has its own set of Evergreen tasks, skip the checking here
 ]
 
-PROGNAME = os.path.basename(sys.argv[0])
+prog=sys.argv[0]
+PROGNAME = os.path.basename(prog)
 DESCRIPTION = 'Evergreen configuration helper 0.1'
 USAGE = """
 Evergreen configuration helper.
@@ -69,7 +70,7 @@ def run(cmd):
     try:
         output = subprocess.check_output(cmd, stderr=subprocess.STDOUT).strip().decode()
     except Exception as e:
-        sys.exit("ERROR: %s" % e)
+        sys.exit("ERROR [%s]: %s" % (prog, e))
 
     return output
 
@@ -265,7 +266,7 @@ def evg_cfg(action, test_type):
 
     # Make sure the program is run under a checkout of wiredtiger repository
     if run('git config remote.origin.url') in WIREDTIGER_REPO:
-        sys.exit("ERROR: need to run this script inside a wiredtiger repo")
+        sys.exit("ERROR [%s]: need to run this script inside a wiredtiger repo" % prog)
 
     # Change directory to repo top level
     os.chdir(run('git rev-parse --show-toplevel'))
@@ -289,7 +290,7 @@ def evg_cfg(action, test_type):
                       "\t1) Run '{prog} generate' to generate and apply the Evergreen changes.\n" +
                       "\t2) Run 'git diff' to see the detail of the Evergreen changes.\n" +
                       "\t3) Trigger Evergreen patch build to verify the changes before merging.\n"
-                     ).format(prog=sys.argv[0])
+                     ).format(prog=prog)
             print(prompt)
             sys.exit(1)
 
