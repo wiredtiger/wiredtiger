@@ -890,34 +890,34 @@ static const char * const __stats_connection_desc[] = {
 	"connection: total fsync I/Os",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
-	"cursor: bulk loaded cursor insert calls",
-	"cursor: cache cursors reuse count",
 	"cursor: cached cursor count",
-	"cursor: close calls that result in cache",
-	"cursor: create calls",
+	"cursor: cursor bulk loaded cursor insert calls",
+	"cursor: cursor close calls that result in cache",
+	"cursor: cursor create calls",
+	"cursor: cursor insert calls",
+	"cursor: cursor insert key and value bytes",
+	"cursor: cursor modify calls",
+	"cursor: cursor modify key and value bytes affected",
+	"cursor: cursor modify value bytes modified",
+	"cursor: cursor next calls",
+	"cursor: cursor operation restarted",
+	"cursor: cursor prev calls",
+	"cursor: cursor remove calls",
+	"cursor: cursor remove key bytes removed",
+	"cursor: cursor reserve calls",
+	"cursor: cursor reset calls",
+	"cursor: cursor search calls",
+	"cursor: cursor search near calls",
 	"cursor: cursor sweep buckets",
 	"cursor: cursor sweep cursors closed",
 	"cursor: cursor sweep cursors examined",
 	"cursor: cursor sweeps",
-	"cursor: insert calls",
-	"cursor: insert key and value bytes",
-	"cursor: modify calls",
-	"cursor: modify key and value bytes affected",
-	"cursor: modify value bytes modified",
-	"cursor: next calls",
+	"cursor: cursor truncate calls",
+	"cursor: cursor update calls",
+	"cursor: cursor update key and value bytes",
+	"cursor: cursor update value size change",
+	"cursor: cursors reused from cache",
 	"cursor: open cursor count",
-	"cursor: operation restarted",
-	"cursor: prev calls",
-	"cursor: remove calls",
-	"cursor: remove key bytes removed",
-	"cursor: reserve calls",
-	"cursor: reset calls",
-	"cursor: search calls",
-	"cursor: search near calls",
-	"cursor: truncate calls",
-	"cursor: update calls",
-	"cursor: update key and value bytes",
-	"cursor: update value size change",
 	"data-handle: connection data handles currently active",
 	"data-handle: connection sweep candidate became referenced",
 	"data-handle: connection sweep dhandles closed",
@@ -1306,22 +1306,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->fsync_io = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
-	stats->cursor_insert_bulk = 0;
-	stats->cursor_reopen = 0;
 		/* not clearing cursor_cached_count */
+	stats->cursor_insert_bulk = 0;
 	stats->cursor_cache = 0;
 	stats->cursor_create = 0;
-	stats->cursor_sweep_buckets = 0;
-	stats->cursor_sweep_closed = 0;
-	stats->cursor_sweep_examined = 0;
-	stats->cursor_sweep = 0;
 	stats->cursor_insert = 0;
 	stats->cursor_insert_bytes = 0;
 	stats->cursor_modify = 0;
 	stats->cursor_modify_bytes = 0;
 	stats->cursor_modify_bytes_touch = 0;
 	stats->cursor_next = 0;
-		/* not clearing cursor_open_count */
 	stats->cursor_restart = 0;
 	stats->cursor_prev = 0;
 	stats->cursor_remove = 0;
@@ -1330,10 +1324,16 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_reset = 0;
 	stats->cursor_search = 0;
 	stats->cursor_search_near = 0;
+	stats->cursor_sweep_buckets = 0;
+	stats->cursor_sweep_closed = 0;
+	stats->cursor_sweep_examined = 0;
+	stats->cursor_sweep = 0;
 	stats->cursor_truncate = 0;
 	stats->cursor_update = 0;
 	stats->cursor_update_bytes = 0;
 	stats->cursor_update_bytes_changed = 0;
+	stats->cursor_reopen = 0;
+		/* not clearing cursor_open_count */
 		/* not clearing dh_conn_handle_count */
 	stats->dh_sweep_ref = 0;
 	stats->dh_sweep_close = 0;
@@ -1768,16 +1768,10 @@ __wt_stat_connection_aggregate(
 	to->fsync_io += WT_STAT_READ(from, fsync_io);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
-	to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
-	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
+	to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
 	to->cursor_cache += WT_STAT_READ(from, cursor_cache);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
-	to->cursor_sweep_buckets += WT_STAT_READ(from, cursor_sweep_buckets);
-	to->cursor_sweep_closed += WT_STAT_READ(from, cursor_sweep_closed);
-	to->cursor_sweep_examined +=
-	    WT_STAT_READ(from, cursor_sweep_examined);
-	to->cursor_sweep += WT_STAT_READ(from, cursor_sweep);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
 	to->cursor_insert_bytes += WT_STAT_READ(from, cursor_insert_bytes);
 	to->cursor_modify += WT_STAT_READ(from, cursor_modify);
@@ -1785,7 +1779,6 @@ __wt_stat_connection_aggregate(
 	to->cursor_modify_bytes_touch +=
 	    WT_STAT_READ(from, cursor_modify_bytes_touch);
 	to->cursor_next += WT_STAT_READ(from, cursor_next);
-	to->cursor_open_count += WT_STAT_READ(from, cursor_open_count);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->cursor_prev += WT_STAT_READ(from, cursor_prev);
 	to->cursor_remove += WT_STAT_READ(from, cursor_remove);
@@ -1794,11 +1787,18 @@ __wt_stat_connection_aggregate(
 	to->cursor_reset += WT_STAT_READ(from, cursor_reset);
 	to->cursor_search += WT_STAT_READ(from, cursor_search);
 	to->cursor_search_near += WT_STAT_READ(from, cursor_search_near);
+	to->cursor_sweep_buckets += WT_STAT_READ(from, cursor_sweep_buckets);
+	to->cursor_sweep_closed += WT_STAT_READ(from, cursor_sweep_closed);
+	to->cursor_sweep_examined +=
+	    WT_STAT_READ(from, cursor_sweep_examined);
+	to->cursor_sweep += WT_STAT_READ(from, cursor_sweep);
 	to->cursor_truncate += WT_STAT_READ(from, cursor_truncate);
 	to->cursor_update += WT_STAT_READ(from, cursor_update);
 	to->cursor_update_bytes += WT_STAT_READ(from, cursor_update_bytes);
 	to->cursor_update_bytes_changed +=
 	    WT_STAT_READ(from, cursor_update_bytes_changed);
+	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
+	to->cursor_open_count += WT_STAT_READ(from, cursor_open_count);
 	to->dh_conn_handle_count += WT_STAT_READ(from, dh_conn_handle_count);
 	to->dh_sweep_ref += WT_STAT_READ(from, dh_sweep_ref);
 	to->dh_sweep_close += WT_STAT_READ(from, dh_sweep_close);

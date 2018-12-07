@@ -5233,62 +5233,62 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_READ_IO				1140
 /*! connection: total write I/Os */
 #define	WT_STAT_CONN_WRITE_IO				1141
-/*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1142
-/*! cursor: cache cursors reuse count */
-#define	WT_STAT_CONN_CURSOR_REOPEN			1143
 /*! cursor: cached cursor count */
-#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1144
-/*! cursor: close calls that result in cache */
-#define	WT_STAT_CONN_CURSOR_CACHE			1145
-/*! cursor: create calls */
-#define	WT_STAT_CONN_CURSOR_CREATE			1146
+#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1142
+/*! cursor: cursor bulk loaded cursor insert calls */
+#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1143
+/*! cursor: cursor close calls that result in cache */
+#define	WT_STAT_CONN_CURSOR_CACHE			1144
+/*! cursor: cursor create calls */
+#define	WT_STAT_CONN_CURSOR_CREATE			1145
+/*! cursor: cursor insert calls */
+#define	WT_STAT_CONN_CURSOR_INSERT			1146
+/*! cursor: cursor insert key and value bytes */
+#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1147
+/*! cursor: cursor modify calls */
+#define	WT_STAT_CONN_CURSOR_MODIFY			1148
+/*! cursor: cursor modify key and value bytes affected */
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1149
+/*! cursor: cursor modify value bytes modified */
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1150
+/*! cursor: cursor next calls */
+#define	WT_STAT_CONN_CURSOR_NEXT			1151
+/*! cursor: cursor operation restarted */
+#define	WT_STAT_CONN_CURSOR_RESTART			1152
+/*! cursor: cursor prev calls */
+#define	WT_STAT_CONN_CURSOR_PREV			1153
+/*! cursor: cursor remove calls */
+#define	WT_STAT_CONN_CURSOR_REMOVE			1154
+/*! cursor: cursor remove key bytes removed */
+#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1155
+/*! cursor: cursor reserve calls */
+#define	WT_STAT_CONN_CURSOR_RESERVE			1156
+/*! cursor: cursor reset calls */
+#define	WT_STAT_CONN_CURSOR_RESET			1157
+/*! cursor: cursor search calls */
+#define	WT_STAT_CONN_CURSOR_SEARCH			1158
+/*! cursor: cursor search near calls */
+#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR			1159
 /*! cursor: cursor sweep buckets */
-#define	WT_STAT_CONN_CURSOR_SWEEP_BUCKETS		1147
+#define	WT_STAT_CONN_CURSOR_SWEEP_BUCKETS		1160
 /*! cursor: cursor sweep cursors closed */
-#define	WT_STAT_CONN_CURSOR_SWEEP_CLOSED		1148
+#define	WT_STAT_CONN_CURSOR_SWEEP_CLOSED		1161
 /*! cursor: cursor sweep cursors examined */
-#define	WT_STAT_CONN_CURSOR_SWEEP_EXAMINED		1149
+#define	WT_STAT_CONN_CURSOR_SWEEP_EXAMINED		1162
 /*! cursor: cursor sweeps */
-#define	WT_STAT_CONN_CURSOR_SWEEP			1150
-/*! cursor: insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT			1151
-/*! cursor: insert key and value bytes */
-#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1152
-/*! cursor: modify calls */
-#define	WT_STAT_CONN_CURSOR_MODIFY			1153
-/*! cursor: modify key and value bytes affected */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1154
-/*! cursor: modify value bytes modified */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1155
-/*! cursor: next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT			1156
+#define	WT_STAT_CONN_CURSOR_SWEEP			1163
+/*! cursor: cursor truncate calls */
+#define	WT_STAT_CONN_CURSOR_TRUNCATE			1164
+/*! cursor: cursor update calls */
+#define	WT_STAT_CONN_CURSOR_UPDATE			1165
+/*! cursor: cursor update key and value bytes */
+#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES		1166
+/*! cursor: cursor update value size change */
+#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED	1167
+/*! cursor: cursors reused from cache */
+#define	WT_STAT_CONN_CURSOR_REOPEN			1168
 /*! cursor: open cursor count */
-#define	WT_STAT_CONN_CURSOR_OPEN_COUNT			1157
-/*! cursor: operation restarted */
-#define	WT_STAT_CONN_CURSOR_RESTART			1158
-/*! cursor: prev calls */
-#define	WT_STAT_CONN_CURSOR_PREV			1159
-/*! cursor: remove calls */
-#define	WT_STAT_CONN_CURSOR_REMOVE			1160
-/*! cursor: remove key bytes removed */
-#define	WT_STAT_CONN_CURSOR_REMOVE_BYTES		1161
-/*! cursor: reserve calls */
-#define	WT_STAT_CONN_CURSOR_RESERVE			1162
-/*! cursor: reset calls */
-#define	WT_STAT_CONN_CURSOR_RESET			1163
-/*! cursor: search calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH			1164
-/*! cursor: search near calls */
-#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR			1165
-/*! cursor: truncate calls */
-#define	WT_STAT_CONN_CURSOR_TRUNCATE			1166
-/*! cursor: update calls */
-#define	WT_STAT_CONN_CURSOR_UPDATE			1167
-/*! cursor: update key and value bytes */
-#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES		1168
-/*! cursor: update value size change */
-#define	WT_STAT_CONN_CURSOR_UPDATE_BYTES_CHANGED	1169
+#define	WT_STAT_CONN_CURSOR_OPEN_COUNT			1169
 /*! data-handle: connection data handles currently active */
 #define	WT_STAT_CONN_DH_CONN_HANDLE_COUNT		1170
 /*! data-handle: connection sweep candidate became referenced */
