@@ -25,7 +25,6 @@ MAKE_CHECK_TEST_TMPLT = "test/evergreen/make_check_test_evg_task.template"
 CSUITE_TEST_TMPLT = "test/evergreen/csuite_test_evg_task.template"
 MAKE_CHECK_TEST_SEARCH_STR = "  # End of normal make check test tasks"
 CSUITE_TEST_SEARCH_STR = "  # End of csuite test tasks"
-WIREDTIGER_REPO = "git@github.com:wiredtiger/wiredtiger.git"
 
 # This list of sub directories will be skipped from checking.
 # They are not expected to trigger any 'make check' testing.
@@ -265,7 +264,11 @@ def evg_cfg(action, test_type):
     """
 
     # Make sure the program is run under a checkout of wiredtiger repository
-    if run('git config remote.origin.url') in WIREDTIGER_REPO:
+    # We could get different string outputs when running 'git config remote.origin.url':
+    #   - 'git@github.com:wiredtiger/wiredtiger.git' (if run locally)
+    #   - 'ssh://git@github.com/wiredtiger/wiredtiger.git' (if run through SSH)
+    output = run('git config remote.origin.url')
+    if 'git@github.com' in output and 'wiredtiger/wiredtiger.git' in output:
         sys.exit("ERROR [%s]: need to run this script inside a wiredtiger repo" % prog)
 
     # Change directory to repo top level
