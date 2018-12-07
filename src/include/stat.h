@@ -84,6 +84,9 @@
 #define	WT_STATS_FIELD_TO_OFFSET(stats, fld)				\
 	(int)(&(stats)[0]->fld - (int64_t *)(stats)[0])
 
+#define	WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld)			\
+	(int)(&(stats)->fld - (int64_t *)(stats))
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_STAT_CLEAR		0x01u
 #define	WT_STAT_JSON		0x02u
@@ -257,6 +260,12 @@ __wt_stats_clear(void *stats_arg, int slot)
 		WT_STAT_SET(						\
 		    session, (session)->dhandle->stats, fld, value);	\
 } while (0)
+
+/*
+ * Update per session statistics.
+ */
+#define	WT_STAT_SESSION_INCRV(session, fld, value)			\
+       WT_STAT_INCRV_BASE(session, &session->stats, fld, value)
 
 /*
  * Construct histogram increment functions to put the passed value into the
@@ -455,8 +464,8 @@ struct __wt_connection_stats {
 	int64_t fsync_io;
 	int64_t read_io;
 	int64_t write_io;
-	int64_t cursors_cached;
 	int64_t cursor_reopen;
+	int64_t cursor_cached_count;
 	int64_t cursor_insert_bulk;
 	int64_t cursor_create;
 	int64_t cursor_insert;
@@ -481,6 +490,7 @@ struct __wt_connection_stats {
 	int64_t cursor_sweep_closed;
 	int64_t cursor_sweep_examined;
 	int64_t cursor_sweep;
+	int64_t cursor_open_count;
 	int64_t cursor_restart;
 	int64_t dh_conn_handle_count;
 	int64_t dh_sweep_ref;
@@ -593,7 +603,6 @@ struct __wt_connection_stats {
 	int64_t rec_page_delete;
 	int64_t rec_split_stashed_bytes;
 	int64_t rec_split_stashed_objects;
-	int64_t session_cursor_open;
 	int64_t session_open;
 	int64_t session_query_ts;
 	int64_t session_table_alter_fail;
@@ -819,6 +828,7 @@ struct __wt_dsrc_stats {
 	int64_t cursor_update_bytes;
 	int64_t cursor_update_bytes_changed;
 	int64_t cursor_cache;
+	int64_t cursor_open_count;
 	int64_t cursor_restart;
 	int64_t rec_dictionary;
 	int64_t rec_page_delete_fast;
@@ -834,9 +844,7 @@ struct __wt_dsrc_stats {
 	int64_t rec_pages;
 	int64_t rec_pages_eviction;
 	int64_t rec_page_delete;
-	int64_t session_cursors_cached;
 	int64_t session_compact;
-	int64_t session_cursor_open;
 	int64_t txn_update_conflict;
 };
 

@@ -128,6 +128,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"cursor: calls to update key and value bytes",
 	"cursor: calls to update value size change",
 	"cursor: close calls that result in cache",
+	"cursor: open cursor count",
 	"cursor: operation restarted",
 	"reconciliation: dictionary matches",
 	"reconciliation: fast-path pages deleted",
@@ -143,9 +144,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"reconciliation: page reconciliation calls",
 	"reconciliation: page reconciliation calls for eviction",
 	"reconciliation: pages deleted",
-	"session: cached cursor count",
 	"session: object compaction",
-	"session: open cursor count",
 	"transaction: update conflicts",
 };
 
@@ -314,6 +313,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->cursor_update_bytes = 0;
 	stats->cursor_update_bytes_changed = 0;
 	stats->cursor_cache = 0;
+		/* not clearing cursor_open_count */
 	stats->cursor_restart = 0;
 	stats->rec_dictionary = 0;
 	stats->rec_page_delete_fast = 0;
@@ -329,9 +329,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->rec_pages = 0;
 	stats->rec_pages_eviction = 0;
 	stats->rec_page_delete = 0;
-		/* not clearing session_cursors_cached */
 	stats->session_compact = 0;
-		/* not clearing session_cursor_open */
 	stats->txn_update_conflict = 0;
 }
 
@@ -501,6 +499,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->cursor_update_bytes += from->cursor_update_bytes;
 	to->cursor_update_bytes_changed += from->cursor_update_bytes_changed;
 	to->cursor_cache += from->cursor_cache;
+	to->cursor_open_count += from->cursor_open_count;
 	to->cursor_restart += from->cursor_restart;
 	to->rec_dictionary += from->rec_dictionary;
 	to->rec_page_delete_fast += from->rec_page_delete_fast;
@@ -517,9 +516,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->rec_pages += from->rec_pages;
 	to->rec_pages_eviction += from->rec_pages_eviction;
 	to->rec_page_delete += from->rec_page_delete;
-	to->session_cursors_cached += from->session_cursors_cached;
 	to->session_compact += from->session_compact;
-	to->session_cursor_open += from->session_cursor_open;
 	to->txn_update_conflict += from->txn_update_conflict;
 }
 
@@ -723,6 +720,7 @@ __wt_stat_dsrc_aggregate(
 	to->cursor_update_bytes_changed +=
 	    WT_STAT_READ(from, cursor_update_bytes_changed);
 	to->cursor_cache += WT_STAT_READ(from, cursor_cache);
+	to->cursor_open_count += WT_STAT_READ(from, cursor_open_count);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->rec_dictionary += WT_STAT_READ(from, rec_dictionary);
 	to->rec_page_delete_fast += WT_STAT_READ(from, rec_page_delete_fast);
@@ -745,10 +743,7 @@ __wt_stat_dsrc_aggregate(
 	to->rec_pages += WT_STAT_READ(from, rec_pages);
 	to->rec_pages_eviction += WT_STAT_READ(from, rec_pages_eviction);
 	to->rec_page_delete += WT_STAT_READ(from, rec_page_delete);
-	to->session_cursors_cached +=
-	    WT_STAT_READ(from, session_cursors_cached);
 	to->session_compact += WT_STAT_READ(from, session_compact);
-	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 
@@ -895,8 +890,8 @@ static const char * const __stats_connection_desc[] = {
 	"connection: total fsync I/Os",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
-	"cursor: cache current count",
 	"cursor: cache cursors reuse count",
+	"cursor: cached cursor count",
 	"cursor: calls to bulk loaded cursor insert",
 	"cursor: calls to create",
 	"cursor: calls to insert",
@@ -921,6 +916,7 @@ static const char * const __stats_connection_desc[] = {
 	"cursor: cursor sweep cursors closed",
 	"cursor: cursor sweep cursors examined",
 	"cursor: cursor sweeps",
+	"cursor: open cursor count",
 	"cursor: operation restarted",
 	"data-handle: connection data handles currently active",
 	"data-handle: connection sweep candidate became referenced",
@@ -1033,7 +1029,6 @@ static const char * const __stats_connection_desc[] = {
 	"reconciliation: pages deleted",
 	"reconciliation: split bytes currently awaiting free",
 	"reconciliation: split objects currently awaiting free",
-	"session: open cursor count",
 	"session: open session count",
 	"session: session query timestamp calls",
 	"session: table alter failed calls",
@@ -1311,8 +1306,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->fsync_io = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
-		/* not clearing cursors_cached */
 	stats->cursor_reopen = 0;
+		/* not clearing cursor_cached_count */
 	stats->cursor_insert_bulk = 0;
 	stats->cursor_create = 0;
 	stats->cursor_insert = 0;
@@ -1337,6 +1332,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_sweep_closed = 0;
 	stats->cursor_sweep_examined = 0;
 	stats->cursor_sweep = 0;
+		/* not clearing cursor_open_count */
 	stats->cursor_restart = 0;
 		/* not clearing dh_conn_handle_count */
 	stats->dh_sweep_ref = 0;
@@ -1449,7 +1445,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->rec_page_delete = 0;
 		/* not clearing rec_split_stashed_bytes */
 		/* not clearing rec_split_stashed_objects */
-		/* not clearing session_cursor_open */
 		/* not clearing session_open */
 	stats->session_query_ts = 0;
 		/* not clearing session_table_alter_fail */
@@ -1773,8 +1768,8 @@ __wt_stat_connection_aggregate(
 	to->fsync_io += WT_STAT_READ(from, fsync_io);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
-	to->cursors_cached += WT_STAT_READ(from, cursors_cached);
 	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
+	to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
 	to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
 	to->cursor_create += WT_STAT_READ(from, cursor_create);
 	to->cursor_insert += WT_STAT_READ(from, cursor_insert);
@@ -1802,6 +1797,7 @@ __wt_stat_connection_aggregate(
 	to->cursor_sweep_examined +=
 	    WT_STAT_READ(from, cursor_sweep_examined);
 	to->cursor_sweep += WT_STAT_READ(from, cursor_sweep);
+	to->cursor_open_count += WT_STAT_READ(from, cursor_open_count);
 	to->cursor_restart += WT_STAT_READ(from, cursor_restart);
 	to->dh_conn_handle_count += WT_STAT_READ(from, dh_conn_handle_count);
 	to->dh_sweep_ref += WT_STAT_READ(from, dh_sweep_ref);
@@ -1973,7 +1969,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, rec_split_stashed_bytes);
 	to->rec_split_stashed_objects +=
 	    WT_STAT_READ(from, rec_split_stashed_objects);
-	to->session_cursor_open += WT_STAT_READ(from, session_cursor_open);
 	to->session_open += WT_STAT_READ(from, session_open);
 	to->session_query_ts += WT_STAT_READ(from, session_query_ts);
 	to->session_table_alter_fail +=
