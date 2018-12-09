@@ -703,10 +703,14 @@ restart:
 
 		WT_RET(__wt_vunpack_uint(&p,
 		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start));
+		WT_ASSERT(NULL,
+		    unpack->start == WT_TS_STABLE ||
+		    unpack->start == WT_TS_FIXME);
 		WT_RET(__wt_vunpack_uint(&p,
 		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop));
-		WT_ASSERT(NULL, unpack->start == 1 || unpack->start == 37);
-		WT_ASSERT(NULL, unpack->stop == 1 || unpack->stop == 37);
+		WT_ASSERT(NULL,
+		    unpack->stop == WT_TS_STABLE ||
+		    unpack->stop == WT_TS_FIXME);
 		break;
 	}
 
