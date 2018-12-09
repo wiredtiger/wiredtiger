@@ -265,7 +265,7 @@ __wt_stats_clear(void *stats_arg, int slot)
  * Update per session statistics.
  */
 #define	WT_STAT_SESSION_INCRV(session, fld, value)			\
-       WT_STAT_INCRV_BASE(session, &session->stats, fld, value)
+       WT_STAT_INCRV_BASE(session, &(session)->stats, fld, value)
 
 /*
  * Construct histogram increment functions to put the passed value into the
