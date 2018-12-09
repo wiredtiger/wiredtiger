@@ -717,7 +717,7 @@ restart:
 	if (unpack->raw == WT_CELL_VALUE_SHORT) {
 		unpack->data = p;
 		unpack->size = cell->__chunk[0] >> WT_CELL_SHORT_SHIFT;
-		unpack->__len = WT_PTRDIFF(p, cell) + unpack->size;
+		unpack->__len = WT_PTRDIFF32(p, cell) + unpack->size;
 		goto done;
 	}
 
