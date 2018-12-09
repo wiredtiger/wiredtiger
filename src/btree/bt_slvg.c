@@ -565,8 +565,8 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		 * the page.
 		 */
 		stop_recno = dsk->recno;
-		WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-			__wt_cell_unpack(cell, unpack);
+		WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
+			__wt_cell_unpack_dsk(dsk, cell, unpack);
 			stop_recno += __wt_cell_rle(unpack);
 		}
 
@@ -673,8 +673,8 @@ __slvg_trk_leaf_ovfl(
 	 * allocated array.
 	 */
 	ovfl_cnt = 0;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
+	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
+		__wt_cell_unpack_dsk(dsk, cell, unpack);
 		if (unpack->ovfl)
 			++ovfl_cnt;
 	}
@@ -686,8 +686,8 @@ __slvg_trk_leaf_ovfl(
 	trk->trk_ovfl_cnt = ovfl_cnt;
 
 	ovfl_cnt = 0;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
+	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
+		__wt_cell_unpack_dsk(dsk, cell, unpack);
 		if (unpack->ovfl) {
 			WT_RET(__wt_memdup(session, unpack->data,
 			    unpack->size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
@@ -1360,7 +1360,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
 
 	WT_COL_FOREACH(page, cip, i) {
 		cell = WT_COL_PTR(page, cip);
-		__wt_cell_unpack(cell, &unpack);
+		__wt_cell_unpack(page, cell, &unpack);
 		recno += __wt_cell_rle(&unpack);
 
 		/*
@@ -2083,7 +2083,7 @@ __slvg_row_ovfl(WT_SESSION_IMPL *session,
 		(void)__wt_row_leaf_key_info(
 		    page, copy, NULL, &cell, NULL, NULL);
 		if (cell != NULL) {
-			__wt_cell_unpack(cell, &unpack);
+			__wt_cell_unpack(page, cell, &unpack);
 			WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
 		}
 		__wt_row_leaf_value_cell(page, rip, NULL, &unpack);

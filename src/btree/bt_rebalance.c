@@ -213,8 +213,8 @@ __rebalance_col_walk(
 	 * location cookie pairs.  Keys are on-page/overflow items and location
 	 * cookies are WT_CELL_ADDR_XXX items.
 	 */
-	WT_CELL_FOREACH(btree, dsk, cell, &unpack, i) {
-		__wt_cell_unpack(cell, &unpack);
+	WT_CELL_FOREACH_DSK(btree, dsk, cell, &unpack, i) {
+		__wt_cell_unpack_dsk(dsk, cell, &unpack);
 		switch (unpack.type) {
 		case WT_CELL_ADDR_INT:
 			/* An internal page: read it and recursively walk it. */
@@ -304,8 +304,8 @@ __rebalance_row_walk(
 	 * cookies are WT_CELL_ADDR_XXX items.
 	 */
 	first_cell = true;
-	WT_CELL_FOREACH(btree, dsk, cell, &unpack, i) {
-		__wt_cell_unpack(cell, &unpack);
+	WT_CELL_FOREACH_DSK(btree, dsk, cell, &unpack, i) {
+		__wt_cell_unpack_dsk(dsk, cell, &unpack);
 		switch (unpack.type) {
 		case WT_CELL_KEY:
 			key = unpack;

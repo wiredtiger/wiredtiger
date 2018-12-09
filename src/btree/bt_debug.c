@@ -530,8 +530,8 @@ __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 	btree = S2BT(ds->session);
 	unpack = &_unpack;
 
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
+	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
+		__wt_cell_unpack_dsk(dsk, cell, unpack);
 		WT_RET(__debug_cell(ds, dsk, unpack));
 	}
 	return (0);
@@ -1001,7 +1001,7 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 			unpack = NULL;
 			rle = 1;
 		} else {
-			__wt_cell_unpack(cell, unpack);
+			__wt_cell_unpack(page, cell, unpack);
 			rle = __wt_cell_rle(unpack);
 		}
 		WT_RET(__wt_snprintf(
@@ -1209,7 +1209,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		else
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
-		if (upd->timestamp != 0) {
+		if (upd->timestamp != WT_TS_NONE) {
 			__wt_timestamp_to_hex_string(
 			    hex_timestamp, upd->timestamp);
 			WT_RET(ds->f(ds, ", stamp %s", hex_timestamp));
@@ -1275,6 +1275,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	char hex_timestamp[WT_TS_HEX_SIZE];
 	const char *type;
 
 	session = ds->session;
@@ -1311,6 +1312,15 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 			break;
 		}
 		break;
+	}
+
+	if (unpack->start != WT_TS_NONE) {
+		__wt_timestamp_to_hex_string(hex_timestamp, unpack->start);
+		WT_RET(ds->f(ds, ", ts %s-", hex_timestamp));
+	}
+	if (unpack->stop != WT_TS_NONE) {
+		__wt_timestamp_to_hex_string(hex_timestamp, unpack->stop);
+		WT_RET(ds->f(ds, "%s", hex_timestamp));
 	}
 
 	/* Dump addresses. */

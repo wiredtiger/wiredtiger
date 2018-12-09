@@ -221,6 +221,19 @@ pthread_adaptive|pthreads_adaptive)
 esac
 AC_MSG_RESULT($with_spinlock)
 
+AH_TEMPLATE(HAVE_PAGE_TIMESTAMP_FORMAT,
+    [Define to 1 to enable writing timestamp-format pages.])
+AC_MSG_CHECKING(if --enable-page-timestamp-format option specified)
+AC_ARG_ENABLE(page-timestamp-format,
+	[AS_HELP_STRING([--enable-page-timestamp-format],
+	    [Configure for timestamp-format pages.])], r=$enableval, r=no)
+case "$r" in
+no)	wt_cv_enable_page_timestamp_format=no;;
+*)	AC_DEFINE(HAVE_PAGE_TIMESTAMP_FORMAT)
+	wt_cv_enable_page_timestamp_format=yes;;
+esac
+AC_MSG_RESULT($wt_cv_enable_page_timestamp_format)
+
 AC_MSG_CHECKING(if --enable-strict option specified)
 AC_ARG_ENABLE(strict,
 	[AS_HELP_STRING([--enable-strict],

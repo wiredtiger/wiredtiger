@@ -416,7 +416,7 @@ recno_chk:	if (recno != vs->record_total + 1)
 			if ((cell = WT_COL_PTR(page, cip)) == NULL)
 				++recno;
 			else {
-				__wt_cell_unpack(cell, unpack);
+				__wt_cell_unpack(page, cell, unpack);
 				recno += __wt_cell_rle(unpack);
 			}
 		vs->record_total += recno;
@@ -436,7 +436,7 @@ recno_chk:	if (recno != vs->record_total + 1)
 
 	/* If it's not the root page, unpack the parent cell. */
 	if (!__wt_ref_is_root(ref)) {
-		__wt_cell_unpack(ref->addr, unpack);
+		__wt_cell_unpack(ref->home, ref->addr, unpack);
 
 		/* Compare the parent cell against the page type. */
 		switch (page->type) {
@@ -533,7 +533,8 @@ celltype_err:			WT_RET_MSG(session, WT_ERROR,
 			--vs->depth;
 			WT_RET(ret);
 
-			__wt_cell_unpack(child_ref->addr, unpack);
+			__wt_cell_unpack(
+			    child_ref->home, child_ref->addr, unpack);
 			WT_RET(bm->verify_addr(
 			    bm, session, unpack->data, unpack->size));
 		} WT_INTL_FOREACH_END;
@@ -563,7 +564,8 @@ celltype_err:			WT_RET_MSG(session, WT_ERROR,
 			--vs->depth;
 			WT_RET(ret);
 
-			__wt_cell_unpack(child_ref->addr, unpack);
+			__wt_cell_unpack(
+			    child_ref->home, child_ref->addr, unpack);
 			WT_RET(bm->verify_addr(
 			    bm, session, unpack->data, unpack->size));
 		} WT_INTL_FOREACH_END;
@@ -710,9 +712,9 @@ __verify_overflow_cell(
 
 	/* Walk the disk page, verifying pages referenced by overflow cells. */
 	cell_num = 0;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
+	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
 		++cell_num;
-		__wt_cell_unpack(cell, unpack);
+		__wt_cell_unpack_dsk(dsk, cell, unpack);
 		switch (unpack->type) {
 		case WT_CELL_KEY_OVFL:
 		case WT_CELL_VALUE_OVFL:
