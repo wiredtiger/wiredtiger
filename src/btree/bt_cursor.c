@@ -1453,9 +1453,6 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_STAT_CONN_INCR(session, cursor_modify);
-	WT_STAT_DATA_INCR(session, cursor_modify);
-
 	/* Save the cursor state. */
 	__cursor_state_save(cursor, &state);
 

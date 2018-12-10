@@ -190,12 +190,22 @@ __wt_modify_apply_api(WT_SESSION_IMPL *session,
 		WT_RET(__modify_apply_one(session, cursor, entries[i].data.size,
 		    entries[i].offset, entries[i].size, entries[i].data.data));
 	}
-	WT_STAT_CONN_INCR(session, cursor_modify);
-	WT_STAT_DATA_INCR(session, cursor_modify);
-	WT_STAT_CONN_INCRV(session, cursor_modify_bytes, cursor->value.size);
-	WT_STAT_DATA_INCRV(session, cursor_modify_bytes, cursor->value.size);
-	WT_STAT_CONN_INCRV(session, cursor_modify_bytes_touch, modified);
-	WT_STAT_DATA_INCRV(session, cursor_modify_bytes_touch, modified);
+	/*
+	 * This API is used by some external test functions with a NULL
+	 * session pointer - they don't expect statistics to be incremented.
+	 */
+	if (session != NULL) {
+		WT_STAT_CONN_INCR(session, cursor_modify);
+		WT_STAT_DATA_INCR(session, cursor_modify);
+		WT_STAT_CONN_INCRV(session,
+		    cursor_modify_bytes, cursor->value.size);
+		WT_STAT_DATA_INCRV(session,
+		    cursor_modify_bytes, cursor->value.size);
+		WT_STAT_CONN_INCRV(session,
+		    cursor_modify_bytes_touch, modified);
+		WT_STAT_DATA_INCRV(session,
+		    cursor_modify_bytes_touch, modified);
+	}
 
 	return (0);
 }
