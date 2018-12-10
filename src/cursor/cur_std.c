@@ -598,6 +598,10 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
 	WT_TRET(cursor->reset(cursor));
 
+	/* Don't keep buffers allocated for cached cursors. */
+	__wt_buf_free(session, &cursor->key);
+	__wt_buf_free(session, &cursor->value);
+
 	/*
 	 * Acquire a reference while decrementing the in-use counter.
 	 * After this point, the dhandle may be marked dead, but the
