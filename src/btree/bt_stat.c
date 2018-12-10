@@ -244,13 +244,12 @@ __stat_page_row_int(
 	 * the in-memory representation of the page doesn't necessarily contain
 	 * a reference to the original cell.
 	 */
-	if (page->dsk == NULL)
-		return;
-	WT_CELL_FOREACH(btree, page, cell, &unpack, i) {
-		__wt_cell_unpack(page, cell, &unpack);
-		if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
-			++ovfl_cnt;
-	}
+	if (page->dsk != NULL)
+		WT_CELL_FOREACH(btree, page, cell, &unpack, i) {
+			__wt_cell_unpack(page, cell, &unpack);
+			if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
+				++ovfl_cnt;
+		}
 
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
 }
@@ -313,13 +312,12 @@ __stat_page_row_leaf(
 	 * the in-memory representation of the page doesn't necessarily contain
 	 * a reference to the original cell.
 	 */
-	if (page->dsk == NULL)
-		return;
-	WT_CELL_FOREACH(btree, page, cell, &unpack, i) {
-		__wt_cell_unpack(page, cell, &unpack);
-		if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
-			++ovfl_cnt;
-	}
+	if (page->dsk != NULL)
+		WT_CELL_FOREACH(btree, page, cell, &unpack, i) {
+			__wt_cell_unpack(page, cell, &unpack);
+			if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
+				++ovfl_cnt;
+		}
 
 	WT_STAT_INCRV(session, stats, btree_entries, entry_cnt);
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
