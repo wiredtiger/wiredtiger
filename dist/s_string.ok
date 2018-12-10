@@ -379,6 +379,7 @@ ThreadList
 ThreadListWrapper
 Timespec
 Timestamp
+Timestamps
 TryCV
 TxnID
 UDF
