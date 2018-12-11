@@ -100,6 +100,12 @@ struct __wt_named_extractor {
 	TAILQ_ENTRY(__wt_named_extractor) q;	/* Linked list of extractors */
 };
 
+typedef enum {
+	WT_THROTTLE_CKPT,		/* Checkpoint throttle */
+	WT_THROTTLE_EVICT,		/* Eviction throttle */
+	WT_THROTTLE_LOG			/* Logging throttle */
+} WT_THROTTLE_TYPE;
+
 /*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
@@ -288,6 +294,10 @@ struct __wt_connection_impl {
 	bool		 async_cfg;	/* Global async configuration */
 	uint32_t	 async_size;	/* Async op array size */
 	uint32_t	 async_workers;	/* Number of async workers */
+
+	uint64_t	 capacity_ckpt;	/* Bytes/sec checkpoint capacity. */
+	uint64_t	 capacity_evict;/* Bytes/sec eviction capacity. */
+	uint64_t	 capacity_log;	/* Bytes/sec logging capacity. */
 
 	WT_LSM_MANAGER	lsm_manager;	/* LSM worker thread information */
 

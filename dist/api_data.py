@@ -519,6 +519,23 @@ connection_runtime_config = [
             interval in seconds at which to check for files that are
             inactive and close them''', min=1, max=100000),
         ]),
+    Config('io_capacity', '', r'''
+        control how many bytes per second are written by a subsystem. Excess
+        writing results in throttling. If not set then that subsystem is
+        not throttled.''',
+        type='category', subconfig=[
+        Config('checkpoint', '0', r'''
+            number of bytes per second written in service of a checkpoint''',
+            min='1M', max='1TB'),
+        Config('eviction', '0', r'''
+            number of bytes per second written in service of non-checkpoint
+            related eviction''',
+            min='1M', max='1TB'),
+        Config('log', '0', r'''
+            number of bytes per second written in service of the logging
+            subsystem''',
+            min='1M', max='1TB'),
+        ]),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.

@@ -2286,6 +2286,20 @@ struct __wt_connection {
 	 * seconds at which to check for files that are inactive and close
 	 * them., an integer between 1 and 100000; default \c 10.}
 	 * @config{ ),,}
+	 * @config{io_capacity = (, control how many bytes per second are
+	 * written by a subsystem.  Excess writing results in throttling.  If
+	 * not set then that subsystem is not throttled., a set of related
+	 * configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint, number of bytes per
+	 * second written in service of a checkpoint., an integer between 1M and
+	 * 1TB; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, number
+	 * of bytes per second written in service of non-checkpoint related
+	 * eviction., an integer between 1M and 1TB; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;log, number of bytes per second
+	 * written in service of the logging subsystem., an integer between 1M
+	 * and 1TB; default \c 0.}
+	 * @config{ ),,}
 	 * @config{log = (, enable logging.  Enabling logging uses three
 	 * sessions from the configured session_max., a set of related
 	 * configuration options defined below.}
@@ -2939,6 +2953,20 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{in_memory, keep data in-memory only.  See @ref in_memory for more
  * information., a boolean flag; default \c false.}
+ * @config{io_capacity = (, control how many bytes per second are written by a
+ * subsystem.  Excess writing results in throttling.  If not set then that
+ * subsystem is not throttled., a set of related configuration options defined
+ * below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint, number of bytes per
+ * second written in service of a checkpoint., an integer between 1M and 1TB;
+ * default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, number of bytes per
+ * second written in service of non-checkpoint related eviction., an integer
+ * between 1M and 1TB; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;log,
+ * number of bytes per second written in service of the logging subsystem., an
+ * integer between 1M and 1TB; default \c 0.}
+ * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from
  * the configured session_max., a set of related configuration options defined
  * below.}
