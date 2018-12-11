@@ -8,6 +8,38 @@
 
 #include "wt_internal.h"
 
+#define	WT_CAPACITY_CHK(v, str)	do {				\
+	if ((v) != 0 && (v) < WT_THROTTLE_MIN)			\
+		WT_RET_MSG(session, EINVAL,			\
+		    "%s I/O capacity value %" PRId64		\
+		    " below minimum %d",			\
+		    str, v, WT_THROTTLE_MIN);			\
+} while (0)
+
+/*
+ * __wt_conn_capacity_config --
+ *	Set I/O capacity configuration.
+ */
+int
+__wt_conn_capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	WT_RET(__wt_config_gets(session, cfg, "io_capacity.checkpoint", &cval));
+	WT_CAPACITY_CHK(cval.val, "checkpoint");
+	conn->capacity_ckpt = (uint64_t)cval.val;
+	WT_RET(__wt_config_gets(session, cfg, "io_capacity.eviction", &cval));
+	WT_CAPACITY_CHK(cval.val, "eviction");
+	conn->capacity_evict = (uint64_t)cval.val;
+	WT_RET(__wt_config_gets(session, cfg, "io_capacity.log", &cval));
+	WT_CAPACITY_CHK(cval.val, "log");
+	conn->capacity_log = (uint64_t)cval.val;
+
+	return (0);
+}
 /*
  * __conn_compat_parse --
  *	Parse a compatibility release string into its parts.
@@ -471,6 +503,7 @@ __wt_conn_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 	WT_WITH_CHECKPOINT_LOCK(session,
 	    ret = __wt_conn_compat_config(session, cfg, true));
 	WT_ERR(ret);
+	WT_ERR(__wt_conn_capacity_config(session, cfg));
 	WT_ERR(__wt_conn_optrack_setup(session, cfg, true));
 	WT_ERR(__wt_conn_statistics_config(session, cfg));
 	WT_ERR(__wt_async_reconfig(session, cfg));

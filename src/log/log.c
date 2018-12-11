@@ -207,6 +207,7 @@ __log_fs_write(WT_SESSION_IMPL *session,
 		__log_wait_for_earlier_slot(session, slot);
 		WT_RET(__wt_log_force_sync(session, &slot->slot_release_lsn));
 	}
+	/* WT_RET(__wt_throttle(session, len, WT_THROTTLE_LOG)); */
 	if ((ret = __wt_write(session, slot->slot_fh, offset, len, buf)) != 0)
 		WT_PANIC_RET(session, ret,
 		    "%s: fatal log failure", slot->slot_fh->name);

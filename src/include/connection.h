@@ -106,6 +106,8 @@ typedef enum {
 	WT_THROTTLE_LOG			/* Logging throttle */
 } WT_THROTTLE_TYPE;
 
+#define	WT_THROTTLE_MIN		WT_MEGABYTE
+
 /*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.

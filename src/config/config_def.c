@@ -94,9 +94,9 @@ static const WT_CONFIG_CHECK
 
 static const WT_CONFIG_CHECK
     confchk_wiredtiger_open_io_capacity_subconfigs[] = {
-	{ "checkpoint", "int", NULL, "min=1M,max=1TB", NULL, 0 },
-	{ "eviction", "int", NULL, "min=1M,max=1TB", NULL, 0 },
-	{ "log", "int", NULL, "min=1M,max=1TB", NULL, 0 },
+	{ "checkpoint", "int", NULL, "min=0,max=1TB", NULL, 0 },
+	{ "eviction", "int", NULL, "min=0,max=1TB", NULL, 0 },
+	{ "log", "int", NULL, "min=0,max=1TB", NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 

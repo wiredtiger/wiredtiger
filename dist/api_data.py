@@ -522,19 +522,19 @@ connection_runtime_config = [
     Config('io_capacity', '', r'''
         control how many bytes per second are written by a subsystem. Excess
         writing results in throttling. If not set then that subsystem is
-        not throttled.''',
+        not throttled. The minimum setting is 1MB.''',
         type='category', subconfig=[
         Config('checkpoint', '0', r'''
             number of bytes per second written in service of a checkpoint''',
-            min='1M', max='1TB'),
+            min='0', max='1TB'),
         Config('eviction', '0', r'''
             number of bytes per second written in service of non-checkpoint
             related eviction''',
-            min='1M', max='1TB'),
+            min='0', max='1TB'),
         Config('log', '0', r'''
             number of bytes per second written in service of the logging
             subsystem''',
-            min='1M', max='1TB'),
+            min='0', max='1TB'),
         ]),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
