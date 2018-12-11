@@ -322,7 +322,8 @@ hazard_get_reference(
  *	Return if there's a hazard pointer to the page in the system.
  */
 WT_HAZARD *
-__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *session_i)
+__wt_hazard_check(WT_SESSION_IMPL *session,
+    WT_REF *ref, WT_SESSION_IMPL **sessionp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_HAZARD *hp;
@@ -366,8 +367,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t *session_i)
 			if (hp->ref == ref) {
 				WT_STAT_CONN_INCRV(session,
 				    cache_hazard_walks, walk_cnt);
-				if (session_i != NULL)
-					*session_i = i;
+				if (sessionp != NULL)
+					*sessionp = s;
 				goto done;
 			}
 		}
@@ -410,12 +411,12 @@ bool
 __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 {
 	WT_HAZARD *hp;
-	uint32_t session_i;
+	WT_SESSION_IMPL *s;
 	int i;
 
-	session_i = UINT32_MAX;
+	s = NULL;
 	for (i = 0;;) {
-		if ((hp = __wt_hazard_check(session, ref, &session_i)) == NULL)
+		if ((hp = __wt_hazard_check(session, ref, &s)) == NULL)
 			return (true);
 		if (!waitfor || ++i > 100)
 			break;
@@ -423,8 +424,8 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 	}
 	__wt_errx(session,
 	    "hazard pointer reference to discarded object: "
-	    "(%p: session[%" PRIu32 "] %s, line %d)",
-	    (void *)hp->ref, session_i, hp->func, hp->line);
+	    "(%p: session %p name %s: %s, line %d)",
+	    (void *)hp->ref, (void *)s, s->name, hp->func, hp->line);
 	return (false);
 }
 
