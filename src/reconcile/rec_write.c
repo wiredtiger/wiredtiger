@@ -2901,11 +2901,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session,
 
 	dsk->unused = 0;
 
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-	dsk->version = WT_PAGE_VERSION_TS;
-#else
-	dsk->version = WT_PAGE_VERSION_ORIG;
-#endif
+	dsk->version = __wt_process.page_version_ts ?
+	    WT_PAGE_VERSION_TS : WT_PAGE_VERSION_ORIG;
 
 	/* Clear the memory owned by the block manager. */
 	memset(WT_BLOCK_HEADER_REF(dsk), 0, btree->block_header);

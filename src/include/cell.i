@@ -210,15 +210,11 @@ static inline void
 __cell_pack_timestamp_pair(
     uint8_t **pp, wt_timestamp_t start, wt_timestamp_t stop)
 {
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-	/* Start timestamp, stop timestamp difference. */
-	(void)__wt_vpack_uint(pp, 0, start);
-	(void)__wt_vpack_uint(pp, 0, stop - start);
-#else
-	WT_UNUSED(pp);
-	WT_UNUSED(start);
-	WT_UNUSED(stop);
-#endif
+	if (__wt_process.page_version_ts) {
+		/* Start timestamp, stop timestamp difference. */
+		(void)__wt_vpack_uint(pp, 0, start);
+		(void)__wt_vpack_uint(pp, 0, stop - start);
+	}
 }
 
 /*
@@ -283,17 +279,17 @@ __wt_cell_pack_data_match(WT_CELL *page_cell,
 	if (WT_CELL_SHORT_TYPE(a[0]) == WT_CELL_VALUE_SHORT) {
 		alen = a[0] >> WT_CELL_SHORT_SHIFT;
 		++a;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-		WT_RET(__wt_vunpack_uint(&a, 0, &v));		/* Skip TS */
-		WT_RET(__wt_vunpack_uint(&a, 0, &v));
-#endif
+		if (__wt_process.page_version_ts) {
+			WT_RET(__wt_vunpack_uint(&a, 0, &v));	/* Skip TS */
+			WT_RET(__wt_vunpack_uint(&a, 0, &v));
+		}
 	} else if (WT_CELL_TYPE(a[0]) == WT_CELL_VALUE) {
 		rle = (a[0] & WT_CELL_64V) != 0;
 		++a;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-		WT_RET(__wt_vunpack_uint(&a, 0, &v));		/* Skip TS */
-		WT_RET(__wt_vunpack_uint(&a, 0, &v));
-#endif
+		if (__wt_process.page_version_ts) {
+			WT_RET(__wt_vunpack_uint(&a, 0, &v));	/* Skip TS */
+			WT_RET(__wt_vunpack_uint(&a, 0, &v));
+		}
 		if (rle)					/* Skip RLE */
 			WT_RET(__wt_vunpack_uint(&a, 0, &v));
 		WT_RET(__wt_vunpack_uint(&a, 0, &alen));	/* Length */
@@ -303,17 +299,17 @@ __wt_cell_pack_data_match(WT_CELL *page_cell,
 	if (WT_CELL_SHORT_TYPE(b[0]) == WT_CELL_VALUE_SHORT) {
 		blen = b[0] >> WT_CELL_SHORT_SHIFT;
 		++b;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-		WT_RET(__wt_vunpack_uint(&b, 0, &v));		/* Skip TS */
-		WT_RET(__wt_vunpack_uint(&b, 0, &v));
-#endif
+		if (__wt_process.page_version_ts) {
+			WT_RET(__wt_vunpack_uint(&b, 0, &v));	/* Skip TS */
+			WT_RET(__wt_vunpack_uint(&b, 0, &v));
+		}
 	} else if (WT_CELL_TYPE(b[0]) == WT_CELL_VALUE) {
 		rle = (b[0] & WT_CELL_64V) != 0;
 		++b;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-		WT_RET(__wt_vunpack_uint(&b, 0, &v));		/* Skip TS */
-		WT_RET(__wt_vunpack_uint(&b, 0, &v));
-#endif
+		if (__wt_process.page_version_ts) {
+			WT_RET(__wt_vunpack_uint(&b, 0, &v));	/* Skip TS */
+			WT_RET(__wt_vunpack_uint(&b, 0, &v));
+		}
 		if (rle)					/* Skip RLE */
 			WT_RET(__wt_vunpack_uint(&b, 0, &v));
 		WT_RET(__wt_vunpack_uint(&b, 0, &blen));	/* Length */
