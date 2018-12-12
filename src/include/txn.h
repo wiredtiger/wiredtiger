@@ -42,8 +42,7 @@
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
 #define	WT_TS_FIXME	37		/* Fake timestamp */
-#define	WT_TS_NONE	0		/* No timestamp */
-#define	WT_TS_STABLE	1		/* Known stable timestamp */
+#define	WT_TS_NONE	0		/* No timestamp (or stable timestamp) */
 					/* Bytes to hold a hex timestamp */
 #define	WT_TS_HEX_SIZE	(2 * sizeof(wt_timestamp_t) + 1)
 

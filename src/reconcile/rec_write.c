@@ -3368,8 +3368,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	WT_RET(__rec_cell_build_leaf_key(session, r,	/* Build key cell */
 	    cursor->key.data, cursor->key.size, &ovfl_key));
 	WT_RET(__rec_cell_build_val(session, r,		/* Build value cell */
-	    cursor->value.data, cursor->value.size,
-	    WT_TS_STABLE, WT_TS_STABLE, 0));
+	    cursor->value.data, cursor->value.size, WT_TS_NONE, WT_TS_NONE, 0));
 
 	/* Boundary: split or write the page. */
 	if (WT_CROSSING_SPLIT_BND(r, key->len + val->len)) {
@@ -3396,7 +3395,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 		r->all_empty_value = false;
 		if (btree->dictionary)
 			WT_RET(__rec_dict_replace(
-			    session, r, WT_TS_STABLE, WT_TS_STABLE, 0, val));
+			    session, r, WT_TS_NONE, WT_TS_NONE, 0, val));
 		__rec_copy_incr(session, r, val);
 	}
 
@@ -3523,7 +3522,7 @@ __wt_bulk_insert_var(
 	val = &r->v;
 	if (deleted) {
 		val->cell_len = __wt_cell_pack_del(
-		    &val->cell, WT_TS_STABLE, WT_TS_STABLE, cbulk->rle);
+		    &val->cell, WT_TS_NONE, WT_TS_NONE, cbulk->rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
@@ -3535,7 +3534,7 @@ __wt_bulk_insert_var(
 		 */
 		WT_RET(__rec_cell_build_val(session,
 		    r, cbulk->last.data, cbulk->last.size,
-		    WT_TS_STABLE, WT_TS_STABLE, cbulk->rle));
+		    WT_TS_NONE, WT_TS_NONE, cbulk->rle));
 
 	/* Boundary: split or write the page. */
 	if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -3544,7 +3543,7 @@ __wt_bulk_insert_var(
 	/* Copy the value onto the page. */
 	if (btree->dictionary)
 		WT_RET(__rec_dict_replace(
-		    session, r, WT_TS_STABLE, WT_TS_STABLE, cbulk->rle, val));
+		    session, r, WT_TS_NONE, WT_TS_NONE, cbulk->rle, val));
 	__rec_copy_incr(session, r, val);
 
 	/* Update the starting record number in case we split. */
@@ -4068,7 +4067,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 		} else
 			WT_ERR(__rec_col_var_helper(session,
 			    r, NULL, NULL, true, false,
-			    WT_TS_STABLE, WT_TS_STABLE, salvage->missing));
+			    WT_TS_NONE, WT_TS_NONE, salvage->missing));
 	}
 
 	/*
