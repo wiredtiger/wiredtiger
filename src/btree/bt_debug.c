@@ -1377,6 +1377,12 @@ __debug_cell_data(WT_DBG *ds,
 	if (unpack == NULL)
 		return (__debug_item(ds, tag, "deleted", strlen("deleted")));
 
+	/*
+	 * Row-store references to empty cells return a NULL on-page reference.
+	 */
+	if (unpack->cell == NULL)
+		return (__debug_item(ds, tag, "", 0));
+
 	switch (unpack->raw) {
 	case WT_CELL_ADDR_DEL:
 	case WT_CELL_ADDR_INT:
