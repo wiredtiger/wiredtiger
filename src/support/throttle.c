@@ -57,8 +57,8 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	struct timespec now;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t *reservation;
-	uint64_t capacity, new_res_len, new_res_value, now_ns, res_len,
-	    res_value, sleep_us;
+	uint64_t new_res_len, new_res_value, res_len, res_value;
+	uint64_t capacity, ckpt, now_ns, sleep_us;
 
 	conn = S2C(session);
 
@@ -97,8 +97,8 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	 */
 	if (res_value > now_ns && res_value - now_ns > 100000 &&
 	    type != WT_THROTTLE_LOG && !conn->txn_global.checkpoint_running &&
-	    conn->capacity_ckpt != 0) {
-		new_res_len = (bytes * WT_BILLION) / conn->capacity_ckpt;
+	    (ckpt = conn->capacity_ckpt) != 0) {
+		new_res_len = (bytes * WT_BILLION) / ckpt;
 		new_res_value = __wt_atomic_add64(
 		    &conn->reservation_ckpt, new_res_len);
 
@@ -111,7 +111,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		if (new_res_value < res_value) {
 			res_value = new_res_value;
 			reservation = &conn->reservation_ckpt;
-			capacity = conn->capacity_ckpt;
+			capacity = ckpt;
 			res_value = __wt_atomic_sub64(reservation, res_len);
 		} else
 			(void)__wt_atomic_sub64(
