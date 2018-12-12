@@ -119,10 +119,9 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	}
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
-		if (sleep_us > WT_THROTTLE_SLEEP_CUTOFF_US) {
-			__wt_sleep(sleep_us / WT_MILLION,
-			    sleep_us % WT_MILLION);
-		}
+		if (sleep_us > WT_THROTTLE_SLEEP_CUTOFF_US)
+			/* Sleep handles large usec values. */
+			__wt_sleep(0, sleep_us);
 	/*
 	 * If it looks like the reservation clock is out of date by more than
 	 * a second, bump it up within a second of the current time. Basically
@@ -132,8 +131,13 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	 * XXX  We may want to tune this, depending on how we want to treat
 	 * bursts of write traffic.
 	 */
-	} else if (now_ns - res_value > capacity)
-		__wt_atomic_store64(reservation, now_ns - capacity + res_value);
+	} else if (now_ns - res_value > capacity) {
+		if (res_value != res_len)
+			__wt_atomic_store64(reservation, now_ns - capacity + res_value);
+		else
+			/* Initialize first time. */
+			__wt_atomic_store64(reservation, now_ns);
+	}
 
 	return;
 }
