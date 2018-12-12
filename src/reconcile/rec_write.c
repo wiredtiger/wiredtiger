@@ -4078,7 +4078,6 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_COL_FOREACH(page, cip, i) {
 		ovfl_state = OVFL_IGNORE;
 		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
-			vpack = NULL;
 			nrepeat = 1;
 			ins = NULL;
 			orig_deleted = true;
