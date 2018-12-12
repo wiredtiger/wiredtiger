@@ -77,6 +77,9 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		break;
 	}
 
+	__wt_verbose(session, WT_VERB_TEMPORARY,
+	    "THROTTLE: type %d bytes %llu capacity %llu  res %llu",
+	    type, bytes, capacity, *reservation);
 	if (capacity == 0)
 		return;
 
@@ -88,6 +91,9 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 
 	/* Convert the current time to nanoseconds since the epoch. */
 	now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
+	__wt_verbose(session, WT_VERB_TEMPORARY,
+	    "THROTTLE: reslen %llu resval %llu now_ns %llu",
+	    res_len, res_value, now_ns);
 
 	/*
 	 * If the reservation time we got is far enough in the future, see if
@@ -119,19 +125,26 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	}
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
+		__wt_verbose(session, WT_VERB_TEMPORARY,
+		    "THROTTLE: SLEEP sleep_us %llu",
+		    sleep_us);
 		if (sleep_us > WT_THROTTLE_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);
-	/*
-	 * If it looks like the reservation clock is out of date by more than
-	 * a second, bump it up within a second of the current time. Basically
-	 * we don't allow a lot of current bandwidth to 'make up' for
-	 * long lulls in the past.
-	 *
-	 * XXX  We may want to tune this, depending on how we want to treat
-	 * bursts of write traffic.
-	 */
 	} else if (now_ns - res_value > capacity) {
+		/*
+		 * If it looks like the reservation clock is out of date by more
+		 * than a second, bump it up within a second of the current
+		 * time. Basically we don't allow a lot of current bandwidth to
+		 * 'make up' for long lulls in the past.
+		 *
+		 * XXX  We may want to tune this, depending on how we want to
+		 * treat bursts of write traffic.
+		 */
+		__wt_verbose(session, WT_VERB_TEMPORARY,
+		    "THROTTLE: ADJ avail %llu cap %llu adjust %llu",
+		    now_ns - res_value, capacity,
+		    now_ns - capacity + res_value);
 		if (res_value != res_len)
 			__wt_atomic_store64(reservation,
 			    now_ns - capacity + res_value);
@@ -140,5 +153,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 			__wt_atomic_store64(reservation, now_ns);
 	}
 
+	__wt_verbose(session, WT_VERB_TEMPORARY,
+	    "THROTTLE: DONE res %llu", *reservation);
 	return;
 }
