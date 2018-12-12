@@ -42,7 +42,7 @@ class test_dictionary(wttest.WiredTigerTestCase):
         ('var', dict(key_format='r', value_format='S')),
     ])
 
-    # Verify cursor search and search-near operations in an empty table.
+    # Smoke test dictionary compression.
     def test_dictionary(self):
         nentries = 25000
         uri = 'file:test_dictionary'    # This is a btree layer test.
