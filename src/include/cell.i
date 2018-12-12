@@ -203,6 +203,25 @@ __wt_cell_pack_addr(WT_CELL *cell, u_int cell_type, uint64_t recno, size_t size)
 }
 
 /*
+ * __cell_pack_timestamp_pair --
+ *	Pack a start, stop timestamp pair.
+ */
+static inline void
+__cell_pack_timestamp_pair(
+    uint8_t **pp, wt_timestamp_t start, wt_timestamp_t stop)
+{
+#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
+	/* Start timestamp, stop timestamp difference. */
+	(void)__wt_vpack_uint(pp, 0, start);
+	(void)__wt_vpack_uint(pp, 0, stop - start);
+#else
+	WT_UNUSED(pp);
+	WT_UNUSED(start);
+	WT_UNUSED(stop);
+#endif
+}
+
+/*
  * __wt_cell_pack_data --
  *	Set a data item's WT_CELL contents.
  */
@@ -213,14 +232,8 @@ __wt_cell_pack_data(WT_CELL *cell,
 	uint8_t byte, *p;
 
 	p = cell->__chunk + 1;
+	__cell_pack_timestamp_pair(&p, start, stop);
 
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-	(void)__wt_vpack_uint(&p, 0, start);		/* Start timestamp */
-	(void)__wt_vpack_uint(&p, 0, stop);		/* Stop timestamp */
-#else
-	WT_UNUSED(start);
-	WT_UNUSED(stop);
-#endif
 	/*
 	 * Short data cells without run-length encoding have 6 bits of data
 	 * length in the descriptor byte.
@@ -323,13 +336,8 @@ __wt_cell_pack_copy(WT_CELL *cell,
 	uint8_t *p;
 
 	p = cell->__chunk + 1;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-	(void)__wt_vpack_uint(&p, 0, start);		/* Start timestamp */
-	(void)__wt_vpack_uint(&p, 0, stop);		/* Stop timestamp */
-#else
-	WT_UNUSED(start);
-	WT_UNUSED(stop);
-#endif
+	__cell_pack_timestamp_pair(&p, start, stop);
+
 	if (rle < 2)
 		cell->__chunk[0] = WT_CELL_VALUE_COPY;	/* Type */
 	else {
@@ -352,13 +360,8 @@ __wt_cell_pack_del(
 	uint8_t *p;
 
 	p = cell->__chunk + 1;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
-	(void)__wt_vpack_uint(&p, 0, start);		/* Start timestamp */
-	(void)__wt_vpack_uint(&p, 0, stop);		/* Stop timestamp */
-#else
-	WT_UNUSED(start);
-	WT_UNUSED(stop);
-#endif
+	__cell_pack_timestamp_pair(&p, start, stop);
+
 	if (rle < 2)
 		cell->__chunk[0] = WT_CELL_DEL;		/* Type */
 	else {
@@ -443,20 +446,16 @@ __wt_cell_pack_ovfl(WT_CELL *cell, uint8_t type,
 	uint8_t *p;
 
 	p = cell->__chunk + 1;
-#if defined(HAVE_PAGE_TIMESTAMP_FORMAT)
 	switch (type) {
 	case WT_CELL_KEY_OVFL:
 	case WT_CELL_KEY_OVFL_RM:
 		break;
 	case WT_CELL_VALUE_OVFL:
 	case WT_CELL_VALUE_OVFL_RM:
-		(void)__wt_vpack_uint(&p, 0, start);	/* Start timestamp */
-		(void)__wt_vpack_uint(&p, 0, stop);	/* Stop timestamp */
+		__cell_pack_timestamp_pair(&p, start, stop);
+		break;
 	}
-#else
-	WT_UNUSED(start);
-	WT_UNUSED(stop);
-#endif
+
 	if (rle < 2)
 		cell->__chunk[0] = type;		/* Type */
 	else {
@@ -709,6 +708,7 @@ restart:
 		    unpack->start == WT_TS_FIXME);
 		WT_RET(__wt_vunpack_uint(&p,
 		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop));
+		unpack->stop += unpack->start;
 		WT_ASSERT(NULL,
 		    unpack->stop == WT_TS_STABLE ||
 		    unpack->stop == WT_TS_FIXME);
