@@ -51,7 +51,7 @@
  * exactly the configured capacity in a second. Reservation times are
  * in nanoseconds since the epoch.
  */
-int
+void
 __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 {
 	struct timespec now;
@@ -75,11 +75,10 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		capacity = conn->capacity_log;
 		reservation = &conn->reservation_log;
 		break;
-	WT_ILLEGAL_VALUE(session, type);
 	}
 
 	if (capacity == 0)
-		return (0);
+		return;
 
 	/* Sizes larger than this may overflow */
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
@@ -136,5 +135,5 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	} else if (now_ns - res_value > capacity)
 		__wt_atomic_store64(reservation, now_ns - capacity + res_value);
 
-	return (0);
+	return;
 }
