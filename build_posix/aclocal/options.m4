@@ -224,7 +224,7 @@ AC_MSG_RESULT($with_spinlock)
 AH_TEMPLATE(HAVE_PAGE_VERSION_TS,
     [Define to 1 to enable writing timestamp version page formats.])
 AC_MSG_CHECKING(if --enable-page-version-ts option specified)
-AC_ARG_ENABLE(page-page-version-ts,
+AC_ARG_ENABLE(page-version-ts,
 	[AS_HELP_STRING([--enable-page-version-ts],
 	    [Configure for timestamp version page formats])],
 	    r=$enableval, r=no)
