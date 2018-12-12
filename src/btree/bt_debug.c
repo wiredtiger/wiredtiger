@@ -521,19 +521,15 @@ static int
 __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
-	uint32_t i;
+	WT_CELL_UNPACK unpack;
 
 	WT_ASSERT(ds->session, S2BT_SAFE(ds->session) != NULL);
 
 	btree = S2BT(ds->session);
-	unpack = &_unpack;
 
-	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack_dsk(dsk, cell, unpack);
-		WT_RET(__debug_cell(ds, dsk, unpack));
-	}
+	WT_CELL_FOREACH_BEGIN(btree, dsk, unpack, false) {
+		WT_RET(__debug_cell(ds, dsk, &unpack));
+	} WT_CELL_FOREACH_END;
 	return (0);
 }
 

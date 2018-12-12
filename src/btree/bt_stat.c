@@ -230,9 +230,8 @@ __stat_page_row_int(
     WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
-	uint32_t i, ovfl_cnt;
+	uint32_t ovfl_cnt;
 
 	btree = S2BT(session);
 	ovfl_cnt = 0;
@@ -245,11 +244,10 @@ __stat_page_row_int(
 	 * a reference to the original cell.
 	 */
 	if (page->dsk != NULL)
-		WT_CELL_FOREACH(btree, page, cell, &unpack, i) {
-			__wt_cell_unpack(page, cell, &unpack);
-			if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
+		WT_CELL_FOREACH_BEGIN(btree, page->dsk, unpack, false) {
+			if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
 				++ovfl_cnt;
-		}
+		} WT_CELL_FOREACH_END;
 
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
 }
@@ -263,7 +261,6 @@ __stat_page_row_leaf(
     WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
 	WT_INSERT *ins;
 	WT_ROW *rip;
@@ -313,11 +310,10 @@ __stat_page_row_leaf(
 	 * a reference to the original cell.
 	 */
 	if (page->dsk != NULL)
-		WT_CELL_FOREACH(btree, page, cell, &unpack, i) {
-			__wt_cell_unpack(page, cell, &unpack);
-			if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
+		WT_CELL_FOREACH_BEGIN(btree, page->dsk, unpack, false) {
+			if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
 				++ovfl_cnt;
-		}
+		} WT_CELL_FOREACH_END;
 
 	WT_STAT_INCRV(session, stats, btree_entries, entry_cnt);
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);

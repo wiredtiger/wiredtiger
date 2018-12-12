@@ -170,18 +170,6 @@ struct __wt_cell_unpack {
 };
 
 /*
- * WT_CELL_FOREACH_DSK --
- *	Walk the cells on a page.
- */
-#define	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i)		\
-	for ((cell) =							\
-	    WT_PAGE_HEADER_BYTE(btree, dsk), (i) = (dsk)->u.entries;	\
-	    (i) > 0;							\
-	    (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
-#define	WT_CELL_FOREACH(btree, page, cell, unpack, i)			\
-	WT_CELL_FOREACH_DSK(btree, (page)->dsk, cell, unpack, i)
-
-/*
  * __wt_cell_pack_addr --
  *	Pack an address cell.
  */
@@ -928,3 +916,27 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 {
 	return (__cell_data_ref(session, page, page->type, unpack, store));
 }
+
+/*
+ * WT_CELL_FOREACH --
+ *	Walk the cells on a page.
+ */
+#define	WT_CELL_FOREACH_BEGIN(btree, dsk, unpack, skip_ts) do {		\
+	uint32_t __i;							\
+	uint8_t *__cell;						\
+	for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk),			\
+	    __i = (dsk)->u.entries;					\
+	    __i > 0; __cell += (unpack).__len,	--__i) {		\
+		__wt_cell_unpack_dsk(dsk, (WT_CELL *)__cell, &(unpack));\
+		/*							\
+		 * Optionally skip unstable page entries after downgrade\
+		 * to a release without page timestamps. Check for cells\
+		 * with unstable timestamps when we're not writing such	\
+		 * cells ourselves.					\
+		 */							\
+		if ((skip_ts) &&					\
+		    (unpack).stop != WT_TS_NONE &&			\
+		    !__wt_process.page_version_ts)			\
+			continue;
+#define	WT_CELL_FOREACH_END						\
+	} } while (0)

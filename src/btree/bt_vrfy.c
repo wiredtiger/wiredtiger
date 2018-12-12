@@ -692,16 +692,14 @@ __verify_overflow_cell(
     WT_SESSION_IMPL *session, WT_REF *ref, bool *found, WT_VSTUFF *vs)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
+	WT_CELL_UNPACK unpack;
 	WT_DECL_RET;
 	const WT_PAGE_HEADER *dsk;
-	uint32_t cell_num, i;
+	uint32_t cell_num;
 
 	*found = false;
 
 	btree = S2BT(session);
-	unpack = &_unpack;
 
 	/*
 	 * If a tree is empty (just created), it won't have a disk image;
@@ -712,18 +710,17 @@ __verify_overflow_cell(
 
 	/* Walk the disk page, verifying pages referenced by overflow cells. */
 	cell_num = 0;
-	WT_CELL_FOREACH_DSK(btree, dsk, cell, unpack, i) {
+	WT_CELL_FOREACH_BEGIN(btree, dsk, unpack, false) {
 		++cell_num;
-		__wt_cell_unpack_dsk(dsk, cell, unpack);
-		switch (unpack->type) {
+		switch (unpack.type) {
 		case WT_CELL_KEY_OVFL:
 		case WT_CELL_VALUE_OVFL:
 			*found = true;
 			WT_ERR(__verify_overflow(
-			    session, unpack->data, unpack->size, vs));
+			    session, unpack.data, unpack.size, vs));
 			break;
 		}
-	}
+	} WT_CELL_FOREACH_END;
 
 	return (0);
 
@@ -732,7 +729,7 @@ err:	WT_RET_MSG(session, ret,
 	    "that failed verification",
 	    cell_num - 1,
 	    __wt_page_addr_string(session, ref, vs->tmp1),
-	    __wt_addr_string(session, unpack->data, unpack->size, vs->tmp2));
+	    __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
 }
 
 /*
