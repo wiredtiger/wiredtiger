@@ -133,7 +133,8 @@ struct __wt_cell {
 	 * 5: data length		(uint32_t encoding, max 5 bytes)
 	 *
 	 * This calculation is pessimistic: the prefix compression count and
-	 * 64V value overlap, the 64V value and data length are optional.
+	 * 64V value overlap, the 64V value and data length are optional, and
+	 * timestamps only appear in values.
 	 */
 	uint8_t __chunk[1 + 1 +
 	    3 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
