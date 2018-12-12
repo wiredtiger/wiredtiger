@@ -56,9 +56,9 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 {
 	struct timespec now;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t *reservation;
-	uint64_t new_res_len, new_res_value, res_len, res_value;
 	uint64_t capacity, ckpt, now_ns, sleep_us;
+	uint64_t new_res_len, new_res_value, res_len, res_value;
+	uint64_t *reservation;
 
 	conn = S2C(session);
 
@@ -133,7 +133,8 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	 */
 	} else if (now_ns - res_value > capacity) {
 		if (res_value != res_len)
-			__wt_atomic_store64(reservation, now_ns - capacity + res_value);
+			__wt_atomic_store64(reservation,
+			    now_ns - capacity + res_value);
 		else
 			/* Initialize first time. */
 			__wt_atomic_store64(reservation, now_ns);
