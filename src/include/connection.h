@@ -301,6 +301,16 @@ struct __wt_connection_impl {
 	uint64_t	 capacity_evict;/* Bytes/sec eviction capacity. */
 	uint64_t	 capacity_log;	/* Bytes/sec logging capacity. */
 
+	/*
+	 * A reservation is a point in the time (usually in the future) when
+	 * a write for a subsystem can be scheduled, so as not to overrun the
+	 * given capacity.  These values hold the next available reservation,
+	 * in nanoseconds since the epoch.
+	 */
+	uint64_t	 reservation_ckpt;/* Atomic: next checkpoint write */
+	uint64_t	 reservation_evict;/* Atomic: next eviction write */
+	uint64_t	 reservation_log;/* Atomic: next logging write */
+
 	WT_LSM_MANAGER	lsm_manager;	/* LSM worker thread information */
 
 	WT_KEYED_ENCRYPTOR *kencryptor;	/* Encryptor for metadata and log */
