@@ -620,16 +620,14 @@ __wt_cell_unpack_safe(const WT_PAGE_HEADER *dsk,
 		return (WT_ERROR);	        			\
 } while (0)
 
-restart:
 	/*
 	 * This path is performance critical for read-only trees, we're parsing
 	 * on-page structures. For that reason we don't clear the unpacked cell
-	 * structure (although that would be simpler), instead we make sure we
-	 * initialize all structure elements either here or in the immediately
-	 * following switch.
+	 * structure (although that would be simpler).
 	 */
-	WT_CELL_LEN_CHK(cell, 0);
 	unpack->cell = cell;
+restart:
+	WT_CELL_LEN_CHK(cell, 0);
 	unpack->v = 0;
 	unpack->start = unpack->stop = WT_TS_NONE;
 	unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
