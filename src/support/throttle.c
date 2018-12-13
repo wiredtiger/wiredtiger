@@ -60,6 +60,8 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	uint64_t new_res_len, new_res_value, res_len, res_value;
 	uint64_t *reservation;
 
+	capacity = 0;
+	reservation = NULL;
 	conn = S2C(session);
 
 	switch (type) {
