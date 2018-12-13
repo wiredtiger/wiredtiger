@@ -703,6 +703,7 @@ endian
 english
 enqueue
 enqueued
+enum
 env
 eof
 epi
