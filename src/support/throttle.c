@@ -82,7 +82,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
 	    "THROTTLE: type %d bytes %" PRIu64 " capacity %" PRIu64
-	    "  res %" PRIu64,
+	    "  reservation %" PRIu64,
 	    type, bytes, capacity, *reservation);
 	if (capacity == 0)
 		return;
@@ -96,7 +96,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	/* Convert the current time to nanoseconds since the epoch. */
 	now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
 	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: reslen %" PRIu64 " resval %" PRIu64 " now_ns %" PRIu64,
+	    "THROTTLE: len %" PRIu64 " reservation %" PRIu64 " now %" PRIu64,
 	    res_len, res_value, now_ns);
 
 	/*
@@ -130,7 +130,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
 		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: SLEEP sleep_us %" PRIu64,
+		    "THROTTLE: SLEEP sleep us %" PRIu64,
 		    sleep_us);
 		if (sleep_us > WT_THROTTLE_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
@@ -146,8 +146,8 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		 * treat bursts of write traffic.
 		 */
 		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: ADJ avail %" PRIu64 " cap %" PRIu64
-		    " adjust %" PRIu64,
+		    "THROTTLE: ADJ available %" PRIu64 " capacity %" PRIu64
+		    " adjustment %" PRIu64,
 		    now_ns - res_value, capacity,
 		    now_ns - capacity + res_value);
 		if (res_value != res_len)
@@ -159,6 +159,6 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	}
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: DONE res %" PRIu64, *reservation);
+	    "THROTTLE: DONE reservation %" PRIu64, *reservation);
 	return;
 }
