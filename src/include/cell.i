@@ -694,8 +694,7 @@ restart:
 		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop));
 		unpack->stop += unpack->start;
 		WT_ASSERT(NULL,
-		    unpack->stop == WT_TS_NONE ||
-		    unpack->stop == WT_TS_FIXME);
+		    unpack->stop == WT_TS_MAX || unpack->stop == WT_TS_FIXME);
 		break;
 	}
 
@@ -935,7 +934,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 		 * cells ourselves.					\
 		 */							\
 		if ((skip_ts) &&					\
-		    (unpack).stop != WT_TS_NONE &&			\
+		    (unpack).stop != WT_TS_MAX &&			\
 		    !__wt_process.page_version_ts)			\
 			continue;
 #define	WT_CELL_FOREACH_END						\
