@@ -315,18 +315,16 @@ __stat_page_row_leaf(
 	 * in a row, or a key as the last item.
 	 */
 	if (page->dsk != NULL) {
+		key = false;
 		WT_CELL_FOREACH_BEGIN(btree, page->dsk, unpack, false) {
 			switch (__wt_cell_type(unpack.cell)) {
+			case WT_CELL_KEY_OVFL:
+				++ovfl_cnt;
+				/* FALLTHROUGH */
 			case WT_CELL_KEY:
 				if (key)
 					++empty_values;
 				key = true;
-				break;
-			case WT_CELL_KEY_OVFL:
-				if (key)
-					++empty_values;
-				key = true;
-				++ovfl_cnt;
 				break;
 			default:
 				key = false;
