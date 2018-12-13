@@ -75,10 +75,14 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		capacity = conn->capacity_log;
 		reservation = &conn->reservation_log;
 		break;
+	default:
+		__wt_abort(session);
+		break;
 	}
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: type %d bytes %llu capacity %llu  res %llu",
+	    "THROTTLE: type %d bytes %" PRIu64 " capacity %" PRIu64
+	    "  res %" PRIu64,
 	    type, bytes, capacity, *reservation);
 	if (capacity == 0)
 		return;
@@ -92,7 +96,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	/* Convert the current time to nanoseconds since the epoch. */
 	now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
 	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: reslen %llu resval %llu now_ns %llu",
+	    "THROTTLE: reslen %" PRIu64 " resval %" PRIu64 " now_ns %" PRIu64,
 	    res_len, res_value, now_ns);
 
 	/*
@@ -126,7 +130,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
 		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: SLEEP sleep_us %llu",
+		    "THROTTLE: SLEEP sleep_us %" PRIu64,
 		    sleep_us);
 		if (sleep_us > WT_THROTTLE_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
@@ -142,18 +146,19 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		 * treat bursts of write traffic.
 		 */
 		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: ADJ avail %llu cap %llu adjust %llu",
+		    "THROTTLE: ADJ avail %" PRIu64 " cap %" PRIu64
+		    " adjust %" PRIu64,
 		    now_ns - res_value, capacity,
 		    now_ns - capacity + res_value);
 		if (res_value != res_len)
 			__wt_atomic_store64(reservation,
-			    now_ns - capacity + res_value);
+			    now_ns - capacity + res_len);
 		else
 			/* Initialize first time. */
 			__wt_atomic_store64(reservation, now_ns);
 	}
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: DONE res %llu", *reservation);
+	    "THROTTLE: DONE res %" PRIu64, *reservation);
 	return;
 }
