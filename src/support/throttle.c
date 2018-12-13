@@ -82,7 +82,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	__wt_verbose(session, WT_VERB_TEMPORARY,
 	    "THROTTLE: type %d bytes %" PRIu64 " capacity %" PRIu64
 	    "  reservation %" PRIu64,
-	    type, bytes, capacity, *reservation);
+	    (int)type, bytes, capacity, *reservation);
 	if (capacity == 0)
 		return;
 
