@@ -425,7 +425,8 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 	__wt_errx(session,
 	    "hazard pointer reference to discarded object: "
 	    "(%p: session %p name %s: %s, line %d)",
-	    (void *)hp->ref, (void *)s, s->name, hp->func, hp->line);
+	    (void *)hp->ref, (void *)s,
+	    s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
 	return (false);
 }
 
