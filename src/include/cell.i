@@ -692,7 +692,8 @@ restart:
 		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop));
 		unpack->stop += unpack->start;
 		WT_ASSERT(NULL,
-		    unpack->stop == WT_TS_MAX || unpack->stop == WT_TS_FIXME);
+		    unpack->stop == WT_TS_FIXME ||
+		    unpack->stop == WT_TS_MAX);
 		break;
 	}
 
@@ -924,7 +925,12 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 	for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk),			\
 	    __i = (dsk)->u.entries;					\
 	    __i > 0; __cell += (unpack).__len,	--__i) {		\
-		__wt_cell_unpack_dsk(dsk, (WT_CELL *)__cell, &(unpack));\
+		__wt_cell_unpack_dsk(dsk, (WT_CELL *)__cell, &(unpack));
+#if 0
+		XXX
+		Turned off for now, don't skip any items until we're
+		setting timestamps correctly.
+
 		/*							\
 		 * Optionally skip unstable page entries after downgrade\
 		 * to a release without page timestamps. Check for cells\
@@ -935,5 +941,6 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 		    (unpack).stop != WT_TS_MAX &&			\
 		    !__wt_process.page_version_ts)			\
 			continue;
+#endif
 #define	WT_CELL_FOREACH_END						\
 	} } while (0)
