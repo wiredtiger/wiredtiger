@@ -75,9 +75,6 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		capacity = conn->capacity_log;
 		reservation = &conn->reservation_log;
 		break;
-	default:
-		__wt_abort(session);
-		break;
 	}
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
