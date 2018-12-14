@@ -360,15 +360,13 @@ __wt_txn_op_apply_prepare_state(
 	txn = &session->txn;
 
 	/*
-	 * Lock the ref to ensure we don't race with eviction freeing the
-	 * page deleted update list or with a page instantiate.
+	 * Lock the ref to ensure we don't race with eviction freeing the page
+	 * deleted update list or with a page instantiate.
 	 */
 	for (;; __wt_yield()) {
 		previous_state = ref->state;
 		WT_ASSERT(session, previous_state != WT_REF_READING);
 		if (previous_state != WT_REF_LOCKED &&
-		    (previous_state == WT_REF_MEM ||
-		    previous_state == WT_REF_DELETED) &&
 		    __wt_atomic_casv32(
 		    &ref->state, previous_state, WT_REF_LOCKED))
 			break;
@@ -385,8 +383,8 @@ __wt_txn_op_apply_prepare_state(
 	    updp != NULL && *updp != NULL; ++updp) {
 		(*updp)->timestamp = ts;
 		/*
-		 * Holding the ref locked means we have exclusive access, so
-		 * if we are committing we don't need to use the prepare locked
+		 * Holding the ref locked means we have exclusive access, so if
+		 * we are committing we don't need to use the prepare locked
 		 * transition state.
 		 */
 		(*updp)->prepare_state = prepare_state;
