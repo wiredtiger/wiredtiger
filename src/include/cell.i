@@ -604,7 +604,7 @@ __wt_cell_unpack_safe(const WT_PAGE_HEADER *dsk,
 	const uint8_t *p;
 
 	copy.v = 0;			/* -Werror=maybe-uninitialized */
-	copy.start = copy.stop = WT_TS_NONE;
+	copy.start = copy.stop = WT_TS_MAX;
 	copy.len = 0;
 
 	/*
@@ -631,7 +631,7 @@ restart:
 	WT_CELL_LEN_CHK(cell, 0);
 	unpack->cell = cell;
 	unpack->v = 0;
-	unpack->start = unpack->stop = WT_TS_NONE;
+	unpack->start = unpack->stop = WT_TS_MAX;
 	unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
 	unpack->type = (uint8_t)__wt_cell_type(cell);
 	unpack->ovfl = 0;
@@ -811,7 +811,7 @@ __wt_cell_unpack_dsk(
 	if (cell == NULL) {
 		unpack->cell = NULL;
 		unpack->v = 0;
-		unpack->start = unpack->stop = WT_TS_NONE;
+		unpack->start = unpack->stop = WT_TS_MAX;
 		unpack->data = "";
 		unpack->size = 0;
 		unpack->__len = 0;
@@ -927,12 +927,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 	for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk),			\
 	    __i = (dsk)->u.entries;					\
 	    __i > 0; __cell += (unpack).__len,	--__i) {		\
-		__wt_cell_unpack_dsk(dsk, (WT_CELL *)__cell, &(unpack));
-#if 0
-		XXX
-		Turned off for now, don't skip any items until we're
-		setting timestamps correctly.
-
+		__wt_cell_unpack_dsk(dsk, (WT_CELL *)__cell, &(unpack));\
 		/*							\
 		 * Optionally skip unstable page entries after downgrade\
 		 * to a release without page timestamps. Check for cells\
@@ -943,6 +938,5 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 		    (unpack).stop != WT_TS_MAX &&			\
 		    !__wt_process.page_version_ts)			\
 			continue;
-#endif
 #define	WT_CELL_FOREACH_END						\
 	} } while (0)
