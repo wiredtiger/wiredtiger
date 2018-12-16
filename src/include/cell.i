@@ -604,7 +604,8 @@ __wt_cell_unpack_safe(const WT_PAGE_HEADER *dsk,
 	const uint8_t *p;
 
 	copy.v = 0;			/* -Werror=maybe-uninitialized */
-	copy.start = copy.stop = WT_TS_MAX;
+	copy.start = WT_TS_NONE;
+	copy.stop = WT_TS_MAX;
 	copy.len = 0;
 
 	/*
@@ -631,7 +632,8 @@ restart:
 	WT_CELL_LEN_CHK(cell, 0);
 	unpack->cell = cell;
 	unpack->v = 0;
-	unpack->start = unpack->stop = WT_TS_MAX;
+	unpack->start = WT_TS_NONE;
+	unpack->stop = WT_TS_MAX;
 	unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
 	unpack->type = (uint8_t)__wt_cell_type(cell);
 	unpack->ovfl = 0;
@@ -811,7 +813,8 @@ __wt_cell_unpack_dsk(
 	if (cell == NULL) {
 		unpack->cell = NULL;
 		unpack->v = 0;
-		unpack->start = unpack->stop = WT_TS_MAX;
+		unpack->start = WT_TS_NONE;
+		unpack->stop = WT_TS_MAX;
 		unpack->data = "";
 		unpack->size = 0;
 		unpack->__len = 0;
