@@ -38,6 +38,12 @@ static int __verify_dsk_row(
 	return (WT_ERROR);						\
 } while (0)
 
+/*
+ * WT_CELL_FOREACH_VRFY --
+ *	Iterate through each cell on a page. Verify-specific version of the
+ * WT_CELL_FOREACH macro, created because the loop can't simply unpack cells,
+ * verify has to do additional work to ensure that unpack is safe.
+ */
 #define	WT_CELL_FOREACH_VRFY(btree, dsk, cell, unpack, i)		\
 	for ((cell) =							\
 	    WT_PAGE_HEADER_BYTE(btree, dsk), (i) = (dsk)->u.entries;	\
