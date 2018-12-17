@@ -133,7 +133,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
 		__wt_verbose(session, WT_VERB_TEMPORARY,
 		    "THROTTLE: SLEEP sleep us %" PRIu64,
-	 	    sleep_us);
+		    sleep_us);
 		if (type == WT_THROTTLE_CKPT) {
 			WT_STAT_CONN_INCR(session, capacity_ckpt_throttles);
 			WT_STAT_CONN_INCRV(session,
