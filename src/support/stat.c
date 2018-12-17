@@ -858,6 +858,9 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: percentage overhead",
+	"cache: throttled capacity time in checkpoints (usecs)",
+	"cache: throttled capacity time in eviction (usecs)",
+	"cache: throttled capacity time in logging (usecs)",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
 	"cache: tracked dirty bytes in the cache",
@@ -873,7 +876,14 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
+	"connection: throttled checkpoint writes calls",
+	"connection: throttled checkpoint writes for capacity",
+	"connection: throttled eviction writes calls",
+	"connection: throttled eviction writes for capacity",
+	"connection: throttled log writes calls",
+	"connection: throttled log writes for capacity",
 	"connection: total fsync I/Os",
+	"connection: total fsync I/Os nowait",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
 	"cursor: cached cursor count",
@@ -1267,6 +1277,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_overhead */
+	stats->capacity_ckpt_time = 0;
+	stats->capacity_evict_time = 0;
+	stats->capacity_log_time = 0;
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
 		/* not clearing cache_bytes_dirty */
@@ -1282,7 +1295,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
+	stats->capacity_ckpt_calls = 0;
+	stats->capacity_ckpt_throttles = 0;
+	stats->capacity_evict_calls = 0;
+	stats->capacity_evict_throttles = 0;
+	stats->capacity_log_calls = 0;
+	stats->capacity_log_throttles = 0;
 	stats->fsync_io = 0;
+	stats->fsync_io_nowait = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
 		/* not clearing cursor_cached_count */
@@ -1722,6 +1742,9 @@ __wt_stat_connection_aggregate(
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
+	to->capacity_ckpt_time += WT_STAT_READ(from, capacity_ckpt_time);
+	to->capacity_evict_time += WT_STAT_READ(from, capacity_evict_time);
+	to->capacity_log_time += WT_STAT_READ(from, capacity_log_time);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
@@ -1737,7 +1760,17 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+	to->capacity_ckpt_calls += WT_STAT_READ(from, capacity_ckpt_calls);
+	to->capacity_ckpt_throttles +=
+	    WT_STAT_READ(from, capacity_ckpt_throttles);
+	to->capacity_evict_calls += WT_STAT_READ(from, capacity_evict_calls);
+	to->capacity_evict_throttles +=
+	    WT_STAT_READ(from, capacity_evict_throttles);
+	to->capacity_log_calls += WT_STAT_READ(from, capacity_log_calls);
+	to->capacity_log_throttles +=
+	    WT_STAT_READ(from, capacity_log_throttles);
 	to->fsync_io += WT_STAT_READ(from, fsync_io);
+	to->fsync_io_nowait += WT_STAT_READ(from, fsync_io_nowait);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);

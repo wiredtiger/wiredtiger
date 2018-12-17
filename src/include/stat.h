@@ -448,6 +448,9 @@ struct __wt_connection_stats {
 	int64_t cache_write;
 	int64_t cache_write_restore;
 	int64_t cache_overhead;
+	int64_t capacity_ckpt_time;
+	int64_t capacity_evict_time;
+	int64_t capacity_log_time;
 	int64_t cache_bytes_internal;
 	int64_t cache_bytes_leaf;
 	int64_t cache_bytes_dirty;
@@ -463,7 +466,14 @@ struct __wt_connection_stats {
 	int64_t cond_wait;
 	int64_t rwlock_read;
 	int64_t rwlock_write;
+	int64_t capacity_ckpt_calls;
+	int64_t capacity_ckpt_throttles;
+	int64_t capacity_evict_calls;
+	int64_t capacity_evict_throttles;
+	int64_t capacity_log_calls;
+	int64_t capacity_log_throttles;
 	int64_t fsync_io;
+	int64_t fsync_io_nowait;
 	int64_t read_io;
 	int64_t write_io;
 	int64_t cursor_cached_count;
