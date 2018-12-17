@@ -1310,12 +1310,12 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 		break;
 	}
 
-	if (unpack->start != WT_TS_NONE) {
-		__wt_timestamp_to_hex_string(hex_timestamp, unpack->start);
+	if (unpack->start_ts != WT_TS_NONE) {
+		__wt_timestamp_to_hex_string(hex_timestamp, unpack->start_ts);
 		WT_RET(ds->f(ds, ", ts %s-", hex_timestamp));
 	}
-	if (unpack->stop != WT_TS_NONE) {
-		__wt_timestamp_to_hex_string(hex_timestamp, unpack->stop);
+	if (unpack->stop_ts != WT_TS_NONE) {
+		__wt_timestamp_to_hex_string(hex_timestamp, unpack->stop_ts);
 		WT_RET(ds->f(ds, "%s", hex_timestamp));
 	}
 

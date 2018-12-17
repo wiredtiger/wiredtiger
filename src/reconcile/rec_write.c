@@ -1875,7 +1875,7 @@ __rec_copy_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_KV *kv)
  */
 static int
 __rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle, WT_KV *val)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle, WT_KV *val)
 {
 	WT_DICTIONARY *dp;
 	uint64_t offset;
@@ -1917,8 +1917,8 @@ __rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		offset = (uint64_t)WT_PTRDIFF(r->first_free,
 		    (uint8_t *)r->cur_ptr->image.mem + dp->offset);
-		val->len = val->cell_len =
-		    __wt_cell_pack_copy(&val->cell, start, stop, rle, offset);
+		val->len = val->cell_len = __wt_cell_pack_copy(
+		    &val->cell, start_ts, stop_ts, rle, offset);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 	}
@@ -3928,7 +3928,7 @@ static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_SALVAGE_COOKIE *salvage,
     WT_ITEM *value, bool deleted, uint8_t overflow_type,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle)
 {
 	WT_BTREE *btree;
 	WT_KV *val;
@@ -3970,19 +3970,19 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	if (deleted) {
 		val->cell_len =
-		    __wt_cell_pack_del(&val->cell, start, stop, rle);
+		    __wt_cell_pack_del(&val->cell, start_ts, stop_ts, rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
 	} else if (overflow_type) {
-		val->cell_len = __wt_cell_pack_ovfl(
-		    &val->cell, overflow_type, start, stop, rle, value->size);
+		val->cell_len = __wt_cell_pack_ovfl(&val->cell,
+		    overflow_type, start_ts, stop_ts, rle, value->size);
 		val->buf.data = value->data;
 		val->buf.size = value->size;
 		val->len = val->cell_len + value->size;
 	} else
-		WT_RET(__rec_cell_build_val(
-		    session, r, value->data, value->size, start, stop, rle));
+		WT_RET(__rec_cell_build_val(session,
+		    r, value->data, value->size, start_ts, stop_ts, rle));
 
 	/* Boundary: split or write the page. */
 	if (__rec_need_split(r, val->len))
@@ -3990,7 +3990,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	/* Copy the value onto the page. */
 	if (!deleted && !overflow_type && btree->dictionary)
-		WT_RET(__rec_dict_replace(session, r, start, stop, rle, val));
+		WT_RET(__rec_dict_replace(
+		    session, r, start_ts, stop_ts, rle, val));
 	__rec_copy_incr(session, r, val);
 
 	/* Update the starting record number in case we split. */
@@ -5837,7 +5838,7 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 static int
 __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     const void *data, size_t size,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle)
 {
 	WT_BTREE *btree;
 	WT_KV *val;
@@ -5866,11 +5867,11 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			WT_STAT_DATA_INCR(session, rec_overflow_value);
 
 			return (__rec_cell_build_ovfl(session, r,
-			    val, WT_CELL_VALUE_OVFL, start, stop, rle));
+			    val, WT_CELL_VALUE_OVFL, start_ts, stop_ts, rle));
 		}
 	}
 	val->cell_len = __wt_cell_pack_data(
-	    &val->cell, start, stop, rle, val->buf.size);
+	    &val->cell, start_ts, stop_ts, rle, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 
 	return (0);
@@ -5883,7 +5884,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 static int
 __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_KV *kv, uint8_t type,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -5943,7 +5944,7 @@ __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
 
 	/* Build the cell and return. */
 	kv->cell_len = __wt_cell_pack_ovfl(
-	    &kv->cell, type, start, stop, rle, kv->buf.size);
+	    &kv->cell, type, start_ts, stop_ts, rle, kv->buf.size);
 	kv->len = kv->cell_len + kv->buf.size;
 
 err:	__wt_scr_free(session, &tmp);

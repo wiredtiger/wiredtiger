@@ -149,7 +149,8 @@ struct __wt_cell_unpack {
 
 	uint64_t v;			/* RLE count or recno */
 
-	wt_timestamp_t start, stop;	/* start/stop timestamps */
+					/* start/stop timestamps */
+	wt_timestamp_t start_ts, stop_ts;
 
 	/*
 	 * !!!
@@ -196,12 +197,12 @@ __wt_cell_pack_addr(WT_CELL *cell, u_int cell_type, uint64_t recno, size_t size)
  */
 static inline void
 __cell_pack_timestamp_pair(
-    uint8_t **pp, wt_timestamp_t start, wt_timestamp_t stop)
+    uint8_t **pp, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
 {
 	if (__wt_process.page_version_ts) {
 		/* Start timestamp, stop timestamp difference. */
-		(void)__wt_vpack_uint(pp, 0, start);
-		(void)__wt_vpack_uint(pp, 0, stop - start);
+		(void)__wt_vpack_uint(pp, 0, start_ts);
+		(void)__wt_vpack_uint(pp, 0, stop_ts - start_ts);
 	}
 }
 
@@ -211,12 +212,12 @@ __cell_pack_timestamp_pair(
  */
 static inline size_t
 __wt_cell_pack_data(WT_CELL *cell,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle, size_t size)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle, size_t size)
 {
 	uint8_t byte, *p;
 
 	p = cell->__chunk + 1;
-	__cell_pack_timestamp_pair(&p, start, stop);
+	__cell_pack_timestamp_pair(&p, start_ts, stop_ts);
 
 	/*
 	 * Short data cells without run-length encoding have 6 bits of data
@@ -315,12 +316,12 @@ __wt_cell_pack_data_match(WT_CELL *page_cell,
  */
 static inline size_t
 __wt_cell_pack_copy(WT_CELL *cell,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle, uint64_t v)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle, uint64_t v)
 {
 	uint8_t *p;
 
 	p = cell->__chunk + 1;
-	__cell_pack_timestamp_pair(&p, start, stop);
+	__cell_pack_timestamp_pair(&p, start_ts, stop_ts);
 
 	if (rle < 2)
 		cell->__chunk[0] = WT_CELL_VALUE_COPY;	/* Type */
@@ -338,13 +339,13 @@ __wt_cell_pack_copy(WT_CELL *cell,
  *	Write a deleted value cell.
  */
 static inline size_t
-__wt_cell_pack_del(
-    WT_CELL *cell, wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle)
+__wt_cell_pack_del(WT_CELL *cell,
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle)
 {
 	uint8_t *p;
 
 	p = cell->__chunk + 1;
-	__cell_pack_timestamp_pair(&p, start, stop);
+	__cell_pack_timestamp_pair(&p, start_ts, stop_ts);
 
 	if (rle < 2)
 		cell->__chunk[0] = WT_CELL_DEL;		/* Type */
@@ -425,7 +426,7 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  */
 static inline size_t
 __wt_cell_pack_ovfl(WT_CELL *cell, uint8_t type,
-    wt_timestamp_t start, wt_timestamp_t stop, uint64_t rle, size_t size)
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle, size_t size)
 {
 	uint8_t *p;
 
@@ -436,7 +437,7 @@ __wt_cell_pack_ovfl(WT_CELL *cell, uint8_t type,
 		break;
 	case WT_CELL_VALUE_OVFL:
 	case WT_CELL_VALUE_OVFL_RM:
-		__cell_pack_timestamp_pair(&p, start, stop);
+		__cell_pack_timestamp_pair(&p, start_ts, stop_ts);
 		break;
 	}
 
@@ -597,15 +598,15 @@ __wt_cell_unpack_safe(const WT_PAGE_HEADER *dsk,
 {
 	struct {
 		uint64_t v;
-		wt_timestamp_t start, stop;
+		wt_timestamp_t start_ts, stop_ts;
 		uint32_t len;
 	} copy;
 	uint64_t v;
 	const uint8_t *p;
 
 	copy.v = 0;			/* -Werror=maybe-uninitialized */
-	copy.start = WT_TS_NONE;
-	copy.stop = WT_TS_MAX;
+	copy.start_ts = WT_TS_NONE;
+	copy.stop_ts = WT_TS_MAX;
 	copy.len = 0;
 
 	/*
@@ -632,8 +633,8 @@ restart:
 	WT_CELL_LEN_CHK(cell, 0);
 	unpack->cell = cell;
 	unpack->v = 0;
-	unpack->start = WT_TS_NONE;
-	unpack->stop = WT_TS_MAX;
+	unpack->start_ts = WT_TS_NONE;
+	unpack->stop_ts = WT_TS_MAX;
 	unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
 	unpack->type = (uint8_t)__wt_cell_type(cell);
 	unpack->ovfl = 0;
@@ -688,16 +689,16 @@ restart:
 			break;
 
 		WT_RET(__wt_vunpack_uint(&p,
-		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start));
+		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_ts));
 		WT_ASSERT(NULL,
-		    unpack->start == WT_TS_NONE ||
-		    unpack->start == WT_TS_FIXME);
+		    unpack->start_ts == WT_TS_NONE ||
+		    unpack->start_ts == WT_TS_FIXME);
 		WT_RET(__wt_vunpack_uint(&p,
-		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop));
-		unpack->stop += unpack->start;
+		    end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
+		unpack->stop_ts += unpack->start_ts;
 		WT_ASSERT(NULL,
-		    unpack->stop == WT_TS_FIXME ||
-		    unpack->stop == WT_TS_MAX);
+		    unpack->stop_ts == WT_TS_FIXME ||
+		    unpack->stop_ts == WT_TS_MAX);
 		break;
 	}
 
@@ -733,8 +734,8 @@ restart:
 		WT_RET(__wt_vunpack_uint(
 		    &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 		copy.v = unpack->v;
-		copy.start = unpack->start;
-		copy.stop = unpack->stop;
+		copy.start_ts = unpack->start_ts;
+		copy.stop_ts = unpack->stop_ts;
 		copy.len = WT_PTRDIFF32(p, cell);
 		cell = (WT_CELL *)((uint8_t *)cell - v);
 		goto restart;
@@ -789,8 +790,8 @@ done:	WT_CELL_LEN_CHK(cell, unpack->__len);
 	if (copy.len != 0) {
 		unpack->raw = WT_CELL_VALUE_COPY;
 		unpack->v = copy.v;
-		unpack->start = copy.start;
-		unpack->stop = copy.stop;
+		unpack->start_ts = copy.start_ts;
+		unpack->stop_ts = copy.stop_ts;
 		unpack->__len = copy.len;
 	}
 
@@ -813,8 +814,8 @@ __wt_cell_unpack_dsk(
 	if (cell == NULL) {
 		unpack->cell = NULL;
 		unpack->v = 0;
-		unpack->start = WT_TS_NONE;
-		unpack->stop = WT_TS_MAX;
+		unpack->start_ts = WT_TS_NONE;
+		unpack->stop_ts = WT_TS_MAX;
 		unpack->data = "";
 		unpack->size = 0;
 		unpack->__len = 0;
@@ -938,7 +939,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 		 * cells ourselves.					\
 		 */							\
 		if ((skip_ts) &&					\
-		    (unpack).stop != WT_TS_MAX &&			\
+		    (unpack).stop_ts != WT_TS_MAX &&			\
 		    !__wt_process.page_version_ts)			\
 			continue;
 #define	WT_CELL_FOREACH_END						\
