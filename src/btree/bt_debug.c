@@ -1271,7 +1271,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	char hex_timestamp[WT_TS_HEX_SIZE];
+	char hex_ts_start[WT_TS_HEX_SIZE], hex_ts_stop[WT_TS_HEX_SIZE];
 	const char *type;
 
 	session = ds->session;
@@ -1310,13 +1310,10 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 		break;
 	}
 
-	if (unpack->start_ts != WT_TS_NONE) {
-		__wt_timestamp_to_hex_string(hex_timestamp, unpack->start_ts);
-		WT_RET(ds->f(ds, ", ts %s-", hex_timestamp));
-	}
-	if (unpack->stop_ts != WT_TS_NONE) {
-		__wt_timestamp_to_hex_string(hex_timestamp, unpack->stop_ts);
-		WT_RET(ds->f(ds, "%s", hex_timestamp));
+	if (unpack->start_ts != WT_TS_NONE || unpack->stop_ts != WT_TS_NONE) {
+		__wt_timestamp_to_hex_string(hex_ts_start, unpack->start_ts);
+		__wt_timestamp_to_hex_string(hex_ts_stop, unpack->stop_ts);
+		WT_RET(ds->f(ds, ", ts %s-%s", hex_ts_start, hex_ts_stop));
 	}
 
 	/* Dump addresses. */
