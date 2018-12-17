@@ -68,14 +68,17 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 	case WT_THROTTLE_CKPT:
 		capacity = conn->capacity_ckpt;
 		reservation = &conn->reservation_ckpt;
+		WT_STAT_CONN_INCR(session, capacity_ckpt_calls);
 		break;
 	case WT_THROTTLE_EVICT:
 		capacity = conn->capacity_evict;
 		reservation = &conn->reservation_evict;
+		WT_STAT_CONN_INCR(session, capacity_evict_calls);
 		break;
 	case WT_THROTTLE_LOG:
 		capacity = conn->capacity_log;
 		reservation = &conn->reservation_log;
+		WT_STAT_CONN_INCR(session, capacity_log_calls);
 		break;
 	}
 
@@ -130,7 +133,20 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
 		__wt_verbose(session, WT_VERB_TEMPORARY,
 		    "THROTTLE: SLEEP sleep us %" PRIu64,
-		    sleep_us);
+	 	    sleep_us);
+		if (type == WT_THROTTLE_CKPT) {
+			WT_STAT_CONN_INCR(session, capacity_ckpt_throttles);
+			WT_STAT_CONN_INCRV(session,
+			    capacity_ckpt_time, sleep_us);
+		} else if (type == WT_THROTTLE_EVICT) {
+			WT_STAT_CONN_INCR(session, capacity_evict_throttles);
+			WT_STAT_CONN_INCRV(session,
+			    capacity_evict_time, sleep_us);
+		} else if (type == WT_THROTTLE_LOG) {
+			WT_STAT_CONN_INCR(session, capacity_log_throttles);
+			WT_STAT_CONN_INCRV(session,
+			    capacity_log_time, sleep_us);
+		}
 		if (sleep_us > WT_THROTTLE_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);
