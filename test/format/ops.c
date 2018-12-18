@@ -1006,7 +1006,8 @@ remove_instead_of_truncate:
 			 * vice-versa).
 			 */
 			greater_than = mmrand(&tinfo->rnd, 0, 1) == 1;
-			range = mmrand(&tinfo->rnd, 1, (u_int)g.rows / 20);
+			range = g.rows < 20 ?
+			    1 : mmrand(&tinfo->rnd, 1, (u_int)g.rows / 20);
 			tinfo->last = tinfo->keyno;
 			if (greater_than) {
 				if (g.c_reverse) {
