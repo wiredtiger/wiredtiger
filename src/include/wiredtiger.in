@@ -5225,42 +5225,42 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_WRITE_RESTORE		1122
 /*! cache: percentage overhead */
 #define	WT_STAT_CONN_CACHE_OVERHEAD			1123
-/*! cache: throttled capacity time in checkpoints (usecs) */
-#define	WT_STAT_CONN_CAPACITY_CKPT_TIME			1124
-/*! cache: throttled capacity time in eviction (usecs) */
-#define	WT_STAT_CONN_CAPACITY_EVICT_TIME		1125
-/*! cache: throttled capacity time in logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_LOG_TIME			1126
 /*! cache: tracked bytes belonging to internal pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1127
+#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1124
 /*! cache: tracked bytes belonging to leaf pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1128
+#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1125
 /*! cache: tracked dirty bytes in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1129
+#define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1126
 /*! cache: tracked dirty pages in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1130
+#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1127
 /*! cache: unmodified pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_CLEAN		1131
+#define	WT_STAT_CONN_CACHE_EVICTION_CLEAN		1128
 /*! connection: auto adjusting condition resets */
-#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1132
+#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1129
 /*! connection: auto adjusting condition wait calls */
-#define	WT_STAT_CONN_COND_AUTO_WAIT			1133
+#define	WT_STAT_CONN_COND_AUTO_WAIT			1130
 /*! connection: detected system time went backwards */
-#define	WT_STAT_CONN_TIME_TRAVEL			1134
+#define	WT_STAT_CONN_TIME_TRAVEL			1131
 /*! connection: files currently open */
-#define	WT_STAT_CONN_FILE_OPEN				1135
+#define	WT_STAT_CONN_FILE_OPEN				1132
 /*! connection: memory allocations */
-#define	WT_STAT_CONN_MEMORY_ALLOCATION			1136
+#define	WT_STAT_CONN_MEMORY_ALLOCATION			1133
 /*! connection: memory frees */
-#define	WT_STAT_CONN_MEMORY_FREE			1137
+#define	WT_STAT_CONN_MEMORY_FREE			1134
 /*! connection: memory re-allocations */
-#define	WT_STAT_CONN_MEMORY_GROW			1138
+#define	WT_STAT_CONN_MEMORY_GROW			1135
 /*! connection: pthread mutex condition wait calls */
-#define	WT_STAT_CONN_COND_WAIT				1139
+#define	WT_STAT_CONN_COND_WAIT				1136
 /*! connection: pthread mutex shared lock read-lock calls */
-#define	WT_STAT_CONN_RWLOCK_READ			1140
+#define	WT_STAT_CONN_RWLOCK_READ			1137
 /*! connection: pthread mutex shared lock write-lock calls */
-#define	WT_STAT_CONN_RWLOCK_WRITE			1141
+#define	WT_STAT_CONN_RWLOCK_WRITE			1138
+/*! connection: throttled capacity time in checkpoints (usecs) */
+#define	WT_STAT_CONN_CAPACITY_CKPT_TIME			1139
+/*! connection: throttled capacity time in eviction (usecs) */
+#define	WT_STAT_CONN_CAPACITY_EVICT_TIME		1140
+/*! connection: throttled capacity time in logging (usecs) */
+#define	WT_STAT_CONN_CAPACITY_LOG_TIME			1141
 /*! connection: throttled checkpoint writes calls */
 #define	WT_STAT_CONN_CAPACITY_CKPT_CALLS		1142
 /*! connection: throttled checkpoint writes for capacity */
