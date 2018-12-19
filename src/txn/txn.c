@@ -699,6 +699,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    txn->mod_count == 0);
 
 	readonly = txn->mod_count == 0;
+
 	/*
 	 * Look for a commit timestamp.
 	 */
@@ -706,7 +707,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_ERR(__wt_timestamp_validate(session, "commit", ts, &cval));
+		/*
+		 * For prepared transactions commit timestamp could be earlier
+		 * than stable timestamp.
+		 */
+		WT_ERR(__wt_timestamp_validate(
+		    session, "commit", ts, &cval, false));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 	}
@@ -716,7 +722,45 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR_MSG(session, EINVAL,
 		    "commit_timestamp is required for a prepared transaction");
 
+#ifdef HAVE_DURABLE_TIMESTAMPS
+	/*
+	 * Durable timestamp is required for a prepared transaction.
+	 */
+	if (prepare) {
+		/*
+		 * Look for a durable timestamp.
+		 */
+		WT_ERR(__wt_config_gets_def(
+		    session, cfg, "durable_timestamp", 0, &cval));
+		if (cval.len != 0) {
+			WT_ERR(__wt_txn_parse_timestamp(
+			    session, "durable", &ts, &cval));
+			WT_ERR(__wt_timestamp_validate(
+			    session, "durable", ts, &cval, true));
+			txn->durable_timestamp = ts;
+		} else
+			/*
+			 * Durable timestamp should be later than stable
+			 * timestamp. If durable timestamp is not given, commit
+			 * timestamp will be considered as durable timestamp.
+			 */
+			txn->durable_timestamp = txn->commit_timestamp;
+
+	} else
+		txn->durable_timestamp = txn->commit_timestamp;
+#else
+	txn->durable_timestamp = txn->commit_timestamp;
+#endif
+
+	if (cval.len != 0)
+		WT_ERR(__wt_timestamp_validate(
+		    session, "durable", txn->durable_timestamp, &cval, true));
+
 	WT_ERR(__txn_commit_timestamp_validate(session));
+
+#ifdef HAVE_DURABLE_TIMESTAMPS
+		// TODO : assert durable_timestamp
+#endif
 
 	/*
 	 * The default sync setting is inherited from the connection, but can

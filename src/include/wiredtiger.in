@@ -1822,6 +1822,11 @@ struct __wt_session {
 	 * commit timestamp set for the current transaction.  The value must
 	 * also not be older than the current oldest and stable timestamps.  See
 	 * @ref transaction_timestamps., a string; default empty.}
+	 * @config{durable_timestamp, set the durable timestamp for the current
+	 * transaction.  The supplied value must not be older than the commit
+	 * timestamp set for the current transaction.  The value must also not
+	 * be older than the current stable timestamp.  See @ref
+	 * transaction_timestamps., a string; default empty.}
 	 * @config{sync, override whether to sync log records when the
 	 * transaction commits\, inherited from ::wiredtiger_open \c
 	 * transaction_sync.  The \c background setting initiates a background
@@ -1894,6 +1899,11 @@ struct __wt_session {
 	 * commit timestamp set for the current transaction.  The value must
 	 * also not be older than the current oldest and stable timestamps.  See
 	 * @ref transaction_timestamps., a string; default empty.}
+	 * @config{durable_timestamp, set the durable timestamp for the current
+	 * transaction.  The supplied value must not be older than the commit
+	 * timestamp set for the current transaction.  The value must also not
+	 * be older than the current stable timestamp.  See @ref
+	 * transaction_timestamps., a string; default empty.}
 	 * @config{read_timestamp, read using the specified timestamp.  The
 	 * supplied value must not be older than the current oldest timestamp.
 	 * This can only be set once for a transaction.  @ref

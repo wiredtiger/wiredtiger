@@ -130,6 +130,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	upd->prepare_state = WT_PREPARE_LOCKED;
 	WT_WRITE_BARRIER();
 	upd->timestamp = txn->commit_timestamp;
+	upd->durable_timestamp = txn->durable_timestamp;
 	WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
 }
 
@@ -438,11 +439,18 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		/*
 		 * The timestamp is in the page deleted structure for
 		 * truncates, or in the update for other operations.
+		 * Both commit timestamp and durable timestamp needs to be
+		 * updated.
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
 		if (*timestamp == WT_TS_NONE)
 			*timestamp = txn->commit_timestamp;
+		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
+		    &op->u.ref->page_del->durable_timestamp :
+		    &op->u.op_upd->durable_timestamp;
+		if (*timestamp == WT_TS_NONE)
+			*timestamp = txn->durable_timestamp;
 	}
 }
 
