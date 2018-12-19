@@ -96,6 +96,7 @@ DIRECTIO
 DNE
 DOI
 DONTNEED
+DSK
 DUPLICATEV
 DataSet
 DbCursor
@@ -378,6 +379,7 @@ ThreadList
 ThreadListWrapper
 Timespec
 Timestamp
+Timestamps
 TryCV
 TxnID
 UDF
@@ -402,6 +404,7 @@ VARCHAR
 VLDB
 VMSG
 VR
+VRFY
 VX
 Vc
 Vfprintf
@@ -701,6 +704,7 @@ endian
 english
 enqueue
 enqueued
+enum
 env
 eof
 epi

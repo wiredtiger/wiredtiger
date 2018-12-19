@@ -42,11 +42,6 @@ class test_schema06(wttest.WiredTigerTestCase):
         ('lsm', { 'idx_config' : ',type=lsm' }),
     ])
 
-    # Enable statistics collection for this connection so that the session level
-    # schema lock statistics can be tested.
-    def conn_config(self):
-        return 'statistics=(all)'
-
     def flip(self, inum, val):
         """
         Defines a unique transformation of values for each index number.
@@ -91,19 +86,6 @@ class test_schema06(wttest.WiredTigerTestCase):
         cursor.close()
         self.drop_index(0)
         self.drop_index(1)
-
-        # Test the session level schema lock wait statistic. The schema lock
-        # wait is seen for the lsm table only. Concurrent lsm worker threads
-        # could require an in-memory chunk switch under a schema lock.
-        if self.idx_config == ',type=lsm':
-            found = False
-            stat_cur = self.session.open_cursor('statistics:session', None, None)
-            while stat_cur.next() == 0:
-                [desc, pvalue, stat_value] = stat_cur.get_values()
-                if desc == 'session: schema lock wait time (usecs)':
-                    found = True
-                    self.assertTrue(stat_value > 0)
-            self.assertEqual(found, True)
 
     def check_entries(self, check_indices):
         cursor = self.session.open_cursor('table:main', None, None)
