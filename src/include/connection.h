@@ -304,6 +304,8 @@ struct __wt_connection_impl {
 	uint64_t capacity_ckpt;	/* Bytes/sec checkpoint capacity. */
 	uint64_t capacity_evict;/* Bytes/sec eviction capacity. */
 	uint64_t capacity_log;	/* Bytes/sec logging capacity. */
+	uint64_t capacity_read;	/* Bytes/sec read capacity. */
+	uint64_t capacity_total;/* Bytes/sec total capacity. */
 
 	WT_SESSION_IMPL *capacity_session;	/* Capacity thread session */
 	wt_thread_t	 capacity_tid;	/* Capacity thread */
@@ -324,6 +326,8 @@ struct __wt_connection_impl {
 	uint64_t	 reservation_ckpt;/* Atomic: next checkpoint write */
 	uint64_t	 reservation_evict;/* Atomic: next eviction write */
 	uint64_t	 reservation_log;/* Atomic: next logging write */
+	uint64_t	 reservation_read;/* Atomic: next read */
+	uint64_t	 reservation_total;/* Atomic: next operation of any kind */
 
 	WT_LSM_MANAGER	lsm_manager;	/* LSM worker thread information */
 

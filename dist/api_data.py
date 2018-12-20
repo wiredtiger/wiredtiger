@@ -535,6 +535,16 @@ connection_runtime_config = [
             number of bytes per second written in service of the logging
             subsystem''',
             min='0', max='1TB'),
+        Config('read', '0', r'''
+            number of bytes per second written in service of reads''',
+            min='0', max='1TB'),
+        Config('total', '0', r'''
+            number of bytes per second available to all subsystems in total.
+            When set, decisions about what subsystems are throttled, and in
+            what proportion, are made internally. A total can be used in
+            conjunction with values for other subsystems, in which case each
+            subsystem's stated capacity is honored''',
+            min='0', max='1TB'),
         ]),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
