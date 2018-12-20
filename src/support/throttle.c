@@ -35,7 +35,7 @@
  * fewer sleeps with the risk of more choppy behavior as this number
  * is larger.
  */
-#define	WT_THROTTLE_SLEEP_CUTOFF_US	0
+#define	WT_THROTTLE_SLEEP_CUTOFF_US	100
 
 /*
  * __wt_throttle --
