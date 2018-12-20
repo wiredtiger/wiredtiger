@@ -148,15 +148,18 @@ connection_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('capacity_ckpt_calls', 'throttled checkpoint writes calls'),
+    ConnStat('capacity_ckpt_calls', 'throttled checkpoint write calls'),
     ConnStat('capacity_ckpt_throttles', 'throttled checkpoint writes for capacity'),
     ConnStat('capacity_ckpt_time', 'throttled capacity time in checkpoints (usecs)'),
-    ConnStat('capacity_evict_calls', 'throttled eviction writes calls'),
+    ConnStat('capacity_evict_calls', 'throttled eviction write calls'),
     ConnStat('capacity_evict_throttles', 'throttled eviction writes for capacity'),
     ConnStat('capacity_evict_time', 'throttled capacity time in eviction (usecs)'),
-    ConnStat('capacity_log_calls', 'throttled log writes calls'),
+    ConnStat('capacity_log_calls', 'throttled log write calls'),
     ConnStat('capacity_log_throttles', 'throttled log writes for capacity'),
     ConnStat('capacity_log_time', 'throttled capacity time in logging (usecs)'),
+    ConnStat('capacity_read_calls', 'throttled read calls'),
+    ConnStat('capacity_read_throttles', 'throttled reads for capacity'),
+    ConnStat('capacity_read_time', 'throttled capacity time in reads (usecs)'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),

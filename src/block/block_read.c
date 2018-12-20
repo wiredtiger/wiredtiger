@@ -200,6 +200,7 @@ __wt_block_read_off_blind(WT_SESSION_IMPL *session,
 	 * the first allocation-size block.
 	 */
 	WT_RET(__wt_scr_alloc(session, block->allocsize, &tmp));
+	__wt_capacity_throttle(session, block->allocsize, WT_THROTTLE_READ);
 	WT_ERR(__wt_read(
 	    session, block->fh, offset, (size_t)block->allocsize, tmp->mem));
 	blk = WT_BLOCK_HEADER_REF(tmp->mem);
@@ -248,6 +249,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		bufsize = WT_MAX(size, buf->memsize + 10);
 	}
 	WT_RET(__wt_buf_init(session, buf, bufsize));
+	__wt_capacity_throttle(session, size, WT_THROTTLE_READ);
 	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 	buf->size = size;
 
