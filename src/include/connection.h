@@ -324,11 +324,11 @@ struct __wt_connection_impl {
 	 * given capacity.  These values hold the next available reservation,
 	 * in nanoseconds since the epoch.
 	 */
-	uint64_t	 reservation_ckpt;/* Atomic: next checkpoint write */
-	uint64_t	 reservation_evict;/* Atomic: next eviction write */
-	uint64_t	 reservation_log;/* Atomic: next logging write */
-	uint64_t	 reservation_read;/* Atomic: next read */
-	uint64_t	 reservation_total;/* Atomic: next operation of any kind */
+	uint64_t reservation_ckpt;	/* Atomic: next checkpoint write */
+	uint64_t reservation_evict;	/* Atomic: next eviction write */
+	uint64_t reservation_log;	/* Atomic: next logging write */
+	uint64_t reservation_read;	/* Atomic: next read */
+	uint64_t reservation_total;	/* Atomic: next operation of any kind */
 
 	WT_LSM_MANAGER	lsm_manager;	/* LSM worker thread information */
 
