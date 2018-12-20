@@ -37,6 +37,12 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "io_capacity.log", &cval));
 	WT_CAPACITY_CHK(cval.val, "log");
 	conn->capacity_log = (uint64_t)cval.val;
+	WT_RET(__wt_config_gets(session, cfg, "io_capacity.read", &cval));
+	WT_CAPACITY_CHK(cval.val, "read");
+	conn->capacity_read = (uint64_t)cval.val;
+	WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
+	WT_CAPACITY_CHK(cval.val, "total");
+	conn->capacity_total = (uint64_t)cval.val;
 
 	conn->capacity_written = conn->capacity_ckpt +
 	    conn->capacity_evict + conn->capacity_log;
