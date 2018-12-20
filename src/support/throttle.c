@@ -90,6 +90,7 @@ __wt_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 		return;
 
 	/* Sizes larger than this may overflow */
+	__wt_capacity_signal(session, 0);
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
 	res_len = (bytes * WT_BILLION) / capacity;
 	res_value = __wt_atomic_add64(reservation, res_len);
