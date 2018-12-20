@@ -180,7 +180,7 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_capacity_server_destroy(session));
 
 	WT_RET(__capacity_config(session, cfg));
-	if (conn->capacity_written != 0)
+	if (conn->capacity_threshold != 0)
 		WT_RET(__capacity_server_start(conn));
 
 	return (0);
