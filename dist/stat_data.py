@@ -160,6 +160,8 @@ connection_stats = [
     ConnStat('capacity_read_calls', 'throttled read calls'),
     ConnStat('capacity_read_throttles', 'throttled reads for capacity'),
     ConnStat('capacity_read_time', 'throttled capacity time in reads (usecs)'),
+    ConnStat('capacity_total_throttles', 'throttled for total capacity'),
+    ConnStat('capacity_total_time', 'throttled time in total capacity (usecs)'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),

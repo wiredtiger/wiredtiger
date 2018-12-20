@@ -889,10 +889,12 @@ static const char * const __stats_connection_desc[] = {
 	"connection: throttled checkpoint writes for capacity",
 	"connection: throttled eviction write calls",
 	"connection: throttled eviction writes for capacity",
+	"connection: throttled for total capacity",
 	"connection: throttled log write calls",
 	"connection: throttled log writes for capacity",
 	"connection: throttled read calls",
 	"connection: throttled reads for capacity",
+	"connection: throttled time in total capacity (usecs)",
 	"connection: total fsync I/Os",
 	"connection: total fsync I/Os nowait",
 	"connection: total read I/Os",
@@ -1314,10 +1316,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->capacity_ckpt_throttles = 0;
 	stats->capacity_evict_calls = 0;
 	stats->capacity_evict_throttles = 0;
+	stats->capacity_total_throttles = 0;
 	stats->capacity_log_calls = 0;
 	stats->capacity_log_throttles = 0;
 	stats->capacity_read_calls = 0;
 	stats->capacity_read_throttles = 0;
+	stats->capacity_total_time = 0;
 	stats->fsync_io = 0;
 	stats->fsync_io_nowait = 0;
 	stats->read_io = 0;
@@ -1787,12 +1791,15 @@ __wt_stat_connection_aggregate(
 	to->capacity_evict_calls += WT_STAT_READ(from, capacity_evict_calls);
 	to->capacity_evict_throttles +=
 	    WT_STAT_READ(from, capacity_evict_throttles);
+	to->capacity_total_throttles +=
+	    WT_STAT_READ(from, capacity_total_throttles);
 	to->capacity_log_calls += WT_STAT_READ(from, capacity_log_calls);
 	to->capacity_log_throttles +=
 	    WT_STAT_READ(from, capacity_log_throttles);
 	to->capacity_read_calls += WT_STAT_READ(from, capacity_read_calls);
 	to->capacity_read_throttles +=
 	    WT_STAT_READ(from, capacity_read_throttles);
+	to->capacity_total_time += WT_STAT_READ(from, capacity_total_time);
 	to->fsync_io += WT_STAT_READ(from, fsync_io);
 	to->fsync_io_nowait += WT_STAT_READ(from, fsync_io_nowait);
 	to->read_io += WT_STAT_READ(from, read_io);
