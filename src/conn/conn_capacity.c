@@ -15,6 +15,7 @@
  * fewer sleeps with the risk of more choppy behavior as this number
  * is larger.
  */
+#define	WT_CAPACITY_PCT			10
 #define	WT_CAPACITY_SLEEP_CUTOFF_US	100
 
 #define	WT_CAPACITY_CHK(v, str)	do {				\
@@ -123,7 +124,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * asynchronously flush what we've written.
 	 */
 	conn->capacity_threshold = (conn->capacity_ckpt +
-	    conn->capacity_evict + conn->capacity_log) / 10;
+	    conn->capacity_evict + conn->capacity_log) / 100 *
+	    WT_CAPACITY_PCT;
 
 	return (0);
 }
@@ -245,7 +247,7 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_capacity_server_destroy(session));
 
 	WT_RET(__capacity_config(session, cfg));
-	if (conn->capacity_written != 0)
+	if (conn->capacity_threshold != 0)
 		WT_RET(__capacity_server_start(conn));
 
 	return (0);
