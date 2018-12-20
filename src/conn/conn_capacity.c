@@ -45,18 +45,6 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __wt_conn_capacity_reconfig --
- *	Set I/O capacity configuration.
- */
-int
-__wt_conn_capacity_reconfig(WT_SESSION_IMPL *session, const char *cfg[])
-{
-
-	/* Needs stop/start threads. */
-	return (__capacity_config(session, cfg));
-}
-
-/*
  * __capacity_sync --
  *	Background sync if the number of bytes written is sufficient.
  */
@@ -133,7 +121,7 @@ __capacity_server_start(WT_CONNECTION_IMPL *conn)
 	if (conn->capacity_session != NULL)
 		return (0);
 
-	F_SET(conn, WT_CONN_SERVER_CHECKPOINT);
+	F_SET(conn, WT_CONN_SERVER_CAPACITY);
 
 	/*
 	 * The capacity server gets its own session.
@@ -199,7 +187,7 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 
-	F_CLR(conn, WT_CONN_SERVER_CHECKPOINT);
+	F_CLR(conn, WT_CONN_SERVER_CAPACITY);
 	if (conn->capacity_tid_set) {
 		__wt_cond_signal(session, conn->capacity_cond);
 		WT_TRET(__wt_thread_join(session, &conn->capacity_tid));
@@ -235,7 +223,7 @@ __wt_capacity_signal(WT_SESSION_IMPL *session, uint64_t written)
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
-	WT_ASSERT(session, WT_CKPT_LOGSIZE(conn));
+	WT_ASSERT(session, WT_CAPACITY_SIZE(conn));
 	if (written >= conn->capacity_written && !conn->capacity_signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
 		conn->capacity_signalled = true;
