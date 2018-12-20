@@ -44,8 +44,12 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CAPACITY_CHK(cval.val, "total");
 	conn->capacity_total = (uint64_t)cval.val;
 
-	conn->capacity_written = conn->capacity_ckpt +
-	    conn->capacity_evict + conn->capacity_log;
+	/*
+	 * Set the threshold to 10% of our capacity to periodically
+	 * asynchronously flush what we've written.
+	 */
+	conn->capacity_threshold = (conn->capacity_ckpt +
+	    conn->capacity_evict + conn->capacity_log) / 10;
 
 	return (0);
 }
@@ -69,13 +73,10 @@ __capacity_server(void *arg)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
 
 	session = arg;
 	conn = S2C(session);
-	wt_session = (WT_SESSION *)session;
-
 	for (;;) {
 		/*
 		 * Wait...

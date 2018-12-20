@@ -375,6 +375,10 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		if (!F_ISSET(fh, WT_FH_DIRTY) ||
 		    handle->fh_sync_nowait == NULL)
 			continue;
+		/*
+		 * If we wanted to exclude some files, such as log files, or
+		 * WiredTiger owned files, this is the place to do so.
+		 */
 		WT_RET(__wt_fsync(session, fh, false));
 		F_CLR(fh, WT_FH_DIRTY);
 		WT_STAT_CONN_INCR(session, fsync_all_fh);
