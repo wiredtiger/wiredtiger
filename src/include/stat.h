@@ -455,6 +455,9 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_clean;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
+	int64_t fsync_all;
+	int64_t fsync_all_fh_total;
+	int64_t fsync_all_fh;
 	int64_t time_travel;
 	int64_t file_open;
 	int64_t memory_allocation;

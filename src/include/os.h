@@ -114,6 +114,10 @@ struct __wt_fh {
 	u_int ref;				/* reference count */
 
 	WT_FILE_HANDLE *handle;
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_FH_DIRTY	0x1u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+	uint32_t	flags;			/* flags */
 };
 
 #ifdef _WIN32

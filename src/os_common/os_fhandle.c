@@ -356,6 +356,33 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 }
 
 /*
+ * __wt_fsync_all_background --
+ *	POSIX background fsync for all dirty file handles.
+ */
+int
+__wt_fsync_all_background(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_FH *fh;
+	WT_FILE_HANDLE *handle;
+
+	conn = S2C(session);
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
+	WT_STAT_CONN_INCR(session, fsync_all);
+	TAILQ_FOREACH(fh, &conn->fhqh, q) {
+		handle = fh->handle;
+		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
+		if (!F_ISSET(fh, WT_FH_DIRTY) ||
+		    handle->fh_sync_nowait == NULL)
+			continue;
+		WT_RET(__wt_fsync(session, fh, false));
+		F_CLR(fh, WT_FH_DIRTY);
+		WT_STAT_CONN_INCR(session, fsync_all_fh);
+	}
+	return (0);
+}
+
+/*
  * __wt_close_connection_close --
  *	Close any open file handles at connection close.
  */

@@ -45,17 +45,6 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 }
 
 /*
- * __capacity_sync --
- *	Background sync if the number of bytes written is sufficient.
- */
-static int
-__capacity_sync(WT_SESSION_IMPL *session)
-{
-	WT_UNUSED(session);
-	return (0);
-}
-
-/*
  * __capacity_server_run_chk --
  *	Check to decide if the capacity server should continue running.
  */
@@ -86,13 +75,14 @@ __capacity_server(void *arg)
 		 * Wait...
 		 */
 		__wt_cond_wait(session, conn->capacity_cond,
-		    conn->capacity_usecs, __capacity_server_run_chk);
+		    0, __capacity_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__capacity_server_run_chk(session))
 			break;
 
-		WT_ERR(__capacity_sync(session));
+		WT_ERR(__wt_fsync_all_background(session));
+		conn->capacity_signalled = false;
 		/*
 		 * In case we crossed the written limit and the
 		 * condition variable was already signalled, do
@@ -155,6 +145,12 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	/*
+	 * If it is a read only connection there is nothing to do.
+	 */
+	if (F_ISSET(conn, WT_CONN_READONLY))
+		return (0);
+
+	/*
 	 * Stop any server that is already running. This means that each time
 	 * reconfigure is called we'll bounce the server even if there are no
 	 * configuration changes. This makes our life easier as the underlying
@@ -215,17 +211,19 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
 
 /*
  * __wt_capacity_signal --
- *	Signal the capacity thread if sufficient log has been written.
+ *	Signal the capacity thread if sufficient data has been written.
  */
 void
-__wt_capacity_signal(WT_SESSION_IMPL *session, uint64_t written)
+__wt_capacity_signal(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
 	WT_ASSERT(session, WT_CAPACITY_SIZE(conn));
-	if (written >= conn->capacity_written && !conn->capacity_signalled) {
+	if (conn->capacity_written >= conn->capacity_threshold &&
+	    !conn->capacity_signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
 		conn->capacity_signalled = true;
+		conn->capacity_written = 0;
 	}
 }

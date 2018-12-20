@@ -870,6 +870,9 @@ static const char * const __stats_connection_desc[] = {
 	"cache: unmodified pages evicted",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
+	"connection: background fsync calls",
+	"connection: background fsync file handles considered",
+	"connection: background fsync file handles synced",
 	"connection: detected system time went backwards",
 	"connection: files currently open",
 	"connection: memory allocations",
@@ -1289,6 +1292,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_clean = 0;
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
+	stats->fsync_all = 0;
+	stats->fsync_all_fh_total = 0;
+	stats->fsync_all_fh = 0;
 	stats->time_travel = 0;
 		/* not clearing file_open */
 	stats->memory_allocation = 0;
@@ -1754,6 +1760,9 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
+	to->fsync_all += WT_STAT_READ(from, fsync_all);
+	to->fsync_all_fh_total += WT_STAT_READ(from, fsync_all_fh_total);
+	to->fsync_all_fh += WT_STAT_READ(from, fsync_all_fh);
 	to->time_travel += WT_STAT_READ(from, time_travel);
 	to->file_open += WT_STAT_READ(from, file_open);
 	to->memory_allocation += WT_STAT_READ(from, memory_allocation);
