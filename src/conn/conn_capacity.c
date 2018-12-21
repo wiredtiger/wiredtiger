@@ -73,7 +73,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * If we've been given a total capacity, as well as subsystem
 		 * capacities, and a subsystem is not configured up to the
 		 * percentage we planned to allocate above, then we'll track
-		 * any excess that we can divy up later.
+		 * any excess that we can later divide up.
 		 */
 		allocation = total / 2;
 		if (conn->capacity_evict == 0) {
