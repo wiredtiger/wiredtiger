@@ -35,7 +35,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t allocation, excess, share, total;
+	int64_t excess;
+	uint64_t allocation, share, total;
 	uint32_t excess_shares;
 	bool eviction_use_excess, log_use_excess, read_use_excess;
 
@@ -68,6 +69,11 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 *    reads:    50% of total
 		 *    log:      25% of total
 		 *    checkpoint: 10% of total
+		 *
+		 * If we've been given a total capacity, as well as subsystem
+		 * capacities, and a subsystem is not configured up to the
+		 * percentage we planned to allocate above, then we'll track
+		 * any excess that we can divy up later.
 		 */
 		allocation = total / 2;
 		if (conn->capacity_evict == 0) {
@@ -75,16 +81,18 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 			eviction_use_excess = true;
 			excess_shares += 50;
 		}
-		else if (conn->capacity_evict < allocation)
-			excess += (allocation - conn->capacity_evict);
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_evict;
 
 		if (conn->capacity_read == 0) {
 			conn->capacity_read = allocation;
 			read_use_excess = true;
 			excess_shares += 50;
 		}
-		else if (conn->capacity_read < allocation)
-			excess += (allocation - conn->capacity_read);
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_read;
 
 		allocation = total / 4;
 		if (conn->capacity_log == 0) {
@@ -92,14 +100,16 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 			log_use_excess = true;
 			excess_shares += 25;
 		}
-		else if (conn->capacity_log < allocation)
-			excess += (allocation - conn->capacity_log);
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_log;
 
 		allocation = total / 10;
 		if (conn->capacity_ckpt == 0)
 			conn->capacity_ckpt = allocation;
-		else if (conn->capacity_ckpt < allocation)
-			excess += (allocation - conn->capacity_ckpt);
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_ckpt;
 
 		/*
 		 * Now we've set up the allocations, but we may have
@@ -108,8 +118,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * The other subsystems, if they were not constrained, get
 		 * extra shares in proportion to the general goals above.
 		 */
-		if (excess_shares > 0) {
-			share = excess / excess_shares;
+		if (excess_shares > 0 && excess > 0) {
+			share = (uint64_t)excess / excess_shares;
 			if (eviction_use_excess)
 				conn->capacity_evict += share * 50;
 			if (read_use_excess)
