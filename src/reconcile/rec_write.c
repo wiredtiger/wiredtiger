@@ -1349,9 +1349,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		r->max_txn = max_txn;
 
 	/* Update the maximum timestamp. */
-	if (first_ts_upd != NULL &&
-	    r->max_timestamp < first_ts_upd->durable_timestamp)
-		r->max_timestamp = first_ts_upd->durable_timestamp;
+	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->timestamp)
+		r->max_timestamp = first_ts_upd->timestamp;
 
 	/*
 	 * If the update we chose was a birthmark, or we are doing

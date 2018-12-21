@@ -810,12 +810,13 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline bool
 __wt_txn_upd_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-	/* Update in a prepared state is not durable. */
-	if (upd->prepare_state == WT_PREPARE_LOCKED ||
-	    upd->prepare_state == WT_PREPARE_INPROGRESS)
-		return (false);
-
-	return ( __wt_txn_visible(session, upd->txnid, upd->durable_timestamp));
+	/* If update is visible then check if it is durable. */
+	if (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE)
+	{
+		return (__wt_txn_visible(
+		    session, upd->txnid, upd->durable_timestamp));
+	}
+	return (false);
 }
 
 /*
