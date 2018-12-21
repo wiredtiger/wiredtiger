@@ -35,8 +35,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	int64_t excess;
 	uint64_t allocation, share, total;
+	int64_t excess;
 	uint32_t excess_shares;
 	bool eviction_use_excess, log_use_excess, read_use_excess;
 
