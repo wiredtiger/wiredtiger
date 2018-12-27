@@ -35,6 +35,10 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
+	uint64_t allocation, share, total;
+	int64_t excess;
+	uint32_t excess_shares;
+	bool eviction_use_excess, log_use_excess, read_use_excess;
 
 	conn = S2C(session);
 
@@ -52,7 +56,78 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->capacity_read = (uint64_t)cval.val;
 	WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
 	WT_CAPACITY_CHK(cval.val, "total");
-	conn->capacity_total = (uint64_t)cval.val;
+	conn->capacity_total = total = (uint64_t)cval.val;
+
+	if (total != 0) {
+		eviction_use_excess = log_use_excess = read_use_excess = false;
+		excess = 0;
+		excess_shares = 0;
+		/*
+		 * If we've been given a total capacity, then set the
+		 * capacity of any subsystem that hasn't been set.  We aim for:
+		 *    eviction: 50% of total
+		 *    reads:    50% of total
+		 *    log:      25% of total
+		 *    checkpoint: 10% of total
+		 *
+		 * If we've been given a total capacity, as well as subsystem
+		 * capacities, and a subsystem is not configured up to the
+		 * percentage we planned to allocate above, then we'll track
+		 * any excess that we can later divide up.
+		 */
+		allocation = total / 2;
+		if (conn->capacity_evict == 0) {
+			conn->capacity_evict = allocation;
+			eviction_use_excess = true;
+			excess_shares += 50;
+		}
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_evict;
+
+		if (conn->capacity_read == 0) {
+			conn->capacity_read = allocation;
+			read_use_excess = true;
+			excess_shares += 50;
+		}
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_read;
+
+		allocation = total / 4;
+		if (conn->capacity_log == 0) {
+			conn->capacity_log = allocation;
+			log_use_excess = true;
+			excess_shares += 25;
+		}
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_log;
+
+		allocation = total / 10;
+		if (conn->capacity_ckpt == 0)
+			conn->capacity_ckpt = allocation;
+		else
+			excess += (int64_t)allocation -
+			    (int64_t)conn->capacity_ckpt;
+
+		/*
+		 * Now we've set up the allocations, but we may have
+		 * excess we can spread around.  We don't give checkpoint
+		 * any extra, we keep it at 10% or whatever was specified.
+		 * The other subsystems, if they were not constrained, get
+		 * extra shares in proportion to the general goals above.
+		 */
+		if (excess_shares > 0 && excess > 0) {
+			share = (uint64_t)excess / excess_shares;
+			if (eviction_use_excess)
+				conn->capacity_evict += share * 50;
+			if (read_use_excess)
+				conn->capacity_read += share * 50;
+			if (log_use_excess)
+				conn->capacity_log += share * 25;
+		}
+	}
 
 	/*
 	 * Set the threshold to the percent of our capacity to periodically
@@ -261,7 +336,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 {
 	struct timespec now;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t capacity, ckpt, now_ns, sleep_us;
+	uint64_t capacity, ckpt, now_ns, sleep_us, total;
 	uint64_t new_res_len, new_res_value, res_len, res_value;
 	uint64_t *reservation;
 
@@ -296,13 +371,20 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	    "THROTTLE: type %d bytes %" PRIu64 " capacity %" PRIu64
 	    "  reservation %" PRIu64,
 	    (int)type, bytes, capacity, *reservation);
-	if (capacity == 0)
+	if (capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
 		return;
 
-	/* Sizes larger than this may overflow */
-	conn->capacity_written += bytes;
+	/*
+	 * There may in fact be some reads done under the umbrella of log
+	 * I/O, but they are mostly done under recovery. And if we are
+	 * recovering, we don't reach this code.
+	 */
+	if (type != WT_THROTTLE_READ)
+		/* Sizes larger than this may overflow */
+		conn->capacity_written += bytes;
 	__wt_capacity_signal(session);
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
+
 	res_len = (bytes * WT_BILLION) / capacity;
 	res_value = __wt_atomic_add64(reservation, res_len);
 	__wt_epoch(session, &now);
@@ -363,33 +445,71 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 			WT_STAT_CONN_INCRV(session,
 			    capacity_read_time, sleep_us);
 		}
-		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
+		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US) {
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);
+
+			/* Adjust our idea of 'now', we'll be using it again. */
+			now_ns = res_value;
+		}
 	} else if (now_ns - res_value > capacity) {
 		/*
 		 * If it looks like the reservation clock is out of date by more
 		 * than a second, bump it up within a second of the current
 		 * time. Basically we don't allow a lot of current bandwidth to
-		 * 'make up' for long lulls in the past.
-		 *
-		 * XXX  We may want to tune this, depending on how we want to
-		 * treat bursts of I/O traffic.
+		 * 'make up' for long lulls in the past.  Note that this
+		 * may race with other threads, with the last one 'winning'.
+		 * But it doesn't really matter, the one second catch up
+		 * is approximate.
 		 */
 		__wt_verbose(session, WT_VERB_TEMPORARY,
 		    "THROTTLE: ADJ available %" PRIu64 " capacity %" PRIu64
 		    " adjustment %" PRIu64,
 		    now_ns - res_value, capacity,
 		    now_ns - capacity + res_value);
-		if (res_value != res_len)
-			__wt_atomic_store64(reservation,
-			    now_ns - capacity + res_len);
-		else
-			/* Initialize first time. */
-			__wt_atomic_store64(reservation, now_ns);
+		__wt_atomic_store64(reservation, now_ns - capacity + res_len);
+	}
+
+	/*
+	 * Now, see if we fit under the total capacity given to the
+	 * connection.  To do this, repeat the steps above, but using
+	 * the total reservation counter and total capacity.
+	 */
+	if ((total = conn->capacity_total) != 0) {
+		res_len = (bytes * WT_BILLION) / total;
+		res_value = __wt_atomic_add64(&conn->reservation_total,
+		    res_len);
+
+		__wt_verbose(session, WT_VERB_TEMPORARY,
+		    "THROTTLE: TOTAL: len %" PRIu64 " reservation %" PRIu64
+		    " now %" PRIu64, res_len, res_value, now_ns);
+
+		if (res_value > now_ns) {
+			sleep_us = (res_value - now_ns) / WT_THOUSAND;
+			__wt_verbose(session, WT_VERB_TEMPORARY,
+			    "THROTTLE: TOTAL: SLEEP sleep us %" PRIu64,
+			    sleep_us);
+			WT_STAT_CONN_INCR(session, capacity_total_throttles);
+			WT_STAT_CONN_INCRV(session,
+			    capacity_total_time, sleep_us);
+			if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
+				/* Sleep handles large usec values. */
+				__wt_sleep(0, sleep_us);
+		} else if (now_ns - res_value > total) {
+			/*
+			 * If the total reservation clock is out of date,
+			 * bring it to within a second of a current time.
+			 */
+			__wt_verbose(session, WT_VERB_TEMPORARY,
+			    "THROTTLE: TOTAL: ADJ available %" PRIu64
+			    " capacity %" PRIu64 " adjustment %" PRIu64,
+			    now_ns - res_value, total,
+			    now_ns - total + res_value);
+			__wt_atomic_store64(&conn->reservation_total,
+			    now_ns - total + res_len);
+		}
 	}
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
 	    "THROTTLE: DONE reservation %" PRIu64, *reservation);
-	return;
 }
