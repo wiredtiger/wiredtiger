@@ -101,6 +101,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
 	WT_FULL_BARRIER();
 
+	WT_TRET(__wt_capacity_server_destroy(session));
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
 	WT_TRET(__wt_sweep_destroy(session));

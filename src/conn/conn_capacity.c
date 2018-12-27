@@ -55,7 +55,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->capacity_total = (uint64_t)cval.val;
 
 	/*
-	 * Set the threshold to 10% of our capacity to periodically
+	 * Set the threshold to the percent of our capacity to periodically
 	 * asynchronously flush what we've written.
 	 */
 	conn->capacity_threshold = (conn->capacity_ckpt +
@@ -90,24 +90,19 @@ __capacity_server(void *arg)
 	conn = S2C(session);
 	for (;;) {
 		/*
-		 * Wait...
+		 * Wait until signalled but check once per second in case
+		 * the signal was missed.
 		 */
 		__wt_cond_wait(session, conn->capacity_cond,
-		    0, __capacity_server_run_chk);
+		    WT_MILLION, __capacity_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__capacity_server_run_chk(session))
 			break;
 
-		WT_ERR(__wt_fsync_all_background(session));
 		conn->capacity_signalled = false;
-		/*
-		 * In case we crossed the written limit and the
-		 * condition variable was already signalled, do
-		 * a tiny wait to clear it so we don't do another
-		 * sync immediately.
-		 */
-		__wt_cond_wait(session, conn->capacity_cond, 1, NULL);
+		if (conn->capacity_written > conn->capacity_threshold)
+			WT_ERR(__wt_fsync_all_background(session));
 	}
 
 	if (0) {
