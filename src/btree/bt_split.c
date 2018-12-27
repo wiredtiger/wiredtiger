@@ -262,6 +262,9 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 	if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
 		__wt_cell_unpack(from_home, (WT_CELL *)ref_addr, &unpack);
 		WT_RET(__wt_calloc_one(session, &addr));
+		addr->oldest_start_ts = unpack.oldest_start_ts;
+		addr->newest_start_ts = unpack.newest_start_ts;
+		addr->newest_stop_ts = unpack.newest_stop_ts;
 		WT_ERR(__wt_memdup(
 		    session, unpack.data, unpack.size, &addr->addr));
 		addr->size = (uint8_t)unpack.size;
@@ -1670,10 +1673,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	if (multi->addr.addr != NULL) {
 		WT_RET(__wt_calloc_one(session, &addr));
 		ref->addr = addr;
+		addr->oldest_start_ts = multi->addr.oldest_start_ts;
+		addr->newest_start_ts = multi->addr.newest_start_ts;
+		addr->newest_stop_ts = multi->addr.newest_stop_ts;
+		WT_RET(__wt_memdup(session,
+		    multi->addr.addr, multi->addr.size, &addr->addr));
 		addr->size = multi->addr.size;
 		addr->type = multi->addr.type;
-		WT_RET(__wt_memdup(session,
-		    multi->addr.addr, addr->size, &addr->addr));
 
 		WT_REF_SET_STATE(ref, WT_REF_DISK);
 	}

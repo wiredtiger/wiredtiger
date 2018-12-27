@@ -313,6 +313,45 @@ __verify_dsk_row(
 			break;
 		}
 
+		/*
+		 * Check timestamp order.
+		 * We don't check if timestamps should or should not appear on a
+		 * particular page because the cell-unpacking code hides it from
+		 * us by giving us "correct" timestamps if they don't appear on
+		 * the page.
+		 */
+		switch (cell_type) {
+		case WT_CELL_ADDR_DEL:
+		case WT_CELL_ADDR_INT:
+		case WT_CELL_ADDR_LEAF:
+		case WT_CELL_ADDR_LEAF_NO:
+			if (unpack->oldest_start_ts > unpack->newest_start_ts)
+				WT_ERR_VRFY(session,
+				"cell %" PRIu32 " on page at %s has an oldest "
+				"start timestamp newer than its newest start "
+				"timestamp",
+				cell_num - 1, tag);
+			if (unpack->newest_start_ts > unpack->newest_stop_ts)
+				WT_ERR_VRFY(session,
+				"cell %" PRIu32 " on page at %s has a newest "
+				"start timestamp newer than its newest stop "
+				"timestamp",
+				cell_num - 1, tag);
+			break;
+		case WT_CELL_DEL:
+		case WT_CELL_VALUE:
+		case WT_CELL_VALUE_COPY:
+		case WT_CELL_VALUE_OVFL:
+		case WT_CELL_VALUE_OVFL_RM:
+		case WT_CELL_VALUE_SHORT:
+			if (unpack->start_ts > unpack->stop_ts)
+				WT_ERR_VRFY(session,
+				"cell %" PRIu32 " on page at %s has a start "
+				"timestamp newer than its stop timestamp ",
+				cell_num - 1, tag);
+			break;
+		}
+
 		/* Check if any referenced item has an invalid address. */
 		switch (cell_type) {
 		case WT_CELL_ADDR_DEL:
