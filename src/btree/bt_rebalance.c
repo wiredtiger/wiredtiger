@@ -84,7 +84,7 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session,
 	copy_addr->newest_stop_ts = unpack->newest_stop_ts;
 	WT_RET(__wt_memdup(
 	    session, unpack->data, unpack->size, &copy_addr->addr));
-	copy_addr->size = (uint32_t)unpack->size;
+	copy_addr->size = (uint8_t)unpack->size;
 	copy_addr->type =
 	    unpack->type == WT_CELL_ADDR_LEAF ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;
 
