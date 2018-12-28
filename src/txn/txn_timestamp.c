@@ -655,8 +655,16 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (ret == 0 && cval.len != 0) {
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_RET(__wt_timestamp_validate(
-		    session, "commit", ts, &cval, false));
+		/*
+		 * For prepared transactions, commit timestamp can be earlier
+		 * than stable timestamp.
+		 */
+		if (prepare)
+			WT_RET(__wt_timestamp_validate(
+			    session, "commit", ts, &cval, false));
+		else
+			WT_RET(__wt_timestamp_validate(
+			    session, "commit", ts, &cval, true));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 		txn->durable_timestamp = txn->commit_timestamp;
