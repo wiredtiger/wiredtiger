@@ -2146,6 +2146,10 @@ __rec_split_chunk_init(
 	chunk->entries = 0;
 	chunk->oldest_start_ts = WT_TS_MAX;
 	chunk->newest_start_ts = chunk->newest_stop_ts = WT_TS_NONE;
+	if (r->page->type == WT_PAGE_COL_FIX) {
+		chunk->oldest_start_ts = WT_TS_NONE;
+		chunk->newest_start_ts = chunk->newest_stop_ts = WT_TS_MAX;
+	}
 
 	chunk->min_recno = WT_RECNO_OOB;
 	/* Don't touch the key item memory, that memory is reused. */
@@ -2153,6 +2157,11 @@ __rec_split_chunk_init(
 	chunk->min_entries = 0;
 	chunk->min_oldest_start_ts = WT_TS_MAX;
 	chunk->min_newest_start_ts = chunk->min_newest_stop_ts = WT_TS_NONE;
+	if (r->page->type == WT_PAGE_COL_FIX) {
+		chunk->min_oldest_start_ts = WT_TS_NONE;
+		chunk->min_newest_start_ts =
+		    chunk->min_newest_stop_ts = WT_TS_MAX;
+	}
 
 	chunk->min_offset = 0;
 
@@ -2285,6 +2294,10 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->entries = 0;
 	r->oldest_start_ts = WT_TS_MAX;
 	r->newest_start_ts = r->newest_stop_ts = WT_TS_NONE;
+	if (r->page->type == WT_PAGE_COL_FIX) {
+		r->oldest_start_ts = WT_TS_NONE;
+		r->newest_start_ts = r->newest_stop_ts = WT_TS_MAX;
+	}
 	r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
 	/* New page, compression off. */
@@ -2562,6 +2575,10 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	r->entries = 0;
 	r->oldest_start_ts = WT_TS_MAX;
 	r->newest_start_ts = r->newest_stop_ts = WT_TS_NONE;
+	if (r->page->type == WT_PAGE_COL_FIX) {
+		r->oldest_start_ts = WT_TS_NONE;
+		r->newest_start_ts = r->newest_stop_ts = WT_TS_MAX;
+	}
 	r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
 	/*
