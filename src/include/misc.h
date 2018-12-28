@@ -373,4 +373,4 @@ union __wt_rand_state {
  * durable timestamps.
  */
 #define	HAVE_DURABLE_TIMESTAMPS
-#undef	HAVE_DURABLE_TIMESTAMPS
+//#undef	HAVE_DURABLE_TIMESTAMPS
