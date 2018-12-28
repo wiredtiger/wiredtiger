@@ -6,40 +6,42 @@
 #   0: list & dump are successful for all data files
 #   1: list is not successful for some data file
 #   2: dump is not successful for some table object
-#   3: WT_TEST directory does not exist
-#   4: Command argument setting is wrong
-
-BUILD_DIR='build_posix'
-WT_TEST_DIR='WT_TEST'
+#   3: 'wt' binary file does not exist
+#   4: 'WT_TEST' directory does not exist
+#   5: Command argument setting is wrong
 
 if [ $# -gt 1 ]; then
 	echo "Usage: $0 [-v]"
-	exit 4
+	exit 5
 fi
 
 [ "$1" == "-v" ] && verbose=true || verbose=false
 
 # Switch to the Git repo toplevel directory
-toplevel_dir=$(git rev-parse --show-toplevel)
-cd ${toplevel_dir}
+cd $(git rev-parse --show-toplevel)
 
-# Check the existence of WT_TEST_DIR, firstly under BUILD_DIR, then under current directory
-if [ -d "${BUILD_DIR}/${WT_TEST_DIR}" ]; then
-        cd ${BUILD_DIR}
-elif [ -d "${WT_TEST_DIR}" ]; then
-	:	# do nothing
-else
-	echo "'${WT_TEST_DIR}' directory does not exist, exiting ..."
+# Check the existence of 'wt' binary
+wt_binary=$(find . -type f -executable -name wt | head -1)
+if [ -z ${wt_binary} ]; then
+	echo "'wt' file does not exist, exiting ..."
 	exit 3
 fi
 
-dirs_include_datafile=$(find ${WT_TEST_DIR} -name WiredTiger.wt | xargs dirname)
+# Check the existence of 'WT_TEST' directory
+wt_test_dir=$(find . -type d -name WT_TEST | head -1)
+if [ -z ${wt_test_dir} ]; then
+	echo "'WT_TEST' directory does not exist, exiting ..."
+	exit 4
+fi
+
+# Work out the list of directories that include wt data files
+dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt | xargs dirname)
 
 # Loop through each data file under the TEST_DIR
 for d in ${dirs_include_datafile}
 do
 	echo ${d}
-	tables=$(./wt -h "${d}" list)
+	tables=$(${wt_binary} -h "${d}" list)
 	rc=$?
 
 	if [ "$rc" -ne "0" ]; then 
@@ -51,7 +53,7 @@ do
 	for t in ${tables}
 	do
 		echo ${t}
-		dump=$(./wt -h ${d} dump ${t})
+		dump=$(${wt_binary} -h ${d} dump ${t})
 		rc=$?
 
 		if [ "$rc" -ne "0" ]; then 
