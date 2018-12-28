@@ -659,6 +659,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, "commit", ts, &cval, false));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
+		txn->durable_timestamp = txn->commit_timestamp;
 		prepare_allowed = true;
 	}
 
@@ -673,8 +674,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		txn->durable_timestamp = ts;
 		prepare_allowed = true;
 	}
-#else
-	txn->durable_timestamp = txn->commit_timestamp;
 #endif
 
 	if (ret == 0 && cval.len != 0)
