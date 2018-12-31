@@ -4744,8 +4744,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				WT_ERR(__wt_buf_set(session, &val->buf,
 				    ref->addr, __wt_cell_total_len(vpack)));
 				__wt_cell_type_reset(session,
-				    (WT_CELL *)&val->buf.data,
-				    0, WT_CELL_ADDR_DEL);
+				    val->buf.mem, 0, WT_CELL_ADDR_DEL);
 			} else {
 				val->buf.data = ref->addr;
 				val->buf.size = __wt_cell_total_len(vpack);
