@@ -150,8 +150,8 @@ static int  WT_CDECL __slvg_trk_compare_gen(const void *, const void *);
 static int  WT_CDECL __slvg_trk_compare_key(const void *, const void *);
 static int  __slvg_trk_free(WT_SESSION_IMPL *, WT_TRACK **, bool);
 static void __slvg_trk_free_addr(WT_SESSION_IMPL *, WT_TRACK *);
-static int  __slvg_trk_init(WT_SESSION_IMPL *, uint8_t *,
-		size_t, uint32_t, uint64_t, WT_STUFF *, WT_TRACK **);
+static int  __slvg_trk_init(WT_SESSION_IMPL *, const WT_PAGE_HEADER *,
+		uint8_t *, size_t, WT_STUFF *, WT_TRACK **);
 static int  __slvg_trk_leaf(WT_SESSION_IMPL *,
 		const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *);
 static int  __slvg_trk_leaf_walk(
@@ -490,8 +490,8 @@ err:	__wt_scr_free(session, &as);
  */
 static int
 __slvg_trk_init(WT_SESSION_IMPL *session,
-    uint8_t *addr, size_t addr_size,
-    uint32_t size, uint64_t gen, WT_STUFF *ss, WT_TRACK **retp)
+    const WT_PAGE_HEADER *dsk,
+    uint8_t *addr, size_t addr_size, WT_STUFF *ss, WT_TRACK **retp)
 {
 	WT_DECL_RET;
 	WT_TRACK *trk;
@@ -503,10 +503,14 @@ __slvg_trk_init(WT_SESSION_IMPL *session,
 	trk->ss = ss;
 	WT_ERR(__wt_memdup(session, addr, addr_size, &trk->trk_addr));
 	trk->trk_addr_size = (uint8_t)addr_size;
-	trk->trk_size = size;
+	trk->trk_size = dsk->mem_size;
 	trk->trk_oldest_start_ts = WT_TS_MAX;
 	trk->trk_newest_start_ts = trk->trk_newest_stop_ts = WT_TS_NONE;
-	trk->trk_gen = gen;
+	if (dsk->type == WT_PAGE_COL_FIX) {
+		trk->trk_oldest_start_ts = WT_TS_NONE;
+		trk->trk_newest_start_ts = trk->trk_newest_stop_ts = WT_TS_MAX;
+	}
+	trk->trk_gen = dsk->write_gen;
 
 	*retp = trk;
 	return (0);
@@ -541,8 +545,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 	    session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages));
 
 	/* Allocate a WT_TRACK entry for this new page and fill it in. */
-	WT_RET(__slvg_trk_init(
-	    session, addr, addr_size, dsk->mem_size, dsk->write_gen, ss, &trk));
+	WT_RET(__slvg_trk_init(session, dsk, addr, addr_size, ss, &trk));
 
 	switch (dsk->type) {
 	case WT_PAGE_COL_FIX:
@@ -646,8 +649,7 @@ __slvg_trk_ovfl(WT_SESSION_IMPL *session,
 	WT_RET(__wt_realloc_def(
 	    session, &ss->ovfl_allocated, ss->ovfl_next + 1, &ss->ovfl));
 
-	WT_RET(__slvg_trk_init(
-	    session, addr, addr_size, dsk->mem_size, dsk->write_gen, ss, &trk));
+	WT_RET(__slvg_trk_init(session, dsk, addr, addr_size, ss, &trk));
 	ss->ovfl[ss->ovfl_next++] = trk;
 
 	return (0);
