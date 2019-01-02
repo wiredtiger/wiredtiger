@@ -312,7 +312,6 @@ struct __wt_connection_impl {
 	wt_thread_t	 capacity_tid;	/* Capacity thread */
 	bool		 capacity_tid_set;	/* Capacity thread set */
 	WT_CONDVAR	*capacity_cond;	/* Capacity wait mutex */
-#define	WT_CAPACITY_SIZE(conn)	((conn)->capacity_written != 0)
 	uint64_t capacity_threshold;	/* Capacity size period */
 	uint64_t capacity_written;	/* Written this period */
 	bool	 capacity_signalled;	/* Capacity signalled */
