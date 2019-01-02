@@ -307,7 +307,6 @@ __wt_capacity_signal(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
-	WT_ASSERT(session, WT_CAPACITY_SIZE(conn));
 	if (conn->capacity_written >= conn->capacity_threshold &&
 	    !conn->capacity_signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
@@ -379,10 +378,11 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	 * I/O, but they are mostly done under recovery. And if we are
 	 * recovering, we don't reach this code.
 	 */
-	if (type != WT_THROTTLE_READ)
+	if (type != WT_THROTTLE_READ) {
 		/* Sizes larger than this may overflow */
 		conn->capacity_written += bytes;
-	__wt_capacity_signal(session);
+		__wt_capacity_signal(session);
+	}
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
 
 	res_len = (bytes * WT_BILLION) / capacity;
