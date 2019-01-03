@@ -20,19 +20,20 @@ fi
 # Switch to the Git repo toplevel directory
 cd $(git rev-parse --show-toplevel)
 
-# Check the existence of 'wt' binary
-wt_binary=$(find . -type f -executable -name wt | head -1)
-if [ -z ${wt_binary} ]; then
-	echo "'wt' file does not exist, exiting ..."
-	exit 3
-fi
-
 # Check the existence of 'WT_TEST' directory
-wt_test_dir=$(find . -type d -name WT_TEST | head -1)
+wt_test_dir=$(find . -maxdepth 2 -type d -name WT_TEST | head -1)
 if [ -z ${wt_test_dir} ]; then
 	echo "'WT_TEST' directory does not exist, exiting ..."
 	exit 4
 fi
+
+# Check the existence of 'wt' binary
+wt_binary=$(find . -type f -executable -name wt | grep '.libs' | head -1)
+if [ -z ${wt_binary} ]; then
+	echo "'wt' file does not exist, exiting ..."
+	exit 3
+fi
+lib_dir=$(dirname ${wt_binary})
 
 # Work out the list of directories that include wt data files
 dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt | xargs dirname)
@@ -41,7 +42,7 @@ dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt | xargs 
 for d in ${dirs_include_datafile}
 do
 	echo ${d}
-	tables=$(${wt_binary} -h "${d}" list)
+	tables=$(LD_LIBRARY_PATH=${lib_dir} ${wt_binary} -h "${d}" list)
 	rc=$?
 
 	if [ "$rc" -ne "0" ]; then 
@@ -53,7 +54,7 @@ do
 	for t in ${tables}
 	do
 		echo ${t}
-		dump=$(${wt_binary} -h ${d} dump ${t})
+		dump=$(LD_LIBRARY_PATH=${lib_dir} ${wt_binary} -h ${d} dump ${t})
 		rc=$?
 
 		if [ "$rc" -ne "0" ]; then 
