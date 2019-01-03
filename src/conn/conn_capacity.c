@@ -146,6 +146,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->capacity_threshold = (conn->capacity_ckpt +
 	    conn->capacity_evict + conn->capacity_log) / 100 *
 	    WT_CAPACITY_PCT;
+	WT_STAT_CONN_SET(session, capacity_threshold, conn->capacity_threshold);
 
 	return (0);
 }
@@ -391,8 +392,10 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	if (type != WT_THROTTLE_READ) {
 		/* Sizes larger than this may overflow */
 		conn->capacity_written += bytes;
+		WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
 		__wt_capacity_signal(session);
-	}
+	} else
+		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
 
 	res_len = (bytes * WT_BILLION) / capacity;

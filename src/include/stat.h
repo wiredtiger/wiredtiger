@@ -466,6 +466,9 @@ struct __wt_connection_stats {
 	int64_t cond_wait;
 	int64_t rwlock_read;
 	int64_t rwlock_write;
+	int64_t capacity_bytes_read;
+	int64_t capacity_bytes_written;
+	int64_t capacity_threshold;
 	int64_t capacity_ckpt_time;
 	int64_t capacity_evict_time;
 	int64_t capacity_log_time;
