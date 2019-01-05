@@ -1271,7 +1271,7 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	char hex_ts_start[WT_TS_HEX_SIZE], hex_ts_stop[WT_TS_HEX_SIZE];
+	char hex_ts[3][WT_TS_HEX_SIZE];
 	const char *type;
 
 	session = ds->session;
@@ -1310,10 +1310,30 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 		break;
 	}
 
-	if (unpack->start_ts != WT_TS_NONE || unpack->stop_ts != WT_TS_NONE) {
-		__wt_timestamp_to_hex_string(hex_ts_start, unpack->start_ts);
-		__wt_timestamp_to_hex_string(hex_ts_stop, unpack->stop_ts);
-		WT_RET(ds->f(ds, ", ts %s-%s", hex_ts_start, hex_ts_stop));
+	/* Dump timestamps. */
+	switch (unpack->raw) {
+	case WT_CELL_ADDR_DEL:
+	case WT_CELL_ADDR_INT:
+	case WT_CELL_ADDR_LEAF:
+	case WT_CELL_ADDR_LEAF_NO:
+		__wt_timestamp_to_hex_string(
+		    hex_ts[0], unpack->oldest_start_ts);
+		__wt_timestamp_to_hex_string(
+		    hex_ts[1], unpack->newest_start_ts);
+		__wt_timestamp_to_hex_string(hex_ts[2], unpack->newest_stop_ts);
+		WT_RET(ds->f(ds,
+		    ", ts %s,%s,%s", hex_ts[0], hex_ts[1], hex_ts[2]));
+		break;
+	case WT_CELL_DEL:
+	case WT_CELL_VALUE:
+	case WT_CELL_VALUE_COPY:
+	case WT_CELL_VALUE_OVFL:
+	case WT_CELL_VALUE_OVFL_RM:
+	case WT_CELL_VALUE_SHORT:
+		__wt_timestamp_to_hex_string(hex_ts[0], unpack->start_ts);
+		__wt_timestamp_to_hex_string(hex_ts[1], unpack->stop_ts);
+		WT_RET(ds->f(ds, ", ts %s-%s", hex_ts[0], hex_ts[1]));
+		break;
 	}
 
 	/* Dump addresses. */
