@@ -1042,7 +1042,7 @@ tasks:
             set -o errexit
             set -o verbose
             # Archive the WT_TEST directory which include a number of wt data files
-            tar -zcvf for-big-endian.tgz .libs/WT_TEST
+            tar -zcvf for-little-endian.tgz .libs/WT_TEST
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
