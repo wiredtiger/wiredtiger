@@ -465,7 +465,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 			/* Adjust our idea of 'now', we'll be using it again. */
 			now_ns = res_value;
 		}
-	} else if (now_ns - res_value > capacity) {
+	} else if (now_ns - res_value > WT_BILLION) {
 		/*
 		 * If it looks like the reservation clock is out of date by more
 		 * than a second, bump it up within a second of the current
@@ -480,7 +480,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 		    " adjustment %" PRIu64,
 		    now_ns - res_value, capacity,
 		    now_ns - capacity + res_value);
-		__wt_atomic_store64(reservation, now_ns - capacity + res_len);
+		__wt_atomic_store64(reservation, now_ns - WT_BILLION + res_len);
 	}
 
 	/*
@@ -508,7 +508,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 			if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
 				/* Sleep handles large usec values. */
 				__wt_sleep(0, sleep_us);
-		} else if (now_ns - res_value > total) {
+		} else if (now_ns - res_value > WT_BILLION) {
 			/*
 			 * If the total reservation clock is out of date,
 			 * bring it to within a second of a current time.
@@ -519,7 +519,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 			    now_ns - res_value, total,
 			    now_ns - total + res_value);
 			__wt_atomic_store64(&conn->reservation_total,
-			    now_ns - total + res_len);
+			    now_ns - WT_BILLION + res_len);
 		}
 	}
 
