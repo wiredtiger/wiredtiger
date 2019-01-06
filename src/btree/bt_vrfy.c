@@ -730,44 +730,47 @@ __verify_overflow(WT_SESSION_IMPL *session,
 }
 
 /*
- * __verify_page_ts --
- *	Do a cell timestamp check.
+ * __verify_ts_addr_cmp --
+ *	Do a cell timestamp check against the parent.
  */
 static int
-__verify_page_ts(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
-    const char *tag1, wt_timestamp_t a, const char *tag2, wt_timestamp_t b,
+__verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
+    const char *ts1_name, wt_timestamp_t ts1,
+    const char *ts2_name, wt_timestamp_t ts2,
     bool gt, WT_VSTUFF *vs)
 {
-	const char *abp, *bbp;
-	char abuf[32], bbuf[32];
+	const char *ts1_bp, *ts2_bp;
+	char ts1_buf[32], ts2_buf[32];
 
-	if (gt && a >= b)
+	if (gt && ts1 >= ts2)
 		return (0);
-	if (!gt && a <= b)
+	if (!gt && ts1 <= ts2)
 		return (0);
 
-	switch (a) {
+	switch (ts1) {
 	case WT_TS_MAX:
-		abp = "WT_TS_MAX";
+		ts1_bp = "WT_TS_MAX";
 		break;
 	case WT_TS_NONE:
-		abp = "WT_TS_NONE";
+		ts1_bp = "WT_TS_NONE";
 		break;
 	default:
-		WT_RET(__wt_snprintf(abuf, sizeof(abuf), "%" PRIu64, a));
-		abp = abuf;
+		WT_RET(
+		    __wt_snprintf(ts1_buf, sizeof(ts1_buf), "%" PRIu64, ts1));
+		ts1_bp = ts1_buf;
 		break;
 	}
-	switch (b) {
+	switch (ts2) {
 	case WT_TS_MAX:
-		bbp = "WT_TS_MAX";
+		ts2_bp = "WT_TS_MAX";
 		break;
 	case WT_TS_NONE:
-		bbp = "WT_TS_NONE";
+		ts2_bp = "WT_TS_NONE";
 		break;
 	default:
-		WT_RET(__wt_snprintf(bbuf, sizeof(bbuf), "%" PRIu64, b));
-		bbp = bbuf;
+		WT_RET(
+		    __wt_snprintf(ts2_buf, sizeof(ts2_buf), "%" PRIu64, ts2));
+		ts2_bp = ts2_buf;
 		break;
 	}
 	WT_RET_MSG(session, WT_ERROR,
@@ -775,9 +778,9 @@ __verify_page_ts(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
 	    "time of %s, %s the parent's %s time of %s",
 	    cell_num,
 	    __wt_page_addr_string(session, ref, vs->tmp1),
-	    tag1, abp,
+	    ts1_name, ts1_bp,
 	    gt ? "less than" : "greater than",
-	    tag2, bbp);
+	    ts2_name, ts2_bp);
 }
 
 /*
@@ -836,15 +839,30 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 		case WT_CELL_ADDR_INT:
 		case WT_CELL_ADDR_LEAF:
 		case WT_CELL_ADDR_LEAF_NO:
-			WT_RET(__verify_page_ts(session, ref, cell_num - 1,
+			if (unpack.oldest_start_ts > unpack.newest_start_ts)
+				WT_RET_MSG(session, WT_ERROR,
+				"cell %" PRIu32 " on page at %s has an oldest "
+				"start timestamp newer than its newest start "
+				"timestamp",
+				cell_num - 1,
+				__wt_page_addr_string(session, ref, vs->tmp1));
+			if (unpack.newest_start_ts > unpack.newest_stop_ts)
+				WT_RET_MSG(session, WT_ERROR,
+				"cell %" PRIu32 " on page at %s has a newest "
+				"start timestamp newer than its newest stop "
+				"timestamp",
+				cell_num - 1,
+				__wt_page_addr_string(session, ref, vs->tmp1));
+
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "oldest start", unpack.oldest_start_ts,
 			    "oldest start", addr_unpack->oldest_start_ts,
 			    true, vs));
-			WT_RET(__verify_page_ts(session, ref, cell_num - 1,
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "newest start", unpack.newest_start_ts,
 			    "newest start", addr_unpack->newest_start_ts,
 			    false, vs));
-			WT_RET(__verify_page_ts(session, ref, cell_num - 1,
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "newest stop", unpack.newest_stop_ts,
 			    "newest stop", addr_unpack->newest_stop_ts,
 			    false, vs));
@@ -854,15 +872,22 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 		case WT_CELL_VALUE_COPY:
 		case WT_CELL_VALUE_OVFL:
 		case WT_CELL_VALUE_SHORT:
-			WT_RET(__verify_page_ts(session, ref, cell_num - 1,
+			if (unpack.start_ts > unpack.stop_ts)
+				WT_RET_MSG(session, WT_ERROR,
+				"cell %" PRIu32 " on page at %s has a start "
+				"timestamp newer than its stop timestamp ",
+				cell_num - 1,
+				__wt_page_addr_string(session, ref, vs->tmp1));
+
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "start", unpack.start_ts,
 			    "oldest start", addr_unpack->oldest_start_ts,
 			    true, vs));
-			WT_RET(__verify_page_ts(session, ref, cell_num - 1,
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "start", unpack.start_ts,
 			    "newest start", addr_unpack->newest_start_ts,
 			    false, vs));
-			WT_RET(__verify_page_ts(session, ref, cell_num - 1,
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "stop", unpack.stop_ts,
 			    "newest stop", addr_unpack->newest_stop_ts,
 			    false, vs));

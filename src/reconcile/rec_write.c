@@ -174,9 +174,6 @@ typedef struct {
 	 */
 	uint64_t recno;			/* Current record number */
 	uint32_t entries;		/* Current number of entries */
-	wt_timestamp_t oldest_start_ts;	/* Current timestamp min/max */
-	wt_timestamp_t newest_start_ts;
-	wt_timestamp_t newest_stop_ts;
 	uint8_t *first_free;		/* Current first free byte */
 	size_t	 space_avail;		/* Remaining space in this chunk */
 	/* Remaining space in this chunk to put a minimum size boundary */
@@ -1889,9 +1886,12 @@ static inline void
 __rec_image_ts(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
     wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
 {
-	r->oldest_start_ts = WT_MIN(oldest_start_ts, r->oldest_start_ts);
-	r->newest_start_ts = WT_MAX(newest_start_ts, r->newest_start_ts);
-	r->newest_stop_ts = WT_MAX(newest_stop_ts, r->newest_stop_ts);
+	r->cur_ptr->oldest_start_ts =
+	    WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
+	r->cur_ptr->newest_start_ts =
+	    WT_MAX(newest_start_ts, r->cur_ptr->newest_start_ts);
+	r->cur_ptr->newest_stop_ts =
+	    WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
 }
 
 /*
@@ -2289,15 +2289,9 @@ __rec_split_init(WT_SESSION_IMPL *session,
 	r->cur_ptr = &r->chunkA;
 	r->prev_ptr = NULL;
 
-	/* Starting record number, entries, timestamps, first free byte. */
+	/* Starting record number, entries, first free byte. */
 	r->recno = recno;
 	r->entries = 0;
-	r->oldest_start_ts = WT_TS_MAX;
-	r->newest_start_ts = r->newest_stop_ts = WT_TS_NONE;
-	if (r->page->type == WT_PAGE_COL_FIX) {
-		r->oldest_start_ts = WT_TS_NONE;
-		r->newest_start_ts = r->newest_stop_ts = WT_TS_MAX;
-	}
 	r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
 	/* New page, compression off. */
@@ -2536,9 +2530,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 
 	/* Set the entries, timestamps and size for the just finished chunk. */
 	r->cur_ptr->entries = r->entries;
-	r->cur_ptr->oldest_start_ts = r->oldest_start_ts;
-	r->cur_ptr->newest_start_ts = r->newest_start_ts;
-	r->cur_ptr->newest_stop_ts = r->newest_stop_ts;
 	r->cur_ptr->image.size = inuse;
 
 	/*
@@ -2573,12 +2564,6 @@ __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 
 	/* Reset tracking information. */
 	r->entries = 0;
-	r->oldest_start_ts = WT_TS_MAX;
-	r->newest_start_ts = r->newest_stop_ts = WT_TS_NONE;
-	if (r->page->type == WT_PAGE_COL_FIX) {
-		r->oldest_start_ts = WT_TS_NONE;
-		r->newest_start_ts = r->newest_stop_ts = WT_TS_MAX;
-	}
 	r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
 	/*
@@ -2615,8 +2600,6 @@ static inline int
 __rec_split_crossing_bnd(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 {
-	WT_BTREE *btree;
-
 	WT_ASSERT(session, __rec_need_split(r, next_len));
 
 	/*
@@ -2627,9 +2610,6 @@ __rec_split_crossing_bnd(
 	 */
 	if (WT_CROSSING_MIN_BND(r, next_len) &&
 	    !WT_CROSSING_SPLIT_BND(r, next_len) && !__rec_need_split(r, 0)) {
-		btree = S2BT(session);
-		WT_ASSERT(session, r->cur_ptr->min_offset == 0);
-
 		/*
 		 * If the first record doesn't fit into the minimum split size,
 		 * we end up here. Write the record without setting a boundary
@@ -2639,14 +2619,17 @@ __rec_split_crossing_bnd(
 		if (r->entries == 0)
 			return (0);
 
+		r->cur_ptr->min_entries = r->entries;
 		r->cur_ptr->min_recno = r->recno;
-		if (btree->type == BTREE_ROW)
+		if (S2BT(session)->type == BTREE_ROW)
 			WT_RET(__rec_split_row_promote(
 			    session, r, &r->cur_ptr->min_key, r->page->type));
-		r->cur_ptr->min_entries = r->entries;
-		r->cur_ptr->min_oldest_start_ts = r->oldest_start_ts;
-		r->cur_ptr->min_newest_start_ts = r->newest_start_ts;
-		r->cur_ptr->min_newest_stop_ts = r->newest_stop_ts;
+		r->cur_ptr->min_oldest_start_ts = r->cur_ptr->oldest_start_ts;
+		r->cur_ptr->min_newest_start_ts = r->cur_ptr->newest_start_ts;
+		r->cur_ptr->min_newest_stop_ts = r->cur_ptr->newest_stop_ts;
+
+		/* Assert we're not re-entering this code. */
+		WT_ASSERT(session, r->cur_ptr->min_offset == 0);
 		r->cur_ptr->min_offset =
 		    WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 
@@ -2749,10 +2732,16 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		    len_to_move);
 
 		/* Update boundary information */
+		cur_ptr->entries += prev_ptr->entries - prev_ptr->min_entries;
 		cur_ptr->recno = prev_ptr->min_recno;
 		WT_RET(__wt_buf_set(session, &cur_ptr->key,
 		    prev_ptr->min_key.data, prev_ptr->min_key.size));
-		cur_ptr->entries += prev_ptr->entries - prev_ptr->min_entries;
+		cur_ptr->oldest_start_ts =
+		    WT_MIN(prev_ptr->oldest_start_ts, cur_ptr->oldest_start_ts);
+		cur_ptr->newest_start_ts =
+		    WT_MAX(prev_ptr->newest_start_ts, cur_ptr->newest_start_ts);
+		cur_ptr->newest_stop_ts =
+		    WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
 		cur_ptr->image.size += len_to_move;
 
 		prev_ptr->entries = prev_ptr->min_entries;
@@ -2787,9 +2776,6 @@ __rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 	/* Set the number of entries and size for the just finished chunk. */
 	r->cur_ptr->entries = r->entries;
-	r->cur_ptr->oldest_start_ts = r->oldest_start_ts;
-	r->cur_ptr->newest_start_ts = r->newest_start_ts;
-	r->cur_ptr->newest_stop_ts = r->newest_stop_ts;
 	r->cur_ptr->image.size =
 	    WT_PTRDIFF32(r->first_free, r->cur_ptr->image.mem);
 
@@ -3312,8 +3298,8 @@ copy_image:
 	 * in reconciliation that don't do I/O. Verify those images, too.
 	 */
 	WT_ASSERT(session, verify_image == false ||
-	    __wt_verify_dsk_image(session,
-	    "[reconcile-image]", chunk->image.data, 0, true) == 0);
+	    __wt_verify_dsk_image(session, "[reconcile-image]",
+	    chunk->image.data, 0, &multi->addr, true) == 0);
 #endif
 
 	/*
@@ -3466,7 +3452,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 			    session, r, WT_TS_NONE, WT_TS_MAX, 0, val));
 		__rec_image_copy(session, r, val);
 	}
-	__rec_image_ts(r, WT_TS_NONE, WT_TS_MAX, WT_TS_MAX);
+	__rec_image_ts(r, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
 
 	/* Update compression state. */
 	__rec_key_state_update(r, ovfl_key);
@@ -3614,7 +3600,7 @@ __wt_bulk_insert_var(
 		WT_RET(__rec_dict_replace(
 		    session, r, WT_TS_NONE, WT_TS_MAX, cbulk->rle, val));
 	__rec_image_copy(session, r, val);
-	__rec_image_ts(r, WT_TS_NONE, WT_TS_MAX, WT_TS_MAX);
+	__rec_image_ts(r, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
 
 	/* Update the starting record number in case we split. */
 	r->recno += cbulk->rle;
@@ -4893,8 +4879,6 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	val = &r->v;
 	vpack = &_vpack;
 
-	start_ts = stop_ts = WT_TS_FIXME;
-
 	WT_RET(__rec_split_init(
 	    session, r, page, 0, btree->maxleafpage_precomp));
 
@@ -4943,8 +4927,12 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			__wt_cell_unpack(page, cell, kpack);
 		}
 
-		/* Unpack the on-page value cell, and look for an update. */
+		/* Unpack the on-page value cell, set the default timestamps. */
 		__wt_row_leaf_value_cell(page, rip, NULL, vpack);
+		start_ts = vpack->start_ts;
+		stop_ts = vpack->stop_ts;
+
+		/* Look for an update. */
 		WT_ERR(__rec_txn_read(
 		    session, r, NULL, rip, vpack, NULL, &upd));
 
@@ -5052,23 +5040,11 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				dictionary = true;
 				break;
 			case WT_UPDATE_STANDARD:
-				/*
-				 * If no value and durable, nothing to store.
-				 * Otherwise, take the value from the update
-				 * value.
-				 */
-				if (upd->size == 0 &&
-				    start_ts == WT_TS_NONE &&
-				    stop_ts == WT_TS_MAX) {
-					val->buf.data = NULL;
-					val->cell_len =
-					    val->len = val->buf.size = 0;
-				} else {
-					WT_ERR(__rec_cell_build_val(session, r,
-					    upd->data, upd->size,
-					    start_ts, stop_ts, 0));
-					dictionary = true;
-				}
+				/* Take the value from the update. */
+				WT_ERR(__rec_cell_build_val(session, r,
+				    upd->data, upd->size,
+				    start_ts, stop_ts, 0));
+				dictionary = true;
 				break;
 			case WT_UPDATE_TOMBSTONE:
 				/*
@@ -5213,9 +5189,16 @@ build:
 			    session, r, key->len + val->len));
 		}
 
-		/* Copy the key/value pair onto the page. */
+		/*
+		 * Copy the key/value pair onto the page. Zero-length items must
+		 * be globally visible as we're writing nothing to the page.
+		 *
+		 * WT_TS_FIXME: NONE-MAX is too pessimistic a test, and we may
+		 * want to adjust start_ts/stop_ts.
+		 */
 		__rec_image_copy(session, r, key);
-		if (val->len == 0)
+		if (val->len == 0 &&
+		    start_ts == WT_TS_NONE && stop_ts == WT_TS_MAX)
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
@@ -5223,8 +5206,8 @@ build:
 				WT_ERR(__rec_dict_replace(
 				    session, r, start_ts, stop_ts, 0, val));
 			__rec_image_copy(session, r, val);
-			__rec_image_ts(r, start_ts, start_ts, stop_ts);
 		}
+		__rec_image_ts(r, start_ts, start_ts, stop_ts);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -5262,11 +5245,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 	key = &r->k;
 	val = &r->v;
 
-	start_ts = stop_ts = WT_TS_FIXME;
-
 	for (; ins != NULL; ins = WT_SKIP_NEXT(ins)) {
 		WT_RET(__rec_txn_read(
 		    session, r, ins, NULL, NULL, &upd_saved, &upd));
+		start_ts = stop_ts = WT_TS_FIXME;
 
 		if (upd == NULL) {
 			/*
@@ -5306,17 +5288,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			    start_ts, stop_ts, 0));
 			break;
 		case WT_UPDATE_STANDARD:
-			/*
-			 * If no value and durable, nothing to store. Otherwise,
-			 * take the value from the update value.
-			 */
-			if (upd->size == 0 &&
-			    start_ts == WT_TS_NONE && stop_ts == WT_TS_MAX)
-				val->len = 0;
-			else
-				WT_RET(__rec_cell_build_val(session, r,
-				    upd->data, upd->size,
-				    start_ts, stop_ts, 0));
+			/* Take the value from the update. */
+			WT_RET(__rec_cell_build_val(session, r,
+			    upd->data, upd->size, start_ts, stop_ts, 0));
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			continue;
@@ -5345,9 +5319,16 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			    session, r, key->len + val->len));
 		}
 
-		/* Copy the key/value pair onto the page. */
+		/*
+		 * Copy the key/value pair onto the page. Zero-length items must
+		 * be globally visible as we're writing nothing to the page.
+		 *
+		 * WT_TS_FIXME: NONE-MAX is too pessimistic a test, and we may
+		 * want to adjust start_ts/stop_ts.
+		 */
 		__rec_image_copy(session, r, key);
-		if (val->len == 0)
+		if (val->len == 0 &&
+		    start_ts == WT_TS_NONE && stop_ts == WT_TS_MAX)
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
@@ -5355,8 +5336,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 				WT_RET(__rec_dict_replace(
 				    session, r, start_ts, stop_ts, 0, val));
 			__rec_image_copy(session, r, val);
-			__rec_image_ts(r, start_ts, start_ts, stop_ts);
 		}
+		__rec_image_ts(r, start_ts, start_ts, stop_ts);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);

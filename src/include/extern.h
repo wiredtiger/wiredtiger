@@ -181,7 +181,7 @@ extern int __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst) W
 extern int __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_upgrade(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk, size_t size, bool empty_page_ok) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk, size_t size, WT_ADDR *addr, bool empty_page_ok) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify_dsk(WT_SESSION_IMPL *session, const char *tag, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tree_walk_count(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
