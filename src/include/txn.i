@@ -444,13 +444,14 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
-		if (*timestamp == WT_TS_NONE)
+		if (*timestamp == WT_TS_NONE) {
 			*timestamp = txn->commit_timestamp;
-		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
-		    &op->u.ref->page_del->durable_timestamp :
-		    &op->u.op_upd->durable_timestamp;
-		if (*timestamp == WT_TS_NONE)
+
+			timestamp = op->type == WT_TXN_OP_REF_DELETE ?
+			    &op->u.ref->page_del->durable_timestamp :
+			    &op->u.op_upd->durable_timestamp;
 			*timestamp = txn->durable_timestamp;
+		}
 	}
 }
 

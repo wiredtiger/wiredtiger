@@ -34,10 +34,9 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' %t
 
-# test_durable_ts01.py
-#    Checking visibility and durability of updates with durable_timestamp and
-#    with restart.
-class test_durable_ts01(wttest.WiredTigerTestCase):
+# test_durable_ts03.py
+#    Checking visibility and durability of updates with durable_timestamp
+class test_durable_ts03(wttest.WiredTigerTestCase):
 
     keyfmt = [
         ('row-string', dict(keyfmt='S')),
@@ -62,12 +61,12 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             (self.ds.is_lsm() or self.uri == 'lsm')
 
     # Test durable timestamp.
-    def test_durable_ts01(self):
+    def test_durable_ts03(self):
         if self.skip():
             return
 
         # Build an object.
-        uri = self.uri + ':test_durable_ts01'
+        uri = self.uri + ':test_durable_ts03'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
 
@@ -78,87 +77,39 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100))
         self.session.checkpoint()
 
-        # Update all values with value 111 i.e. first update value.
+        # Scenario: 1
+        # Check to see commit timestamp > durable timestamap, returns error.
         session.begin_transaction()
         self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
+        for i in range(1, 10):
             cursor.set_value(ds.value(111))
             self.assertEquals(cursor.update(), 0)
             self.assertEquals(cursor.next(), 0)
 
         session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-        session.commit_transaction('commit_timestamp=' + timestamp_str(200) + ',durable_timestamp=' + timestamp_str(220))
-
-        # Check the values read are correct with different timestamps.
-        # Read the initial dataset.
-        self.assertEquals(cursor.reset(), 0)
-        session.begin_transaction('read_timestamp=' + timestamp_str(150))
-        self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
-            self.assertEquals(cursor.get_value(), ds.value(i))
-            self.assertEquals(cursor.next(), 0)
-        session.commit_transaction()
-
-        # Read the first update value with timestamp.
-        self.assertEquals(cursor.reset(), 0)
-        session.begin_transaction('read_timestamp=' + timestamp_str(200))
-        self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
-            self.assertEquals(cursor.get_value(), ds.value(111))
-            self.assertEquals(cursor.next(), 0)
-        session.commit_transaction()
-
-        # Check that latest value is same as first  update value.
-        self.assertEquals(cursor.reset(), 0)
-        session.begin_transaction()
-        self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
-            self.assertEquals(cursor.get_value(), ds.value(111))
-            self.assertEquals(cursor.next(), 0)
-        session.commit_transaction()
+        msg = "/older than the first commit timestamp/"
+        # Check for error when commit timestamp > durable timestamp.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: session.commit_transaction('commit_timestamp=' + timestamp_str(200) + ',durable_timestamp=' + timestamp_str(180)), msg)
 
         # Set a stable timestamp so that first update value is durable.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
 
+        # Scenario: 2
+        # Check to see durable timestamp < stable timestamp, returns error.
         # Update all values with value 222 i.e. second update value.
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction()
         self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
+        for i in range(1, 10):
             cursor.set_value(ds.value(222))
             self.assertEquals(cursor.update(), 0)
             self.assertEquals(cursor.next(), 0)
 
-        session.prepare_transaction('prepare_timestamp=' + timestamp_str(200))
+        session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
 
-        # Commit timestamp is earlier to stable timestamp but durable timestamp
-        # is later than stable timestamp. Hence second update value is not durable.
-        session.commit_transaction('commit_timestamp=' + timestamp_str(240) + ',durable_timestamp=' + timestamp_str(300))
-
-        # Checkpoint so that first update value will be visible and durable,
-        # but second update value will be only visible but not durable.
-        self.session.checkpoint()
-
-        # Check that second update value is visible.
-        self.assertEquals(cursor.reset(), 0)
-        self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
-            self.assertEquals(cursor.get_value(), ds.value(222))
-            self.assertEquals(cursor.next(), 0)
-
-        cursor.close()
-        session.close()
-
-        # Check that second update value was not durable by reopening.
-        self.reopen_conn()
-        session = self.conn.open_session()
-        cursor = session.open_cursor(uri, None)
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(250))
-        self.assertEquals(cursor.next(), 0)
-        for i in range(1, 50):
-            self.assertEquals(cursor.get_value(), ds.value(111))
-            self.assertEquals(cursor.next(), 0)
+        msg = "/older than stable timestamp/"
+        # Check that error is returned when durable timestamp < stable timestamp.
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: session.commit_transaction('commit_timestamp=' + timestamp_str(200) + ',durable_timestamp=' + timestamp_str(240)), msg)
 
 if __name__ == '__main__':
     wttest.run()

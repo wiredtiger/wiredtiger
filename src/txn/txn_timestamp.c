@@ -671,19 +671,24 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		prepare_allowed = true;
 	}
 
-#ifdef HAVE_DURABLE_TIMESTAMPS
-	/* Look for a durable timestamp. */
-	ret = __wt_config_gets_def(session, cfg, "durable_timestamp", 0, &cval);
-	WT_RET_NOTFOUND_OK(ret);
-	if (ret == 0 && cval.len != 0) {
-		WT_TRET(__wt_txn_context_check(session, true));
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "durable", &ts, &cval));
-		txn->durable_timestamp = ts;
-		prepare_allowed = true;
+	/* Look for a durable timestamp incase of prepared transaction. */
+	if (prepare) {
+		ret = __wt_config_gets_def(
+		    session, cfg, "durable_timestamp", 0, &cval);
+		WT_RET_NOTFOUND_OK(ret);
+		if (ret == 0 && cval.len != 0) {
+			WT_TRET(__wt_txn_context_check(session, true));
+			WT_RET(__wt_txn_parse_timestamp(
+			    session, "durable", &ts, &cval));
+			txn->durable_timestamp = ts;
+			prepare_allowed = true;
+		}
 	}
-#endif
 
+	/*
+	 * We copy the commit_timestamp as durable_timestamp, hence validation
+	 * is required.
+	 */
 	if (ret == 0 && cval.len != 0)
 		WT_RET(__wt_timestamp_validate(
 		    session, "durable", txn->durable_timestamp, &cval, true));

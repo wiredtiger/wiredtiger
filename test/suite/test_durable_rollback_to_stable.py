@@ -34,10 +34,10 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' %t
 
-# test_durable_ts01.py
+# test_durable_rollback_to_stable.py
 #    Checking visibility and durability of updates with durable_timestamp and
-#    with restart.
-class test_durable_ts01(wttest.WiredTigerTestCase):
+#    with rollback to stable.
+class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
 
     keyfmt = [
         ('row-string', dict(keyfmt='S')),
@@ -62,12 +62,12 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             (self.ds.is_lsm() or self.uri == 'lsm')
 
     # Test durable timestamp.
-    def test_durable_ts01(self):
+    def test_durable_rollback_to_stable(self):
         if self.skip():
             return
 
         # Build an object.
-        uri = self.uri + ':test_durable_ts01'
+        uri = self.uri + ':test_durable_rollback_to_stable'
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
 
@@ -150,7 +150,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         session.close()
 
         # Check that second update value was not durable by reopening.
-        self.reopen_conn()
+        self.conn.rollback_to_stable()
         session = self.conn.open_session()
         cursor = session.open_cursor(uri, None)
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
