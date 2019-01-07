@@ -909,9 +909,6 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 	CURSOR_API_CALL(cursor, session, modify, NULL);
 
-	WT_STAT_CONN_INCR(session, cursor_modify);
-	WT_STAT_DATA_INCR(session, cursor_modify);
-
 	/* Check for a rational modify vector count. */
 	if (nentries <= 0)
 		WT_ERR_MSG(session, EINVAL,
