@@ -43,6 +43,13 @@
 } while (0)
 
 /*
+ * Compute the time in nanoseconds that must be reserved to represent
+ * a number of bytes in a subsystem with a particular capacity per second.
+ */
+#define	WT_RESERVATION_NS(bytes, capacity)			\
+	(((bytes) * WT_BILLION) / (capacity))
+
+/*
  * __capacity_config --
  *	Set I/O capacity configuration.
  */
@@ -73,6 +80,20 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
 	WT_CAPACITY_CHK(cval.val, "total");
 	conn->capacity_total = total = (uint64_t)cval.val;
+
+	FLD_CLR(conn->capacity_flags,
+	    WT_CONN_CAPACITY_CKPT |
+	    WT_CONN_CAPACITY_EVICT |
+	    WT_CONN_CAPACITY_LOG |
+	    WT_CONN_CAPACITY_READ);
+	if (conn->capacity_ckpt != 0)
+		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_CKPT);
+	if (conn->capacity_evict != 0)
+		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_EVICT);
+	if (conn->capacity_log != 0)
+		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_LOG);
+	if (conn->capacity_read != 0)
+		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_READ);
 
 	if (total != 0) {
 		eviction_use_excess = log_use_excess = read_use_excess = false;
@@ -327,6 +348,45 @@ __wt_capacity_signal(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __capacity_reserve --
+ *	Make a reservation for the given number of bytes against
+ * the capacity of the subsystem.
+ */
+static void
+__capacity_reserve(WT_SESSION_IMPL *session, uint64_t *reservation,
+    uint64_t bytes, uint64_t capacity, uint64_t now_ns, bool is_total,
+    uint64_t *result)
+{
+	uint64_t res_len, res_value;
+
+	if (capacity != 0) {
+		res_len = WT_RESERVATION_NS(bytes, capacity);
+		res_value = __wt_atomic_add64(reservation, res_len);
+		__wt_verbose(session, WT_VERB_TEMPORARY,
+		    "THROTTLE:%s len %" PRIu64 " reservation %" PRIu64
+		    " now %" PRIu64, is_total ? " TOTAL:" : "",
+		    res_len, res_value, now_ns);
+		if (now_ns > res_value && now_ns - res_value > WT_BILLION) {
+			/*
+			 * If the total reservation clock is out of date,
+			 * bring it to within a second of a current time.
+			 */
+			__wt_verbose(session, WT_VERB_TEMPORARY,
+			    "THROTTLE:%s ADJ available %" PRIu64
+			    " capacity %" PRIu64 " adjustment %" PRIu64,
+			    is_total ? " TOTAL:" : "",
+			    now_ns - res_value, capacity,
+			    now_ns - WT_BILLION + res_len);
+			__wt_atomic_store64(reservation,
+			    now_ns - WT_BILLION + res_len);
+		}
+	} else
+		res_value = now_ns;
+
+	*result = res_value;
+}
+
+/*
  * __wt_capacity_throttle --
  *	Reserve a time to perform a write operation for the subsystem,
  * and wait until that time.
@@ -346,12 +406,13 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 {
 	struct timespec now;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t capacity, ckpt, now_ns, sleep_us, total;
-	uint64_t new_res_len, new_res_value, res_len, res_value;
-	uint64_t *reservation;
+	uint64_t best_res, capacity, new_res, now_ns, sleep_us, res_total_value;
+	uint64_t res_value, steal_capacity, stolen_bytes, this_res;
+	uint64_t *reservation, *steal;
+	uint64_t total_capacity;
 
 	capacity = 0;
-	reservation = NULL;
+	reservation = steal = NULL;
 	conn = S2C(session);
 
 	switch (type) {
@@ -376,12 +437,14 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 		WT_STAT_CONN_INCR(session, capacity_read_calls);
 		break;
 	}
+	total_capacity = conn->capacity_total;
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
 	    "THROTTLE: type %d bytes %" PRIu64 " capacity %" PRIu64
 	    "  reservation %" PRIu64,
 	    (int)type, bytes, capacity, *reservation);
-	if (capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
+	if ((capacity == 0 && total_capacity == 0) ||
+	    F_ISSET(conn, WT_CONN_RECOVERING))
 		return;
 
 	/*
@@ -398,50 +461,101 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
 
-	res_len = (bytes * WT_BILLION) / capacity;
-	res_value = __wt_atomic_add64(reservation, res_len);
+	/* Get he current time in nanoseconds since the epoch. */
 	__wt_epoch(session, &now);
-
-	/* Convert the current time to nanoseconds since the epoch. */
 	now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
-	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: len %" PRIu64 " reservation %" PRIu64 " now %" PRIu64,
-	    res_len, res_value, now_ns);
+
+again:
+	/* Take a reservation for the subsystem, and for the total */
+	__capacity_reserve(session, reservation, bytes, capacity, now_ns,
+	    false, &res_value);
+	__capacity_reserve(session, &conn->reservation_total, bytes,
+	    total_capacity, now_ns, true, &res_total_value);
 
 	/*
-	 * If the reservation time we got is far enough in the future, see if
-	 * stealing a reservation from the checkpoint subsystem makes sense.
-	 * This is allowable if there is not currently a checkpoint and
-	 * the checkpoint system is configured to have a capacity.
+	 * If we ended up with a future reservation, and we aren't constricted
+	 * by the total capacity, then we may be able to reallocate some
+	 * unused reservation time from another subsystem.
 	 */
-	if (res_value > now_ns && res_value - now_ns > 100000 &&
-	    type != WT_THROTTLE_LOG && !conn->txn_global.checkpoint_running &&
-	    (ckpt = conn->capacity_ckpt) != 0) {
-		new_res_len = (bytes * WT_BILLION) / ckpt;
-		new_res_value = __wt_atomic_add64(
-		    &conn->reservation_ckpt, new_res_len);
+	if (res_value > now_ns && res_total_value < now_ns && steal == NULL) {
+		best_res = now_ns - WT_BILLION / 2;
+		if (type != WT_THROTTLE_CKPT &&
+		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_CKPT) &&
+		    (this_res = conn->reservation_ckpt) < best_res) {
+			steal = &conn->reservation_ckpt;
+			steal_capacity = conn->capacity_ckpt;
+			best_res = this_res;
+		}
+		if (type != WT_THROTTLE_EVICT &&
+		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_EVICT) &&
+		    (this_res = conn->reservation_evict) < best_res) {
+			steal = &conn->reservation_evict;
+			steal_capacity = conn->capacity_evict;
+			best_res = this_res;
+		}
+		if (type != WT_THROTTLE_LOG &&
+		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_LOG) &&
+		    (this_res = conn->reservation_log) < best_res) {
+			steal = &conn->reservation_log;
+			steal_capacity = conn->capacity_log;
+			best_res = this_res;
+		}
+		if (type != WT_THROTTLE_READ &&
+		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_READ) &&
+		    (this_res = conn->reservation_read) < best_res) {
+			steal = &conn->reservation_read;
+			steal_capacity = conn->capacity_read;
+			best_res = this_res;
+		}
 
 		/*
-		 * If the checkpoint reservation is a better deal (that is,
-		 * if we'll sleep for less time), shuffle values so it is
-		 * used instead. In either case, we 'return' the reservation
-		 * that we aren't using.
+		 * We have a subsystem that has enough spare capacity to
+		 * steal.  We'll take a small slice and add it to our
+		 * own subsystem.
 		 */
-		if (new_res_value < res_value) {
-			res_value = new_res_value;
-			reservation = &conn->reservation_ckpt;
-			capacity = ckpt;
-			res_value = __wt_atomic_sub64(reservation, res_len);
-		} else
-			(void)__wt_atomic_sub64(
-			    &conn->reservation_ckpt, new_res_len);
+		if (steal != NULL) {
+			if (best_res < now_ns - WT_BILLION &&
+			    now_ns > WT_BILLION)
+				new_res = now_ns - WT_BILLION;
+			else
+				new_res = best_res;
+			new_res += WT_BILLION / 16 +
+			    WT_RESERVATION_NS(bytes, steal_capacity);
+			if (!__wt_atomic_casv64(steal, best_res, new_res)) {
+				/*
+				 * Give up our reservations and try again.
+				 * We won't try to steal the next time.
+				 */
+				(void)__wt_atomic_sub64(reservation,
+				    WT_RESERVATION_NS(bytes, capacity));
+				(void)__wt_atomic_sub64(&
+				    conn->reservation_total,
+				    WT_RESERVATION_NS(bytes, total_capacity));
+				goto again;
+			}
+
+			/*
+			 * We've actually stolen capacity in terms of bytes,
+			 * not nanoseconds, so we need to convert it.
+			 */
+			stolen_bytes = steal_capacity / 16;
+			res_value = __wt_atomic_sub64(reservation,
+			    WT_RESERVATION_NS(stolen_bytes, capacity));
+		}
 	}
+	if (res_value < res_total_value)
+		res_value = res_total_value;
+
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
 		__wt_verbose(session, WT_VERB_TEMPORARY,
 		    "THROTTLE: SLEEP sleep us %" PRIu64,
 		    sleep_us);
-		if (type == WT_THROTTLE_CKPT) {
+		if (res_value == res_total_value) {
+			WT_STAT_CONN_INCR(session, capacity_total_throttles);
+			WT_STAT_CONN_INCRV(session,
+			    capacity_total_time, sleep_us);
+		} else if (type == WT_THROTTLE_CKPT) {
 			WT_STAT_CONN_INCR(session, capacity_ckpt_throttles);
 			WT_STAT_CONN_INCRV(session,
 			    capacity_ckpt_time, sleep_us);
@@ -458,69 +572,9 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 			WT_STAT_CONN_INCRV(session,
 			    capacity_read_time, sleep_us);
 		}
-		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US) {
+		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);
-
-			/* Adjust our idea of 'now', we'll be using it again. */
-			now_ns = res_value;
-		}
-	} else if (now_ns - res_value > WT_BILLION) {
-		/*
-		 * If it looks like the reservation clock is out of date by more
-		 * than a second, bump it up within a second of the current
-		 * time. Basically we don't allow a lot of current bandwidth to
-		 * 'make up' for long lulls in the past.  Note that this
-		 * may race with other threads, with the last one 'winning'.
-		 * But it doesn't really matter, the one second catch up
-		 * is approximate.
-		 */
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: ADJ available %" PRIu64 " capacity %" PRIu64
-		    " adjustment %" PRIu64,
-		    now_ns - res_value, capacity,
-		    now_ns - capacity + res_value);
-		__wt_atomic_store64(reservation, now_ns - WT_BILLION + res_len);
-	}
-
-	/*
-	 * Now, see if we fit under the total capacity given to the
-	 * connection.  To do this, repeat the steps above, but using
-	 * the total reservation counter and total capacity.
-	 */
-	if ((total = conn->capacity_total) != 0) {
-		res_len = (bytes * WT_BILLION) / total;
-		res_value = __wt_atomic_add64(&conn->reservation_total,
-		    res_len);
-
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: TOTAL: len %" PRIu64 " reservation %" PRIu64
-		    " now %" PRIu64, res_len, res_value, now_ns);
-
-		if (res_value > now_ns) {
-			sleep_us = (res_value - now_ns) / WT_THOUSAND;
-			__wt_verbose(session, WT_VERB_TEMPORARY,
-			    "THROTTLE: TOTAL: SLEEP sleep us %" PRIu64,
-			    sleep_us);
-			WT_STAT_CONN_INCR(session, capacity_total_throttles);
-			WT_STAT_CONN_INCRV(session,
-			    capacity_total_time, sleep_us);
-			if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
-				/* Sleep handles large usec values. */
-				__wt_sleep(0, sleep_us);
-		} else if (now_ns - res_value > WT_BILLION) {
-			/*
-			 * If the total reservation clock is out of date,
-			 * bring it to within a second of a current time.
-			 */
-			__wt_verbose(session, WT_VERB_TEMPORARY,
-			    "THROTTLE: TOTAL: ADJ available %" PRIu64
-			    " capacity %" PRIu64 " adjustment %" PRIu64,
-			    now_ns - res_value, total,
-			    now_ns - total + res_value);
-			__wt_atomic_store64(&conn->reservation_total,
-			    now_ns - WT_BILLION + res_len);
-		}
 	}
 
 	__wt_verbose(session, WT_VERB_TEMPORARY,
