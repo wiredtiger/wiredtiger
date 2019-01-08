@@ -1408,7 +1408,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
-	char hex_timestamp[3][WT_TS_HEX_SIZE];
+	char hex_timestamp[4][WT_TS_HEX_SIZE];
 	const char *iso_tag;
 
 	WT_NOT_READ(iso_tag, "INVALID");
@@ -1424,14 +1424,16 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 		break;
 	}
 	__wt_timestamp_to_hex_string(hex_timestamp[0], txn->commit_timestamp);
+	__wt_timestamp_to_hex_string(hex_timestamp[1], txn->durable_timestamp);
 	__wt_timestamp_to_hex_string(
-	    hex_timestamp[1], txn->first_commit_timestamp);
-	__wt_timestamp_to_hex_string(hex_timestamp[2], txn->read_timestamp);
+	    hex_timestamp[2], txn->first_commit_timestamp);
+	__wt_timestamp_to_hex_string(hex_timestamp[3], txn->read_timestamp);
 	WT_RET(__wt_msg(session,
 	    "mod count: %u"
 	    ", snap min: %" PRIu64
 	    ", snap max: %" PRIu64
 	    ", commit_timestamp: %s"
+	    ", durable_timestamp: %s"
 	    ", first_commit_timestamp: %s"
 	    ", read_timestamp: %s"
 	    ", flags: 0x%08" PRIx32
@@ -1442,6 +1444,7 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 	    hex_timestamp[0],
 	    hex_timestamp[1],
 	    hex_timestamp[2],
+	    hex_timestamp[3],
 	    txn->flags,
 	    iso_tag));
 	return (0);

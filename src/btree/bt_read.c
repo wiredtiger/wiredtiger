@@ -190,6 +190,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		upd->txnid = las_txnid;
 		upd->timestamp = las_timestamp;
 		upd->prepare_state = prepare_state;
+		/* Copy the commit timestamp as durable timestamp. */
+		if (prepare_state != WT_PREPARE_INPROGRESS)
+			upd->durable_timestamp = upd->timestamp;
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:

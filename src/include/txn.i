@@ -389,8 +389,12 @@ __wt_txn_op_apply_prepare_state(
 		 * transition state.
 		 */
 		(*updp)->prepare_state = prepare_state;
+		if (commit)
+			(*updp)->durable_timestamp = txn->durable_timestamp;
 	}
 	ref->page_del->timestamp = ts;
+	if (commit)
+		ref->page_del->durable_timestamp = txn->durable_timestamp;
 	WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
 
 	/* Unlock the page by setting it back to it's previous state */
