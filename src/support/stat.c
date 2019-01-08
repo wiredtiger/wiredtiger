@@ -887,6 +887,7 @@ static const char * const __stats_connection_desc[] = {
 	"connection: background fsync calls",
 	"connection: background fsync file handles considered",
 	"connection: background fsync file handles synced",
+	"connection: background fsync not needed",
 	"connection: detected system time went backwards",
 	"connection: files currently open",
 	"connection: memory allocations",
@@ -897,6 +898,10 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex shared lock write-lock calls",
 	"connection: throttled capacity bytes read",
 	"connection: throttled capacity bytes written",
+	"connection: throttled capacity signal function called",
+	"connection: throttled capacity thread cond wait signalled",
+	"connection: throttled capacity thread cond wait timed out",
+	"connection: throttled capacity thread signalled",
 	"connection: throttled capacity threshold to fsync",
 	"connection: throttled capacity time in checkpoints (usecs)",
 	"connection: throttled capacity time in eviction (usecs)",
@@ -1324,6 +1329,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->fsync_all = 0;
 	stats->fsync_all_fh_total = 0;
 	stats->fsync_all_fh = 0;
+	stats->fsync_notyet = 0;
 	stats->time_travel = 0;
 		/* not clearing file_open */
 	stats->memory_allocation = 0;
@@ -1334,6 +1340,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->rwlock_write = 0;
 	stats->capacity_bytes_read = 0;
 	stats->capacity_bytes_written = 0;
+	stats->capacity_signal_calls = 0;
+	stats->capacity_signalled = 0;
+	stats->capacity_timeout = 0;
+	stats->capacity_signals = 0;
 	stats->capacity_threshold = 0;
 	stats->capacity_ckpt_time = 0;
 	stats->capacity_evict_time = 0;
@@ -1807,6 +1817,7 @@ __wt_stat_connection_aggregate(
 	to->fsync_all += WT_STAT_READ(from, fsync_all);
 	to->fsync_all_fh_total += WT_STAT_READ(from, fsync_all_fh_total);
 	to->fsync_all_fh += WT_STAT_READ(from, fsync_all_fh);
+	to->fsync_notyet += WT_STAT_READ(from, fsync_notyet);
 	to->time_travel += WT_STAT_READ(from, time_travel);
 	to->file_open += WT_STAT_READ(from, file_open);
 	to->memory_allocation += WT_STAT_READ(from, memory_allocation);
@@ -1818,6 +1829,11 @@ __wt_stat_connection_aggregate(
 	to->capacity_bytes_read += WT_STAT_READ(from, capacity_bytes_read);
 	to->capacity_bytes_written +=
 	    WT_STAT_READ(from, capacity_bytes_written);
+	to->capacity_signal_calls +=
+	    WT_STAT_READ(from, capacity_signal_calls);
+	to->capacity_signalled += WT_STAT_READ(from, capacity_signalled);
+	to->capacity_timeout += WT_STAT_READ(from, capacity_timeout);
+	to->capacity_signals += WT_STAT_READ(from, capacity_signals);
 	to->capacity_threshold += WT_STAT_READ(from, capacity_threshold);
 	to->capacity_ckpt_time += WT_STAT_READ(from, capacity_ckpt_time);
 	to->capacity_evict_time += WT_STAT_READ(from, capacity_evict_time);
