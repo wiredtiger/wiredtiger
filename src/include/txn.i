@@ -442,9 +442,8 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	} else {
 		/*
 		 * The timestamp is in the page deleted structure for
-		 * truncates, or in the update for other operations.
-		 * Both commit timestamp and durable timestamp need to be
-		 * updated.
+		 * truncates, or in the update for other operations. Both
+		 * commit and durable timestamps need to be updated.
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
