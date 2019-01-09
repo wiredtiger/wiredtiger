@@ -58,106 +58,23 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	uint64_t allocation, share, total;
-	int64_t excess;
-	uint32_t excess_shares;
-	bool eviction_use_excess, log_use_excess, read_use_excess;
+	uint64_t total;
 
 	conn = S2C(session);
 
-	WT_RET(__wt_config_gets(session, cfg, "io_capacity.checkpoint", &cval));
-	WT_CAPACITY_CHK(cval.val, "checkpoint");
-	conn->capacity_ckpt = (uint64_t)cval.val;
-	WT_RET(__wt_config_gets(session, cfg, "io_capacity.eviction", &cval));
-	WT_CAPACITY_CHK(cval.val, "eviction");
-	conn->capacity_evict = (uint64_t)cval.val;
-	WT_RET(__wt_config_gets(session, cfg, "io_capacity.log", &cval));
-	WT_CAPACITY_CHK(cval.val, "log");
-	conn->capacity_log = (uint64_t)cval.val;
-	WT_RET(__wt_config_gets(session, cfg, "io_capacity.read", &cval));
-	WT_CAPACITY_CHK(cval.val, "read");
-	conn->capacity_read = (uint64_t)cval.val;
 	WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
 	WT_CAPACITY_CHK(cval.val, "total");
 	conn->capacity_total = total = (uint64_t)cval.val;
 
-	FLD_CLR(conn->capacity_flags,
-	    WT_CONN_CAPACITY_CKPT |
-	    WT_CONN_CAPACITY_EVICT |
-	    WT_CONN_CAPACITY_LOG |
-	    WT_CONN_CAPACITY_READ);
-	if (conn->capacity_ckpt != 0)
-		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_CKPT);
-	if (conn->capacity_evict != 0)
-		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_EVICT);
-	if (conn->capacity_log != 0)
-		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_LOG);
-	if (conn->capacity_read != 0)
-		FLD_SET(conn->capacity_flags, WT_CONN_CAPACITY_READ);
-
 	if (total != 0) {
-		eviction_use_excess = log_use_excess = read_use_excess = false;
-		excess = 0;
-		excess_shares = 0;
 		/*
-		 * If we've been given a total capacity, then set the
-		 * capacity of any subsystem that hasn't been set.
-		 *
-		 * If we've been given a total capacity, as well as subsystem
-		 * capacities, and a subsystem is not configured up to the
-		 * percentage we planned to allocate, then we'll track any
-		 * excess that we can later divide up.
+		 * We've been given a total capacity, set the
+		 * capacity of all the subsystems.
 		 */
-		allocation = WT_CAPACITY(total, WT_CAP_CKPT);
-		if (conn->capacity_ckpt == 0)
-			conn->capacity_ckpt = allocation;
-		else
-			excess += (int64_t)allocation -
-			    (int64_t)conn->capacity_ckpt;
-
-		allocation = WT_CAPACITY(total, WT_CAP_EVICT);
-		if (conn->capacity_evict == 0) {
-			conn->capacity_evict = allocation;
-			eviction_use_excess = true;
-			excess_shares += WT_CAP_EVICT;
-		} else
-			excess += (int64_t)allocation -
-			    (int64_t)conn->capacity_evict;
-
-		allocation = WT_CAPACITY(total, WT_CAP_LOG);
-		if (conn->capacity_log == 0) {
-			conn->capacity_log = allocation;
-			log_use_excess = true;
-			excess_shares += WT_CAP_LOG;
-		} else
-			excess += (int64_t)allocation -
-			    (int64_t)conn->capacity_log;
-
-		allocation = WT_CAPACITY(total, WT_CAP_READ);
-		if (conn->capacity_read == 0) {
-			conn->capacity_read = allocation;
-			read_use_excess = true;
-			excess_shares += WT_CAP_READ;
-		} else
-			excess += (int64_t)allocation -
-			    (int64_t)conn->capacity_read;
-
-		/*
-		 * Now we've set up the allocations, but we may have
-		 * excess we can spread around.  We don't give checkpoint
-		 * any extra, we keep it at 10% or whatever was specified.
-		 * The other subsystems, if they were not constrained, get
-		 * extra shares in proportion to the general goals above.
-		 */
-		if (excess_shares > 0 && excess > 0) {
-			share = (uint64_t)excess / excess_shares;
-			if (eviction_use_excess)
-				conn->capacity_evict += share * WT_CAP_EVICT;
-			if (read_use_excess)
-				conn->capacity_read += share * WT_CAP_READ;
-			if (log_use_excess)
-				conn->capacity_log += share * WT_CAP_LOG;
-		}
+		conn->capacity_ckpt = WT_CAPACITY(total, WT_CAP_CKPT);
+		conn->capacity_evict = WT_CAPACITY(total, WT_CAP_EVICT);
+		conn->capacity_log = WT_CAPACITY(total, WT_CAP_LOG);
+		conn->capacity_read = WT_CAPACITY(total, WT_CAP_READ);
 	}
 
 	/*
@@ -493,28 +410,24 @@ again:
 	    total_capacity != 0) {
 		best_res = now_ns - WT_BILLION / 2;
 		if (type != WT_THROTTLE_CKPT &&
-		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_CKPT) &&
 		    (this_res = conn->reservation_ckpt) < best_res) {
 			steal = &conn->reservation_ckpt;
 			steal_capacity = conn->capacity_ckpt;
 			best_res = this_res;
 		}
 		if (type != WT_THROTTLE_EVICT &&
-		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_EVICT) &&
 		    (this_res = conn->reservation_evict) < best_res) {
 			steal = &conn->reservation_evict;
 			steal_capacity = conn->capacity_evict;
 			best_res = this_res;
 		}
 		if (type != WT_THROTTLE_LOG &&
-		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_LOG) &&
 		    (this_res = conn->reservation_log) < best_res) {
 			steal = &conn->reservation_log;
 			steal_capacity = conn->capacity_log;
 			best_res = this_res;
 		}
 		if (type != WT_THROTTLE_READ &&
-		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_READ) &&
 		    (this_res = conn->reservation_read) < best_res) {
 			steal = &conn->reservation_read;
 			steal_capacity = conn->capacity_read;

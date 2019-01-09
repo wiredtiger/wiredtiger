@@ -302,14 +302,6 @@ struct __wt_connection_impl {
 	uint32_t	 async_size;	/* Async op array size */
 	uint32_t	 async_workers;	/* Number of async workers */
 
-	/* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_CONN_CAPACITY_CKPT		0x1u	/* Checkpoint I/O limited */
-#define	WT_CONN_CAPACITY_EVICT		0x2u	/* Eviction I/O limited */
-#define	WT_CONN_CAPACITY_LOG		0x4u	/* Log I/O limited */
-#define	WT_CONN_CAPACITY_READ		0x8u	/* Read I/O limited */
-	/* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t capacity_flags;	/* Capacity configuration */
-
 	uint64_t capacity_ckpt;		/* Bytes/sec checkpoint capacity. */
 	uint64_t capacity_evict;	/* Bytes/sec eviction capacity. */
 	uint64_t capacity_log;		/* Bytes/sec logging capacity. */
