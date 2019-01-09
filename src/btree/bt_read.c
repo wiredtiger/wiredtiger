@@ -190,7 +190,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		upd->txnid = las_txnid;
 		upd->timestamp = las_timestamp;
 		upd->prepare_state = prepare_state;
-		/* Copy the commit timestamp as durable timestamp. */
+		/*
+		 * Use the commit timestamp as the durable timestamp, since
+		 * non durable committed updates don't currently get written to
+		 * lookaside, so the two timestamps should always be identical.
+		 */
 		if (prepare_state != WT_PREPARE_INPROGRESS)
 			upd->durable_timestamp = upd->timestamp;
 

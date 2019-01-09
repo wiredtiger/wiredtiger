@@ -366,11 +366,3 @@ union __wt_rand_state {
 		    session, buf, (buf)->size + __len + 1));		\
 	}								\
 } while (0)
-
-/*
- * HAVE_DURABLE_TIMESTAMPS
- * 	To enable functionality of oplog durability feature i.e. using
- * durable timestamps.
- */
-#define	HAVE_DURABLE_TIMESTAMPS
-//#undef	HAVE_DURABLE_TIMESTAMPS

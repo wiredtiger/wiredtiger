@@ -699,10 +699,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    txn->mod_count == 0);
 
 	readonly = txn->mod_count == 0;
-
-	/*
-	 * Look for a commit timestamp.
-	 */
+	/* Look for a commit timestamp. */
 	WT_ERR(
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
@@ -722,14 +719,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR_MSG(session, EINVAL,
 		    "commit_timestamp is required for a prepared transaction");
 
-#ifdef HAVE_DURABLE_TIMESTAMPS
-	/*
-	 * Durable timestamp is required for a prepared transaction.
-	 */
+	/* Durable timestamp is required for a prepared transaction. */
 	if (prepare) {
-		/*
-		 * Look for a durable timestamp.
-		 */
 		WT_ERR(__wt_config_gets_def(
 		    session, cfg, "durable_timestamp", 0, &cval));
 		if (cval.len != 0) {
@@ -740,27 +731,23 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			txn->durable_timestamp = ts;
 		} else
 			/*
-			 * Durable timestamp should be later than stable
-			 * timestamp. If durable timestamp is not given, commit
-			 * timestamp will be considered as durable timestamp.
+			 * If durable timestamp is not given, commit timestamp
+			 * will be considered as durable timestamp.
+			 * TODO : error if durable timestamp is not given.
 			 */
 			txn->durable_timestamp = txn->commit_timestamp;
 
 	} else
 		txn->durable_timestamp = txn->commit_timestamp;
-#else
-	txn->durable_timestamp = txn->commit_timestamp;
-#endif
 
+	/* Durable timestamp should be later than stable timestamp. */
 	if (cval.len != 0)
 		WT_ERR(__wt_timestamp_validate(
 		    session, "durable", txn->durable_timestamp, &cval, true));
 
 	WT_ERR(__txn_commit_timestamp_validate(session));
 
-#ifdef HAVE_DURABLE_TIMESTAMPS
-		// TODO : assert durable_timestamp
-#endif
+	/* TODO : assert durable_timestamp. */
 
 	/*
 	 * The default sync setting is inherited from the connection, but can

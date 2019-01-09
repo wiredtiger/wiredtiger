@@ -1276,7 +1276,7 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (*updp == NULL && r->las_skew_newest)
 			*updp = upd;
 
-		/* Consider non durable updates as unstable. */
+		/* Consider non durable updates as uncommitted. */
 		if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) ||

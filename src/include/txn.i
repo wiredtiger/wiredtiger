@@ -443,7 +443,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		/*
 		 * The timestamp is in the page deleted structure for
 		 * truncates, or in the update for other operations.
-		 * Both commit timestamp and durable timestamp needs to be
+		 * Both commit timestamp and durable timestamp need to be
 		 * updated.
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
@@ -816,12 +816,9 @@ static inline bool
 __wt_txn_upd_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	/* If update is visible then check if it is durable. */
-	if (__wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE)
-	{
-		return (__wt_txn_visible(
-		    session, upd->txnid, upd->durable_timestamp));
-	}
-	return (false);
+	if (__wt_txn_upd_visible_type(session, upd) != WT_VISIBLE_TRUE)
+		return (false);
+	return (__wt_txn_visible(session, upd->txnid, upd->durable_timestamp));
 }
 
 /*
