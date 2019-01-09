@@ -30,9 +30,9 @@
 #define	WT_CAPACITY(total, pct)	((total) * (pct) / 100)
 
 #define	WT_CAP_CKPT		10
-#define	WT_CAP_EVICT		50
-#define	WT_CAP_LOG		25
-#define	WT_CAP_READ		50
+#define	WT_CAP_EVICT		60
+#define	WT_CAP_LOG		20
+#define	WT_CAP_READ		60
 
 #define	WT_CAPACITY_CHK(v, str)	do {				\
 	if ((v) != 0 && (v) < WT_THROTTLE_MIN)			\
@@ -192,6 +192,7 @@ __capacity_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	bool signalled;
 
 	session = arg;
 	conn = S2C(session);
@@ -200,16 +201,25 @@ __capacity_server(void *arg)
 		 * Wait until signalled but check once per second in case
 		 * the signal was missed.
 		 */
-		__wt_cond_wait(session, conn->capacity_cond,
-		    WT_MILLION, __capacity_server_run_chk);
+		signalled = false;
+		__wt_cond_wait_signal(session, conn->capacity_cond,
+		    WT_MILLION/10, __capacity_server_run_chk, &signalled);
+
+		if (signalled == false)
+			WT_STAT_CONN_INCR(session, capacity_timeout);
+		else
+			WT_STAT_CONN_INCR(session, capacity_signalled);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__capacity_server_run_chk(session))
 			break;
 
-		conn->capacity_signalled = false;
-		if (conn->capacity_written > conn->capacity_threshold)
+		WT_PUBLISH(conn->capacity_signalled, false);
+		if (conn->capacity_written > conn->capacity_threshold) {
 			WT_ERR(__wt_fsync_all_background(session));
+			conn->capacity_written = 0;
+		} else
+			WT_STAT_CONN_INCR(session, fsync_notyet);
 	}
 
 	if (0) {
@@ -339,11 +349,12 @@ __wt_capacity_signal(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
+	WT_STAT_CONN_INCR(session, capacity_signal_calls);
 	if (conn->capacity_written >= conn->capacity_threshold &&
 	    !conn->capacity_signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
-		conn->capacity_signalled = true;
-		conn->capacity_written = 0;
+		WT_PUBLISH(conn->capacity_signalled, true);
+		WT_STAT_CONN_INCR(session, capacity_signals);
 	}
 }
 
@@ -411,7 +422,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	uint64_t *reservation, *steal;
 	uint64_t total_capacity;
 
-	capacity = 0;
+	capacity = steal_capacity = 0;
 	reservation = steal = NULL;
 	conn = S2C(session);
 

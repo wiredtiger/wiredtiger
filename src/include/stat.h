@@ -458,6 +458,7 @@ struct __wt_connection_stats {
 	int64_t fsync_all;
 	int64_t fsync_all_fh_total;
 	int64_t fsync_all_fh;
+	int64_t fsync_notyet;
 	int64_t time_travel;
 	int64_t file_open;
 	int64_t memory_allocation;
@@ -468,6 +469,10 @@ struct __wt_connection_stats {
 	int64_t rwlock_write;
 	int64_t capacity_bytes_read;
 	int64_t capacity_bytes_written;
+	int64_t capacity_signal_calls;
+	int64_t capacity_signalled;
+	int64_t capacity_timeout;
+	int64_t capacity_signals;
 	int64_t capacity_threshold;
 	int64_t capacity_ckpt_time;
 	int64_t capacity_evict_time;
