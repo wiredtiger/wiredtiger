@@ -34,7 +34,7 @@ __wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...)
 	va_start(ap, format);
 	ret = __wt_log_vprintf(session, format, ap);
 	va_end(ap);
-	return (ret);
+	return (ret + 1);
 }
 
 /*
