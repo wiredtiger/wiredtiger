@@ -460,6 +460,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	} else
 		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
+	WT_ASSERT(session, capacity != 0);
 
 	/* Get he current time in nanoseconds since the epoch. */
 	__wt_epoch(session, &now);
@@ -477,7 +478,8 @@ again:
 	 * by the total capacity, then we may be able to reallocate some
 	 * unused reservation time from another subsystem.
 	 */
-	if (res_value > now_ns && res_total_value < now_ns && steal == NULL) {
+	if (res_value > now_ns && res_total_value < now_ns && steal == NULL &&
+	    total_capacity != 0) {
 		best_res = now_ns - WT_BILLION / 2;
 		if (type != WT_THROTTLE_CKPT &&
 		    !FLD_ISSET(conn->capacity_flags, WT_CONN_CAPACITY_CKPT) &&
@@ -519,6 +521,7 @@ again:
 				new_res = now_ns - WT_BILLION;
 			else
 				new_res = best_res;
+			WT_ASSERT(session, steal_capacity != 0);
 			new_res += WT_BILLION / 16 +
 			    WT_RESERVATION_NS(bytes, steal_capacity);
 			if (!__wt_atomic_casv64(steal, best_res, new_res)) {
@@ -538,6 +541,7 @@ again:
 			 * We've actually stolen capacity in terms of bytes,
 			 * not nanoseconds, so we need to convert it.
 			 */
+
 			stolen_bytes = steal_capacity / 16;
 			res_value = __wt_atomic_sub64(reservation,
 			    WT_RESERVATION_NS(stolen_bytes, capacity));
