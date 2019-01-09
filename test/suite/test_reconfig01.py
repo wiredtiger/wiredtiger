@@ -107,12 +107,11 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("statistics=(none)")
 
     def test_reconfig_capacity(self):
-        self.conn.reconfigure("io_capacity=(checkpoint=2M,log=1G)")
-        self.conn.reconfigure("io_capacity=(eviction=100M)")
-        self.conn.reconfigure("io_capacity=(checkpoint=0,log=5M)")
+        self.conn.reconfigure("io_capacity=(total=80M)")
+        self.conn.reconfigure("io_capacity=(total=100M)")
         msg = '/below minimum/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.conn.reconfigure("io_capacity=(log=16K)"), msg)
+            lambda: self.conn.reconfigure("io_capacity=(total=16K)"), msg)
 
     def test_reconfig_checkpoints(self):
         self.conn.reconfigure("checkpoint=(wait=0)")
