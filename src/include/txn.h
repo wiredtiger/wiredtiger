@@ -259,6 +259,13 @@ struct __wt_txn {
 	wt_timestamp_t commit_timestamp;
 
 	/*
+	 * Durable timestamp copied into updates created by this transaction.
+	 * It is used to decide whether to consider this update to be persisted
+	 * or not by stable checkpoint.
+	 */
+	wt_timestamp_t durable_timestamp;
+
+	/*
 	 * Set to the first commit timestamp used in the transaction and fixed
 	 * while the transaction is on the public list of committed timestamps.
 	 */
