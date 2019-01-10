@@ -305,6 +305,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 		cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
 		cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
 		cbt->row_iteration_slot = 1;
+		cbt->slot = 0;
 		cbt->rip_saved = NULL;
 		goto new_insert;
 	}
