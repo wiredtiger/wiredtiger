@@ -82,6 +82,10 @@ main(int argc, char *argv[])
 	int i, nfail;
 	const char *tablename;
 
+	/* Bypass this test for valgrind. */
+	if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
+		return (EXIT_SUCCESS);
+
 	opts = &_opts;
 	sharedopts = &_sharedopts;
 	memset(opts, 0, sizeof(*opts));
@@ -184,11 +188,7 @@ main(int argc, char *argv[])
 		nfail += get_args[i].nfail;
 	}
 
-	/*
-	 * Using valgrind can make things slow, so don't check those failures.
-	 */
-	if (!testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
-		testutil_assert(nfail == 0);
+	testutil_assert(nfail == 0);
 	testutil_progress(opts, "cleanup starting");
 	testutil_cleanup(opts);
 	return (0);
