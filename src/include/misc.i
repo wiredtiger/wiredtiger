@@ -278,24 +278,3 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
 		/* The default maximum delay is 1/10th of a second. */
 		__wt_sleep(0, i * (WT_TIMING_STRESS_MAX_DELAY / 10));
 }
-
-/*
- * __wt_checksum_compare --
- *	Compare two checksums for equality.
- */
-static inline bool
-__wt_checksum_compare(uint32_t cksum1, uint32_t cksum2)
-{
-	if (cksum1 == cksum2)
-		return (true);
-
-#if defined(__s390x__)
-	/*
-	 * There was a bug in WiredTiger on the zSeries machines where we wrote
-	 * checksums in big-endian format. On that machine, allow both big- and
-	 * little-endian versions of the checksum.
-	 */
-	cksum1 = __wt_bswap32(cksum1);
-#endif
-	return (cksum1 == cksum2);
-}

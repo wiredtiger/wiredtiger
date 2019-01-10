@@ -259,11 +259,12 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	blk = WT_BLOCK_HEADER_REF(buf->mem);
 	__wt_block_header_byteswap_copy(blk, &swap);
 	if (swap.checksum == checksum) {
+		checksum = blk->checksum;
 		blk->checksum = 0;
 		page_checksum = __wt_checksum(buf->mem,
 		    F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ?
 		    size : WT_BLOCK_COMPRESS_SKIP);
-		if (__wt_checksum_compare(page_checksum, checksum)) {
+		if (page_checksum == checksum) {
 			/*
 			 * Swap the page-header as needed; this doesn't belong
 			 * here, but it's the best place to catch all callers.
