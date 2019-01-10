@@ -298,20 +298,18 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * the first WT_BLOCK_COMPRESS_SKIP bytes without noticing.
 	 *
 	 * Checksum a little-endian version of the header, and write everything
-	 * in little-endian format. As checksums are returned in little-endian
-	 * format, they don't need to be swapped before writing.
+	 * in little-endian format. The checksum is (potentially) returned in a
+	 * big-endian format, swap it into place in a separate step.
 	 */
 	blk->flags = 0;
 	if (data_checksum)
 		F_SET(blk, WT_BLOCK_DATA_CKSUM);
 	blk->checksum = 0;
 	__wt_block_header_byteswap(blk);
-	blk->checksum = __wt_checksum(
+	blk->checksum = checksum = __wt_checksum(
 	    buf->mem, data_checksum ? align_size : WT_BLOCK_COMPRESS_SKIP);
 #ifdef WORDS_BIGENDIAN
-	checksum = __wt_bswap32(blk->checksum);
-#else
-	checksum = blk->checksum;
+	blk->checksum = __wt_bswap32(blk->checksum);
 #endif
 
 	/* Pre-allocate some number of extension structures. */

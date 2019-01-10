@@ -289,10 +289,9 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	memset(buf->mem, 0, allocsize);
 
 	/*
-	 * Build a big- or little-endian version of the header and byte swap it
-	 * as necessary, then checksum the little-endian version of the header
-	 * and write everything in little-endian format. Checksums are returned
-	 * in little-endian format and don't need to be swapped before writing.
+	 * Checksum a little-endian version of the header, and write everything
+	 * in little-endian format. The checksum is (potentially) returned in a
+	 * big-endian format, swap it into place in a separate step.
 	 */
 	desc = buf->mem;
 	desc->magic = WT_BLOCK_MAGIC;
@@ -301,6 +300,9 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	desc->checksum = 0;
 	__wt_block_desc_byteswap(desc);
 	desc->checksum = __wt_checksum(desc, allocsize);
+#ifdef WORDS_BIGENDIAN
+	desc->checksum = __wt_bswap32(desc->checksum);
+#endif
 	ret = __wt_write(session, fh, (wt_off_t)0, (size_t)allocsize, desc);
 
 	__wt_scr_free(session, &buf);
@@ -334,7 +336,8 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * Handle little- and big-endian objects. Objects are written in little-
 	 * endian format: save the header checksum, and calculate the checksum
 	 * for the header in its little-endian form. Then, restore the header's
-	 * checksum, and byte-swap the whole thing as necessary.
+	 * checksum, and byte-swap the whole thing as necessary, leaving us with
+	 * a calculated checksum that should match the checksum in the header.
 	 */
 	desc = buf->mem;
 	checksum_tmp = desc->checksum;
@@ -353,7 +356,7 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * their interrupt key.
 	 */
 	if (desc->magic != WT_BLOCK_MAGIC ||
-	    !__wt_checksum_compare(checksum_tmp, checksum_calculate))
+	    desc->checksum != checksum_calculate)
 		WT_ERR_MSG(session, WT_ERROR,
 		    "%s does not appear to be a WiredTiger file", block->name);
 
