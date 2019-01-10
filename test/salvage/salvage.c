@@ -568,7 +568,7 @@ copy(u_int gen, u_int recno)
 	WT_BLOCK_HEADER *blk;
 	WT_PAGE_HEADER *dsk;
 	uint64_t recno64;
-	uint32_t gen32;
+	uint32_t cksum32, gen32;
 	char buf[PSIZE];
 
 	testutil_assert((ifp = fopen(LOAD, "r")) != NULL);
@@ -610,7 +610,11 @@ copy(u_int gen, u_int recno)
 		dsk->write_gen = gen32;
 		blk = WT_BLOCK_HEADER_REF(buf);
 		blk->checksum = 0;
-		blk->checksum = __wt_checksum(dsk, PSIZE);
+		cksum32 = __wt_checksum(dsk, PSIZE);
+#ifdef WORDS_BIGENDIAN
+		cksum32 = __wt_bswap32(cksum32);
+#endif
+		blk->checksum = cksum32;
 		testutil_assert(fwrite(buf, 1, PSIZE, ofp) == PSIZE);
 	}
 
