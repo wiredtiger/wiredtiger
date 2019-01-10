@@ -184,7 +184,11 @@ main(int argc, char *argv[])
 		nfail += get_args[i].nfail;
 	}
 
-	testutil_assert(nfail == 0);
+	/*
+	 * Using valgrind can make things slow, so don't check those failures.
+	 */
+	if (!testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
+		testutil_assert(nfail == 0);
 	testutil_progress(opts, "cleanup starting");
 	testutil_cleanup(opts);
 	return (0);
