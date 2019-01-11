@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -81,6 +81,10 @@ main(int argc, char *argv[])
 	pthread_t get_tid[N_GET_THREAD], insert_tid[N_INSERT_THREAD];
 	int i, nfail;
 	const char *tablename;
+
+	/* Bypass this test for valgrind. */
+	if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
+		return (EXIT_SUCCESS);
 
 	opts = &_opts;
 	sharedopts = &_sharedopts;
