@@ -178,6 +178,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
 
 	/* Initialize for each new page. */
 	if (newpage) {
+		cbt->slot = 0;
 		cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 		if (cbt->last_standard_recno == 0)
 			return (WT_NOTFOUND);
@@ -302,10 +303,10 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * Initialize for each new page.
 	 */
 	if (newpage) {
+		cbt->slot = 0;
 		cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
 		cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
 		cbt->row_iteration_slot = 1;
-		cbt->slot = 0;
 		cbt->rip_saved = NULL;
 		goto new_insert;
 	}
