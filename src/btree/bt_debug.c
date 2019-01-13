@@ -1201,15 +1201,11 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			break;
 		}
 		if (upd->txnid == WT_TXN_ABORTED)
-			WT_RET(ds->f(ds, "\t" "txn aborted"));
+			WT_RET(ds->f(ds, "\t" "txn id aborted"));
 		else
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
-
-		if (upd->timestamp != WT_TS_NONE) {
-			__wt_timestamp_to_hex_string(
-			    hex_timestamp, upd->timestamp);
-			WT_RET(ds->f(ds, ", stamp %s", hex_timestamp));
-		}
+		__wt_timestamp_to_hex_string(hex_timestamp, upd->timestamp);
+		WT_RET(ds->f(ds, ", ts %s", hex_timestamp));
 		WT_RET(ds->f(ds, "\n"));
 	}
 	return (0);
