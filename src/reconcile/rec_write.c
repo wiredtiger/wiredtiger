@@ -2156,7 +2156,7 @@ __rec_split_chunk_init(
 	chunk->entries = 0;
 	chunk->oldest_start_ts = WT_TS_MAX;
 	chunk->newest_start_ts = chunk->newest_stop_ts = WT_TS_NONE;
-	if (r->page->type == WT_PAGE_COL_FIX) {
+	if (!__wt_process.page_version_ts || r->page->type == WT_PAGE_COL_FIX) {
 		chunk->oldest_start_ts = WT_TS_NONE;
 		chunk->newest_start_ts = chunk->newest_stop_ts = WT_TS_MAX;
 	}
@@ -2167,7 +2167,7 @@ __rec_split_chunk_init(
 	chunk->min_entries = 0;
 	chunk->min_oldest_start_ts = WT_TS_MAX;
 	chunk->min_newest_start_ts = chunk->min_newest_stop_ts = WT_TS_NONE;
-	if (r->page->type == WT_PAGE_COL_FIX) {
+	if (!__wt_process.page_version_ts || r->page->type == WT_PAGE_COL_FIX) {
 		chunk->min_oldest_start_ts = WT_TS_NONE;
 		chunk->min_newest_start_ts =
 		    chunk->min_newest_stop_ts = WT_TS_MAX;
