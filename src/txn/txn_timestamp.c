@@ -814,7 +814,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t ts;
+	wt_timestamp_t ts, ts_oldest;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 	bool round_to_oldest;
 
@@ -850,22 +850,22 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 * avoid a race between checking and setting transaction
 		 * timestamp.
 		 */
-		__wt_timestamp_to_string(
-		    ts_string[0], sizeof(ts_string[0]), ts);
 		__wt_readlock(session, &txn_global->rwlock);
-		if (ts < txn_global->oldest_timestamp) {
-			__wt_timestamp_to_string(ts_string[1],
-			    sizeof(ts_string[1]), txn_global->oldest_timestamp);
+		ts_oldest = txn_global->oldest_timestamp;
+		if (ts < ts_oldest) {
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
 			 * oldest timestamp.
 			 */
 			if (round_to_oldest)
-				txn->read_timestamp =
-				    txn_global->oldest_timestamp;
+				txn->read_timestamp = ts_oldest;
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
+				__wt_timestamp_to_string(
+				    ts_string[0], sizeof(ts_string[0]), ts);
+				__wt_timestamp_to_string(ts_string[1],
+				    sizeof(ts_string[1]), ts_oldest);
 				WT_RET_MSG(session, EINVAL, "read timestamp "
 				    "%s older than oldest timestamp %s",
 				    ts_string[0], ts_string[1]);
@@ -881,11 +881,16 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_set_read_timestamp(session);
 		__wt_readunlock(session, &txn_global->rwlock);
-		if (round_to_oldest) {
+		if (round_to_oldest &&
+		    WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 			/*
 			 * This message is generated here to reduce the span of
 			 * critical section.
 			 */
+			__wt_timestamp_to_string(
+			    ts_string[0], sizeof(ts_string[0]), ts);
+			__wt_timestamp_to_string(
+			    ts_string[1], sizeof(ts_string[1]), ts_oldest);
 			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
 			    "timestamp %s : Rounded to oldest timestamp %s",
 			    ts_string[0], ts_string[1]);
