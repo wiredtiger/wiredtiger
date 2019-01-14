@@ -134,7 +134,7 @@ __capacity_server(void *arg)
 		WT_PUBLISH(conn->capacity_signalled, false);
 		if (conn->capacity_written > conn->capacity_threshold) {
 			WT_ERR(__wt_fsync_all_background(session));
-			conn->capacity_written = 0;
+			__wt_atomic_storev64(&conn->capacity_written, 0);
 		} else
 			WT_STAT_CONN_INCR(session, fsync_notyet);
 	}
@@ -382,7 +382,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	 */
 	if (type != WT_THROTTLE_READ) {
 		/* Sizes larger than this may overflow */
-		conn->capacity_written += bytes;
+		(void)__wt_atomic_addv64(&conn->capacity_written, bytes);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
 		__wt_capacity_signal(session);
 	} else
