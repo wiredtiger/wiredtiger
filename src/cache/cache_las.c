@@ -569,8 +569,9 @@ __las_insert_block_verbose(
 	    ckpt_gen_last, ckpt_gen_current))) {
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-		__wt_timestamp_to_string(ts_string, sizeof(ts_string),
-		    multi->page_las.unstable_timestamp);
+		__wt_timestamp_to_string(
+		    multi->page_las.unstable_timestamp,
+		    ts_string, sizeof(ts_string));
 
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
