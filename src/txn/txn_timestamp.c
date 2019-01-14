@@ -40,6 +40,10 @@ __wt_timestamp_to_hex_string(char *hex_timestamp, wt_timestamp_t ts)
 		hex_timestamp[1] = '\0';
 		return;
 	}
+	if (ts == WT_TS_MAX) {
+		(void)strcpy(hex_timestamp, "ffffffffffffffff");
+		return;
+	}
 
 	for (p = hex_timestamp; ts != 0; ts >>= 4)
 		*p++ = (char)__wt_hex((u_char)(ts & 0x0f));
