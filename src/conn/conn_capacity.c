@@ -348,16 +348,19 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 		capacity = conn->capacity_ckpt;
 		reservation = &conn->reservation_ckpt;
 		WT_STAT_CONN_INCR(session, capacity_ckpt_calls);
+		WT_STAT_CONN_INCRV(session, capacity_bytes_ckpt, bytes);
 		break;
 	case WT_THROTTLE_EVICT:
 		capacity = conn->capacity_evict;
 		reservation = &conn->reservation_evict;
 		WT_STAT_CONN_INCR(session, capacity_evict_calls);
+		WT_STAT_CONN_INCRV(session, capacity_bytes_evict, bytes);
 		break;
 	case WT_THROTTLE_LOG:
 		capacity = conn->capacity_log;
 		reservation = &conn->reservation_log;
 		WT_STAT_CONN_INCR(session, capacity_log_calls);
+		WT_STAT_CONN_INCRV(session, capacity_bytes_log, bytes);
 		break;
 	case WT_THROTTLE_READ:
 		capacity = conn->capacity_read;

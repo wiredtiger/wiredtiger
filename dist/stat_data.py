@@ -148,6 +148,9 @@ connection_stats = [
     ##########################################
     # System statistics
     ##########################################
+    ConnStat('capacity_bytes_ckpt', 'throttled capacity bytes checkpoint'),
+    ConnStat('capacity_bytes_evict', 'throttled capacity bytes eviction'),
+    ConnStat('capacity_bytes_log', 'throttled capacity bytes log'),
     ConnStat('capacity_bytes_read', 'throttled capacity bytes read'),
     ConnStat('capacity_bytes_written', 'throttled capacity bytes written'),
     ConnStat('capacity_ckpt_calls', 'throttled checkpoint write calls'),

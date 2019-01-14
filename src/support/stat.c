@@ -896,6 +896,9 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
+	"connection: throttled capacity bytes checkpoint",
+	"connection: throttled capacity bytes eviction",
+	"connection: throttled capacity bytes log",
 	"connection: throttled capacity bytes read",
 	"connection: throttled capacity bytes written",
 	"connection: throttled capacity signal function called",
@@ -1338,6 +1341,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
+	stats->capacity_bytes_ckpt = 0;
+	stats->capacity_bytes_evict = 0;
+	stats->capacity_bytes_log = 0;
 	stats->capacity_bytes_read = 0;
 	stats->capacity_bytes_written = 0;
 	stats->capacity_signal_calls = 0;
@@ -1826,6 +1832,9 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+	to->capacity_bytes_ckpt += WT_STAT_READ(from, capacity_bytes_ckpt);
+	to->capacity_bytes_evict += WT_STAT_READ(from, capacity_bytes_evict);
+	to->capacity_bytes_log += WT_STAT_READ(from, capacity_bytes_log);
 	to->capacity_bytes_read += WT_STAT_READ(from, capacity_bytes_read);
 	to->capacity_bytes_written +=
 	    WT_STAT_READ(from, capacity_bytes_written);
