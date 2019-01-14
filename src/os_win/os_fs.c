@@ -64,7 +64,7 @@ retry:
 		 * may prevent removal. If we get a permission error, retry
 		 * a few times.
 		 */
-		if (ret == EACCESS && retry < WT_RETRY_MAX) {
+		if (ret == EACCES && retry < WT_RETRY_MAX) {
 			retry++;
 			ret = 0;
 			goto retry;
@@ -121,7 +121,7 @@ retry:
 		 * may prevent renaming. If we get a permission error, retry
 		 * a few times.
 		 */
-		if (ret == EACCESS && retry < WT_RETRY_MAX) {
+		if (ret == EACCES && retry < WT_RETRY_MAX) {
 			retry++;
 			ret = 0;
 			goto retry;
