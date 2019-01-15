@@ -365,6 +365,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;
 	WT_FILE_HANDLE *handle;
+	uint64_t now;
 
 	conn = S2C(session);
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
@@ -376,13 +377,19 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		if (!F_ISSET(fh, WT_FH_DIRTY) ||
 		    handle->fh_sync_nowait == NULL)
 			continue;
-		/*
-		 * If we wanted to exclude some files, such as log files, or
-		 * WiredTiger owned files, this is the place to do so.
-		 */
-		WT_RET(__wt_fsync(session, fh, false));
-		F_CLR(fh, WT_FH_DIRTY);
-		WT_STAT_CONN_INCR(session, fsync_all_fh);
+		now = __wt_clock(session);
+		if (fh->last_sync == 0 ||
+		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
+			/*
+			 * If we wanted to exclude some files, such as log
+			 * files, or WiredTiger owned files, this is the
+			 * place to do so.
+			 */
+			WT_RET(__wt_fsync(session, fh, false));
+			F_CLR(fh, WT_FH_DIRTY);
+			WT_STAT_CONN_INCR(session, fsync_all_fh);
+			fh->last_sync = now;
+		}
 	}
 	__wt_spin_unlock(session, &conn->fh_lock);
 	return (0);
