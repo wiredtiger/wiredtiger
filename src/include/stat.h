@@ -476,6 +476,8 @@ struct __wt_connection_stats {
 	int64_t capacity_signalled;
 	int64_t capacity_timeout;
 	int64_t capacity_signals;
+	int64_t capacity_timebkg;
+	int64_t capacity_timewait;
 	int64_t capacity_threshold;
 	int64_t capacity_ckpt_time;
 	int64_t capacity_evict_time;

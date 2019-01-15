@@ -170,6 +170,8 @@ connection_stats = [
     ConnStat('capacity_signalled', 'throttled capacity thread cond wait signalled'),
     ConnStat('capacity_timeout', 'throttled capacity thread cond wait timed out'),
     ConnStat('capacity_threshold', 'throttled capacity threshold to fsync'),
+    ConnStat('capacity_timebkg', 'throttled capacity thread time spent in background fsync (msecs)', 'no_clear,no_scale'),
+    ConnStat('capacity_timewait', 'throttled capacity thread time spent in cond_wait (msecs)', 'no_clear,no_scale'),
     ConnStat('capacity_total_throttles', 'throttled for total capacity'),
     ConnStat('capacity_total_time', 'throttled time in total capacity (usecs)'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),

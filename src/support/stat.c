@@ -905,6 +905,8 @@ static const char * const __stats_connection_desc[] = {
 	"connection: throttled capacity thread cond wait signalled",
 	"connection: throttled capacity thread cond wait timed out",
 	"connection: throttled capacity thread signalled",
+	"connection: throttled capacity thread time spent in background fsync (msecs)",
+	"connection: throttled capacity thread time spent in cond_wait (msecs)",
 	"connection: throttled capacity threshold to fsync",
 	"connection: throttled capacity time in checkpoints (usecs)",
 	"connection: throttled capacity time in eviction (usecs)",
@@ -1350,6 +1352,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->capacity_signalled = 0;
 	stats->capacity_timeout = 0;
 	stats->capacity_signals = 0;
+		/* not clearing capacity_timebkg */
+		/* not clearing capacity_timewait */
 	stats->capacity_threshold = 0;
 	stats->capacity_ckpt_time = 0;
 	stats->capacity_evict_time = 0;
@@ -1843,6 +1847,8 @@ __wt_stat_connection_aggregate(
 	to->capacity_signalled += WT_STAT_READ(from, capacity_signalled);
 	to->capacity_timeout += WT_STAT_READ(from, capacity_timeout);
 	to->capacity_signals += WT_STAT_READ(from, capacity_signals);
+	to->capacity_timebkg += WT_STAT_READ(from, capacity_timebkg);
+	to->capacity_timewait += WT_STAT_READ(from, capacity_timewait);
 	to->capacity_threshold += WT_STAT_READ(from, capacity_threshold);
 	to->capacity_ckpt_time += WT_STAT_READ(from, capacity_ckpt_time);
 	to->capacity_evict_time += WT_STAT_READ(from, capacity_evict_time);

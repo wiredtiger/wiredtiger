@@ -369,6 +369,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
 	WT_STAT_CONN_INCR(session, fsync_all);
+	__wt_spin_lock(session, &conn->fh_lock);
 	TAILQ_FOREACH(fh, &conn->fhqh, q) {
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
@@ -383,6 +384,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		F_CLR(fh, WT_FH_DIRTY);
 		WT_STAT_CONN_INCR(session, fsync_all_fh);
 	}
+	__wt_spin_unlock(session, &conn->fh_lock);
 	return (0);
 }
 

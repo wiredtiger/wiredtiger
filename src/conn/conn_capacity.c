@@ -112,6 +112,7 @@ __capacity_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	uint64_t start, stop, time_ms;
 	bool signalled;
 
 	session = arg;
@@ -122,8 +123,12 @@ __capacity_server(void *arg)
 		 * the signal was missed.
 		 */
 		signalled = false;
+		start = __wt_clock(session);
 		__wt_cond_wait_signal(session, conn->capacity_cond,
 		    WT_MILLION, __capacity_server_run_chk, &signalled);
+		stop = __wt_clock(session);
+		time_ms = WT_CLOCKDIFF_MS(stop, start);
+		WT_STAT_CONN_SET(session, capacity_timewait, time_ms);
 
 		if (signalled == false)
 			WT_STAT_CONN_INCR(session, capacity_timeout);
@@ -136,7 +141,11 @@ __capacity_server(void *arg)
 
 		WT_PUBLISH(conn->capacity_signalled, false);
 		if (conn->capacity_written > conn->capacity_threshold) {
+			start = __wt_clock(session);
 			WT_ERR(__wt_fsync_all_background(session));
+			stop = __wt_clock(session);
+			time_ms = WT_CLOCKDIFF_MS(stop, start);
+			WT_STAT_CONN_SET(session, capacity_timebkg, time_ms);
 			__wt_atomic_storev64(&conn->capacity_written, 0);
 		} else
 			WT_STAT_CONN_INCR(session, fsync_notyet);
