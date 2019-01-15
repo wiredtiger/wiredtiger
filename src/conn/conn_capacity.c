@@ -29,10 +29,10 @@
  */
 #define	WT_CAPACITY(total, pct)	((total) * (pct) / 100)
 
-#define	WT_CAP_CKPT		10
-#define	WT_CAP_EVICT		60
-#define	WT_CAP_LOG		20
-#define	WT_CAP_READ		60
+#define	WT_CAP_CKPT		5
+#define	WT_CAP_EVICT		50
+#define	WT_CAP_LOG		30
+#define	WT_CAP_READ		55
 
 #define	WT_CAPACITY_CHK(v, str)	do {				\
 	if ((v) != 0 && (v) < WT_THROTTLE_MIN)			\
