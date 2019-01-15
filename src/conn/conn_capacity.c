@@ -15,6 +15,7 @@
  * fewer sleeps with the risk of more choppy behavior as this number
  * is larger.
  */
+#define	WT_CAPACITY_MIN_THRESHOLD	10 * WT_MEGABYTE
 #define	WT_CAPACITY_PCT			10
 #define	WT_CAPACITY_SLEEP_CUTOFF_US	100
 
@@ -84,6 +85,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn->capacity_threshold = (conn->capacity_ckpt +
 	    conn->capacity_evict + conn->capacity_log) / 100 *
 	    WT_CAPACITY_PCT;
+	if (conn->capacity_threshold < WT_CAPACITY_MIN_THRESHOLD)
+		conn->capacity_threshold = WT_CAPACITY_MIN_THRESHOLD;
 	WT_STAT_CONN_SET(session, capacity_threshold, conn->capacity_threshold);
 
 	return (0);
@@ -120,7 +123,7 @@ __capacity_server(void *arg)
 		 */
 		signalled = false;
 		__wt_cond_wait_signal(session, conn->capacity_cond,
-		    WT_MILLION/10, __capacity_server_run_chk, &signalled);
+		    WT_MILLION, __capacity_server_run_chk, &signalled);
 
 		if (signalled == false)
 			WT_STAT_CONN_INCR(session, capacity_timeout);
