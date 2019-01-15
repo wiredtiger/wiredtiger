@@ -1045,6 +1045,12 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	WT_SESSION_IMPL *s, *session;
 	uint32_t i;
 	const char *ckpt_cfg;
+#define	__TEST_ASAN_FAILURE__
+#ifdef __TEST_ASAN_FAILURE__
+	/* This is a buggy code to test ASAN failure */
+	char *x;
+	int j = 0;
+#endif
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 	ckpt_cfg = "use_timestamp=false";
@@ -1137,11 +1143,8 @@ err:	/*
 
 	/* Shut down the global transaction state. */
 	__wt_txn_global_shutdown(session);
-#define	__TEST_ASAN_FAILURE__
 #ifdef __TEST_ASAN_FAILURE__
 	/* This is a buggy code to test ASAN failure */
-	char *x;
-	int j = 0;
 	WT_TRET(__wt_malloc(session, 100, &x));
 	for (j = 0; j < 200; j++) {
 	    x[j] = 'a';
