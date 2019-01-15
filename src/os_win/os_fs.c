@@ -8,6 +8,22 @@
 
 #include "wt_internal.h"
 
+#define	WT_WINCALL_RETRY(call, ret) do {				\
+	int __retry;							\
+	for (__retry = 0; __retry < WT_RETRY_MAX; ++__retry) {		\
+		ret = 0;						\
+		if ((call) == FALSE) {					\
+			windows_error = __wt_getlasterror();		\
+			ret = __wt_map_windows_error(windows_error);	\
+			if (windows_error == ERROR_ACCESS_DENIED) {	\
+				__wt_sleep(0L, 50000L);			\
+				continue;				\
+			}						\
+		}							\
+		break;							\
+	}								\
+} while (0)
+
 /*
  * __win_fs_exist --
  *	Return if the file exists.
@@ -45,7 +61,6 @@ __win_fs_remove(WT_FILE_SYSTEM *file_system,
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	DWORD windows_error;
-	uint64_t retry;
 
 	WT_UNUSED(file_system);
 	WT_UNUSED(flags);
@@ -54,21 +69,8 @@ __win_fs_remove(WT_FILE_SYSTEM *file_system,
 
 	WT_RET(__wt_to_utf16_string(session, name, &name_wide));
 
-	retry = 0;
-retry:
-	if (DeleteFileW(name_wide->data) == FALSE) {
-		windows_error = __wt_getlasterror();
-		ret = __wt_map_windows_error(windows_error);
-		/*
-		 * It is possible that an external process on some systems
-		 * may prevent removal. If we get a permission error, retry
-		 * a few times.
-		 */
-		if (ret == EACCES && retry < WT_RETRY_MAX) {
-			retry++;
-			ret = 0;
-			goto retry;
-		}
+	WT_WINCALL_RETRY(DeleteFileW(name_wide->data), ret);
+	if (ret != 0) {
 		__wt_err(session, ret,
 		    "%s: file-remove: DeleteFileW: %s",
 		    name, __wt_formatmessage(session, windows_error));
@@ -92,7 +94,6 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	DWORD windows_error;
-	uint64_t retry;
 
 	WT_UNUSED(file_system);
 	WT_UNUSED(flags);
@@ -110,22 +111,9 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 	 * directory and we expect that to be an atomic metadata update on any
 	 * modern filesystem.
 	 */
-	retry = 0;
-retry:
-	if (MoveFileExW(from_wide->data, to_wide->data,
-	    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == FALSE) {
-		windows_error = __wt_getlasterror();
-		ret = __wt_map_windows_error(windows_error);
-		/*
-		 * It is possible that an external process on some systems
-		 * may prevent renaming. If we get a permission error, retry
-		 * a few times.
-		 */
-		if (ret == EACCES && retry < WT_RETRY_MAX) {
-			retry++;
-			ret = 0;
-			goto retry;
-		}
+	WT_WINCALL_RETRY(MoveFileExW(from_wide->data, to_wide->data,
+	    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), ret);
+	if (ret != 0) {
 		__wt_err(session, ret,
 		    "%s to %s: file-rename: MoveFileExW: %s",
 		    from, to, __wt_formatmessage(session, windows_error));
