@@ -5265,9 +5265,10 @@ build:
 		if (val->len == 0 &&
 		    __wt_txn_visible_all(session, txnid, stop_ts))
 #else
+		(void)txnid;			/* unused variable warning */
 		if (val->len == 0)
-			r->any_empty_value = true;
 #endif
+			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
 			if (dictionary && btree->dictionary)
@@ -5405,6 +5406,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		if (val->len == 0 &&
 		    __wt_txn_visible_all(session, txnid, stop_ts))
 #else
+		(void)txnid;			/* unused variable warning */
 		if (val->len == 0)
 #endif
 			r->any_empty_value = true;
