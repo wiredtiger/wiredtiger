@@ -391,7 +391,8 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			 * lock again after the fsync.
 			 */
 			++fh->ref;
-			++fhtmp->ref;
+			if (fhtmp != NULL)
+				++fhtmp->ref;
 			__wt_spin_unlock(session, &conn->fh_lock);
 			WT_RET(__wt_fsync(session, fh, false));
 			F_CLR(fh, WT_FH_DIRTY);
@@ -399,7 +400,8 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			fh->last_sync = now;
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
-			--fhtmp->ref;
+			if (fhtmp != NULL)
+				--fhtmp->ref;
 		}
 	}
 	__wt_spin_unlock(session, &conn->fh_lock);
