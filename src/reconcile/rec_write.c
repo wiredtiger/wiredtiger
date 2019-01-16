@@ -5261,9 +5261,13 @@ build:
 		 * timestamps for the selected update are correct.
 		 */
 		__rec_image_copy(session, r, key);
+#if 0
 		if (val->len == 0 &&
-		    false && __wt_txn_visible_all(session, txnid, stop_ts))
+		    __wt_txn_visible_all(session, txnid, stop_ts))
+#else
+		if (val->len == 0)
 			r->any_empty_value = true;
+#endif
 		else {
 			r->all_empty_value = false;
 			if (dictionary && btree->dictionary)
@@ -5397,8 +5401,12 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		 * timestamps for the selected update are correct.
 		 */
 		__rec_image_copy(session, r, key);
+#if 0
 		if (val->len == 0 &&
-		    false && __wt_txn_visible_all(session, txnid, stop_ts))
+		    __wt_txn_visible_all(session, txnid, stop_ts))
+#else
+		if (val->len == 0)
+#endif
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
