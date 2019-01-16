@@ -5304,9 +5304,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * connection: throttled capacity thread time spent in background fsync
  * (msecs)
  */
-#define	WT_STAT_CONN_CAPACITY_TIMEBKG			1152
+#define	WT_STAT_CONN_CAPACITY_TIME_FSYNC		1152
 /*! connection: throttled capacity thread time spent in cond_wait (msecs) */
-#define	WT_STAT_CONN_CAPACITY_TIMEWAIT			1153
+#define	WT_STAT_CONN_CAPACITY_TIME_WAIT			1153
 /*! connection: throttled capacity threshold to fsync */
 #define	WT_STAT_CONN_CAPACITY_THRESHOLD			1154
 /*! connection: throttled capacity time in checkpoints (usecs) */

@@ -128,7 +128,7 @@ __capacity_server(void *arg)
 		    WT_MILLION, __capacity_server_run_chk, &signalled);
 		stop = __wt_clock(session);
 		time_ms = WT_CLOCKDIFF_MS(stop, start);
-		WT_STAT_CONN_SET(session, capacity_timewait, time_ms);
+		WT_STAT_CONN_SET(session, capacity_time_wait, time_ms);
 
 		if (signalled == false)
 			WT_STAT_CONN_INCR(session, capacity_timeout);
@@ -145,7 +145,7 @@ __capacity_server(void *arg)
 			WT_ERR(__wt_fsync_all_background(session));
 			stop = __wt_clock(session);
 			time_ms = WT_CLOCKDIFF_MS(stop, start);
-			WT_STAT_CONN_SET(session, capacity_timebkg, time_ms);
+			WT_STAT_CONN_SET(session, capacity_time_fsync, time_ms);
 			__wt_atomic_storev64(&conn->capacity_written, 0);
 		} else
 			WT_STAT_CONN_INCR(session, fsync_notyet);

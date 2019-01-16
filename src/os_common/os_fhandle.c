@@ -363,7 +363,7 @@ int
 __wt_fsync_all_background(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_FH *fh;
+	WT_FH *fh, *fhtmp;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
 
@@ -371,7 +371,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
 	WT_STAT_CONN_INCR(session, fsync_all);
 	__wt_spin_lock(session, &conn->fh_lock);
-	TAILQ_FOREACH(fh, &conn->fhqh, q) {
+	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhtmp) {
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 		if (!F_ISSET(fh, WT_FH_DIRTY) ||
@@ -385,10 +385,21 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			 * files, or WiredTiger owned files, this is the
 			 * place to do so.
 			 */
+			/*
+			 * Increment our ref count on the current and next
+			 * handle. That way both are guaranteed valid when we
+			 * lock again after the fsync.
+			 */
+			++fh->ref;
+			++fhtmp->ref;
+			__wt_spin_unlock(session, &conn->fh_lock);
 			WT_RET(__wt_fsync(session, fh, false));
 			F_CLR(fh, WT_FH_DIRTY);
 			WT_STAT_CONN_INCR(session, fsync_all_fh);
 			fh->last_sync = now;
+			__wt_spin_lock(session, &conn->fh_lock);
+			--fh->ref;
+			--fhtmp->ref;
 		}
 	}
 	__wt_spin_unlock(session, &conn->fh_lock);
