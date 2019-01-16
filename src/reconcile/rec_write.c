@@ -4036,7 +4036,7 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_SALVAGE_COOKIE *salvage,
-    WT_ITEM *value, bool deleted, uint8_t overflow_type,
+    WT_ITEM *value, bool deleted, bool overflow_type,
     wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle)
 {
 	WT_BTREE *btree;
@@ -4085,7 +4085,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		val->len = val->cell_len;
 	} else if (overflow_type) {
 		val->cell_len = __wt_cell_pack_ovfl(&val->cell,
-		    overflow_type, start_ts, stop_ts, rle, value->size);
+		    WT_CELL_VALUE_OVFL, start_ts, stop_ts, rle, value->size);
 		val->buf.data = value->data;
 		val->buf.size = value->size;
 		val->len = val->cell_len + value->size;
@@ -4350,16 +4350,15 @@ record_loop:	/*
 					if (rle != 0) {
 						WT_ERR(__rec_col_var_helper(
 						    session, r, salvage, last,
-						    last_deleted, 0,
+						    last_deleted, false,
 						    start_ts, stop_ts, rle));
 						rle = 0;
 					}
 
 					last->data = vpack->data;
 					last->size = vpack->size;
-					WT_ERR(__rec_col_var_helper(
-					    session, r, salvage, last, false,
-					    WT_CELL_VALUE_OVFL,
+					WT_ERR(__rec_col_var_helper(session,
+					    r, salvage, last, false, true,
 					    start_ts, stop_ts, repeat_count));
 
 					/* Track if page has overflow items. */
@@ -4408,7 +4407,7 @@ compare:		/*
 					continue;
 				}
 				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last, last_deleted, 0,
+				    salvage, last, last_deleted, false,
 				    start_ts, stop_ts, rle));
 			}
 
@@ -4552,7 +4551,7 @@ compare:		/*
 					goto next;
 				}
 				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last, last_deleted, 0,
+				    salvage, last, last_deleted, false,
 				    start_ts, stop_ts, rle));
 			}
 
@@ -4599,7 +4598,7 @@ next:			if (src_recno == UINT64_MAX)
 	/* If we were tracking a record, write it. */
 	if (rle != 0)
 		WT_ERR(__rec_col_var_helper(session, r, salvage,
-		    last, last_deleted, 0, start_ts, stop_ts, rle));
+		    last, last_deleted, false, start_ts, stop_ts, rle));
 
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
