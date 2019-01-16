@@ -447,7 +447,7 @@ recno_chk:	if (recno != vs->record_total + 1)
 			if ((cell = WT_COL_PTR(page, cip)) == NULL)
 				++recno;
 			else {
-				__wt_cell_unpack(page, cell, unpack);
+				__wt_cell_unpack(session, page, cell, unpack);
 				recno += __wt_cell_rle(unpack);
 			}
 		vs->record_total += recno;
@@ -534,7 +534,7 @@ celltype_err:		WT_RET_MSG(session, WT_ERROR,
 
 			/* Unpack the address block and check timestamps */
 			__wt_cell_unpack(
-			    child_ref->home, child_ref->addr, unpack);
+			    session, child_ref->home, child_ref->addr, unpack);
 			WT_RET(__verify_addr_ts(
 			    session, child_ref, unpack, vs));
 
@@ -569,7 +569,7 @@ celltype_err:		WT_RET_MSG(session, WT_ERROR,
 
 			/* Unpack the address block and check timestamps */
 			__wt_cell_unpack(
-			    child_ref->home, child_ref->addr, unpack);
+			    session, child_ref->home, child_ref->addr, unpack);
 			WT_RET(__verify_addr_ts(
 			    session, child_ref, unpack, vs));
 
@@ -810,7 +810,7 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 
 	/* Walk the page, tracking timestamps and verifying overflow pages. */
 	cell_num = 0;
-	WT_CELL_FOREACH_BEGIN(btree, dsk, unpack, false) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, false) {
 		++cell_num;
 		switch (unpack.type) {
 		case WT_CELL_KEY_OVFL:

@@ -1964,7 +1964,7 @@ __rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		offset = (uint64_t)WT_PTRDIFF(r->first_free,
 		    (uint8_t *)r->cur_ptr->image.mem + dp->offset);
 		val->len = val->cell_len = __wt_cell_pack_copy(
-		    &val->cell, start_ts, stop_ts, rle, offset);
+		    session, &val->cell, start_ts, stop_ts, rle, offset);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 	}
@@ -3627,7 +3627,7 @@ __wt_bulk_insert_var(
 	val = &r->v;
 	if (deleted) {
 		val->cell_len = __wt_cell_pack_del(
-		    &val->cell, WT_TS_NONE, WT_TS_MAX, cbulk->rle);
+		    session, &val->cell, WT_TS_NONE, WT_TS_MAX, cbulk->rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
@@ -3756,7 +3756,7 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		if (addr == NULL && __wt_off_page(page, ref->addr))
 			addr = ref->addr;
 		if (addr == NULL) {
-			__wt_cell_unpack(page, ref->addr, vpack);
+			__wt_cell_unpack(session, page, ref->addr, vpack);
 			val->buf.data = ref->addr;
 			val->buf.size = __wt_cell_total_len(vpack);
 			val->cell_len = 0;
@@ -4078,13 +4078,13 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	}
 
 	if (deleted) {
-		val->cell_len =
-		    __wt_cell_pack_del(&val->cell, start_ts, stop_ts, rle);
+		val->cell_len = __wt_cell_pack_del(
+		    session, &val->cell, start_ts, stop_ts, rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
 	} else if (overflow_type) {
-		val->cell_len = __wt_cell_pack_ovfl(&val->cell,
+		val->cell_len = __wt_cell_pack_ovfl(session, &val->cell,
 		    WT_CELL_VALUE_OVFL, start_ts, stop_ts, rle, value->size);
 		val->buf.data = value->data;
 		val->buf.size = value->size;
@@ -4203,7 +4203,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 			ins = NULL;
 			orig_deleted = true;
 		} else {
-			__wt_cell_unpack(page, cell, vpack);
+			__wt_cell_unpack(session, page, cell, vpack);
 			nrepeat = __wt_cell_rle(vpack);
 			ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
 
@@ -4684,7 +4684,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			if (ikey != NULL && ikey->cell_offset != 0) {
 				cell =
 				    WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
-				__wt_cell_unpack(page, cell, kpack);
+				__wt_cell_unpack(session, page, cell, kpack);
 				key_onpage_ovfl = kpack->ovfl &&
 				    kpack->raw != WT_CELL_KEY_OVFL_RM;
 			}
@@ -4781,7 +4781,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			newest_start_ts = addr->newest_start_ts;
 			newest_stop_ts = addr->newest_stop_ts;
 		} else {
-			__wt_cell_unpack(page, ref->addr, vpack);
+			__wt_cell_unpack(session, page, ref->addr, vpack);
 			if (state == WT_CHILD_PROXY) {
 				WT_ERR(__wt_buf_set(session, &val->buf,
 				    ref->addr, __wt_cell_total_len(vpack)));
@@ -4981,11 +4981,11 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 			kpack = NULL;
 		else {
 			kpack = &_kpack;
-			__wt_cell_unpack(page, cell, kpack);
+			__wt_cell_unpack(session, page, cell, kpack);
 		}
 
 		/* Unpack the on-page value cell, set the default timestamps. */
-		__wt_row_leaf_value_cell(page, rip, NULL, vpack);
+		__wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
 		start_ts = vpack->start_ts;
 		stop_ts = vpack->stop_ts;
 		txnid = WT_TXN_NONE;
@@ -5187,7 +5187,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 				goto build;
 
 			kpack = &_kpack;
-			__wt_cell_unpack(page, cell, kpack);
+			__wt_cell_unpack(session, page, cell, kpack);
 			if (btree->huffman_key == NULL &&
 			    kpack->type == WT_CELL_KEY &&
 			    tmpkey->size >= kpack->prefix) {
@@ -6005,7 +6005,8 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session,
 	 */
 	val->buf.data = addr->addr;
 	val->buf.size = addr->size;
-	val->cell_len = __wt_cell_pack_addr(&val->cell, cell_type, recno,
+	val->cell_len = __wt_cell_pack_addr(session,
+	    &val->cell, cell_type, recno,
 	    addr->oldest_start_ts, addr->newest_start_ts, addr->newest_stop_ts,
 	    val->buf.size);
 	val->len = val->cell_len + val->buf.size;
@@ -6052,7 +6053,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		}
 	}
 	val->cell_len = __wt_cell_pack_data(
-	    &val->cell, start_ts, stop_ts, rle, val->buf.size);
+	    session, &val->cell, start_ts, stop_ts, rle, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 
 	return (0);
@@ -6125,7 +6126,7 @@ __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
 
 	/* Build the cell and return. */
 	kv->cell_len = __wt_cell_pack_ovfl(
-	    &kv->cell, type, start_ts, stop_ts, rle, kv->buf.size);
+	    session, &kv->cell, type, start_ts, stop_ts, rle, kv->buf.size);
 	kv->len = kv->cell_len + kv->buf.size;
 
 err:	__wt_scr_free(session, &tmp);
