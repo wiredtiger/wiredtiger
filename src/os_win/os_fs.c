@@ -22,11 +22,9 @@
 					__wt_errx(session,		\
 	"WiredTiger could not access a database file.");		\
 					__wt_errx(session,		\
-	"It will attempt a few more times. You should confirm");	\
-					__wt_errx(session,		\
-	"no other processes, for example virus scanners, are");		\
-					__wt_errx(session,		\
-	"accessing the WiredTiger files.");				\
+	"It will attempt a few more times. You should confirm"		\
+	" no other processes, for example virus scanners, are"		\
+	" accessing the WiredTiger files.");				\
 					__first = false;		\
 				}					\
 				__wt_sleep(0L, 50000L);			\
