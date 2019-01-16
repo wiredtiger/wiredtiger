@@ -377,14 +377,20 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		if (!F_ISSET(fh, WT_FH_DIRTY) ||
 		    handle->fh_sync_nowait == NULL)
 			continue;
+		/* Skip over WiredTiger owned files. */
+		if (WT_PREFIX_MATCH(fh->name, "WiredTiger"))
+			continue;
 		now = __wt_clock(session);
 		if (fh->last_sync == 0 ||
 		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
 			/*
-			 * If we wanted to exclude some files, such as log
-			 * files, or WiredTiger owned files, this is the
-			 * place to do so.
+			 * Skip over any tmp handles that are WiredTiger owned.
+			 * Add a reference could interfere with other internal
+			 * operations such as log archiving.
 			 */
+			while (fhtmp != NULL &&
+			    WT_PREFIX_MATCH(fhtmp->name, "WiredTiger"))
+				fhtmp = TAILQ_NEXT(fhtmp, q);
 			/*
 			 * Increment our ref count on the current and next
 			 * handle. That way both are guaranteed valid when we
