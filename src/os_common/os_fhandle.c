@@ -363,6 +363,7 @@ int
 __wt_fsync_all_background(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_FH *fh, *fhtmp;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
@@ -401,17 +402,24 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			if (fhtmp != NULL)
 				++fhtmp->ref;
 			__wt_spin_unlock(session, &conn->fh_lock);
-			WT_RET(__wt_fsync(session, fh, false));
-			F_CLR(fh, WT_FH_DIRTY);
-			WT_STAT_CONN_INCR(session, fsync_all_fh);
-			fh->last_sync = now;
+			ret = __wt_fsync(session, fh, false);
+			/*
+			 * If we got an error, we still need to lock and
+			 * decrement our reference counts.
+			 */
+			if (ret == 0) {
+				F_CLR(fh, WT_FH_DIRTY);
+				WT_STAT_CONN_INCR(session, fsync_all_fh);
+				fh->last_sync = now;
+			}
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
 			if (fhtmp != NULL)
 				--fhtmp->ref;
+			WT_ERR(ret);
 		}
 	}
-	__wt_spin_unlock(session, &conn->fh_lock);
+err:	__wt_spin_unlock(session, &conn->fh_lock);
 	return (0);
 }
 
