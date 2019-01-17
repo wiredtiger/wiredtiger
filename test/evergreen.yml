@@ -91,7 +91,7 @@ post:
       permissions: public-read
       content_type: application/tar
       display_name: Artifacts
-      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
+      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_id}.tgz
   - command: shell.exec
     params:
       script: |
@@ -107,6 +107,26 @@ tasks:
         params:
           directory: wiredtiger
       - func: "compile wiredtiger"
+      - command: archive.targz_pack
+        params:
+          target: "wiredtiger.tgz"
+          source_dir: "wiredtiger"
+          include:
+            - "./**"
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_file: wiredtiger.tgz
+          bucket: build_external
+          permissions: public-read
+          content_type: application/tar
+          display_name: Artifacts_compile
+          remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
+      - command: shell.exec
+        params:
+          script: |
+            rm -rf "wiredtiger"
 
   - name: make-check-test
     depends_on:
