@@ -420,7 +420,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		}
 	}
 err:	__wt_spin_unlock(session, &conn->fh_lock);
-	return (0);
+	return (ret);
 }
 
 /*
