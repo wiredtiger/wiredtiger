@@ -738,6 +738,7 @@ fdopen
 fextend
 ffc
 fff
+ffffffffffffffff
 fflush
 ffs
 fgetc
