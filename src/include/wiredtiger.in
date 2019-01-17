@@ -2290,25 +2290,12 @@ struct __wt_connection {
 	 * written by a subsystem.  Excess writing results in throttling.  If
 	 * not set then that subsystem is not throttled.  The minimum setting is
 	 * 1MB., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint, number of bytes per
-	 * second written in service of a checkpoint., an integer between 0 and
-	 * 1TB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, number
-	 * of bytes per second written in service of non-checkpoint related
-	 * eviction., an integer between 0 and 1TB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;log, number of bytes per second
-	 * written in service of the logging subsystem., an integer between 0
-	 * and 1TB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read, number
-	 * of bytes per second written in service of reads., an integer between
-	 * 0 and 1TB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;total,
-	 * number of bytes per second available to all subsystems in total.
-	 * When set\, decisions about what subsystems are throttled\, and in
-	 * what proportion\, are made internally.  A total can be used in
-	 * conjunction with values for other subsystems\, in which case each
-	 * subsystem's stated capacity is honored., an integer between 0 and
-	 * 1TB; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second
+	 * available to all subsystems in total.  When set\, decisions about
+	 * what subsystems are throttled\, and in what proportion\, are made
+	 * internally.  A total can be used in conjunction with values for other
+	 * subsystems\, in which case each subsystem's stated capacity is
+	 * honored., an integer between 0 and 1TB; default \c 0.}
 	 * @config{ ),,}
 	 * @config{log = (, enable logging.  Enabling logging uses three
 	 * sessions from the configured session_max., a set of related
@@ -2967,24 +2954,12 @@ struct __wt_connection {
  * subsystem.  Excess writing results in throttling.  If not set then that
  * subsystem is not throttled.  The minimum setting is 1MB., a set of related
  * configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint, number of bytes per second
- * written in service of a checkpoint., an integer between 0 and 1TB; default \c
- * 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction, number of bytes per second
- * written in service of non-checkpoint related eviction., an integer between 0
- * and 1TB; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;log, number of bytes
- * per second written in service of the logging subsystem., an integer between 0
- * and 1TB; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;read, number of bytes
- * per second written in service of reads., an integer between 0 and 1TB;
- * default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per
- * second available to all subsystems in total.  When set\, decisions about what
- * subsystems are throttled\, and in what proportion\, are made internally.  A
- * total can be used in conjunction with values for other subsystems\, in which
- * case each subsystem's stated capacity is honored., an integer between 0 and
- * 1TB; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;total,
+ * number of bytes per second available to all subsystems in total.  When set\,
+ * decisions about what subsystems are throttled\, and in what proportion\, are
+ * made internally.  A total can be used in conjunction with values for other
+ * subsystems\, in which case each subsystem's stated capacity is honored., an
+ * integer between 0 and 1TB; default \c 0.}
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from
  * the configured session_max., a set of related configuration options defined

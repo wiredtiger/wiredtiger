@@ -524,20 +524,6 @@ connection_runtime_config = [
         writing results in throttling. If not set then that subsystem is
         not throttled. The minimum setting is 1MB.''',
         type='category', subconfig=[
-        Config('checkpoint', '0', r'''
-            number of bytes per second written in service of a checkpoint''',
-            min='0', max='1TB'),
-        Config('eviction', '0', r'''
-            number of bytes per second written in service of non-checkpoint
-            related eviction''',
-            min='0', max='1TB'),
-        Config('log', '0', r'''
-            number of bytes per second written in service of the logging
-            subsystem''',
-            min='0', max='1TB'),
-        Config('read', '0', r'''
-            number of bytes per second written in service of reads''',
-            min='0', max='1TB'),
         Config('total', '0', r'''
             number of bytes per second available to all subsystems in total.
             When set, decisions about what subsystems are throttled, and in
