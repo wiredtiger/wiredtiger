@@ -326,6 +326,11 @@ static int
 __verify_addr_ts(WT_SESSION_IMPL *session,
     WT_REF *ref, WT_CELL_UNPACK *unpack, WT_VSTUFF *vs)
 {
+	if (unpack->newest_stop_ts == WT_TS_NONE)
+		WT_RET_MSG(session, WT_ERROR,
+		    "internal page reference at %s has a newest stop "
+		    "timestamp of 0",
+		    __wt_page_addr_string(session, ref, vs->tmp1));
 	if (unpack->oldest_start_ts > unpack->newest_start_ts)
 		WT_RET_MSG(session, WT_ERROR,
 		    "internal page reference at %s has an oldest start "
@@ -839,20 +844,29 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 		case WT_CELL_ADDR_INT:
 		case WT_CELL_ADDR_LEAF:
 		case WT_CELL_ADDR_LEAF_NO:
+			if (unpack.newest_stop_ts == WT_TS_NONE)
+				WT_RET_MSG(session, WT_ERROR,
+				    "cell %" PRIu32 " on page at %s has a "
+				    "newest stop timestamp of 0",
+				    cell_num - 1,
+				    __wt_page_addr_string(
+				    session, ref, vs->tmp1));
 			if (unpack.oldest_start_ts > unpack.newest_start_ts)
 				WT_RET_MSG(session, WT_ERROR,
-				"cell %" PRIu32 " on page at %s has an oldest "
-				"start timestamp newer than its newest start "
-				"timestamp",
-				cell_num - 1,
-				__wt_page_addr_string(session, ref, vs->tmp1));
+				    "cell %" PRIu32 " on page at %s has an "
+				    "oldest start timestamp newer than its "
+				    "newest start timestamp",
+				    cell_num - 1,
+				    __wt_page_addr_string(
+				    session, ref, vs->tmp1));
 			if (unpack.newest_start_ts > unpack.newest_stop_ts)
 				WT_RET_MSG(session, WT_ERROR,
-				"cell %" PRIu32 " on page at %s has a newest "
-				"start timestamp newer than its newest stop "
-				"timestamp",
-				cell_num - 1,
-				__wt_page_addr_string(session, ref, vs->tmp1));
+				    "cell %" PRIu32 " on page at %s has a "
+				    "newest start timestamp newer than its "
+				    "newest stop timestamp",
+				    cell_num - 1,
+				    __wt_page_addr_string(
+				    session, ref, vs->tmp1));
 
 			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "oldest start", unpack.oldest_start_ts,
@@ -872,12 +886,21 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 		case WT_CELL_VALUE_COPY:
 		case WT_CELL_VALUE_OVFL:
 		case WT_CELL_VALUE_SHORT:
+			if (unpack.stop_ts == WT_TS_NONE)
+				WT_RET_MSG(session, WT_ERROR,
+				    "cell %" PRIu32 " on page at %s has a stop "
+				    "timestamp of 0",
+				    cell_num - 1,
+				    __wt_page_addr_string(
+				    session, ref, vs->tmp1));
 			if (unpack.start_ts > unpack.stop_ts)
 				WT_RET_MSG(session, WT_ERROR,
-				"cell %" PRIu32 " on page at %s has a start "
-				"timestamp newer than its stop timestamp ",
-				cell_num - 1,
-				__wt_page_addr_string(session, ref, vs->tmp1));
+				    "cell %" PRIu32 " on page at %s has a "
+				    "start timestamp newer than its stop "
+				    "timestamp ",
+				    cell_num - 1,
+				    __wt_page_addr_string(
+				    session, ref, vs->tmp1));
 
 			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "start", unpack.start_ts,

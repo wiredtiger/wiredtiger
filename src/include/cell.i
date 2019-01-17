@@ -179,6 +179,7 @@ static inline void
 __cell_pack_timestamp_value(WT_SESSION_IMPL *session,
     uint8_t **pp, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
 {
+	WT_ASSERT(session, stop_ts != WT_TS_NONE);
 	WT_ASSERT(session, start_ts <= stop_ts);
 
 	if (__wt_process.page_version_ts) {
@@ -198,6 +199,7 @@ __cell_pack_timestamp_addr(WT_SESSION_IMPL *session,
     uint8_t **pp, wt_timestamp_t oldest_start_ts,
     wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
 {
+	WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
 	WT_ASSERT(session, oldest_start_ts <= newest_start_ts);
 	WT_ASSERT(session, newest_start_ts <= newest_stop_ts);
 
@@ -732,6 +734,8 @@ restart:
 			unpack->newest_stop_ts += unpack->newest_start_ts;
 
 			WT_ASSERT(session,
+			    unpack->newest_stop_ts != WT_TS_NONE);
+			WT_ASSERT(session,
 			    unpack->oldest_start_ts <= unpack->newest_start_ts);
 			WT_ASSERT(session,
 			    unpack->newest_start_ts <= unpack->newest_stop_ts);
@@ -748,6 +752,7 @@ restart:
 			    0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
 			unpack->stop_ts += unpack->start_ts;
 
+			WT_ASSERT(session, unpack->stop_ts != WT_TS_NONE);
 			WT_ASSERT(session, unpack->start_ts <= unpack->stop_ts);
 			break;
 		}

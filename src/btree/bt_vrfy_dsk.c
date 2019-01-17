@@ -279,16 +279,22 @@ __verify_dsk_ts(WT_SESSION_IMPL *session,
 	case WT_CELL_ADDR_INT:
 	case WT_CELL_ADDR_LEAF:
 	case WT_CELL_ADDR_LEAF_NO:
+		if (unpack->newest_stop_ts == WT_TS_NONE)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has a newest stop "
+			    "timestamp of 0",
+			    cell_num - 1, tag);
 		if (unpack->oldest_start_ts > unpack->newest_start_ts)
 			WT_RET_VRFY(session,
-			"cell %" PRIu32 " on page at %s has an oldest start "
-			"timestamp newer than its newest start timestamp",
-			cell_num - 1, tag);
+			    "cell %" PRIu32 " on page at %s has an oldest "
+			    "start timestamp newer than its newest start "
+			    "timestamp",
+			    cell_num - 1, tag);
 		if (unpack->newest_start_ts > unpack->newest_stop_ts)
 			WT_RET_VRFY(session,
-			"cell %" PRIu32 " on page at %s has a newest start "
-			"timestamp newer than its newest stop timestamp",
-			cell_num - 1, tag);
+			    "cell %" PRIu32 " on page at %s has a newest start "
+			    "timestamp newer than its newest stop timestamp",
+			    cell_num - 1, tag);
 
 		if (addr == NULL)
 			break;
@@ -311,11 +317,16 @@ __verify_dsk_ts(WT_SESSION_IMPL *session,
 	case WT_CELL_VALUE_OVFL:
 	case WT_CELL_VALUE_OVFL_RM:
 	case WT_CELL_VALUE_SHORT:
+		if (unpack->stop_ts == WT_TS_NONE)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has a stop "
+			    "timestamp of 0",
+			    cell_num - 1, tag);
 		if (unpack->start_ts > unpack->stop_ts)
 			WT_RET_VRFY(session,
-			"cell %" PRIu32 " on page at %s has a start timestamp "
-			"newer than its stop timestamp ",
-			cell_num - 1, tag);
+			    "cell %" PRIu32 " on page at %s has a start "
+			    "timestamp newer than its stop timestamp ",
+			    cell_num - 1, tag);
 
 		if (addr == NULL)
 			break;
