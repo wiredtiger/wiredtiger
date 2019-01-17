@@ -378,7 +378,8 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		    handle->fh_sync_nowait == NULL)
 			continue;
 		/* Skip over WiredTiger owned files. */
-		if (WT_PREFIX_MATCH(fh->name, "WiredTiger"))
+		if (fh->name[0] == 'W' &&
+		    WT_PREFIX_MATCH(fh->name, "WiredTiger"))
 			continue;
 		now = __wt_clock(session);
 		if (fh->last_sync == 0 ||
@@ -388,7 +389,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			 * Add a reference could interfere with other internal
 			 * operations such as log archiving.
 			 */
-			while (fhtmp != NULL &&
+			while (fhtmp != NULL && fhtmp->name[0] == 'W' &&
 			    WT_PREFIX_MATCH(fhtmp->name, "WiredTiger"))
 				fhtmp = TAILQ_NEXT(fhtmp, q);
 			/*
