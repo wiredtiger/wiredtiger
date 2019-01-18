@@ -1367,8 +1367,17 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * or a modify/update operation on the same key.
 	 */
 	if (upd != NULL) {
-		upd_select->start_ts =			/* WT_TS_FIXME */
-		    upd_select->stop_ts = upd_select->upd->timestamp;
+		/*
+		 * WT_TS_FIXME
+		 * This is waiting on adding a second timestamp to the update
+		 * structure.
+		 */
+		if (upd_select->upd->timestamp == WT_TS_NONE) {
+			upd_select->start_ts = WT_TS_NONE;
+			upd_select->stop_ts = WT_TS_MAX;
+		} else
+			upd_select->start_ts =
+			    upd_select->stop_ts = upd_select->upd->timestamp;
 		upd_select->txnid = upd->txnid;
 	}
 
