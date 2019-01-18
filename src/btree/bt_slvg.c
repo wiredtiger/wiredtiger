@@ -506,10 +506,9 @@ __slvg_trk_init(WT_SESSION_IMPL *session,
 	trk->trk_size = dsk->mem_size;
 	trk->trk_oldest_start_ts = WT_TS_MAX;
 	trk->trk_newest_start_ts = trk->trk_newest_stop_ts = WT_TS_NONE;
-	if (!__wt_process.page_version_ts || dsk->type == WT_PAGE_COL_FIX) {
-		trk->trk_oldest_start_ts =
-		    trk->trk_newest_start_ts = WT_TS_NONE;
-		trk->trk_newest_stop_ts = WT_TS_MAX;
+	if (dsk->type == WT_PAGE_COL_FIX) {
+		trk->trk_oldest_start_ts = WT_TS_NONE;
+		trk->trk_newest_start_ts = trk->trk_newest_stop_ts = WT_TS_MAX;
 	}
 	trk->trk_gen = dsk->write_gen;
 

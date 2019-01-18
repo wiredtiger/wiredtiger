@@ -15,33 +15,17 @@
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
- * __wt_timestamp_to_string --
- *	Convert a timestamp to the MongoDB string representation.
- */
-void
-__wt_timestamp_to_string(wt_timestamp_t ts, char *ts_string, size_t len)
-{
-	WT_IGNORE_RET(__wt_snprintf(ts_string, len,
-	    "(%" PRIu32 ",%" PRIu32 ")",
-	    (uint32_t)((ts >> 32) & 0xffffffff), (uint32_t)(ts & 0xffffffff)));
-}
-
-/*
  * __wt_timestamp_to_hex_string --
  *	Convert a timestamp to hex string representation.
  */
 void
-__wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp)
+__wt_timestamp_to_hex_string(char *hex_timestamp, wt_timestamp_t ts)
 {
 	char *p, v;
 
 	if (ts == 0) {
 		hex_timestamp[0] = '0';
 		hex_timestamp[1] = '\0';
-		return;
-	}
-	if (ts == WT_TS_MAX) {
-		(void)strcpy(hex_timestamp, "ffffffffffffffff");
 		return;
 	}
 
@@ -65,14 +49,14 @@ void
 __wt_verbose_timestamp(
     WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg)
 {
-	char ts_string[WT_TS_INT_STRING_SIZE];
+	char timestamp_buf[WT_TS_HEX_SIZE];
 
 	if (!WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP))
 		return;
 
-	__wt_timestamp_to_string(ts, ts_string, sizeof(ts_string));
+	__wt_timestamp_to_hex_string(timestamp_buf, ts);
 	__wt_verbose(session,
-	    WT_VERB_TIMESTAMP, "Timestamp %s : %s", ts_string, msg);
+	    WT_VERB_TIMESTAMP, "Timestamp %s : %s", timestamp_buf, msg);
 }
 
 /*
@@ -332,7 +316,7 @@ __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
 	else
 		WT_RET(__txn_query_timestamp(session, &ts, cfg));
 
-	__wt_timestamp_to_hex_string(ts, hex_timestamp);
+	__wt_timestamp_to_hex_string(hex_timestamp, ts);
 	return (0);
 }
 
@@ -407,7 +391,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
 	wt_timestamp_t last_oldest_ts, last_stable_ts;
-	char ts_string[2][WT_TS_INT_STRING_SIZE];
+	char hex_timestamp[2][WT_TS_HEX_SIZE];
 	bool force, has_commit, has_oldest, has_stable;
 
 	txn_global = &S2C(session)->txn_global;
@@ -479,25 +463,21 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (has_commit && (has_oldest ||
 	    txn_global->has_oldest_timestamp) && oldest_ts > commit_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
-		__wt_timestamp_to_string(
-		    oldest_ts, ts_string[0], sizeof(ts_string[0]));
-		__wt_timestamp_to_string(
-		    commit_ts, ts_string[1], sizeof(ts_string[1]));
+		__wt_timestamp_to_hex_string(hex_timestamp[0], oldest_ts);
+		__wt_timestamp_to_hex_string(hex_timestamp[1], commit_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: oldest timestamp %s must not be later than "
-		    "commit timestamp %s", ts_string[0], ts_string[1]);
+		    "commit timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
 	if (has_commit && (has_stable ||
 	    txn_global->has_stable_timestamp) && stable_ts > commit_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
-		__wt_timestamp_to_string(
-		    stable_ts, ts_string[0], sizeof(ts_string[0]));
-		__wt_timestamp_to_string(
-		    commit_ts, ts_string[1], sizeof(ts_string[1]));
+		__wt_timestamp_to_hex_string(hex_timestamp[0], stable_ts);
+		__wt_timestamp_to_hex_string(hex_timestamp[1], commit_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: stable timestamp %s must not be later than "
-		    "commit timestamp %s", ts_string[0], ts_string[1]);
+		    "commit timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
 	/*
@@ -509,13 +489,11 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    (has_stable ||
 	    txn_global->has_stable_timestamp) && oldest_ts > stable_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
-		__wt_timestamp_to_string(
-		    oldest_ts, ts_string[0], sizeof(ts_string[0]));
-		__wt_timestamp_to_string(
-		    stable_ts, ts_string[1], sizeof(ts_string[1]));
+		__wt_timestamp_to_hex_string(hex_timestamp[0], oldest_ts);
+		__wt_timestamp_to_hex_string(hex_timestamp[1], stable_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: oldest timestamp %s must not be later than "
-		    "stable timestamp %s", ts_string[0], ts_string[1]);
+		    "stable timestamp %s", hex_timestamp[0], hex_timestamp[1]);
 	}
 
 	__wt_readunlock(session, &txn_global->rwlock);
@@ -591,7 +569,7 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	wt_timestamp_t oldest_ts, stable_ts;
-	char ts_string[WT_TS_INT_STRING_SIZE];
+	char hex_timestamp[WT_TS_HEX_SIZE];
 	bool has_oldest_ts, has_stable_ts;
 
 	/*
@@ -610,18 +588,16 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 		stable_ts = txn_global->stable_timestamp;
 
 	if (has_oldest_ts && ts < oldest_ts) {
-		__wt_timestamp_to_string(
-		    oldest_ts, ts_string, sizeof(ts_string));
+		__wt_timestamp_to_hex_string(hex_timestamp, oldest_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than oldest timestamp %s",
-		    name, (int)cval->len, cval->str, ts_string);
+		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
 	if (compare_stable && has_stable_ts && ts < stable_ts) {
-		__wt_timestamp_to_string(
-		    stable_ts, ts_string, sizeof(ts_string));
+		__wt_timestamp_to_hex_string(hex_timestamp, stable_ts);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than stable timestamp %s",
-		    name, (int)cval->len, cval->str, ts_string);
+		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
 
 	/*
@@ -631,12 +607,12 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 */
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    ts < txn->first_commit_timestamp) {
-		__wt_timestamp_to_string(
-		    txn->first_commit_timestamp, ts_string, sizeof(ts_string));
+		__wt_timestamp_to_hex_string(
+		    hex_timestamp, txn->first_commit_timestamp);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than the first "
 		    "commit timestamp %s for this transaction",
-		    name, (int)cval->len, cval->str, ts_string);
+		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
 
 	/*
@@ -645,12 +621,12 @@ __wt_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * timestamp.
 	 */
 	if (F_ISSET(txn, WT_TXN_PREPARE) && ts < txn->prepare_timestamp) {
-		__wt_timestamp_to_string(
-		    txn->prepare_timestamp, ts_string, sizeof(ts_string));
+		__wt_timestamp_to_hex_string(
+		    hex_timestamp, txn->prepare_timestamp);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than the prepare timestamp %s "
 		    "for this transaction",
-		    name, (int)cval->len, cval->str, ts_string);
+		    name, (int)cval->len, cval->str, hex_timestamp);
 	}
 
 	return (0);
@@ -741,7 +717,7 @@ __wt_txn_parse_prepare_timestamp(
 	WT_TXN *prev;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts;
-	char ts_string[WT_TS_INT_STRING_SIZE];
+	char hex_timestamp[WT_TS_HEX_SIZE];
 
 	txn_global = &S2C(session)->txn_global;
 
@@ -775,12 +751,12 @@ __wt_txn_parse_prepare_timestamp(
 			if (prev->read_timestamp >= *timestamp) {
 				__wt_readunlock(session,
 				    &txn_global->read_timestamp_rwlock);
-				__wt_timestamp_to_string(prev->read_timestamp,
-				    ts_string, sizeof(ts_string));
+				__wt_timestamp_to_hex_string(
+				    hex_timestamp, prev->read_timestamp);
 				WT_RET_MSG(session, EINVAL,
 				    "prepare timestamp %.*s not later than "
 				    "an active read timestamp %s ",
-				    (int)cval.len, cval.str, ts_string);
+				    (int)cval.len, cval.str, hex_timestamp);
 			}
 			break;
 		}
@@ -794,12 +770,12 @@ __wt_txn_parse_prepare_timestamp(
 			oldest_ts = txn_global->oldest_timestamp;
 
 			if (*timestamp < oldest_ts) {
-				__wt_timestamp_to_string(
-				    oldest_ts, ts_string, sizeof(ts_string));
+				__wt_timestamp_to_hex_string(
+				    hex_timestamp, oldest_ts);
 				WT_RET_MSG(session, EINVAL,
 				    "prepare timestamp %.*s is older than the "
 				    "oldest timestamp %s ", (int)cval.len,
-				    cval.str, ts_string);
+				    cval.str, hex_timestamp);
 			}
 		 }
 	} else
@@ -818,8 +794,8 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t ts, ts_oldest;
-	char ts_string[2][WT_TS_INT_STRING_SIZE];
+	wt_timestamp_t ts;
+	char hex_timestamp[2][WT_TS_HEX_SIZE];
 	bool round_to_oldest;
 
 	txn = &session->txn;
@@ -854,25 +830,24 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 * avoid a race between checking and setting transaction
 		 * timestamp.
 		 */
+		__wt_timestamp_to_hex_string(hex_timestamp[0], ts);
 		__wt_readlock(session, &txn_global->rwlock);
-		ts_oldest = txn_global->oldest_timestamp;
-		if (ts < ts_oldest) {
+		if (ts < txn_global->oldest_timestamp) {
+			__wt_timestamp_to_hex_string(
+			    hex_timestamp[1], txn_global->oldest_timestamp);
 			/*
 			 * If given read timestamp is earlier than oldest
 			 * timestamp then round the read timestamp to
 			 * oldest timestamp.
 			 */
 			if (round_to_oldest)
-				txn->read_timestamp = ts_oldest;
+				txn->read_timestamp =
+				    txn_global->oldest_timestamp;
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
-				__wt_timestamp_to_string(
-				    ts, ts_string[0], sizeof(ts_string[0]));
-				__wt_timestamp_to_string(ts_oldest,
-				    ts_string[1], sizeof(ts_string[1]));
 				WT_RET_MSG(session, EINVAL, "read timestamp "
 				    "%s older than oldest timestamp %s",
-				    ts_string[0], ts_string[1]);
+				    hex_timestamp[0], hex_timestamp[1]);
 			}
 		} else {
 			txn->read_timestamp = ts;
@@ -885,19 +860,14 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_set_read_timestamp(session);
 		__wt_readunlock(session, &txn_global->rwlock);
-		if (round_to_oldest &&
-		    WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
+		if (round_to_oldest) {
 			/*
 			 * This message is generated here to reduce the span of
 			 * critical section.
 			 */
-			__wt_timestamp_to_string(
-			    ts, ts_string[0], sizeof(ts_string[0]));
-			__wt_timestamp_to_string(
-			    ts_oldest, ts_string[1], sizeof(ts_string[1]));
 			__wt_verbose(session, WT_VERB_TIMESTAMP, "Read "
 			    "timestamp %s : Rounded to oldest timestamp %s",
-			    ts_string[0], ts_string[1]);
+			    hex_timestamp[0], hex_timestamp[1]);
 		}
 
 		/*

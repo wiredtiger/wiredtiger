@@ -5973,10 +5973,9 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session,
 	 * Our caller optionally specifies a cell type (deleted proxy cells),
 	 * otherwise go with what we know.
 	 */
-	if (proxy_cell) {
+	if (proxy_cell)
 		cell_type = WT_CELL_ADDR_DEL;
-		WT_ASSERT(session, addr->size == 0);
-	} else {
+	else {
 		switch (addr->type) {
 		case WT_ADDR_INT:
 			cell_type = WT_CELL_ADDR_INT;
