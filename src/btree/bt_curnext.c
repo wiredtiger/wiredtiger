@@ -178,6 +178,10 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
 
 	/* Initialize for each new page. */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
 		cbt->slot = UINT32_MAX;
 		cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 		if (cbt->last_standard_recno == 0)
@@ -303,6 +307,10 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * Initialize for each new page.
 	 */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
 		cbt->slot = UINT32_MAX;
 		cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
 		cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
