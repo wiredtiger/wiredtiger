@@ -367,6 +367,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 	WT_FH *fh, *fhtmp;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
+	const char *fp, *ftp;
 
 	conn = S2C(session);
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
@@ -379,8 +380,13 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		    handle->fh_sync_nowait == NULL)
 			continue;
 		/* Skip over WiredTiger owned files. */
-		if (fh->name[0] == 'W' &&
-		    WT_PREFIX_MATCH(fh->name, "WiredTiger"))
+		fp = strrchr(fh->name, '/');
+		if (fp == NULL)
+			fp = fh->name;
+		else
+			++fp;
+		if (fp[0] == 'W' &&
+		    WT_PREFIX_MATCH(fp, "WiredTiger"))
 			continue;
 		now = __wt_clock(session);
 		if (fh->last_sync == 0 ||
@@ -390,9 +396,19 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			 * Add a reference could interfere with other internal
 			 * operations such as log archiving.
 			 */
-			while (fhtmp != NULL && fhtmp->name[0] == 'W' &&
-			    WT_PREFIX_MATCH(fhtmp->name, "WiredTiger"))
-				fhtmp = TAILQ_NEXT(fhtmp, q);
+			while (fhtmp != NULL) {
+				ftp = strrchr(fhtmp->name, '/');
+				if (ftp == NULL)
+					ftp = fhtmp->name;
+				else
+					++ftp;
+				if (ftp[0] == 'W' &&
+				    WT_PREFIX_MATCH(ftp, "WiredTiger")) {
+					fhtmp = TAILQ_NEXT(fhtmp, q);
+					continue;
+				}
+				break;
+			}
 			/*
 			 * Increment our ref count on the current and next
 			 * handle. That way both are guaranteed valid when we
