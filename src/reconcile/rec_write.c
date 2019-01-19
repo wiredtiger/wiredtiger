@@ -1365,10 +1365,15 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * or a modify/update operation on the same key.
 	 */
 	if (upd != NULL) {
+		upd_select->txnid = upd->txnid;
+
 		/*
 		 * TIMESTAMP-FIXME
-		 * This is waiting on adding a second timestamp to the update
-		 * structure.
+		 * This is waiting on the WT_UPDATE structure's start/stop
+		 * timestamp work. For now, if we don't have a timestamp,
+		 * just pretend it's durable, otherwise pretend the start
+		 * and stop timestamps are the same.
+		 *
 		 */
 		if (upd_select->upd->start_ts == WT_TS_NONE) {
 			upd_select->start_ts = WT_TS_NONE;
@@ -1376,7 +1381,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		} else
 			upd_select->start_ts =
 			    upd_select->stop_ts = upd_select->upd->start_ts;
-		upd_select->txnid = upd->txnid;
 	}
 
 	/*
