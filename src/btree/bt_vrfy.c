@@ -236,9 +236,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 			 * includes it.
 			 */
 			memset(&addr_unpack, 0, sizeof(addr_unpack));
-			addr_unpack.oldest_start_ts =
-			    addr_unpack.newest_start_ts = WT_TS_NONE;
-			addr_unpack.newest_stop_ts = WT_TS_MAX;
+			addr_unpack.oldest_start_ts = WT_TS_NONE;
+			addr_unpack.newest_start_ts =
+			    addr_unpack.newest_stop_ts = WT_TS_MAX;
 			addr_unpack.raw = WT_CELL_ADDR_INT;
 
 			/* Verify the tree. */
