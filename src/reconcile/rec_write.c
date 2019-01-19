@@ -4044,15 +4044,14 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
  */
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_SALVAGE_COOKIE *salvage,
-    WT_ITEM *value, bool deleted, bool overflow_type,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts, uint64_t rle)
+    WT_SALVAGE_COOKIE *salvage, WT_ITEM *value,
+    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
+    uint64_t rle, bool deleted, bool overflow_type)
 {
 	WT_BTREE *btree;
 	WT_KV *val;
 
 	btree = S2BT(session);
-
 	val = &r->v;
 
 	/*
@@ -4128,6 +4127,11 @@ __rec_col_var(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
 	enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
+	struct {
+		WT_ITEM	*value;				/* Value */
+		wt_timestamp_t start_ts, stop_ts;	/* Timestamps */
+		bool deleted;				/* If deleted */
+	} last;
 	WT_BTREE *btree;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *vpack, _vpack;
@@ -4136,31 +4140,32 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_DECL_ITEM(orig);
 	WT_DECL_RET;
 	WT_INSERT *ins;
-	WT_ITEM *last;
 	WT_PAGE *page;
 	WT_UPDATE *upd;
 	WT_UPDATE_SELECT upd_select;
 	wt_timestamp_t start_ts, stop_ts;
 	uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
 	uint32_t i, size;
-	bool deleted, last_deleted, orig_deleted, update_no_copy;
+	bool deleted, orig_deleted, update_no_copy;
 	const void *data;
 
 	btree = S2BT(session);
-	page = pageref->page;
-	last = r->last;
 	vpack = &_vpack;
 	cbt = &r->update_modify_cbt;
+	page = pageref->page;
+	upd = NULL;
+	size = 0;
+	data = NULL;
+
+	/* Set the "last" values to cause failure if they're not set. */
+	last.value = r->last;
+	last.start_ts = last.stop_ts = WT_TS_NONE;
+	last.deleted = false;
 
 	WT_RET(__rec_split_init(session,
 	    r, page, pageref->ref_recno, btree->maxleafpage_precomp));
 
 	WT_RET(__wt_scr_alloc(session, 0, &orig));
-	data = NULL;
-	size = 0;
-	upd = NULL;
-
-	start_ts = stop_ts = WT_TS_FIXME;
 
 	/*
 	 * The salvage code may be calling us to reconcile a page where there
@@ -4174,11 +4179,12 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	 * helper function's assistance.)
 	 */
 	rle = 0;
-	last_deleted = false;
 	if (salvage != NULL && salvage->missing != 0) {
 		if (salvage->skip == 0) {
 			rle = salvage->missing;
-			last_deleted = true;
+			last.start_ts = WT_TS_NONE;
+			last.stop_ts = WT_TS_MAX;
+			last.deleted = true;
 
 			/*
 			 * Correct the number of records we're going to "take",
@@ -4186,9 +4192,9 @@ __rec_col_var(WT_SESSION_IMPL *session,
 			 */
 			salvage->take += salvage->missing;
 		} else
-			WT_ERR(__rec_col_var_helper(session,
-			    r, NULL, NULL, true, false,
-			    WT_TS_NONE, WT_TS_MAX, salvage->missing));
+			WT_ERR(__rec_col_var_helper(session, r,
+			    NULL, NULL, WT_TS_NONE, WT_TS_MAX,
+			    salvage->missing, true, false));
 	}
 
 	/*
@@ -4208,11 +4214,15 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_COL_FOREACH(page, cip, i) {
 		ovfl_state = OVFL_IGNORE;
 		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
+			start_ts = WT_TS_NONE;
+			stop_ts = WT_TS_MAX;
 			nrepeat = 1;
 			ins = NULL;
 			orig_deleted = true;
 		} else {
 			__wt_cell_unpack(session, page, cell, vpack);
+			start_ts = vpack->start_ts;
+			stop_ts = vpack->stop_ts;
 			nrepeat = __wt_cell_rle(vpack);
 			ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
 
@@ -4271,6 +4281,20 @@ record_loop:	/*
 				WT_ERR(__rec_upd_select(
 				    session, r, ins, cip, vpack, &upd_select));
 				upd = upd_select.upd;
+				if (upd == NULL) {
+					/*
+					 * WT_TS_FIXME
+					 * I'm pretty sure this is wrong: a NULL
+					 * update means an item was deleted, and
+					 * I think that requires a tombstone on
+					 * the page.
+					 */
+					start_ts = WT_TS_NONE;
+					stop_ts = WT_TS_MAX;
+				} else {
+					start_ts = upd_select.start_ts;
+					stop_ts = upd_select.stop_ts;
+				}
 				ins = WT_SKIP_NEXT(ins);
 			}
 
@@ -4358,17 +4382,19 @@ record_loop:	/*
 					 */
 					if (rle != 0) {
 						WT_ERR(__rec_col_var_helper(
-						    session, r, salvage, last,
-						    last_deleted, false,
-						    start_ts, stop_ts, rle));
+						    session, r, salvage,
+						    last.value,
+						    last.start_ts, last.stop_ts,
+						    rle, last.deleted, false));
 						rle = 0;
 					}
 
-					last->data = vpack->data;
-					last->size = vpack->size;
-					WT_ERR(__rec_col_var_helper(session,
-					    r, salvage, last, false, true,
-					    start_ts, stop_ts, repeat_count));
+					last.value->data = vpack->data;
+					last.value->size = vpack->size;
+					WT_ERR(__rec_col_var_helper(session, r,
+					    salvage,
+					    last.value, start_ts, stop_ts,
+					    repeat_count, false, true));
 
 					/* Track if page has overflow items. */
 					r->ovfl_items = true;
@@ -4408,16 +4434,19 @@ compare:		/*
 			 * we've been doing that all along.
 			 */
 			if (rle != 0) {
-				if ((deleted && last_deleted) ||
-				    (!last_deleted && !deleted &&
-				    last->size == size &&
-				    memcmp(last->data, data, size) == 0)) {
+				if (last.start_ts == start_ts &&
+				    last.stop_ts == stop_ts &&
+				    ((deleted && last.deleted) ||
+				    (!deleted && !last.deleted &&
+				    last.value->size == size &&
+				    memcmp(
+				    last.value->data, data, size) == 0))) {
 					rle += repeat_count;
 					continue;
 				}
-				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last, last_deleted, false,
-				    start_ts, stop_ts, rle));
+				WT_ERR(__rec_col_var_helper(session, r, salvage,
+				    last.value, last.start_ts, last.stop_ts,
+				    rle, last.deleted, false));
 			}
 
 			/*
@@ -4440,13 +4469,15 @@ compare:		/*
 				 * the pointers, they're not moving.
 				 */
 				if (data == vpack->data || update_no_copy) {
-					last->data = data;
-					last->size = size;
+					last.value->data = data;
+					last.value->size = size;
 				} else
 					WT_ERR(__wt_buf_set(
-					    session, last, data, size));
+					    session, last.value, data, size));
 			}
-			last_deleted = deleted;
+			last.start_ts = start_ts;
+			last.stop_ts = stop_ts;
+			last.deleted = deleted;
 			rle = repeat_count;
 		}
 
@@ -4493,6 +4524,19 @@ compare:		/*
 			WT_ERR(__rec_upd_select(
 			    session, r, ins, NULL, NULL, &upd_select));
 			upd = upd_select.upd;
+			if (upd == NULL) {
+				/*
+				 * WT_TS_FIXME:
+				 * I'm pretty sure this is wrong: a NULL update
+				 * means an item was deleted, and I think that
+				 * requires a tombstone on the page.
+				 */
+				start_ts = WT_TS_NONE;
+				stop_ts = WT_TS_MAX;
+			} else {
+				start_ts = upd_select.start_ts;
+				stop_ts = upd_select.stop_ts;
+			}
 			n = WT_INSERT_RECNO(ins);
 		}
 		while (src_recno <= n) {
@@ -4507,7 +4551,7 @@ compare:		/*
 			 */
 			if (src_recno < n) {
 				deleted = true;
-				if (last_deleted) {
+				if (last.deleted) {
 					/*
 					 * The record adjustment is decremented
 					 * by one so we can naturally fall into
@@ -4552,16 +4596,19 @@ compare:		/*
 			 * above, this code fragment does the same thing.
 			 */
 			if (rle != 0) {
-				if ((deleted && last_deleted) ||
-				    (!last_deleted && !deleted &&
-				    last->size == size &&
-				    memcmp(last->data, data, size) == 0)) {
+				if (last.start_ts == start_ts &&
+				    last.stop_ts == stop_ts &&
+				    ((deleted && last.deleted) ||
+				    (!deleted && !last.deleted &&
+				    last.value->size == size &&
+				    memcmp(
+				    last.value->data, data, size) == 0))) {
 					++rle;
 					goto next;
 				}
 				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last, last_deleted, false,
-				    start_ts, stop_ts, rle));
+				    salvage, last.value, start_ts, stop_ts,
+				    rle, last.deleted, false));
 			}
 
 			/*
@@ -4575,15 +4622,17 @@ compare:		/*
 			 */
 			if (!deleted) {
 				if (update_no_copy) {
-					last->data = data;
-					last->size = size;
+					last.value->data = data;
+					last.value->size = size;
 				} else
 					WT_ERR(__wt_buf_set(
-					    session, last, data, size));
+					    session, last.value, data, size));
 			}
 
 			/* Ready for the next loop, reset the RLE counter. */
-			last_deleted = deleted;
+			last.start_ts = start_ts;
+			last.stop_ts = stop_ts;
+			last.deleted = deleted;
 			rle = 1;
 
 			/*
@@ -4607,7 +4656,7 @@ next:			if (src_recno == UINT64_MAX)
 	/* If we were tracking a record, write it. */
 	if (rle != 0)
 		WT_ERR(__rec_col_var_helper(session, r, salvage,
-		    last, last_deleted, false, start_ts, stop_ts, rle));
+		    last.value, start_ts, stop_ts, rle, last.deleted, false));
 
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
