@@ -12,8 +12,6 @@ struct __rec_chunk;		typedef struct __rec_chunk WT_CHUNK;
 struct __rec_dictionary;	typedef struct __rec_dictionary WT_DICTIONARY;
 struct __rec_kv;		typedef struct __rec_kv WT_KV;
 
-#define	WT_TS_FIXME	37		/* Fake timestamp */
-
 /*
  * Reconciliation is the process of taking an in-memory page, walking each entry
  * in the page, building a backing disk image in a temporary buffer representing
@@ -1368,7 +1366,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 */
 	if (upd != NULL) {
 		/*
-		 * WT_TS_FIXME
+		 * TIMESTAMP-FIXME
 		 * This is waiting on adding a second timestamp to the update
 		 * structure.
 		 */
@@ -4283,7 +4281,7 @@ record_loop:	/*
 				upd = upd_select.upd;
 				if (upd == NULL) {
 					/*
-					 * WT_TS_FIXME
+					 * TIMESTAMP-FIXME
 					 * I'm pretty sure this is wrong: a NULL
 					 * update means an item was deleted, and
 					 * I think that requires a tombstone on
@@ -4526,7 +4524,7 @@ compare:		/*
 			upd = upd_select.upd;
 			if (upd == NULL) {
 				/*
-				 * WT_TS_FIXME:
+				 * TIMESTAMP-FIXME
 				 * I'm pretty sure this is wrong: a NULL update
 				 * means an item was deleted, and I think that
 				 * requires a tombstone on the page.
@@ -5314,8 +5312,8 @@ build:
 		 * Copy the key/value pair onto the page. Zero-length items must
 		 * be globally visible as we're writing nothing to the page.
 		 *
-		 * WT_TS_FIXME: The visibility test can't be turned on until the
-		 * timestamps for the selected update are correct.
+		 * TIMESTAMP-FIXME: The visibility test can't be turned on until
+		 * the timestamps for the selected update are correct.
 		 */
 		__rec_image_copy(session, r, key);
 #if 0
@@ -5455,8 +5453,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		 * Copy the key/value pair onto the page. Zero-length items must
 		 * be globally visible as we're writing nothing to the page.
 		 *
-		 * WT_TS_FIXME: The visibility test can't be turned on until the
-		 * timestamps for the selected update are correct.
+		 * TIMESTAMP-FIXME: The visibility test can't be turned on until
+		 * the timestamps for the selected update are correct.
 		 */
 		__rec_image_copy(session, r, key);
 #if 0
