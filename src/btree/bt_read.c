@@ -188,7 +188,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = las_txnid;
-		upd->timestamp = las_timestamp;
+		upd->start_ts = las_timestamp;
 		upd->prepare_state = prepare_state;
 		/*
 		 * Use the commit timestamp as the durable timestamp, since
@@ -196,7 +196,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		 * lookaside, so the two timestamps should always be identical.
 		 */
 		if (prepare_state != WT_PREPARE_INPROGRESS)
-			upd->durable_timestamp = upd->timestamp;
+			upd->durable_ts = upd->start_ts;
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:

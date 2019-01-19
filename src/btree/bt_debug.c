@@ -1205,8 +1205,11 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		else
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 		__wt_timestamp_to_string(
-		    upd->timestamp, ts_string, sizeof(ts_string));
-		WT_RET(ds->f(ds, ", ts %s", ts_string));
+		    upd->start_ts, ts_string, sizeof(ts_string));
+		WT_RET(ds->f(ds, ", start_ts %s", ts_string));
+		__wt_timestamp_to_string(
+		    upd->stop_ts, ts_string, sizeof(ts_string));
+		WT_RET(ds->f(ds, ", stop_ts %s", ts_string));
 		WT_RET(ds->f(ds, "\n"));
 	}
 	return (0);

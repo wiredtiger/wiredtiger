@@ -1167,7 +1167,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	 */
 	if (upd->type == WT_UPDATE_BIRTHMARK) {
 		append->txnid = upd->txnid;
-		append->timestamp = upd->timestamp;
+		append->start_ts = upd->start_ts;
 		append->next = upd->next;
 	}
 
@@ -1263,7 +1263,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			       continue;
 
 			/* Consider a non durable update as uncommitted. */
-			if (upd->timestamp != WT_TS_NONE &&
+			if (upd->start_ts != WT_TS_NONE &&
 			    !__wt_txn_upd_durable(session, upd)) {
 				uncommitted = r->update_uncommitted = true;
 				continue;
@@ -1272,7 +1272,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		}
 
 		/* Track the first update with non-zero timestamp. */
-		if (first_ts_upd == NULL && upd->timestamp != WT_TS_NONE)
+		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
 			first_ts_upd = upd;
 
 		/*
@@ -1372,12 +1372,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * This is waiting on adding a second timestamp to the update
 		 * structure.
 		 */
-		if (upd_select->upd->timestamp == WT_TS_NONE) {
+		if (upd_select->upd->start_ts == WT_TS_NONE) {
 			upd_select->start_ts = WT_TS_NONE;
 			upd_select->stop_ts = WT_TS_MAX;
 		} else
 			upd_select->start_ts =
-			    upd_select->stop_ts = upd_select->upd->timestamp;
+			    upd_select->stop_ts = upd_select->upd->start_ts;
 		upd_select->txnid = upd->txnid;
 	}
 
@@ -1391,8 +1391,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		r->max_txn = max_txn;
 
 	/* Update the maximum timestamp. */
-	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->timestamp)
-		r->max_timestamp = first_ts_upd->timestamp;
+	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->start_ts)
+		r->max_timestamp = first_ts_upd->start_ts;
 
 	/*
 	 * If the update we chose was a birthmark, or we are doing
@@ -1412,7 +1412,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * order), so we track the maximum transaction ID and the newest update
 	 * with a timestamp (if any).
 	 */
-	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->timestamp;
+	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->start_ts;
 	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestamp) :
@@ -1474,8 +1474,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
 		if (first_ts_upd != NULL &&
-		    r->unstable_timestamp < first_ts_upd->timestamp)
-			r->unstable_timestamp = first_ts_upd->timestamp;
+		    r->unstable_timestamp < first_ts_upd->start_ts)
+			r->unstable_timestamp = first_ts_upd->start_ts;
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
@@ -1484,8 +1484,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
-			if (upd->timestamp < r->unstable_timestamp)
-				r->unstable_timestamp = upd->timestamp;
+			if (upd->start_ts < r->unstable_timestamp)
+				r->unstable_timestamp = upd->start_ts;
 		}
 	}
 
