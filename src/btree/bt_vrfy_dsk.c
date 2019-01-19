@@ -721,25 +721,29 @@ static int
 __verify_dsk_col_var(WT_SESSION_IMPL *session,
     const char *tag, const WT_PAGE_HEADER *dsk, WT_ADDR *addr)
 {
+	struct {
+		const void *data;
+		size_t size;
+		wt_timestamp_t start_ts, stop_ts;
+		bool deleted;
+	} last;
 	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
 	WT_DECL_RET;
-	size_t last_size;
 	uint32_t cell_num, cell_type, i;
 	uint8_t *end;
-	const uint8_t *last_data;
-	bool last_deleted;
 
 	btree = S2BT(session);
 	bm = btree->bm;
 	unpack = &_unpack;
 	end = (uint8_t *)dsk + dsk->mem_size;
 
-	last_data = NULL;
-	last_size = 0;
-	last_deleted = false;
+	last.data = NULL;
+	last.size = 0;
+	last.start_ts = last.stop_ts = WT_TS_NONE;
+	last.deleted = false;
 
 	cell_num = 0;
 	WT_CELL_FOREACH_VRFY(btree, dsk, cell, unpack, i) {
@@ -774,33 +778,38 @@ __verify_dsk_col_var(WT_SESSION_IMPL *session,
 		 * a chance for RLE encoding.  We don't have to care about data
 		 * encoding or anything else, a byte comparison is enough.
 		 */
-		if (last_deleted) {
+		if (unpack->start_ts != last.start_ts ||
+		    unpack->stop_ts != last.stop_ts)
+			;
+		else if (last.deleted) {
 			if (cell_type == WT_CELL_DEL)
 				goto match_err;
 		} else
 			if (cell_type == WT_CELL_VALUE &&
-			    last_data != NULL &&
-			    last_size == unpack->size &&
-			    memcmp(last_data, unpack->data, last_size) == 0)
+			    last.data != NULL &&
+			    last.size == unpack->size &&
+			    memcmp(last.data, unpack->data, last.size) == 0)
 match_err:			WT_RET_VRFY(session,
 				    "data entries %" PRIu32 " and %" PRIu32
 				    " on page at %s are identical and should "
 				    "have been run-length encoded",
 				    cell_num - 1, cell_num, tag);
 
+		last.start_ts = unpack->start_ts;
+		last.stop_ts = unpack->stop_ts;
 		switch (cell_type) {
 		case WT_CELL_DEL:
-			last_deleted = true;
-			last_data = NULL;
+			last.data = NULL;
+			last.deleted = true;
 			break;
 		case WT_CELL_VALUE_OVFL:
-			last_deleted = false;
-			last_data = NULL;
+			last.data = NULL;
+			last.deleted = false;
 			break;
 		case WT_CELL_VALUE:
-			last_deleted = false;
-			last_data = unpack->data;
-			last_size = unpack->size;
+			last.data = unpack->data;
+			last.size = unpack->size;
+			last.deleted = false;
 			break;
 		}
 	}
