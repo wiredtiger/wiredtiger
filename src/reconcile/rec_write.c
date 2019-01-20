@@ -4532,20 +4532,20 @@ compare:		/*
 			WT_ERR(__rec_upd_select(
 			    session, r, ins, NULL, NULL, &upd_select));
 			upd = upd_select.upd;
-			if (upd == NULL) {
-				/*
-				 * TIMESTAMP-FIXME
-				 * I'm pretty sure this is wrong: a NULL update
-				 * means an item was deleted, and I think that
-				 * requires a tombstone on the page.
-				 */
-				start_ts = WT_TS_NONE;
-				stop_ts = WT_TS_MAX;
-			} else {
-				start_ts = upd_select.start_ts;
-				stop_ts = upd_select.stop_ts;
-			}
 			n = WT_INSERT_RECNO(ins);
+		}
+		if (upd == NULL) {
+			/*
+			 * TIMESTAMP-FIXME
+			 * I'm pretty sure this is wrong: a NULL update means
+			 * an item was deleted, and I think that requires a
+			 * tombstone on the page.
+			 */
+			start_ts = WT_TS_NONE;
+			stop_ts = WT_TS_MAX;
+		} else {
+			start_ts = upd_select.start_ts;
+			stop_ts = upd_select.stop_ts;
 		}
 		while (src_recno <= n) {
 			deleted = false;
@@ -4559,7 +4559,9 @@ compare:		/*
 			 */
 			if (src_recno < n) {
 				deleted = true;
-				if (last.deleted) {
+				if (last.deleted &&
+				    last.start_ts == start_ts &&
+				    last.stop_ts == stop_ts) {
 					/*
 					 * The record adjustment is decremented
 					 * by one so we can naturally fall into
@@ -4572,9 +4574,22 @@ compare:		/*
 					rle += skip;
 					src_recno += skip;
 				}
-			} else if (upd == NULL)
+			} else if (upd == NULL) {
+				/*
+				 * TIMESTAMP-FIXME
+				 * I'm pretty sure this is wrong: a NULL
+				 * update means an item was deleted, and
+				 * I think that requires a tombstone on
+				 * the page.
+				 */
+				start_ts = WT_TS_NONE;
+				stop_ts = WT_TS_MAX;
+
 				deleted = true;
-			else
+			} else {
+				start_ts = upd_select.start_ts;
+				stop_ts = upd_select.stop_ts;
+
 				switch (upd->type) {
 				case WT_UPDATE_MODIFY:
 					/*
@@ -4598,6 +4613,7 @@ compare:		/*
 					break;
 				WT_ILLEGAL_VALUE_ERR(session, upd->type);
 				}
+			}
 
 			/*
 			 * Handle RLE accounting and comparisons -- see comment
@@ -4614,8 +4630,8 @@ compare:		/*
 					++rle;
 					goto next;
 				}
-				WT_ERR(__rec_col_var_helper(session, r,
-				    salvage, last.value, start_ts, stop_ts,
+				WT_ERR(__rec_col_var_helper(session, r, salvage,
+				    last.value, last.start_ts, last.stop_ts,
 				    rle, last.deleted, false));
 			}
 
@@ -4663,8 +4679,8 @@ next:			if (src_recno == UINT64_MAX)
 
 	/* If we were tracking a record, write it. */
 	if (rle != 0)
-		WT_ERR(__rec_col_var_helper(session, r, salvage,
-		    last.value, start_ts, stop_ts, rle, last.deleted, false));
+		WT_ERR(__rec_col_var_helper(session, r, salvage, last.value,
+		    last.start_ts, last.stop_ts, rle, last.deleted, false));
 
 	/* Write the remnant page. */
 	ret = __rec_split_finish(session, r);
