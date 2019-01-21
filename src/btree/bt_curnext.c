@@ -190,13 +190,8 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool retry)
 	rle_start = 0;			/* -Werror=maybe-uninitialized */
 
 	/* If restarting after a prepare conflict, jump to the right spot. */
-	if (retry) {
-		if (cbt->iter_retry == WT_CBT_RETRY_INSERT)
-			goto retry_insert;
-		if (cbt->iter_retry == WT_CBT_RETRY_PAGE)
-			goto retry_page;
-	}
-	cbt->iter_retry = WT_CBT_RETRY_NOTSET;
+	if (retry)
+		goto retry_insert;
 
 	/* Initialize for each new page. */
 	if (newpage) {
@@ -219,7 +214,6 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool retry)
 			return (WT_NOTFOUND);
 		__cursor_set_recno(cbt, cbt->recno + 1);
 
-		cbt->iter_retry = WT_CBT_RETRY_INSERT;
 retry_insert:	/* Find the matching WT_COL slot. */
 		if ((cip =
 		    __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
@@ -242,8 +236,6 @@ retry_insert:	/* Find the matching WT_COL slot. */
 			return (__wt_value_return(session, cbt, upd));
 		}
 
-		cbt->iter_retry = WT_CBT_RETRY_PAGE;
-retry_page:
 		/*
 		 * If we're at the same slot as the last reference and there's
 		 * no matching insert list item, re-use the return information
