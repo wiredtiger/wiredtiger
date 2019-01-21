@@ -21,24 +21,24 @@ functions:
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/little-endian/${revision}/artifacts/for-big-endian.tgz
+        remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
         bucket: build_external
-        local_file: from-little-endian.tgz
+        local_file: WT_TEST-little-endian.tgz
     - command: archive.targz_extract
       params:
-        path: "from-little-endian.tgz"
+        path: "WT_TEST-little-endian.tgz"
         destination: "wiredtiger/.libs/WT_TEST"
   "fetch artifacts from big-endian" :
     - command: s3.get
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/big-endian/${revision}/artifacts/for-little-endian.tgz
+        remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
         bucket: build_external
-        local_file: from-big-endian.tgz
+        local_file: WT_TEST-big-endian.tgz
     - command: archive.targz_extract
       params:
-        path: "from-big-endian.tgz"
+        path: "WT_TEST-big-endian.tgz"
         destination: "wiredtiger/.libs/WT_TEST"
   "fetch mongo-tests repo" :
     command: shell.exec
@@ -1013,17 +1013,32 @@ tasks:
             set -o errexit
             set -o verbose
             # Archive the WT_TEST directory which include a number of wt data files
-            tar -zcvf for-big-endian.tgz .libs/WT_TEST
+            tar -zcvf WT_TEST.tgz .libs/WT_TEST
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
           aws_key: ${aws_key}
-          local_file: wiredtiger/for-big-endian.tgz
+          local_file: wiredtiger/WT_TEST.tgz
           bucket: build_external
           permissions: public-read
           content_type: application/tar
-          display_name: Artifacts_for_big_endian
-          remote_file: wiredtiger/little-endian/${revision}/artifacts/for-big-endian.tgz
+          display_name: WT_TEST
+          remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
+
+  - name: dump-datafile-little-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-little-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch artifacts from little-endian"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./test/evergreen/dump_wt_datafiles.sh 2>&1
 
   - name: dump-datafile-from-little-endian
     depends_on:
@@ -1062,17 +1077,32 @@ tasks:
             set -o errexit
             set -o verbose
             # Archive the WT_TEST directory which include a number of wt data files
-            tar -zcvf for-little-endian.tgz .libs/WT_TEST
+            tar -zcvf WT_TEST.tgz .libs/WT_TEST
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
           aws_key: ${aws_key}
-          local_file: wiredtiger/for-little-endian.tgz
+          local_file: wiredtiger/WT_TEST.tgz
           bucket: build_external
           permissions: public-read
           content_type: application/tar
-          display_name: Artifacts_for_little_endian
-          remote_file: wiredtiger/big-endian/${revision}/artifacts/for-little-endian.tgz
+          display_name: WT_TEST
+          remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
+
+  - name: dump-datafile-big-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-big-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch artifacts from big-endian"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./test/evergreen/dump_wt_datafiles.sh 2>&1
 
   - name: dump-datafile-from-big-endian
     depends_on:
@@ -1209,6 +1239,9 @@ buildvariants:
   - name: generate-datafile-little-endian
     distros:
     - ubuntu1404-build
+  - name: dump-datafile-little-endian
+    distros:
+    - ubuntu1404-build
   - name: dump-datafile-from-big-endian
     distros:
     - ubuntu1404-build
@@ -1242,6 +1275,9 @@ buildvariants:
   tasks:
   - name: compile
   - name: generate-datafile-big-endian
+    distros:
+    - ubuntu1604-zseries-large
+  - name: dump-datafile-big-endian
     distros:
     - ubuntu1604-zseries-large
   - name: dump-datafile-from-little-endian
