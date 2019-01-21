@@ -205,8 +205,13 @@ struct __wt_ovfl_reuse {
  * this way so that overall the lookaside table is append-mostly), a counter
  * (used to ensure the update records remain in the original order), and the
  * record's key (byte-string for row-store, record number for column-store).
- * The value is the WT_UPDATE structure's transaction ID, timestamp, durable
- * timestamp, update's prepare state, update type and value.
+ * The value is the WT_UPDATE structure's:
+ * 	- transaction ID
+ * 	- timestamp
+ * 	- durable timestamp
+ * 	- update's prepare state
+ *	- update type
+ *	- value.
  *
  * As the key for the lookaside table is different for row- and column-store, we
  * store both key types in a WT_ITEM, building/parsing them in the code, because

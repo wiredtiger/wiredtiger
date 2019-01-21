@@ -36,27 +36,35 @@ def timestamp_str(t):
 #    Check that the updates with durable timestamp newer than the stable
 #    timestamp fill up the cache and leave it stuck.
 class test_durable_ts03(wttest.WiredTigerTestCase):
-    # Reduce the cache size to 10MB to get the stuck cache.
+    # Reducing the cache size to 10MB to will generate a stuck cache. This
+    # has been kept to a higher size to avoid pull request failure.
     def conn_config(self):
         return 'cache_size=50MB'
 
     def test_durable_ts03(self):
         # Create a table.
         uri = 'table:test_durable_ts03'
-        nrows = 600000
+        nrows = 300000
         self.session.create(uri, 'key_format=i,value_format=u')
         value1 = "aaaaa" * 100
         value2 = "bbbbb" * 100
+
+        # Start with setting a stable and oldest timestamp.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1) + \
+                                ',oldest_timestamp=' + timestamp_str(1))
 
         # Load the data into the table.
         session = self.conn.open_session()
         cursor = session.open_cursor(uri, None)
         for i in range(0, nrows):
+            session.begin_transaction()
             cursor[i] = value1
+            session.commit_transaction('commit_timestamp=' + timestamp_str(50))
         cursor.close()
 
-        # Set the stable timestamp to checkpoint initial data set.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100))
+        # Set the stable and the oldest timestamp to checkpoint initial data.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100) + \
+                                ',oldest_timestamp=' + timestamp_str(100))
         self.session.checkpoint()
 
         # Update all the values within transaction. Commit the transaction with
@@ -65,9 +73,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.next(), 0)
         for i in range(1, nrows):
             session.begin_transaction()
-            cursor.set_value(value2)
-            self.assertEquals(cursor.update(), 0)
-            self.assertEquals(cursor.next(), 0)
+            cursor[i] = value2
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
             session.commit_transaction('commit_timestamp=' + timestamp_str(200) + \
                                        ',durable_timestamp=' + timestamp_str(220))
