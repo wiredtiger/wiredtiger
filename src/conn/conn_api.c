@@ -2577,6 +2577,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
+	__wt_btree_page_version_config(session);
 
 	/* Set up operation tracking if configured. */
 	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
