@@ -110,6 +110,7 @@ struct __wt_fh {
 
 	uint64_t name_hash;			/* hash of name */
 	uint64_t last_sync;			/* time of background fsync */
+	volatile uint64_t written;		/* written since fsync */
 	TAILQ_ENTRY(__wt_fh) q;			/* internal queue */
 	TAILQ_ENTRY(__wt_fh) hashq;		/* internal hash queue */
 	u_int ref;				/* reference count */

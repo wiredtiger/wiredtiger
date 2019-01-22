@@ -146,7 +146,7 @@ __capacity_server(void *arg)
 			stop = __wt_clock(session);
 			time_ms = WT_CLOCKDIFF_MS(stop, start);
 			WT_STAT_CONN_SET(session, capacity_time_fsync, time_ms);
-			__wt_atomic_storev64(&conn->capacity_written, 0);
+			WT_PUBLISH(conn->capacity_written, 0);
 		} else
 			WT_STAT_CONN_INCR(session, fsync_notyet);
 	}

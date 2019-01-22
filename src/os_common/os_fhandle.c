@@ -377,8 +377,11 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 		if (!F_ISSET(fh, WT_FH_DIRTY) ||
-		    handle->fh_sync_nowait == NULL)
+		    handle->fh_sync_nowait == NULL ||
+		    fh->written < WT_CAPACITY_FILE_THRESHOLD) {
+			WT_STAT_CONN_INCR(session, fsync_too_small);
 			continue;
+		}
 		/* Skip over WiredTiger owned files. */
 		fp = strrchr(fh->name, '/');
 		if (fp == NULL)
@@ -427,6 +430,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 				F_CLR(fh, WT_FH_DIRTY);
 				WT_STAT_CONN_INCR(session, fsync_all_fh);
 				fh->last_sync = now;
+				WT_PUBLISH(fh->written, 0);
 			}
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;

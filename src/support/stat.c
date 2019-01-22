@@ -885,6 +885,7 @@ static const char * const __stats_connection_desc[] = {
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
 	"connection: background fsync calls",
+	"connection: background fsync dirty below threshold",
 	"connection: background fsync file handles considered",
 	"connection: background fsync file handles synced",
 	"connection: background fsync not needed",
@@ -1332,6 +1333,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
 	stats->fsync_all = 0;
+	stats->fsync_too_small = 0;
 	stats->fsync_all_fh_total = 0;
 	stats->fsync_all_fh = 0;
 	stats->fsync_notyet = 0;
@@ -1825,6 +1827,7 @@ __wt_stat_connection_aggregate(
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
 	to->fsync_all += WT_STAT_READ(from, fsync_all);
+	to->fsync_too_small += WT_STAT_READ(from, fsync_too_small);
 	to->fsync_all_fh_total += WT_STAT_READ(from, fsync_all_fh_total);
 	to->fsync_all_fh += WT_STAT_READ(from, fsync_all_fh);
 	to->fsync_notyet += WT_STAT_READ(from, fsync_notyet);

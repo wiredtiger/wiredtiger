@@ -184,6 +184,7 @@ connection_stats = [
     ConnStat('fsync_io', 'total fsync I/Os'),
     ConnStat('fsync_io_nowait', 'total fsync I/Os nowait'),
     ConnStat('fsync_notyet', 'background fsync not needed'),
+    ConnStat('fsync_too_small', 'background fsync dirty below threshold'),
     ConnStat('memory_allocation', 'memory allocations'),
     ConnStat('memory_free', 'memory frees'),
     ConnStat('memory_grow', 'memory re-allocations'),
