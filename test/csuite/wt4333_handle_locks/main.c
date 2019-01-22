@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -337,6 +337,12 @@ main(int argc, char *argv[])
 	WT_RAND_STATE rnd;
 	u_int i, n;
 	int ch;
+
+	/*
+	 * Bypass this test for valgrind. It has a fairly low thread limit.
+	 */
+	if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
+		return (EXIT_SUCCESS);
 
 	(void)testutil_set_progname(argv);
 	__wt_random_init_seed(NULL, &rnd);

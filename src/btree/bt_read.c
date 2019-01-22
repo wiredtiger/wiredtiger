@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -190,6 +190,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		upd->txnid = las_txnid;
 		upd->timestamp = las_timestamp;
 		upd->prepare_state = prepare_state;
+		/*
+		 * Use the commit timestamp as the durable timestamp, since
+		 * non durable committed updates don't currently get written to
+		 * lookaside, so the two timestamps should always be identical.
+		 */
+		if (prepare_state != WT_PREPARE_INPROGRESS)
+			upd->durable_timestamp = upd->timestamp;
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -514,7 +514,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 	 * or in recovery.
 	 */
 	__wt_timestamp_to_hex_string(
-	    hex_timestamp, S2C(session)->txn_global.meta_ckpt_timestamp);
+	    S2C(session)->txn_global.meta_ckpt_timestamp, hex_timestamp);
 
 	/*
 	 * Don't leave a zero entry in the metadata: remove it.  This avoids
