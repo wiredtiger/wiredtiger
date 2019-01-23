@@ -302,24 +302,13 @@ __capacity_reserve(WT_SESSION_IMPL *session, uint64_t *reservation,
 	if (capacity != 0) {
 		res_len = WT_RESERVATION_NS(bytes, capacity);
 		res_value = __wt_atomic_add64(reservation, res_len);
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE:%s len %" PRIu64 " reservation %" PRIu64
-		    " now %" PRIu64, is_total ? " TOTAL:" : "",
-		    res_len, res_value, now_ns);
-		if (now_ns > res_value && now_ns - res_value > WT_BILLION) {
+		if (now_ns > res_value && now_ns - res_value > WT_BILLION)
 			/*
 			 * If the total reservation clock is out of date,
 			 * bring it to within a second of a current time.
 			 */
-			__wt_verbose(session, WT_VERB_TEMPORARY,
-			    "THROTTLE:%s ADJ available %" PRIu64
-			    " capacity %" PRIu64 " adjustment %" PRIu64,
-			    is_total ? " TOTAL:" : "",
-			    now_ns - res_value, capacity,
-			    now_ns - WT_BILLION + res_len);
 			__wt_atomic_store64(reservation,
 			    now_ns - WT_BILLION + res_len);
-		}
 	} else
 		res_value = now_ns;
 
@@ -382,10 +371,6 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	}
 	total_capacity = conn->capacity_total;
 
-	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: type %d bytes %" PRIu64 " capacity %" PRIu64
-	    "  reservation %" PRIu64,
-	    (int)type, bytes, capacity, *reservation);
 	if ((capacity == 0 && total_capacity == 0) ||
 	    F_ISSET(conn, WT_CONN_RECOVERING))
 		return;
@@ -491,9 +476,6 @@ again:
 
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
-		__wt_verbose(session, WT_VERB_TEMPORARY,
-		    "THROTTLE: SLEEP sleep us %" PRIu64,
-		    sleep_us);
 		if (res_value == res_total_value) {
 			WT_STAT_CONN_INCR(session, capacity_total_throttles);
 			WT_STAT_CONN_INCRV(session,
@@ -519,7 +501,4 @@ again:
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);
 	}
-
-	__wt_verbose(session, WT_VERB_TEMPORARY,
-	    "THROTTLE: DONE reservation %" PRIu64, *reservation);
 }
