@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+#define	WT_CAPACITY_MIN_THRESHOLD	(10 * WT_MEGABYTE)
+#define	WT_CAPACITY_PCT			10
 /*
  * If we're being asked to sleep a short amount of time, ignore it.
  * A non-zero value means there may be a temporary violation of the
@@ -15,8 +17,6 @@
  * fewer sleeps with the risk of more choppy behavior as this number
  * is larger.
  */
-#define	WT_CAPACITY_MIN_THRESHOLD	10 * WT_MEGABYTE
-#define	WT_CAPACITY_PCT			10
 #define	WT_CAPACITY_SLEEP_CUTOFF_US	100
 
 /*
@@ -25,8 +25,8 @@
  * We aim for:
  *    checkpoint: 10% of total
  *    eviction: 50% of total
- *    log:      25% of total
- *    reads:    50% of total
+ *    log:      30% of total
+ *    reads:    55% of total
  */
 #define	WT_CAPACITY(total, pct)	((total) * (pct) / 100)
 
