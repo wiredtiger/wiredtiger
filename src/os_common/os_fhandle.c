@@ -396,7 +396,7 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
 			/*
 			 * Skip over any tmp handles that are WiredTiger owned.
-			 * Add a reference could interfere with other internal
+			 * Adding a reference interferes with other internal
 			 * operations such as log archiving.
 			 */
 			while (fhtmp != NULL) {
@@ -423,7 +423,14 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			__wt_spin_unlock(session, &conn->fh_lock);
 			ret = __wt_fsync(session, fh, false);
 			/*
-			 * If we got an error, we still need to lock and
+			 * Although we send in the false flag to indicate a
+			 * non-blocking background fsync, there is no guarantee
+			 * that it doesn't block. If we wanted to detect if it
+			 * is blocking, adding a clock call and checking the
+			 * time would be done here.
+			 */
+			/*
+			 * Even if we get an error, we still need to lock and
 			 * decrement our reference counts.
 			 */
 			if (ret == 0) {

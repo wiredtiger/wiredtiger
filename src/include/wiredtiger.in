@@ -2297,15 +2297,13 @@ struct __wt_connection {
 	 * them., an integer between 1 and 100000; default \c 10.}
 	 * @config{ ),,}
 	 * @config{io_capacity = (, control how many bytes per second are
-	 * written by a subsystem.  Excess writing results in throttling.  If
-	 * not set then that subsystem is not throttled.  The minimum setting is
-	 * 1MB., a set of related configuration options defined below.}
+	 * written.  Excess writing results in throttling., a set of related
+	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per second
 	 * available to all subsystems in total.  When set\, decisions about
 	 * what subsystems are throttled\, and in what proportion\, are made
-	 * internally.  A total can be used in conjunction with values for other
-	 * subsystems\, in which case each subsystem's stated capacity is
-	 * honored., an integer between 0 and 1TB; default \c 0.}
+	 * internally.  The minimum non-zero setting is 1MB., an integer between
+	 * 0 and 1TB; default \c 0.}
 	 * @config{ ),,}
 	 * @config{log = (, enable logging.  Enabling logging uses three
 	 * sessions from the configured session_max., a set of related
@@ -2960,16 +2958,14 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{in_memory, keep data in-memory only.  See @ref in_memory for more
  * information., a boolean flag; default \c false.}
- * @config{io_capacity = (, control how many bytes per second are written by a
- * subsystem.  Excess writing results in throttling.  If not set then that
- * subsystem is not throttled.  The minimum setting is 1MB., a set of related
- * configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;total,
- * number of bytes per second available to all subsystems in total.  When set\,
- * decisions about what subsystems are throttled\, and in what proportion\, are
- * made internally.  A total can be used in conjunction with values for other
- * subsystems\, in which case each subsystem's stated capacity is honored., an
- * integer between 0 and 1TB; default \c 0.}
+ * @config{io_capacity = (, control how many bytes per second are written.
+ * Excess writing results in throttling., a set of related configuration options
+ * defined below.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;total, number of bytes per
+ * second available to all subsystems in total.  When set\, decisions about what
+ * subsystems are throttled\, and in what proportion\, are made internally.  The
+ * minimum non-zero setting is 1MB., an integer between 0 and 1TB; default \c
+ * 0.}
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from
  * the configured session_max., a set of related configuration options defined

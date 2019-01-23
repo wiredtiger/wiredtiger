@@ -520,16 +520,14 @@ connection_runtime_config = [
             inactive and close them''', min=1, max=100000),
         ]),
     Config('io_capacity', '', r'''
-        control how many bytes per second are written by a subsystem. Excess
-        writing results in throttling. If not set then that subsystem is
-        not throttled. The minimum setting is 1MB.''',
+        control how many bytes per second are written. Excess
+        writing results in throttling.''',
         type='category', subconfig=[
         Config('total', '0', r'''
             number of bytes per second available to all subsystems in total.
             When set, decisions about what subsystems are throttled, and in
-            what proportion, are made internally. A total can be used in
-            conjunction with values for other subsystems, in which case each
-            subsystem's stated capacity is honored''',
+            what proportion, are made internally. The minimum non-zero setting
+            is 1MB.''',
             min='0', max='1TB'),
         ]),
     Config('lsm_manager', '', r'''
