@@ -294,11 +294,11 @@ __wt_capacity_signal(WT_SESSION_IMPL *session)
  */
 static void
 __capacity_reserve(WT_SESSION_IMPL *session, uint64_t *reservation,
-    uint64_t bytes, uint64_t capacity, uint64_t now_ns, bool is_total,
-    uint64_t *result)
+    uint64_t bytes, uint64_t capacity, uint64_t now_ns, uint64_t *result)
 {
 	uint64_t res_len, res_value;
 
+	WT_UNUSED(session);
 	if (capacity != 0) {
 		res_len = WT_RESERVATION_NS(bytes, capacity);
 		res_value = __wt_atomic_add64(reservation, res_len);
@@ -396,10 +396,10 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 
 again:
 	/* Take a reservation for the subsystem, and for the total */
-	__capacity_reserve(session, reservation, bytes, capacity, now_ns,
-	    false, &res_value);
+	__capacity_reserve(session,
+	    reservation, bytes, capacity, now_ns, &res_value);
 	__capacity_reserve(session, &conn->reservation_total, bytes,
-	    total_capacity, now_ns, true, &res_total_value);
+	    total_capacity, now_ns, &res_total_value);
 
 	/*
 	 * If we ended up with a future reservation, and we aren't constricted
