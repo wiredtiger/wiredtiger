@@ -215,6 +215,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_FH *fh;
 	WT_FILE_SYSTEM *file_system;
+	const char *fp, *sep;
 	char *path;
 	bool lock_file, open_called;
 
@@ -239,6 +240,20 @@ __wt_open(WT_SESSION_IMPL *session,
 	/* Allocate and initialize the handle. */
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
+
+	/*
+	 * Mark WiredTiger owned files. To keep code simple, we assume that
+	 * the path separator is one char.
+	 */
+	sep = __wt_path_separator();
+	WT_ASSERT(session, strlen(sep) == 1);
+	fp = strrchr(name, sep[0]);
+	if (fp == NULL)
+		fp = name;
+	else
+		++fp;
+	if (WT_PREFIX_MATCH(fp, "WiredTiger"))
+		F_SET(fh, WT_FH_WIREDTIGER_OWNED);
 
 	/*
 	 * If this is a read-only connection, open all files read-only except
@@ -364,59 +379,42 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_FH *fh, *fhtmp;
+	WT_FH *fh, *fhnext;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
-	const char *fp, *ftp;
 
 	conn = S2C(session);
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
 	__wt_spin_lock(session, &conn->fh_lock);
-	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhtmp) {
+	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
-		if (!F_ISSET(fh, WT_FH_DIRTY) ||
-		    handle->fh_sync_nowait == NULL ||
+		if (handle->fh_sync_nowait == NULL ||
 		    fh->written < WT_CAPACITY_FILE_THRESHOLD)
 			continue;
 		/* Skip over WiredTiger owned files. */
-		fp = strrchr(fh->name, '/');
-		if (fp == NULL)
-			fp = fh->name;
-		else
-			++fp;
-		if (fp[0] == 'W' &&
-		    WT_PREFIX_MATCH(fp, "WiredTiger"))
+		if (F_ISSET(fh, WT_FH_WIREDTIGER_OWNED))
 			continue;
 		now = __wt_clock(session);
 		if (fh->last_sync == 0 ||
 		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
 			/*
-			 * Skip over any tmp handles that are WiredTiger owned.
-			 * Adding a reference interferes with other internal
-			 * operations such as log archiving.
+			 * Adjust our next handle to skip over any that are
+			 * owned by WiredTiger. Adding a reference to those
+			 * interferes with other internal operations such as
+			 * log archiving.
 			 */
-			while (fhtmp != NULL) {
-				ftp = strrchr(fhtmp->name, '/');
-				if (ftp == NULL)
-					ftp = fhtmp->name;
-				else
-					++ftp;
-				if (ftp[0] == 'W' &&
-				    WT_PREFIX_MATCH(ftp, "WiredTiger")) {
-					fhtmp = TAILQ_NEXT(fhtmp, q);
-					continue;
-				}
-				break;
-			}
+			while (fhnext != NULL &&
+			    F_ISSET(fhnext, WT_FH_WIREDTIGER_OWNED))
+				fhnext = TAILQ_NEXT(fhnext, q);
 			/*
 			 * Increment our ref count on the current and next
 			 * handle. That way both are guaranteed valid when we
 			 * lock again after the fsync.
 			 */
 			++fh->ref;
-			if (fhtmp != NULL)
-				++fhtmp->ref;
+			if (fhnext != NULL)
+				++fhnext->ref;
 			__wt_spin_unlock(session, &conn->fh_lock);
 			ret = __wt_fsync(session, fh, false);
 			/*
@@ -431,15 +429,14 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 			 * decrement our reference counts.
 			 */
 			if (ret == 0) {
-				F_CLR(fh, WT_FH_DIRTY);
 				WT_STAT_CONN_INCR(session, fsync_all_fh);
 				fh->last_sync = now;
 				WT_PUBLISH(fh->written, 0);
 			}
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
-			if (fhtmp != NULL)
-				--fhtmp->ref;
+			if (fhnext != NULL)
+				--fhnext->ref;
 			WT_ERR(ret);
 		}
 	}

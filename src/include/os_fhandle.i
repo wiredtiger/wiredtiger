@@ -196,7 +196,6 @@ __wt_write(WT_SESSION_IMPL *session,
 	time_stop = __wt_clock(session);
 	__wt_stat_msecs_hist_incr_fswrite(session,
 	    WT_CLOCKDIFF_MS(time_stop, time_start));
-	F_SET(fh, WT_FH_DIRTY);
 	__wt_atomic_addv64(&fh->written, len);
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_write_active);
 	return (ret);

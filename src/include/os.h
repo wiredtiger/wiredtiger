@@ -117,7 +117,7 @@ struct __wt_fh {
 
 	WT_FILE_HANDLE *handle;
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_FH_DIRTY	0x1u
+#define	WT_FH_WIREDTIGER_OWNED	0x1u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t	flags;			/* flags */
 };
