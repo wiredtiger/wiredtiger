@@ -297,20 +297,6 @@ __schema_open_index(WT_SESSION_IMPL *session,
 	for (i = 0; ret == 0; i++, ret = cursor->next(cursor)) {
 		WT_ERR(cursor->get_key(cursor, &uri));
 		name = uri;
-/*
-		if (strncmp(uri, table->iface.name, strlen(uri)) == 0) {
-			*
-			 * We reached the end of index list, delete the rest of
-			 * in memory indices.
-			 *
-			while (i < table->nindices) {
-				WT_ERR(__wt_schema_destroy_index(session,
-				    &table->indices[table->nindices - 1]));
-				table->indices[--table->nindices] = NULL;
-			}
-			break;
-		}
-*/
 
 		if (!WT_PREFIX_SKIP(name, tmp->data)) {
 			/*
