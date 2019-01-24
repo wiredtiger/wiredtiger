@@ -104,16 +104,6 @@ struct __wt_named_extractor {
 	TAILQ_ENTRY(__wt_named_extractor) q;	/* Linked list of extractors */
 };
 
-typedef enum {
-	WT_THROTTLE_CKPT,		/* Checkpoint throttle */
-	WT_THROTTLE_EVICT,		/* Eviction throttle */
-	WT_THROTTLE_LOG,		/* Logging throttle */
-	WT_THROTTLE_READ		/* Read throttle */
-} WT_THROTTLE_TYPE;
-
-#define	WT_THROTTLE_MIN			WT_MEGABYTE
-#define	WT_CAPACITY_FILE_THRESHOLD	(WT_MEGABYTE / 2)
-
 /*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
@@ -303,35 +293,11 @@ struct __wt_connection_impl {
 	uint32_t	 async_size;	/* Async op array size */
 	uint32_t	 async_workers;	/* Number of async workers */
 
-	uint64_t capacity_ckpt;		/* Bytes/sec checkpoint capacity. */
-	uint64_t capacity_evict;	/* Bytes/sec eviction capacity. */
-	uint64_t capacity_log;		/* Bytes/sec logging capacity. */
-	uint64_t capacity_read;		/* Bytes/sec read capacity. */
-	uint64_t capacity_total;	/* Bytes/sec total capacity. */
-
+	WT_CAPACITY	*capacity;	/* Capacity structure */
 	WT_SESSION_IMPL *capacity_session;	/* Capacity thread session */
 	wt_thread_t	 capacity_tid;	/* Capacity thread */
 	bool		 capacity_tid_set;	/* Capacity thread set */
 	WT_CONDVAR	*capacity_cond;	/* Capacity wait mutex */
-	uint64_t capacity_threshold;	/* Capacity size period */
-	volatile uint64_t capacity_written;	/* Written this period */
-	volatile bool	 capacity_signalled;	/* Capacity signalled */
-
-	uint64_t  capacity_usecs;	/* Capacity timer */
-
-	/*
-	 * A reservation is a point in the time when a write for a subsystem
-	 * can be scheduled, so as not to overrun the given capacity.  These
-	 * values hold the next available reservation, in nanoseconds since
-	 * the epoch. Getting a reservation with a future time implies sleeping
-	 * until that time; getting a reservation with a past time implies that
-	 * the operation can be done immediately.
-	 */
-	uint64_t reservation_ckpt;	/* Atomic: next checkpoint write */
-	uint64_t reservation_evict;	/* Atomic: next eviction write */
-	uint64_t reservation_log;	/* Atomic: next logging write */
-	uint64_t reservation_read;	/* Atomic: next read */
-	uint64_t reservation_total;	/* Atomic: next operation of any kind */
 
 	WT_LSM_MANAGER	lsm_manager;	/* LSM worker thread information */
 

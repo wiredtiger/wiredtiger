@@ -8,39 +8,6 @@
 
 #include "wt_internal.h"
 
-#define	WT_CAPACITY_MIN_THRESHOLD	(10 * WT_MEGABYTE)
-#define	WT_CAPACITY_PCT			10
-/*
- * If we're being asked to sleep a short amount of time, ignore it.
- * A non-zero value means there may be a temporary violation of the
- * capacity limitation, but one that would even out. That is, possibly
- * fewer sleeps with the risk of more choppy behavior as this number
- * is larger.
- */
-#define	WT_CAPACITY_SLEEP_CUTOFF_US	100
-
-#define	WT_CAPACITY(total, pct)	((total) * (pct) / 100)
-
-/*
- * When given a total capacity, divide it up for each subsystem. These defines
- * represent the percentage of the total capacity that we allow for each
- * subsystem's capacity. We allow and expect the sum of the subsystems to
- * exceed 100, as often they are not at at maximum at the same time. In any
- * event, we track the total capacity separately, so it is never exceeded.
- */
-#define	WT_CAP_CKPT		5
-#define	WT_CAP_EVICT		50
-#define	WT_CAP_LOG		30
-#define	WT_CAP_READ		55
-
-#define	WT_CAPACITY_CHK(v, str)	do {				\
-	if ((v) != 0 && (v) < WT_THROTTLE_MIN)			\
-		WT_RET_MSG(session, EINVAL,			\
-		    "%s I/O capacity value %" PRId64		\
-		    " below minimum %d",			\
-		    str, v, WT_THROTTLE_MIN);			\
-} while (0)
-
 /*
  * Compute the time in nanoseconds that must be reserved to represent
  * a number of bytes in a subsystem with a particular capacity per second.
@@ -55,6 +22,7 @@
 static int
 __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_CAPACITY *cap;
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t total;
@@ -62,30 +30,35 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
-	WT_CAPACITY_CHK(cval.val, "total");
-	conn->capacity_total = total = (uint64_t)cval.val;
+	if (cval.val != 0 && cval.val < WT_THROTTLE_MIN)
+		WT_RET_MSG(session, EINVAL,
+		    "total I/O capacity value %" PRId64 " below minimum %d",
+		    cval.val, WT_THROTTLE_MIN);
 
-	if (total != 0) {
+	if (cval.val != 0) {
+		WT_RET(__wt_calloc_one(session, &conn->capacity));
+		cap = conn->capacity;
+		cap->total = total = (uint64_t)cval.val;
 		/*
 		 * We've been given a total capacity, set the
 		 * capacity of all the subsystems.
 		 */
-		conn->capacity_ckpt = WT_CAPACITY(total, WT_CAP_CKPT);
-		conn->capacity_evict = WT_CAPACITY(total, WT_CAP_EVICT);
-		conn->capacity_log = WT_CAPACITY(total, WT_CAP_LOG);
-		conn->capacity_read = WT_CAPACITY(total, WT_CAP_READ);
-	}
+		cap->ckpt = WT_CAPACITY(total, WT_CAP_CKPT);
+		cap->evict = WT_CAPACITY(total, WT_CAP_EVICT);
+		cap->log = WT_CAPACITY(total, WT_CAP_LOG);
+		cap->read = WT_CAPACITY(total, WT_CAP_READ);
 
-	/*
-	 * Set the threshold to the percent of our capacity to periodically
-	 * asynchronously flush what we've written.
-	 */
-	conn->capacity_threshold = (conn->capacity_ckpt +
-	    conn->capacity_evict + conn->capacity_log) / 100 *
-	    WT_CAPACITY_PCT;
-	if (conn->capacity_threshold < WT_CAPACITY_MIN_THRESHOLD)
-		conn->capacity_threshold = WT_CAPACITY_MIN_THRESHOLD;
-	WT_STAT_CONN_SET(session, capacity_threshold, conn->capacity_threshold);
+		/*
+		 * Set the threshold to the percent of our capacity to periodically
+		 * asynchronously flush what we've written.
+		 */
+		cap->threshold = (cap->ckpt + cap->evict + cap->log) /
+		    100 * WT_CAPACITY_PCT;
+		if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
+			cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
+		WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
+	} else
+		WT_STAT_CONN_SET(session, capacity_threshold, 0);
 
 	return (0);
 }
@@ -107,6 +80,7 @@ __capacity_server_run_chk(WT_SESSION_IMPL *session)
 static WT_THREAD_RET
 __capacity_server(void *arg)
 {
+	WT_CAPACITY *cap;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -114,6 +88,7 @@ __capacity_server(void *arg)
 
 	session = arg;
 	conn = S2C(session);
+	cap = conn->capacity;
 	for (;;) {
 		/*
 		 * Wait until signalled but check once per second in case
@@ -126,16 +101,16 @@ __capacity_server(void *arg)
 		if (!__capacity_server_run_chk(session))
 			break;
 
-		WT_PUBLISH(conn->capacity_signalled, false);
-		if (conn->capacity_written < conn->capacity_threshold)
+		WT_PUBLISH(cap->signalled, false);
+		if (cap->written < cap->threshold)
 			continue;
 
 		start = __wt_clock(session);
 		WT_ERR(__wt_fsync_all_background(session));
 		stop = __wt_clock(session);
 		time_ms = WT_CLOCKDIFF_MS(stop, start);
-		WT_STAT_CONN_SET(session, capacity_time_fsync, time_ms);
-		WT_PUBLISH(conn->capacity_written, 0);
+		WT_STAT_CONN_SET(session, fsync_all_time, time_ms);
+		WT_PUBLISH(cap->written, 0);
 	}
 
 	if (0) {
@@ -210,7 +185,7 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_capacity_server_destroy(session));
 
 	WT_RET(__capacity_config(session, cfg));
-	if (conn->capacity_threshold != 0)
+	if (conn->capacity != NULL)
 		WT_RET(__capacity_server_start(conn));
 
 	return (0);
@@ -250,25 +225,26 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
 	conn->capacity_session = NULL;
 	conn->capacity_tid_set = false;
 	conn->capacity_cond = NULL;
-	conn->capacity_usecs = 0;
+	__wt_free(session, conn->capacity);
 
 	return (ret);
 }
 
 /*
- * __wt_capacity_signal --
+ * __capacity_signal --
  *	Signal the capacity thread if sufficient data has been written.
  */
-void
-__wt_capacity_signal(WT_SESSION_IMPL *session)
+static void
+__capacity_signal(WT_SESSION_IMPL *session)
 {
+	WT_CAPACITY *cap;
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
-	if (conn->capacity_written >= conn->capacity_threshold &&
-	    !conn->capacity_signalled) {
+	cap = conn->capacity;
+	if (cap->written >= cap->threshold && !cap->signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
-		WT_PUBLISH(conn->capacity_signalled, true);
+		WT_PUBLISH(cap->signalled, true);
 	}
 }
 
@@ -319,39 +295,44 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
     WT_THROTTLE_TYPE type)
 {
 	struct timespec now;
+	WT_CAPACITY *cap;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t best_res, capacity, new_res, now_ns, sleep_us, res_total_value;
 	uint64_t res_value, steal_capacity, stolen_bytes, this_res;
 	uint64_t *reservation, *steal;
 	uint64_t total_capacity;
 
+	conn = S2C(session);
+	cap = conn->capacity;
+	/* If not using capacity there's nothing to do. */
+	if (cap == NULL)
+		return;
+
 	capacity = steal_capacity = 0;
 	reservation = steal = NULL;
-	conn = S2C(session);
-
 	switch (type) {
 	case WT_THROTTLE_CKPT:
-		capacity = conn->capacity_ckpt;
-		reservation = &conn->reservation_ckpt;
+		capacity = cap->ckpt;
+		reservation = &cap->reservation_ckpt;
 		WT_STAT_CONN_INCRV(session, capacity_bytes_ckpt, bytes);
 		break;
 	case WT_THROTTLE_EVICT:
-		capacity = conn->capacity_evict;
-		reservation = &conn->reservation_evict;
+		capacity = cap->evict;
+		reservation = &cap->reservation_evict;
 		WT_STAT_CONN_INCRV(session, capacity_bytes_evict, bytes);
 		break;
 	case WT_THROTTLE_LOG:
-		capacity = conn->capacity_log;
-		reservation = &conn->reservation_log;
+		capacity = cap->log;
+		reservation = &cap->reservation_log;
 		WT_STAT_CONN_INCRV(session, capacity_bytes_log, bytes);
 		break;
 	case WT_THROTTLE_READ:
-		capacity = conn->capacity_read;
-		reservation = &conn->reservation_read;
+		capacity = cap->read;
+		reservation = &cap->reservation_read;
 		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
 		break;
 	}
-	total_capacity = conn->capacity_total;
+	total_capacity = cap->total;
 
 	if ((capacity == 0 && total_capacity == 0) ||
 	    F_ISSET(conn, WT_CONN_RECOVERING))
@@ -363,9 +344,9 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	 * recovering, we don't reach this code.
 	 */
 	if (type != WT_THROTTLE_READ) {
-		(void)__wt_atomic_addv64(&conn->capacity_written, bytes);
+		(void)__wt_atomic_addv64(&cap->written, bytes);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
-		__wt_capacity_signal(session);
+		__capacity_signal(session);
 	}
 
 	/* If we get sizes larger than this, later calculations may overflow. */
@@ -380,7 +361,7 @@ again:
 	/* Take a reservation for the subsystem, and for the total */
 	__capacity_reserve(session,
 	    reservation, bytes, capacity, now_ns, &res_value);
-	__capacity_reserve(session, &conn->reservation_total, bytes,
+	__capacity_reserve(session, &cap->reservation_total, bytes,
 	    total_capacity, now_ns, &res_total_value);
 
 	/*
@@ -392,27 +373,27 @@ again:
 	    total_capacity != 0) {
 		best_res = now_ns - WT_BILLION / 2;
 		if (type != WT_THROTTLE_CKPT &&
-		    (this_res = conn->reservation_ckpt) < best_res) {
-			steal = &conn->reservation_ckpt;
-			steal_capacity = conn->capacity_ckpt;
+		    (this_res = cap->reservation_ckpt) < best_res) {
+			steal = &cap->reservation_ckpt;
+			steal_capacity = cap->ckpt;
 			best_res = this_res;
 		}
 		if (type != WT_THROTTLE_EVICT &&
-		    (this_res = conn->reservation_evict) < best_res) {
-			steal = &conn->reservation_evict;
-			steal_capacity = conn->capacity_evict;
+		    (this_res = cap->reservation_evict) < best_res) {
+			steal = &cap->reservation_evict;
+			steal_capacity = cap->evict;
 			best_res = this_res;
 		}
 		if (type != WT_THROTTLE_LOG &&
-		    (this_res = conn->reservation_log) < best_res) {
-			steal = &conn->reservation_log;
-			steal_capacity = conn->capacity_log;
+		    (this_res = cap->reservation_log) < best_res) {
+			steal = &cap->reservation_log;
+			steal_capacity = cap->log;
 			best_res = this_res;
 		}
 		if (type != WT_THROTTLE_READ &&
-		    (this_res = conn->reservation_read) < best_res) {
-			steal = &conn->reservation_read;
-			steal_capacity = conn->capacity_read;
+		    (this_res = cap->reservation_read) < best_res) {
+			steal = &cap->reservation_read;
+			steal_capacity = cap->read;
 			best_res = this_res;
 		}
 
@@ -437,8 +418,7 @@ again:
 				 */
 				(void)__wt_atomic_sub64(reservation,
 				    WT_RESERVATION_NS(bytes, capacity));
-				(void)__wt_atomic_sub64(&
-				    conn->reservation_total,
+				(void)__wt_atomic_sub64(&cap->reservation_total,
 				    WT_RESERVATION_NS(bytes, total_capacity));
 				goto again;
 			}

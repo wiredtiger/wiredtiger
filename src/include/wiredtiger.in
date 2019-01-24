@@ -5243,37 +5243,34 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1131
 /*! connection: background fsync file handles synced */
 #define	WT_STAT_CONN_FSYNC_ALL_FH			1132
+/*! connection: background fsync time (msecs) */
+#define	WT_STAT_CONN_FSYNC_ALL_TIME			1133
 /*! connection: detected system time went backwards */
-#define	WT_STAT_CONN_TIME_TRAVEL			1133
+#define	WT_STAT_CONN_TIME_TRAVEL			1134
 /*! connection: files currently open */
-#define	WT_STAT_CONN_FILE_OPEN				1134
+#define	WT_STAT_CONN_FILE_OPEN				1135
 /*! connection: memory allocations */
-#define	WT_STAT_CONN_MEMORY_ALLOCATION			1135
+#define	WT_STAT_CONN_MEMORY_ALLOCATION			1136
 /*! connection: memory frees */
-#define	WT_STAT_CONN_MEMORY_FREE			1136
+#define	WT_STAT_CONN_MEMORY_FREE			1137
 /*! connection: memory re-allocations */
-#define	WT_STAT_CONN_MEMORY_GROW			1137
+#define	WT_STAT_CONN_MEMORY_GROW			1138
 /*! connection: pthread mutex condition wait calls */
-#define	WT_STAT_CONN_COND_WAIT				1138
+#define	WT_STAT_CONN_COND_WAIT				1139
 /*! connection: pthread mutex shared lock read-lock calls */
-#define	WT_STAT_CONN_RWLOCK_READ			1139
+#define	WT_STAT_CONN_RWLOCK_READ			1140
 /*! connection: pthread mutex shared lock write-lock calls */
-#define	WT_STAT_CONN_RWLOCK_WRITE			1140
+#define	WT_STAT_CONN_RWLOCK_WRITE			1141
 /*! connection: throttled capacity bytes checkpoint */
-#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1141
+#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1142
 /*! connection: throttled capacity bytes eviction */
-#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1142
+#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1143
 /*! connection: throttled capacity bytes log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1143
+#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1144
 /*! connection: throttled capacity bytes read */
-#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1144
+#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1145
 /*! connection: throttled capacity bytes written */
-#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1145
-/*!
- * connection: throttled capacity thread time spent in background fsync
- * (msecs)
- */
-#define	WT_STAT_CONN_CAPACITY_TIME_FSYNC		1146
+#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1146
 /*! connection: throttled capacity threshold to fsync */
 #define	WT_STAT_CONN_CAPACITY_THRESHOLD			1147
 /*! connection: throttled capacity time in checkpoints (usecs) */

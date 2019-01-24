@@ -457,6 +457,7 @@ struct __wt_connection_stats {
 	int64_t cond_auto_wait;
 	int64_t fsync_all_fh_total;
 	int64_t fsync_all_fh;
+	int64_t fsync_all_time;
 	int64_t time_travel;
 	int64_t file_open;
 	int64_t memory_allocation;
@@ -470,7 +471,6 @@ struct __wt_connection_stats {
 	int64_t capacity_bytes_log;
 	int64_t capacity_bytes_read;
 	int64_t capacity_bytes_written;
-	int64_t capacity_time_fsync;
 	int64_t capacity_threshold;
 	int64_t capacity_time_ckpt;
 	int64_t capacity_time_evict;
