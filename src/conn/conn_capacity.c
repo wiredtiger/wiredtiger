@@ -49,8 +49,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		cap->read = WT_CAPACITY(total, WT_CAP_READ);
 
 		/*
-		 * Set the threshold to the percent of our capacity to periodically
-		 * asynchronously flush what we've written.
+		 * Set the threshold to the percent of our capacity to
+		 * periodically asynchronously flush what we've written.
 		 */
 		cap->threshold = (cap->ckpt + cap->evict + cap->log) /
 		    100 * WT_CAPACITY_PCT;
