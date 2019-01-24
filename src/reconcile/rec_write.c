@@ -1166,7 +1166,7 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	if (upd->type == WT_UPDATE_BIRTHMARK) {
 		append->txnid = upd->txnid;
 		append->start_ts = upd->start_ts;
-		append->durable_timestamp = upd->durable_timestamp;
+		append->durable_ts = upd->durable_ts;
 		append->next = upd->next;
 	}
 
