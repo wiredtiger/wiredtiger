@@ -19,17 +19,15 @@
  */
 #define	WT_CAPACITY_SLEEP_CUTOFF_US	100
 
-/*
- * When given a total capacity, divide it up for each subsystem. We allow
- * and expect the sum of the subsystems to exceed 100.
- * We aim for:
- *    checkpoint: 10% of total
- *    eviction: 50% of total
- *    log:      30% of total
- *    reads:    55% of total
- */
 #define	WT_CAPACITY(total, pct)	((total) * (pct) / 100)
 
+/*
+ * When given a total capacity, divide it up for each subsystem. These defines
+ * represent the percentage of the total capacity that we allow for each
+ * subsystem's capacity. We allow and expect the sum of the subsystems to
+ * exceed 100, as often they are not at at maximum at the same time. In any
+ * event, we track the total capacity separately, so it is never exceeded.
+ */
 #define	WT_CAP_CKPT		5
 #define	WT_CAP_EVICT		50
 #define	WT_CAP_LOG		30
@@ -304,8 +302,8 @@ __capacity_reserve(WT_SESSION_IMPL *session, uint64_t *reservation,
 		res_value = __wt_atomic_add64(reservation, res_len);
 		if (now_ns > res_value && now_ns - res_value > WT_BILLION)
 			/*
-			 * If the total reservation clock is out of date,
-			 * bring it to within a second of a current time.
+			 * If the reservation clock is out of date, bring it
+			 * to within a second of a current time.
 			 */
 			__wt_atomic_store64(reservation,
 			    now_ns - WT_BILLION + res_len);
@@ -381,16 +379,17 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	 * recovering, we don't reach this code.
 	 */
 	if (type != WT_THROTTLE_READ) {
-		/* Sizes larger than this may overflow */
 		(void)__wt_atomic_addv64(&conn->capacity_written, bytes);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
 		__wt_capacity_signal(session);
 	} else
 		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
+
+	/* If we get sizes larger than this, later calculations may overflow. */
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
 	WT_ASSERT(session, capacity != 0);
 
-	/* Get he current time in nanoseconds since the epoch. */
+	/* Get the current time in nanoseconds since the epoch. */
 	__wt_epoch(session, &now);
 	now_ns = (uint64_t)now.tv_sec * WT_BILLION + (uint64_t)now.tv_nsec;
 
@@ -434,12 +433,12 @@ again:
 			best_res = this_res;
 		}
 
-		/*
-		 * We have a subsystem that has enough spare capacity to
-		 * steal.  We'll take a small slice and add it to our
-		 * own subsystem.
-		 */
 		if (steal != NULL) {
+			/*
+			 * We have a subsystem that has enough spare capacity
+			 * to steal.  We'll take a small slice and add it to
+			 * our own subsystem.
+			 */
 			if (best_res < now_ns - WT_BILLION &&
 			    now_ns > WT_BILLION)
 				new_res = now_ns - WT_BILLION;
@@ -465,7 +464,6 @@ again:
 			 * We've actually stolen capacity in terms of bytes,
 			 * not nanoseconds, so we need to convert it.
 			 */
-
 			stolen_bytes = steal_capacity / 16;
 			res_value = __wt_atomic_sub64(reservation,
 			    WT_RESERVATION_NS(stolen_bytes, capacity));

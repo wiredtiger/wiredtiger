@@ -111,7 +111,7 @@ typedef enum {
 	WT_THROTTLE_READ		/* Read throttle */
 } WT_THROTTLE_TYPE;
 
-#define	WT_THROTTLE_MIN		WT_MEGABYTE
+#define	WT_THROTTLE_MIN			WT_MEGABYTE
 #define	WT_CAPACITY_FILE_THRESHOLD	(WT_MEGABYTE / 2)
 
 /*
@@ -320,10 +320,12 @@ struct __wt_connection_impl {
 	uint64_t  capacity_usecs;	/* Capacity timer */
 
 	/*
-	 * A reservation is a point in the time (usually in the future) when
-	 * a write for a subsystem can be scheduled, so as not to overrun the
-	 * given capacity.  These values hold the next available reservation,
-	 * in nanoseconds since the epoch.
+	 * A reservation is a point in the time when a write for a subsystem
+	 * can be scheduled, so as not to overrun the given capacity.  These
+	 * values hold the next available reservation, in nanoseconds since
+	 * the epoch. Getting a reservation with a future time implies sleeping
+	 * until that time; getting a reservation with a past time implies that
+	 * the operation can be done immediately.
 	 */
 	uint64_t reservation_ckpt;	/* Atomic: next checkpoint write */
 	uint64_t reservation_evict;	/* Atomic: next eviction write */
