@@ -371,17 +371,14 @@ __wt_fsync_all_background(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
-	WT_STAT_CONN_INCR(session, fsync_all);
 	__wt_spin_lock(session, &conn->fh_lock);
 	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhtmp) {
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 		if (!F_ISSET(fh, WT_FH_DIRTY) ||
 		    handle->fh_sync_nowait == NULL ||
-		    fh->written < WT_CAPACITY_FILE_THRESHOLD) {
-			WT_STAT_CONN_INCR(session, fsync_too_small);
+		    fh->written < WT_CAPACITY_FILE_THRESHOLD)
 			continue;
-		}
 		/* Skip over WiredTiger owned files. */
 		fp = strrchr(fh->name, '/');
 		if (fp == NULL)

@@ -111,7 +111,6 @@ __capacity_server(void *arg)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	uint64_t start, stop, time_ms;
-	bool signalled;
 
 	session = arg;
 	conn = S2C(session);
@@ -120,33 +119,23 @@ __capacity_server(void *arg)
 		 * Wait until signalled but check once per second in case
 		 * the signal was missed.
 		 */
-		signalled = false;
-		start = __wt_clock(session);
-		__wt_cond_wait_signal(session, conn->capacity_cond,
-		    WT_MILLION, __capacity_server_run_chk, &signalled);
-		stop = __wt_clock(session);
-		time_ms = WT_CLOCKDIFF_MS(stop, start);
-		WT_STAT_CONN_SET(session, capacity_time_wait, time_ms);
-
-		if (signalled == false)
-			WT_STAT_CONN_INCR(session, capacity_timeout);
-		else
-			WT_STAT_CONN_INCR(session, capacity_signalled);
+		__wt_cond_wait(session,
+		    conn->capacity_cond, WT_MILLION, __capacity_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__capacity_server_run_chk(session))
 			break;
 
 		WT_PUBLISH(conn->capacity_signalled, false);
-		if (conn->capacity_written > conn->capacity_threshold) {
-			start = __wt_clock(session);
-			WT_ERR(__wt_fsync_all_background(session));
-			stop = __wt_clock(session);
-			time_ms = WT_CLOCKDIFF_MS(stop, start);
-			WT_STAT_CONN_SET(session, capacity_time_fsync, time_ms);
-			WT_PUBLISH(conn->capacity_written, 0);
-		} else
-			WT_STAT_CONN_INCR(session, fsync_notyet);
+		if (conn->capacity_written < conn->capacity_threshold)
+			continue;
+
+		start = __wt_clock(session);
+		WT_ERR(__wt_fsync_all_background(session));
+		stop = __wt_clock(session);
+		time_ms = WT_CLOCKDIFF_MS(stop, start);
+		WT_STAT_CONN_SET(session, capacity_time_fsync, time_ms);
+		WT_PUBLISH(conn->capacity_written, 0);
 	}
 
 	if (0) {
@@ -276,12 +265,10 @@ __wt_capacity_signal(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
-	WT_STAT_CONN_INCR(session, capacity_signal_calls);
 	if (conn->capacity_written >= conn->capacity_threshold &&
 	    !conn->capacity_signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
 		WT_PUBLISH(conn->capacity_signalled, true);
-		WT_STAT_CONN_INCR(session, capacity_signals);
 	}
 }
 
@@ -346,25 +333,22 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	case WT_THROTTLE_CKPT:
 		capacity = conn->capacity_ckpt;
 		reservation = &conn->reservation_ckpt;
-		WT_STAT_CONN_INCR(session, capacity_ckpt_calls);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_ckpt, bytes);
 		break;
 	case WT_THROTTLE_EVICT:
 		capacity = conn->capacity_evict;
 		reservation = &conn->reservation_evict;
-		WT_STAT_CONN_INCR(session, capacity_evict_calls);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_evict, bytes);
 		break;
 	case WT_THROTTLE_LOG:
 		capacity = conn->capacity_log;
 		reservation = &conn->reservation_log;
-		WT_STAT_CONN_INCR(session, capacity_log_calls);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_log, bytes);
 		break;
 	case WT_THROTTLE_READ:
 		capacity = conn->capacity_read;
 		reservation = &conn->reservation_read;
-		WT_STAT_CONN_INCR(session, capacity_read_calls);
+		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
 		break;
 	}
 	total_capacity = conn->capacity_total;
@@ -382,8 +366,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 		(void)__wt_atomic_addv64(&conn->capacity_written, bytes);
 		WT_STAT_CONN_INCRV(session, capacity_bytes_written, bytes);
 		__wt_capacity_signal(session);
-	} else
-		WT_STAT_CONN_INCRV(session, capacity_bytes_read, bytes);
+	}
 
 	/* If we get sizes larger than this, later calculations may overflow. */
 	WT_ASSERT(session, bytes < 16 * (uint64_t)WT_GIGABYTE);
@@ -474,27 +457,21 @@ again:
 
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
-		if (res_value == res_total_value) {
-			WT_STAT_CONN_INCR(session, capacity_total_throttles);
+		if (res_value == res_total_value)
 			WT_STAT_CONN_INCRV(session,
-			    capacity_total_time, sleep_us);
-		} else if (type == WT_THROTTLE_CKPT) {
-			WT_STAT_CONN_INCR(session, capacity_ckpt_throttles);
+			    capacity_time_total, sleep_us);
+		else if (type == WT_THROTTLE_CKPT)
 			WT_STAT_CONN_INCRV(session,
-			    capacity_ckpt_time, sleep_us);
-		} else if (type == WT_THROTTLE_EVICT) {
-			WT_STAT_CONN_INCR(session, capacity_evict_throttles);
+			    capacity_time_ckpt, sleep_us);
+		else if (type == WT_THROTTLE_EVICT)
 			WT_STAT_CONN_INCRV(session,
-			    capacity_evict_time, sleep_us);
-		} else if (type == WT_THROTTLE_LOG) {
-			WT_STAT_CONN_INCR(session, capacity_log_throttles);
+			    capacity_time_evict, sleep_us);
+		else if (type == WT_THROTTLE_LOG)
 			WT_STAT_CONN_INCRV(session,
-			    capacity_log_time, sleep_us);
-		} else if (type == WT_THROTTLE_READ) {
-			WT_STAT_CONN_INCR(session, capacity_read_throttles);
+			    capacity_time_log, sleep_us);
+		else if (type == WT_THROTTLE_READ)
 			WT_STAT_CONN_INCRV(session,
-			    capacity_read_time, sleep_us);
-		}
+			    capacity_time_read, sleep_us);
 		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);

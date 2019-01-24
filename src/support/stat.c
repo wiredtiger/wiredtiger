@@ -884,11 +884,8 @@ static const char * const __stats_connection_desc[] = {
 	"cache: unmodified pages evicted",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
-	"connection: background fsync calls",
-	"connection: background fsync dirty below threshold",
 	"connection: background fsync file handles considered",
 	"connection: background fsync file handles synced",
-	"connection: background fsync not needed",
 	"connection: detected system time went backwards",
 	"connection: files currently open",
 	"connection: memory allocations",
@@ -902,29 +899,14 @@ static const char * const __stats_connection_desc[] = {
 	"connection: throttled capacity bytes log",
 	"connection: throttled capacity bytes read",
 	"connection: throttled capacity bytes written",
-	"connection: throttled capacity signal function called",
-	"connection: throttled capacity thread cond wait signalled",
-	"connection: throttled capacity thread cond wait timed out",
-	"connection: throttled capacity thread signalled",
 	"connection: throttled capacity thread time spent in background fsync (msecs)",
-	"connection: throttled capacity thread time spent in cond_wait (msecs)",
 	"connection: throttled capacity threshold to fsync",
 	"connection: throttled capacity time in checkpoints (usecs)",
 	"connection: throttled capacity time in eviction (usecs)",
 	"connection: throttled capacity time in logging (usecs)",
 	"connection: throttled capacity time in reads (usecs)",
-	"connection: throttled checkpoint write calls",
-	"connection: throttled checkpoint writes for capacity",
-	"connection: throttled eviction write calls",
-	"connection: throttled eviction writes for capacity",
-	"connection: throttled for total capacity",
-	"connection: throttled log write calls",
-	"connection: throttled log writes for capacity",
-	"connection: throttled read calls",
-	"connection: throttled reads for capacity",
 	"connection: throttled time in total capacity (usecs)",
 	"connection: total fsync I/Os",
-	"connection: total fsync I/Os nowait",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
 	"cursor: cached cursor count",
@@ -1332,11 +1314,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_clean = 0;
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
-	stats->fsync_all = 0;
-	stats->fsync_too_small = 0;
 	stats->fsync_all_fh_total = 0;
 	stats->fsync_all_fh = 0;
-	stats->fsync_notyet = 0;
 	stats->time_travel = 0;
 		/* not clearing file_open */
 	stats->memory_allocation = 0;
@@ -1350,29 +1329,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->capacity_bytes_log = 0;
 	stats->capacity_bytes_read = 0;
 	stats->capacity_bytes_written = 0;
-	stats->capacity_signal_calls = 0;
-	stats->capacity_signalled = 0;
-	stats->capacity_timeout = 0;
-	stats->capacity_signals = 0;
 		/* not clearing capacity_time_fsync */
-		/* not clearing capacity_time_wait */
 	stats->capacity_threshold = 0;
-	stats->capacity_ckpt_time = 0;
-	stats->capacity_evict_time = 0;
-	stats->capacity_log_time = 0;
-	stats->capacity_read_time = 0;
-	stats->capacity_ckpt_calls = 0;
-	stats->capacity_ckpt_throttles = 0;
-	stats->capacity_evict_calls = 0;
-	stats->capacity_evict_throttles = 0;
-	stats->capacity_total_throttles = 0;
-	stats->capacity_log_calls = 0;
-	stats->capacity_log_throttles = 0;
-	stats->capacity_read_calls = 0;
-	stats->capacity_read_throttles = 0;
-	stats->capacity_total_time = 0;
+	stats->capacity_time_ckpt = 0;
+	stats->capacity_time_evict = 0;
+	stats->capacity_time_log = 0;
+	stats->capacity_time_read = 0;
+	stats->capacity_time_total = 0;
 	stats->fsync_io = 0;
-	stats->fsync_io_nowait = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
 		/* not clearing cursor_cached_count */
@@ -1826,11 +1790,8 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
-	to->fsync_all += WT_STAT_READ(from, fsync_all);
-	to->fsync_too_small += WT_STAT_READ(from, fsync_too_small);
 	to->fsync_all_fh_total += WT_STAT_READ(from, fsync_all_fh_total);
 	to->fsync_all_fh += WT_STAT_READ(from, fsync_all_fh);
-	to->fsync_notyet += WT_STAT_READ(from, fsync_notyet);
 	to->time_travel += WT_STAT_READ(from, time_travel);
 	to->file_open += WT_STAT_READ(from, file_open);
 	to->memory_allocation += WT_STAT_READ(from, memory_allocation);
@@ -1845,35 +1806,14 @@ __wt_stat_connection_aggregate(
 	to->capacity_bytes_read += WT_STAT_READ(from, capacity_bytes_read);
 	to->capacity_bytes_written +=
 	    WT_STAT_READ(from, capacity_bytes_written);
-	to->capacity_signal_calls +=
-	    WT_STAT_READ(from, capacity_signal_calls);
-	to->capacity_signalled += WT_STAT_READ(from, capacity_signalled);
-	to->capacity_timeout += WT_STAT_READ(from, capacity_timeout);
-	to->capacity_signals += WT_STAT_READ(from, capacity_signals);
 	to->capacity_time_fsync += WT_STAT_READ(from, capacity_time_fsync);
-	to->capacity_time_wait += WT_STAT_READ(from, capacity_time_wait);
 	to->capacity_threshold += WT_STAT_READ(from, capacity_threshold);
-	to->capacity_ckpt_time += WT_STAT_READ(from, capacity_ckpt_time);
-	to->capacity_evict_time += WT_STAT_READ(from, capacity_evict_time);
-	to->capacity_log_time += WT_STAT_READ(from, capacity_log_time);
-	to->capacity_read_time += WT_STAT_READ(from, capacity_read_time);
-	to->capacity_ckpt_calls += WT_STAT_READ(from, capacity_ckpt_calls);
-	to->capacity_ckpt_throttles +=
-	    WT_STAT_READ(from, capacity_ckpt_throttles);
-	to->capacity_evict_calls += WT_STAT_READ(from, capacity_evict_calls);
-	to->capacity_evict_throttles +=
-	    WT_STAT_READ(from, capacity_evict_throttles);
-	to->capacity_total_throttles +=
-	    WT_STAT_READ(from, capacity_total_throttles);
-	to->capacity_log_calls += WT_STAT_READ(from, capacity_log_calls);
-	to->capacity_log_throttles +=
-	    WT_STAT_READ(from, capacity_log_throttles);
-	to->capacity_read_calls += WT_STAT_READ(from, capacity_read_calls);
-	to->capacity_read_throttles +=
-	    WT_STAT_READ(from, capacity_read_throttles);
-	to->capacity_total_time += WT_STAT_READ(from, capacity_total_time);
+	to->capacity_time_ckpt += WT_STAT_READ(from, capacity_time_ckpt);
+	to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
+	to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
+	to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
+	to->capacity_time_total += WT_STAT_READ(from, capacity_time_total);
 	to->fsync_io += WT_STAT_READ(from, fsync_io);
-	to->fsync_io_nowait += WT_STAT_READ(from, fsync_io_nowait);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
 	to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);

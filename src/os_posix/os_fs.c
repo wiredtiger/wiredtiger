@@ -507,7 +507,6 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-	WT_STAT_CONN_INCR(session, fsync_io_nowait);
 
 	/* See comment in __posix_sync(): sync cannot be retried or fail. */
 	WT_SYSCALL(sync_file_range(pfh->fd,

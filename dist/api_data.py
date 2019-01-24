@@ -520,8 +520,8 @@ connection_runtime_config = [
             inactive and close them''', min=1, max=100000),
         ]),
     Config('io_capacity', '', r'''
-        control how many bytes per second are written. Excess
-        writing results in throttling.''',
+        control how many bytes per second are written and read. Exceeding
+        the capacity results in throttling.''',
         type='category', subconfig=[
         Config('total', '0', r'''
             number of bytes per second available to all subsystems in total.
