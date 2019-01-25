@@ -4441,10 +4441,14 @@ compare:		/*
 			 * output the last record and swap the last and current
 			 * buffers: do NOT update the starting record number,
 			 * we've been doing that all along.
+			 *
+			 * TIMESTAMP-FIXME: The comparison test can't check the
+			 * timestamps until they're correct.
 			 */
 			if (rle != 0) {
-				if (last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts &&
+				if ((!__wt_process.page_version_ts ||
+				    (last.start_ts == start_ts &&
+				    last.stop_ts == stop_ts)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
 				    last.value->size == size &&
@@ -4561,8 +4565,9 @@ compare:		/*
 			if (src_recno < n) {
 				deleted = true;
 				if (last.deleted &&
-				    last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts) {
+				    (!__wt_process.page_version_ts ||
+				    (last.start_ts == start_ts &&
+				    last.stop_ts == stop_ts))) {
 					/*
 					 * The record adjustment is decremented
 					 * by one so we can naturally fall into
@@ -4621,8 +4626,9 @@ compare:		/*
 			 * above, this code fragment does the same thing.
 			 */
 			if (rle != 0) {
-				if (last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts &&
+				if ((!__wt_process.page_version_ts ||
+				    (last.start_ts == start_ts &&
+				    last.stop_ts == stop_ts)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
 				    last.value->size == size &&
