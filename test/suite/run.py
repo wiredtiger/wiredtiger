@@ -40,9 +40,15 @@ wt_3rdpartydir = os.path.join(wt_disttop, 'test', '3rdparty')
 # Check for a local build that contains the wt utility. First check in
 # current working directory, then in build_posix and finally in the disttop
 # directory. This isn't ideal - if a user has multiple builds in a tree we
-# could pick the wrong one.
-if os.path.isfile(os.path.join(os.getcwd(), 'wt')):
-    wt_builddir = os.getcwd()
+# could pick the wrong one. We also need to account for the fact that there
+# may be an executable 'wt' file the build directory and a subordinate .libs
+# directory.
+curdir = os.getcwd()
+if os.path.basename(curdir) == '.libs' and \
+   os.path.isfile(os.path.join(curdir, os.pardir, 'wt')):
+    wt_builddir = os.path.join(curdir, os.pardir)
+elif os.path.isfile(os.path.join(curdir, 'wt')):
+    wt_builddir = curdir
 elif os.path.isfile(os.path.join(wt_disttop, 'wt')):
     wt_builddir = wt_disttop
 elif os.path.isfile(os.path.join(wt_disttop, 'build_posix', 'wt')):
