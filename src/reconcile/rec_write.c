@@ -4441,9 +4441,6 @@ compare:		/*
 			 * output the last record and swap the last and current
 			 * buffers: do NOT update the starting record number,
 			 * we've been doing that all along.
-			 *
-			 * TIMESTAMP-FIXME: The comparison test can't check the
-			 * timestamps until they're correct.
 			 */
 			if (rle != 0) {
 				if ((!__wt_process.page_version_ts ||
@@ -5344,18 +5341,11 @@ build:
 		/*
 		 * Copy the key/value pair onto the page. Zero-length items must
 		 * be globally visible as we're writing nothing to the page.
-		 *
-		 * TIMESTAMP-FIXME: The visibility test can't be turned on until
-		 * the timestamps for the selected update are correct.
 		 */
 		__rec_image_copy(session, r, key);
-#if 0
 		if (val->len == 0 &&
-		    __wt_txn_visible_all(session, txnid, stop_ts))
-#else
-		(void)txnid;			/* unused variable warning */
-		if (val->len == 0)
-#endif
+		    (!__wt_process.page_version_ts ||
+		    __wt_txn_visible_all(session, txnid, stop_ts)))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
@@ -5485,18 +5475,11 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		/*
 		 * Copy the key/value pair onto the page. Zero-length items must
 		 * be globally visible as we're writing nothing to the page.
-		 *
-		 * TIMESTAMP-FIXME: The visibility test can't be turned on until
-		 * the timestamps for the selected update are correct.
 		 */
 		__rec_image_copy(session, r, key);
-#if 0
 		if (val->len == 0 &&
-		    __wt_txn_visible_all(session, txnid, stop_ts))
-#else
-		(void)txnid;			/* unused variable warning */
-		if (val->len == 0)
-#endif
+		    (!__wt_process.page_version_ts &&
+		    __wt_txn_visible_all(session, txnid, stop_ts)))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
