@@ -65,14 +65,22 @@ else:
 sys.path.insert(1, os.path.join(wt_builddir, 'lang', 'python'))
 sys.path.insert(1, os.path.join(wt_disttop, 'lang', 'python'))
 
+# Append to a colon separated path in the environment
+def append_env_path(name, value):
+    path = os.environ[name]
+    if path == None:
+        v = value
+    else:
+        v = path + ':' + value
+    os.environ[name] = v
+
 # If we built with libtool, explicitly put its install directory in our library
 # search path. This only affects library loading for subprocesses, like 'wt'.
 libsdir = os.path.join(wt_builddir, '.libs')
 if os.path.isdir(libsdir):
-    env = dict(os.environ)
-    env['LD_LIBRARY_PATH'] = libsdir
+    append_env_path('LD_LIBRARY_PATH', libsdir)
     if sys.platform == "darwin":
-        env['DYLD_LIBRARY_PATH'] = libsdir
+        append_env_path('DYLD_LIBRARY_PATH', libsdir)
 
 # Add all 3rd party directories: some have code in subdirectories
 for d in os.listdir(wt_3rdpartydir):
