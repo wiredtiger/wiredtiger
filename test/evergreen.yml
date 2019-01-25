@@ -811,12 +811,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/.libs"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${python_test_env_vars|} python ../../test/suite/run.py [c] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [c] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket02
     depends_on:
@@ -825,13 +825,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket03
     depends_on:
@@ -840,13 +839,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket04
     depends_on:
@@ -855,13 +853,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket05
     depends_on:
@@ -870,13 +867,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [rs] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [rs] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket06
     depends_on:
@@ -885,13 +881,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [t] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [t] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket07
     depends_on:
@@ -900,13 +895,12 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            cd .libs
-            ${python_test_env_vars|} python ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} python ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
 
   # End of Python unit test tasks
 
@@ -979,8 +973,6 @@ buildvariants:
   expansions:
     # It's ugly, but we need the absolute path here, not the relative
     test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
-    # Python (unit) test is executed under the .libs directory, where wiredtiger shared library files locate
-    python_test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH LD_LIBRARY_PATH=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++ PATH=/opt/mongodbtoolchain/v2/bin:$PATH
   tasks:
