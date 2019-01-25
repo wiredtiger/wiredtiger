@@ -371,11 +371,48 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 }
 
 /*
- * __wt_fsync_all_background --
+ * __wt_fsync_background_chk --
+ *	Return if background fsync is supported.
+ */
+int
+__wt_fsync_background_chk(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_FH *fh, *fhnext;
+	WT_FILE_HANDLE *handle;
+
+	conn = S2C(session);
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
+	__wt_spin_lock(session, &conn->fh_lock);
+	/*
+	 * Look for the first non-WiredTiger file handle and see if
+	 * the fsync nowait function is supported.
+	 */
+	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
+		handle = fh->handle;
+		/* Skip over WiredTiger owned files. */
+		if (F_ISSET(fh, WT_FH_WIREDTIGER_OWNED))
+			continue;
+		/*
+		 * If we don't have a function, return WT_NOTFOUND,
+		 * otherwise return 0. In any case, we are done with
+		 * the loop.
+		 */
+		if (handle->fh_sync_nowait == NULL)
+			ret = WT_NOTFOUND;
+		break;
+	}
+	__wt_spin_unlock(session, &conn->fh_lock);
+	return (ret);
+}
+
+/*
+ * __wt_fsync_background --
  *	POSIX background fsync for all dirty file handles.
  */
 int
-__wt_fsync_all_background(WT_SESSION_IMPL *session)
+__wt_fsync_background(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;

@@ -106,7 +106,7 @@ __capacity_server(void *arg)
 			continue;
 
 		start = __wt_clock(session);
-		WT_ERR(__wt_fsync_all_background(session));
+		WT_ERR(__wt_fsync_background(session));
 		stop = __wt_clock(session);
 		time_ms = WT_CLOCKDIFF_MS(stop, start);
 		WT_STAT_CONN_SET(session, fsync_all_time, time_ms);
@@ -166,9 +166,11 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	/*
-	 * If it is a read only connection there is nothing to do.
+	 * If it is a read only connection or if background fsync is not
+	 * supported, then there is nothing to do.
 	 */
-	if (F_ISSET(conn, WT_CONN_READONLY))
+	if (F_ISSET(conn, WT_CONN_READONLY) ||
+	    (__wt_fsync_background_chk(session) == WT_NOTFOUND))
 		return (0);
 
 	/*
