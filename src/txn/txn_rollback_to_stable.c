@@ -487,6 +487,8 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_ERR(__txn_rollback_to_stable_check(session));
 
+	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+
 	/*
 	 * Allocate a non-durable btree bitstring.  We increment the global
 	 * value before using it, so the current value is already in use, and
@@ -507,7 +509,8 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
 		WT_ERR(__txn_rollback_to_stable_lookaside_fixup(session));
 
-err:	__wt_free(session, conn->stable_rollback_bitstring);
+err:	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
+	__wt_free(session, conn->stable_rollback_bitstring);
 	return (ret);
 }
 

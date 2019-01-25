@@ -2765,6 +2765,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	if (F_ISSET(conn, WT_CONN_SALVAGE))
 		WT_ERR(__wt_metadata_salvage(session));
 
+	WT_ERR(__wt_metadata_cursor(session, NULL));
+
 	/* Start the worker threads and run recovery. */
 	WT_ERR(__wt_connection_workers(session, cfg));
 
