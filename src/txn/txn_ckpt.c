@@ -1636,12 +1636,19 @@ __checkpoint_tree(
 		WT_ERR(__wt_cache_op(session, WT_SYNC_CLOSE));
 
 	/*
-	 * All blocks being written have been written; set the object's write
-	 * generation.
+	 * All blocks being written have been written; set the checkpoint's
+	 * write generation and timestamps as stored in the Btree handle.
 	 */
 	WT_CKPT_FOREACH(ckptbase, ckpt)
-		if (F_ISSET(ckpt, WT_CKPT_ADD))
+		if (F_ISSET(ckpt, WT_CKPT_ADD)) {
 			ckpt->write_gen = btree->write_gen;
+			ckpt->oldest_start_ts = btree->oldest_start_ts;
+			ckpt->newest_start_ts = btree->newest_start_ts;
+			ckpt->newest_stop_ts = btree->newest_stop_ts;
+			__wt_timestamp_addr_check(session,
+			    ckpt->oldest_start_ts,
+			    ckpt->newest_start_ts, ckpt->newest_stop_ts);
+		}
 
 fake:	/*
 	 * If we're faking a checkpoint and logging is enabled, recovery should

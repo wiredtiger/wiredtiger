@@ -170,6 +170,9 @@ struct __wt_btree {
 		WT_BTREE_SYNC_OFF, WT_BTREE_SYNC_WAIT, WT_BTREE_SYNC_RUNNING
 	} syncing;			/* Sync status */
 
+					/* Checkpoint timestamps */
+	wt_timestamp_t oldest_start_ts, newest_start_ts, newest_stop_ts;
+
 	/*
 	 * Helper macros:
 	 * WT_BTREE_SYNCING indicates if a sync is active (either waiting to

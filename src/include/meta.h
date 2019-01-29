@@ -76,6 +76,9 @@ struct __wt_ckpt {
 
 	uint64_t write_gen;			/* Write generation */
 
+						/* Timestamps */
+	wt_timestamp_t oldest_start_ts, newest_start_ts, newest_stop_ts;
+
 	void	*bpriv;				/* Block manager private */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */

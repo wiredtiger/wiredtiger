@@ -172,6 +172,18 @@ struct __wt_cell_unpack {
 };
 
 /*
+ * __wt_timestamp_value_check --
+ *	Check an start/stop timestamp pair for sanity.
+ */
+static inline void
+__wt_timestamp_value_check(
+    WT_SESSION_IMPL *session, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
+{
+	WT_ASSERT(session, stop_ts != WT_TS_NONE);
+	WT_ASSERT(session, start_ts <= stop_ts);
+}
+
+/*
  * __cell_pack_timestamp_value --
  *	Pack a start, stop timestamp pair for a value.
  */
@@ -179,14 +191,27 @@ static inline void
 __cell_pack_timestamp_value(WT_SESSION_IMPL *session,
     uint8_t **pp, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
 {
-	WT_ASSERT(session, stop_ts != WT_TS_NONE);
-	WT_ASSERT(session, start_ts <= stop_ts);
+	__wt_timestamp_value_check(session, start_ts, stop_ts);
 
 	if (__wt_process.page_version_ts) {
 		/* Start timestamp, stop timestamp difference. */
 		(void)__wt_vpack_uint(pp, 0, start_ts);
 		(void)__wt_vpack_uint(pp, 0, stop_ts - start_ts);
 	}
+}
+
+/*
+ * __wt_timestamp_addr_check --
+ *	Check an address timestamp for sanity.
+ */
+static inline void
+__wt_timestamp_addr_check(WT_SESSION_IMPL *session,
+    wt_timestamp_t oldest_start_ts,
+    wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
+{
+	WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
+	WT_ASSERT(session, oldest_start_ts <= newest_start_ts);
+	WT_ASSERT(session, newest_start_ts <= newest_stop_ts);
 }
 
 /*
@@ -199,9 +224,8 @@ __cell_pack_timestamp_addr(WT_SESSION_IMPL *session,
     uint8_t **pp, wt_timestamp_t oldest_start_ts,
     wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
 {
-	WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
-	WT_ASSERT(session, oldest_start_ts <= newest_start_ts);
-	WT_ASSERT(session, newest_start_ts <= newest_stop_ts);
+	__wt_timestamp_addr_check(session,
+	    oldest_start_ts, newest_start_ts, newest_stop_ts);
 
 	if (__wt_process.page_version_ts) {
 		(void)__wt_vpack_uint(pp, 0, oldest_start_ts);
@@ -733,12 +757,9 @@ restart:
 			    WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
 			unpack->newest_stop_ts += unpack->newest_start_ts;
 
-			WT_ASSERT(session,
-			    unpack->newest_stop_ts != WT_TS_NONE);
-			WT_ASSERT(session,
-			    unpack->oldest_start_ts <= unpack->newest_start_ts);
-			WT_ASSERT(session,
-			    unpack->newest_start_ts <= unpack->newest_stop_ts);
+			__wt_timestamp_addr_check(session,
+			    unpack->oldest_start_ts,
+			    unpack->newest_start_ts, unpack->newest_stop_ts);
 			break;
 		case WT_CELL_DEL:
 		case WT_CELL_VALUE:
@@ -752,8 +773,8 @@ restart:
 			    0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
 			unpack->stop_ts += unpack->start_ts;
 
-			WT_ASSERT(session, unpack->stop_ts != WT_TS_NONE);
-			WT_ASSERT(session, unpack->start_ts <= unpack->stop_ts);
+			__wt_timestamp_value_check(
+			    session, unpack->start_ts, unpack->stop_ts);
 			break;
 		}
 
