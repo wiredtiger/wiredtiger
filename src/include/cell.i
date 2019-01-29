@@ -179,6 +179,9 @@ static inline void
 __wt_timestamp_value_check(
     WT_SESSION_IMPL *session, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
 {
+	WT_UNUSED(start_ts);
+	WT_UNUSED(stop_ts);
+
 	WT_ASSERT(session, stop_ts != WT_TS_NONE);
 	WT_ASSERT(session, start_ts <= stop_ts);
 }
@@ -209,6 +212,10 @@ __wt_timestamp_addr_check(WT_SESSION_IMPL *session,
     wt_timestamp_t oldest_start_ts,
     wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
 {
+	WT_UNUSED(oldest_start_ts);
+	WT_UNUSED(newest_start_ts);
+	WT_UNUSED(newest_stop_ts);
+
 	WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
 	WT_ASSERT(session, oldest_start_ts <= newest_start_ts);
 	WT_ASSERT(session, newest_start_ts <= newest_stop_ts);
