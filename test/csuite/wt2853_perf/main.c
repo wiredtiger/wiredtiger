@@ -46,6 +46,7 @@ static void *thread_insert(void *);
 static void *thread_get(void *);
 
 #define	BLOOM		false
+#define	MAX_GAP		5.0
 #define	N_RECORDS	10000
 #define	N_INSERT	1000000
 #define	N_INSERT_THREAD	1
@@ -247,16 +248,15 @@ thread_insert(void *arg)
 				fprintf(stderr, "*");
 			else
 				fprintf(stderr, ".");
-			(void)time(&curtime);
-			if ((elapsed = difftime(curtime, prevtime)) > 5.0) {
-				testutil_progress(opts, "insert time gap");
-				fprintf(stderr, "\n"
-				    "GAP: %.0f secs after %d inserts\n",
-				    elapsed, i);
-				threadargs->nfail++;
-			}
-			prevtime = curtime;
 		}
+		(void)time(&curtime);
+		if ((elapsed = difftime(curtime, prevtime)) > MAX_GAP) {
+			testutil_progress(opts, "insert time gap");
+			fprintf(stderr, "\n"
+			    "GAP: %.0f secs after %d inserts\n", elapsed, i);
+			threadargs->nfail++;
+		}
+		prevtime = curtime;
 	}
 	testutil_progress(opts, "insert end");
 	testutil_check(maincur->close(maincur));
@@ -310,6 +310,15 @@ thread_get(void *arg)
 			testutil_check(maincur->reset(maincur));
 			testutil_assert((flag2 > 0 && bal2 < 0) ||
 			    (flag2 == 0 && bal2 >= 0));
+			(void)time(&curtime);
+			if ((elapsed = difftime(curtime, prevtime)) > MAX_GAP) {
+				testutil_progress(opts, "get time gap");
+				fprintf(stderr, "\n"
+				    "GAP: %.0f secs after %d gets\n",
+				    elapsed, threadargs->njoins);
+				threadargs->nfail++;
+			}
+			prevtime = curtime;
 		}
 		/*
 		 * Reset the cursors, potentially allowing the insert
@@ -320,15 +329,6 @@ thread_get(void *arg)
 			fprintf(stderr, "G");
 		testutil_check(session->rollback_transaction(session, NULL));
 
-		(void)time(&curtime);
-		if ((elapsed = difftime(curtime, prevtime)) > 5.0) {
-			testutil_progress(opts, "get time gap");
-			fprintf(stderr, "\n"
-			    "GAP: %.0f secs after %d gets\n",
-			    elapsed, threadargs->njoins);
-			threadargs->nfail++;
-		}
-		prevtime = curtime;
 	}
 	testutil_progress(opts, "get end");
 	testutil_check(postcur->close(postcur));
