@@ -292,8 +292,13 @@ __sweep_server(void *arg)
 	__wt_seconds(session, &last);
 	for (;;) {
 		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->sweep_cond,
-		    min_sleep * WT_MILLION, __sweep_server_run_chk);
+		if (FLD_ISSET(conn->timing_stress_flags,
+			WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
+			__wt_cond_wait(session, conn->sweep_cond,
+				min_sleep * 10000, __sweep_server_run_chk);
+		else
+			__wt_cond_wait(session, conn->sweep_cond,
+				min_sleep * WT_MILLION, __sweep_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__sweep_server_run_chk(session))
@@ -350,6 +355,9 @@ __sweep_server(void *arg)
 
 		if (dead_handles > 0)
 			WT_ERR(__sweep_remove_handles(session));
+
+		/* Remember last sweep time. */
+		last = now;
 	}
 
 	if (0) {
