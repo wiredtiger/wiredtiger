@@ -304,7 +304,7 @@ __schema_open_index(WT_SESSION_IMPL *session,
 			 * in memory indices, they no longer exist.
 			 */
 			while (i < table->nindices) {
-				WT_ERR(__wt_schema_destroy_index(session,
+				WT_TRET(__wt_schema_destroy_index(session,
 				    &table->indices[table->nindices - 1]));
 				table->indices[--table->nindices] = NULL;
 			}
