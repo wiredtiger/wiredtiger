@@ -723,7 +723,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 static int
 __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 {
-	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *next;
 	WT_PAGE_INDEX *pindex;
@@ -731,7 +730,6 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 	WT_REF fake_ref;
 	uint32_t i;
 
-	btree = S2BT(session);
 	mod = page->modify;
 
 	/*
@@ -741,27 +739,10 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 	 * have an infrastructure for writing pages, create a fake root page and
 	 * write it instead of adding code to write blocks based on the list of
 	 * blocks resulting from a multiblock reconciliation.
-	 *
-	 * Set the btree timestamps as part of wrapup, they are copied into the
-	 * metadata's checkpoint information.
 	 */
 	switch (mod->rec_result) {
 	case WT_PM_REC_EMPTY:				/* Page is empty */
-		/*
-		 * For a page to be empty, it has to contain nothing at all,
-		 * which means it has no records of any kind, it has to be
-		 * durable.
-		 */
-		btree->oldest_start_ts = btree->newest_start_ts = WT_TS_NONE;
-		btree->newest_stop_ts = WT_TS_MAX;
-		return (0);
 	case WT_PM_REC_REPLACE:				/* 1-for-1 page swap */
-		btree->oldest_start_ts = mod->mod_replace.oldest_start_ts;
-		btree->newest_start_ts = mod->mod_replace.newest_start_ts;
-		btree->newest_stop_ts = mod->mod_replace.newest_stop_ts;
-		__wt_timestamp_addr_check(session,
-		    btree->oldest_start_ts,
-		    btree->newest_start_ts, btree->newest_stop_ts);
 		return (0);
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
 		break;
@@ -5708,9 +5689,21 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 		/* If this is the root page, we need to create a sync point. */
 		ref = r->ref;
-		if (__wt_ref_is_root(ref))
+		if (__wt_ref_is_root(ref)) {
 			WT_RET(bm->checkpoint(
 			    bm, session, NULL, btree->ckpt, false));
+
+			/*
+			 * Checkpoint timestamps are saved in the Btree handle,
+			 * copied into the checkpoint when it completes. For a
+			 * page to be empty, it has to contain nothing at all,
+			 * which means it has no records of any kind, it has to
+			 * be durable.
+			 */
+			btree->oldest_start_ts =
+			    btree->newest_start_ts = WT_TS_NONE;
+			btree->newest_stop_ts = WT_TS_MAX;
+		}
 
 		/*
 		 * If the page was empty, we want to discard it from the tree
@@ -5740,21 +5733,33 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		    r->multi->supd_entries != 0))
 			goto split;
 
-		mod->mod_replace = r->multi->addr;
-		r->multi->addr.addr = NULL;
-		mod->mod_disk_image = r->multi->disk_image;
-		r->multi->disk_image = NULL;
-		mod->mod_page_las = r->multi->page_las;
-
 		/*
 		 * We may have a root page, create a sync point. (The write code
 		 * ignores root page updates, leaving that work to us.)
 		 */
-		if (r->wrapup_checkpoint != NULL)
+		if (r->wrapup_checkpoint == NULL) {
+			mod->mod_replace = r->multi->addr;
+			r->multi->addr.addr = NULL;
+			mod->mod_disk_image = r->multi->disk_image;
+			r->multi->disk_image = NULL;
+			mod->mod_page_las = r->multi->page_las;
+		} else {
 			WT_RET(__wt_bt_write(session, r->wrapup_checkpoint,
 			    NULL, NULL, NULL,
 			    true, F_ISSET(r, WT_REC_CHECKPOINT),
 			    r->wrapup_checkpoint_compressed));
+
+			/*
+			 * Checkpoint timestamps are saved in the Btree handle,
+			 * copied into the checkpoint when it completes.
+			 */
+			btree->oldest_start_ts = r->multi->addr.oldest_start_ts;
+			btree->newest_start_ts = r->multi->addr.newest_start_ts;
+			btree->newest_stop_ts = r->multi->addr.newest_stop_ts;
+			__wt_timestamp_addr_check(session,
+			    btree->oldest_start_ts,
+			    btree->newest_start_ts, btree->newest_stop_ts);
+		}
 
 		mod->rec_result = WT_PM_REC_REPLACE;
 		break;
