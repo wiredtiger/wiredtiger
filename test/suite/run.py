@@ -67,7 +67,7 @@ sys.path.insert(1, os.path.join(wt_disttop, 'lang', 'python'))
 
 # Append to a colon separated path in the environment
 def append_env_path(name, value):
-    path = os.environ[name]
+    path = os.environ.get(name)
     if path == None:
         v = value
     else:
