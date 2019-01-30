@@ -16,6 +16,13 @@
 	(((bytes) * WT_BILLION) / (capacity))
 
 /*
+ * The fraction of a second's worth of capacity that will be stolen at a
+ * time. The number of bytes this represents may be different for different
+ * subsystems, since each subsystem has its own capacity per second.
+ */
+#define	WT_STEAL_FRACTION(x)		((x) / 16)
+
+/*
  * __capacity_config --
  *	Set I/O capacity configuration.
  */
@@ -252,12 +259,11 @@ __capacity_signal(WT_SESSION_IMPL *session)
  * the capacity of the subsystem.
  */
 static void
-__capacity_reserve(WT_SESSION_IMPL *session, uint64_t *reservation,
-    uint64_t bytes, uint64_t capacity, uint64_t now_ns, uint64_t *result)
+__capacity_reserve(uint64_t *reservation, uint64_t bytes, uint64_t capacity,
+    uint64_t now_ns, uint64_t *result)
 {
 	uint64_t res_len, res_value;
 
-	WT_UNUSED(session);
 	if (capacity != 0) {
 		res_len = WT_RESERVATION_NS(bytes, capacity);
 		res_value = __wt_atomic_add64(reservation, res_len);
@@ -357,10 +363,9 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 
 again:
 	/* Take a reservation for the subsystem, and for the total */
-	__capacity_reserve(session,
-	    reservation, bytes, capacity, now_ns, &res_value);
-	__capacity_reserve(session, &cap->reservation_total, bytes,
-	    total_capacity, now_ns, &res_total_value);
+	__capacity_reserve(reservation, bytes, capacity, now_ns, &res_value);
+	__capacity_reserve(&cap->reservation_total, bytes, total_capacity,
+	    now_ns, &res_total_value);
 
 	/*
 	 * If we ended up with a future reservation, and we aren't constricted
@@ -398,8 +403,8 @@ again:
 		if (steal != NULL) {
 			/*
 			 * We have a subsystem that has enough spare capacity
-			 * to steal.  We'll take a small slice and add it to
-			 * our own subsystem.
+			 * to steal.  We'll take a small slice (a fraction
+			 * of a second worth) and add it to our own subsystem.
 			 */
 			if (best_res < now_ns - WT_BILLION &&
 			    now_ns > WT_BILLION)
@@ -407,7 +412,7 @@ again:
 			else
 				new_res = best_res;
 			WT_ASSERT(session, steal_capacity != 0);
-			new_res += WT_BILLION / 16 +
+			new_res += WT_STEAL_FRACTION(WT_BILLION) +
 			    WT_RESERVATION_NS(bytes, steal_capacity);
 			if (!__wt_atomic_casv64(steal, best_res, new_res)) {
 				/*
@@ -422,10 +427,12 @@ again:
 			}
 
 			/*
-			 * We've actually stolen capacity in terms of bytes,
-			 * not nanoseconds, so we need to convert it.
+			 * We've stolen a fraction of a second of capacity.
+			 * Figure out how many bytes that is, before adding
+			 * that many bytes to the acquiring subsystem's
+			 * capacity.
 			 */
-			stolen_bytes = steal_capacity / 16;
+			stolen_bytes = WT_STEAL_FRACTION(steal_capacity);
 			res_value = __wt_atomic_sub64(reservation,
 			    WT_RESERVATION_NS(stolen_bytes, capacity));
 		}
