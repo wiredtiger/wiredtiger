@@ -13,7 +13,7 @@ typedef enum {
 	WT_THROTTLE_READ		/* Read throttle */
 } WT_THROTTLE_TYPE;
 
-#define	WT_THROTTLE_MIN			WT_MEGABYTE /* Config minimum size */
+#define	WT_THROTTLE_MIN	WT_MEGABYTE	/* Config minimum size */
 
 /*
  * The per-file threshold means we won't start the background fsync on a file
@@ -37,11 +37,11 @@ typedef enum {
 /*
  * When given a total capacity, divide it up for each subsystem. These defines
  * represent the percentage of the total capacity that we allow for each
- * subsystem's capacity. We allow and expect the sum of the subsystems to
+ * subsystem capacity. We allow and expect the sum of the subsystems to
  * exceed 100, as often they are not at their maximum at the same time. In any
  * event, we track the total capacity separately, so it is never exceeded.
  */
-#define	WT_CAPACITY(total, pct)	((total) * (pct) / 100)
+#define	WT_CAPACITY_SYS(total, pct)	((total) * (pct) / 100)
 #define	WT_CAP_CKPT		5
 #define	WT_CAP_EVICT		50
 #define	WT_CAP_LOG		30
@@ -55,11 +55,11 @@ struct __wt_capacity {
 	uint64_t total;			/* Bytes/sec total capacity */
 	uint64_t threshold;		/* Capacity size period */
 
-	volatile uint64_t written;	/* Written this period */
-	volatile bool	 signalled;	/* Capacity signalled */
+	volatile uint64_t	written;	/* Written this period */
+	volatile bool		signalled;	/* Capacity signalled */
 
 	/*
-	 * A reservation is a point in the time when a write for a subsystem
+	 * A reservation is a point in time when a read or write for a subsystem
 	 * can be scheduled, so as not to overrun the given capacity.  These
 	 * values hold the next available reservation, in nanoseconds since
 	 * the epoch. Getting a reservation with a future time implies sleeping

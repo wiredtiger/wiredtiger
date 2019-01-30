@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -43,17 +43,17 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * We've been given a total capacity, set the
 		 * capacity of all the subsystems.
 		 */
-		cap->ckpt = WT_CAPACITY(total, WT_CAP_CKPT);
-		cap->evict = WT_CAPACITY(total, WT_CAP_EVICT);
-		cap->log = WT_CAPACITY(total, WT_CAP_LOG);
-		cap->read = WT_CAPACITY(total, WT_CAP_READ);
+		cap->ckpt = WT_CAPACITY_SYS(total, WT_CAP_CKPT);
+		cap->evict = WT_CAPACITY_SYS(total, WT_CAP_EVICT);
+		cap->log = WT_CAPACITY_SYS(total, WT_CAP_LOG);
+		cap->read = WT_CAPACITY_SYS(total, WT_CAP_READ);
 
 		/*
 		 * Set the threshold to the percent of our capacity to
 		 * periodically asynchronously flush what we've written.
 		 */
-		cap->threshold = (cap->ckpt + cap->evict + cap->log) /
-		    100 * WT_CAPACITY_PCT;
+		cap->threshold = ((cap->ckpt + cap->evict + cap->log) /
+		    100) * WT_CAPACITY_PCT;
 		if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
 			cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
 		WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
@@ -101,7 +101,7 @@ __capacity_server(void *arg)
 		if (!__capacity_server_run_chk(session))
 			break;
 
-		WT_PUBLISH(cap->signalled, false);
+		cap->signalled = false;
 		if (cap->written < cap->threshold)
 			continue;
 
@@ -110,7 +110,7 @@ __capacity_server(void *arg)
 		stop = __wt_clock(session);
 		time_ms = WT_CLOCKDIFF_MS(stop, start);
 		WT_STAT_CONN_SET(session, fsync_all_time, time_ms);
-		WT_PUBLISH(cap->written, 0);
+		cap->written = 0;
 	}
 
 	if (0) {
@@ -127,10 +127,6 @@ static int
 __capacity_server_start(WT_CONNECTION_IMPL *conn)
 {
 	WT_SESSION_IMPL *session;
-
-	/* Nothing to do if the server is already running. */
-	if (conn->capacity_session != NULL)
-		return (0);
 
 	F_SET(conn, WT_CONN_SERVER_CAPACITY);
 
@@ -169,8 +165,8 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	 * If it is a read only connection or if background fsync is not
 	 * supported, then there is nothing to do.
 	 */
-	if (F_ISSET(conn, WT_CONN_READONLY) ||
-	    (__wt_fsync_background_chk(session) == WT_NOTFOUND))
+	if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) ||
+	    !__wt_fsync_background_chk(session))
 		return (0);
 
 	/*
@@ -246,7 +242,7 @@ __capacity_signal(WT_SESSION_IMPL *session)
 	cap = conn->capacity;
 	if (cap->written >= cap->threshold && !cap->signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
-		WT_PUBLISH(cap->signalled, true);
+		cap->signalled = true;
 	}
 }
 
@@ -270,8 +266,8 @@ __capacity_reserve(WT_SESSION_IMPL *session, uint64_t *reservation,
 			 * If the reservation clock is out of date, bring it
 			 * to within a second of a current time.
 			 */
-			__wt_atomic_store64(reservation,
-			    now_ns - WT_BILLION + res_len);
+			(void)__wt_atomic_store64(reservation,
+			    (now_ns - WT_BILLION) + res_len);
 	} else
 		res_value = now_ns;
 

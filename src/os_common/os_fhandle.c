@@ -374,16 +374,16 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
  * __wt_fsync_background_chk --
  *	Return if background fsync is supported.
  */
-int
+bool
 __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	WT_FH *fh, *fhnext;
 	WT_FILE_HANDLE *handle;
+	bool supported;
 
 	conn = S2C(session);
-	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
+	supported = true;
 	__wt_spin_lock(session, &conn->fh_lock);
 	/*
 	 * Look for the first non-WiredTiger file handle and see if
@@ -395,16 +395,15 @@ __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 		if (F_ISSET(fh, WT_FH_WIREDTIGER_OWNED))
 			continue;
 		/*
-		 * If we don't have a function, return WT_NOTFOUND,
-		 * otherwise return 0. In any case, we are done with
-		 * the loop.
+		 * If we don't have a function, return false, otherwise
+		 * return true. In any case, we are done with the loop.
 		 */
 		if (handle->fh_sync_nowait == NULL)
-			ret = WT_NOTFOUND;
+			supported = false;
 		break;
 	}
 	__wt_spin_unlock(session, &conn->fh_lock);
-	return (ret);
+	return (supported);
 }
 
 /*
@@ -416,14 +415,13 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_FH *fh, *fhnext;
+	WT_FH *fh;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
 
 	conn = S2C(session);
-	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY));
 	__wt_spin_lock(session, &conn->fh_lock);
-	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
+	TAILQ_FOREACH(fh, &conn->fhqh, q) {
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 		if (handle->fh_sync_nowait == NULL ||
@@ -436,22 +434,11 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 		if (fh->last_sync == 0 ||
 		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
 			/*
-			 * Adjust our next handle to skip over any that are
-			 * owned by WiredTiger. Adding a reference to those
-			 * interferes with other internal operations such as
-			 * log archiving.
-			 */
-			while (fhnext != NULL &&
-			    F_ISSET(fhnext, WT_FH_WIREDTIGER_OWNED))
-				fhnext = TAILQ_NEXT(fhnext, q);
-			/*
 			 * Increment our ref count on the current and next
 			 * handle. That way both are guaranteed valid when we
 			 * lock again after the fsync.
 			 */
 			++fh->ref;
-			if (fhnext != NULL)
-				++fhnext->ref;
 			__wt_spin_unlock(session, &conn->fh_lock);
 			ret = __wt_fsync(session, fh, false);
 			/*
@@ -468,12 +455,10 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 			if (ret == 0) {
 				WT_STAT_CONN_INCR(session, fsync_all_fh);
 				fh->last_sync = now;
-				WT_PUBLISH(fh->written, 0);
+				fh->written = 0;
 			}
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
-			if (fhnext != NULL)
-				--fhnext->ref;
 			WT_ERR(ret);
 		}
 	}
