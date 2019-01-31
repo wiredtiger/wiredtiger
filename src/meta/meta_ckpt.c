@@ -359,6 +359,8 @@ __ckpt_load(WT_SESSION_IMPL *session,
 	WT_RET_NOTFOUND_OK(ret);
 	ckpt->newest_stop_ts =
 	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+	__wt_timestamp_addr_check(session,
+	    ckpt->oldest_start_ts, ckpt->newest_start_ts, ckpt->newest_stop_ts);
 
 	WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
 	if (a.len == 0)
@@ -437,6 +439,9 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			__wt_seconds(session, &secs);
 			ckpt->sec = (uintmax_t)secs;
 		}
+
+		__wt_timestamp_addr_check(session, ckpt->oldest_start_ts,
+		    ckpt->newest_start_ts, ckpt->newest_stop_ts);
 		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
 			WT_ERR(__wt_buf_catfmt(session, buf,
 			    "%s%s.%" PRId64 "=(addr=\"%.*s\",order=%" PRId64

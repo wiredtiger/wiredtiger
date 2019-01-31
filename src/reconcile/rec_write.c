@@ -5687,22 +5687,17 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		WT_STAT_CONN_INCR(session, rec_page_delete);
 		WT_STAT_DATA_INCR(session, rec_page_delete);
 
-		/* If this is the root page, we need to create a sync point. */
+		/*
+		 * If this is the root page, we need to create a sync point.
+		 * For a page to be empty, it has to contain nothing at all,
+		 * which means it has no records of any kind and is durable.
+		 */
 		ref = r->ref;
 		if (__wt_ref_is_root(ref)) {
 			WT_RET(bm->checkpoint(
 			    bm, session, NULL, btree->ckpt, false));
-
-			/*
-			 * Checkpoint timestamps are saved in the Btree handle,
-			 * copied into the checkpoint when it completes. For a
-			 * page to be empty, it has to contain nothing at all,
-			 * which means it has no records of any kind, it has to
-			 * be durable.
-			 */
-			btree->oldest_start_ts =
-			    btree->newest_start_ts = WT_TS_NONE;
-			btree->newest_stop_ts = WT_TS_MAX;
+			__wt_checkpoint_tree_reconcile_update(
+			    session, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
 		}
 
 		/*
@@ -5748,17 +5743,10 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			    NULL, NULL, NULL,
 			    true, F_ISSET(r, WT_REC_CHECKPOINT),
 			    r->wrapup_checkpoint_compressed));
-
-			/*
-			 * Checkpoint timestamps are saved in the Btree handle,
-			 * copied into the checkpoint when it completes.
-			 */
-			btree->oldest_start_ts = r->multi->addr.oldest_start_ts;
-			btree->newest_start_ts = r->multi->addr.newest_start_ts;
-			btree->newest_stop_ts = r->multi->addr.newest_stop_ts;
-			__wt_timestamp_addr_check(session,
-			    btree->oldest_start_ts,
-			    btree->newest_start_ts, btree->newest_stop_ts);
+			__wt_checkpoint_tree_reconcile_update(session,
+			    r->multi->addr.oldest_start_ts,
+			    r->multi->addr.newest_start_ts,
+			    r->multi->addr.newest_stop_ts);
 		}
 
 		mod->rec_result = WT_PM_REC_REPLACE;
