@@ -179,7 +179,7 @@ extern int __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing) 
 extern int __wt_split_reverse(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, WT_MULTI *multi) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_upgrade(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verify_dsk_image(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk, size_t size, WT_ADDR *addr, bool empty_page_ok) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

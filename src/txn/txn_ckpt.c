@@ -1663,9 +1663,9 @@ __checkpoint_tree(
 
 	/* Flush the file from the cache, creating the checkpoint. */
 	if (is_checkpoint)
-		WT_ERR(__wt_cache_op(session, WT_SYNC_CHECKPOINT));
+		WT_ERR(__wt_sync_file(session, WT_SYNC_CHECKPOINT));
 	else
-		WT_ERR(__wt_cache_op(session, WT_SYNC_CLOSE));
+		WT_ERR(__wt_evict_file(session, WT_SYNC_CLOSE));
 
 fake:	/*
 	 * If we're faking a checkpoint and logging is enabled, recovery should
@@ -1879,7 +1879,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	 * validate exit accounting.
 	 */
 	if (final && !WT_IS_METADATA(session->dhandle))
-		return (__wt_cache_op(session, WT_SYNC_DISCARD));
+		return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
 	/*
 	 * If closing an unmodified file, check that no update is required
@@ -1890,7 +1890,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn,
 		    btree->rec_max_timestamp) ?
-		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
+		    __wt_evict_file(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 
 	/*
