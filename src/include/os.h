@@ -114,12 +114,9 @@ struct __wt_fh {
 	TAILQ_ENTRY(__wt_fh) q;			/* internal queue */
 	TAILQ_ENTRY(__wt_fh) hashq;		/* internal hash queue */
 	u_int ref;				/* reference count */
+	WT_FS_OPEN_FILE_TYPE file_type;		/* file type */
 
 	WT_FILE_HANDLE *handle;
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_FH_WIREDTIGER_OWNED	0x1u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t	flags;			/* flags */
 };
 
 #ifdef _WIN32

@@ -240,9 +240,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
 
-	/* Mark WiredTiger owned files. */
-	if (file_type != WT_FS_OPEN_FILE_TYPE_DATA)
-		F_SET(fh, WT_FH_WIREDTIGER_OWNED);
+	fh->file_type = file_type;
 
 	/*
 	 * If this is a read-only connection, open all files read-only except
@@ -375,13 +373,12 @@ __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 	supported = true;
 	__wt_spin_lock(session, &conn->fh_lock);
 	/*
-	 * Look for the first non-WiredTiger file handle and see if
+	 * Look for the first data file handle and see if
 	 * the fsync nowait function is supported.
 	 */
 	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
 		handle = fh->handle;
-		/* Skip over WiredTiger owned files. */
-		if (F_ISSET(fh, WT_FH_WIREDTIGER_OWNED))
+		if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
 			continue;
 		/*
 		 * If we don't have a function, return false, otherwise
@@ -416,8 +413,8 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 		if (handle->fh_sync_nowait == NULL ||
 		    fh->written < WT_CAPACITY_FILE_THRESHOLD)
 			continue;
-		/* Skip over WiredTiger owned files. */
-		if (F_ISSET(fh, WT_FH_WIREDTIGER_OWNED))
+		/* Only sync data files. */
+		if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
 			continue;
 		now = __wt_clock(session);
 		if (fh->last_sync == 0 ||
