@@ -215,7 +215,6 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_FH *fh;
 	WT_FILE_SYSTEM *file_system;
-	const char *fp, *sep;
 	char *path;
 	bool lock_file, open_called;
 
@@ -241,18 +240,8 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
 
-	/*
-	 * Mark WiredTiger owned files. To keep code simple, we assume that
-	 * the path separator is one char.
-	 */
-	sep = __wt_path_separator();
-	WT_ASSERT(session, strlen(sep) == 1);
-	fp = strrchr(name, sep[0]);
-	if (fp == NULL)
-		fp = name;
-	else
-		++fp;
-	if (WT_PREFIX_MATCH(fp, "WiredTiger"))
+	/* Mark WiredTiger owned files. */
+	if (file_type != WT_FS_OPEN_FILE_TYPE_DATA)
 		F_SET(fh, WT_FH_WIREDTIGER_OWNED);
 
 	/*
