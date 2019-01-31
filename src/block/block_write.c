@@ -335,8 +335,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	WT_RET(ret);
 
 	/* Write the block. */
-	__wt_capacity_throttle(session, align_size,
-	     checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
 	if ((ret =
 	    __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
 		if (!caller_locked)
