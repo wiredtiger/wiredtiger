@@ -169,14 +169,6 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	/*
-	 * If it is a read only connection or if background fsync is not
-	 * supported, then there is nothing to do.
-	 */
-	if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) ||
-	    !__wt_fsync_background_chk(session))
-		return (0);
-
-	/*
 	 * Stop any server that is already running. This means that each time
 	 * reconfigure is called we'll bounce the server even if there are no
 	 * configuration changes. This makes our life easier as the underlying
@@ -188,8 +180,16 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (conn->capacity_session != NULL)
 		WT_RET(__wt_capacity_server_destroy(session));
-
 	WT_RET(__capacity_config(session, cfg));
+
+	/*
+	 * If it is a read only connection or if background fsync is not
+	 * supported, then there is nothing to do.
+	 */
+	if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY) ||
+	    !__wt_fsync_background_chk(session))
+		return (0);
+
 	if (conn->capacity != NULL)
 		WT_RET(__capacity_server_start(conn));
 
