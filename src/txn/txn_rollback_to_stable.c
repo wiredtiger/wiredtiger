@@ -250,7 +250,7 @@ __txn_abort_newer_updates(
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
 	if (ref->page_las != NULL && ref->page_las->skew_newest &&
-	    rollback_timestamp < ref->page_las->unstable_timestamp) {
+	    rollback_timestamp < ref->page_las->unstable_durable_timestamp) {
 		/* Make sure get back a page with history, not limbo page */
 		WT_ASSERT(session,
 		    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));

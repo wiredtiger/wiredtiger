@@ -53,6 +53,7 @@ typedef struct {
 
 	/* Lookaside boundary tracking. */
 	uint64_t unstable_txn;
+	wt_timestamp_t unstable_durable_timestamp;
 	wt_timestamp_t unstable_timestamp;
 
 	u_int updates_seen;		/* Count of updates seen. */
@@ -1251,13 +1252,11 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			if (prepared || uncommitted)
 			       continue;
 
-			/* Consider a non durable update as uncommitted. */
+			/* Treat a non durable update like prepared. */
 			if (upd->timestamp != WT_TS_NONE &&
 			    !__wt_txn_upd_durable(session, upd)) {
-				uncommitted = r->update_uncommitted = true;
 				continue;
 			}
-
 		}
 
 		/* Track the first update with non-zero timestamp. */
@@ -1285,7 +1284,6 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		if (*updp == NULL && r->las_skew_newest)
 			*updp = upd;
 
-		/* Consider non durable updates as uncommitted. */
 		if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) ||
@@ -1302,7 +1300,8 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 * discard an uncommitted update.
 			 */
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-			    *updp != NULL && (uncommitted || prepared)) {
+			    *updp != NULL && (uncommitted || prepared ||
+			    !__wt_txn_upd_durable(session, upd))) {
 				r->leave_dirty = true;
 				return (__wt_set_return(session, EBUSY));
 			}
@@ -1358,8 +1357,9 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		r->max_txn = max_txn;
 
 	/* Update the maximum timestamp. */
-	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->timestamp)
-		r->max_timestamp = first_ts_upd->timestamp;
+	if (first_ts_upd != NULL &&
+	    r->max_timestamp < first_ts_upd->durable_timestamp)
+		r->max_timestamp = first_ts_upd->durable_timestamp;
 
 	/*
 	 * If the update we chose was a birthmark, or we are doing
@@ -1381,9 +1381,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	 */
 	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->timestamp;
 	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
-	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+	    ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestamp) :
-	    __wt_txn_visible(session, max_txn, timestamp));
+	    __wt_txn_visible(session, max_txn, timestamp)) ||
+	    !__wt_txn_upd_durable(session, upd));
 
 	if (all_visible)
 		goto check_original_value;
@@ -1440,9 +1441,15 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (F_ISSET(r, WT_REC_LOOKASIDE) && r->las_skew_newest) {
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
-		if (first_ts_upd != NULL &&
-		    r->unstable_timestamp < first_ts_upd->timestamp)
-			r->unstable_timestamp = first_ts_upd->timestamp;
+		if (first_ts_upd != NULL) {
+			if (r->unstable_timestamp < first_ts_upd->timestamp)
+				r->unstable_timestamp = first_ts_upd->timestamp;
+
+			if (r->unstable_durable_timestamp <
+			    first_ts_upd->durable_timestamp)
+				r->unstable_durable_timestamp =
+				    first_ts_upd->durable_timestamp;
+		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != *updp; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
@@ -1453,6 +1460,10 @@ __rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 				r->unstable_txn = upd->txnid;
 			if (upd->timestamp < r->unstable_timestamp)
 				r->unstable_timestamp = upd->timestamp;
+			if (upd->durable_timestamp <
+			    r->unstable_durable_timestamp)
+				r->unstable_durable_timestamp =
+				    upd->durable_timestamp;
 		}
 	}
 
@@ -2929,6 +2940,8 @@ done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
 		multi->page_las.unstable_timestamp = r->unstable_timestamp;
+		multi->page_las.unstable_durable_timestamp =
+		    r->unstable_durable_timestamp;
 	}
 
 err:	__wt_scr_free(session, &key);
