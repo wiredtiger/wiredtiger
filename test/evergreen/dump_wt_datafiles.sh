@@ -57,7 +57,15 @@ do
 		dump=$(LD_LIBRARY_PATH=${lib_dir} ${wt_binary} -h ${d} dump ${t})
 		rc=$?
 
-		if [ "$rc" -ne "0" ]; then 
+		if [ "$rc" -ne "0" ]; then
+			# Expect an error when a table hasn't had it's column groups fully created.
+			cg_not_created_error="cannot be used until all column groups are created"
+			test_cg_not_created=$(cat ${d}/stderr.txt | grep -c "${cg_not_created_error}")
+
+			if [ "$test_cg_not_created" -ne "0" ]; then
+				continue
+			fi
+
 			echo "Failed to dump '${t}' table under '${d}' directory, exiting ..."
 			exit 2
 		fi
