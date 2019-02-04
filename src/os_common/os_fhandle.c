@@ -446,6 +446,13 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
 			WT_ERR(ret);
+			/*
+			 * The last open reference to the file handle may
+			 * have been released while we dropped the lock.
+			 * If so, we're responsible for closing.
+			 */
+			if (fh->ref == 0)
+				return (__handle_close(session, fh, true));
 		}
 	}
 err:	__wt_spin_unlock(session, &conn->fh_lock);
