@@ -163,6 +163,10 @@ file_runtime_config = common_runtime_config + [
             set then all updates to a specific key must be the same
             with respect to timestamp usage or not.''',
             choices=['always','key_consistent', 'never','none']),
+        Config('durable_timestamp', 'none', r'''
+            verify that durable timestamps should 'always' or 'never' be used
+            on modifications with this table.''',
+            choices=['always', 'never','none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'

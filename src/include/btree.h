@@ -102,8 +102,10 @@ struct __wt_btree {
 #define	WT_ASSERT_COMMIT_TS_ALWAYS	0x01u
 #define	WT_ASSERT_COMMIT_TS_KEYS	0x02u
 #define	WT_ASSERT_COMMIT_TS_NEVER	0x04u
-#define	WT_ASSERT_READ_TS_ALWAYS	0x08u
-#define	WT_ASSERT_READ_TS_NEVER		0x10u
+#define	WT_ASSERT_DURABLE_TS_ALWAYS	0x08u
+#define	WT_ASSERT_DURABLE_TS_NEVER	0x10u
+#define	WT_ASSERT_READ_TS_ALWAYS	0x20u
+#define	WT_ASSERT_READ_TS_NEVER		0x40u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t assert_flags;		/* Debugging assertion information */
 
