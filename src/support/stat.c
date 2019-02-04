@@ -1340,7 +1340,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_update_bytes_changed = 0;
 	stats->cursor_reopen = 0;
 		/* not clearing cursor_open_count */
-	stats->dh_conn_handle_size = 0;
+		/* not clearing dh_conn_handle_size */
 		/* not clearing dh_conn_handle_count */
 	stats->dh_sweep_ref = 0;
 	stats->dh_sweep_close = 0;
