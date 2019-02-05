@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -40,6 +40,19 @@
 
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
+
+#define	WT_TS_NONE	0		/* Beginning of time */
+#define	WT_TS_MAX	UINT64_MAX	/* End of time */
+
+/*
+ * We format timestamps in a couple of ways, declare appropriate sized buffers.
+ * Hexadecimal is 2x the size of the value. MongoDB format (high/low pairs of
+ * 4B unsigned integers, with surrounding parenthesis and dividing comma), is
+ * 2x the maximum digits from a 4B unsigned integer + 3. Both sizes include a
+ * trailing nul byte as well.
+ */
+#define	WT_TS_HEX_STRING_SIZE	(2 * sizeof(wt_timestamp_t) + 1)
+#define	WT_TS_INT_STRING_SIZE	(2 * 10 + 3 + 1)
 
 /*
  * Perform an operation at the specified isolation level.
@@ -101,13 +114,13 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-	WT_DECL_TIMESTAMP(commit_timestamp)
-	WT_DECL_TIMESTAMP(last_ckpt_timestamp)
-	WT_DECL_TIMESTAMP(meta_ckpt_timestamp)
-	WT_DECL_TIMESTAMP(oldest_timestamp)
-	WT_DECL_TIMESTAMP(pinned_timestamp)
-	WT_DECL_TIMESTAMP(recovery_timestamp)
-	WT_DECL_TIMESTAMP(stable_timestamp)
+	wt_timestamp_t commit_timestamp;
+	wt_timestamp_t last_ckpt_timestamp;
+	wt_timestamp_t meta_ckpt_timestamp;
+	wt_timestamp_t oldest_timestamp;
+	wt_timestamp_t pinned_timestamp;
+	wt_timestamp_t recovery_timestamp;
+	wt_timestamp_t stable_timestamp;
 	bool has_commit_timestamp;
 	bool has_oldest_timestamp;
 	bool has_pinned_timestamp;
@@ -147,7 +160,7 @@ struct __wt_txn_global {
 	volatile bool	  checkpoint_running;	/* Checkpoint running */
 	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
 	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
-	WT_TXN           *checkpoint_txn;	/* Checkpoint's txn structure */
+	wt_timestamp_t	  checkpoint_timestamp;	/* Checkpoint's timestamp */
 
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 
@@ -172,18 +185,36 @@ typedef enum __wt_txn_isolation {
  *	records during commit or undo the operations during rollback.
  */
 struct __wt_txn_op {
-	uint32_t fileid;
+	WT_BTREE *btree;
 	enum {
-		WT_TXN_OP_NONE,
-		WT_TXN_OP_BASIC,
-		WT_TXN_OP_INMEM,
+		WT_TXN_OP_NONE=0,
+		WT_TXN_OP_BASIC_COL,
+		WT_TXN_OP_BASIC_ROW,
+		WT_TXN_OP_INMEM_COL,
+		WT_TXN_OP_INMEM_ROW,
 		WT_TXN_OP_REF_DELETE,
 		WT_TXN_OP_TRUNCATE_COL,
 		WT_TXN_OP_TRUNCATE_ROW
 	} type;
 	union {
-		/* WT_TXN_OP_BASIC, WT_TXN_OP_INMEM */
-		WT_UPDATE *upd;
+		/* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
+		struct {
+			WT_UPDATE *upd;
+			WT_ITEM key;
+		} op_row;
+
+		/* WT_TXN_OP_BASIC_COL, WT_TXN_OP_INMEM_COL */
+		struct {
+			WT_UPDATE *upd;
+			uint64_t recno;
+		} op_col;
+/*
+ * upd is pointing to same memory in both op_row and op_col, so for simplicity
+ * just chose op_row upd
+ */
+#undef op_upd
+#define	op_upd	op_row.upd
+
 		/* WT_TXN_OP_REF_DELETE */
 		WT_REF *ref;
 		/* WT_TXN_OP_TRUNCATE_COL */
@@ -231,31 +262,47 @@ struct __wt_txn {
 	 * In some use cases, this can be updated while the transaction is
 	 * running.
 	 */
-	WT_DECL_TIMESTAMP(commit_timestamp)
+	wt_timestamp_t commit_timestamp;
+
+	/*
+	 * Durable timestamp copied into updates created by this transaction.
+	 * It is used to decide whether to consider this update to be persisted
+	 * or not by stable checkpoint.
+	 */
+	wt_timestamp_t durable_timestamp;
 
 	/*
 	 * Set to the first commit timestamp used in the transaction and fixed
 	 * while the transaction is on the public list of committed timestamps.
 	 */
-	WT_DECL_TIMESTAMP(first_commit_timestamp)
+	wt_timestamp_t first_commit_timestamp;
 
 	/*
 	 * Timestamp copied into updates created by this transaction, when this
 	 * transaction is prepared.
 	 */
-	WT_DECL_TIMESTAMP(prepare_timestamp)
+	wt_timestamp_t prepare_timestamp;
 
 	/* Read updates committed as of this timestamp. */
-	WT_DECL_TIMESTAMP(read_timestamp)
+	wt_timestamp_t read_timestamp;
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
-	bool clear_ts_queue;	/* Set if we need to clear from the queue */
+	bool clear_commit_q;	/* Set if need to clear from the commit queue */
+	bool clear_read_q;	/* Set if need to clear from the read queue */
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
 	size_t		mod_alloc;
 	u_int		mod_count;
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * Reference count of multiple updates processed, as part of a single
+	 * transaction operation processing for resolving the indirect update
+	 * references in a prepared transaction as part of commit.
+	 */
+	u_int		multi_update_count;
+#endif
 
 	/* Scratch buffer for in-memory log records. */
 	WT_ITEM	       *logrec;

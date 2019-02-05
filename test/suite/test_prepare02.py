@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -38,9 +38,6 @@ def timestamp_str(t):
 
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
     def test_prepare_session_operations(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         self.session.create("table:mytable", "key_format=S,value_format=S")
         cursor = self.session.open_cursor("table:mytable", None)
 
@@ -99,7 +96,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
             lambda:self.session.prepare_transaction("prepare_timestamp=2a"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
-                "commit_timestamp=2a"), msg)
+                "read_timestamp=2a"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.checkpoint(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -113,6 +110,14 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.commit_transaction("commit_timestamp=2b")
+
+        # Setting commit timestamp via timestamp_transaction after
+        # prepare is also permitted.
+        self.session.begin_transaction()
+        c1 = self.session.open_cursor("table:mytable", None)
+        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.session.timestamp_transaction("commit_timestamp=2b")
+        self.session.commit_transaction()
 
         # Rollback after prepare is permitted.
         self.session.begin_transaction()

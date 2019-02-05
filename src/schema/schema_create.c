@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -677,11 +677,11 @@ __create_data_source(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_schema_create --
+ * __schema_create --
  *	Process a WT_SESSION::create operation for all supported types.
  */
-int
-__wt_schema_create(
+static int
+__schema_create(
     WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
 	WT_CONFIG_ITEM cval;
@@ -719,5 +719,22 @@ __wt_schema_create(
 	session->dhandle = NULL;
 	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
+	return (ret);
+}
+
+/*
+ * __wt_schema_create --
+ *	Process a WT_SESSION::create operation for all supported types.
+ */
+int
+__wt_schema_create(
+    WT_SESSION_IMPL *session, const char *uri, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *int_session;
+
+	WT_RET(__wt_schema_internal_session(session, &int_session));
+	ret = __schema_create(int_session, uri, config);
+	WT_TRET(__wt_schema_session_release(session, int_session));
 	return (ret);
 }

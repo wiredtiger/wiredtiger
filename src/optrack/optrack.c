@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -21,12 +21,15 @@ __wt_optrack_record_funcid(
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	wt_off_t fsize;
+	bool locked;
 
 	conn = S2C(session);
+	locked = false;
 
 	WT_ERR(__wt_scr_alloc(session, strlen(func) + 32, &tmp));
 
 	__wt_spin_lock(session, &conn->optrack_map_spinlock);
+	locked = true;
 	if (*func_idp == 0) {
 		*func_idp = ++optrack_uid;
 
@@ -38,19 +41,21 @@ __wt_optrack_record_funcid(
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "%s", __func__);
+err:		WT_PANIC_MSG(session, ret,
+		    "operation tracking initialization failure");
 	}
 
-	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
+	if (locked)
+		__wt_spin_unlock(session, &conn->optrack_map_spinlock);
 	__wt_scr_free(session, &tmp);
 }
 
 /*
- * __wt_optrack_open_file --
+ * __optrack_open_file --
  *	Open the per-session operation-tracking file.
  */
-int
-__wt_optrack_open_file(WT_SESSION_IMPL *session)
+static int
+__optrack_open_file(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
@@ -61,7 +66,7 @@ __wt_optrack_open_file(WT_SESSION_IMPL *session)
 	conn = S2C(session);
 
 	if (!F_ISSET(conn, WT_CONN_OPTRACK))
-		return (WT_ERROR);
+		WT_RET_MSG(session, WT_ERROR, "WT_CONN_OPTRACK not set");
 
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 	WT_ERR(__wt_filename_construct(session, conn->optrack_path,
@@ -103,9 +108,8 @@ err:		WT_TRET(__wt_close(session, &session->optrack_fh));
 void
 __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 {
-	if (s->optrack_fh == NULL)
-		if (__wt_optrack_open_file(s))
-			return;
+	if (s->optrack_fh == NULL && __optrack_open_file(s) != 0)
+		return;
 
 	/*
 	 * We're not using the standard write path deliberately, that's quite

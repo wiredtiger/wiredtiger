@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -80,7 +80,7 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
 
 	WT_STAT_SET(session, stats, file_open, conn->open_file_count);
 	WT_STAT_SET(session,
-	    stats, session_cursor_open, conn->open_cursor_count);
+	    stats, cursor_open_count, conn->open_cursor_count);
 	WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
 	WT_STAT_SET(session,
 	    stats, rec_split_stashed_objects, conn->stashed_objects);
@@ -501,17 +501,17 @@ static int
 __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 {
 	struct timespec ts;
-	struct tm *tm, _tm;
+	struct tm localt;
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
 
 	/* Get the current local time of day. */
 	__wt_epoch(session, &ts);
-	tm = localtime_r(&ts.tv_sec, &_tm);
+	WT_RET(__wt_localtime(session, &ts.tv_sec, &localt));
 
 	/* Create the logging path name for this time of day. */
-	if (strftime(tmp->mem, tmp->memsize, conn->stat_path, tm) == 0)
+	if (strftime(tmp->mem, tmp->memsize, conn->stat_path, &localt) == 0)
 		WT_RET_MSG(session, ENOMEM, "strftime path conversion");
 
 	/* If the path has changed, cycle the log file. */
@@ -527,7 +527,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	}
 
 	/* Create the entry prefix for this time of day. */
-	if (strftime(tmp->mem, tmp->memsize, conn->stat_format, tm) == 0)
+	if (strftime(tmp->mem, tmp->memsize, conn->stat_format, &localt) == 0)
 		WT_RET_MSG(session, ENOMEM, "strftime timestamp conversion");
 	conn->stat_stamp = tmp->mem;
 	WT_RET(__statlog_print_header(session));
@@ -613,6 +613,9 @@ __statlog_server(void *arg)
 	session = arg;
 	conn = S2C(session);
 
+	WT_CLEAR(path);
+	WT_CLEAR(tmp);
+
 	/*
 	 * We need a temporary place to build a path and an entry prefix.
 	 * The length of the path plus 128 should be more than enough.
@@ -620,10 +623,8 @@ __statlog_server(void *arg)
 	 * We also need a place to store the current path, because that's
 	 * how we know when to close/re-open the file.
 	 */
-	WT_CLEAR(path);
 	WT_ERR(__wt_buf_init(session, &path, strlen(conn->stat_path) + 128));
 	WT_ERR(__wt_buf_setstr(session, &path, ""));
-	WT_CLEAR(tmp);
 	WT_ERR(__wt_buf_init(session, &tmp, strlen(conn->stat_path) + 128));
 	WT_ERR(__wt_buf_setstr(session, &tmp, ""));
 
@@ -742,7 +743,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
 	F_CLR(conn, WT_CONN_SERVER_STATISTICS);
 	if (conn->stat_tid_set) {
 		__wt_cond_signal(session, conn->stat_cond);
-		WT_TRET(__wt_thread_join(session, conn->stat_tid));
+		WT_TRET(__wt_thread_join(session, &conn->stat_tid));
 		conn->stat_tid_set = false;
 	}
 	__wt_cond_destroy(session, &conn->stat_cond);

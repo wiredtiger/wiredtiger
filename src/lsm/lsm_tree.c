@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -407,6 +407,7 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 {
 	WT_LSM_TREE *lsm_tree;
 
+	*treep = NULL;
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST));
 
 	/* See if the tree is already open. */
@@ -419,7 +420,8 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 				 */
 				if (!__wt_atomic_cas_ptr(
 				    &lsm_tree->excl_session, NULL, session))
-					return (EBUSY);
+					return (__wt_set_return(
+					    session, EBUSY));
 
 				/*
 				 * Drain the work queue before checking for
@@ -431,7 +433,8 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 				if (lsm_tree->refcnt != 1) {
 					__wt_lsm_tree_release(
 					    session, lsm_tree);
-					return (EBUSY);
+					return (__wt_set_return(
+					    session, EBUSY));
 				}
 			} else {
 				(void)__wt_atomic_add32(&lsm_tree->refcnt, 1);
@@ -445,7 +448,8 @@ __lsm_tree_find(WT_SESSION_IMPL *session,
 					    lsm_tree->refcnt > 0);
 					__wt_lsm_tree_release(
 					    session, lsm_tree);
-					return (EBUSY);
+					return (__wt_set_return(
+					    session, EBUSY));
 				}
 			}
 
@@ -467,25 +471,23 @@ static int
 __lsm_tree_open_check(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 {
 	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
 	uint64_t maxleafpage, required;
 	const char *cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_create), lsm_tree->file_config, NULL };
 
+	conn = S2C(session);
+
 	WT_RET(__wt_config_gets(session, cfg, "leaf_page_max", &cval));
 	maxleafpage = (uint64_t)cval.val;
 
-	/*
-	 * Three chunks, plus one page for each participant in up to three
-	 * concurrent merges.
-	 */
-	required = 3 * lsm_tree->chunk_size +
-	    3 * (lsm_tree->merge_max * maxleafpage);
-	if (S2C(session)->cache_size < required)
+	required = WT_LSM_TREE_MINIMUM_SIZE(
+	    lsm_tree->chunk_size, lsm_tree->merge_max, maxleafpage);
+	if (conn->cache_size < required)
 		WT_RET_MSG(session, EINVAL,
 		    "LSM cache size %" PRIu64 " (%" PRIu64 "MB) too small, "
 		    "must be at least %" PRIu64 " (%" PRIu64 "MB)",
-		    S2C(session)->cache_size,
-		    S2C(session)->cache_size / WT_MEGABYTE,
+		    conn->cache_size, conn->cache_size / WT_MEGABYTE,
 		    required, (required + (WT_MEGABYTE - 1))/ WT_MEGABYTE);
 	return (0);
 }

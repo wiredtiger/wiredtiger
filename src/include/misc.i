@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -193,16 +193,12 @@ __wt_snprintf_len_incr(
  *	Return an error if the current transaction is in the prepare state.
  */
 static inline int
-__wt_txn_context_prepare_check( WT_SESSION_IMPL *session)
+__wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
 {
-#ifdef HAVE_TIMESTAMPS
 	if (F_ISSET(&session->txn, WT_TXN_PREPARE))
 		WT_RET_MSG(session, EINVAL,
 		    "%s: not permitted in a prepared transaction",
 		    session->name);
-#else
-	WT_UNUSED(session);
-#endif
 	return (0);
 }
 
@@ -225,22 +221,60 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 }
 
 /*
- * __wt_state_yield_sleep --
- *	Sleep while waiting, after a thousand yields.
+ * __wt_spin_backoff --
+ *	Back off while spinning for a resource. This is used to avoid busy
+ *	waiting loops that can consume enough CPU to block real work being
+ *	done. The algorithm spins a few times, then yields for a while, then
+ *	falls back to sleeping.
  */
 static inline void
-__wt_state_yield_sleep(uint64_t *yield_count, uint64_t *sleep_count)
+__wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 {
-	/*
-	 * We yield before retrying, and if we've yielded enough times, start
-	 * sleeping so we don't burn CPU to no purpose.
-	 */
+	if ((*yield_count) < 10) {
+		(*yield_count)++;
+		return;
+	}
+
 	if ((*yield_count) < WT_THOUSAND) {
 		(*yield_count)++;
 		__wt_yield();
 		return;
 	}
 
-	(*sleep_count) = WT_MIN((*sleep_count) + 100, WT_THOUSAND);
-	__wt_sleep(0, (*sleep_count));
+	(*sleep_usecs) = WT_MIN((*sleep_usecs) + 100, WT_THOUSAND);
+	__wt_sleep(0, (*sleep_usecs));
+}
+
+				/* Maximum stress delay is 1/10 of a second. */
+#define	WT_TIMING_STRESS_MAX_DELAY	(100000)
+
+/*
+ * __wt_timing_stress --
+ *	Optionally add delay to stress code paths.
+ */
+static inline void
+__wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
+{
+	uint64_t i;
+
+	/* Optionally only sleep when a specified configuration flag is set. */
+	if (flag != 0 && !FLD_ISSET(S2C(session)->timing_stress_flags, flag))
+		return;
+
+	/*
+	 * We need a fast way to choose a sleep time. We want to sleep a short
+	 * period most of the time, but occasionally wait longer. Divide the
+	 * maximum period of time into 10 buckets (where bucket 0 doesn't sleep
+	 * at all), and roll dice, advancing to the next bucket 50% of the time.
+	 * That means we'll hit the maximum roughly every 1K calls.
+	 */
+	for (i = 0;;)
+		if (__wt_random(&session->rnd) & 0x1 || ++i > 9)
+			break;
+
+	if (i == 0)
+		__wt_yield();
+	else
+		/* The default maximum delay is 1/10th of a second. */
+		__wt_sleep(0, i * (WT_TIMING_STRESS_MAX_DELAY / 10));
 }

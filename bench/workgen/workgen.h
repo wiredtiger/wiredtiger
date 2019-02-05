@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -30,11 +30,15 @@
 #include <vector>
 #include <map>
 
+// For convenience: A type exposed to Python that cannot be negative.
+typedef unsigned int uint_t;
+
 namespace workgen {
 
 struct ContextInternal;
 struct OperationInternal;
 struct TableInternal;
+struct ThreadRunner;
 struct Thread;
 struct Transaction;
 
@@ -80,9 +84,12 @@ struct Track {
     // Threads maintain the total thread operation and total latency they've
     // experienced.
 
-    uint64_t ops;                       // Total operations */
+    uint64_t ops_in_progress;           // Total operations not completed */
+    uint64_t ops;                       // Total operations completed */
+    uint64_t rollbacks;                 // Total operations rolled back */
     uint64_t latency_ops;               // Total ops sampled for latency
     uint64_t latency;                   // Total latency */
+    uint64_t bucket_ops;                // Computed for percentile_latency
 
     // Minimum/maximum latency, shared with the monitor thread, that is, the
     // monitor thread clears it so it's recalculated again for each period.
@@ -97,10 +104,11 @@ struct Track {
     void add(Track&, bool reset = false);
     void assign(const Track&);
     uint64_t average_latency() const;
+    void begin();
     void clear();
-    void incr();
-    void incr_with_latency(uint64_t usecs);
-    void smooth(const Track&);
+    void complete();
+    void complete_with_latency(uint64_t usecs);
+    uint64_t percentile_latency(int percent) const;
     void subtract(const Track&);
     void track_latency(bool);
     bool track_latency() const { return (us != NULL); }
@@ -119,6 +127,7 @@ private:
 };
 
 struct Stats {
+    Track checkpoint;
     Track insert;
     Track not_found;
     Track read;
@@ -138,7 +147,6 @@ struct Stats {
     void final_report(std::ostream &os, timespec &totalsecs) const;
     void report(std::ostream &os) const;
 #endif
-    void smooth(const Stats&);
     void subtract(const Stats&);
     void track_latency(bool);
     bool track_latency() const { return (insert.track_latency()); }
@@ -169,10 +177,11 @@ struct Context {
 // properties are prevented, only existing properties can be set.
 //
 struct TableOptions {
-    int key_size;
-    int value_size;
+    uint_t key_size;
+    uint_t value_size;
+    uint_t value_compressibility;
     bool random_value;
-    int range;
+    uint_t range;
 
     TableOptions();
     TableOptions(const TableOptions &other);
@@ -274,8 +283,10 @@ struct Value {
 
 struct Operation {
     enum OpType {
-	OP_NONE, OP_INSERT, OP_REMOVE, OP_SEARCH, OP_UPDATE };
+	OP_CHECKPOINT, OP_INSERT, OP_LOG_FLUSH, OP_NONE, OP_NOOP,
+	OP_REMOVE, OP_SEARCH, OP_SLEEP, OP_UPDATE };
     OpType _optype;
+    OperationInternal *_internal;
 
     Table _table;
     Key _key;
@@ -285,31 +296,25 @@ struct Operation {
     std::vector<Operation> *_group;
     int _repeatgroup;
 
-#ifndef SWIG
-#define	WORKGEN_OP_REOPEN		0x0001 // reopen cursor for each op
-    uint32_t _flags;
-
-    int _keysize;    // derived from Key._size and Table.options.key_size
-    int _valuesize;
-    uint64_t _keymax;
-    uint64_t _valuemax;
-#endif
-
     Operation();
     Operation(OpType optype, Table table, Key key, Value value);
     Operation(OpType optype, Table table, Key key);
     Operation(OpType optype, Table table);
+    // Constructor with string applies to NOOP, SLEEP, CHECKPOINT
+    Operation(OpType optype, const char *config);
     Operation(const Operation &other);
     ~Operation();
 
     void describe(std::ostream &os) const;
 #ifndef SWIG
     Operation& operator=(const Operation &other);
+    void init_internal(OperationInternal *other);
     void create_all();
     void get_static_counts(Stats &stats, int multiplier);
+    bool is_table_op() const;
     void kv_compute_max(bool iskey, bool has_random);
-    void kv_gen(bool iskey, uint32_t randomizer, uint64_t n,
-      char *result) const;
+    void kv_gen(ThreadRunner *runner, bool iskey, uint64_t compressibility,
+       uint64_t n, char *result) const;
     void kv_size_buffer(bool iskey, size_t &size) const;
     void size_check() const;
 #endif
@@ -397,7 +402,7 @@ struct WorkloadOptions {
     std::string report_file;
     int report_interval;
     int run_time;
-    int sample_interval;
+    int sample_interval_ms;
     int sample_rate;
     std::string sample_file;
     int warmup;

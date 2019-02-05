@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -299,13 +299,22 @@ __wt_bloom_hash_get(WT_BLOOM *bloom, WT_BLOOM_HASH *bhash)
 	WT_ERR(c->reset(c));
 	return (result);
 
-err:	/* Don't return WT_NOTFOUND from a failed search. */
-	if (ret == WT_NOTFOUND)
-		ret = WT_ERROR;
-	if (c != NULL)
-		(void)c->reset(c);
-	__wt_err(bloom->session, ret, "Failed lookup in bloom filter");
-	return (ret);
+err:	if (c != NULL)
+		WT_TRET(c->reset(c));
+
+	/*
+	 * Error handling from this function is complex. A search in the
+	 * backing bit field should never return WT_NOTFOUND - so translate
+	 * that into a different error code and report an error. If we got a
+	 * WT_ROLLBACK it may be because there is a lot of cache pressure and
+	 * the transaction is being killed - don't report an error message in
+	 * that case.
+	 */
+	if (ret == WT_ROLLBACK || ret == WT_CACHE_FULL)
+		return (ret);
+	WT_RET_MSG(bloom->session,
+	    ret == WT_NOTFOUND ? WT_ERROR : ret,
+	    "Failed lookup in bloom filter");
 }
 
 /*

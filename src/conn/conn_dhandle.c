@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -47,7 +47,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 	if ((ret =
 	    __wt_metadata_search(session, dhandle->name, &metaconf)) != 0) {
 		if (ret == WT_NOTFOUND)
-			ret = ENOENT;
+			ret = __wt_set_return(session, ENOENT);
 		WT_RET(ret);
 	}
 
@@ -140,10 +140,11 @@ __wt_conn_dhandle_alloc(
 		dhandle->type = WT_DHANDLE_TYPE_BTREE;
 	} else if (WT_PREFIX_MATCH(uri, "table:")) {
 		WT_RET(__wt_calloc_one(session, &table));
-		dhandle = &table->iface;
+		dhandle = (WT_DATA_HANDLE *)table;
 		dhandle->type = WT_DHANDLE_TYPE_TABLE;
 	} else
-		return (__wt_illegal_value(session, NULL));
+		WT_PANIC_RET(session, EINVAL,
+		    "illegal handle allocation URI %s", uri);
 
 	/* Btree handles keep their data separate from the interface. */
 	if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
@@ -243,7 +244,7 @@ __wt_conn_dhandle_close(
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
-	bool discard, is_btree, marked_dead, no_schema_lock;
+	bool discard, is_btree, is_mapped, marked_dead, no_schema_lock;
 
 	conn = S2C(session);
 	dhandle = session->dhandle;
@@ -287,7 +288,7 @@ __wt_conn_dhandle_close(
 	 */
 	__wt_spin_lock(session, &dhandle->close_lock);
 
-	discard = marked_dead = false;
+	discard = is_mapped = marked_dead = false;
 	if (is_btree && !F_ISSET(btree,
 	    WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)) {
 		/*
@@ -306,8 +307,9 @@ __wt_conn_dhandle_close(
 		 * that become invalid if the mapping is closed.)
 		 */
 		bm = btree->bm;
-		if (!discard && mark_dead &&
-		    (bm == NULL || !bm->is_mapped(bm, session)))
+		if (bm != NULL)
+			is_mapped = bm->is_mapped(bm, session);
+		if (!discard && mark_dead && (bm == NULL || !is_mapped))
 			marked_dead = true;
 
 		/*
@@ -337,6 +339,16 @@ __wt_conn_dhandle_close(
 			}
 		}
 	}
+
+	/*
+	 * We close the underlying handle before discarding pages from the cache
+	 * for performance reasons. However, the underlying block manager "owns"
+	 * information about memory mappings, and memory-mapped pages contain
+	 * pointers into memory that becomes invalid if the mapping is closed,
+	 * so discard mapped files before closing, otherwise, close first.
+	 */
+	if (discard && is_mapped)
+		WT_TRET(__wt_cache_op(session, WT_SYNC_DISCARD));
 
 	/* Close the underlying handle. */
 	switch (dhandle->type) {
@@ -369,7 +381,7 @@ __wt_conn_dhandle_close(
 	 * expects the data handle dead flag to be set when discarding modified
 	 * pages.
 	 */
-	if (discard)
+	if (discard && !is_mapped)
 		WT_TRET(__wt_cache_op(session, WT_SYNC_DISCARD));
 
 	/*
@@ -703,7 +715,7 @@ __conn_dhandle_remove(WT_SESSION_IMPL *session, bool final)
 	/* Check if the handle was reacquired by a session while we waited. */
 	if (!final &&
 	    (dhandle->session_inuse != 0 || dhandle->session_ref != 0))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 
 	WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket);
 	return (0);

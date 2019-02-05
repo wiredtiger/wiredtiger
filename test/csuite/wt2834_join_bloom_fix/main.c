@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -58,10 +58,6 @@ main(int argc, char *argv[])
 	char joinuri[256];
 	char posturi[256];
 	const char *tablename;
-
-	/* Ignore unless requested */
-	if (!testutil_is_flag_set("TESTUTIL_ENABLE_LONG_TESTS"))
-		return (EXIT_SUCCESS);
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -167,9 +163,7 @@ main(int argc, char *argv[])
 	testutil_assert(count == 0);
 
 	testutil_progress(opts, "cleanup starting");
-#if 0
 	testutil_cleanup(opts);
-#endif
 	return (EXIT_SUCCESS);
 }
 

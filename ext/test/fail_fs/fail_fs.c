@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -767,8 +767,10 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	int64_t argval;
 	int ret;
 
-	ret = 0;
+	config_parser = NULL;
 	wtext = conn->get_extension_api(conn);
+	ret = 0;
+
 	if ((fail_fs = calloc(1, sizeof(FAIL_FILE_SYSTEM))) == NULL) {
 		(void)wtext->err_printf(wtext, NULL,
 		    "fail_file_system extension_init: %s",
@@ -813,7 +815,9 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 		    wtext->strerror(wtext, NULL, ret));
 		goto err;
 	}
-	if ((ret = config_parser->close(config_parser)) != 0) {
+	ret = config_parser->close(config_parser);
+	config_parser = NULL;
+	if (ret != 0) {
 		(void)wtext->err_printf(wtext, NULL,
 		    "WT_CONFIG_PARSER.close: config: %s",
 		    wtext->strerror(wtext, NULL, ret));
@@ -840,6 +844,8 @@ wiredtiger_extension_init(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
 	}
 	return (0);
 
-err:    free(fail_fs);
+err:	if (config_parser != NULL)
+		(void)config_parser->close(config_parser);
+	free(fail_fs);
 	return (ret);
 }

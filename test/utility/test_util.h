@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -38,8 +38,9 @@
 #define	RM_COMMAND		"rm -rf "
 #endif
 
-#define	DEFAULT_DIR	"WT_TEST"
-#define	MKDIR_COMMAND	"mkdir "
+#define	DEFAULT_DIR		"WT_TEST"
+#define	DEFAULT_TABLE_SCHEMA	"key_format=i,value_format=S"
+#define	MKDIR_COMMAND		"mkdir "
 
 #ifdef _WIN32
 #include "windows_shim.h"
@@ -56,6 +57,7 @@ typedef struct {
 	} table_type;
 	bool	     preserve;			/* Don't remove files on exit */
 	bool	     verbose;			/* Run in verbose mode */
+	bool	     do_data_ops;		/* Have schema ops use data */
 	uint64_t     nrecords;			/* Number of records */
 	uint64_t     nops;			/* Number of operations */
 	uint64_t     nthreads;			/* Number of threads */
@@ -247,7 +249,11 @@ void testutil_cleanup(TEST_OPTS *);
 bool testutil_is_flag_set(const char *);
 void testutil_make_work_dir(const char *);
 int  testutil_parse_opts(int, char * const *, TEST_OPTS *);
+void testutil_print_command_line(int argc, char * const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
+#ifndef _WIN32
+void testutil_sleep_wait(uint32_t, pid_t);
+#endif
 void testutil_work_dir_from_path(char *, size_t, const char *);
 WT_THREAD_RET thread_append(void *);
 

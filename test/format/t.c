@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -104,7 +104,6 @@ main(int argc, char *argv[])
 		default:
 			usage();
 		}
-	argc -= __wt_optind;
 	argv += __wt_optind;
 
 	/* Initialize the global RNG. */
@@ -170,7 +169,7 @@ main(int argc, char *argv[])
 	testutil_check(pthread_rwlock_init(&g.append_lock, NULL));
 	testutil_check(pthread_rwlock_init(&g.backup_lock, NULL));
 	testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
-	testutil_check(pthread_rwlock_init(&g.prepare_lock, NULL));
+	testutil_check(pthread_rwlock_init(&g.ts_lock, NULL));
 
 	printf("%s: process %" PRIdMAX "\n", progname, (intmax_t)getpid());
 	while (++g.run_cnt <= g.c_runs || g.c_runs == 0 ) {
@@ -268,7 +267,7 @@ main(int argc, char *argv[])
 	testutil_check(pthread_rwlock_destroy(&g.append_lock));
 	testutil_check(pthread_rwlock_destroy(&g.backup_lock));
 	testutil_check(pthread_rwlock_destroy(&g.death_lock));
-	testutil_check(pthread_rwlock_destroy(&g.prepare_lock));
+	testutil_check(pthread_rwlock_destroy(&g.ts_lock));
 
 	config_clear();
 

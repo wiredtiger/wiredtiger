@@ -1,4 +1,6 @@
-#if defined(__powerpc64__)
+#include <wiredtiger_config.h>
+#if defined(__powerpc64__) && !defined(HAVE_NO_CRC32_HARDWARE)
+
 /*
  * Calculate the checksum of data that is 16 byte aligned and a multiple of
  * 16 bytes.
@@ -770,9 +772,11 @@ FUNC_START(__crc32_vpmsum)
 FUNC_END(__crc32_vpmsum)
 #endif
 
-/*
- * Make sure the stack isn't executable with GCC (regardless of platform).
- */
+/* Make sure the stack isn't executable with GCC (regardless of platform). */
 #ifdef __ELF__
 .section	.note.GNU-stack,"",@progbits
 #endif
+/*
+ * DO NOT add an #endif after this line, this section must always be output
+ * and can never be #ifdef'd out as part of conditional compilation.
+ */

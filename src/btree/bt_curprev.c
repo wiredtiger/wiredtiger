@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -324,6 +324,11 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 
 	/* Initialize for each new page. */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
+		cbt->slot = UINT32_MAX;
 		cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 		if (cbt->last_standard_recno == 0)
 			return (WT_NOTFOUND);
@@ -371,7 +376,7 @@ new_page:	if (cbt->recno < cbt->ref->ref_recno)
 		if (cbt->cip_saved != cip) {
 			if ((cell = WT_COL_PTR(page, cip)) == NULL)
 				continue;
-			__wt_cell_unpack(cell, &unpack);
+			__wt_cell_unpack(session, page, cell, &unpack);
 			if (unpack.type == WT_CELL_DEL) {
 				if (__wt_cell_rle(&unpack) == 1)
 					continue;
@@ -455,6 +460,11 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage)
 		if (!F_ISSET_ATOMIC(page, WT_PAGE_BUILD_KEYS))
 			WT_RET(__wt_row_leaf_keys(session, page));
 
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
+		cbt->slot = UINT32_MAX;
 		if (page->entries == 0)
 			cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
 		else
@@ -536,9 +546,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
-	WT_UPDATE *upd;
 	uint32_t flags;
-	bool newpage, valid;
+	bool newpage, visible;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -549,26 +558,23 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 	/*
-	 * In case of retrying a prev operation due to a prepare conflict,
-	 * cursor would have been already positioned at an update structure
-	 * which resulted in conflict. So, now when retrying we should examine
-	 * the same update again instead of starting from the next one in the
-	 * update chain.
+	 * If this cursor has returned prepare conflict earlier, check to see
+	 * whether that prepared update is resolved or not. If not resolved,
+	 * continue returning prepare conflict. If resolved, return the value
+	 * based on the visibility rules.
 	 */
-	F_CLR(cbt, WT_CBT_RETRY_NEXT);
-	if (F_ISSET(cbt, WT_CBT_RETRY_PREV)) {
-		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
-		F_CLR(cbt, WT_CBT_RETRY_PREV);
-		if (valid) {
-			/*
-			 * If the update, which returned prepared conflict is
-			 * visible, return the value.
-			 */
-			return (__cursor_kv_return(session, cbt, upd));
+	if (F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV)) {
+		WT_ERR(__cursor_check_prepared_update(cbt, &visible));
+		if (visible) {
+#ifdef HAVE_DIAGNOSTIC
+			WT_ERR(
+			    __wt_cursor_key_order_check(session, cbt, false));
+#endif
+			return (0);
 		}
 	}
 
-	WT_RET(__cursor_func_init(cbt, false));
+	WT_ERR(__cursor_func_init(cbt, false));
 
 	/*
 	 * If we aren't already iterating in the right direction, there's
@@ -582,8 +588,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * found.  Then, move to the previous page, until we reach the start
 	 * of the file.
 	 */
-	flags = WT_READ_PREV | WT_READ_SKIP_INTL;	/* tree walk flags */
-	LF_SET(WT_READ_NO_SPLIT);			/* don't try to split */
+	flags =						/* tree walk flags */
+	    WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
 	if (truncating)
 		LF_SET(WT_READ_TRUNCATE);
 	for (newpage = false;; newpage = true) {
@@ -606,9 +612,9 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			case WT_PAGE_COL_VAR:
 				ret = __cursor_var_append_prev(cbt, newpage);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(session, page->type);
 			}
-			if (ret == 0)
+			if (ret == 0 || ret == WT_PREPARE_CONFLICT)
 				break;
 			F_CLR(cbt, WT_CBT_ITERATE_APPEND);
 			if (ret != WT_NOTFOUND)
@@ -626,7 +632,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			case WT_PAGE_ROW_LEAF:
 				ret = __cursor_row_prev(cbt, newpage);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(session, page->type);
 			}
 			if (ret != WT_NOTFOUND)
 				break;
@@ -646,16 +652,32 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			__wt_page_evict_soon(session, cbt->ref);
 		cbt->page_deleted_count = 0;
 
+		if (F_ISSET(cbt, WT_CBT_READ_ONCE))
+			LF_SET(WT_READ_WONT_NEED);
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
 	}
-#ifdef HAVE_DIAGNOSTIC
-	if (ret == 0)
-		WT_ERR(__wt_cursor_key_order_check(session, cbt, false));
-#endif
+
 err:	switch (ret) {
 	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+#ifdef HAVE_DIAGNOSTIC
+		/*
+		 * Skip key order check, if next is called after a prev returned
+		 * a prepare conflict error, i.e cursor has changed direction
+		 * at a prepared update, hence current key returned could be
+		 * same as earlier returned key.
+		 *
+		 * eg: Initial data set : {2,3,...10)
+		 * insert key 1 in a prepare transaction.
+		 * loop on prev will return 10,...3,2 and subsequent call to
+		 * prev will return a prepare conflict. Now if we call next
+		 * key 2 will be returned which will be same as earlier
+		 * returned key.
+		 */
+		if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT))
+			ret = __wt_cursor_key_order_check(session, cbt, false);
+#endif
 		break;
 	case WT_PREPARE_CONFLICT:
 		/*
@@ -663,10 +685,11 @@ err:	switch (ret) {
 		 * as current cursor position will be reused in case of a
 		 * retry from user.
 		 */
-		F_SET(cbt, WT_CBT_RETRY_PREV);
+		F_SET(cbt, WT_CBT_ITERATE_RETRY_PREV);
 		break;
 	default:
 		WT_TRET(__cursor_reset(cbt));
 	}
+	F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 	return (ret);
 }

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -26,6 +26,10 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "test_util.h"
+
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
 
 void (*custom_die)(void) = NULL;
 const char *progname = "program name not set";
@@ -195,21 +199,68 @@ bool
 testutil_is_flag_set(const char *flag)
 {
 	const char *res;
-	bool enable_long_tests;
+	bool flag_being_set;
 
-	if (__wt_getenv(NULL, flag, &res) == WT_NOTFOUND)
+	if (__wt_getenv(NULL, flag, &res) != 0 || res == NULL)
 		return (false);
 
 	/*
 	 * This is a boolean test. So if the environment variable is set to any
 	 * value other than 0, we return success.
 	 */
-	enable_long_tests = res[0] != '0';
+	flag_being_set = res[0] != '0';
 
 	free((void *)res);
 
-	return (enable_long_tests);
+	return (flag_being_set);
 }
+
+/*
+ * testutil_print_command_line --
+ *	Print command line arguments for csuite tests.
+ */
+void
+testutil_print_command_line(int argc, char * const *argv)
+{
+	int i;
+
+	printf("Running test command: ");
+	for (i = 0; i < argc; i++)
+		printf("%s ", argv[i]);
+	printf("\n");
+}
+
+#ifndef _WIN32
+/*
+ * testutil_sleep_wait --
+ *	Wait for a process up to a number of seconds.
+ */
+void
+testutil_sleep_wait(uint32_t seconds, pid_t pid)
+{
+	pid_t got;
+	int status;
+
+	while (seconds > 0) {
+		if ((got = waitpid(pid, &status, WNOHANG|WUNTRACED)) == pid) {
+			if (WIFEXITED(status))
+				testutil_die(EINVAL,
+				    "Child process %" PRIu64 " exited early"
+				    " with status %d", (uint64_t)pid,
+				    WEXITSTATUS(status));
+			if (WIFSIGNALED(status))
+				testutil_die(EINVAL,
+				    "Child process %" PRIu64 " terminated "
+				    " with signal %d", (uint64_t)pid,
+				    WTERMSIG(status));
+		} else if (got == -1)
+			testutil_die(errno, "waitpid");
+
+		--seconds;
+		sleep(1);
+	}
+}
+#endif
 
 /*
  * dcalloc --

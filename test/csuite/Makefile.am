@@ -11,6 +11,18 @@ test_random_abort_SOURCES = random_abort/main.c
 noinst_PROGRAMS += test_random_abort
 all_TESTS += random_abort/smoke.sh
 
+test_random_directio_SOURCES = random_directio/main.c random_directio/util.c
+noinst_PROGRAMS += test_random_directio
+all_TESTS += random_directio/smoke.sh
+
+test_rwlock_SOURCES = rwlock/main.c
+noinst_PROGRAMS += test_rwlock
+all_TESTS += test_rwlock
+
+test_schema_abort_SOURCES = schema_abort/main.c
+noinst_PROGRAMS += test_schema_abort
+all_TESTS += schema_abort/smoke.sh
+
 test_scope_SOURCES = scope/main.c
 noinst_PROGRAMS += test_scope
 all_TESTS += test_scope
@@ -99,13 +111,25 @@ test_wt3874_pad_byte_collator_SOURCES = wt3874_pad_byte_collator/main.c
 noinst_PROGRAMS += test_wt3874_pad_byte_collator
 all_TESTS += test_wt3874_pad_byte_collator
 
-test_rwlock_SOURCES = rwlock/main.c
-noinst_PROGRAMS += test_rwlock
-all_TESTS += test_rwlock
+test_wt4105_large_doc_small_upd_SOURCES = wt4105_large_doc_small_upd/main.c
+noinst_PROGRAMS += test_wt4105_large_doc_small_upd
+all_TESTS += test_wt4105_large_doc_small_upd
+
+test_wt4117_checksum_SOURCES = wt4117_checksum/main.c
+noinst_PROGRAMS += test_wt4117_checksum
+all_TESTS += test_wt4117_checksum
+
+test_wt4156_metadata_salvage_SOURCES = wt4156_metadata_salvage/main.c
+noinst_PROGRAMS += test_wt4156_metadata_salvage
+all_TESTS += test_wt4156_metadata_salvage
+
+test_wt4333_handle_locks_SOURCES = wt4333_handle_locks/main.c
+noinst_PROGRAMS += test_wt4333_handle_locks
+all_TESTS += test_wt4333_handle_locks
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)
 LOG_COMPILER = $(TEST_WRAPPER)
 
 clean-local:
-	rm -rf WT_TEST.* *.core
+	rm -rf WT_TEST.* core.* *.core

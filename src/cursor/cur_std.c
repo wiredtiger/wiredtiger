@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -598,6 +598,10 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
 	WT_TRET(cursor->reset(cursor));
 
+	/* Don't keep buffers allocated for cached cursors. */
+	__wt_buf_free(session, &cursor->key);
+	__wt_buf_free(session, &cursor->value);
+
 	/*
 	 * Acquire a reference while decrementing the in-use counter.
 	 * After this point, the dhandle may be marked dead, but the
@@ -616,8 +620,8 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
 
 	(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
-	WT_STAT_DATA_DECR(session, session_cursor_open);
-	WT_STAT_DATA_INCR(session, session_cursor_cached);
+	WT_STAT_CONN_INCR_ATOMIC(session, cursor_cached_count);
+	WT_STAT_DATA_DECR(session, cursor_open_count);
 	F_SET(cursor, WT_CURSTD_CACHED);
 	return (ret);
 }
@@ -641,8 +645,8 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 		WT_DHANDLE_RELEASE(dhandle);
 	}
 	(void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
-	WT_STAT_DATA_INCR(session, session_cursor_open);
-	WT_STAT_DATA_DECR(session, session_cursor_cached);
+	WT_STAT_CONN_DECR_ATOMIC(session, cursor_cached_count);
+	WT_STAT_DATA_INCR(session, cursor_open_count);
 
 	bucket = cursor->uri_hash % WT_HASH_ARRAY_SIZE;
 	TAILQ_REMOVE(&session->cursor_cache[bucket], cursor, q);
@@ -708,6 +712,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;
+	WT_CURSOR_BTREE *cbt;
 	WT_DECL_RET;
 	uint64_t bucket, hash_value;
 	uint32_t overwrite_flag;
@@ -722,7 +727,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 
 	/* Fast path overwrite configuration */
 	if (have_config && cfg[2] == NULL &&
-	    WT_STREQ(cfg[1], "overwrite=false")) {
+	    strcmp(cfg[1], "overwrite=false") == 0) {
 		have_config = false;
 		overwrite_flag = 0;
 	} else
@@ -780,7 +785,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	bucket = hash_value % WT_HASH_ARRAY_SIZE;
 	TAILQ_FOREACH(cursor, &session->cursor_cache[bucket], q) {
 		if (cursor->uri_hash == hash_value &&
-		    WT_STREQ(cursor->uri, uri)) {
+		    strcmp(cursor->uri, uri) == 0) {
 			if ((ret = cursor->reopen(cursor, false)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 				session->dhandle = NULL;
@@ -797,6 +802,15 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW |
 			    WT_CURSTD_OVERWRITE);
 			F_SET(cursor, overwrite_flag);
+			/*
+			 * If this is a btree cursor, clear its read_once flag.
+			 */
+			if (WT_PREFIX_MATCH(cursor->internal_uri, "file:")) {
+				cbt = (WT_CURSOR_BTREE *)cursor;
+				F_CLR(cbt, WT_CBT_READ_ONCE);
+			} else {
+				cbt = NULL;
+			}
 
 			if (have_config) {
 				/*
@@ -819,6 +833,14 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 				    session, cfg, "raw", 0, &cval));
 				if (cval.val != 0)
 					F_SET(cursor, WT_CURSTD_RAW);
+
+				if (cbt) {
+					WT_RET(__wt_config_gets_def(session,
+					    cfg, "read_once", 0, &cval));
+					if (cval.val != 0)
+						F_SET(cbt, WT_CBT_READ_ONCE);
+				}
+
 			}
 
 			WT_STAT_CONN_INCR(session, cursor_reopen);
@@ -835,7 +857,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
  * __wt_cursor_close --
  *	WT_CURSOR->close default implementation.
  */
-int
+void
 __wt_cursor_close(WT_CURSOR *cursor)
 {
 	WT_SESSION_IMPL *session;
@@ -846,7 +868,7 @@ __wt_cursor_close(WT_CURSOR *cursor)
 		TAILQ_REMOVE(&session->cursors, cursor, q);
 
 		(void)__wt_atomic_sub32(&S2C(session)->open_cursor_count, 1);
-		WT_STAT_DATA_DECR(session, session_cursor_open);
+		WT_STAT_DATA_DECR(session, cursor_open_count);
 	}
 	__wt_buf_free(session, &cursor->key);
 	__wt_buf_free(session, &cursor->value);
@@ -854,7 +876,6 @@ __wt_cursor_close(WT_CURSOR *cursor)
 	__wt_free(session, cursor->internal_uri);
 	__wt_free(session, cursor->uri);
 	__wt_overwrite_and_free(session, cursor);
-	return (0);
 }
 
 /*
@@ -887,9 +908,6 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	WT_SESSION_IMPL *session;
 
 	CURSOR_API_CALL(cursor, session, modify, NULL);
-
-	WT_STAT_CONN_INCR(session, cursor_modify);
-	WT_STAT_DATA_INCR(session, cursor_modify);
 
 	/* Check for a rational modify vector count. */
 	if (nentries <= 0)
@@ -1119,7 +1137,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 
 	F_SET(cursor, WT_CURSTD_OPEN);
 	(void)__wt_atomic_add32(&S2C(session)->open_cursor_count, 1);
-	WT_STAT_DATA_INCR(session, session_cursor_open);
+	WT_STAT_DATA_INCR(session, cursor_open_count);
 
 	*cursorp = (cdump != NULL) ? cdump : cursor;
 	return (0);

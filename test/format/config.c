@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -29,17 +29,20 @@
 #include "format.h"
 #include "config.h"
 
+static void	   config_cache(void);
 static void	   config_checkpoint(void);
 static void	   config_checksum(void);
 static void	   config_compression(const char *);
 static void	   config_encryption(void);
 static const char *config_file_type(u_int);
+static bool	   config_fix(void);
 static void	   config_helium_reset(void);
 static void	   config_in_memory(void);
 static void	   config_in_memory_reset(void);
 static int	   config_is_perm(const char *);
 static void	   config_isolation(void);
 static void	   config_lrt(void);
+static void	   config_lsm_reset(void);
 static void	   config_map_checkpoint(const char *, u_int *);
 static void	   config_map_checksum(const char *, u_int *);
 static void	   config_map_compression(const char *, u_int *);
@@ -58,6 +61,7 @@ void
 config_setup(void)
 {
 	CONFIG *cp;
+	char buf[128];
 
 	/* Clear any temporary values. */
 	config_reset();
@@ -74,15 +78,15 @@ config_setup(void)
 			config_single("file_type=row", 0);
 		else
 			switch (mmrand(NULL, 1, 10)) {
-			case 1:					/* 10% */
-				if (!config_is_perm("modify_pct")) {
+			case 1: case 2: case 3:			/* 30% */
+				config_single("file_type=var", 0);
+				break;
+			case 4:					/* 10% */
+				if (config_fix()) {
 					config_single("file_type=fix", 0);
 					break;
 				}
-				/* FALLTHROUGH */
-			case 2: case 3: case 4:			/* 30% */
-				config_single("file_type=var", 0);
-				break;				/* 60% */
+				/* FALLTHROUGH */		/* 60% */
 			case 5: case 6: case 7: case 8: case 9: case 10:
 				config_single("file_type=row", 0);
 				break;
@@ -90,19 +94,32 @@ config_setup(void)
 	}
 	config_map_file_type(g.c_file_type, &g.type);
 
+	config_single("data_source=table", 0);
 	if (!config_is_perm("data_source"))
-		switch (mmrand(NULL, 1, 3)) {
-		case 1:
+		switch (mmrand(NULL, 1, 5)) {
+		case 1:						/* 20% */
 			config_single("data_source=file", 0);
 			break;
-		case 2:
-			config_single("data_source=table", 0);
+		case 2:						/* 20% */
+			/*
+			 * LSM requires a row-store and backing disk.
+			 *
+			 * Configuring truncation or timestamps results in LSM
+			 * cache problems, don't configure LSM if those set.
+			 *
+			 * XXX
+			 * Remove the timestamp test when WT-4067 resolved.
+			 */
+			if (g.type != ROW || g.c_in_memory)
+				break;
+			if (config_is_perm(
+			    "transaction_timestamps") && g.c_txn_timestamps)
+				break;
+			if (config_is_perm("truncate") && g.c_truncate)
+				break;
+			config_single("data_source=lsm", 0);
 			break;
-		case 3:
-			if (g.c_in_memory || g.type != ROW)
-				config_single("data_source=table", 0);
-			else
-				config_single("data_source=lsm", 0);
+		case 3: case 4: case 5:				/* 60% */
 			break;
 		}
 
@@ -134,14 +151,20 @@ config_setup(void)
 			continue;
 
 		/*
-		 * Boolean flags are 0 or 1, but only set N in 100 where the
-		 * variable's min value is N.  Set the flag if we rolled >=
-		 * the min, 0 otherwise.
+		 * Boolean flags are 0 or 1, where the variable's "min" value
+		 * is the percent chance the flag is "on" (so "on" if random
+		 * rolled <= N, otherwise "off").
 		 */
 		if (F_ISSET(cp, C_BOOL))
-			*cp->v = mmrand(NULL, 1, 100) <= cp->min ? 1 : 0;
+			testutil_check(__wt_snprintf(buf, sizeof(buf),
+			    "%s=%s",
+			    cp->name,
+			    mmrand(NULL, 1, 100) <= cp->min ? "on" : "off"));
 		else
-			*cp->v = mmrand(NULL, cp->min, cp->maxrand);
+			testutil_check(__wt_snprintf(buf, sizeof(buf),
+			    "%s=%" PRIu32,
+			    cp->name, mmrand(NULL, cp->min, cp->maxrand)));
+		config_single(buf, 0);
 	}
 
 	/* Required shared libraries. */
@@ -173,36 +196,15 @@ config_setup(void)
 	config_lrt();
 	config_pct();
 	config_prepare();
+	config_cache();
 
-	/*
-	 * If this is an LSM run, ensure cache size sanity.
-	 * Ensure there is at least 1MB of cache per thread.
-	 */
-	if (!config_is_perm("cache")) {
-		if (DATASOURCE("lsm"))
-			g.c_cache = 30 * g.c_chunk_size;
-		if (g.c_cache < g.c_threads)
-			g.c_cache = g.c_threads;
-	}
-
-	/* Check if a minimum cache size has been specified. */
-	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
-		g.c_cache = g.c_cache_minimum;
-
-	/*
-	 * Turn off truncate for LSM runs (some configurations with truncate
-	 * always results in a timeout).
-	 */
-	if (!config_is_perm("truncate") && DATASOURCE("lsm"))
-			config_single("truncate=off", 0);
-
-	/* Give Helium configuration a final review. */
+	/* Give Helium, in-memory and LSM configurations a final review. */
 	if (DATASOURCE("helium"))
 		config_helium_reset();
-
-	/* Give in-memory configuration a final review. */
 	if (g.c_in_memory != 0)
 		config_in_memory_reset();
+	if (DATASOURCE("lsm"))
+		config_lsm_reset();
 
 	/*
 	 * Key/value minimum/maximum are related, correct unless specified by
@@ -249,6 +251,67 @@ config_setup(void)
 
 	/* Reset the key count. */
 	g.key_cnt = 0;
+}
+
+/*
+ * config_cache --
+ *	Cache configuration.
+ */
+static void
+config_cache(void)
+{
+	uint32_t required;
+
+	/* Page sizes are powers-of-two for bad historic reasons. */
+	g.intl_page_max = 1U << g.c_intl_page_max;
+	g.leaf_page_max = 1U << g.c_leaf_page_max;
+
+	/* Check if a minimum cache size has been specified. */
+	if (config_is_perm("cache")) {
+		if (config_is_perm("cache_minimum") &&
+		    g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
+			testutil_die(EINVAL,
+			    "minimum cache set larger than cache "
+			    "(%" PRIu32 " > %" PRIu32 ")",
+			    g.c_cache_minimum, g.c_cache);
+		return;
+	}
+
+	g.c_cache = WT_MAX(g.c_cache, g.c_cache_minimum);
+
+	/*
+	 * Maximum internal/leaf page size sanity.
+	 *
+	 * Ensure we can service at least one operation per-thread concurrently
+	 * without filling the cache with pinned pages, that is, every thread
+	 * consuming an internal page and a leaf page (or a pair of leaf pages
+	 * for cursor movements).
+	 *
+	 * Maximum memory pages are in units of MB.
+	 *
+	 * This code is what dramatically increases the cache size when there
+	 * are lots of threads, it grows the cache to several megabytes per
+	 * thread.
+	 */
+	g.c_cache = WT_MAX(g.c_cache,
+	    2 * g.c_threads * g.c_memory_page_max);
+
+	/*
+	 * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
+	 * chunks plus a page for each participant in up to three concurrent
+	 * merges. Integrate a thread count into that calculation by requiring
+	 * 3 chunks/pages per configured thread. That might be overkill, but
+	 * LSM runs are more sensitive to small caches than other runs, and a
+	 * generous cache avoids stalls we're not interested in chasing.
+	 */
+	if (DATASOURCE("lsm")) {
+		required = WT_LSM_TREE_MINIMUM_SIZE(
+		    g.c_chunk_size * WT_MEGABYTE,
+		    g.c_threads * g.c_merge_max, g.c_threads * g.leaf_page_max);
+		required = (required + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
+		if (g.c_cache < required)
+			g.c_cache = required;
+	}
 }
 
 /*
@@ -329,11 +392,8 @@ config_compression(const char *conf_name)
 	 */
 	switch (mmrand(NULL, 1, 20)) {
 #ifdef HAVE_BUILTIN_EXTENSION_LZ4
-	case 1: case 2:				/* 10% lz4 */
+	case 1: case 2: case 3:			/* 15% lz4 */
 		cstr = "lz4";
-		break;
-	case 3:					/* 5% lz4-no-raw */
-		cstr = "lz4-noraw";
 		break;
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
@@ -346,12 +406,9 @@ config_compression(const char *conf_name)
 	case 10: case 11: case 12: case 13:	/* 20% zlib */
 		cstr = "zlib";
 		break;
-	case 14:				/* 5% zlib-no-raw */
-		cstr = "zlib-noraw";
-		break;
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
-	case 15: case 16: case 17:		/* 15% zstd */
+	case 14: case 15: case 16: case 17:	/* 20% zstd */
 		cstr = "zstd";
 		break;
 #endif
@@ -390,6 +447,24 @@ config_encryption(void)
 
 		config_single(cstr, 0);
 	}
+}
+
+/*
+ * config_fix --
+ *	Fixed-length column-store configuration.
+ */
+static bool
+config_fix(void)
+{
+	/*
+	 * Fixed-length column stores don't support the lookaside table (so, no
+	 * long running transactions), or modify operations.
+	 */
+	if (config_is_perm("long_running_txn"))
+		return (false);
+	if (config_is_perm("modify_pct"))
+		return (false);
+	return (true);
 }
 
 /*
@@ -509,6 +584,34 @@ config_in_memory_reset(void)
 }
 
 /*
+ * config_lsm_reset --
+ *	LSM configuration review.
+ */
+static void
+config_lsm_reset(void)
+{
+	/*
+	 * Turn off truncate for LSM runs (some configurations with truncate
+	 * always result in a timeout).
+	 */
+	if (!config_is_perm("truncate"))
+		config_single("truncate=off", 0);
+
+	/*
+	 * LSM doesn't currently play nicely with timestamps, don't choose the
+	 * pair unless forced to. If we turn off timestamps, make sure we turn
+	 * off prepare as well, it requires timestamps. Remove this code with
+	 * WT-4067.
+	 *
+	 */
+	if (!config_is_perm("prepare") &&
+	    !config_is_perm("transaction_timestamps")) {
+		config_single("prepare=off", 0);
+		config_single("transaction_timestamps=off", 0);
+	}
+}
+
+/*
  * config_isolation --
  *	Isolation configuration.
  */
@@ -552,8 +655,8 @@ config_lrt(void)
 	 * WiredTiger doesn't support a lookaside file for fixed-length column
 	 * stores.
 	 */
-	if (g.type == FIX) {
-		if (config_is_perm("long_running_txn") && g.c_long_running_txn)
+	if (g.type == FIX && g.c_long_running_txn) {
+		if (config_is_perm("long_running_txn"))
 			testutil_die(EINVAL,
 			    "long_running_txn not supported with fixed-length "
 			    "column store");
@@ -675,6 +778,9 @@ config_pct(void)
 static void
 config_prepare(void)
 {
+	/* WT-4537: REMOVE when that merges */
+	config_single("prepare=off", 0);
+
 	/*
 	 * We cannot prepare a transaction if logging is configured, or if
 	 * timestamps are not configured.
@@ -693,10 +799,14 @@ config_prepare(void)
 			testutil_die(EINVAL,
 			    "prepare requires transaction timestamps");
 	}
-	if (g.c_logging && config_is_perm("logging"))
+	if (g.c_logging && config_is_perm("logging")) {
+		config_single("prepare=off", 0);
 		return;
-	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps"))
+	}
+	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps")) {
+		config_single("prepare=off", 0);
 		return;
+	}
 
 	config_single("logging=off", 0);
 	config_single("transaction_timestamps=on", 0);
@@ -877,17 +987,6 @@ config_single(const char *s, int perm)
 	++ep;
 
 	if (F_ISSET(cp, C_STRING)) {
-		if (strncmp(s, "data_source", strlen("data_source")) == 0 &&
-		    strncmp("file", ep, strlen("file")) != 0 &&
-		    strncmp("helium", ep, strlen("helium")) != 0 &&
-		    strncmp("kvsbdb", ep, strlen("kvsbdb")) != 0 &&
-		    strncmp("lsm", ep, strlen("lsm")) != 0 &&
-		    strncmp("table", ep, strlen("table")) != 0) {
-			    fprintf(stderr,
-				"Invalid data source option: %s\n", ep);
-			    exit(EXIT_FAILURE);
-		}
-
 		/*
 		 * Free the previous setting if a configuration has been
 		 * passed in twice.
@@ -903,12 +1002,22 @@ config_single(const char *s, int perm)
 		} else if (strncmp(s, "checksum", strlen("checksum")) == 0) {
 			config_map_checksum(ep, &g.c_checksum_flag);
 			*cp->vstr = dstrdup(ep);
-		} else if (strncmp(
-		    s, "compression", strlen("compression")) == 0) {
+		} else if (strncmp(s,
+		    "compression", strlen("compression")) == 0) {
 			config_map_compression(ep, &g.c_compression_flag);
 			*cp->vstr = dstrdup(ep);
-		} else if (strncmp(
-		    s, "encryption", strlen("encryption")) == 0) {
+		} else if (strncmp(s,
+		    "data_source", strlen("data_source")) == 0 &&
+		    strncmp("file", ep, strlen("file")) != 0 &&
+		    strncmp("helium", ep, strlen("helium")) != 0 &&
+		    strncmp("kvsbdb", ep, strlen("kvsbdb")) != 0 &&
+		    strncmp("lsm", ep, strlen("lsm")) != 0 &&
+		    strncmp("table", ep, strlen("table")) != 0) {
+			    fprintf(stderr,
+				"Invalid data source option: %s\n", ep);
+			    exit(EXIT_FAILURE);
+		} else if (strncmp(s,
+		    "encryption", strlen("encryption")) == 0) {
 			config_map_encryption(ep, &g.c_encryption_flag);
 			*cp->vstr = dstrdup(ep);
 		} else if (strncmp(s, "file_type", strlen("file_type")) == 0) {
@@ -922,10 +1031,8 @@ config_single(const char *s, int perm)
 			config_map_compression(ep,
 			    &g.c_logging_compression_flag);
 			*cp->vstr = dstrdup(ep);
-		} else {
-			free((void *)*cp->vstr);
+		} else
 			*cp->vstr = dstrdup(ep);
-		}
 
 		return;
 	}
@@ -958,6 +1065,7 @@ config_single(const char *s, int perm)
 		    progname, s, cp->min, cp->maxset);
 		exit(EXIT_FAILURE);
 	}
+
 	*cp->v = v;
 }
 
@@ -1027,16 +1135,14 @@ config_map_compression(const char *s, u_int *vp)
 		*vp = COMPRESS_NONE;
 	else if (strcmp(s, "lz4") == 0)
 		*vp = COMPRESS_LZ4;
-	else if (strcmp(s, "lz4-noraw") == 0)
-		*vp = COMPRESS_LZ4_NO_RAW;
-	else if (strcmp(s, "lzo") == 0)
-		*vp = COMPRESS_LZO;
+	else if (strcmp(s, "lz4-noraw") == 0)	/* CONFIG compatibility */
+		*vp = COMPRESS_LZ4;
 	else if (strcmp(s, "snappy") == 0)
 		*vp = COMPRESS_SNAPPY;
 	else if (strcmp(s, "zlib") == 0)
 		*vp = COMPRESS_ZLIB;
-	else if (strcmp(s, "zlib-noraw") == 0)
-		*vp = COMPRESS_ZLIB_NO_RAW;
+	else if (strcmp(s, "zlib-noraw") == 0)	/* CONFIG compatibility */
+		*vp = COMPRESS_ZLIB;
 	else if (strcmp(s, "zstd") == 0)
 		*vp = COMPRESS_ZSTD;
 	else

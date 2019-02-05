@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -45,20 +45,11 @@ compressor(uint32_t compress_flag)
 	case COMPRESS_LZ4:
 		p ="lz4";
 		break;
-	case COMPRESS_LZ4_NO_RAW:
-		p ="lz4-noraw";
-		break;
-	case COMPRESS_LZO:
-		p ="LZO1B-6";
-		break;
 	case COMPRESS_SNAPPY:
 		p ="snappy";
 		break;
 	case COMPRESS_ZLIB:
 		p ="zlib";
-		break;
-	case COMPRESS_ZLIB_NO_RAW:
-		p ="zlib-noraw";
 		break;
 	case COMPRESS_ZSTD:
 		p ="zstd";
@@ -166,10 +157,10 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	max = sizeof(g.wiredtiger_open_config);
 
 	CONFIG_APPEND(p,
-	    "create=true,"
-	    "cache_size=%" PRIu32 "MB,"
-	    "checkpoint_sync=false,"
-	    "error_prefix=\"%s\"",
+	    "create=true"
+	    ",cache_size=%" PRIu32 "MB"
+	    ",checkpoint_sync=false"
+	    ",error_prefix=\"%s\"",
 	    g.c_cache, progname);
 
 	/* In-memory configuration. */
@@ -246,29 +237,32 @@ wts_open(const char *home, bool set_api, WT_CONNECTION **connp)
 	CONFIG_APPEND(p, ",timing_stress_for_test=[");
 	if (g.c_timing_stress_checkpoint)
 		CONFIG_APPEND(p, ",checkpoint_slow");
+	if (g.c_timing_stress_lookaside_sweep)
+		CONFIG_APPEND(p, ",lookaside_sweep_race");
 	if (g.c_timing_stress_split_1)
-		CONFIG_APPEND(p, ",split_race_1");
+		CONFIG_APPEND(p, ",split_1");
 	if (g.c_timing_stress_split_2)
-		CONFIG_APPEND(p, ",split_race_2");
+		CONFIG_APPEND(p, ",split_2");
 	if (g.c_timing_stress_split_3)
-		CONFIG_APPEND(p, ",split_race_3");
+		CONFIG_APPEND(p, ",split_3");
 	if (g.c_timing_stress_split_4)
-		CONFIG_APPEND(p, ",split_race_4");
+		CONFIG_APPEND(p, ",split_4");
 	if (g.c_timing_stress_split_5)
-		CONFIG_APPEND(p, ",split_race_5");
+		CONFIG_APPEND(p, ",split_5");
 	if (g.c_timing_stress_split_6)
-		CONFIG_APPEND(p, ",split_race_6");
+		CONFIG_APPEND(p, ",split_6");
 	if (g.c_timing_stress_split_7)
-		CONFIG_APPEND(p, ",split_race_7");
+		CONFIG_APPEND(p, ",split_7");
+	if (g.c_timing_stress_split_8)
+		CONFIG_APPEND(p, ",split_8");
 	CONFIG_APPEND(p, "]");
 
 	/* Extensions. */
 	CONFIG_APPEND(p,
 	    ",extensions=["
-	    "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
+	    "\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
 	    g.c_reverse ? REVERSE_PATH : "",
 	    access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
-	    access(LZO_PATH, R_OK) == 0 ? LZO_PATH : "",
 	    access(ROTN_PATH, R_OK) == 0 ? ROTN_PATH : "",
 	    access(SNAPPY_PATH, R_OK) == 0 ? SNAPPY_PATH : "",
 	    access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "",
@@ -355,51 +349,35 @@ wts_init(void)
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	size_t max;
-	uint32_t maxintlpage, maxintlkey, maxleafpage, maxleafkey, maxleafvalue;
+	uint32_t maxintlkey, maxleafkey, maxleafvalue;
 	char config[4096], *p;
 
 	conn = g.wts_conn;
 	p = config;
 	max = sizeof(config);
 
-	/*
-	 * Ensure that we can service at least one operation per-thread
-	 * concurrently without filling the cache with pinned pages. We choose
-	 * a multiplier of three because the max configurations control on disk
-	 * size and in memory pages are often significantly larger than their
-	 * disk counterparts.  We also apply the default eviction_dirty_trigger
-	 * of 20% so that workloads don't get stuck with dirty pages in cache.
-	 */
-	maxintlpage = 1U << g.c_intl_page_max;
-	maxleafpage = 1U << g.c_leaf_page_max;
-	while (3 * g.c_threads * (maxintlpage + maxleafpage) >
-	    (g.c_cache << 20) / 5) {
-		if (maxleafpage <= 512 && maxintlpage <= 512)
-			break;
-		if (maxintlpage > 512)
-			maxintlpage >>= 1;
-		if (maxleafpage > 512)
-			maxleafpage >>= 1;
-	}
 	CONFIG_APPEND(p,
-	    "key_format=%s,"
-	    "allocation_size=512,%s"
-	    "internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32,
+	    "key_format=%s"
+	    ",allocation_size=512"
+	    ",%s"
+	    ",internal_page_max=%" PRIu32
+	    ",leaf_page_max=%" PRIu32
+	    ",memory_page_max=%" PRIu32,
 	    (g.type == ROW) ? "u" : "r",
-	    g.c_firstfit ? "block_allocation=first," : "",
-	    maxintlpage, maxleafpage);
+	    g.c_firstfit ? "block_allocation=first" : "",
+	    g.intl_page_max, g.leaf_page_max, MEGABYTE(g.c_memory_page_max));
 
 	/*
 	 * Configure the maximum key/value sizes, but leave it as the default
 	 * if we come up with something crazy.
 	 */
-	maxintlkey = mmrand(NULL, maxintlpage / 50, maxintlpage / 40);
+	maxintlkey = mmrand(NULL, g.intl_page_max / 50, g.intl_page_max / 40);
 	if (maxintlkey > 20)
 		CONFIG_APPEND(p, ",internal_key_max=%" PRIu32, maxintlkey);
-	maxleafkey = mmrand(NULL, maxleafpage / 50, maxleafpage / 40);
+	maxleafkey = mmrand(NULL, g.leaf_page_max / 50, g.leaf_page_max / 40);
 	if (maxleafkey > 20)
 		CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-	maxleafvalue = mmrand(NULL, maxleafpage * 10, maxleafpage / 40);
+	maxleafvalue = mmrand(NULL, g.leaf_page_max * 10, g.leaf_page_max / 40);
 	if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
 		CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
@@ -557,7 +535,6 @@ wts_verify(const char *tag)
 	WT_CONNECTION *conn;
 	WT_DECL_RET;
 	WT_SESSION *session;
-	char config_buf[64];
 
 	if (g.c_verify == 0)
 		return;
@@ -569,17 +546,6 @@ wts_verify(const char *tag)
 	if (g.logging != 0)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
 		    "=============== verify start ===============");
-
-	if (g.c_txn_timestamps && g.timestamp > 0) {
-		/*
-		 * Bump the oldest timestamp, otherwise recent operations can
-		 * prevent verify from running.
-		 */
-		testutil_check(__wt_snprintf(
-		    config_buf, sizeof(config_buf),
-		    "oldest_timestamp=%" PRIx64, g.timestamp));
-		testutil_check(conn->set_timestamp(conn, config_buf));
-	}
 
 	/*
 	 * Verify can return EBUSY if the handle isn't available. Don't yield
@@ -603,15 +569,15 @@ wts_verify(const char *tag)
 void
 wts_stats(void)
 {
+	FILE *fp;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION *session;
-	FILE *fp;
 	size_t len;
-	char *stat_name;
-	const char *desc, *pval;
 	uint64_t v;
+	const char *desc, *pval;
+	char *stat_name;
 
 	/* Ignore statistics if they're not configured. */
 	if (g.c_statistics == 0)

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -272,8 +272,9 @@ __block_off_match(WT_EXTLIST *el, wt_off_t off, wt_off_t size)
  *	Complain if a block appears on the available or discard lists.
  */
 int
-__wt_block_misplaced(WT_SESSION_IMPL *session,
-   WT_BLOCK *block, const char *tag, wt_off_t offset, uint32_t size, bool live)
+__wt_block_misplaced(
+   WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list,
+   wt_off_t offset, uint32_t size, bool live, const char *func, int line)
 {
 	const char *name;
 
@@ -308,8 +309,9 @@ __wt_block_misplaced(WT_SESSION_IMPL *session,
 	__wt_spin_unlock(session, &block->live_lock);
 	if (name != NULL) {
 		__wt_errx(session,
-		    "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list",
-		    tag, (uintmax_t)offset, size, name);
+		    "%s failed: %" PRIuMAX "/%" PRIu32 " is on the %s list "
+		    "(%s, %d)",
+		    list, (uintmax_t)offset, size, name, func, line);
 		return (__wt_panic(session));
 	}
 	return (0);
@@ -505,6 +507,9 @@ __wt_block_alloc(
 	WT_EXT *ext, **estack[WT_SKIP_MAXDEPTH];
 	WT_SIZE *szp, **sstack[WT_SKIP_MAXDEPTH];
 
+	/* If a sync is running, no other sessions can allocate blocks. */
+	WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
+
 	/* Assert we're maintaining the by-size skiplist. */
 	WT_ASSERT(session, block->live.avail.track_size != 0);
 
@@ -601,8 +606,8 @@ __wt_block_free(WT_SESSION_IMPL *session,
 	    "free %" PRIdMAX "/%" PRIdMAX, (intmax_t)offset, (intmax_t)size);
 
 #ifdef HAVE_DIAGNOSTIC
-	WT_RET(
-	    __wt_block_misplaced(session, block, "free", offset, size, true));
+	WT_RET(__wt_block_misplaced(
+	    session, block, "free", offset, size, true, __func__, __LINE__));
 #endif
 	WT_RET(__wt_block_ext_prealloc(session, 5));
 	__wt_spin_lock(session, &block->live_lock);
@@ -621,6 +626,9 @@ __wt_block_off_free(
     WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset, wt_off_t size)
 {
 	WT_DECL_RET;
+
+	/* If a sync is running, no other sessions can free blocks. */
+	WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
 	/*
 	 * Callers of this function are expected to have already acquired any

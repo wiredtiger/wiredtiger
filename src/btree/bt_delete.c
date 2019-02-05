@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -76,12 +76,12 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
 	    __wt_atomic_casv32(&ref->state, previous_state, WT_REF_LOCKED)) {
 		if (__wt_page_is_modified(ref->page)) {
-			ref->state = previous_state;
+			WT_REF_SET_STATE(ref, previous_state);
 			return (0);
 		}
 
 		(void)__wt_atomic_addv32(&S2BT(session)->evict_busy, 1);
-		ret = __wt_evict(session, ref, false);
+		ret = __wt_evict(session, ref, false, previous_state);
 		(void)__wt_atomic_subv32(&S2BT(session)->evict_busy, 1);
 		WT_RET_BUSY_OK(ret);
 		ret = 0;
@@ -155,13 +155,13 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	WT_STAT_DATA_INCR(session, rec_page_delete_fast);
 
 	/* Publish the page to its new state, ensuring visibility. */
-	WT_PUBLISH(ref->state, WT_REF_DELETED);
+	WT_REF_SET_STATE(ref, WT_REF_DELETED);
 	return (0);
 
 err:	__wt_free(session, ref->page_del);
 
 	/* Publish the page to its previous state, ensuring visibility. */
-	WT_PUBLISH(ref->state, previous_state);
+	WT_REF_SET_STATE(ref, previous_state);
 	return (ret);
 }
 
@@ -173,7 +173,7 @@ int
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_UPDATE **updp;
-	uint64_t sleep_count, yield_count;
+	uint64_t sleep_usecs, yield_count;
 	uint32_t current_state;
 	bool locked;
 
@@ -183,7 +183,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * instantiated or being instantiated.  Loop because it's possible for
 	 * the page to return to the deleted state if instantiation fails.
 	 */
-	for (locked = false, sleep_count = yield_count = 0;;) {
+	for (locked = false, sleep_usecs = yield_count = 0;;) {
 		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
 			/*
@@ -209,9 +209,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 		case WT_REF_LIMBO:
 		case WT_REF_LOOKASIDE:
 		case WT_REF_READING:
-		default:
-			return (__wt_illegal_value(session,
-			    "illegal WT_REF.state rolling back deleted page"));
+		WT_ILLEGAL_VALUE(session, current_state);
 		}
 
 		if (locked)
@@ -222,9 +220,9 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 		 * and if we've yielded enough times, start sleeping so we
 		 * don't burn CPU to no purpose.
 		 */
-		__wt_state_yield_sleep(&yield_count, &sleep_count);
+		__wt_spin_backoff(&yield_count, &sleep_usecs);
 		WT_STAT_CONN_INCRV(session,
-		    page_del_rollback_blocked, sleep_count);
+		    page_del_rollback_blocked, sleep_usecs);
 	}
 
 	/*
@@ -243,7 +241,7 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 		for (; *updp != NULL; ++updp)
 			(*updp)->txnid = WT_TXN_ABORTED;
 
-	ref->state = current_state;
+	WT_REF_SET_STATE(ref, current_state);
 
 done:	/*
 	 * Now mark the truncate aborted: this must come last because after
@@ -297,7 +295,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	 */
 	if (skip && ref->page_del != NULL && (visible_all ||
 	    __wt_txn_visible_all(session, ref->page_del->txnid,
-	    WT_TIMESTAMP_NULL(&ref->page_del->timestamp)))) {
+	    ref->page_del->timestamp))) {
 		__wt_free(session, ref->page_del->update_list);
 		__wt_free(session, ref->page_del);
 	}
@@ -325,7 +323,8 @@ __tombstone_update_alloc(WT_SESSION_IMPL *session,
 	 */
 	if (page_del != NULL) {
 		upd->txnid = page_del->txnid;
-		__wt_timestamp_set(&upd->timestamp, &page_del->timestamp);
+		upd->start_ts = page_del->timestamp;
+		upd->durable_ts = page_del->timestamp;
 		upd->prepare_state = page_del->prepare_state;
 	}
 	*updp = upd;
@@ -359,13 +358,12 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	/*
 	 * Give the page a modify structure.
 	 *
-	 * If the tree is already dirty and so will be written, mark the page
-	 * dirty.  (We'd like to free the deleted pages, but if the handle is
-	 * read-only or if the application never modifies the tree, we're not
-	 * able to do so.)
+	 * Mark tree dirty, unless the handle is read-only.
+	 * (We'd like to free the deleted pages, but if the handle is read-only,
+	 * we're not able to do so.)
 	 */
 	WT_RET(__wt_page_modify_init(session, page));
-	if (btree->modified)
+	if (!F_ISSET(btree, WT_BTREE_READONLY))
 		__wt_page_modify_set(session, page);
 
 	if (ref->page_del != NULL &&

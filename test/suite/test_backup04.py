@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -37,7 +37,7 @@ from wtthread import op_thread
 
 # test_backup04.py
 #    Utilities: wt backup
-# Test cursor backup with target URIs
+# Test incremental cursor backup.
 class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -207,7 +207,7 @@ __wt_ovfl_remove(WT_SESSION_IMPL *session,
  *	Discard an on-page overflow value, and reset the page's cell.
  */
 int
-__wt_ovfl_discard(WT_SESSION_IMPL *session, WT_CELL *cell)
+__wt_ovfl_discard(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -217,7 +217,7 @@ __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_CELL *cell)
 	bm = btree->bm;
 	unpack = &_unpack;
 
-	__wt_cell_unpack(cell, unpack);
+	__wt_cell_unpack(session, page, cell, unpack);
 
 	/*
 	 * Finally remove overflow key/value objects, called when reconciliation
@@ -241,7 +241,7 @@ __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_CELL *cell)
 		__wt_cell_type_reset(session,
 		    unpack->cell, WT_CELL_VALUE_OVFL, WT_CELL_VALUE_OVFL_RM);
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, unpack->raw);
 	}
 
 	__wt_writeunlock(session, &btree->ovfl_lock);

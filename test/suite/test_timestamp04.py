@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -70,8 +70,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         if missing == False:
             actual = dict((k, v) for k, v in cur if v != 0)
             if actual != expected:
-                print "missing: ", sorted(set(expected) - set(actual))
-                print "extras: ", sorted(set(actual) - set(expected))
+                print "missing: ", sorted(set(expected.items()) - set(actual.items()))
+                print "extras: ", sorted(set(actual.items()) - set(expected.items()))
             self.assertTrue(actual == expected)
 
         # Search for the expected items as well as iterating.
@@ -108,9 +108,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.session = self.conn.open_session(None)
 
     def test_rollback_to_stable(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         self.ConnectionOpen(self.cacheSize)
         # Configure small page sizes to ensure eviction comes through and we
         # have a somewhat complex tree.
@@ -167,7 +164,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.rollback_to_stable()
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rollback_to_stable][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rollback_upd_aborted][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rollback_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rollback_las_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 1)
         self.assertTrue(upd_aborted >= key_range/2)
@@ -237,7 +235,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.rollback_to_stable()
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rollback_to_stable][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rollback_upd_aborted][2]
+        upd_aborted = (stat_cursor[stat.conn.txn_rollback_upd_aborted][2] +
+            stat_cursor[stat.conn.txn_rollback_las_removed][2])
         stat_cursor.close()
         self.assertEqual(calls, 2)
         #

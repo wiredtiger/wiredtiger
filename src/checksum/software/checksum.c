@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -38,7 +38,9 @@
  * little endian.
  */
 
-#include "wt_internal.h"
+#include <wiredtiger_config.h>
+#include <inttypes.h>
+#include <stddef.h>
 
 /*
  * The CRC slicing tables.
@@ -1095,13 +1097,14 @@ static const uint32_t g_crc_slicing[8][256] = {
 #endif
 };
 
+extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+
 /*
  * __wt_checksum_sw --
  *	Return a checksum for a chunk of memory, computed in software.
  */
 uint32_t
 __wt_checksum_sw(const void *chunk, size_t len)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	uint32_t crc, next;
 	size_t nqwords;

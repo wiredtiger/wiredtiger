@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -376,7 +376,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 {
 	WT_BTREE *btree;
 	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
+	WT_CELL_UNPACK *kpack, _kpack, *vpack, _vpack;
 	WT_ITEM *kb, *vb;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
@@ -386,7 +386,8 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	btree = S2BT(session);
 	page = cbt->ref->page;
 
-	unpack = NULL;
+	kpack = NULL;
+	vpack = &_vpack;
 
 	kb = &cbt->iface.key;
 	vb = &cbt->iface.value;
@@ -416,12 +417,18 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	 * Unpack the cell and deal with overflow and prefix-compressed keys.
 	 * Inline building simple prefix-compressed keys from a previous key,
 	 * otherwise build from scratch.
+	 *
+	 * Clear the key cell structure. It shouldn't be necessary (as far as I
+	 * can tell, and we don't do it in lots of other places), but disabling
+	 * shared builds (--disable-shared) results in the compiler complaining
+	 * about uninitialized field use.
 	 */
-	unpack = &_unpack;
-	__wt_cell_unpack(cell, unpack);
-	if (unpack->type == WT_CELL_KEY &&
+	kpack = &_kpack;
+	memset(kpack, 0, sizeof(*kpack));
+	__wt_cell_unpack(session, page, cell, kpack);
+	if (kpack->type == WT_CELL_KEY &&
 	    cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
-		WT_ASSERT(session, cbt->row_key->size >= unpack->prefix);
+		WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
 
 		/*
 		 * Grow the buffer as necessary as well as ensure data has been
@@ -431,12 +438,12 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 		 * Don't grow the buffer unnecessarily or copy data we don't
 		 * need, truncate the item's data length to the prefix bytes.
 		 */
-		cbt->row_key->size = unpack->prefix;
+		cbt->row_key->size = kpack->prefix;
 		WT_RET(__wt_buf_grow(
-		    session, cbt->row_key, cbt->row_key->size + unpack->size));
+		    session, cbt->row_key, cbt->row_key->size + kpack->size));
 		memcpy((uint8_t *)cbt->row_key->data + cbt->row_key->size,
-		    unpack->data, unpack->size);
-		cbt->row_key->size += unpack->size;
+		    kpack->data, kpack->size);
+		cbt->row_key->size += kpack->size;
 	} else {
 		/*
 		 * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we
@@ -462,17 +469,49 @@ value:
 	if (__wt_row_leaf_value(page, rip, vb))
 		return (0);
 
+	/* Else, take the value from the original page cell. */
+	__wt_row_leaf_value_cell(session, page, rip, kpack, vpack);
+	return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
+}
+/*
+ * __cursor_check_prepared_update --
+ *	Return whether prepared update at current position is visible or not.
+ */
+static inline int
+__cursor_check_prepared_update(WT_CURSOR_BTREE *cbt, bool *visiblep)
+{
+	WT_SESSION_IMPL *session;
+	WT_UPDATE *upd;
+
+	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	/*
-	 * Else, take the value from the original page cell (which may be
-	 * empty).
+	 * When retrying an operation due to a prepared conflict, the cursor is
+	 * at an update list which resulted in conflict. So, when retrying we
+	 * should examine the same update again instead of iterating to the next
+	 * object. We'll eventually find a valid update, else return
+	 * prepare-conflict until resolved.
 	 */
-	if ((cell = __wt_row_leaf_value_cell(page, rip, unpack)) == NULL) {
-		vb->data = "";
-		vb->size = 0;
-		return (0);
+	WT_RET(__wt_cursor_valid(cbt, &upd, visiblep));
+
+	/* The update that returned prepared conflict is now visible. */
+	F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT | WT_CBT_ITERATE_RETRY_PREV);
+	if (*visiblep) {
+		/*
+		 * The underlying key-return function uses a comparison value
+		 * of 0 to indicate the search function has pre-built the key
+		 * we want to return. That's not the case, don't take that path.
+		 */
+		cbt->compare = 1;
+		/*
+		 * If a prepared delete operation is resolved, it will be
+		 * visible, but key is not valid. The update will be null in
+		 * that case and we continue with cursor navigation.
+		 */
+		if (upd != NULL)
+			WT_RET(__cursor_kv_return(session, cbt, upd));
+		else
+			*visiblep = false;
 	}
 
-	unpack = &_unpack;
-	__wt_cell_unpack(cell, unpack);
-	return (__wt_page_cell_data_ref(session, cbt->ref->page, unpack, vb));
+	return (0);
 }

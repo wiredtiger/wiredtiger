@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -41,11 +41,12 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system,
 	 * but various static analysis programs remain unconvinced, check both.
 	 */
 	WT_SYSCALL_RETRY(((dirp = opendir(directory)) == NULL ? -1 : 0), ret);
-	if (dirp == NULL && ret == 0)
-		ret = EINVAL;
-	if (ret != 0)
+	if (dirp == NULL || ret != 0) {
+		if (ret == 0)
+			ret = EINVAL;
 		WT_RET_MSG(session, ret,
 		    "%s: directory-list: opendir", directory);
+	}
 
 	for (count = 0; (dp = readdir(dirp)) != NULL;) {
 		/*

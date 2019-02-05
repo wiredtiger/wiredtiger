@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -16,18 +16,41 @@ static bool
 __metadata_turtle(const char *key)
 {
 	switch (key[0]) {
+	case 'C':
+		if (strcmp(key, WT_METADATA_COMPAT) == 0)
+			return (true);
+		break;
 	case 'f':
 		if (strcmp(key, WT_METAFILE_URI) == 0)
 			return (true);
 		break;
 	case 'W':
-		if (strcmp(key, "WiredTiger version") == 0)
+		if (strcmp(key, WT_METADATA_VERSION) == 0)
 			return (true);
-		if (strcmp(key, "WiredTiger version string") == 0)
+		if (strcmp(key, WT_METADATA_VERSION_STR) == 0)
 			return (true);
 		break;
 	}
 	return (false);
+}
+
+/*
+ * __wt_metadata_turtle_rewrite --
+ *	Rewrite the turtle file. We wrap this because the lower functions
+ *	expect a URI key and config value pair for the metadata. This function
+ *	exists to push out the other contents to the turtle file such as a
+ *	change in compatibility information.
+ */
+int
+__wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
+{
+	WT_DECL_RET;
+	char *value;
+
+	WT_RET(__wt_metadata_search(session, WT_METAFILE_URI, &value));
+	ret = __wt_metadata_update(session, WT_METAFILE_URI, value);
+	__wt_free(session, value);
+	return (ret);
 }
 
 /*
@@ -307,4 +330,28 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 	if (ret != 0)
 		__wt_free(session, *valuep);
 	return (ret);
+}
+
+/*
+ * __wt_metadata_salvage --
+ *	Salvage the metadata file. This is a destructive operation.
+ *	Save a copy of the original metadata.
+ */
+int
+__wt_metadata_salvage(WT_SESSION_IMPL *session)
+{
+	WT_SESSION *wt_session;
+
+	wt_session = &session->iface;
+	/*
+	 * Copy the original metadata.
+	 */
+	WT_RET(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
+
+	/*
+	 * Now salvage the metadata. We know we're in wiredtiger_open and
+	 * single threaded.
+	 */
+	WT_RET(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
+	return (0);
 }

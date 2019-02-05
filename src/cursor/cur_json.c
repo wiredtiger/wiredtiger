@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,7 +53,7 @@ static int __json_pack_size(WT_SESSION_IMPL *, const char *, WT_CONFIG_ITEM *,
 		(pv).type = 'K';					\
 		break;							\
 	/* User format strings have already been validated. */		\
-	WT_ILLEGAL_VALUE(session);					\
+	WT_ILLEGAL_VALUE(session, (pv).type);				\
 	}								\
 } while (0)
 
@@ -922,7 +922,7 @@ __wt_json_strncpy(WT_SESSION *wt_session,
 			case '\\':
 				*dst++ = ch;
 				break;
-			WT_ILLEGAL_VALUE(session);
+			WT_ILLEGAL_VALUE(session, ch);
 			}
 		else
 			*dst++ = ch;

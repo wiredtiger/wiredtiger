@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -40,14 +40,15 @@ __wt_thread_create(WT_SESSION_IMPL *session,
  *	Wait for a thread of control to exit.
  */
 int
-__wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
+__wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 
 	/* Only attempt to join if thread was created successfully */
-	if (!tid.created)
+	if (!tid->created)
 		return (0);
+	tid->created = false;
 
 	/*
 	 * Joining a thread isn't a memory barrier, but WiredTiger commonly
@@ -56,11 +57,9 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t tid)
 	 */
 	WT_FULL_BARRIER();
 
-	WT_SYSCALL(pthread_join(tid.id, NULL), ret);
-	if (ret == 0) {
-		tid.created = false;
+	WT_SYSCALL(pthread_join(tid->id, NULL), ret);
+	if (ret == 0)
 		return (0);
-	}
 
 	WT_RET_MSG(session, ret, "pthread_join");
 }

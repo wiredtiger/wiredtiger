@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -138,8 +138,8 @@ fill_db(void)
 	WT_LSN lsn, save_lsn;
 	WT_SESSION *session;
 	uint32_t i, max_key, min_key, units, unused;
-	bool first;
 	char k[K_SIZE], v[V_SIZE];
+	bool first;
 
 	/*
 	 * Run in the home directory so that the records file is in there too.
@@ -262,7 +262,6 @@ main(int argc, char *argv[])
 			usage();
 		}
 	argc -= __wt_optind;
-	argv += __wt_optind;
 	if (argc != 0)
 		usage();
 

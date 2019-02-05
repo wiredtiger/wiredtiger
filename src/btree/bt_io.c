@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -145,18 +145,20 @@ __wt_bt_read(WT_SESSION_IMPL *session,
 		WT_STAT_DATA_INCR(session, compress_read);
 	WT_STAT_CONN_INCRV(session, cache_bytes_read, dsk->mem_size);
 	WT_STAT_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
+	WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
 	(void)__wt_atomic_add64(
 	    &S2C(session)->cache->bytes_read, dsk->mem_size);
 
 	if (0) {
 corrupt:	if (ret == 0)
 			ret = WT_ERROR;
+		F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
 		if (!F_ISSET(btree, WT_BTREE_VERIFY) &&
 		    !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
-			__wt_err(session, ret, "%s", fail_msg);
 			WT_TRET(bm->corrupt(bm, session, addr, addr_size));
-			WT_TRET(
-			    __wt_illegal_value(session, btree->dhandle->name));
+			WT_PANIC_ERR(session, ret,
+			    "%s: fatal read error: %s",
+			    btree->dhandle->name, fail_msg);
 		}
 	}
 
@@ -172,7 +174,7 @@ err:	__wt_scr_free(session, &tmp);
  */
 int
 __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
-    uint8_t *addr, size_t *addr_sizep,
+    uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep,
     bool checkpoint, bool checkpoint_io, bool compressed)
 {
 	WT_BM *bm;
@@ -184,10 +186,13 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	WT_KEYED_ENCRYPTOR *kencryptor;
 	WT_PAGE_HEADER *dsk;
 	size_t dst_len, len, result_len, size, src_len;
-	uint64_t time_start, time_stop;
+	uint64_t time_diff, time_start, time_stop;
 	uint8_t *dst, *src;
 	int compression_failed;		/* Extension API, so not a bool. */
 	bool data_checksum, encrypted, timer;
+
+	if (compressed_sizep != NULL)
+		*compressed_sizep = 0;
 
 	btree = S2BT(session);
 	bm = btree->bm;
@@ -306,6 +311,10 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 			memcpy(ctmp->mem, buf->mem, WT_BLOCK_COMPRESS_SKIP);
 			ctmp->size = result_len;
 			ip = ctmp;
+
+			/* Optionally return the compressed size. */
+			if (compressed_sizep != NULL)
+				*compressed_sizep = result_len;
 		}
 	}
 	/*
@@ -380,15 +389,17 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 	/* Update some statistics now that the write is done */
 	if (timer) {
 		time_stop = __wt_clock(session);
+		time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 		WT_STAT_CONN_INCR(session, cache_write_app_count);
-		WT_STAT_CONN_INCRV(session, cache_write_app_time,
-		    WT_CLOCKDIFF_US(time_stop, time_start));
+		WT_STAT_CONN_INCRV(session, cache_write_app_time, time_diff);
+		WT_STAT_SESSION_INCRV(session, write_time, time_diff);
 	}
 
 	WT_STAT_CONN_INCR(session, cache_write);
 	WT_STAT_DATA_INCR(session, cache_write);
 	WT_STAT_CONN_INCRV(session, cache_bytes_write, dsk->mem_size);
 	WT_STAT_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
+	WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size);
 	(void)__wt_atomic_add64(
 	    &S2C(session)->cache->bytes_written, dsk->mem_size);
 

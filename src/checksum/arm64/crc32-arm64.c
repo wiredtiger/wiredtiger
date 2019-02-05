@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -26,9 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "wt_internal.h"
+#include <wiredtiger_config.h>
+#include <inttypes.h>
+#include <stddef.h>
 
-#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__) && !defined(HAVE_NO_CRC32_HARDWARE)
 #include <asm/hwcap.h>
 #include <sys/auxv.h>
 
@@ -84,22 +86,27 @@ __wt_checksum_hw(const void *chunk, size_t len)
 }
 #endif
 
+extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+    __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+#endif
+
 /*
- * __wt_checksum_init --
- *	WiredTiger: detect CRC hardware and set the checksum function.
+ * wiredtiger_crc32c_func --
+ *	WiredTiger: detect CRC hardware and return the checksum function.
  */
-void
-__wt_checksum_init(void)
+uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(__linux__) && defined(HAVE_CRC32_HARDWARE)
+#if defined(__linux__) && !defined(HAVE_NO_CRC32_HARDWARE)
 	unsigned long caps = getauxval(AT_HWCAP);
 
 	if (caps & HWCAP_CRC32)
-		__wt_process.checksum = __wt_checksum_hw;
-	else
-		__wt_process.checksum = __wt_checksum_sw;
-
+		return (__wt_checksum_hw);
+	return (__wt_checksum_sw);
 #else
-	__wt_process.checksum = __wt_checksum_sw;
+	return (__wt_checksum_sw);
 #endif
 }

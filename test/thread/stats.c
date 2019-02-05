@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -40,8 +40,8 @@ stats(void)
 	WT_SESSION *session;
 	uint64_t v;
 	int ret;
-	char name[64];
 	const char *desc, *pval;
+	char name[64];
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -48,6 +48,9 @@
 	WT_TRACK_OP_INIT(s);						\
 	WT_SINGLE_THREAD_CHECK_START(s);				\
 	WT_ERR(WT_SESSION_CHECK_PANIC(s));				\
+	/* Reset wait time if this isn't an API reentry. */		\
+	if (__oldname == NULL)						\
+		(s)->cache_wait_us = 0;					\
 	__wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 
 #define	API_CALL_NOCONF(s, h, n, dh) do {				\
@@ -90,7 +93,7 @@
 		F_SET(&(s)->txn, WT_TXN_AUTOCOMMIT);			\
 	__update = !F_ISSET(&(s)->txn, WT_TXN_UPDATE);			\
 	if (__update)							\
-		F_SET(&(s)->txn, WT_TXN_UPDATE);			\
+		F_SET(&(s)->txn, WT_TXN_UPDATE);
 
 /* An API call wrapped in a transaction if necessary. */
 #define	TXN_API_CALL_NOCONF(s, h, n, dh) do {				\
@@ -102,7 +105,7 @@
 		F_SET(&(s)->txn, WT_TXN_AUTOCOMMIT);			\
 	__update = !F_ISSET(&(s)->txn, WT_TXN_UPDATE);			\
 	if (__update)							\
-		F_SET(&(s)->txn, WT_TXN_UPDATE);			\
+		F_SET(&(s)->txn, WT_TXN_UPDATE);
 
 /* End a transactional API call, optional retry on deadlock. */
 #define	TXN_API_END_RETRY(s, ret, retry)				\

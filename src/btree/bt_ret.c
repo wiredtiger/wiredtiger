@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -100,16 +100,8 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		if (__wt_row_leaf_value(page, rip, &cursor->value))
 			return (0);
 
-		/*
-		 * Take the value from the original page cell (which may be
-		 * empty).
-		 */
-		if ((cell =
-		    __wt_row_leaf_value_cell(page, rip, NULL)) == NULL) {
-			cursor->value.size = 0;
-			return (0);
-		}
-		__wt_cell_unpack(cell, &unpack);
+		/* Take the value from the original page cell. */
+		__wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
 		return (__wt_page_cell_data_ref(
 		    session, page, &unpack, &cursor->value));
 
@@ -118,7 +110,7 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	if (page->type == WT_PAGE_COL_VAR) {
 		/* Take the value from the original page cell. */
 		cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
-		__wt_cell_unpack(cell, &unpack);
+		__wt_cell_unpack(session, page, cell, &unpack);
 		return (__wt_page_cell_data_ref(
 		    session, page, &unpack, &cursor->value));
 	}

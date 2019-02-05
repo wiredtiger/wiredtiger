@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -33,7 +33,7 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
 	 * mmap(2) of files with direct I/O to the same files.
 	 */
 	if (pfh->direct_io)
-		return (ENOTSUP);
+		return (__wt_set_return(session, ENOTSUP));
 
 	/*
 	 * There's no locking here to prevent the underlying file from changing

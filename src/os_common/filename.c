@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -91,7 +91,7 @@ __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
 
 /*
  * __wt_copy_and_sync --
- *	Copy a file safely; here to support the wt utility.
+ *	Copy a file safely.
  */
 int
 __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)

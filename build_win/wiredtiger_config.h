@@ -25,9 +25,6 @@
 /* Define to 1 if you have the `clock_gettime' function. */
 /* #undef HAVE_CLOCK_GETTIME */
 
-/* Define to 1 to enable CRC32 hardware support. */
-/* #undef HAVE_CRC32_HARDWARE */
-
 /* Define to 1 for diagnostic tests. */
 /* #undef HAVE_DIAGNOSTIC */
 
@@ -78,6 +75,12 @@
 
 /* Define to 1 if you have the <memory.h> header file. */
 /* #undef HAVE_MEMORY_H */
+
+/* Define to 1 to disable any crc32 hardware support. */
+/* #undef HAVE_NO_CRC32_HARDWARE */
+
+/* Define to 1 to enable writing timestamp version page formats. */
+/* #undef HAVE_PAGE_VERSION_TS */
 
 /* Define to 1 if pthread condition variables support monotonic clocks. */
 /* #undef HAVE_PTHREAD_COND_MONOTONIC */
@@ -132,9 +135,6 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
-
-/* Size of a transaction timestamp in bytes */
-#define WT_TIMESTAMP_SIZE 8
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -119,7 +119,7 @@ __wt_session_lock_dhandle(
 	WT_DECL_RET;
 	bool is_open, lock_busy, want_exclusive;
 
-	*is_deadp = 0;
+	*is_deadp = false;
 
 	dhandle = session->dhandle;
 	btree = dhandle->handle;
@@ -140,7 +140,7 @@ __wt_session_lock_dhandle(
 		if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
 		    (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))))
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		++dhandle->excl_ref;
 		return (0);
 	}
@@ -158,7 +158,7 @@ __wt_session_lock_dhandle(
 	for (;;) {
 		/* If the handle is dead, give up. */
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-			*is_deadp = 1;
+			*is_deadp = true;
 			return (0);
 		}
 
@@ -167,7 +167,7 @@ __wt_session_lock_dhandle(
 		 * give up.
 		 */
 		if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 
 		/*
 		 * If the handle is open, get a read lock and recheck.
@@ -182,7 +182,7 @@ __wt_session_lock_dhandle(
 		    (!want_exclusive || lock_busy)) {
 			__wt_readlock(session, &dhandle->rwlock);
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-				*is_deadp = 1;
+				*is_deadp = true;
 				__wt_readunlock(session, &dhandle->rwlock);
 				return (0);
 			}
@@ -203,7 +203,7 @@ __wt_session_lock_dhandle(
 		if ((ret =
 		    __wt_try_writelock(session, &dhandle->rwlock)) == 0) {
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-				*is_deadp = 1;
+				*is_deadp = true;
 				__wt_writeunlock(session, &dhandle->rwlock);
 				return (0);
 			}

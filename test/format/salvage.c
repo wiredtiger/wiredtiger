@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -53,10 +53,10 @@ salvage(void)
 static int
 corrupt(void)
 {
-	FILE *fp;
 	struct stat sb;
-	size_t len, nw;
+	FILE *fp;
 	wt_off_t offset;
+	size_t len, nw;
 	int fd, ret;
 	char buf[8 * 1024], copycmd[2 * 1024];
 

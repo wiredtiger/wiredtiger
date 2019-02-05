@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -33,9 +33,9 @@ __posix_std_fallocate(
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
-	return (ENOTSUP);
+
+	return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
 #endif
 }
 
@@ -66,9 +66,9 @@ __posix_sys_fallocate(
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
-	return (ENOTSUP);
+
+	return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
 #endif
 }
 
@@ -92,9 +92,9 @@ __posix_posix_fallocate(
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
-	WT_UNUSED(wt_session);
 	WT_UNUSED(offset);
-	return (ENOTSUP);
+
+	return (__wt_set_return((WT_SESSION_IMPL *)wt_session, ENOTSUP));
 #endif
 }
 

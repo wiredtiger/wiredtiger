@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -54,6 +54,10 @@ typedef enum __wt_cache_op {
 	WT_SYNC_WRITE_LEAVES
 } WT_CACHE_OP;
 
+#define	WT_LAS_NUM_SESSIONS	5
+#define	WT_LAS_SWEEP_ENTRIES	(20 * WT_THOUSAND)
+#define	WT_LAS_SWEEP_SEC	2
+
 /*
  * WiredTiger cache structure.
  */
@@ -68,6 +72,7 @@ struct __wt_cache {
 	uint64_t bytes_dirty_intl;	/* Bytes/pages currently dirty */
 	uint64_t pages_dirty_intl;
 	uint64_t bytes_dirty_leaf;
+	uint64_t bytes_dirty_total;
 	uint64_t pages_dirty_leaf;
 	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
 	uint64_t pages_evicted;
@@ -116,11 +121,11 @@ struct __wt_cache {
 
 	double eviction_checkpoint_target;/* Percent to reduce dirty
 					   to during checkpoint scrubs */
-	double eviction_scrub_limit;	/* Percent of cache to trigger
-					   dirty eviction during checkpoint
-					   scrubs */
+	double eviction_scrub_target;	/* Current scrub target */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
+	uint64_t cache_max_wait_us;	/* Maximum time an operation waits for
+					 * space in cache */
 
 	/*
 	 * Eviction thread tuning information.
@@ -145,7 +150,6 @@ struct __wt_cache {
 	WT_SPINLOCK evict_pass_lock;	/* Eviction pass lock */
 	WT_SESSION_IMPL *walk_session;	/* Eviction pass session */
 	WT_DATA_HANDLE *walk_tree;	/* LRU walk current tree */
-	uint32_t walk_progress, walk_target;/* Progress in current tree */
 
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
@@ -191,16 +195,16 @@ struct __wt_cache {
 	 * the lookaside table (other than eviction server and worker threads
 	 * and the sweep thread, all of which have their own lookaside cursors).
 	 */
-#define	WT_LAS_NUM_SESSIONS 5
 	WT_SPINLOCK	 las_lock;
 	WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
 	bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
 	uint32_t las_fileid;            /* Lookaside table file ID */
-	uint64_t las_entry_count;       /* Count of entries in lookaside */
+	uint64_t las_insert_count;      /* Count of inserts to lookaside */
+	uint64_t las_remove_count;      /* Count of removes from lookaside */
 	uint64_t las_pageid;		/* Lookaside table page ID counter */
 
-	uint64_t las_sweep_cnt;		/* Entries to walk per sweep. */
+	bool las_reader;		/* Indicate an LAS reader to sweep */
 	WT_RWLOCK las_sweepwalk_lock;
 	WT_SPINLOCK las_sweep_lock;
 	WT_ITEM las_sweep_key;		/* Track sweep position. */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -17,19 +17,22 @@ static void
 __log_slot_dump(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_LOG *log;
 	WT_LOGSLOT *slot;
 	int earliest, i;
 
 	conn = S2C(session);
 	log = conn->log;
+	ret = __wt_verbose_dump_log(session);
+	WT_ASSERT(session, ret == 0);
 	earliest = 0;
 	for (i = 0; i < WT_SLOT_POOL; i++) {
 		slot = &log->slot_pool[i];
 		if (__wt_log_cmp(&slot->slot_release_lsn,
 		    &log->slot_pool[earliest].slot_release_lsn) < 0)
 			earliest = i;
-		__wt_errx(session, "Slot %d:", i);
+		__wt_errx(session, "Slot %d (0x%p):", i, (void *)slot);
 		__wt_errx(session, "    State: %" PRIx64 " Flags: %" PRIx32,
 		    (uint64_t)slot->slot_state, slot->flags);
 		__wt_errx(session, "    Start LSN: %" PRIu32 "/%" PRIu32,
@@ -119,7 +122,7 @@ retry:
 	 * decide if retrying is necessary or not.
 	 */
 	if (forced && WT_LOG_SLOT_INPROGRESS(old_state))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 	/*
 	 * If someone else is switching out this slot we lost.  Nothing to
 	 * do but return.  Return WT_NOTFOUND anytime the given slot was
@@ -201,6 +204,38 @@ retry:
 }
 
 /*
+ * __log_slot_dirty_max_check --
+ *	If we've passed the maximum of dirty system pages, schedule an
+ *	asynchronous sync that will be performed when this slot is written.
+ */
+static void
+__log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_LOG *log;
+	WT_LSN *current, *last_sync;
+
+	if (S2C(session)->log_dirty_max == 0)
+		return;
+
+	conn = S2C(session);
+	log = conn->log;
+	current = &slot->slot_release_lsn;
+
+	if (__wt_log_cmp(&log->dirty_lsn, &log->sync_lsn) < 0)
+		last_sync = &log->sync_lsn;
+	else
+		last_sync = &log->dirty_lsn;
+	if (current->l.file == last_sync->l.file &&
+	    current->l.offset > last_sync->l.offset &&
+	    current->l.offset - last_sync->l.offset > conn->log_dirty_max) {
+		/* Schedule the asynchronous sync */
+		F_SET(slot, WT_SLOT_SYNC_DIRTY);
+		log->dirty_lsn = slot->slot_release_lsn;
+	}
+}
+
+/*
  * __log_slot_new --
  *	Find a free slot and switch it as the new active slot.
  *	Must be called holding the slot lock.
@@ -220,15 +255,6 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
 	conn = S2C(session);
 	log = conn->log;
-	/*
-	 * Although this function is single threaded, multiple threads could
-	 * be trying to set a new active slot sequentially.  If we find an
-	 * active slot that is valid, return.
-	 */
-	if ((slot = log->active_slot) != NULL &&
-	    WT_LOG_SLOT_OPEN(slot->slot_state))
-		return (0);
-
 #ifdef	HAVE_DIAGNOSTIC
 	count = 0;
 	time_start = __wt_clock(session);
@@ -237,6 +263,16 @@ __log_slot_new(WT_SESSION_IMPL *session)
 	 * Keep trying until we can find a free slot.
 	 */
 	for (;;) {
+		/*
+		 * Although this function is single threaded, multiple threads
+		 * could be trying to set a new active slot sequentially.  If
+		 * we find an active slot that is valid, return. This check is
+		 * inside the loop because this function may release the lock
+		 * and needs to check again after acquiring it again.
+		 */
+		if ((slot = log->active_slot) != NULL &&
+		    WT_LOG_SLOT_OPEN(slot->slot_state))
+			return (0);
 		/*
 		 * Rotate among the slots to lessen collisions.
 		 */
@@ -259,15 +295,20 @@ __log_slot_new(WT_SESSION_IMPL *session)
 				 */
 				log->active_slot = slot;
 				log->pool_index = pool_i;
+				__log_slot_dirty_max_check(session, slot);
 				return (0);
 			}
 		}
 		/*
 		 * If we didn't find any free slots signal the worker thread.
+		 * Release the lock so that any threads waiting for it can
+		 * acquire and possibly move things forward.
 		 */
 		WT_STAT_CONN_INCR(session, log_slot_no_free_slots);
 		__wt_cond_signal(session, conn->log_wrlsn_cond);
+		__wt_spin_unlock(session, &log->log_slot_lock);
 		__wt_yield();
+		__wt_spin_lock(session, &log->log_slot_lock);
 #ifdef	HAVE_DIAGNOSTIC
 		++count;
 		if (count > WT_MILLION) {
@@ -356,6 +397,12 @@ __log_slot_switch_internal(
 	WT_RET(__log_slot_new(session));
 	F_CLR(myslot, WT_MYSLOT_CLOSE);
 	if (F_ISSET(myslot, WT_MYSLOT_NEEDS_RELEASE)) {
+		/*
+		 * The release here must be done while holding the slot lock.
+		 * The reason is that a forced slot switch needs to be sure
+		 * that any earlier slot switches have completed, including
+		 * writing out the buffer contents of earlier slots.
+		 */
 		WT_RET(__wt_log_release(session, slot, &free_slot));
 		F_CLR(myslot, WT_MYSLOT_NEEDS_RELEASE);
 		if (free_slot)

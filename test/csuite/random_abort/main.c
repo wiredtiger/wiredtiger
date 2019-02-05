@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -37,7 +37,6 @@ static char home[1024];			/* Program working dir */
  * These two names for the URI and file system must be maintained in tandem.
  */
 static const char * const uri = "table:main";
-static const char * const fs_main = "main.wt";
 static bool compat;
 static bool inmem;
 
@@ -82,8 +81,8 @@ thread_run(void *arg)
 	WT_RAND_STATE rnd;
 	WT_SESSION *session;
 	WT_THREAD_DATA *td;
-	uint64_t i;
 	size_t lsize;
+	uint64_t i;
 	char buf[MAX_VAL], kname[64], lgbuf[8];
 	char large[128*1024];
 
@@ -201,7 +200,7 @@ fill_db(uint32_t nth)
 	 * it is killed.
 	 */
 	for (i = 0; i < nth; ++i)
-		testutil_check(__wt_thread_join(NULL, thr[i]));
+		testutil_check(__wt_thread_join(NULL, &thr[i]));
 	/*
 	 * NOTREACHED
 	 */
@@ -241,8 +240,8 @@ main(int argc, char *argv[])
 	uint64_t absent, count, key, last_key, middle;
 	uint32_t i, nth, timeout;
 	int ch, status, ret;
-	const char *working_dir;
 	char buf[1024], fname[64], kname[64];
+	const char *working_dir;
 	bool fatal, rand_th, rand_time, verify_only;
 
 	(void)testutil_set_progname(argv);
@@ -280,7 +279,6 @@ main(int argc, char *argv[])
 			usage();
 		}
 	argc -= __wt_optind;
-	argv += __wt_optind;
 	if (argc != 0)
 		usage();
 
@@ -312,6 +310,11 @@ main(int argc, char *argv[])
 		    compat ? "true" : "false", inmem ? "true" : "false");
 		printf("Parent: Create %" PRIu32
 		    " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
+		printf("CONFIG: %s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n",
+		    progname,
+		    compat ? " -C" : "",
+		    inmem ? " -m" : "",
+		    working_dir, nth, timeout);
 		/*
 		 * Fork a child to insert as many items.  We will then randomly
 		 * kill the child, run recovery and make sure all items we wrote
@@ -332,13 +335,22 @@ main(int argc, char *argv[])
 		/*
 		 * Sleep for the configured amount of time before killing
 		 * the child.  Start the timeout from the time we notice that
-		 * the table has been created.  That allows the test to run
-		 * correctly on really slow machines.
+		 * the child workers have created their record files. That
+		 * allows the test to run correctly on really slow machines.
 		 */
-		testutil_check(__wt_snprintf(
-		    buf, sizeof(buf), "%s/%s", home, fs_main));
-		while (stat(buf, &sb) != 0)
-			sleep(1);
+		i = 0;
+		while (i < nth) {
+			/*
+			 * Wait for each record file to exist.
+			 */
+			testutil_check(__wt_snprintf(
+			    fname, sizeof(fname), RECORDS_FILE, i));
+			testutil_check(__wt_snprintf(
+			    buf, sizeof(buf),"%s/%s", home, fname));
+			while (stat(buf, &sb) != 0)
+				testutil_sleep_wait(1, pid);
+			++i;
+		}
 		sleep(timeout);
 		sa.sa_handler = SIG_DFL;
 		testutil_checksys(sigaction(SIGCHLD, &sa, NULL));

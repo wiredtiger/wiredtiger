@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -86,6 +86,12 @@ union __wt_lsn {
  */
 #define	WT_LOGC_KEY_FORMAT	WT_UNCHECKED_STRING(III)
 #define	WT_LOGC_VALUE_FORMAT	WT_UNCHECKED_STRING(qIIIuu)
+
+/*
+ * Size range for the log files.
+ */
+#define	WT_LOG_FILE_MAX ((int64_t)2 * WT_GIGABYTE)
+#define	WT_LOG_FILE_MIN (100 * WT_KILOBYTE)
 
 #define	WT_LOG_SKIP_HEADER(data)					\
     ((const uint8_t *)(data) + offsetof(WT_LOG_RECORD, record))
@@ -205,16 +211,22 @@ struct __wt_logslot {
 	WT_ITEM  slot_buf;		/* Buffer for grouped writes */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_SLOT_CLOSEFH		0x1u		/* Close old fh on release */
-#define	WT_SLOT_FLUSH		0x2u		/* Wait for write */
-#define	WT_SLOT_SYNC		0x4u		/* Needs sync on release */
-#define	WT_SLOT_SYNC_DIR	0x8u		/* Directory sync on release */
+#define	WT_SLOT_CLOSEFH		0x01u	/* Close old fh on release */
+#define	WT_SLOT_FLUSH		0x02u	/* Wait for write */
+#define	WT_SLOT_SYNC		0x04u	/* Needs sync on release */
+#define	WT_SLOT_SYNC_DIR	0x08u	/* Directory sync on release */
+#define	WT_SLOT_SYNC_DIRTY	0x10u	/* Sync system buffers on release */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 	WT_CACHE_LINE_PAD_END
 };
 
 #define	WT_SLOT_INIT_FLAGS	0
+
+#define	WT_SLOT_SYNC_FLAGS						\
+	(WT_SLOT_SYNC |							\
+	 WT_SLOT_SYNC_DIR |						\
+	 WT_SLOT_SYNC_DIRTY)
 
 #define	WT_WITH_SLOT_LOCK(session, log, op) do {			\
 	WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));	\
@@ -261,6 +273,7 @@ struct __wt_log {
 	WT_LSN		alloc_lsn;	/* Next LSN for allocation */
 	WT_LSN		bg_sync_lsn;	/* Latest background sync LSN */
 	WT_LSN		ckpt_lsn;	/* Last checkpoint LSN */
+	WT_LSN		dirty_lsn;	/* LSN of last non-synced write */
 	WT_LSN		first_lsn;	/* First LSN */
 	WT_LSN		sync_dir_lsn;	/* LSN of the last directory sync */
 	WT_LSN		sync_lsn;	/* LSN of the last sync */
@@ -317,9 +330,15 @@ struct __wt_log_record {
 	/*
 	 * No automatic generation: flag values cannot change, they're written
 	 * to disk.
+	 *
+	 * Unused bits in the flags, as well as the 'unused' padding,
+	 * are expected to be zeroed; we check that to help detect file
+	 * corruption.
 	 */
 #define	WT_LOG_RECORD_COMPRESSED	0x01u	/* Compressed except hdr */
 #define	WT_LOG_RECORD_ENCRYPTED		0x02u	/* Encrypted except hdr */
+#define	WT_LOG_RECORD_ALL_FLAGS					\
+	(WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)
 	uint16_t	flags;		/* 08-09: Flags */
 	uint8_t		unused[2];	/* 10-11: Padding */
 	uint32_t	mem_len;	/* 12-15: Uncompressed len if needed */
@@ -351,7 +370,12 @@ __wt_log_record_byteswap(WT_LOG_RECORD *record)
 struct __wt_log_desc {
 #define	WT_LOG_MAGIC		0x101064u
 	uint32_t	log_magic;	/* 00-03: Magic number */
-#define	WT_LOG_VERSION	2
+/*
+ * NOTE: We bumped the log version from 2 to 3 to make it convenient for
+ * MongoDB to detect users accidentally running old binaries on a newer
+ * release. There are no actual log file format changes with version 2 and 3.
+ */
+#define	WT_LOG_VERSION	3
 	uint16_t	version;	/* 04-05: Log version */
 	uint16_t	unused;		/* 06-07: Unused */
 	uint64_t	log_size;	/* 08-15: Log file size */
@@ -363,10 +387,11 @@ struct __wt_log_desc {
 
 /*
  * WiredTiger release version where log format version changed.
- * We only have to check the major version for now.  It is minor
- * version 0 once release numbers move on.
  */
-#define	WT_LOG_V2	3
+#define	WT_LOG_V2_MAJOR	3
+#define	WT_LOG_V2_MINOR	0
+#define	WT_LOG_V3_MAJOR	3
+#define	WT_LOG_V3_MINOR	1
 
 /*
  * __wt_log_desc_byteswap --
@@ -386,12 +411,15 @@ __wt_log_desc_byteswap(WT_LOG_DESC *desc)
 #endif
 }
 
-/*
- * Flags for __wt_txn_op_printlog.
- */
+/* Cookie passed through the transaction printlog routines. */
+struct __wt_txn_printlog_args {
+	WT_FSTREAM *fs;
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_PRINTLOG_HEX	0x1u	/* Add hex output */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+	uint32_t flags;
+};
 
 /*
  * WT_LOG_REC_DESC --

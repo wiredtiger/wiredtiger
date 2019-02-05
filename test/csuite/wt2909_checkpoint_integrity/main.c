@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -237,7 +237,7 @@ create_big_string(char **bigp)
 static void
 cursor_count_items(WT_CURSOR *cursor, uint64_t *countp)
 {
-	int ret;
+	WT_DECL_RET;
 
 	*countp = 0;
 
@@ -379,7 +379,7 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 	low = 0;
 	high = MAX_OP_RANGE;
 	mid = (low + high) / 2;
-	while (mid != low) {
+	while (low < mid - 5 || high > mid + 5) {
 		run_check_subtest(opts, debugger, mid, close_test,
 		    &nresults);
 		if (nresults > cutoff)
@@ -401,8 +401,9 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 
 	got_failure = false;
 	got_success = false;
-	for (nops = mid - 10; nops < mid + 10; nops++) {
-		for (i = 0; i < TESTS_PER_OP_VALUE; i++) {
+	for (i = 0;
+	    i < TESTS_PER_OP_VALUE && (!got_failure || !got_success); i++)
+		for (nops = mid - 10; nops < mid + 10; nops++) {
 			run_check_subtest(opts, debugger, nops,
 			    close_test, &nresults);
 			if (nresults > cutoff)
@@ -410,7 +411,7 @@ run_check_subtest_range(TEST_OPTS *opts, const char *debugger, bool close_test)
 			else
 				got_success = true;
 		}
-	}
+
 	/*
 	 * Check that it really ran with a crossover point.
 	 */
@@ -445,9 +446,9 @@ run_process(TEST_OPTS *opts, const char *prog, char *argv[], int *status)
 }
 
 /*
-* subtest_error_handler --
-*     Error event handler.
-*/
+ * subtest_error_handler --
+ *     Error event handler.
+ */
 static int
 subtest_error_handler(WT_EVENT_HANDLER *handler,
     WT_SESSION *session, int error, const char *message)
@@ -646,10 +647,6 @@ main(int argc, char *argv[])
 	TEST_OPTS *opts, _opts;
 	uint64_t nresults;
 	const char *debugger;
-
-	/* Ignore unless requested */
-	if (!testutil_is_flag_set("TESTUTIL_ENABLE_LONG_TESTS"))
-		return (EXIT_SUCCESS);
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));

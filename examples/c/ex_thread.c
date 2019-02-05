@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -95,7 +95,7 @@ main(int argc, char *argv[])
 		    __wt_thread_create(NULL, &threads[i], scan_thread, conn));
 
 	for (i = 0; i < NUM_THREADS; i++)
-		error_check(__wt_thread_join(NULL, threads[i]));
+		error_check(__wt_thread_join(NULL, &threads[i]));
 
 	error_check(conn->close(conn, NULL));
 

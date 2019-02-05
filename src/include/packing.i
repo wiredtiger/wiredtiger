@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -245,7 +245,7 @@ next:	if (pack->cur == pack->end)
 		(pv).u.u = va_arg(ap, uint64_t);			\
 		break;							\
 	/* User format strings have already been validated. */		\
-	WT_ILLEGAL_VALUE(session);					\
+	WT_ILLEGAL_VALUE(session, (pv).type);				\
 	}								\
 } while (0)
 
@@ -612,7 +612,7 @@ __unpack_read(WT_SESSION_IMPL *session,
 		*va_arg(ap, uint64_t *) = (pv).u.u;			\
 		break;							\
 	/* User format strings have already been validated. */		\
-	WT_ILLEGAL_VALUE(session);					\
+	WT_ILLEGAL_VALUE(session, (pv).type);				\
 	}								\
 } while (0)
 

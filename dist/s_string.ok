@@ -24,6 +24,7 @@ Async
 AsyncOp
 Athanassoulis
 Athlon
+Axxx
 BBBBB
 BBBBBB
 BBBBBBBBBB
@@ -46,6 +47,7 @@ Brueckner
 Bsearch
 Btree
 Buf
+Bxxx
 Bzip
 CAS
 CCCCCCCCCCCCCCCCCC
@@ -75,6 +77,7 @@ Checksum
 Checksums
 CityHash
 CloseHandle
+Cmvxz
 Cmvz
 Collet
 Comparator
@@ -93,6 +96,7 @@ DIRECTIO
 DNE
 DOI
 DONTNEED
+DSK
 DUPLICATEV
 DataSet
 DbCursor
@@ -126,6 +130,7 @@ Eron
 FALLOC
 FALLTHROUGH
 FH
+FIXME
 FLD
 FLSv
 FLv
@@ -146,6 +151,7 @@ Fprintf
 FreeBSD
 FreeBSD's
 FreeLibrary
+Fsync
 Fuerst
 GCC
 GIDs
@@ -206,13 +212,14 @@ LLLLLLL
 LOGREC
 LOGSCAN
 LOOKASIDE
+LRSVv
 LRU
-LRVv
 LSB
 LSM
 LSN
 LSNs
 LTE
+LWN
 LZ
 LZO
 LeafGreen
@@ -220,6 +227,7 @@ LevelDB
 Levyx
 Llqr
 Llqrt
+LmT
 LoadLoad
 LockFile
 Lookaside
@@ -259,6 +267,7 @@ NEEDVALUE
 NOLL
 NOLOCK
 NONINFRINGEMENT
+NOOP
 NOTFOUND
 NOTREACHED
 NOVALUE
@@ -293,6 +302,7 @@ Pandis
 Phong
 PlatformSDK
 Posix
+PostgreSQL
 PowerPC
 Pre
 Preload
@@ -370,6 +380,7 @@ ThreadList
 ThreadListWrapper
 Timespec
 Timestamp
+Timestamps
 TryCV
 TxnID
 UDF
@@ -390,10 +401,12 @@ UnmapViewOfFile
 Unmarshall
 Unordered
 Uryyb
+VALGRIND
 VARCHAR
 VLDB
 VMSG
 VR
+VRFY
 VX
 Vc
 Vfprintf
@@ -440,6 +453,7 @@ Zlib's
 Zstandard
 Zstd
 Zstd's
+aaa
 abcdef
 abcdefghijklmnopqrstuvwxyz
 addl
@@ -471,9 +485,11 @@ autocommit
 autoconf
 automake
 bInheritHandle
+backoff
 bal
 basecfg
 basho
+bbb
 bcr
 bdb
 beginthreadex
@@ -492,6 +508,7 @@ bool
 boolean
 br
 breakpoint
+bs
 bswap
 bt
 btcur
@@ -516,11 +533,13 @@ bzDecompressInit
 bzalloc
 bzfree
 bzip
+calc
 call's
 calloc
 cas
 catfmt
 cb
+ccc
 ccr
 cd
 centric
@@ -618,6 +637,7 @@ datastore
 dbc
 dbs
 dcalloc
+ddd
 decile
 deciles
 decl
@@ -648,6 +668,7 @@ dhandle
 dhandles
 difftime
 dir
+directio
 dirlist
 disjunction
 disjunctions
@@ -673,6 +694,7 @@ dsync
 dumpcmp
 dumpfile
 dup
+eee
 eg
 egrep
 emp
@@ -684,6 +706,7 @@ endian
 english
 enqueue
 enqueued
+enum
 env
 eof
 epi
@@ -714,6 +737,8 @@ fdatasync
 fdopen
 fextend
 ffc
+fff
+ffffffffffffffff
 fflush
 ffs
 fgetc
@@ -742,9 +767,11 @@ fopen
 formatmessage
 fp
 fprintf
+fread
 free'd
 fs
 fscanf
+fseek
 fstat
 fstream
 fsync
@@ -754,6 +781,7 @@ ftruncate
 func
 funcid
 fvisibility
+fwrite
 gcc
 gdb
 ge
@@ -768,6 +796,7 @@ getraw
 gettime
 gettimeofday
 getv
+ggg
 github
 gitignore
 gobare
@@ -781,6 +810,7 @@ handlep
 hashval
 havesize
 hdr
+hhh
 highjack
 hilq
 hotbackup
@@ -797,6 +827,7 @@ idlems
 idx
 ifdef
 ifdef's
+iflag
 iiSii
 iiiS
 iiii
@@ -855,6 +886,7 @@ iszero
 iter
 iteratively
 iters
+jjj
 jnr
 jrx
 json
@@ -928,6 +960,7 @@ marshalled
 maxCLevel
 maxcpu
 maxdbs
+maxdiff
 mbll
 mbss
 mem
@@ -975,9 +1008,11 @@ needkey
 needvalue
 negint
 nentries
+nentriesp
 newbar
 newfile
 newuri
+newv
 nextprev
 nfilename
 nhex
@@ -1006,6 +1041,7 @@ numSymbols
 numbare
 offpage
 ok
+oldv
 ondisk
 onint
 online
@@ -1026,6 +1062,7 @@ other's
 ovfl
 ownp
 pR
+pS
 packv
 pagesize
 parens
@@ -1133,6 +1170,7 @@ rwlock
 sH
 sHQ
 sT
+sanitizers
 scalability
 sched
 scr
@@ -1191,6 +1229,7 @@ subgets
 subinit
 sublicense
 subone
+suboptimal
 subtest
 subtree
 sunique
@@ -1314,6 +1353,7 @@ vtype
 vunpack
 vw
 vxr
+vxz
 vz
 waitpid
 waker
@@ -1347,6 +1387,7 @@ xff
 xxxx
 xxxxx
 xxxxxx
+zSeries
 zalloc
 zf
 zfree
@@ -1357,3 +1398,4 @@ zstd
 zstd's
 zu
 zyxwvutsrqponmlkjihgfedcba
+zzz

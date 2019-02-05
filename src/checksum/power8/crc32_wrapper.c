@@ -1,6 +1,8 @@
-#if defined(__powerpc64__)
-#include "wt_internal.h"
+#include <wiredtiger_config.h>
+#include <inttypes.h>
+#include <stddef.h>
 
+#if defined(__powerpc64__) && !defined(HAVE_NO_CRC32_HARDWARE)
 #define CRC_TABLE
 #include "crc32_constants.h"
 
@@ -68,7 +70,6 @@ out:
 
 	return crc;
 }
-#endif
 
 /*
  * __wt_checksum_hw --
@@ -79,17 +80,25 @@ __wt_checksum_hw(const void *chunk, size_t len)
 {
 	return (crc32_vpmsum(0, chunk, len));
 }
+#endif
+
+extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
+#if defined(__GNUC__)
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+    __attribute__((visibility("default")));
+#else
+extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+#endif
 
 /*
- * __wt_checksum_init --
- *	WiredTiger: detect CRC hardware and set the checksum function.
+ * wiredtiger_crc32c_func --
+ *	WiredTiger: detect CRC hardware and return the checksum function.
  */
-void
-__wt_checksum_init(void)
+uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 {
-#if defined(HAVE_CRC32_HARDWARE)
-	__wt_process.checksum = __wt_checksum_hw;
+#if defined(__powerpc64__) && !defined(HAVE_NO_CRC32_HARDWARE)
+	return (__wt_checksum_hw);
 #else
-	__wt_process.checksum = __wt_checksum_sw;
+	return (__wt_checksum_sw);
 #endif
 }
