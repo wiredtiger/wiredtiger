@@ -5261,28 +5261,28 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_RWLOCK_READ			1140
 /*! connection: pthread mutex shared lock write-lock calls */
 #define	WT_STAT_CONN_RWLOCK_WRITE			1141
-/*! connection: throttled capacity bytes read */
-#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1142
-/*! connection: throttled capacity bytes written for checkpoint */
-#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1143
-/*! connection: throttled capacity bytes written for eviction */
-#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1144
-/*! connection: throttled capacity bytes written for log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1145
-/*! connection: throttled capacity bytes written total */
-#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1146
-/*! connection: throttled capacity threshold to call fsync */
-#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1147
-/*! connection: throttled capacity time waiting during checkpoint (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1148
-/*! connection: throttled capacity time waiting during eviction (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1149
-/*! connection: throttled capacity time waiting during logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1150
-/*! connection: throttled capacity time waiting during read (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_READ			1151
-/*! connection: throttled time waiting due to total capacity (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1152
+/*! connection: threshold to call fsync */
+#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1142
+/*! connection: throttled bytes read */
+#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1143
+/*! connection: throttled bytes written for checkpoint */
+#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1144
+/*! connection: throttled bytes written for eviction */
+#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1145
+/*! connection: throttled bytes written for log */
+#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1146
+/*! connection: throttled bytes written total */
+#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1147
+/*! connection: time waiting due to total capacity (usecs) */
+#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1148
+/*! connection: time waiting during checkpoint (usecs) */
+#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1149
+/*! connection: time waiting during eviction (usecs) */
+#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1150
+/*! connection: time waiting during logging (usecs) */
+#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1151
+/*! connection: time waiting during read (usecs) */
+#define	WT_STAT_CONN_CAPACITY_TIME_READ			1152
 /*! connection: total fsync I/Os */
 #define	WT_STAT_CONN_FSYNC_IO				1153
 /*! connection: total read I/Os */

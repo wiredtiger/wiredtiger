@@ -52,6 +52,10 @@ class CacheWalkStat(Stat):
     def __init__(self, name, desc, flags=''):
         flags += ',cache_walk'
         Stat.__init__(self, name, CacheWalkStat.prefix, desc, flags)
+class CapacityStat(Stat):
+    prefix = 'capacity'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -134,6 +138,7 @@ groups['memory'] = [
     ConnStat.prefix,
     RecStat.prefix]
 groups['system'] = [
+    CapacityStat.prefix,
     ConnStat.prefix,
     DhandleStat.prefix,
     PerfHistStat.prefix,
@@ -148,24 +153,10 @@ connection_stats = [
     ##########################################
     # System statistics
     ##########################################
-    ConnStat('capacity_bytes_ckpt', 'throttled capacity bytes written for checkpoint'),
-    ConnStat('capacity_bytes_evict', 'throttled capacity bytes written for eviction'),
-    ConnStat('capacity_bytes_log', 'throttled capacity bytes written for log'),
-    ConnStat('capacity_bytes_read', 'throttled capacity bytes read'),
-    ConnStat('capacity_bytes_written', 'throttled capacity bytes written total'),
-    ConnStat('capacity_threshold', 'throttled capacity threshold to call fsync'),
-    ConnStat('capacity_time_ckpt', 'throttled capacity time waiting during checkpoint (usecs)'),
-    ConnStat('capacity_time_evict', 'throttled capacity time waiting during eviction (usecs)'),
-    ConnStat('capacity_time_log', 'throttled capacity time waiting during logging (usecs)'),
-    ConnStat('capacity_time_read', 'throttled capacity time waiting during read (usecs)'),
-    ConnStat('capacity_time_total', 'throttled time waiting due to total capacity (usecs)'),
     ConnStat('cond_auto_wait', 'auto adjusting condition wait calls'),
     ConnStat('cond_auto_wait_reset', 'auto adjusting condition resets'),
     ConnStat('cond_wait', 'pthread mutex condition wait calls'),
     ConnStat('file_open', 'files currently open', 'no_clear,no_scale'),
-    ConnStat('fsync_all_fh', 'background fsync file handles synced'),
-    ConnStat('fsync_all_fh_total', 'background fsync file handles considered'),
-    ConnStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
     ConnStat('fsync_io', 'total fsync I/Os'),
     ConnStat('memory_allocation', 'memory allocations'),
     ConnStat('memory_free', 'memory frees'),
@@ -306,6 +297,24 @@ connection_stats = [
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
     CacheStat('cache_write_lookaside', 'page written requiring cache overflow records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
+
+    ##########################################
+    # Capacity statistics
+    ##########################################
+    ConnStat('capacity_bytes_ckpt', 'throttled bytes written for checkpoint'),
+    ConnStat('capacity_bytes_evict', 'throttled bytes written for eviction'),
+    ConnStat('capacity_bytes_log', 'throttled bytes written for log'),
+    ConnStat('capacity_bytes_read', 'throttled bytes read'),
+    ConnStat('capacity_bytes_written', 'throttled bytes written total'),
+    ConnStat('capacity_threshold', 'threshold to call fsync'),
+    ConnStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
+    ConnStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
+    ConnStat('capacity_time_log', 'time waiting during logging (usecs)'),
+    ConnStat('capacity_time_read', 'time waiting during read (usecs)'),
+    ConnStat('capacity_time_total', 'time waiting due to total capacity (usecs)'),
+    ConnStat('fsync_all_fh', 'background fsync file handles synced'),
+    ConnStat('fsync_all_fh_total', 'background fsync file handles considered'),
+    ConnStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
     # Cursor operations

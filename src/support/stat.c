@@ -895,17 +895,17 @@ static const char * const __stats_connection_desc[] = {
 	"connection: pthread mutex condition wait calls",
 	"connection: pthread mutex shared lock read-lock calls",
 	"connection: pthread mutex shared lock write-lock calls",
-	"connection: throttled capacity bytes read",
-	"connection: throttled capacity bytes written for checkpoint",
-	"connection: throttled capacity bytes written for eviction",
-	"connection: throttled capacity bytes written for log",
-	"connection: throttled capacity bytes written total",
-	"connection: throttled capacity threshold to call fsync",
-	"connection: throttled capacity time waiting during checkpoint (usecs)",
-	"connection: throttled capacity time waiting during eviction (usecs)",
-	"connection: throttled capacity time waiting during logging (usecs)",
-	"connection: throttled capacity time waiting during read (usecs)",
-	"connection: throttled time waiting due to total capacity (usecs)",
+	"connection: threshold to call fsync",
+	"connection: throttled bytes read",
+	"connection: throttled bytes written for checkpoint",
+	"connection: throttled bytes written for eviction",
+	"connection: throttled bytes written for log",
+	"connection: throttled bytes written total",
+	"connection: time waiting due to total capacity (usecs)",
+	"connection: time waiting during checkpoint (usecs)",
+	"connection: time waiting during eviction (usecs)",
+	"connection: time waiting during logging (usecs)",
+	"connection: time waiting during read (usecs)",
 	"connection: total fsync I/Os",
 	"connection: total read I/Os",
 	"connection: total write I/Os",
@@ -1325,17 +1325,17 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cond_wait = 0;
 	stats->rwlock_read = 0;
 	stats->rwlock_write = 0;
+	stats->capacity_threshold = 0;
 	stats->capacity_bytes_read = 0;
 	stats->capacity_bytes_ckpt = 0;
 	stats->capacity_bytes_evict = 0;
 	stats->capacity_bytes_log = 0;
 	stats->capacity_bytes_written = 0;
-	stats->capacity_threshold = 0;
+	stats->capacity_time_total = 0;
 	stats->capacity_time_ckpt = 0;
 	stats->capacity_time_evict = 0;
 	stats->capacity_time_log = 0;
 	stats->capacity_time_read = 0;
-	stats->capacity_time_total = 0;
 	stats->fsync_io = 0;
 	stats->read_io = 0;
 	stats->write_io = 0;
@@ -1801,18 +1801,18 @@ __wt_stat_connection_aggregate(
 	to->cond_wait += WT_STAT_READ(from, cond_wait);
 	to->rwlock_read += WT_STAT_READ(from, rwlock_read);
 	to->rwlock_write += WT_STAT_READ(from, rwlock_write);
+	to->capacity_threshold += WT_STAT_READ(from, capacity_threshold);
 	to->capacity_bytes_read += WT_STAT_READ(from, capacity_bytes_read);
 	to->capacity_bytes_ckpt += WT_STAT_READ(from, capacity_bytes_ckpt);
 	to->capacity_bytes_evict += WT_STAT_READ(from, capacity_bytes_evict);
 	to->capacity_bytes_log += WT_STAT_READ(from, capacity_bytes_log);
 	to->capacity_bytes_written +=
 	    WT_STAT_READ(from, capacity_bytes_written);
-	to->capacity_threshold += WT_STAT_READ(from, capacity_threshold);
+	to->capacity_time_total += WT_STAT_READ(from, capacity_time_total);
 	to->capacity_time_ckpt += WT_STAT_READ(from, capacity_time_ckpt);
 	to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
 	to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
 	to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
-	to->capacity_time_total += WT_STAT_READ(from, capacity_time_total);
 	to->fsync_io += WT_STAT_READ(from, fsync_io);
 	to->read_io += WT_STAT_READ(from, read_io);
 	to->write_io += WT_STAT_READ(from, write_io);
