@@ -420,8 +420,8 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 		if (fh->last_sync == 0 ||
 		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
 			/*
-			 * Increment our ref count on the current and next
-			 * handle. That way both are guaranteed valid when we
+			 * Increment our ref count on the current handle.
+			 * That way it is guaranteed valid when we
 			 * lock again after the fsync.
 			 */
 			++fh->ref;
