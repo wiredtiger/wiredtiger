@@ -42,9 +42,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		    "total I/O capacity value %" PRId64 " below minimum %d",
 		    cval.val, WT_THROTTLE_MIN);
 
+	cap = &conn->capacity;
 	if (cval.val != 0) {
-		WT_RET(__wt_calloc_one(session, &conn->capacity));
-		cap = conn->capacity;
 		cap->total = total = (uint64_t)cval.val;
 		/*
 		 * We've been given a total capacity, set the
@@ -95,7 +94,7 @@ __capacity_server(void *arg)
 
 	session = arg;
 	conn = S2C(session);
-	cap = conn->capacity;
+	cap = &conn->capacity;
 	for (;;) {
 		/*
 		 * Wait until signalled but check once per second in case
@@ -190,7 +189,7 @@ __wt_capacity_server_create(WT_SESSION_IMPL *session, const char *cfg[])
 	    !__wt_fsync_background_chk(session))
 		return (0);
 
-	if (conn->capacity != NULL)
+	if (conn->capacity.total != 0)
 		WT_RET(__capacity_server_start(conn));
 
 	return (0);
@@ -230,7 +229,6 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
 	conn->capacity_session = NULL;
 	conn->capacity_tid_set = false;
 	conn->capacity_cond = NULL;
-	__wt_free(session, conn->capacity);
 
 	return (ret);
 }
@@ -246,7 +244,7 @@ __capacity_signal(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 
 	conn = S2C(session);
-	cap = conn->capacity;
+	cap = &conn->capacity;
 	if (cap->written >= cap->threshold && !cap->signalled) {
 		__wt_cond_signal(session, conn->capacity_cond);
 		cap->signalled = true;
@@ -307,9 +305,9 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	uint64_t total_capacity;
 
 	conn = S2C(session);
-	cap = conn->capacity;
+	cap = &conn->capacity;
 	/* If not using capacity there's nothing to do. */
-	if (cap == NULL)
+	if (cap->total == 0)
 		return;
 
 	capacity = steal_capacity = 0;

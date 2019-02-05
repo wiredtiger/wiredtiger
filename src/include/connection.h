@@ -293,7 +293,7 @@ struct __wt_connection_impl {
 	uint32_t	 async_size;	/* Async op array size */
 	uint32_t	 async_workers;	/* Number of async workers */
 
-	WT_CAPACITY	*capacity;	/* Capacity structure */
+	WT_CAPACITY	 capacity;	/* Capacity structure */
 	WT_SESSION_IMPL *capacity_session;	/* Capacity thread session */
 	wt_thread_t	 capacity_tid;	/* Capacity thread */
 	bool		 capacity_tid_set;	/* Capacity thread set */
