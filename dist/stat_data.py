@@ -301,20 +301,20 @@ connection_stats = [
     ##########################################
     # Capacity statistics
     ##########################################
-    ConnStat('capacity_bytes_ckpt', 'throttled bytes written for checkpoint'),
-    ConnStat('capacity_bytes_evict', 'throttled bytes written for eviction'),
-    ConnStat('capacity_bytes_log', 'throttled bytes written for log'),
-    ConnStat('capacity_bytes_read', 'throttled bytes read'),
-    ConnStat('capacity_bytes_written', 'throttled bytes written total'),
-    ConnStat('capacity_threshold', 'threshold to call fsync'),
-    ConnStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
-    ConnStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
-    ConnStat('capacity_time_log', 'time waiting during logging (usecs)'),
-    ConnStat('capacity_time_read', 'time waiting during read (usecs)'),
-    ConnStat('capacity_time_total', 'time waiting due to total capacity (usecs)'),
-    ConnStat('fsync_all_fh', 'background fsync file handles synced'),
-    ConnStat('fsync_all_fh_total', 'background fsync file handles considered'),
-    ConnStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
+    CapacityStat('capacity_bytes_ckpt', 'throttled bytes written for checkpoint'),
+    CapacityStat('capacity_bytes_evict', 'throttled bytes written for eviction'),
+    CapacityStat('capacity_bytes_log', 'throttled bytes written for log'),
+    CapacityStat('capacity_bytes_read', 'throttled bytes read'),
+    CapacityStat('capacity_bytes_written', 'throttled bytes written total'),
+    CapacityStat('capacity_threshold', 'threshold to call fsync'),
+    CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
+    CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
+    CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
+    CapacityStat('capacity_time_read', 'time waiting during read (usecs)'),
+    CapacityStat('capacity_time_total', 'time waiting due to total capacity (usecs)'),
+    CapacityStat('fsync_all_fh', 'background fsync file handles synced'),
+    CapacityStat('fsync_all_fh_total', 'background fsync file handles considered'),
+    CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
 
     ##########################################
     # Cursor operations
