@@ -43,8 +43,8 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		    cval.val, WT_THROTTLE_MIN);
 
 	cap = &conn->capacity;
+	cap->total = total = (uint64_t)cval.val;
 	if (cval.val != 0) {
-		cap->total = total = (uint64_t)cval.val;
 		/*
 		 * We've been given a total capacity, set the
 		 * capacity of all the subsystems.
