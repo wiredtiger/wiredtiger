@@ -63,6 +63,8 @@ do
 			test_cg_not_created=$(cat ${d}/stderr.txt | grep -c "${cg_not_created_error}")
 
 			if [ "$test_cg_not_created" -ne "0" ]; then
+				echo "Can't dumped '${t}' under '${d}', its column groups are not" \
+				    "created, continuing ..."
 				continue
 			fi
 
