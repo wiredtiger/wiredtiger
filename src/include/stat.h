@@ -494,6 +494,7 @@ struct __wt_connection_stats {
 	int64_t cursor_update_bytes_changed;
 	int64_t cursor_reopen;
 	int64_t cursor_open_count;
+	int64_t dh_conn_handle_size;
 	int64_t dh_conn_handle_count;
 	int64_t dh_sweep_ref;
 	int64_t dh_sweep_close;

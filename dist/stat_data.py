@@ -333,6 +333,7 @@ connection_stats = [
     # Dhandle statistics
     ##########################################
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
     DhandleStat('dh_session_handles', 'session dhandles swept'),
     DhandleStat('dh_session_sweeps', 'session sweep attempts'),
     DhandleStat('dh_sweep_close', 'connection sweep dhandles closed'),
