@@ -965,6 +965,18 @@ tasks:
             ulimit -c unlimited 
             largescale/run-million-collection-test.sh .
 
+  - name: compatibility-test-for-mongodb-releases
+    commands: 
+      - func: "fetch source"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: | 
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_mongodb_releases.sh
+
+
 buildvariants:
 - name: ubuntu1404
   display_name: Ubuntu 14.04
@@ -1040,6 +1052,14 @@ buildvariants:
     configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++
   tasks:
     - name: million-collection-test
+
+- name: weekly-tests
+  display_name: Weekly run tests
+  batchtime: 10080 # 7 days
+  run_on:
+  - ubuntu1404-test
+  tasks:
+    - name: compatibility-test-for-mongodb-releases
 
 - name: windows-64
   display_name: Windows 64-bit
