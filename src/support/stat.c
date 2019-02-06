@@ -937,6 +937,7 @@ static const char * const __stats_connection_desc[] = {
 	"cursor: cursor update value size change",
 	"cursor: cursors reused from cache",
 	"cursor: open cursor count",
+	"data-handle: connection data handle size",
 	"data-handle: connection data handles currently active",
 	"data-handle: connection sweep candidate became referenced",
 	"data-handle: connection sweep dhandles closed",
@@ -1367,6 +1368,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_update_bytes_changed = 0;
 	stats->cursor_reopen = 0;
 		/* not clearing cursor_open_count */
+		/* not clearing dh_conn_handle_size */
 		/* not clearing dh_conn_handle_count */
 	stats->dh_sweep_ref = 0;
 	stats->dh_sweep_close = 0;
@@ -1847,6 +1849,7 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cursor_update_bytes_changed);
 	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_open_count += WT_STAT_READ(from, cursor_open_count);
+	to->dh_conn_handle_size += WT_STAT_READ(from, dh_conn_handle_size);
 	to->dh_conn_handle_count += WT_STAT_READ(from, dh_conn_handle_count);
 	to->dh_sweep_ref += WT_STAT_READ(from, dh_sweep_ref);
 	to->dh_sweep_close += WT_STAT_READ(from, dh_sweep_close);
