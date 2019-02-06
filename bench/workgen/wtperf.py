@@ -201,16 +201,21 @@ class Translator:
             result += '      '
         return result
 
+    def copy_file(self, srcname, destdir, destname):
+        dest_fullname = os.path.join(destdir, destname)
+        suffix = 0
+        while os.path.exists(dest_fullname):
+            suffix += 1
+            dest_fullname = os.path.join(destdir, destname + str(suffix))
+        shutil.copyfile(srcname, dest_fullname)
+
     def copy_config(self):
         # Note: If we add the capability of setting options on the command
         # line, we won't be able to do a simple copy.
-        config_save = os.path.join(self.homedir, 'CONFIG.wtperf')
-        suffix = 0
-        while os.path.exists(config_save):
-            suffix += 1
-            config_save = os.path.join(self.homedir, \
-                                       'CONFIG.wtperf.' + str(suffix))
-        shutil.copyfile(self.filename, config_save)
+        self.copy_file(self.filename, self.homedir, 'CONFIG.wtperf')
+
+    def copy_python_source(self, srcname):
+        self.copy_file(srcname, self.homedir, 'RUN.py')
 
     # Wtperf's throttle is based on the number of regular operations,
     # not including log_like operations.  Workgen counts all operations,
@@ -504,9 +509,11 @@ class Translator:
 
     def translate_inner(self):
         workloadopts = ''
+        input_as_string = ''
         with open(self.filename) as fin:
             for line in fin:
                 self.linenum += 1
+                input_as_string += line
                 commentpos = line.find('#')
                 if commentpos >= 0:
                     line = line[0:commentpos]
@@ -563,6 +570,11 @@ class Translator:
         s += 'from wiredtiger import *\n'
         s += 'from workgen import *\n'
         s += '\n'
+        s += '\'\'\' The original wtperf input file follows:\n'
+        s += input_as_string
+        if not input_as_string.endswith('\n'):
+            s += '\n'
+        s += '\'\'\'\n\n'
         async_config = ''
         if opts.compact and opts.async_threads == 0:
             opts.async_threads = 2;
@@ -585,6 +597,7 @@ class Translator:
             s += '        return op_ret\n'
             s += '\n'
         s += 'context = Context()\n'
+        s += 'homedir = "' + self.homedir + '"\n'
         extra_config = ''
         s += 'conn_config = ""\n'
 
@@ -599,8 +612,7 @@ class Translator:
                 s += 'conn_config += extensions_config(["compressors/' + \
                     compression + '"])\n'
             compression = 'block_compressor=' + compression + ','
-        s += 'conn = wiredtiger_open("' + self.homedir + \
-             '", "create," + conn_config)\n'
+        s += 'conn = wiredtiger_open(homedir, "create," + conn_config)\n'
         s += 's = conn.open_session("' + sess_config + '")\n'
         s += '\n'
         s += self.translate_table_create()
@@ -618,8 +630,8 @@ class Translator:
                 s += 'conn.close()\n'
                 if readonly:
                     'conn_config += ",readonly=true"\n'
-                s += 'conn = wiredtiger_open(' + \
-                     '"' + self.homedir + '", "create," + conn_config)\n'
+                s += 'conn = wiredtiger_open(homedir, ' + \
+                    '"create," + conn_config)\n'
                 s += '\n'
             s += 'workload = Workload(context, ' + t_var + ')\n'
             s += workloadopts
@@ -627,7 +639,7 @@ class Translator:
             if self.verbose > 0:
                 s += 'print("workload:")\n'
             s += 'workload.run(conn)\n\n'
-            s += 'latency_filename = "' + self.homedir + '/latency.out"\n'
+            s += 'latency_filename = homedir + "/latency.out"\n'
             s += 'latency.workload_latency(workload, latency_filename)\n'
 
         if close_conn:
@@ -691,6 +703,7 @@ for arg in sys.argv[1:]:
             if not os.path.isdir(homedir):
                 os.makedirs(homedir)
             translator.copy_config()
+            translator.copy_python_source(tmpfile)
             os.remove(tmpfile)
             if raised != None:
                 raise raised
