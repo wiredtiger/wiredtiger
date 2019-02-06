@@ -404,6 +404,7 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 	WT_FH *fh;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
+	int fsync_ret;
 
 	conn = S2C(session);
 	__wt_spin_lock(session, &conn->fh_lock);
@@ -426,7 +427,7 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 			 */
 			++fh->ref;
 			__wt_spin_unlock(session, &conn->fh_lock);
-			ret = __wt_fsync(session, fh, false);
+			fsync_ret = __wt_fsync(session, fh, false);
 			/*
 			 * Although we send in the false flag to indicate a
 			 * non-blocking background fsync, there is no guarantee
@@ -434,28 +435,36 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 			 * is blocking, adding a clock call and checking the
 			 * time would be done here.
 			 */
-			/*
-			 * Even if we get an error, we still need to lock and
-			 * decrement our reference counts.
-			 */
-			if (ret == 0) {
+			if (fsync_ret == 0) {
 				WT_STAT_CONN_INCR(session, fsync_all_fh);
 				fh->last_sync = now;
 				fh->written = 0;
 			}
+			WT_TRET(fsync_ret);
+
+			/*
+			 * Even if we get an error, we still need to lock and
+			 * decrement our reference counts.
+			 *
+			 * The last open reference to the file handle may have
+			 * been released while we dropped the lock. If so, we're
+			 * responsible for closing.
+			 */
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
-			WT_ERR(ret);
-			/*
-			 * The last open reference to the file handle may
-			 * have been released while we dropped the lock.
-			 * If so, we're responsible for closing.
-			 */
-			if (fh->ref == 0)
-				return (__handle_close(session, fh, true));
+
+			if (fh->ref == 0) {
+				/*
+				 * We unlock during the handle close, we'll
+				 * lock again before traversing to the next
+				 * list element.
+				 */
+				WT_TRET(__handle_close(session, fh, true));
+				__wt_spin_lock(session, &conn->fh_lock);
+			}
 		}
 	}
-err:	__wt_spin_unlock(session, &conn->fh_lock);
+	__wt_spin_unlock(session, &conn->fh_lock);
 	return (ret);
 }
 
