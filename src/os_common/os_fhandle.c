@@ -365,7 +365,7 @@ bool
 __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_FH *fh, *fhnext;
+	WT_FH *fh;
 	WT_FILE_HANDLE *handle;
 	bool supported;
 
@@ -376,7 +376,7 @@ __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 	 * Look for the first data file handle and see if
 	 * the fsync nowait function is supported.
 	 */
-	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
+	TAILQ_FOREACH(fh, &conn->fhqh, q) {
 		handle = fh->handle;
 		if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
 			continue;
