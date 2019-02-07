@@ -69,6 +69,12 @@ ops = Operation(Operation.OP_SLEEP, "0.1") + \
       Operation(Operation.OP_LOG_FLUSH, "")
 logging_thread = Thread(ops)
 
+############################################################################
+# This part was added to the generated file.
+# Add threads that do a bunch of operations and sleep, all in a loop.
+# At the beginning of the run the threads will tend to be synchronized,
+# but that effect will dissipate over time.
+
 ops = Operation(Operation.OP_UPDATE, tables[0])
 ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
@@ -92,6 +98,10 @@ ops = op_multi_table(ops, tables, False)
 ops = op_log_like(ops, log_table, 0)
 ops = ops * 80000 + Operation(Operation.OP_SLEEP, "16")
 thread_bigread_16 = Thread(ops)
+
+# End of added section.
+# The new threads will also be added to the workload below.
+############################################################################
 
 workload = Workload(context, 80 * thread0 + 80 * thread1 + checkpoint_thread + logging_thread + 10 * thread_big_10 + 10 * thread_big_20 + 10 * thread_bigread_8 + 10 * thread_bigread_16)
 workload.options.report_interval=1
