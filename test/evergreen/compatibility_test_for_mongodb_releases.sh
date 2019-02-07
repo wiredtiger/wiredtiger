@@ -7,12 +7,12 @@
 # Return the most recent version of the tagged release.
 ###########################################################################
 get_release()
-{ 
-	echo "$(git tag | grep "^mongodb-$1.[0-9]" | sort -n | sed -e '$p' -e d)"
+{
+	echo "$(git tag | grep "^mongodb-$1.[0-9]" | sort -V | sed -e '$p' -e d)"
 }
 
 #############################################################
-# This function will 
+# This function will
 #	- checkout git tree of the desired release and build it,
 #	- generate test objects.
 #
@@ -31,6 +31,8 @@ build_rel()
 	config+="--enable-snappy "
 
 	case "$1" in
+        # Please note 'develop' here is planned as the future MongoDB release 4.2 - the only release that supports
+        # both enabling and disabling of timestamps in data format. Once 4.2 is released, we need to update this script.
 	"develop")
 		branch="develop";;
 	"develop-timestamps")
@@ -42,7 +44,7 @@ build_rel()
 
 	git checkout --quiet -b $branch || return 1
 
-	(sh build_posix/reconf && ./configure $config && make -j 8) > /dev/null || return 1
+	(sh build_posix/reconf && ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null || return 1
 
 	cd test/format || return 1
 
@@ -69,7 +71,7 @@ build_rel()
 }
 
 #############################################################
-# This function will 
+# This function will
 #	- verify a pair of releases can verify each other's objects.
 #
 # arg1: release #1
