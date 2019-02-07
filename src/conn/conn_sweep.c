@@ -279,12 +279,18 @@ __sweep_server(void *arg)
 	WT_SESSION_IMPL *session;
 	time_t last, now;
 	uint64_t last_las_sweep_id, min_sleep, oldest_id;
+	uint64_t sweep_interval;
 	u_int dead_handles;
 
 	session = arg;
 	conn = S2C(session);
 	last_las_sweep_id = WT_TXN_NONE;
 	min_sleep = WT_MIN(WT_LAS_SWEEP_SEC, conn->sweep_interval);
+	if (FLD_ISSET(conn->timing_stress_flags,
+	    WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
+		sweep_interval = conn->sweep_interval / 10;
+	else
+		sweep_interval = conn->sweep_interval;
 
 	/*
 	 * Sweep for dead and excess handles.
@@ -293,12 +299,13 @@ __sweep_server(void *arg)
 	for (;;) {
 		/* Wait until the next event. */
 		if (FLD_ISSET(conn->timing_stress_flags,
-			WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
+		    WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
 			__wt_cond_wait(session, conn->sweep_cond,
-				min_sleep * 10000, __sweep_server_run_chk);
+			    min_sleep * 100 * WT_THOUSAND,
+			    __sweep_server_run_chk);
 		else
 			__wt_cond_wait(session, conn->sweep_cond,
-				min_sleep * WT_MILLION, __sweep_server_run_chk);
+			    min_sleep * WT_MILLION, __sweep_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__sweep_server_run_chk(session))
@@ -317,7 +324,9 @@ __sweep_server(void *arg)
 		 * bringing in and evicting pages from the lookaside table,
 		 * which will stop the cache from moving into the stuck state.
 		 */
-		if (now - last >= WT_LAS_SWEEP_SEC &&
+		if ((FLD_ISSET(conn->timing_stress_flags,
+		    WT_TIMING_STRESS_AGGRESSIVE_SWEEP) ||
+		    now - last >= WT_LAS_SWEEP_SEC) &&
 		    !__wt_las_empty(session) &&
 		    !__wt_cache_stuck(session)) {
 			oldest_id = __wt_txn_oldest_id(session);
@@ -332,7 +341,7 @@ __sweep_server(void *arg)
 		 * less frequently than the lookaside table by default and the
 		 * frequency is controlled by a user setting.
 		 */
-		if ((uint64_t)(now - last) < conn->sweep_interval)
+		if ((uint64_t)(now - last) < sweep_interval)
 			continue;
 		WT_STAT_CONN_INCR(session, dh_sweeps);
 		/*
@@ -356,7 +365,7 @@ __sweep_server(void *arg)
 		if (dead_handles > 0)
 			WT_ERR(__sweep_remove_handles(session));
 
-		/* Remember last sweep time. */
+		/* Remember the last sweep time. */
 		last = now;
 	}
 
