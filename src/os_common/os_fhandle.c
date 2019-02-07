@@ -401,14 +401,14 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_FH *fh;
+	WT_FH *fh, *fhtmp;
 	WT_FILE_HANDLE *handle;
 	uint64_t now;
 	int fsync_ret;
 
 	conn = S2C(session);
 	__wt_spin_lock(session, &conn->fh_lock);
-	TAILQ_FOREACH(fh, &conn->fhqh, q) {
+	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhtmp) {
 		handle = fh->handle;
 		WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 		if (handle->fh_sync_nowait == NULL ||
@@ -418,14 +418,16 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 		if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
 			continue;
 		now = __wt_clock(session);
-		if (fh->last_sync == 0 ||
-		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
+		if (fh->ref > 0 && (fh->last_sync == 0 ||
+		    WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0)) {
 			/*
-			 * Increment our ref count on the current handle.
-			 * That way it is guaranteed valid when we
+			 * Increment our ref count on the current and next
+			 * handle. That way they are guaranteed valid when we
 			 * lock again after the fsync.
 			 */
 			++fh->ref;
+			if (fhtmp != NULL)
+				++fhtmp->ref;
 			__wt_spin_unlock(session, &conn->fh_lock);
 			fsync_ret = __wt_fsync(session, fh, false);
 			/*
@@ -445,23 +447,25 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 			/*
 			 * Even if we get an error, we still need to lock and
 			 * decrement our reference counts.
-			 *
-			 * The last open reference to the file handle may have
-			 * been released while we dropped the lock. If so, we're
-			 * responsible for closing.
 			 */
 			__wt_spin_lock(session, &conn->fh_lock);
 			--fh->ref;
-
-			if (fh->ref == 0) {
-				/*
-				 * We unlock during the handle close, we'll
-				 * lock again before traversing to the next
-				 * list element.
-				 */
-				WT_TRET(__handle_close(session, fh, true));
-				__wt_spin_lock(session, &conn->fh_lock);
-			}
+			if (fhtmp != NULL)
+				--fhtmp->ref;
+		}
+		/*
+		 * The last open reference to the file handle may have been
+		 * released while we dropped the lock. If so, we're responsible
+		 * for closing.
+		 */
+		if (fh->ref == 0) {
+			/*
+			 * We unlock during the handle close, we'll
+			 * lock again before traversing to the next
+			 * list element.
+			 */
+			WT_TRET(__handle_close(session, fh, true));
+			__wt_spin_lock(session, &conn->fh_lock);
 		}
 	}
 	__wt_spin_unlock(session, &conn->fh_lock);
