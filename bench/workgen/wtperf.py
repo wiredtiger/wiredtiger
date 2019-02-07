@@ -271,6 +271,8 @@ class Translator:
             topts.read = 0
             topts.reads = 0
             topts.throttle = 0
+            # Workgen's throttle_burst variable has a default of 1.0 .  Since we
+            # are always explicitly setting it, set our own value to the same.
             topts.throttle_burst = 1.0
             topts.update = 0
             topts.updates = 0
