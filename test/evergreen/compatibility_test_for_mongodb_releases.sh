@@ -53,7 +53,7 @@ build_rel()
 	args+="cache=80 "				# Medium cache so there's eviction
 	args+="checkpoints=1 "				# Force periodic writes
 	args+="compression=snappy "			# We only built with snappy, force the choice
-	args+="data_source=table "		
+	args+="data_source=table "
 	args+="in_memory=0 "				# Interested in the on-disk format
 	args+="leak_memory=1 "				# Faster runs
 	args+="logging_compression=snappy "		# We only built with snappy, force the choice

@@ -966,12 +966,12 @@ tasks:
             largescale/run-million-collection-test.sh .
 
   - name: compatibility-test-for-mongodb-releases
-    commands: 
+    commands:
       - func: "fetch source"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
-          script: | 
+          script: |
             set -o errexit
             set -o verbose
             test/evergreen/compatibility_test_for_mongodb_releases.sh
@@ -1053,8 +1053,8 @@ buildvariants:
   tasks:
     - name: million-collection-test
 
-- name: weekly-tests
-  display_name: Weekly run tests
+- name: compatibility-tests
+  display_name: Compatibility tests
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu1404-test
