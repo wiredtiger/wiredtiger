@@ -34,7 +34,7 @@
 # See also the usage() function.
 #
 from __future__ import print_function
-import os, shutil, sys, tempfile
+import os, shutil, sys, subprocess, tempfile
 
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -155,8 +155,6 @@ class Translator:
     # "(abc=123,def=234,ghi=(hi=1,bye=2))" would return 3 items.
     def split_config_parens(self, s):
         if s[0:1] != '(':
-            import pdb
-            pdb.set_trace()
             self.fatal_error('missing left paren', 'config parse error')
         if s[-1:] != ')':
             self.fatal_error('missing right paren', 'config parse error')
@@ -702,9 +700,11 @@ for arg in sys.argv[1:]:
             # directory after the run, because the wiredtiger_open
             # in the generated code will clean out the directory first.
             raised = None
+            ret = 0
             try:
-                execfile(tmpfile)
-            except Exception, exception:
+                # Run python on the generated script
+                ret = subprocess.call([sys.executable, tmpfile])
+            except (KeyboardInterrupt, Exception), exception:
                 raised = exception
             if not os.path.isdir(homedir):
                 os.makedirs(homedir)
@@ -713,6 +713,9 @@ for arg in sys.argv[1:]:
             os.remove(tmpfile)
             if raised != None:
                 raise raised
+            if ret != 0:
+                raise Exception('Running generated program returned ' +
+                                str(ret))
     else:
         usage()
         sys.exit(1)
