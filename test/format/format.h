@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -381,7 +381,7 @@ mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
 	 * Test runs with small row counts can easily pass a max of 0 (for
 	 * example, "g.rows / 20"). Avoid the problem.
 	 */
-	if (min <= max)
+	if (max <= min)
 		return (min);
 
 	v = rng(rnd);

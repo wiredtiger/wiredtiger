@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -453,6 +453,20 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_dirty;
 	int64_t cache_pages_dirty;
 	int64_t cache_eviction_clean;
+	int64_t fsync_all_fh_total;
+	int64_t fsync_all_fh;
+	int64_t fsync_all_time;
+	int64_t capacity_threshold;
+	int64_t capacity_bytes_read;
+	int64_t capacity_bytes_ckpt;
+	int64_t capacity_bytes_evict;
+	int64_t capacity_bytes_log;
+	int64_t capacity_bytes_written;
+	int64_t capacity_time_total;
+	int64_t capacity_time_ckpt;
+	int64_t capacity_time_evict;
+	int64_t capacity_time_log;
+	int64_t capacity_time_read;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
 	int64_t time_travel;
@@ -467,14 +481,19 @@ struct __wt_connection_stats {
 	int64_t read_io;
 	int64_t write_io;
 	int64_t cursor_cached_count;
+	int64_t cursor_insert_bulk;
 	int64_t cursor_cache;
 	int64_t cursor_create;
 	int64_t cursor_insert;
+	int64_t cursor_insert_bytes;
 	int64_t cursor_modify;
+	int64_t cursor_modify_bytes;
+	int64_t cursor_modify_bytes_touch;
 	int64_t cursor_next;
 	int64_t cursor_restart;
 	int64_t cursor_prev;
 	int64_t cursor_remove;
+	int64_t cursor_remove_bytes;
 	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_search;
@@ -483,10 +502,13 @@ struct __wt_connection_stats {
 	int64_t cursor_sweep_closed;
 	int64_t cursor_sweep_examined;
 	int64_t cursor_sweep;
+	int64_t cursor_truncate;
 	int64_t cursor_update;
+	int64_t cursor_update_bytes;
+	int64_t cursor_update_bytes_changed;
 	int64_t cursor_reopen;
 	int64_t cursor_open_count;
-	int64_t cursor_truncate;
+	int64_t dh_conn_handle_size;
 	int64_t dh_conn_handle_count;
 	int64_t dh_sweep_ref;
 	int64_t dh_sweep_close;
@@ -804,25 +826,28 @@ struct __wt_dsrc_stats {
 	int64_t compress_write_fail;
 	int64_t compress_write_too_small;
 	int64_t cursor_insert_bulk;
+	int64_t cursor_reopen;
 	int64_t cursor_cache;
 	int64_t cursor_create;
-	int64_t cursor_restart;
-	int64_t cursor_insert_bytes;
-	int64_t cursor_remove_bytes;
-	int64_t cursor_update_bytes;
-	int64_t cursor_reopen;
 	int64_t cursor_insert;
+	int64_t cursor_insert_bytes;
 	int64_t cursor_modify;
+	int64_t cursor_modify_bytes;
+	int64_t cursor_modify_bytes_touch;
 	int64_t cursor_next;
 	int64_t cursor_open_count;
+	int64_t cursor_restart;
 	int64_t cursor_prev;
 	int64_t cursor_remove;
+	int64_t cursor_remove_bytes;
 	int64_t cursor_reserve;
 	int64_t cursor_reset;
 	int64_t cursor_search;
 	int64_t cursor_search_near;
 	int64_t cursor_truncate;
 	int64_t cursor_update;
+	int64_t cursor_update_bytes;
+	int64_t cursor_update_bytes_changed;
 	int64_t rec_dictionary;
 	int64_t rec_page_delete_fast;
 	int64_t rec_suffix_compression;

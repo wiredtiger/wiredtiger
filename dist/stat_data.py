@@ -52,6 +52,10 @@ class CacheWalkStat(Stat):
     def __init__(self, name, desc, flags=''):
         flags += ',cache_walk'
         Stat.__init__(self, name, CacheWalkStat.prefix, desc, flags)
+class CapacityStat(Stat):
+    prefix = 'capacity'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, CapacityStat.prefix, desc, flags)
 class CompressStat(Stat):
     prefix = 'compression'
     def __init__(self, name, desc, flags=''):
@@ -134,6 +138,7 @@ groups['memory'] = [
     ConnStat.prefix,
     RecStat.prefix]
 groups['system'] = [
+    CapacityStat.prefix,
     ConnStat.prefix,
     DhandleStat.prefix,
     PerfHistStat.prefix,
@@ -294,6 +299,24 @@ connection_stats = [
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################
+    # Capacity statistics
+    ##########################################
+    CapacityStat('capacity_bytes_ckpt', 'throttled bytes written for checkpoint'),
+    CapacityStat('capacity_bytes_evict', 'throttled bytes written for eviction'),
+    CapacityStat('capacity_bytes_log', 'throttled bytes written for log'),
+    CapacityStat('capacity_bytes_read', 'throttled bytes read'),
+    CapacityStat('capacity_bytes_written', 'throttled bytes written total'),
+    CapacityStat('capacity_threshold', 'threshold to call fsync'),
+    CapacityStat('capacity_time_ckpt', 'time waiting during checkpoint (usecs)'),
+    CapacityStat('capacity_time_evict', 'time waiting during eviction (usecs)'),
+    CapacityStat('capacity_time_log', 'time waiting during logging (usecs)'),
+    CapacityStat('capacity_time_read', 'time waiting during read (usecs)'),
+    CapacityStat('capacity_time_total', 'time waiting due to total capacity (usecs)'),
+    CapacityStat('fsync_all_fh', 'background fsync file handles synced'),
+    CapacityStat('fsync_all_fh_total', 'background fsync file handles considered'),
+    CapacityStat('fsync_all_time', 'background fsync time (msecs)', 'no_clear,no_scale'),
+
+    ##########################################
     # Cursor operations
     ##########################################
     CursorStat('cursor_open_count', 'open cursor count', 'no_clear,no_scale'),
@@ -301,18 +324,25 @@ connection_stats = [
     CursorStat('cursor_cache', 'cursor close calls that result in cache'),
     CursorStat('cursor_create', 'cursor create calls'),
     CursorStat('cursor_insert', 'cursor insert calls'),
+    CursorStat('cursor_insert_bulk', 'cursor bulk loaded cursor insert calls'),
+    CursorStat('cursor_insert_bytes', 'cursor insert key and value bytes', 'size'),
     CursorStat('cursor_modify', 'cursor modify calls'),
+    CursorStat('cursor_modify_bytes', 'cursor modify key and value bytes affected', 'size'),
+    CursorStat('cursor_modify_bytes_touch', 'cursor modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'cursor next calls'),
     CursorStat('cursor_prev', 'cursor prev calls'),
     CursorStat('cursor_remove', 'cursor remove calls'),
+    CursorStat('cursor_remove_bytes', 'cursor remove key bytes removed', 'size'),
     CursorStat('cursor_reopen', 'cursors reused from cache'),
     CursorStat('cursor_reserve', 'cursor reserve calls'),
     CursorStat('cursor_reset', 'cursor reset calls'),
     CursorStat('cursor_restart', 'cursor operation restarted'),
     CursorStat('cursor_search', 'cursor search calls'),
     CursorStat('cursor_search_near', 'cursor search near calls'),
-    CursorStat('cursor_truncate', 'truncate calls'),
+    CursorStat('cursor_truncate', 'cursor truncate calls'),
     CursorStat('cursor_update', 'cursor update calls'),
+    CursorStat('cursor_update_bytes', 'cursor update key and value bytes', 'size'),
+    CursorStat('cursor_update_bytes_changed', 'cursor update value size change', 'size'),
 
     ##########################################
     # Cursor sweep
@@ -326,6 +356,7 @@ connection_stats = [
     # Dhandle statistics
     ##########################################
     DhandleStat('dh_conn_handle_count', 'connection data handles currently active', 'no_clear,no_scale'),
+    DhandleStat('dh_conn_handle_size', 'connection data handle size', 'no_clear,no_scale,size'),
     DhandleStat('dh_session_handles', 'session dhandles swept'),
     DhandleStat('dh_session_sweeps', 'session sweep attempts'),
     DhandleStat('dh_sweep_close', 'connection sweep dhandles closed'),
@@ -703,22 +734,25 @@ dsrc_stats = [
     CursorStat('cursor_cache', 'close calls that result in cache'),
     CursorStat('cursor_create', 'create calls'),
     CursorStat('cursor_insert', 'insert calls'),
-    CursorStat('cursor_insert_bulk', 'bulk-loaded cursor-insert calls'),
-    CursorStat('cursor_insert_bytes', 'cursor-insert key and value bytes inserted', 'size'),
-    CursorStat('cursor_modify', 'modify calls'),
+    CursorStat('cursor_insert_bulk', 'bulk loaded cursor insert calls'),
+    CursorStat('cursor_insert_bytes', 'insert key and value bytes', 'size'),
+    CursorStat('cursor_modify', 'modify'),
+    CursorStat('cursor_modify_bytes', 'modify key and value bytes affected', 'size'),
+    CursorStat('cursor_modify_bytes_touch', 'modify value bytes modified', 'size'),
     CursorStat('cursor_next', 'next calls'),
     CursorStat('cursor_prev', 'prev calls'),
     CursorStat('cursor_remove', 'remove calls'),
-    CursorStat('cursor_remove_bytes', 'cursor-remove key bytes removed', 'size'),
-    CursorStat('cursor_reopen', 'cursors reused from cache'),
+    CursorStat('cursor_remove_bytes', 'remove key bytes removed', 'size'),
+    CursorStat('cursor_reopen', 'cache cursors reuse count'),
     CursorStat('cursor_reserve', 'reserve calls'),
     CursorStat('cursor_reset', 'reset calls'),
-    CursorStat('cursor_restart', 'cursor operation restarted'),
+    CursorStat('cursor_restart', 'operation restarted'),
     CursorStat('cursor_search', 'search calls'),
     CursorStat('cursor_search_near', 'search near calls'),
     CursorStat('cursor_truncate', 'truncate calls'),
     CursorStat('cursor_update', 'update calls'),
-    CursorStat('cursor_update_bytes', 'cursor-update value bytes updated', 'size'),
+    CursorStat('cursor_update_bytes', 'update key and value bytes', 'size'),
+    CursorStat('cursor_update_bytes_changed', 'update value size change', 'size'),
 
     ##########################################
     # LSM statistics

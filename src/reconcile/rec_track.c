@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -39,7 +39,7 @@ __ovfl_discard_verbose(
 	WT_RET(__wt_scr_alloc(session, 512, &tmp));
 
 	unpack = &_unpack;
-	__wt_cell_unpack(page, cell, unpack);
+	__wt_cell_unpack(session, page, cell, unpack);
 
 	__wt_verbose(session, WT_VERB_OVERFLOW,
 	    "discard: %s%s%p %s",

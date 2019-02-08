@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -132,6 +132,10 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
+	wt_timestamp_t oldest_start_ts;	/* Aggregated timestamp information */
+	wt_timestamp_t newest_start_ts;
+	wt_timestamp_t newest_stop_ts;
+
 	uint8_t *addr;			/* Block-manager's cookie */
 	uint8_t  size;			/* Block-manager's cookie length */
 
@@ -205,8 +209,13 @@ struct __wt_ovfl_reuse {
  * this way so that overall the lookaside table is append-mostly), a counter
  * (used to ensure the update records remain in the original order), and the
  * record's key (byte-string for row-store, record number for column-store).
- * The value is the WT_UPDATE structure's transaction ID, timestamp, update's
- * prepare state, update type and value.
+ * The value is the WT_UPDATE structure's:
+ * 	- transaction ID
+ * 	- timestamp
+ * 	- durable timestamp
+ * 	- update's prepare state
+ *	- update type
+ *	- value.
  *
  * As the key for the lookaside table is different for row- and column-store, we
  * store both key types in a WT_ITEM, building/parsing them in the code, because
@@ -223,7 +232,7 @@ struct __wt_ovfl_reuse {
 #endif
 #define	WT_LAS_CONFIG							\
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QQBBu)				\
+    ",value_format=" WT_UNCHECKED_STRING(QQQBBu)			\
     ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
     ",leaf_value_max=64MB"						\
     ",prefix_compression=true"
@@ -818,7 +827,9 @@ struct __wt_page {
  */
 struct __wt_page_deleted {
 	volatile uint64_t txnid;		/* Transaction ID */
-	wt_timestamp_t timestamp;
+
+	wt_timestamp_t timestamp;		/* Timestamps */
+	wt_timestamp_t durable_timestamp;
 
 	/*
 	 * The state is used for transaction prepare to manage visibility
@@ -1048,7 +1059,9 @@ struct __wt_ikey {
  */
 struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
-	wt_timestamp_t timestamp;	/* aligned uint64_t timestamp */
+
+	wt_timestamp_t durable_ts;	/* timestamps */
+	wt_timestamp_t start_ts, stop_ts;
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -1071,7 +1084,7 @@ struct __wt_update {
 	 * The update state is used for transaction prepare to manage
 	 * visibility and transitioning update structure state safely.
 	 */
-	volatile uint8_t prepare_state;	/* Prepare state. */
+	volatile uint8_t prepare_state;	/* prepare state */
 
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the
@@ -1085,7 +1098,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	30
+#define	WT_UPDATE_SIZE	46
 
 /*
  * The memory size of an update: include some padding because this is such a

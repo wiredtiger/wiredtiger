@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -217,7 +217,7 @@ __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
 	bm = btree->bm;
 	unpack = &_unpack;
 
-	__wt_cell_unpack(page, cell, unpack);
+	__wt_cell_unpack(session, page, cell, unpack);
 
 	/*
 	 * Finally remove overflow key/value objects, called when reconciliation

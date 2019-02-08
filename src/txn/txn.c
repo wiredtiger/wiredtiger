@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -643,7 +643,7 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			 * Check timestamps are used in order.
 			 */
 			op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
-			upd_zero_ts = upd->timestamp == WT_TS_NONE;
+			upd_zero_ts = upd->start_ts == WT_TS_NONE;
 			if (op_zero_ts != upd_zero_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "per-key timestamps used inconsistently");
@@ -655,14 +655,14 @@ __txn_commit_timestamp_validate(WT_SESSION_IMPL *session)
 			if (op_zero_ts)
 				continue;
 
-			op_timestamp = op->u.op_upd->timestamp;
+			op_timestamp = op->u.op_upd->start_ts;
 			/*
 			 * Only if the update structure doesn't have a timestamp
 			 * then use the one in the transaction structure.
 			 */
 			if (op_timestamp == WT_TS_NONE)
 				op_timestamp = txn->commit_timestamp;
-			if (op_timestamp < upd->timestamp)
+			if (op_timestamp < upd->start_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order timestamps");
 		}
@@ -699,14 +699,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    txn->mod_count == 0);
 
 	readonly = txn->mod_count == 0;
-	/*
-	 * Look for a commit timestamp.
-	 */
+	/* Look for a commit timestamp. */
 	WT_ERR(
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		WT_ERR(__wt_timestamp_validate(session, "commit", ts, &cval));
+		/*
+		 * For prepared transactions commit timestamp could be earlier
+		 * than stable timestamp.
+		 */
+		WT_ERR(__wt_timestamp_validate(
+		    session, "commit", ts, &cval, false));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 	}
@@ -716,7 +719,35 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR_MSG(session, EINVAL,
 		    "commit_timestamp is required for a prepared transaction");
 
+	/* Durable timestamp is required for a prepared transaction. */
+	if (prepare) {
+		WT_ERR(__wt_config_gets_def(
+		    session, cfg, "durable_timestamp", 0, &cval));
+		if (cval.len != 0) {
+			WT_ERR(__wt_txn_parse_timestamp(
+			    session, "durable", &ts, &cval));
+			WT_ERR(__wt_timestamp_validate(
+			    session, "durable", ts, &cval, true));
+			txn->durable_timestamp = ts;
+		} else
+			/*
+			 * If durable timestamp is not given, commit timestamp
+			 * will be considered as durable timestamp.
+			 * TODO : error if durable timestamp is not given.
+			 */
+			txn->durable_timestamp = txn->commit_timestamp;
+
+	} else
+		txn->durable_timestamp = txn->commit_timestamp;
+
+	/* Durable timestamp should be later than stable timestamp. */
+	if (cval.len != 0)
+		WT_ERR(__wt_timestamp_validate(
+		    session, "durable", txn->durable_timestamp, &cval, true));
+
 	WT_ERR(__txn_commit_timestamp_validate(session));
+
+	/* TODO : assert durable_timestamp. */
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -985,7 +1016,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			/* Set prepare timestamp. */
-			upd->timestamp = ts;
+			upd->start_ts = ts;
 
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
@@ -1364,8 +1395,8 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 int
 __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
-	char hex_timestamp[3][WT_TS_HEX_SIZE];
 	const char *iso_tag;
+	char ts_string[4][WT_TS_INT_STRING_SIZE];
 
 	WT_NOT_READ(iso_tag, "INVALID");
 	switch (txn->isolation) {
@@ -1379,15 +1410,20 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 		iso_tag = "WT_ISO_SNAPSHOT";
 		break;
 	}
-	__wt_timestamp_to_hex_string(hex_timestamp[0], txn->commit_timestamp);
-	__wt_timestamp_to_hex_string(
-	    hex_timestamp[1], txn->first_commit_timestamp);
-	__wt_timestamp_to_hex_string(hex_timestamp[2], txn->read_timestamp);
+	__wt_timestamp_to_string(
+	    txn->commit_timestamp, ts_string[0], sizeof(ts_string[0]));
+	__wt_timestamp_to_string(
+	    txn->durable_timestamp, ts_string[1], sizeof(ts_string[1]));
+	__wt_timestamp_to_string(
+	    txn->first_commit_timestamp, ts_string[2], sizeof(ts_string[2]));
+	__wt_timestamp_to_string(
+	    txn->read_timestamp, ts_string[3], sizeof(ts_string[3]));
 	WT_RET(__wt_msg(session,
 	    "mod count: %u"
 	    ", snap min: %" PRIu64
 	    ", snap max: %" PRIu64
 	    ", commit_timestamp: %s"
+	    ", durable_timestamp: %s"
 	    ", first_commit_timestamp: %s"
 	    ", read_timestamp: %s"
 	    ", flags: 0x%08" PRIx32
@@ -1395,9 +1431,10 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 	    txn->mod_count,
 	    txn->snap_min,
 	    txn->snap_max,
-	    hex_timestamp[0],
-	    hex_timestamp[1],
-	    hex_timestamp[2],
+	    ts_string[0],
+	    ts_string[1],
+	    ts_string[2],
+	    ts_string[3],
 	    txn->flags,
 	    iso_tag));
 	return (0);
@@ -1416,7 +1453,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_TXN_STATE *s;
 	uint64_t id;
 	uint32_t i, session_cnt;
-	char hex_timestamp[3][WT_TS_HEX_SIZE];
+	char ts_string[WT_TS_INT_STRING_SIZE];
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -1431,18 +1468,18 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	    "metadata_pinned ID: %" PRIu64, txn_global->metadata_pinned));
 	WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
 
-	__wt_timestamp_to_hex_string(
-	    hex_timestamp[0], txn_global->commit_timestamp);
-	WT_RET(__wt_msg(session, "commit timestamp: %s", hex_timestamp[0]));
-	__wt_timestamp_to_hex_string(
-	    hex_timestamp[0], txn_global->oldest_timestamp);
-	WT_RET(__wt_msg(session, "oldest timestamp: %s", hex_timestamp[0]));
-	__wt_timestamp_to_hex_string(
-	    hex_timestamp[0], txn_global->pinned_timestamp);
-	WT_RET(__wt_msg(session, "pinned timestamp: %s", hex_timestamp[0]));
-	__wt_timestamp_to_hex_string(
-	    hex_timestamp[0], txn_global->stable_timestamp);
-	WT_RET(__wt_msg(session, "stable timestamp: %s", hex_timestamp[0]));
+	__wt_timestamp_to_string(
+	    txn_global->commit_timestamp, ts_string, sizeof(ts_string));
+	WT_RET(__wt_msg(session, "commit timestamp: %s", ts_string));
+	__wt_timestamp_to_string(
+	    txn_global->oldest_timestamp, ts_string, sizeof(ts_string));
+	WT_RET(__wt_msg(session, "oldest timestamp: %s", ts_string));
+	__wt_timestamp_to_string(
+	    txn_global->pinned_timestamp, ts_string, sizeof(ts_string));
+	WT_RET(__wt_msg(session, "pinned timestamp: %s", ts_string));
+	__wt_timestamp_to_string(
+	    txn_global->stable_timestamp, ts_string, sizeof(ts_string));
+	WT_RET(__wt_msg(session, "stable timestamp: %s", ts_string));
 	WT_RET(__wt_msg(session, "has_commit_timestamp: %s",
 	    txn_global->has_commit_timestamp ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -778,6 +778,9 @@ config_pct(void)
 static void
 config_prepare(void)
 {
+	/* WT-4537: REMOVE when that merges */
+	config_single("prepare=off", 0);
+
 	/*
 	 * We cannot prepare a transaction if logging is configured, or if
 	 * timestamps are not configured.

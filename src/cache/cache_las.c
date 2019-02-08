@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -545,8 +545,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char hex_timestamp[WT_TS_HEX_SIZE];
-	const char *ts;
+	char ts_string[WT_TS_INT_STRING_SIZE];
 
 	btree_id = btree->id;
 
@@ -570,10 +569,10 @@ __las_insert_block_verbose(
 	    ckpt_gen_last, ckpt_gen_current))) {
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+		__wt_timestamp_to_string(
+		    multi->page_las.unstable_timestamp,
+		    ts_string, sizeof(ts_string));
 
-		__wt_timestamp_to_hex_string(
-		    hex_timestamp, multi->page_las.unstable_timestamp);
-		ts = hex_timestamp;
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
@@ -584,7 +583,7 @@ __las_insert_block_verbose(
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
-		    ts,
+		    ts_string,
 		    multi->page_las.skew_newest ? "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
@@ -728,12 +727,13 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
 				cursor->set_value(cursor, upd->txnid,
-				    upd->timestamp, upd->prepare_state,
-				    WT_UPDATE_BIRTHMARK, &las_value);
+				    upd->start_ts, upd->durable_ts,
+				    upd->prepare_state, WT_UPDATE_BIRTHMARK,
+				    &las_value);
 			} else
 				cursor->set_value(cursor, upd->txnid,
-				    upd->timestamp, upd->prepare_state,
-				    upd->type, &las_value);
+				    upd->start_ts, upd->durable_ts,
+				    upd->prepare_state, upd->type, &las_value);
 
 			/*
 			 * Using update looks a little strange because the keys
@@ -979,7 +979,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 	WT_ITEM las_key, las_value;
 	WT_ITEM *sweep_key;
 	WT_TXN_ISOLATION saved_isolation;
-	wt_timestamp_t las_timestamp;
+	wt_timestamp_t durable_timestamp, las_timestamp;
 	uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
 	uint64_t las_counter, las_txnid;
 	uint32_t las_id, session_flags;
@@ -1103,8 +1103,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * Remove all entries for a key once they have aged out and are
 		 * no longer needed.
 		 */
-		WT_ERR(cursor->get_value(cursor, &las_txnid,
-		    &las_timestamp, &prepare_state, &upd_type, &las_value));
+		WT_ERR(cursor->get_value(
+		    cursor, &las_txnid, &las_timestamp,
+		    &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
 		/*
 		 * Check to see if the page or key has changed this iteration,

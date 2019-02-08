@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -13,6 +13,35 @@ static int __btree_get_last_recno(WT_SESSION_IMPL *);
 static int __btree_page_sizes(WT_SESSION_IMPL *);
 static int __btree_preload(WT_SESSION_IMPL *);
 static int __btree_tree_open_empty(WT_SESSION_IMPL *, bool);
+
+/*
+ * __wt_btree_page_version_config --
+ *	Select a Btree page format.
+ */
+void
+__wt_btree_page_version_config(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+
+	conn = S2C(session);
+
+	/*
+	 * Write timestamp format pages if at the right version or if configured
+	 * at build-time.
+	 *
+	 * WiredTiger version where timestamp page format is written. This is a
+	 * future release, and the values may require update when the release is
+	 * named.
+	 */
+#define	WT_VERSION_TS_MAJOR	3
+#define	WT_VERSION_TS_MINOR	3
+	__wt_process.page_version_ts =
+	    conn->compat_major >= WT_VERSION_TS_MAJOR &&
+	    conn->compat_minor >= WT_VERSION_TS_MINOR;
+#if defined(HAVE_PAGE_VERSION_TS)
+	__wt_process.page_version_ts = true;
+#endif
+}
 
 /*
  * __btree_clear --
@@ -459,15 +488,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	 *	Don't do compression adjustment for fixed-size column store, the
 	 * leaf page sizes don't change. (We could adjust internal pages but not
 	 * internal pages, but that seems an unlikely use case.)
-	 * 	XXX
-	 * 	Don't do compression adjustment of snappy-compressed blocks.
 	 */
 	btree->intlpage_compadjust = false;
 	btree->maxintlpage_precomp = btree->maxintlpage;
 	btree->leafpage_compadjust = false;
 	btree->maxleafpage_precomp = btree->maxleafpage;
 	if (btree->compressor != NULL && btree->compressor->compress != NULL &&
-	    !WT_STRING_MATCH("snappy", cval.str, cval.len) &&
 	    btree->type != BTREE_COL_FIX) {
 		/*
 		 * Don't do compression adjustment when on-disk page sizes are
@@ -754,7 +780,7 @@ __btree_preload(WT_SESSION_IMPL *session)
 
 	/* Pre-load the second-level internal pages. */
 	WT_INTL_FOREACH_BEGIN(session, btree->root.page, ref) {
-		__wt_ref_info(ref, &addr, &addr_size, NULL);
+		__wt_ref_info(session, ref, &addr, &addr_size, NULL);
 		if (addr != NULL)
 			WT_RET(bm->preload(bm, session, addr, addr_size));
 	} WT_INTL_FOREACH_END;

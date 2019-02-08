@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -185,7 +185,7 @@ __split_ovfl_key_cleanup(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref)
 	ikey->cell_offset = 0;
 
 	cell = WT_PAGE_REF_OFFSET(page, cell_offset);
-	__wt_cell_unpack(page, cell, &kpack);
+	__wt_cell_unpack(session, page, cell, &kpack);
 	if (kpack.ovfl && kpack.raw != WT_CELL_KEY_OVFL_RM)
 		WT_RET(__wt_ovfl_discard(session, page, cell));
 
@@ -260,8 +260,12 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home,
 	 */
 	WT_ORDERED_READ(ref_addr, ref->addr);
 	if (ref_addr != NULL && !__wt_off_page(from_home, ref_addr)) {
-		__wt_cell_unpack(from_home, (WT_CELL *)ref_addr, &unpack);
+		__wt_cell_unpack(
+		    session, from_home, (WT_CELL *)ref_addr, &unpack);
 		WT_RET(__wt_calloc_one(session, &addr));
+		addr->oldest_start_ts = unpack.oldest_start_ts;
+		addr->newest_start_ts = unpack.newest_start_ts;
+		addr->newest_stop_ts = unpack.newest_stop_ts;
 		WT_ERR(__wt_memdup(
 		    session, unpack.data, unpack.size, &addr->addr));
 		addr->size = (uint8_t)unpack.size;
@@ -1657,8 +1661,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 
 	/* Verify any disk image we have. */
 	WT_ASSERT(session, multi->disk_image == NULL ||
-	    __wt_verify_dsk_image(session,
-	    "[page instantiate]", multi->disk_image, 0, true) == 0);
+	    __wt_verify_dsk_image(session, "[page instantiate]",
+	    multi->disk_image, 0, &multi->addr, true) == 0);
 
 	/*
 	 * If there's an address, the page was written, set it.
@@ -1670,10 +1674,13 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session,
 	if (multi->addr.addr != NULL) {
 		WT_RET(__wt_calloc_one(session, &addr));
 		ref->addr = addr;
+		addr->oldest_start_ts = multi->addr.oldest_start_ts;
+		addr->newest_start_ts = multi->addr.newest_start_ts;
+		addr->newest_stop_ts = multi->addr.newest_stop_ts;
+		WT_RET(__wt_memdup(session,
+		    multi->addr.addr, multi->addr.size, &addr->addr));
 		addr->size = multi->addr.size;
 		addr->type = multi->addr.type;
-		WT_RET(__wt_memdup(session,
-		    multi->addr.addr, addr->size, &addr->addr));
 
 		WT_REF_SET_STATE(ref, WT_REF_DISK);
 	}

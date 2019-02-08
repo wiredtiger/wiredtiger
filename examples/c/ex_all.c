@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -1282,6 +1282,12 @@ main(int argc, char *argv[])
 	error_check(wiredtiger_open(
 	    home, NULL, "create,file_extend=(data=16MB)", &conn));
 	/*! [Configure file_extend] */
+	error_check(conn->close(conn, NULL));
+
+	/*! [Configure capacity] */
+	error_check(wiredtiger_open(
+	    home, NULL, "create,io_capacity=(total=40MB)", &conn));
+	/*! [Configure capacity] */
 	error_check(conn->close(conn, NULL));
 
 	/*! [Eviction configuration] */

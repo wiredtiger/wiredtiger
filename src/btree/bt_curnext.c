@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -178,6 +178,11 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
 
 	/* Initialize for each new page. */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
+		cbt->slot = UINT32_MAX;
 		cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 		if (cbt->last_standard_recno == 0)
 			return (WT_NOTFOUND);
@@ -224,7 +229,7 @@ new_page:	/* Find the matching WT_COL slot. */
 		if (cbt->cip_saved != cip) {
 			if ((cell = WT_COL_PTR(page, cip)) == NULL)
 				continue;
-			__wt_cell_unpack(page, cell, &unpack);
+			__wt_cell_unpack(session, page, cell, &unpack);
 			if (unpack.type == WT_CELL_DEL) {
 				if ((rle = __wt_cell_rle(&unpack)) == 1)
 					continue;
@@ -302,6 +307,11 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * Initialize for each new page.
 	 */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
+		cbt->slot = UINT32_MAX;
 		cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
 		cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
 		cbt->row_iteration_slot = 1;
