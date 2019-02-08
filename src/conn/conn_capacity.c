@@ -336,8 +336,13 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	}
 	total_capacity = cap->total;
 
-	if ((capacity == 0 && total_capacity == 0) ||
-	    F_ISSET(conn, WT_CONN_RECOVERING))
+	/*
+	 * Right now no subsystem can be individually turned off, but it is
+	 * certainly a possibility to consider one subsystem may be turned off
+	 * at some point in the future. If this subsystem is not throttled
+	 * there's nothing to do.
+	 */
+	if (capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
 		return;
 
 	/*
