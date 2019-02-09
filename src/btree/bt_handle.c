@@ -608,6 +608,12 @@ __wt_btree_tree_open(
 	F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 	if ((ret = __wt_bt_read(session, &dsk, addr, addr_size)) == 0)
 		ret = __wt_verify_dsk(session, tmp->data, &dsk);
+	/*
+	 * Flag any failed read or verification: if we're in startup, it may
+	 * be fatal.
+	 */
+	if (ret != 0)
+		F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
 	F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 	if (ret != 0)
 		__wt_err(session, ret,
