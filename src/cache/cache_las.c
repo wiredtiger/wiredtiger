@@ -427,7 +427,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (ref->page_las->skew_newest) {
 		/*
-		 * Skip looakaside pages during checkpoint if all the unstable
+		 * Skip lookaside pages during checkpoint if all the unstable
 		 * durable updates are in the past.
 		 */
 		if (WT_SESSION_IS_CHECKPOINT(session) &&
@@ -445,7 +445,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (!ref->page_las->skew_newest) {
 		/*
-		 * Skip looakaside pages during checkpoint if all the unstable
+		 * Skip lookaside pages during checkpoint if all the unstable
 		 * durable updates are in the future.
 		 */
 		if (WT_SESSION_IS_CHECKPOINT(session) &&

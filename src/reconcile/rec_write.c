@@ -1310,7 +1310,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * discard an uncommitted update.
 			 */
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-          upd_select->upd != NULL &&
+	  upd_select->upd != NULL &&
 			    (uncommitted || prepared ||
 			    !__wt_txn_upd_durable(session, upd))) {
 				r->leave_dirty = true;
@@ -1396,7 +1396,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->durable_ts)
 		r->max_timestamp = first_ts_upd->durable_ts;
 
-
 	/*
 	 * If the update we chose was a birthmark, or we are doing
 	 * update-restore and we skipped a birthmark, the original on-page
@@ -1481,8 +1480,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (r->unstable_timestamp < first_ts_upd->start_ts)
 				r->unstable_timestamp = first_ts_upd->start_ts;
 
-			if (r->unstable_durable_timestamp < first_ts_upd->durable_ts)
-				r->unstable_durable_timestamp = first_ts_upd->durable_ts;
+			if (r->unstable_durable_timestamp <
+			    first_ts_upd->durable_ts)
+				r->unstable_durable_timestamp =
+				    first_ts_upd->durable_ts;
 		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
