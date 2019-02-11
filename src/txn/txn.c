@@ -582,12 +582,16 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 static inline int
 __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 {
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	wt_timestamp_t op_timestamp;
 	u_int i;
-	bool commit_ts_keys, durable_ts_keys, op_zero_ts, upd_zero_ts;
+	const char *open_cursor_cfg[] = {
+	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
+	bool op_zero_ts, upd_zero_ts;
 
 	txn = &session->txn;
 
@@ -604,14 +608,21 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 	    txn->mod_count != 0)
 		WT_RET_MSG(session, EINVAL, "no commit_timestamp required and "
 		    "timestamp set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) &&
+	    !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
+	    txn->mod_count != 0)
+		WT_RET_MSG(session, EINVAL, "durable_timestamp required and "
+		    "none set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) &&
+	    F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
+	    txn->mod_count != 0)
+		WT_RET_MSG(session, EINVAL, "no durable_timestamp required and "
+		    "durable timestamp set on this transaction");
 
-	commit_ts_keys = F_ISSET(txn,
-			     WT_TXN_TS_COMMIT_ALWAYS | WT_TXN_TS_COMMIT_KEYS);
-	durable_ts_keys = F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS);
 	/*
 	 * If we're not doing any key consistency checking, we're done.
 	 */
-	if (!commit_ts_keys && !durable_ts_keys)
+	if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_ALWAYS))
 		return (0);
 
 	/*
@@ -622,10 +633,30 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 		if (op->type == WT_TXN_OP_BASIC_COL ||
 		    op->type == WT_TXN_OP_BASIC_ROW) {
 			/*
+			 * Search for prepared updates, so that they will be
+			 * restored, if moved to lookaside.
+			 */
+			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+				WT_RET(__wt_open_cursor(session,
+				    op->btree->dhandle->name, NULL,
+				    open_cursor_cfg, &cursor));
+				F_CLR(txn, WT_TXN_PREPARE);
+				if (op->type == WT_TXN_OP_BASIC_ROW)
+					__wt_cursor_set_raw_key(
+					    cursor, &op->u.op_row.key);
+				else
+					((WT_CURSOR_BTREE*)cursor)->iface.recno
+					    = op->u.op_col.recno;
+				F_SET(txn, WT_TXN_PREPARE);
+				WT_WITH_BTREE(session, op->btree,
+				    ret = __wt_btcur_search_uncommitted(
+				    (WT_CURSOR_BTREE *)cursor, &upd));
+			} else
+				upd = op->u.op_upd->next;
+			/*
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
 			 */
-			upd = op->u.op_upd->next;
 			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
 			    upd->txnid == txn->id))
 				upd = upd->next;
@@ -668,7 +699,7 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 			if (op_timestamp < upd->timestamp)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order commit timestamps");
-			if (durable_ts_keys &&
+			if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) &&
 			    txn->durable_timestamp < upd->durable_timestamp)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order durable timestamps");
@@ -748,6 +779,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_parse_timestamp(
 		    session, "durable", &ts, &cval));
 		/* Durable timestamp should be later than stable timestamp. */
+		F_SET(txn, WT_TXN_HAS_TS_DURABLE);
 		WT_ERR(__wt_timestamp_validate(
 		    session, "durable", ts, &cval, true));
 		txn->durable_timestamp = ts;

@@ -206,8 +206,8 @@ Durability of the data updates performed by a prepared transaction, on tables
 configured with log=(enabled=false), can be controlled by specifying a durable
 timestamp during WT_SESSION::commit_transaction. Checkpoint will consider the
 durable timestamp, instead of commit timestamp for persisting the data updates.
-If durable timestamp is not specified, commit timestamp will be considered as
-durable timestamp.
+If the durable timestamp is not specified, then the commit timestamp will be
+considered as the durable timestamp.
 
 @subsection timestamp_connection Managing global timestamp state
 
