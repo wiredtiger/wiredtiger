@@ -783,9 +783,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, "durable", &ts, &cval));
 		/* Durable timestamp should be later than stable timestamp. */
 		F_SET(txn, WT_TXN_HAS_TS_DURABLE);
+		txn->durable_timestamp = ts;
 		WT_ERR(__wt_timestamp_validate(
 		    session, "durable", ts, &cval, true));
-		txn->durable_timestamp = ts;
 	}
 
 	WT_ERR(__txn_commit_timestamps_validate(session));
