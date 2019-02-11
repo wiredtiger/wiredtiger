@@ -447,9 +447,9 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			    "%s%s.%" PRId64 "=(addr=\"%.*s\",order=%" PRId64
 			    ",time=%" PRIuMAX
 			    ",size=%" PRIu64
-			    ",oldest_start=%" PRIu64
-			    ",newest_start=%" PRIu64
-			    ",newest_stop=%" PRIu64
+			    ",oldest_start_ts=%" PRIu64
+			    ",newest_start_ts=%" PRIu64
+			    ",newest_stop_ts=%" PRIu64
 			    ",write_gen=%" PRIu64 ")",
 			    sep, ckpt->name, ckpt->order,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
@@ -465,9 +465,9 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			    "%s%s=(addr=\"%.*s\",order=%" PRId64
 			    ",time=%" PRIuMAX
 			    ",size=%" PRIu64
-			    ",oldest_start=%" PRIu64
-			    ",newest_start=%" PRIu64
-			    ",newest_stop=%" PRIu64
+			    ",oldest_start_ts=%" PRIu64
+			    ",newest_start_ts=%" PRIu64
+			    ",newest_stop_ts=%" PRIu64
 			    ",write_gen=%" PRIu64 ")",
 			    sep, ckpt->name,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
