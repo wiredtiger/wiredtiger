@@ -133,8 +133,8 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	 */
 	upd->prepare_state = WT_PREPARE_LOCKED;
 	WT_WRITE_BARRIER();
-	upd->timestamp = txn->commit_timestamp;
-	upd->durable_timestamp = txn->durable_timestamp;
+	upd->start_ts = txn->commit_timestamp;
+	upd->durable_ts = txn->durable_timestamp;
 	WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
 }
 
@@ -386,7 +386,7 @@ __wt_txn_op_apply_prepare_state(
 	}
 	for (updp = ref->page_del->update_list;
 	    updp != NULL && *updp != NULL; ++updp) {
-		(*updp)->timestamp = ts;
+		(*updp)->start_ts = ts;
 		/*
 		 * Holding the ref locked means we have exclusive access, so if
 		 * we are committing we don't need to use the prepare locked
@@ -394,7 +394,7 @@ __wt_txn_op_apply_prepare_state(
 		 */
 		(*updp)->prepare_state = prepare_state;
 		if (commit)
-			(*updp)->durable_timestamp = txn->durable_timestamp;
+			(*updp)->durable_ts = txn->durable_timestamp;
 	}
 	ref->page_del->timestamp = ts;
 	if (commit)
@@ -450,13 +450,13 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 		 * commit and durable timestamps need to be updated.
 		 */
 		timestamp = op->type == WT_TXN_OP_REF_DELETE ?
-		    &op->u.ref->page_del->timestamp : &op->u.op_upd->timestamp;
+		    &op->u.ref->page_del->timestamp : &op->u.op_upd->start_ts;
 		if (*timestamp == WT_TS_NONE) {
 			*timestamp = txn->commit_timestamp;
 
 			timestamp = op->type == WT_TXN_OP_REF_DELETE ?
 			    &op->u.ref->page_del->durable_timestamp :
-			    &op->u.op_upd->durable_timestamp;
+			    &op->u.op_upd->durable_ts;
 			*timestamp = txn->durable_timestamp;
 		}
 	}
@@ -688,7 +688,7 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	    upd->prepare_state == WT_PREPARE_INPROGRESS)
 		return (false);
 
-	return (__wt_txn_visible_all(session, upd->txnid, upd->timestamp));
+	return (__wt_txn_visible_all(session, upd->txnid, upd->start_ts));
 }
 
 /*
@@ -786,8 +786,8 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		if (prepare_state == WT_PREPARE_LOCKED)
 			continue;
 
-		upd_visible = __wt_txn_visible(
-		    session, upd->txnid, upd->timestamp);
+		upd_visible =
+		    __wt_txn_visible(session, upd->txnid, upd->start_ts);
 
 		/*
 		 * The visibility check is only valid if the update does not
@@ -821,7 +821,7 @@ __wt_txn_upd_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	/* If update is visible then check if it is durable. */
 	if (__wt_txn_upd_visible_type(session, upd) != WT_VISIBLE_TRUE)
 		return (false);
-	return (__wt_txn_visible(session, upd->txnid, upd->durable_timestamp));
+	return (__wt_txn_visible(session, upd->txnid, upd->durable_ts));
 }
 
 /*
