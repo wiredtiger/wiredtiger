@@ -1310,9 +1310,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * discard an uncommitted update.
 			 */
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-	  upd_select->upd != NULL &&
+			    upd_select->upd != NULL &&
 			    (uncommitted || prepared ||
-			    !__wt_txn_upd_durable(session, upd))) {
+			    !__wt_txn_upd_durable(session, upd_select->upd))) {
 				r->leave_dirty = true;
 				return (__wt_set_return(session, EBUSY));
 			}
