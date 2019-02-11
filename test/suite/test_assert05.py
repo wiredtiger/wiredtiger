@@ -26,8 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_assert_durable_ts01.py
-#   Timestamps: assert commit settings
+# test_assert05.py
+#   Timestamps: assert durable timestamp settings
 #
 
 from suite_subprocess import suite_subprocess
@@ -36,8 +36,8 @@ import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
 
-class test_assert_durable_ts01(wttest.WiredTigerTestCase, suite_subprocess):
-    base = 'assert_durable_ts01'
+class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
+    base = 'assert05'
     base_uri = 'file:' + base
     uri_always = base_uri + '.always.wt'
     uri_def = base_uri + '.def.wt'
@@ -52,7 +52,7 @@ class test_assert_durable_ts01(wttest.WiredTigerTestCase, suite_subprocess):
     count = 1
     #
     # Commit a k/v pair making sure that it detects an error if needed, when
-    # used with and without a commit timestamp.
+    # used with and without a durable timestamp.
     #
     def insert_check(self, uri, use_ts):
         c = self.session.open_cursor(uri)
@@ -96,7 +96,7 @@ class test_assert_durable_ts01(wttest.WiredTigerTestCase, suite_subprocess):
         self.count += 1
         c.close()
 
-    def test_commit_timestamp(self):
+    def test_durable_timestamp(self):
         #if not wiredtiger.diagnostic_build():
         #    self.skipTest('requires a diagnostic build')
 
