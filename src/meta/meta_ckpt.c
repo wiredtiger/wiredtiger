@@ -344,7 +344,7 @@ __ckpt_load(WT_SESSION_IMPL *session,
 		goto format;
 
 	WT_RET(__wt_config_subgets(session, v, "size", &a));
-	ckpt->ckpt_size = (uint64_t)a.val;
+	ckpt->size = (uint64_t)a.val;
 
 	/* Default to durability. */
 	ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
@@ -460,7 +460,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
 			    ckpt->order,
 			    (int64_t)ckpt->sec,
-			    ckpt->ckpt_size,
+			    ckpt->size,
 			    ckpt->oldest_start_ts,
 			    ckpt->newest_start_ts,
 			    ckpt->newest_stop_ts,
@@ -478,7 +478,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
 			    ckpt->order,
 			    (int64_t)ckpt->sec,
-			    ckpt->ckpt_size,
+			    ckpt->size,
 			    ckpt->oldest_start_ts,
 			    ckpt->newest_start_ts,
 			    ckpt->newest_stop_ts,

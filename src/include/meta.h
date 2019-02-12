@@ -72,7 +72,7 @@ struct __wt_ckpt {
 
 	uintmax_t sec;				/* Timestamp */
 
-	uint64_t ckpt_size;			/* Checkpoint size */
+	uint64_t size;				/* Checkpoint size */
 
 	uint64_t write_gen;			/* Write generation */
 
