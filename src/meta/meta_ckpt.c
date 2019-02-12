@@ -460,11 +460,11 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
 			    ckpt->order,
 			    (int64_t)ckpt->sec,
-			    ckpt->size,
-			    ckpt->oldest_start_ts,
-			    ckpt->newest_start_ts,
-			    ckpt->newest_stop_ts,
-			    ckpt->write_gen));
+			    (int64_t)ckpt->size,
+			    (int64_t)ckpt->oldest_start_ts,
+			    (int64_t)ckpt->newest_start_ts,
+			    (int64_t)ckpt->newest_stop_ts,
+			    (int64_t)ckpt->write_gen));
 		else
 			WT_ERR(__wt_buf_catfmt(session, buf,
 			    "%s%s=(addr=\"%.*s\",order=%" PRId64
@@ -478,11 +478,11 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
 			    ckpt->order,
 			    (int64_t)ckpt->sec,
-			    ckpt->size,
-			    ckpt->oldest_start_ts,
-			    ckpt->newest_start_ts,
-			    ckpt->newest_stop_ts,
-			    ckpt->write_gen));
+			    (int64_t)ckpt->size,
+			    (int64_t)ckpt->oldest_start_ts,
+			    (int64_t)ckpt->newest_start_ts,
+			    (int64_t)ckpt->newest_stop_ts,
+			    (int64_t)ckpt->write_gen));
 		sep = ",";
 	}
 	WT_ERR(__wt_buf_catfmt(session, buf, ")"));
