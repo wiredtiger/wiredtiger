@@ -85,6 +85,10 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c[key] = val
+        self.session.prepare_transaction(
+            'prepare_timestamp=' + timestamp_str(self.count))
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(self.count))
         # All settings other than always should commit successfully
         if (use_ts != 'always'):
             self.session.commit_transaction()
