@@ -443,18 +443,25 @@ again:
 		if (res_value == res_total_value)
 			WT_STAT_CONN_INCRV(session,
 			    capacity_time_total, sleep_us);
-		else if (type == WT_THROTTLE_CKPT)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_ckpt, sleep_us);
-		else if (type == WT_THROTTLE_EVICT)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_evict, sleep_us);
-		else if (type == WT_THROTTLE_LOG)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_log, sleep_us);
-		else if (type == WT_THROTTLE_READ)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_read, sleep_us);
+		else
+			switch (type) {
+			case WT_THROTTLE_CKPT:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_ckpt, sleep_us);
+				break;
+			case WT_THROTTLE_EVICT:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_evict, sleep_us);
+				break;
+			case WT_THROTTLE_LOG:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_log, sleep_us);
+				break;
+			case WT_THROTTLE_READ:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_read, sleep_us);
+				break;
+			}
 		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);
