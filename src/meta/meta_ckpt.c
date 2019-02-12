@@ -442,19 +442,24 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 
 		__wt_timestamp_addr_check(session, ckpt->oldest_start_ts,
 		    ckpt->newest_start_ts, ckpt->newest_stop_ts);
+
+		/*
+		 * Use PRId64 formats: WiredTiger's configuration code handles
+		 * signed 8B values.
+		 */
 		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
 			WT_ERR(__wt_buf_catfmt(session, buf,
 			    "%s%s.%" PRId64 "=(addr=\"%.*s\",order=%" PRId64
-			    ",time=%" PRIuMAX
-			    ",size=%" PRIu64
-			    ",oldest_start_ts=%" PRIu64
-			    ",newest_start_ts=%" PRIu64
-			    ",newest_stop_ts=%" PRIu64
-			    ",write_gen=%" PRIu64 ")",
+			    ",time=%" PRId64
+			    ",size=%" PRId64
+			    ",oldest_start_ts=%" PRId64
+			    ",newest_start_ts=%" PRId64
+			    ",newest_stop_ts=%" PRId64
+			    ",write_gen=%" PRId64 ")",
 			    sep, ckpt->name, ckpt->order,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
 			    ckpt->order,
-			    ckpt->sec,
+			    (int64_t)ckpt->sec,
 			    ckpt->ckpt_size,
 			    ckpt->oldest_start_ts,
 			    ckpt->newest_start_ts,
@@ -463,16 +468,16 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 		else
 			WT_ERR(__wt_buf_catfmt(session, buf,
 			    "%s%s=(addr=\"%.*s\",order=%" PRId64
-			    ",time=%" PRIuMAX
-			    ",size=%" PRIu64
-			    ",oldest_start_ts=%" PRIu64
-			    ",newest_start_ts=%" PRIu64
-			    ",newest_stop_ts=%" PRIu64
-			    ",write_gen=%" PRIu64 ")",
+			    ",time=%" PRId64
+			    ",size=%" PRId64
+			    ",oldest_start_ts=%" PRId64
+			    ",newest_start_ts=%" PRId64
+			    ",newest_stop_ts=%" PRId64
+			    ",write_gen=%" PRId64 ")",
 			    sep, ckpt->name,
 			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
 			    ckpt->order,
-			    ckpt->sec,
+			    (int64_t)ckpt->sec,
 			    ckpt->ckpt_size,
 			    ckpt->oldest_start_ts,
 			    ckpt->newest_start_ts,
