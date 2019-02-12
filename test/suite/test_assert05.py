@@ -48,7 +48,6 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
     cfg_def = ''
     cfg_never = 'assert=(durable_timestamp=never)'
     cfg_none = 'assert=(durable_timestamp=none)'
-
     count = 1
     #
     # Commit a k/v pair making sure that it detects an error if needed, when
@@ -62,12 +61,14 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit with a timestamp
         self.session.begin_transaction()
         c[key] = val
+
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(self.count))
+
         self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(self.count))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + timestamp_str(self.count))
+            'commit_timestamp=' + timestamp_str(self.count) +
+            ',durable_timestamp=' + timestamp_str(self.count))
+
         # All settings other than never should commit successfully
         if (use_ts != 'never'):
             self.session.commit_transaction()
@@ -83,8 +84,15 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
         key = 'key' + str(self.count)
         val = 'value' + str(self.count)
         c = self.session.open_cursor(uri)
+
         self.session.begin_transaction()
         c[key] = val
+
+        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(self.count))
+
+        self.session.timestamp_transaction(
+            'commit_timestamp=' + timestamp_str(self.count))
+
         # All settings other than always should commit successfully
         if (use_ts != 'always'):
             self.session.commit_transaction()
