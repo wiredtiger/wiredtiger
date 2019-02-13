@@ -3,6 +3,10 @@
 # MongoDB continuous integration system (see https://mci.mongodb.com).
 #
 
+# The post rchiving artifacts command could take over 15 mins (default) for some tasks.
+# Set the timeout value to 30 mins here.
+callback_timeout_secs: 1800
+
 functions:
   "fetch source" :
     command: git.get_project
@@ -83,7 +87,7 @@ post:
         set -o errexit
         set -o verbose
         cd wiredtiger
-        tar cvfz ../wiredtiger.tgz .
+        tar cfz ../wiredtiger.tgz .
         cd ..
   - command: s3.put
     params:
