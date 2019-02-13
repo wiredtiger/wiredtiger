@@ -439,6 +439,11 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		FLD_SET(btree->assert_flags, WT_ASSERT_COMMIT_TS_NEVER);
 	WT_RET(__wt_config_gets(session,
 	    cfg, "assert.durable_timestamp", &cval));
+	/*
+	 * A durable timestamp always implies a commit timestamp. But never
+	 * having a durable timestamp does not imply anything about a commit
+	 * timestamp.
+	 */
 	if (WT_STRING_MATCH("always", cval.str, cval.len))
 		FLD_SET(btree->assert_flags,
 		    WT_ASSERT_COMMIT_TS_ALWAYS | WT_ASSERT_DURABLE_TS_ALWAYS);
