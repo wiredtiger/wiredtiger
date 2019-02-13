@@ -425,19 +425,9 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Skip lookaside pages if reading as of a timestamp, we evicted new
 	 * versions of data and all the updates are in the past.
 	 */
-	if (ref->page_las->skew_newest) {
-		/*
-		 * Skip lookaside pages during checkpoint if all the unstable
-		 * durable updates are in the past.
-		 */
-		if (WT_SESSION_IS_CHECKPOINT(session) &&
-		    txn->read_timestamp >
-		    ref->page_las->unstable_durable_timestamp)
-			return (true);
-
-		if (txn->read_timestamp > ref->page_las->unstable_timestamp)
-			return (true);
-	}
+	if (ref->page_las->skew_newest &&
+	    txn->read_timestamp > ref->page_las->unstable_durable_timestamp)
+		return (true);
 
 	/*
 	 * Skip lookaside pages if reading as of a timestamp, we evicted old
@@ -1157,7 +1147,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 */
 			if (upd_type == WT_UPDATE_BIRTHMARK &&
 			    __wt_txn_visible_all(
-			    session, las_txnid, las_timestamp) &&
+			    session, las_txnid, durable_timestamp) &&
 			    prepare_state != WT_PREPARE_INPROGRESS)
 				removing_key_block = true;
 			else

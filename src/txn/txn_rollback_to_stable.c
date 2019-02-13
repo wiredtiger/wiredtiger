@@ -68,7 +68,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 		 * which will fail the following check and cause them to never
 		 * be removed.
 		 */
-		if (rollback_timestamp < las_timestamp) {
+		if (rollback_timestamp < durable_timestamp) {
 			WT_ERR(cursor->remove(cursor));
 			WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
 			--las_total;
