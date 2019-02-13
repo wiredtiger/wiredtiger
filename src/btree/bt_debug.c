@@ -1213,8 +1213,8 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		__wt_timestamp_to_string(
 		    upd->stop_ts, ts_string, sizeof(ts_string));
 		WT_RET(ds->f(ds, ", stop_ts %s", ts_string));
-		if (upd->durable_timestamp != WT_TS_NONE) {
-			__wt_timestamp_to_string(upd->durable_timestamp,
+		if (upd->durable_ts != WT_TS_NONE) {
+			__wt_timestamp_to_string(upd->durable_ts,
 			    ts_string, sizeof(ts_string));
 			WT_RET(ds->f(ds, ", durable-ts %s", ts_string));
 		}
