@@ -106,10 +106,10 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 		 * updates were also rolled back.
 		 */
 		if (upd->txnid == WT_TXN_ABORTED ||
-		    upd->timestamp == WT_TS_NONE) {
+		    upd->start_ts == WT_TS_NONE) {
 			if (upd == first_upd)
 				first_upd = upd->next;
-		} else if (rollback_timestamp < upd->durable_timestamp) {
+		} else if (rollback_timestamp < upd->durable_ts) {
 			/*
 			 * If any updates are aborted, all newer updates
 			 * better be aborted as well.
@@ -127,8 +127,8 @@ __txn_abort_newer_update(WT_SESSION_IMPL *session,
 
 			upd->txnid = WT_TXN_ABORTED;
 			WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
-			upd->timestamp = 0;
-			upd->durable_timestamp = 0;
+			upd->durable_ts = 0;
+			upd->start_ts = 0;
 		}
 	}
 }
@@ -457,12 +457,12 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_rollback_to_stable --
+ * __txn_rollback_to_stable --
  *	Rollback all in-memory state related to timestamps more recent than
  *	the passed in timestamp.
  */
-int
-__wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
+static int
+__txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -511,5 +511,28 @@ __wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 
 err:	F_CLR(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
 	__wt_free(session, conn->stable_rollback_bitstring);
+	return (ret);
+}
+
+/*
+ * __wt_txn_rollback_to_stable --
+ *	Rollback all in-memory state related to timestamps more recent than
+ *	the passed in timestamp.
+ */
+int
+__wt_txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_DECL_RET;
+
+	/*
+	 * Don't use the connection's default session: we are working on data
+	 * handles and (a) don't want to cache all of them forever, plus (b)
+	 * can't guarantee that no other method will be called concurrently.
+	 */
+	WT_RET(__wt_open_internal_session(S2C(session),
+	    "txn rollback_to_stable", true, 0, &session));
+	ret = __txn_rollback_to_stable(session, cfg);
+	WT_TRET(session->iface.close(&session->iface, NULL));
+
 	return (ret);
 }

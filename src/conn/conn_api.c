@@ -1051,6 +1051,9 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
 
+	/* The default session is used to access data handles during close. */
+	F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
+
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)
 		F_SET(conn, WT_CONN_LEAK_MEMORY);
@@ -2016,6 +2019,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * conditions aren't encountered.
 	 */
 	static const WT_NAME_FLAG stress_types[] = {
+		{ "aggressive_sweep",   WT_TIMING_STRESS_AGGRESSIVE_SWEEP },
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
 		{ "lookaside_sweep_race",WT_TIMING_STRESS_LOOKASIDE_SWEEP },
 		{ "split_1",		WT_TIMING_STRESS_SPLIT_1 },
@@ -2135,6 +2139,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    "config_base=,"
 	    "create=,"
 	    "encryption=(secretkey=),"
+	    "error_prefix=,"
 	    "exclusive=,"
 	    "in_memory=,"
 	    "log=(recover=),"
@@ -2312,6 +2317,11 @@ wiredtiger_dummy_session_init(
 	 * use the WT_CONNECTION_IMPL's default session and its strerror method.
 	 */
 	session->iface.strerror = __wt_session_strerror;
+
+	/*
+	 * The dummy session should never be used to access data handles.
+	 */
+	F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 }
 
 /*
@@ -2577,6 +2587,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
+	__wt_btree_page_version_config(session);
 
 	/* Set up operation tracking if configured. */
 	WT_ERR(__wt_conn_optrack_setup(session, cfg, false));
@@ -2760,6 +2771,13 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 
 	/* Start the worker threads and run recovery. */
 	WT_ERR(__wt_connection_workers(session, cfg));
+
+	/*
+	 * The default session should not open data handles after this point:
+	 * since it can be shared between threads, relying on session->dhandle
+	 * is not safe.
+	 */
+	F_SET(session, WT_SESSION_NO_DATA_HANDLES);
 
 	WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
 	*connectionp = &conn->iface;

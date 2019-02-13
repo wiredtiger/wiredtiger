@@ -70,8 +70,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         # Update all the values within transaction. Commit the transaction with
         # a durable timestamp newer than the stable timestamp.
         cursor = session.open_cursor(uri, None)
-        self.assertEquals(cursor.next(), 0)
-        for i in range(1, nrows):
+        for i in range(0, nrows):
             session.begin_transaction()
             cursor[i] = value2
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
