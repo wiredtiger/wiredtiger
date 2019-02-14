@@ -42,6 +42,14 @@ dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt | xargs 
 for d in ${dirs_include_datafile}
 do
 	echo ${d}
+
+	# Bypass checking for directories/tests that are designed to corrupt databases (WT-4559)
+	if [ -f "${d}/DATABASE_CORRUPTED" ]; then
+		echo "*** Bypass checking for this directory as a 'DATABASE_CORRUPTED' file is found within the directory ***"
+		echo "*** It indicates the database is intentionally corrupted by the corresponding test ***"
+		continue
+	fi
+
 	tables=$(LD_LIBRARY_PATH=${lib_dir} ${wt_binary} -h "${d}" list)
 	rc=$?
 
