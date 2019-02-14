@@ -221,7 +221,7 @@ __cell_pack_timestamp_value(WT_SESSION_IMPL *session,
 	} else {
 		++*pp;
 		if (__wt_process.page_version_ts) {
-			/* Start timestamp, stop timestamp difference. */
+			/* Store differences, not absolutes. */
 			(void)__wt_vpack_uint(pp, 0, start_ts);
 			(void)__wt_vpack_uint(pp, 0, stop_ts - start_ts);
 		}
@@ -261,10 +261,9 @@ __cell_pack_timestamp_addr(WT_SESSION_IMPL *session,
 
 	++*pp;
 	if (__wt_process.page_version_ts) {
+		/* Store differences, not absolutes. */
 		(void)__wt_vpack_uint(pp, 0, oldest_start_ts);
-
-		/* Newest start timestamp, stop timestamp difference. */
-		(void)__wt_vpack_uint(pp, 0, newest_start_ts);
+		(void)__wt_vpack_uint(pp, 0, newest_start_ts - oldest_start_ts);
 		(void)__wt_vpack_uint(pp, 0, newest_stop_ts - newest_start_ts);
 	}
 }
@@ -804,6 +803,7 @@ restart:
 			    WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 			    WT_PTRDIFF(end, p), &unpack->newest_start_ts));
+			unpack->newest_start_ts += unpack->oldest_start_ts;
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 			    WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
 			unpack->newest_stop_ts += unpack->newest_start_ts;
