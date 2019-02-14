@@ -583,7 +583,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_STAT_CONN_INCR(session, cursor_prev);
 	WT_STAT_DATA_INCR(session, cursor_prev);
 
-	flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */
+	flags =						/* tree walk flags */
+	    WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
 	if (truncating)
 		LF_SET(WT_READ_TRUNCATE);
 
