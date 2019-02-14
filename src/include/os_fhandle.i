@@ -114,6 +114,10 @@ __wt_read(
 	ret = fh->handle->fh_read(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
 
+	/* Flag any failed read: if we're in startup, it may be fatal. */
+	if (ret != 0)
+		F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+
 	time_stop = __wt_clock(session);
 	__wt_stat_msecs_hist_incr_fsread(session,
 	    WT_CLOCKDIFF_MS(time_stop, time_start));

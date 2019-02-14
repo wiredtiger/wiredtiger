@@ -336,8 +336,13 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	}
 	total_capacity = cap->total;
 
-	if ((capacity == 0 && total_capacity == 0) ||
-	    F_ISSET(conn, WT_CONN_RECOVERING))
+	/*
+	 * Right now no subsystem can be individually turned off, but it is
+	 * certainly a possibility to consider one subsystem may be turned off
+	 * at some point in the future. If this subsystem is not throttled
+	 * there's nothing to do.
+	 */
+	if (capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
 		return;
 
 	/*
@@ -443,18 +448,25 @@ again:
 		if (res_value == res_total_value)
 			WT_STAT_CONN_INCRV(session,
 			    capacity_time_total, sleep_us);
-		else if (type == WT_THROTTLE_CKPT)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_ckpt, sleep_us);
-		else if (type == WT_THROTTLE_EVICT)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_evict, sleep_us);
-		else if (type == WT_THROTTLE_LOG)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_log, sleep_us);
-		else if (type == WT_THROTTLE_READ)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_read, sleep_us);
+		else
+			switch (type) {
+			case WT_THROTTLE_CKPT:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_ckpt, sleep_us);
+				break;
+			case WT_THROTTLE_EVICT:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_evict, sleep_us);
+				break;
+			case WT_THROTTLE_LOG:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_log, sleep_us);
+				break;
+			case WT_THROTTLE_READ:
+				WT_STAT_CONN_INCRV(session,
+				    capacity_time_read, sleep_us);
+				break;
+			}
 		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)
 			/* Sleep handles large usec values. */
 			__wt_sleep(0, sleep_us);

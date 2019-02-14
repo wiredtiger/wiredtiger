@@ -608,8 +608,9 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'checkpoint_slow', 'lookaside_sweep_race', 'split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8']),
+        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
+        'split_7', 'split_8']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
@@ -1482,13 +1483,15 @@ methods = {
     Config('get', 'all_committed', r'''
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
-        \c oldest returns the most recent \c oldest_timestamp set with
-        WT_CONNECTION::set_timestamp, \c oldest_reader returns the
+        \c last_checkpoint returns the timestamp of the most recent stable
+        checkpoint, \c oldest returns the most recent \c oldest_timestamp set
+        with WT_CONNECTION::set_timestamp, \c oldest_reader returns the
         minimum of the read timestamps of all active readers \c pinned returns
-        the minimum of the\c oldest_timestamp and the read timestamps of all
-        active readers, and \c stable returns the most recent
-        \c stable_timestamp set with WT_CONNECTION::set_timestamp. See
-        @ref transaction_timestamps''',
+        the minimum of the \c oldest_timestamp and the read timestamps of all
+        active readers, \c recovery returns the timestamp of the most recent
+        stable checkpoint taken prior to a shutdown and \c stable returns the
+        most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
+        See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
