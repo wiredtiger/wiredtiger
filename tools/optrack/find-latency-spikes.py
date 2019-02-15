@@ -104,10 +104,10 @@ pixelsPerWidthUnit = 5;
 #
 timeUnitString = "nanoseconds";
 
-# The coefficient by which we multiply the standard deviation when
-# setting the outlier threshold, in case it is not specified by the user.
+# The percentile threshold. A function duration above that percentile
+# is deemed an outlier.
 #
-STDEV_MULT = 2;
+PERCENTILE = 0.999;
 
 def initColorList():
 
@@ -231,8 +231,10 @@ def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
     # Add an annotation to the chart
     #
     y_max = dataframe['height'].max();
-    text = "Average duration: " + '{0:,.0f}'.format(averageDuration) + \
-           ". Maximum duration: " + '{0:,.0f}'.format(maxDuration) + ".";
+    text = "Average duration: " + '{0:,.0f}'.format(averageDuration) + " " + \
+           timeUnitString + \
+           ". Maximum duration: " + '{0:,.0f}'.format(maxDuration) + " " + \
+           timeUnitString + ".";
     mytext = Label(x=0, y=y_upper_bound-y_ticker_step, text=text,
                    text_color = "grey", text_font = "helvetica",
                    text_font_size = "10pt",
@@ -280,13 +282,13 @@ def assignStackDepths(dataframe):
 
     for i in range(len(df.index)):
 
-        myStartTime = df.at[i, 'start'];
+        myEndTime = df.at[i, 'end'];
 
         # Pop all items off stack whose end time is earlier than my
         # start time. They are not part of my stack, so I don't want to
         # count them.
         #
-        while (len(stack) > 0 and stack[-1] < myStartTime):
+        while (len(stack) > 0 and stack[-1] < myEndTime):
             stack.pop();
 
         df.at[i, 'stackdepth'] = len(stack);
@@ -876,7 +878,7 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
     global plotWidth;
     global pixelsPerWidthUnit;
     global timeUnitString;
-    global STDEV_MULT;
+    global PERCENTILE;
 
     durationThreshold = 0;
     durationThresholdDescr = "";
@@ -904,16 +906,12 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
         durationThreshold = outlierThresholdDict["*"];
         durationThresholdDescr = outlierPrettyNames["*"];
     else:
-        # Signal that we will use standard deviation
-        durationThreshold  = -STDEV_MULT;
-
-    if (durationThreshold < 0): # this is a stdev multiplier
-        mult = -durationThreshold;
-        stdDev = funcDF['durations'].std();
-        durationThreshold = averageDuration + mult * stdDev;
+        durationThreshold = funcDF['durations'].quantile(PERCENTILE);
         durationThresholdDescr = '{0:,.0f}'.format(durationThreshold) \
-                                 + " " + timeUnitString + " (" + str(mult) + \
-                                 " standard deviations)";
+                                 + " " + timeUnitString + \
+                                 " (" + str(PERCENTILE * 100) + \
+                                 "th percentile)";
+
 
     numBuckets = plotWidth / pixelsPerWidthUnit;
     timeUnitsPerBucket = (lastTimeStamp - firstTimeStamp) / numBuckets;
@@ -1140,12 +1138,11 @@ def main():
 
     if (not configSupplied):
         pluralSuffix = "";
-        if (STDEV_MULT > 1):
-            pluralSuffix = "s";
+
         print(color.BLUE + color.BOLD +
               "Will deem as outliers all function instances whose runtime " +
-              "was " + str(STDEV_MULT) + " standard deviation" + pluralSuffix +
-              " greater than the average runtime for that function."
+              "was higher than the " + str(PERCENTILE * 100) +
+              "th percentile for that function."
               + color.END);
 
 
