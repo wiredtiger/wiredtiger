@@ -83,6 +83,7 @@ on_alarm(int signo)
 static void
 set_alarm(void)
 {
+#ifndef _WIN32
 	struct itimerspec timer_val;
 	timer_t timer_id;
 
@@ -93,6 +94,7 @@ set_alarm(void)
 	timer_val.it_value.tv_sec = 60 * 2;
 	timer_val.it_value.tv_nsec = 0;
 	testutil_check(timer_settime(timer_id, 0, &timer_val, NULL));
+#endif
 }
 
 /*
