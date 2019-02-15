@@ -38,6 +38,19 @@ static void usage(void)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * signal)handler --
+ *	Handle signals.
+ */
+static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void
+signal_handler(int signo)
+{
+	fprintf(stderr,
+	    "format caught signal %d, aborting the process\n", signo);
+	__wt_abort(NULL);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -50,6 +63,10 @@ main(int argc, char *argv[])
 	config = NULL;
 
 	(void)testutil_set_progname(argv);
+
+	(void)signal(SIGALRM, signal_handler);
+	(void)signal(SIGHUP, signal_handler);
+	(void)signal(SIGTERM, signal_handler);
 
 #if 0
 	/* Configure the GNU malloc for debugging. */
