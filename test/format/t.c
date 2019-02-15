@@ -64,9 +64,15 @@ main(int argc, char *argv[])
 
 	(void)testutil_set_progname(argv);
 
+#ifdef SIGALRM
 	(void)signal(SIGALRM, signal_handler);
+#endif
+#ifdef SIGHUP
 	(void)signal(SIGHUP, signal_handler);
+#endif
+#ifdef SIGTERM
 	(void)signal(SIGTERM, signal_handler);
+#endif
 
 #if 0
 	/* Configure the GNU malloc for debugging. */
