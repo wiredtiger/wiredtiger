@@ -166,7 +166,7 @@ file_runtime_config = common_runtime_config + [
         Config('durable_timestamp', 'none', r'''
             verify that durable timestamps should 'always' or 'never' be used
             on modifications with this table.''',
-            choices=['always', 'never', 'none']),
+            choices=['always', 'key_consistent', 'never', 'none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'

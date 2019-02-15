@@ -622,7 +622,7 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 	/*
 	 * If we're not doing any key consistency checking, we're done.
 	 */
-	if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_ALWAYS))
+	if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_KEYS))
 		return (0);
 
 	/*
@@ -654,6 +654,7 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 				if (ret != 0)
 					WT_RET_MSG(session, EINVAL,
 					    "prepared update restore failed");
+				op->u.op_upd = upd;
 			} else
 				upd = op->u.op_upd->next;
 			/*

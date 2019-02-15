@@ -238,7 +238,8 @@ static const WT_CONFIG_CHECK confchk_assert_subconfigs[] = {
 	    "\"none\"]",
 	    NULL, 0 },
 	{ "durable_timestamp", "string",
-	    NULL, "choices=[\"always\",\"never\",\"none\"]",
+	    NULL, "choices=[\"always\",\"key_consistent\",\"never\","
+	    "\"none\"]",
 	    NULL, 0 },
 	{ "read_timestamp", "string",
 	    NULL, "choices=[\"always\",\"never\",\"none\"]",
