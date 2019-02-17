@@ -210,9 +210,23 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		 *    an ID -- the ID will not be used because the thread will
 		 *    keep spinning until it gets a valid one.
 		 */
-		if (s != txn_state &&
+retry:		if (s != txn_state &&
 		    (id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id)) {
+			/*
+			 * If the transaction is still allocating its ID,
+			 * then we spin here until it gets its valid ID.
+			 * There might be a chance that this ID can become
+			 * higher if the transaction is quickly done its job.
+			 * In this case, we ignore this transaction since
+			 * it would not be visible anyway in current snapshot.
+			 */
+			if (WT_TXNID_LT(current_id, id))
+				continue;
+			while ((id & TXNID_ALLOCATING) != 0) {
+				WT_PAUSE();
+				goto retry;
+			}
 			txn->snapshot[n++] = id;
 			if (WT_TXNID_LT(id, pinned_id))
 				pinned_id = id;

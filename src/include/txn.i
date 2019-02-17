@@ -965,15 +965,16 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 
 	/*
 	 * Allocating transaction IDs involves several steps.
+	 * (Note that this requires proof-of-concept now)
 	 *
-	 * Firstly, we do an atomic increment to allocate a unique ID.  The
-	 * field we increment is not used anywhere else.
+	 * Firstly, publish the current transaction ID to the global transaction
+	 * with setting allocating flag. Note that this ID is not valid (not
+	 * unique among threads) but the flag will tell other transactions
+	 * that attempting to get their own snapshot for this transaction retry.
 	 *
-	 * Then we optionally publish the allocated ID into the global
-	 * transaction table.  It is critical that this becomes visible before
-	 * the global current value moves past our ID, or some concurrent
-	 * reader could get a snapshot that makes our changes visible before we
-	 * commit.
+	 * Then we do an atomic increment to allocate a unique ID. This will
+	 * give the valid ID to this transaction and we publish this ID to
+	 * the global transaction table.
 	 *
 	 * We want the global value to lead the allocated values, so that any
 	 * allocated transaction ID eventually becomes globally visible.  When
@@ -985,21 +986,14 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	 * for unlocked reads to be well defined, we must use an atomic
 	 * increment here.
 	 */
-	__wt_spin_lock(session, &txn_global->id_lock);
-	id = txn_global->current;
+	WT_PUBLISH(txn_state->id, txn_global->current | TXNID_ALLOCATING);
+	id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
 
 	if (publish) {
 		session->txn.id = id;
 		WT_PUBLISH(txn_state->id, id);
 	}
 
-	/*
-	 * Even though we are in a spinlock, readers are not.  We rely on
-	 * atomic reads of the current ID to create snapshots, so for unlocked
-	 * reads to be well defined, we must use an atomic increment here.
-	 */
-	(void)__wt_atomic_addv64(&txn_global->current, 1);
-	__wt_spin_unlock(session, &txn_global->id_lock);
 	return (id);
 }
 
