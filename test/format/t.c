@@ -39,7 +39,7 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * signal)handler --
+ * signal_handler --
  *	Handle signals.
  */
 static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -64,6 +64,10 @@ main(int argc, char *argv[])
 
 	(void)testutil_set_progname(argv);
 
+	/*
+	 * Windows and Linux support different sets of signals, be conservative
+	 * about installing handlers.
+	 */
 #ifdef SIGALRM
 	(void)signal(SIGALRM, signal_handler);
 #endif
