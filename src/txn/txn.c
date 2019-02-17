@@ -651,6 +651,7 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 				WT_WITH_BTREE(session, op->btree,
 				    ret = __wt_btcur_search_uncommitted(
 				    (WT_CURSOR_BTREE *)cursor, &upd));
+					WT_TRET(cursor->close(cursor));
 				if (ret != 0)
 					WT_RET_MSG(session, EINVAL,
 					    "prepared update restore failed");
