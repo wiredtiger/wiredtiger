@@ -1265,6 +1265,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			/* Treat a non durable update like prepared. */
 			if (upd->start_ts != WT_TS_NONE &&
 			    !__wt_txn_upd_durable(session, upd)) {
+				uncommitted = r->update_uncommitted = true;
 				continue;
 			}
 		}
@@ -1311,8 +1312,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 */
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
 			    upd_select->upd != NULL &&
-			    (uncommitted || prepared ||
-			    !__wt_txn_upd_durable(session, upd_select->upd))) {
+			    (uncommitted || prepared )) {
 				r->leave_dirty = true;
 				return (__wt_set_return(session, EBUSY));
 			}
@@ -1418,8 +1418,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
 	    ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestamp) :
-	    __wt_txn_visible(session, max_txn, timestamp)) ||
-	    !__wt_txn_upd_durable(session, upd));
+	    __wt_txn_visible(session, max_txn, timestamp)));
 
 	if (all_visible)
 		goto check_original_value;
