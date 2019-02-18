@@ -33,7 +33,13 @@ if [ -z ${wt_binary} ]; then
 	echo "'wt' file does not exist, exiting ..."
 	exit 3
 fi
-lib_dir=$(dirname ${wt_binary})
+lib_dir=$(dirname "${wt_binary}")
+build_dir=$(dirname "${lib_dir}")
+
+EXT="extensions=["
+EXT+="${build_dir}/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so, "
+EXT+="${build_dir}/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so, "
+EXT+="]"
 
 # Work out the list of directories that include wt data files
 dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt | xargs dirname)
@@ -50,7 +56,7 @@ do
 		continue
 	fi
 
-	tables=$(LD_LIBRARY_PATH=${lib_dir} ${wt_binary} -h "${d}" list)
+	tables=$(LD_LIBRARY_PATH="${lib_dir}" WIREDTIGER_CONFIG="$EXT" ${wt_binary} -h "${d}" list)
 	rc=$?
 
 	if [ "$rc" -ne "0" ]; then 
@@ -62,7 +68,7 @@ do
 	for t in ${tables}
 	do
 		echo ${t}
-		dump=$(LD_LIBRARY_PATH=${lib_dir} ${wt_binary} -h ${d} dump ${t})
+		dump=$(LD_LIBRARY_PATH="${lib_dir}" WIREDTIGER_CONFIG="$EXT" ${wt_binary} -h ${d} dump ${t})
 		rc=$?
 
 		if [ "$rc" -ne "0" ]; then
