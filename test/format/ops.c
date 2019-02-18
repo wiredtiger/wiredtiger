@@ -64,30 +64,12 @@ modify_repl_init(void)
 		modify_repl[i] = "zyxwvutsrqponmlkjihgfedcba"[i % 26];
 }
 
-/*
- * on_alarm --
- *	Handle alarm signal.
- */
-static void on_alarm(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void
-on_alarm(int signo)
-{
-	(void)signo;                            /* Unused parameter */
-
-	fprintf(stderr, "%s\n",
-	    "format run attempted to dump transaction and cache state, "
-	    "but then timed out, aborting the process.");
-	__wt_abort(NULL);
-}
-
 static void
 set_alarm(void)
 {
 #ifdef HAVE_TIMER_CREATE
 	struct itimerspec timer_val;
 	timer_t timer_id;
-
-	(void)signal(SIGALRM, on_alarm);
 
 	testutil_check(timer_create(CLOCK_REALTIME, NULL, &timer_id));
 	memset(&timer_val, 0, sizeof(timer_val));
