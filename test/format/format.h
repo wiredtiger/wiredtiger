@@ -28,6 +28,8 @@
 
 #include "test_util.h"
 
+#include <signal.h>
+
 #ifdef BDB
 /*
  * Berkeley DB has an #ifdef we need to provide a value for, we'll see an
@@ -220,6 +222,7 @@ typedef struct {
 	uint32_t c_statistics_server;
 	uint32_t c_threads;
 	uint32_t c_timer;
+	uint32_t c_timing_stress_aggressive_sweep;
 	uint32_t c_timing_stress_checkpoint;
 	uint32_t c_timing_stress_lookaside_sweep;
 	uint32_t c_timing_stress_split_1;

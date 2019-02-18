@@ -146,8 +146,9 @@ struct __wt_cell_unpack {
 
 	uint64_t v;			/* RLE count or recno */
 
-					/* start/stop timestamps */
+					/* Start/stop timestamps for a value */
 	wt_timestamp_t start_ts, stop_ts;
+					/* Aggregated timestamp information */
 	wt_timestamp_t oldest_start_ts, newest_start_ts, newest_stop_ts;
 
 	/*

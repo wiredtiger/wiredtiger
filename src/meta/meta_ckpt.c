@@ -443,47 +443,33 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 		__wt_timestamp_addr_check(session, ckpt->oldest_start_ts,
 		    ckpt->newest_start_ts, ckpt->newest_stop_ts);
 
+		WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
+		sep = ",";
+
+		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
+			WT_ERR(__wt_buf_catfmt(session, buf,
+			    ".%" PRId64, ckpt->order));
+
 		/*
 		 * Use PRId64 formats: WiredTiger's configuration code handles
 		 * signed 8B values.
 		 */
-		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
-			WT_ERR(__wt_buf_catfmt(session, buf,
-			    "%s%s.%" PRId64 "=(addr=\"%.*s\",order=%" PRId64
-			    ",time=%" PRId64
-			    ",size=%" PRId64
-			    ",oldest_start_ts=%" PRId64
-			    ",newest_start_ts=%" PRId64
-			    ",newest_stop_ts=%" PRId64
-			    ",write_gen=%" PRId64 ")",
-			    sep, ckpt->name, ckpt->order,
-			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
-			    ckpt->order,
-			    (int64_t)ckpt->sec,
-			    (int64_t)ckpt->size,
-			    (int64_t)ckpt->oldest_start_ts,
-			    (int64_t)ckpt->newest_start_ts,
-			    (int64_t)ckpt->newest_stop_ts,
-			    (int64_t)ckpt->write_gen));
-		else
-			WT_ERR(__wt_buf_catfmt(session, buf,
-			    "%s%s=(addr=\"%.*s\",order=%" PRId64
-			    ",time=%" PRId64
-			    ",size=%" PRId64
-			    ",oldest_start_ts=%" PRId64
-			    ",newest_start_ts=%" PRId64
-			    ",newest_stop_ts=%" PRId64
-			    ",write_gen=%" PRId64 ")",
-			    sep, ckpt->name,
-			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
-			    ckpt->order,
-			    (int64_t)ckpt->sec,
-			    (int64_t)ckpt->size,
-			    (int64_t)ckpt->oldest_start_ts,
-			    (int64_t)ckpt->newest_start_ts,
-			    (int64_t)ckpt->newest_stop_ts,
-			    (int64_t)ckpt->write_gen));
-		sep = ",";
+		WT_ERR(__wt_buf_catfmt(session, buf,
+		    "=(addr=\"%.*s\",order=%" PRId64
+		    ",time=%" PRId64
+		    ",size=%" PRId64
+		    ",oldest_start_ts=%" PRId64
+		    ",newest_start_ts=%" PRId64
+		    ",newest_stop_ts=%" PRId64
+		    ",write_gen=%" PRId64 ")",
+		    (int)ckpt->addr.size, (char *)ckpt->addr.data,
+		    ckpt->order,
+		    (int64_t)ckpt->sec,
+		    (int64_t)ckpt->size,
+		    (int64_t)ckpt->oldest_start_ts,
+		    (int64_t)ckpt->newest_start_ts,
+		    (int64_t)ckpt->newest_stop_ts,
+		    (int64_t)ckpt->write_gen));
 	}
 	WT_ERR(__wt_buf_catfmt(session, buf, ")"));
 	if (ckptlsn != NULL)
