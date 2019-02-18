@@ -248,6 +248,7 @@ struct __wt_page_lookaside {
 	wt_timestamp_t max_timestamp;	/* Maximum timestamp */
 	wt_timestamp_t unstable_timestamp;/* First timestamp not on page */
 	wt_timestamp_t unstable_durable_timestamp;
+					/* First durable timestamp in page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
 	bool skew_newest;		/* Page image has newest versions */

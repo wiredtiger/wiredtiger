@@ -1262,7 +1262,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (prepared || uncommitted)
 			       continue;
 
-			/* Consider a non durable update like uncommitted. */
+			/* Consider a non durable update as uncommitted. */
 			if (upd->start_ts != WT_TS_NONE &&
 			    !__wt_txn_upd_durable(session, upd)) {
 				uncommitted = r->update_uncommitted = true;
