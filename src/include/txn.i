@@ -474,6 +474,11 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 		WT_RET_MSG(session, WT_ROLLBACK,
 		    "Attempt to update in a read-only transaction");
 
+	if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
+		WT_RET_MSG(session, ENOTSUP,
+		    "Transactions with ignore_prepare=true"
+		    " cannot perform updates");
+
 	WT_RET(__txn_next_op(session, &op));
 	if (F_ISSET(session, WT_SESSION_LOGGING_INMEM)) {
 		if (op->btree->type == BTREE_ROW)
