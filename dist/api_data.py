@@ -1262,7 +1262,7 @@ methods = {
     Config('ignore_prepare', 'false', r'''
         whether to ignore the updates by other prepared transactions as part of
         read operations of this transaction.  Implies that the transaction is
-        readonly''',
+        read-only''',
         type='boolean'),
     Config('isolation', '', r'''
         the isolation level for this transaction; defaults to the
