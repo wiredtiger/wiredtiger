@@ -360,7 +360,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 new_page:	if (cbt->recno < cbt->ref->ref_recno)
 			return (WT_NOTFOUND);
 
-		/* Find the matching WT_COL slot. */
+restart_read:	/* Find the matching WT_COL slot. */
 		if ((cip =
 		    __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
 			return (WT_NOTFOUND);
@@ -371,7 +371,7 @@ new_page:	if (cbt->recno < cbt->ref->ref_recno)
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
 		upd = NULL;
 		if (cbt->ins != NULL)
-restart_read:		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+			WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
 				if (upd->txnid != WT_TXN_NONE &&
