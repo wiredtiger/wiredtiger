@@ -242,39 +242,15 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 }
 
 /*
- * __compact_progress --
- *     Output a compact progress message.
- */
-static void
-__compact_progress(WT_SESSION_IMPL *session, uint64_t time_diff)
-{
-	WT_BM *bm;
-
-	bm = S2BT(session)->bm;
-	__wt_verbose(session,
-	    WT_VERB_COMPACT_PROGRESS, "Compact running"
-	    " for %" PRIu64 " seconds; reviewed %"
-	    PRIu64 " pages, skipped %" PRIu64 " pages,"
-	    " wrote %" PRIu64 " pages", time_diff,
-	    bm->block->compact_pages_reviewed,
-	    bm->block->compact_pages_skipped,
-	    bm->block->compact_pages_written);
-}
-
-/*
  * __compact_worker --
  *	Function to alternate between checkpoints and compaction calls.
  */
 static int
 __compact_worker(WT_SESSION_IMPL *session)
 {
-	struct timespec now, last;
 	WT_DECL_RET;
-	uint64_t time_diff;
 	u_int i, loop;
 	bool another_pass;
-
-	last = session->compact->begin;
 
 	/*
 	 * Reset the handles' compaction skip flag (we don't bother setting
@@ -307,17 +283,6 @@ __compact_worker(WT_SESSION_IMPL *session)
 			session->compact_state = WT_COMPACT_RUNNING;
 			WT_WITH_DHANDLE(session,
 			    session->op_handle[i], ret = __wt_compact(session));
-
-			if (WT_VERBOSE_ISSET(session,
-			    WT_VERB_COMPACT_PROGRESS)) {
-			    __wt_epoch(session, &now);
-			    time_diff = WT_TIMEDIFF_SEC(now, last);
-			    if (time_diff >= 1)
-				    WT_WITH_DHANDLE(session,
-					session->op_handle[i],
-					__compact_progress(session, time_diff));
-			    last = now;
-			}
 
 			/*
 			 * If successful and we did work, schedule another pass.
