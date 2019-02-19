@@ -842,7 +842,7 @@ wiredtiger_open_common =\
         warnings.  Including \c "data" will cause WiredTiger data files to use
         direct I/O, including \c "log" will cause WiredTiger log files to use
         direct I/O, and including \c "checkpoint" will cause WiredTiger data
-        files opened at a checkpoint (i.e: read only) to use direct I/O.
+        files opened at a checkpoint (i.e: read-only) to use direct I/O.
         \c direct_io should be combined with \c write_through to get the
         equivalent of \c O_DIRECT on Windows''',
         type='list', choices=['checkpoint', 'data', 'log']),
@@ -1261,7 +1261,8 @@ methods = {
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_prepare', 'false', r'''
         whether to ignore the updates by other prepared transactions as part of
-        read operations of this transaction''',
+        read operations of this transaction.  Implies that the transaction is
+        readonly''',
         type='boolean'),
     Config('isolation', '', r'''
         the isolation level for this transaction; defaults to the
