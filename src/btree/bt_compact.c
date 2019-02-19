@@ -130,17 +130,16 @@ __compact_progress(WT_SESSION_IMPL *session, uint64_t time_diff)
 int
 __wt_compact(WT_SESSION_IMPL *session)
 {
-	struct timespec now, last;
 	WT_BM *bm;
 	WT_DECL_RET;
 	WT_REF *ref;
-	uint64_t time_diff;
+	uint64_t last, now, time_diff;
 	u_int i;
 	bool skip;
 
 	bm = S2BT(session)->bm;
 	ref = NULL;
-	__wt_epoch(session, &last);
+	last = __wt_clock(session);
 
 	WT_STAT_DATA_INCR(session, session_compact);
 
@@ -212,8 +211,8 @@ __wt_compact(WT_SESSION_IMPL *session)
 		WT_STAT_DATA_INCR(session, btree_compact_rewrite);
 
 		if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS)) {
-			__wt_epoch(session, &now);
-			time_diff = WT_TIMEDIFF_SEC(now, last);
+			now = __wt_clock(session);
+			time_diff = WT_CLOCKDIFF_SEC(now, last);
 			if (time_diff >= 1)
 				__compact_progress(session, time_diff);
 			last = now;
