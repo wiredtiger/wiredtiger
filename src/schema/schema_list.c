@@ -14,16 +14,15 @@
  */
 int
 __wt_schema_get_table_uri(WT_SESSION_IMPL *session,
-    const char *uri, bool ok_incomplete, uint32_t flags,
-    WT_TABLE **tablep)
+    const char *uri, bool ok_incomplete, uint32_t flags, WT_TABLE **tablep)
 {
 	WT_DATA_HANDLE *saved_dhandle;
 	WT_DECL_RET;
 	WT_TABLE *table;
 
-	saved_dhandle = session->dhandle;
-
 	*tablep = NULL;
+
+	saved_dhandle = session->dhandle;
 
 	WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
 	table = (WT_TABLE *)session->dhandle;
