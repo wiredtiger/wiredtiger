@@ -67,9 +67,14 @@ err:	__wt_scr_free(session, &namebuf);
  *	Release a table handle.
  */
 int
-__wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE *table)
+__wt_schema_release_table(WT_SESSION_IMPL *session, WT_TABLE **tablep)
 {
 	WT_DECL_RET;
+	WT_TABLE *table;
+
+	if ((table = *tablep) == NULL)
+		return (0);
+	*tablep = NULL;
 
 	WT_WITH_DHANDLE(session, &table->iface,
 	    ret = __wt_session_release_dhandle(session));
