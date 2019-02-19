@@ -1145,9 +1145,12 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 *  * The first entry is globally visible.
 			 *  * The entry wasn't from a prepared transaction.
 			 */
+			WT_ASSERT(session,
+			    durable_timestamp != WT_TS_MAX &&
+			    durable_timestamp >= las_timestamp);
 			if (upd_type == WT_UPDATE_BIRTHMARK &&
-			    __wt_txn_visible_all(
-			    session, las_txnid, durable_timestamp) &&
+			    __wt_txn_visible_all(session,
+			    las_txnid, durable_timestamp) &&
 			    prepare_state != WT_PREPARE_INPROGRESS)
 				removing_key_block = true;
 			else
