@@ -38,6 +38,8 @@ build_dir=$(dirname "${lib_dir}")
 
 EXT="extensions=["
 EXT+="${build_dir}/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so, "
+EXT+="${build_dir}/ext/collators/revint/.libs/libwiredtiger_revint_collator.so, "
+EXT+="${build_dir}/ext/extractors/csv/.libs/libwiredtiger_csv_extractor.so, "
 EXT+="${build_dir}/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so, "
 EXT+="]"
 
