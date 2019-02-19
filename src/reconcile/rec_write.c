@@ -926,9 +926,11 @@ __rec_init(WT_SESSION_IMPL *session,
 	if (r->las_skew_newest) {
 		r->unstable_txn = WT_TXN_NONE;
 		r->unstable_timestamp = 0;
+		r->unstable_durable_timestamp = 0;
 	} else {
 		r->unstable_txn = WT_TXN_ABORTED;
 		r->unstable_timestamp = UINT64_MAX;
+		r->unstable_durable_timestamp = UINT64_MAX;
 	}
 
 	/* Track if updates were used and/or uncommitted. */
