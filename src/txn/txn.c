@@ -701,10 +701,11 @@ __txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
 			 */
 			if (op_timestamp == WT_TS_NONE)
 				op_timestamp = txn->commit_timestamp;
-			if (op_timestamp < upd->start_ts)
+			if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) &&
+				op_timestamp < upd->start_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order commit timestamps");
-			if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) &&
+			if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) &&
 			    txn->durable_timestamp < upd->durable_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order durable timestamps");
