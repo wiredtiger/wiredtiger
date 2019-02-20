@@ -46,12 +46,12 @@ EXT+="${build_dir}/ext/compressors/zlib/.libs/libwiredtiger_zlib.so, "
 EXT+="]"
 
 # Work out the list of directories that include wt data files
-dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt | xargs dirname)
+dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
 
 # Loop through each data file under the TEST_DIR
-for d in ${dirs_include_datafile}
+for d in "${dirs_include_datafile}"
 do
-	echo ${d}
+	echo "${d}"
 
 	# Bypass checking for directories/tests that are designed to corrupt databases (WT-4559)
 	if [ -f "${d}/DATABASE_CORRUPTED" ]; then
@@ -96,5 +96,5 @@ do
 done
 
 # If reaching here, the testing result is positive
-echo -e "\nAll the data files under '${d}' directory are listed and dumped successfully!"
+echo -e "\nAll the data files under '${wt_test_dir}' directory are listed and dumped successfully!"
 exit 0 

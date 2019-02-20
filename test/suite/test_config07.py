@@ -45,7 +45,7 @@ class test_config07(wttest.WiredTigerTestCase):
         ('100K', dict(log_extend_len='(log=100K)', expected_log_size = 100 * K)),
         ('too_small', dict(log_extend_len='(log=20K)', expected_log_size = None)),
         ('too_large', dict(log_extend_len='(log=20G)', expected_log_size = None)),
-        ('small_in_allowed range', dict(log_extend_len='(log=200K)',
+        ('small_in_allowed_range', dict(log_extend_len='(log=200K)',
                                        expected_log_size = 200 * K)),
         ('large_in_allowed_range', dict(log_extend_len='(log=900K)',
                                        expected_log_size = 900 * K)),
