@@ -126,6 +126,9 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
         # Detect using a timestamp on the non-timestamp key.
+        # We must first use a non timestamped operation on the key
+        # in order to violate the key consistency condition in the
+        # following transaction.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c['key_nots'] = 'value_nots3'
@@ -145,8 +148,9 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEquals(c['key_ts1'], 'value5')
         self.assertEquals(c['key_nots'], 'value_nots3')
         c.close()
-        # Test to make sure that key consistency cannot be turned off
-        # after turning it on
+
+        # Test to make sure that key consistency can be turned off
+        # after turning it on.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(5))
         self.session.alter(uri, cfg_off)
 
