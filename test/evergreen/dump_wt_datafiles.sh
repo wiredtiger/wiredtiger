@@ -41,6 +41,7 @@ EXT+="${build_dir}/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so
 EXT+="${build_dir}/ext/collators/revint/.libs/libwiredtiger_revint_collator.so, "
 EXT+="${build_dir}/ext/extractors/csv/.libs/libwiredtiger_csv_extractor.so, "
 EXT+="${build_dir}/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so, "
+EXT+="${build_dir}/ext/encryptors/nop/.libs/libwiredtiger_nop.so, "
 EXT+="${build_dir}/ext/compressors/nop/.libs/libwiredtiger_nop.so, "
 EXT+="${build_dir}/ext/compressors/zlib/.libs/libwiredtiger_zlib.so, "
 EXT+="]"
@@ -49,7 +50,7 @@ EXT+="]"
 dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
 
 # Loop through each data file under the TEST_DIR
-for d in "${dirs_include_datafile}"
+for d in ${dirs_include_datafile}
 do
 	echo "${d}"
 
