@@ -41,6 +41,8 @@ EXT+="${build_dir}/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so
 EXT+="${build_dir}/ext/collators/revint/.libs/libwiredtiger_revint_collator.so, "
 EXT+="${build_dir}/ext/extractors/csv/.libs/libwiredtiger_csv_extractor.so, "
 EXT+="${build_dir}/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so, "
+EXT+="${build_dir}/ext/compressors/nop/.libs/libwiredtiger_nop.so, "
+EXT+="${build_dir}/ext/compressors/zlib/.libs/libwiredtiger_zlib.so, "
 EXT+="]"
 
 # Work out the list of directories that include wt data files
