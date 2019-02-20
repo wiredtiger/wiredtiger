@@ -116,6 +116,9 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         # Create the backup directory.
         os.mkdir(self.dir)
 
+        # Use the marker file to bypass the dump verification for this directory
+        self.databaseCorrupted()
+
         # Build the target list.
         config = ""
         if l:
