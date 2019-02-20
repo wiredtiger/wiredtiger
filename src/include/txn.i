@@ -986,13 +986,14 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	 * for unlocked reads to be well defined, we must use an atomic
 	 * increment here.
 	 */
-	WT_PUBLISH(txn_state->id, txn_global->current | TXNID_ALLOCATING);
-	id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
-
-	if (publish) {
-		session->txn.id = id;
-		WT_PUBLISH(txn_state->id, id);
-	}
+        if (publish) {
+                WT_PUBLISH(txn_state->id, txn_global->current | TXNID_ALLOCATING);
+                id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+                session->txn.id = id;
+                WT_PUBLISH(txn_state->id, id);
+        } else {
+                id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
+        }
 
 	return (id);
 }
