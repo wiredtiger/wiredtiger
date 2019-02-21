@@ -29,24 +29,17 @@
  * WT_TXN_ABORTED is the largest possible ID (never visible to a running
  * transaction), WT_TXN_NONE is smaller than any possible ID (visible to all
  * running transactions).
- * We use the MSB of 64-bit integer which indicate whether the transaction
- * is allocating its unique ID or not. Pure transaction ID returns its ID
- * without this flag.
  */
-#define	TXNID_ALLOCATING 0x8000000000000000ULL
-#define	WT_PURE_TXNID(t) ((t) & (~TXNID_ALLOCATING))
 #define	WT_TXNID_LE(t1, t2)						\
-	((WT_PURE_TXNID(t1)) <= (WT_PURE_TXNID(t2)))
+	((t1) <= (t2))
 
 #define	WT_TXNID_LT(t1, t2)						\
-	((WT_PURE_TXNID(t1)) < (WT_PURE_TXNID(t2)))
+	((t1) < (t2))
 
-#define	WT_SESSION_TXN_STATE(s)						\
-	(&S2C(s)->txn_global.states[WT_PURE_TXNID((s)->id)])
+#define	WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
 
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
-	(WT_PURE_TXNID((s)->id) != 0 &&					\
-	(WT_PURE_TXNID((s)->id)) == S2C(s)->txn_global.checkpoint_id)
+	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
 #define	WT_TS_NONE	0		/* Beginning of time */
 #define	WT_TS_MAX	UINT64_MAX	/* End of time */
@@ -105,6 +98,7 @@ struct __wt_txn_state {
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
+	volatile bool is_allocating;
 
 	WT_CACHE_LINE_PAD_END
 };

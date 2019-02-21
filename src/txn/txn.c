@@ -223,7 +223,7 @@ retry:		if (s != txn_state &&
 			 */
 			if (WT_TXNID_LT(current_id, id))
 				continue;
-			while ((id & TXNID_ALLOCATING) != 0) {
+			while (s->is_allocating != false) {
 				WT_PAUSE();
 				goto retry;
 			}
