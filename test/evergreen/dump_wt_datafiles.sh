@@ -50,6 +50,7 @@ EXT+="]"
 dirs_include_datafile=$(find ${wt_test_dir} -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
 
 # Loop through each data file under the TEST_DIR
+IFS=$'\n'
 for d in ${dirs_include_datafile}
 do
 	echo "${d}"
