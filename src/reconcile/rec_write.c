@@ -571,6 +571,42 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref,
 }
 
 /*
+ * __rec_las_checkpoint_test --
+ *	Return if the lookaside table is going to collide with a checkpoint.
+ */
+static inline bool
+__rec_las_checkpoint_test(WT_SESSION_IMPL *session, WT_RECONCILE *r)
+{
+	WT_BTREE *btree;
+
+	btree = S2BT(session);
+
+	/*
+	 * Running checkpoints can collide with the lookaside table because
+	 * reconciliation using the lookaside table writes the key's last
+	 * committed value, which might not be the value checkpoint would write.
+	 * If reconciliation was configured for lookaside table eviction, this
+	 * file participates in checkpoints, and any of the tree or system
+	 * transactional generation numbers don't match, there's a possible
+	 * collision.
+	 *
+	 * It's a complicated test, but the alternative is to have checkpoint
+	 * drain lookaside table reconciliations, and this isn't a problem for
+	 * most workloads.
+	 */
+	if (!F_ISSET(r, WT_REC_LOOKASIDE))
+		return (false);
+	if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
+		return (false);
+	if (r->orig_btree_checkpoint_gen == btree->checkpoint_gen &&
+	    r->orig_txn_checkpoint_gen ==
+	    __wt_gen(session, WT_GEN_CHECKPOINT) &&
+	    r->orig_btree_checkpoint_gen == r->orig_txn_checkpoint_gen)
+		return (false);
+	return (true);
+}
+
+/*
  * __rec_write_check_complete --
  *	Check that reconciliation should complete.
  */
@@ -587,6 +623,13 @@ __rec_write_check_complete(
 	 */
 	if (F_ISSET(r, WT_REC_IN_MEMORY))
 		return (0);
+
+	/*
+	 * If we have used the lookaside table, check for a lookaside table and
+	 * checkpoint collision.
+	 */
+	if (r->cache_write_lookaside && __rec_las_checkpoint_test(session, r))
+		 return (EBUSY);
 
 	/*
 	 * Fall back to lookaside eviction during checkpoints if a page can't
@@ -908,6 +951,15 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * now, turn it off.
 	 */
 	if (page->type == WT_PAGE_COL_FIX)
+		LF_CLR(WT_REC_LOOKASIDE);
+
+	/*
+	 * Check for a lookaside table and checkpoint collision, and if we find
+	 * one, turn off the lookaside file (we've gone to all the effort of
+	 * getting exclusive access to the page, might as well try and evict
+	 * it).
+	 */
+	if (LF_ISSET(WT_REC_LOOKASIDE) && __rec_las_checkpoint_test(session, r))
 		LF_CLR(WT_REC_LOOKASIDE);
 
 	r->flags = flags;
