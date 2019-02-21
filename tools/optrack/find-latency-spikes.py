@@ -285,7 +285,7 @@ def assignStackDepths(dataframe):
         myEndTime = df.at[i, 'end'];
 
         # Pop all items off stack whose end time is earlier than my
-        # start time. They are not part of my stack, so I don't want to
+        # end time. They are not the callers on my stack, so I don't want to
         # count them.
         #
         while (len(stack) > 0 and stack[-1] < myEndTime):
