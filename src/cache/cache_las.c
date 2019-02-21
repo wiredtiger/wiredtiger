@@ -1144,6 +1144,30 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			    session, saved_key, las_key.data, las_key.size));
 
 			/*
+			 * Never expect an update in lookaside with prepare
+			 * locked state.
+			 */
+			WT_ASSERT(session,
+			    prepare_state != WT_PREPARE_LOCKED);
+			/*
+			 * Never expect an update with durable timestamp
+			 * as max timestamp.
+			 */
+			WT_ASSERT(session,
+			    durable_timestamp != WT_TS_MAX);
+			/*
+			 * An update with prepare in progress should have a
+			 * zero durable timestamp, otherwise durable timestamp
+			 * should be higher or same as the las timestamp.
+			 */
+			WT_ASSERT(session,
+			    (prepare_state == WT_PREPARE_INPROGRESS ||
+			    durable_timestamp >= las_timestamp));
+			WT_ASSERT(session,
+			    (prepare_state != WT_PREPARE_INPROGRESS ||
+			    durable_timestamp == 0));
+
+			/*
 			 * There are several conditions that need to be met
 			 * before we choose to remove a key block:
 			 *  * The entries were written with skew newest.
@@ -1151,9 +1175,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 *  * The first entry is globally visible.
 			 *  * The entry wasn't from a prepared transaction.
 			 */
-			WT_ASSERT(session,
-			    durable_timestamp != WT_TS_MAX &&
-			    durable_timestamp >= las_timestamp);
 			if (upd_type == WT_UPDATE_BIRTHMARK &&
 			    __wt_txn_visible_all(session,
 			    las_txnid, durable_timestamp) &&
