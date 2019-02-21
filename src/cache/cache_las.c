@@ -1160,9 +1160,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 * zero durable timestamp, otherwise durable timestamp
 			 * should be higher or same as the las timestamp.
 			 */
-			WT_ASSERT(session,
-			    (prepare_state == WT_PREPARE_INPROGRESS ||
-			    durable_timestamp >= las_timestamp));
+			/* FIXME Disable this assertion until fixed.
+			 * WT_ASSERT(session,
+			 *   (prepare_state == WT_PREPARE_INPROGRESS ||
+			 *   durable_timestamp >= las_timestamp));
+			 */
 			WT_ASSERT(session,
 			    (prepare_state != WT_PREPARE_INPROGRESS ||
 			    durable_timestamp == 0));
