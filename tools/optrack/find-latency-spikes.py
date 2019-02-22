@@ -104,10 +104,10 @@ pixelsPerWidthUnit = 5;
 #
 timeUnitString = "nanoseconds";
 
-# The coefficient by which we multiply the standard deviation when
-# setting the outlier threshold, in case it is not specified by the user.
+# The percentile threshold. A function duration above that percentile
+# is deemed an outlier.
 #
-STDEV_MULT = 2;
+PERCENTILE = 0.999;
 
 def initColorList():
 
@@ -231,8 +231,10 @@ def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
     # Add an annotation to the chart
     #
     y_max = dataframe['height'].max();
-    text = "Average duration: " + '{0:,.0f}'.format(averageDuration) + \
-           ". Maximum duration: " + '{0:,.0f}'.format(maxDuration) + ".";
+    text = "Average duration: " + '{0:,.0f}'.format(averageDuration) + " " + \
+           timeUnitString + \
+           ". Maximum duration: " + '{0:,.0f}'.format(maxDuration) + " " + \
+           timeUnitString + ".";
     mytext = Label(x=0, y=y_upper_bound-y_ticker_step, text=text,
                    text_color = "grey", text_font = "helvetica",
                    text_font_size = "10pt",
@@ -280,13 +282,13 @@ def assignStackDepths(dataframe):
 
     for i in range(len(df.index)):
 
-        myStartTime = df.at[i, 'start'];
+        myEndTime = df.at[i, 'end'];
 
         # Pop all items off stack whose end time is earlier than my
-        # start time. They are not part of my stack, so I don't want to
+        # end time. They are not the callers on my stack, so I don't want to
         # count them.
         #
-        while (len(stack) > 0 and stack[-1] < myStartTime):
+        while (len(stack) > 0 and stack[-1] < myEndTime):
             stack.pop();
 
         df.at[i, 'stackdepth'] = len(stack);
@@ -786,7 +788,47 @@ def generateTSSlicesForBuckets():
 
     return bucketFilenames;
 
-def processFile(fname):
+#
+# After we have cleaned up the data by getting rid of incomplete function
+# call records (e.g., a function begin record is presend but a function end
+# is not or vice versa), we optionally dump this clean data into a file, so
+# it can be re-processed by other visualization tools. The output format is
+#
+# <0/1> <funcname> <timestamp>
+#
+# We use '0' if it's a function entry, '1' if it's a function exit.
+#
+def dumpCleanData(fname, df):
+
+    enterExit = [];
+    timestamps = [];
+    functionNames = [];
+
+    outfile = None;
+    fnameParts = fname.split(".txt");
+    newfname = fnameParts[0] + "-clean.txt";
+
+    for index, row in df.iterrows():
+        # Append the function enter record:
+        enterExit.append(0);
+        timestamps.append(row['start']);
+        functionNames.append(row['function']);
+
+        # Append the function exit record:
+        enterExit.append(1);
+        timestamps.append(row['end']);
+        functionNames.append(row['function']);
+
+    newDF = pd.DataFrame({'enterExit' : enterExit, 'timestamp' : timestamps,
+                          'function' : functionNames});
+    newDF = newDF.set_index('timestamp', drop=False);
+    newDF.sort_index(inplace = True);
+
+    print("Dumping clean data to " + newfname);
+    newDF.to_csv(newfname, sep=' ', index=False, header=False,
+                 columns = ['enterExit', 'function', 'timestamp']);
+
+def processFile(fname, dumpCleanDataBool):
 
     global perFileDataFrame;
     global perFuncDF;
@@ -801,6 +843,10 @@ def processFile(fname):
     print(color.BOLD + color.BLUE +
           "Processing file " + str(fname) + color.END);
     iDF = createCallstackSeries(rawData, "." + fname + ".log");
+
+    if (dumpCleanDataBool):
+        dumpCleanData(fname, iDF);
+
 
     perFileDataFrame[fname] = iDF;
 
@@ -832,7 +878,7 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
     global plotWidth;
     global pixelsPerWidthUnit;
     global timeUnitString;
-    global STDEV_MULT;
+    global PERCENTILE;
 
     durationThreshold = 0;
     durationThresholdDescr = "";
@@ -860,16 +906,12 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
         durationThreshold = outlierThresholdDict["*"];
         durationThresholdDescr = outlierPrettyNames["*"];
     else:
-        # Signal that we will use standard deviation
-        durationThreshold  = -STDEV_MULT;
-
-    if (durationThreshold < 0): # this is a stdev multiplier
-        mult = -durationThreshold;
-        stdDev = funcDF['durations'].std();
-        durationThreshold = averageDuration + mult * stdDev;
+        durationThreshold = funcDF['durations'].quantile(PERCENTILE);
         durationThresholdDescr = '{0:,.0f}'.format(durationThreshold) \
-                                 + " " + timeUnitString + " (" + str(mult) + \
-                                 " standard deviations)";
+                                 + " " + timeUnitString + \
+                                 " (" + str(PERCENTILE * 100) + \
+                                 "th percentile)";
+
 
     numBuckets = plotWidth / pixelsPerWidthUnit;
     timeUnitsPerBucket = (lastTimeStamp - firstTimeStamp) / numBuckets;
@@ -1074,6 +1116,13 @@ def main():
     parser.add_argument('files', type=str, nargs='*',
                         help='log files to process');
     parser.add_argument('-c', '--config', dest='configFile', default='');
+    parser.add_argument('-d', '--dumpCleanData', dest='dumpCleanData',
+                        default=False, action='store_true',
+                        help='Dump clean log data. Clean data will \
+                        not include incomplete function call records, \
+                        e.g., if there is a function begin record, but\
+                        no function end record, or vice versa.');
+
     args = parser.parse_args();
 
     if (len(args.files) == 0):
@@ -1089,12 +1138,11 @@ def main():
 
     if (not configSupplied):
         pluralSuffix = "";
-        if (STDEV_MULT > 1):
-            pluralSuffix = "s";
+
         print(color.BLUE + color.BOLD +
               "Will deem as outliers all function instances whose runtime " +
-              "was " + str(STDEV_MULT) + " standard deviation" + pluralSuffix +
-              " greater than the average runtime for that function."
+              "was higher than the " + str(PERCENTILE * 100) +
+              "th percentile for that function."
               + color.END);
 
 
@@ -1106,7 +1154,7 @@ def main():
 
     # Parallelize this later, so we are working on files in parallel.
     for fname in args.files:
-        processFile(fname);
+        processFile(fname, args.dumpCleanData);
 
     # Normalize all intervals by subtracting the first timestamp.
     normalizeIntervalData();
