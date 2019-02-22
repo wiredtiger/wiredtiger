@@ -36,11 +36,15 @@ from bokeh.models.annotations import Label
 from bokeh.plotting import figure, output_file, reset_output, save, show
 from bokeh.resources import CDN
 import matplotlib
+from multiprocessing import Process, Queue, Array
+import multiprocessing
 import numpy as np
 import os
 import pandas as pd
 import sys
+import statvfs
 import traceback
+import time
 
 # A directory where we store cross-file plots for each bucket of the outlier
 # histogram.
@@ -97,6 +101,9 @@ plotWidth = 1200;
 pixelsForTitle = 30;
 pixelsPerHeightUnit = 30;
 pixelsPerWidthUnit = 5;
+
+# How many work units for perform in parallel.
+targetParallelism = 0;
 
 # The name of the time units that were used when recording timestamps.
 # We assume that it's nanoseconds by default. Alternative units can be
@@ -471,10 +478,11 @@ def createLegendFigure(legendDict):
 
 def generateBucketChartForFile(figureName, dataframe, y_max, x_min, x_max):
 
-    global colorAlreadyUsedInLegend;
     global funcToColor;
     global plotWidth;
     global timeUnitString;
+
+    colorAlreadyUsedInLegend = {};
 
     MAX_ITEMS_PER_LEGEND = 10;
     numLegends = 0;
@@ -564,10 +572,10 @@ def generateEmptyDataset():
 # across the timelines for all files. We call it a bucket, because it
 # corresponds to a bucket in the outlier histogram.
 #
-def generateCrossFilePlotsForBucket(i, lowerBound, upperBound, navigatorDF):
+def generateCrossFilePlotsForBucket(i, lowerBound, upperBound, navigatorDF,
+                                    retFilename):
 
     global bucketDir;
-    global colorAlreadyUsedInLegend;
     global timeUnitString;
 
     aggregateLegendDict = {};
@@ -585,12 +593,6 @@ def generateCrossFilePlotsForBucket(i, lowerBound, upperBound, navigatorDF):
     #
     navigatorFigure = generateNavigatorFigure(navigatorDF, i, intervalTitle);
     figuresForAllFiles.append(navigatorFigure);
-
-    # The following dictionary keeps track of legends. We need
-    # a legend for each new HTML file. So we reset the dictionary
-    # before generating a new file.
-    #
-    colorAlreadyUsedInLegend = {};
 
     # Select from the dataframe for this file the records whose 'start'
     # and 'end' timestamps fall within the lower and upper bound.
@@ -655,7 +657,8 @@ def generateCrossFilePlotsForBucket(i, lowerBound, upperBound, navigatorDF):
     save(column(figuresForAllFiles), filename = fileName,
          title=intervalTitle, resources=CDN);
 
-    return fileName;
+    retFilename.value = fileName;
+
 
 # Generate a plot that shows a view of the entire timeline in a form of
 # intervals. By clicking on an interval we can navigate to that interval.
@@ -754,6 +757,31 @@ def createIntervalNavigatorDF(numBuckets, timeUnitsPerBucket):
     dataframe['intervalnumbernext'] = dataframe['intervalnumber'] + 1;
     return dataframe;
 
+
+def waitOnOneProcess(runningProcesses):
+
+    success = False;
+    for i, p in runningProcesses.items():
+        if (not p.is_alive()):
+            del runningProcesses[i];
+            success = True;
+
+    # If we have not found a terminated process, sleep for a while
+    if (not success):
+        time.sleep(1);
+
+# Update the UI message showing what percentage of work done by
+# parallel processes has completed.
+#
+def updatePercentComplete(runnableProcesses, runningProcesses,
+                          totalWorkItems, workName):
+
+    percentComplete = float(totalWorkItems - len(runnableProcesses) \
+                        - len(runningProcesses)) / float(totalWorkItems) * 100;
+    print(color.BLUE + color.BOLD + " " + workName),
+    sys.stdout.write(" %d%% complete  \r" % (percentComplete) );
+    sys.stdout.flush();
+
 # Generate plots of time series slices across all files for each bucket
 # in the outlier histogram. Save each cross-file slice to an HTML file.
 #
@@ -763,27 +791,54 @@ def generateTSSlicesForBuckets():
     global lastTimeStamp;
     global plotWidth;
     global pixelsPerWidthUnit;
+    global targetParallelism;
 
     bucketFilenames = [];
+    runnableProcesses = {};
+    returnValues = {};
+    spawnedProcesses = {};
 
     numBuckets = plotWidth / pixelsPerWidthUnit;
     timeUnitsPerBucket = (lastTimeStamp - firstTimeStamp) / numBuckets;
 
     navigatorDF = createIntervalNavigatorDF(numBuckets, timeUnitsPerBucket);
 
+    print(color.BLUE + color.BOLD +
+        "Will process " + str(targetParallelism) + " work units in parallel."
+        + color.END);
+
     for i in range(numBuckets):
+        retFilename = Array('c', os.statvfs('/')[statvfs.F_NAMEMAX]);
         lowerBound = i * timeUnitsPerBucket;
         upperBound = (i+1) * timeUnitsPerBucket;
 
-        fileName = generateCrossFilePlotsForBucket(i, lowerBound, upperBound,
-                                                   navigatorDF);
+        p = Process(target=generateCrossFilePlotsForBucket,
+                    args=(i, lowerBound, upperBound,
+                          navigatorDF, retFilename));
+        runnableProcesses[i] = p;
+        returnValues[i] = retFilename;
 
-        percentComplete = float(i) / float(numBuckets) * 100;
-        print(color.BLUE + color.BOLD + " Generating timeline charts... "),
-        sys.stdout.write("%d%% complete  \r" % (percentComplete) );
-        sys.stdout.flush();
-        bucketFilenames.append(fileName);
+    while (len(runnableProcesses) > 0):
+        while (len(spawnedProcesses) < targetParallelism
+               and len(runnableProcesses) > 0):
 
+            i, p = runnableProcesses.popitem();
+            p.start();
+            spawnedProcesses[i] = p;
+
+        # Find at least one terminated process
+        waitOnOneProcess(spawnedProcesses);
+        updatePercentComplete(runnableProcesses, spawnedProcesses,
+                              numBuckets, "Generating timeline charts");
+
+    # Wait for all processes to terminate
+    while (len(spawnedProcesses) > 0):
+        waitOnOneProcess(spawnedProcesses);
+        updatePercentComplete(runnableProcesses, spawnedProcesses,
+                              numBuckets, "Generating timeline charts");
+
+    for i, fname in returnValues.items():
+        bucketFilenames.append(str(fname.value));
     print(color.END);
 
     return bucketFilenames;
@@ -1105,6 +1160,7 @@ def main():
     global arrowRightImg;
     global bucketDir;
     global perFuncDF;
+    global targetParallelism;
 
     configSupplied = False;
     figuresForAllFunctions = [];
@@ -1122,12 +1178,20 @@ def main():
                         not include incomplete function call records, \
                         e.g., if there is a function begin record, but\
                         no function end record, or vice versa.');
+    parser.add_argument('-j', dest='jobParallelism', type=int,
+                        default='0');
 
     args = parser.parse_args();
 
     if (len(args.files) == 0):
         parser.print_help();
         sys.exit(1);
+
+    # Determine the target job parallelism
+    if (args.jobParallelism > 0):
+        targetParallelism = args.jobParallelism;
+    else:
+        targetParallelism = multiprocessing.cpu_count() * 2;
 
     # Get names of standard CSS colors that we will use for the legend
     initColorList();
