@@ -223,7 +223,7 @@ retry:		if (s != txn_state &&
 			 */
 			if (WT_TXNID_LT(current_id, id))
 				continue;
-			while (s->is_allocating != false) {
+			if (s->is_allocating != false) {
 				WT_PAUSE();
 				goto retry;
 			}
@@ -258,6 +258,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	WT_SESSION_IMPL *oldest_session;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *s;
+	uint64_t current_id;
 	uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
 	uint32_t i, session_cnt;
 
@@ -267,7 +268,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 
 	/* The oldest ID cannot change while we are holding the scan lock. */
 	prev_oldest_id = txn_global->oldest_id;
-	last_running = oldest_id = txn_global->current;
+	current_id = last_running = oldest_id = txn_global->current;
 	if ((metadata_pinned = txn_global->checkpoint_state.id) == WT_TXN_NONE)
 		metadata_pinned = oldest_id;
 
@@ -275,10 +276,25 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
 		/* Update the last running transaction ID. */
-		if ((id = s->id) != WT_TXN_NONE &&
+retry:		if ((id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id) &&
-		    WT_TXNID_LT(id, last_running))
+		    WT_TXNID_LT(id, last_running)) {
+			/*
+			 * If the transaction is still allocating its ID,
+			 * then we spin here until it gets its valid ID.
+			 * There might be a chance that this ID can become
+			 * higher if the transaction is quickly done its job.
+			 * In this case, we ignore this transaction since
+			 * it would not be visible anyway in current snapshot.
+			 */
+			if (WT_TXNID_LT(current_id, id))
+				continue;
+			if (s->is_allocating != false) {
+				WT_PAUSE();
+				goto retry;
+			}
 			last_running = id;
+		}
 
 		/* Update the metadata pinned ID. */
 		if ((id = s->metadata_pinned) != WT_TXN_NONE &&
