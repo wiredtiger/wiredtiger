@@ -1477,15 +1477,11 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	if (F_ISSET(r, WT_REC_LOOKASIDE) && r->las_skew_newest) {
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
-		if (first_ts_upd != NULL) {
-			if (r->unstable_timestamp < first_ts_upd->start_ts)
-				r->unstable_timestamp = first_ts_upd->start_ts;
-
+		if (first_ts_upd != NULL)
 			if (r->unstable_durable_timestamp <
 			    first_ts_upd->durable_ts)
 				r->unstable_durable_timestamp =
 				    first_ts_upd->durable_ts;
-		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
@@ -1494,10 +1490,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
-			if (upd->start_ts < r->unstable_timestamp) {
+			if (upd->start_ts < r->unstable_timestamp)
 				r->unstable_timestamp =
 				r->unstable_durable_timestamp = upd->start_ts;
-			}
 			if (upd->durable_ts < r->unstable_durable_timestamp &&
 				upd->durable_ts > r->unstable_timestamp)
 				r->unstable_durable_timestamp = upd->durable_ts;
