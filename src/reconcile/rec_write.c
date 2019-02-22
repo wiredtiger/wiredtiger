@@ -1494,9 +1494,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
-			if (upd->start_ts < r->unstable_timestamp)
-				r->unstable_timestamp = upd->start_ts;
-			if (upd->durable_ts < r->unstable_durable_timestamp)
+			if (upd->start_ts < r->unstable_timestamp) {
+				r->unstable_timestamp =
+				r->unstable_durable_timestamp = upd->start_ts;
+			}
+			if (upd->durable_ts < r->unstable_durable_timestamp &&
+				upd->durable_ts > r->unstable_timestamp)
 				r->unstable_durable_timestamp = upd->durable_ts;
 		}
 	}
@@ -2976,6 +2979,8 @@ done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		multi->page_las.unstable_txn = r->unstable_txn;
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
+		WT_ASSERT(session, r->unstable_durable_timestamp >=
+		    r->unstable_timestamp);
 		multi->page_las.unstable_timestamp = r->unstable_timestamp;
 		multi->page_las.unstable_durable_timestamp =
 		    r->unstable_durable_timestamp;
