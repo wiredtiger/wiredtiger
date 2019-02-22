@@ -108,19 +108,27 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
  *     Output a compact progress message.
  */
 static void
-__compact_progress(WT_SESSION_IMPL *session, uint64_t time_diff)
+__compact_progress(WT_SESSION_IMPL *session)
 {
 	WT_BM *bm;
+	uint64_t cur_time, time_diff;
 
 	bm = S2BT(session)->bm;
-	__wt_verbose(session,
-	    WT_VERB_COMPACT_PROGRESS, "Compact running"
-	    " for %" PRIu64 " seconds; reviewed %"
-	    PRIu64 " pages, skipped %" PRIu64 " pages,"
-	    " wrote %" PRIu64 " pages", time_diff,
-	    bm->block->compact_pages_reviewed,
-	    bm->block->compact_pages_skipped,
-	    bm->block->compact_pages_written);
+	cur_time = __wt_clock(session);
+
+	time_diff = WT_CLOCKDIFF_SEC(cur_time, session->compact->last);
+	if (time_diff > 1) {
+		__wt_verbose(session,
+		    WT_VERB_COMPACT_PROGRESS, "Compact running"
+		    " for %" PRIu64 " seconds; reviewed %"
+		    PRIu64 " pages, skipped %" PRIu64 " pages,"
+		    " wrote %" PRIu64 " pages", time_diff,
+		    bm->block->compact_pages_reviewed,
+		    bm->block->compact_pages_skipped,
+		    bm->block->compact_pages_written);
+
+		session->compact->last = cur_time;
+	}
 }
 
 /*
@@ -133,13 +141,11 @@ __wt_compact(WT_SESSION_IMPL *session)
 	WT_BM *bm;
 	WT_DECL_RET;
 	WT_REF *ref;
-	uint64_t last, now, time_diff;
 	u_int i;
 	bool skip;
 
 	bm = S2BT(session)->bm;
 	ref = NULL;
-	last = __wt_clock(session);
 
 	WT_STAT_DATA_INCR(session, session_compact);
 
@@ -210,13 +216,8 @@ __wt_compact(WT_SESSION_IMPL *session)
 		session->compact_state = WT_COMPACT_SUCCESS;
 		WT_STAT_DATA_INCR(session, btree_compact_rewrite);
 
-		if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS)) {
-			now = __wt_clock(session);
-			time_diff = WT_CLOCKDIFF_SEC(now, last);
-			if (time_diff >= 1)
-				__compact_progress(session, time_diff);
-			last = now;
-		}
+		if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS))
+			__compact_progress(session);
 	}
 
 err:	if (ref != NULL)
