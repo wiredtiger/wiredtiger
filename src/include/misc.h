@@ -30,6 +30,8 @@
 
 #define	WT_MINUTE	(60)
 
+#define	WT_MSG_PERIOD	(20)
+
 #define	WT_KILOBYTE	(1024)
 #define	WT_MEGABYTE	(1048576)
 #define	WT_GIGABYTE	(1073741824)
