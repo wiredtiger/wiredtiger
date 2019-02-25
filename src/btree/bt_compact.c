@@ -110,14 +110,18 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 static void
 __compact_progress(WT_SESSION_IMPL *session)
 {
+	struct timespec cur_time;
 	WT_BM *bm;
-	uint64_t cur_time, time_diff;
+	uint64_t time_diff;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS))
+		return;
 
 	bm = S2BT(session)->bm;
-	cur_time = __wt_clock(session);
+	__wt_epoch(session, &cur_time);
 
-	time_diff = WT_CLOCKDIFF_SEC(cur_time, session->compact->last);
-	if (time_diff > 1) {
+	time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
+	if (time_diff / 20 > session->compact->prog_msg_count) {
 		__wt_verbose(session,
 		    WT_VERB_COMPACT_PROGRESS, "Compact running"
 		    " for %" PRIu64 " seconds; reviewed %"
@@ -126,8 +130,7 @@ __compact_progress(WT_SESSION_IMPL *session)
 		    bm->block->compact_pages_reviewed,
 		    bm->block->compact_pages_skipped,
 		    bm->block->compact_pages_written);
-
-		session->compact->last = cur_time;
+		session->compact->prog_msg_count++;
 	}
 }
 
@@ -165,6 +168,7 @@ __wt_compact(WT_SESSION_IMPL *session)
 		 * Quit if eviction is stuck, we're making the problem worse.
 		 */
 		if (++i > 100) {
+			__compact_progress(session);
 			WT_ERR(__wt_session_compact_check_timeout(session));
 
 			if (__wt_cache_stuck(session))
@@ -215,9 +219,6 @@ __wt_compact(WT_SESSION_IMPL *session)
 
 		session->compact_state = WT_COMPACT_SUCCESS;
 		WT_STAT_DATA_INCR(session, btree_compact_rewrite);
-
-		if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS))
-			__compact_progress(session);
 	}
 
 err:	if (ref != NULL)

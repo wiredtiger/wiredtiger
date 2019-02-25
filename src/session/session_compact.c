@@ -404,7 +404,7 @@ __wt_session_compact(
 	WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
 	session->compact->max_time = (uint64_t)cval.val;
 	__wt_epoch(session, &session->compact->begin);
-	session->compact->last = __wt_clock(session);
+	session->compact->prog_msg_count = 0;
 
 	/*
 	 * Find the types of data sources being compacted.  This could involve
