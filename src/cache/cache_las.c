@@ -1144,30 +1144,23 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			    session, saved_key, las_key.data, las_key.size));
 
 			/*
-			 * Never expect an update in lookaside with prepare
-			 * locked state.
+			 * Never expect an entry with prepare locked state or
+			 * with durable timestamp as max timestamp or with
+			 * in-progress prepare state and non-zero durable
+			 * timestamp. In all other cases the durable timestamp
+			 * is higher or same as the las timestamp.
 			 */
 			WT_ASSERT(session,
-			    prepare_state != WT_PREPARE_LOCKED);
-			/*
-			 * Never expect an update with durable timestamp
-			 * as max timestamp.
-			 */
-			WT_ASSERT(session,
-			    durable_timestamp != WT_TS_MAX);
-			/*
-			 * An update with prepare in progress should have a
-			 * zero durable timestamp, otherwise durable timestamp
-			 * should be higher or same as the las timestamp.
-			 */
+			    prepare_state != WT_PREPARE_LOCKED ||
+			    durable_timestamp != WT_TS_MAX ||
+			    (prepare_state != WT_PREPARE_INPROGRESS ||
+			    durable_timestamp == 0));
+
 			/* FIXME Disable this assertion until fixed.
 			 * WT_ASSERT(session,
 			 *   (prepare_state == WT_PREPARE_INPROGRESS ||
 			 *   durable_timestamp >= las_timestamp));
 			 */
-			WT_ASSERT(session,
-			    (prepare_state != WT_PREPARE_INPROGRESS ||
-			    durable_timestamp == 0));
 
 			/*
 			 * There are several conditions that need to be met

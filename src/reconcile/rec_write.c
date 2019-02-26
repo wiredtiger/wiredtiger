@@ -60,6 +60,9 @@ typedef struct {
 	bool update_uncommitted;	/* An update was uncommitted */
 	bool update_used;		/* An update could be used */
 
+	/* All the updates are with prepare in-progress state. */
+	bool all_upd_prepare_in_prog;
+
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
 	 * uncommitted updates), there's a leave-dirty flag.
@@ -937,6 +940,9 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->updates_seen = r->updates_unstable = 0;
 	r->update_uncommitted = r->update_used = false;
 
+	/* Track if all the updates are with prepare in-progress state. */
+	r->all_upd_prepare_in_prog = true;
+
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
 
@@ -1255,6 +1261,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->prepare_state == WT_PREPARE_LOCKED ||
 			    upd->prepare_state == WT_PREPARE_INPROGRESS)
 				prepared = true;
+			else
+				r->all_upd_prepare_in_prog = false;
 
 			if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			    WT_TXNID_LE(r->last_running, txnid) :
@@ -1477,11 +1485,19 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	if (F_ISSET(r, WT_REC_LOOKASIDE) && r->las_skew_newest) {
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
-		if (first_ts_upd != NULL)
+		if (first_ts_upd != NULL) {
+			WT_ASSERT(session,
+			    first_ts_upd->prepare_state ==
+			    WT_PREPARE_INPROGRESS ||
+			    first_ts_upd->start_ts <= first_ts_upd->durable_ts);
+			if (r->unstable_timestamp < first_ts_upd->start_ts)
+				r->unstable_timestamp = first_ts_upd->start_ts;
+
 			if (r->unstable_durable_timestamp <
 			    first_ts_upd->durable_ts)
 				r->unstable_durable_timestamp =
 				    first_ts_upd->durable_ts;
+		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
@@ -1490,11 +1506,25 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
+			/*
+			 * The durable timestamp is always set, and usually
+			 * the same as the start timestamp, which makes it OK
+			 * to use the two independently and be confident both
+			 * will be set.
+			 */
+			WT_ASSERT(session,
+			    upd->prepare_state == WT_PREPARE_INPROGRESS ||
+			    upd->durable_ts >= upd->start_ts);
 			if (upd->start_ts < r->unstable_timestamp)
-				r->unstable_timestamp =
-				r->unstable_durable_timestamp = upd->start_ts;
-			if (upd->durable_ts < r->unstable_durable_timestamp &&
-				upd->durable_ts > r->unstable_timestamp)
+				r->unstable_timestamp = upd->start_ts;
+			/*
+			 * Don't set the unstable durable timestamp with the
+			 * durable timestamp of an in-progress prepared update.
+			 * An in-progress prepared update will always have a
+			 * zero durable timestamp.
+			 */
+			if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
+			    upd->durable_ts < r->unstable_durable_timestamp)
 				r->unstable_durable_timestamp = upd->durable_ts;
 		}
 	}
@@ -2974,8 +3004,8 @@ done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		multi->page_las.unstable_txn = r->unstable_txn;
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
-		WT_ASSERT(session, r->unstable_durable_timestamp >=
-		    r->unstable_timestamp);
+		WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
+		    r->unstable_durable_timestamp >= r->unstable_timestamp);
 		multi->page_las.unstable_timestamp = r->unstable_timestamp;
 		multi->page_las.unstable_durable_timestamp =
 		    r->unstable_durable_timestamp;
