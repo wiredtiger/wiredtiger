@@ -467,7 +467,8 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 	time_diff = WT_TIMEDIFF_SEC(cur_time,
 	    conn->ckpt_timer_start);
 
-	if (closing || (time_diff / 20) > conn->ckpt_progress_msg_count) {
+	if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) >
+	    conn->ckpt_progress_msg_count) {
 		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
 		    "Checkpoint %s for %" PRIu64
 		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",

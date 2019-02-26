@@ -122,7 +122,8 @@ __compact_progress(WT_SESSION_IMPL *session)
 
 	/* Log one progress message every twenty seconds. */
 	time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
-	if (time_diff / WT_MSG_PERIOD > session->compact->prog_msg_count) {
+	if (time_diff / WT_PROGRESS_MSG_PERIOD >
+	    session->compact->prog_msg_count) {
 		__wt_verbose(session,
 		    WT_VERB_COMPACT_PROGRESS, "Compact running"
 		    " for %" PRIu64 " seconds; reviewed %"
