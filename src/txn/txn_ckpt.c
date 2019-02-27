@@ -1537,7 +1537,7 @@ __checkpoint_mark_skip(
 
 /*
  * __wt_checkpoint_tree_reconcile_update --
- *	Update a checkpoint based on reconciliation's results.
+ *	Update a checkpoint based on reconciliation results.
  */
 void
 __wt_checkpoint_tree_reconcile_update(
@@ -1554,7 +1554,7 @@ __wt_checkpoint_tree_reconcile_update(
 
 	/*
 	 * Reconciliation just wrote a checkpoint, everything has been written.
-	 * Update the checkpoint with reconciliation's information. The reason
+	 * Update the checkpoint with reconciliation information. The reason
 	 * for this function is the reconciliation code just passes through the
 	 * btree structure's checkpoint array, it doesn't know any more.
 	 */

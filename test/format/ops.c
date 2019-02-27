@@ -67,7 +67,7 @@ modify_repl_init(void)
 static void
 set_alarm(void)
 {
-#ifndef _WIN32
+#ifdef HAVE_TIMER_CREATE
 	struct itimerspec timer_val;
 	timer_t timer_id;
 
