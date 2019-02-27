@@ -203,11 +203,10 @@ __cell_pack_timestamp_value(WT_SESSION_IMPL *session,
 	 * yet decided how to handle them. For now, ignore them in determining
 	 * value durability.
 	 */
-	if (*stop_tsp != WT_TS_MAX &&
-	    __wt_txn_visible_all(session, WT_TXN_NONE, *stop_tsp)) {
+	if (*start_tsp != WT_TS_NONE &&
+	    __wt_txn_visible_all(session, WT_TXN_NONE, *start_tsp))
 		*start_tsp = WT_TS_NONE;
-		*stop_tsp = WT_TS_MAX;
-	}
+
 	start_ts = *start_tsp;
 	stop_ts = *stop_tsp;
 
@@ -215,7 +214,8 @@ __cell_pack_timestamp_value(WT_SESSION_IMPL *session,
 	 * Historic versions and globally visible values don't have associated
 	 * timestamps, else set a flag bit and store the packed timestamp pair.
 	 */
-	if (!__wt_process.page_version_ts || stop_ts == WT_TS_MAX)
+	if (!__wt_process.page_version_ts ||
+	    (start_ts == WT_TS_NONE && stop_ts == WT_TS_MAX))
 		++*pp;
 	else {
 		**pp |= WT_CELL_TIMESTAMPS;
@@ -279,8 +279,9 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session,
 {
 	uint8_t *p;
 
-	cell->__chunk[0] = '\0';
+	/* Start building a cell: the descriptor byte starts zero. */
 	p = cell->__chunk;
+	*p = '\0';
 
 	__cell_pack_timestamp_addr(session,
 	    &p, oldest_start_ts, newest_start_ts, newest_stop_ts);
@@ -307,8 +308,9 @@ __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell,
 	uint8_t byte, *p;
 	bool ts;
 
-	cell->__chunk[0] = '\0';
+	/* Start building a cell: the descriptor byte starts zero. */
 	p = cell->__chunk;
+	*p = '\0';
 
 	__cell_pack_timestamp_value(session, &p, start_tsp, stop_tsp);
 
@@ -414,8 +416,9 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
 {
 	uint8_t *p;
 
-	cell->__chunk[0] = '\0';
+	/* Start building a cell: the descriptor byte starts zero. */
 	p = cell->__chunk;
+	*p = '\0';
 
 	__cell_pack_timestamp_value(session, &p, start_tsp, stop_tsp);
 
@@ -440,8 +443,9 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell,
 {
 	uint8_t *p;
 
-	cell->__chunk[0] = '\0';
+	/* Start building a cell: the descriptor byte starts zero. */
 	p = cell->__chunk;
+	*p = '\0';
 
 	__cell_pack_timestamp_value(session, &p, start_tsp, stop_tsp);
 
@@ -539,8 +543,9 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
 {
 	uint8_t *p;
 
-	cell->__chunk[0] = '\0';
+	/* Start building a cell: the descriptor byte starts zero. */
 	p = cell->__chunk;
+	*p = '\0';
 
 	switch (type) {
 	case WT_CELL_KEY_OVFL:
