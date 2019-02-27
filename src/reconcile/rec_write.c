@@ -1491,7 +1491,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * WT_ASSERT(session,
 			 *    first_ts_upd->prepare_state ==
 			 *    WT_PREPARE_INPROGRESS ||
-			 *    first_ts_upd->start_ts <= first_ts_upd->durable_ts);
+			 *    first_ts_upd->start_ts <=
+			 *    first_ts_upd->durable_ts);
 			 */
 			if (r->unstable_timestamp < first_ts_upd->start_ts)
 				r->unstable_timestamp = first_ts_upd->start_ts;
