@@ -4994,6 +4994,27 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
+ * __rec_row_zero_len --
+ *	Return if a zero-length item can be written.
+ */
+static bool
+__rec_row_zero_len(WT_SESSION_IMPL *session,
+    uint64_t txnid, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
+{
+	/* Before timestamps were stored on pages, it was always possible. */
+	if (!__wt_process.page_version_ts)
+		return (true);
+
+	/*
+	 * The item must be globally visible because we're not writing anything
+	 * on the page.
+	 */
+	return ((start_ts == WT_TS_NONE ||
+	    __wt_txn_visible_all(session, txnid, start_ts)) &&
+	    stop_ts == WT_TS_MAX);
+}
+
+/*
  * __rec_row_leaf --
  *	Reconcile a row-store leaf page.
  */
@@ -5346,14 +5367,10 @@ build:
 			    session, r, key->len + val->len));
 		}
 
-		/*
-		 * Copy the key/value pair onto the page. Zero-length items must
-		 * be globally visible as we're writing nothing to the page.
-		 */
+		/* Copy the key/value pair onto the page. */
 		__rec_image_copy(session, r, key);
 		if (val->len == 0 &&
-		    (!__wt_process.page_version_ts ||
-		    __wt_txn_visible_all(session, txnid, stop_ts)))
+		    __rec_row_zero_len(session, txnid, start_ts, stop_ts))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
@@ -5480,14 +5497,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			    session, r, key->len + val->len));
 		}
 
-		/*
-		 * Copy the key/value pair onto the page. Zero-length items must
-		 * be globally visible as we're writing nothing to the page.
-		 */
+		/* Copy the key/value pair onto the page. */
 		__rec_image_copy(session, r, key);
 		if (val->len == 0 &&
-		    (!__wt_process.page_version_ts &&
-		    __wt_txn_visible_all(session, txnid, stop_ts)))
+		    __rec_row_zero_len(session, txnid, start_ts, stop_ts))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
