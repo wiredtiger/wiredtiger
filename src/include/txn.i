@@ -965,12 +965,12 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 
 	/*
 	 * Allocating transaction IDs involves several steps.
-	 * (Note that this requires proof-of-concept now)
 	 *
-	 * Firstly, publish the current transaction ID to the global transaction
-	 * with setting allocating flag. Note that this ID is not valid (not
-	 * unique among threads) but the flag will tell other transactions
-	 * that attempting to get their own snapshot for this transaction retry.
+	 * Firstly, publish that this transaction is allocating its ID,
+	 * then publish the transaction ID to the global current ID.
+	 * Note that this ID is not valid (might not unique among threads)
+	 * at this moment, but the flag will tell other transactions that
+	 * attempting to get their own snapshot for this transaction ID retry.
 	 *
 	 * Then we do an atomic increment to allocate a unique ID. This will
 	 * give the valid ID to this transaction and we publish this ID to
@@ -1183,16 +1183,15 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++)
-retry:		if ((id = s->id) != WT_TXN_NONE && WT_TXNID_LT(id, txn->id)) {
+		while ((id = s->id) != WT_TXN_NONE &&
+		     WT_TXNID_LT(id, txn->id)) {
 			/*
 			 * If the transaction is still allocating its ID,
 			 * then we spin here until it gets its valid ID.
 			 */
-			if (s->is_allocating != false) {
-				WT_PAUSE();
-				goto retry;
-			}
-			return (false);
+			if (!s->is_allocating)
+				return (false);
+			WT_PAUSE();
 		}
 
 	return (true);

@@ -209,27 +209,29 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		 *    can happen if we race with a thread that is allocating
 		 *    an ID -- the ID will not be used because the thread will
 		 *    keep spinning until it gets a valid one.
+		 *  - The ID if it is higher than the current ID we saw. This
+		 *    can happen if the transaction is quickly done its job.
+		 *    In this case, we ignore this transaction since it would
+		 *    not be visible anyway in current snapshot.
 		 */
-retry:		if (s != txn_state &&
+		while (s != txn_state &&
 		    (id = s->id) != WT_TXN_NONE &&
-		    WT_TXNID_LE(prev_oldest_id, id)) {
+		    WT_TXNID_LE(prev_oldest_id, id) &&
+		    WT_TXNID_LT(id, current_id)) {
 			/*
 			 * If the transaction is still allocating its ID,
 			 * then we spin here until it gets its valid ID.
-			 * There might be a chance that this ID can become
-			 * higher if the transaction is quickly done its job.
-			 * In this case, we ignore this transaction since
-			 * it would not be visible anyway in current snapshot.
+			 * There is still a chance that fetched ID is not valid
+			 * after checking allocated, so we check again here.
 			 */
-			if (WT_TXNID_LT(current_id, id))
-				continue;
-			if (s->is_allocating != false) {
-				WT_PAUSE();
-				goto retry;
+			if (!s->is_allocating &&
+			    id == s->id) {
+				txn->snapshot[n++] = id;
+				if (WT_TXNID_LT(id, pinned_id))
+					pinned_id = id;
+				break;
 			}
-			txn->snapshot[n++] = id;
-			if (WT_TXNID_LT(id, pinned_id))
-				pinned_id = id;
+			WT_PAUSE();
 		}
 	}
 
@@ -275,25 +277,30 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	/* Walk the array of concurrent transactions. */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
-		/* Update the last running transaction ID. */
-retry:		if ((id = s->id) != WT_TXN_NONE &&
+		/* Update the last running transaction ID.
+		 *
+		 * Ignore:
+		 *  - The ID if it is higher than the current ID we saw. This
+		 *    can happen if the transaction is quickly done its job.
+		 *    In this case, we ignore this transaction since it would
+		 *    not be visible anyway in current snapshot.
+		 */
+		while ((id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id) &&
-		    WT_TXNID_LT(id, last_running)) {
+		    WT_TXNID_LT(id, last_running) &&
+		    WT_TXNID_LT(id, current_id)) {
 			/*
 			 * If the transaction is still allocating its ID,
 			 * then we spin here until it gets its valid ID.
-			 * There might be a chance that this ID can become
-			 * higher if the transaction is quickly done its job.
-			 * In this case, we ignore this transaction since
-			 * it would not be visible anyway in current snapshot.
+			 * There is still a chance that fetched ID is not valid
+			 * after checking allocated, so we check again here.
 			 */
-			if (WT_TXNID_LT(current_id, id))
-				continue;
-			if (s->is_allocating != false) {
-				WT_PAUSE();
-				goto retry;
+			if (!s->is_allocating &&
+			    id == s->id) {
+				last_running = id;
+				break;
 			}
-			last_running = id;
+			WT_PAUSE();
 		}
 
 		/* Update the metadata pinned ID. */
