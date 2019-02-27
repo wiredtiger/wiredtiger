@@ -203,5 +203,5 @@ ts_us(const timespec &ts)
 inline uint64_t
 secs_us(double secs)
 {
-    return (ns_to_us(secs * NSEC_PER_SEC));
+    return (secs * USEC_PER_SEC);
 }
