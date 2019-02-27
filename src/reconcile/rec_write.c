@@ -1486,10 +1486,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
 		if (first_ts_upd != NULL) {
-			WT_ASSERT(session,
-			    first_ts_upd->prepare_state ==
-			    WT_PREPARE_INPROGRESS ||
-			    first_ts_upd->start_ts <= first_ts_upd->durable_ts);
+			/*
+			 * FIXME Disable this assertion until fixed by WT-4598.
+			 * WT_ASSERT(session,
+			 *    first_ts_upd->prepare_state ==
+			 *    WT_PREPARE_INPROGRESS ||
+			 *    first_ts_upd->start_ts <= first_ts_upd->durable_ts);
+			 */
 			if (r->unstable_timestamp < first_ts_upd->start_ts)
 				r->unstable_timestamp = first_ts_upd->start_ts;
 
@@ -1512,9 +1515,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * to use the two independently and be confident both
 			 * will be set.
 			 */
-			WT_ASSERT(session,
-			    upd->prepare_state == WT_PREPARE_INPROGRESS ||
-			    upd->durable_ts >= upd->start_ts);
+			/*
+			 * FIXME Disable this assertion until fixed by WT-4598.
+			 * WT_ASSERT(session,
+			 *    upd->prepare_state == WT_PREPARE_INPROGRESS ||
+			 *    upd->durable_ts >= upd->start_ts);
+			 */
 			if (upd->start_ts < r->unstable_timestamp)
 				r->unstable_timestamp = upd->start_ts;
 			/*
