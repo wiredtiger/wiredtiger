@@ -3011,8 +3011,11 @@ done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		multi->page_las.unstable_txn = r->unstable_txn;
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
-		WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
-		    r->unstable_durable_timestamp >= r->unstable_timestamp);
+		/*
+		 * FIXME Disable this assertion until fixed by WT-4598.
+		 * WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
+		 *    r->unstable_durable_timestamp >= r->unstable_timestamp);
+		 */
 		multi->page_las.unstable_timestamp = r->unstable_timestamp;
 		multi->page_las.unstable_durable_timestamp =
 		    r->unstable_durable_timestamp;
