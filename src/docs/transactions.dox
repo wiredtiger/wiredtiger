@@ -218,8 +218,7 @@ transactions - the table below summarizes those constraints:
 | Commit  | No | commit_timestamp > stable_timestamp | Y | None |
 | Commit  | Yes | commit_timestamp >= prepare_timestamp | Y | The commit timestamp may be older than the oldest timestamp and the time of commit. |
 | Commit  | Yes | durable_timestamp > stable_timestamp | Y | None |
-| Commit  | Yes | durable_timestamp != 0 \|\| commit_timestamp > stable_timestamp | N | If no durable timestamp is given when committing a prepared transaction, the commit timestamp must be greater than the stable timestamp. | 
-
+| Commit  | Yes | durable_timestamp != 0 \|\| commit_timestamp > stable_timestamp | N | If no durable timestamp is given when committing a prepared transaction, the commit timestamp must be greater than the stable timestamp. |
 
 @subsection timestamp_connection Managing global timestamp state
 
