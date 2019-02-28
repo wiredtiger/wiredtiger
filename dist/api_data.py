@@ -624,6 +624,7 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_progress',
             'compact',
+            'compact_progress',
             'error_returns',
             'evict',
             'evict_stuck',
