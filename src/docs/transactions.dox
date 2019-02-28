@@ -209,6 +209,18 @@ durable timestamp, instead of commit timestamp for persisting the data updates.
 If the durable timestamp is not specified, then the commit timestamp will be
 considered as the durable timestamp.
 
+There are a number of constraints around assigning timestamps for running
+transactions - the table below summarizes those constraints:
+
+| API     | Prepared | Constraint | Enforced | Description |
+|---------|----------|------------|----------|-------------|
+| Prepare | During | prepare_timestamp >= stable_timestamp | Y | None |
+| Commit  | No | commit_timestamp > stable_timestamp | Y | None |
+| Commit  | Yes | commit_timestamp >= prepare_timestamp | Y | The commit timestamp may be older than the oldest timestamp and the time of commit. |
+| Commit  | Yes | durable_timestamp > stable_timestamp | Y | None |
+| Commit  | Yes | durable_timestamp != 0 \|\| commit_timestamp > stable_timestamp | N | If no durable timestamp is given when committing a prepared transaction, the commit timestamp must be greater than the stable timestamp. | 
+
+
 @subsection timestamp_connection Managing global timestamp state
 
 Applications that use timestamps need to manage some global state in order
@@ -233,6 +245,16 @@ to WT_CONNECTION::rollback_to_stable. With the rollback, however, WiredTiger
 does not automatically reset the maximum commit timestamp it is tracking. The
 application should explicitly do so by setting a commit timestamp in
 WT_CONNECTION::set_timestamp.
+
+| Timestamp | Description | Constraint |
+|-----------|-------------|------------|
+| all_committed | blah | blah |
+| last_checkpoint | blah | blah |
+| oldest | blah | blah |
+| oldest_reader | blah | blah |
+| pinned | blah | blah |
+| recovery | blah | blah |
+| stable | blah | blah |
 
 @subsection timestamp_extensions Timestamp support in the extension API
 
