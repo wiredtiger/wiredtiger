@@ -82,8 +82,8 @@ lastTimeStamp = 0;
 # us when the function is to be considered an outlier. These values
 # would be read from a config file, if supplied by the user.
 #
-outlierThresholdDict = {};
-outlierPrettyNames = {};
+userDefinedLatencyThresholds = {};
+userDefinedThresholdNames = {};
 
 # A dictionary that holds a reference to the raw dataframe for each file.
 #
@@ -125,6 +125,12 @@ def initColorList():
     for color in colorList:
         # Some browsers break if you try to give them 'sage'
         if (color == "sage"):
+            colorList.remove(color);
+        # We reserve red to highlight occurrences of functions
+        # that exceeded the user-defined latency threshold. Do
+        # not use red for regular function colors.
+        #
+        elif (color == "red"):
             colorList.remove(color);
 
 #
@@ -187,7 +193,9 @@ def getIntervalData(intervalBeginningsStack, intervalEnd, logfile):
 
     return intervalBegin[0], intervalEnd[0], intervalEnd[2], errorOccurred;
 
-def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
+def plotOutlierHistogram(dataframe, maxOutliers, func,
+                         statisticalOutlierThreshold,
+                         userLatencyThreshold,
                          averageDuration, maxDuration):
 
     global pixelsForTitle;
@@ -198,7 +206,7 @@ def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
     cds = ColumnDataSource(dataframe);
 
     figureTitle = "Occurrences of " + func + " that took longer than " \
-                  + durationThreshold + ".";
+                  + statisticalOutlierThreshold + ".";
 
     hover = HoverTool(tooltips = [
         ("interval start", "@lowerbound{0,0}"),
@@ -216,7 +224,7 @@ def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
 
     y_ticker_max = p.plot_height / pixelsPerHeightUnit;
     y_ticker_step = max(1, (maxOutliers + 1)/y_ticker_max);
-    y_upper_bound = (maxOutliers / y_ticker_step + 1) * y_ticker_step;
+    y_upper_bound = (maxOutliers / y_ticker_step + 2) * y_ticker_step;
 
     p.yaxis.ticker = FixedTicker(ticks =
                                  range(0, y_upper_bound, y_ticker_step));
@@ -228,12 +236,15 @@ def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
 
     p.quad(left = 'lowerbound', right = 'upperbound', bottom = 'bottom',
            top = 'height', color = funcToColor[func], source = cds,
-           nonselection_fill_color=funcToColor[func],
+           nonselection_fill_color= funcToColor[func],
            nonselection_fill_alpha = 1.0,
            line_color = "lightgrey",
            selection_fill_color = funcToColor[func],
            selection_line_color="grey"
     );
+
+    p.x(x='markerX', y='markerY', size='markersize', color = 'navy',
+        line_width = 1, source = cds);
 
     # Add an annotation to the chart
     #
@@ -241,7 +252,12 @@ def plotOutlierHistogram(dataframe, maxOutliers, func, durationThreshold,
     text = "Average duration: " + '{0:,.0f}'.format(averageDuration) + " " + \
            timeUnitString + \
            ". Maximum duration: " + '{0:,.0f}'.format(maxDuration) + " " + \
-           timeUnitString + ".";
+           timeUnitString + ". ";
+    if (userLatencyThreshold is not None):
+        text = text + \
+               "An \'x\' shows intervals with operations exceeding " + \
+               "a user-defined threshold of " + \
+               userLatencyThreshold + ".";
     mytext = Label(x=0, y=y_upper_bound-y_ticker_step, text=text,
                    text_color = "grey", text_font = "helvetica",
                    text_font_size = "10pt",
@@ -921,11 +937,6 @@ def processFile(fname, dumpCleanDataBool):
 # show how many times this function took an unusually long time to
 # execute.
 #
-# The parameter durationThreshold tells us when a function should be
-# considered as unusually long. If this parameter is "-1" we count
-# all functions whose duration exceeded the average by more than
-# two standard deviations.
-#
 def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
 
     global firstTimeStamp;
@@ -935,8 +946,11 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
     global timeUnitString;
     global PERCENTILE;
 
-    durationThreshold = 0;
-    durationThresholdDescr = "";
+    statisticalOutlierThreshold = 0;
+    statisticalOutlierThresholdDescr = "";
+    userLatencyThreshold = sys.maxint;
+    userLatencyThresholdDescr = None;
+
 
     #
     # funcDF is a list of functions along with their start and end
@@ -954,42 +968,78 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
     averageDuration = funcDF['durations'].mean();
     maxDuration = funcDF['durations'].max();
 
-    if (outlierThresholdDict.has_key(func)):
-        durationThreshold = outlierThresholdDict[func];
-        durationThresholdDescr = outlierPrettyNames[func];
-    elif (outlierThresholdDict.has_key("*")):
-        durationThreshold = outlierThresholdDict["*"];
-        durationThresholdDescr = outlierPrettyNames["*"];
-    else:
-        durationThreshold = funcDF['durations'].quantile(PERCENTILE);
-        durationThresholdDescr = '{0:,.0f}'.format(durationThreshold) \
-                                 + " " + timeUnitString + \
-                                 " (" + str(PERCENTILE * 100) + \
-                                 "th percentile)";
+    # There are two things that we want to capture on the
+    # outlier charts: statistical outliers and functions exceeding the
+    # user-defined latency threshold. An outlier is a function
+    # whose duration is in the 99.9th percentile. For each
+    # time period we will show a bar whose height corresponds
+    # to the number of outliers observed during this exection
+    # period.
+    #
+    # Not all outliers are indicative of performance problems.
+    # To highlight real performance problems (as defined by the user)
+    # we will highlight those bars that contain operations whose
+    # duration exceeded the user-defined threshold.
+    #
+    if (userDefinedLatencyThresholds.has_key(func)):
+        userLatencyThreshold = userDefinedLatencyThresholds[func];
+        userLatencyThresholdDescr = userDefinedThresholdNames[func];
+    elif (userDefinedLatencyThresholds.has_key("*")):
+        userLatencyThreshold = userDefinedLatencyThresholds["*"];
+        userLatencyThresholdDescr = userDefinedThresholdNames["*"];
+
+    statisticalOutlierThreshold = funcDF['durations'].quantile(PERCENTILE);
+    statisticalOutlierThresholdDescr = \
+                            '{0:,.0f}'.format(statisticalOutlierThreshold) \
+                            + " " + timeUnitString + \
+                            " (" + str(PERCENTILE * 100) + \
+                            "th percentile)";
 
 
     numBuckets = plotWidth / pixelsPerWidthUnit;
     timeUnitsPerBucket = (lastTimeStamp - firstTimeStamp) / numBuckets;
-    lowerBounds = [];
-    upperBounds = [];
+
     bucketHeights = [];
+    markers = [];
+    lowerBounds = [];
     maxOutliers = 0;
+    upperBounds = [];
 
     for i in range(numBuckets):
+        markerSize = 0;
         lowerBound = i * timeUnitsPerBucket;
         upperBound = (i+1) * timeUnitsPerBucket;
 
+        # Find out how many statistical outliers we have in the
+        # current period.
         bucketDF = funcDF.loc[(funcDF['start'] >= lowerBound)
-                                & (funcDF['start'] < upperBound)
-                                & (funcDF['durations'] >= durationThreshold)];
+                              & (funcDF['start'] < upperBound)
+                              & (funcDF['durations'] >=
+                                 statisticalOutlierThreshold)];
 
+        # The number of statistical outliers is the height of the bar
         numOutliers = bucketDF.size;
         if (numOutliers > maxOutliers):
             maxOutliers = numOutliers;
 
+        # Find out whether we have any functions whose duration exceeded
+        # the user-defined threshold.
+        if (userLatencyThresholdDescr is not None):
+            bucketDF = funcDF.loc[(funcDF['start'] >= lowerBound)
+                                  & (funcDF['start'] < upperBound)
+                                  & (funcDF['durations'] >=
+                                     userLatencyThreshold)];
+
+            # If there is at least one element in this dataframe, then the
+            # operations that exceeded the user defined latency threshold are
+            # present in this period. Highlight this bucket with a bright color.
+            if (bucketDF.size > 0):
+                markerSize = 6;
+
         lowerBounds.append(lowerBound);
         upperBounds.append(upperBound);
         bucketHeights.append(numOutliers);
+        markers.append(markerSize);
 
     if (maxOutliers == 0):
         return None;
@@ -1000,11 +1050,18 @@ def createOutlierHistogramForFunction(func, funcDF, bucketFilenames):
     dict['height'] = bucketHeights;
     dict['bottom'] = [0] * len(lowerBounds);
     dict['bucketfiles'] = bucketFilenames;
+    dict['markersize'] = markers;
 
     dataframe = pd.DataFrame(data=dict);
+    dataframe['markerX'] = dataframe['lowerbound'] +  \
+                           (dataframe['upperbound'] -
+                            dataframe['lowerbound']) / 2 ;
+    dataframe['markerY'] = dataframe['height'] + 0.2;
 
     return plotOutlierHistogram(dataframe, maxOutliers, func,
-                                durationThresholdDescr, averageDuration,
+                                statisticalOutlierThresholdDescr,
+                                userLatencyThresholdDescr,
+                                averageDuration,
                                 maxDuration);
 
 #
@@ -1064,8 +1121,8 @@ def getTimeUnitString(unitsPerSecond):
 #
 def parseConfigFile(fname):
 
-    global outlierThresholdDict;
-    global outlierPrettyNames;
+    global userDefinedLatencyThresholds;
+    global userDefinedThresholdNames;
     global timeUnitString;
 
     configFile = None;
@@ -1143,14 +1200,13 @@ def parseConfigFile(fname):
                 print(line);
                 continue;
 
-            outlierThresholdDict[func] = threshold;
-            outlierPrettyNames[func] = str(number) + " " + units;
+            userDefinedLatencyThresholds[func] = threshold;
+            userDefinedThresholdNames[func] = str(number) + " " + units;
 
     # We were given an empty config file
     if (firstNonCommentLine):
         return False;
 
-    print outlierThresholdDict;
     return True;
 
 
