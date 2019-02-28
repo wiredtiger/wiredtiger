@@ -1250,6 +1250,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			max_txn = txnid;
 
 		/*
+		 * Track if all the updates are not with in-progress prepare
+		 * state.
+		 */
+		if (upd->prepare_state == WT_PREPARE_RESOLVED)
+			r->all_upd_prepare_in_prog = false;
+
+		/*
 		 * Check whether the update was committed before reconciliation
 		 * started.  The global commit point can move forward during
 		 * reconciliation so we use a cached copy to avoid races when a
@@ -1261,8 +1268,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->prepare_state == WT_PREPARE_LOCKED ||
 			    upd->prepare_state == WT_PREPARE_INPROGRESS)
 				prepared = true;
-			else
-				r->all_upd_prepare_in_prog = false;
 
 			if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			    WT_TXNID_LE(r->last_running, txnid) :
