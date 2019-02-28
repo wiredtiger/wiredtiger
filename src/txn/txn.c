@@ -221,15 +221,24 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 			/*
 			 * If the transaction is still allocating its ID,
 			 * then we spin here until it gets its valid ID.
-			 * There is still a chance that fetched ID is not valid
-			 * after checking allocated, so we check again here.
 			 */
-			if (!s->is_allocating &&
-			    id == s->id) {
-				txn->snapshot[n++] = id;
-				if (WT_TXNID_LT(id, pinned_id))
-					pinned_id = id;
-				break;
+			WT_READ_BARRIER();
+			if (!s->is_allocating) {
+				/*
+				 * There is still a chance that fetched ID is
+				 * not valid after checking if allocated, so
+				 * we check again here. The read of transaction
+				 * ID should be carefully ordered: we want to
+				 * re-read ID from transaction state after this
+				 * transaction completes ID allocation.
+				 */
+				WT_READ_BARRIER();
+				if (id == s->id) {
+					txn->snapshot[n++] = id;
+					if (WT_TXNID_LT(id, pinned_id))
+						pinned_id = id;
+					break;
+				}
 			}
 			WT_PAUSE();
 		}
@@ -292,13 +301,22 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 			/*
 			 * If the transaction is still allocating its ID,
 			 * then we spin here until it gets its valid ID.
-			 * There is still a chance that fetched ID is not valid
-			 * after checking allocated, so we check again here.
 			 */
-			if (!s->is_allocating &&
-			    id == s->id) {
-				last_running = id;
-				break;
+			WT_READ_BARRIER();
+			if (!s->is_allocating) {
+				/*
+				 * There is still a chance that fetched ID is
+				 * not valid after checking if allocated, so
+				 * we check again here. The read of transaction
+				 * ID should be carefully ordered: we want to
+				 * re-read ID from transaction state after this
+				 * transaction completes ID allocation.
+				 */
+				WT_READ_BARRIER();
+				if (id == s->id) {
+					last_running = id;
+					break;
+				}
 			}
 			WT_PAUSE();
 		}
