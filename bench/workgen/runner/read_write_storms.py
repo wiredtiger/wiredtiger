@@ -40,7 +40,7 @@ conn_config += ",cache_size=2GB,eviction=(threads_max=8),log=(enabled=true),sess
 conn = wiredtiger_open("WT_TEST", "create," + conn_config)
 s = conn.open_session("")
 
-wtperf_table_config = "key_format=S,value_format=S,type=lsm," +\
+wtperf_table_config = "key_format=S,value_format=S," +\
     "exclusive=true,allocation_size=4kb," +\
     "internal_page_max=64kb,leaf_page_max=4kb,split_pct=100,"
 compress_table_config = "block_compressor=snappy,"
