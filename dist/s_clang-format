@@ -1,0 +1,30 @@
+#! /bin/sh
+
+# Installation of the clang development package isn't standard, list a
+# couple of the places we're using.
+export PATH=$PATH:/usr/local/clang50/bin:/usr/local/llvm-devel/bin
+
+# Find the top-level WiredTiger directory and move to there.
+p="$PWD"
+while test "$p" != "/" ; do
+	if test -d "$p/build_posix"; then
+		break;
+	fi
+	p=`dirname $p`
+done
+test "$p" != "/" || {
+	echo "$0: cannot find the WiredTiger top-level directory"
+	exit 1
+}
+
+cd $p || exit 1
+echo "$0: running clang-format in $p..."
+
+# Get all source files that aren't in s_clang-format.list.
+search=`find src/ -name '*.[chi]'`
+for f in `cat dist/s_clang-format.list`; do
+	search=`echo "$search" | sed "\#$f#d"`
+done
+
+# Format each file inplace.
+clang-format -i $search
