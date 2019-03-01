@@ -4173,6 +4173,13 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	last.start_ts = last.stop_ts = WT_TS_NONE;
 	last.deleted = false;
 
+	/*
+	 * Set the start/stop values to cause failure if they're not set.
+	 * [-Werror=maybe-uninitialized]
+	 */
+	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
+	start_ts = stop_ts = WT_TS_NONE;
+
 	WT_RET(__rec_split_init(session,
 	    r, page, pageref->ref_recno, btree->maxleafpage_precomp));
 
