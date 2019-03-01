@@ -576,11 +576,11 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_commit_timestamps_validate --
+ * __txn_commit_timestamps_assert --
  *	Validate that timestamps provided to commit are legal.
  */
 static inline int
-__txn_commit_timestamps_validate(WT_SESSION_IMPL *session)
+__txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -754,7 +754,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * For prepared transactions commit timestamp could be earlier
 		 * than stable timestamp.
 		 */
-		WT_ERR(__wt_timestamp_validate(
+		WT_ERR(__wt_commit_timestamp_validate(
 		    session, "commit", ts, &cval, !prepare));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
@@ -787,11 +787,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		/* Durable timestamp should be later than stable timestamp. */
 		F_SET(txn, WT_TXN_HAS_TS_DURABLE);
 		txn->durable_timestamp = ts;
-		WT_ERR(__wt_timestamp_validate(
+		WT_ERR(__wt_commit_timestamp_validate(
 		    session, "durable", ts, &cval, true));
 	}
 
-	WT_ERR(__txn_commit_timestamps_validate(session));
+	WT_ERR(__txn_commit_timestamps_assert(session));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
