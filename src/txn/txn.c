@@ -754,7 +754,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * For prepared transactions commit timestamp could be earlier
 		 * than stable timestamp.
 		 */
-		WT_ERR(__wt_commit_timestamp_validate(
+		WT_ERR(__wt_txn_commit_timestamp_validate(
 		    session, "commit", ts, &cval, !prepare));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
@@ -787,7 +787,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		/* Durable timestamp should be later than stable timestamp. */
 		F_SET(txn, WT_TXN_HAS_TS_DURABLE);
 		txn->durable_timestamp = ts;
-		WT_ERR(__wt_commit_timestamp_validate(
+		WT_ERR(__wt_txn_commit_timestamp_validate(
 		    session, "durable", ts, &cval, true));
 	}
 
