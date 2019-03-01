@@ -41,7 +41,8 @@ __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp)
 		return;
 	}
 	if (ts == WT_TS_MAX) {
-		(void)strcpy(hex_timestamp, "ffffffffffffffff");
+		(void)strncpy(
+		    hex_timestamp, "ffffffffffffffff", WT_TS_HEX_STRING_SIZE);
 		return;
 	}
 

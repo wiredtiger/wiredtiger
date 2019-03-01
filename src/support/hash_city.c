@@ -306,10 +306,10 @@ static inline uint64_t CityHash64(const char *s, size_t len) {
 	if (len <= 32) {
 		if (len <= 16) {
 			return HashLen0to16(s, len);
-		} else {
-			return HashLen17to32(s, len);
 		}
-	} else if (len <= 64) {
+		return HashLen17to32(s, len);
+	}
+	if (len <= 64) {
 		return HashLen33to64(s, len);
 	}
 
