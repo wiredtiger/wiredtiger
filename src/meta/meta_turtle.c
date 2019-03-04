@@ -189,7 +189,7 @@ int
 __wt_turtle_init(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
-	char *metaconf, *value;
+	char *metaconf, *unused_value;
 	bool exist_backup, exist_incr, exist_isrc, exist_turtle;
 	bool load, loadTurtle;
 
@@ -229,7 +229,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 		if (F_ISSET(S2C(session), WT_CONN_SALVAGE))
 			WT_WITH_TURTLE_LOCK(session,
 			    ret = __wt_turtle_read(session,
-			    WT_METAFILE_URI, &value));
+			    WT_METAFILE_URI, &unused_value));
 
 		if (ret != 0) {
 			WT_RET(__wt_remove_if_exists(
