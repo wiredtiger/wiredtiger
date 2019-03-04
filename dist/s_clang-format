@@ -17,6 +17,14 @@ test "$p" != "/" || {
 	exit 1
 }
 
+# Ensure that we have the correct version of clang-format.
+clang_format_version="6.0.0"
+clang-format --version | grep "version $clang_format_version" >/dev/null 2>&1
+if test $? -ne 0; then
+    echo "$0: found incorrect version of clang-format ($clang_format_version required)"
+    exit 1
+fi
+
 cd $p || exit 1
 echo "$0: running clang-format in $p..."
 
