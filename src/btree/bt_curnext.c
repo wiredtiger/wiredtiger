@@ -346,8 +346,8 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         if (cbt->ins != NULL)
             cbt->ins = WT_SKIP_NEXT(cbt->ins);
 
-        cbt->iter_retry = WT_CBT_RETRY_INSERT;
     new_insert:
+        cbt->iter_retry = WT_CBT_RETRY_INSERT;
     restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             WT_RET(__wt_txn_read(session, ins->upd, &upd));
