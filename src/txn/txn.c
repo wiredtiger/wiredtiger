@@ -269,7 +269,6 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	WT_SESSION_IMPL *oldest_session;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_STATE *s;
-	uint64_t current_id;
 	uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
 	uint32_t i, session_cnt;
 
@@ -279,25 +278,17 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 
 	/* The oldest ID cannot change while we are holding the scan lock. */
 	prev_oldest_id = txn_global->oldest_id;
-	current_id = last_running = oldest_id = txn_global->current;
+	last_running = oldest_id = txn_global->current;
 	if ((metadata_pinned = txn_global->checkpoint_state.id) == WT_TXN_NONE)
 		metadata_pinned = oldest_id;
 
 	/* Walk the array of concurrent transactions. */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
-		/* Update the last running transaction ID.
-		 *
-		 * Ignore:
-		 *  - The ID if it is higher than the current ID we saw. This
-		 *    can happen if the transaction is quickly done its job.
-		 *    In this case, we ignore this transaction since it would
-		 *    not be visible anyway in current snapshot.
-		 */
+		/* Update the last running transaction ID. */
 		while ((id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id) &&
-		    WT_TXNID_LT(id, last_running) &&
-		    WT_TXNID_LT(id, current_id)) {
+		    WT_TXNID_LT(id, last_running)) {
 			/*
 			 * If the transaction is still allocating its ID,
 			 * then we spin here until it gets its valid ID.
