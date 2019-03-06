@@ -1102,6 +1102,7 @@ primary's
 printf
 printlog
 priv
+prog
 progname
 ps
 psp
