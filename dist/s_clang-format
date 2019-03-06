@@ -29,7 +29,7 @@ cd $p || exit 1
 echo "$0: running clang-format in $p..."
 
 # Get all source files that aren't in s_clang-format.list.
-search=`find src/ -name '*.[chi]'`
+search=`find src -name '*.[chi]'`
 for f in `cat dist/s_clang-format.list`; do
 	search=`echo "$search" | sed "\#$f#d"`
 done
