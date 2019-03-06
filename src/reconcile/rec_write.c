@@ -4233,6 +4233,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	 * Set the start/stop values to cause failure if they're not set.
 	 * [-Werror=maybe-uninitialized]
 	 */
+	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
 	start_ts = stop_ts = WT_TS_NONE;
 
 	WT_RET(__rec_split_init(session,
