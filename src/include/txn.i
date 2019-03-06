@@ -966,15 +966,16 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	/*
 	 * Allocating transaction IDs involves several steps.
 	 *
-	 * Firstly, publish that this transaction is allocating its ID,
-	 * then publish the transaction ID to the global current ID.
-	 * Note that this ID is not valid (might not unique among threads)
-	 * at this moment, but the flag will tell other transactions that
-	 * attempting to get their own snapshot for this transaction ID retry.
+	 * Firstly, publish that this transaction is allocating its ID, then
+	 * publish the transaction ID as the current global ID.  Note that this
+	 * transaction ID might not be unique among threads and hence not valid
+	 * at this moment. The flag will notify other transactions that are
+	 * attempting to get their own snapshot for this transaction ID to
+	 * retry.
 	 *
 	 * Then we do an atomic increment to allocate a unique ID. This will
-	 * give the valid ID to this transaction and we publish this ID to
-	 * the global transaction table.
+	 * give the valid ID to this transaction that we publish to the global
+	 * transaction table.
 	 *
 	 * We want the global value to lead the allocated values, so that any
 	 * allocated transaction ID eventually becomes globally visible.  When
@@ -1184,10 +1185,10 @@ __wt_txn_am_oldest(WT_SESSION_IMPL *session)
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++)
 		/*
-		 * We are checking if the transaction is oldest one in
-		 * the system. If is safe to ignore any sessions that
-		 * are allocating transaction IDs: since we already have
-		 * an ID, they are guaranteed to be newer.
+		 * We are checking if the transaction is oldest one in the
+		 * system. It is safe to ignore any sessions that are
+		 * allocating transaction IDs, since we already have an ID,
+		 * they are guaranteed to be newer.
 		 */
 		if (!s->is_allocating && (id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LT(id, txn->id))

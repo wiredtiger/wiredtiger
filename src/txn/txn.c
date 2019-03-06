@@ -210,25 +210,25 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		 *    an ID -- the ID will not be used because the thread will
 		 *    keep spinning until it gets a valid one.
 		 *  - The ID if it is higher than the current ID we saw. This
-		 *    can happen if the transaction is quickly done its job.
-		 *    In this case, we ignore this transaction since it would
-		 *    not be visible anyway in current snapshot.
+		 *    can happen if the transaction is already finished. In
+		 *    this case, we ignore this transaction because it would
+		 *    not be visible to the current snapshot.
 		 */
 		while (s != txn_state &&
 		    (id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id) &&
 		    WT_TXNID_LT(id, current_id)) {
 			/*
-			 * If the transaction is still allocating its ID,
-			 * then we spin here until it gets its valid ID.
+			 * If the transaction is still allocating its ID, then
+			 * we spin here until it gets its valid ID.
 			 */
 			WT_READ_BARRIER();
 			if (!s->is_allocating) {
 				/*
 				 * There is still a chance that fetched ID is
-				 * not valid after checking if allocated, so
-				 * we check again here. The read of transaction
-				 * ID should be carefully ordered: we want to
+				 * not valid after ID allocation, so we check
+				 * again here. The read of transaction ID
+				 * should be carefully ordered: we want to
 				 * re-read ID from transaction state after this
 				 * transaction completes ID allocation.
 				 */
@@ -290,16 +290,16 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 		    WT_TXNID_LE(prev_oldest_id, id) &&
 		    WT_TXNID_LT(id, last_running)) {
 			/*
-			 * If the transaction is still allocating its ID,
-			 * then we spin here until it gets its valid ID.
+			 * If the transaction is still allocating its ID, then
+			 * we spin here until it gets its valid ID.
 			 */
 			WT_READ_BARRIER();
 			if (!s->is_allocating) {
 				/*
 				 * There is still a chance that fetched ID is
-				 * not valid after checking if allocated, so
-				 * we check again here. The read of transaction
-				 * ID should be carefully ordered: we want to
+				 * not valid after ID allocation, so we check
+				 * again here. The read of transaction ID
+				 * should be carefully ordered: we want to
 				 * re-read ID from transaction state after this
 				 * transaction completes ID allocation.
 				 */
