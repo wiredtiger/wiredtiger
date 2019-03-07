@@ -1610,7 +1610,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 		    id, s->pinned_id, s->metadata_pinned,
 		    sess->name == NULL ?
 		    "EMPTY" : sess->name));
-		WT_RET(__wt_verbose_dump_txn_one(sess, &sess->txn));
+		WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn));
 	}
 
 	return (0);
