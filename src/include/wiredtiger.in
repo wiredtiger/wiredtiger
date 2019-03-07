@@ -1918,6 +1918,9 @@ struct __wt_session {
 	 * @config{round_to_oldest, if read timestamp is earlier than oldest
 	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
 	 * boolean flag; default \c false.}
+	 * @config{round_to_prepare, if commit timestamp is earlier than prepare
+	 * timestamp\, commit timestamp will be rounded to prepare timestamp., a
+	 * boolean flag; default \c false.}
 	 * @configend
 	 * @errors
 	 */

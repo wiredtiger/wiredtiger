@@ -690,8 +690,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	bool prepare, prepare_allowed, round_to_prepare;
 
 	txn = &session->txn;
-	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 	prepare = prepare_allowed = round_to_prepare = false;
+	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
 	/* Look for a commit timestamp. */
 	ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);

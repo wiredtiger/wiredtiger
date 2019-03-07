@@ -1356,6 +1356,10 @@ methods = {
         if read timestamp is earlier than oldest timestamp,
         read timestamp will be rounded to oldest timestamp''',
         type='boolean'),
+    Config('round_to_prepare', 'false', r'''
+        if commit timestamp is earlier than prepare timestamp,
+        commit timestamp will be rounded to prepare timestamp''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),
