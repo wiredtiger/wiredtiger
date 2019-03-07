@@ -776,7 +776,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	wt_timestamp_t prev_commit_timestamp, ts;
 	uint32_t fileid;
 	u_int i;
-	bool locked, prepare, readonly, update_timestamp;
+	bool locked, prepare, readonly, round_to_prepare, update_timestamp;
 
 	txn = &session->txn;
 	conn = S2C(session);
@@ -796,12 +796,21 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
 	if (cval.len != 0) {
 		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
+
+		WT_ERR(__wt_config_gets_def(
+		    session, cfg, "round_to_prepare", 0, &cval));
+		round_to_prepare = cval.val;
+
+		if (!prepare && round_to_prepare)
+			WT_ERR_MSG(session, EINVAL, "round to prepare "
+			    "should be false for non prepared transactions");
+
 		/*
 		 * For prepared transactions commit timestamp could be earlier
 		 * than stable timestamp.
 		 */
 		WT_ERR(__wt_txn_commit_timestamp_validate(
-		    session, "commit", ts, &cval, !prepare));
+		    session, "commit", ts, &cval, !prepare, round_to_prepare));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 		if (!prepare)
@@ -834,7 +843,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		F_SET(txn, WT_TXN_HAS_TS_DURABLE);
 		txn->durable_timestamp = ts;
 		WT_ERR(__wt_txn_commit_timestamp_validate(
-		    session, "durable", ts, &cval, true));
+		    session, "durable", ts, &cval, true, false));
 	}
 
 	WT_ERR(__txn_commit_timestamps_assert(session));
@@ -1047,7 +1056,6 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	wt_timestamp_t ts;
 	u_int i;
 
 	txn = &session->txn;
@@ -1060,8 +1068,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_txn_context_check(session, true));
 
 	/* Parse and validate the prepare timestamp.  */
-	WT_RET(__wt_txn_parse_prepare_timestamp(session, cfg, &ts));
-	txn->prepare_timestamp = ts;
+	WT_RET(__wt_txn_parse_prepare_timestamp(session, cfg));
 
 	/*
 	 * We are about to release the snapshot: copy values into any
@@ -1106,7 +1113,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 
 			/* Set prepare timestamp. */
-			upd->start_ts = ts;
+			upd->start_ts = txn->prepare_timestamp;
 
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
