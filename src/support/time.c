@@ -64,6 +64,7 @@ __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp)
  */
 void
 __wt_seconds(WT_SESSION_IMPL *session, uint64_t *secondsp)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	struct timespec t;
 
