@@ -765,14 +765,16 @@ __wt_txn_parse_prepare_timestamp(
     WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
-	WT_TXN *active_txn, *prev, *txn;
+	WT_TXN *prev, *txn;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts, timestamp;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool round_to_oldest;
+	bool checkpoint_accounted, round_to_oldest;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
+
+	checkpoint_accounted = round_to_oldest = false;
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "prepare_timestamp", 0, &cval));
@@ -793,130 +795,60 @@ __wt_txn_parse_prepare_timestamp(
 	oldest_ts = txn_global->oldest_timestamp;
 
 	/*
-	 * Rounding off prepare timestamp to oldest timestamp will be called
-	 * only during recovery. Only during recovery constraints of prepare
-	 * timestamp are relaxed. Here we assume that round_to_oldest will be
-	 * true only in recovery and we assume applications honor this
-	 * assumption.
+	 * Prepare timestamp must be later/greater than latest active
+	 * read timestamp, if any.
 	 */
-	if (round_to_oldest) {
-
-		/* Prepare timestamp later than oldest timestamp is accepted. */
-		if (timestamp >= oldest_ts) {
-			__wt_readunlock(session,
-			    &txn_global->read_timestamp_rwlock);
-			txn->prepare_timestamp = timestamp;
-			return (0);
+	prev = TAILQ_LAST(
+	    &txn_global->read_timestamph, __wt_txn_rts_qh);
+	while (prev != NULL) {
+		/* Skip self and other transactions that are not active. */
+		if (prev->clear_read_q || prev->id == txn->id) {
+			prev = TAILQ_PREV(
+			    prev, __wt_txn_rts_qh, read_timestampq);
+			continue;
 		}
 
-		/* Round-off prepare timestamp to oldest timestamp. */
+		/* Skip checkpoint timestamp. */
+		if (prev->read_timestamp == txn_global->checkpoint_timestamp &&
+		    !checkpoint_accounted) {
+			checkpoint_accounted = true;
+			continue;
+		}
 
-		/*
-		 * If oldest timestamp and pinned timestamp are equal then
-		 * then there are no older active readers.
-		 */
-		if (txn_global->oldest_is_pinned) {
+		if (prev->read_timestamp >= timestamp) {
 			__wt_readunlock(session,
 			    &txn_global->read_timestamp_rwlock);
-			txn->prepare_timestamp = oldest_ts;
+			__wt_timestamp_to_string(prev->read_timestamp,
+			    ts_string[0], sizeof(ts_string[0]));
+			WT_RET_MSG(session, EINVAL,
+			    "prepare timestamp %.*s not later than an "
+			    "active read timestamp %s ",
+			    (int)cval.len, cval.str, ts_string[0]);
+		}
+		break;
+	}
 
+	/*
+	 * If there are no active readers, check whether prepare timestamp is
+	 * lesser / earlier to oldest timestamp.
+	 */
+	if (prev == NULL && timestamp < oldest_ts) {
+		/* Round off prepare timestamp to oldest timestamp. */
+		if (round_to_oldest) {
+			__wt_readunlock(
+			    session, &txn_global->read_timestamp_rwlock);
 			if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 				__wt_timestamp_to_string(timestamp,
 				    ts_string[0], sizeof(ts_string[0]));
 				__wt_timestamp_to_string(oldest_ts,
 				    ts_string[1], sizeof(ts_string[1]));
 				__wt_verbose(session, WT_VERB_TIMESTAMP,
-				    "Prepare timestamp %s : Rounded to oldest "
+				    "prepare timestamp %s rounded to oldest "
 				    "timestamp %s", ts_string[0], ts_string[1]);
 			}
-			return (0);
-		}
+			timestamp = oldest_ts;
 
-		/*
-		 * Check whether an active reader, older than oldest timestamp
-		 * exists.
-		 */
-		TAILQ_FOREACH(active_txn,
-		    &txn_global->read_timestamph, read_timestampq) {
-
-			/* Skip inactive transactions and self transaction. */
-			if (active_txn->clear_read_q ||
-			    active_txn->id == txn->id)
-				continue;
-
-			/*
-			 * We assume that there is no other active reader whose
-			 * read timestamp is same as that of checkpoint's.
-			 */
-			if (active_txn->read_timestamp ==
-			    txn_global->checkpoint_timestamp)
-				continue;
-
-			if (active_txn->read_timestamp < oldest_ts) {
-				__wt_readunlock(session,
-				    &txn_global->read_timestamp_rwlock);
-				__wt_timestamp_to_string(
-				    active_txn->read_timestamp, ts_string[0],
-				    sizeof(ts_string[0]));
-				__wt_timestamp_to_string(oldest_ts,
-				    ts_string[1], sizeof(ts_string[1]));
-				WT_RET_MSG(session, EINVAL,
-				    "active reader with timestamp %s older "
-				    "than the oldest timestamp %s exists",
-				    ts_string[0], ts_string[1]);
-			}
-
-			/*
-			 * Oldest reader timestamp is later than oldest
-			 * timestamp.
-			 */
-			break;
-		}
-
-		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
-		if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
-			__wt_timestamp_to_string(timestamp,
-			    ts_string[0], sizeof(ts_string[0]));
-			__wt_timestamp_to_string(oldest_ts,
-			    ts_string[1], sizeof(ts_string[1]));
-			__wt_verbose(session, WT_VERB_TIMESTAMP,
-			    "Prepare timestamp %s : Rounded to oldest "
-			    "timestamp %s", ts_string[0], ts_string[1]);
-		}
-		txn->prepare_timestamp = oldest_ts;
-	} else {
-		/*
-		 * Prepare timestamp must be later/greater than latest active
-		 * read timestamp.
-		 */
-		prev = TAILQ_LAST(
-		    &txn_global->read_timestamph, __wt_txn_rts_qh);
-		while (prev != NULL) {
-			/* Skip any transactions that are not active. */
-			if (prev->clear_read_q) {
-				prev = TAILQ_PREV(
-				    prev, __wt_txn_rts_qh, read_timestampq);
-				continue;
-			}
-			if (prev->read_timestamp >= timestamp) {
-				__wt_readunlock(session,
-				    &txn_global->read_timestamp_rwlock);
-				__wt_timestamp_to_string(prev->read_timestamp,
-				    ts_string[0], sizeof(ts_string[0]));
-				WT_RET_MSG(session, EINVAL,
-				    "prepare timestamp %.*s not later than an "
-				    "active read timestamp %s ",
-				    (int)cval.len, cval.str, ts_string[0]);
-			}
-			break;
-		}
-
-		/*
-		 * If there are no active readers, not rounding off prepare
-		 * timestamp to oldest timestamp than prepare timestamp must
-		 * not be older than oldest timestamp.
-		 */
-		if (prev == NULL && !round_to_oldest && timestamp < oldest_ts) {
+		} else {
 			__wt_readunlock(
 			    session, &txn_global->read_timestamp_rwlock);
 			__wt_timestamp_to_string(
@@ -926,9 +858,10 @@ __wt_txn_parse_prepare_timestamp(
 			    "timestamp %s ", (int)cval.len, cval.str,
 			    ts_string[0]);
 		}
+	} else
 		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
-		txn->prepare_timestamp = timestamp;
-	}
+
+	txn->prepare_timestamp = timestamp;
 
 	return (0);
 }
