@@ -644,8 +644,8 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 		if (round_to_prepare)
 			ts = txn->prepare_timestamp;
 		else {
-			__wt_timestamp_to_string(txn->prepare_timestamp,
-			    ts_string[0], sizeof(ts_string[0]));
+			__wt_timestamp_to_string(
+			    txn->prepare_timestamp, ts_string[0]);
 			WT_RET_MSG(session, EINVAL,
 			    "%s timestamp %.*s older than the prepare "
 			    "timestamp %s for this transaction",
@@ -808,8 +808,8 @@ __wt_txn_parse_prepare_timestamp(
 		if (prev->read_timestamp >= timestamp) {
 			__wt_readunlock(session,
 			    &txn_global->read_timestamp_rwlock);
-			__wt_timestamp_to_string(prev->read_timestamp,
-			    ts_string[0], sizeof(ts_string[0]));
+			__wt_timestamp_to_string(
+			    prev->read_timestamp, ts_string[0]);
 			WT_RET_MSG(session, EINVAL,
 			    "prepare timestamp %.*s not later than an "
 			    "active read timestamp %s ",
@@ -828,10 +828,10 @@ __wt_txn_parse_prepare_timestamp(
 			__wt_readunlock(
 			    session, &txn_global->read_timestamp_rwlock);
 			if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
-				__wt_timestamp_to_string(timestamp,
-				    ts_string[0], sizeof(ts_string[0]));
-				__wt_timestamp_to_string(oldest_ts,
-				    ts_string[1], sizeof(ts_string[1]));
+				__wt_timestamp_to_string(
+				    timestamp, ts_string[0]);
+				__wt_timestamp_to_string(
+				    oldest_ts, ts_string[1]);
 				__wt_verbose(session, WT_VERB_TIMESTAMP,
 				    "prepare timestamp %s rounded to oldest "
 				    "timestamp %s", ts_string[0], ts_string[1]);
@@ -842,7 +842,7 @@ __wt_txn_parse_prepare_timestamp(
 			__wt_readunlock(
 			    session, &txn_global->read_timestamp_rwlock);
 			__wt_timestamp_to_string(
-			    oldest_ts, ts_string[0], sizeof(ts_string[0]));
+			    oldest_ts, ts_string[0]);
 			WT_RET_MSG(session, EINVAL,
 			    "prepare timestamp %.*s is older than the oldest "
 			    "timestamp %s ", (int)cval.len, cval.str,
