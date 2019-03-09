@@ -159,7 +159,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Scenario: 2
         # Roll back half timestamps.
-        stable_ts = timestamp_str(key_range / 2)
+        stable_ts = timestamp_str(key_range // 2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
         self.conn.rollback_to_stable()
         stat_cursor = self.session.open_cursor('statistics:', None, None)
@@ -182,9 +182,9 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Check that we see the inserted value (i.e. 1) for the keys in a
         # timestamped table until the stable_timestamp only.
         self.check(self.session, 'read_timestamp=' + latest_ts,
-            self.table_ts_nolog, dict((k, 1) for k in keys[:(key_range / 2)]))
+            self.table_ts_nolog, dict((k, 1) for k in keys[:(key_range // 2)]))
         self.check(self.session, 'read_timestamp=' + latest_ts,
-            self.table_ts_nolog, dict((k, 1) for k in keys[(key_range / 2 + 1):]), missing=True)
+            self.table_ts_nolog, dict((k, 1) for k in keys[(key_range // 2 + 1):]), missing=True)
 
         # For logged tables, the behavior of rollback_to_stable changes based on
         # whether connection level logging is enabled or not.
@@ -198,9 +198,9 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             # Check that we see the insertions are rolled back in timestamped tables
             # until the stable_timestamp.
             self.check(self.session, 'read_timestamp=' + latest_ts,
-                self.table_ts_log, dict((k, 1) for k in keys[:(key_range / 2)]))
+                self.table_ts_log, dict((k, 1) for k in keys[:(key_range // 2)]))
             self.check(self.session, 'read_timestamp=' + latest_ts,
-                self.table_ts_log, dict((k, 1) for k in keys[(key_range / 2 + 1):]), missing=True)
+                self.table_ts_log, dict((k, 1) for k in keys[(key_range // 2 + 1):]), missing=True)
 
         # Bump the oldest timestamp, we're not going back.
         self.conn.set_timestamp('oldest_timestamp=' + stable_ts)
@@ -229,7 +229,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario: 4
         # Advance the stable_timestamp by a quarter range and rollback.
         # Three-fourths of the later timestamps will be rolled back.
-        rolled_range = key_range + key_range / 4
+        rolled_range = key_range + key_range // 4
         stable_ts = timestamp_str(rolled_range)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
         self.conn.rollback_to_stable()
@@ -257,10 +257,10 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # the updated value (i.e. 2) for the first quarter keys and old values
         # (i.e. 1) for the second quarter keys.
         self.check(self.session, 'read_timestamp=' + latest_ts,
-            self.table_ts_nolog, dict((k, 2 if k <= key_range / 4 else 1)
-            for k in keys[:(key_range / 2)]))
+            self.table_ts_nolog, dict((k, 2 if k <= key_range // 4 else 1)
+            for k in keys[:(key_range // 2)]))
         self.check(self.session, 'read_timestamp=' + latest_ts,
-            self.table_ts_nolog, dict((k, 1) for k in keys[(1 + key_range / 2):]), missing=True)
+            self.table_ts_nolog, dict((k, 1) for k in keys[(1 + key_range // 2):]), missing=True)
 
         # For logged tables behavior changes for rollback_to_stable based on
         # whether connection level logging is enabled or not.
@@ -275,10 +275,10 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             # the updated value (i.e. 2) for the first quarter keys and old values
             # (i.e. 1) for the second quarter keys.
             self.check(self.session, 'read_timestamp=' + latest_ts,
-                self.table_ts_log, dict((k, (2 if k <= key_range / 4 else 1))
-                for k in keys[:(key_range / 2)]))
+                self.table_ts_log, dict((k, (2 if k <= key_range // 4 else 1))
+                for k in keys[:(key_range // 2)]))
             self.check(self.session, 'read_timestamp=' + latest_ts,
-                self.table_ts_log, dict((k, 1) for k in keys[(1 + key_range / 2):]), missing=True)
+                self.table_ts_log, dict((k, 1) for k in keys[(1 + key_range // 2):]), missing=True)
 
 if __name__ == '__main__':
     wttest.run()

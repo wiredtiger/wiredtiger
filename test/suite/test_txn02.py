@@ -91,7 +91,7 @@ class test_txn02(wttest.WiredTigerTestCase, suite_subprocess):
     # Each check_log() call takes a second, so we don't call it for
     # every scenario, we'll limit it to the value of checklog_calls.
     checklog_calls = 100 if wttest.islongtest() else 2
-    checklog_mod = (len(scenarios) / checklog_calls + 1)
+    checklog_mod = (len(scenarios) // checklog_calls + 1)
 
     _debug = False
     def debug(self, msg):

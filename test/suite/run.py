@@ -30,6 +30,7 @@
 #      Command line test runner
 #
 
+from __future__ import print_function
 import glob, json, os, re, sys
 
 # Set paths
@@ -56,14 +57,15 @@ elif os.path.isfile(os.path.join(wt_disttop, 'build_posix', 'wt')):
 elif os.path.isfile(os.path.join(wt_disttop, 'wt.exe')):
     wt_builddir = wt_disttop
 else:
-    print 'Unable to find useable WiredTiger build'
+    print('Unable to find useable WiredTiger build')
     sys.exit(1)
 
 # Cannot import wiredtiger and supporting utils until we set up paths
 # We want our local tree in front of any installed versions of WiredTiger.
 # Don't change sys.path[0], it's the dir containing the invoked python script.
+
 sys.path.insert(1, os.path.join(wt_builddir, 'lang', 'python'))
-sys.path.insert(1, os.path.join(wt_disttop, 'lang', 'python'))
+#sys.path.insert(1, os.path.join(wt_disttop, 'lang', 'python'))
 
 # Append to a colon separated path in the environment
 def append_env_path(name, value):
@@ -95,7 +97,7 @@ unittest = wttest.unittest
 from testscenarios.scenarios import generate_scenarios
 
 def usage():
-    print 'Usage:\n\
+    print('Usage:\n\
   $ cd build_posix\n\
   $ python ../test/suite/run.py [ options ] [ tests ]\n\
 \n\
@@ -122,7 +124,7 @@ Tests:\n\
 \n\
   When -C or -c are present, there may not be any tests named.\n\
   When -s is present, there must be a test named.\n\
-'
+')
 
 # capture the category (AKA 'subsuite') part of a test name,
 # e.g. test_util03 -> util
@@ -254,7 +256,7 @@ def testsFromArg(tests, loader, arg, scenario):
         start, end = (int(a) for a in arg.split('-'))
     else:
         start, end = int(arg), int(arg)
-    for t in xrange(start, end+1):
+    for t in range(start, end+1):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 if __name__ == '__main__':
@@ -342,7 +344,7 @@ if __name__ == '__main__':
                 configfile = args.pop(0)
                 configwrite = True
                 continue
-            print 'unknown arg: ' + arg
+            print('unknown arg: ' + arg)
             usage()
             sys.exit(2)
         testargs.append(arg)
@@ -379,7 +381,7 @@ if __name__ == '__main__':
         for test in tests:
             dryOutput.add(test.shortDesc())
         for line in dryOutput:
-            print line
+            print(line)
     else:
         result = wttest.runsuite(tests, parallel)
         sys.exit(0 if result.wasSuccessful() else 1)

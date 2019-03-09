@@ -50,7 +50,7 @@ class test_pack(wttest.WiredTigerTestCase):
         uri = 'table:' + test_pack.name + '-' + fmtname
         idx_uri = 'index:' + test_pack.name + '-' + fmtname + ':inverse'
         nargs = len(v)
-        colnames = ",".join("v" + str(x) for x in xrange(nargs))
+        colnames = ",".join("v" + str(x) for x in range(nargs))
         self.session.create(uri, "columns=(k," + colnames + ")," +
                             "key_format=i,value_format=" + fmt)
         self.session.create(idx_uri, "columns=(" + colnames + ")")

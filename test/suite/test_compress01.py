@@ -66,9 +66,9 @@ class test_compress01(wttest.WiredTigerTestCase):
         params = 'key_format=S,value_format=S,leaf_page_max=4096'
         self.session.create(self.uri, params)
         cursor = self.session.open_cursor(self.uri, None)
-        for idx in xrange(1,self.nrecords):
+        for idx in range(1,self.nrecords):
             cursor.set_key(`idx`)
-            if idx / 12 == 0:
+            if idx // 12 == 0:
                 cursor.set_value(`idx` + self.bigvalue)
             else:
                 cursor.set_value(`idx` + "abcdefg")
@@ -79,10 +79,10 @@ class test_compress01(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         cursor = self.session.open_cursor(self.uri, None)
-        for idx in xrange(1,self.nrecords):
+        for idx in range(1,self.nrecords):
             cursor.set_key(`idx`)
             self.assertEqual(cursor.search(), 0)
-            if idx / 12 == 0:
+            if idx // 12 == 0:
                 self.assertEquals(cursor.get_value(), `idx` + self.bigvalue)
             else:
                 self.assertEquals(cursor.get_value(), `idx` + "abcdefg")

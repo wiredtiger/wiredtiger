@@ -79,7 +79,7 @@ class tabconfig:
             elif format == 'i':
                 keys.append(rev)
             elif format == 'r':
-                keys.append(long(i+1))
+                keys.append(self.recno(i+1))
         return keys
 
     def gen_values(self, i):
@@ -461,7 +461,7 @@ class test_schema03(wttest.WiredTigerTestCase):
         for tc in tabconfigs:
             self.current_table = tc.tableidx
             max = rand.rand_range(0, self.nentries)
-            self.populate(tc, xrange(0, max))
+            self.populate(tc, range(0, max))
 
         self.finished_step('populate0')
 
@@ -476,7 +476,7 @@ class test_schema03(wttest.WiredTigerTestCase):
         # populate second batch
         for tc in tabconfigs:
             self.current_table = tc.tableidx
-            self.populate(tc, xrange(tc.nentries, self.nentries))
+            self.populate(tc, range(tc.nentries, self.nentries))
 
         self.finished_step('populate1')
 

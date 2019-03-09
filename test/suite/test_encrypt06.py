@@ -177,7 +177,7 @@ class test_encrypt06(wttest.WiredTigerTestCase):
 
         c0 = s.open_cursor(pfx + name0, None)
         c1 = s.open_cursor(pfx + name1, None)
-        for idx in xrange(1,self.nrecords):
+        for idx in range(1,self.nrecords):
             c0.set_key(str(idx) + txt0)
             c1.set_key(str(idx) + txt1)
             c0.set_value(txt0 * (idx % 97), txt0 * 3, txt0 * 5, txt0 * 7)

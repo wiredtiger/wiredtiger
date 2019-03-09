@@ -237,7 +237,7 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check the log state after the entire op completes
         # and run recovery.
-        if self.scenario_number % (len(test_txn05.scenarios) / 100 + 1) == 0:
+        if self.scenario_number % (len(test_txn05.scenarios) // 100 + 1) == 0:
             self.check_log(committed)
 
 if __name__ == '__main__':

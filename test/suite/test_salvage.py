@@ -46,7 +46,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         key = ''
         for i in range(0, self.nentries):
             key += str(i)
-            if i == self.nentries / 2:
+            if i == self.nentries // 2:
                 val = self.unique + '0'
             else:
                 val = key + key
@@ -62,7 +62,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         i = 0
         for gotkey, gotval in cursor:
             wantkey += str(i)
-            if i == self.nentries / 2:
+            if i == self.nentries // 2:
                 wantval = self.unique + '0'
             else:
                 wantval = wantkey + wantkey
@@ -87,7 +87,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
             wantkey += str(i)
             if gotkey != wantkey:
                 continue
-            if i == self.nentries / 2:
+            if i == self.nentries // 2:
                 wantval = self.unique + '0'
             else:
                 wantval = wantkey + wantkey

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare_lookaside02.py
-#   Prepare updates can be resolved for both commit / rollback operations.
+#   Prepare updates can be resolved for both commit // rollback operations.
 #
 
 from helper import copy_wiredtiger_home

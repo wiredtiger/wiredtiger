@@ -88,7 +88,7 @@ def unpack(fmt, s):
 def pack(fmt, *values):
     pfmt, fmt = __wt2struct(fmt)
     if not fmt:
-        return ''
+        return b''
     i = sizebytes = 0
     for offset, f in enumerate(fmt):
         if f == 'S':

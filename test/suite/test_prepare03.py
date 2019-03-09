@@ -56,7 +56,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
         if self.tablekind == 'row':
             return 'key' + str(i)
         else:
-            return long(i+1)
+            return self.recno(i+1)
 
     def genvalue(self, i):
         if self.tablekind == 'fix':

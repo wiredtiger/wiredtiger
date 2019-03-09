@@ -296,7 +296,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c.set_value(orig)
         self.assertEquals(c.update(), 0)
         for i in range(0, 50000):
-            new = "".join([random.choice(string.digits) for i in xrange(5)])
+            new = "".join([random.choice(string.digits) for i in range(5)])
             orig = orig[:10] + new + orig[15:]
             mods = []
             mod = wiredtiger.Modify(new, 10, 5)

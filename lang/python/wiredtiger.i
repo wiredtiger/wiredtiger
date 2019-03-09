@@ -30,6 +30,8 @@
  * wiredtiger.i
  *	The SWIG interface file defining the wiredtiger python API.
  */
+%include <pybuffer.i>
+
 %define DOCSTRING
 "Python wrappers around the WiredTiger C API
 
@@ -164,7 +166,7 @@ from packing import pack, unpack
 	$result = PyList_New(*$2);
 	for (i = 0; i < *$2; i++) {
 		PyObject *o = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_modify, 0);
-		PyObject_SetAttrString(o, "data", PyString_FromStringAndSize(
+		PyObject_SetAttrString(o, "data", PyBytes_FromStringAndSize(
 		    $1[i].data.data, $1[i].data.size));
 		PyObject_SetAttrString(o, "offset",
 		    PyInt_FromLong($1[i].offset));
@@ -175,7 +177,7 @@ from packing import pack, unpack
 }
 
 %typemap(in) const WT_ITEM * (WT_ITEM val, long sz) {
-	if (PyString_AsStringAndSize($input, &val.data, &sz) < 0)
+	if (PyBytes_AsStringAndSize($input, &val.data, &sz) < 0)
 		SWIG_exception_fail(SWIG_AttributeError,
 		    "bad string value for WT_ITEM");
 	val.size = (size_t)sz;
@@ -207,7 +209,7 @@ from packing import pack, unpack
 			    "Modify sequence failed");
 
 		WT_GETATTR(dataobj, modobj, "data");
-		if (PyString_AsStringAndSize(dataobj, &datadata,
+		if (PyBytes_AsStringAndSize(dataobj, &datadata,
 		    &datasize) < 0) {
 			Py_DECREF(dataobj);
 			Py_DECREF(modobj);
@@ -261,6 +263,9 @@ from packing import pack, unpack
 %typemap(out) uint64_t {
 	$result = PyLong_FromUnsignedLongLong($1);
 }
+
+/* Internal _set_key, _set_value methods take a 'bytes' object as parameter. */
+%pybuffer_binary(void *data, int);
 
 /* Throw away references after close. */
 %define DESTRUCTOR(class, method)
@@ -381,10 +386,13 @@ class IterableCursor:
 	def __iter__(self):
 		return self
 
-	def next(self):
+	def __next__(self):
 		if self.cursor.next() == WT_NOTFOUND:
 			raise StopIteration
 		return self.cursor.get_keys() + self.cursor.get_values()
+
+	def next(self):
+		return self.__next__()
 ## @endcond
 
 # An abstract class, which must be subclassed with notify() overridden.
@@ -583,7 +591,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 %typemap(frearg) (char **datap, int *sizep) "";
 %typemap(argout) (char **datap, int *sizep) {
 	if (*$1)
-		$result = SWIG_FromCharPtrAndSize(*$1, *$2);
+		$result = PyBytes_FromStringAndSize(*$1, *$2);
 }
 
 /* Handle record number returns from get_recno */
@@ -606,7 +614,7 @@ typedef int int_void;
 
 %extend __wt_async_op {
 	/* Get / set keys and values */
-	void _set_key(char *data, int size) {
+	void _set_key(void *data, int size) {
 		WT_ITEM k;
 		k.data = data;
 		k.size = (uint32_t)size;
@@ -630,7 +638,7 @@ typedef int int_void;
 		return (ret);
 	}
 
-	void _set_value(char *data, int size) {
+	void _set_value(void *data, int size) {
 		WT_ITEM v;
 		v.data = data;
 		v.size = (uint32_t)size;
@@ -714,7 +722,7 @@ typedef int int_void;
 		if len(args) == 1 and type(args[0]) == tuple:
 			args = args[0]
 		if self.is_column:
-			self._set_recno(long(args[0]))
+			self._set_recno(int(args[0]))
 		else:
 			# Keep the Python string pinned
 			self._key = pack(self.key_format, *args)
@@ -747,7 +755,7 @@ typedef int int_void;
 
 %extend __wt_cursor {
 	/* Get / set keys and values */
-	void _set_key(char *data, int size) {
+	void _set_key(void *data, int size) {
 		WT_ITEM k;
 		k.data = data;
 		k.size = (uint32_t)size;
@@ -776,7 +784,7 @@ typedef int int_void;
 		return (ret);
 	}
 
-	void _set_value(char *data, int size) {
+	void _set_value(void *data, int size) {
 		WT_ITEM v;
 		v.data = data;
 		v.size = (uint32_t)size;
@@ -788,7 +796,7 @@ typedef int int_void;
 		$self->set_value($self, str);
 	}
 
-	/* Don't return values, just throw exceptions on failure. */
+	/* Don't return values, just throw excepacktions on failure. */
 	int_void _get_key(char **datap, int *sizep) {
 		WT_ITEM k;
 		int ret = $self->get_key($self, &k);
@@ -953,7 +961,7 @@ typedef int int_void;
 		if len(args) == 1 and type(args[0]) == tuple:
 			args = args[0]
 		if self.is_column:
-			self._set_recno(long(args[0]))
+			self._set_recno(int(args[0]))
 		elif self.is_json:
 			self._set_key_str(args[0])
 		else:

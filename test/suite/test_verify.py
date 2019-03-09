@@ -77,7 +77,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         filename = tablename + ".wt"
 
         filesize = os.path.getsize(filename)
-        position = (filesize * pct) / 100
+        position = (filesize * pct) // 100
 
         self.pr('damaging file at: ' + str(position))
         fp = open(filename, "r+b")

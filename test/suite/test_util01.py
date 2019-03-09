@@ -85,7 +85,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 # The last char in a string is null anyway, so that's tested.
                 ret += chr(j%255 + 1)
         else:
-            for j in range(0, len / 3):
+            for j in range(0, len // 3):
                 k = i + j
                 # no internal nulls...
                 ret += chr(k%255 + 1) + chr((k*3)%255 + 1) + chr((k*7)%255 + 1)

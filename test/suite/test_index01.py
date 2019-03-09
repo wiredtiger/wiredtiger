@@ -37,7 +37,7 @@ class test_index01(wttest.WiredTigerTestCase):
     tablename = 'table:' + basename
     indexbase = 'index:' + basename
     NUM_INDICES = 6
-    index = ['%s:index%d' % (indexbase, i) for i in xrange(NUM_INDICES)]
+    index = ['%s:index%d' % (indexbase, i) for i in range(NUM_INDICES)]
 
     def create_table(self):
         self.pr('create table')
@@ -130,7 +130,7 @@ class test_index01(wttest.WiredTigerTestCase):
         '''Create a table, look for a nonexistent key'''
         self.create_table()
         self.check_exists('jones', 10, wiredtiger.WT_NOTFOUND)
-        for i in xrange(self.NUM_INDICES):
+        for i in range(self.NUM_INDICES):
             self.assertEqual(list(self.index_iter(i)), [])
         self.drop_table()
 
@@ -140,7 +140,7 @@ class test_index01(wttest.WiredTigerTestCase):
         self.insert('smith', 1, 'HR', 'manager', 100000, 1970)
         self.check_exists('smith', 1, 0)
         result = ''
-        for i in xrange(self.NUM_INDICES):
+        for i in range(self.NUM_INDICES):
             result += '\n'.join(repr(cols)
                 for cols in self.index_iter(i))
             result += '\n\n'
@@ -162,7 +162,7 @@ class test_index01(wttest.WiredTigerTestCase):
         self.update_nonexistent('Smith', 1, 'HR', 'janitor', 1000, 1970)
         self.check_exists('smith', 1, 0)
         result = ''
-        for i in xrange(self.NUM_INDICES):
+        for i in range(self.NUM_INDICES):
             result += '\n'.join(repr(cols)
                 for cols in self.index_iter(i))
             result += '\n\n'
@@ -186,7 +186,7 @@ class test_index01(wttest.WiredTigerTestCase):
         self.check_exists('jones', 2, 0)
         self.insert_duplicate('smith', 1, 'HR', 'manager', 100000, 1970)
         result = ''
-        for i in xrange(self.NUM_INDICES):
+        for i in range(self.NUM_INDICES):
             result += '\n'.join(repr(cols)
                 for cols in self.index_iter(i))
             result += '\n\n'
@@ -213,7 +213,7 @@ class test_index01(wttest.WiredTigerTestCase):
         self.check_exists('smith', 1, 0)
         self.remove('smith', 1)
         self.check_exists('smith', 1, wiredtiger.WT_NOTFOUND)
-        for i in xrange(self.NUM_INDICES):
+        for i in range(self.NUM_INDICES):
             self.assertEqual(list(self.index_iter(i)), [])
         self.drop_table()
 

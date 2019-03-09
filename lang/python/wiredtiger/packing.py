@@ -49,6 +49,7 @@ Format  Python  Notes
   u     str     raw byte array
 """
 
+from builtins import bytes, chr
 from intpacking import pack_int, unpack_int
 
 def __get_type(fmt):
@@ -92,36 +93,39 @@ def unpack(fmt, s):
                 if f == 's':
                     pass
                 elif f == 'S':
-                    size = s.find('\0')
+                    size = s.find(b'\0')
                 elif f == 'u' and offset == len(fmt) - 1:
                     # A WT_ITEM with a NULL data field will be appear as None.
                     if s == None:
-                        s = ''
+                        s = bytes()
                     size = len(s)
                 else:
                     # Note: 'U' is used internally, and may be exposed to us.
                     # It indicates that the size is always stored unless there
                     # is a size in the format.
                     size, s = unpack_int(s)
-            result.append(s[:size])
-            if f == 'S' and not havesize:
-                size += 1
+            if f in 'Ss':
+                result.append(s[:size].decode())
+                if f == 'S' and not havesize:
+                    size += 1
+            else:
+                result.append(s[:size])
             s = s[size:]
         elif f in 't':
             # bit type, size is number of bits
-            result.append(ord(s[0:1]))
+            result.append(s[0:1])
             s = s[1:]
         elif f in 'Bb':
             # byte type
-            for i in xrange(size):
-                v = ord(s[0:1])
+            for i in range(size):
+                v = s[0:1]
                 if f != 'B':
                     v -= 0x80
                 result.append(v)
                 s = s[1:]
         else:
             # integral type
-            for j in xrange(size):
+            for j in range(size):
                 v, s = unpack_int(s)
                 result.append(v)
     return result
@@ -136,7 +140,7 @@ def __pack_iter_fmt(fmt, values):
             index += 1
         else:            # integral type
             size = size if havesize else 1
-            for i in xrange(size):
+            for i in range(size):
                 value = values[index]
                 yield offset, havesize, 1, char, value
                 index = index + 1
@@ -147,14 +151,14 @@ def pack(fmt, *values):
         return ()
     if tfmt != '.':
         raise ValueError('Only variable-length encoding is currently supported')
-    result = ''
+    result = bytes()
     i = 0
     for offset, havesize, size, f, val in __pack_iter_fmt(fmt, values):
         if f == 'x':
             if not havesize:
-                result += '\0'
+                result += b'\0'
             else:
-                result += '\0' * size
+                result += b'\0' * size
             # Note: no value, don't increment i
         elif f in 'SsUu':
             if f == 'S' and '\0' in val:
@@ -166,14 +170,14 @@ def pack(fmt, *values):
                     l = size
             elif (f == 'u' and offset != len(fmt) - 1) or f == 'U':
                 result += pack_int(l)
-            if type(val) is unicode and f in 'Ss':
-                result += str(val[:l])
+            if f in 'Ss':
+                result += str(val[:l]).encode()
             else:
                 result += val[:l]
             if f == 'S' and not havesize:
-                result += '\0'
+                result += b'\0'
             elif size > l and havesize:
-                result += '\0' * (size - l)
+                result += b'\0' * (size - l)
         elif f in 't':
             # bit type, size is number of bits
             if not havesize:
@@ -183,12 +187,12 @@ def pack(fmt, *values):
             mask = (1 << size) - 1
             if (mask & val) != val:
                 raise ValueError("value out of range for 't' encoding")
-            result += chr(val)
+            result += str.encode(chr(val))
         elif f in 'Bb':
             # byte type
             if not havesize:
                 size = 1
-            for i in xrange(size):
+            for i in range(size):
                 if f == 'B':
                     v = val
                 else:
@@ -196,7 +200,7 @@ def pack(fmt, *values):
                     v = val + 0x80
                 if v > 255 or v < 0:
                     raise ValueError("value out of range for 'B' encoding")
-                result += chr(v)
+                result += str.encode(chr(v))
         else:
             # integral type
             result += pack_int(val)

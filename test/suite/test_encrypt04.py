@@ -124,7 +124,7 @@ class test_encrypt04(wttest.WiredTigerTestCase, suite_subprocess):
         return conn
 
     def create_records(self, cursor, r, low, high):
-        for idx in xrange(low, high):
+        for idx in range(low, high):
             start = r.randint(0,9)
             key = self.bigvalue[start:r.randint(0,100)] + str(idx)
             val = self.bigvalue[start:r.randint(0,10000)] + str(idx)
@@ -133,7 +133,7 @@ class test_encrypt04(wttest.WiredTigerTestCase, suite_subprocess):
             cursor.insert()
 
     def check_records(self, cursor, r, low, high):
-        for idx in xrange(low, high):
+        for idx in range(low, high):
             start = r.randint(0,9)
             key = self.bigvalue[start:r.randint(0,100)] + str(idx)
             val = self.bigvalue[start:r.randint(0,10000)] + str(idx)
