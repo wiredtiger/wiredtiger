@@ -64,7 +64,7 @@ MINUS_BIT = -1 << 64
 UINT64_MASK = 0xffffffffffffffff
 
 def _ord(b):
-	return b
+    return b
 
 def getbits(x, start, end=0):
     '''return the least significant bits of x, from start to end'''
