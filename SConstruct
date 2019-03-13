@@ -289,9 +289,10 @@ Default(wtlib, wtdll)
 
 wtbin = env.Program("wt", [
     "src/utilities/util_alter.c",
+    "src/utilities/util_analyze.c",
     "src/utilities/util_backup.c",
-    "src/utilities/util_cpyright.c",
     "src/utilities/util_compact.c",
+    "src/utilities/util_cpyright.c",
     "src/utilities/util_create.c",
     "src/utilities/util_downgrade.c",
     "src/utilities/util_drop.c",
