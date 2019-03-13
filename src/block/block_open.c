@@ -298,11 +298,11 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
 		memcpy((uint8_t *)buf->mem +
 		    WT_BLOCK_DESC_SIZE, metadata, metadata_len);
 	else {
-		WT_RET(__wt_msg(session,
+		__wt_verbose(session, WT_VERB_BLOCK,
 		    "%s: metadata not stored in the file description block, "
 		    "the metadata length of %" WT_SIZET_FMT " is too large "
 		    "for the allocation size of %" PRIu32,
-		    filename, metadata_len, allocsize));
+		    filename, metadata_len, allocsize);
 		metadata_len = 0;
 	}
 
