@@ -161,6 +161,10 @@ __wt_block_checkpoint_info(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	name = session->dhandle->name;
 	memset(&saved, 0, sizeof(saved));
 
+	ext_off = 0;			/* [-Werror=maybe-uninitialized] */
+	ext_size = 0;
+	live_counter = 0;
+
 	WT_RET(__wt_scr_alloc(session, 64 * 1024, &tmp));
 
 	/*
