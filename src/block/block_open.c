@@ -317,7 +317,7 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
 	desc->minorv = WT_BLOCK_MINOR_VERSION;
 	desc->checksum = 0;
 	desc->allocsize = allocsize;
-	desc->metadata_len = metadata_len;
+	desc->metadata_len = (uint32_t)metadata_len;
 	__wt_block_desc_byteswap(desc);
 	desc->checksum = __wt_checksum(desc, allocsize);
 #ifdef WORDS_BIGENDIAN
