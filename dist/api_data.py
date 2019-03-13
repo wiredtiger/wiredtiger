@@ -1256,6 +1256,9 @@ methods = {
         Display the contents of in-memory pages as they are verified,
         using the application's message handler, intended for debugging''',
         type='boolean'),
+    Config('load_checkpoints', 'false', r'''
+        Use checkpoints from the underlying file for verification''',
+        type='boolean'),
     Config('strict', 'false', r'''
         Treat any verification problem as an error; by default, verify will
         warn, but not fail, in the case of errors that won't affect future

@@ -12,7 +12,7 @@ static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
 static int __ckpt_string(
 	WT_SESSION_IMPL *, WT_BLOCK *, const uint8_t *, WT_ITEM *);
 static int __ckpt_update(
-	WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_BLOCK_CKPT *, bool);
+	WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_BLOCK_CKPT *);
 
 /*
  * __wt_block_ckpt_init --
@@ -643,7 +643,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (F_ISSET(ckpt, WT_CKPT_UPDATE))
 			WT_ERR(__ckpt_update(
-			    session, block, ckpt, ckpt->bpriv, false));
+			    session, block, ckpt, ckpt->bpriv));
 
 live_update:
 	/* Truncate the file if that's possible. */
@@ -686,7 +686,20 @@ live_update:
 			ci->ckpt_size =
 			    WT_MIN(ckpt_size, (uint64_t)block->size);
 
-			WT_ERR(__ckpt_update(session, block, ckpt, ci, true));
+			/*
+			 * Configure final checkpoint recovery magic by flagging
+			 * the checkpoint information to the write routine.
+			 */
+			block->final_ci = ci;
+			block->final_ckpt = ckpt;
+			block->final_ckptbase = ckptbase;
+			block->final = true;
+			ret = __ckpt_update(session, block, ckpt, ci);
+			block->final = false;
+			block->final_ci = NULL;
+			block->final_ckpt = NULL;
+			block->final_ckptbase = NULL;
+			WT_ERR(ret);
 		}
 
 	/*
@@ -743,7 +756,7 @@ err:	if (ret != 0 && fatal) {
  */
 static int
 __ckpt_update(WT_SESSION_IMPL *session,
-    WT_BLOCK *block, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci, bool is_live)
+    WT_BLOCK *block, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -775,7 +788,7 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * it's not truly available until the new checkpoint locations have been
 	 * saved to the metadata.
 	 */
-	if (is_live)
+	if (block->final)
 		WT_RET(__wt_block_extlist_write(
 		    session, block, &ci->avail, &ci->ckpt_avail));
 
@@ -797,7 +810,7 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * Currently, there's no API to roll-forward intermediate checkpoints,
 	 * if there ever is, this will need to be fixed.
 	 */
-	if (is_live)
+	if (block->final)
 		ci->file_size = block->size;
 
 	/*

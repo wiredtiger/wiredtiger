@@ -148,6 +148,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	filename = dhandle->name;
 	if (!WT_PREFIX_SKIP(filename, "file:"))
 		WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
+	if ((ret =
+	    __wt_config_gets(session, dhandle->cfg, "source", &cval)) == 0 &&
+	    cval.len != 0)
+		filename = cval.str;
+	WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(__wt_block_manager_open(session, filename, dhandle->cfg,
 	    forced_salvage, F_ISSET(btree, WT_BTREE_READONLY),

@@ -398,6 +398,7 @@ typedef uint64_t wt_timestamp_t;
 #include "cell.i"			/* required by btree.i */
 
 #include "bitstring.i"
+#include "block.i"
 #include "btree.i"			/* required by cursor.i */
 #include "btree_cmp.i"
 #include "column.i"

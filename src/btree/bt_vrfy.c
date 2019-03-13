@@ -23,10 +23,11 @@ typedef struct {
 #define	WT_VRFY_DUMP(vs)						\
 	((vs)->dump_address ||						\
 	    (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
-	bool dump_address;			/* Configure: dump special */
+	bool dump_address;			/* Configuration */
 	bool dump_blocks;
 	bool dump_layout;
 	bool dump_pages;
+	bool load_checkpoints;
 						/* Page layout information */
 	uint64_t depth, depth_internal[100], depth_leaf[100];
 
@@ -63,6 +64,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
 	WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
 	vs->dump_pages = cval.val != 0;
+
+	WT_RET(__wt_config_gets(session, cfg, "load_checkpoints", &cval));
+	vs->load_checkpoints = cval.val != 0;
 
 #if !defined(HAVE_DIAGNOSTIC)
 	if (vs->dump_blocks || vs->dump_pages)
@@ -162,11 +166,13 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_VSTUFF *vs, _vstuff;
 	size_t root_addr_size;
 	uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+	const char *name;
 	bool bm_start, quit;
 
 	btree = S2BT(session);
 	bm = btree->bm;
 	ckptbase = NULL;
+	name = session->dhandle->name;
 	bm_start = false;
 
 	WT_CLEAR(_vstuff);
@@ -186,9 +192,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 	if (quit)
 		goto done;
 
+	/* Optionally use the block manager's information. */
+	if (vs->load_checkpoints)
+		WT_ERR(bm->checkpoint_info(bm, session));
+
 	/* Get a list of the checkpoints for this file. */
-	WT_ERR(
-	    __wt_meta_ckptlist_get(session, btree->dhandle->name, &ckptbase));
+	WT_ERR(__wt_meta_ckptlist_get(session, name, &ckptbase));
+	if (ckptbase->name == NULL)
+		WT_ERR_MSG(session, WT_NOTFOUND,
+		    "%s has no checkpoints to verify", name);
 
 	/* Inform the underlying block manager we're verifying. */
 	WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));
@@ -197,7 +209,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Loop through the file's checkpoints, verifying each one. */
 	WT_CKPT_FOREACH(ckptbase, ckpt) {
 		__wt_verbose(session, WT_VERB_VERIFY,
-		    "%s: checkpoint %s", btree->dhandle->name, ckpt->name);
+		    "%s: checkpoint %s", name, ckpt->name);
 
 		/* Fake checkpoints require no work. */
 		if (F_ISSET(ckpt, WT_CKPT_FAKE))
@@ -209,7 +221,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 		if (WT_VRFY_DUMP(vs)) {
 			WT_ERR(__wt_msg(session, "%s", WT_DIVIDER));
 			WT_ERR(__wt_msg(session, "%s: checkpoint %s",
-			    btree->dhandle->name, ckpt->name));
+			    name, ckpt->name));
 		}
 
 		/* Load the checkpoint. */

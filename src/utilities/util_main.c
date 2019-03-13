@@ -167,6 +167,10 @@ main(int argc, char *argv[])
 	case 'a':
 		if (strcmp(command, "alter") == 0)
 			func = util_alter;
+		else if (strcmp(command, "analyze") == 0) {
+			func = util_analyze;
+			config = "create,exclusive";
+		}
 		break;
 	case 'b':
 		if (strcmp(command, "backup") == 0)

@@ -266,6 +266,17 @@ config_cache(void)
 	g.intl_page_max = 1U << g.c_intl_page_max;
 	g.leaf_page_max = 1U << g.c_leaf_page_max;
 
+	/*
+	 * The block allocation size is tricky because the page sizes must be a
+	 * multiple of the allocation size. Select either 32KB or 64KB as an
+	 * allocation size, then work our way down to the first allocation size
+	 * we can use (512B is guaranteed to work).
+	 */
+	g.allocation_size = (mmrand(NULL, 0, 1) == 1 ? 32 : 64) * 1024;
+	while (g.intl_page_max % g.allocation_size != 0 ||
+	    g.leaf_page_max % g.allocation_size != 0)
+		g.allocation_size >>= 1;
+
 	/* Check if a minimum cache size has been specified. */
 	if (config_is_perm("cache")) {
 		if (config_is_perm("cache_minimum") &&

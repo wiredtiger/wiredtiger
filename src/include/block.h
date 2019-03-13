@@ -125,6 +125,15 @@ struct __wt_size {
  */
 #define	WT_BM_CHECKPOINT_VERSION	1	/* Checkpoint format version */
 #define	WT_BLOCK_EXTLIST_MAGIC		71002	/* Identify a list */
+
+/*
+ * There are two versions of the extent list blocks: the original, and a second
+ * version where current checkpoint information is appended to the avail extent
+ * list.
+ */
+#define	WT_BLOCK_EXTLIST_VERSION_ORIG	0	/* Original version */
+#define	WT_BLOCK_EXTLIST_VERSION_CKPT	1	/* Checkpoint in avail output */
+
 struct __wt_block_ckpt {
 	uint8_t	 version;			/* Version */
 
@@ -163,6 +172,7 @@ struct __wt_bm {
 	u_int (*block_header)(WT_BM *);
 	int (*checkpoint)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
+	int (*checkpoint_info)(WT_BM *, WT_SESSION_IMPL *);
 	int (*checkpoint_load)(WT_BM *, WT_SESSION_IMPL *,
 	    const uint8_t *, size_t, uint8_t *, size_t *, bool);
 	int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);
@@ -254,6 +264,11 @@ struct __wt_block {
 	enum { WT_CKPT_NONE=0, WT_CKPT_INPROGRESS,
 	    WT_CKPT_PANIC_ON_FAILURE, WT_CKPT_SALVAGE } ckpt_state;
 
+	bool		 final;		/* Final live checkpoint write */
+	WT_BLOCK_CKPT   *final_ci;	/* Checkpoint structures */
+	WT_CKPT		*final_ckpt, *final_ckptbase;
+	uint64_t	 final_count;	/* Durable counter */
+
 				/* Compaction support */
 	int	 compact_pct_tenths;	/* Percent to compact */
 	uint64_t compact_pages_reviewed;/* Pages reviewed */
@@ -288,7 +303,9 @@ struct __wt_block_desc {
 
 	uint32_t checksum;		/* 08-11: Description block checksum */
 
-	uint32_t unused;		/* 12-15: Padding */
+	uint32_t allocsize;		/* 12-15: Allocation size */
+
+	uint32_t metadata_len;		/* 16-19: Metadata length */
 };
 /*
  * WT_BLOCK_DESC_SIZE is the expected structure size -- we verify the build to
@@ -296,7 +313,7 @@ struct __wt_block_desc {
  * we reserve the first allocation-size block of the file for this information,
  * but it would be worth investigation, regardless).
  */
-#define	WT_BLOCK_DESC_SIZE		16
+#define	WT_BLOCK_DESC_SIZE		20
 
 /*
  * __wt_block_desc_byteswap --
@@ -310,6 +327,8 @@ __wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
 	desc->majorv = __wt_bswap16(desc->majorv);
 	desc->minorv = __wt_bswap16(desc->minorv);
 	desc->checksum = __wt_bswap32(desc->checksum);
+	desc->allocsize = __wt_bswap32(desc->allocsize);
+	desc->metadata_len = __wt_bswap32(desc->metadata_len);
 #else
 	WT_UNUSED(desc);
 #endif

@@ -23,6 +23,8 @@ extern void __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
 extern int __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_checkpoint(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool failed) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_checkpoint_info_set(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t **file_sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_checkpoint_info(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -47,11 +49,12 @@ extern int __wt_block_unmap(WT_SESSION_IMPL *session, WT_BLOCK *block, void *map
 extern int __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename, bool durable) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize, const char *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
 extern int __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize, const char *filename, const char *metadata) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_desc_read(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize, const char *filename, char **metadatap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats);
 extern int __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_manager_named_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -510,7 +513,9 @@ extern int __wt_meta_apply_all(WT_SESSION_IMPL *session, int (*file_func)(WT_SES
 extern int __wt_meta_checkpoint(WT_SESSION_IMPL *session, const char *fname, const char *checkpoint, WT_CKPT *ckpt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_checkpoint_last_name(WT_SESSION_IMPL *session, const char *fname, const char **namep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_meta_checkpoint_set(WT_SESSION_IMPL *session, const char *fname, const char *v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKPT **ckptbasep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_meta_ckptlist_set(WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep);
 extern void __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt);

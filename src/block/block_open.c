@@ -26,14 +26,16 @@ __wt_block_manager_drop(
  *	Create a file.
  */
 int
-__wt_block_manager_create(
-    WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize)
+__wt_block_manager_create(WT_SESSION_IMPL *session,
+    const char *filename, uint32_t allocsize, const char *metadata)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	WT_FH *fh;
 	int suffix;
 	bool exists;
+
+	fh = NULL;
 
 	/*
 	 * Create the underlying file and open a handle.
@@ -68,7 +70,7 @@ __wt_block_manager_create(
 	}
 
 	/* Write out the file's meta-data. */
-	ret = __wt_desc_write(session, fh, allocsize);
+	WT_ERR(__wt_desc_write(session, fh, allocsize, filename, metadata));
 
 	/*
 	 * Ensure the truncated file has made it to disk, then the upper-level
@@ -77,13 +79,13 @@ __wt_block_manager_create(
 	WT_TRET(__wt_fsync(session, fh, true));
 
 	/* Close the file handle. */
-	WT_TRET(__wt_close(session, &fh));
+err:	WT_TRET(__wt_close(session, &fh));
 
 	/* Undo any create on error. */
 	if (ret != 0)
 		WT_TRET(__wt_fs_remove(session, filename, false));
 
-err:	__wt_scr_free(session, &tmp);
+	__wt_scr_free(session, &tmp);
 
 	return (ret);
 }
@@ -274,11 +276,13 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
  *	Write a file's initial descriptor structure.
  */
 int
-__wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
+__wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
+    uint32_t allocsize, const char *filename, const char *metadata)
 {
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+	size_t metadata_len;
 
 	/* If in-memory, we don't read or write the descriptor structure. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -287,6 +291,20 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 	memset(buf->mem, 0, allocsize);
+
+	/* If there's room for the metadata, copy it into place. */
+	metadata_len = strlen(metadata) + 1;
+	if (WT_BLOCK_DESC_SIZE + metadata_len <= allocsize)
+		memcpy((uint8_t *)buf->mem +
+		    WT_BLOCK_DESC_SIZE, metadata, metadata_len);
+	else {
+		WT_RET(__wt_msg(session,
+		    "%s: metadata not stored in the file description block, "
+		    "the metadata length of %" WT_SIZET_FMT " is too large "
+		    "for the allocation size of %" PRIu32,
+		    filename, metadata_len, allocsize));
+		metadata_len = 0;
+	}
 
 	/*
 	 * Checksum a little-endian version of the header, and write everything
@@ -298,6 +316,8 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 	desc->majorv = WT_BLOCK_MAJOR_VERSION;
 	desc->minorv = WT_BLOCK_MINOR_VERSION;
 	desc->checksum = 0;
+	desc->allocsize = allocsize;
+	desc->metadata_len = metadata_len;
 	__wt_block_desc_byteswap(desc);
 	desc->checksum = __wt_checksum(desc, allocsize);
 #ifdef WORDS_BIGENDIAN
@@ -310,39 +330,61 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh, uint32_t allocsize)
 }
 
 /*
- * __desc_read --
+ * __wt_desc_read --
  *	Read and verify the file's metadata.
  */
-static int
-__desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
+int
+__wt_desc_read(WT_SESSION_IMPL *session,
+    WT_FH *fh, uint32_t allocsize, const char *filename, char **metadatap)
 {
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	uint32_t checksum_calculate, checksum_tmp;
 
-	/* If in-memory, we don't read or write the descriptor structure. */
-	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-		return (0);
-
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
-	WT_RET(__wt_scr_alloc(session, block->allocsize, &buf));
-
-	/* Read the first allocation-sized block and verify the file format. */
-	WT_ERR(__wt_read(session,
-	    block->fh, (wt_off_t)0, (size_t)block->allocsize, buf->mem));
+	WT_RET(__wt_scr_alloc(
+	    session, (size_t)WT_MAX(allocsize, 512), &buf));
 
 	/*
+	 * This routine is called in two paths: the usual one is the WiredTiger
+	 * block manager, in which case we know the allocation from the passed
+	 * in metadata. The other is a random file we're trying to figure out.
+	 * If we don't know the allocation size, read the first 512B block and
+	 * look. Older versions of the file format didn't include the allocation
+	 * size (or the metadata information, which is what we're really after,
+	 * if we don't know the allocation size), so the information may not be
+	 * available.
+	 */
+	if (allocsize == 0) {
+		WT_ERR(__wt_read(
+		    session, fh, (wt_off_t)0, (size_t)512, buf->mem));
+		desc = buf->mem;
+		__wt_block_desc_byteswap(desc);
+
+		if ((allocsize = desc->allocsize) == 0)
+			WT_ERR_MSG(session, WT_ERROR,
+			    "%s: unable to determine the description block's "
+			    "size",
+			    filename);
+		WT_ERR(__wt_buf_grow(session, buf, allocsize));
+	}
+
+	/*
+	 * Read and verify the file's description block.
+	 *
 	 * Handle little- and big-endian objects. Objects are written in little-
 	 * endian format: save the header checksum, and calculate the checksum
 	 * for the header in its little-endian form. Then, restore the header's
 	 * checksum, and byte-swap the whole thing as necessary, leaving us with
 	 * a calculated checksum that should match the checksum in the header.
 	 */
+	WT_ERR(__wt_read(
+	    session, fh, (wt_off_t)0, (size_t)allocsize, buf->mem));
 	desc = buf->mem;
 	checksum_tmp = desc->checksum;
 	desc->checksum = 0;
-	checksum_calculate = __wt_checksum(desc, block->allocsize);
+	checksum_calculate = __wt_checksum(desc, allocsize);
 	desc->checksum = checksum_tmp;
 	__wt_block_desc_byteswap(desc);
 
@@ -358,7 +400,7 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	if (desc->magic != WT_BLOCK_MAGIC ||
 	    desc->checksum != checksum_calculate)
 		WT_ERR_MSG(session, WT_ERROR,
-		    "%s does not appear to be a WiredTiger file", block->name);
+		    "%s does not appear to be a WiredTiger file", filename);
 
 	if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||
 	    (desc->majorv == WT_BLOCK_MAJOR_VERSION &&
@@ -373,10 +415,31 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	__wt_verbose(session, WT_VERB_BLOCK,
 	    "%s: magic %" PRIu32
 	    ", major/minor: %" PRIu32 "/%" PRIu32,
-	    block->name, desc->magic, desc->majorv, desc->minorv);
+	    filename, desc->magic, desc->majorv, desc->minorv);
+
+	/* Read any metadata. It's optional, so might not be there. */
+	if (metadatap != NULL && desc->metadata_len != 0)
+		WT_ERR(__wt_strndup(session,
+		    (uint8_t *)desc + WT_BLOCK_DESC_SIZE, desc->metadata_len,
+		    metadatap));
 
 err:	__wt_scr_free(session, &buf);
 	return (ret);
+}
+
+/*
+ * __desc_read --
+ *	Read and verify the file's metadata.
+ */
+static int
+__desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+	/* If in-memory, we don't read or write the descriptor structure. */
+	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+		return (0);
+
+	return (__wt_desc_read(
+	    session, block->fh, block->allocsize, block->name, NULL));
 }
 
 /*

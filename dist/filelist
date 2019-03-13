@@ -6,6 +6,7 @@ src/async/async_op.c
 src/async/async_worker.c
 src/block/block_addr.c
 src/block/block_ckpt.c
+src/block/block_ckpt_scan.c
 src/block/block_compact.c
 src/block/block_ext.c
 src/block/block_map.c

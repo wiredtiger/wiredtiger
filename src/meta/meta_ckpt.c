@@ -14,7 +14,6 @@ static int  __ckpt_load(WT_SESSION_IMPL *,
 		WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int  __ckpt_named(
 		WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
-static int  __ckpt_set(WT_SESSION_IMPL *, const char *, const char *);
 static int  __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 
 /*
@@ -94,17 +93,18 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
 	 * metadata entry.  If no entry is found to update and we're trying to
 	 * clear the checkpoint, just ignore it.
 	 */
-	WT_RET_NOTFOUND_OK(__ckpt_set(session, fname, NULL));
+	WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_set(session, fname, NULL));
 
 	return (0);
 }
 
 /*
- * __ckpt_set --
+ * __wt_meta_checkpoint_set --
  *	Set a file's checkpoint.
  */
-static int
-__ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
+int
+__wt_meta_checkpoint_set(
+    WT_SESSION_IMPL *session, const char *fname, const char *v)
 {
 	WT_DECL_RET;
 	const char *cfg[3];
@@ -254,6 +254,7 @@ __wt_meta_ckptlist_get(
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	size_t allocated, slot;
+	int64_t maxorder;
 	char *config;
 
 	*ckptbasep = NULL;
@@ -292,6 +293,15 @@ __wt_meta_ckptlist_get(
 
 	/* Sort in creation-order. */
 	__wt_qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
+
+	/* Initialize the new value. */
+	maxorder = 0;
+	WT_CKPT_FOREACH(ckptbase, ckpt)
+		if (ckpt->order > maxorder)
+			maxorder = ckpt->order;
+	ckpt->order = maxorder + 1;
+	__wt_seconds(session, &ckpt->sec);
+	F_SET(ckpt, WT_CKPT_ADD);
 
 	/* Return the array to our caller. */
 	*ckptbasep = ckptbase;
@@ -375,40 +385,19 @@ format:
 }
 
 /*
- * __wt_meta_ckptlist_set --
- *	Set a file's checkpoint value from the WT_CKPT list.
+ * __wt_meta_ckptlist_to_meta --
+ *	Convert a checkpoint list into its metadata representation.
  */
 int
-__wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
-    const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
+__wt_meta_ckptlist_to_meta(
+    WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM *buf)
 {
 	WT_CKPT *ckpt;
-	WT_DECL_ITEM(buf);
-	WT_DECL_RET;
-	int64_t maxorder;
 	const char *sep;
 
-	WT_ERR(__wt_scr_alloc(session, 0, &buf));
-	maxorder = 0;
 	sep = "";
-	WT_ERR(__wt_buf_fmt(session, buf, "checkpoint=("));
+	WT_RET(__wt_buf_fmt(session, buf, "checkpoint=("));
 	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		/*
-		 * Each internal checkpoint name is appended with a generation
-		 * to make it a unique name.  We're solving two problems: when
-		 * two checkpoints are taken quickly, the timer may not be
-		 * unique and/or we can even see time travel on the second
-		 * checkpoint if we snapshot the time in-between nanoseconds
-		 * rolling over.  Second, if we reset the generational counter
-		 * when new checkpoints arrive, we could logically re-create
-		 * specific checkpoints, racing with cursors open on those
-		 * checkpoints.  I can't think of any way to return incorrect
-		 * results by racing with those cursors, but it's simpler not
-		 * to worry about it.
-		 */
-		if (ckpt->order > maxorder)
-			maxorder = ckpt->order;
-
 		/* Skip deleted checkpoints. */
 		if (F_ISSET(ckpt, WT_CKPT_DELETE))
 			continue;
@@ -422,32 +411,26 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			if (ckpt->raw.size == 0)
 				ckpt->addr.size = 0;
 			else
-				WT_ERR(__wt_raw_to_hex(session,
+				WT_RET(__wt_raw_to_hex(session,
 				    ckpt->raw.data,
 				    ckpt->raw.size, &ckpt->addr));
-
-			/* Set the order and timestamp. */
-			if (F_ISSET(ckpt, WT_CKPT_ADD))
-				ckpt->order = ++maxorder;
-
-			__wt_seconds(session, &ckpt->sec);
 		}
 
 		__wt_timestamp_addr_check(session, ckpt->oldest_start_ts,
 		    ckpt->newest_start_ts, ckpt->newest_stop_ts);
 
-		WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
+		WT_RET(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
 		sep = ",";
 
 		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
-			WT_ERR(__wt_buf_catfmt(session, buf,
+			WT_RET(__wt_buf_catfmt(session, buf,
 			    ".%" PRId64, ckpt->order));
 
 		/*
 		 * Use PRId64 formats: WiredTiger's configuration code handles
 		 * signed 8B values.
 		 */
-		WT_ERR(__wt_buf_catfmt(session, buf,
+		WT_RET(__wt_buf_catfmt(session, buf,
 		    "=(addr=\"%.*s\",order=%" PRId64
 		    ",time=%" PRIu64
 		    ",size=%" PRId64
@@ -464,12 +447,32 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 		    (int64_t)ckpt->newest_stop_ts,
 		    (int64_t)ckpt->write_gen));
 	}
-	WT_ERR(__wt_buf_catfmt(session, buf, ")"));
+	WT_RET(__wt_buf_catfmt(session, buf, ")"));
+
+	return (0);
+}
+
+/*
+ * __wt_meta_ckptlist_set --
+ *	Set a file's checkpoint value from the WT_CKPT list.
+ */
+int
+__wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
+    const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
+{
+	WT_DECL_ITEM(buf);
+	WT_DECL_RET;
+
+	WT_RET(__wt_scr_alloc(session, 1024, &buf));
+
+	WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
+
 	if (ckptlsn != NULL)
 		WT_ERR(__wt_buf_catfmt(session, buf,
 		    ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
 		    ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
-	WT_ERR(__ckpt_set(session, fname, buf->mem));
+
+	WT_ERR(__wt_meta_checkpoint_set(session, fname, buf->mem));
 
 err:	__wt_scr_free(session, &buf);
 	return (ret);
