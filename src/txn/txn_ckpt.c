@@ -1289,13 +1289,11 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	const char *name;
 	char *name_alloc;
-	bool hot_backup_locked;
 
 	btree = S2BT(session);
 	conn = S2C(session);
 	ckpt = ckptbase = NULL;
 	dhandle = session->dhandle;
-	hot_backup_locked = false;
 	name_alloc = NULL;
 
 	/* Only referenced in diagnostic builds. */
@@ -1385,74 +1383,68 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	 * Hold the lock until we're done (blocking hot backups from starting),
 	 * we don't want to race with a future hot backup.
 	 */
-	__wt_readlock(session, &conn->hot_backup_lock);
-	hot_backup_locked = true;
-	if (conn->hot_backup)
-		WT_CKPT_FOREACH(ckptbase, ckpt) {
-			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-				continue;
-			if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-				F_CLR(ckpt, WT_CKPT_DELETE);
-				continue;
+	WT_WITH_HOTBACKUP_LOCK(session, {
+		if (conn->hot_backup)
+			WT_CKPT_FOREACH(ckptbase, ckpt) {
+				if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+					continue;
+				if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+					F_CLR(ckpt, WT_CKPT_DELETE);
+					continue;
+				}
+				WT_ERR_MSG(session, EBUSY,
+				           "checkpoint %s blocked by hot backup: it would "
+				           "delete an existing checkpoint, and checkpoints "
+				           "cannot be deleted during a hot backup",
+				           ckpt->name);
 			}
-			WT_ERR_MSG(session, EBUSY,
-			    "checkpoint %s blocked by hot backup: it would "
-			    "delete an existing checkpoint, and checkpoints "
-			    "cannot be deleted during a hot backup",
-			    ckpt->name);
-		}
-
-	/*
-	 * Mark old checkpoints that are being deleted and figure out which
-	 * trees we can skip in this checkpoint.
-	 */
-	WT_ERR(__checkpoint_mark_skip(session, ckptbase, force));
-	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
-		goto err;
-
-	/*
-	 * Lock the checkpoints that will be deleted.
-	 *
-	 * Checkpoints are only locked when tracking is enabled, which covers
-	 * checkpoint and drop operations, but not close.  The reasoning is
-	 * there should be no access to a checkpoint during close, because any
-	 * thread accessing a checkpoint will also have the current file handle
-	 * open.
-	 */
-	if (WT_META_TRACKING(session))
-		WT_CKPT_FOREACH(ckptbase, ckpt) {
-			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-				continue;
-
-			/*
-			 * We can't delete checkpoints referenced by a cursor.
-			 * WiredTiger checkpoints are uniquely named and it's
-			 * OK to have multiple in the system: clear the delete
-			 * flag for them, and otherwise fail.
-			 */
-			ret = __wt_session_lock_checkpoint(session, ckpt->name);
-			if (ret == 0)
-				continue;
-			if (ret == EBUSY &&
-			    WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-				F_CLR(ckpt, WT_CKPT_DELETE);
-				continue;
+		/*
+		 * Mark old checkpoints that are being deleted and figure out which
+		 * trees we can skip in this checkpoint.
+		 */
+		WT_ERR(__checkpoint_mark_skip(session, ckptbase, force));
+		if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+			goto err;
+		/*
+		 * Lock the checkpoints that will be deleted.
+		 *
+		 * Checkpoints are only locked when tracking is enabled, which covers
+		 * checkpoint and drop operations, but not close.  The reasoning is
+		 * there should be no access to a checkpoint during close, because any
+		 * thread accessing a checkpoint will also have the current file handle
+		 * open.
+		 */
+		if (WT_META_TRACKING(session))
+			WT_CKPT_FOREACH(ckptbase, ckpt) {
+				if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+					continue;
+				/*
+				 * We can't delete checkpoints referenced by a cursor.
+				 * WiredTiger checkpoints are uniquely named and it's
+				 * OK to have multiple in the system: clear the delete
+				 * flag for them, and otherwise fail.
+				 */
+				ret = __wt_session_lock_checkpoint(session, ckpt->name);
+				if (ret == 0)
+					continue;
+				if (ret == EBUSY &&
+				    WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+					F_CLR(ckpt, WT_CKPT_DELETE);
+					continue;
+				}
+				WT_ERR_MSG(session, ret,
+				           "checkpoints cannot be dropped when in-use");
 			}
-			WT_ERR_MSG(session, ret,
-			    "checkpoints cannot be dropped when in-use");
-		}
-
-	/*
-	 * There are special trees: those being bulk-loaded, salvaged, upgraded
-	 * or verified during the checkpoint. They should never be part of a
-	 * checkpoint: we will fail to lock them because the operations have
-	 * exclusive access to the handles. Named checkpoints will fail in that
-	 * case, ordinary checkpoints skip files that cannot be opened normally.
-	 */
-	WT_ASSERT(session,
-	    !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
-
-	__wt_readunlock(session, &conn->hot_backup_lock);
+		/*
+		 * There are special trees: those being bulk-loaded, salvaged, upgraded
+		 * or verified during the checkpoint. They should never be part of a
+		 * checkpoint: we will fail to lock them because the operations have
+		 * exclusive access to the handles. Named checkpoints will fail in that
+		 * case, ordinary checkpoints skip files that cannot be opened normally.
+		 */
+		WT_ASSERT(session,
+		          !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
+	});
 
 	WT_ASSERT(session, btree->ckpt == NULL &&
 	    !F_ISSET(btree, WT_BTREE_SKIP_CKPT));
@@ -1460,8 +1452,10 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 
 	return (0);
 
-err:	if (hot_backup_locked)
+err:	if (F_ISSET(session, WT_SESSION_HOTBACKUP_LOCKED)) {
+		F_CLR(session, WT_SESSION_HOTBACKUP_LOCKED);
 		__wt_readunlock(session, &conn->hot_backup_lock);
+	}
 
 	__wt_meta_ckptlist_free(session, &ckptbase);
 	__wt_free(session, name_alloc);
