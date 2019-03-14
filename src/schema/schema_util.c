@@ -28,9 +28,9 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
 		return (0);
 	WT_WITH_HOTBACKUP_LOCK(session, {
 		/*
-		 * There is a window at the end of a backup where the list has been
-		 * cleared from the connection but the flag is still set.  It is safe
-		 * to drop at that point.
+		 * There is a window at the end of a backup where the list has
+		 * been cleared from the connection but the flag is still set.
+		 * It is safe to drop at that point.
 		 */
 		if (!conn->hot_backup ||
 		    (backup_list = conn->hot_backup_list) == NULL) {
