@@ -1791,6 +1791,12 @@ struct __wt_session {
 	 * @config{read_timestamp, read using the specified timestamp.  The
 	 * supplied value must not be older than the current oldest timestamp.
 	 * See @ref transaction_timestamps., a string; default empty.}
+	 * @config{round_prepare_timestamp, if the prepare timestamp of this
+	 * transaction is earlier than the oldest timestamp\, the prepare
+	 * timestamp will be rounded to the oldest timestamp.  if the commit
+	 * timestamp is earlier than the prepare timestamp\, the commit
+	 * timestamp will be rounded to the prepare timestamp., a boolean flag;
+	 * default \c false.}
 	 * @config{round_to_oldest, if read timestamp is earlier than oldest
 	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
 	 * boolean flag; default \c false.}
@@ -1828,9 +1834,6 @@ struct __wt_session {
 	 * timestamp set for the current transaction.  The value must also not
 	 * be older than the current stable timestamp.  See @ref
 	 * transaction_timestamps., a string; default empty.}
-	 * @config{round_to_prepare, if commit timestamp is earlier than prepare
-	 * timestamp\, commit timestamp will be rounded to prepare timestamp., a
-	 * boolean flag; default \c false.}
 	 * @config{sync, override whether to sync log records when the
 	 * transaction commits\, inherited from ::wiredtiger_open \c
 	 * transaction_sync.  The \c background setting initiates a background
@@ -1867,9 +1870,6 @@ struct __wt_session {
 	 * than any active read timestamps.  This configuration option is
 	 * mandatory.  See @ref transaction_timestamps., a string; default
 	 * empty.}
-	 * @config{round_to_oldest, if prepare timestamp is earlier than oldest
-	 * timestamp\, prepare timestamp will be rounded to oldest timestamp., a
-	 * boolean flag; default \c false.}
 	 * @configend
 	 * @errors
 	 */
@@ -1917,9 +1917,6 @@ struct __wt_session {
 	 * transaction_timestamps., a string; default empty.}
 	 * @config{round_to_oldest, if read timestamp is earlier than oldest
 	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
-	 * boolean flag; default \c false.}
-	 * @config{round_to_prepare, if commit timestamp is earlier than prepare
-	 * timestamp\, commit timestamp will be rounded to prepare timestamp., a
 	 * boolean flag; default \c false.}
 	 * @configend
 	 * @errors

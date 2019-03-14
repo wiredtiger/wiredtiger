@@ -280,6 +280,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
 	{ "name", "string", NULL, NULL, NULL, 0 },
 	{ "priority", "int", NULL, "min=-100,max=100", NULL, 0 },
 	{ "read_timestamp", "string", NULL, NULL, NULL, 0 },
+	{ "round_prepare_timestamp", "boolean", NULL, NULL, NULL, 0 },
 	{ "round_to_oldest", "boolean", NULL, NULL, NULL, 0 },
 	{ "snapshot", "string", NULL, NULL, NULL, 0 },
 	{ "sync", "boolean", NULL, NULL, NULL, 0 },
@@ -298,7 +299,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_commit_transaction[] = {
 	{ "commit_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "durable_timestamp", "string", NULL, NULL, NULL, 0 },
-	{ "round_to_prepare", "boolean", NULL, NULL, NULL, 0 },
 	{ "sync", "string",
 	    NULL, "choices=[\"background\",\"off\",\"on\"]",
 	    NULL, 0 },
@@ -475,7 +475,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
 	{ "prepare_timestamp", "string", NULL, NULL, NULL, 0 },
-	{ "round_to_oldest", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -525,7 +524,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction[] = {
 	{ "durable_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "read_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "round_to_oldest", "boolean", NULL, NULL, NULL, 0 },
-	{ "round_to_prepare", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
@@ -1363,8 +1361,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	},
 	{ "WT_SESSION.begin_transaction",
 	  "ignore_prepare=false,isolation=,name=,priority=0,read_timestamp="
-	  ",round_to_oldest=false,snapshot=,sync=",
-	  confchk_WT_SESSION_begin_transaction, 8
+	  ",round_prepare_timestamp=false,round_to_oldest=false,snapshot=,"
+	  "sync=",
+	  confchk_WT_SESSION_begin_transaction, 9
 	},
 	{ "WT_SESSION.checkpoint",
 	  "drop=,force=false,name=,target=,use_timestamp=true",
@@ -1375,9 +1374,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "WT_SESSION.commit_transaction",
-	  "commit_timestamp=,durable_timestamp=,round_to_prepare=false,"
-	  "sync=",
-	  confchk_WT_SESSION_commit_transaction, 4
+	  "commit_timestamp=,durable_timestamp=,sync=",
+	  confchk_WT_SESSION_commit_transaction, 3
 	},
 	{ "WT_SESSION.compact",
 	  "timeout=1200",
@@ -1432,8 +1430,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_open_cursor, 14
 	},
 	{ "WT_SESSION.prepare_transaction",
-	  "prepare_timestamp=,round_to_oldest=false",
-	  confchk_WT_SESSION_prepare_transaction, 2
+	  "prepare_timestamp=",
+	  confchk_WT_SESSION_prepare_transaction, 1
 	},
 	{ "WT_SESSION.query_timestamp",
 	  "get=read",
@@ -1474,8 +1472,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	},
 	{ "WT_SESSION.timestamp_transaction",
 	  "commit_timestamp=,durable_timestamp=,read_timestamp=,"
-	  "round_to_oldest=false,round_to_prepare=false",
-	  confchk_WT_SESSION_timestamp_transaction, 5
+	  "round_to_oldest=false",
+	  confchk_WT_SESSION_timestamp_transaction, 4
 	},
 	{ "WT_SESSION.transaction_sync",
 	  "timeout_ms=1200000",

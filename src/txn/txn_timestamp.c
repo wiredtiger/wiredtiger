@@ -583,8 +583,7 @@ set:	__wt_writelock(session, &txn_global->rwlock);
  */
 int
 __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
-    wt_timestamp_t ts, WT_CONFIG_ITEM *cval, bool durable_ts,
-    bool round_to_prepare)
+    wt_timestamp_t ts, WT_CONFIG_ITEM *cval, bool durable_ts)
 {
 	WT_TXN *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
@@ -641,7 +640,7 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * timestamp.
 	 */
 	if (F_ISSET(txn, WT_TXN_PREPARE) && ts < txn->prepare_timestamp) {
-		if (round_to_prepare)
+		if (F_ISSET(txn, WT_TXN_ROUND_PREPARE))
 			ts = txn->prepare_timestamp;
 		else {
 			__wt_timestamp_to_string(
@@ -677,10 +676,10 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 	WT_TXN *txn;
 	wt_timestamp_t ts;
-	bool prepare, prepare_allowed, round_to_prepare;
+	bool prepare, prepare_allowed;
 
 	txn = &session->txn;
-	prepare = prepare_allowed = round_to_prepare = false;
+	prepare = prepare_allowed = false;
 	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
 	/* Look for a commit timestamp. */
@@ -690,21 +689,16 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 
-		ret = __wt_config_gets_def(
-		    session, cfg, "round_to_prepare", 0, &cval);
-		WT_RET_NOTFOUND_OK(ret);
-		if (ret == 0 && cval.len != 0)
-			round_to_prepare = true;
 		/*
 		 * For prepared transactions, commit timestamp can be earlier
 		 * than stable timestamp.
 		 */
 		if (prepare)
-			WT_RET(__wt_txn_commit_timestamp_validate(session,
-			    "commit", ts, &cval, false, round_to_prepare));
+			WT_RET(__wt_txn_commit_timestamp_validate(
+			    session, "commit", ts, &cval, false));
 		else
 			WT_RET(__wt_txn_commit_timestamp_validate(
-			    session, "commit", ts, &cval, true, false));
+			    session, "commit", ts, &cval, true));
 		txn->commit_timestamp = ts;
 		__wt_txn_set_commit_timestamp(session);
 		txn->durable_timestamp = txn->commit_timestamp;
@@ -732,7 +726,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (ret == 0 && cval.len != 0)
 		WT_RET(__wt_txn_commit_timestamp_validate(session,
-		    "durable", txn->durable_timestamp, &cval, true, false));
+		    "durable", txn->durable_timestamp, &cval, true));
 	/*
 	 * We allow setting the commit timestamp and durable timestamp after a
 	 * prepare but no other timestamp.
@@ -759,12 +753,12 @@ __wt_txn_parse_prepare_timestamp(
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts, timestamp;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool checkpoint_accounted, round_to_oldest;
+	bool checkpoint_accounted, self_accounted;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
 
-	checkpoint_accounted = round_to_oldest = false;
+	checkpoint_accounted = self_accounted = false;
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "prepare_timestamp", 0, &cval));
@@ -776,9 +770,6 @@ __wt_txn_parse_prepare_timestamp(
 		    "should not have been set before prepare transaction");
 
 	WT_RET(__wt_txn_parse_timestamp(session, "prepare", &timestamp, &cval));
-
-	WT_RET(__wt_config_gets_def(session, cfg, "round_to_oldest", 0, &cval));
-	round_to_oldest = cval.val;
 
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 
@@ -798,14 +789,21 @@ __wt_txn_parse_prepare_timestamp(
 			continue;
 		}
 
-		/* Skip self transaction. */
-		if (prev->read_timestamp == txn->read_timestamp)
+		/* Skip self transaction only once. */
+		if (!self_accounted &&
+		    prev->read_timestamp == txn->read_timestamp) {
+			self_accounted = true;
+			prev = TAILQ_PREV(
+			    prev, __wt_txn_rts_qh, read_timestampq);
 			continue;
+		}
 
-		/* Skip checkpoint timestamp. */
-		if (prev->read_timestamp == txn_global->checkpoint_timestamp &&
-		    !checkpoint_accounted) {
+		/* Skip checkpoint timestamp only once. */
+		if (!checkpoint_accounted &&
+		    prev->read_timestamp == txn_global->checkpoint_timestamp) {
 			checkpoint_accounted = true;
+			prev = TAILQ_PREV(
+			    prev, __wt_txn_rts_qh, read_timestampq);
 			continue;
 		}
 
@@ -828,7 +826,7 @@ __wt_txn_parse_prepare_timestamp(
 	 */
 	if (prev == NULL && timestamp < oldest_ts) {
 		/* Round off prepare timestamp to oldest timestamp. */
-		if (round_to_oldest) {
+		if (F_ISSET(txn, WT_TXN_ROUND_PREPARE)) {
 			__wt_readunlock(
 			    session, &txn_global->read_timestamp_rwlock);
 			if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {

@@ -1282,6 +1282,13 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
+    Config('round_prepare_timestamp', 'false', r'''
+        if the prepare timestamp of this transaction is earlier than the oldest
+        timestamp, the prepare timestamp will be rounded to the oldest
+        timestamp. if the commit timestamp is earlier than the prepare
+        timestamp, the commit timestamp will be rounded to the prepare
+        timestamp''',
+        type='boolean'),
     Config('round_to_oldest', 'false', r'''
         if read timestamp is earlier than oldest timestamp,
         read timestamp will be rounded to oldest timestamp''',
@@ -1308,10 +1315,6 @@ methods = {
         current transaction.  The value must also not be older than the
         current stable timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_to_prepare', 'false', r'''
-        if commit timestamp is earlier than prepare timestamp,
-        commit timestamp will be rounded to prepare timestamp''',
-        type='boolean'),
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync.
@@ -1329,10 +1332,6 @@ methods = {
         The supplied value must not be older than any active read timestamps.
         This configuration option is mandatory.  See
         @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if prepare timestamp is earlier than oldest timestamp,
-        prepare timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1355,10 +1354,6 @@ methods = {
     Config('round_to_oldest', 'false', r'''
         if read timestamp is earlier than oldest timestamp,
         read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
-    Config('round_to_prepare', 'false', r'''
-        if commit timestamp is earlier than prepare timestamp,
-        commit timestamp will be rounded to prepare timestamp''',
         type='boolean'),
 ]),
 
