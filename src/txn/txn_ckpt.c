@@ -1397,7 +1397,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 				    "checkpoint %s blocked by hot backup: it "
 				    "would delete an existing checkpoint, and "
 				    "checkpoints cannot be deleted during a "
-				    "hot backup", cpkt-name);
+				    "hot backup", ckpt->name);
 			}
 		/*
 		 * Mark old checkpoints that are being deleted and figure out
