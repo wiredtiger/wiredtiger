@@ -1235,7 +1235,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	WT_LOG *log;
 	WT_LSN end_lsn, logrec_lsn;
 	u_int yield_cnt;
-	bool create_log;
+	bool create_log, alloc_log;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -1284,13 +1284,15 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 */
 	create_log = true;
 	if (conn->log_prealloc > 0 && !conn->hot_backup) {
-		__wt_readlock(session, &conn->hot_backup_lock);
-		if (conn->hot_backup)
-			__wt_readunlock(session, &conn->hot_backup_lock);
-		else {
-			ret = __log_alloc_prealloc(session, log->fileid);
-			__wt_readunlock(session, &conn->hot_backup_lock);
+		WT_WITH_HOTBACKUP_LOCK(session, {
+			if (!conn->hot_backup) {
+				alloc_log = true;
+				ret = __log_alloc_prealloc(
+				    session, log->fileid);
+			}
+		});
 
+		if (alloc_log) {
 			/*
 			 * If ret is 0 it means we found a pre-allocated file.
 			 * If ret is WT_NOTFOUND, create the new log file and
@@ -1517,17 +1519,20 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
+	bool truncate;
 
 	conn = S2C(session);
 	log = conn->log;
+	truncate = true;
 
 	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && !conn->hot_backup) {
-		__wt_readlock(session, &conn->hot_backup_lock);
-		if (conn->hot_backup)
-			__wt_readunlock(session, &conn->hot_backup_lock);
-		else {
-			ret = __wt_ftruncate(session, log_fh, offset);
-			__wt_readunlock(session, &conn->hot_backup_lock);
+		WT_WITH_HOTBACKUP_LOCK(session, {
+			if (!conn->hot_backup) {
+				truncate = true;
+				ret = __wt_ftruncate(session, log_fh, offset);
+			}
+		});
+		if (truncate) {
 			if (ret != ENOTSUP)
 				return (ret);
 			F_SET(log, WT_LOG_TRUNCATE_NOTSUP);
