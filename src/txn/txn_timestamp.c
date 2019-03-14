@@ -725,8 +725,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 * is required.
 	 */
 	if (ret == 0 && cval.len != 0)
-		WT_RET(__wt_txn_commit_timestamp_validate(session,
-		    "durable", txn->durable_timestamp, &cval, true));
+		WT_RET(__wt_txn_commit_timestamp_validate(
+		    session, "durable", txn->durable_timestamp, &cval, true));
 	/*
 	 * We allow setting the commit timestamp and durable timestamp after a
 	 * prepare but no other timestamp.
