@@ -1283,6 +1283,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * in any way they choose, and a log file rename might confuse things.
 	 */
 	create_log = true;
+	alloc_log = false;
 	if (conn->log_prealloc > 0 && !conn->hot_backup) {
 		WT_WITH_HOTBACKUP_LOCK(session, {
 			if (!conn->hot_backup) {
@@ -1523,7 +1524,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
 
 	conn = S2C(session);
 	log = conn->log;
-	truncate = true;
+	truncate = false;
 
 	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && !conn->hot_backup) {
 		WT_WITH_HOTBACKUP_LOCK(session, {
