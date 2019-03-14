@@ -257,6 +257,23 @@ struct __wt_table {
 } while (0)
 
 /*
+ * WT_WITH_HOTBACKUP_LOCK --
+ * Acquire the hot backup lock, perform an operation, drop the lock.
+ */
+#define WT_WITH_HOTBACKUP_LOCK(session, op) do {			\
+	WT_CONNECTION_IMPL *__conn = S2C(session);			\
+	if (F_ISSET(session, WT_SESSION_HOTBACKUP_LOCKED)) {		\
+		op;							\
+	} else {							\
+		__wt_readlock(session, &__conn->hot_backup_lock);	\
+		F_SET(session, WT_SESSION_HOTBACKUP_LOCKED);		\
+		op;							\
+		F_CLR(session, WT_SESSION_HOTBACKUP_LOCKED);		\
+		__wt_readunlock(session, &__conn->hot_backup_lock);	\
+	}								\
+} while (0)
+
+/*
  * WT_WITHOUT_LOCKS --
  *	Drop the handle, table and/or schema locks, perform an operation,
  *	re-acquire the lock(s).
