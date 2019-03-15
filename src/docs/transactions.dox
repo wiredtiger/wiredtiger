@@ -247,13 +247,13 @@ WT_CONNECTION::set_timestamp.
 
 | Timestamp | Description | Constraint |
 |-----------|-------------|------------|
-| all_committed | blah | blah |
-| last_checkpoint | blah | blah |
-| oldest | blah | blah |
-| oldest_reader | blah | blah |
-| pinned | blah | blah |
-| recovery | blah | blah |
-| stable | blah | blah |
+| all_committed | The oldest timestamp at which all previous write transactions have committed. | |
+| last_checkpoint | The point at which the last checkpoint ran. | last_checkpoint <= stable timestamp |
+| oldest | Modification history is not guaranteed to exist prior to the oldest timestamp, as such reads should not be performed before the oldest timestamp. It can be set via the api. | 0 <= oldest <= stable |
+| oldest_reader | The timestamp of the oldest currently active read transaction, oldest_reader will not exist without an active read transaction. | |
+| pinned | Minimum of the oldest_reader and oldest timestamp. | |
+| recovery | The most recent stable checkpoint prior to shutdown. | |
+| stable | Any transactions before the stable timestamp will not be able to write data, except in the instance of prepared transactions. This timestamp can be set via the api. | stable >= oldest |
 
 @subsection timestamp_extensions Timestamp support in the extension API
 
