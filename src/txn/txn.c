@@ -536,7 +536,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * transaction to be rounded off.
 	 */
 	WT_RET(__wt_config_gets_def(
-	    session, cfg, "round_prepare_timestamp", 0, &cval));
+	    session, cfg, "round_prepare_upto_oldest", 0, &cval));
 	if (cval.val)
 		F_SET(txn, WT_TXN_ROUND_PREPARE);
 
@@ -801,7 +801,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
-	/* Clear round_prepare_timestamp flag for non-prepared transactions. */
+	/* Clear prepare round off flag for non-prepared transactions. */
 	if (!prepare)
 		F_CLR(txn, WT_TXN_ROUND_PREPARE);
 

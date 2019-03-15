@@ -1282,10 +1282,10 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_prepare_timestamp', 'false', r'''
+    Config('round_prepare_upto_oldest', 'false', r'''
         if the prepare timestamp of this transaction is earlier than the oldest
         timestamp, the prepare timestamp will be rounded to the oldest
-        timestamp. if the commit timestamp is earlier than the prepare
+        timestamp. If the commit timestamp is earlier than the prepare
         timestamp, the commit timestamp will be rounded to the prepare
         timestamp''',
         type='boolean'),
