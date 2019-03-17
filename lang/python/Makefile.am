@@ -10,7 +10,7 @@ all-local: _wiredtiger.so pyfiles
 
 # We keep generated Python sources under lang/python: that's where they live
 # in release packages.
-$(PYSRC)/wiredtiger_wrap.c: $(top_srcdir)/src/include/wiredtiger.in $(PYSRC)/wiredtiger.i
+$(PYSRC)/wiredtiger_wrap.c $(PYSRC)/wiredtiger/__init__.py: $(top_srcdir)/src/include/wiredtiger.in $(PYSRC)/wiredtiger.i
 	(cd $(PYSRC) && \
 	    $(SWIG) -python -threads -O -Wall -nodefaultctor -nodefaultdtor -I$(abs_top_builddir) wiredtiger.i && \
 	    mv wiredtiger.py wiredtiger/__init__.py)
