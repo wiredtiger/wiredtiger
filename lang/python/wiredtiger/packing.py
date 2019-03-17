@@ -49,7 +49,6 @@ Format  Python  Notes
   u     str     raw byte array
 """
 
-from builtins import bytes, chr
 from intpacking import pack_int, unpack_int
 
 def __get_type(fmt):

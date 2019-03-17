@@ -28,7 +28,7 @@
 #
 
 from __future__ import print_function
-import math, struct
+import math, struct, sys
 
 # Variable-length integer packing
 # need: up to 64 bits, both signed and unsigned
@@ -63,8 +63,33 @@ POS_2BYTE_MAX = 2**13 + POS_1BYTE_MAX
 MINUS_BIT = -1 << 64
 UINT64_MASK = 0xffffffffffffffff
 
-def _ord(b):
-    return b
+# Python3 specific functions and constants.
+
+# The _ord function converts a single element of a bytes type to an int.
+# The bytes type is like a list of ints in Python3, and like a str in Python2.
+# _chr creates the result for the pack_int function, either a bytes or chr.
+if sys.version_info[0] >= 3:
+    x00 = b'\x00'
+    xff = b'\xff'
+    def _ord(b):
+        return b
+
+    def _chr(x, y=None):
+        a = [x]
+        if y != None:
+            a.append(y)
+        return bytes(a)
+else:
+    x00 = '\x00'
+    xff = '\xff'
+    def _ord(b):
+        return ord(b)
+
+    def _chr(x, y=None):
+        s = chr(x)
+        if y != None:
+            s += chr(y)
+        return s
 
 def getbits(x, start, end=0):
     '''return the least significant bits of x, from start to end'''
@@ -79,20 +104,20 @@ def get_int(b, size):
 def pack_int(x):
     if x < NEG_2BYTE_MIN:
         packed = struct.pack('>Q', x & UINT64_MASK)
-        while packed and packed[0] == b'\xff':
+        while packed and packed[0] == xff:
             packed = packed[1:]
-        return bytes([NEG_MULTI_MARKER | getbits(8 - len(packed), 4)]) + packed
+        return _chr(NEG_MULTI_MARKER | getbits(8 - len(packed), 4)) + packed
     elif x < NEG_1BYTE_MIN:
         x -= NEG_2BYTE_MIN
-        return bytes([NEG_2BYTE_MARKER | getbits(x, 13, 8), getbits(x, 8)])
+        return _chr(NEG_2BYTE_MARKER | getbits(x, 13, 8), getbits(x, 8))
     elif x < 0:
         x -= NEG_1BYTE_MIN
-        return bytes([NEG_1BYTE_MARKER | getbits(x, 6)])
+        return _chr(NEG_1BYTE_MARKER | getbits(x, 6))
     elif x <= POS_1BYTE_MAX:
-        return bytes([POS_1BYTE_MARKER | getbits(x, 6)])
+        return _chr(POS_1BYTE_MARKER | getbits(x, 6))
     elif x <= POS_2BYTE_MAX:
         x -= (POS_1BYTE_MAX + 1)
-        return bytes([POS_2BYTE_MARKER | getbits(x, 13, 8), getbits(x, 8)])
+        return _chr(POS_2BYTE_MARKER | getbits(x, 13, 8), getbits(x, 8))
     elif x == POS_2BYTE_MAX + 1:
         # This is a special case where we could store the value with
         # just a single byte, but we append a zero byte so that the
@@ -100,9 +125,9 @@ def pack_int(x):
         return bytes[POS_MULTI_MARKER | 0x1, 0]
     else:
         packed = struct.pack('>Q', x - (POS_2BYTE_MAX + 1))
-        while packed and packed[0] == b'\x00':
+        while packed and packed[0] == x00:
             packed = packed[1:]
-        return bytes([POS_MULTI_MARKER | getbits(len(packed), 4)]) + packed
+        return _chr(POS_MULTI_MARKER | getbits(len(packed), 4)) + packed
 
 def unpack_int(b):
     marker = _ord(b[0])

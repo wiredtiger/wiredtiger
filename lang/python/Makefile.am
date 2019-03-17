@@ -1,22 +1,29 @@
-PYTHON = python3
+#PYTHON = python3  # enable for Python3 support
+PYTHON = python
 PYSRC = $(top_srcdir)/lang/python
 PYDIRS = -t $(abs_builddir) -I $(abs_top_srcdir):$(abs_top_builddir) -L $(abs_top_builddir)/.libs
 PYTARGET = $(abs_builddir)/wiredtiger
-all-local: _wiredtiger.so
+PYFILES = $(PYTARGET)/fpacking.py $(PYTARGET)/intpacking.py \
+	$(PYTARGET)/packing.py $(PYTARGET)/__init__.py
+
+all-local: _wiredtiger.so pyfiles
 
 # We keep generated Python sources under lang/python: that's where they live
 # in release packages.
 $(PYSRC)/wiredtiger_wrap.c: $(top_srcdir)/src/include/wiredtiger.in $(PYSRC)/wiredtiger.i
 	(cd $(PYSRC) && \
-	    $(SWIG) -python -py3 -threads -O -Wall -nodefaultctor -nodefaultdtor -I$(abs_top_builddir) wiredtiger.i && \
-	    mkdir -p $(PYTARGET) && \
-	    cp wiredtiger/* $(PYTARGET) && \
-	    mv wiredtiger.py $(PYTARGET)/__init__.py)
+	    $(SWIG) -python -threads -O -Wall -nodefaultctor -nodefaultdtor -I$(abs_top_builddir) wiredtiger.i && \
+	    mv wiredtiger.py wiredtiger/__init__.py)
 
 _wiredtiger.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/wiredtiger_wrap.c
 	(cd $(PYSRC) && \
 	    $(PYTHON) setup.py build_ext -f -b $(abs_builddir) $(PYDIRS))
-	(cd $(PYTARGET) && ln -f -s ../_wiredtiger*.so _wiredtiger.so)
+	(mkdir -p $(PYTARGET) && cd $(PYTARGET) && ln -f -s ../_wiredtiger*.so _wiredtiger.so)
+
+pyfiles: $(PYFILES)
+
+$(PYTARGET)/%: $(PYSRC)/wiredtiger/%
+	mkdir -p $(PYTARGET) && cp -f $< $@
 
 install-exec-local:
 	(cd $(PYSRC) && \
