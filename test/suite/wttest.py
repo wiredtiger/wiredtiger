@@ -394,7 +394,8 @@ class WiredTigerTestCase(unittest.TestCase):
             raise
 
     # Used as part of tearDown determining if there is an error.
-    def list2reason(self, exc_list):
+    def list2reason(self, result, fieldname):
+        exc_list = getattr(result, fieldname, None)
         if exc_list and exc_list[-1][0] is self:
             return exc_list[-1][1]
 
@@ -407,8 +408,8 @@ class WiredTigerTestCase(unittest.TestCase):
             self._feedErrorsToResult(result, self._outcome.errors)
         else:  # Python 3.2 - 3.3 or 3.0 - 3.1 and 2.7
             result = getattr(self, '_outcomeForDoCleanups', self._resultForDoCleanups)
-        error = self.list2reason(result.errors)
-        failure = self.list2reason(result.failures)
+        error = self.list2reason(result, 'errors')
+        failure = self.list2reason(result, 'failures')
         passed = not error and not failure
 
         self.pr('finishing')
