@@ -36,26 +36,27 @@ class test_txn20(wttest.WiredTigerTestCase):
     uri = 'table:test_txn'
 
     def test_read_uncommitted(self):
-        # Make an update and don't commit it just yet.
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
+        cursor['key: aaa'] = 'value: aaa'
+
+        # Make an update and don't commit it just yet.
         self.session.begin_transaction()
         cursor['key: aaa'] = 'value: bbb'
 
-        # Now begin a new transaction with the 'read-uncommitted' isolation level.
-        # Unlike 'read-committed' and 'snapshot' isolation levels, we expect to
-        # see the update above even though the transaction has not been committed.
+        # Now begin a new transaction with the 'read-uncommitted' isolation
+        # level. Unlike 'read-committed' and 'snapshot' isolation levels, we're
+        # not protected from dirty reads so we'll see the update above even
+        # though its respective transaction has not been committed.
         s = self.conn.open_session()
         cursor = s.open_cursor(self.uri, None)
         s.begin_transaction("isolation=read-uncommitted")
-        cursor.set_key('key: aaa')
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), 'value: bbb')
+        self.assertEqual(cursor['key: aaa'], 'value: bbb')
 
-        # Commit the update now. We should still see it from our second session.
+        # Commit the update now. We should still see it from our
+        # 'read-uncommitted' session.
         self.session.commit_transaction()
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), 'value: bbb')
+        self.assertEqual(cursor['key: aaa'], 'value: bbb')
 
         # Cleanup.
         self.session.close()
@@ -63,9 +64,11 @@ class test_txn20(wttest.WiredTigerTestCase):
         s.close()
 
     def test_read_committed(self):
-        # Make an update and don't commit it just yet.
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
+        cursor['key: aaa'] = 'value: aaa'
+
+        # Make an update and don't commit it just yet.
         self.session.begin_transaction()
         cursor['key: aaa'] = 'value: bbb'
 
@@ -74,14 +77,13 @@ class test_txn20(wttest.WiredTigerTestCase):
         s = self.conn.open_session()
         cursor = s.open_cursor(self.uri, None)
         s.begin_transaction('isolation=read-committed')
-        cursor.set_key('key: aaa')
-        self.assertNotEqual(cursor.search(), 0)
+        self.assertEqual(cursor['key: aaa'], 'value: aaa')
 
-        # Commit the update now.
-        # We should now see it from our 'read-committed' transaction.
+        # Commit the update now. Unlike the 'snapshot' isolation level, we're
+        # not protected from non-repeatable reads so we'll see an update that
+        # wasn't visible earlier in our previous read.
         self.session.commit_transaction()
-        self.assertEqual(cursor.search(), 0)
-        self.assertEqual(cursor.get_value(), 'value: bbb')
+        self.assertEqual(cursor['key: aaa'], 'value: bbb')
 
         # Cleanup.
         self.session.close()
@@ -89,9 +91,11 @@ class test_txn20(wttest.WiredTigerTestCase):
         s.close()
 
     def test_read_snapshot(self):
-        # Make an update and don't commit it just yet.
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
+        cursor['key: aaa'] = 'value: aaa'
+
+        # Make an update and don't commit it just yet.
         self.session.begin_transaction()
         cursor['key: aaa'] = 'value: bbb'
 
@@ -101,14 +105,12 @@ class test_txn20(wttest.WiredTigerTestCase):
         s = self.conn.open_session()
         cursor = s.open_cursor(self.uri, None)
         s.begin_transaction('isolation=snapshot')
-        cursor.set_key('key: aaa')
-        self.assertNotEqual(cursor.search(), 0)
+        self.assertEqual(cursor['key: aaa'], 'value: aaa')
 
-        # Commit the update now.
-        # We still shouldn't see the value since it wasn't part of the initial
-        # snapshot.
+        # Commit the update now. We still shouldn't see the value since it wasn't
+        # part of the initial snapshot.
         self.session.commit_transaction()
-        self.assertNotEqual(cursor.search(), 0)
+        self.assertEqual(cursor['key: aaa'], 'value: aaa')
 
         # Cleanup.
         self.session.close()
