@@ -50,6 +50,14 @@ Format  Python  Notes
 """
 
 from intpacking import pack_int, unpack_int
+from sys import version_info
+
+if sys.version_info[0] >= 3:
+    def __is_string(s):
+        return type(s) is str
+else:
+    def __is_string(s):
+        return type(s) is unicode
 
 def __get_type(fmt):
     if not fmt:
@@ -169,7 +177,7 @@ def pack(fmt, *values):
                     l = size
             elif (f == 'u' and offset != len(fmt) - 1) or f == 'U':
                 result += pack_int(l)
-            if f in 'Ss':
+            if __is_string(val) and f in 'Ss':
                 result += str(val[:l]).encode()
             else:
                 result += val[:l]
