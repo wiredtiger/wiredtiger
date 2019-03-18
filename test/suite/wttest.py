@@ -46,6 +46,8 @@ def shortenWithEllipsis(s, maxlen):
         s = s[0:maxlen-3] + '...'
     return s
 
+_python3 = (sys.version_info[0] >= 3)
+
 class CapturedFd(object):
     """
     CapturedFd encapsulates a file descriptor (e.g. 1 or 2) that is diverted
@@ -645,11 +647,14 @@ class WiredTigerTestCase(unittest.TestCase):
         traceback.print_exception(excinfo[0], excinfo[1], excinfo[2], None, WiredTigerTestCase._resultfile)
         WiredTigerTestCase._resultfile.write('\n')
 
-    def recno(i):
+    def recno(self, i):
         """
         return a recno key
         """
-        return i
+        if _python3:
+            return i
+        else:
+            return long(i)
 
     # print directly to tty, useful for debugging
     def tty(self, message):
