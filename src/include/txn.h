@@ -242,6 +242,8 @@ struct __wt_txn_op {
 struct __wt_txn {
 	uint64_t id;
 
+	uint32_t session_id; /* Id of session owning this transaction. */
+
 	WT_TXN_ISOLATION isolation;
 
 	uint32_t forced_iso;	/* Isolation is currently forced. */

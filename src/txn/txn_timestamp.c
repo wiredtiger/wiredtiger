@@ -753,12 +753,9 @@ __wt_txn_parse_prepare_timestamp(
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts, timestamp;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool checkpoint_accounted, self_accounted;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-
-	checkpoint_accounted = self_accounted = false;
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "prepare_timestamp", 0, &cval));
@@ -782,26 +779,13 @@ __wt_txn_parse_prepare_timestamp(
 	prev = TAILQ_LAST(
 	    &txn_global->read_timestamph, __wt_txn_rts_qh);
 	while (prev != NULL) {
-		/* Skip other transactions that are not active. */
-		if (prev->clear_read_q) {
-			prev = TAILQ_PREV(
-			    prev, __wt_txn_rts_qh, read_timestampq);
-			continue;
-		}
-
-		/* Skip self transaction only once. */
-		if (!self_accounted &&
-		    prev->read_timestamp == txn->read_timestamp) {
-			self_accounted = true;
-			prev = TAILQ_PREV(
-			    prev, __wt_txn_rts_qh, read_timestampq);
-			continue;
-		}
-
-		/* Skip checkpoint timestamp only once. */
-		if (!checkpoint_accounted &&
-		    prev->read_timestamp == txn_global->checkpoint_timestamp) {
-			checkpoint_accounted = true;
+		/*
+		 * Skip other transactions that are not active.
+		 * Skip self and checkpoint as well.
+		 */
+		if (prev->clear_read_q ||
+		    prev->session_id == session->id ||
+		    prev->session_id == txn_global->checkpoint_id) {
 			prev = TAILQ_PREV(
 			    prev, __wt_txn_rts_qh, read_timestampq);
 			continue;
