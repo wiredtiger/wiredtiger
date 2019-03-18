@@ -30,9 +30,7 @@
 #   Transactions: more granular testing of isolation levels
 #
 
-import wiredtiger, wttest
-from suite_subprocess import suite_subprocess
-from wiredtiger import stat
+import wttest
 
 class test_txn20(wttest.WiredTigerTestCase):
     uri = 'table:test_txn'
@@ -59,7 +57,9 @@ class test_txn20(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), 'value: bbb')
 
-        s.commit_transaction()
+        # Cleanup.
+        self.session.close()
+        s.rollback_transaction()
         s.close()
 
     def test_read_committed(self):
@@ -83,7 +83,9 @@ class test_txn20(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), 'value: bbb')
 
-        s.commit_transaction()
+        # Cleanup.
+        self.session.close()
+        s.rollback_transaction()
         s.close()
 
     def test_read_snapshot(self):
@@ -108,7 +110,9 @@ class test_txn20(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
         self.assertNotEqual(cursor.search(), 0)
 
-        s.commit_transaction()
+        # Cleanup.
+        self.session.close()
+        s.rollback_transaction()
         s.close()
 
 if __name__ == '__main__':
