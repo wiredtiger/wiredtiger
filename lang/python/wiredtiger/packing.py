@@ -50,7 +50,7 @@ Format  Python  Notes
 """
 
 from intpacking import pack_int, unpack_int
-from sys import version_info
+import sys
 
 if sys.version_info[0] >= 3:
     def __is_string(s):
