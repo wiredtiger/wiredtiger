@@ -60,7 +60,7 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
         # Commit some updates to get eviction and lookaside fired up
         bigvalue1 = "bbbbb" * 100
         cursor = self.session.open_cursor(uri)
-        for i in range(1, nsessions * nkeys):
+        for i in range(2, nsessions * nkeys):
             self.session.begin_transaction()
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(bigvalue1)

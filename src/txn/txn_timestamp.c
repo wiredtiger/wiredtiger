@@ -612,7 +612,7 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 		    "%s timestamp %.*s older than oldest timestamp %s",
 		    name, (int)cval->len, cval->str, ts_string[0]);
 	}
-	if (durable_ts && has_stable_ts && ts < stable_ts) {
+	if (durable_ts && has_stable_ts && ts <= stable_ts) {
 		__wt_timestamp_to_string(stable_ts, ts_string[0]);
 		WT_RET_MSG(session, EINVAL,
 		    "%s timestamp %.*s older than stable timestamp %s",

@@ -149,17 +149,17 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # When explicitly set, commit timestamp for a transaction can be earlier
         # than the commit timestamp of an earlier transaction.
         self.session.begin_transaction()
-        c[6] = 6
+        c[7] = 7
         self.session.commit_transaction(
-            'commit_timestamp=' + timestamp_str(6))
+            'commit_timestamp=' + timestamp_str(7))
+        self.session.begin_transaction()
+        c[9] = 9
+        self.session.commit_transaction(
+            'commit_timestamp=' + timestamp_str(9))
         self.session.begin_transaction()
         c[8] = 8
         self.session.commit_transaction(
             'commit_timestamp=' + timestamp_str(8))
-        self.session.begin_transaction()
-        c[7] = 7
-        self.session.commit_transaction(
-            'commit_timestamp=' + timestamp_str(7))
 
         # Read timestamp >= Oldest timestamp
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(7) +
@@ -169,20 +169,20 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
                 timestamp_str(6)),
                 '/older than oldest timestamp/')
 
-        # c[8] is not visible at read_timestamp < 8
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(7))
-        self.assertEqual(c[6], 6)
+        # c[9] is not visible at read_timestamp < 9
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(8))
         self.assertEqual(c[7], 7)
-        c.set_key(8)
+        self.assertEqual(c[8], 8)
+        c.set_key(9)
         self.assertEqual(c.search(), wiredtiger.WT_NOTFOUND)
         self.session.commit_transaction()
 
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(8))
-        self.assertEqual(c[6], 6)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(9))
         self.assertEqual(c[7], 7)
         self.assertEqual(c[8], 8)
+        self.assertEqual(c[9], 9)
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(8))
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(9))
         self.session.commit_transaction()
 
         # We can move the oldest timestamp backwards with "force"
