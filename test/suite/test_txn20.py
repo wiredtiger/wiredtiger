@@ -50,7 +50,7 @@ class test_txn20(wttest.WiredTigerTestCase):
         # though its respective transaction has not been committed.
         s = self.conn.open_session()
         cursor = s.open_cursor(self.uri, None)
-        s.begin_transaction("isolation=read-uncommitted")
+        s.begin_transaction('isolation=read-uncommitted')
         self.assertEqual(cursor['key: aaa'], 'value: bbb')
 
         # Commit the update now. We should still see it from our
