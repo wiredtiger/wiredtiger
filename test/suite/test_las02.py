@@ -79,17 +79,17 @@ class test_las02(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + timestamp_str(1))
 
         bigvalue = "aaaaa" * 100
-        self.large_updates(uri, bigvalue, ds, nrows // 3, 1)
+        self.large_updates(uri, bigvalue, ds, nrows / 3, 2)
 
         # Check that all updates are seen
-        self.check(bigvalue, uri, nrows // 3, 1)
+        self.check(bigvalue, uri, nrows / 3, 2)
 
         # Check to see lookaside working with old timestamp
         bigvalue2 = "ddddd" * 100
         self.large_updates(uri, bigvalue2, ds, nrows, 100)
 
         # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue, uri, nrows // 3, 1)
+        self.check(bigvalue, uri, nrows / 3, 2)
         self.check(bigvalue2, uri, nrows, 100)
 
         # Force out most of the pages by updating a different tree
@@ -107,7 +107,7 @@ class test_las02(wttest.WiredTigerTestCase):
         self.check(bigvalue2, uri, nrows // 2, 200)
 
         # Repeat earlier checks
-        self.check(bigvalue, uri, nrows // 3, 1)
+        self.check(bigvalue, uri, nrows / 3, 2)
         self.check(bigvalue2, uri, nrows, 100)
 
 if __name__ == '__main__':
