@@ -91,9 +91,9 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "3")
 
-        # Senario 3: Commit with an all committed of 5 and then begin a
+        # Senario 3: Commit with a commit timestamp of 5 and then begin a
         # transaction intending to commit at 4, the all_committed timestamp
-        # should move back.
+        # should move back to 3. Until the transaction at 4 completes.
         session1.begin_transaction()
         cur1[1] = 3
         session1.commit_transaction('commit_timestamp=5')
@@ -189,9 +189,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
     def test_pinned_oldest(self):
         pinned_oldest_uri = self.uri + 'pinned_oldest'
         session1 = self.setUpSessionOpen(self.conn)
-        session2 = self.setUpSessionOpen(self.conn)
         session1.create(pinned_oldest_uri, 'key_format=i,value_format=i')
-        session2.create(pinned_oldest_uri, 'key_format=i,value_format=i')
         # Confirm no oldest timestamp exists.
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.conn.query_timestamp('get=oldest'))
@@ -221,7 +219,6 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Write some more data for reading.
         session1.begin_transaction()
-        cur1 = session1.open_cursor(pinned_oldest_uri)
         cur1[2]=2
         session1.commit_transaction('commit_timestamp=8')
 
@@ -239,6 +236,75 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Pinned timestamp should now match oldest timestamp.
         self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), '8')
+
+    def test_all(self):
+        all_uri = self.uri + 'pinned_oldest'
+        session1 = self.setUpSessionOpen(self.conn)
+        session2 = self.setUpSessionOpen(self.conn)
+        session1.create(all_uri, 'key_format=i,value_format=i')
+        session2.create(all_uri, 'key_format=i,value_format=i')
+        cur1 = session1.open_cursor(all_uri)
+        cur2 = session2.open_cursor(all_uri)
+        # Set up oldest timestamp.
+        self.conn.set_timestamp('oldest_timestamp=1')
+
+        # Write some data for reading.
+
+        session1.begin_transaction()
+        cur1[1]=1
+        session1.commit_transaction('commit_timestamp=2')
+        session1.begin_transaction()
+        cur1[1]=2
+        session1.commit_transaction('commit_timestamp=4')
+        # Confirm all_committed is now 4.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), "4")
+
+        # Create a read session.
+        session1.begin_transaction('read_timestamp=2')
+        # Confirm oldest reader is 2 and the the value we read is 1.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=oldest_reader'), "2")
+
+        self.assertEqual(cur1[1], 1)
+        # Commit some data at timestamp 7.
+        session2.begin_transaction()
+        cur2[2] = 2
+        session2.commit_transaction('commit_timestamp=7')
+        # All_committed should now be 7.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), "7")
+
+        # Move oldest to 5.
+        self.conn.set_timestamp('oldest_timestamp=5')
+
+        # Confirm pinned timestamp is pointing at oldest_reader.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=pinned'),
+            self.conn.query_timestamp('get=oldest_reader'))
+
+        # Begin a write transaction pointing at timestamp 6,
+        # this is below our current all_committed so it should move back
+        # to the oldest timestamp.
+        session2.begin_transaction()
+        session2.timestamp_transaction('commit_timestamp=6')
+        cur2[2] = 3
+
+        # Confirm all_committed is now equal to oldest.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'),
+            self.conn.query_timestamp('get=oldest'))
+
+        session2.commit_transaction()
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), "7")
+        # End our read transaction.
+        session1.commit_transaction()
+
+        # Pinned will now match oldest.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=pinned'),
+            self.conn.query_timestamp('get=oldest'))
 
 if __name__ == '__main__':
     wttest.run()
