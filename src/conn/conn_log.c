@@ -343,6 +343,34 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
+ * __log_extract_all_lognum --
+ *	Extract log numbers across an array of log files. Intended to be called
+ *	while holding the hot backup read lock.
+ */
+static int
+__log_extract_all_lognum(WT_SESSION_IMPL *session,
+    uint32_t backup_file, char **logfiles, u_int logcount, uint32_t min_lognum)
+{
+	WT_CONNECTION_IMPL *conn;
+	uint32_t lognum;
+	u_int i;
+
+	conn = S2C(session);
+
+	if (!conn->hot_backup || backup_file != 0) {
+		for (i = 0; i < logcount; i++) {
+			WT_RET(__wt_log_extract_lognum(
+			    session, logfiles[i], &lognum));
+			if (lognum < min_lognum)
+				WT_RET(__wt_log_remove(
+				    session, WT_LOG_FILENAME, lognum));
+		}
+	}
+
+	return (0);
+}
+
+/*
  * __log_archive_once --
  *	Perform one iteration of log archiving.  Must be called with the
  *	log archive lock held.
@@ -353,8 +381,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
-	uint32_t lognum, min_lognum;
-	u_int i, logcount;
+	uint32_t min_lognum;
+	u_int logcount;
 	char **logfiles;
 
 	conn = S2C(session);
@@ -387,17 +415,9 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	 * We can only archive files if a hot backup is not in progress or
 	 * if we are the backup.
 	 */
-	WT_WITH_HOTBACKUP_LOCK(session, {
-		if (!conn->hot_backup || backup_file != 0) {
-			for (i = 0; i < logcount; i++) {
-				WT_ERR(__wt_log_extract_lognum(
-				    session, logfiles[i], &lognum));
-				if (lognum < min_lognum)
-					WT_ERR(__wt_log_remove(
-					    session, WT_LOG_FILENAME, lognum));
-			}
-		}
-	});
+	WT_WITH_HOTBACKUP_READ_LOCK(session,
+	    WT_ERR(__log_extract_all_lognum(
+		session, backup_file, logfiles, logcount, min_lognum)));
 
 	/*
 	 * Indicate what is our new earliest LSN.  It is the start
@@ -407,8 +427,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 
 	if (0)
 err:		__wt_err(session, ret, "log archive server error");
-	if (F_ISSET(session, WT_SESSION_HOTBACKUP_LOCKED)) {
-		F_CLR(session, WT_SESSION_HOTBACKUP_LOCKED);
+	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP_READ)) {
+		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_READ);
 		__wt_readunlock(session, &conn->hot_backup_lock);
 	}
 	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
@@ -593,17 +613,15 @@ __log_file_server(void *arg)
 				 * during cursor traversal.
 				 */
 				if (!conn->hot_backup) {
-					WT_WITH_HOTBACKUP_LOCK(session, {
-						if (!conn->hot_backup &&
-						    conn->log_cursors == 0)
-							WT_ERR_ERROR_OK(
-							    __wt_ftruncate(
-							    session,
-							    close_fh,
-							    close_end_lsn.
-							    l.offset),
-							    ENOTSUP);
-					});
+					WT_WITH_HOTBACKUP_READ_LOCK(session,
+					    if (!conn->hot_backup &&
+						conn->log_cursors == 0)
+						WT_ERR_ERROR_OK(
+						    __wt_ftruncate(
+							session,
+							close_fh,
+							close_end_lsn.l.offset),
+							ENOTSUP));
 				}
 				WT_SET_LSN(&close_end_lsn,
 				    close_end_lsn.l.file + 1, 0);
@@ -974,11 +992,9 @@ __log_server(void *arg)
 				 * agreed not to rename or remove any files in
 				 * the database directory.
 				 */
-				WT_WITH_HOTBACKUP_LOCK(session, {
-					if (!conn->hot_backup)
-						ret = __log_prealloc_once(
-						    session);
-				});
+				WT_WITH_HOTBACKUP_READ_LOCK(session,
+				    if (!conn->hot_backup)
+					ret = __log_prealloc_once(session));
 				WT_ERR(ret);
 			}
 

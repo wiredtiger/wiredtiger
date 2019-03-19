@@ -1223,6 +1223,27 @@ err:	__wt_scr_free(session, &from_path);
 }
 
 /*
+ * __log_attempt_prealloc --
+ *	Pre-allocates a log file. Intended to be called while holding the hot
+ *	backup read lock.
+ */
+static int
+__log_attempt_prealloc(
+    WT_SESSION_IMPL *session, WT_LOG *log, bool* prealloc_log)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	conn = S2C(session);
+	*prealloc_log = (!conn->hot_backup);
+
+	if (*prealloc_log)
+		ret = __log_alloc_prealloc(session, log->fileid);
+
+	return (ret);
+}
+
+/*
  * __log_newfile --
  *	Create the next log file and write the file header record into it.
  */
@@ -1235,7 +1256,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	WT_LOG *log;
 	WT_LSN end_lsn, logrec_lsn;
 	u_int yield_cnt;
-	bool create_log, alloc_log;
+	bool create_log, prealloc_log;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -1283,17 +1304,11 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
 	 * in any way they choose, and a log file rename might confuse things.
 	 */
 	create_log = true;
-	alloc_log = false;
 	if (conn->log_prealloc > 0 && !conn->hot_backup) {
-		WT_WITH_HOTBACKUP_LOCK(session, {
-			if (!conn->hot_backup) {
-				alloc_log = true;
-				ret = __log_alloc_prealloc(
-				    session, log->fileid);
-			}
-		});
+		WT_WITH_HOTBACKUP_READ_LOCK(session,
+		    ret = __log_attempt_prealloc(session, log, &prealloc_log));
 
-		if (alloc_log) {
+		if (prealloc_log) {
 			/*
 			 * If ret is 0 it means we found a pre-allocated file.
 			 * If ret is WT_NOTFOUND, create the new log file and
@@ -1508,6 +1523,27 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
 }
 
 /*
+ * __log_truncate_file_requires_hot_backup_lock --
+ *	Helper for __log_truncate_file. Intended to be called while holding
+ *	the hot backup read lock.
+ */
+static int
+__log_truncate_file_requires_hot_backup_lock(
+    WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset, bool *truncate)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	conn = S2C(session);
+	*truncate = (!conn->hot_backup);
+
+	if (*truncate)
+		ret = __wt_ftruncate(session, log_fh, offset);
+
+	return (ret);
+}
+
+/*
  * __log_truncate_file --
  *	Truncate a log file to the specified offset.
  *
@@ -1524,15 +1560,11 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
 
 	conn = S2C(session);
 	log = conn->log;
-	truncate = false;
 
 	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && !conn->hot_backup) {
-		WT_WITH_HOTBACKUP_LOCK(session, {
-			if (!conn->hot_backup) {
-				truncate = true;
-				ret = __wt_ftruncate(session, log_fh, offset);
-			}
-		});
+		WT_WITH_HOTBACKUP_READ_LOCK(session,
+		    ret = __log_truncate_file_requires_hot_backup_lock(
+			session, log_fh, offset, &truncate));
 		if (truncate) {
 			if (ret != ENOTSUP)
 				return (ret);
