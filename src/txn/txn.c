@@ -536,9 +536,19 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * transaction to be rounded off.
 	 */
 	WT_RET(__wt_config_gets_def(
-	    session, cfg, "round_prepare_upto_oldest", 0, &cval));
+	    session, cfg, "roundup_timestamps.prepared", 0, &cval));
 	if (cval.val)
 		F_SET(txn, WT_TXN_ROUND_PREPARE);
+	else
+		F_CLR(txn, WT_TXN_ROUND_PREPARE);
+
+	/* Check if read timestamp to be rounded off. */
+	WT_RET(__wt_config_gets_def(
+	    session, cfg, "roundup_timestamps.read", 0, &cval));
+	if (cval.val)
+		F_SET(txn, WT_TXN_ROUND_READ);
+	else
+		F_CLR(txn, WT_TXN_ROUND_READ);
 
 	WT_RET(__wt_txn_parse_read_timestamp(session, cfg));
 

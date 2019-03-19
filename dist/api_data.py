@@ -1282,24 +1282,33 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_prepare_upto_oldest', 'false', r'''
-        if the prepare timestamp of this transaction is earlier than the oldest
-        timestamp, the prepare timestamp will be rounded to the oldest
-        timestamp. If the commit timestamp is earlier than the prepare
-        timestamp, the commit timestamp will be rounded to the prepare
-        timestamp''',
-        type='boolean'),
     Config('round_to_oldest', 'false', r'''
         if read timestamp is earlier than oldest timestamp,
         read timestamp will be rounded to oldest timestamp''',
         type='boolean'),
+    Config('roundup_timestamps', '', r'''
+        round up timestamps of the transaction''',
+        type='category', subconfig= [
+        Config('prepared', 'false', r'''
+            applicable only for prepared transactions. Indicates if the prepare
+            timestamp and the commit timestamp of this transaction can be
+            rounded up. If the prepare timestamp is lesser than the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
+            timestamp. If the commit timestamp is lesser than the prepare
+            timestamp, the commit timestamp will be rounded to the prepare
+            timestamp''', type='boolean'),
+        Config('read', 'false', r'''
+            if the read timestamp is earlier than the oldest timestamp, the
+            read timestamp will be rounded to the oldest timestamp''',
+            type='boolean'),
+        ]),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
-        type='boolean'),
+        type='boolean')
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
