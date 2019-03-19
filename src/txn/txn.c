@@ -1298,7 +1298,6 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 
 	txn->isolation = session_ret->isolation;
 
-	txn->session_id = session_ret->id;
 	return (0);
 }
 

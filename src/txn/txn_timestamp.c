@@ -779,13 +779,8 @@ __wt_txn_parse_prepare_timestamp(
 	prev = TAILQ_LAST(
 	    &txn_global->read_timestamph, __wt_txn_rts_qh);
 	while (prev != NULL) {
-		/*
-		 * Skip other transactions that are not active.
-		 * Skip self and checkpoint as well.
-		 */
-		if (prev->clear_read_q ||
-		    prev->session_id == session->id ||
-		    prev->session_id == txn_global->checkpoint_id) {
+		/* Skip self and non-active transactions. */
+		if (prev->clear_read_q || prev == txn) {
 			prev = TAILQ_PREV(
 			    prev, __wt_txn_rts_qh, read_timestampq);
 			continue;
