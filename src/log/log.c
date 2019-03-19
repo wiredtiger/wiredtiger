@@ -1229,7 +1229,7 @@ err:	__wt_scr_free(session, &from_path);
  */
 static int
 __log_attempt_prealloc(
-    WT_SESSION_IMPL *session, WT_LOG *log, bool* prealloc_log)
+    WT_SESSION_IMPL *session, WT_LOG *log, bool *prealloc_log)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
