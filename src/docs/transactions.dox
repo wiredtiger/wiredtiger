@@ -216,7 +216,7 @@ transactions - the table below summarizes those constraints:
 |---------|----------|------------|----------|-------------|
 | Prepare | During | prepare_timestamp >= stable_timestamp | Y | None |
 | Commit  | No | commit_timestamp > stable_timestamp | Y | None |
-| Commit  | Yes | commit_timestamp >= prepare_timestamp | Y | The commit timestamp may be older than the oldest timestamp and the time of commit. |
+| Commit  | Yes | commit_timestamp >= prepare_timestamp | Y | The commit timestamp may be older than the oldest timestamp at the time of commit. |
 | Commit  | Yes | durable_timestamp > stable_timestamp | Y | None |
 | Commit  | Yes | durable_timestamp != 0 \|\| commit_timestamp > stable_timestamp | N | If no durable timestamp is given when committing a prepared transaction, the commit timestamp must be greater than the stable timestamp. |
 
@@ -248,12 +248,12 @@ WT_CONNECTION::set_timestamp.
 | Timestamp | Description | Constraint |
 |-----------|-------------|------------|
 | all_committed | The oldest timestamp at which all previous write transactions have committed. | |
-| last_checkpoint | The point at which the last checkpoint ran. | last_checkpoint <= stable timestamp |
-| oldest | Modification history is not guaranteed to exist prior to the oldest timestamp, as such reads should not be performed before the oldest timestamp. It can be set via the api. | 0 <= oldest <= stable |
-| oldest_reader | The timestamp of the oldest currently active read transaction, oldest_reader will not exist without an active read transaction. | |
+| last_checkpoint | The point at which the last checkpoint ran. If no checkpoint has run it's value will be 0. | last_checkpoint <= stable timestamp |
+| oldest | Point in time readers cannot be created using a timestamp older than the oldest timestamp, as explained above modification history is discarded prior to the oldest timestamp. This timestamp can be set via the API. | 0 <= oldest <= stable |
+| oldest_reader | The timestamp of the oldest currently active read transaction, if there is no current read transaction then querying for the oldest_reader with WT_CONNECTION::query_timestamp will return WT_NOTFOUND. | |
 | pinned | Minimum of the oldest_reader and oldest timestamp. | |
-| recovery | The most recent stable checkpoint prior to shutdown. | |
-| stable | Any transactions before the stable timestamp will not be able to write data, except in the instance of prepared transactions. This timestamp can be set via the api. | stable >= oldest |
+| recovery | The stable timestamp used, if any, in the most recent checkpoint prior to the last shutdown. | |
+| stable | Any active transaction with a commit timestamp less than or equal to the current stable timestamp will not be able to modify data, except in the instance of prepared transactions. This timestamp can be set via the API. | stable >= oldest |
 
 @subsection timestamp_extensions Timestamp support in the extension API
 
