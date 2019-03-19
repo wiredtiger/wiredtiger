@@ -1284,6 +1284,7 @@ __checkpoint_lock_dirty_tree_requires_hot_backup_lock(
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
+	WT_UNUSED(is_checkpoint);
 	conn = S2C(session);
 
 	/*
