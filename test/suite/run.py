@@ -65,7 +65,7 @@ else:
 # Don't change sys.path[0], it's the dir containing the invoked python script.
 
 sys.path.insert(1, os.path.join(wt_builddir, 'lang', 'python'))
-#sys.path.insert(1, os.path.join(wt_disttop, 'lang', 'python'))
+#sys.path.insert(1, os.path.join(wt_builddir, 'lang', 'python', 'wiredtiger'))
 
 # Append to a colon separated path in the environment
 def append_env_path(name, value):
@@ -91,6 +91,7 @@ for d in os.listdir(wt_3rdpartydir):
             sys.path.insert(1, os.path.join(wt_3rdpartydir, d, subdir))
             break
 
+print('VERSION=' + str(sys.version_info))
 import wttest
 # Use the same version of unittest found by wttest.py
 unittest = wttest.unittest

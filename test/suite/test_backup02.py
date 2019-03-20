@@ -26,7 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import Queue
+try:
+    import Queue as queue  # python2
+except ImportError:
+    import queue
 import threading, time, wiredtiger, wttest
 from wtthread import backup_thread, checkpoint_thread, op_thread
 
@@ -57,10 +60,10 @@ class test_backup02(wttest.WiredTigerTestCase):
         bkp = backup_thread(self.conn, 'backup.dir', done)
         bkp.start()
 
-        queue = Queue.Queue()
+        work_queue = queue.Queue()
         my_data = 'a' * self.dsize
         for i in range(self.nops):
-            queue.put_nowait(('gi', i, my_data))
+            work_queue.put_nowait(('gi', i, my_data))
 
         opthreads = []
         for i in range(self.nthreads):
@@ -75,9 +78,9 @@ class test_backup02(wttest.WiredTigerTestCase):
             my_data = str(more_time) + 'a' * (self.dsize - len(str(more_time)))
             more_time = more_time - 0.1
             for i in range(self.nops):
-                queue.put_nowait(('gu', i, my_data))
+                work_queue.put_nowait(('gu', i, my_data))
 
-        queue.join()
+        work_queue.join()
         done.set()
 #        # Wait for checkpoint thread to notice status change.
 #        ckpt.join()

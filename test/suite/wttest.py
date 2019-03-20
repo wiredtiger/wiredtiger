@@ -47,6 +47,7 @@ def shortenWithEllipsis(s, maxlen):
     return s
 
 _python3 = (sys.version_info >= (3, 0, 0))
+_python2 = (sys.version_info >= (2, 0, 0) and sys.version_info < (3, 0, 0))
 
 class CapturedFd(object):
     """

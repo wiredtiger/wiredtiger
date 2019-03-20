@@ -85,7 +85,7 @@ else:
     def __is_string(s):
         return type(s) is unicode
 
-from intpacking import pack_int, unpack_int
+from .intpacking import pack_int, unpack_int
 
 def __get_type(fmt):
     if not fmt:

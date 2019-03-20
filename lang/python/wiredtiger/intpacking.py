@@ -28,7 +28,7 @@
 #
 
 from __future__ import print_function
-from packing import _chr, _ord, x00, xff
+from .packing import _chr, _ord, x00, xff
 import math, struct, sys
 
 # Variable-length integer packing
