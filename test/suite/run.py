@@ -91,7 +91,6 @@ for d in os.listdir(wt_3rdpartydir):
             sys.path.insert(1, os.path.join(wt_3rdpartydir, d, subdir))
             break
 
-print('VERSION=' + str(sys.version_info))
 import wttest
 # Use the same version of unittest found by wttest.py
 unittest = wttest.unittest
