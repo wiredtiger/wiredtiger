@@ -1315,7 +1315,7 @@ __checkpoint_lock_dirty_tree_requires_hot_backup_lock(
 	 */
 	WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
 	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
-		return (-1);
+		return (0);
 	/*
 	 * Lock the checkpoints that will be deleted.
 	 *
@@ -1473,6 +1473,8 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	    ret = __checkpoint_lock_dirty_tree_requires_hot_backup_lock(
 		session, is_checkpoint, force, btree, ckpt, ckptbase));
 	WT_ERR(ret);
+	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+		goto err;
 
 	WT_ASSERT(session, btree->ckpt == NULL &&
 	    !F_ISSET(btree, WT_BTREE_SKIP_CKPT));
