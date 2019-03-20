@@ -533,22 +533,22 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/*
 	 * Check if prepare timestamp and commit timestamp of a prepared
-	 * transaction to be rounded off.
+	 * transaction to be rounded up.
 	 */
 	WT_RET(__wt_config_gets_def(
 	    session, cfg, "roundup_timestamps.prepared", 0, &cval));
 	if (cval.val)
-		F_SET(txn, WT_TXN_ROUND_PREPARE);
+		F_SET(txn, WT_TXN_TS_ROUND_PREPARED);
 	else
-		F_CLR(txn, WT_TXN_ROUND_PREPARE);
+		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
-	/* Check if read timestamp to be rounded off. */
+	/* Check if read timestamp to be rounded up. */
 	WT_RET(__wt_config_gets_def(
 	    session, cfg, "roundup_timestamps.read", 0, &cval));
 	if (cval.val)
-		F_SET(txn, WT_TXN_ROUND_READ);
+		F_SET(txn, WT_TXN_TS_ROUND_READ);
 	else
-		F_CLR(txn, WT_TXN_ROUND_READ);
+		F_CLR(txn, WT_TXN_TS_ROUND_READ);
 
 	WT_RET(__wt_txn_parse_read_timestamp(session, cfg));
 
@@ -815,11 +815,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * During recovery, begin transaction will always be set with rounding
 	 * prepare timestamp as whether a transaction will be prepared or not
 	 * depends on whether it encounters a prepare oplog entry or not.  So,
-	 * instead of assert we clear prepare round off flag for non-prepared
+	 * instead of assert we clear prepare round up flag for non-prepared
 	 * transactions.
 	 */
 	if (!prepare)
-		F_CLR(txn, WT_TXN_ROUND_PREPARE);
+		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
 	/* Look for a commit timestamp. */
 	WT_ERR(

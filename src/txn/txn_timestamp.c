@@ -640,7 +640,7 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * timestamp.
 	 */
 	if (F_ISSET(txn, WT_TXN_PREPARE) && ts < txn->prepare_timestamp) {
-		if (F_ISSET(txn, WT_TXN_ROUND_PREPARE))
+		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED))
 			ts = txn->prepare_timestamp;
 		else {
 			__wt_timestamp_to_string(
@@ -800,14 +800,17 @@ __wt_txn_parse_prepare_timestamp(
 	}
 
 	/*
-	 * If there are no active readers, check whether prepare timestamp is
-	 * lesser / earlier to oldest timestamp.
+	 * Check whether the prepare timestamp is lesser / earlier to the
+	 * oldest timestamp.
 	 */
-	if (prev == NULL && timestamp < oldest_ts) {
-		/* Round off prepare timestamp to oldest timestamp. */
-		if (F_ISSET(txn, WT_TXN_ROUND_PREPARE)) {
-			__wt_readunlock(
-			    session, &txn_global->read_timestamp_rwlock);
+	if (timestamp < oldest_ts) {
+		WT_ASSERT(session, prev == NULL);
+		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
+		/*
+		 * Check whether the prepare timestamp need to be rounded up to
+		 * the oldest timestamp.
+		 */
+		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
 			if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 				__wt_timestamp_to_string(
 				    timestamp, ts_string[0]);
@@ -818,10 +821,7 @@ __wt_txn_parse_prepare_timestamp(
 				    "timestamp %s", ts_string[0], ts_string[1]);
 			}
 			timestamp = oldest_ts;
-
 		} else {
-			__wt_readunlock(
-			    session, &txn_global->read_timestamp_rwlock);
 			__wt_timestamp_to_string(
 			    oldest_ts, ts_string[0]);
 			WT_RET_MSG(session, EINVAL,
@@ -849,7 +849,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts, ts_oldest;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool roundup_read_to_oldest;
+	bool round_to_oldest;
 
 	txn = &session->txn;
 
@@ -877,13 +877,13 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		 */
 		WT_RET(__wt_config_gets_def(session,
 		    cfg, "round_to_oldest", 0, &cval));
-		roundup_read_to_oldest = cval.val;
+		round_to_oldest = cval.val;
 
 		/*
 		 * The read timestamp could be rounded to the oldest timestamp.
 		 */
-		if (F_ISSET(txn, WT_TXN_ROUND_READ))
-			roundup_read_to_oldest = true;
+		if (F_ISSET(txn, WT_TXN_TS_ROUND_READ))
+			round_to_oldest = true;
 		/*
 		 * This code is not using the timestamp validate function to
 		 * avoid a race between checking and setting transaction
@@ -897,7 +897,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			 * timestamp then round the read timestamp to
 			 * oldest timestamp.
 			 */
-			if (roundup_read_to_oldest)
+			if (round_to_oldest)
 				txn->read_timestamp = ts_oldest;
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
@@ -914,12 +914,12 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Reset to avoid a verbose message as read
 			 * timestamp is not rounded to oldest timestamp.
 			 */
-			roundup_read_to_oldest = false;
+			round_to_oldest = false;
 		}
 
 		__wt_txn_set_read_timestamp(session);
 		__wt_readunlock(session, &txn_global->rwlock);
-		if (roundup_read_to_oldest &&
+		if (round_to_oldest &&
 		    WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 			/*
 			 * This message is generated here to reduce the span of
