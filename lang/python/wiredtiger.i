@@ -377,6 +377,15 @@ static int cursorFreeHandler(WT_CURSOR *cursor_arg);
 %pythoncode %{
 WiredTigerError = _wiredtiger.WiredTigerError
 
+# Python3 has no explicit long type, recnos work as ints
+import sys
+if sys.version_info >= (3, 0, 0):
+	def _wt_recno(i):
+		return i
+else:
+	def _wt_recno(i):
+		return long(i)
+
 ## @cond DISABLE
 # Implements the iterable contract
 class IterableCursor:
@@ -722,7 +731,7 @@ typedef int int_void;
 		if len(args) == 1 and type(args[0]) == tuple:
 			args = args[0]
 		if self.is_column:
-			self._set_recno(int(args[0]))
+			self._set_recno(_wt_recno(args[0]))
 		else:
 			# Keep the Python string pinned
 			self._key = pack(self.key_format, *args)
@@ -796,7 +805,7 @@ typedef int int_void;
 		$self->set_value($self, str);
 	}
 
-	/* Don't return values, just throw excepacktions on failure. */
+	/* Don't return values, just throw exceptions on failure. */
 	int_void _get_key(char **datap, int *sizep) {
 		WT_ITEM k;
 		int ret = $self->get_key($self, &k);
@@ -961,7 +970,7 @@ typedef int int_void;
 		if len(args) == 1 and type(args[0]) == tuple:
 			args = args[0]
 		if self.is_column:
-			self._set_recno(int(args[0]))
+			self._set_recno(_wt_recno(args[0]))
 		elif self.is_json:
 			self._set_key_str(args[0])
 		else:
