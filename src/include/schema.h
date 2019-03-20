@@ -83,6 +83,9 @@ struct __wt_table {
 #define	WT_SESSION_LOCKED_TABLE 					\
 	(WT_SESSION_LOCKED_TABLE_READ |					\
 	 WT_SESSION_LOCKED_TABLE_WRITE)
+#define	WT_SESSION_LOCKED_HOTBACKUP					\
+	(WT_SESSION_LOCKED_HOTBACKUP_READ |				\
+	 WT_SESSION_LOCKED_HOTBACKUP_WRITE)
 
 /*
  * WT_WITH_LOCK_WAIT --
@@ -257,12 +260,12 @@ struct __wt_table {
 } while (0)
 
 /*
- * WT_WITH_HOTBACKUP_READ_LOCK --
+ * WT_WITH_HOTBACKUP_READ_LOCK, WT_WITH_HOTBACKUP_WRITE_LOCK --
  * 	Acquire the hot backup lock, perform an operation, drop the lock.
  */
 #define	WT_WITH_HOTBACKUP_READ_LOCK(session, op) do {			\
 	WT_CONNECTION_IMPL *__conn = S2C(session);			\
-	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP_READ)) {	\
+	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {		\
 		op;							\
 	} else {							\
 		__wt_readlock(session, &__conn->hot_backup_lock);	\
@@ -270,6 +273,22 @@ struct __wt_table {
 		op;							\
 		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
 		__wt_readunlock(session, &__conn->hot_backup_lock);	\
+	}								\
+} while (0)
+
+#define	WT_WITH_HOTBACKUP_WRITE_LOCK(session, op) do {			\
+	WT_CONNECTION_IMPL *__conn = S2C(session);			\
+	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP_WRITE)) {	\
+		op;							\
+	} else {							\
+		WT_ASSERT(session,					\
+		    !F_ISSET(						\
+			session, WT_SESSION_LOCKED_HOTBACKUP_READ));	\
+		__wt_writelock(session, &__conn->hot_backup_lock);	\
+		F_SET(session, WT_SESSION_LOCKED_HOTBACKUP_WRITE);	\
+		op;							\
+		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_WRITE);	\
+		__wt_writeunlock(session, &__conn->hot_backup_lock);	\
 	}								\
 } while (0)
 
