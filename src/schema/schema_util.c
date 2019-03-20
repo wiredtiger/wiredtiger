@@ -9,13 +9,13 @@
 #include "wt_internal.h"
 
 /*
- * __schema_get_backup_check_requires_hot_backup_lock --
- *	Helper for __schema_get_backup_check. Intended to be called while
+ * __schema_backup_check_requires_hot_backup_lock --
+ *	Helper for __wt_schema_backup_check.  Intended to be called while
  *	holding the hot backup read lock.
  */
 static int
-__schema_get_backup_check_requires_hot_backup_lock(
-    WT_SESSION_IMPL *session, const char* name)
+__schema_backup_check_requires_hot_backup_lock(
+    WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 	int i;
@@ -24,18 +24,17 @@ __schema_get_backup_check_requires_hot_backup_lock(
 	conn = S2C(session);
 
 	/*
-	 * There is a window at the end of a backup where the list has
-	 * been cleared from the connection but the flag is still set.
-	 * It is safe to drop at that point.
+	 * There is a window at the end of a backup where the list has been
+	 * cleared from the connection but the flag is still set.  It is safe
+	 * to drop at that point.
 	 */
 	if (!conn->hot_backup ||
 	    (backup_list = conn->hot_backup_list) == NULL) {
 		return (0);
 	}
 	for (i = 0; backup_list[i] != NULL; ++i) {
-		if (strcmp(backup_list[i], name) == 0) {
+		if (strcmp(backup_list[i], name) == 0)
 			return __wt_set_return(session, EBUSY);
-		}
 	}
 
 	return (0);
@@ -58,7 +57,7 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
 	if (!conn->hot_backup)
 		return (0);
 	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    ret = __schema_get_backup_check_requires_hot_backup_lock(
+	    ret = __schema_backup_check_requires_hot_backup_lock(
 		session, name));
 	return (ret);
 }

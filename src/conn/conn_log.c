@@ -344,7 +344,7 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __log_extract_all_lognum --
- *	Extract log numbers across an array of log files. Intended to be called
+ *	Extract log numbers across an array of log files.  Intended to be called
  *	while holding the hot backup read lock.
  */
 static int
@@ -416,8 +416,9 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	 * if we are the backup.
 	 */
 	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    WT_ERR(__log_extract_all_lognum(
-		session, backup_file, logfiles, logcount, min_lognum)));
+	    ret = __log_extract_all_lognum(
+		session, backup_file, logfiles, logcount, min_lognum));
+	WT_ERR(ret);
 
 	/*
 	 * Indicate what is our new earliest LSN.  It is the start
@@ -427,10 +428,6 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 
 	if (0)
 err:		__wt_err(session, ret, "log archive server error");
-	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP_READ)) {
-		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_READ);
-		__wt_readunlock(session, &conn->hot_backup_lock);
-	}
 	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	return (ret);
 }
