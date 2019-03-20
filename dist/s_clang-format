@@ -15,7 +15,6 @@ if test $? -ne 0; then
 	exit 1
 fi
 
-
 case $# in
 0)
 	# Get all source files that aren't in s_clang-format.list.
