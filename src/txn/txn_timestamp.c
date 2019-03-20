@@ -799,18 +799,29 @@ __wt_txn_parse_prepare_timestamp(
 		break;
 	}
 
+	/* Unlock here to have less code branches. */
+	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 	/*
 	 * Check whether the prepare timestamp is lesser / earlier to the
 	 * oldest timestamp.
 	 */
 	if (timestamp < oldest_ts) {
-		WT_ASSERT(session, prev == NULL);
-		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 		/*
 		 * Check whether the prepare timestamp need to be rounded up to
 		 * the oldest timestamp.
 		 */
 		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
+			/*
+			 * Check that there are no active readers - that would
+			 * be a violation of preconditions for rounding
+			 * timestamps of prepared transactions.
+			 */
+			/*
+			 * TODO:
+			 * Could we crash if active reader is checkpoint ??
+			 */
+			WT_ASSERT(session, prev == NULL);
+
 			if (WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 				__wt_timestamp_to_string(
 				    timestamp, ts_string[0]);
@@ -829,8 +840,7 @@ __wt_txn_parse_prepare_timestamp(
 			    "timestamp %s ", (int)cval.len, cval.str,
 			    ts_string[0]);
 		}
-	} else
-		__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
+	}
 
 	txn->prepare_timestamp = timestamp;
 
