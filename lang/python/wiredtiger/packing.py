@@ -67,8 +67,12 @@ if sys.version_info[0] >= 3:
             a.append(y)
         return bytes(a)
 
-    def __is_string(s):
+    def _is_string(s):
         return type(s) is str
+
+    def _string_result(s):
+        return s.decode()
+
 else:
     x00 = '\x00'
     xff = '\xff'
@@ -82,8 +86,11 @@ else:
             s += chr(y)
         return s
 
-    def __is_string(s):
+    def _is_string(s):
         return type(s) is unicode
+
+    def _string_result(s):
+        return s
 
 from .intpacking import pack_int, unpack_int
 
@@ -140,7 +147,7 @@ def unpack(fmt, s):
                     # is a size in the format.
                     size, s = unpack_int(s)
             if f in 'Ss':
-                result.append(s[:size].decode())
+                result.append(_string_result(s[:size]))
                 if f == 'S' and not havesize:
                     size += 1
             else:
@@ -205,7 +212,7 @@ def pack(fmt, *values):
                     l = size
             elif (f == 'u' and offset != len(fmt) - 1) or f == 'U':
                 result += pack_int(l)
-            if __is_string(val) and f in 'Ss':
+            if _is_string(val) and f in 'Ss':
                 result += str(val[:l]).encode()
             else:
                 result += val[:l]
