@@ -38,8 +38,7 @@ if test $CC = "cc"; then
 				       [wt_cv_prog_cxx_works=no])
 			AC_LANG_POP([C++])])
 else
-	AC_MSG_WARN(
-	    [C++ compiler ignored unless compiler is named "cc"])
+	AC_MSG_WARN([C++ compiler ignored unless compiler is named "cc"])
 	wt_cv_prog_cxx_works=no
 fi
 AM_CONDITIONAL([HAVE_CXX], [test "$wt_cv_prog_cxx_works" = "yes"])
