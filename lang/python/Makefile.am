@@ -16,7 +16,6 @@ $(PYSRC)/wiredtiger_wrap.c $(PYSRC)/wiredtiger.py: $(top_srcdir)/src/include/wir
 _wiredtiger.so: $(top_builddir)/libwiredtiger.la $(PYSRC)/wiredtiger_wrap.c
 	(cd $(PYSRC) && \
 	    $(PYTHON) setup.py build_ext -f -b $(abs_builddir) $(PYDIRS))
-	(mkdir -p $(PYDST) && cd $(PYDST) && ln -f -s ../_wiredtiger*.so _wiredtiger.so)
 
 pyfiles: $(PYFILES)
 
