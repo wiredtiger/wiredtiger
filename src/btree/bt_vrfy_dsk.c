@@ -32,12 +32,6 @@ static int __verify_dsk_row(
 	goto err;							\
 } while (0)
 
-#ifdef	HAVE_DIAGNOSTIC
-#define	WT_RET_VRFY_FAIL(session)	__wt_abort(session)
-#else
-#define	WT_RET_VRFY_FAIL(session)
-#endif
-
 #define	WT_RET_VRFY_RETVAL(session, ret, ...) do {			\
 	if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {	\
 		if ((ret) == 0)						\
@@ -45,7 +39,6 @@ static int __verify_dsk_row(
 		else							\
 			__wt_err(session, ret, __VA_ARGS__);		\
 	}								\
-	WT_RET_VRFY_FAIL(session);					\
 	return ((ret) == 0 ? WT_ERROR : ret);				\
 } while (0)
 
