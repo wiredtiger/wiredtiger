@@ -1165,9 +1165,10 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 
 	txn = &session->txn;
 
-	if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
+	if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_READ)) {
+		txn->read_timestamp = WT_TS_NONE;
 		return;
-
+	}
 #ifdef HAVE_DIAGNOSTIC
 	{
 	WT_TXN_GLOBAL *txn_global;
@@ -1188,6 +1189,7 @@ __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session)
 	 */
 	WT_PUBLISH(txn->clear_read_q, true);
 	WT_PUBLISH(txn->flags, flags);
+	txn->read_timestamp = WT_TS_NONE;
 }
 
 /*
