@@ -67,7 +67,7 @@ class test_backup02(wttest.WiredTigerTestCase):
 
         opthreads = []
         for i in range(self.nthreads):
-            t = op_thread(self.conn, uris, self.fmt, queue, done)
+            t = op_thread(self.conn, uris, self.fmt, work_queue, done)
             opthreads.append(t)
             t.start()
 
