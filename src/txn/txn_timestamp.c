@@ -640,6 +640,10 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * timestamp.
 	 */
 	if (F_ISSET(txn, WT_TXN_PREPARE) && ts < txn->prepare_timestamp) {
+		/*
+		 * If roundup timestamps is configured, the commit timestamp
+		 * will be rounded up to the prepare timestamp.
+		 */
 		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED))
 			ts = txn->prepare_timestamp;
 		else {
@@ -679,7 +683,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	bool prepare, prepare_allowed;
 
 	txn = &session->txn;
-	prepare = prepare_allowed = false;
+	prepare_allowed = false;
 	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
 	/* Look for a commit timestamp. */
@@ -688,7 +692,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (ret == 0 && cval.len != 0) {
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-
 		/*
 		 * For prepared transactions, commit timestamp can be earlier
 		 * than stable timestamp.
@@ -767,14 +770,11 @@ __wt_txn_parse_prepare_timestamp(
 		    "should not have been set before prepare transaction");
 
 	WT_RET(__wt_txn_parse_timestamp(session, "prepare", &timestamp, &cval));
-
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
-
 	oldest_ts = txn_global->oldest_timestamp;
-
 	/*
-	 * Prepare timestamp must be later/greater than latest active
-	 * read timestamp, if any.
+	 * Prepare timestamp must be greater than the latest active read
+	 * timestamp, if any.
 	 */
 	prev = TAILQ_LAST(
 	    &txn_global->read_timestamph, __wt_txn_rts_qh);
@@ -792,8 +792,8 @@ __wt_txn_parse_prepare_timestamp(
 			__wt_timestamp_to_string(
 			    prev->read_timestamp, ts_string[0]);
 			WT_RET_MSG(session, EINVAL,
-			    "prepare timestamp %.*s not later than an "
-			    "active read timestamp %s ",
+			    "prepare timestamp %.*s must be greater than the "
+			    "latest active read timestamp %s ",
 			    (int)cval.len, cval.str, ts_string[0]);
 		}
 		break;
@@ -802,23 +802,19 @@ __wt_txn_parse_prepare_timestamp(
 	/* Unlock here to have less code branches. */
 	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 	/*
-	 * Check whether the prepare timestamp is lesser / earlier to the
-	 * oldest timestamp.
+	 * Check whether the prepare timestamp is less than the oldest
+	 * timestamp.
 	 */
 	if (timestamp < oldest_ts) {
 		/*
-		 * Check whether the prepare timestamp need to be rounded up to
+		 * Check whether the prepare timestamp needs to be rounded up to
 		 * the oldest timestamp.
 		 */
 		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED)) {
 			/*
-			 * Check that there are no active readers - that would
+			 * Check that there are no active readers. That would
 			 * be a violation of preconditions for rounding
 			 * timestamps of prepared transactions.
-			 */
-			/*
-			 * TODO:
-			 * Could we crash if active reader is checkpoint ??
 			 */
 			WT_ASSERT(session, prev == NULL);
 

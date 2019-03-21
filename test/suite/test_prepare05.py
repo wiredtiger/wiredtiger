@@ -80,7 +80,7 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(4)),
-            "/not later than an active read timestamp/")
+            "/must be greater than the latest active read timestamp/")
         self.session.rollback_transaction()
 
         # Check setting the prepare timestamp as later than active read

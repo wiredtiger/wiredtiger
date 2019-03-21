@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_prepare06.py
-#   Prepare: Rounding off prepared transactions Timestamps.
+#   Prepare: Rounding up prepared transactions Timestamps.
 #
 
 from suite_subprocess import suite_subprocess
@@ -44,7 +44,8 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri, 'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri)
 
-        # It is illegal to set a prepare timestamp older than oldest timestamp.
+        # It is illegal to set the prepare timestamp older than the oldest
+        # timestamp.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(20))
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -53,42 +54,55 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
             "/older than the oldest timestamp/")
         self.session.rollback_transaction()
 
-        # Check setting the prepared timestamps earlier to oldest timestamp is
-        # valid with roundup_timestamps settings.
+        # Check setting a prepared transaction timestamps earlier than the
+        # oldest timestamp is valid with roundup_timestamps settings.
         self.session.begin_transaction('roundup_timestamps=(prepared=true)')
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(10))
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
-        # It is illegal to set a prepare timestamp same as or earlier than an
-        # active read timestamp even with roundup_timestamps settings.
+        # Check the cases with an active reader.
         # Start a new reader to have an active read timestamp.
         s_reader = self.conn.open_session()
         s_reader.begin_transaction('read_timestamp=' + timestamp_str(40))
+
+        # It is illegal to set the prepare timestamp as earlier than an active
+        # read timestamp even with roundup_timestamps settings.
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(10)),
-            "/not later than an active read timestamp/")
+            "/must be greater than the latest active read timestamp/")
         self.session.rollback_transaction()
 
-        # It is illegal to set a commit timestamp older than prepare
+        # It is illegal to set the prepare timestamp the same as an active read
+        # timestamp even with roundup_timestamps settings.
+        self.session.begin_transaction()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.prepare_transaction(
+            'prepare_timestamp=' + timestamp_str(40)),
+            "/must be greater than the latest active read timestamp/")
+        self.session.rollback_transaction()
+
+        # It is illegal to set a commit timestamp older than the prepare
         # timestamp of a transaction.
         self.session.begin_transaction()
         c[1] = 1
         self.session.prepare_transaction(
-                'prepare_timestamp=' + timestamp_str(45))
+            'prepare_timestamp=' + timestamp_str(45))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
             'commit_timestamp=' + timestamp_str(30)),
             "/older than the prepare timestamp/")
 
-        # It is legal to set a commit timestamp older than prepare
-        # timestamp of a transaction with roundup_timestamps settings.
+        # It is legal to set a commit timestamp older than prepare timestamp of
+        # a transaction with roundup_timestamps settings.
         self.session.begin_transaction('roundup_timestamps=(prepared=true)')
         c[1] = 1
         self.session.prepare_transaction(
-                'prepare_timestamp=' + timestamp_str(45))
+            'prepare_timestamp=' + timestamp_str(45))
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
+
+        s_reader.commit_transaction()
 
 if __name__ == '__main__':
     wttest.run()

@@ -1292,14 +1292,14 @@ methods = {
         Config('prepared', 'false', r'''
             applicable only for prepared transactions. Indicates if the prepare
             timestamp and the commit timestamp of this transaction can be
-            rounded up. If the prepare timestamp is lesser than the oldest
+            rounded up. If the prepare timestamp is less than the oldest
             timestamp, the prepare timestamp  will be rounded to the oldest
-            timestamp. If the commit timestamp is lesser than the prepare
-            timestamp, the commit timestamp will be rounded to the prepare
+            timestamp. If the commit timestamp is less than the prepare
+            timestamp, the commit timestamp will be rounded up to the prepare
             timestamp''', type='boolean'),
         Config('read', 'false', r'''
-            if the read timestamp is earlier than the oldest timestamp, the
-            read timestamp will be rounded to the oldest timestamp''',
+            if the read timestamp is less than the oldest timestamp, the
+            read timestamp will be rounded up to the oldest timestamp''',
             type='boolean'),
         ]),
     Config('snapshot', '', r'''
