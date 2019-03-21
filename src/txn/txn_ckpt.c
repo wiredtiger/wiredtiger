@@ -1272,12 +1272,12 @@ __drop_to(WT_CKPT *ckptbase, const char *name, size_t len)
 }
 
 /*
- * __checkpoint_lock_dirty_tree_requires_hot_backup_lock --
+ * __checkpoint_lock_dirty_tree_int --
  *	Helper for __checkpoint_lock_dirty_tree. Intended to be called while
  *	holding the hot backup lock.
  */
 static int
-__checkpoint_lock_dirty_tree_requires_hot_backup_lock(
+__checkpoint_lock_dirty_tree_int(
     WT_SESSION_IMPL *session, bool is_checkpoint,
     bool force, WT_BTREE *btree, WT_CKPT *ckpt, WT_CKPT *ckptbase)
 {
@@ -1462,7 +1462,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	F_SET(ckpt, WT_CKPT_ADD);
 
 	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    ret = __checkpoint_lock_dirty_tree_requires_hot_backup_lock(
+	    ret = __checkpoint_lock_dirty_tree_int(
 		session, is_checkpoint, force, btree, ckpt, ckptbase));
 	WT_ERR(ret);
 	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))

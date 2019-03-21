@@ -1523,12 +1523,12 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
 }
 
 /*
- * __log_truncate_file_requires_hot_backup_lock --
+ * __log_truncate_file_int --
  *	Helper for __log_truncate_file. Intended to be called while holding
  *	the hot backup read lock.
  */
 static int
-__log_truncate_file_requires_hot_backup_lock(
+__log_truncate_file_int(
     WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset, bool *truncate)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -1563,7 +1563,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
 
 	if (!F_ISSET(log, WT_LOG_TRUNCATE_NOTSUP) && !conn->hot_backup) {
 		WT_WITH_HOTBACKUP_READ_LOCK(session,
-		    ret = __log_truncate_file_requires_hot_backup_lock(
+		    ret = __log_truncate_file_int(
 			session, log_fh, offset, &truncate));
 		if (truncate) {
 			if (ret != ENOTSUP)
