@@ -25,6 +25,7 @@ static const char * const __stats_dsrc_desc[] = {
 	"block-manager: file major version number",
 	"block-manager: file size in bytes",
 	"block-manager: minor version number",
+	"block-manager: number of times zero truncated the file",
 	"btree: btree checkpoint generation",
 	"btree: column-store fixed-size leaf pages",
 	"btree: column-store internal pages",
@@ -211,6 +212,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 	stats->block_major = 0;
 	stats->block_size = 0;
 	stats->block_minor = 0;
+	stats->block_zero = 0;
 		/* not clearing btree_checkpoint_generation */
 	stats->btree_column_fix = 0;
 	stats->btree_column_internal = 0;
@@ -375,6 +377,7 @@ __wt_stat_dsrc_aggregate_single(
 	to->block_size += from->block_size;
 	if (from->block_minor > to->block_minor)
 		to->block_minor = from->block_minor;
+	to->block_zero += from->block_zero;
 	to->btree_checkpoint_generation += from->btree_checkpoint_generation;
 	to->btree_column_fix += from->btree_column_fix;
 	to->btree_column_internal += from->btree_column_internal;
@@ -559,6 +562,7 @@ __wt_stat_dsrc_aggregate(
 	to->block_size += WT_STAT_READ(from, block_size);
 	if ((v = WT_STAT_READ(from, block_minor)) > to->block_minor)
 		to->block_minor = v;
+	to->block_zero += WT_STAT_READ(from, block_zero);
 	to->btree_checkpoint_generation +=
 	    WT_STAT_READ(from, btree_checkpoint_generation);
 	to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);

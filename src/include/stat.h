@@ -742,6 +742,7 @@ struct __wt_dsrc_stats {
 	int64_t block_major;
 	int64_t block_size;
 	int64_t block_minor;
+	int64_t block_zero;
 	int64_t btree_checkpoint_generation;
 	int64_t btree_column_fix;
 	int64_t btree_column_internal;

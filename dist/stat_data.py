@@ -627,6 +627,7 @@ dsrc_stats = [
     BlockStat('block_minor', 'minor version number', 'max_aggregate,no_scale'),
     BlockStat('block_reuse_bytes', 'file bytes available for reuse', 'no_scale,size'),
     BlockStat('block_size', 'file size in bytes', 'no_scale,size'),
+    BlockStat('block_zero', 'number of times zero truncated the file'),
 
     ##########################################
     # Btree statistics

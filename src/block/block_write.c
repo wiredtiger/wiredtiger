@@ -17,6 +17,7 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
+	wt_off_t size;
 
 	conn = S2C(session);
 
@@ -47,6 +48,17 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 		if (!conn->hot_backup)
 			ret = __wt_ftruncate(session, block->fh, len);
 		__wt_readunlock(session, &conn->hot_backup_lock);
+		/*
+		 * If the underlying file system doesn't support truncate,
+		 * then zero out the rest of the file doing an effective
+		 * truncate. We can do this outside the backup lock because
+		 * we're not changing the size of the file.
+		 */
+		if (ret == ENOTSUP) {
+			WT_RET(__wt_filesize(session, block->fh, &size));
+			ret = __wt_file_zero(session,
+			    block->fh, len, size, false);
+		}
 	}
 
 	/*
