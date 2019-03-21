@@ -33,6 +33,11 @@
 from __future__ import print_function
 import glob, json, os, re, sys
 
+try:
+    xrange
+except NameError:  #python3
+    xrange = range
+
 # Set paths
 suitedir = sys.path[0]
 wt_disttop = os.path.dirname(os.path.dirname(suitedir))
@@ -65,7 +70,6 @@ else:
 # Don't change sys.path[0], it's the dir containing the invoked python script.
 
 sys.path.insert(1, os.path.join(wt_builddir, 'lang', 'python'))
-#sys.path.insert(1, os.path.join(wt_builddir, 'lang', 'python', 'wiredtiger'))
 
 # Append to a colon separated path in the environment
 def append_env_path(name, value):
@@ -256,7 +260,7 @@ def testsFromArg(tests, loader, arg, scenario):
         start, end = (int(a) for a in arg.split('-'))
     else:
         start, end = int(arg), int(arg)
-    for t in range(start, end+1):
+    for t in xrange(start, end+1):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
 if __name__ == '__main__':

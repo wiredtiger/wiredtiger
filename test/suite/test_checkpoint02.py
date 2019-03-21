@@ -33,6 +33,10 @@ except ImportError:
 import threading, time, wiredtiger, wttest
 from wtthread import checkpoint_thread, op_thread
 from wtscenario import make_scenarios
+try:
+    xrange
+except NameError:  #python3
+    xrange = range
 
 # test_checkpoint02.py
 #   Run background checkpoints repeatedly while doing inserts and other
@@ -54,14 +58,14 @@ class test_checkpoint02(wttest.WiredTigerTestCase):
         uris.append(self.uri)
         work_queue = queue.Queue()
         my_data = 'a' * self.dsize
-        for i in range(self.nops):
+        for i in xrange(self.nops):
             if i % 191 == 0 and i != 0:
                 work_queue.put_nowait(('b', i, my_data))
             work_queue.put_nowait(('i', i, my_data))
 
         opthreads = []
         for i in range(self.nthreads):
-            t = op_thread(self.conn, uris, self.fmt, queue, done)
+            t = op_thread(self.conn, uris, self.fmt, work_queue, done)
             opthreads.append(t)
             t.start()
 
