@@ -56,7 +56,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         cur1[1] = 1
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
-                '/first commit timestamp \(0,2\) older ' +
+                '/commit timestamp \(0,2\) older ' +
                     'than stable timestamp \(0,3\)/')
 
         # Scenario 2:
@@ -69,7 +69,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.timestamp_transaction('commit_timestamp=6')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
-                '/first commit timestamp \(0,4\) older ' +
+                '/commit timestamp \(0,4\) older ' +
                     'than stable timestamp \(0,5\)/')
 
         # Scenario 3:
@@ -103,7 +103,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.timestamp_transaction('commit_timestamp=4')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
-                '/first commit timestamp \(0,4\) older ' +
+                '/commit timestamp \(0,4\) older ' +
                     'than stable timestamp \(0,5\)/')
 
 if __name__ == '__main__':
