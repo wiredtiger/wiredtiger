@@ -1149,8 +1149,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 * is higher or same as the las timestamp.
 			 */
 			WT_ASSERT(session,
-			    prepare_state != WT_PREPARE_LOCKED ||
-			    durable_timestamp != WT_TS_MAX ||
+			    prepare_state != WT_PREPARE_LOCKED &&
+			    durable_timestamp != WT_TS_MAX &&
 			    (prepare_state != WT_PREPARE_INPROGRESS ||
 			    durable_timestamp == 0));
 
