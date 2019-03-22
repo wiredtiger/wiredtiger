@@ -31,86 +31,57 @@
 #
 
 import wttest
+from wtscenario import make_scenarios
 
 class test_txn20(wttest.WiredTigerTestCase):
+
     uri = 'table:test_txn'
+    iso_types = [
+        ('isolation_read_uncommitted', dict(isolation='read-uncommitted')),
+        ('isolation_read_committed', dict(isolation='read-committed')),
+        ('isolation_snapshot', dict(isolation='snapshot'))
+    ]
+    scenarios = make_scenarios(iso_types)
+    key = 'key'
+    old_value = 'value: old'
+    new_value = 'value: new'
 
-    def test_read_uncommitted(self):
+    def test_isolation_level(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri, None)
-        cursor['key: aaa'] = 'value: aaa'
+        cursor[self.key] = self.old_value
 
-        # Make an update and don't commit it just yet.
+        # Make an update and don't commit it just yet. We should see the update
+        # from 'read-uncommitted' isolation levels.
         self.session.begin_transaction()
-        cursor['key: aaa'] = 'value: bbb'
+        cursor[self.key] = self.new_value
 
-        # Now begin a new transaction with the 'read-uncommitted' isolation
-        # level. Unlike 'read-committed' and 'snapshot' isolation levels, we're
-        # not protected from dirty reads so we'll see the update above even
-        # though its respective transaction has not been committed.
         s = self.conn.open_session()
         cursor = s.open_cursor(self.uri, None)
-        s.begin_transaction('isolation=read-uncommitted')
-        self.assertEqual(cursor['key: aaa'], 'value: bbb')
+        s.begin_transaction('isolation=' + self.isolation)
 
-        # Commit the update now. We should still see it from our
-        # 'read-uncommitted' session.
+        if self.isolation == 'read-uncommitted':
+            # Unlike 'read-committed' and 'snapshot' isolation levels, we're not
+            # protected from dirty reads so we'll see the update above even
+            # though its respective transaction has not been committed.
+            self.assertEqual(cursor[self.key], self.new_value)
+        else:
+            self.assertEqual(cursor[self.key], self.old_value)
+
+        # Commit the update now. We should see the update from 'read-committed'
+        # and 'read-uncommitted' isolation levels.
         self.session.commit_transaction()
-        self.assertEqual(cursor['key: aaa'], 'value: bbb')
 
-        # Cleanup.
-        self.session.close()
-        s.rollback_transaction()
-        s.close()
-
-    def test_read_committed(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(self.uri, None)
-        cursor['key: aaa'] = 'value: aaa'
-
-        # Make an update and don't commit it just yet.
-        self.session.begin_transaction()
-        cursor['key: aaa'] = 'value: bbb'
-
-        # Now begin a new transaction with the 'read-committed' isolation level.
-        # We shouldn't see the update above since it hasn't been committed yet.
-        s = self.conn.open_session()
-        cursor = s.open_cursor(self.uri, None)
-        s.begin_transaction('isolation=read-committed')
-        self.assertEqual(cursor['key: aaa'], 'value: aaa')
-
-        # Commit the update now. Unlike the 'snapshot' isolation level, we're
-        # not protected from non-repeatable reads so we'll see an update that
-        # wasn't visible earlier in our previous read.
-        self.session.commit_transaction()
-        self.assertEqual(cursor['key: aaa'], 'value: bbb')
-
-        # Cleanup.
-        self.session.close()
-        s.rollback_transaction()
-        s.close()
-
-    def test_read_snapshot(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(self.uri, None)
-        cursor['key: aaa'] = 'value: aaa'
-
-        # Make an update and don't commit it just yet.
-        self.session.begin_transaction()
-        cursor['key: aaa'] = 'value: bbb'
-
-        # Now begin a new transaction with the 'snapshot' isolation level.
-        # We should never see the update above regardless of what happens
-        # from here on since it wasn't committed at the time of the snapshot.
-        s = self.conn.open_session()
-        cursor = s.open_cursor(self.uri, None)
-        s.begin_transaction('isolation=snapshot')
-        self.assertEqual(cursor['key: aaa'], 'value: aaa')
-
-        # Commit the update now. We still shouldn't see the value since it wasn't
-        # part of the initial snapshot.
-        self.session.commit_transaction()
-        self.assertEqual(cursor['key: aaa'], 'value: aaa')
+        if self.isolation == 'snapshot':
+            # We should never see the updates above since it wasn't committed at
+            # the time of the snapshot.
+            self.assertEqual(cursor[self.key], self.old_value)
+        else:
+            # Unlike the 'snapshot' isolation level, 'read-committed' is not
+            # protected from non-repeatable reads so we'll see an update that
+            # wasn't visible earlier in our previous read. As before,
+            # 'read-uncommitted' will still see the new value.
+            self.assertEqual(cursor[self.key], self.new_value)
 
         # Cleanup.
         self.session.close()
