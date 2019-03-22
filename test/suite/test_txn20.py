@@ -52,7 +52,7 @@ class test_txn20(wttest.WiredTigerTestCase):
         cursor[self.key] = self.old_value
 
         # Make an update and don't commit it just yet. We should see the update
-        # from 'read-uncommitted' isolation levels.
+        # from the 'read-uncommitted' isolation level.
         self.session.begin_transaction()
         cursor[self.key] = self.new_value
 
@@ -61,15 +61,15 @@ class test_txn20(wttest.WiredTigerTestCase):
         s.begin_transaction('isolation=' + self.isolation)
 
         if self.isolation == 'read-uncommitted':
-            # Unlike 'read-committed' and 'snapshot' isolation levels, we're not
-            # protected from dirty reads so we'll see the update above even
+            # Unlike the 'read-committed' and 'snapshot' isolation levels, we're
+            # not protected from dirty reads so we'll see the update above even
             # though its respective transaction has not been committed.
             self.assertEqual(cursor[self.key], self.new_value)
         else:
             self.assertEqual(cursor[self.key], self.old_value)
 
-        # Commit the update now. We should see the update from 'read-committed'
-        # and 'read-uncommitted' isolation levels.
+        # Commit the update now. We should see the update from the
+        # 'read-committed' and 'read-uncommitted' isolation levels.
         self.session.commit_transaction()
 
         if self.isolation == 'snapshot':
@@ -78,8 +78,8 @@ class test_txn20(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.key], self.old_value)
         else:
             # Unlike the 'snapshot' isolation level, 'read-committed' is not
-            # protected from non-repeatable reads so we'll see an update that
-            # wasn't visible earlier in our previous read. As before,
+            # protected from non-repeatable reads so we'll see an update
+            # that wasn't visible earlier in our previous read. As before,
             # 'read-uncommitted' will still see the new value.
             self.assertEqual(cursor[self.key], self.new_value)
 
