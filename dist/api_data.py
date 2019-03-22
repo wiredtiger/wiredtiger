@@ -1287,7 +1287,9 @@ methods = {
         read timestamp will be rounded to oldest timestamp''',
         type='boolean'),
     Config('roundup_timestamps', '', r'''
-        round up timestamps of the transaction''',
+        round up timestamps of the transaction. This setting alters the
+        visibility expected in a transaction. See @ref
+        transaction_timestamps''',
         type='category', subconfig= [
         Config('prepared', 'false', r'''
             applicable only for prepared transactions. Indicates if the prepare

@@ -810,7 +810,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	readonly = txn->mod_count == 0;
 
 	prepare = F_ISSET(txn, WT_TXN_PREPARE);
-
 	/*
 	 * Clear the prepared round up flag if the transaction is not prepared.
 	 * There is no rounding up to do in that case.

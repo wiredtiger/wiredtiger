@@ -1795,7 +1795,9 @@ struct __wt_session {
 	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
 	 * boolean flag; default \c false.}
 	 * @config{roundup_timestamps = (, round up timestamps of the
-	 * transaction., a set of related configuration options defined below.}
+	 * transaction.  This setting alters the visibility expected in a
+	 * transaction.  See @ref transaction_timestamps., a set of related
+	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prepared, applicable only for
 	 * prepared transactions.  Indicates if the prepare timestamp and the
 	 * commit timestamp of this transaction can be rounded up.  If the

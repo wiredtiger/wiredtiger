@@ -837,7 +837,6 @@ __wt_txn_parse_prepare_timestamp(
 			    ts_string[0]);
 		}
 	}
-
 	txn->prepare_timestamp = timestamp;
 
 	return (0);
@@ -884,7 +883,6 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_config_gets_def(session,
 		    cfg, "round_to_oldest", 0, &cval));
 		round_to_oldest = cval.val;
-
 		/*
 		 * The read timestamp could be rounded to the oldest timestamp.
 		 */
