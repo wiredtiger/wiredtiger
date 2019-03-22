@@ -223,20 +223,20 @@ transactions - the table below summarizes those constraints:
 @subsection timestamp_roundup Automatic rounding of timestamps
 Applications setting timestamps for a transaction have to comply with the
 constraints based on the global timestamp state. In order to be compliant with
-the constraints applications need to query global timestamp state, check their
-timestamps for compliance and adjust timestamps if required. To simplify the
-burden on applications related to rounding up timestamps WiredTiger supports
-automatic rounding of timestamps in some scenarios.
+the constraints applications need to query the global timestamp state and
+check their timestamps for compliance and adjust timestamps if required.
+To simplify the burden on applications related to rounding up timestamps
+WiredTiger supports automatic rounding of timestamps in some scenarios.
 
 Applications can configure
 <code>roundup_timestamps=(prepared=true,read=true)</code> with
 WT_SESSION::begin_transaction.
 
 The configuration <code>roundup_timestamps=(prepared=true)</code> will be valid
-only for prepared transactions, indicating that the prepare timestamp could be
-rounded up to the oldest timestamp if the prepare timestamp is less than the
+only for prepared transactions. It indicates that the prepare timestamp could be
+rounded up to the oldest timestamp, if the prepare timestamp is less than the
 oldest timestamp. This setting also indicates that the commit timestamp of the
-transaction could be rounded up to the prepare timestamp if the commit
+transaction could be rounded up to the prepare timestamp, if the commit
 timestamp is less than the prepare timestamp. Based on the timestamps values
 and constraints, enabling this configuration could result in only one of
 timestamps being rounded up. For example, for the timestamp values
