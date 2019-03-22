@@ -708,7 +708,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		prepare_allowed = true;
 	}
 
-	/* Look for a durable timestamp incase of prepared transaction. */
+	/* If we have a prepared transaction, look for a durable timestamp. */
 	if (prepare) {
 		ret = __wt_config_gets_def(
 		    session, cfg, "durable_timestamp", 0, &cval);
