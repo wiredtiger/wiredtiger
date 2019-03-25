@@ -160,8 +160,7 @@ __txn_get_pinned_timestamp(
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t tmp_read_timestamp;
-	wt_timestamp_t tmp_ts;
+	wt_timestamp_t tmp_read_timestamp, tmp_ts;
 	bool include_oldest, txn_has_write_lock;
 
 	conn = S2C(session);
@@ -757,7 +756,7 @@ __wt_txn_parse_prepare_timestamp(
 	WT_CONFIG_ITEM cval;
 	WT_TXN *prev, *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t oldest_ts, timestamp;
+	wt_timestamp_t oldest_ts, timestamp, tmp_timestamp;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 
 	txn = &session->txn;
@@ -782,6 +781,8 @@ __wt_txn_parse_prepare_timestamp(
 	prev = TAILQ_LAST(
 	    &txn_global->read_timestamph, __wt_txn_rts_qh);
 	while (prev != NULL) {
+		tmp_timestamp = prev->read_timestamp;
+
 		/* Skip self and non-active transactions. */
 		if (prev->clear_read_q || prev == txn) {
 			prev = TAILQ_PREV(
@@ -789,11 +790,11 @@ __wt_txn_parse_prepare_timestamp(
 			continue;
 		}
 
-		if (prev->read_timestamp >= timestamp) {
+		if (tmp_timestamp >= timestamp) {
 			__wt_readunlock(session,
 			    &txn_global->read_timestamp_rwlock);
 			__wt_timestamp_to_string(
-			    prev->read_timestamp, ts_string[0]);
+			    tmp_timestamp, ts_string[0]);
 			WT_RET_MSG(session, EINVAL,
 			    "prepare timestamp %.*s must be greater than the "
 			    "latest active read timestamp %s ",
@@ -1130,7 +1131,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		 */
 		qtxn = TAILQ_LAST(
 		     &txn_global->read_timestamph, __wt_txn_rts_qh);
-		while (qtxn != NULL && (!qtxn->clear_read_q ||
+		while (qtxn != NULL && (qtxn->clear_read_q ||
 		    qtxn->read_timestamp > txn->read_timestamp)) {
 			++walked;
 			qtxn = TAILQ_PREV(
