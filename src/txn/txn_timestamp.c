@@ -160,6 +160,7 @@ __txn_get_pinned_timestamp(
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t tmp_read_timestamp;
 	wt_timestamp_t tmp_ts;
 	bool include_oldest, txn_has_write_lock;
 
@@ -187,6 +188,8 @@ __txn_get_pinned_timestamp(
 	/* Look for the oldest ordinary reader. */
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 	TAILQ_FOREACH(txn, &txn_global->read_timestamph, read_timestampq) {
+		/* Copy value out to prevent possible race condition. */
+		tmp_read_timestamp = txn->read_timestamp;
 		/*
 		 * Skip any transactions on the queue that are not active.
 		 */
@@ -196,8 +199,8 @@ __txn_get_pinned_timestamp(
 		 * A zero timestamp is possible here only when the oldest
 		 * timestamp is not accounted for.
 		 */
-		if (tmp_ts == 0 || txn->read_timestamp < tmp_ts)
-			tmp_ts = txn->read_timestamp;
+		if (tmp_ts == 0 || tmp_read_timestamp < tmp_ts)
+			tmp_ts = tmp_read_timestamp;
 		/*
 		 * We break on the first active txn on the list.
 		 */
@@ -1127,8 +1130,8 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		 */
 		qtxn = TAILQ_LAST(
 		     &txn_global->read_timestamph, __wt_txn_rts_qh);
-		while (qtxn != NULL &&
-		    qtxn->read_timestamp > txn->read_timestamp) {
+		while (qtxn != NULL && (!qtxn->clear_read_q ||
+		    qtxn->read_timestamp > txn->read_timestamp)) {
 			++walked;
 			qtxn = TAILQ_PREV(
 			    qtxn, __wt_txn_rts_qh, read_timestampq);
