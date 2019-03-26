@@ -51,6 +51,8 @@ SYSTEM("Darwin");
 
 #ifdef WT_USE_OPENAT
 #define OPEN(...)				openat(AT_FDCWD, __VA_ARGS__)
+#else
+#define OPEN(...)				open(__VA_ARGS__)
 #endif
 
 TRACE("close,fdatasync,fsync,ftruncate,open,openat,pwrite64,rename");
