@@ -155,12 +155,12 @@ def unpack(fmt, s):
             s = s[size:]
         elif f in 't':
             # bit type, size is number of bits
-            result.append(_ord(s[0:1]))
+            result.append(_ord(s[0]))
             s = s[1:]
         elif f in 'Bb':
             # byte type
             for i in range(size):
-                v = _ord(s[0:1])
+                v = _ord(s[0])
                 if f != 'B':
                     v -= 0x80
                 result.append(v)

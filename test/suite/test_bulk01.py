@@ -80,7 +80,7 @@ class test_bulk_load(wttest.WiredTigerTestCase):
             'key_format=' + self.keyfmt + ',value_format=' + self.valfmt)
         cursor = self.session.open_cursor(uri, None, "bulk")
         for i in xrange(1, 1000):
-            cursor[simple_key(cursor, i)] = simple_value(cursor, i/7)
+            cursor[simple_key(cursor, i)] = simple_value(cursor, i//7)
 
     # Test a bulk-load variable-length column-store append ignores any key.
     def test_bulk_load_var_append(self):

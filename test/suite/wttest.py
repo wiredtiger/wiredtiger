@@ -47,7 +47,6 @@ def shortenWithEllipsis(s, maxlen):
     return s
 
 _python3 = (sys.version_info >= (3, 0, 0))
-_python2 = (sys.version_info >= (2, 0, 0) and sys.version_info < (3, 0, 0))
 
 class CapturedFd(object):
     """
@@ -297,7 +296,7 @@ class WiredTigerTestCase(unittest.TestCase):
             else:
                 extfiles[ext] = complete
         if len(extfiles) != 0:
-            result = ',extensions=[' + ','.join(extfiles.values()) + ']'
+            result = ',extensions=[' + ','.join(list(extfiles.values())) + ']'
         return result
 
     # Can be overridden, but first consider setting self.conn_config
@@ -656,6 +655,21 @@ class WiredTigerTestCase(unittest.TestCase):
             return i
         else:
             return long(i)
+
+    def ord_byte(self, b):
+        """
+        return the 'ord' of a single byte.
+        In Python2 a set of bytes is represented as a string, and a single
+        byte is a string of length one.  In Python3, bytes are an array of
+        ints, so no explicit ord() call is needed.
+        """
+        if _python3:
+            return b
+        else:
+            return ord(b)
+
+    def is_python3(self):
+        return _python3
 
     # print directly to tty, useful for debugging
     def tty(self, message):
