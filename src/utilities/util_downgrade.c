@@ -37,8 +37,8 @@ util_downgrade(WT_SESSION *session, int argc, char *argv[])
 	if (argc != 0 || release == NULL)
 		return (usage());
 
-	if ((ret = __wt_snprintf(config_str, sizeof(config_str),
-	    "compatibility=(release=%s)", release)) != 0)
+	if ((ret = __wt_snprintf(
+	         config_str, sizeof(config_str), "compatibility=(release=%s)", release)) != 0)
 		return (util_err(session, ret, NULL));
 	conn = session->connection;
 	if ((ret = conn->reconfigure(conn, config_str)) != 0)

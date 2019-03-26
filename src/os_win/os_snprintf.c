@@ -13,8 +13,7 @@
  *	POSIX vsnprintf convenience function, incrementing the returned size.
  */
 int
-__wt_vsnprintf_len_incr(
-    char *buf, size_t size, size_t *retsizep, const char *fmt, va_list ap)
+__wt_vsnprintf_len_incr(char *buf, size_t size, size_t *retsizep, const char *fmt, va_list ap)
 {
 	int len;
 

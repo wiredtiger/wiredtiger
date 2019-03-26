@@ -17,8 +17,7 @@ static int __evict_review(WT_SESSION_IMPL *, WT_REF *, bool, bool *);
  *	Release exclusive access to a page.
  */
 static inline void
-__evict_exclusive_clear(
-    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state)
+__evict_exclusive_clear(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state)
 {
 	WT_ASSERT(session, ref->state == WT_REF_LOCKED && ref->page != NULL);
 
@@ -103,8 +102,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * expensive.
 			 */
 			WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
-			WT_STAT_CONN_INCRV(session,
-			    cache_eviction_force_delete_time,
+			WT_STAT_CONN_INCRV(session, cache_eviction_force_delete_time,
 			    WT_CLOCKDIFF_US(time_stop, time_start));
 		}
 	} else {
@@ -123,8 +121,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Evict a page.
  */
 int
-__wt_evict(WT_SESSION_IMPL *session,
-    WT_REF *ref, bool closing, uint32_t previous_state)
+__wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing, uint32_t previous_state)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -135,8 +132,8 @@ __wt_evict(WT_SESSION_IMPL *session,
 	page = ref->page;
 	local_gen = false;
 
-	__wt_verbose(session, WT_VERB_EVICT,
-	    "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
+	__wt_verbose(session, WT_VERB_EVICT, "page %p (%s)", (void *)page,
+	    __wt_page_type_string(page->type));
 
 	/*
 	 * Enter the eviction generation. If we re-enter eviction, leave the
@@ -216,8 +213,7 @@ __wt_evict(WT_SESSION_IMPL *session,
 		 * Pages that belong to dead trees never write back to disk
 		 * and can't support page splits.
 		 */
-		WT_ERR(__evict_page_clean_update(
-		    session, ref, tree_dead || closing));
+		WT_ERR(__evict_page_clean_update(session, ref, tree_dead || closing));
 	else
 		WT_ERR(__evict_page_dirty_update(session, ref, closing));
 
@@ -230,14 +226,15 @@ __wt_evict(WT_SESSION_IMPL *session,
 	}
 
 	if (0) {
-err:		if (!closing)
+	err:
+		if (!closing)
 			__evict_exclusive_clear(session, ref, previous_state);
 
 		WT_STAT_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_DATA_INCR(session, cache_eviction_fail);
 	}
 
-done:	/* Leave any local eviction generation. */
+done: /* Leave any local eviction generation. */
 	if (local_gen)
 		__wt_session_gen_leave(session, WT_GEN_EVICT);
 
@@ -312,11 +309,10 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * history in lookaside.
 	 */
 	WT_ASSERT(session,
-	    closing || ref->page->modify == NULL ||
-	    F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    (ref->page_las != NULL && ref->page_las->eviction_to_lookaside) ||
-	    __wt_txn_visible_all(session, ref->page->modify->rec_max_txn,
-	    ref->page->modify->rec_max_timestamp));
+	    closing || ref->page->modify == NULL || F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
+	        (ref->page_las != NULL && ref->page_las->eviction_to_lookaside) ||
+	        __wt_txn_visible_all(
+	            session, ref->page->modify->rec_max_txn, ref->page->modify->rec_max_timestamp));
 
 	/*
 	 * Discard the page and update the reference structure. If evicting a
@@ -327,14 +323,12 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	 * subsequently written.
 	 */
 	__wt_ref_out(session, ref);
-	if (!closing && ref->page_las != NULL &&
-	    ref->page_las->eviction_to_lookaside &&
+	if (!closing && ref->page_las != NULL && ref->page_las->eviction_to_lookaside &&
 	    __wt_page_las_active(session, ref)) {
 		ref->page_las->eviction_to_lookaside = false;
 		WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
 	} else if (ref->addr == NULL) {
-		WT_WITH_PAGE_INDEX(session,
-		    ret = __evict_delete_ref(session, ref, closing));
+		WT_WITH_PAGE_INDEX(session, ret = __evict_delete_ref(session, ref, closing));
 		WT_RET_BUSY_OK(ret);
 	} else
 		WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -359,7 +353,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 	WT_ASSERT(session, ref->addr == NULL);
 
 	switch (mod->rec_result) {
-	case WT_PM_REC_EMPTY:				/* Page is empty */
+	case WT_PM_REC_EMPTY: /* Page is empty */
 		/*
 		 * Update the parent to reference a deleted page. Reconciliation
 		 * left the page "empty", so there's no older transaction in the
@@ -369,11 +363,10 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 * to read from the backing store.
 		 */
 		__wt_ref_out(session, ref);
-		WT_WITH_PAGE_INDEX(session,
-		    ret = __evict_delete_ref(session, ref, closing));
+		WT_WITH_PAGE_INDEX(session, ret = __evict_delete_ref(session, ref, closing));
 		WT_RET_BUSY_OK(ret);
 		break;
-	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
+	case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
 		/*
 		 * Either a split where we reconciled a page and it turned into
 		 * a lot of pages or an in-memory page that got too large, we
@@ -392,12 +385,11 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		 */
 		if (mod->mod_multi_entries == 1) {
 			WT_ASSERT(session, closing == false);
-			WT_RET(__wt_split_rewrite(
-			    session, ref, &mod->mod_multi[0]));
+			WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
 		} else
 			WT_RET(__wt_split_multi(session, ref, closing));
 		break;
-	case WT_PM_REC_REPLACE: 			/* 1-for-1 page swap */
+	case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
 		/*
 		 * Update the parent to reference the replacement page.
 		 *
@@ -422,8 +414,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		__wt_free(session, ref->page_las);
 		if (mod->mod_disk_image == NULL) {
 			if (mod->mod_page_las.las_pageid != 0) {
-				WT_RET(
-				    __wt_calloc_one(session, &ref->page_las));
+				WT_RET(__wt_calloc_one(session, &ref->page_las));
 				*ref->page_las = mod->mod_page_las;
 				__wt_page_modify_clear(session, ref->page);
 				__wt_ref_out(session, ref);
@@ -444,7 +435,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
 		}
 
 		break;
-	WT_ILLEGAL_VALUE(session, mod->rec_result);
+		WT_ILLEGAL_VALUE(session, mod->rec_result);
 	}
 
 	return (0);
@@ -460,11 +451,11 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 	WT_REF *child;
 	bool active;
 
-	WT_INTL_FOREACH_BEGIN(session, parent->page, child) {
+	WT_INTL_FOREACH_BEGIN (session, parent->page, child) {
 		switch (child->state) {
-		case WT_REF_DISK:		/* On-disk */
+		case WT_REF_DISK: /* On-disk */
 			break;
-		case WT_REF_DELETED:		/* Deleted */
+		case WT_REF_DELETED: /* Deleted */
 			/*
 			 * If the child page was part of a truncate,
 			 * transaction rollback might switch this page into its
@@ -480,8 +471,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 			 * have raced with a read and should give up on
 			 * evicting the parent.
 			 */
-			if (!__wt_atomic_casv32(
-			    &child->state, WT_REF_DELETED, WT_REF_LOCKED))
+			if (!__wt_atomic_casv32(&child->state, WT_REF_DELETED, WT_REF_LOCKED))
 				return (__wt_set_return(session, EBUSY));
 			active = __wt_page_del_active(session, child, true);
 			child->state = WT_REF_DELETED;
@@ -499,7 +489,8 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 		default:
 			return (__wt_set_return(session, EBUSY));
 		}
-	} WT_INTL_FOREACH_END;
+	}
+	WT_INTL_FOREACH_END;
 
 	return (0);
 }
@@ -510,8 +501,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
  *	for conditions that would block its eviction.
  */
 static int
-__evict_review(
-    WT_SESSION_IMPL *session, WT_REF *ref, bool closing, bool *inmem_splitp)
+__evict_review(WT_SESSION_IMPL *session, WT_REF *ref, bool closing, bool *inmem_splitp)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
@@ -535,8 +525,7 @@ __evict_review(
 	 * for eviction until all children have been evicted.
 	 */
 	if (WT_PAGE_IS_INTERNAL(page)) {
-		WT_WITH_PAGE_INDEX(session,
-		    ret = __evict_child_check(session, ref));
+		WT_WITH_PAGE_INDEX(session, ret = __evict_child_check(session, ref));
 		WT_RET(ret);
 	}
 
@@ -570,8 +559,7 @@ __evict_review(
 		 * fallen behind current.
 		 */
 		if (modified)
-			WT_RET(__wt_txn_update_oldest(
-			    session, WT_TXN_OLDEST_STRICT));
+			WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT));
 
 		if (!__wt_page_can_evict(session, ref, inmem_splitp))
 			return (__wt_set_return(session, EBUSY));
@@ -634,11 +622,9 @@ __evict_review(
 
 	if (closing)
 		LF_SET(WT_REC_VISIBILITY_ERR);
-	else if (!WT_PAGE_IS_INTERNAL(page) &&
-	    !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE)) {
+	else if (!WT_PAGE_IS_INTERNAL(page) && !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE)) {
 		if (F_ISSET(conn, WT_CONN_IN_MEMORY))
-			LF_SET(WT_REC_IN_MEMORY |
-			    WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
+			LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
 		else if (WT_SESSION_BTREE_SYNC(session))
 			LF_SET(WT_REC_LOOKASIDE);
 		else if (!WT_IS_METADATA(session->dhandle)) {
@@ -668,8 +654,8 @@ __evict_review(
 	 * the reconciled page when it visits the parent.
 	 */
 	if (WT_SESSION_BTREE_SYNC(session) && !__wt_page_is_modified(page) &&
-	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
-	    page->modify->rec_max_timestamp))
+	    !__wt_txn_visible_all(
+	        session, page->modify->rec_max_txn, page->modify->rec_max_timestamp))
 		return (__wt_set_return(session, EBUSY));
 
 	/*
@@ -695,16 +681,15 @@ __evict_review(
 	 * very unlikely.  However, since checkpoint is partway through
 	 * reconciling the parent page, a split can corrupt the checkpoint.
 	 */
-	if (WT_SESSION_BTREE_SYNC(session) &&
-	    page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
+	if (WT_SESSION_BTREE_SYNC(session) && page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
 		return (__wt_set_return(session, EBUSY));
 
 	/*
 	 * Success: assert that the page is clean or reconciliation was
 	 * configured to save updates.
 	 */
-	WT_ASSERT(session, !__wt_page_is_modified(page) ||
-	    LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
+	WT_ASSERT(session,
+	    !__wt_page_is_modified(page) || LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
 
 	return (0);
 }

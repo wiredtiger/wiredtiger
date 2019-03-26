@@ -25,8 +25,7 @@ util_copyright(void)
 	    "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the\n"
 	    "GNU General Public License for more details:");
 
-	printf("\t%s\n\n",
-	    "http://www.gnu.org/licenses/gpl-3.0-standalone.html");
+	printf("\t%s\n\n", "http://www.gnu.org/licenses/gpl-3.0-standalone.html");
 
 	printf("%s\n",
 	    "For a license to use the WiredTiger software under conditions\n"

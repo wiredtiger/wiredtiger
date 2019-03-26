@@ -58,16 +58,15 @@ __wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
  *	Opens a cursor on the metadata.
  */
 int
-__wt_metadata_cursor_open(
-    WT_SESSION_IMPL *session, const char *config, WT_CURSOR **cursorp)
+__wt_metadata_cursor_open(WT_SESSION_IMPL *session, const char *config, WT_CURSOR **cursorp)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	const char *open_cursor_cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), config, NULL };
+	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), config, NULL};
 
-	WT_WITHOUT_DHANDLE(session, ret = __wt_open_cursor(
-	    session, WT_METAFILE_URI, NULL, open_cursor_cfg, cursorp));
+	WT_WITHOUT_DHANDLE(session,
+	    ret = __wt_open_cursor(session, WT_METAFILE_URI, NULL, open_cursor_cfg, cursorp));
 	WT_RET(ret);
 
 	/*
@@ -85,10 +84,9 @@ __wt_metadata_cursor_open(
 	 * first update is safe because it's single-threaded from
 	 * wiredtiger_open).
 	 */
-#define	WT_EVICT_META_SKEW	10000
+#define WT_EVICT_META_SKEW 10000
 	if (btree->evict_priority == 0)
-		WT_WITH_BTREE(session, btree,
-		    __wt_evict_priority_set(session, WT_EVICT_META_SKEW));
+		WT_WITH_BTREE(session, btree, __wt_evict_priority_set(session, WT_EVICT_META_SKEW));
 	if (F_ISSET(btree, WT_BTREE_NO_LOGGING))
 		F_CLR(btree, WT_BTREE_NO_LOGGING);
 
@@ -110,8 +108,7 @@ __wt_metadata_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 	 * we'll need to open a new one.
 	 */
 	cursor = NULL;
-	if (session->meta_cursor == NULL ||
-	    F_ISSET(session->meta_cursor, WT_CURSTD_META_INUSE)) {
+	if (session->meta_cursor == NULL || F_ISSET(session->meta_cursor, WT_CURSTD_META_INUSE)) {
 		WT_RET(__wt_metadata_cursor_open(session, NULL, &cursor));
 		if (session->meta_cursor == NULL) {
 			session->meta_cursor = cursor;
@@ -174,20 +171,19 @@ __wt_metadata_cursor_release(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
  *	Insert a row into the metadata.
  */
 int
-__wt_metadata_insert(
-    WT_SESSION_IMPL *session, const char *key, const char *value)
+__wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *value)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 
 	__wt_verbose(session, WT_VERB_METADATA,
-	    "Insert: key: %s, value: %s, tracking: %s, %s" "turtle",
+	    "Insert: key: %s, value: %s, tracking: %s, %s"
+	    "turtle",
 	    key, value, WT_META_TRACKING(session) ? "true" : "false",
 	    __metadata_turtle(key) ? "" : "not ");
 
 	if (__metadata_turtle(key))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: insert not supported on the turtle file", key);
+		WT_RET_MSG(session, EINVAL, "%s: insert not supported on the turtle file", key);
 
 	WT_RET(__wt_metadata_cursor(session, &cursor));
 	cursor->set_key(cursor, key);
@@ -195,7 +191,8 @@ __wt_metadata_insert(
 	WT_ERR(cursor->insert(cursor));
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_insert(session, key));
-err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+err:
+	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 	return (ret);
 }
 
@@ -204,20 +201,19 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
  *	Update a row in the metadata.
  */
 int
-__wt_metadata_update(
-    WT_SESSION_IMPL *session, const char *key, const char *value)
+__wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *value)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 
 	__wt_verbose(session, WT_VERB_METADATA,
-	    "Update: key: %s, value: %s, tracking: %s, %s" "turtle",
+	    "Update: key: %s, value: %s, tracking: %s, %s"
+	    "turtle",
 	    key, value, WT_META_TRACKING(session) ? "true" : "false",
 	    __metadata_turtle(key) ? "" : "not ");
 
 	if (__metadata_turtle(key)) {
-		WT_WITH_TURTLE_LOCK(session,
-		    ret = __wt_turtle_update(session, key, value));
+		WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, key, value));
 		return (ret);
 	}
 
@@ -231,7 +227,8 @@ __wt_metadata_update(
 	cursor->set_key(cursor, key);
 	cursor->set_value(cursor, value);
 	WT_ERR(cursor->insert(cursor));
-err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+err:
+	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 	return (ret);
 }
 
@@ -246,13 +243,13 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
 	WT_DECL_RET;
 
 	__wt_verbose(session, WT_VERB_METADATA,
-	    "Remove: key: %s, tracking: %s, %s" "turtle",
+	    "Remove: key: %s, tracking: %s, %s"
+	    "turtle",
 	    key, WT_META_TRACKING(session) ? "true" : "false",
 	    __metadata_turtle(key) ? "" : "not ");
 
 	if (__metadata_turtle(key))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: remove not supported on the turtle file", key);
+		WT_RET_MSG(session, EINVAL, "%s: remove not supported on the turtle file", key);
 
 	/*
 	 * Take, release, and reacquire the metadata cursor. It's complicated,
@@ -271,7 +268,8 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
 	cursor->set_key(cursor, key);
 	ret = cursor->remove(cursor);
 
-err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+err:
+	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 	return (ret);
 }
 
@@ -290,7 +288,8 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
 	*valuep = NULL;
 
 	__wt_verbose(session, WT_VERB_METADATA,
-	    "Search: key: %s, tracking: %s, %s" "turtle",
+	    "Search: key: %s, tracking: %s, %s"
+	    "turtle",
 	    key, WT_META_TRACKING(session) ? "true" : "false",
 	    __metadata_turtle(key) ? "" : "not ");
 
@@ -301,8 +300,7 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
 		 * that Coverity complains a lot, add an error check to get some
 		 * peace and quiet.
 		 */
-		WT_WITH_TURTLE_LOCK(session,
-		    ret = __wt_turtle_read(session, key, valuep));
+		WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_read(session, key, valuep));
 		if (ret != 0)
 			__wt_free(session, *valuep);
 		return (ret);
@@ -318,14 +316,14 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
 	 */
 	WT_RET(__wt_metadata_cursor(session, &cursor));
 	cursor->set_key(cursor, key);
-	WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-	    ret = cursor->search(cursor));
+	WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->search(cursor));
 	WT_ERR(ret);
 
 	WT_ERR(cursor->get_value(cursor, &value));
 	WT_ERR(__wt_strdup(session, value, valuep));
 
-err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+err:
+	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 
 	if (ret != 0)
 		__wt_free(session, *valuep);

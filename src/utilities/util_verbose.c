@@ -13,8 +13,8 @@
  *	Verbose WT_EVENT_HANDLER->handle_error implementation: send to stderr.
  */
 static int
-__handle_error_verbose(WT_EVENT_HANDLER *handler,
-    WT_SESSION *session, int error, const char *errmsg)
+__handle_error_verbose(
+    WT_EVENT_HANDLER *handler, WT_SESSION *session, int error, const char *errmsg)
 {
 	WT_UNUSED(handler);
 	WT_UNUSED(session);
@@ -28,8 +28,7 @@ __handle_error_verbose(WT_EVENT_HANDLER *handler,
  *	Verbose WT_EVENT_HANDLER->handle_message implementation: send to stdout.
  */
 static int
-__handle_message_verbose(WT_EVENT_HANDLER *handler,
-    WT_SESSION *session, const char *message)
+__handle_message_verbose(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
 	WT_UNUSED(handler);
 	WT_UNUSED(session);
@@ -42,21 +41,18 @@ __handle_message_verbose(WT_EVENT_HANDLER *handler,
  *	Default WT_EVENT_HANDLER->handle_progress implementation: ignore.
  */
 static int
-__handle_progress_verbose(WT_EVENT_HANDLER *handler,
-    WT_SESSION *session, const char *operation, uint64_t progress)
+__handle_progress_verbose(
+    WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
 {
 	WT_UNUSED(handler);
 	WT_UNUSED(session);
 
-	return (
-	    printf("\r\t%s %-20" PRIu64, operation, progress) < 0 ? EIO : 0);
+	return (printf("\r\t%s %-20" PRIu64, operation, progress) < 0 ? EIO : 0);
 }
 
 static WT_EVENT_HANDLER __event_handler_verbose = {
-	__handle_error_verbose,
-	__handle_message_verbose,
-	__handle_progress_verbose,
-	NULL	/* Close handler. */
+    __handle_error_verbose, __handle_message_verbose, __handle_progress_verbose,
+    NULL /* Close handler. */
 
 };
 

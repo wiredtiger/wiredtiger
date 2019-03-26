@@ -29,8 +29,7 @@ __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
 		return (0);
 
 	windows_error = __wt_getlasterror();
-	__wt_errx(session,
-	    "GetEnvironmentVariableA: %s: %s",
-	    variable, __wt_formatmessage(session, windows_error));
+	__wt_errx(session, "GetEnvironmentVariableA: %s: %s", variable,
+	    __wt_formatmessage(session, windows_error));
 	return (__wt_map_windows_error(windows_error));
 }

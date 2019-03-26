@@ -16,8 +16,7 @@
 static inline int
 __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
     int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-    int (*name_func)(WT_SESSION_IMPL *, const char *, bool *),
-    const char *cfg[])
+    int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
 	WT_DECL_RET;
 	int t_ret;
@@ -35,8 +34,7 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		}
 
 		skip = false;
-		if (name_func != NULL &&
-		    (t_ret = name_func(session, uri, &skip)) != 0) {
+		if (name_func != NULL && (t_ret = name_func(session, uri, &skip)) != 0) {
 			WT_TRET(t_ret);
 			continue;
 		}
@@ -55,8 +53,7 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 * checkpoint encountering handles that are locked (e.g., for
 		 * bulk loads or verify operations).
 		 */
-		if ((t_ret = __wt_session_get_dhandle(
-		    session, uri, NULL, NULL, 0)) != 0) {
+		if ((t_ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0)) != 0) {
 			WT_TRET_BUSY_OK(t_ret);
 			continue;
 		}
@@ -75,18 +72,16 @@ __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
  *	metadata file.
  */
 int
-__wt_meta_apply_all(WT_SESSION_IMPL *session,
-    int (*file_func)(WT_SESSION_IMPL *, const char *[]),
-    int (*name_func)(WT_SESSION_IMPL *, const char *, bool *),
-    const char *cfg[])
+__wt_meta_apply_all(WT_SESSION_IMPL *session, int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+    int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 
 	WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
 	WT_RET(__wt_metadata_cursor(session, &cursor));
-	WT_SAVE_DHANDLE(session, ret =
-	    __meta_btree_apply(session, cursor, file_func, name_func, cfg));
+	WT_SAVE_DHANDLE(
+	    session, ret = __meta_btree_apply(session, cursor, file_func, name_func, cfg));
 	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 
 	return (ret);

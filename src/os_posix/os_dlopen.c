@@ -22,12 +22,12 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 	WT_ERR(__wt_strdup(session, path == NULL ? "local" : path, &dlh->name));
 
 	if ((dlh->handle = dlopen(path, RTLD_LAZY)) == NULL)
-		WT_ERR_MSG(
-		    session, __wt_errno(), "dlopen(%s): %s", path, dlerror());
+		WT_ERR_MSG(session, __wt_errno(), "dlopen(%s): %s", path, dlerror());
 
 	*dlhp = dlh;
 	if (0) {
-err:		__wt_free(session, dlh->name);
+	err:
+		__wt_free(session, dlh->name);
 		__wt_free(session, dlh);
 	}
 	return (ret);
@@ -38,16 +38,15 @@ err:		__wt_free(session, dlh->name);
  *	Lookup a symbol in a dynamic library.
  */
 int
-__wt_dlsym(WT_SESSION_IMPL *session,
-    WT_DLH *dlh, const char *name, bool fail, void *sym_ret)
+__wt_dlsym(WT_SESSION_IMPL *session, WT_DLH *dlh, const char *name, bool fail, void *sym_ret)
 {
 	void *sym;
 
 	*(void **)sym_ret = NULL;
 	if ((sym = dlsym(dlh->handle, name)) == NULL) {
 		if (fail)
-			WT_RET_MSG(session, __wt_errno(),
-			    "dlsym(%s in %s): %s", name, dlh->name, dlerror());
+			WT_RET_MSG(session, __wt_errno(), "dlsym(%s in %s): %s", name, dlh->name,
+			    dlerror());
 		return (0);
 	}
 

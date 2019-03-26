@@ -64,31 +64,30 @@ extern int __wt_optind WT_ATTRIBUTE_LIBRARY_VISIBLE;
 extern int __wt_optopt WT_ATTRIBUTE_LIBRARY_VISIBLE;
 extern int __wt_optreset WT_ATTRIBUTE_LIBRARY_VISIBLE;
 
-int	__wt_opterr = 1,	/* if error message should be printed */
-	__wt_optind = 1,	/* index into parent argv vector */
-	__wt_optopt,		/* character checked for validity */
-	__wt_optreset;		/* reset getopt */
+int __wt_opterr = 1, /* if error message should be printed */
+    __wt_optind = 1, /* index into parent argv vector */
+    __wt_optopt,     /* character checked for validity */
+    __wt_optreset;   /* reset getopt */
 
 extern char *__wt_optarg WT_ATTRIBUTE_LIBRARY_VISIBLE;
-char	*__wt_optarg;		/* argument associated with option */
+char *__wt_optarg; /* argument associated with option */
 
-#define	BADCH	(int)'?'
-#define	BADARG	(int)':'
-#define	EMSG	""
+#define BADCH (int)'?'
+#define BADARG (int)':'
+#define EMSG ""
 
 /*
  * __wt_getopt --
  *	Parse argc/argv argument vector.
  */
 int
-__wt_getopt(
-    const char *progname, int nargc, char * const *nargv, const char *ostr)
+__wt_getopt(const char *progname, int nargc, char *const *nargv, const char *ostr)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	static const char *place = EMSG;	/* option letter processing */
-	const char *oli;			/* option letter list index */
+	static const char *place = EMSG; /* option letter processing */
+	const char *oli;                 /* option letter list index */
 
-	if (__wt_optreset || *place == 0) {	/* update scanning pointer */
+	if (__wt_optreset || *place == 0) { /* update scanning pointer */
 		__wt_optreset = 0;
 		place = nargv[__wt_optind];
 		if (__wt_optind >= nargc || *place++ != '-') {
@@ -119,9 +118,7 @@ __wt_getopt(
 		if (*place == 0)
 			++__wt_optind;
 		if (__wt_opterr && *ostr != ':')
-			(void)fprintf(stderr,
-			    "%s: illegal option -- %c\n", progname,
-			    __wt_optopt);
+			(void)fprintf(stderr, "%s: illegal option -- %c\n", progname, __wt_optopt);
 		return (BADCH);
 	}
 
@@ -144,13 +141,12 @@ __wt_getopt(
 			if (*ostr == ':')
 				return (BADARG);
 			if (__wt_opterr)
-				(void)fprintf(stderr,
-				    "%s: option requires an argument -- %c\n",
+				(void)fprintf(stderr, "%s: option requires an argument -- %c\n",
 				    progname, __wt_optopt);
 			return (BADCH);
 		}
 		place = EMSG;
 		++__wt_optind;
 	}
-	return (__wt_optopt);			/* return option letter */
+	return (__wt_optopt); /* return option letter */
 }

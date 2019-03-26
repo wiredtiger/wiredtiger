@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* Buffer size for streamed reads/writes. */
-#define	WT_STREAM_BUFSIZE	8192
+#define WT_STREAM_BUFSIZE 8192
 
 /*
  * __fstream_close --
@@ -37,8 +37,7 @@ static int
 __fstream_flush(WT_SESSION_IMPL *session, WT_FSTREAM *fstr)
 {
 	if (fstr->buf.size > 0) {
-		WT_RET(__wt_write(session,
-		    fstr->fh, fstr->off, fstr->buf.size, fstr->buf.data));
+		WT_RET(__wt_write(session, fstr->fh, fstr->off, fstr->buf.size, fstr->buf.data));
 		fstr->off += (wt_off_t)fstr->buf.size;
 		fstr->buf.size = 0;
 	}
@@ -82,15 +81,12 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 
 	for (;;) {
 		/* Check if we need to refill the buffer. */
-		if (WT_PTRDIFF(fstr->buf.data, fstr->buf.mem) >=
-		    fstr->buf.size) {
-			len = WT_MIN(WT_STREAM_BUFSIZE,
-			    (size_t)(fstr->size - fstr->off));
+		if (WT_PTRDIFF(fstr->buf.data, fstr->buf.mem) >= fstr->buf.size) {
+			len = WT_MIN(WT_STREAM_BUFSIZE, (size_t)(fstr->size - fstr->off));
 			if (len == 0)
 				break; /* EOF */
 			WT_RET(__wt_buf_initsize(session, &fstr->buf, len));
-			WT_RET(__wt_read(
-			    session, fstr->fh, fstr->off, len, fstr->buf.mem));
+			WT_RET(__wt_read(session, fstr->fh, fstr->off, len, fstr->buf.mem));
 			fstr->off += (wt_off_t)len;
 		}
 
@@ -117,8 +113,7 @@ __fstream_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
  *	Stream getline unsupported.
  */
 static int
-__fstream_getline_notsup(
-    WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
+__fstream_getline_notsup(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, WT_ITEM *buf)
 {
 	WT_UNUSED(buf);
 	WT_RET_MSG(session, ENOTSUP, "%s: getline", fstr->name);
@@ -129,8 +124,7 @@ __fstream_getline_notsup(
  *	ANSI C vfprintf.
  */
 static int
-__fstream_printf(
-    WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
+__fstream_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
 {
 	WT_ITEM *buf;
 	size_t len, space;
@@ -150,8 +144,7 @@ __fstream_printf(
 		if (len < space) {
 			buf->size += len;
 
-			return (buf->size >= WT_STREAM_BUFSIZE ?
-			    __wt_fflush(session, fstr) : 0);
+			return (buf->size >= WT_STREAM_BUFSIZE ? __wt_fflush(session, fstr) : 0);
 		}
 		WT_RET(__wt_buf_extend(session, buf, buf->size + len + 1));
 	}
@@ -162,8 +155,7 @@ __fstream_printf(
  *	ANSI C vfprintf unsupported.
  */
 static int
-__fstream_printf_notsup(
-    WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
+__fstream_printf_notsup(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
 {
 	WT_UNUSED(fmt);
 	WT_UNUSED(ap);
@@ -175,8 +167,8 @@ __fstream_printf_notsup(
  *	Open a stream handle.
  */
 int
-__wt_fopen(WT_SESSION_IMPL *session,
-    const char *name, uint32_t open_flags, uint32_t flags, WT_FSTREAM **fstrp)
+__wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_flags, uint32_t flags,
+    WT_FSTREAM **fstrp)
 {
 	WT_DECL_RET;
 	WT_FH *fh;
@@ -186,8 +178,7 @@ __wt_fopen(WT_SESSION_IMPL *session,
 
 	fstr = NULL;
 
-	WT_RET(__wt_open(
-	    session, name, WT_FS_OPEN_FILE_TYPE_REGULAR, open_flags, &fh));
+	WT_RET(__wt_open(session, name, WT_FS_OPEN_FILE_TYPE_REGULAR, open_flags, &fh));
 
 	WT_ERR(__wt_calloc_one(session, &fstr));
 	fstr->fh = fh;
@@ -211,7 +202,8 @@ __wt_fopen(WT_SESSION_IMPL *session,
 	*fstrp = fstr;
 	return (0);
 
-err:	WT_TRET(__wt_close(session, &fh));
+err:
+	WT_TRET(__wt_close(session, &fh));
 	__wt_free(session, fstr);
 	return (ret);
 }

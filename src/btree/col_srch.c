@@ -13,8 +13,7 @@
  *	Check the search key is in the leaf page's key range.
  */
 static inline int
-__check_leaf_key_range(WT_SESSION_IMPL *session,
-    uint64_t recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
+__check_leaf_key_range(WT_SESSION_IMPL *session, uint64_t recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
 {
 	WT_PAGE_INDEX *pindex;
 	uint32_t indx;
@@ -31,7 +30,7 @@ __check_leaf_key_range(WT_SESSION_IMPL *session,
 	 * this page.
 	 */
 	if (recno < leaf->ref_recno) {
-		cbt->compare = 1;		/* page keys > search key */
+		cbt->compare = 1; /* page keys > search key */
 		return (0);
 	}
 
@@ -49,7 +48,7 @@ __check_leaf_key_range(WT_SESSION_IMPL *session,
 	indx = leaf->pindex_hint;
 	if (indx + 1 < pindex->entries && pindex->index[indx] == leaf)
 		if (recno >= pindex->index[indx + 1]->ref_recno) {
-			cbt->compare = -1;	/* page keys < search key */
+			cbt->compare = -1; /* page keys < search key */
 			return (0);
 		}
 
@@ -61,8 +60,8 @@ __check_leaf_key_range(WT_SESSION_IMPL *session,
  *	Search a column-store tree for a specific record-based key.
  */
 int
-__wt_col_search(WT_SESSION_IMPL *session,
-    uint64_t search_recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt, bool restore)
+__wt_col_search(WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt,
+    bool restore)
 {
 	WT_BTREE *btree;
 	WT_COL *cip;
@@ -99,8 +98,7 @@ __wt_col_search(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, search_recno != WT_RECNO_OOB);
 
 		if (!restore) {
-			WT_RET(__check_leaf_key_range(
-			    session, recno, leaf, cbt));
+			WT_RET(__check_leaf_key_range(session, recno, leaf, cbt));
 			if (cbt->compare != 0) {
 				/*
 				 * !!!
@@ -117,10 +115,10 @@ __wt_col_search(WT_SESSION_IMPL *session,
 	}
 
 	if (0) {
-restart:	/*
-		 * Discard the currently held page and restart the search from
-		 * the root.
-		 */
+	restart: /*
+	          * Discard the currently held page and restart the search from
+	          * the root.
+	          */
 		WT_RET(__wt_page_release(session, current, 0));
 	}
 
@@ -142,16 +140,14 @@ restart:	/*
 			 * If on the last slot (the key is larger than any key
 			 * on the page), check for an internal page split race.
 			 */
-			if (__wt_split_descent_race(
-			    session, current, parent_pindex))
+			if (__wt_split_descent_race(session, current, parent_pindex))
 				goto restart;
 
 			goto descend;
 		}
 
 		/* Binary search of internal pages. */
-		for (base = 0,
-		    limit = pindex->entries - 1; limit != 0; limit >>= 1) {
+		for (base = 0, limit = pindex->entries - 1; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			descent = pindex->index[indx];
 
@@ -162,13 +158,13 @@ restart:	/*
 			base = indx + 1;
 			--limit;
 		}
-descend:	/*
-		 * Reference the slot used for next step down the tree.
-		 *
-		 * Base is the smallest index greater than recno and may be the
-		 * (last + 1) index.  The slot for descent is the one before
-		 * base.
-		 */
+	descend: /*
+	          * Reference the slot used for next step down the tree.
+	          *
+	          * Base is the smallest index greater than recno and may be the
+	          * (last + 1) index.  The slot for descent is the one before
+	          * base.
+	          */
 		if (recno != descent->ref_recno) {
 			/*
 			 * We don't have to correct for base == 0 because the
@@ -197,8 +193,7 @@ descend:	/*
 		read_flags = WT_READ_RESTART_OK;
 		if (F_ISSET(cbt, WT_CBT_READ_ONCE))
 			FLD_SET(read_flags, WT_READ_WONT_NEED);
-		if ((ret = __wt_page_swap(session,
-		    current, descent, read_flags)) == 0) {
+		if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
 			current = descent;
 			continue;
 		}
@@ -281,8 +276,7 @@ leaf_only:
 	 * For that reason, don't set the cursor's WT_INSERT_HEAD/WT_INSERT pair
 	 * until we know we have a useful entry.
 	 */
-	if ((ins = __col_insert_search(
-	    ins_head, cbt->ins_stack, cbt->next_stack, recno)) != NULL)
+	if ((ins = __col_insert_search(ins_head, cbt->ins_stack, cbt->next_stack, recno)) != NULL)
 		if (recno == WT_INSERT_RECNO(ins)) {
 			cbt->ins_head = ins_head;
 			cbt->ins = ins;
@@ -300,7 +294,7 @@ past_end:
 	 */
 	cbt->ins_head = WT_COL_APPEND(page);
 	if ((cbt->ins = __col_insert_search(
-	    cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno)) == NULL)
+	         cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno)) == NULL)
 		cbt->compare = -1;
 	else {
 		cbt->recno = WT_INSERT_RECNO(cbt->ins);

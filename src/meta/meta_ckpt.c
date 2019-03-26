@@ -8,22 +8,20 @@
 
 #include "wt_internal.h"
 
-static int  __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
-static int  __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
-static int  __ckpt_load(WT_SESSION_IMPL *,
-		WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
-static int  __ckpt_named(
-		WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
-static int  __ckpt_set(WT_SESSION_IMPL *, const char *, const char *);
-static int  __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
+static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
+static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
+static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
+static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
+static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *);
+static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 
 /*
  * __wt_meta_checkpoint --
  *	Return a file's checkpoint information.
  */
 int
-__wt_meta_checkpoint(WT_SESSION_IMPL *session,
-    const char *fname, const char *checkpoint, WT_CKPT *ckpt)
+__wt_meta_checkpoint(
+    WT_SESSION_IMPL *session, const char *fname, const char *checkpoint, WT_CKPT *ckpt)
 {
 	WT_DECL_RET;
 	char *config;
@@ -52,7 +50,8 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session,
 	} else
 		WT_ERR(__ckpt_named(session, checkpoint, config, ckpt));
 
-err:	__wt_free(session, config);
+err:
+	__wt_free(session, config);
 	return (ret);
 }
 
@@ -61,8 +60,7 @@ err:	__wt_free(session, config);
  *	Return the last unnamed checkpoint's name.
  */
 int
-__wt_meta_checkpoint_last_name(
-    WT_SESSION_IMPL *session, const char *fname, const char **namep)
+__wt_meta_checkpoint_last_name(WT_SESSION_IMPL *session, const char *fname, const char **namep)
 {
 	WT_DECL_RET;
 	char *config;
@@ -78,7 +76,8 @@ __wt_meta_checkpoint_last_name(
 	/* Retrieve the name of the last unnamed checkpoint. */
 	WT_ERR(__ckpt_last_name(session, config, namep));
 
-err:	__wt_free(session, config);
+err:
+	__wt_free(session, config);
 	return (ret);
 }
 
@@ -122,7 +121,8 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
 	WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
 	WT_ERR(__wt_metadata_update(session, fname, newcfg));
 
-err:	__wt_free(session, config);
+err:
+	__wt_free(session, config);
 	__wt_free(session, newcfg);
 	return (ret);
 }
@@ -132,8 +132,7 @@ err:	__wt_free(session, config);
  *	Return the information associated with a file's named checkpoint.
  */
 static int
-__ckpt_named(WT_SESSION_IMPL *session,
-    const char *checkpoint, const char *config, WT_CKPT *ckpt)
+__ckpt_named(WT_SESSION_IMPL *session, const char *checkpoint, const char *config, WT_CKPT *ckpt)
 {
 	WT_CONFIG ckptconf;
 	WT_CONFIG_ITEM k, v;
@@ -185,8 +184,7 @@ __ckpt_last(WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
  *	Return the name associated with the file's last unnamed checkpoint.
  */
 static int
-__ckpt_last_name(
-    WT_SESSION_IMPL *session, const char *config, const char **namep)
+__ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **namep)
 {
 	WT_CONFIG ckptconf;
 	WT_CONFIG_ITEM a, k, v;
@@ -220,7 +218,8 @@ __ckpt_last_name(
 		ret = WT_NOTFOUND;
 
 	if (0) {
-err:		__wt_free(session, *namep);
+	err:
+		__wt_free(session, *namep);
 	}
 	return (ret);
 }
@@ -245,8 +244,7 @@ __ckpt_compare_order(const void *a, const void *b)
  *	Load all available checkpoint information for a file.
  */
 int
-__wt_meta_ckptlist_get(
-    WT_SESSION_IMPL *session, const char *fname, WT_CKPT **ckptbasep)
+__wt_meta_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKPT **ckptbasep)
 {
 	WT_CKPT *ckpt, *ckptbase;
 	WT_CONFIG ckptconf;
@@ -270,8 +268,7 @@ __wt_meta_ckptlist_get(
 	if (__wt_config_getones(session, config, "checkpoint", &v) == 0) {
 		__wt_config_subinit(session, &ckptconf, &v);
 		for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
-			WT_ERR(__wt_realloc_def(
-			    session, &allocated, slot + 1, &ckptbase));
+			WT_ERR(__wt_realloc_def(session, &allocated, slot + 1, &ckptbase));
 			ckpt = &ckptbase[slot];
 
 			WT_ERR(__ckpt_load(session, &k, &v, ckpt));
@@ -297,7 +294,8 @@ __wt_meta_ckptlist_get(
 	*ckptbasep = ckptbase;
 
 	if (0) {
-err:		__wt_meta_ckptlist_free(session, &ckptbase);
+	err:
+		__wt_meta_ckptlist_free(session, &ckptbase);
 	}
 	__wt_free(session, config);
 	__wt_scr_free(session, &buf);
@@ -310,8 +308,7 @@ err:		__wt_meta_ckptlist_free(session, &ckptbase);
  *	Load a single checkpoint's information into a WT_CKPT structure.
  */
 static int
-__ckpt_load(WT_SESSION_IMPL *session,
-    WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_CKPT *ckpt)
+__ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_CKPT *ckpt)
 {
 	WT_CONFIG_ITEM a;
 	WT_DECL_RET;
@@ -350,18 +347,15 @@ __ckpt_load(WT_SESSION_IMPL *session,
 	/* Default to durability. */
 	ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
 	WT_RET_NOTFOUND_OK(ret);
-	ckpt->oldest_start_ts =
-	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+	ckpt->oldest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
 	ret = __wt_config_subgets(session, v, "newest_start_ts", &a);
 	WT_RET_NOTFOUND_OK(ret);
-	ckpt->newest_start_ts =
-	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+	ckpt->newest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
 	ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
 	WT_RET_NOTFOUND_OK(ret);
-	ckpt->newest_stop_ts =
-	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
-	__wt_timestamp_addr_check(session,
-	    ckpt->oldest_start_ts, ckpt->newest_start_ts, ckpt->newest_stop_ts);
+	ckpt->newest_stop_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+	__wt_timestamp_addr_check(
+	    session, ckpt->oldest_start_ts, ckpt->newest_start_ts, ckpt->newest_stop_ts);
 
 	WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
 	if (a.len == 0)
@@ -379,8 +373,8 @@ format:
  *	Set a file's checkpoint value from the WT_CKPT list.
  */
 int
-__wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
-    const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
+__wt_meta_ckptlist_set(
+    WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
 {
 	WT_CKPT *ckpt;
 	WT_DECL_ITEM(buf);
@@ -392,7 +386,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	maxorder = 0;
 	sep = "";
 	WT_ERR(__wt_buf_fmt(session, buf, "checkpoint=("));
-	WT_CKPT_FOREACH(ckptbase, ckpt) {
+	WT_CKPT_FOREACH (ckptbase, ckpt) {
 		/*
 		 * Each internal checkpoint name is appended with a generation
 		 * to make it a unique name.  We're solving two problems: when
@@ -422,9 +416,8 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			if (ckpt->raw.size == 0)
 				ckpt->addr.size = 0;
 			else
-				WT_ERR(__wt_raw_to_hex(session,
-				    ckpt->raw.data,
-				    ckpt->raw.size, &ckpt->addr));
+				WT_ERR(__wt_raw_to_hex(
+				    session, ckpt->raw.data, ckpt->raw.size, &ckpt->addr));
 
 			/* Set the order and timestamp. */
 			if (F_ISSET(ckpt, WT_CKPT_ADD))
@@ -433,45 +426,36 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			__wt_seconds(session, &ckpt->sec);
 		}
 
-		__wt_timestamp_addr_check(session, ckpt->oldest_start_ts,
-		    ckpt->newest_start_ts, ckpt->newest_stop_ts);
+		__wt_timestamp_addr_check(
+		    session, ckpt->oldest_start_ts, ckpt->newest_start_ts, ckpt->newest_stop_ts);
 
 		WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
 		sep = ",";
 
 		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
-			WT_ERR(__wt_buf_catfmt(session, buf,
-			    ".%" PRId64, ckpt->order));
+			WT_ERR(__wt_buf_catfmt(session, buf, ".%" PRId64, ckpt->order));
 
 		/*
 		 * Use PRId64 formats: WiredTiger's configuration code handles
 		 * signed 8B values.
 		 */
 		WT_ERR(__wt_buf_catfmt(session, buf,
-		    "=(addr=\"%.*s\",order=%" PRId64
-		    ",time=%" PRIu64
-		    ",size=%" PRId64
-		    ",oldest_start_ts=%" PRId64
-		    ",newest_start_ts=%" PRId64
-		    ",newest_stop_ts=%" PRId64
-		    ",write_gen=%" PRId64 ")",
-		    (int)ckpt->addr.size, (char *)ckpt->addr.data,
-		    ckpt->order,
-		    ckpt->sec,
-		    (int64_t)ckpt->size,
-		    (int64_t)ckpt->oldest_start_ts,
-		    (int64_t)ckpt->newest_start_ts,
-		    (int64_t)ckpt->newest_stop_ts,
+		    "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
+		    ",oldest_start_ts=%" PRId64 ",newest_start_ts=%" PRId64
+		    ",newest_stop_ts=%" PRId64 ",write_gen=%" PRId64 ")",
+		    (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
+		    (int64_t)ckpt->size, (int64_t)ckpt->oldest_start_ts,
+		    (int64_t)ckpt->newest_start_ts, (int64_t)ckpt->newest_stop_ts,
 		    (int64_t)ckpt->write_gen));
 	}
 	WT_ERR(__wt_buf_catfmt(session, buf, ")"));
 	if (ckptlsn != NULL)
-		WT_ERR(__wt_buf_catfmt(session, buf,
-		    ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
+		WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
 		    ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 	WT_ERR(__ckpt_set(session, fname, buf->mem));
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -487,7 +471,7 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
 	if ((ckptbase = *ckptbasep) == NULL)
 		return;
 
-	WT_CKPT_FOREACH(ckptbase, ckpt)
+	WT_CKPT_FOREACH (ckptbase, ckpt)
 		__wt_meta_checkpoint_free(session, ckpt);
 	__wt_free(session, *ckptbasep);
 }
@@ -507,7 +491,7 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	__wt_buf_free(session, &ckpt->raw);
 	__wt_free(session, ckpt->bpriv);
 
-	WT_CLEAR(*ckpt);		/* Clear to prepare for re-use. */
+	WT_CLEAR(*ckpt); /* Clear to prepare for re-use. */
 }
 
 /*
@@ -530,8 +514,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 	 * The timestamp value is set at a higher level, either in checkpoint
 	 * or in recovery.
 	 */
-	__wt_timestamp_to_hex_string(
-	    S2C(session)->txn_global.meta_ckpt_timestamp, hex_timestamp);
+	__wt_timestamp_to_hex_string(S2C(session)->txn_global.meta_ckpt_timestamp, hex_timestamp);
 
 	/*
 	 * Don't leave a zero entry in the metadata: remove it.  This avoids
@@ -539,16 +522,14 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 	 * WiredTiger that does not understand the new entry.
 	 */
 	if (strcmp(hex_timestamp, "0") == 0)
-		WT_ERR_NOTFOUND_OK(
-		    __wt_metadata_remove(session, WT_SYSTEM_CKPT_URI));
+		WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, WT_SYSTEM_CKPT_URI));
 	else {
-		WT_ERR(__wt_buf_catfmt(session, buf,
-		    "checkpoint_timestamp=\"%s\"", hex_timestamp));
-		WT_ERR(__wt_metadata_update(
-		    session, WT_SYSTEM_CKPT_URI, buf->data));
+		WT_ERR(__wt_buf_catfmt(session, buf, "checkpoint_timestamp=\"%s\"", hex_timestamp));
+		WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_URI, buf->data));
 	}
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -557,8 +538,7 @@ err:	__wt_scr_free(session, &buf);
  *	Check the version major/minor numbers.
  */
 static int
-__ckpt_version_chk(
-    WT_SESSION_IMPL *session, const char *fname, const char *config)
+__ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *config)
 {
 	WT_CONFIG_ITEM a, v;
 	int majorv, minorv;
@@ -569,21 +549,14 @@ __ckpt_version_chk(
 	WT_RET(__wt_config_subgets(session, &v, "minor", &a));
 	minorv = (int)a.val;
 
-	if (majorv < WT_BTREE_MAJOR_VERSION_MIN ||
-	    majorv > WT_BTREE_MAJOR_VERSION_MAX ||
-	    (majorv == WT_BTREE_MAJOR_VERSION_MIN &&
-	    minorv < WT_BTREE_MINOR_VERSION_MIN) ||
-	    (majorv == WT_BTREE_MAJOR_VERSION_MAX &&
-	    minorv > WT_BTREE_MINOR_VERSION_MAX))
+	if (majorv < WT_BTREE_MAJOR_VERSION_MIN || majorv > WT_BTREE_MAJOR_VERSION_MAX ||
+	    (majorv == WT_BTREE_MAJOR_VERSION_MIN && minorv < WT_BTREE_MINOR_VERSION_MIN) ||
+	    (majorv == WT_BTREE_MAJOR_VERSION_MAX && minorv > WT_BTREE_MINOR_VERSION_MAX))
 		WT_RET_MSG(session, EACCES,
 		    "%s is an unsupported WiredTiger source file version %d.%d"
 		    "; this WiredTiger build only supports versions from %d.%d "
 		    "to %d.%d",
-		    fname,
-		    majorv, minorv,
-		    WT_BTREE_MAJOR_VERSION_MIN,
-		    WT_BTREE_MINOR_VERSION_MIN,
-		    WT_BTREE_MAJOR_VERSION_MAX,
-		    WT_BTREE_MINOR_VERSION_MAX);
+		    fname, majorv, minorv, WT_BTREE_MAJOR_VERSION_MIN, WT_BTREE_MINOR_VERSION_MIN,
+		    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX);
 	return (0);
 }

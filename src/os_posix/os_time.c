@@ -33,18 +33,18 @@ __wt_epoch_raw(WT_SESSION_IMPL *session, struct timespec *tsp)
 	WT_PANIC_MSG(session, ret, "clock_gettime");
 #elif defined(HAVE_GETTIMEOFDAY)
 	{
-	struct timeval v;
+		struct timeval v;
 
-	WT_SYSCALL_RETRY(gettimeofday(&v, NULL), ret);
-	if (ret == 0) {
-		tsp->tv_sec = v.tv_sec;
-		tsp->tv_nsec = v.tv_usec * WT_THOUSAND;
-		return;
-	}
-	WT_PANIC_MSG(session, ret, "gettimeofday");
+		WT_SYSCALL_RETRY(gettimeofday(&v, NULL), ret);
+		if (ret == 0) {
+			tsp->tv_sec = v.tv_sec;
+			tsp->tv_nsec = v.tv_usec * WT_THOUSAND;
+			return;
+		}
+		WT_PANIC_MSG(session, ret, "gettimeofday");
 	}
 #else
-	NO TIME-OF-DAY IMPLEMENTATION: see src/os_posix/os_time.c
+	NO TIME - OF - DAY IMPLEMENTATION : see src / os_posix / os_time.c
 #endif
 }
 

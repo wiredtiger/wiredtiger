@@ -23,7 +23,7 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	uint32_t i;
 	const uint8_t *addr;
 
-	*skipp = true;					/* Default skip. */
+	*skipp = true; /* Default skip. */
 
 	bm = S2BT(session)->bm;
 	page = ref->page;
@@ -33,8 +33,7 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 		__wt_ref_info(session, ref, &addr, &addr_size, NULL);
 		if (addr == NULL)
 			return (0);
-		return (
-		    bm->compact_page_skip(bm, session, addr, addr_size, skipp));
+		return (bm->compact_page_skip(bm, session, addr, addr_size, skipp));
 	}
 
 	/*
@@ -48,16 +47,15 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 */
 	mod = page->modify;
 	if (mod->rec_result == WT_PM_REC_REPLACE)
-		return (bm->compact_page_skip(bm, session,
-		    mod->mod_replace.addr, mod->mod_replace.size, skipp));
+		return (bm->compact_page_skip(
+		    bm, session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
 
 	if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
-		for (multi = mod->mod_multi,
-		    i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+		for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
 			if (multi->addr.addr == NULL)
 				continue;
-			WT_RET(bm->compact_page_skip(bm, session,
-			    multi->addr.addr, multi->addr.size, skipp));
+			WT_RET(bm->compact_page_skip(
+			    bm, session, multi->addr.addr, multi->addr.size, skipp));
 			if (!*skipp)
 				break;
 		}
@@ -75,7 +73,7 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	WT_BTREE *btree;
 	WT_DECL_RET;
 
-	*skipp = true;					/* Default skip. */
+	*skipp = true; /* Default skip. */
 
 	btree = S2BT(session);
 
@@ -122,15 +120,13 @@ __compact_progress(WT_SESSION_IMPL *session)
 
 	/* Log one progress message every twenty seconds. */
 	time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
-	if (time_diff / WT_PROGRESS_MSG_PERIOD >
-	    session->compact->prog_msg_count) {
-		__wt_verbose(session,
-		    WT_VERB_COMPACT_PROGRESS, "Compact running"
-		    " for %" PRIu64 " seconds; reviewed %"
-		    PRIu64 " pages, skipped %" PRIu64 " pages,"
-		    " wrote %" PRIu64 " pages", time_diff,
-		    bm->block->compact_pages_reviewed,
-		    bm->block->compact_pages_skipped,
+	if (time_diff / WT_PROGRESS_MSG_PERIOD > session->compact->prog_msg_count) {
+		__wt_verbose(session, WT_VERB_COMPACT_PROGRESS,
+		    "Compact running"
+		    " for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, skipped %" PRIu64
+		    " pages,"
+		    " wrote %" PRIu64 " pages",
+		    time_diff, bm->block->compact_pages_reviewed, bm->block->compact_pages_skipped,
 		    bm->block->compact_pages_written);
 		session->compact->prog_msg_count++;
 	}
@@ -192,8 +188,7 @@ __wt_compact(WT_SESSION_IMPL *session)
 		 * read, set its generation to a low value so it is evicted
 		 * quickly.
 		 */
-		WT_ERR(__wt_tree_walk_custom_skip(session, &ref,
-		    __wt_compact_page_skip, NULL,
+		WT_ERR(__wt_tree_walk_custom_skip(session, &ref, __wt_compact_page_skip, NULL,
 		    WT_READ_NO_GEN | WT_READ_WONT_NEED));
 		if (ref == NULL)
 			break;
@@ -223,7 +218,8 @@ __wt_compact(WT_SESSION_IMPL *session)
 		WT_STAT_DATA_INCR(session, btree_compact_rewrite);
 	}
 
-err:	if (ref != NULL)
+err:
+	if (ref != NULL)
 		WT_TRET(__wt_page_release(session, ref, 0));
 
 	return (ret);
@@ -234,8 +230,7 @@ err:	if (ref != NULL)
  *	Return if compaction requires we read this page.
  */
 int
-__wt_compact_page_skip(
-    WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+__wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
 	WT_BM *bm;
 	WT_DECL_RET;
@@ -244,7 +239,7 @@ __wt_compact_page_skip(
 	u_int type;
 
 	WT_UNUSED(context);
-	*skipp = false;				/* Default to reading */
+	*skipp = false; /* Default to reading */
 
 	/*
 	 * Skip deleted pages, rewriting them doesn't seem useful; in a better
@@ -287,8 +282,7 @@ __wt_compact_page_skip(
 	WT_ASSERT(session, addr != NULL);
 	if (addr != NULL && type != WT_CELL_ADDR_INT) {
 		bm = S2BT(session)->bm;
-		ret = bm->compact_page_skip(
-		    bm, session, addr, addr_size, skipp);
+		ret = bm->compact_page_skip(bm, session, addr, addr_size, skipp);
 	}
 
 	/* Reset the WT_REF state. */

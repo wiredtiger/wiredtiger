@@ -76,7 +76,8 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
 	/* Insert the current record. */
 	ret = __wt_bulk_insert_fix(session, cbulk, false);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -108,7 +109,8 @@ __curbulk_insert_fix_bitmap(WT_CURSOR *cursor)
 	/* Insert the current record. */
 	ret = __wt_bulk_insert_fix_bitmap(session, cbulk);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -155,10 +157,8 @@ __curbulk_insert_var(WT_CURSOR *cursor)
 		 * compare the current value against the last value; if the
 		 * same, just increment the RLE count.
 		 */
-		if (recno == cbulk->recno + 1 &&
-		    cbulk->last.size == cursor->value.size &&
-		    memcmp(cbulk->last.data,
-		    cursor->value.data, cursor->value.size) == 0) {
+		if (recno == cbulk->recno + 1 && cbulk->last.size == cursor->value.size &&
+		    memcmp(cbulk->last.data, cursor->value.data, cursor->value.size) == 0) {
 			++cbulk->rle;
 			++cbulk->recno;
 			goto duplicate;
@@ -181,11 +181,11 @@ __curbulk_insert_var(WT_CURSOR *cursor)
 	cbulk->recno = recno;
 
 	/* Save a copy of the value for the next comparison. */
-	ret = __wt_buf_set(session,
-	    &cbulk->last, cursor->value.data, cursor->value.size);
+	ret = __wt_buf_set(session, &cbulk->last, cursor->value.data, cursor->value.size);
 
 duplicate:
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -210,12 +210,11 @@ __bulk_row_keycmp_err(WT_CURSOR_BULK *cbulk)
 	WT_ERR_MSG(session, EINVAL,
 	    "bulk-load presented with out-of-order keys: %s compares smaller "
 	    "than previously inserted key %s",
-	    __wt_buf_set_printable(
-	    session, cursor->key.data, cursor->key.size, a),
-	    __wt_buf_set_printable(
-	    session, cbulk->last.data, cbulk->last.size, b));
+	    __wt_buf_set_printable(session, cursor->key.data, cursor->key.size, a),
+	    __wt_buf_set_printable(session, cbulk->last.data, cbulk->last.size, b));
 
-err:	__wt_scr_free(session, &a);
+err:
+	__wt_scr_free(session, &a);
 	__wt_scr_free(session, &b);
 	return (ret);
 }
@@ -253,20 +252,19 @@ __curbulk_insert_row(WT_CURSOR *cursor)
 	 * to ensure the application doesn't accidentally corrupt the table.
 	 */
 	if (!cbulk->first_insert) {
-		WT_ERR(__wt_compare(session,
-		    btree->collator, &cursor->key, &cbulk->last, &cmp));
+		WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &cbulk->last, &cmp));
 		if (cmp <= 0)
 			WT_ERR(__bulk_row_keycmp_err(cbulk));
 	} else
 		cbulk->first_insert = false;
 
 	/* Save a copy of the key for the next comparison. */
-	WT_ERR(__wt_buf_set(session,
-	    &cbulk->last, cursor->key.data, cursor->key.size));
+	WT_ERR(__wt_buf_set(session, &cbulk->last, cursor->key.data, cursor->key.size));
 
 	ret = __wt_bulk_insert_row(session, cbulk);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -298,7 +296,8 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
 
 	ret = __wt_bulk_insert_row(session, cbulk);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -306,8 +305,8 @@ err:	API_END_RET(session, ret);
  *	Initialize a bulk cursor.
  */
 int
-__wt_curbulk_init(WT_SESSION_IMPL *session,
-    WT_CURSOR_BULK *cbulk, bool bitmap, bool skip_sort_check)
+__wt_curbulk_init(
+    WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap, bool skip_sort_check)
 {
 	WT_CURSOR *c;
 	WT_CURSOR_BTREE *cbt;
@@ -319,8 +318,7 @@ __wt_curbulk_init(WT_SESSION_IMPL *session,
 	__wt_cursor_set_notsup(c);
 	switch (cbt->btree->type) {
 	case BTREE_COL_FIX:
-		c->insert = bitmap ?
-		    __curbulk_insert_fix_bitmap : __curbulk_insert_fix;
+		c->insert = bitmap ? __curbulk_insert_fix_bitmap : __curbulk_insert_fix;
 		break;
 	case BTREE_COL_VAR:
 		c->insert = __curbulk_insert_var;
@@ -330,8 +328,8 @@ __wt_curbulk_init(WT_SESSION_IMPL *session,
 		 * Row-store order comparisons are expensive, so we optionally
 		 * skip them when we know the input is correct.
 		 */
-		c->insert = skip_sort_check ?
-		    __curbulk_insert_row_skip_check : __curbulk_insert_row;
+		c->insert =
+		    skip_sort_check ? __curbulk_insert_row_skip_check : __curbulk_insert_row;
 		break;
 	}
 

@@ -13,8 +13,8 @@
  *	Initialize the statistics for a column group.
  */
 int
-__wt_curstat_colgroup_init(WT_SESSION_IMPL *session,
-    const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
+__wt_curstat_colgroup_init(
+    WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
 {
 	WT_COLGROUP *colgroup;
 	WT_DECL_ITEM(buf);
@@ -26,7 +26,8 @@ __wt_curstat_colgroup_init(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", colgroup->source));
 	ret = __wt_curstat_init(session, buf->data, NULL, cfg, cst);
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -35,8 +36,8 @@ err:	__wt_scr_free(session, &buf);
  *	Initialize the statistics for an index.
  */
 int
-__wt_curstat_index_init(WT_SESSION_IMPL *session,
-    const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
+__wt_curstat_index_init(
+    WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
@@ -48,7 +49,8 @@ __wt_curstat_index_init(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", idx->source));
 	ret = __wt_curstat_init(session, buf->data, NULL, cfg, cst);
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -60,8 +62,7 @@ err:	__wt_scr_free(session, &buf);
  *	 pressure on the table list lock.
  */
 static int
-__curstat_size_only(WT_SESSION_IMPL *session,
-    const char *uri, bool *was_fast,WT_CURSOR_STAT *cst)
+__curstat_size_only(WT_SESSION_IMPL *session, const char *uri, bool *was_fast, WT_CURSOR_STAT *cst)
 {
 	WT_CONFIG cparser;
 	WT_CONFIG_ITEM ckey, colconf, cval;
@@ -88,8 +89,7 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 		goto err;
 
 	/* Build up the file name from the table URI. */
-	WT_ERR(__wt_buf_fmt(
-	    session, &namebuf, "%s.wt", uri + strlen("table:")));
+	WT_ERR(__wt_buf_fmt(session, &namebuf, "%s.wt", uri + strlen("table:")));
 
 	/*
 	 * Get the size of the underlying file. This will fail for anything
@@ -110,7 +110,8 @@ __curstat_size_only(WT_SESSION_IMPL *session,
 		*was_fast = true;
 	}
 
-err:	__wt_free(session, tableconf);
+err:
+	__wt_free(session, tableconf);
 	__wt_buf_free(session, &namebuf);
 
 	return (ret);
@@ -121,8 +122,8 @@ err:	__wt_free(session, tableconf);
  *	Initialize the statistics for a table.
  */
 int
-__wt_curstat_table_init(WT_SESSION_IMPL *session,
-    const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
+__wt_curstat_table_init(
+    WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR_STAT *cst)
 {
 	WT_CURSOR *stat_cursor;
 	WT_DECL_ITEM(buf);
@@ -144,8 +145,7 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 	}
 
 	name = uri + strlen("table:");
-	WT_RET(__wt_schema_get_table(
-	    session, name, strlen(name), false, 0, &table));
+	WT_RET(__wt_schema_get_table(session, name, strlen(name), false, 0, &table));
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 
@@ -158,10 +158,8 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 	 */
 	stats = &cst->u.dsrc_stats;
 	for (i = 0; i < WT_COLGROUPS(table); i++) {
-		WT_ERR(__wt_buf_fmt(
-		    session, buf, "statistics:%s", table->cgroups[i]->name));
-		WT_ERR(__wt_curstat_open(
-		    session, buf->data, NULL, cfg, &stat_cursor));
+		WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->cgroups[i]->name));
+		WT_ERR(__wt_curstat_open(session, buf->data, NULL, cfg, &stat_cursor));
 		new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
 		if (i == 0)
 			*stats = *new;
@@ -173,10 +171,8 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 	/* Process the indices. */
 	WT_ERR(__wt_schema_open_indices(session, table));
 	for (i = 0; i < table->nindices; i++) {
-		WT_ERR(__wt_buf_fmt(
-		    session, buf, "statistics:%s", table->indices[i]->name));
-		WT_ERR(__wt_curstat_open(
-		    session, buf->data, NULL, cfg, &stat_cursor));
+		WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->indices[i]->name));
+		WT_ERR(__wt_curstat_open(session, buf->data, NULL, cfg, &stat_cursor));
 		new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
 		__wt_stat_dsrc_aggregate_single(new, stats);
 		WT_ERR(stat_cursor->close(stat_cursor));
@@ -184,7 +180,8 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 
 	__wt_curstat_dsrc_final(cst);
 
-err:	WT_TRET(__wt_schema_release_table(session, &table));
+err:
+	WT_TRET(__wt_schema_release_table(session, &table));
 
 	__wt_scr_free(session, &buf);
 	return (ret);

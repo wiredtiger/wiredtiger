@@ -46,8 +46,7 @@ __wt_fflush(WT_SESSION_IMPL *session, WT_FSTREAM *fstr)
  *	ANSI C vfprintf.
  */
 static inline int
-__wt_vfprintf(
-    WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
+__wt_vfprintf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, va_list ap)
 {
 	return (fstr->fstr_printf(session, fstr, fmt, ap));
 }
@@ -59,9 +58,8 @@ __wt_vfprintf(
  * Inline functions are not parsed for external prototypes, so in cases where we
  * want GCC attributes attached to the functions, we have to do so explicitly.
  */
-static inline int
-__wt_fprintf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, ...)
-    WT_GCC_FUNC_DECL_ATTRIBUTE((format (printf, 3, 4)));
+static inline int __wt_fprintf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, ...)
+    WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 3, 4)));
 
 /*
  * __wt_fprintf --
@@ -85,8 +83,7 @@ __wt_fprintf(WT_SESSION_IMPL *session, WT_FSTREAM *fstr, const char *fmt, ...)
  *	Flush and close a stream, then swap it into place.
  */
 static inline int
-__wt_sync_and_rename(WT_SESSION_IMPL *session,
-    WT_FSTREAM **fstrp, const char *from, const char *to)
+__wt_sync_and_rename(WT_SESSION_IMPL *session, WT_FSTREAM **fstrp, const char *from, const char *to)
 {
 	WT_DECL_RET;
 	WT_FSTREAM *fstr;

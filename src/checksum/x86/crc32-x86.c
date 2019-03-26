@@ -48,32 +48,27 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	crc = 0xffffffff;
 
 	/* Checksum one byte at a time to the first 4B boundary. */
-	for (p = chunk;
-	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
-	    len > 0; ++p, --len) {
-		__asm__ __volatile__(
-				     ".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
-				     : "=S" (crc)
-				     : "0" (crc), "c" (*p));
+	for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len) {
+		__asm__ __volatile__(".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
+		                     : "=S"(crc)
+		                     : "0"(crc), "c"(*p));
 	}
 
 	p64 = (const uint64_t *)p;
 	/* Checksum in 8B chunks. */
 	for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
-		__asm__ __volatile__ (
-				      ".byte 0xF2, 0x48, 0x0F, 0x38, 0xF1, 0xF1"
-				      : "=S"(crc)
-				      : "0"(crc), "c" (*p64));
+		__asm__ __volatile__(".byte 0xF2, 0x48, 0x0F, 0x38, 0xF1, 0xF1"
+		                     : "=S"(crc)
+		                     : "0"(crc), "c"(*p64));
 		p64++;
 	}
 
 	/* Checksum trailing bytes one byte at a time. */
 	p = (const uint8_t *)p64;
 	for (len &= 0x7; len > 0; ++p, len--) {
-		__asm__ __volatile__(
-				     ".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
-				     : "=S" (crc)
-				     : "0" (crc), "c" (*p));
+		__asm__ __volatile__(".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
+		                     : "=S"(crc)
+		                     : "0"(crc), "c"(*p));
 	}
 	return (~crc);
 }
@@ -96,9 +91,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	crc = 0xffffffff;
 
 	/* Checksum one byte at a time to the first 4B boundary. */
-	for (p = chunk;
-	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
-	    len > 0; ++p, --len) {
+	for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len) {
 		crc = _mm_crc32_u8(crc, *p);
 	}
 
@@ -138,12 +131,9 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 #if (defined(__amd64) || defined(__x86_64))
 	unsigned int eax, ebx, ecx, edx;
 
-	__asm__ __volatile__ (
-			      "cpuid"
-			      : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
-			      : "a" (1));
+	__asm__ __volatile__("cpuid" : "=a"(eax), "=b"(ebx), "=c"(ecx), "=d"(edx) : "a"(1));
 
-#define	CPUID_ECX_HAS_SSE42	(1 << 20)
+#define CPUID_ECX_HAS_SSE42 (1 << 20)
 	if (ecx & CPUID_ECX_HAS_SSE42)
 		return (__wt_checksum_hw);
 	return (__wt_checksum_sw);
@@ -153,7 +143,7 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 
 	__cpuid(cpuInfo, 1);
 
-#define	CPUID_ECX_HAS_SSE42	(1 << 20)
+#define CPUID_ECX_HAS_SSE42 (1 << 20)
 	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
 		return (__wt_checksum_hw);
 	return (__wt_checksum_sw);

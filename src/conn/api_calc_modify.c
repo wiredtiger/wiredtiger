@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-#define	WT_CM_BLOCKSIZE 8
-#define	WT_CM_MINMATCH 64
-#define	WT_CM_STARTGAP (WT_CM_BLOCKSIZE / 2)
+#define WT_CM_BLOCKSIZE 8
+#define WT_CM_MINMATCH 64
+#define WT_CM_STARTGAP (WT_CM_BLOCKSIZE / 2)
 
 typedef struct {
 	WT_SESSION_IMPL *session;
@@ -37,8 +37,8 @@ typedef struct {
  *	exceeded.
  */
 static int
-__cm_add_modify(WT_CM_STATE *cms, const uint8_t *p2,
-    const uint8_t *m1, const uint8_t *m2, WT_MODIFY *entries, int *nentriesp)
+__cm_add_modify(WT_CM_STATE *cms, const uint8_t *p2, const uint8_t *m1, const uint8_t *m2,
+    WT_MODIFY *entries, int *nentriesp)
 {
 	WT_MODIFY *mod;
 	size_t len1, len2;
@@ -66,19 +66,15 @@ __cm_add_modify(WT_CM_STATE *cms, const uint8_t *p2,
  *	Given a potential match size, extend to find the complete match.
  */
 static void
-__cm_extend(WT_CM_STATE *cms,
-    const uint8_t *m1, const uint8_t *m2, WT_CM_MATCH *match)
+__cm_extend(WT_CM_STATE *cms, const uint8_t *m1, const uint8_t *m2, WT_CM_MATCH *match)
 {
 	const uint8_t *p1, *p2;
 
 	/* Step past the end and before the beginning of the matching block. */
-	for (p1 = m1, p2 = m2;
-	    p1 < cms->e1 && p2 < cms->e2 && *p1 == *p2;
-	    p1++, p2++)
+	for (p1 = m1, p2 = m2; p1 < cms->e1 && p2 < cms->e2 && *p1 == *p2; p1++, p2++)
 		;
 
-	for (; m1 >= cms->used1 && m2 >= cms->used2 && *m1 == *m2;
-	    m1--, m2--)
+	for (; m1 >= cms->used1 && m2 >= cms->used2 && *m1 == *m2; m1--, m2--)
 		;
 
 	match->m1 = m1 + 1;
@@ -105,8 +101,7 @@ __cm_fingerprint(const uint8_t *p)
  *	Calculate a set of WT_MODIFY operations to represent an update.
  */
 int
-wiredtiger_calc_modify(WT_SESSION *wt_session,
-    const WT_ITEM *oldv, const WT_ITEM *newv,
+wiredtiger_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
     size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
 {
 	WT_CM_MATCH match;
@@ -139,8 +134,7 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 		cms.e2 -= match.len;
 	}
 
-	if (cms.used1 + WT_CM_BLOCKSIZE >= cms.e1 ||
-	    cms.used2 + WT_CM_BLOCKSIZE >= cms.e2)
+	if (cms.used1 + WT_CM_BLOCKSIZE >= cms.e1 || cms.used2 + WT_CM_BLOCKSIZE >= cms.e2)
 		goto end;
 
 	/*
@@ -154,8 +148,7 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 	hstart = hend = 0;
 	i = gap = 0;
 	for (p1 = cms.used1, p2 = cms.used2, start = true;
-	    p1 + WT_CM_BLOCKSIZE <= cms.e1 && p2 + WT_CM_BLOCKSIZE <= cms.e2;
-	    p2++, i++) {
+	     p1 + WT_CM_BLOCKSIZE <= cms.e1 && p2 + WT_CM_BLOCKSIZE <= cms.e2; p2++, i++) {
 		if (start || i == gap) {
 			p1 += gap;
 			gap = start ? WT_CM_STARTGAP : gap * 2;
@@ -178,16 +171,15 @@ wiredtiger_calc_modify(WT_SESSION *wt_session,
 		if (match.len < WT_CM_MINMATCH)
 			continue;
 
-		WT_RET(__cm_add_modify(&cms, cms.used2, match.m1, match.m2,
-		    entries, nentriesp));
+		WT_RET(__cm_add_modify(&cms, cms.used2, match.m1, match.m2, entries, nentriesp));
 		cms.used1 = p1 = match.m1 + match.len;
 		cms.used2 = p2 = match.m2 + match.len;
 		start = true;
 	}
 
-end:	if (cms.used1 < cms.e1 || cms.used2 < cms.e2)
-		WT_RET(__cm_add_modify(&cms, cms.used2, cms.e1, cms.e2,
-		    entries, nentriesp));
+end:
+	if (cms.used1 < cms.e1 || cms.used2 < cms.e2)
+		WT_RET(__cm_add_modify(&cms, cms.used2, cms.e1, cms.e2, entries, nentriesp));
 
 	return (0);
 }

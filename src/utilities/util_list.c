@@ -73,12 +73,10 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 
 	wt_api = session->connection->get_extension_api(session->connection);
 	if ((ret = wt_api->metadata_search(wt_api, session, key, &config)) != 0)
-		return (util_err(
-		    session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
-	if ((ret = wt_api->config_parser_open(wt_api, session, config,
-	    strlen(config), &parser)) != 0)
-		return (util_err(
-		    session, ret, "WT_EXTENSION_API.config_parser_open"));
+		return (util_err(session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
+	if ((ret = wt_api->config_parser_open(wt_api, session, config, strlen(config), &parser)) !=
+	    0)
+		return (util_err(session, ret, "WT_EXTENSION_API.config_parser_open"));
 	if ((ret = parser->get(parser, "allocation_size", &szvalue)) != 0) {
 		if (ret == WT_NOTFOUND)
 			ret = 0;
@@ -107,8 +105,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 	bool found;
 
 	/* Open the metadata file. */
-	if ((ret = session->open_cursor(
-	    session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
+	if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
 		/*
 		 * If there is no metadata (yet), this will return ENOENT.
 		 * Treat that the same as an empty metadata.
@@ -116,8 +113,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 		if (ret == ENOENT)
 			return (0);
 
-		return (util_err(session,
-		    ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
+		return (util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
 	}
 
 	found = uri == NULL;
@@ -146,8 +142,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 		if (!vflag && WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
 			continue;
 		if (cflag || vflag ||
-		    (strcmp(key, WT_METADATA_URI) != 0 &&
-		    strcmp(key, WT_LAS_URI) != 0))
+		    (strcmp(key, WT_METADATA_URI) != 0 && strcmp(key, WT_LAS_URI) != 0))
 			printf("%s\n", key);
 
 		if (!cflag && !vflag)
@@ -199,15 +194,15 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 
 	/* Find the longest name, so we can pretty-print. */
 	len = 0;
-	WT_CKPT_FOREACH(ckptbase, ckpt)
+	WT_CKPT_FOREACH (ckptbase, ckpt)
 		if (strlen(ckpt->name) > len)
 			len = strlen(ckpt->name);
 	++len;
 
 	memset(&ci, 0, sizeof(ci));
-	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		if (allocsize != 0 && (ret = __wt_block_ckpt_decode(
-		    session, allocsize, ckpt->raw.data, &ci)) != 0) {
+	WT_CKPT_FOREACH (ckptbase, ckpt) {
+		if (allocsize != 0 &&
+		    (ret = __wt_block_ckpt_decode(session, allocsize, ckpt->raw.data, &ci)) != 0) {
 			(void)util_err(session, ret, "__wt_block_ckpt_decode");
 			/* continue if damaged */
 			ci.root_size = 0;
@@ -233,15 +228,14 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 		else
 			printf(" (%" PRIu64 " B)\n", v);
 		if (ci.root_size != 0) {
-			printf("\t\t" "root offset: %" PRIuMAX
-			    " (0x%" PRIxMAX ")\n",
-			    (uintmax_t)ci.root_offset,
-			    (uintmax_t)ci.root_offset);
-			printf("\t\t" "root size: %" PRIu32
-			    " (0x%" PRIx32 ")\n",
+			printf("\t\t"
+			       "root offset: %" PRIuMAX " (0x%" PRIxMAX ")\n",
+			    (uintmax_t)ci.root_offset, (uintmax_t)ci.root_offset);
+			printf("\t\t"
+			       "root size: %" PRIu32 " (0x%" PRIx32 ")\n",
 			    ci.root_size, ci.root_size);
-			printf("\t\t" "root checksum: %" PRIu32
-			    " (0x%" PRIx32 ")\n",
+			printf("\t\t"
+			       "root checksum: %" PRIu32 " (0x%" PRIx32 ")\n",
 			    ci.root_checksum, ci.root_checksum);
 		}
 	}

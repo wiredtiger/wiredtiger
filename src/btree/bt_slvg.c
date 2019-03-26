@@ -8,36 +8,39 @@
 
 #include "wt_internal.h"
 
-struct __wt_stuff;	  typedef struct __wt_stuff WT_STUFF;
-struct __wt_track;	  typedef struct __wt_track WT_TRACK;
-struct __wt_track_shared; typedef struct __wt_track_shared WT_TRACK_SHARED;
+struct __wt_stuff;
+typedef struct __wt_stuff WT_STUFF;
+struct __wt_track;
+typedef struct __wt_track WT_TRACK;
+struct __wt_track_shared;
+typedef struct __wt_track_shared WT_TRACK_SHARED;
 
 /*
  * There's a bunch of stuff we pass around during salvage, group it together
  * to make the code prettier.
  */
 struct __wt_stuff {
-	WT_SESSION_IMPL *session;		/* Salvage session */
+	WT_SESSION_IMPL *session; /* Salvage session */
 
-	WT_TRACK **pages;			/* Pages */
-	uint32_t   pages_next;			/* Next empty slot */
-	size_t     pages_allocated;		/* Bytes allocated */
+	WT_TRACK **pages;       /* Pages */
+	uint32_t pages_next;    /* Next empty slot */
+	size_t pages_allocated; /* Bytes allocated */
 
-	WT_TRACK **ovfl;			/* Overflow pages */
-	uint32_t   ovfl_next;			/* Next empty slot */
-	size_t     ovfl_allocated;		/* Bytes allocated */
+	WT_TRACK **ovfl;       /* Overflow pages */
+	uint32_t ovfl_next;    /* Next empty slot */
+	size_t ovfl_allocated; /* Bytes allocated */
 
-	WT_REF	   root_ref;			/* Created root page */
+	WT_REF root_ref; /* Created root page */
 
-	uint8_t    page_type;			/* Page type */
+	uint8_t page_type; /* Page type */
 
 	/* If need to free blocks backing merged page ranges. */
-	bool	   merge_free;
+	bool merge_free;
 
-	WT_ITEM	  *tmp1;			/* Verbose print buffer */
-	WT_ITEM	  *tmp2;			/* Verbose print buffer */
+	WT_ITEM *tmp1; /* Verbose print buffer */
+	WT_ITEM *tmp2; /* Verbose print buffer */
 
-	uint64_t fcnt;				/* Progress counter */
+	uint64_t fcnt; /* Progress counter */
 };
 
 /*
@@ -45,14 +48,14 @@ struct __wt_stuff {
  *	Information shared between pages being merged.
  */
 struct __wt_track_shared {
-	uint32_t ref;				/* Reference count */
+	uint32_t ref; /* Reference count */
 
 	/*
 	 * Physical information about the file block.
 	 */
-	WT_ADDR  addr;				/* Page address */
-	uint32_t size;				/* Page size */
-	uint64_t gen;				/* Page generation */
+	WT_ADDR addr;  /* Page address */
+	uint32_t size; /* Page size */
+	uint64_t gen;  /* Page generation */
 
 	/*
 	 * Pages that reference overflow pages contain a list of the overflow
@@ -60,9 +63,9 @@ struct __wt_track_shared {
 	 * convert to overflow array slots during the reconciliation of page
 	 * references to overflow records.
 	 */
-	WT_ADDR  *ovfl_addr;			/* Overflow pages by address */
-	uint32_t *ovfl_slot;			/* Overflow pages by slot */
-	uint32_t  ovfl_cnt;			/* Overflow reference count */
+	WT_ADDR *ovfl_addr;  /* Overflow pages by address */
+	uint32_t *ovfl_slot; /* Overflow pages by slot */
+	uint32_t ovfl_cnt;   /* Overflow reference count */
 };
 
 /*
@@ -72,92 +75,85 @@ struct __wt_track_shared {
  * split the leaf page chunks up, one chunk for each unique key range.
  */
 struct __wt_track {
-#define	trk_addr		shared->addr.addr
-#define	trk_addr_size		shared->addr.size
-#define	trk_oldest_start_ts	shared->addr.oldest_start_ts
-#define	trk_newest_start_ts	shared->addr.newest_start_ts
-#define	trk_newest_stop_ts	shared->addr.newest_stop_ts
-#define	trk_gen			shared->gen
-#define	trk_ovfl_addr		shared->ovfl_addr
-#define	trk_ovfl_cnt		shared->ovfl_cnt
-#define	trk_ovfl_slot		shared->ovfl_slot
-#define	trk_size		shared->size
-	WT_TRACK_SHARED *shared;		/* Shared information */
+#define trk_addr shared->addr.addr
+#define trk_addr_size shared->addr.size
+#define trk_oldest_start_ts shared->addr.oldest_start_ts
+#define trk_newest_start_ts shared->addr.newest_start_ts
+#define trk_newest_stop_ts shared->addr.newest_stop_ts
+#define trk_gen shared->gen
+#define trk_ovfl_addr shared->ovfl_addr
+#define trk_ovfl_cnt shared->ovfl_cnt
+#define trk_ovfl_slot shared->ovfl_slot
+#define trk_size shared->size
+	WT_TRACK_SHARED *shared; /* Shared information */
 
-	WT_STUFF  *ss;				/* Enclosing stuff */
+	WT_STUFF *ss; /* Enclosing stuff */
 
 	union {
 		struct {
-#undef	row_start
-#define	row_start	u.row._row_start
-			WT_ITEM   _row_start;	/* Row-store start range */
-#undef	row_stop
-#define	row_stop	u.row._row_stop
-			WT_ITEM   _row_stop;	/* Row-store stop range */
+#undef row_start
+#define row_start u.row._row_start
+			WT_ITEM _row_start; /* Row-store start range */
+#undef row_stop
+#define row_stop u.row._row_stop
+			WT_ITEM _row_stop; /* Row-store stop range */
 		} row;
 
 		struct {
-#undef	col_start
-#define	col_start	u.col._col_start
-			uint64_t _col_start;	/* Col-store start range */
-#undef	col_stop
-#define	col_stop	u.col._col_stop
-			uint64_t _col_stop;	/* Col-store stop range */
-#undef	col_missing
-#define	col_missing	u.col._col_missing
-			uint64_t _col_missing;	/* Col-store missing range */
+#undef col_start
+#define col_start u.col._col_start
+			uint64_t _col_start; /* Col-store start range */
+#undef col_stop
+#define col_stop u.col._col_stop
+			uint64_t _col_stop; /* Col-store stop range */
+#undef col_missing
+#define col_missing u.col._col_missing
+			uint64_t _col_missing; /* Col-store missing range */
 		} col;
 	} u;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TRACK_CHECK_START	0x1u		/* Row: initial key updated */
-#define	WT_TRACK_CHECK_STOP	0x2u		/* Row: last key updated */
-#define	WT_TRACK_MERGE		0x4u		/* Page requires merging */
-#define	WT_TRACK_OVFL_REFD	0x8u		/* Overflow page referenced */
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_TRACK_CHECK_START 0x1u /* Row: initial key updated */
+#define WT_TRACK_CHECK_STOP 0x2u  /* Row: last key updated */
+#define WT_TRACK_MERGE 0x4u       /* Page requires merging */
+#define WT_TRACK_OVFL_REFD 0x8u   /* Overflow page referenced */
+	                          /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	u_int flags;
 };
 
-static int  __slvg_cleanup(WT_SESSION_IMPL *, WT_STUFF *);
-static int  __slvg_col_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
-static int  __slvg_col_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *);
-static int  __slvg_col_ovfl(WT_SESSION_IMPL *,
-		WT_TRACK *, WT_PAGE *, uint64_t, uint64_t, uint64_t);
-static int  __slvg_col_range(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_cleanup(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_col_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
+static int __slvg_col_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *);
+static int __slvg_col_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint64_t, uint64_t, uint64_t);
+static int __slvg_col_range(WT_SESSION_IMPL *, WT_STUFF *);
 static void __slvg_col_range_missing(WT_SESSION_IMPL *, WT_STUFF *);
-static int  __slvg_col_range_overlap(
-		WT_SESSION_IMPL *, uint32_t, uint32_t, WT_STUFF *);
+static int __slvg_col_range_overlap(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_STUFF *);
 static void __slvg_col_trk_update_start(uint32_t, WT_STUFF *);
-static int  __slvg_merge_block_free(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_merge_block_free(WT_SESSION_IMPL *, WT_STUFF *);
 static int WT_CDECL __slvg_ovfl_compare(const void *, const void *);
-static int  __slvg_ovfl_discard(WT_SESSION_IMPL *, WT_STUFF *);
-static int  __slvg_ovfl_reconcile(WT_SESSION_IMPL *, WT_STUFF *);
-static int  __slvg_ovfl_ref(WT_SESSION_IMPL *, WT_TRACK *, bool);
-static int  __slvg_ovfl_ref_all(WT_SESSION_IMPL *, WT_TRACK *);
-static int  __slvg_read(WT_SESSION_IMPL *, WT_STUFF *);
-static int  __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
-static int  __slvg_row_build_leaf(
-		WT_SESSION_IMPL *, WT_TRACK *, WT_REF *, WT_STUFF *);
-static int  __slvg_row_ovfl(
-		WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint32_t, uint32_t);
-static int  __slvg_row_range(WT_SESSION_IMPL *, WT_STUFF *);
-static int  __slvg_row_range_overlap(
-		WT_SESSION_IMPL *, uint32_t, uint32_t, WT_STUFF *);
-static int  __slvg_row_trk_update_start(
-		WT_SESSION_IMPL *, WT_ITEM *, uint32_t, WT_STUFF *);
-static int  WT_CDECL __slvg_trk_compare_addr(const void *, const void *);
-static int  WT_CDECL __slvg_trk_compare_gen(const void *, const void *);
-static int  WT_CDECL __slvg_trk_compare_key(const void *, const void *);
-static int  __slvg_trk_free(WT_SESSION_IMPL *, WT_TRACK **, bool);
+static int __slvg_ovfl_discard(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_ovfl_reconcile(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_ovfl_ref(WT_SESSION_IMPL *, WT_TRACK *, bool);
+static int __slvg_ovfl_ref_all(WT_SESSION_IMPL *, WT_TRACK *);
+static int __slvg_read(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_row_build_internal(WT_SESSION_IMPL *, uint32_t, WT_STUFF *);
+static int __slvg_row_build_leaf(WT_SESSION_IMPL *, WT_TRACK *, WT_REF *, WT_STUFF *);
+static int __slvg_row_ovfl(WT_SESSION_IMPL *, WT_TRACK *, WT_PAGE *, uint32_t, uint32_t);
+static int __slvg_row_range(WT_SESSION_IMPL *, WT_STUFF *);
+static int __slvg_row_range_overlap(WT_SESSION_IMPL *, uint32_t, uint32_t, WT_STUFF *);
+static int __slvg_row_trk_update_start(WT_SESSION_IMPL *, WT_ITEM *, uint32_t, WT_STUFF *);
+static int WT_CDECL __slvg_trk_compare_addr(const void *, const void *);
+static int WT_CDECL __slvg_trk_compare_gen(const void *, const void *);
+static int WT_CDECL __slvg_trk_compare_key(const void *, const void *);
+static int __slvg_trk_free(WT_SESSION_IMPL *, WT_TRACK **, bool);
 static void __slvg_trk_free_addr(WT_SESSION_IMPL *, WT_TRACK *);
-static int  __slvg_trk_init(WT_SESSION_IMPL *, const WT_PAGE_HEADER *,
-		uint8_t *, size_t, WT_STUFF *, WT_TRACK **);
-static int  __slvg_trk_leaf(WT_SESSION_IMPL *,
-		const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *);
-static int  __slvg_trk_leaf_walk(
-		WT_SESSION_IMPL *, const WT_PAGE_HEADER *, WT_TRACK *);
-static int  __slvg_trk_ovfl(WT_SESSION_IMPL *,
-		const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *);
+static int __slvg_trk_init(
+    WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *, WT_TRACK **);
+static int __slvg_trk_leaf(
+    WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *);
+static int __slvg_trk_leaf_walk(WT_SESSION_IMPL *, const WT_PAGE_HEADER *, WT_TRACK *);
+static int __slvg_trk_ovfl(
+    WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *);
 
 /*
  * __wt_bt_salvage --
@@ -262,8 +258,7 @@ __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 	 * fixed-length format ranges to overlap during salvage, and I don't
 	 * want to have to retrofit the code later.
 	 */
-	__wt_qsort(ss->pages,
-	    (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_key);
+	__wt_qsort(ss->pages, (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_key);
 	if (ss->page_type == WT_PAGE_ROW_LEAF)
 		WT_ERR(__slvg_row_range(session, ss));
 	else
@@ -298,15 +293,13 @@ __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 		switch (ss->page_type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
-			WT_WITH_PAGE_INDEX(session,
-			    ret = __slvg_col_build_internal(
-				session, leaf_cnt, ss));
+			WT_WITH_PAGE_INDEX(
+			    session, ret = __slvg_col_build_internal(session, leaf_cnt, ss));
 			WT_ERR(ret);
 			break;
 		case WT_PAGE_ROW_LEAF:
-			WT_WITH_PAGE_INDEX(session,
-			    ret = __slvg_row_build_internal(
-				session, leaf_cnt, ss));
+			WT_WITH_PAGE_INDEX(
+			    session, ret = __slvg_row_build_internal(session, leaf_cnt, ss));
 			WT_ERR(ret);
 			break;
 		}
@@ -340,7 +333,8 @@ __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 	 * Step 10:
 	 * Inform the underlying block manager that we're done.
 	 */
-err:	WT_TRET(bm->salvage_end(bm, session));
+err:
+	WT_TRET(bm->salvage_end(bm, session));
 
 	/* Discard any root page we created. */
 	if (ss->root_ref.page != NULL)
@@ -382,8 +376,8 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		if (eof)
 			break;
 
-		/* Report progress occasionally. */
-#define	WT_SALVAGE_PROGRESS_INTERVAL	100
+			/* Report progress occasionally. */
+#define WT_SALVAGE_PROGRESS_INTERVAL 100
 		if (++ss->fcnt % WT_SALVAGE_PROGRESS_INTERVAL == 0)
 			WT_ERR(__wt_progress(session, NULL, ss->fcnt));
 
@@ -424,10 +418,8 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		case WT_PAGE_BLOCK_MANAGER:
 		case WT_PAGE_COL_INT:
 		case WT_PAGE_ROW_INT:
-			__wt_verbose(session, WT_VERB_SALVAGE,
-			    "%s page ignored %s",
-			    __wt_page_type_string(dsk->type),
-			    (const char *)as->data);
+			__wt_verbose(session, WT_VERB_SALVAGE, "%s page ignored %s",
+			    __wt_page_type_string(dsk->type), (const char *)as->data);
 			WT_ERR(bm->free(bm, session, addr, addr_size));
 			continue;
 		}
@@ -442,18 +434,15 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		 * discard these pages now.
 		 */
 		if (__wt_verify_dsk(session, as->data, buf) != 0) {
-			__wt_verbose(session, WT_VERB_SALVAGE,
-			    "%s page failed verify %s",
-			    __wt_page_type_string(dsk->type),
-			    (const char *)as->data);
+			__wt_verbose(session, WT_VERB_SALVAGE, "%s page failed verify %s",
+			    __wt_page_type_string(dsk->type), (const char *)as->data);
 			WT_ERR(bm->free(bm, session, addr, addr_size));
 			continue;
 		}
 
 		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "tracking %s page, generation %" PRIu64 " %s",
-		    __wt_page_type_string(dsk->type), dsk->write_gen,
-		    (const char *)as->data);
+		    "tracking %s page, generation %" PRIu64 " %s", __wt_page_type_string(dsk->type),
+		    dsk->write_gen, (const char *)as->data);
 
 		switch (dsk->type) {
 		case WT_PAGE_COL_FIX:
@@ -468,17 +457,16 @@ __slvg_read(WT_SESSION_IMPL *session, WT_STUFF *ss)
 				    __wt_page_type_string(ss->page_type),
 				    __wt_page_type_string(dsk->type));
 
-			WT_ERR(__slvg_trk_leaf(
-			    session, dsk, addr, addr_size, ss));
+			WT_ERR(__slvg_trk_leaf(session, dsk, addr, addr_size, ss));
 			break;
 		case WT_PAGE_OVFL:
-			WT_ERR(__slvg_trk_ovfl(
-			    session, dsk, addr, addr_size, ss));
+			WT_ERR(__slvg_trk_ovfl(session, dsk, addr, addr_size, ss));
 			break;
 		}
 	}
 
-err:	__wt_scr_free(session, &as);
+err:
+	__wt_scr_free(session, &as);
 	__wt_scr_free(session, &buf);
 
 	return (ret);
@@ -489,9 +477,8 @@ err:	__wt_scr_free(session, &as);
  *	Initialize tracking information for a page.
  */
 static int
-__slvg_trk_init(WT_SESSION_IMPL *session,
-    const WT_PAGE_HEADER *dsk,
-    uint8_t *addr, size_t addr_size, WT_STUFF *ss, WT_TRACK **retp)
+__slvg_trk_init(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *addr,
+    size_t addr_size, WT_STUFF *ss, WT_TRACK **retp)
 {
 	WT_DECL_RET;
 	WT_TRACK *trk;
@@ -507,8 +494,7 @@ __slvg_trk_init(WT_SESSION_IMPL *session,
 	trk->trk_oldest_start_ts = WT_TS_MAX;
 	trk->trk_newest_start_ts = trk->trk_newest_stop_ts = WT_TS_NONE;
 	if (!__wt_process.page_version_ts || dsk->type == WT_PAGE_COL_FIX) {
-		trk->trk_oldest_start_ts =
-		    trk->trk_newest_start_ts = WT_TS_NONE;
+		trk->trk_oldest_start_ts = trk->trk_newest_start_ts = WT_TS_NONE;
 		trk->trk_newest_stop_ts = WT_TS_MAX;
 	}
 	trk->trk_gen = dsk->write_gen;
@@ -516,7 +502,8 @@ __slvg_trk_init(WT_SESSION_IMPL *session,
 	*retp = trk;
 	return (0);
 
-err:	__wt_free(session, trk->trk_addr);
+err:
+	__wt_free(session, trk->trk_addr);
 	__wt_free(session, trk->shared);
 	__wt_free(session, trk);
 	return (ret);
@@ -527,8 +514,8 @@ err:	__wt_free(session, trk->trk_addr);
  *	Track a leaf page.
  */
 static int
-__slvg_trk_leaf(WT_SESSION_IMPL *session,
-    const WT_PAGE_HEADER *dsk, uint8_t *addr, size_t addr_size, WT_STUFF *ss)
+__slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *addr,
+    size_t addr_size, WT_STUFF *ss)
 {
 	WT_BTREE *btree;
 	WT_CELL_UNPACK unpack;
@@ -542,8 +529,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 	trk = NULL;
 
 	/* Re-allocate the array of pages, as necessary. */
-	WT_RET(__wt_realloc_def(
-	    session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages));
+	WT_RET(__wt_realloc_def(session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages));
 
 	/* Allocate a WT_TRACK entry for this new page and fill it in. */
 	WT_RET(__slvg_trk_init(session, dsk, addr, addr_size, ss, &trk));
@@ -558,10 +544,8 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		trk->col_start = dsk->recno;
 		trk->col_stop = dsk->recno + (dsk->u.entries - 1);
 
-		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "%s records %" PRIu64 "-%" PRIu64,
-		    __wt_addr_string(
-		    session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+		__wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
+		    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
 		    trk->col_start, trk->col_stop);
 		break;
 	case WT_PAGE_COL_VAR:
@@ -571,17 +555,16 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		 * the page.
 		 */
 		stop_recno = dsk->recno;
-		WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+		WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack, true) {
 			stop_recno += __wt_cell_rle(&unpack);
-		} WT_CELL_FOREACH_END;
+		}
+		WT_CELL_FOREACH_END;
 
 		trk->col_start = dsk->recno;
 		trk->col_stop = stop_recno - 1;
 
-		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "%s records %" PRIu64 "-%" PRIu64,
-		    __wt_addr_string(
-		    session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+		__wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
+		    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
 		    trk->col_start, trk->col_stop);
 
 		/* Column-store pages: track timestamps and overflow items. */
@@ -601,23 +584,18 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		 * to free it.
 		 */
 		WT_ERR(__wt_page_inmem(session, NULL, dsk, 0, &page));
-		WT_ERR(__wt_row_leaf_key_copy(session,
-		    page, &page->pg_row[0], &trk->row_start));
-		WT_ERR(__wt_row_leaf_key_copy(session,
-		    page, &page->pg_row[page->entries - 1], &trk->row_stop));
+		WT_ERR(__wt_row_leaf_key_copy(session, page, &page->pg_row[0], &trk->row_start));
+		WT_ERR(__wt_row_leaf_key_copy(
+		    session, page, &page->pg_row[page->entries - 1], &trk->row_stop));
 
-		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "%s start key %s",
-		    __wt_addr_string(session,
-		    trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-		    __wt_buf_set_printable(session,
-		    trk->row_start.data, trk->row_start.size, ss->tmp2));
-		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "%s stop key %s",
-		    __wt_addr_string(session,
-		    trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-		    __wt_buf_set_printable(session,
-		    trk->row_stop.data, trk->row_stop.size, ss->tmp2));
+		__wt_verbose(session, WT_VERB_SALVAGE, "%s start key %s",
+		    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+		    __wt_buf_set_printable(
+		        session, trk->row_start.data, trk->row_start.size, ss->tmp2));
+		__wt_verbose(session, WT_VERB_SALVAGE, "%s stop key %s",
+		    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+		    __wt_buf_set_printable(
+		        session, trk->row_stop.data, trk->row_stop.size, ss->tmp2));
 
 		/* Row-store pages: track timestamps and overflow items. */
 		WT_ERR(__slvg_trk_leaf_walk(session, dsk, trk));
@@ -626,7 +604,8 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 	ss->pages[ss->pages_next++] = trk;
 
 	if (0) {
-err:		__wt_free(session, trk);
+	err:
+		__wt_free(session, trk);
 	}
 	if (page != NULL)
 		__wt_page_out(session, &page);
@@ -638,8 +617,8 @@ err:		__wt_free(session, trk);
  *	Track an overflow page.
  */
 static int
-__slvg_trk_ovfl(WT_SESSION_IMPL *session,
-    const WT_PAGE_HEADER *dsk, uint8_t *addr, size_t addr_size, WT_STUFF *ss)
+__slvg_trk_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *addr,
+    size_t addr_size, WT_STUFF *ss)
 {
 	WT_TRACK *trk;
 
@@ -647,8 +626,7 @@ __slvg_trk_ovfl(WT_SESSION_IMPL *session,
 	 * Reallocate the overflow page array as necessary, then save the
 	 * page's location information.
 	 */
-	WT_RET(__wt_realloc_def(
-	    session, &ss->ovfl_allocated, ss->ovfl_next + 1, &ss->ovfl));
+	WT_RET(__wt_realloc_def(session, &ss->ovfl_allocated, ss->ovfl_next + 1, &ss->ovfl));
 
 	WT_RET(__slvg_trk_init(session, dsk, addr, addr_size, ss, &trk));
 	ss->ovfl[ss->ovfl_next++] = trk;
@@ -663,12 +641,9 @@ __slvg_trk_ovfl(WT_SESSION_IMPL *session,
 static void
 __slvg_trk_leaf_ts(WT_TRACK *trk, WT_CELL_UNPACK *unpack)
 {
-	trk->trk_oldest_start_ts =
-	    WT_MIN(unpack->start_ts, trk->trk_oldest_start_ts);
-	trk->trk_newest_start_ts =
-	    WT_MAX(unpack->start_ts, trk->trk_newest_start_ts);
-	trk->trk_newest_stop_ts =
-	    WT_MAX(unpack->stop_ts, trk->trk_newest_stop_ts);
+	trk->trk_oldest_start_ts = WT_MIN(unpack->start_ts, trk->trk_oldest_start_ts);
+	trk->trk_newest_start_ts = WT_MAX(unpack->start_ts, trk->trk_newest_start_ts);
+	trk->trk_newest_stop_ts = WT_MAX(unpack->stop_ts, trk->trk_newest_stop_ts);
 }
 
 /*
@@ -676,8 +651,7 @@ __slvg_trk_leaf_ts(WT_TRACK *trk, WT_CELL_UNPACK *unpack)
  *	Review a leaf page, looking for overflow items and timestamps.
  */
 static int
-__slvg_trk_leaf_walk(
-    WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRACK *trk)
+__slvg_trk_leaf_walk(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRACK *trk)
 {
 	WT_BTREE *btree;
 	WT_CELL_UNPACK unpack;
@@ -687,11 +661,12 @@ __slvg_trk_leaf_walk(
 
 	/* Determine page min/max timestamps, count page overflow items. */
 	ovfl_cnt = 0;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+	WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack, true) {
 		if (unpack.ovfl)
 			++ovfl_cnt;
 		__slvg_trk_leaf_ts(trk, &unpack);
-	} WT_CELL_FOREACH_END;
+	}
+	WT_CELL_FOREACH_END;
 	if (ovfl_cnt == 0)
 		return (0);
 
@@ -703,24 +678,22 @@ __slvg_trk_leaf_walk(
 	trk->trk_ovfl_cnt = ovfl_cnt;
 
 	ovfl_cnt = 0;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+	WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack, true) {
 		if (unpack.ovfl) {
-			WT_RET(__wt_memdup(session, unpack.data,
-			    unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
-			trk->trk_ovfl_addr[ovfl_cnt].size =
-			    (uint8_t)unpack.size;
+			WT_RET(__wt_memdup(
+			    session, unpack.data, unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
+			trk->trk_ovfl_addr[ovfl_cnt].size = (uint8_t)unpack.size;
 
-			__wt_verbose(session, WT_VERB_SALVAGE,
-			    "%s overflow reference %s",
-			    __wt_addr_string(session,
-			    trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
-			    __wt_addr_string(session,
-			    unpack.data, unpack.size, trk->ss->tmp2));
+			__wt_verbose(session, WT_VERB_SALVAGE, "%s overflow reference %s",
+			    __wt_addr_string(
+			        session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
+			    __wt_addr_string(session, unpack.data, unpack.size, trk->ss->tmp2));
 
 			if (++ovfl_cnt == trk->trk_ovfl_cnt)
 				break;
 		}
-	} WT_CELL_FOREACH_END;
+	}
+	WT_CELL_FOREACH_END;
 
 	return (0);
 }
@@ -838,8 +811,7 @@ __slvg_col_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			 * We're done if this page starts after our stop, no
 			 * subsequent pages can overlap our page.
 			 */
-			if (ss->pages[j]->col_start >
-			    ss->pages[i]->col_stop)
+			if (ss->pages[j]->col_start > ss->pages[i]->col_stop)
 				break;
 
 			/* There's an overlap, fix it up. */
@@ -866,8 +838,7 @@ __slvg_col_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
  *	Two column-store key ranges overlap, deal with it.
  */
 static int
-__slvg_col_range_overlap(
-    WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_slot, WT_STUFF *ss)
+__slvg_col_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_slot, WT_STUFF *ss)
 {
 	WT_DECL_RET;
 	WT_TRACK *a_trk, *b_trk, *new;
@@ -881,12 +852,9 @@ __slvg_col_range_overlap(
 	a_trk = ss->pages[a_slot];
 	b_trk = ss->pages[b_slot];
 
-	__wt_verbose(session, WT_VERB_SALVAGE,
-	    "%s and %s range overlap",
-	    __wt_addr_string(
-	    session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
-	    __wt_addr_string(
-	    session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
+	__wt_verbose(session, WT_VERB_SALVAGE, "%s and %s range overlap",
+	    __wt_addr_string(session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
+	    __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
 
 	/*
 	 * The key ranges of two WT_TRACK pages in the array overlap -- choose
@@ -917,12 +885,11 @@ __slvg_col_range_overlap(
 	 * Finally, there's one additional complicating factor -- final ranges
 	 * are assigned based on the page's LSN.
 	 */
-						/* Case #2/8, #10, #11 */
+	/* Case #2/8, #10, #11 */
 	if (a_trk->col_start > b_trk->col_start)
-		WT_PANIC_RET(
-		    session, EINVAL, "unexpected merge array sort order");
+		WT_PANIC_RET(session, EINVAL, "unexpected merge array sort order");
 
-	if (a_trk->col_start == b_trk->col_start) {	/* Case #1, #4 and #9 */
+	if (a_trk->col_start == b_trk->col_start) { /* Case #1, #4 and #9 */
 		/*
 		 * The secondary sort of the leaf page array was the page's LSN,
 		 * in high-to-low order, which means a_trk has a higher LSN, and
@@ -949,7 +916,7 @@ __slvg_col_range_overlap(
 		goto merge;
 	}
 
-	if (a_trk->col_stop == b_trk->col_stop) {	/* Case #6 */
+	if (a_trk->col_stop == b_trk->col_stop) { /* Case #6 */
 		if (a_trk->trk_gen > b_trk->trk_gen)
 			/*
 			 * Case #6: a_trk is a superset of b_trk and a_trk is
@@ -966,7 +933,7 @@ __slvg_col_range_overlap(
 		goto merge;
 	}
 
-	if  (a_trk->col_stop < b_trk->col_stop) {	/* Case #3/7 */
+	if (a_trk->col_stop < b_trk->col_stop) { /* Case #3/7 */
 		if (a_trk->trk_gen > b_trk->trk_gen) {
 			/*
 			 * Case #3/7: a_trk is more desirable, delete a_trk's
@@ -991,22 +958,22 @@ __slvg_col_range_overlap(
 	 * discard b_trk.
 	 */
 	if (a_trk->trk_gen > b_trk->trk_gen) {
-delete_b:	/*
-		 * After page and overflow reconciliation, one (and only one)
-		 * page can reference an overflow record.  But, if we split a
-		 * page into multiple chunks, any of the chunks might own any
-		 * of the backing overflow records, so overflow records won't
-		 * normally be discarded until after the merge phase completes.
-		 * (The merge phase is where the final pages are written, and
-		 * we figure out which overflow records are actually used.)
-		 * If freeing a chunk and there are no other references to the
-		 * underlying shared information, the overflow records must be
-		 * useless, discard them to keep the final file size small.
-		 */
+	delete_b: /*
+	           * After page and overflow reconciliation, one (and only one)
+	           * page can reference an overflow record.  But, if we split a
+	           * page into multiple chunks, any of the chunks might own any
+	           * of the backing overflow records, so overflow records won't
+	           * normally be discarded until after the merge phase completes.
+	           * (The merge phase is where the final pages are written, and
+	           * we figure out which overflow records are actually used.)
+	           * If freeing a chunk and there are no other references to the
+	           * underlying shared information, the overflow records must be
+	           * useless, discard them to keep the final file size small.
+	           */
 		if (b_trk->shared->ref == 1)
 			for (i = 0; i < b_trk->trk_ovfl_cnt; ++i)
-				WT_RET(__slvg_trk_free(session,
-				    &ss->ovfl[b_trk->trk_ovfl_slot[i]], true));
+				WT_RET(__slvg_trk_free(
+				    session, &ss->ovfl[b_trk->trk_ovfl_slot[i]], true));
 		return (__slvg_trk_free(session, &ss->pages[b_slot], true));
 	}
 
@@ -1019,8 +986,8 @@ delete_b:	/*
 	 * necessary.
 	 */
 	WT_RET(__wt_calloc_one(session, &new));
-	if ((ret = __wt_realloc_def(session,
-	    &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) != 0) {
+	if ((ret = __wt_realloc_def(
+	         session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) != 0) {
 		__wt_free(session, new);
 		return (ret);
 	}
@@ -1074,12 +1041,9 @@ merge:
 	    WT_MAX(a_trk->trk_newest_start_ts, b_trk->trk_newest_start_ts);
 	a_trk->trk_newest_stop_ts = b_trk->trk_newest_stop_ts =
 	    WT_MAX(a_trk->trk_newest_stop_ts, b_trk->trk_newest_stop_ts);
-	__wt_verbose(session, WT_VERB_SALVAGE,
-	    "%s and %s require merge",
-	    __wt_addr_string(
-	    session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
-	    __wt_addr_string(
-	    session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
+	__wt_verbose(session, WT_VERB_SALVAGE, "%s and %s require merge",
+	    __wt_addr_string(session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
+	    __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
 	return (0);
 }
 
@@ -1120,8 +1084,7 @@ __slvg_col_trk_update_start(uint32_t slot, WT_STUFF *ss)
 	}
 	i -= slot;
 	if (i > 1)
-		__wt_qsort(ss->pages + slot, (size_t)i,
-		    sizeof(WT_TRACK *), __slvg_trk_compare_key);
+		__wt_qsort(ss->pages + slot, (size_t)i, sizeof(WT_TRACK *), __slvg_trk_compare_key);
 }
 
 /*
@@ -1140,10 +1103,9 @@ __slvg_col_range_missing(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			continue;
 		if (trk->col_start != r + 1) {
 			__wt_verbose(session, WT_VERB_SALVAGE,
-			    "%s column-store missing range from %"
-			    PRIu64 " to %" PRIu64 " inclusive",
-			    __wt_addr_string(session,
-			    trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+			    "%s column-store missing range from %" PRIu64 " to %" PRIu64
+			    " inclusive",
+			    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
 			    r + 1, trk->col_start - 1);
 
 			/*
@@ -1176,8 +1138,7 @@ __slvg_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	pages we've found.
  */
 static int
-__slvg_col_build_internal(
-    WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
+__slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
 {
 	WT_ADDR *addr;
 	WT_DECL_RET;
@@ -1190,8 +1151,7 @@ __slvg_col_build_internal(
 	addr = NULL;
 
 	/* Allocate a column-store root (internal) page and fill it in. */
-	WT_RET(__wt_page_alloc(
-	    session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
+	WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
 	WT_ERR(__slvg_modify_init(session, page));
 
 	pindex = WT_INTL_INDEX_GET_SAFE(page);
@@ -1207,11 +1167,9 @@ __slvg_col_build_internal(
 		addr->oldest_start_ts = trk->trk_oldest_start_ts;
 		addr->newest_start_ts = trk->trk_newest_start_ts;
 		addr->newest_stop_ts = trk->trk_newest_stop_ts;
-		WT_ERR(__wt_memdup(
-		    session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
+		WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
 		addr->size = trk->trk_addr_size;
-		addr->type =
-		    trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
+		addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
 		ref->addr = addr;
 		addr = NULL;
 
@@ -1241,7 +1199,8 @@ __slvg_col_build_internal(
 	__wt_root_ref_init(&ss->root_ref, page, true);
 
 	if (0) {
-err:		__wt_free(session, addr);
+	err:
+		__wt_free(session, addr);
 		__wt_page_out(session, &page);
 	}
 	return (ret);
@@ -1282,9 +1241,8 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 	__wt_verbose(session, WT_VERB_SALVAGE,
 	    "%s merge discarding first %" PRIu64 " records, "
 	    "then taking %" PRIu64 " records",
-	    __wt_addr_string(
-	    session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
-	    skip, take);
+	    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1), skip,
+	    take);
 
 	/* Set the referenced flag on overflow pages we're using. */
 	if (page->type == WT_PAGE_COL_VAR && trk->trk_ovfl_cnt != 0)
@@ -1303,8 +1261,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 
 		__wt_verbose(session, WT_VERB_SALVAGE,
 		    "%s merge inserting %" PRIu64 " missing records",
-		    __wt_addr_string(
-		    session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
+		    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
 		    cookie->missing);
 	}
 
@@ -1321,8 +1278,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 
 	/* Write the new version of the leaf page to disk. */
 	WT_ERR(__slvg_modify_init(session, page));
-	WT_ERR(__wt_reconcile(
-	    session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
+	WT_ERR(__wt_reconcile(session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
 
 	/* Reset the page. */
 	page->pg_var = save_col_var;
@@ -1333,7 +1289,8 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
 		ret = __wt_evict(session, ref, true, WT_REF_MEM);
 
 	if (0) {
-err:		WT_TRET(__wt_page_release(session, ref, 0));
+	err:
+		WT_TRET(__wt_page_release(session, ref, 0));
 	}
 
 	return (ret);
@@ -1345,8 +1302,7 @@ err:		WT_TRET(__wt_page_release(session, ref, 0));
  * referenced.
  */
 static int
-__slvg_col_ovfl_single(
-    WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *unpack)
+__slvg_col_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *unpack)
 {
 	WT_TRACK *ovfl;
 	uint32_t i;
@@ -1362,8 +1318,7 @@ __slvg_col_ovfl_single(
 			return (__slvg_ovfl_ref(session, ovfl, false));
 	}
 
-	WT_PANIC_RET(session,
-	    EINVAL, "overflow record at column-store page merge not found");
+	WT_PANIC_RET(session, EINVAL, "overflow record at column-store page merge not found");
 }
 
 /*
@@ -1371,8 +1326,8 @@ __slvg_col_ovfl_single(
  *	Mark overflow items referenced by the merged page.
  */
 static int
-__slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
-    WT_PAGE *page, uint64_t recno,  uint64_t skip, uint64_t take)
+__slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint64_t recno,
+    uint64_t skip, uint64_t take)
 {
 	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
@@ -1388,7 +1343,7 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
 	start = recno + skip;
 	stop = (recno + skip + take) - 1;
 
-	WT_COL_FOREACH(page, cip, i) {
+	WT_COL_FOREACH (page, cip, i) {
 		cell = WT_COL_PTR(page, cip);
 		__wt_cell_unpack(session, page, cell, &unpack);
 		recno += __wt_cell_rle(&unpack);
@@ -1422,8 +1377,8 @@ __slvg_col_ovfl(WT_SESSION_IMPL *session, WT_TRACK *trk,
 			 * overflow record we don't have: delete the row.
 			 */
 			if (ret == EBUSY) {
-				__wt_cell_type_reset(session,
-				    cell, WT_CELL_VALUE_OVFL, WT_CELL_DEL);
+				__wt_cell_type_reset(
+				    session, cell, WT_CELL_VALUE_OVFL, WT_CELL_DEL);
 				ret = 0;
 			}
 			WT_RET(ret);
@@ -1473,9 +1428,8 @@ __slvg_row_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			 * We're done if this page starts after our stop, no
 			 * subsequent pages can overlap our page.
 			 */
-			WT_RET(__wt_compare(session, btree->collator,
-			    &ss->pages[j]->row_start, &ss->pages[i]->row_stop,
-			    &cmp));
+			WT_RET(__wt_compare(session, btree->collator, &ss->pages[j]->row_start,
+			    &ss->pages[i]->row_stop, &cmp));
 			if (cmp > 0)
 				break;
 
@@ -1503,8 +1457,7 @@ __slvg_row_range(WT_SESSION_IMPL *session, WT_STUFF *ss)
  *	Two row-store key ranges overlap, deal with it.
  */
 static int
-__slvg_row_range_overlap(
-    WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_slot, WT_STUFF *ss)
+__slvg_row_range_overlap(WT_SESSION_IMPL *session, uint32_t a_slot, uint32_t b_slot, WT_STUFF *ss)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -1522,12 +1475,9 @@ __slvg_row_range_overlap(
 	a_trk = ss->pages[a_slot];
 	b_trk = ss->pages[b_slot];
 
-	__wt_verbose(session, WT_VERB_SALVAGE,
-	    "%s and %s range overlap",
-	    __wt_addr_string(
-	    session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
-	    __wt_addr_string(
-	    session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
+	__wt_verbose(session, WT_VERB_SALVAGE, "%s and %s range overlap",
+	    __wt_addr_string(session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
+	    __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
 
 	/*
 	 * The key ranges of two WT_TRACK pages in the array overlap -- choose
@@ -1558,24 +1508,20 @@ __slvg_row_range_overlap(
 	 * Finally, there's one additional complicating factor -- final ranges
 	 * are assigned based on the page's LSN.
 	 */
-#define	A_TRK_START	(&a_trk->row_start)
-#define	A_TRK_STOP	(&a_trk->row_stop)
-#define	B_TRK_START	(&b_trk->row_start)
-#define	B_TRK_STOP	(&b_trk->row_stop)
-#define	SLOT_START(i)	(&ss->pages[i]->row_start)
-#define	__slvg_key_copy(session, dst, src)				\
-	__wt_buf_set(session, dst, (src)->data, (src)->size)
+#define A_TRK_START (&a_trk->row_start)
+#define A_TRK_STOP (&a_trk->row_stop)
+#define B_TRK_START (&b_trk->row_start)
+#define B_TRK_STOP (&b_trk->row_stop)
+#define SLOT_START(i) (&ss->pages[i]->row_start)
+#define __slvg_key_copy(session, dst, src) __wt_buf_set(session, dst, (src)->data, (src)->size)
 
-	WT_RET(__wt_compare(
-	    session, btree->collator, A_TRK_START, B_TRK_START, &start_cmp));
-	WT_RET(__wt_compare(
-	    session, btree->collator, A_TRK_STOP, B_TRK_STOP, &stop_cmp));
+	WT_RET(__wt_compare(session, btree->collator, A_TRK_START, B_TRK_START, &start_cmp));
+	WT_RET(__wt_compare(session, btree->collator, A_TRK_STOP, B_TRK_STOP, &stop_cmp));
 
-	if (start_cmp > 0)			/* Case #2/8, #10, #11 */
-		WT_PANIC_RET(
-		    session, EINVAL, "unexpected merge array sort order");
+	if (start_cmp > 0) /* Case #2/8, #10, #11 */
+		WT_PANIC_RET(session, EINVAL, "unexpected merge array sort order");
 
-	if (start_cmp == 0) {				/* Case #1, #4, #9 */
+	if (start_cmp == 0) { /* Case #1, #4, #9 */
 		/*
 		 * The secondary sort of the leaf page array was the page's LSN,
 		 * in high-to-low order, which means a_trk has a higher LSN, and
@@ -1596,13 +1542,12 @@ __slvg_row_range_overlap(
 		 * desirable: keep both but delete a_trk's key range from
 		 * b_trk.
 		 */
-		WT_RET(__slvg_row_trk_update_start(
-		    session, A_TRK_STOP, b_slot, ss));
+		WT_RET(__slvg_row_trk_update_start(session, A_TRK_STOP, b_slot, ss));
 		F_SET(b_trk, WT_TRACK_CHECK_START | WT_TRACK_MERGE);
 		goto merge;
 	}
 
-	if (stop_cmp == 0) {				/* Case #6 */
+	if (stop_cmp == 0) { /* Case #6 */
 		if (a_trk->trk_gen > b_trk->trk_gen)
 			/*
 			 * Case #6: a_trk is a superset of b_trk and a_trk is
@@ -1619,22 +1564,20 @@ __slvg_row_range_overlap(
 		goto merge;
 	}
 
-	if (stop_cmp < 0) {				/* Case #3/7 */
+	if (stop_cmp < 0) { /* Case #3/7 */
 		if (a_trk->trk_gen > b_trk->trk_gen) {
 			/*
 			 * Case #3/7: a_trk is more desirable, delete a_trk's
 			 * key range from b_trk;
 			 */
-			WT_RET(__slvg_row_trk_update_start(
-			    session, A_TRK_STOP, b_slot, ss));
+			WT_RET(__slvg_row_trk_update_start(session, A_TRK_STOP, b_slot, ss));
 			F_SET(b_trk, WT_TRACK_CHECK_START | WT_TRACK_MERGE);
 		} else {
 			/*
 			 * Case #3/7: b_trk is more desirable, delete b_trk's
 			 * key range from a_trk;
 			 */
-			WT_RET(__slvg_key_copy(
-			    session, A_TRK_STOP, B_TRK_START));
+			WT_RET(__slvg_key_copy(session, A_TRK_STOP, B_TRK_START));
 			F_SET(a_trk, WT_TRACK_CHECK_STOP | WT_TRACK_MERGE);
 		}
 		goto merge;
@@ -1645,22 +1588,22 @@ __slvg_row_range_overlap(
 	 * discard b_trk.
 	 */
 	if (a_trk->trk_gen > b_trk->trk_gen) {
-delete_b:	/*
-		 * After page and overflow reconciliation, one (and only one)
-		 * page can reference an overflow record.  But, if we split a
-		 * page into multiple chunks, any of the chunks might own any
-		 * of the backing overflow records, so overflow records won't
-		 * normally be discarded until after the merge phase completes.
-		 * (The merge phase is where the final pages are written, and
-		 * we figure out which overflow records are actually used.)
-		 * If freeing a chunk and there are no other references to the
-		 * underlying shared information, the overflow records must be
-		 * useless, discard them to keep the final file size small.
-		 */
+	delete_b: /*
+	           * After page and overflow reconciliation, one (and only one)
+	           * page can reference an overflow record.  But, if we split a
+	           * page into multiple chunks, any of the chunks might own any
+	           * of the backing overflow records, so overflow records won't
+	           * normally be discarded until after the merge phase completes.
+	           * (The merge phase is where the final pages are written, and
+	           * we figure out which overflow records are actually used.)
+	           * If freeing a chunk and there are no other references to the
+	           * underlying shared information, the overflow records must be
+	           * useless, discard them to keep the final file size small.
+	           */
 		if (b_trk->shared->ref == 1)
 			for (i = 0; i < b_trk->trk_ovfl_cnt; ++i)
-				WT_RET(__slvg_trk_free(session,
-				    &ss->ovfl[b_trk->trk_ovfl_slot[i]], true));
+				WT_RET(__slvg_trk_free(
+				    session, &ss->ovfl[b_trk->trk_ovfl_slot[i]], true));
 		return (__slvg_trk_free(session, &ss->pages[b_slot], true));
 	}
 
@@ -1673,8 +1616,8 @@ delete_b:	/*
 	 * necessary.
 	 */
 	WT_RET(__wt_calloc_one(session, &new));
-	if ((ret = __wt_realloc_def(session,
-	    &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) != 0) {
+	if ((ret = __wt_realloc_def(
+	         session, &ss->pages_allocated, ss->pages_next + 1, &ss->pages)) != 0) {
 		__wt_free(session, new);
 		return (ret);
 	}
@@ -1704,8 +1647,7 @@ delete_b:	/*
 	 * move our new entry into the right sorted location.
 	 */
 	WT_RET(__slvg_key_copy(session, &new->row_stop, A_TRK_STOP));
-	WT_RET(
-	    __slvg_row_trk_update_start(session, B_TRK_STOP, a_slot + 1, ss));
+	WT_RET(__slvg_row_trk_update_start(session, B_TRK_STOP, a_slot + 1, ss));
 
 	/*
 	 * Fourth, set the original WT_TRACK information to reference only
@@ -1730,12 +1672,9 @@ merge:
 	    WT_MAX(a_trk->trk_newest_start_ts, b_trk->trk_newest_start_ts);
 	a_trk->trk_newest_stop_ts = b_trk->trk_newest_stop_ts =
 	    WT_MAX(a_trk->trk_newest_stop_ts, b_trk->trk_newest_stop_ts);
-	__wt_verbose(session, WT_VERB_SALVAGE,
-	    "%s and %s require merge",
-	    __wt_addr_string(
-	    session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
-	    __wt_addr_string(
-	    session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
+	__wt_verbose(session, WT_VERB_SALVAGE, "%s and %s require merge",
+	    __wt_addr_string(session, a_trk->trk_addr, a_trk->trk_addr_size, ss->tmp1),
+	    __wt_addr_string(session, b_trk->trk_addr, b_trk->trk_addr_size, ss->tmp2));
 	return (0);
 }
 
@@ -1744,8 +1683,7 @@ merge:
  *	Update a row-store page's start key after an overlap.
  */
 static int
-__slvg_row_trk_update_start(
-    WT_SESSION_IMPL *session, WT_ITEM *stop, uint32_t slot, WT_STUFF *ss)
+__slvg_row_trk_update_start(WT_SESSION_IMPL *session, WT_ITEM *stop, uint32_t slot, WT_STUFF *ss)
 {
 	WT_BTREE *btree;
 	WT_DECL_ITEM(dsk);
@@ -1796,7 +1734,7 @@ __slvg_row_trk_update_start(
 	 * stop key -- that's our new start key.
 	 */
 	WT_ERR(__wt_scr_alloc(session, 0, &key));
-	WT_ROW_FOREACH(page, rip, i) {
+	WT_ROW_FOREACH (page, rip, i) {
 		WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 		WT_ERR(__wt_compare(session, btree->collator, key, stop, &cmp));
 		if (cmp > 0) {
@@ -1824,17 +1762,16 @@ __slvg_row_trk_update_start(
 	for (i = slot + 1; i < ss->pages_next; ++i) {
 		if (ss->pages[i] == NULL)
 			continue;
-		WT_ERR(__wt_compare(session,
-		    btree->collator, SLOT_START(i), &trk->row_stop, &cmp));
+		WT_ERR(__wt_compare(session, btree->collator, SLOT_START(i), &trk->row_stop, &cmp));
 		if (cmp > 0)
 			break;
 	}
 	i -= slot;
 	if (i > 1)
-		__wt_qsort(ss->pages + slot, (size_t)i,
-		    sizeof(WT_TRACK *), __slvg_trk_compare_key);
+		__wt_qsort(ss->pages + slot, (size_t)i, sizeof(WT_TRACK *), __slvg_trk_compare_key);
 
-err:	if (page != NULL)
+err:
+	if (page != NULL)
 		__wt_page_out(session, &page);
 	__wt_scr_free(session, &dsk);
 	__wt_scr_free(session, &key);
@@ -1848,8 +1785,7 @@ err:	if (page != NULL)
  *	pages we've found.
  */
 static int
-__slvg_row_build_internal(
-    WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
+__slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
 {
 	WT_ADDR *addr;
 	WT_DECL_RET;
@@ -1862,8 +1798,7 @@ __slvg_row_build_internal(
 	addr = NULL;
 
 	/* Allocate a row-store root (internal) page and fill it in. */
-	WT_RET(__wt_page_alloc(
-	    session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
+	WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
 	WT_ERR(__slvg_modify_init(session, page));
 
 	pindex = WT_INTL_INDEX_GET_SAFE(page);
@@ -1879,11 +1814,9 @@ __slvg_row_build_internal(
 		addr->oldest_start_ts = trk->trk_oldest_start_ts;
 		addr->newest_start_ts = trk->trk_newest_start_ts;
 		addr->newest_stop_ts = trk->trk_newest_stop_ts;
-		WT_ERR(__wt_memdup(
-		    session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
+		WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
 		addr->size = trk->trk_addr_size;
-		addr->type =
-		    trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
+		addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
 		ref->addr = addr;
 		addr = NULL;
 
@@ -1906,8 +1839,8 @@ __slvg_row_build_internal(
 
 			WT_ERR(__slvg_row_build_leaf(session, trk, ref, ss));
 		} else {
-			WT_ERR(__wt_row_ikey_incr(session, page, 0,
-			    trk->row_start.data, trk->row_start.size, ref));
+			WT_ERR(__wt_row_ikey_incr(
+			    session, page, 0, trk->row_start.data, trk->row_start.size, ref));
 
 			WT_ERR(__slvg_ovfl_ref_all(session, trk));
 		}
@@ -1917,7 +1850,8 @@ __slvg_row_build_internal(
 	__wt_root_ref_init(&ss->root_ref, page, false);
 
 	if (0) {
-err:		__wt_free(session, addr);
+	err:
+		__wt_free(session, addr);
 		__wt_page_out(session, &page);
 	}
 	return (ret);
@@ -1928,8 +1862,7 @@ err:		__wt_free(session, addr);
  *	Build a row-store leaf page for a merged page.
  */
 static int
-__slvg_row_build_leaf(
-    WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_STUFF *ss)
+__slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_STUFF *ss)
 {
 	WT_BTREE *btree;
 	WT_DECL_ITEM(key);
@@ -1970,50 +1903,40 @@ __slvg_row_build_leaf(
 	 */
 	skip_start = skip_stop = 0;
 	if (F_ISSET(trk, WT_TRACK_CHECK_START))
-		WT_ROW_FOREACH(page, rip, i) {
-			WT_ERR(
-			    __wt_row_leaf_key(session, page, rip, key, false));
+		WT_ROW_FOREACH (page, rip, i) {
+			WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
 			/*
 			 * >= is correct: see the comment above.
 			 */
-			WT_ERR(__wt_compare(session,
-			    btree->collator, key, &trk->row_start, &cmp));
+			WT_ERR(__wt_compare(session, btree->collator, key, &trk->row_start, &cmp));
 			if (cmp >= 0)
 				break;
-			__wt_verbose(session, WT_VERB_SALVAGE,
-			    "%s merge discarding leading key %s",
-			    __wt_addr_string(session,
-			    trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-			    __wt_buf_set_printable(
-			    session, key->data, key->size, ss->tmp2));
+			__wt_verbose(session, WT_VERB_SALVAGE, "%s merge discarding leading key %s",
+			    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+			    __wt_buf_set_printable(session, key->data, key->size, ss->tmp2));
 			++skip_start;
 		}
 	if (F_ISSET(trk, WT_TRACK_CHECK_STOP))
-		WT_ROW_FOREACH_REVERSE(page, rip, i) {
-			WT_ERR(
-			    __wt_row_leaf_key(session, page, rip, key, false));
+		WT_ROW_FOREACH_REVERSE(page, rip, i)
+		{
+			WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
 			/*
 			 * < is correct: see the comment above.
 			 */
-			WT_ERR(__wt_compare(session,
-			    btree->collator, key, &trk->row_stop, &cmp));
+			WT_ERR(__wt_compare(session, btree->collator, key, &trk->row_stop, &cmp));
 			if (cmp < 0)
 				break;
 			__wt_verbose(session, WT_VERB_SALVAGE,
 			    "%s merge discarding trailing key %s",
-			    __wt_addr_string(session,
-			    trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-			    __wt_buf_set_printable(
-			    session, key->data, key->size, ss->tmp2));
+			    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+			    __wt_buf_set_printable(session, key->data, key->size, ss->tmp2));
 			++skip_stop;
 		}
 
 	/* We should have selected some entries, but not the entire page. */
-	WT_ASSERT(session,
-	    skip_start + skip_stop > 0 &&
-	    skip_start + skip_stop < page->entries);
+	WT_ASSERT(session, skip_start + skip_stop > 0 && skip_start + skip_stop < page->entries);
 
 	/*
 	 * Take a copy of this page's first key to define the start of
@@ -2022,13 +1945,11 @@ __slvg_row_build_leaf(
 	 */
 	rip = page->pg_row + skip_start;
 	WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-	WT_ERR(__wt_row_ikey_incr(
-	    session, ref->home, 0, key->data, key->size, ref));
+	WT_ERR(__wt_row_ikey_incr(session, ref->home, 0, key->data, key->size, ref));
 
 	/* Set the referenced flag on overflow pages we're using. */
 	if (trk->trk_ovfl_cnt != 0)
-		WT_ERR(__slvg_row_ovfl(session,
-		    trk, page, skip_start, page->entries - skip_stop));
+		WT_ERR(__slvg_row_ovfl(session, trk, page, skip_start, page->entries - skip_stop));
 
 	/*
 	 * Change the page to reflect the correct record count: there is no
@@ -2051,8 +1972,7 @@ __slvg_row_build_leaf(
 
 	/* Write the new version of the leaf page to disk. */
 	WT_ERR(__slvg_modify_init(session, page));
-	WT_ERR(__wt_reconcile(
-	    session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
+	WT_ERR(__wt_reconcile(session, ref, cookie, WT_REC_VISIBILITY_ERR, NULL));
 
 	/* Reset the page. */
 	page->entries += skip_stop;
@@ -2066,7 +1986,8 @@ __slvg_row_build_leaf(
 		ret = __wt_evict(session, ref, true, WT_REF_MEM);
 
 	if (0) {
-err:		WT_TRET(__wt_page_release(session, ref, 0));
+	err:
+		WT_TRET(__wt_page_release(session, ref, 0));
 	}
 	__wt_scr_free(session, &key);
 
@@ -2079,15 +2000,13 @@ err:		WT_TRET(__wt_page_release(session, ref, 0));
  * referenced.
  */
 static int
-__slvg_row_ovfl_single(
-    WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *unpack)
+__slvg_row_ovfl_single(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_CELL_UNPACK *unpack)
 {
 	WT_TRACK *ovfl;
 	uint32_t i;
 
 	/* Check if it's an overflow record. */
-	if (unpack->type != WT_CELL_KEY_OVFL &&
-	    unpack->type != WT_CELL_VALUE_OVFL)
+	if (unpack->type != WT_CELL_KEY_OVFL && unpack->type != WT_CELL_VALUE_OVFL)
 		return (0);
 
 	/*
@@ -2101,8 +2020,7 @@ __slvg_row_ovfl_single(
 			return (__slvg_ovfl_ref(session, ovfl, true));
 	}
 
-	WT_PANIC_RET(session,
-	    EINVAL, "overflow record at row-store page merge not found");
+	WT_PANIC_RET(session, EINVAL, "overflow record at row-store page merge not found");
 }
 
 /*
@@ -2110,8 +2028,8 @@ __slvg_row_ovfl_single(
  *	Mark overflow items referenced by the merged page.
  */
 static int
-__slvg_row_ovfl(WT_SESSION_IMPL *session,
-    WT_TRACK *trk, WT_PAGE *page, uint32_t start, uint32_t stop)
+__slvg_row_ovfl(
+    WT_SESSION_IMPL *session, WT_TRACK *trk, WT_PAGE *page, uint32_t start, uint32_t stop)
 {
 	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
@@ -2124,8 +2042,7 @@ __slvg_row_ovfl(WT_SESSION_IMPL *session,
 	 */
 	for (rip = page->pg_row + start; start < stop; ++start, ++rip) {
 		copy = WT_ROW_KEY_COPY(rip);
-		(void)__wt_row_leaf_key_info(
-		    page, copy, NULL, &cell, NULL, NULL);
+		(void)__wt_row_leaf_key_info(page, copy, NULL, &cell, NULL, NULL);
 		if (cell != NULL) {
 			__wt_cell_unpack(session, page, cell, &unpack);
 			WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
@@ -2207,10 +2124,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
 	 * This requires sorting the page list by LSN, and the overflow array by
 	 * address cookie.
 	 */
-	__wt_qsort(ss->pages,
-	    (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_gen);
-	__wt_qsort(ss->ovfl,
-	    (size_t)ss->ovfl_next, sizeof(WT_TRACK *), __slvg_trk_compare_addr);
+	__wt_qsort(ss->pages, (size_t)ss->pages_next, sizeof(WT_TRACK *), __slvg_trk_compare_gen);
+	__wt_qsort(ss->ovfl, (size_t)ss->ovfl_next, sizeof(WT_TRACK *), __slvg_trk_compare_addr);
 
 	/*
 	 * Walk the list of pages and discard any pages referencing non-existent
@@ -2226,15 +2141,14 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
 		WT_ERR(__wt_calloc_def(session, trk->trk_ovfl_cnt, &slot));
 		for (j = 0; j < trk->trk_ovfl_cnt; ++j) {
 			addr = &trk->trk_ovfl_addr[j];
-			searchp = bsearch(addr, ss->ovfl, ss->ovfl_next,
-			    sizeof(WT_TRACK *), __slvg_ovfl_compare);
+			searchp = bsearch(
+			    addr, ss->ovfl, ss->ovfl_next, sizeof(WT_TRACK *), __slvg_ovfl_compare);
 
 			/*
 			 * If the overflow page doesn't exist or if another page
 			 * has already claimed it, this leaf page isn't usable.
 			 */
-			if (searchp != NULL &&
-			    !F_ISSET(*searchp, WT_TRACK_OVFL_REFD)) {
+			if (searchp != NULL && !F_ISSET(*searchp, WT_TRACK_OVFL_REFD)) {
 				/*
 				 * Convert each block address into a slot in the
 				 * list of overflow pages as we go.
@@ -2246,10 +2160,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
 
 			__wt_verbose(session, WT_VERB_SALVAGE,
 			    "%s references unavailable overflow page %s",
-			    __wt_addr_string(session,
-			    trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-			    __wt_addr_string(session,
-			    addr->addr, addr->size, ss->tmp2));
+			    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+			    __wt_addr_string(session, addr->addr, addr->size, ss->tmp2));
 
 			/*
 			 * Clear the "referenced" flag for any overflow pages
@@ -2280,7 +2192,8 @@ __slvg_ovfl_reconcile(WT_SESSION_IMPL *session, WT_STUFF *ss)
 	}
 	return (0);
 
-err:	__wt_free(session, slot);
+err:
+	__wt_free(session, slot);
 	return (ret);
 }
 
@@ -2324,8 +2237,8 @@ __slvg_trk_compare_key(const void *a, const void *b)
 		 * routine.
 		 */
 		session = a_trk->ss->session;
-		(void)__wt_compare(session, S2BT(session)->collator,
-		    &a_trk->row_start, &b_trk->row_start, &cmp);
+		(void)__wt_compare(
+		    session, S2BT(session)->collator, &a_trk->row_start, &b_trk->row_start, &cmp);
 		if (cmp != 0)
 			return (cmp);
 		break;
@@ -2414,8 +2327,7 @@ __slvg_ovfl_ref_all(WT_SESSION_IMPL *session, WT_TRACK *trk)
 	uint32_t i;
 
 	for (i = 0; i < trk->trk_ovfl_cnt; ++i)
-		WT_RET(__slvg_ovfl_ref(
-		    session, trk->ss->ovfl[trk->trk_ovfl_slot[i]], 1));
+		WT_RET(__slvg_ovfl_ref(session, trk->ss->ovfl[trk->trk_ovfl_slot[i]], 1));
 
 	return (0);
 }
@@ -2445,10 +2357,8 @@ __slvg_ovfl_discard(WT_SESSION_IMPL *session, WT_STUFF *ss)
 			F_CLR(trk, WT_TRACK_OVFL_REFD);
 			continue;
 		}
-		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "%s unused overflow page",
-		    __wt_addr_string(
-		    session, trk->trk_addr, trk->trk_addr_size, ss->tmp1));
+		__wt_verbose(session, WT_VERB_SALVAGE, "%s unused overflow page",
+		    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1));
 		WT_RET(__slvg_trk_free(session, &ss->ovfl[i], true));
 	}
 
@@ -2512,8 +2422,8 @@ __slvg_trk_free_block(WT_SESSION_IMPL *session, WT_TRACK *trk)
 	 */
 	__wt_verbose(session, WT_VERB_SALVAGE,
 	    "%s blocks discarded: discard freed file bytes %" PRIu32,
-	    __wt_addr_string(session,
-	    trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1), trk->trk_size);
+	    __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1),
+	    trk->trk_size);
 
 	return (bm->free(bm, session, trk->trk_addr, trk->trk_addr_size));
 }
@@ -2523,8 +2433,7 @@ __slvg_trk_free_block(WT_SESSION_IMPL *session, WT_TRACK *trk)
  *	Discard a WT_TRACK structure and (optionally) its underlying blocks.
  */
 static int
-__slvg_trk_free(
-    WT_SESSION_IMPL *session, WT_TRACK **trkp, bool free_on_last_ref)
+__slvg_trk_free(WT_SESSION_IMPL *session, WT_TRACK **trkp, bool free_on_last_ref)
 {
 	WT_TRACK *trk;
 

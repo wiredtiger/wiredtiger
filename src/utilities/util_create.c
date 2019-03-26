@@ -20,7 +20,7 @@ util_create(WT_SESSION *session, int argc, char *argv[])
 	config = uri = NULL;
 	while ((ch = __wt_getopt(progname, argc, argv, "c:")) != EOF)
 		switch (ch) {
-		case 'c':			/* command-line configuration */
+		case 'c': /* command-line configuration */
 			config = __wt_optarg;
 			break;
 		case '?':

@@ -26,7 +26,7 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 	btree = S2BT(session);
 
-	if (page->entries == 0) {		/* Just checking... */
+	if (page->entries == 0) { /* Just checking... */
 		F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);
 		return (0);
 	}
@@ -50,8 +50,7 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * marking up the array.
 	 */
 	WT_RET(__wt_scr_alloc(session, 0, &key));
-	WT_RET(__wt_scr_alloc(session,
-	    (uint32_t)__bitstr_size(page->entries), &tmp));
+	WT_RET(__wt_scr_alloc(session, (uint32_t)__bitstr_size(page->entries), &tmp));
 	memset(tmp->mem, 0, tmp->memsize);
 
 	if ((gap = btree->key_gap) == 0)
@@ -61,12 +60,12 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 	/* Instantiate the keys. */
 	for (rip = page->pg_row, i = 0; i < page->entries; ++rip, ++i)
 		if (__bit_test(tmp->mem, i))
-			WT_ERR(__wt_row_leaf_key_work(
-			    session, page, rip, key, true));
+			WT_ERR(__wt_row_leaf_key_work(session, page, rip, key, true));
 
 	F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);
 
-err:	__wt_scr_free(session, &key);
+err:
+	__wt_scr_free(session, &key);
 	__wt_scr_free(session, &tmp);
 	return (ret);
 }
@@ -77,8 +76,7 @@ err:	__wt_scr_free(session, &key);
  * the specified depth.
  */
 static void
-__inmem_row_leaf_slots(
-    uint8_t *list, uint32_t base, uint32_t entries, uint32_t gap)
+__inmem_row_leaf_slots(uint8_t *list, uint32_t base, uint32_t entries, uint32_t gap)
 {
 	uint32_t indx, limit;
 
@@ -110,8 +108,7 @@ __inmem_row_leaf_slots(
  *	Get a copy of a row-store leaf-page key.
  */
 int
-__wt_row_leaf_key_copy(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_ITEM *key)
+__wt_row_leaf_key_copy(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_ITEM *key)
 {
 	WT_RET(__wt_row_leaf_key(session, page, rip, key, false));
 
@@ -128,8 +125,8 @@ __wt_row_leaf_key_copy(
  * the key into the in-memory page.
  */
 int
-__wt_row_leaf_key_work(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb, bool instantiate)
+__wt_row_leaf_key_work(
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb, bool instantiate)
 {
 	enum { FORWARD, BACKWARD } direction;
 	WT_BTREE *btree;
@@ -160,13 +157,13 @@ __wt_row_leaf_key_work(WT_SESSION_IMPL *session,
 	jump_slot_offset = 0;
 	last_prefix = 0;
 
-	p = NULL;			/* -Werror=maybe-uninitialized */
-	size = 0;			/* -Werror=maybe-uninitialized */
+	p = NULL; /* -Werror=maybe-uninitialized */
+	size = 0; /* -Werror=maybe-uninitialized */
 
 	direction = BACKWARD;
 	for (slot_offset = 0;;) {
 		if (0) {
-switch_and_jump:	/* Switching to a forward roll. */
+		switch_and_jump: /* Switching to a forward roll. */
 			WT_ASSERT(session, direction == BACKWARD);
 			direction = FORWARD;
 
@@ -179,8 +176,7 @@ switch_and_jump:	/* Switching to a forward roll. */
 		/*
 		 * Figure out what the key looks like.
 		 */
-		(void)__wt_row_leaf_key_info(
-		    page, copy, &ikey, &cell, &p, &size);
+		(void)__wt_row_leaf_key_info(page, copy, &ikey, &cell, &p, &size);
 
 		/* 1: the test for a directly referenced on-page key. */
 		if (cell == NULL) {
@@ -284,12 +280,11 @@ switch_and_jump:	/* Switching to a forward roll. */
 			if (slot_offset == 0) {
 				__wt_readlock(session, &btree->ovfl_lock);
 				copy = WT_ROW_KEY_COPY(rip);
-				if (!__wt_row_leaf_key_info(page, copy,
-				    NULL, &cell, &keyb->data, &keyb->size)) {
-					__wt_cell_unpack(
-					    session, page, cell, unpack);
-					ret = __wt_dsk_cell_data_ref(session,
-					    WT_PAGE_ROW_LEAF, unpack, keyb);
+				if (!__wt_row_leaf_key_info(
+				        page, copy, NULL, &cell, &keyb->data, &keyb->size)) {
+					__wt_cell_unpack(session, page, cell, unpack);
+					ret = __wt_dsk_cell_data_ref(
+					    session, WT_PAGE_ROW_LEAF, unpack, keyb);
 				}
 				__wt_readunlock(session, &btree->ovfl_lock);
 				WT_ERR(ret);
@@ -337,8 +332,7 @@ switch_and_jump:	/* Switching to a forward roll. */
 			 * The key doesn't need to be instantiated, skip past
 			 * that test.
 			 */
-			WT_ERR(__wt_dsk_cell_data_ref(
-			    session, WT_PAGE_ROW_LEAF, unpack, keyb));
+			WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb));
 			if (slot_offset == 0)
 				goto done;
 			goto switch_and_jump;
@@ -382,10 +376,9 @@ switch_and_jump:	/* Switching to a forward roll. */
 				size = unpack->size;
 			} else {
 				if (tmp == NULL)
-					WT_ERR(
-					__wt_scr_alloc(session, 0, &tmp));
-				WT_ERR(__wt_dsk_cell_data_ref(
-				    session, WT_PAGE_ROW_LEAF, unpack, tmp));
+					WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+				WT_ERR(
+				    __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, tmp));
 				p = tmp->data;
 				size = tmp->size;
 			}
@@ -408,7 +401,8 @@ switch_and_jump:	/* Switching to a forward roll. */
 				break;
 		}
 
-next:		switch (direction) {
+	next:
+		switch (direction) {
 		case BACKWARD:
 			--rip;
 			++slot_offset;
@@ -436,11 +430,9 @@ next:		switch (direction) {
 	 */
 	if (instantiate) {
 		copy = WT_ROW_KEY_COPY(rip_arg);
-		(void)__wt_row_leaf_key_info(
-		    page, copy, &ikey, &cell, NULL, NULL);
+		(void)__wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL);
 		if (ikey == NULL) {
-			WT_ERR(__wt_row_ikey_alloc(session,
-			    WT_PAGE_DISK_OFFSET(page, cell),
+			WT_ERR(__wt_row_ikey_alloc(session, WT_PAGE_DISK_OFFSET(page, cell),
 			    keyb->data, keyb->size, &ikey));
 
 			/*
@@ -448,17 +440,17 @@ next:		switch (direction) {
 			 * update the page's memory footprint, on failure, free
 			 * the allocated memory.
 			 */
-			if (__wt_atomic_cas_ptr(
-			    (void *)&WT_ROW_KEY_COPY(rip), copy, ikey))
-				__wt_cache_page_inmem_incr(session,
-				    page, sizeof(WT_IKEY) + ikey->size);
+			if (__wt_atomic_cas_ptr((void *)&WT_ROW_KEY_COPY(rip), copy, ikey))
+				__wt_cache_page_inmem_incr(
+				    session, page, sizeof(WT_IKEY) + ikey->size);
 			else
 				__wt_free(session, ikey);
 		}
 	}
 
 done:
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -467,12 +459,12 @@ err:	__wt_scr_free(session, &tmp);
  *	Instantiate a key in a WT_IKEY structure.
  */
 int
-__wt_row_ikey_alloc(WT_SESSION_IMPL *session,
-    uint32_t cell_offset, const void *key, size_t size, WT_IKEY **ikeyp)
+__wt_row_ikey_alloc(
+    WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key, size_t size, WT_IKEY **ikeyp)
 {
 	WT_IKEY *ikey;
 
-	WT_ASSERT(session, key != NULL);	/* quiet clang scan-build */
+	WT_ASSERT(session, key != NULL); /* quiet clang scan-build */
 
 	/*
 	 * Allocate memory for the WT_IKEY structure and the key, then copy
@@ -492,8 +484,8 @@ __wt_row_ikey_alloc(WT_SESSION_IMPL *session,
  * memory footprint.
  */
 int
-__wt_row_ikey_incr(WT_SESSION_IMPL *session, WT_PAGE *page,
-    uint32_t cell_offset, const void *key, size_t size, WT_REF *ref)
+__wt_row_ikey_incr(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t cell_offset, const void *key,
+    size_t size, WT_REF *ref)
 {
 	WT_RET(__wt_row_ikey(session, cell_offset, key, size, ref));
 
@@ -507,8 +499,8 @@ __wt_row_ikey_incr(WT_SESSION_IMPL *session, WT_PAGE *page,
  *	Instantiate a key in a WT_IKEY structure.
  */
 int
-__wt_row_ikey(WT_SESSION_IMPL *session,
-    uint32_t cell_offset, const void *key, size_t size, WT_REF *ref)
+__wt_row_ikey(
+    WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key, size_t size, WT_REF *ref)
 {
 	WT_IKEY *ikey;
 
@@ -516,19 +508,18 @@ __wt_row_ikey(WT_SESSION_IMPL *session,
 
 #ifdef HAVE_DIAGNOSTIC
 	{
-	uintptr_t oldv;
+		uintptr_t oldv;
 
-	oldv = (uintptr_t)ref->ref_ikey;
-	WT_DIAGNOSTIC_YIELD;
+		oldv = (uintptr_t)ref->ref_ikey;
+		WT_DIAGNOSTIC_YIELD;
 
-	/*
-	 * We should never overwrite an instantiated key, and we should
-	 * never instantiate a key after a split.
-	 */
-	WT_ASSERT(session, oldv == 0 || (oldv & WT_IK_FLAG) != 0);
-	WT_ASSERT(session, ref->state != WT_REF_SPLIT);
-	WT_ASSERT(session,
-	    __wt_atomic_cas_ptr(&ref->ref_ikey, (WT_IKEY *)oldv, ikey));
+		/*
+		 * We should never overwrite an instantiated key, and we should
+		 * never instantiate a key after a split.
+		 */
+		WT_ASSERT(session, oldv == 0 || (oldv & WT_IK_FLAG) != 0);
+		WT_ASSERT(session, ref->state != WT_REF_SPLIT);
+		WT_ASSERT(session, __wt_atomic_cas_ptr(&ref->ref_ikey, (WT_IKEY *)oldv, ikey));
 	}
 #else
 	ref->ref_ikey = ikey;

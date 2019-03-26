@@ -7,7 +7,7 @@
  */
 
 #ifndef __WT_INTERNAL_H
-#define	__WT_INTERNAL_H
+#define __WT_INTERNAL_H
 
 #if defined(__cplusplus)
 extern "C" {
@@ -57,7 +57,7 @@ extern "C" {
 #endif
 #include <time.h>
 #ifdef _WIN32
-#define	WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #endif
 
@@ -351,8 +351,8 @@ typedef uint64_t wt_timestamp_t;
 #include "misc.h"
 #include "mutex.h"
 
-#include "stat.h"			/* required by dhandle.h */
-#include "dhandle.h"			/* required by btree.h */
+#include "stat.h"    /* required by dhandle.h */
+#include "dhandle.h" /* required by btree.h */
 
 #include "api.h"
 #include "async.h"
@@ -376,7 +376,7 @@ typedef uint64_t wt_timestamp_t;
 #include "thread_group.h"
 #include "txn.h"
 
-#include "session.h"			/* required by connection.h */
+#include "session.h" /* required by connection.h */
 #include "connection.h"
 
 #include "extern.h"
@@ -387,18 +387,18 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
-#include "ctype.i"			/* required by packing.i */
-#include "intpack.i"			/* required by cell.i, packing.i */
-#include "misc.i"			/* required by mutex.i */
+#include "ctype.i"   /* required by packing.i */
+#include "intpack.i" /* required by cell.i, packing.i */
+#include "misc.i"    /* required by mutex.i */
 
-#include "buf.i"                        /* required by cell.i */
-#include "cache.i"			/* required by txn.i */
-#include "mutex.i"			/* required by txn.i */
-#include "txn.i"			/* required by cell.i */
-#include "cell.i"			/* required by btree.i */
+#include "buf.i"   /* required by cell.i */
+#include "cache.i" /* required by txn.i */
+#include "mutex.i" /* required by txn.i */
+#include "txn.i"   /* required by cell.i */
+#include "cell.i"  /* required by btree.i */
 
 #include "bitstring.i"
-#include "btree.i"			/* required by cursor.i */
+#include "btree.i" /* required by cursor.i */
 #include "btree_cmp.i"
 #include "column.i"
 #include "cursor.i"
@@ -412,4 +412,4 @@ typedef uint64_t wt_timestamp_t;
 #if defined(__cplusplus)
 }
 #endif
-#endif					/* !__WT_INTERNAL_H */
+#endif /* !__WT_INTERNAL_H */

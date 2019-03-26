@@ -10,8 +10,8 @@
  * Define WT threading and concurrency primitives
  * Assumes Windows 7+/2008 R2+
  */
-typedef CONDITION_VARIABLE	wt_cond_t;
-typedef CRITICAL_SECTION	wt_mutex_t;
+typedef CONDITION_VARIABLE wt_cond_t;
+typedef CRITICAL_SECTION wt_mutex_t;
 typedef struct {
 	bool created;
 	HANDLE id;
@@ -20,20 +20,20 @@ typedef struct {
 /*
  * Thread callbacks need to match the return signature of _beginthreadex.
  */
-#define	WT_THREAD_CALLBACK(x)	unsigned (__stdcall x)
-#define	WT_THREAD_RET		unsigned __stdcall
-#define	WT_THREAD_RET_VALUE	0
+#define WT_THREAD_CALLBACK(x) unsigned(__stdcall x)
+#define WT_THREAD_RET unsigned __stdcall
+#define WT_THREAD_RET_VALUE 0
 
 /*
  * WT declaration for calling convention type
  */
-#define	WT_CDECL  		__cdecl
+#define WT_CDECL __cdecl
 
 #if _MSC_VER < 1900
 /* Timespec is a POSIX structure not defined in Windows */
 struct timespec {
-	time_t tv_sec;		/* seconds */
-	long   tv_nsec;		/* nanoseconds */
+	time_t tv_sec; /* seconds */
+	long tv_nsec;  /* nanoseconds */
 };
 #endif
 
@@ -42,9 +42,9 @@ struct timespec {
  * These are POSIX types which Windows lacks
  * Eventually WiredTiger will migrate away from these types
  */
-typedef unsigned int	u_int;
-typedef unsigned char	u_char;
-typedef unsigned long	u_long;
+typedef unsigned int u_int;
+typedef unsigned char u_char;
+typedef unsigned long u_long;
 
 /*
  * Windows does have ssize_t
@@ -55,4 +55,4 @@ typedef int ssize_t;
 #endif
 
 /* Windows does not provide fsync */
-#define	fsync	_commit
+#define fsync _commit

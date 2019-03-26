@@ -40,8 +40,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 	 * Open the object; free allocated memory immediately to simplify
 	 * future error handling.
 	 */
-	if ((ret =
-	    session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0)
+	if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0)
 		(void)util_err(session, ret, "%s: session.open_cursor", uri);
 	free(uri);
 	if (ret != 0)
@@ -51,8 +50,7 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 	 * A simple search only makes sense if the key format is a string or a
 	 * record number, and the value format is a single string.
 	 */
-	if (!WT_STREQ(cursor->key_format, "r") &&
-	    !WT_STREQ(cursor->key_format, "S")) {
+	if (!WT_STREQ(cursor->key_format, "r") && !WT_STREQ(cursor->key_format, "S")) {
 		fprintf(stderr,
 		    "%s: read command only possible when the key format is "
 		    "a record number or string\n",

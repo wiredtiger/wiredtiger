@@ -6,20 +6,20 @@
 #define CRC_TABLE
 #include "crc32_constants.h"
 
-#define VMX_ALIGN	16U
-#define VMX_ALIGN_MASK	(VMX_ALIGN-1)
+#define VMX_ALIGN 16U
+#define VMX_ALIGN_MASK (VMX_ALIGN - 1)
 
 #ifdef REFLECT
-static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
-			       unsigned long len)
+static unsigned int
+crc32_align(unsigned int crc, const unsigned char *p, unsigned long len)
 {
 	while (len--)
 		crc = crc_table[(crc ^ *p++) & 0xff] ^ (crc >> 8);
 	return crc;
 }
 #else
-static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
-				unsigned long len)
+static unsigned int
+crc32_align(unsigned int crc, const unsigned char *p, unsigned long len)
 {
 	while (len--)
 		crc = crc_table[((crc >> 24) ^ *p++) & 0xff] ^ (crc << 8);
@@ -27,14 +27,12 @@ static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
 }
 #endif
 
-unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
-			    unsigned long len);
+unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
 
 /* -Werror=missing-prototypes */
-unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p,
-			  unsigned long len);
-unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p,
-			  unsigned long len)
+unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len);
+unsigned int
+crc32_vpmsum(unsigned int crc, const unsigned char *p, unsigned long len)
 {
 	unsigned int prealign;
 	unsigned int tail;

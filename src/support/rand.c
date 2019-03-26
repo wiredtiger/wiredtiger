@@ -40,18 +40,17 @@
  * of zero, in which case they will be stuck on zero forever. Take a local copy
  * of the values to avoid that, and read/write in atomic, 8B chunks.
  */
-#undef	M_W
-#define	M_W(r)	r.x.w
-#undef	M_Z
-#define	M_Z(r)	r.x.z
+#undef M_W
+#define M_W(r) r.x.w
+#undef M_Z
+#define M_Z(r) r.x.z
 
 /*
  * __wt_random_init --
  *	Initialize return of a 32-bit pseudo-random number.
  */
 void
-__wt_random_init(WT_RAND_STATE volatile * rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_RAND_STATE rnd;
 
@@ -68,8 +67,7 @@ __wt_random_init(WT_RAND_STATE volatile * rnd_state)
  * on a different random seed.
  */
 void
-__wt_random_init_seed(
-    WT_SESSION_IMPL *session, WT_RAND_STATE volatile * rnd_state)
+__wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	struct timespec ts;
@@ -87,8 +85,7 @@ __wt_random_init_seed(
  *	Return a 32-bit pseudo-random number.
  */
 uint32_t
-__wt_random(WT_RAND_STATE volatile * rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_RAND_STATE rnd;
 	uint32_t w, z;

@@ -13,8 +13,8 @@
  *	Map a file into memory.
  */
 int
-__wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
-    void *mapped_regionp, size_t *lenp, void *mapped_cookiep)
+__wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_regionp, size_t *lenp,
+    void *mapped_cookiep)
 {
 	WT_FILE_HANDLE_POSIX *pfh;
 	WT_SESSION_IMPL *session;
@@ -43,18 +43,16 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
 	WT_RET(fh->fh_size(fh, wt_session, &file_size));
 	len = (size_t)file_size;
 
-	__wt_verbose(session, WT_VERB_HANDLEOPS,
-	    "%s: memory-map: %" WT_SIZET_FMT " bytes", fh->name, len);
+	__wt_verbose(
+	    session, WT_VERB_HANDLEOPS, "%s: memory-map: %" WT_SIZET_FMT " bytes", fh->name, len);
 
-	if ((map = mmap(NULL, len,
-	    PROT_READ,
+	if ((map = mmap(NULL, len, PROT_READ,
 #ifdef MAP_NOCORE
-	    MAP_NOCORE |
+	         MAP_NOCORE |
 #endif
-	    MAP_PRIVATE,
-	    pfh->fd, (wt_off_t)0)) == MAP_FAILED)
-		WT_RET_MSG(session,
-		    __wt_errno(), "%s: memory-map: mmap", fh->name);
+	             MAP_PRIVATE,
+	         pfh->fd, (wt_off_t)0)) == MAP_FAILED)
+		WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", fh->name);
 
 	*(void **)mapped_regionp = map;
 	*lenp = len;
@@ -67,8 +65,8 @@ __wt_posix_map(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
  *	Cause a section of a memory map to be faulted in.
  */
 int
-__wt_posix_map_preload(WT_FILE_HANDLE *fh,
-    WT_SESSION *wt_session, const void *map, size_t length, void *mapped_cookie)
+__wt_posix_map_preload(
+    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, const void *map, size_t length, void *mapped_cookie)
 {
 	WT_BM *bm;
 	WT_CONNECTION_IMPL *conn;
@@ -90,11 +88,11 @@ __wt_posix_map_preload(WT_FILE_HANDLE *fh,
 	/* XXX proxy for "am I doing a scan?" -- manual read-ahead */
 	if (F_ISSET(session, WT_SESSION_READ_WONT_NEED)) {
 		/* Read in 2MB blocks every 1MB of data. */
-		if (((uintptr_t)((uint8_t *)blk + length) &
-		    (uintptr_t)((1<<20) - 1)) < (uintptr_t)blk)
+		if (((uintptr_t)((uint8_t *)blk + length) & (uintptr_t)((1 << 20) - 1)) <
+		    (uintptr_t)blk)
 			return (0);
-		length = WT_MIN(WT_MAX(20 * length, 2 << 20),
-		    WT_PTRDIFF((uint8_t *)bm->map + bm->maplen, blk));
+		length = WT_MIN(
+		    WT_MAX(20 * length, 2 << 20), WT_PTRDIFF((uint8_t *)bm->map + bm->maplen, blk));
 	}
 
 	/*
@@ -109,9 +107,8 @@ __wt_posix_map_preload(WT_FILE_HANDLE *fh,
 	if (ret == 0)
 		return (0);
 
-	WT_RET_MSG(session, ret,
-	    "%s: memory-map preload: posix_madvise: POSIX_MADV_WILLNEED",
-	    fh->name);
+	WT_RET_MSG(
+	    session, ret, "%s: memory-map preload: posix_madvise: POSIX_MADV_WILLNEED", fh->name);
 }
 #endif
 
@@ -121,8 +118,8 @@ __wt_posix_map_preload(WT_FILE_HANDLE *fh,
  *	Discard a chunk of the memory map.
  */
 int
-__wt_posix_map_discard(WT_FILE_HANDLE *fh,
-    WT_SESSION *wt_session, void *map, size_t length, void *mapped_cookie)
+__wt_posix_map_discard(
+    WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *map, size_t length, void *mapped_cookie)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -142,9 +139,8 @@ __wt_posix_map_discard(WT_FILE_HANDLE *fh,
 	if (ret == 0)
 		return (0);
 
-	WT_RET_MSG(session, ret,
-	    "%s: memory-map discard: posix_madvise: POSIX_MADV_DONTNEED",
-	    fh->name);
+	WT_RET_MSG(
+	    session, ret, "%s: memory-map discard: posix_madvise: POSIX_MADV_DONTNEED", fh->name);
 }
 #endif
 
@@ -153,8 +149,8 @@ __wt_posix_map_discard(WT_FILE_HANDLE *fh,
  *	Remove a memory mapping.
  */
 int
-__wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
-    void *mapped_region, size_t len, void *mapped_cookie)
+__wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session, void *mapped_region, size_t len,
+    void *mapped_cookie)
 {
 	WT_SESSION_IMPL *session;
 
@@ -162,8 +158,8 @@ __wt_posix_unmap(WT_FILE_HANDLE *fh, WT_SESSION *wt_session,
 
 	session = (WT_SESSION_IMPL *)wt_session;
 
-	__wt_verbose(session, WT_VERB_HANDLEOPS,
-	    "%s: memory-unmap: %" WT_SIZET_FMT " bytes", fh->name, len);
+	__wt_verbose(
+	    session, WT_VERB_HANDLEOPS, "%s: memory-unmap: %" WT_SIZET_FMT " bytes", fh->name, len);
 
 	if (munmap(mapped_region, len) == 0)
 		return (0);

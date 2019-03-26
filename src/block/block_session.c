@@ -12,11 +12,11 @@
  * Per session handle cached block manager information.
  */
 typedef struct {
-	WT_EXT  *ext_cache;			/* List of WT_EXT handles */
-	u_int    ext_cache_cnt;			/* Count */
+	WT_EXT *ext_cache;   /* List of WT_EXT handles */
+	u_int ext_cache_cnt; /* Count */
 
-	WT_SIZE *sz_cache;			/* List of WT_SIZE handles */
-	u_int    sz_cache_cnt;			/* Count */
+	WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
+	u_int sz_cache_cnt; /* Count */
 } WT_BLOCK_MGR_SESSION;
 
 /*
@@ -31,8 +31,7 @@ __block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
 	size_t skipdepth;
 
 	skipdepth = __wt_skip_choose_depth(session);
-	WT_RET(__wt_calloc(session, 1,
-	    sizeof(WT_EXT) + skipdepth * 2 * sizeof(WT_EXT *), &ext));
+	WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + skipdepth * 2 * sizeof(WT_EXT *), &ext));
 	ext->depth = (uint8_t)skipdepth;
 	(*extp) = ext;
 
@@ -141,8 +140,8 @@ __block_ext_discard(WT_SESSION_IMPL *session, u_int max)
 	bms->ext_cache = ext;
 
 	if (max == 0 && bms->ext_cache_cnt != 0)
-		WT_RET_MSG(session, WT_ERROR,
-		    "incorrect count in session handle's block manager cache");
+		WT_RET_MSG(
+		    session, WT_ERROR, "incorrect count in session handle's block manager cache");
 	return (0);
 }
 
@@ -250,8 +249,8 @@ __block_size_discard(WT_SESSION_IMPL *session, u_int max)
 	bms->sz_cache = sz;
 
 	if (max == 0 && bms->sz_cache_cnt != 0)
-		WT_RET_MSG(session, WT_ERROR,
-		    "incorrect count in session handle's block manager cache");
+		WT_RET_MSG(
+		    session, WT_ERROR, "incorrect count in session handle's block manager cache");
 	return (0);
 }
 
@@ -283,10 +282,9 @@ int
 __wt_block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
 {
 	if (session->block_manager == NULL) {
-		WT_RET(__wt_calloc(session, 1,
-		    sizeof(WT_BLOCK_MGR_SESSION), &session->block_manager));
-		session->block_manager_cleanup =
-		    __block_manager_session_cleanup;
+		WT_RET(
+		    __wt_calloc(session, 1, sizeof(WT_BLOCK_MGR_SESSION), &session->block_manager));
+		session->block_manager_cleanup = __block_manager_session_cleanup;
 	}
 	WT_RET(__block_ext_prealloc(session, max));
 	WT_RET(__block_size_prealloc(session, max));

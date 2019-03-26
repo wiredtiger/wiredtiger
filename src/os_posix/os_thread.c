@@ -13,9 +13,8 @@
  *	Create a new thread of control.
  */
 int
-__wt_thread_create(WT_SESSION_IMPL *session,
-    wt_thread_t *tidret, WT_THREAD_CALLBACK(*func)(void *), void *arg)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
+    WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_DECL_RET;
 
@@ -69,8 +68,7 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
  *	Return an arithmetic representation of a thread ID on POSIX.
  */
 void
-__wt_thread_id(uintmax_t *id)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_thread_id(uintmax_t *id) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	pthread_t self;
 
@@ -91,8 +89,7 @@ __wt_thread_id(uintmax_t *id)
  *	Fill in a printable version of the process and thread IDs.
  */
 int
-__wt_thread_str(char *buf, size_t buflen)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_thread_str(char *buf, size_t buflen) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	pthread_t self;
 
@@ -102,11 +99,9 @@ __wt_thread_str(char *buf, size_t buflen)
 	 */
 	self = pthread_self();
 #ifdef __sun
-	return (__wt_snprintf(buf, buflen,
-	    "%" PRIuMAX ":%u", (uintmax_t)getpid(), self));
+	return (__wt_snprintf(buf, buflen, "%" PRIuMAX ":%u", (uintmax_t)getpid(), self));
 #else
-	return (__wt_snprintf(buf, buflen,
-	    "%" PRIuMAX ":%p", (uintmax_t)getpid(), (void *)self));
+	return (__wt_snprintf(buf, buflen, "%" PRIuMAX ":%p", (uintmax_t)getpid(), (void *)self));
 #endif
 }
 
