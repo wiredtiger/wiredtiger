@@ -74,7 +74,7 @@ close(fd);
 rename("./WiredTiger.basecfg.set", "./WiredTiger.basecfg");
 
 #ifdef __linux__
-dir = open("./", O_RDONLY); 
+dir = open("./", O_RDONLY|O_CLOEXEC);
 fdatasync(dir);
 close(dir);
 #endif
@@ -82,7 +82,7 @@ close(dir);
 fd = open("./WiredTiger.wt", O_RDWR|O_CREAT|O_EXCL|O_NOATIME|O_CLOEXEC, 0666);
 
 #ifdef __linux__
-dir = open("./", O_RDONLY); 
+dir = open("./", O_RDONLY|O_CLOEXEC);
 fdatasync(dir);
 close(dir);
 #endif /* __linux__ */
@@ -109,7 +109,7 @@ rename("./WiredTiger.turtle.set", "./WiredTiger.turtle");
 fd = open("./WiredTigerLAS.wt", O_RDWR|O_CREAT|O_EXCL|O_NOATIME|O_CLOEXEC, 0666);
 
 #ifdef __linux__
-dir = open("./", O_RDONLY); 
+dir = open("./", O_RDONLY|O_CLOEXEC);
 fdatasync(dir);
 close(dir);
 #endif /* __linux__ */
@@ -142,7 +142,7 @@ fdatasync(fd);
 close(fd);
 rename("./WiredTiger.turtle.set", "./WiredTiger.turtle");
 #ifdef __linux__
-dir = open("./", O_RDONLY); 
+dir = open("./", O_RDONLY|O_CLOEXEC);
 fdatasync(dir);
 close(dir);
 fdatasync(wt);
@@ -153,7 +153,7 @@ OUTPUT("--------------create");
 
 hello = open("./hello.wt", O_RDWR|O_CREAT|O_EXCL|O_NOATIME|O_CLOEXEC, 0666);
 #ifdef __linux__
-dir = open("./", O_RDONLY); 
+dir = open("./", O_RDONLY|O_CLOEXEC);
 fdatasync(dir);
 close(dir);
 #endif /* __linux__ */
