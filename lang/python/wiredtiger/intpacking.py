@@ -28,7 +28,7 @@
 #
 
 from __future__ import print_function
-from .packing import _chr, _ord, x00, xff
+from .packing import _chr, _ord
 import math, struct, sys
 
 # Variable-length integer packing
@@ -64,6 +64,14 @@ POS_2BYTE_MAX = 2**13 + POS_1BYTE_MAX
 MINUS_BIT = -1 << 64
 UINT64_MASK = 0xffffffffffffffff
 
+_python3 = (sys.version_info >= (3, 0, 0))
+if _python3:
+    xff_entry = 0xff
+    x00_entry = 0x00
+else:
+    xff_entry = '\xff'
+    x00_entry = '\x00'
+
 def getbits(x, start, end=0):
     '''return the least significant bits of x, from start to end'''
     return (x & ((1 << start) - 1)) >> (end)
@@ -77,7 +85,7 @@ def get_int(b, size):
 def pack_int(x):
     if x < NEG_2BYTE_MIN:
         packed = struct.pack('>Q', x & UINT64_MASK)
-        while packed and packed[0] == xff:
+        while packed and packed[0] == xff_entry:
             packed = packed[1:]
         return _chr(NEG_MULTI_MARKER | getbits(8 - len(packed), 4)) + packed
     elif x < NEG_1BYTE_MIN:
@@ -98,7 +106,7 @@ def pack_int(x):
         return _chr(POS_MULTI_MARKER | 0x1, 0)
     else:
         packed = struct.pack('>Q', x - (POS_2BYTE_MAX + 1))
-        while packed and packed[0] == x00:
+        while packed and packed[0] == x00_entry:
             packed = packed[1:]
         return _chr(POS_MULTI_MARKER | getbits(len(packed), 4)) + packed
 
