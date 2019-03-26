@@ -37,6 +37,11 @@ try:
     xrange
 except NameError:  #python3
     xrange = range
+_python3 = (sys.version_info >= (3, 0, 0))
+
+if os.name == "nt" and not _python3:
+    print('The test suite is temporarily disabled on Windows with Python2')
+    sys.exit(0)
 
 # Set paths
 suitedir = sys.path[0]
