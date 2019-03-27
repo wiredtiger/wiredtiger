@@ -29,6 +29,14 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
+def cmp(a, b):
+    if a > b:
+        return 1
+    elif b > a:
+        return -1
+    else:
+        return 0
+
 # test_index02.py
 #    test search_near in indices
 class test_index02(wttest.WiredTigerTestCase):

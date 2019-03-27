@@ -110,8 +110,9 @@ class test_encrypt06(wttest.WiredTigerTestCase):
             return (f.read().find(match) != -1)
 
     def match_string_in_rundir(self, match):
+        byte_match = match.encode()
         for fname in os.listdir('.'):
-            if self.match_string_in_file(fname, match):
+            if self.match_string_in_file(fname, byte_match):
                 return True
         return False
 
