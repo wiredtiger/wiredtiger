@@ -150,6 +150,20 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
 }
 
 /*
+ * __txn_get_read_timestamp --
+ *	Get the read timestamp from the transaction. Additionally
+ *	return bool to specify whether the transaction has set
+ *	clear read queue flag.
+ */
+static void
+__txn_get_read_timestamp(
+    WT_TXN *txn, wt_timestamp_t *read_timestampp, bool *validp)
+{
+	WT_ORDERED_READ(*read_timestampp, txn->read_timestamp);
+	*validp = !txn->clear_read_q;
+}
+
+/*
  * __txn_get_pinned_timestamp --
  *	Calculate the current pinned timestamp.
  */
@@ -160,8 +174,8 @@ __txn_get_pinned_timestamp(
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t tmp_read_timestamp, tmp_ts;
-	bool include_oldest, txn_has_write_lock;
+	wt_timestamp_t tmp_read_ts, tmp_ts;
+	bool include_oldest, txn_has_write_lock, read_ts_valid;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -188,18 +202,19 @@ __txn_get_pinned_timestamp(
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 	TAILQ_FOREACH(txn, &txn_global->read_timestamph, read_timestampq) {
 		/* Copy value out to prevent possible race condition. */
-		tmp_read_timestamp = txn->read_timestamp;
+		__txn_get_read_timestamp(txn, &tmp_read_ts,
+			&read_ts_valid);
 		/*
 		 * Skip any transactions on the queue that are not active.
 		 */
-		if (txn->clear_read_q)
+		if (!read_ts_valid)
 			continue;
 		/*
 		 * A zero timestamp is possible here only when the oldest
 		 * timestamp is not accounted for.
 		 */
-		if (tmp_ts == 0 || tmp_read_timestamp < tmp_ts)
-			tmp_ts = tmp_read_timestamp;
+		if (tmp_ts == 0 || tmp_read_ts < tmp_ts)
+			tmp_ts = tmp_read_ts;
 		/*
 		 * We break on the first active txn on the list.
 		 */
@@ -758,6 +773,7 @@ __wt_txn_parse_prepare_timestamp(
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts, timestamp, tmp_timestamp;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
+	bool read_timestamp_valid;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -781,10 +797,11 @@ __wt_txn_parse_prepare_timestamp(
 	prev = TAILQ_LAST(
 	    &txn_global->read_timestamph, __wt_txn_rts_qh);
 	while (prev != NULL) {
-		tmp_timestamp = prev->read_timestamp;
+		__txn_get_read_timestamp(prev, &tmp_timestamp,
+			&read_timestamp_valid);
 
 		/* Skip self and non-active transactions. */
-		if (prev->clear_read_q || prev == txn) {
+		if (!read_timestamp_valid || prev == txn) {
 			prev = TAILQ_PREV(
 			    prev, __wt_txn_rts_qh, read_timestampq);
 			continue;
@@ -1080,7 +1097,9 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 {
 	WT_TXN *qtxn, *txn, *txn_tmp;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t tmp_timestamp;
 	uint64_t walked;
+	bool read_timestamp_valid;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -1131,11 +1150,17 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		 */
 		qtxn = TAILQ_LAST(
 		     &txn_global->read_timestamph, __wt_txn_rts_qh);
-		while (qtxn != NULL && (qtxn->clear_read_q ||
-		    qtxn->read_timestamp > txn->read_timestamp)) {
-			++walked;
-			qtxn = TAILQ_PREV(
-			    qtxn, __wt_txn_rts_qh, read_timestampq);
+		while (qtxn != NULL) {
+			__txn_get_read_timestamp(qtxn, &tmp_timestamp,
+			    &read_timestamp_valid);
+			if (!read_timestamp_valid ||
+			    tmp_timestamp > txn->read_timestamp) {
+				++walked;
+				qtxn = TAILQ_PREV(qtxn,
+				    __wt_txn_rts_qh, read_timestampq);
+			}
+			else
+				break;
 		}
 		if (qtxn == NULL) {
 			TAILQ_INSERT_HEAD(&txn_global->read_timestamph,
