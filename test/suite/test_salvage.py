@@ -106,7 +106,16 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def damage(self, tablename):
-        self.damage_inner(tablename, self.unique)
+        self.damage_inner(tablename, self.unique.encode())
+
+    def read_byte(self, fp):
+        """
+        Return a single byte from a file opened in binary mode.
+        """
+        c = fp.read(1)
+        if self.is_python3():
+            c = c[0]   # In python3, the read returns bytes (an array).
+        return c
 
     def damage_inner(self, tablename, unique):
         """
@@ -123,19 +132,19 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         match = unique
         matchlen = len(match)
         flen = os.fstat(fp.fileno()).st_size
-        c = fp.read(1)
+        c = self.read_byte(fp)
         while fp.tell() != flen:
             if match[matchpos] == c:
                 matchpos += 1
                 if matchpos == matchlen:
                     # We're already positioned, so alter it
                     fp.seek(-1, 1)
-                    fp.write('G')
+                    fp.write(b'G')
                     matchpos = 0
                     found = 1
             else:
                 matchpos = 0
-            c = fp.read(1)
+            c = self.read_byte(fp)
         # Make sure we found the embedded string
         self.assertTrue(found)
         fp.close()

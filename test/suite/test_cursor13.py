@@ -479,7 +479,7 @@ class test_cursor13_sweep(test_cursor13_big_base):
                 # use them during this round, so they will be
                 # closed by sweep.
                 half = self.nuris // 2
-                potential_dead += self.close_uris(uri_map, range(0, half))
+                potential_dead += self.close_uris(uri_map, list(range(0, half)))
                 bottom_range = half
                 # Let the dhandle sweep run and find the closed cursors.
                 time.sleep(3.0)

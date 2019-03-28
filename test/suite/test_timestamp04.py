@@ -70,12 +70,12 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         if missing == False:
             actual = dict((k, v) for k, v in cur if v != 0)
             if actual != expected:
-                print "missing: ", sorted(set(expected.items()) - set(actual.items()))
-                print "extras: ", sorted(set(actual.items()) - set(expected.items()))
+                print("missing: ", sorted(set(expected.items()) - set(actual.items())))
+                print("extras: ", sorted(set(actual.items()) - set(expected.items())))
             self.assertTrue(actual == expected)
 
         # Search for the expected items as well as iterating.
-        for k, v in expected.iteritems():
+        for k, v in expected.items():
             if missing == False:
                 self.assertEqual(cur[k], v, "for key " + str(k))
             else:
@@ -104,7 +104,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
         except wiredtiger.WiredTigerError as e:
-            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
+            print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = self.conn.open_session(None)
 
     def test_rollback_to_stable(self):
@@ -131,7 +131,7 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Insert keys each with timestamp=key, in some order.
         key_range = 10000
-        keys = range(1, key_range + 1)
+        keys = list(range(1, key_range + 1))
 
         # Set keys 1-key_range to value 1.
         for k in keys:

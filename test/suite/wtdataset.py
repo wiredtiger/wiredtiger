@@ -27,11 +27,9 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 import sys
-try:
-    xrange
-except NameError:  #python3
-    xrange = range
 _python3 = (sys.version_info >= (3, 0, 0))
+if _python3:
+    xrange = range
 
 class BaseDataSet(object):
     """
