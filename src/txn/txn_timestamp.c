@@ -155,12 +155,12 @@ __wt_txn_parse_timestamp(WT_SESSION_IMPL *session, const char *name,
  *	return bool to specify whether the transaction has set
  *	clear read queue flag.
  */
-static void
+static bool
 __txn_get_read_timestamp(
-    WT_TXN *txn, wt_timestamp_t *read_timestampp, bool *validp)
+    WT_TXN *txn, wt_timestamp_t *read_timestampp)
 {
 	WT_ORDERED_READ(*read_timestampp, txn->read_timestamp);
-	*validp = !txn->clear_read_q;
+	return (!txn->clear_read_q);
 }
 
 /*
@@ -175,7 +175,7 @@ __txn_get_pinned_timestamp(
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t tmp_read_ts, tmp_ts;
-	bool include_oldest, txn_has_write_lock, read_ts_valid;
+	bool include_oldest, txn_has_write_lock;
 
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -201,13 +201,13 @@ __txn_get_pinned_timestamp(
 	/* Look for the oldest ordinary reader. */
 	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
 	TAILQ_FOREACH(txn, &txn_global->read_timestamph, read_timestampq) {
-		/* Copy value out to prevent possible race condition. */
-		__txn_get_read_timestamp(txn, &tmp_read_ts,
-			&read_ts_valid);
 		/*
 		 * Skip any transactions on the queue that are not active.
+		 * Copy out value of read timestamp to prevent possible
+		 * race where a txn resets its read timestamp while we
+		 * traverse the queue.
 		 */
-		if (!read_ts_valid)
+		if (!__txn_get_read_timestamp(txn, &tmp_read_ts))
 			continue;
 		/*
 		 * A zero timestamp is possible here only when the oldest
@@ -773,7 +773,6 @@ __wt_txn_parse_prepare_timestamp(
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t oldest_ts, timestamp, tmp_timestamp;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool read_timestamp_valid;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -797,11 +796,13 @@ __wt_txn_parse_prepare_timestamp(
 	prev = TAILQ_LAST(
 	    &txn_global->read_timestamph, __wt_txn_rts_qh);
 	while (prev != NULL) {
-		__txn_get_read_timestamp(prev, &tmp_timestamp,
-			&read_timestamp_valid);
-
-		/* Skip self and non-active transactions. */
-		if (!read_timestamp_valid || prev == txn) {
+		/*
+		 * Skip self and non-active transactions. Copy out value of
+		 * read timestamp to prevent possible race where a txn
+		 * resets its read timestamp while we traverse the queue.
+		 */
+		if (!__txn_get_read_timestamp(prev, &tmp_timestamp) ||
+		    prev == txn) {
 			prev = TAILQ_PREV(
 			    prev, __wt_txn_rts_qh, read_timestampq);
 			continue;
@@ -1099,7 +1100,6 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t tmp_timestamp;
 	uint64_t walked;
-	bool read_timestamp_valid;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
@@ -1151,15 +1151,12 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session)
 		qtxn = TAILQ_LAST(
 		     &txn_global->read_timestamph, __wt_txn_rts_qh);
 		while (qtxn != NULL) {
-			__txn_get_read_timestamp(qtxn, &tmp_timestamp,
-			    &read_timestamp_valid);
-			if (!read_timestamp_valid ||
+			if (!__txn_get_read_timestamp(qtxn, &tmp_timestamp) ||
 			    tmp_timestamp > txn->read_timestamp) {
 				++walked;
 				qtxn = TAILQ_PREV(qtxn,
 				    __wt_txn_rts_qh, read_timestampq);
-			}
-			else
+			} else
 				break;
 		}
 		if (qtxn == NULL) {
