@@ -204,8 +204,8 @@ __txn_get_pinned_timestamp(
 		/*
 		 * Skip any transactions on the queue that are not active.
 		 * Copy out value of read timestamp to prevent possible
-		 * race where a txn resets its read timestamp while we
-		 * traverse the queue.
+		 * race where a transaction resets its read timestamp while
+		 * we traverse the queue.
 		 */
 		if (!__txn_get_read_timestamp(txn, &tmp_read_ts))
 			continue;
@@ -798,7 +798,7 @@ __wt_txn_parse_prepare_timestamp(
 	while (prev != NULL) {
 		/*
 		 * Skip self and non-active transactions. Copy out value of
-		 * read timestamp to prevent possible race where a txn
+		 * read timestamp to prevent possible race where a transaction
 		 * resets its read timestamp while we traverse the queue.
 		 */
 		if (!__txn_get_read_timestamp(prev, &tmp_timestamp) ||
