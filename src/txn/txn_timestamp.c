@@ -661,16 +661,11 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 		 * If roundup timestamps is configured, the commit timestamp
 		 * will be rounded up to the prepare timestamp.
 		 */
-		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED))
-			ts = txn->prepare_timestamp;
-		else {
-			__wt_timestamp_to_string(
-			    txn->prepare_timestamp, ts_string[0]);
-			WT_RET_MSG(session, EINVAL,
-			    "%s timestamp %.*s older than the prepare "
-			    "timestamp %s for this transaction",
-			    name, (int)cval->len, cval->str, ts_string[0]);
-		}
+		__wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]);
+		WT_RET_MSG(session, EINVAL,
+		    "%s timestamp %.*s older than the prepare "
+		    "timestamp %s for this transaction",
+		    name, (int)cval->len, cval->str, ts_string[0]);
 	}
 
 	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
