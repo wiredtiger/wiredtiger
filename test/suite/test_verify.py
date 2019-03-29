@@ -169,7 +169,7 @@ class test_verify(wttest.WiredTigerTestCase, suite_subprocess):
         self.populate(self.tablename)
         with self.open_and_position(self.tablename, 25) as f:
             for i in xrange(0, 100):
-                f.write('\x01\xff\x80')
+                f.write(b'\x01\xff\x80')
         self.runWt(["verify", "table:" + self.tablename],
             errfilename="verifyerr.out", failure=True)
         self.check_non_empty_file("verifyerr.out")

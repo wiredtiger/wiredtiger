@@ -67,11 +67,11 @@ class test_compress01(wttest.WiredTigerTestCase):
         self.session.create(self.uri, params)
         cursor = self.session.open_cursor(self.uri, None)
         for idx in range(1,self.nrecords):
-            cursor.set_key(`idx`)
+            cursor.set_key(repr(idx))
             if idx // 12 == 0:
-                cursor.set_value(`idx` + self.bigvalue)
+                cursor.set_value(repr(idx) + self.bigvalue)
             else:
-                cursor.set_value(`idx` + "abcdefg")
+                cursor.set_value(repr(idx) + "abcdefg")
             cursor.insert()
         cursor.close()
 
@@ -80,12 +80,12 @@ class test_compress01(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri, None)
         for idx in range(1,self.nrecords):
-            cursor.set_key(`idx`)
+            cursor.set_key(repr(idx))
             self.assertEqual(cursor.search(), 0)
             if idx // 12 == 0:
-                self.assertEquals(cursor.get_value(), `idx` + self.bigvalue)
+                self.assertEqual(cursor.get_value(), repr(idx) + self.bigvalue)
             else:
-                self.assertEquals(cursor.get_value(), `idx` + "abcdefg")
+                self.assertEqual(cursor.get_value(), repr(idx) + "abcdefg")
         cursor.close()
 
 if __name__ == '__main__':

@@ -92,16 +92,16 @@ class test_pack(wttest.WiredTigerTestCase):
         self.check('10SS', 'aaaaa\x00\x00\x00\x00\x00', 'something')
         self.check('S10S', 'something', 'aaaaa\x00\x00\x00\x00\x00')
 
-        self.check('u', r"\x42" * 20)
-        self.check('uu', r"\x42" * 10, r"\x42" * 10)
-        self.check('3u', r"\x4")
-        self.check('3uu', r"\x4", r"\x42" * 10)
-        self.check('u3u', r"\x42" * 10, r"\x4")
-        self.check('u', '\x00')
-        self.check('u', '')
-        self.check('uu', '', '\x00')
-        self.check('uu', '\x00', '')
-        self.check('uu', '', '')
+        self.check('u', b"\x42" * 20)
+        self.check('uu', b"\x42" * 10, b"\x42" * 10)
+        self.check('3u', b"\x04\x03\x02")
+        self.check('3uu', b"\x04\x03\x02", b"\x42" * 10)
+        self.check('u3u', b"\x42" * 10, b"\x04\x03\x02")
+        self.check('u', b'\x00')
+        self.check('u', b'')
+        self.check('uu', b'', b'\x00')
+        self.check('uu', b'\x00', b'')
+        self.check('uu', b'', b'')
 
         self.check('s', "4")
         self.check("1s", "4")
@@ -109,3 +109,5 @@ class test_pack(wttest.WiredTigerTestCase):
 
 if __name__ == '__main__':
     wttest.run()
+
+
