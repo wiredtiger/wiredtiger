@@ -994,11 +994,11 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
 	 * increment here.
 	 */
 	if (publish) {
-		WT_PUBLISH(txn_state->is_allocating, true);
+		txn_state->is_allocating = true;
 		WT_PUBLISH(txn_state->id, txn_global->current);
 		id = __wt_atomic_addv64(&txn_global->current, 1) - 1;
 		session->txn.id = id;
-		WT_PUBLISH(txn_state->id, id);
+		txn_state->id = id;
 		WT_PUBLISH(txn_state->is_allocating, false);
 	} else
 		id = __wt_atomic_addv64(&txn_global->current, 1) - 1;

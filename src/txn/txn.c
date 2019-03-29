@@ -214,33 +214,31 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		 *    this case, we ignore this transaction because it would
 		 *    not be visible to the current snapshot.
 		 */
-		while (s != txn_state &&
-		    (id = s->id) != WT_TXN_NONE &&
+		if (s != txn_state && (id = s->id) != WT_TXN_NONE &&
 		    WT_TXNID_LE(prev_oldest_id, id) &&
 		    WT_TXNID_LT(id, current_id)) {
+			int spin_count = WT_THOUSAND;
+			while (s->is_allocating) {
+				if (spin_count-- > 0)
+					WT_PAUSE();
+				else
+					__wt_yield();
+			}
+
 			/*
-			 * If the transaction is still allocating its ID, then
-			 * we spin here until it gets its valid ID.
+			 * The read of transaction ID should be carefully
+			 * ordered: we want to re-read ID from transaction
+			 * state after this transaction completes ID
+			 * allocation.
 			 */
 			WT_READ_BARRIER();
-			if (!s->is_allocating) {
-				/*
-				 * There is still a chance that fetched ID is
-				 * not valid after ID allocation, so we check
-				 * again here. The read of transaction ID
-				 * should be carefully ordered: we want to
-				 * re-read ID from transaction state after this
-				 * transaction completes ID allocation.
-				 */
-				WT_READ_BARRIER();
-				if (id == s->id) {
-					txn->snapshot[n++] = id;
-					if (WT_TXNID_LT(id, pinned_id))
-						pinned_id = id;
-					break;
-				}
+			if ((id = s->id) != WT_TXN_NONE &&
+			    WT_TXNID_LE(prev_oldest_id, id) &&
+			    WT_TXNID_LT(id, current_id)) {
+				txn->snapshot[n++] = id;
+				if (WT_TXNID_LT(id, pinned_id))
+					pinned_id = id;
 			}
-			WT_PAUSE();
 		}
 	}
 
@@ -285,32 +283,24 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	/* Walk the array of concurrent transactions. */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
-		/* Update the last running transaction ID. */
-		while ((id = s->id) != WT_TXN_NONE &&
-		    WT_TXNID_LE(prev_oldest_id, id) &&
-		    WT_TXNID_LT(id, last_running)) {
-			/*
-			 * If the transaction is still allocating its ID, then
-			 * we spin here until it gets its valid ID.
-			 */
-			WT_READ_BARRIER();
-			if (!s->is_allocating) {
-				/*
-				 * There is still a chance that fetched ID is
-				 * not valid after ID allocation, so we check
-				 * again here. The read of transaction ID
-				 * should be carefully ordered: we want to
-				 * re-read ID from transaction state after this
-				 * transaction completes ID allocation.
-				 */
-				WT_READ_BARRIER();
-				if (id == s->id) {
-					last_running = id;
-					break;
-				}
-			}
-			WT_PAUSE();
+		/*
+		 * Update the last running transaction ID.  The read of
+		 * transaction ID should be carefully ordered: we want to
+		 * re-read ID from transaction state after this transaction
+		 * completes ID allocation.
+		 */
+		int spin_count = WT_THOUSAND;
+		while (s->is_allocating) {
+			if (spin_count-- > 0)
+				WT_PAUSE();
+			else
+				__wt_yield();
 		}
+		WT_READ_BARRIER();
+		if ((id = s->id) != WT_TXN_NONE &&
+		    WT_TXNID_LE(prev_oldest_id, id) &&
+		    WT_TXNID_LT(id, last_running))
+			last_running = id;
 
 		/* Update the metadata pinned ID. */
 		if ((id = s->metadata_pinned) != WT_TXN_NONE &&
@@ -1405,8 +1395,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global->current = txn_global->last_running =
 	    txn_global->metadata_pinned = txn_global->oldest_id = WT_TXN_FIRST;
 
-	WT_RET(__wt_spin_init(
-	    session, &txn_global->id_lock, "transaction id lock"));
 	WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
 	WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
 
@@ -1447,7 +1435,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 	if (txn_global == NULL)
 		return;
 
-	__wt_spin_destroy(session, &txn_global->id_lock);
 	__wt_rwlock_destroy(session, &txn_global->rwlock);
 	__wt_rwlock_destroy(session, &txn_global->commit_timestamp_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
