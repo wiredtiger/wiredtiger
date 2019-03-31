@@ -7,15 +7,19 @@
 #   1: list is not successful for some data file
 #   2: dump is not successful for some table object
 #   3: 't' or 'wt' binary file does not exist
-#   4: 'RUNDIR' directory does not exist
+#   4: 'WT_TEST' directories do not exist
 #   5: Command argument setting is wrong
+
+set -eu
+
+verbose=false
 
 if [ $# -gt 1 ]; then
 	echo "Usage: $0 [-v]"
 	exit 5
+elif [ $# -eq 1 ]; then
+        [ "$1" == "-v" ] && verbose=true || verbose=false
 fi
-
-[ "$1" == "-v" ] && verbose=true || verbose=false
 
 # Switch to the Git repo toplevel directory
 cd $(git rev-parse --show-toplevel)
@@ -23,9 +27,10 @@ cd $(git rev-parse --show-toplevel)
 # Walk into the test/format directory in which data files are generated
 cd build_posix/test/format
 
-# Check the existence of 'RUNDIR' directory
-if [ ! -d "RUNDIR" ]; then
-	echo "test/format 'RUNDIR' directory does not exist, exiting ..."
+# Check the existence of 'WT_TEST' directories
+num_dirs=$(find . -type d -name 'WT_TEST.[0-9]*' | wc -l)
+if [ "${num_dirs}" -eq "0" ]; then
+	echo "test/format 'WT_TEST' directories do not exist, exiting ..."
 	exit 4
 fi
 
@@ -43,12 +48,10 @@ if [ ! -x "t" ]; then
 fi
 
 lib_dir=$(dirname "${wt_binary}")
-build_dir=$(dirname "${lib_dir}")
-echo "lib_dir: ${lib_dir}, build_dir: ${build_dir}"
 
 # Work out the list of directories that include wt data files
-dirs_include_datafile=$(find ./RUNDIR -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
-echo "dirs_include_datafile: ${dirs_include_datafile}"
+dirs_include_datafile=$(find ./WT_TEST* -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
+echo -e "\n[dirs_include_datafile]:\n${dirs_include_datafile}\n"
 
 # Loop through each data file under the TEST_DIR
 IFS=$'\n'

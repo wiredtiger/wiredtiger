@@ -1012,9 +1012,13 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${test_env_vars|} ./t -1
-            # Archive the RUNDIR directory which includes the generated wt data files
-            tar -zcvf WT_TEST.tgz RUNDIR
+            for i in $(seq 10)
+            do
+              ./t -1 -h "WT_TEST.$i"
+            done
+            # Archive the WT_TEST directories which include the generated wt data files
+            tar -zcvf WT_TEST.tgz WT_TEST*
+          shell: bash
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
@@ -1069,9 +1073,13 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./t -1
-            # Archive the RUNDIR directory which includes the generated wt data files
-            tar -zcvf WT_TEST.tgz RUNDIR
+            for i in $(seq 10)
+            do
+              ./t -1 -h "WT_TEST.$i"
+            done
+            # Archive the WT_TEST directories which include the generated wt data files
+            tar -zcvf WT_TEST.tgz WT_TEST*
+          shell: bash
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
