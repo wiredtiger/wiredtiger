@@ -655,22 +655,18 @@ __wt_txn_commit_timestamp_validate(WT_SESSION_IMPL *session, const char *name,
 	 * Compare against the prepare timestamp of the current transaction.
 	 * Return an error if the given timestamp is older than the prepare
 	 * timestamp.
+	 *
+	 * If roundup timestamps is configured, the commit timestamp will be
+	 * rounded up to the prepare timestamp.
 	 */
-	if (F_ISSET(txn, WT_TXN_PREPARE) && ts < txn->prepare_timestamp) {
-		/*
-		 * If roundup timestamps is configured, the commit timestamp
-		 * will be rounded up to the prepare timestamp.
-		 */
-		if (F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED))
-			ts = txn->prepare_timestamp;
-		else {
-			__wt_timestamp_to_string(
-			    txn->prepare_timestamp, ts_string[0]);
-			WT_RET_MSG(session, EINVAL,
-			    "%s timestamp %.*s older than the prepare "
-			    "timestamp %s for this transaction",
-			    name, (int)cval->len, cval->str, ts_string[0]);
-		}
+	if (F_ISSET(txn, WT_TXN_PREPARE) &&
+	    !F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED) &&
+	    ts < txn->prepare_timestamp) {
+		__wt_timestamp_to_string(txn->prepare_timestamp, ts_string[0]);
+		WT_RET_MSG(session, EINVAL,
+		    "%s timestamp %.*s older than the prepare "
+		    "timestamp %s for this transaction",
+		    name, (int)cval->len, cval->str, ts_string[0]);
 	}
 
 	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
