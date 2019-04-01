@@ -193,15 +193,10 @@ from .packing import pack, unpack
 	}
  }
 
-%typemap(in) const WT_ITEM * (WT_ITEM val, long sz) {
-	if (PyBytes_AsStringAndSize($input, &val.data, &sz) < 0) {
-		if ((val.data = PyUnicode_AsUTF8AndSize($input, &sz)) == 0)
-			SWIG_exception_fail(SWIG_AttributeError,
-			    "bad string value for WT_ITEM");
-		else
-			sz = strlen((char *)val.data) + 1;
-	}
-	val.size = (size_t)sz;
+%typemap(in) const WT_ITEM * (WT_ITEM val) {
+	if (unpackBytesOrString($input, &val.data, &val.size) != 0)
+		SWIG_exception_fail(SWIG_AttributeError,
+		    "bad string value for WT_ITEM");
 	$1 = &val;
 }
 
@@ -221,9 +216,9 @@ from .packing import pack, unpack
 	modarray[0].size = (size_t)len;
 	for (i = 1; i <= len; i++) {
 		PyObject *dataobj, *modobj, *offsetobj, *sizeobj;
-		char *datadata;
+		void *datadata;
 		long offset, size;
-		Py_ssize_t datasize;
+		size_t datasize;
 
 		if ((modobj = PySequence_GetItem($input, i - 1)) == NULL) {
 			freeModifyArray(modarray);
@@ -232,15 +227,12 @@ from .packing import pack, unpack
 		}
 
 		WT_GETATTR(dataobj, modobj, "data");
-		if (PyBytes_AsStringAndSize(dataobj, &datadata,
-		    &datasize) < 0) {
-			if ((datadata = PyUnicode_AsUTF8AndSize(dataobj, &datasize)) == NULL) {
-				Py_DECREF(dataobj);
-				Py_DECREF(modobj);
-				freeModifyArray(modarray);
-				SWIG_exception_fail(SWIG_AttributeError,
-				    "Modify.data bad value");
-			}
+		if (unpackBytesOrString(dataobj, &datadata, &datasize) != 0) {
+			Py_DECREF(dataobj);
+			Py_DECREF(modobj);
+			freeModifyArray(modarray);
+			SWIG_exception_fail(SWIG_AttributeError,
+			    "Modify.data bad value");
 		}
 		modarray[i].data.data = malloc(datasize);
 		memcpy(modarray[i].data.data, datadata, datasize);
@@ -373,6 +365,7 @@ static PyObject *wtError;
 
 static int sessionFreeHandler(WT_SESSION *session_arg);
 static int cursorFreeHandler(WT_CURSOR *cursor_arg);
+static int unpackBytesOrString(PyObject *obj, void **data, size_t *size);
 
 #define WT_GETATTR(var, parent, name)					\
 	do if ((var = PyObject_GetAttrString(parent, name)) == NULL) {	\
@@ -1196,6 +1189,24 @@ freeModifyArray(WT_MODIFY *modarray)
 	for (i = 1; i <= len; i++)
 		__wt_free(NULL, modarray[i].data.data);
 	__wt_free(NULL, modarray);
+}
+
+static int unpackBytesOrString(PyObject *obj, void **datap, size_t *sizep)
+{
+	void *data;
+	Py_ssize_t sz;
+
+	if (PyBytes_AsStringAndSize(obj, &data, &sz) < 0) {
+#if PY_VERSION_HEX >= 0x03000000
+		if ((data = PyUnicode_AsUTF8AndSize(obj, &sz)) != 0)
+			*sizep = strlen((char *)data) + 1;
+		else
+#endif
+			return (-1);
+	}
+	*datap = data;
+	*sizep = sz;
+	return (0);
 }
 
 /* Write to and flush the stream. */
