@@ -9,6 +9,7 @@
 #   3: 't' or 'wt' binary file does not exist
 #   4: 'WT_TEST' directories do not exist
 #   5: Command argument setting is wrong
+#   6: No table is dumped out from all data files
 
 set -eu
 
@@ -48,9 +49,10 @@ if [ ! -x "t" ]; then
 fi
 
 lib_dir=$(dirname "${wt_binary}")
+num_tables_dumped=0
 
 # Work out the list of directories that include wt data files
-dirs_include_datafile=$(find ./WT_TEST* -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
+dirs_include_datafile=$(find ./WT_TEST.[0-9]* -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
 echo -e "\n[dirs_include_datafile]:\n${dirs_include_datafile}\n"
 
 # Loop through each data file under the TEST_DIR
@@ -79,11 +81,20 @@ do
 			exit 2
 		fi
 
+		# Table dump is successful, increment the counter
+		let "num_tables_dumped+=1"
+		echo "num_tables_dumped = ${num_tables_dumped}"
+
 		# Print the table dump out if verbose flag is on
-		[ "${verbose}" = true ] && echo ${dump}
+		[ "${verbose}" == true ] && echo ${dump}
 	done
 done
 
+if [ "${num_tables_dumped}" -eq 0 ]; then
+	echo "No table is dumped out from all data files, something could have gone wrong ..."
+	exit 6
+fi
+
 # If reaching here, the testing result is positive
-echo -e "\nAll the data files under 'RUNDIR' directory are listed and dumped successfully!"
+echo -e "\nAll data files under 'WT_TEST' directories are listed and dumped successfully!"
 exit 0 
