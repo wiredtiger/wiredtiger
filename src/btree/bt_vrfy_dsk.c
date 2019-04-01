@@ -257,7 +257,7 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num,
 	}
 	WT_RET_MSG(session, WT_ERROR,
 	    "cell %" PRIu32 " on page at %s failed verification with %s "
-	    "time of %s, %s the parent's %s time of %s",
+	    "timestamp of %s, %s the parent's %s timestamp of %s",
 	    cell_num, tag,
 	    ts1_name, ts1_bp,
 	    gt ? "less than" : "greater than",
@@ -291,16 +291,17 @@ __verify_dsk_ts(WT_SESSION_IMPL *session,
 			    "cell %" PRIu32 " on page at %s has a newest stop "
 			    "timestamp of 0",
 			    cell_num - 1, tag);
-		if (unpack->oldest_start_ts > unpack->newest_start_ts)
+		if (unpack->oldest_start_ts > unpack->newest_durable_ts)
 			WT_RET_VRFY(session,
 			    "cell %" PRIu32 " on page at %s has an oldest "
-			    "start timestamp newer than its newest start "
+			    "start timestamp newer than its newest durable "
 			    "timestamp",
 			    cell_num - 1, tag);
-		if (unpack->newest_start_ts > unpack->newest_stop_ts)
+		if (unpack->newest_durable_ts > unpack->newest_stop_ts)
 			WT_RET_VRFY(session,
-			    "cell %" PRIu32 " on page at %s has a newest start "
-			    "timestamp newer than its newest stop timestamp",
+			    "cell %" PRIu32 " on page at %s has a newest "
+			    "durable timestamp newer than its newest stop "
+			    "timestamp",
 			    cell_num - 1, tag);
 
 		if (addr == NULL)
@@ -310,8 +311,8 @@ __verify_dsk_ts(WT_SESSION_IMPL *session,
 		    "oldest start", addr->oldest_start_ts,
 		    true, tag));
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
-		    "newest start", unpack->newest_start_ts,
-		    "newest start", addr->newest_start_ts,
+		    "newest durable", unpack->newest_durable_ts,
+		    "newest durable", addr->newest_durable_ts,
 		    false, tag));
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "newest stop", unpack->newest_stop_ts,
@@ -342,13 +343,25 @@ __verify_dsk_ts(WT_SESSION_IMPL *session,
 		    "oldest start", addr->oldest_start_ts,
 		    true, tag));
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
-		    "start", unpack->start_ts,
-		    "newest start", addr->newest_start_ts,
-		    false, tag));
-		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "stop", unpack->stop_ts,
 		    "newest stop", addr->newest_stop_ts,
 		    false, tag));
+
+		/*
+		 * We can't compare the page's newest durable timestamp
+		 * to on-page values directly, and it's validating the
+		 * page address more than the page contents. Regardless,
+		 * confirm the address' durability value appears between
+		 * the start and stop timestamps.
+		 */
+		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
+		    "start", unpack->start_ts,
+		    "newest durable", addr->newest_durable_ts,
+		    false, tag));
+		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
+		    "stop", unpack->stop_ts,
+		    "newest durable", addr->newest_durable_ts,
+		    true, tag));
 		break;
 	}
 

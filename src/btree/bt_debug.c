@@ -1339,7 +1339,8 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	case WT_CELL_ADDR_LEAF:
 	case WT_CELL_ADDR_LEAF_NO:
 		__wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[0]);
-		__wt_timestamp_to_string(unpack->newest_start_ts, ts_string[1]);
+		__wt_timestamp_to_string(
+		    unpack->newest_durable_ts, ts_string[1]);
 		__wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[2]);
 		WT_RET(ds->f(ds,
 		    ", ts %s,%s,%s", ts_string[0], ts_string[1], ts_string[2]));
