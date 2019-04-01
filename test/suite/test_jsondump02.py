@@ -117,13 +117,12 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         self.set_kv(self.table_uri1, 'KEY001', '\'\"({[]})\"\'\\, etc. allowed')
         # \u03c0 is pi in Unicode, converted by Python to UTF-8: 0xcf 0x80.
         # Here's how UTF-8 might be used.
-        self.set_kv(self.table_uri1, 'KEY002', u'\u03c0'.encode('utf-8'))
-        # 0xf5-0xff are illegal in Unicode, but may occur legally in C strings.
-        self.set_kv(self.table_uri1, 'KEY003', '\xff\xfe')
+        self.set_kv(self.table_uri1, 'KEY002', u'\u03c0')
+        self.set_kv(self.table_uri1, 'KEY003', u'\u0abc')
         self.set_kv2(self.table_uri2, 'KEY000', 123, 'str0')
         self.set_kv2(self.table_uri2, 'KEY001', 234, 'str1')
-        self.set_kv(self.table_uri3, 1, '\x01\x02\x03')
-        self.set_kv(self.table_uri3, 2, '\x77\x88\x99\x00\xff\xfe')
+        self.set_kv(self.table_uri3, 1, b'\x01\x02\x03')
+        self.set_kv(self.table_uri3, 2, b'\x77\x88\x99\x00\x66\x55')
         self.populate_squarecube(self.table_uri4)
 
         table1_json =  (
@@ -131,7 +130,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
             ('"key0" : "KEY001"', '"value0" : ' +
              '"\'\\\"({[]})\\\"\'\\\\, etc. allowed"'),
             ('"key0" : "KEY002"', '"value0" : "\\u00cf\\u0080"'),
-            ('"key0" : "KEY003"', '"value0" : "\\u00ff\\u00fe"'))
+            ('"key0" : "KEY003"', '"value0" : "\\u00e0\\u00aa\\u00bc"'))
         self.check_json(self.table_uri1, table1_json)
 
         self.session.truncate(self.table_uri1, None, None, None)
@@ -156,7 +155,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         # bad tokens
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.load_json(self.table_uri2,
-              (('"abc\u"', ''),)),
+              (('"abc\\u"', ''),)),
             '/invalid Unicode/')
 
         # bad tokens
@@ -222,7 +221,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         table3_json =  (
             ('"key0" : 1', '"value0" : "\\u0001\\u0002\\u0003"'),
             ('"key0" : 2',
-             '"value0" : "\\u0077\\u0088\\u0099\\u0000\\u00ff\\u00fe"'))
+             '"value0" : "\\u0077\\u0088\\u0099\\u0000\\u0066\\u0055"'))
         self.check_json(self.table_uri3, table3_json)
         table4_json = (
                 ('"ikey" : 1,\n"Skey" : "key1"',

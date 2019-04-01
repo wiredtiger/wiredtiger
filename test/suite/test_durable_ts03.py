@@ -46,8 +46,8 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         uri = 'table:test_durable_ts03'
         nrows = 300000
         self.session.create(uri, 'key_format=i,value_format=u')
-        value1 = "aaaaa" * 100
-        value2 = "bbbbb" * 100
+        value1 = b"aaaaa" * 100
+        value2 = b"bbbbb" * 100
 
         # Start with setting a stable and oldest timestamp.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1) + \

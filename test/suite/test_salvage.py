@@ -123,6 +123,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         and modify it.
         """
         self.close_conn()
+        self.assertTrue(type(unique) == bytes)
         # we close the connection to guarantee everything is
         # flushed and closed from the WT point of view.
         filename = tablename + ".wt"

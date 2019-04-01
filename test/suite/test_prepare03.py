@@ -155,7 +155,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
         # Search for a specific key.
         # Verify we get the expected error and then later we can update and
         # remove it.
-        cursor.set_key(self.genkey(self.nentries/2))
+        cursor.set_key(self.genkey(self.nentries//2))
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -170,7 +170,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
             lambda:cursor.reconfigure(), preparemsg)
         self.session.commit_transaction("commit_timestamp=2b")
         cursor.search()
-        cursor.set_value(self.genvalue(self.nentries + self.nentries/2))
+        cursor.set_value(self.genvalue(self.nentries + self.nentries//2))
         cursor.update()
         cursor.remove()
 

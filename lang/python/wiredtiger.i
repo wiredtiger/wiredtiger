@@ -163,6 +163,7 @@ from .packing import pack, unpack
 
 %typemap(argout) (WT_MODIFY *entries, int *nentriesp) {
 	int i;
+
 	$result = PyList_New(*$2);
 	for (i = 0; i < *$2; i++) {
 		PyObject *o = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_modify, 0);
@@ -176,15 +177,35 @@ from .packing import pack, unpack
 	}
 }
 
+%typemap(argout) (WT_MODIFY *entries_string, int *nentriesp) {
+	int i;
+
+	$result = PyList_New(*$2);
+	for (i = 0; i < *$2; i++) {
+		PyObject *o = SWIG_NewPointerObj(Py_None, SWIGTYPE_p___wt_modify, 0);
+		PyObject_SetAttrString(o, "data", PyUnicode_FromStringAndSize(
+		    $1[i].data.data, $1[i].data.size));
+		PyObject_SetAttrString(o, "offset",
+		    PyInt_FromLong($1[i].offset));
+		PyObject_SetAttrString(o, "size",
+		    PyInt_FromLong($1[i].size));
+		PyList_SetItem($result, i, o);
+	}
+ }
+
 %typemap(in) const WT_ITEM * (WT_ITEM val, long sz) {
-	if (PyBytes_AsStringAndSize($input, &val.data, &sz) < 0)
-		SWIG_exception_fail(SWIG_AttributeError,
-		    "bad string value for WT_ITEM");
+	if (PyBytes_AsStringAndSize($input, &val.data, &sz) < 0) {
+		if ((val.data = PyUnicode_AsUTF8AndSize($input, &sz)) == 0)
+			SWIG_exception_fail(SWIG_AttributeError,
+			    "bad string value for WT_ITEM");
+		else
+			sz = strlen((char *)val.data) + 1;
+	}
 	val.size = (size_t)sz;
 	$1 = &val;
 }
 
-%typemap(freearg) (WT_MODIFY *entries, int *nentriesp) {
+%typemap(freearg) (WT_MODIFY *, int *nentriesp) {
 	__wt_free(NULL, $1);
 }
 
@@ -204,17 +225,22 @@ from .packing import pack, unpack
 		long offset, size;
 		Py_ssize_t datasize;
 
-		if ((modobj = PySequence_GetItem($input, i - 1)) == NULL)
+		if ((modobj = PySequence_GetItem($input, i - 1)) == NULL) {
+			freeModifyArray(modarray);
 			SWIG_exception_fail(SWIG_IndexError,
 			    "Modify sequence failed");
+		}
 
 		WT_GETATTR(dataobj, modobj, "data");
 		if (PyBytes_AsStringAndSize(dataobj, &datadata,
 		    &datasize) < 0) {
-			Py_DECREF(dataobj);
-			Py_DECREF(modobj);
-			SWIG_exception_fail(SWIG_AttributeError,
-			    "Modify.data bad value");
+			if ((datadata = PyUnicode_AsUTF8AndSize(dataobj, &datasize)) == NULL) {
+				Py_DECREF(dataobj);
+				Py_DECREF(modobj);
+				freeModifyArray(modarray);
+				SWIG_exception_fail(SWIG_AttributeError,
+				    "Modify.data bad value");
+			}
 		}
 		modarray[i].data.data = malloc(datasize);
 		memcpy(modarray[i].data.data, datadata, datasize);
@@ -225,6 +251,7 @@ from .packing import pack, unpack
 		if ((offset = PyInt_AsLong(offsetobj)) < 0) {
 			Py_DECREF(offsetobj);
 			Py_DECREF(modobj);
+			freeModifyArray(modarray);
 			SWIG_exception_fail(SWIG_RuntimeError,
 			    "Modify.offset bad value");
 		}
@@ -235,6 +262,7 @@ from .packing import pack, unpack
 		if ((size = PyInt_AsLong(sizeobj)) < 0) {
 			Py_DECREF(sizeobj);
 			Py_DECREF(modobj);
+			freeModifyArray(modarray);
 			SWIG_exception_fail(SWIG_RuntimeError,
 			    "Modify.size bad value");
 		}
@@ -246,14 +274,7 @@ from .packing import pack, unpack
 }
 
 %typemap(freearg) WT_MODIFY * {
-	/* The WT_MODIFY arg is in position 2.	Is there a better way? */
-	WT_MODIFY *modarray = modarray2;
-	size_t i, len;
-
-	len = modarray[0].size;
-	for (i = 1; i <= len; i++)
-		__wt_free(NULL, modarray[i].data.data);
-	__wt_free(NULL, modarray);
+	freeModifyArray($1);
 }
 
 /* 64 bit typemaps. */
@@ -411,6 +432,16 @@ class AsyncCallback:
 
 	def notify(self, op, op_ret, flags):
 		raise NotImplementedError
+
+def wiredtiger_calc_modify(session, oldv, newv, maxdiff, nmod):
+	import wttest
+	wttest.WiredTigerTestCase.tty('calc_modify: ' + str(maxdiff) + ',' + str(nmod))
+	return _wiredtiger_calc_modify(session, oldv, newv, maxdiff, nmod)
+
+def wiredtiger_calc_modify_string(session, oldv, newv, maxdiff, nmod):
+	import wttest
+	wttest.WiredTigerTestCase.tty('calc_modify_string: ' + str(maxdiff) + ',' + str(nmod))
+	return _wiredtiger_calc_modify_string(session, oldv, newv, maxdiff, nmod)
 
 %}
 
@@ -597,11 +628,17 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 
 /* Handle binary data returns from get_key/value -- avoid cstring.i: it creates a list of returns. */
 %typemap(in,numinputs=0) (char **datap, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
+%typemap(in,numinputs=0) (char **charp, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
 %typemap(frearg) (char **datap, int *sizep) "";
+%typemap(argout) (char **charp, int *sizep) {
+	if (*$1)
+		$result = PyUnicode_FromStringAndSize(*$1, *$2);
+}
+
 %typemap(argout) (char **datap, int *sizep) {
 	if (*$1)
 		$result = PyBytes_FromStringAndSize(*$1, *$2);
-}
+ }
 
 /* Handle record number returns from get_recno */
 %typemap(in,numinputs=0) (uint64_t *recnop) (uint64_t recno) { $1 = &recno; }
@@ -816,11 +853,11 @@ typedef int int_void;
 		return (ret);
 	}
 
-	int_void _get_json_key(char **datap, int *sizep) {
+	int_void _get_json_key(char **charp, int *sizep) {
 		const char *k;
 		int ret = $self->get_key($self, &k);
 		if (ret == 0) {
-			*datap = (char *)k;
+			*charp = (char *)k;
 			*sizep = strlen(k);
 		}
 		return (ret);
@@ -845,11 +882,11 @@ typedef int int_void;
 		return (ret);
 	}
 
-	int_void _get_json_value(char **datap, int *sizep) {
+	int_void _get_json_value(char **charp, int *sizep) {
 		const char *k;
 		int ret = $self->get_value($self, &k);
 		if (ret == 0) {
-			*datap = (char *)k;
+			*charp = (char *)k;
 			*sizep = strlen(k);
 		}
 		return (ret);
@@ -1103,8 +1140,10 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 %ignore wiredtiger_struct_size;
 %ignore wiredtiger_struct_unpack;
 
+%ignore wiredtiger_calc_modify;
 %ignore wiredtiger_extension_init;
 %ignore wiredtiger_extension_terminate;
+
 
 /* Convert 'int *' to output args for wiredtiger_version */
 %apply int *OUTPUT { int * };
@@ -1117,8 +1156,48 @@ OVERRIDE_METHOD(__wt_session, WT_SESSION, log_printf, (self, msg))
 
 %include "wiredtiger.h"
 
-/* Add event handler support. */
+/*
+ * The original wiredtiger_calc_modify was ignored, now we define our own.
+ * Python needs to know whether to return a bytes object or a string.
+ * Part of the smarts to do that is the output typemap, which matches on
+ * the naming of the parameter: entries vs. entries_string
+ */
+extern int _wiredtiger_calc_modify(WT_SESSION *session,
+    const WT_ITEM *oldv, const WT_ITEM *newv,
+    size_t maxdiff, WT_MODIFY *entries, int *nentriesp);
+extern int _wiredtiger_calc_modify_string(WT_SESSION *session,
+    const WT_ITEM *oldv, const WT_ITEM *newv,
+    size_t maxdiff, WT_MODIFY *entries_string, int *nentriesp);
 %{
+int _wiredtiger_calc_modify(WT_SESSION *session,
+    const WT_ITEM *oldv, const WT_ITEM *newv,
+    size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
+{
+	return (wiredtiger_calc_modify(
+	    session, oldv, newv, maxdiff, entries, nentriesp));
+}
+
+int _wiredtiger_calc_modify_string(WT_SESSION *session,
+    const WT_ITEM *oldv, const WT_ITEM *newv,
+    size_t maxdiff, WT_MODIFY *entries_string, int *nentriesp)
+{
+	return (wiredtiger_calc_modify(
+	    session, oldv, newv, maxdiff, entries_string, nentriesp));
+}
+
+/* Add event handler support. */
+
+static void
+freeModifyArray(WT_MODIFY *modarray)
+{
+	size_t i, len;
+
+	len = modarray[0].size;
+	for (i = 1; i <= len; i++)
+		__wt_free(NULL, modarray[i].data.data);
+	__wt_free(NULL, modarray);
+}
+
 /* Write to and flush the stream. */
 static int
 writeToPythonStream(const char *streamname, const char *message)

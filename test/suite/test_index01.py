@@ -37,9 +37,10 @@ class test_index01(wttest.WiredTigerTestCase):
     tablename = 'table:' + basename
     indexbase = 'index:' + basename
     NUM_INDICES = 6
-    index = ['%s:index%d' % (indexbase, i) for i in range(NUM_INDICES)]
 
     def create_table(self):
+        self.index = ['%s:index%d' % (self.indexbase, i) \
+            for i in range(self.NUM_INDICES)]
         self.pr('create table')
         self.session.create(self.tablename, 'key_format=Si,value_format=SSii,columns=(name,ID,dept,job,salary,year)')
         self.session.create(self.index[0], 'columns=(dept)')

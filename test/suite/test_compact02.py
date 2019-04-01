@@ -105,7 +105,7 @@ class test_compact02(wttest.WiredTigerTestCase):
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
         except wiredtiger.WiredTigerError as e:
-            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
+            print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = self.conn.open_session(None)
 
     # Create a table, add keys with both big and small values.
