@@ -1014,7 +1014,7 @@ tasks:
             set -o verbose
             for i in $(seq 10)
             do
-              ./t -1 -h "WT_TEST.$i"
+              ./t -1 -h "WT_TEST.$i" cache_minimum=20 rows=1000000 timer=4
             done
             # Archive the WT_TEST directories which include the generated wt data files
             tar -zcvf WT_TEST.tgz WT_TEST*
@@ -1030,7 +1030,7 @@ tasks:
           display_name: WT_TEST
           remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
 
-  - name: dump-datafile-little-endian
+  - name: verify-datafile-little-endian
     depends_on:
     - name: compile
     - name: generate-datafile-little-endian
@@ -1043,9 +1043,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./test/evergreen/dump_wt_datafiles.sh 2>&1
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
-  - name: dump-datafile-from-little-endian
+  - name: verify-datafile-from-little-endian
     depends_on:
     - name: compile
     - name: generate-datafile-little-endian
@@ -1059,7 +1059,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./test/evergreen/dump_wt_datafiles.sh 2>&1
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
   - name: generate-datafile-big-endian
     depends_on:
@@ -1075,7 +1075,7 @@ tasks:
             set -o verbose
             for i in $(seq 10)
             do
-              ./t -1 -h "WT_TEST.$i"
+              ./t -1 -h "WT_TEST.$i" cache_minimum=20 rows=1000000 timer=4
             done
             # Archive the WT_TEST directories which include the generated wt data files
             tar -zcvf WT_TEST.tgz WT_TEST*
@@ -1091,7 +1091,7 @@ tasks:
           display_name: WT_TEST
           remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
 
-  - name: dump-datafile-big-endian
+  - name: verify-datafile-big-endian
     depends_on:
     - name: compile
     - name: generate-datafile-big-endian
@@ -1104,9 +1104,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./test/evergreen/dump_wt_datafiles.sh 2>&1
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
-  - name: dump-datafile-from-big-endian
+  - name: verify-datafile-from-big-endian
     depends_on:
     - name: compile
     - name: generate-datafile-big-endian
@@ -1120,7 +1120,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./test/evergreen/dump_wt_datafiles.sh 2>&1
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
 
 buildvariants:
@@ -1246,8 +1246,8 @@ buildvariants:
   tasks:
   - name: compile
   - name: generate-datafile-little-endian
-  - name: dump-datafile-little-endian
-  - name: dump-datafile-from-big-endian
+  - name: verify-datafile-little-endian
+  - name: verify-datafile-from-big-endian
 
 - name: big-endian
   display_name: Big-endian (s390x/zSeries)
@@ -1263,5 +1263,5 @@ buildvariants:
   tasks:
   - name: compile
   - name: generate-datafile-big-endian
-  - name: dump-datafile-big-endian
-  - name: dump-datafile-from-little-endian
+  - name: verify-datafile-big-endian
+  - name: verify-datafile-from-little-endian

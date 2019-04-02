@@ -5,7 +5,7 @@
 # Supported return values:
 #   0: list & dump are successful for all data files
 #   1: list is not successful for some data file
-#   2: dump is not successful for some table object
+#   2: verify is not successful for some table object
 #   3: 't' or 'wt' binary file does not exist
 #   4: 'WT_TEST' directories do not exist
 #   5: Command argument setting is wrong
@@ -13,13 +13,9 @@
 
 set -eu
 
-verbose=false
-
-if [ $# -gt 1 ]; then
-	echo "Usage: $0 [-v]"
+if [ $# -gt 0 ]; then
+	echo "Usage: $0"
 	exit 5
-elif [ $# -eq 1 ]; then
-        [ "$1" == "-v" ] && verbose=true || verbose=false
 fi
 
 # Switch to the Git repo toplevel directory
@@ -36,7 +32,7 @@ if [ "${num_dirs}" -eq "0" ]; then
 fi
 
 # Check the existence of 'wt' binary
-wt_binary=$(find ../../ -type f -executable -name wt | grep '.libs' | head -1)
+wt_binary="../../.libs/wt"
 if [ ! -x "${wt_binary}" ]; then
 	echo "'wt' binary does not exist, exiting ..."
 	exit 3
@@ -49,7 +45,7 @@ if [ ! -x "t" ]; then
 fi
 
 lib_dir=$(dirname "${wt_binary}")
-num_tables_dumped=0
+num_tables_verified=0
 
 # Work out the list of directories that include wt data files
 dirs_include_datafile=$(find ./WT_TEST.[0-9]* -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
@@ -73,28 +69,25 @@ do
 	for t in ${tables}
 	do
 		echo ${t}
-		dump=$(LD_LIBRARY_PATH="${lib_dir}" ${wt_binary} -h ${d} dump ${t})
+		LD_LIBRARY_PATH="${lib_dir}" ${wt_binary} -h ${d} verify ${t}
 		rc=$?
 
 		if [ "$rc" -ne "0" ]; then
-			echo "Failed to dump '${t}' table under '${d}' directory, exiting ..."
+			echo "Failed to verify '${t}' table under '${d}' directory, exiting ..."
 			exit 2
 		fi
 
-		# Table dump is successful, increment the counter
-		let "num_tables_dumped+=1"
-		echo "num_tables_dumped = ${num_tables_dumped}"
-
-		# Print the table dump out if verbose flag is on
-		[ "${verbose}" == true ] && echo ${dump}
+		# Table verification is successful, increment the counter
+		let "num_tables_verified+=1"
+		echo "num_tables_verified = ${num_tables_verified}"
 	done
 done
 
-if [ "${num_tables_dumped}" -eq 0 ]; then
-	echo "No table is dumped out from all data files, something could have gone wrong ..."
+if [ "${num_tables_verified}" -eq 0 ]; then
+	echo "No table is verified from all data files, something could have gone wrong ..."
 	exit 6
 fi
 
 # If reaching here, the testing result is positive
-echo -e "\nAll data files under 'WT_TEST' directories are listed and dumped successfully!"
+echo -e "\nAll data files under 'WT_TEST' directories are listed and verified successfully!"
 exit 0 
