@@ -4233,7 +4233,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_PAGE *page;
 	WT_UPDATE *upd;
 	WT_UPDATE_SELECT upd_select;
-	wt_timestamp_t start_ts, durable_ts, stop_ts;
+	wt_timestamp_t start_ts, durable_ts, newest_durable_ts, stop_ts;
 	uint64_t n, nrepeat, repeat_count, rle, skip, src_recno;
 	uint32_t i, size;
 	bool deleted, orig_deleted, update_no_copy;
@@ -4261,6 +4261,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
 	start_ts = WT_TS_MAX;
 	durable_ts = stop_ts = WT_TS_NONE;
+	newest_durable_ts = addr == NULL ? WT_TS_NONE : addr->newest_durable_ts;
 
 	WT_RET(__rec_split_init(session,
 	    r, page, pageref->ref_recno, btree->maxleafpage_precomp));
@@ -4373,7 +4374,7 @@ record_loop:	/*
 		for (n = 0;
 		    n < nrepeat; n += repeat_count, src_recno += repeat_count) {
 			start_ts = vpack->start_ts;
-			durable_ts = addr->newest_durable_ts;
+			durable_ts = newest_durable_ts;
 			stop_ts = vpack->stop_ts;
 			upd = NULL;
 			if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
@@ -5132,7 +5133,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	WT_ROW *rip;
 	WT_UPDATE *upd;
 	WT_UPDATE_SELECT upd_select;
-	wt_timestamp_t start_ts, durable_ts, stop_ts;
+	wt_timestamp_t start_ts, durable_ts, newest_durable_ts, stop_ts;
 	size_t size;
 	uint64_t slvg_skip, txnid;
 	uint32_t i;
@@ -5144,6 +5145,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	btree = S2BT(session);
 	cbt = &r->update_modify_cbt;
 	page = pageref->page;
+	newest_durable_ts = addr == NULL ? WT_TS_NONE : addr->newest_durable_ts;
 	slvg_skip = salvage == NULL ? 0 : salvage->skip;
 
 	key = &r->k;
@@ -5201,7 +5203,7 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 		/* Unpack the on-page value cell, set the default timestamps. */
 		__wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
 		start_ts = vpack->start_ts;
-		durable_ts = addr->newest_durable_ts;
+		durable_ts = newest_durable_ts;
 		stop_ts = vpack->stop_ts;
 		txnid = WT_TXN_NONE;
 
@@ -6212,8 +6214,7 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session,
 	val->buf.size = addr->size;
 	val->cell_len = __wt_cell_pack_addr(
 	    session, &val->cell, cell_type, recno, addr->oldest_start_ts,
-	    addr->newest_durable_ts, addr->newest_stop_ts,
-	    val->buf.size);
+	    addr->newest_durable_ts, addr->newest_stop_ts, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 }
 
