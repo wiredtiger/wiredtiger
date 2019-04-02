@@ -1261,9 +1261,12 @@ methods = {
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_prepare', 'false', r'''
         whether to ignore the updates by other prepared transactions as part of
-        read operations of this transaction.  Implies that the transaction is
-        read-only''',
-        type='boolean'),
+        read operations of this transaction.  When \c true, forces the
+        transaction to be read-only.  Use \c force to ignore prepared updates
+        and permit writes (which can cause lost updates unless the application
+        knows something about the relationship between prepared transactions
+        and the updates that are ignoring them)''',
+        choices=['false', 'force', 'true']),
     Config('isolation', '', r'''
         the isolation level for this transaction; defaults to the
         session's isolation level''',
