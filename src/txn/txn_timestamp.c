@@ -256,6 +256,13 @@ __txn_global_query_timestamp(
 			break;
 		}
 		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
+
+		/*
+		 * If a transaction is committing with timestamp 1, we could
+		 * return zero here, which is unexpected.  Fail instead.
+		 */
+		if (ts == 0)
+			return (WT_NOTFOUND);
 	} else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
 		ts = txn_global->last_ckpt_timestamp;
