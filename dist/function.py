@@ -153,7 +153,8 @@ def function_declaration():
                     # initializers (and we've already skipped statics, which
                     # are also typically initialized in the declaration).
                     if re.search("\s=\s[-\w]", line):
-                        print(name + ": assignment in string: " + line.strip(), file=sys.stderr)
+                        print(name + ": assignment in string: " + line.strip(),\
+                            file=sys.stderr)
                         sys.exit(1);
 
                     list[n].append(line)

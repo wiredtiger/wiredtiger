@@ -27,12 +27,12 @@ def flag_declare(name):
             elif line.find('AUTOMATIC FLAG VALUE GENERATION STOP') != -1:
                 # We only support 64 bits.
                 if len(defines) > 64:
-                    print(name + ": line " +\
-                        str(lcnt) + ": exceeds maximum 64 bit flags", file=sys.stderr)
+                    print(name + ": line " + str(lcnt) +\
+                        ": exceeds maximum 64 bit flags", file=sys.stderr)
                     sys.exit(1)
 
                 # Calculate number of hex bytes, create format string
-                fmt = "0x%%0%dxu" % ((len(defines) + 3) / 4)
+                fmt = "0x%%0%dxu" % ((len(defines) + 3) // 4)
 
                 tfile.write(header)
                 v = 1
@@ -43,8 +43,8 @@ def flag_declare(name):
 
                 parsing = False
             elif parsing and line.find('#define') == -1:
-                print(name + ": line " +\
-                    str(lcnt) + ": unexpected flag line, no #define", file=sys.stderr)
+                print(name + ": line " + str(lcnt) +\
+                    ": unexpected flag line, no #define", file=sys.stderr)
                 sys.exit(1)
             elif parsing:
                 defines.append(line)
