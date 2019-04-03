@@ -617,7 +617,7 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
  * For Python3, we need to use it like this:
  *   %apply (char *STRING, int LENGTH) { (char *data, int size) };
  */
-%apply (char *STRING, int LENGTH) { (char *data, int size) };
+%apply (char *STRING, int LENGTH) { (void *data, int size) };
 
 /* Handle binary data returns from get_key/value -- avoid cstring.i: it creates a list of returns. */
 %typemap(in,numinputs=0) (char **datap, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
