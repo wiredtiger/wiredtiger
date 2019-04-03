@@ -82,8 +82,6 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
         cursor = self.session.open_cursor(uri, None, 'dump=json')
         pos = 0
         for k,v in cursor:
-            self.tty('KEY: ' + str(k))
-            self.tty('VAL: ' + str(v))
             self.assertEqual(k, expect[pos][0])
             self.assertEqual(v, expect[pos][1])
             pos += 1

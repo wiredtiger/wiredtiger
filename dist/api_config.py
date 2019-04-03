@@ -110,7 +110,7 @@ for line in open(f, 'r'):
 
     prefix, config_name = m.groups()
     if config_name not in api_data.methods:
-        print >>sys.stderr, "Missing configuration for " + config_name
+        print("Missing configuration for " + config_name, file=sys.stderr)
         tfile.write(line)
         continue
 

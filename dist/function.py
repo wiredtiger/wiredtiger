@@ -16,8 +16,8 @@ def missing_comment():
         for m in func_re.finditer(s):
             if not m.group(1) or \
                not m.group(1).startswith('/*\n * %s --\n' % m.group(2)):
-                   print "%s:%d: missing or malformed comment for %s" % \
-                           (f, s[:m.start(2)].count('\n'), m.group(2))
+                   print("%s:%d: missing or malformed comment for %s" % \
+                           (f, s[:m.start(2)].count('\n'), m.group(2)))
 
 # Sort helper function, discard * operators so a pointer doesn't necessarily
 # sort before non-pointers, ignore const/static/volatile keywords.
@@ -105,7 +105,7 @@ def function_args(name, line):
     # Check for illegal types.
     for m in illegal_types:
         if re.search('^' + m + "\s*[\w(*]", line):
-            print >>sys.stderr, name + ": illegal type: " + line.strip()
+            print(name + ": illegal type: " + line.strip(), file=sys.stderr)
             sys.exit(1)
 
     # Check for matching types.
@@ -152,8 +152,7 @@ def function_declaration():
                     # initializers (and we've already skipped statics, which
                     # are also typically initialized in the declaration).
                     if re.search("\s=\s[-\w]", line):
-                        print >>sys.stderr, \
-                            name + ": assignment in string: " + line.strip()
+                        print(name + ": assignment in string: " + line.strip(), file=sys.stderr)
                         sys.exit(1);
 
                     list[n].append(line)

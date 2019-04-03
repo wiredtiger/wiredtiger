@@ -50,12 +50,12 @@ def source_dirs():
 
 def print_source_dirs():
     for d in source_dirs():
-        print d
+        print(d)
 
 # compare_srcfile --
 #    Compare two files, and if they differ, update the source file.
 def compare_srcfile(tmp, src):
     if not os.path.isfile(src) or not filecmp.cmp(tmp, src, shallow=False):
-        print('Updating ' + src)
+        print(('Updating ' + src))
         shutil.copyfile(tmp, src)
     os.remove(tmp)
