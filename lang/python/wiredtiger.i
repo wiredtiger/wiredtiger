@@ -427,13 +427,9 @@ class AsyncCallback:
 		raise NotImplementedError
 
 def wiredtiger_calc_modify(session, oldv, newv, maxdiff, nmod):
-	import wttest
-	wttest.WiredTigerTestCase.tty('calc_modify: ' + str(maxdiff) + ',' + str(nmod))
 	return _wiredtiger_calc_modify(session, oldv, newv, maxdiff, nmod)
 
 def wiredtiger_calc_modify_string(session, oldv, newv, maxdiff, nmod):
-	import wttest
-	wttest.WiredTigerTestCase.tty('calc_modify_string: ' + str(maxdiff) + ',' + str(nmod))
 	return _wiredtiger_calc_modify_string(session, oldv, newv, maxdiff, nmod)
 
 %}
