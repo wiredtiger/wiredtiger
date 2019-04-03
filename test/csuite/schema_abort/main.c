@@ -797,10 +797,19 @@ thread_run(void *arg)
 
 			testutil_check(
 			    session->commit_transaction(session, tscfg));
-			if (use_prep)
+			if (use_prep) {
+				/*
+				 * Durable timestamp should not be passed as
+				 * oplog transaction is a non-prepared
+				 * transaction.
+				 */
+				testutil_check(__wt_snprintf(
+				    tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64, stable_ts));
 				testutil_check(
 				    oplog_session->commit_transaction(
 				    oplog_session, tscfg));
+			}
 			/*
 			 * Update the thread's last-committed timestamp.
 			 * Don't let the compiler re-order this statement,
