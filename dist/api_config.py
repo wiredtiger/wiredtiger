@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import os, re, sys, textwrap
 import api_data
 from dist import compare_srcfile

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 # Check the style of WiredTiger C code.
+from __future__ import print_function
 import fnmatch, os, re, sys
 from dist import all_c_files, compare_srcfile, source_files
 

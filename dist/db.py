@@ -1,6 +1,7 @@
 # A simple python script to build a file that can be bulk-loaded into a
 # WiredTiger database for smoke-testing.
 
+from __future__ import print_function
 import getopt, random, sys
 
 dmin = 7        # Minimum data size
