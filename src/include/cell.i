@@ -193,6 +193,10 @@ __cell_pack_timestamp_value(WT_SESSION_IMPL *session,
 	__wt_timestamp_value_check(session, start_ts, stop_ts);
 
 	/*
+	 * TIMESTAMP-FIXME
+	 * Values (presumably) have associated transaction IDs, but we haven't
+	 * yet decided how to handle them.
+	 *
 	 * Historic versions and globally visible values don't have associated
 	 * timestamps, else set a flag bit and store the packed timestamp pair.
 	 */
