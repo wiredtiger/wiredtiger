@@ -638,6 +638,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
 	/* Ensure the transaction flags are cleared on exit */
 	txn->flags = 0;
+	txn->prepare_timestamp = 0;
 }
 
 /*
@@ -826,12 +827,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * For prepared transactions commit timestamp could be earlier
 		 * than stable timestamp.
 		 */
-		WT_ERR(__wt_txn_commit_timestamp_validate(
-		    session, "commit", ts, &cval, !prepare));
 		txn->commit_timestamp = ts;
+		WT_ERR(__wt_txn_commit_timestamp_validate_r(session));
 		__wt_txn_set_commit_timestamp(session);
-		if (!prepare)
-			txn->durable_timestamp = txn->commit_timestamp;
+		txn->durable_timestamp = txn->commit_timestamp;
 	}
 
 	if (prepare && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -839,21 +838,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    "commit_timestamp is required for a prepared transaction");
 
 	/*
-	 * Durable timestamp is required for a prepared transaction.
-	 * If durable timestamp is not given, commit timestamp will be
-	 * considered as durable timestamp. We don't flag error if durable
-	 * timestamp is not specified for prepared transactions, but will flag
-	 * error if durable timestamp is specified for non-prepared
+	 * Durable timestamp is required only for a prepared transaction.
+	 * Return error if durable timestamp is not specified for a prepared
+	 * transaction and if durable timestamp is specified for non-prepared
 	 * transactions.
 	 */
 	WT_ERR(__wt_config_gets_def(
 	    session, cfg, "durable_timestamp", 0, &cval));
 	if (cval.len != 0) {
-		if (!prepare)
-			WT_ERR_MSG(session, EINVAL,
-			    "durable_timestamp should not be given for "
-			    "non-prepared transaction");
-
 		WT_ERR(__wt_txn_parse_timestamp(
 		    session, "durable", &ts, &cval));
 		/* Durable timestamp should be later than stable timestamp. */
@@ -863,8 +855,25 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, "durable", ts, &cval, true));
 	}
 
+	if (prepare) {
+		if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+			WT_ERR_MSG(session, EINVAL,
+			    "durable_timestamp is required for a "
+			    "prepared transaction");
+	} else {
+		if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+			WT_ERR_MSG(session, EINVAL,
+			    "durable_timestamp should not be specified for "
+			    "non-prepared transaction");
+	}
+
 	WT_ERR(__txn_commit_timestamps_assert(session));
 
+	if (prepare)
+		WT_ASSERT(session,
+		    !(txn->prepare_timestamp > txn->commit_timestamp));
+
+	WT_ASSERT(session, !(txn->commit_timestamp > txn->durable_timestamp));
 	/*
 	 * The default sync setting is inherited from the connection, but can
 	 * be overridden by an explicit "sync" setting for this transaction.
