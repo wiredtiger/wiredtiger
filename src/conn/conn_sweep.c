@@ -18,7 +18,7 @@
  *	handles.
  */
 static void
-__sweep_mark(WT_SESSION_IMPL *session, time_t now)
+__sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -107,7 +107,7 @@ err:	__wt_writeunlock(session, &dhandle->rwlock);
  *	until we have reached the configured minimum number of handles.
  */
 static int
-__sweep_expire(WT_SESSION_IMPL *session, time_t now)
+__sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -127,8 +127,7 @@ __sweep_expire(WT_SESSION_IMPL *session, time_t now)
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    dhandle->session_inuse != 0 ||
 		    dhandle->timeofdeath == 0 ||
-		    difftime(now, dhandle->timeofdeath) <=
-		    conn->sweep_idle_time)
+		    now - dhandle->timeofdeath <= conn->sweep_idle_time)
 			continue;
 
 		/*
@@ -277,9 +276,10 @@ __sweep_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	time_t last, now;
+	uint64_t last, now;
 	uint64_t last_las_sweep_id, min_sleep, oldest_id, sweep_interval;
 	u_int dead_handles;
+	bool cv_signalled;
 
 	session = arg;
 	conn = S2C(session);
@@ -299,12 +299,13 @@ __sweep_server(void *arg)
 		/* Wait until the next event. */
 		if (FLD_ISSET(conn->timing_stress_flags,
 		    WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
-			__wt_cond_wait(session, conn->sweep_cond,
+			__wt_cond_wait_signal(session, conn->sweep_cond,
 			    min_sleep * 100 * WT_THOUSAND,
-			    __sweep_server_run_chk);
+			    __sweep_server_run_chk, &cv_signalled);
 		else
-			__wt_cond_wait(session, conn->sweep_cond,
-			    min_sleep * WT_MILLION, __sweep_server_run_chk);
+			__wt_cond_wait_signal(session,
+			    conn->sweep_cond, min_sleep * WT_MILLION,
+			    __sweep_server_run_chk, &cv_signalled);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__sweep_server_run_chk(session))
@@ -340,7 +341,7 @@ __sweep_server(void *arg)
 		 * less frequently than the lookaside table by default and the
 		 * frequency is controlled by a user setting.
 		 */
-		if ((uint64_t)(now - last) < sweep_interval)
+		if (!cv_signalled && (now - last < sweep_interval))
 			continue;
 		WT_STAT_CONN_INCR(session, dh_sweeps);
 		/*

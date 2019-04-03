@@ -51,6 +51,7 @@ typedef struct {
 
 	/* Lookaside boundary tracking. */
 	uint64_t unstable_txn;
+	wt_timestamp_t unstable_durable_timestamp;
 	wt_timestamp_t unstable_timestamp;
 
 	u_int updates_seen;		/* Count of updates seen. */
@@ -58,6 +59,9 @@ typedef struct {
 
 	bool update_uncommitted;	/* An update was uncommitted */
 	bool update_used;		/* An update could be used */
+
+	/* All the updates are with prepare in-progress state. */
+	bool all_upd_prepare_in_prog;
 
 	/*
 	 * When we can't mark the page clean (for example, checkpoint found some
@@ -678,6 +682,16 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		WT_ASSERT(session,
 		    !F_ISSET(r, WT_REC_EVICT) ||
 		    F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
+
+		/*
+		 * We have written the page, but something prevents it from
+		 * being evicted.  If we wrote the newest versions of updates,
+		 * the on-disk page may contain records that are newer than
+		 * what checkpoint would write.  Make sure that checkpoint
+		 * visits the page and (if necessary) fixes things up.
+		 */
+		if (r->las_skew_newest)
+			mod->first_dirty_txn = WT_TXN_FIRST;
 	} else {
 		/*
 		 * Track the page's maximum transaction ID (used to decide if
@@ -925,14 +939,19 @@ __rec_init(WT_SESSION_IMPL *session,
 	if (r->las_skew_newest) {
 		r->unstable_txn = WT_TXN_NONE;
 		r->unstable_timestamp = 0;
+		r->unstable_durable_timestamp = 0;
 	} else {
 		r->unstable_txn = WT_TXN_ABORTED;
 		r->unstable_timestamp = UINT64_MAX;
+		r->unstable_durable_timestamp = UINT64_MAX;
 	}
 
 	/* Track if updates were used and/or uncommitted. */
 	r->updates_seen = r->updates_unstable = 0;
 	r->update_uncommitted = r->update_used = false;
+
+	/* Track if all the updates are with prepare in-progress state. */
+	r->all_upd_prepare_in_prog = true;
 
 	/* Track if the page can be marked clean. */
 	r->leave_dirty = false;
@@ -1241,6 +1260,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			max_txn = txnid;
 
 		/*
+		 * Track if all the updates are not with in-progress prepare
+		 * state.
+		 */
+		if (upd->prepare_state == WT_PREPARE_RESOLVED)
+			r->all_upd_prepare_in_prog = false;
+
+		/*
 		 * Check whether the update was committed before reconciliation
 		 * started.  The global commit point can move forward during
 		 * reconciliation so we use a cached copy to avoid races when a
@@ -1267,7 +1293,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 				uncommitted = r->update_uncommitted = true;
 				continue;
 			}
-
 		}
 
 		/* Track the first update with non-zero timestamp. */
@@ -1295,7 +1320,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (upd_select->upd == NULL && r->las_skew_newest)
 			upd_select->upd = upd;
 
-		/* Consider non durable updates as uncommitted. */
 		if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 		    !__wt_txn_upd_visible_all(session, upd) :
 		    !__wt_txn_upd_visible(session, upd)) ||
@@ -1382,6 +1406,20 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		} else
 			upd_select->start_ts =
 			    upd_select->stop_ts = upd_select->upd->start_ts;
+
+		/*
+		 * Finalize the timestamps, checking if the update is globally
+		 * visible and timestamps won't need to be written.
+		 *
+		 * TIMESTAMP-FIXME
+		 * Values (presumably) have associated transaction IDs, but we
+		 * haven't yet decided how to handle them. For now, ignore them
+		 * in determining value durability.
+		 */
+		if (upd_select->start_ts != WT_TS_NONE &&
+		    __wt_txn_visible_all(
+		    session, WT_TXN_NONE, upd_select->start_ts))
+			upd_select->start_ts = WT_TS_NONE;
 	}
 
 	/*
@@ -1394,8 +1432,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		r->max_txn = max_txn;
 
 	/* Update the maximum timestamp. */
-	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->start_ts)
-		r->max_timestamp = first_ts_upd->start_ts;
+	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->durable_ts)
+		r->max_timestamp = first_ts_upd->durable_ts;
 
 	/*
 	 * If the update we chose was a birthmark, or we are doing
@@ -1476,9 +1514,23 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	if (F_ISSET(r, WT_REC_LOOKASIDE) && r->las_skew_newest) {
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
-		if (first_ts_upd != NULL &&
-		    r->unstable_timestamp < first_ts_upd->start_ts)
-			r->unstable_timestamp = first_ts_upd->start_ts;
+		if (first_ts_upd != NULL) {
+			/*
+			 * FIXME Disable this assertion until fixed by WT-4598.
+			 * WT_ASSERT(session,
+			 *    first_ts_upd->prepare_state ==
+			 *    WT_PREPARE_INPROGRESS ||
+			 *    first_ts_upd->start_ts <=
+			 *    first_ts_upd->durable_ts);
+			 */
+			if (r->unstable_timestamp < first_ts_upd->start_ts)
+				r->unstable_timestamp = first_ts_upd->start_ts;
+
+			if (r->unstable_durable_timestamp <
+			    first_ts_upd->durable_ts)
+				r->unstable_durable_timestamp =
+				    first_ts_upd->durable_ts;
+		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
@@ -1487,8 +1539,29 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
+			/*
+			 * The durable timestamp is always set, and usually
+			 * the same as the start timestamp, which makes it OK
+			 * to use the two independently and be confident both
+			 * will be set.
+			 */
+			/*
+			 * FIXME Disable this assertion until fixed by WT-4598.
+			 * WT_ASSERT(session,
+			 *    upd->prepare_state == WT_PREPARE_INPROGRESS ||
+			 *    upd->durable_ts >= upd->start_ts);
+			 */
 			if (upd->start_ts < r->unstable_timestamp)
 				r->unstable_timestamp = upd->start_ts;
+			/*
+			 * Don't set the unstable durable timestamp with the
+			 * durable timestamp of an in-progress prepared update.
+			 * An in-progress prepared update will always have a
+			 * zero durable timestamp.
+			 */
+			if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
+			    upd->durable_ts < r->unstable_durable_timestamp)
+				r->unstable_durable_timestamp = upd->durable_ts;
 		}
 	}
 
@@ -2967,7 +3040,14 @@ done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		multi->page_las.unstable_txn = r->unstable_txn;
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
+		/*
+		 * FIXME Disable this assertion until fixed by WT-4598.
+		 * WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
+		 *    r->unstable_durable_timestamp >= r->unstable_timestamp);
+		 */
 		multi->page_las.unstable_timestamp = r->unstable_timestamp;
+		multi->page_las.unstable_durable_timestamp =
+		    r->unstable_durable_timestamp;
 	}
 
 err:	__wt_scr_free(session, &key);
@@ -4169,6 +4249,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	 * Set the start/stop values to cause failure if they're not set.
 	 * [-Werror=maybe-uninitialized]
 	 */
+	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
 	start_ts = stop_ts = WT_TS_NONE;
 
 	WT_RET(__rec_split_init(session,
@@ -4223,15 +4304,11 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	WT_COL_FOREACH(page, cip, i) {
 		ovfl_state = OVFL_IGNORE;
 		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
-			start_ts = WT_TS_NONE;
-			stop_ts = WT_TS_MAX;
 			nrepeat = 1;
 			ins = NULL;
 			orig_deleted = true;
 		} else {
 			__wt_cell_unpack(session, page, cell, vpack);
-			start_ts = vpack->start_ts;
-			stop_ts = vpack->stop_ts;
 			nrepeat = __wt_cell_rle(vpack);
 			ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
 
@@ -4285,6 +4362,8 @@ record_loop:	/*
 		 */
 		for (n = 0;
 		    n < nrepeat; n += repeat_count, src_recno += repeat_count) {
+			start_ts = vpack->start_ts;
+			stop_ts = vpack->stop_ts;
 			upd = NULL;
 			if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
 				WT_ERR(__rec_upd_select(
@@ -4986,6 +5065,27 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 }
 
 /*
+ * __rec_row_zero_len --
+ *	Return if a zero-length item can be written.
+ */
+static bool
+__rec_row_zero_len(WT_SESSION_IMPL *session,
+    uint64_t txnid, wt_timestamp_t start_ts, wt_timestamp_t stop_ts)
+{
+	/* Before timestamps were stored on pages, it was always possible. */
+	if (!__wt_process.page_version_ts)
+		return (true);
+
+	/*
+	 * The item must be globally visible because we're not writing anything
+	 * on the page.
+	 */
+	return ((start_ts == WT_TS_NONE ||
+	    __wt_txn_visible_all(session, txnid, start_ts)) &&
+	    stop_ts == WT_TS_MAX);
+}
+
+/*
  * __rec_row_leaf --
  *	Reconcile a row-store leaf page.
  */
@@ -5338,14 +5438,10 @@ build:
 			    session, r, key->len + val->len));
 		}
 
-		/*
-		 * Copy the key/value pair onto the page. Zero-length items must
-		 * be globally visible as we're writing nothing to the page.
-		 */
+		/* Copy the key/value pair onto the page. */
 		__rec_image_copy(session, r, key);
 		if (val->len == 0 &&
-		    (!__wt_process.page_version_ts ||
-		    __wt_txn_visible_all(session, txnid, stop_ts)))
+		    __rec_row_zero_len(session, txnid, start_ts, stop_ts))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
@@ -5472,14 +5568,10 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			    session, r, key->len + val->len));
 		}
 
-		/*
-		 * Copy the key/value pair onto the page. Zero-length items must
-		 * be globally visible as we're writing nothing to the page.
-		 */
+		/* Copy the key/value pair onto the page. */
 		__rec_image_copy(session, r, key);
 		if (val->len == 0 &&
-		    (!__wt_process.page_version_ts &&
-		    __wt_txn_visible_all(session, txnid, stop_ts)))
+		    __rec_row_zero_len(session, txnid, start_ts, stop_ts))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
@@ -5913,7 +6005,6 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
 	*is_ovflp = false;
 
 	btree = S2BT(session);
-
 	key = &r->k;
 
 	/* Copy the bytes into the "current" and key buffers. */
@@ -5953,7 +6044,6 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
 	*is_ovflp = false;
 
 	btree = S2BT(session);
-
 	key = &r->k;
 
 	pfx = 0;
@@ -6136,7 +6226,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			    val, WT_CELL_VALUE_OVFL, start_ts, stop_ts, rle));
 		}
 	}
-	val->cell_len = __wt_cell_pack_data(
+	val->cell_len = __wt_cell_pack_value(
 	    session, &val->cell, start_ts, stop_ts, rle, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 
@@ -6373,7 +6463,7 @@ __rec_dictionary_lookup(
 	hash = __wt_hash_fnv64(val->buf.data, val->buf.size);
 	for (dp = __rec_dictionary_skip_search(r->dictionary_head, hash);
 	    dp != NULL && dp->hash == hash; dp = dp->next[0]) {
-		WT_RET(__wt_cell_pack_data_match(
+		WT_RET(__wt_cell_pack_value_match(
 		    (WT_CELL *)((uint8_t *)r->cur_ptr->image.mem + dp->offset),
 		    &val->cell, val->buf.data, &match));
 		if (match) {

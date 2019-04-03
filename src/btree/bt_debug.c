@@ -1169,6 +1169,7 @@ __debug_modify(WT_DBG *ds, WT_UPDATE *upd)
 static int
 __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 {
+	const char *prepare_state;
 	char ts_string[WT_TS_INT_STRING_SIZE];
 
 	for (; upd != NULL; upd = upd->next) {
@@ -1200,16 +1201,38 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 			WT_RET(ds->f(ds, "\tvalue {tombstone}\n"));
 			break;
 		}
+
 		if (upd->txnid == WT_TXN_ABORTED)
 			WT_RET(ds->f(ds, "\t" "txn id aborted"));
 		else
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
-		__wt_timestamp_to_string(
-		    upd->start_ts, ts_string, sizeof(ts_string));
+
+		__wt_timestamp_to_string(upd->start_ts, ts_string);
 		WT_RET(ds->f(ds, ", start_ts %s", ts_string));
-		__wt_timestamp_to_string(
-		    upd->stop_ts, ts_string, sizeof(ts_string));
+		__wt_timestamp_to_string(upd->stop_ts, ts_string);
 		WT_RET(ds->f(ds, ", stop_ts %s", ts_string));
+		if (upd->durable_ts != WT_TS_NONE) {
+			__wt_timestamp_to_string(upd->durable_ts, ts_string);
+			WT_RET(ds->f(ds, ", durable-ts %s", ts_string));
+		}
+
+		prepare_state = NULL;
+		switch (upd->prepare_state) {
+		case WT_PREPARE_INIT:
+			break;
+		case WT_PREPARE_INPROGRESS:
+			prepare_state = "in-progress";
+			break;
+		case WT_PREPARE_LOCKED:
+			prepare_state = "locked";
+			break;
+		case WT_PREPARE_RESOLVED:
+			prepare_state = "resolved";
+			break;
+		}
+		if (prepare_state != NULL)
+			WT_RET(ds->f(ds, ", prepare %s", prepare_state));
+
 		WT_RET(ds->f(ds, "\n"));
 	}
 	return (0);
@@ -1315,12 +1338,9 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	case WT_CELL_ADDR_INT:
 	case WT_CELL_ADDR_LEAF:
 	case WT_CELL_ADDR_LEAF_NO:
-		__wt_timestamp_to_string(unpack->oldest_start_ts,
-		    ts_string[0], sizeof(ts_string[0]));
-		__wt_timestamp_to_string(unpack->newest_start_ts,
-		    ts_string[1], sizeof(ts_string[1]));
-		__wt_timestamp_to_string(unpack->newest_stop_ts,
-		    ts_string[2], sizeof(ts_string[2]));
+		__wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[0]);
+		__wt_timestamp_to_string(unpack->newest_start_ts, ts_string[1]);
+		__wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[2]);
 		WT_RET(ds->f(ds,
 		    ", ts %s,%s,%s", ts_string[0], ts_string[1], ts_string[2]));
 		break;
@@ -1330,10 +1350,8 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	case WT_CELL_VALUE_OVFL:
 	case WT_CELL_VALUE_OVFL_RM:
 	case WT_CELL_VALUE_SHORT:
-		__wt_timestamp_to_string(unpack->start_ts,
-		    ts_string[0], sizeof(ts_string[0]));
-		__wt_timestamp_to_string(unpack->stop_ts,
-		    ts_string[1], sizeof(ts_string[1]));
+		__wt_timestamp_to_string(unpack->start_ts, ts_string[0]);
+		__wt_timestamp_to_string(unpack->stop_ts, ts_string[1]);
 		WT_RET(ds->f(ds, ", ts %s-%s", ts_string[0], ts_string[1]));
 		break;
 	}

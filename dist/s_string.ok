@@ -101,6 +101,7 @@ DUPLICATEV
 DataSet
 DbCursor
 DbEnv
+DeadStores
 Decrement
 Decrypt
 DeleteFileW
@@ -155,6 +156,7 @@ Fsync
 Fuerst
 GCC
 GIDs
+GLIBC
 Gcc
 Geoff
 GetEnvironmentVariableA
@@ -264,6 +266,8 @@ Mutex
 MySecret
 NEEDKEY
 NEEDVALUE
+NOLINT
+NOLINTNEXTLINE
 NOLL
 NOLOCK
 NONINFRINGEMENT
@@ -639,6 +643,7 @@ dbc
 dbs
 dcalloc
 ddd
+deadcode
 decile
 deciles
 decl
@@ -836,7 +841,6 @@ iiu
 ikey
 im
 impl
-incase
 incr
 incrementals
 incrementing
@@ -1049,6 +1053,7 @@ online
 onpage
 oo
 opcode
+openat
 opendir
 openfile
 oplist
@@ -1102,6 +1107,7 @@ primary's
 printf
 printlog
 priv
+prog
 progname
 ps
 psp
@@ -1210,6 +1216,7 @@ stdin
 stdout
 stepp
 str
+strace
 strcmp
 strdup
 strerror
@@ -1257,6 +1264,7 @@ th
 tid
 timedwait
 timestamp
+timestamped
 timestamps
 tmp
 todo

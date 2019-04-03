@@ -162,12 +162,16 @@ file_runtime_config = common_runtime_config + [
             if mixed update use is allowed. If 'key_consistent' is
             set then all updates to a specific key must be the same
             with respect to timestamp usage or not.''',
-            choices=['always','key_consistent', 'never','none']),
+            choices=['always', 'key_consistent', 'never', 'none']),
+        Config('durable_timestamp', 'none', r'''
+            verify that durable timestamps should 'always' or 'never' be used
+            on modifications with this table.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'
             if mixed read use is allowed.''',
-            choices=['always','never','none'])
+            choices=['always', 'never', 'none'])
         ], undoc=True),
     Config('cache_resident', 'false', r'''
         do not ever evict the object's pages from cache. Not compatible with
@@ -620,6 +624,7 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_progress',
             'compact',
+            'compact_progress',
             'error_returns',
             'evict',
             'evict_stuck',
@@ -1285,13 +1290,31 @@ methods = {
         if read timestamp is earlier than oldest timestamp,
         read timestamp will be rounded to oldest timestamp''',
         type='boolean'),
+    Config('roundup_timestamps', '', r'''
+        round up timestamps of the transaction. This setting alters the
+        visibility expected in a transaction. See @ref
+        transaction_timestamps''',
+        type='category', subconfig= [
+        Config('prepared', 'false', r'''
+            applicable only for prepared transactions. Indicates if the prepare
+            timestamp and the commit timestamp of this transaction can be
+            rounded up. If the prepare timestamp is less than the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
+            timestamp. If the commit timestamp is less than the prepare
+            timestamp, the commit timestamp will be rounded up to the prepare
+            timestamp''', type='boolean'),
+        Config('read', 'false', r'''
+            if the read timestamp is less than the oldest timestamp, the
+            read timestamp will be rounded up to the oldest timestamp''',
+            type='boolean'),
+        ]),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
-        type='boolean'),
+        type='boolean')
 ]),
 
 'WT_SESSION.commit_transaction' : Method([

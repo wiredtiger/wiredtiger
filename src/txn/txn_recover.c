@@ -400,8 +400,7 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
 	if (WT_VERBOSE_ISSET(session,
 	    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS)) {
 		__wt_timestamp_to_string(
-		    conn->txn_global.recovery_timestamp,
-		    ts_string, sizeof(ts_string));
+		    conn->txn_global.recovery_timestamp, ts_string);
 		__wt_verbose(session,
 		    WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
 		    "Set global recovery timestamp: %s", ts_string);
@@ -440,6 +439,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 	/* If there is checkpoint logged for the file, apply everything. */
 	if (cval.type != WT_CONFIG_ITEM_STRUCT)
 		WT_INIT_LSN(&lsn);
+	/* NOLINTNEXTLINE(cert-err34-c) */
 	else if (sscanf(cval.str,
 	    "(%" SCNu32 ",%" SCNu32 ")", &lsnfile, &lsnoffset) == 2)
 		WT_SET_LSN(&lsn, lsnfile, lsnoffset);
