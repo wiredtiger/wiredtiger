@@ -708,7 +708,7 @@ __wt_txn_commit_timestamp_validate_r(WT_SESSION_IMPL *session)
 	oldest_ts = stable_ts = 0;
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
-	 * if the given timestamp is older than oldest and/or stable timestamp.
+	 * if the given timestamp is less than oldest and/or stable timestamp.
 	 */
 	has_oldest_ts = txn_global->has_oldest_timestamp;
 	if (has_oldest_ts)
@@ -1023,7 +1023,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 				__wt_timestamp_to_string(
 				    ts_oldest, ts_string[1]);
 				WT_RET_MSG(session, EINVAL, "read timestamp "
-				    "%s older than oldest timestamp %s",
+				    "%s less than the oldest timestamp %s",
 				    ts_string[0], ts_string[1]);
 			}
 		} else {
