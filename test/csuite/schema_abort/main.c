@@ -784,9 +784,17 @@ thread_run(void *arg)
 				    session, tscfg));
 				if (i % PREPARE_YIELD == 0)
 					__wt_yield();
-			}
-			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-			    "commit_timestamp=%" PRIx64, stable_ts));
+
+				testutil_check(__wt_snprintf(
+				    tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64
+				    ",durable_timestamp=%" PRIx64,
+				    stable_ts, stable_ts));
+			} else
+				testutil_check(__wt_snprintf(
+				    tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64, stable_ts));
+
 			testutil_check(
 			    session->commit_transaction(session, tscfg));
 			if (use_prep)
