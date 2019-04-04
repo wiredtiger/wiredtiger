@@ -72,7 +72,7 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
             'durable_timestamp=' + timestamp_str(25)),
-            "/older than the stable timestamp/")
+            "/is less than the stable timestamp/")
         self.session.rollback_transaction()
 
         # Check the cases with an active reader.
@@ -120,7 +120,7 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
             'durable_timestamp=' + timestamp_str(30)),
-            "/older than the first commit timestamp/")
+            "/is less than the commit timestamp/")
         self.session.rollback_transaction()
 
         s_reader.commit_transaction()
