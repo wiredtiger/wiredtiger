@@ -615,9 +615,7 @@ __wt_txn_commit_timestamp_validate_and_roundup(WT_SESSION_IMPL *session)
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 	bool has_oldest_ts, has_stable_ts;
 
-	/*
-	 * Added this redundant initialization to circumvent build failure.
-	 */
+	/* Added this redundant initialization to circumvent build failure. */
 	oldest_ts = stable_ts = 0;
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
@@ -691,7 +689,6 @@ __wt_txn_commit_timestamp_validate_and_roundup(WT_SESSION_IMPL *session)
 			}
 			txn->commit_timestamp = txn->prepare_timestamp;
 		}
-
 	}
 	return (0);
 }
@@ -709,9 +706,7 @@ __wt_txn_durable_timestamp_validate(WT_SESSION_IMPL *session)
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 	bool has_oldest_ts, has_stable_ts;
 
-	/*
-	 * Added this redundant initialization to circumvent build failure.
-	 */
+	/* Added this redundant initialization to circumvent build failure. */
 	oldest_ts = stable_ts = 0;
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
