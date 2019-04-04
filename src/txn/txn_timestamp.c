@@ -802,6 +802,11 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, cfg, "durable_timestamp", 0, &cval);
 	WT_RET_NOTFOUND_OK(ret);
 	if (ret == 0 && cval.len != 0) {
+		if (!prepare)
+			WT_RET_MSG(session, EINVAL,
+			    "durable_timestamp should not be specified for "
+			    "non-prepared transaction");
+
 		WT_TRET(__wt_txn_context_check(session, true));
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "durable", &ts, &cval));
