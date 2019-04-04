@@ -855,13 +855,10 @@ __wt_txn_parse_prepare_timestamp(
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "prepare_timestamp", 0, &cval));
-	if (cval.len == 0) {
-		if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-			WT_RET_MSG(session, EINVAL,
-			    "prepare timestamp is required");
-
+	if (cval.len == 0)
 		return (0);
-	} else if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
+
+	if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
 		WT_RET_MSG(session, EINVAL, "prepare timestamp is already set");
 
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))

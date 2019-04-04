@@ -1094,6 +1094,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Parse and validate the prepare timestamp.  */
 	WT_RET(__wt_txn_parse_prepare_timestamp(session, cfg));
 
+	if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
+		WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
+
 	/*
 	 * We are about to release the snapshot: copy values into any
 	 * positioned cursors so they don't point to updates that could be
