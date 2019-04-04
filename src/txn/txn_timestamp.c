@@ -879,7 +879,6 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts, ts_oldest;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool round_to_oldest;
 
 	txn = &session->txn;
 
@@ -902,18 +901,6 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			    " may only be set once per transaction");
 
 		/*
-		 * Read the configuration here to reduce the span of the
-		 * critical section.
-		 */
-		WT_RET(__wt_config_gets_def(session,
-		    cfg, "round_to_oldest", 0, &cval));
-		round_to_oldest = cval.val;
-		/*
-		 * The read timestamp could be rounded to the oldest timestamp.
-		 */
-		if (F_ISSET(txn, WT_TXN_TS_ROUND_READ))
-			round_to_oldest = true;
-		/*
 		 * This code is not using the timestamp validate function to
 		 * avoid a race between checking and setting transaction
 		 * timestamp.
@@ -926,7 +913,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			 * timestamp then round the read timestamp to
 			 * oldest timestamp.
 			 */
-			if (round_to_oldest)
+			if (F_ISSET(txn, WT_TXN_TS_ROUND_READ))
 				txn->read_timestamp = ts_oldest;
 			else {
 				__wt_readunlock(session, &txn_global->rwlock);
@@ -939,16 +926,11 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 		} else {
 			txn->read_timestamp = ts;
-			/*
-			 * Reset to avoid a verbose message as read
-			 * timestamp is not rounded to oldest timestamp.
-			 */
-			round_to_oldest = false;
 		}
 
 		__wt_txn_set_read_timestamp(session);
 		__wt_readunlock(session, &txn_global->rwlock);
-		if (round_to_oldest &&
+		if (F_ISSET(txn, WT_TXN_TS_ROUND_READ) &&
 		    WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 			/*
 			 * This message is generated here to reduce the span of
