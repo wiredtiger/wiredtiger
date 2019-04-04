@@ -639,7 +639,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
 		testutil_check(session->timestamp_transaction(session, buf));
 
-		if (tinfo->preparetxn) {
+		if (tinfo->prepare_txn) {
 			testutil_check(__wt_snprintf(buf, sizeof(buf),
 			    "durable_timestamp=%" PRIx64, ts));
 			testutil_check(
@@ -650,7 +650,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 	}
 	testutil_check(session->commit_transaction(session, NULL));
 
-	tinfo->preparetxn = false;
+	tinfo->prepare_txn = false;
 }
 
 /*
@@ -664,7 +664,7 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	testutil_check(session->rollback_transaction(session, NULL));
 
-	tinfo->preparetxn = false;
+	tinfo->prepare_txn = false;
 }
 
 /*
@@ -699,7 +699,7 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 
-	tinfo->preparetxn = true;
+	tinfo->prepare_txn = true;
 	return (ret);
 }
 
