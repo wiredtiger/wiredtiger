@@ -835,7 +835,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		WT_ASSERT(session,
 			   txn->prepare_timestamp <= txn->commit_timestamp);
-
 	} else {
 		if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
 			WT_ERR_MSG(session, EINVAL,
