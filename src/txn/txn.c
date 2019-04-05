@@ -800,7 +800,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	wt_timestamp_t prev_commit_timestamp, ts;
+	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
 	u_int i;
 	bool locked, prepare, readonly, update_timestamp;
@@ -818,64 +818,41 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	readonly = txn->mod_count == 0;
 
 	prepare = F_ISSET(txn, WT_TXN_PREPARE);
-	/*
-	 * Clear the prepared round up flag if the transaction is not prepared.
-	 * There is no rounding up to do in that case.
-	 */
-	if (!prepare) {
+
+	/* Set the commit and the durable timestamps. */
+	WT_ERR( __wt_txn_set_timestamp(session, cfg));
+
+	if (prepare) {
+		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+			WT_ERR_MSG(session, EINVAL,
+			    "commit_timestamp is required for a prepared "
+			    "transaction");
+
+		if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+			WT_ERR_MSG(session, EINVAL,
+			    "durable_timestamp is required for a prepared "
+			    "transaction");
+
+		WT_ASSERT(session,
+			   txn->prepare_timestamp <= txn->commit_timestamp);
+
+	} else {
 		if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
 			WT_ERR_MSG(session, EINVAL,
 			    "prepare timestamp is set for non-prepared "
 			    "transaction");
 
+		if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+			WT_ERR_MSG(session, EINVAL,
+			    "durable_timestamp should not be specified for "
+			    "non-prepared transaction");
+
+		/*
+		 * Clear the prepared round up flag if the transaction is not
+		 * prepared.  There is no rounding up to do in that case.
+		 */
 		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 	}
-
-	/* Look for a commit timestamp. */
-	WT_ERR(
-	    __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval));
-	if (cval.len != 0) {
-		WT_ERR(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
-		/*
-		 * For prepared transactions commit timestamp could be earlier
-		 * than stable timestamp.
-		 */
-		WT_ERR(__wt_txn_set_commit_timestamp(session, ts));
-		__wt_txn_publish_commit_timestamp(session);
-	}
-
-	if (prepare && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-		WT_ERR_MSG(session, EINVAL,
-		    "commit_timestamp is required for a prepared transaction");
-
-	/*
-	 * Durable timestamp is required only for a prepared transaction.
-	 * Return error if durable timestamp is not specified for a prepared
-	 * transaction and if durable timestamp is specified for non-prepared
-	 * transactions.
-	 */
-	WT_ERR(__wt_config_gets_def(
-	    session, cfg, "durable_timestamp", 0, &cval));
-	if (cval.len != 0) {
-		WT_ERR(__wt_txn_parse_timestamp(
-		    session, "durable", &ts, &cval));
-		/* Durable timestamp should be later than stable timestamp. */
-		WT_ERR(__wt_txn_set_durable_timestamp(session, ts));
-	}
-
-	if (prepare) {
-		if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-			WT_ERR_MSG(session, EINVAL,
-			    "durable_timestamp is required for a "
-			    "prepared transaction");
-		else
-			WT_ASSERT(session,
-			   txn->prepare_timestamp <= txn->commit_timestamp);
-
-	} else if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-		WT_ERR_MSG(session, EINVAL,
-		    "durable_timestamp should not be specified for "
-		    "non-prepared transaction");
 
 	WT_ASSERT(session, txn->commit_timestamp <= txn->durable_timestamp);
 
@@ -1086,12 +1063,9 @@ err:	/*
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_CONFIG_ITEM cval;
-	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	wt_timestamp_t prepare_ts;
 	u_int i;
 
 	txn = &session->txn;
@@ -1101,16 +1075,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Transaction should not have updated any of the logged tables. */
 	WT_ASSERT(session, txn->logrec == NULL);
 
-	WT_RET(__wt_txn_context_check(session, true));
-
-	/* Look for a prepare timestamp.  */
-	WT_RET(__wt_config_gets_def(session,
-	    cfg, "prepare_timestamp", 0, &cval));
-	if (ret == 0 && cval.len != 0) {
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "prepare", &prepare_ts, &cval));
-		WT_RET(__wt_txn_set_prepare_timestamp(session, prepare_ts));
-	}
+	/* Set the prepare timestamp.  */
+	WT_RET(__wt_txn_set_timestamp(session, cfg));
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
 		WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");

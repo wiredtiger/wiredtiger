@@ -719,10 +719,6 @@ __wt_txn_set_durable_timestamp(
 		WT_RET_MSG(session, EINVAL,
 		    "commit timestamp is needed before the durable timestamp");
 
-	/* Durable timestamp validation is only for prepared transactions. */
-	if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-		return (0);
-
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
 	 * if the given timestamp is less than oldest and/or stable timestamp.
