@@ -1014,7 +1014,7 @@ tasks:
             set -o verbose
             for i in $(seq 10)
             do
-              ./t -1 -h "WT_TEST.$i" cache_minimum=20 rows=1000000 timer=4
+              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../../../test/format/CONFIG.endian
             done
             # Archive the WT_TEST directories which include the generated wt data files
             tar -zcvf WT_TEST.tgz WT_TEST*
@@ -1075,7 +1075,7 @@ tasks:
             set -o verbose
             for i in $(seq 10)
             do
-              ./t -1 -h "WT_TEST.$i" cache_minimum=20 rows=1000000 timer=4
+              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../../../test/format/CONFIG.endian
             done
             # Archive the WT_TEST directories which include the generated wt data files
             tar -zcvf WT_TEST.tgz WT_TEST*
