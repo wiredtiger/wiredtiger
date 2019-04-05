@@ -483,6 +483,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_TXN *txn;
+	wt_timestamp_t read_ts;
 
 	txn = &session->txn;
 
@@ -531,6 +532,11 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	if (cval.val)
 		F_SET(txn, WT_TXN_IGNORE_PREPARE);
 
+	/* Check if read timestamp to be rounded up to the oldest timestamp. */
+	WT_RET(__wt_config_gets_def(session, cfg, "round_to_oldest", 0, &cval));
+	if (cval.val)
+		F_SET(txn, WT_TXN_TS_ROUND_READ);
+
 	/*
 	 * Check if the prepare timestamp and the commit timestamp of a
 	 * prepared transaction need to be rounded up.
@@ -539,18 +545,19 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    session, cfg, "roundup_timestamps.prepared", 0, &cval));
 	if (cval.val)
 		F_SET(txn, WT_TXN_TS_ROUND_PREPARED);
-	else
-		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
 	/* Check if read timestamp needs to be rounded up. */
 	WT_RET(__wt_config_gets_def(
 	    session, cfg, "roundup_timestamps.read", 0, &cval));
 	if (cval.val)
 		F_SET(txn, WT_TXN_TS_ROUND_READ);
-	else
-		F_CLR(txn, WT_TXN_TS_ROUND_READ);
 
-	WT_RET(__wt_txn_parse_read_timestamp(session, cfg));
+	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
+	if (cval.len != 0) {
+		WT_RET(__wt_txn_parse_timestamp(
+		    session, "read", &read_ts, &cval));
+		WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
+	}
 
 	return (0);
 }
@@ -815,8 +822,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Clear the prepared round up flag if the transaction is not prepared.
 	 * There is no rounding up to do in that case.
 	 */
-	if (!prepare)
+	if (!prepare) {
+		if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
+			WT_ERR_MSG(session, EINVAL,
+			    "prepare timestamp is set for non-prepared "
+			    "transaction");
+
 		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
+	}
 
 	/* Look for a commit timestamp. */
 	WT_ERR(
@@ -827,10 +840,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * For prepared transactions commit timestamp could be earlier
 		 * than stable timestamp.
 		 */
-		txn->commit_timestamp = ts;
-		WT_ERR(__wt_txn_commit_timestamp_validate_and_roundup(session));
-		__wt_txn_set_commit_timestamp(session);
-		txn->durable_timestamp = txn->commit_timestamp;
+		WT_ERR(__wt_txn_set_commit_timestamp(session, ts));
+		__wt_txn_publish_commit_timestamp(session);
 	}
 
 	if (prepare && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -849,9 +860,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(__wt_txn_parse_timestamp(
 		    session, "durable", &ts, &cval));
 		/* Durable timestamp should be later than stable timestamp. */
-		txn->durable_timestamp = ts;
-		WT_ERR(__wt_txn_durable_timestamp_validate(session));
-		F_SET(txn, WT_TXN_HAS_TS_DURABLE);
+		WT_ERR(__wt_txn_set_durable_timestamp(session, ts));
 	}
 
 	if (prepare) {
@@ -1077,9 +1086,12 @@ err:	/*
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
+	wt_timestamp_t prepare_ts;
 	u_int i;
 
 	txn = &session->txn;
@@ -1091,8 +1103,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_txn_context_check(session, true));
 
-	/* Parse and validate the prepare timestamp.  */
-	WT_RET(__wt_txn_parse_prepare_timestamp(session, cfg));
+	/* Look for a prepare timestamp.  */
+	WT_RET(__wt_config_gets_def(session,
+	    cfg, "prepare_timestamp", 0, &cval));
+	if (ret == 0 && cval.len != 0) {
+		WT_RET(__wt_txn_parse_timestamp(
+		    session, "prepare", &prepare_ts, &cval));
+		WT_RET(__wt_txn_set_prepare_timestamp(session, prepare_ts));
+	}
 
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
 		WT_RET_MSG(session, EINVAL, "prepare timestamp is not set");
