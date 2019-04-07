@@ -238,6 +238,7 @@ __wt_timestamp_addr_check(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, oldest_start_ts <= newest_stop_ts);
 	}
 #else
+	WT_UNUSED(session);
 	WT_UNUSED(oldest_start_ts);
 	WT_UNUSED(newest_stop_ts);
 #endif
