@@ -3876,8 +3876,8 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
 		/* Copy the value onto the page. */
 		__rec_image_copy(session, r, val);
-		__rec_addr_ts_update(
-		    r, oldest_start_ts, newest_durable_ts, newest_stop_ts);
+		__rec_addr_ts_update(r,
+		    oldest_start_ts, newest_durable_ts, newest_stop_ts);
 	} WT_INTL_FOREACH_END;
 
 	/* Write the remnant page. */
@@ -5027,8 +5027,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Copy the key and value onto the page. */
 		__rec_image_copy(session, r, key);
 		__rec_image_copy(session, r, val);
-		__rec_addr_ts_update(
-		    r, oldest_start_ts, newest_durable_ts, newest_stop_ts);
+		__rec_addr_ts_update(r,
+		    oldest_start_ts, newest_durable_ts, newest_stop_ts);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);

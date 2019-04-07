@@ -1550,9 +1550,6 @@ __wt_checkpoint_tree_reconcile_update(
 
 	btree = S2BT(session);
 
-	__wt_timestamp_addr_check(session,
-	    oldest_start_ts, newest_durable_ts, newest_stop_ts);
-
 	/*
 	 * Reconciliation just wrote a checkpoint, everything has been written.
 	 * Update the checkpoint with reconciliation information. The reason
