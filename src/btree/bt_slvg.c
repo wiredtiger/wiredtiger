@@ -1198,8 +1198,8 @@ __slvg_col_build_internal(
 		ref->page = NULL;
 
 		/*
-		 * Salvage doesn't read tree internal pages, so all key/value
-		 * items are immediately durable, regardless of timestamps.
+		 * Salvage doesn't read tree internal pages, so all pages are
+		 * immediately durable, regardless of the leaf page timestamps.
 		 */
 		WT_ERR(__wt_calloc_one(session, &addr));
 		addr->oldest_start_ts = trk->trk_oldest_start_ts;
@@ -1872,8 +1872,8 @@ __slvg_row_build_internal(
 		ref->page = NULL;
 
 		/*
-		 * Salvage doesn't read tree internal pages, so all key/value
-		 * items are immediately durable, regardless of timestamps.
+		 * Salvage doesn't read tree internal pages, so all pages are
+		 * immediately durable, regardless of the leaf page timestamps.
 		 */
 		WT_ERR(__wt_calloc_one(session, &addr));
 		addr->oldest_start_ts = trk->trk_oldest_start_ts;
