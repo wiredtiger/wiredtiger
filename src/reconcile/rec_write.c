@@ -4217,8 +4217,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
 	struct {
 		WT_ITEM	*value;				/* Value */
-							/* Timestamps */
-		wt_timestamp_t start_ts, durable_ts, stop_ts;
+		wt_timestamp_t start_ts, stop_ts;	/* Timestamps */
 		bool deleted;				/* If deleted */
 	} last;
 	WT_ADDR *addr;
@@ -4251,7 +4250,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	/* Set the "last" values to cause failure if they're not set. */
 	last.value = r->last;
 	last.start_ts = WT_TS_MAX;
-	last.durable_ts = last.stop_ts = WT_TS_NONE;
+	last.stop_ts = WT_TS_NONE;
 	last.deleted = false;
 
 	/*
@@ -4283,7 +4282,7 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	if (salvage != NULL && salvage->missing != 0) {
 		if (salvage->skip == 0) {
 			rle = salvage->missing;
-			last.start_ts = last.durable_ts = WT_TS_NONE;
+			last.start_ts = WT_TS_NONE;
 			last.stop_ts = WT_TS_MAX;
 			last.deleted = true;
 
@@ -4486,8 +4485,7 @@ record_loop:	/*
 						WT_ERR(__rec_col_var_helper(
 						    session, r, salvage,
 						    last.value, last.start_ts,
-						    last.durable_ts,
-						    last.stop_ts,
+						    durable_ts, last.stop_ts,
 						    rle, last.deleted, false));
 						rle = 0;
 					}
@@ -4539,7 +4537,6 @@ compare:		/*
 			if (rle != 0) {
 				if ((!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.durable_ts == durable_ts &&
 				    last.stop_ts == stop_ts)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
@@ -4550,7 +4547,7 @@ compare:		/*
 					continue;
 				}
 				WT_ERR(__rec_col_var_helper(session, r, salvage,
-				    last.value, last.start_ts, last.durable_ts,
+				    last.value, last.start_ts, durable_ts,
 				    last.stop_ts, rle, last.deleted, false));
 			}
 
@@ -4581,7 +4578,6 @@ compare:		/*
 					    session, last.value, data, size));
 			}
 			last.start_ts = start_ts;
-			last.durable_ts = durable_ts;
 			last.stop_ts = stop_ts;
 			last.deleted = deleted;
 			rle = repeat_count;
@@ -4662,7 +4658,6 @@ compare:		/*
 				if (last.deleted &&
 				    (!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.durable_ts == durable_ts &&
 				    last.stop_ts == stop_ts))) {
 					/*
 					 * The record adjustment is decremented
@@ -4726,7 +4721,6 @@ compare:		/*
 			if (rle != 0) {
 				if ((!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.durable_ts == durable_ts &&
 				    last.stop_ts == stop_ts)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
@@ -4737,7 +4731,7 @@ compare:		/*
 					goto next;
 				}
 				WT_ERR(__rec_col_var_helper(session, r, salvage,
-				    last.value, last.start_ts, last.durable_ts,
+				    last.value, last.start_ts, durable_ts,
 				    last.stop_ts, rle, last.deleted, false));
 			}
 
@@ -4761,7 +4755,6 @@ compare:		/*
 
 			/* Ready for the next loop, reset the RLE counter. */
 			last.start_ts = start_ts;
-			last.durable_ts = durable_ts;
 			last.stop_ts = stop_ts;
 			last.deleted = deleted;
 			rle = 1;
@@ -4787,7 +4780,7 @@ next:			if (src_recno == UINT64_MAX)
 	/* If we were tracking a record, write it. */
 	if (rle != 0)
 		WT_ERR(__rec_col_var_helper(session, r, salvage,
-		    last.value, last.start_ts, last.durable_ts, last.stop_ts,
+		    last.value, last.start_ts, durable_ts, last.stop_ts,
 		    rle, last.deleted, false));
 
 	/* Write the remnant page. */
