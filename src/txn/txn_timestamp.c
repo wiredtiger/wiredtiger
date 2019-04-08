@@ -636,8 +636,7 @@ __wt_txn_set_commit_timestamp(
 		 */
 		if (has_oldest_ts && commit_ts < oldest_ts) {
 			__wt_timestamp_to_string(commit_ts, ts_string[0]);
-			__wt_timestamp_to_string(
-			    oldest_ts, ts_string[1]);
+			__wt_timestamp_to_string(oldest_ts, ts_string[1]);
 			WT_RET_MSG(session, EINVAL,
 			    "commit timestamp %s is less than the oldest "
 			    "timestamp %s",
@@ -646,8 +645,7 @@ __wt_txn_set_commit_timestamp(
 
 		if (has_stable_ts && commit_ts < stable_ts) {
 			__wt_timestamp_to_string(commit_ts, ts_string[0]);
-			__wt_timestamp_to_string(
-			    oldest_ts, ts_string[1]);
+			__wt_timestamp_to_string(stable_ts, ts_string[1]);
 			WT_RET_MSG(session, EINVAL,
 			    "commit timestamp %s is less than the stable "
 			    "timestamp %s",
@@ -746,7 +744,7 @@ __wt_txn_set_durable_timestamp(
 
 	if (has_stable_ts && durable_ts < stable_ts) {
 		__wt_timestamp_to_string(durable_ts, ts_string[0]);
-		__wt_timestamp_to_string(oldest_ts, ts_string[1]);
+		__wt_timestamp_to_string(stable_ts, ts_string[1]);
 		WT_RET_MSG(session, EINVAL,
 		    "durable timestamp %s is less than the stable timestamp %s",
 		    ts_string[0], ts_string[1]);
