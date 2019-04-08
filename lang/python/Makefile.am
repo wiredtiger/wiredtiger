@@ -1,4 +1,3 @@
-PYTHON = python
 PYSRC = $(top_srcdir)/lang/python
 PYDIRS = -t $(abs_builddir) -I $(abs_top_srcdir):$(abs_top_builddir) -L $(abs_top_builddir)/.libs
 PYDST = $(abs_builddir)/wiredtiger
