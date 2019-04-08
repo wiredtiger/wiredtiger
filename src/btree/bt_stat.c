@@ -162,13 +162,14 @@ __stat_page_col_var(
 	WT_COL_FOREACH(page, cip, i) {
 		cell = WT_COL_PTR(page, cip);
 		__wt_cell_unpack(session, page, cell, unpack);
-		if (unpack->type == WT_CELL_DEL)
+		if (unpack->type == WT_CELL_DEL) {
 			orig_deleted = true;
-		else {
+			deleted_cnt += __wt_cell_rle(unpack);
+		} else {
 			orig_deleted = false;
 			entry_cnt += __wt_cell_rle(unpack);
-			rle_cnt += __wt_cell_rle(unpack) - 1;
 		}
+		rle_cnt += __wt_cell_rle(unpack) - 1;
 		if (unpack->ovfl)
 			++ovfl_cnt;
 
