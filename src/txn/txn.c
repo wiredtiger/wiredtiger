@@ -819,6 +819,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	prepare = F_ISSET(txn, WT_TXN_PREPARE);
 
+	/*
+	 * Clear the prepared round up flag if the transaction is not prepared.
+	 * There is no rounding up to do in that case.
+	 */
+	if (!prepare)
+		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
+
 	/* Set the commit and the durable timestamps. */
 	WT_ERR( __wt_txn_set_timestamp(session, cfg));
 
@@ -834,7 +841,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			    "transaction");
 
 		WT_ASSERT(session,
-			   txn->prepare_timestamp <= txn->commit_timestamp);
+		   txn->prepare_timestamp <= txn->commit_timestamp);
 	} else {
 		if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
 			WT_ERR_MSG(session, EINVAL,
@@ -845,12 +852,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_ERR_MSG(session, EINVAL,
 			    "durable_timestamp should not be specified for "
 			    "non-prepared transaction");
-
-		/*
-		 * Clear the prepared round up flag if the transaction is not
-		 * prepared.  There is no rounding up to do in that case.
-		 */
-		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 	}
 
 	WT_ASSERT(session, txn->commit_timestamp <= txn->durable_timestamp);

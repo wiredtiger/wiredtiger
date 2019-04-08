@@ -688,6 +688,8 @@ __wt_txn_set_commit_timestamp(
 			commit_ts = txn->prepare_timestamp;
 		}
 	}
+	WT_ASSERT(session, txn->durable_timestamp == WT_TS_NONE ||
+	    txn->durable_timestamp == txn->commit_timestamp);
 	txn->durable_timestamp = txn->commit_timestamp = commit_ts;
 	F_SET(txn, WT_TXN_HAS_TS_COMMIT);
 	return (0);
@@ -983,7 +985,10 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_txn_publish_commit_timestamp(session);
 	}
 
-	/* Look for a durable timestamp. */
+	/*
+	 * Look for a durable timestamp. Durable timestamp should be set only
+	 * after setting the commit timestamp.
+	 */
 	ret = __wt_config_gets_def(
 	    session, cfg, "durable_timestamp", 0, &cval);
 	WT_RET_NOTFOUND_OK(ret);
