@@ -333,7 +333,7 @@ if GetOption("lang-python"):
             "-O",
             "-nodefaultctor",
             "-nodefaultdtor",
-            "-DPY_MAJOR_VERSION=" + pythonMajorVersion
+            "-DPY_MAJOR_VERSION=" + str(pythonMajorVersion)
             ])
     # Ignore warnings in swig-generated code.
     pythonEnv['CFLAGS'].remove("/WX")
