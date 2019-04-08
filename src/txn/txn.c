@@ -646,6 +646,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	/* Ensure the transaction flags are cleared on exit */
 	txn->flags = 0;
 	txn->prepare_timestamp = WT_TS_NONE;
+	txn->durable_timestamp = WT_TS_NONE;
 }
 
 /*
@@ -854,7 +855,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			    "non-prepared transaction");
 	}
 
-	WT_ASSERT(session, txn->commit_timestamp <= txn->durable_timestamp);
+	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+		WT_ASSERT(session,
+		    txn->commit_timestamp <= txn->durable_timestamp);
 
 	WT_ERR(__txn_commit_timestamps_assert(session));
 
