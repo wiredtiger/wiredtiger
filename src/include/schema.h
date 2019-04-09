@@ -260,22 +260,39 @@ struct __wt_table {
 } while (0)
 
 /*
- * WT_WITH_HOTBACKUP_READ_LOCK, WT_WITH_HOTBACKUP_WRITE_LOCK --
- * 	Acquire the hot backup lock, perform an operation, drop the lock.
+ * WT_WITH_HOTBACKUP_READ_LOCK --
+ *	Acquire the hot backup read lock and perform an operation provided that
+ *	there is no hot backup in progress.  The skipp parameter can be used to
+ *	check whether the operation got skipped or not.
  */
-#define	WT_WITH_HOTBACKUP_READ_LOCK(session, op) do {			\
+#define	WT_WITH_HOTBACKUP_READ_LOCK(session, op, skipp) do {		\
 	WT_CONNECTION_IMPL *__conn = S2C(session);			\
+	bool *__skipp = skipp;						\
+	if (__skipp)							\
+		*__skipp = true;					\
 	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {		\
-		op;							\
+		if (!__conn->hot_backup) {				\
+			if (__skipp)					\
+				*__skipp = false;			\
+			op;						\
+		}							\
 	} else {							\
 		__wt_readlock(session, &__conn->hot_backup_lock);	\
 		F_SET(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
-		op;							\
+		if (!__conn->hot_backup) {				\
+			if (__skipp)					\
+				*__skipp = false;			\
+			op;						\
+		}							\
 		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
 		__wt_readunlock(session, &__conn->hot_backup_lock);	\
 	}								\
 } while (0)
 
+/*
+ * WT_WITH_HOTBACKUP_WRITE_LOCK --
+ *	Acquire the hot backup write lock and perform an operation.
+ */
 #define	WT_WITH_HOTBACKUP_WRITE_LOCK(session, op) do {			\
 	WT_CONNECTION_IMPL *__conn = S2C(session);			\
 	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP_WRITE)) {	\
@@ -289,6 +306,26 @@ struct __wt_table {
 		op;							\
 		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_WRITE);	\
 		__wt_writeunlock(session, &__conn->hot_backup_lock);	\
+	}								\
+} while (0)
+
+/*
+ * WT_WITH_HOTBACKUP_READ_LOCK_CKPT --
+ *	Acquire the hot backup read lock and perform an operation.  This is a
+ *	specialised macro for the checkpoint logic.  Code that wishes to acquire
+ *	the read lock should default to using WT_WITH_HOTBACKUP_READ_LOCK which
+ *	checks that there is no hot backup in progress.
+ */
+#define	WT_WITH_HOTBACKUP_READ_LOCK_CKPT(session, op) do {		\
+	WT_CONNECTION_IMPL *__conn = S2C(session);			\
+	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {		\
+		op;							\
+	} else {							\
+		__wt_readlock(session, &__conn->hot_backup_lock);	\
+		F_SET(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
+		op;							\
+		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
+		__wt_readunlock(session, &__conn->hot_backup_lock);	\
 	}								\
 } while (0)
 

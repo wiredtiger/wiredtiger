@@ -343,12 +343,12 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
- * __log_extract_all_lognum --
- *	Extract log numbers across an array of log files.  Intended to be called
- *	while holding the hot backup read lock.
+ * __log_archive_once_int --
+ *	Helper for __log_archive_once.  Intended to be called while holding the
+ *	hot backup read lock.
  */
 static int
-__log_extract_all_lognum(WT_SESSION_IMPL *session,
+__log_archive_once_int(WT_SESSION_IMPL *session,
     uint32_t backup_file, char **logfiles, u_int logcount, uint32_t min_lognum)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -416,8 +416,8 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	 * if we are the backup.
 	 */
 	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    ret = __log_extract_all_lognum(
-		session, backup_file, logfiles, logcount, min_lognum));
+	    ret = __log_archive_once_int(
+		session, backup_file, logfiles, logcount, min_lognum), NULL);
 	WT_ERR(ret);
 
 	/*
@@ -609,16 +609,15 @@ __log_file_server(void *arg)
 				 * truncate: both are OK, it's just more work
 				 * during cursor traversal.
 				 */
-				if (!conn->hot_backup) {
+				if (!conn->hot_backup &&
+				    conn->log_cursors == 0) {
 					WT_WITH_HOTBACKUP_READ_LOCK(session,
-					    if (!conn->hot_backup &&
-						conn->log_cursors == 0)
-						WT_ERR_ERROR_OK(
-						    __wt_ftruncate(
-							session,
-							close_fh,
-							close_end_lsn.l.offset),
-							ENOTSUP));
+					    WT_ERR_ERROR_OK(
+						__wt_ftruncate(
+						    session,
+						    close_fh,
+						    close_end_lsn.l.offset),
+						    ENOTSUP), NULL);
 				}
 				WT_SET_LSN(&close_end_lsn,
 				    close_end_lsn.l.file + 1, 0);
@@ -990,8 +989,7 @@ __log_server(void *arg)
 				 * the database directory.
 				 */
 				WT_WITH_HOTBACKUP_READ_LOCK(session,
-				    if (!conn->hot_backup)
-					ret = __log_prealloc_once(session));
+				    ret = __log_prealloc_once(session), NULL);
 				WT_ERR(ret);
 			}
 

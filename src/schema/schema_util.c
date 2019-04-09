@@ -9,12 +9,12 @@
 #include "wt_internal.h"
 
 /*
- * __wt_schema_backup_check_int --
+ * __schema_backup_check_int --
  *	Helper for __wt_schema_backup_check.  Intended to be called while
  *	holding the hot backup read lock.
  */
 static int
-__wt_schema_backup_check_int(WT_SESSION_IMPL *session, const char *name)
+__schema_backup_check_int(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 	int i;
@@ -56,7 +56,7 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
 	if (!conn->hot_backup)
 		return (0);
 	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    ret = __wt_schema_backup_check_int(session, name));
+	    ret = __schema_backup_check_int(session, name), NULL);
 	return (ret);
 }
 

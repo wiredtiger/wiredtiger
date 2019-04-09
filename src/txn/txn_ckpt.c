@@ -1461,7 +1461,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	__wt_free(session, name_alloc);
 	F_SET(ckpt, WT_CKPT_ADD);
 
-	WT_WITH_HOTBACKUP_READ_LOCK(session,
+	WT_WITH_HOTBACKUP_READ_LOCK_CKPT(session,
 	    ret = __checkpoint_lock_dirty_tree_int(
 		session, is_checkpoint, force, btree, ckpt, ckptbase));
 	WT_ERR(ret);
