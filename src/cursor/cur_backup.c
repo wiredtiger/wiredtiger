@@ -266,7 +266,7 @@ __backup_start(WT_SESSION_IMPL *session,
 		 * complete and valid.
 		 */
 		WT_WITH_HOTBACKUP_WRITE_LOCK(session,
-		    (conn->hot_backup = true, conn->hot_backup_list = NULL));
+		    WT_CONN_HOTBACKUP_START(conn));
 
 		/* We're the lock holder, we own cleanup. */
 		F_SET(cb, WT_CURBACKUP_LOCKER);
