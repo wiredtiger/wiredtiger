@@ -1515,14 +1515,11 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
 		if (first_ts_upd != NULL) {
-			/*
-			 * FIXME Disable this assertion until fixed by WT-4598.
-			 * WT_ASSERT(session,
-			 *    first_ts_upd->prepare_state ==
-			 *    WT_PREPARE_INPROGRESS ||
-			 *    first_ts_upd->start_ts <=
-			 *    first_ts_upd->durable_ts);
-			 */
+			WT_ASSERT(session,
+			   first_ts_upd->prepare_state ==
+			   WT_PREPARE_INPROGRESS ||
+			   first_ts_upd->start_ts <= first_ts_upd->durable_ts);
+
 			if (r->unstable_timestamp < first_ts_upd->start_ts)
 				r->unstable_timestamp = first_ts_upd->start_ts;
 
@@ -1545,12 +1542,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * to use the two independently and be confident both
 			 * will be set.
 			 */
-			/*
-			 * FIXME Disable this assertion until fixed by WT-4598.
-			 * WT_ASSERT(session,
-			 *    upd->prepare_state == WT_PREPARE_INPROGRESS ||
-			 *    upd->durable_ts >= upd->start_ts);
-			 */
+			WT_ASSERT(session,
+			   upd->prepare_state == WT_PREPARE_INPROGRESS ||
+			   upd->durable_ts >= upd->start_ts);
+
 			if (upd->start_ts < r->unstable_timestamp)
 				r->unstable_timestamp = upd->start_ts;
 			/*
@@ -3040,11 +3035,10 @@ done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		multi->page_las.unstable_txn = r->unstable_txn;
 		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
-		/*
-		 * FIXME Disable this assertion until fixed by WT-4598.
-		 * WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
-		 *    r->unstable_durable_timestamp >= r->unstable_timestamp);
-		 */
+
+		WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
+		    r->unstable_durable_timestamp >= r->unstable_timestamp);
+
 		multi->page_las.unstable_timestamp = r->unstable_timestamp;
 		multi->page_las.unstable_durable_timestamp =
 		    r->unstable_durable_timestamp;
