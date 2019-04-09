@@ -348,23 +348,17 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
  *	hot backup read lock.
  */
 static int
-__log_archive_once_int(WT_SESSION_IMPL *session,
-    uint32_t backup_file, char **logfiles, u_int logcount, uint32_t min_lognum)
+__log_archive_once_int(
+    WT_SESSION_IMPL *session, char **logfiles, u_int logcount, uint32_t min_lognum)
 {
-	WT_CONNECTION_IMPL *conn;
 	uint32_t lognum;
 	u_int i;
 
-	conn = S2C(session);
-
-	if (!conn->hot_backup || backup_file != 0) {
-		for (i = 0; i < logcount; i++) {
-			WT_RET(__wt_log_extract_lognum(
-			    session, logfiles[i], &lognum));
-			if (lognum < min_lognum)
-				WT_RET(__wt_log_remove(
-				    session, WT_LOG_FILENAME, lognum));
-		}
+	for (i = 0; i < logcount; i++) {
+		WT_RET(__wt_log_extract_lognum(session, logfiles[i], &lognum));
+		if (lognum < min_lognum)
+			WT_RET(__wt_log_remove(
+			    session, WT_LOG_FILENAME, lognum));
 	}
 
 	return (0);
@@ -412,12 +406,16 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	    session, conn->log_path, WT_LOG_FILENAME, &logfiles, &logcount));
 
 	/*
-	 * We can only archive files if a hot backup is not in progress or
-	 * if we are the backup.
+	 * If backup_file is non-zero we know we're coming from an incremental
+	 * backup cursor.  In that case just perform the archive operation
+	 * without the lock.
 	 */
-	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    ret = __log_archive_once_int(
-		session, backup_file, logfiles, logcount, min_lognum), NULL);
+	if (backup_file != 0)
+		ret = __log_archive_once_int(session, logfiles, logcount, min_lognum);
+	else
+		WT_WITH_HOTBACKUP_READ_LOCK(session,
+		    ret = __log_archive_once_int(
+		        session, logfiles, logcount, min_lognum), NULL);
 	WT_ERR(ret);
 
 	/*

@@ -55,8 +55,8 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
 	conn = S2C(session);
 	if (!conn->hot_backup)
 		return (0);
-	WT_WITH_HOTBACKUP_READ_LOCK(session,
-	    ret = __schema_backup_check_int(session, name), NULL);
+	WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
+	    ret = __schema_backup_check_int(session, name));
 	return (ret);
 }
 

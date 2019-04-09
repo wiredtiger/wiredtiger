@@ -1273,7 +1273,7 @@ __drop_to(WT_CKPT *ckptbase, const char *name, size_t len)
 
 /*
  * __checkpoint_lock_dirty_tree_int --
- *	Helper for __checkpoint_lock_dirty_tree. Intended to be called while
+ *	Helper for __checkpoint_lock_dirty_tree.  Intended to be called while
  *	holding the hot backup lock.
  */
 static int
@@ -1461,7 +1461,12 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	__wt_free(session, name_alloc);
 	F_SET(ckpt, WT_CKPT_ADD);
 
-	WT_WITH_HOTBACKUP_READ_LOCK_CKPT(session,
+	/*
+	 * There is some interaction between backups and checkpoints.  Perform
+	 * all backup related operations that the checkpoint needs now, while
+	 * holding the hot backup read lock.
+	 */
+	WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
 	    ret = __checkpoint_lock_dirty_tree_int(
 		session, is_checkpoint, force, btree, ckpt, ckptbase));
 	WT_ERR(ret);

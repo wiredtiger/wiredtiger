@@ -267,21 +267,20 @@ struct __wt_table {
  */
 #define	WT_WITH_HOTBACKUP_READ_LOCK(session, op, skipp) do {		\
 	WT_CONNECTION_IMPL *__conn = S2C(session);			\
-	bool *__skipp = skipp;						\
-	if (__skipp)							\
-		*__skipp = true;					\
+	if ((skipp) != (bool *)NULL)					\
+		*(bool *)(skipp) = true;				\
 	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {		\
 		if (!__conn->hot_backup) {				\
-			if (__skipp)					\
-				*__skipp = false;			\
+			if ((skipp) != (bool *)NULL)			\
+				*(bool *)(skipp) = false;		\
 			op;						\
 		}							\
 	} else {							\
 		__wt_readlock(session, &__conn->hot_backup_lock);	\
 		F_SET(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
 		if (!__conn->hot_backup) {				\
-			if (__skipp)					\
-				*__skipp = false;			\
+			if ((skipp) != (bool *)NULL)			\
+				*(bool *)(skipp) = false;		\
 			op;						\
 		}							\
 		F_CLR(session, WT_SESSION_LOCKED_HOTBACKUP_READ);	\
@@ -310,13 +309,14 @@ struct __wt_table {
 } while (0)
 
 /*
- * WT_WITH_HOTBACKUP_READ_LOCK_CKPT --
- *	Acquire the hot backup read lock and perform an operation.  This is a
- *	specialised macro for the checkpoint logic.  Code that wishes to acquire
- *	the read lock should default to using WT_WITH_HOTBACKUP_READ_LOCK which
- *	checks that there is no hot backup in progress.
+ * WT_WITH_HOTBACKUP_READ_LOCK_UNCOND --
+ *	Acquire the hot backup read lock and perform an operation
+ *	unconditionally.  This is a specialized macro for a few isolated cases.
+ *	Code that wishes to acquire the read lock should default to using
+ *	WT_WITH_HOTBACKUP_READ_LOCK which checks that there is no hot backup in
+ *	progress.
  */
-#define	WT_WITH_HOTBACKUP_READ_LOCK_CKPT(session, op) do {		\
+#define	WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session, op) do {		\
 	WT_CONNECTION_IMPL *__conn = S2C(session);			\
 	if (F_ISSET(session, WT_SESSION_LOCKED_HOTBACKUP)) {		\
 		op;							\
