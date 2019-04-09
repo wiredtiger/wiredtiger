@@ -4238,7 +4238,6 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	bool deleted, orig_deleted, update_no_copy;
 	const void *data;
 
-	addr = pageref->addr;
 	btree = S2BT(session);
 	vpack = &_vpack;
 	cbt = &r->update_modify_cbt;
@@ -4246,6 +4245,20 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	upd = NULL;
 	size = 0;
 	data = NULL;
+
+	/*
+	 * Acquire the newest-durable timestamp for this page so we can roll it
+	 * forward. If it exists, it's in the WT_REF structure or the parent's
+	 * disk image.
+	 */
+	if ((addr = pageref->addr) == NULL)
+		newest_durable_ts = WT_TS_NONE;
+	else if (__wt_off_page(pageref->home, addr))
+		newest_durable_ts = addr->newest_durable_ts;
+	else {
+		__wt_cell_unpack(session, pageref->home, pageref->addr, vpack);
+		newest_durable_ts = vpack->newest_durable_ts;
+	}
 
 	/* Set the "last" values to cause failure if they're not set. */
 	last.value = r->last;
@@ -4260,7 +4273,6 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	/* NOLINTNEXTLINE(clang-analyzer-deadcode.DeadStores) */
 	start_ts = WT_TS_MAX;
 	durable_ts = stop_ts = WT_TS_NONE;
-	newest_durable_ts = addr == NULL ? WT_TS_NONE : addr->newest_durable_ts;
 
 	WT_RET(__rec_split_init(session,
 	    r, page, pageref->ref_recno, btree->maxleafpage_precomp));
@@ -5134,16 +5146,28 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	void *copy;
 	const void *p;
 
-	addr = pageref->addr;
 	btree = S2BT(session);
 	cbt = &r->update_modify_cbt;
 	page = pageref->page;
-	newest_durable_ts = addr == NULL ? WT_TS_NONE : addr->newest_durable_ts;
 	slvg_skip = salvage == NULL ? 0 : salvage->skip;
 
 	key = &r->k;
 	val = &r->v;
 	vpack = &_vpack;
+
+	/*
+	 * Acquire the newest-durable timestamp for this page so we can roll it
+	 * forward. If it exists, it's in the WT_REF structure or the parent's
+	 * disk image.
+	 */
+	if ((addr = pageref->addr) == NULL)
+		newest_durable_ts = WT_TS_NONE;
+	else if (__wt_off_page(pageref->home, addr))
+		newest_durable_ts = addr->newest_durable_ts;
+	else {
+		__wt_cell_unpack(session, pageref->home, pageref->addr, vpack);
+		newest_durable_ts = vpack->newest_durable_ts;
+	}
 
 	WT_RET(__rec_split_init(
 	    session, r, page, 0, btree->maxleafpage_precomp));
