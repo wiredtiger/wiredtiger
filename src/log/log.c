@@ -1515,7 +1515,7 @@ __log_truncate_file(WT_SESSION_IMPL *session, WT_FH *log_fh, wt_off_t offset)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG *log;
-	bool skipp, truncate;
+	bool skipp;
 
 	conn = S2C(session);
 	log = conn->log;
