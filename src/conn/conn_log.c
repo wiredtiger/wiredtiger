@@ -348,8 +348,8 @@ __wt_logmgr_reconfig(WT_SESSION_IMPL *session, const char **cfg)
  *	hot backup read lock.
  */
 static int
-__log_archive_once_int(
-    WT_SESSION_IMPL *session, char **logfiles, u_int logcount, uint32_t min_lognum)
+__log_archive_once_int(WT_SESSION_IMPL *session,
+    char **logfiles, u_int logcount, uint32_t min_lognum)
 {
 	uint32_t lognum;
 	u_int i;
@@ -411,11 +411,12 @@ __log_archive_once(WT_SESSION_IMPL *session, uint32_t backup_file)
 	 * without the lock.
 	 */
 	if (backup_file != 0)
-		ret = __log_archive_once_int(session, logfiles, logcount, min_lognum);
+		ret = __log_archive_once_int(
+		    session, logfiles, logcount, min_lognum);
 	else
 		WT_WITH_HOTBACKUP_READ_LOCK(session,
 		    ret = __log_archive_once_int(
-		        session, logfiles, logcount, min_lognum), NULL);
+			session, logfiles, logcount, min_lognum), NULL);
 	WT_ERR(ret);
 
 	/*
