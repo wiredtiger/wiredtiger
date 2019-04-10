@@ -38,6 +38,7 @@ def timestamp_str(t):
 class test_stat09(wttest.WiredTigerTestCase):
     tablename = 'test_stat09'
     uri = 'table:' + tablename
+    conn_config = 'statistics=(all)'
 
     # Do a quick check of the entries in the stats cursor, the "lookfor"
     # string should appear with the exact val of "expected_val".
