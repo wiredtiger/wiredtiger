@@ -448,13 +448,11 @@ recno_chk:	if (recno != vs->record_total + 1)
 		break;
 	case WT_PAGE_COL_VAR:
 		recno = 0;
-		WT_COL_FOREACH(page, cip, i)
-			if ((cell = WT_COL_PTR(page, cip)) == NULL)
-				++recno;
-			else {
-				__wt_cell_unpack(session, page, cell, unpack);
-				recno += __wt_cell_rle(unpack);
-			}
+		WT_COL_FOREACH(page, cip, i) {
+			cell = WT_COL_PTR(page, cip);
+			__wt_cell_unpack(session, page, cell, unpack);
+			recno += __wt_cell_rle(unpack);
+		}
 		vs->record_total += recno;
 		break;
 	}

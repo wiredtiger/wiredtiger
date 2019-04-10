@@ -4303,57 +4303,52 @@ __rec_col_var(WT_SESSION_IMPL *session,
 	/* For each entry in the in-memory page... */
 	WT_COL_FOREACH(page, cip, i) {
 		ovfl_state = OVFL_IGNORE;
-		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
-			nrepeat = 1;
-			ins = NULL;
-			orig_deleted = true;
-		} else {
-			__wt_cell_unpack(session, page, cell, vpack);
-			nrepeat = __wt_cell_rle(vpack);
-			ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
+		cell = WT_COL_PTR(page, cip);
+		__wt_cell_unpack(session, page, cell, vpack);
+		nrepeat = __wt_cell_rle(vpack);
+		ins = WT_SKIP_FIRST(WT_COL_UPDATE(page, cip));
 
-			/*
-			 * If the original value is "deleted", there's no value
-			 * to compare, we're done.
-			 */
-			orig_deleted = vpack->type == WT_CELL_DEL;
-			if (orig_deleted)
-				goto record_loop;
+		/*
+		 * If the original value is "deleted", there's no value
+		 * to compare, we're done.
+		 */
+		orig_deleted = vpack->type == WT_CELL_DEL;
+		if (orig_deleted)
+			goto record_loop;
 
-			/*
-			 * Overflow items are tricky: we don't know until we're
-			 * finished processing the set of values if we need the
-			 * overflow value or not.  If we don't use the overflow
-			 * item at all, we have to discard it from the backing
-			 * file, otherwise we'll leak blocks on the checkpoint.
-			 * That's safe because if the backing overflow value is
-			 * still needed by any running transaction, we'll cache
-			 * a copy in the update list.
-			 *
-			 * Regardless, we avoid copying in overflow records: if
-			 * there's a WT_INSERT entry that modifies a reference
-			 * counted overflow record, we may have to write copies
-			 * of the overflow record, and in that case we'll do the
-			 * comparisons, but we don't read overflow items just to
-			 * see if they match records on either side.
-			 */
-			if (vpack->ovfl) {
-				ovfl_state = OVFL_UNUSED;
-				goto record_loop;
-			}
-
-			/*
-			 * If data is Huffman encoded, we have to decode it in
-			 * order to compare it with the last item we saw, which
-			 * may have been an update string.  This guarantees we
-			 * find every single pair of objects we can RLE encode,
-			 * including applications updating an existing record
-			 * where the new value happens (?) to match a Huffman-
-			 * encoded value in a previous or next record.
-			 */
-			WT_ERR(__wt_dsk_cell_data_ref(
-			    session, WT_PAGE_COL_VAR, vpack, orig));
+		/*
+		 * Overflow items are tricky: we don't know until we're
+		 * finished processing the set of values if we need the
+		 * overflow value or not.  If we don't use the overflow
+		 * item at all, we have to discard it from the backing
+		 * file, otherwise we'll leak blocks on the checkpoint.
+		 * That's safe because if the backing overflow value is
+		 * still needed by any running transaction, we'll cache
+		 * a copy in the update list.
+		 *
+		 * Regardless, we avoid copying in overflow records: if
+		 * there's a WT_INSERT entry that modifies a reference
+		 * counted overflow record, we may have to write copies
+		 * of the overflow record, and in that case we'll do the
+		 * comparisons, but we don't read overflow items just to
+		 * see if they match records on either side.
+		 */
+		if (vpack->ovfl) {
+			ovfl_state = OVFL_UNUSED;
+			goto record_loop;
 		}
+
+		/*
+		 * If data is Huffman encoded, we have to decode it in
+		 * order to compare it with the last item we saw, which
+		 * may have been an update string.  This guarantees we
+		 * find every single pair of objects we can RLE encode,
+		 * including applications updating an existing record
+		 * where the new value happens (?) to match a Huffman-
+		 * encoded value in a previous or next record.
+		 */
+		WT_ERR(__wt_dsk_cell_data_ref(
+		    session, WT_PAGE_COL_VAR, vpack, orig));
 
 record_loop:	/*
 		 * Generate on-page entries: loop repeat records, looking for

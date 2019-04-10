@@ -993,13 +993,9 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 	recno = ref->ref_recno;
 
 	WT_COL_FOREACH(page, cip, i) {
-		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
-			unpack = NULL;
-			rle = 1;
-		} else {
-			__wt_cell_unpack(ds->session, page, cell, unpack);
-			rle = __wt_cell_rle(unpack);
-		}
+		cell = WT_COL_PTR(page, cip);
+		__wt_cell_unpack(ds->session, page, cell, unpack);
+		rle = __wt_cell_rle(unpack);
 		WT_RET(__wt_snprintf(
 		    tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
 		WT_RET(

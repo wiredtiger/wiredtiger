@@ -990,8 +990,6 @@ struct __wt_col {
 	 * of a base pointer.  The on-page data is a WT_CELL (same as row-store
 	 * pages).
 	 *
-	 * If the value is 0, it's a single, deleted record.
-	 *
 	 * Obscure the field name, code shouldn't use WT_COL->__col_value, the
 	 * public interface is WT_COL_PTR and WT_COL_PTR_SET.
 	 */
@@ -1004,8 +1002,7 @@ struct __wt_col {
  * not exist on the page, return a NULL.)
  */
 #define	WT_COL_PTR(page, cip)						\
-	((cip)->__col_value == 0 ?					\
-	    NULL : WT_PAGE_REF_OFFSET(page, (cip)->__col_value))
+	WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
 #define	WT_COL_PTR_SET(cip, value)					\
 	(cip)->__col_value = (value)
 
