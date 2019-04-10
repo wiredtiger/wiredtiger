@@ -1330,8 +1330,8 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
 	    commit_timestamp - txn_global->oldest_timestamp);
 
-	if (__wt_txn_get_pinned_timestamp(session,
-	    &oldest_active_read_timestamp, WT_TXN_TS_INCLUDE_CKPT) == 0)
+	if (__wt_txn_get_pinned_timestamp(
+	    session, &oldest_active_read_timestamp, 0) == 0)
 		WT_STAT_SET(session, stats,
 		    txn_timestamp_oldest_active_read,
 		    oldest_active_read_timestamp);
