@@ -586,6 +586,7 @@ connection_stats = [
     TxnStat('txn_snapshots_created', 'number of named snapshots created'),
     TxnStat('txn_snapshots_dropped', 'number of named snapshots dropped'),
     TxnStat('txn_sync', 'transaction sync calls'),
+    TxnStat('txn_timestamp_oldest_active_read', 'transaction oldest active read timestamp', 'no_clear,no_scale'),
     TxnStat('txn_update_conflict', 'update conflicts'),
 
     ##########################################

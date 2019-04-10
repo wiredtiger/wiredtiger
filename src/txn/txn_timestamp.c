@@ -8,12 +8,6 @@
 
 #include "wt_internal.h"
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_TS_ALREADY_LOCKED	0x1u
-#define	WT_TXN_TS_INCLUDE_CKPT		0x2u
-#define	WT_TXN_TS_INCLUDE_OLDEST	0x4u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
-
 /*
  * __wt_timestamp_to_string --
  *	Convert a timestamp to the MongoDB string representation.
@@ -164,11 +158,11 @@ __txn_get_read_timestamp(
 }
 
 /*
- * __txn_get_pinned_timestamp --
+ * __wt_txn_get_pinned_timestamp --
  *	Calculate the current pinned timestamp.
  */
-static int
-__txn_get_pinned_timestamp(
+int
+__wt_txn_get_pinned_timestamp(
    WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uint32_t flags)
 {
 	WT_CONNECTION_IMPL *conn;
@@ -289,10 +283,10 @@ __txn_global_query_timestamp(
 			return (WT_NOTFOUND);
 		ts = txn_global->oldest_timestamp;
 	} else if (WT_STRING_MATCH("oldest_reader", cval.str, cval.len))
-		WT_RET(__txn_get_pinned_timestamp(
+		WT_RET(__wt_txn_get_pinned_timestamp(
 		    session, &ts, WT_TXN_TS_INCLUDE_CKPT));
 	else if (WT_STRING_MATCH("pinned", cval.str, cval.len))
-		WT_RET(__txn_get_pinned_timestamp(session, &ts,
+		WT_RET(__wt_txn_get_pinned_timestamp(session, &ts,
 		    WT_TXN_TS_INCLUDE_CKPT | WT_TXN_TS_INCLUDE_OLDEST));
 	else if (WT_STRING_MATCH("recovery", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
@@ -381,7 +375,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 		return (0);
 
 	/* Scan to find the global pinned timestamp. */
-	if ((ret = __txn_get_pinned_timestamp(
+	if ((ret = __wt_txn_get_pinned_timestamp(
 	    session, &pinned_timestamp, WT_TXN_TS_INCLUDE_OLDEST)) != 0)
 		return (ret == WT_NOTFOUND ? 0 : ret);
 
@@ -397,7 +391,7 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 	 * Scan the global pinned timestamp again, it's possible that it got
 	 * changed after the previous scan.
 	 */
-	if ((ret = __txn_get_pinned_timestamp(session, &pinned_timestamp,
+	if ((ret = __wt_txn_get_pinned_timestamp(session, &pinned_timestamp,
 	    WT_TXN_TS_ALREADY_LOCKED | WT_TXN_TS_INCLUDE_OLDEST)) != 0) {
 		__wt_writeunlock(session, &txn_global->rwlock);
 		return (ret == WT_NOTFOUND ? 0 : ret);

@@ -1132,6 +1132,7 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction failures due to cache overflow",
 	"transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
 	"transaction: transaction fsync duration for checkpoint after allocating the transaction ID (usecs)",
+	"transaction: transaction oldest active read timestamp",
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
@@ -1563,6 +1564,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_fail_cache = 0;
 	stats->txn_checkpoint_fsync_post = 0;
 		/* not clearing txn_checkpoint_fsync_post_duration */
+		/* not clearing txn_timestamp_oldest_active_read */
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
@@ -2159,6 +2161,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_checkpoint_fsync_post);
 	to->txn_checkpoint_fsync_post_duration +=
 	    WT_STAT_READ(from, txn_checkpoint_fsync_post_duration);
+	to->txn_timestamp_oldest_active_read +=
+	    WT_STAT_READ(from, txn_timestamp_oldest_active_read);
 	to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
 	to->txn_pinned_checkpoint_range +=
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);

@@ -703,6 +703,7 @@ struct __wt_connection_stats {
 	int64_t txn_fail_cache;
 	int64_t txn_checkpoint_fsync_post;
 	int64_t txn_checkpoint_fsync_post_duration;
+	int64_t txn_timestamp_oldest_active_read;
 	int64_t txn_pinned_range;
 	int64_t txn_pinned_checkpoint_range;
 	int64_t txn_pinned_snapshot_range;
