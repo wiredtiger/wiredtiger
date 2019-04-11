@@ -1331,13 +1331,19 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    commit_timestamp - txn_global->oldest_timestamp);
 
 	if (__wt_txn_get_pinned_timestamp(
-	    session, &oldest_active_read_timestamp, 0) == 0)
+	    session, &oldest_active_read_timestamp, 0) == 0) {
 		WT_STAT_SET(session, stats,
 		    txn_timestamp_oldest_active_read,
 		    oldest_active_read_timestamp);
-	else
+		WT_STAT_SET(session, stats,
+		    txn_pinned_timestamp_reader,
+		    commit_timestamp - oldest_active_read_timestamp);
+	} else {
 		WT_STAT_SET(session,
 		    stats, txn_timestamp_oldest_active_read, 0);
+		WT_STAT_SET(session,
+		    stats, txn_pinned_timestamp_reader, 0);
+	}
 
 	WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
 	    snapshot_pinned == WT_TXN_NONE ?

@@ -1132,13 +1132,14 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction failures due to cache overflow",
 	"transaction: transaction fsync calls for checkpoint after allocating the transaction ID",
 	"transaction: transaction fsync duration for checkpoint after allocating the transaction ID (usecs)",
-	"transaction: transaction oldest active read timestamp",
 	"transaction: transaction range of IDs currently pinned",
 	"transaction: transaction range of IDs currently pinned by a checkpoint",
 	"transaction: transaction range of IDs currently pinned by named snapshots",
 	"transaction: transaction range of timestamps currently pinned",
 	"transaction: transaction range of timestamps pinned by a checkpoint",
+	"transaction: transaction range of timestamps pinned by the oldest active read timestamp",
 	"transaction: transaction range of timestamps pinned by the oldest timestamp",
+	"transaction: transaction read timestamp of the oldest active reader",
 	"transaction: transaction sync calls",
 	"transaction: transactions committed",
 	"transaction: transactions rolled back",
@@ -1564,13 +1565,14 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_fail_cache = 0;
 	stats->txn_checkpoint_fsync_post = 0;
 		/* not clearing txn_checkpoint_fsync_post_duration */
-		/* not clearing txn_timestamp_oldest_active_read */
 		/* not clearing txn_pinned_range */
 		/* not clearing txn_pinned_checkpoint_range */
 		/* not clearing txn_pinned_snapshot_range */
 		/* not clearing txn_pinned_timestamp */
 		/* not clearing txn_pinned_timestamp_checkpoint */
+		/* not clearing txn_pinned_timestamp_reader */
 		/* not clearing txn_pinned_timestamp_oldest */
+		/* not clearing txn_timestamp_oldest_active_read */
 	stats->txn_sync = 0;
 	stats->txn_commit = 0;
 	stats->txn_rollback = 0;
@@ -2161,8 +2163,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_checkpoint_fsync_post);
 	to->txn_checkpoint_fsync_post_duration +=
 	    WT_STAT_READ(from, txn_checkpoint_fsync_post_duration);
-	to->txn_timestamp_oldest_active_read +=
-	    WT_STAT_READ(from, txn_timestamp_oldest_active_read);
 	to->txn_pinned_range += WT_STAT_READ(from, txn_pinned_range);
 	to->txn_pinned_checkpoint_range +=
 	    WT_STAT_READ(from, txn_pinned_checkpoint_range);
@@ -2171,8 +2171,12 @@ __wt_stat_connection_aggregate(
 	to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
 	to->txn_pinned_timestamp_checkpoint +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_checkpoint);
+	to->txn_pinned_timestamp_reader +=
+	    WT_STAT_READ(from, txn_pinned_timestamp_reader);
 	to->txn_pinned_timestamp_oldest +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_oldest);
+	to->txn_timestamp_oldest_active_read +=
+	    WT_STAT_READ(from, txn_timestamp_oldest_active_read);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
