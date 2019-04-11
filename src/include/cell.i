@@ -728,10 +728,11 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
 	 * the copied cell must be available from unpack after we return, as our
 	 * caller has no way to find the copied cell).
 	 */
-	WT_CELL_LEN_CHK(cell, 0);
 	unpack->cell = cell;
 
 restart:
+	WT_CELL_LEN_CHK(cell, 0);
+
 	/*
 	 * This path is performance critical for read-only trees, we're parsing
 	 * on-page structures. For that reason we don't clear the unpacked cell
