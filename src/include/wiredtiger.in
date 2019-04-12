@@ -1791,9 +1791,6 @@ struct __wt_session {
 	 * @config{read_timestamp, read using the specified timestamp.  The
 	 * supplied value must not be older than the current oldest timestamp.
 	 * See @ref transaction_timestamps., a string; default empty.}
-	 * @config{round_to_oldest, if read timestamp is earlier than oldest
-	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
-	 * boolean flag; default \c false.}
 	 * @config{roundup_timestamps = (, round up timestamps of the
 	 * transaction.  This setting alters the visibility expected in a
 	 * transaction.  See @ref transaction_timestamps., a set of related
@@ -1929,9 +1926,6 @@ struct __wt_session {
 	 * supplied value must not be older than the current oldest timestamp.
 	 * This can only be set once for a transaction.  See @ref
 	 * transaction_timestamps., a string; default empty.}
-	 * @config{round_to_oldest, if read timestamp is earlier than oldest
-	 * timestamp\, read timestamp will be rounded to oldest timestamp., a
-	 * boolean flag; default \c false.}
 	 * @configend
 	 * @errors
 	 */

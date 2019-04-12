@@ -870,7 +870,7 @@ __wt_txn_set_read_timestamp(
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
 	wt_timestamp_t ts_oldest;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool roundup_to_oldest;
+	bool did_roundup_to_oldest;
 
 	WT_RET(__wt_txn_context_prepare_check(session));
 
@@ -888,45 +888,37 @@ __wt_txn_set_read_timestamp(
 		    " may only be set once per transaction");
 
 	/*
-	 * The read timestamp could be rounded to the oldest timestamp.
-	 */
-	roundup_to_oldest = F_ISSET(txn, WT_TXN_TS_ROUND_READ);
-
-	/*
 	 * This code is not using the timestamp validate function to
 	 * avoid a race between checking and setting transaction
 	 * timestamp.
 	 */
 	__wt_readlock(session, &txn_global->rwlock);
 	ts_oldest = txn_global->oldest_timestamp;
+	did_roundup_to_oldest = false;
 	if (read_ts < ts_oldest) {
 		/*
 		 * If given read timestamp is earlier than oldest
 		 * timestamp then round the read timestamp to
 		 * oldest timestamp.
 		 */
-		if (roundup_to_oldest)
+		if (F_ISSET(txn, WT_TXN_TS_ROUND_READ)) {
 			txn->read_timestamp = ts_oldest;
-	else {
-		__wt_readunlock(session, &txn_global->rwlock);
-		__wt_timestamp_to_string(read_ts, ts_string[0]);
-		__wt_timestamp_to_string(ts_oldest, ts_string[1]);
-		WT_RET_MSG(session, EINVAL, "read timestamp "
-		    "%s less than the oldest timestamp %s",
-		    ts_string[0], ts_string[1]);
+			did_roundup_to_oldest = true;
+		} else {
+			__wt_readunlock(session, &txn_global->rwlock);
+			__wt_timestamp_to_string(read_ts, ts_string[0]);
+			__wt_timestamp_to_string(ts_oldest, ts_string[1]);
+			WT_RET_MSG(session, EINVAL, "read timestamp "
+			    "%s less than the oldest timestamp %s",
+			    ts_string[0], ts_string[1]);
 		}
-	} else {
+	} else
 		txn->read_timestamp = read_ts;
-		/*
-		 * Reset to avoid a verbose message as read
-		 * timestamp is not rounded to oldest timestamp.
-		 */
-		roundup_to_oldest = false;
-	}
 
 	__wt_txn_publish_read_timestamp(session);
 	__wt_readunlock(session, &txn_global->rwlock);
-	if (roundup_to_oldest && WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
+	if (did_roundup_to_oldest &&
+	    WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP)) {
 		/*
 		 * This message is generated here to reduce the span of
 		 * critical section.
