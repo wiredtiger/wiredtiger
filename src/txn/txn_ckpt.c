@@ -1543,15 +1543,12 @@ __checkpoint_mark_skip(
 void
 __wt_checkpoint_tree_reconcile_update(
     WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_ts,
-    wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
+    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts)
 {
 	WT_BTREE *btree;
 	WT_CKPT *ckpt, *ckptbase;
 
 	btree = S2BT(session);
-
-	__wt_timestamp_addr_check(session,
-	    oldest_start_ts, newest_start_ts, newest_stop_ts);
 
 	/*
 	 * Reconciliation just wrote a checkpoint, everything has been written.
@@ -1564,7 +1561,7 @@ __wt_checkpoint_tree_reconcile_update(
 		if (F_ISSET(ckpt, WT_CKPT_ADD)) {
 			ckpt->write_gen = btree->write_gen;
 			ckpt->oldest_start_ts = oldest_start_ts;
-			ckpt->newest_start_ts = newest_start_ts;
+			ckpt->newest_durable_ts = newest_durable_ts;
 			ckpt->newest_stop_ts = newest_stop_ts;
 		}
 }

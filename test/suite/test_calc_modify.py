@@ -53,16 +53,16 @@ class test_calc_modify(wttest.WiredTigerTestCase):
     REPLACE = 3
 
     def mkstring(self, size, repeat_size=1):
-        pattern = ''.join(r.choice(string.ascii_letters + string.digits) for _ in xrange(repeat_size))
-        return (pattern * ((size + repeat_size - 1) / repeat_size))[:size]
+        pattern = ''.join(r.choice(string.ascii_letters + string.digits) for _ in range(repeat_size))
+        return (pattern * ((size + repeat_size - 1) // repeat_size))[:size]
 
     def one_test(self, c, k, oldsz, repeatsz, nmod, maxdiff):
         oldv = self.mkstring(oldsz, repeatsz)
 
-        offsets = sorted(r.sample(xrange(oldsz), nmod))
-        modsizes = sorted(r.sample(xrange(maxdiff), nmod + 1))
-        lengths = [modsizes[i+1] - modsizes[i] for i in xrange(nmod)]
-        modtypes = [r.choice((self.ADD, self.REMOVE, self.REPLACE)) for _ in xrange(nmod)]
+        offsets = sorted(r.sample(range(oldsz), nmod))
+        modsizes = sorted(r.sample(range(maxdiff), nmod + 1))
+        lengths = [modsizes[i+1] - modsizes[i] for i in range(nmod)]
+        modtypes = [r.choice((self.ADD, self.REMOVE, self.REPLACE)) for _ in range(nmod)]
 
         self.pr("offsets: %s" % offsets)
         self.pr("modsizes: %s" % modsizes)
@@ -71,7 +71,7 @@ class test_calc_modify(wttest.WiredTigerTestCase):
 
         orig = oldv
         newv = ''
-        for i in xrange(nmod):
+        for i in range(nmod):
             if i > 0 and offsets[i] - offsets[i - 1] < maxdiff:
                 continue
             newv += orig[:offsets[i]]
@@ -106,11 +106,11 @@ class test_calc_modify(wttest.WiredTigerTestCase):
     def test_calc_modify(self):
         self.session.create(self.uri, 'key_format=i,value_format=u')
         c = self.session.open_cursor(self.uri)
-        for k in xrange(1000):
+        for k in range(1000):
             size = r.randint(1000, 10000)
             repeats = r.randint(1, size)
             nmods = r.randint(1, 10)
-            maxdiff = r.randint(64, size / 10)
+            maxdiff = r.randint(64, size // 10)
             self.pr("size %s, repeats %s, nmods %s, maxdiff %s" % (size, repeats, nmods, maxdiff))
             self.one_test(c, k, size, repeats, nmods, maxdiff)
 
