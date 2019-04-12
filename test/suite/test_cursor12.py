@@ -32,13 +32,6 @@ from helper import copy_wiredtiger_home
 from wtdataset import SimpleDataSet
 from wtscenario import filter_scenarios, make_scenarios
 
-if sys.version_info[0] >= 3:  # Python3
-    nullbyte = b'\x00'
-    spacebyte = b' '
-else:
-    nullbyte = '\x00'
-    spacebyte = ' '
-
 # test_cursor12.py
 #    Test cursor modify call
 class test_cursor12(wttest.WiredTigerTestCase):
@@ -187,6 +180,16 @@ class test_cursor12(wttest.WiredTigerTestCase):
     }
     ]
 
+    def setUp(self):
+        if sys.version_info[0] >= 3 and self.valuefmt == 'u':
+            # Python3 distinguishes bytes from strings
+            self.nullbyte = b'\x00'
+            self.spacebyte = b' '
+        else:
+            self.nullbyte = '\x00'
+            self.spacebyte = ' '
+        super(test_cursor12, self).setUp()
+
     # Convert a string to the correct type for the value.
     def make_value(self, s):
         if self.valuefmt == 'u':
@@ -195,11 +198,20 @@ class test_cursor12(wttest.WiredTigerTestCase):
             return s
 
     def fix_mods(self, mods):
-        newmods = []
-        for mod in mods:
-            newmods.append(wiredtiger.Modify(
-                self.make_value(mod.data), mod.offset, mod.size))
-        return newmods
+        if bytes != str and self.valuefmt == 'u':
+            # In Python3, bytes and strings are independent types, and
+            # the WiredTiger API needs bytes when the format calls for bytes.
+            newmods = []
+            for mod in mods:
+                # We need to check because we may converted some of the Modify
+                # records already.
+                if type(mod.data) == str:
+                    newmods.append(wiredtiger.Modify(
+                        self.make_value(mod.data), mod.offset, mod.size))
+                else:
+                    newmods.append(mod)
+            mods = newmods
+        return mods
 
     # Create a set of modified records and verify in-memory reads.
     def modify_load(self, ds, single):
@@ -229,7 +241,8 @@ class test_cursor12(wttest.WiredTigerTestCase):
             c.set_key(ds.key(row))
             self.assertEquals(c.search(), 0)
             v = c.get_value()
-            self.assertEquals(v.replace(nullbyte, spacebyte), i['f'])
+            expect = self.make_value(i['f'])
+            self.assertEquals(v.replace(self.nullbyte, self.spacebyte), expect)
 
             if not single:
                 row = row + 1
@@ -245,7 +258,8 @@ class test_cursor12(wttest.WiredTigerTestCase):
             c.set_key(ds.key(row))
             self.assertEquals(c.search(), 0)
             v = c.get_value()
-            self.assertEquals(v.replace(nullbyte, spacebyte), i['f'])
+            expect = self.make_value(i['f'])
+            self.assertEquals(v.replace(self.nullbyte, self.spacebyte), expect)
 
             if not single:
                 row = row + 1
