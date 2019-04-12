@@ -234,7 +234,8 @@ from .packing import pack, unpack
 			SWIG_exception_fail(SWIG_AttributeError,
 			    "Modify.data bad value");
 		}
-		if (__wt_malloc(NULL, datasize, &modarray[i].data.data) != 0) {
+		if (datasize != 0 &&
+		    __wt_malloc(NULL, datasize, &modarray[i].data.data) != 0) {
 			Py_DECREF(dataobj);
 			Py_DECREF(modobj);
 			freeModifyArray(modarray);
