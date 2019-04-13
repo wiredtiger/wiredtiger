@@ -1427,11 +1427,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		    ((upd_select->start_ts == WT_TS_NONE &&
 		    upd_select->start_txn == WT_TXN_NONE) ||
 		    __wt_txn_visible_all(
-		    session, upd_select->start_txn, upd_select->start_ts)))
+		    session, upd_select->start_txn, upd_select->start_ts))) {
 			upd_select->start_ts = WT_TS_NONE;
 			upd_select->stop_ts = WT_TS_MAX;
 			upd_select->start_txn = WT_TXN_NONE;
 			upd_select->stop_txn = WT_TXN_MAX;
+		}
 	}
 
 	/*
