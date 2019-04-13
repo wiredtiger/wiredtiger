@@ -895,6 +895,22 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 				    __wt_page_addr_string(session,
 				    ref, vs->tmp1), ts_string[0], ts_string[1]);
 			}
+			if (unpack.stop_txn == WT_TXN_NONE)
+				WT_RET_MSG(session, WT_ERROR,
+				    "cell %" PRIu32 " on page at %s has a stop "
+				    "transaction of 0",
+				    cell_num - 1,
+				    __wt_page_addr_string(
+				    session, ref, vs->tmp1));
+			if (unpack.start_txn > unpack.stop_txn)
+				WT_RET_MSG(session, WT_ERROR,
+				    "cell %" PRIu32 " on page at %s has a "
+				    "start transaction %" PRIu64 "newer than "
+				    "its stop transaction %" PRIu64,
+				    cell_num - 1,
+				    __wt_page_addr_string(session,
+				    ref, vs->tmp1),
+				    unpack.start_txn, unpack.stop_txn);
 
 			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
 			    "start", unpack.start_ts,

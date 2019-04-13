@@ -263,23 +263,24 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num,
 }
 
 /*
- * __verify_dsk_ts --
- *	Verify a cell's timestamps.
+ * __verify_dsk_history --
+ *	Verify a cell's history.
  */
 static int
-__verify_dsk_ts(WT_SESSION_IMPL *session,
+__verify_dsk_history(WT_SESSION_IMPL *session,
     WT_CELL_UNPACK *unpack, uint32_t cell_num, WT_ADDR *addr, const char *tag)
 {
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 
 	/*
-	 * Check timestamp order, and optionally, against a parent address.
-	 * Timestamps in the parent address aren't necessarily an exact match,
-	 * but should be within the boundaries of the parent reference.
+	 * Check timestamp and transaction order, and optionally against parent
+	 * values. Timestamps and transactions in the parent address aren't
+	 * necessarily an exact match, but should be within the boundaries of
+	 * the parent's information.
 	 *
-	 * There's no checking if timestamps should appear on a page because the
-	 * cell-unpacking code hides it by always returning "durable" timestamps
-	 * if they don't appear on the page.
+	 * There's no checking if history should appear on a page because the
+	 * cell-unpacking code hides it by always returning "durable" values if
+	 * they don't appear on the page.
 	 */
 	switch (unpack->type) {
 	case WT_CELL_ADDR_DEL:
@@ -339,6 +340,18 @@ __verify_dsk_ts(WT_SESSION_IMPL *session,
 			    "timestamp %s newer than its stop timestamp %s",
 			    cell_num - 1, tag, ts_string[0], ts_string[1]);
 		}
+		if (unpack->stop_txn == WT_TXN_NONE)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has a stop "
+			    "transaction of 0",
+			    cell_num - 1, tag);
+		if (unpack->start_txn > unpack->stop_txn)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has a start "
+			    "transaction %" PRIu64 " newer than its stop "
+			    "transaction %" PRIu64,
+			    cell_num - 1, tag,
+			    unpack->start_txn, unpack->stop_txn);
 
 		if (addr == NULL)
 			break;
@@ -466,8 +479,9 @@ __verify_dsk_row(WT_SESSION_IMPL *session,
 			break;
 		}
 
-		/* Check timestamps. */
-		WT_ERR(__verify_dsk_ts(session, unpack, cell_num, addr, tag));
+		/* Check history. */
+		WT_ERR(__verify_dsk_history(
+		    session, unpack, cell_num, addr, tag));
 
 		/* Check if any referenced item has an invalid address. */
 		switch (cell_type) {
@@ -689,8 +703,9 @@ __verify_dsk_col_int(WT_SESSION_IMPL *session,
 		WT_RET(__err_cell_type(
 		    session, cell_num, tag, unpack->type, dsk->type));
 
-		/* Check timestamps. */
-		WT_RET(__verify_dsk_ts(session, unpack, cell_num, addr, tag));
+		/* Check history. */
+		WT_RET(__verify_dsk_history(
+		    session, unpack, cell_num, addr, tag));
 
 		/* Check if any referenced item is entirely in the file. */
 		ret = bm->addr_invalid(bm, session, unpack->data, unpack->size);
@@ -733,6 +748,7 @@ __verify_dsk_col_var(WT_SESSION_IMPL *session,
 		const void *data;
 		size_t size;
 		wt_timestamp_t start_ts, stop_ts;
+		uint64_t start_txn, stop_txn;
 		bool deleted;
 	} last;
 	WT_BM *bm;
@@ -751,6 +767,7 @@ __verify_dsk_col_var(WT_SESSION_IMPL *session,
 	last.data = NULL;
 	last.size = 0;
 	last.start_ts = last.stop_ts = WT_TS_NONE;
+	last.start_txn = last.stop_txn = WT_TXN_NONE;
 	last.deleted = false;
 
 	cell_num = 0;
@@ -770,8 +787,9 @@ __verify_dsk_col_var(WT_SESSION_IMPL *session,
 		    session, cell_num, tag, unpack->type, dsk->type));
 		cell_type = unpack->type;
 
-		/* Check timestamps. */
-		WT_RET(__verify_dsk_ts(session, unpack, cell_num, addr, tag));
+		/* Check history. */
+		WT_RET(__verify_dsk_history(
+		    session, unpack, cell_num, addr, tag));
 
 		/* Check if any referenced item is entirely in the file. */
 		if (cell_type == WT_CELL_VALUE_OVFL) {
@@ -789,7 +807,9 @@ __verify_dsk_col_var(WT_SESSION_IMPL *session,
 		 * encoding or anything else, a byte comparison is enough.
 		 */
 		if (unpack->start_ts != last.start_ts ||
-		    unpack->stop_ts != last.stop_ts)
+		    unpack->stop_ts != last.stop_ts ||
+		    unpack->start_txn != last.start_txn ||
+		    unpack->stop_txn != last.stop_txn)
 			;
 		else if (last.deleted) {
 			if (cell_type == WT_CELL_DEL)
@@ -807,6 +827,8 @@ match_err:			WT_RET_VRFY(session,
 
 		last.start_ts = unpack->start_ts;
 		last.stop_ts = unpack->stop_ts;
+		last.start_txn = unpack->start_txn;
+		last.stop_txn = unpack->stop_txn;
 		switch (cell_type) {
 		case WT_CELL_DEL:
 			last.data = NULL;
