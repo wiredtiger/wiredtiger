@@ -82,6 +82,8 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	copy_addr->oldest_start_ts = unpack->oldest_start_ts;
 	copy_addr->newest_durable_ts = durable_ts;
 	copy_addr->newest_stop_ts = unpack->newest_stop_ts;
+	copy_addr->oldest_start_txn = unpack->oldest_start_txn;
+	copy_addr->newest_stop_txn = unpack->newest_stop_txn;
 	WT_RET(__wt_memdup(
 	    session, unpack->data, unpack->size, &copy_addr->addr));
 	copy_addr->size = (uint8_t)unpack->size;

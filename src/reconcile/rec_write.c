@@ -153,6 +153,8 @@ typedef struct {
 		wt_timestamp_t oldest_start_ts;
 		wt_timestamp_t newest_durable_ts;
 		wt_timestamp_t newest_stop_ts;
+		uint64_t oldest_start_txn;
+		uint64_t newest_stop_txn;
 
 		/* Saved minimum split-size boundary information. */
 		uint32_t min_entries;
@@ -161,6 +163,8 @@ typedef struct {
 		wt_timestamp_t min_oldest_start_ts;
 		wt_timestamp_t min_newest_durable_ts;
 		wt_timestamp_t min_newest_stop_ts;
+		uint64_t min_oldest_start_txn;
+		uint64_t min_newest_stop_txn;
 
 		size_t   min_offset;			/* byte offset */
 
@@ -2254,7 +2258,8 @@ __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize)
  */
 static void
 __rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
-    wt_timestamp_t *newest_durable_ts, wt_timestamp_t *newest_stop_tsp)
+    wt_timestamp_t *newest_durable_ts, wt_timestamp_t *newest_stop_tsp,
+    uint64_t *oldest_start_txnp, uint64_t *newest_stop_txnp)
 {
 	/*
 	 * If the page format supports address timestamps (and not fixed-length
@@ -2265,9 +2270,13 @@ __rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
 	 */
 	*oldest_start_tsp = WT_TS_MAX;
 	*newest_durable_ts = *newest_stop_tsp = WT_TS_NONE;
+	*oldest_start_txnp = WT_TXN_MAX;
+	*newest_stop_txnp = WT_TXN_NONE;
 	if (!__wt_process.page_version_ts || r->page->type == WT_PAGE_COL_FIX) {
 		*oldest_start_tsp = *newest_durable_ts = WT_TS_NONE;
 		*newest_stop_tsp = WT_TS_MAX;
+		*oldest_start_txnp = WT_TXN_NONE;
+		*newest_stop_txnp = WT_TXN_MAX;
 	}
 }
 
@@ -2277,7 +2286,8 @@ __rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
  */
 static inline void
 __rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
-    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts)
+    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts,
+    uint64_t oldest_start_txn, uint64_t newest_stop_txn)
 {
 	r->cur_ptr->oldest_start_ts =
 	    WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
@@ -2285,6 +2295,11 @@ __rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
 	    WT_MAX(newest_durable_ts, r->cur_ptr->newest_durable_ts);
 	r->cur_ptr->newest_stop_ts =
 	    WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
+
+	r->cur_ptr->oldest_start_txn =
+	    WT_MIN(oldest_start_txn, r->cur_ptr->oldest_start_txn);
+	r->cur_ptr->newest_stop_txn =
+	    WT_MAX(newest_stop_txn, r->cur_ptr->newest_stop_txn);
 }
 
 /*
@@ -2300,14 +2315,16 @@ __rec_split_chunk_init(
 	chunk->key.size = 0;
 	chunk->entries = 0;
 	__rec_addr_ts_init(r, &chunk->oldest_start_ts,
-	    &chunk->newest_durable_ts, &chunk->newest_stop_ts);
+	    &chunk->newest_durable_ts, &chunk->newest_stop_ts,
+	    &chunk->oldest_start_txn, &chunk->newest_stop_txn);
 
 	chunk->min_recno = WT_RECNO_OOB;
 	/* Don't touch the key item memory, that memory is reused. */
 	chunk->min_key.size = 0;
 	chunk->min_entries = 0;
 	__rec_addr_ts_init(r, &chunk->min_oldest_start_ts,
-	    &chunk->min_newest_durable_ts, &chunk->min_newest_stop_ts);
+	    &chunk->min_newest_durable_ts, &chunk->min_newest_stop_ts,
+	    &chunk->min_oldest_start_txn, &chunk->min_newest_stop_txn);
 	chunk->min_offset = 0;
 
 	/*
@@ -2773,6 +2790,8 @@ __rec_split_crossing_bnd(
 		r->cur_ptr->min_newest_durable_ts =
 		    r->cur_ptr->newest_durable_ts;
 		r->cur_ptr->min_newest_stop_ts = r->cur_ptr->newest_stop_ts;
+		r->cur_ptr->min_oldest_start_txn = r->cur_ptr->oldest_start_txn;
+		r->cur_ptr->min_newest_stop_txn = r->cur_ptr->newest_stop_txn;
 
 		/* Assert we're not re-entering this code. */
 		WT_ASSERT(session, r->cur_ptr->min_offset == 0);
@@ -2834,6 +2853,11 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 			cur_ptr->newest_durable_ts);
 		prev_ptr->newest_stop_ts =
 		    WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
+		prev_ptr->oldest_start_txn =
+		    WT_MIN(prev_ptr->oldest_start_txn,
+			cur_ptr->oldest_start_txn);
+		prev_ptr->newest_stop_txn =
+		    WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
 		dsk = r->cur_ptr->image.mem;
 		memcpy((uint8_t *)r->prev_ptr->image.mem + prev_ptr->image.size,
 		    WT_PAGE_HEADER_BYTE(btree, dsk),
@@ -2890,12 +2914,19 @@ __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 			cur_ptr->newest_durable_ts);
 		cur_ptr->newest_stop_ts =
 		    WT_MAX(prev_ptr->newest_stop_ts, cur_ptr->newest_stop_ts);
+		cur_ptr->oldest_start_txn =
+		    WT_MIN(prev_ptr->oldest_start_txn,
+		    cur_ptr->oldest_start_txn);
+		cur_ptr->newest_stop_txn =
+		    WT_MAX(prev_ptr->newest_stop_txn, cur_ptr->newest_stop_txn);
 		cur_ptr->image.size += len_to_move;
 
 		prev_ptr->entries = prev_ptr->min_entries;
 		prev_ptr->oldest_start_ts = prev_ptr->min_oldest_start_ts;
 		prev_ptr->newest_durable_ts = prev_ptr->min_newest_durable_ts;
 		prev_ptr->newest_stop_ts = prev_ptr->min_newest_stop_ts;
+		prev_ptr->oldest_start_txn = prev_ptr->min_oldest_start_txn;
+		prev_ptr->newest_stop_txn = prev_ptr->min_newest_stop_txn;
 		prev_ptr->image.size -= len_to_move;
 	}
 
@@ -3311,6 +3342,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	multi->addr.oldest_start_ts = chunk->oldest_start_ts;
 	multi->addr.newest_durable_ts = chunk->newest_durable_ts;
 	multi->addr.newest_stop_ts = chunk->newest_stop_ts;
+	multi->addr.oldest_start_txn = chunk->oldest_start_txn;
+	multi->addr.newest_stop_txn = chunk->newest_stop_txn;
 
 	switch (page->type) {
 	case WT_PAGE_COL_FIX:
@@ -3608,7 +3641,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 			    0, val));
 		__rec_image_copy(session, r, val);
 	}
-	__rec_addr_ts_update(r, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
+	__rec_addr_ts_update(r,
+	    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
 
 	/* Update compression state. */
 	__rec_key_state_update(r, ovfl_key);
@@ -3758,7 +3792,8 @@ __wt_bulk_insert_var(
 		    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX,
 		    cbulk->rle, val));
 	__rec_image_copy(session, r, val);
-	__rec_addr_ts_update(r, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
+	__rec_addr_ts_update(r,
+	    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
 
 	/* Update the starting record number in case we split. */
 	r->recno += cbulk->rle;
@@ -3782,6 +3817,7 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 	WT_PAGE *child, *page;
 	WT_REF *ref;
 	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
+	uint64_t oldest_start_txn, newest_stop_txn;
 	bool hazard;
 
 	btree = S2BT(session);
@@ -3872,12 +3908,16 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			oldest_start_ts = vpack->oldest_start_ts;
 			newest_durable_ts = vpack->newest_durable_ts;
 			newest_stop_ts = vpack->newest_stop_ts;
+			oldest_start_txn = vpack->oldest_start_txn;
+			newest_stop_txn = vpack->newest_stop_txn;
 		} else {
 			__rec_cell_build_addr(
 			    session, r, addr, false, ref->ref_recno);
 			oldest_start_ts = addr->oldest_start_ts;
 			newest_durable_ts = addr->newest_durable_ts;
 			newest_stop_ts = addr->newest_stop_ts;
+			oldest_start_txn = addr->oldest_start_txn;
+			newest_stop_txn = addr->newest_stop_txn;
 		}
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -3888,7 +3928,8 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		/* Copy the value onto the page. */
 		__rec_image_copy(session, r, val);
 		__rec_addr_ts_update(r,
-		    oldest_start_ts, newest_durable_ts, newest_stop_ts);
+		    oldest_start_ts, newest_durable_ts, newest_stop_ts,
+		    oldest_start_txn, newest_stop_txn);
 	} WT_INTL_FOREACH_END;
 
 	/* Write the remnant page. */
@@ -3932,7 +3973,8 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Copy the value onto the page. */
 		__rec_image_copy(session, r, val);
 		__rec_addr_ts_update(r, addr->oldest_start_ts,
-		    addr->newest_durable_ts, addr->newest_stop_ts);
+		    addr->newest_durable_ts, addr->newest_stop_ts,
+		    addr->oldest_start_txn, addr->newest_stop_txn);
 	}
 	return (0);
 }
@@ -4144,7 +4186,7 @@ __rec_col_fix_slvg(WT_SESSION_IMPL *session,
 static int
 __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     WT_SALVAGE_COOKIE *salvage, WT_ITEM *value,
-    wt_timestamp_t start_ts, wt_timestamp_t durable_ts ,wt_timestamp_t stop_ts,
+    wt_timestamp_t start_ts, wt_timestamp_t durable_ts, wt_timestamp_t stop_ts,
     uint64_t start_txn, uint64_t stop_txn,
     uint64_t rle, bool deleted, bool overflow_type)
 {
@@ -4212,7 +4254,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		WT_RET(__rec_dict_replace(session, r,
 		    start_ts, stop_ts, start_txn, stop_txn, rle, val));
 	__rec_image_copy(session, r, val);
-	__rec_addr_ts_update(r, start_ts, durable_ts, stop_ts);
+	__rec_addr_ts_update(r,
+	    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
 
 	/* Update the starting record number in case we split. */
 	r->recno += rle;
@@ -4868,6 +4911,7 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	WT_REF *ref;
 	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
 	size_t size;
+	uint64_t oldest_start_txn, newest_stop_txn;
 	bool hazard, key_onpage_ovfl, ovfl_key;
 	const void *p;
 
@@ -5022,6 +5066,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			oldest_start_ts = addr->oldest_start_ts;
 			newest_durable_ts = addr->newest_durable_ts;
 			newest_stop_ts = addr->newest_stop_ts;
+			oldest_start_txn = addr->oldest_start_txn;
+			newest_stop_txn = addr->newest_stop_txn;
 		} else {
 			__wt_cell_unpack(session, page, ref->addr, vpack);
 			if (state == WT_CHILD_PROXY) {
@@ -5038,6 +5084,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			oldest_start_ts = vpack->oldest_start_ts;
 			newest_durable_ts = vpack->newest_durable_ts;
 			newest_stop_ts = vpack->newest_stop_ts;
+			oldest_start_txn = vpack->oldest_start_txn;
+			newest_stop_txn = vpack->newest_stop_txn;
 		}
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -5080,7 +5128,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		__rec_image_copy(session, r, key);
 		__rec_image_copy(session, r, val);
 		__rec_addr_ts_update(r,
-		    oldest_start_ts, newest_durable_ts, newest_stop_ts);
+		    oldest_start_ts, newest_durable_ts, newest_stop_ts,
+		    oldest_start_txn, newest_stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -5133,7 +5182,8 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		__rec_image_copy(session, r, key);
 		__rec_image_copy(session, r, val);
 		__rec_addr_ts_update(r, addr->oldest_start_ts,
-		    addr->newest_durable_ts, addr->newest_stop_ts);
+		    addr->newest_durable_ts, addr->newest_stop_ts,
+		    addr->oldest_start_txn, addr->newest_stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -5550,7 +5600,8 @@ build:
 				    0, val));
 			__rec_image_copy(session, r, val);
 		}
-		__rec_addr_ts_update(r, start_ts, durable_ts, stop_ts);
+		__rec_addr_ts_update(r,
+		    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -5684,7 +5735,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 				    0, val));
 			__rec_image_copy(session, r, val);
 		}
-		__rec_addr_ts_update(r, start_ts, durable_ts, stop_ts);
+		__rec_addr_ts_update(r,
+		    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -5892,8 +5944,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		if (__wt_ref_is_root(ref)) {
 			WT_RET(bm->checkpoint(
 			    bm, session, NULL, btree->ckpt, false));
-			__wt_checkpoint_tree_reconcile_update(
-			    session, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
+			__wt_checkpoint_tree_reconcile_update(session,
+			    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX,
+			    WT_TXN_NONE, WT_TXN_MAX);
 		}
 
 		/*
@@ -5942,7 +5995,9 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			__wt_checkpoint_tree_reconcile_update(session,
 			    r->multi->addr.oldest_start_ts,
 			    r->multi->addr.newest_durable_ts,
-			    r->multi->addr.newest_stop_ts);
+			    r->multi->addr.newest_stop_ts,
+			    r->multi->addr.oldest_start_txn,
+			    r->multi->addr.newest_stop_txn);
 		}
 
 		mod->rec_result = WT_PM_REC_REPLACE;
@@ -6286,7 +6341,8 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session,
 	val->buf.size = addr->size;
 	val->cell_len = __wt_cell_pack_addr(
 	    session, &val->cell, cell_type, recno, addr->oldest_start_ts,
-	    addr->newest_durable_ts, addr->newest_stop_ts, val->buf.size);
+	    addr->newest_durable_ts, addr->newest_stop_ts,
+	    addr->oldest_start_txn, addr->newest_stop_txn, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 }
 

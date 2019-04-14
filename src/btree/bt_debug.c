@@ -1339,7 +1339,9 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 		    unpack->newest_durable_ts, ts_string[1]);
 		__wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[2]);
 		WT_RET(ds->f(ds,
-		    ", ts %s,%s,%s", ts_string[0], ts_string[1], ts_string[2]));
+		    ", ts %s,%s,%s, txn %" PRIu64 ",%" PRIu64,
+		    ts_string[0], ts_string[1], ts_string[2],
+		    unpack->oldest_start_txn, unpack->newest_stop_txn));
 		break;
 	case WT_CELL_DEL:
 	case WT_CELL_VALUE:

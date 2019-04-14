@@ -263,6 +263,31 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num,
 }
 
 /*
+ * __verify_dsk_txn_addr_cmp --
+ *	Do a cell transaction check against the parent.
+ */
+static int
+__verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num,
+    const char *txn1_name, uint64_t txn1,
+    const char *txn2_name, uint64_t txn2,
+    bool gt, const char *tag)
+{
+	if (gt && txn1 >= txn2)
+		return (0);
+	if (!gt && txn1 <= txn2)
+		return (0);
+
+	WT_RET_MSG(session, WT_ERROR,
+	    "cell %" PRIu32 " on page at %s failed verification with %s "
+	    "transaction of %" PRIu64 ", %s the parent's %s transaction of "
+	    "%" PRIu64,
+	    cell_num, tag,
+	    txn1_name, txn1,
+	    gt ? "less than" : "greater than",
+	    txn2_name, txn2);
+}
+
+/*
  * __verify_dsk_history --
  *	Verify a cell's history.
  */
@@ -304,8 +329,22 @@ __verify_dsk_history(WT_SESSION_IMPL *session,
 			    cell_num - 1, tag, ts_string[0], ts_string[1]);
 		}
 
+		if (unpack->newest_stop_txn == WT_TXN_NONE)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has a newest stop "
+			    "transaction of 0",
+			    cell_num - 1, tag);
+		if (unpack->oldest_start_txn > unpack->newest_stop_txn)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has an oldest "
+			    "start transaction %" PRIu64 " newer than its "
+			    "newest stop transaction %" PRIu64,
+			    cell_num - 1, tag, unpack->oldest_start_txn,
+			    unpack->newest_stop_txn);
+
 		if (addr == NULL)
 			break;
+
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "oldest start", unpack->oldest_start_ts,
 		    "oldest start", addr->oldest_start_ts,
@@ -317,6 +356,15 @@ __verify_dsk_history(WT_SESSION_IMPL *session,
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "newest stop", unpack->newest_stop_ts,
 		    "newest stop", addr->newest_stop_ts,
+		    false, tag));
+
+		WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1,
+		    "oldest start", unpack->oldest_start_txn,
+		    "oldest start", addr->oldest_start_txn,
+		    true, tag));
+		WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1,
+		    "newest stop", unpack->newest_stop_txn,
+		    "newest stop", addr->newest_stop_txn,
 		    false, tag));
 		break;
 	case WT_CELL_DEL:
@@ -334,7 +382,7 @@ __verify_dsk_history(WT_SESSION_IMPL *session,
 			__wt_timestamp_to_string(
 			    unpack->start_ts, ts_string[0]);
 			__wt_timestamp_to_string(
-			    unpack->stop_ts, ts_string[0]);
+			    unpack->stop_ts, ts_string[1]);
 			WT_RET_VRFY(session,
 			    "cell %" PRIu32 " on page at %s has a start "
 			    "timestamp %s newer than its stop timestamp %s",
@@ -355,6 +403,7 @@ __verify_dsk_history(WT_SESSION_IMPL *session,
 
 		if (addr == NULL)
 			break;
+
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "start", unpack->start_ts,
 		    "oldest start", addr->oldest_start_ts,
@@ -362,6 +411,15 @@ __verify_dsk_history(WT_SESSION_IMPL *session,
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "stop", unpack->stop_ts,
 		    "newest stop", addr->newest_stop_ts,
+		    false, tag));
+
+		WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1,
+		    "start", unpack->start_txn,
+		    "oldest start", addr->oldest_start_txn,
+		    true, tag));
+		WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1,
+		    "stop", unpack->stop_txn,
+		    "newest stop", addr->newest_stop_txn,
 		    false, tag));
 		break;
 	}

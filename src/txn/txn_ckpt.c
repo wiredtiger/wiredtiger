@@ -1543,7 +1543,8 @@ __checkpoint_mark_skip(
 void
 __wt_checkpoint_tree_reconcile_update(
     WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_ts,
-    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts)
+    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts,
+    uint64_t oldest_start_txn, uint64_t newest_stop_txn)
 {
 	WT_BTREE *btree;
 	WT_CKPT *ckpt, *ckptbase;
@@ -1563,6 +1564,8 @@ __wt_checkpoint_tree_reconcile_update(
 			ckpt->oldest_start_ts = oldest_start_ts;
 			ckpt->newest_durable_ts = newest_durable_ts;
 			ckpt->newest_stop_ts = newest_stop_ts;
+			ckpt->oldest_start_txn = oldest_start_txn;
+			ckpt->newest_stop_txn = newest_stop_txn;
 		}
 }
 
@@ -1614,8 +1617,8 @@ __checkpoint_tree(
 	 * delete a physical checkpoint, and that will end in tears.
 	 */
 	if (is_checkpoint && btree->original) {
-		__wt_checkpoint_tree_reconcile_update(
-		    session, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
+		__wt_checkpoint_tree_reconcile_update(session,
+		    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
 
 		fake_ckpt = true;
 		goto fake;
