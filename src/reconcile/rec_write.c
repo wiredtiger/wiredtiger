@@ -4619,7 +4619,9 @@ compare:		/*
 			if (rle != 0) {
 				if ((!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts)) &&
+				    last.stop_ts == stop_ts &&
+				    last.start_txn == start_txn &&
+				    last.stop_txn == stop_txn)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
 				    last.value->size == size &&
@@ -4663,9 +4665,9 @@ compare:		/*
 			}
 			last.start_ts = start_ts;
 			last.stop_ts = stop_ts;
-			last.deleted = deleted;
 			last.start_txn = start_txn;
 			last.stop_txn = stop_txn;
+			last.deleted = deleted;
 			rle = repeat_count;
 		}
 
@@ -4856,9 +4858,9 @@ compare:		/*
 			/* Ready for the next loop, reset the RLE counter. */
 			last.start_ts = start_ts;
 			last.stop_ts = stop_ts;
-			last.deleted = deleted;
 			last.start_txn = start_txn;
 			last.stop_txn = stop_txn;
+			last.deleted = deleted;
 			rle = 1;
 
 			/*
