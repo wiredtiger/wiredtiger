@@ -156,6 +156,10 @@ __debug_item_value(
 
 	session = ds->session;
 
+	if (size == 0)
+		return (ds->f(ds, "\t%s%s{}\n",
+		    tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+
 	/*
 	 * If the format is 'S', it's a string and our version of it may
 	 * not yet be nul-terminated.
@@ -1351,7 +1355,9 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	case WT_CELL_VALUE_SHORT:
 		__wt_timestamp_to_string(unpack->start_ts, ts_string[0]);
 		__wt_timestamp_to_string(unpack->stop_ts, ts_string[1]);
-		WT_RET(ds->f(ds, ", ts %s-%s", ts_string[0], ts_string[1]));
+		WT_RET(ds->f(ds, ", ts %s,%s, txn %" PRIu64 ",%" PRIu64,
+		    ts_string[0], ts_string[1],
+		    unpack->start_txn, unpack->stop_txn));
 		break;
 	}
 
