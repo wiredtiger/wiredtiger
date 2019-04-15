@@ -76,7 +76,7 @@ struct __wt_ckpt {
 
 	uint64_t write_gen;		/* Write generation */
 
-	wt_timestamp_t oldest_start_ts;	/* History */
+	wt_timestamp_t oldest_start_ts;	/* Validity window */
 	wt_timestamp_t newest_durable_ts;
 	wt_timestamp_t newest_stop_ts;
 	uint64_t oldest_start_txn;

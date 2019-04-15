@@ -288,11 +288,11 @@ __verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num,
 }
 
 /*
- * __verify_dsk_history --
- *	Verify a cell's history.
+ * __verify_dsk_validity --
+ *	Verify a cell's validity window.
  */
 static int
-__verify_dsk_history(WT_SESSION_IMPL *session,
+__verify_dsk_validity(WT_SESSION_IMPL *session,
     WT_CELL_UNPACK *unpack, uint32_t cell_num, WT_ADDR *addr, const char *tag)
 {
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -303,9 +303,9 @@ __verify_dsk_history(WT_SESSION_IMPL *session,
 	 * necessarily an exact match, but should be within the boundaries of
 	 * the parent's information.
 	 *
-	 * There's no checking if history should appear on a page because the
-	 * cell-unpacking code hides it by always returning "durable" values if
-	 * they don't appear on the page.
+	 * There's no checking if validity information should appear on a page
+	 * because the cell-unpacking code hides it by always returning durable
+	 * values if they don't appear on the page.
 	 */
 	switch (unpack->type) {
 	case WT_CELL_ADDR_DEL:
@@ -537,8 +537,8 @@ __verify_dsk_row(WT_SESSION_IMPL *session,
 			break;
 		}
 
-		/* Check history. */
-		WT_ERR(__verify_dsk_history(
+		/* Check the validity window. */
+		WT_ERR(__verify_dsk_validity(
 		    session, unpack, cell_num, addr, tag));
 
 		/* Check if any referenced item has an invalid address. */
@@ -761,8 +761,8 @@ __verify_dsk_col_int(WT_SESSION_IMPL *session,
 		WT_RET(__err_cell_type(
 		    session, cell_num, tag, unpack->type, dsk->type));
 
-		/* Check history. */
-		WT_RET(__verify_dsk_history(
+		/* Check the validity window. */
+		WT_RET(__verify_dsk_validity(
 		    session, unpack, cell_num, addr, tag));
 
 		/* Check if any referenced item is entirely in the file. */
@@ -845,8 +845,8 @@ __verify_dsk_col_var(WT_SESSION_IMPL *session,
 		    session, cell_num, tag, unpack->type, dsk->type));
 		cell_type = unpack->type;
 
-		/* Check history. */
-		WT_RET(__verify_dsk_history(
+		/* Check the validity window. */
+		WT_RET(__verify_dsk_validity(
 		    session, unpack, cell_num, addr, tag));
 
 		/* Check if any referenced item is entirely in the file. */

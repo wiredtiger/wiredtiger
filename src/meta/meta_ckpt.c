@@ -368,7 +368,7 @@ __ckpt_load(WT_SESSION_IMPL *session,
 	WT_RET_NOTFOUND_OK(ret);
 	ckpt->newest_stop_txn =
 	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
-	__wt_history_addr_check(session,
+	__wt_check_addr_validity(session,
 	    ckpt->oldest_start_ts, ckpt->newest_stop_ts,
 	    ckpt->oldest_start_txn, ckpt->newest_stop_txn);
 
@@ -442,7 +442,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			__wt_seconds(session, &ckpt->sec);
 		}
 
-		__wt_history_addr_check(session,
+		__wt_check_addr_validity(session,
 		    ckpt->oldest_start_ts, ckpt->newest_stop_ts,
 		    ckpt->oldest_start_txn, ckpt->newest_stop_txn);
 
