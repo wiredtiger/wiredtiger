@@ -53,16 +53,21 @@ main(int argc, char *argv[])
 	    "create", &opts->conn));
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
+
+	/* Create a single record in a table with two fields in its value. */
 	testutil_check(session->create(session, opts->uri,
 	    "key_format=i,value_format=ii,columns=(k,v0,v1)"));
-
-	/* Create the single record. */
 	testutil_check(
 	    session->open_cursor(session, opts->uri, NULL, NULL, &c));
 	c->set_key(c, 1);
 	c->set_value(c, 1, 1);
 	testutil_check(c->insert(c));
 	testutil_check(c->close(c));
+
+	/*
+	 * Open a dump JSON cursor on a projection of the table.
+	 * The fields will be listed in a different order.
+	 */
 	strcpy(projection, opts->uri);
 	strcat(projection, "(v1,v0,k)");
 	testutil_check(
@@ -72,6 +77,14 @@ main(int argc, char *argv[])
 	strcpy(projection, opts->uri);
 	strcat(projection, "(aaa,bbb)");
 	testutil_check(c->get_key(c, &jsonkey));
+
+	/*
+	 * Here's where we would get the parse error.
+	 * When a JSON dump is performed on a projection, we need to format
+	 * all the field names and values in the order listed.
+	 * The implementation uses the projection string from the
+	 * open_cursor call to determine the field names.
+	 */
 	testutil_check(c->get_value(c, &jsonvalue));
 	testutil_assert(strstr(jsonvalue, "aaa") == NULL);
 	printf("KEY: %s\n", jsonkey);
