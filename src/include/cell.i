@@ -59,8 +59,10 @@
  * Bit 3 marks an 8B packed, uint64_t value following the cell description byte.
  * (A run-length counter or a record number for variable-length column store.)
  *
- * Bit 4 marks a value with a validity window (globally visible values don't
- * require validity information).
+ * Bit 4 marks a value with an additional descriptor byte. If this flag is set,
+ * the next byte after the initial cell byte is an additional description byte.
+ * The bottom 4 bits describe a validity window of timestamp/transaction IDs.
+ * The top 4 bits are currently unused.
  *
  * Bits 5-8 are cell "types".
  */
@@ -75,16 +77,11 @@
 #define	WT_CELL_64V		0x04		/* Associated value */
 #define	WT_CELL_SECOND_DESC	0x08		/* Second descriptor byte */
 
-/*
- * If the second descriptor byte flag is set, the next byte after the initial
- * cell byte is an additional description byte. The bottom 4 bits describe a
- * validity window of packed timestamp and transaction IDs. The top 4 bits are
- * currently unused.
- */
-#define	WT_CELL_TS_START	0x01		/* Timestamp start */
-#define	WT_CELL_TS_STOP		0x02		/* Timestamp stop */
-#define	WT_CELL_TXN_START	0x04		/* Transaction ID start */
-#define	WT_CELL_TXN_STOP	0x08		/* Transaction ID stop */
+#define	WT_CELL_TS_DURABLE	0x01		/* Newest-durable timestamp */
+#define	WT_CELL_TS_START	0x02		/* Oldest-start timestamp */
+#define	WT_CELL_TS_STOP		0x04		/* Newest-stop timestamp */
+#define	WT_CELL_TXN_START	0x08		/* Oldest-start txn ID */
+#define	WT_CELL_TXN_STOP	0x10		/* Newest-stop txn ID */
 
 /*
  * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf
@@ -333,18 +330,52 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp,
     wt_timestamp_t newest_stop_ts,
     uint64_t oldest_start_txn, uint64_t newest_stop_txn)
 {
+	uint8_t flags, *flagsp;
+
 	__wt_check_addr_validity(session,
 	   oldest_start_ts, newest_stop_ts, oldest_start_txn, newest_stop_txn);
 
-	++*pp;
-	if (__wt_process.page_version_ts) {
-		/* Store differences, not absolutes. */
-		(void)__wt_vpack_uint(pp, 0, oldest_start_ts);
-		(void)__wt_vpack_uint(pp, 0, newest_durable_ts);
-		(void)__wt_vpack_uint(pp, 0, newest_stop_ts - oldest_start_ts);
-		(void)__wt_vpack_uint(pp, 0, oldest_start_txn);
-		(void)__wt_vpack_uint(
-		    pp, 0, newest_stop_txn - oldest_start_txn);
+	/*
+	 * Historic page versions and globally visible values have no associated
+	 * validity window, else set a flag bit and store them.
+	 */
+	if (!__wt_process.page_version_ts ||
+	    (oldest_start_ts == WT_TS_NONE && newest_durable_ts == WT_TS_NONE &&
+	    newest_stop_ts == WT_TS_MAX && oldest_start_txn == WT_TXN_NONE &&
+	    newest_stop_txn == WT_TXN_MAX))
+		++*pp;
+	else {
+		**pp |= WT_CELL_SECOND_DESC;
+		++*pp;
+		flagsp = *pp;
+		++*pp;
+
+		flags = 0;
+		if (oldest_start_ts != WT_TS_NONE) {
+			(void)__wt_vpack_uint(pp, 0, oldest_start_ts);
+			LF_SET(WT_CELL_TS_START);
+		}
+		if (newest_durable_ts != WT_TS_NONE) {
+			(void)__wt_vpack_uint(pp, 0, newest_durable_ts);
+			LF_SET(WT_CELL_TS_DURABLE);
+		}
+		if (newest_stop_ts != WT_TS_MAX) {
+			/* Store differences, not absolutes. */
+			(void)__wt_vpack_uint(
+			    pp, 0, newest_stop_ts - oldest_start_ts);
+			LF_SET(WT_CELL_TS_STOP);
+		}
+		if (oldest_start_txn != WT_TXN_NONE) {
+			(void)__wt_vpack_uint(pp, 0, oldest_start_txn);
+			LF_SET(WT_CELL_TXN_START);
+		}
+		if (newest_stop_txn != WT_TXN_MAX) {
+			/* Store differences, not absolutes. */
+			(void)__wt_vpack_uint(
+			    pp, 0, newest_stop_txn - oldest_start_txn);
+			LF_SET(WT_CELL_TXN_STOP);
+		}
+		*flagsp = flags;
 	}
 }
 
@@ -370,9 +401,9 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session,
 	    oldest_start_txn, newest_stop_txn);
 
 	if (recno == WT_RECNO_OOB)
-		cell->__chunk[0] = (uint8_t)cell_type;	/* Type */
+		cell->__chunk[0] |= (uint8_t)cell_type;	/* Type */
 	else {
-		cell->__chunk[0] = (uint8_t)(cell_type | WT_CELL_64V);
+		cell->__chunk[0] |= (uint8_t)(cell_type | WT_CELL_64V);
 		(void)__wt_vpack_uint(&p, 0, recno);	/* Record number */
 	}
 	(void)__wt_vpack_uint(&p, 0, (uint64_t)size);	/* Length */
@@ -923,23 +954,29 @@ restart:
 	case WT_CELL_ADDR_INT:
 	case WT_CELL_ADDR_LEAF:
 	case WT_CELL_ADDR_LEAF_NO:
-		if (!__wt_process.page_version_ts)
+		if ((cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0)
 			break;
+		flags = *p++;		/* skip second descriptor byte */
 
-		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-		    WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
-		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-		    WT_PTRDIFF(end, p), &unpack->newest_durable_ts));
-		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-		    WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
-		unpack->newest_stop_ts += unpack->oldest_start_ts;
-
-		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-		    WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
-		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-		    WT_PTRDIFF(end, p), &unpack->newest_stop_txn));
-		unpack->newest_stop_txn += unpack->oldest_start_txn;
-
+		if (LF_ISSET(WT_CELL_TS_START))
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
+		if (LF_ISSET(WT_CELL_TS_DURABLE))
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->newest_durable_ts));
+		if (LF_ISSET(WT_CELL_TS_STOP)) {
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
+			unpack->newest_stop_ts += unpack->oldest_start_ts;
+		}
+		if (LF_ISSET(WT_CELL_TXN_START))
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
+		if (LF_ISSET(WT_CELL_TXN_STOP)) {
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->newest_stop_txn));
+			unpack->newest_stop_txn += unpack->oldest_start_txn;
+		}
 		__wt_check_addr_validity(session,
 		    unpack->oldest_start_ts, unpack->newest_stop_ts,
 		    unpack->oldest_start_txn, unpack->newest_stop_txn);
