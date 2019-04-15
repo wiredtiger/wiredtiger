@@ -1104,6 +1104,8 @@ done:	WT_CELL_LEN_CHK(cell, unpack->__len);
 		unpack->v = copy.v;
 		unpack->start_ts = copy.start_ts;
 		unpack->stop_ts = copy.stop_ts;
+		unpack->start_txn = copy.start_txn;
+		unpack->stop_txn = copy.stop_txn;
 		unpack->__len = copy.len;
 	}
 
