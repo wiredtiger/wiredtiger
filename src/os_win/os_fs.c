@@ -17,7 +17,7 @@
 			ret = __wt_map_windows_error(windows_error);	\
 			if (windows_error == ERROR_ACCESS_DENIED) {	\
 				if (__retry == 0)			\
-					__wt_errx(session,		\
+					__wt_err(session, ret,		\
 	"Access denied to a file owned by WiredTiger."			\
 	" It will attempt a few more times. You should confirm"		\
 	" no other processes, such as virus scanners, are"		\
