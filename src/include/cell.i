@@ -340,8 +340,7 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp,
 	if (__wt_process.page_version_ts) {
 		/* Store differences, not absolutes. */
 		(void)__wt_vpack_uint(pp, 0, oldest_start_ts);
-		(void)__wt_vpack_uint(
-		    pp, 0, newest_durable_ts - oldest_start_ts);
+		(void)__wt_vpack_uint(pp, 0, newest_durable_ts);
 		(void)__wt_vpack_uint(pp, 0, newest_stop_ts - oldest_start_ts);
 		(void)__wt_vpack_uint(pp, 0, oldest_start_txn);
 		(void)__wt_vpack_uint(
@@ -931,7 +930,6 @@ restart:
 		    WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
 		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 		    WT_PTRDIFF(end, p), &unpack->newest_durable_ts));
-		unpack->newest_durable_ts += unpack->oldest_start_ts;
 		WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 		    WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
 		unpack->newest_stop_ts += unpack->oldest_start_ts;
