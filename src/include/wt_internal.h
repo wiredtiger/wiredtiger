@@ -271,6 +271,14 @@ struct __wt_page_modify;
     typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_process;
     typedef struct __wt_process WT_PROCESS;
+struct __wt_rec_chunk;
+    typedef struct __wt_rec_chunk WT_REC_CHUNK;
+struct __wt_rec_dictionary;
+    typedef struct __wt_rec_dictionary WT_REC_DICTIONARY;
+struct __wt_rec_kv;
+    typedef struct __wt_rec_kv WT_REC_KV;
+struct __wt_reconcile;
+    typedef struct __wt_reconcile WT_RECONCILE;
 struct __wt_ref;
     typedef struct __wt_ref WT_REF;
 struct __wt_ref_hist;
@@ -315,6 +323,8 @@ struct __wt_txn_state;
     typedef struct __wt_txn_state WT_TXN_STATE;
 struct __wt_update;
     typedef struct __wt_update WT_UPDATE;
+struct __wt_update_select;
+    typedef struct __wt_update_select WT_UPDATE_SELECT;
 union __wt_lsn;
     typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -382,6 +392,7 @@ typedef uint64_t wt_timestamp_t;
 #include "meta.h"
 #include "optrack.h"
 #include "os.h"
+#include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "txn.h"
