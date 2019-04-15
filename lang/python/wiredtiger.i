@@ -234,7 +234,14 @@ from .packing import pack, unpack
 			SWIG_exception_fail(SWIG_AttributeError,
 			    "Modify.data bad value");
 		}
-		modarray[i].data.data = malloc(datasize);
+		if (datasize != 0 &&
+		    __wt_malloc(NULL, datasize, &modarray[i].data.data) != 0) {
+			Py_DECREF(dataobj);
+			Py_DECREF(modobj);
+			freeModifyArray(modarray);
+			SWIG_exception_fail(SWIG_AttributeError,
+			    "Modify.data failed malloc");
+		}
 		memcpy(modarray[i].data.data, datadata, datasize);
 		modarray[i].data.size = datasize;
 		Py_DECREF(dataobj);
@@ -1198,6 +1205,7 @@ static int unpackBytesOrString(PyObject *obj, void **datap, size_t *sizep)
 
 	if (PyBytes_AsStringAndSize(obj, &data, &sz) < 0) {
 #if PY_VERSION_HEX >= 0x03000000
+		PyErr_Clear();
 		if ((data = PyUnicode_AsUTF8AndSize(obj, &sz)) != 0)
 			*sizep = strlen((char *)data) + 1;
 		else
