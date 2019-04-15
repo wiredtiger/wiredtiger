@@ -518,13 +518,13 @@ __wt_cell_pack_value_match(WT_CELL *page_cell,
 			flags = *b;
 			++b;
 			if (LF_ISSET(WT_CELL_TS_START))
-				WT_RET(__wt_vunpack_uint(&a, 0, &v));
+				WT_RET(__wt_vunpack_uint(&b, 0, &v));
 			if (LF_ISSET(WT_CELL_TS_STOP))
-				WT_RET(__wt_vunpack_uint(&a, 0, &v));
+				WT_RET(__wt_vunpack_uint(&b, 0, &v));
 			if (LF_ISSET(WT_CELL_TXN_START))
-				WT_RET(__wt_vunpack_uint(&a, 0, &v));
+				WT_RET(__wt_vunpack_uint(&b, 0, &v));
 			if (LF_ISSET(WT_CELL_TXN_STOP))
-				WT_RET(__wt_vunpack_uint(&a, 0, &v));
+				WT_RET(__wt_vunpack_uint(&b, 0, &v));
 		}
 		if (rle)					/* Skip RLE */
 			WT_RET(__wt_vunpack_uint(&b, 0, &v));
