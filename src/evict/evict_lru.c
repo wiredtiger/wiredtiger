@@ -1359,7 +1359,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_TRACK_OP_DECL;
-	u_int max_entries, retries, slot, start_slot, total_candidates;
+	u_int max_entries, retries, slot, start_slot, total_candidates, random, random_target;
 	bool dhandle_locked, incr;
 
 	WT_TRACK_OP_INIT(session);
@@ -1405,14 +1405,18 @@ retry:	while (slot < max_entries) {
 
 		if (dhandle == NULL) {
 			/*
-			 * On entry, continue from wherever we got to in the
-			 * scan last time through.  If we don't have a saved
-			 * handle, start from the beginning of the list.
+			 * Always use a random handle to avoid the bias of a round robin method
+			 * large number of dhandles could be costly.
 			 */
 			if ((dhandle = cache->walk_tree) != NULL)
 				cache->walk_tree = NULL;
-			else
+			else{
 				dhandle = TAILQ_FIRST(&conn->dhqh);
+				random_target = (u_int)rand() % conn->dhandle_count;
+				for( random = 0; random < random_target; random = random + 1 ){
+                 dhandle = TAILQ_NEXT(dhandle, q);
+                }
+			}
 		} else {
 			if (incr) {
 				WT_ASSERT(session, dhandle->session_inuse > 0);
@@ -1421,7 +1425,20 @@ retry:	while (slot < max_entries) {
 				incr = false;
 				cache->walk_tree = NULL;
 			}
-			dhandle = TAILQ_NEXT(dhandle, q);
+			/*
+			 * If there are more than RAND_MAX dhandles (highly unlikely)
+			 * go to the next dhandle as the random will not go to the tailing dhandles
+			 */
+			if(conn->dhandle_count > RAND_MAX){
+               dhandle = TAILQ_NEXT(dhandle, q);
+			}
+			else{
+				dhandle = TAILQ_FIRST(&conn->dhqh);
+			    random_target = (u_int)rand() % conn->dhandle_count;
+				for( random = 0; random < random_target; random = random + 1 ){
+                 dhandle = TAILQ_NEXT(dhandle, q);
+                }
+			}	
 		}
 
 		/* If we reach the end of the list, we're done. */
