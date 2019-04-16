@@ -299,8 +299,7 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
 	conn = S2C(session);
 
 	if (fh->ref != 0) {
-		WT_TRET(EBUSY);
-		__wt_err(session, ret,
+		__wt_errx(session,
 		    "Closing a file handle with open references: %s", fh->name);
 	}
 
