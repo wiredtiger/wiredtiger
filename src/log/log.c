@@ -2162,7 +2162,7 @@ int
 __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     int (*func)(WT_SESSION_IMPL *session,
     WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
-    void *cookie, int firstrecord), void *cookie)
+    void *cookie, uint32_t funcflags), void *cookie)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
@@ -2175,12 +2175,12 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	WT_LOG_RECORD *logrec;
 	WT_LSN end_lsn, next_lsn, prev_eof, prev_lsn, rd_lsn, start_lsn;
 	wt_off_t bad_offset, log_size;
-	uint32_t allocsize, firstlog, lastlog, lognum, rdup_len, reclen;
+	uint32_t allocsize, firstlog, funcflags, lastlog, lognum;
+	uint32_t rdup_len, reclen;
 	uint16_t version;
 	u_int i, logcount;
-	int firstrecord;
 	char **logfiles;
-	bool corrupt, eol, need_salvage, partial_record;
+	bool corrupt, eol, firstrecord, need_salvage, partial_record;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -2188,7 +2188,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 	logcount = 0;
 	logfiles = NULL;
 	corrupt = eol = false;
-	firstrecord = 1;
+	firstrecord = true;
+	funcflags = 0;
 	need_salvage = false;
 
 	/*
@@ -2563,10 +2564,17 @@ advance:
 				    session, cbbuf, uncitem));
 				cbbuf = uncitem;
 			}
-			WT_ERR((*func)(session,
-			    cbbuf, &rd_lsn, &next_lsn, cookie, firstrecord));
 
-			firstrecord = 0;
+			funcflags = 0;
+			if (firstrecord)
+				FLD_SET(funcflags, WT_LOGFUNC_FIRST);
+			if (F_ISSET(logrec, WT_LOG_RECORD_REC_IGNORE))
+				FLD_SET(funcflags, WT_LOGFUNC_REC_IGNORE);
+
+			WT_ERR((*func)(session, cbbuf,
+			    &rd_lsn, &next_lsn, cookie, funcflags));
+
+			firstrecord = false;
 
 			if (LF_ISSET(WT_LOGSCAN_ONE))
 				break;
@@ -2863,6 +2871,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp,
 	 */
 	logrec = (WT_LOG_RECORD *)record->mem;
 	logrec->len = (uint32_t)record->size;
+	if (LF_ISSET(WT_LOG_REC_IGNORE))
+		F_SET(logrec, WT_LOG_RECORD_REC_IGNORE);
 	logrec->checksum = 0;
 	__wt_log_record_byteswap(logrec);
 	logrec->checksum = __wt_checksum(logrec, record->size);

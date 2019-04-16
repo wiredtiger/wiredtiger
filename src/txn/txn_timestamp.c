@@ -997,6 +997,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, "prepare", &ts, &cval));
 		WT_RET(__wt_txn_set_prepare_timestamp(session, ts));
 	}
+	WT_RET(__wt_txn_ts_log(session));
 
 	return (0);
 }

@@ -233,6 +233,7 @@ err:		__wt_logrec_free(session, &logrec);
 int
 __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_ITEM *logrec;
 	WT_TXN *txn;
@@ -240,11 +241,13 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	uint32_t fileid;
 
+	conn = S2C(session);
 	txn = &session->txn;
 
-	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
+	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
 	    F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-	    F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING))
+	    (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
+	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS)))
 		return (0);
 
 	/* We'd better have a transaction. */
@@ -314,7 +317,7 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
 	WT_DECL_ITEM(logrec);
 	WT_DECL_RET;
 	size_t header_size;
-	uint32_t rectype, start;
+	uint32_t log_flags, rectype, start;
 	const char *fmt;
 	bool need_sync;
 
@@ -333,8 +336,13 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
 	    fmt, rectype, btree->id, start));
 	logrec->size += (uint32_t)header_size;
 
-	WT_ERR(__wt_log_write(
-	    session, logrec, lsnp, need_sync ? WT_LOG_FSYNC : 0));
+	log_flags = 0;
+	if (need_sync)
+		FLD_SET(log_flags, WT_LOG_FSYNC);
+	if (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
+	    FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DIAGNOSTICS))
+		FLD_SET(log_flags, WT_LOG_REC_IGNORE);
+	WT_ERR(__wt_log_write(session, logrec, lsnp, log_flags));
 err:	__wt_logrec_free(session, &logrec);
 	return (ret);
 }
@@ -363,6 +371,37 @@ __wt_txn_checkpoint_logread(WT_SESSION_IMPL *session,
 	WT_SET_LSN(ckpt_lsn, ckpt_file, ckpt_offset);
 	*pp = end;
 	return (0);
+}
+
+/*
+ * __wt_txn_ts_log --
+ *	Write a log record recording timestamps in the transaction.
+ */
+int
+__wt_txn_ts_log(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_ITEM *logrec;
+	WT_TXN *txn;
+
+	conn = S2C(session);
+	txn = &session->txn;
+
+	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
+	    F_ISSET(session, WT_SESSION_NO_LOGGING) ||
+	    (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
+	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS)))
+		return (0);
+
+	/* We'd better have a transaction. */
+	WT_ASSERT(session,
+	    F_ISSET(txn, WT_TXN_RUNNING) && F_ISSET(txn, WT_TXN_HAS_ID));
+
+	WT_RET(__txn_logrec_init(session));
+	logrec = txn->logrec;
+	return (__wt_logop_txn_timestamp_pack(session, logrec,
+	    txn->commit_timestamp, txn->first_commit_timestamp,
+	    txn->read_timestamp));
 }
 
 /*
@@ -589,7 +628,7 @@ __wt_txn_truncate_end(WT_SESSION_IMPL *session)
 static int
 __txn_printlog(WT_SESSION_IMPL *session,
     WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
-    void *cookie, int firstrecord)
+    void *cookie, uint32_t funcflags)
 {
 	WT_LOG_RECORD *logrec;
 	WT_TXN_PRINTLOG_ARGS *args;
@@ -611,7 +650,7 @@ __txn_printlog(WT_SESSION_IMPL *session,
 	/* First, peek at the log record type. */
 	WT_RET(__wt_logrec_read(session, &p, end, &rectype));
 
-	if (!firstrecord)
+	if (!FLD_ISSET(funcflags, WT_LOGFUNC_FIRST))
 		WT_RET(__wt_fprintf(session, args->fs, ",\n"));
 
 	WT_RET(__wt_fprintf(session, args->fs,
@@ -638,8 +677,12 @@ __txn_printlog(WT_SESSION_IMPL *session,
 
 	case WT_LOGREC_COMMIT:
 		WT_RET(__wt_vunpack_uint(&p, WT_PTRDIFF(end, p), &txnid));
+		if (FLD_ISSET(funcflags, WT_LOG_RECORD_REC_IGNORE))
+			msg = "commit DIAGNOSTIC ONLY";
+		else
+			msg = "commit";
 		WT_RET(__wt_fprintf(session, args->fs,
-		    "    \"type\" : \"commit\",\n"));
+		    "    \"type\" : \"%s\",\n", msg));
 		WT_RET(__wt_fprintf(session, args->fs,
 		    "    \"txnid\" : %" PRIu64 ",\n", txnid));
 		WT_RET(__txn_oplist_printlog(session, &p, end, args));

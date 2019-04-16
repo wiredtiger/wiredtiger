@@ -15,12 +15,12 @@
 static int
 __curlog_logrec(WT_SESSION_IMPL *session,
     WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
-    void *cookie, int firstrecord)
+    void *cookie, uint32_t funcflags)
 {
 	WT_CURSOR_LOG *cl;
 
 	cl = cookie;
-	WT_UNUSED(firstrecord);
+	WT_UNUSED(funcflags);
 
 	/* Set up the LSNs and take a copy of the log record for the cursor. */
 	*cl->cur_lsn = *lsnp;

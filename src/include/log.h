@@ -6,6 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
+/* Flags passed into __wt_log_scan */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_LOGSCAN_FIRST	0x1u
 #define	WT_LOGSCAN_FROM_CKP	0x2u
@@ -13,12 +14,20 @@
 #define	WT_LOGSCAN_RECOVER	0x8u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
+/* Flags passed to the log_scan callback */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_LOGFUNC_FIRST	0x1u
+#define	WT_LOGFUNC_REC_IGNORE	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* Flags passed into __wt_log_write */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_LOG_BACKGROUND	0x01u
 #define	WT_LOG_DSYNC		0x02u
 #define	WT_LOG_FLUSH		0x04u
 #define	WT_LOG_FSYNC		0x08u
-#define	WT_LOG_SYNC_ENABLED	0x10u
+#define	WT_LOG_REC_IGNORE	0x10u
+#define	WT_LOG_SYNC_ENABLED	0x20u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -337,8 +346,11 @@ struct __wt_log_record {
 	 */
 #define	WT_LOG_RECORD_COMPRESSED	0x01u	/* Compressed except hdr */
 #define	WT_LOG_RECORD_ENCRYPTED		0x02u	/* Encrypted except hdr */
-#define	WT_LOG_RECORD_ALL_FLAGS					\
-	(WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)
+#define	WT_LOG_RECORD_REC_IGNORE	0x04u	/* Recovery should ignore */
+#define	WT_LOG_RECORD_ALL_FLAGS		\
+	(WT_LOG_RECORD_COMPRESSED |	\
+	 WT_LOG_RECORD_ENCRYPTED |	\
+	 WT_LOG_RECORD_REC_IGNORE)
 	uint16_t	flags;		/* 08-09: Flags */
 	uint8_t		unused[2];	/* 10-11: Padding */
 	uint32_t	mem_len;	/* 12-15: Uncompressed len if needed */

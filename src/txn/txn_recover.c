@@ -304,7 +304,7 @@ __txn_commit_apply(
 static int
 __txn_log_recover(WT_SESSION_IMPL *session,
     WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
-    void *cookie, int firstrecord)
+    void *cookie, uint32_t funcflags)
 {
 	WT_DECL_RET;
 	WT_RECOVERY *r;
@@ -312,10 +312,15 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	uint32_t rectype;
 	const uint8_t *end, *p;
 
+	/*
+	 * If recovery should ignore this record, return.
+	 */
+	if (FLD_ISSET(funcflags, WT_LOGFUNC_REC_IGNORE))
+		return (0);
+
 	r = cookie;
 	p = WT_LOG_SKIP_HEADER(logrec->data);
 	end = (const uint8_t *)logrec->data + logrec->size;
-	WT_UNUSED(firstrecord);
 
 	/* First, peek at the log record type. */
 	WT_RET(__wt_logrec_read(session, &p, end, &rectype));

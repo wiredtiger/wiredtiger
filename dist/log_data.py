@@ -1,5 +1,4 @@
 # Data for log.py, describes the format of log records
-
 # There are a small number of main log record types.
 #
 # Some log record types, such as transaction commit, also include a list of
@@ -83,4 +82,7 @@ optypes = [
     LogOperationType('checkpoint_start', 'checkpoint start', []),
     LogOperationType('prev_lsn', 'previous LSN',
         [('WT_LSN', 'prev_lsn')]),
+    LogOperationType('txn_timestamp', 'txn_timestamp',
+        [('uint64', 'commit_ts'), ('uint64', 'first_ts'),
+        ('uint64', 'read_ts')]),
 ]
