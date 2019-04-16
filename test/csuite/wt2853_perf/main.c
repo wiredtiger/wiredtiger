@@ -202,7 +202,7 @@ main(int argc, char *argv[])
 		    "ERROR: %d failures when a single commit"
 		    " took more than %d seconds.\n"
 		    "This may indicate a real problem or a"
-		    " particularly slow machine\n", nfail, MAX_GAP);
+		    " particularly slow machine.\n", nfail, MAX_GAP);
 	testutil_assert(nfail == 0);
 	testutil_progress(opts, "cleanup starting");
 	testutil_cleanup(opts);
