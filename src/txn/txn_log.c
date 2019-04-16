@@ -389,8 +389,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
 	    F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-	    (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
-	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS)))
+	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS))
 		return (0);
 
 	/* We'd better have a transaction. */
