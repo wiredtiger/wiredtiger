@@ -728,7 +728,7 @@ __wt_txn_parse_prepare_timestamp(
 				    prev, __wt_txn_rts_qh, read_timestampq);
 				continue;
 			}
-			if (tmp_timestamp >= timestamp) {
+			if (tmp_timestamp >= *timestamp) {
 				__wt_readunlock(session,
 				    &txn_global->read_timestamp_rwlock);
 				__wt_timestamp_to_hex_string(
