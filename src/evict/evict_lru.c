@@ -1368,6 +1368,7 @@ __evict_walk_choose_dhandle(
 		return;
 
 	dh_bucket_count = 0;
+	rnd_bucket = 0;
 	// Keep picking up a random bucket until we find one that is not empty
 	while (dh_bucket_count == 0) {
 		rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
