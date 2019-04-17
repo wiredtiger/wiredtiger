@@ -1470,7 +1470,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * order), so we track the maximum transaction ID and the newest update
 	 * with a timestamp (if any).
 	 */
-	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->start_ts;
+	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->durable_ts;
 	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestamp) :
