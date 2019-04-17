@@ -51,6 +51,11 @@ __recovery_cursor(WT_SESSION_IMPL *session, WT_RECOVERY *r,
 	c = NULL;
 
 	/*
+	 * File ids with the bit set to ignore this operation are skipped.
+	 */
+	if (WT_LOGOP_IGNORE(id))
+		return (0);
+	/*
 	 * Metadata operations have an id of 0.  Match operations based
 	 * on the id and the current pass of recovery for metadata.
 	 *
@@ -304,7 +309,7 @@ __txn_commit_apply(
 static int
 __txn_log_recover(WT_SESSION_IMPL *session,
     WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
-    void *cookie, uint32_t funcflags)
+    void *cookie, int firstrecord)
 {
 	WT_DECL_RET;
 	WT_RECOVERY *r;
@@ -312,15 +317,10 @@ __txn_log_recover(WT_SESSION_IMPL *session,
 	uint32_t rectype;
 	const uint8_t *end, *p;
 
-	/*
-	 * If recovery should ignore this record, return.
-	 */
-	if (FLD_ISSET(funcflags, WT_LOGFUNC_REC_IGNORE))
-		return (0);
-
 	r = cookie;
 	p = WT_LOG_SKIP_HEADER(logrec->data);
 	end = (const uint8_t *)logrec->data + logrec->size;
+	WT_UNUSED(firstrecord);
 
 	/* First, peek at the log record type. */
 	WT_RET(__wt_logrec_read(session, &p, end, &rectype));

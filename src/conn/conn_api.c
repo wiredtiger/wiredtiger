@@ -1830,10 +1830,12 @@ __wt_diagnostic_config(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 
-	WT_RET(__wt_config_gets(session, cfg, "diagnostic.rollback_error", &cval));
+	WT_RET(__wt_config_gets(session,
+	    cfg, "diagnostic.rollback_error", &cval));
 	txn_global->diag_rollback = (uint64_t)cval.val;
 
-	WT_RET(__wt_config_gets(session, cfg, "diagnostic.table_logging", &cval));
+	WT_RET(__wt_config_gets(session,
+	    cfg, "diagnostic.table_logging", &cval));
 	if (cval.val)
 		FLD_SET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS);
 	else
