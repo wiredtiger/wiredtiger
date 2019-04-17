@@ -391,6 +391,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_ITEM *logrec;
 	WT_TXN *txn;
+	wt_timestamp_t commit, first, read;
 
 	conn = S2C(session);
 	txn = &session->txn;
@@ -400,14 +401,21 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS))
 		return (0);
 
-	/* We'd better have a transaction. */
-	WT_ASSERT(session,
-	    F_ISSET(txn, WT_TXN_RUNNING) && F_ISSET(txn, WT_TXN_HAS_ID));
+	/* We'd better have a transaction running. */
+	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
+
 	WT_RET(__txn_logrec_init(session));
 	logrec = txn->logrec;
-	return (__wt_logop_txn_timestamp_pack(session, logrec,
-	    txn->commit_timestamp, txn->first_commit_timestamp,
-	    txn->read_timestamp));
+	commit = first = read = WT_TS_NONE;
+	if (WT_TXN_HAS_TS_COMMIT) {
+		commit = txn->commit_timestamp;
+		first = txn->first_commit_timestamp;
+	}
+	if (WT_TXN_HAS_TS_READ)
+		read = txn->read_timestamp;
+
+	return (__wt_logop_txn_timestamp_pack(
+	    session, logrec, commit, first, read));
 }
 
 /*

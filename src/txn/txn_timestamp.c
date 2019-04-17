@@ -952,7 +952,9 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_DECL_RET;
 	WT_TXN *txn = &session->txn;
 	wt_timestamp_t ts;
+	bool set_ts;
 
+	set_ts = false;
 	WT_TRET(__wt_txn_context_check(session, true));
 
 	/* Look for round_to_oldest configuration. */
@@ -966,6 +968,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	if (ret == 0 && cval.len != 0) {
 		WT_RET(__wt_txn_parse_timestamp(session, "commit", &ts, &cval));
 		WT_RET(__wt_txn_set_commit_timestamp(session, ts));
+		set_ts = true;
 		__wt_txn_publish_commit_timestamp(session);
 	}
 
@@ -986,6 +989,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (ret == 0 && cval.len != 0) {
 		WT_RET(__wt_txn_parse_timestamp(session, "read", &ts, &cval));
+		set_ts = true;
 		WT_RET(__wt_txn_set_read_timestamp(session, ts));
 	}
 
@@ -997,7 +1001,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, "prepare", &ts, &cval));
 		WT_RET(__wt_txn_set_prepare_timestamp(session, ts));
 	}
-	WT_RET(__wt_txn_ts_log(session));
+	if (set_ts)
+		WT_RET(__wt_txn_ts_log(session));
 
 	return (0);
 }
