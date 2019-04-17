@@ -122,6 +122,7 @@ struct __wt_named_extractor {
 	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));	\
 	TAILQ_INSERT_HEAD(&(conn)->dhqh, dhandle, q);			\
 	TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);	\
+	++(conn)->dh_bucket_count[bucket];				\
 	++(conn)->dhandle_count;					\
 } while (0)
 
@@ -130,6 +131,7 @@ struct __wt_named_extractor {
 	    F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE));	\
 	TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);			\
 	TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);		\
+	--(conn)->dh_bucket_count[bucket];				\
 	--(conn)->dhandle_count;					\
 } while (0)
 
@@ -235,6 +237,8 @@ struct __wt_connection_impl {
 	TAILQ_HEAD(__wt_blockhash, __wt_block) blockhash[WT_HASH_ARRAY_SIZE];
 	TAILQ_HEAD(__wt_block_qh, __wt_block) blockqh;
 
+					/* Locked: handles in each bucket */
+	u_int dh_bucket_count[WT_HASH_ARRAY_SIZE];
 	u_int dhandle_count;		/* Locked: handles in the queue */
 	u_int open_btree_count;		/* Locked: open writable btree count */
 	uint32_t next_file_id;		/* Locked: file ID counter */

@@ -1347,6 +1347,46 @@ err:	WT_TRACK_OP_END(session);
 }
 
 /*
+ * __evict_walk_choose_dhandle --
+ *	Randomly select a dhandle for the next eviction walk
+ */
+static void
+__evict_walk_choose_dhandle(
+    WT_SESSION_IMPL *session, WT_DATA_HANDLE **dhandle_p)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DATA_HANDLE *dhandle;
+	u_int dh_bucket_count, rnd_bucket, rnd_dh;
+
+	conn = S2C(session);
+	*dhandle_p = NULL;
+
+	WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
+
+	// Nothing to do if the dhandle list is empty
+	if (TAILQ_EMPTY(&conn->dhqh))
+		return;
+
+	dh_bucket_count = 0;
+	// Keep picking up a random bucket until we find one that is not empty
+	while (dh_bucket_count == 0) {
+		rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
+		dh_bucket_count = conn->dh_bucket_count[rnd_bucket];
+	}
+
+	// We can't pick up an empty bucket with a non zero bucket count
+	WT_ASSERT(session, !TAILQ_EMPTY(&conn->dhhash[rnd_bucket]));
+
+	// Pick a random dhandle in the chosen bucket
+	rnd_dh = __wt_random(&session->rnd) % dh_bucket_count;
+	dhandle = TAILQ_FIRST(&conn->dhqh);
+	for (; rnd_dh > 0; rnd_dh--)
+		dhandle = TAILQ_NEXT(dhandle, q);
+
+	*dhandle_p = dhandle;
+}
+
+/*
  * __evict_walk --
  *	Fill in the array by walking the next set of pages.
  */
@@ -1412,7 +1452,7 @@ retry:	while (slot < max_entries) {
 			if ((dhandle = cache->walk_tree) != NULL)
 				cache->walk_tree = NULL;
 			else
-				dhandle = TAILQ_FIRST(&conn->dhqh);
+				__evict_walk_choose_dhandle(session, &dhandle);
 		} else {
 			if (incr) {
 				WT_ASSERT(session, dhandle->session_inuse > 0);
@@ -1421,10 +1461,10 @@ retry:	while (slot < max_entries) {
 				incr = false;
 				cache->walk_tree = NULL;
 			}
-			dhandle = TAILQ_NEXT(dhandle, q);
+			__evict_walk_choose_dhandle(session, &dhandle);
 		}
 
-		/* If we reach the end of the list, we're done. */
+		/* If we couldn't find any dhandle, we're done. */
 		if (dhandle == NULL)
 			break;
 
