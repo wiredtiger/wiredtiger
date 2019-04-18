@@ -120,7 +120,7 @@ __txn_op_apply(
 	WT_DECL_RET;
 	WT_ITEM key, start_key, stop_key, value;
 	WT_SESSION_IMPL *session;
-	wt_timestamp_t commit_ts, first_ts, read_ts;
+	wt_timestamp_t commit, durable, first, prepare, read;
 	uint64_t recno, start_recno, stop_recno;
 	uint32_t fileid, mode, optype, opsize;
 
@@ -279,7 +279,7 @@ __txn_op_apply(
 		 * to the next operation, but otherwise ignore.
 		 */
 		WT_ERR(__wt_logop_txn_timestamp_unpack(session, pp, end,
-		    &commit_ts, &first_ts, &read_ts));
+		    &commit, &durable, &first, &prepare, &read));
 		break;
 
 	WT_ILLEGAL_VALUE_ERR(session, optype);

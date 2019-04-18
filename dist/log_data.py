@@ -83,6 +83,7 @@ optypes = [
     LogOperationType('prev_lsn', 'previous LSN',
         [('WT_LSN', 'prev_lsn')]),
     LogOperationType('txn_timestamp', 'txn_timestamp',
-        [('uint64', 'commit_ts'), ('uint64', 'first_ts'),
-        ('uint64', 'read_ts')]),
+        [('uint64', 'commit_ts'), ('uint64', 'durable_ts'),
+            ('uint64', 'first_ts'), ('uint64', 'prepare_ts'),
+            ('uint64', 'read_ts')]),
 ]

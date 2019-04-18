@@ -391,7 +391,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_ITEM *logrec;
 	WT_TXN *txn;
-	wt_timestamp_t commit, first, read;
+	wt_timestamp_t commit, durable, first, prepare, read;
 
 	conn = S2C(session);
 	txn = &session->txn;
@@ -406,16 +406,20 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 
 	WT_RET(__txn_logrec_init(session));
 	logrec = txn->logrec;
-	commit = first = read = WT_TS_NONE;
+	commit = durable = first = prepare = read = WT_TS_NONE;
 	if (WT_TXN_HAS_TS_COMMIT) {
 		commit = txn->commit_timestamp;
 		first = txn->first_commit_timestamp;
 	}
+	if (WT_TXN_HAS_TS_DURABLE)
+		durable = txn->durable_timestamp;
+	if (WT_TXN_HAS_TS_PREPARE)
+		prepare = txn->prepare_timestamp;
 	if (WT_TXN_HAS_TS_READ)
 		read = txn->read_timestamp;
 
-	return (__wt_logop_txn_timestamp_pack(
-	    session, logrec, commit, first, read));
+	return (__wt_logop_txn_timestamp_pack(session,
+	    logrec, commit, durable, first, prepare, read));
 }
 
 /*

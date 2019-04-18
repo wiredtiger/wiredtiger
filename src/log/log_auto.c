@@ -800,22 +800,22 @@ __wt_logop_prev_lsn_print(WT_SESSION_IMPL *session,
 int
 __wt_logop_txn_timestamp_pack(
     WT_SESSION_IMPL *session, WT_ITEM *logrec,
-    uint64_t commit_ts, uint64_t first_ts, uint64_t read_ts)
+    uint64_t commit_ts, uint64_t durable_ts, uint64_t first_ts, uint64_t prepare_ts, uint64_t read_ts)
 {
-	const char *fmt = WT_UNCHECKED_STRING(IIQQQ);
+	const char *fmt = WT_UNCHECKED_STRING(IIQQQQQ);
 	size_t size;
 	uint32_t optype, recsize;
 
 	optype = WT_LOGOP_TXN_TIMESTAMP;
 	WT_RET(__wt_struct_size(session, &size, fmt,
-	    optype, 0, commit_ts, first_ts, read_ts));
+	    optype, 0, commit_ts, durable_ts, first_ts, prepare_ts, read_ts));
 
 	__wt_struct_size_adjust(session, &size);
 	WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
 	recsize = (uint32_t)size;
 	WT_RET(__wt_struct_pack(session,
 	    (uint8_t *)logrec->data + logrec->size, size, fmt,
-	    optype, recsize, commit_ts, first_ts, read_ts));
+	    optype, recsize, commit_ts, durable_ts, first_ts, prepare_ts, read_ts));
 
 	logrec->size += (uint32_t)size;
 	return (0);
@@ -824,14 +824,14 @@ __wt_logop_txn_timestamp_pack(
 int
 __wt_logop_txn_timestamp_unpack(
     WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
-    uint64_t *commit_tsp, uint64_t *first_tsp, uint64_t *read_tsp)
+    uint64_t *commit_tsp, uint64_t *durable_tsp, uint64_t *first_tsp, uint64_t *prepare_tsp, uint64_t *read_tsp)
 {
 	WT_DECL_RET;
-	const char *fmt = WT_UNCHECKED_STRING(IIQQQ);
+	const char *fmt = WT_UNCHECKED_STRING(IIQQQQQ);
 	uint32_t optype, size;
 
 	if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt,
-	    &optype, &size, commit_tsp, first_tsp, read_tsp)) != 0)
+	    &optype, &size, commit_tsp, durable_tsp, first_tsp, prepare_tsp, read_tsp)) != 0)
 		WT_RET_MSG(session, ret, "logop_txn_timestamp: unpack failure");
 	WT_ASSERT(session, optype == WT_LOGOP_TXN_TIMESTAMP);
 
@@ -844,18 +844,24 @@ __wt_logop_txn_timestamp_print(WT_SESSION_IMPL *session,
     const uint8_t **pp, const uint8_t *end, WT_TXN_PRINTLOG_ARGS *args)
 {
 	uint64_t commit_ts;
+	uint64_t durable_ts;
 	uint64_t first_ts;
+	uint64_t prepare_ts;
 	uint64_t read_ts;
 
 	WT_RET(__wt_logop_txn_timestamp_unpack(
-	    session, pp, end, &commit_ts, &first_ts, &read_ts));
+	    session, pp, end, &commit_ts, &durable_ts, &first_ts, &prepare_ts, &read_ts));
 
 	WT_RET(__wt_fprintf(session, args->fs,
 	    " \"optype\": \"txn_timestamp\",\n"));
 	WT_RET(__wt_fprintf(session, args->fs,
 	    "        \"commit_ts\": %" PRIu64 ",\n", commit_ts));
 	WT_RET(__wt_fprintf(session, args->fs,
+	    "        \"durable_ts\": %" PRIu64 ",\n", durable_ts));
+	WT_RET(__wt_fprintf(session, args->fs,
 	    "        \"first_ts\": %" PRIu64 ",\n", first_ts));
+	WT_RET(__wt_fprintf(session, args->fs,
+	    "        \"prepare_ts\": %" PRIu64 ",\n", prepare_ts));
 	WT_RET(__wt_fprintf(session, args->fs,
 	    "        \"read_ts\": %" PRIu64 "", read_ts));
 	return (0);
