@@ -1367,9 +1367,22 @@ __evict_walk_choose_dhandle(
 	if (TAILQ_EMPTY(&conn->dhqh))
 		return;
 
+	/*
+	 * If we do not have a lot of dhandles, most hash buckets will be empty.
+	 * Just pick a random dhandle from the list in that case
+	 */
+	if (conn->dhandle_count < 10 * WT_HASH_ARRAY_SIZE) {
+		rnd_dh = __wt_random(&session->rnd) % conn->dhandle_count;
+		dhandle = TAILQ_FIRST(&conn->dhqh);
+		for (; rnd_dh > 0; rnd_dh--)
+			dhandle = TAILQ_NEXT(dhandle, q);
+		*dhandle_p = dhandle;
+		return;
+	}
+
+	// Keep picking up a random bucket until we find one that is not empty
 	dh_bucket_count = 0;
 	rnd_bucket = 0;
-	// Keep picking up a random bucket until we find one that is not empty
 	while (dh_bucket_count == 0) {
 		rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
 		dh_bucket_count = conn->dh_bucket_count[rnd_bucket];
@@ -1380,7 +1393,7 @@ __evict_walk_choose_dhandle(
 
 	// Pick a random dhandle in the chosen bucket
 	rnd_dh = __wt_random(&session->rnd) % dh_bucket_count;
-	dhandle = TAILQ_FIRST(&conn->dhqh);
+	dhandle = TAILQ_FIRST(&conn->dhhash[rnd_bucket]);
 	for (; rnd_dh > 0; rnd_dh--)
 		dhandle = TAILQ_NEXT(dhandle, q);
 
