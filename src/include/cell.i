@@ -1260,20 +1260,22 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session,
 #define	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, skip_ts) do {\
 	uint32_t __i;							\
 	uint8_t *__cell;						\
+	bool	__skip_ts;						\
+	/*								\
+	 * Optionally skip unstable page entries. Skip entries after	\
+	 * downgrade to releases without validity windows, and from	\
+	 * previous wiredtiger_open connections.			\
+	 */								\
+	__skip_ts = (skip_ts) &&					\
+	    (!__wt_process.page_version_ts ||				\
+	    S2C(session)->base_write_gen > (dsk)->write_gen);		\
 	for (__cell = WT_PAGE_HEADER_BYTE(btree, dsk),			\
 	    __i = (dsk)->u.entries;					\
 	    __i > 0; __cell += (unpack).__len,	--__i) {		\
 		__wt_cell_unpack_dsk(					\
 		    session, dsk, (WT_CELL *)__cell, &(unpack));	\
-		/*							\
-		 * Optionally skip unstable page entries after downgrade\
-		 * to a release without validity windows. Check for	\
-		 * cells with unstable timestamps when we're not writing\
-		 * such cells ourselves.				\
-		 */							\
-		if ((skip_ts) &&					\
-		    (unpack).stop_ts != WT_TS_MAX &&			\
-		    !__wt_process.page_version_ts)			\
+		if (__skip_ts && (unpack).stop_ts != WT_TS_MAX)		\
 			continue;
+
 #define	WT_CELL_FOREACH_END						\
 	} } while (0)

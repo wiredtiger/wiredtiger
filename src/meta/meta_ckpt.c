@@ -30,6 +30,9 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session,
 
 	config = NULL;
 
+	/* Clear the returned information. */
+	memset(ckpt, 0, sizeof(*ckpt));
+
 	/* Retrieve the metadata entry for the file. */
 	WT_ERR(__wt_metadata_search(session, fname, &config));
 
@@ -384,6 +387,67 @@ format:
 }
 
 /*
+ * __wt_metadata_set_base_write_gen --
+ *	Set the connection's base write generation.
+ */
+int
+__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
+{
+	WT_CKPT ckpt;
+
+	WT_RET(__wt_meta_checkpoint(session, WT_METAFILE_URI, NULL, &ckpt));
+
+	/*
+	 * We track the maximum page generation we've ever seen, and I'm not
+	 * interested in debugging off-by-ones.
+	 */
+	S2C(session)->base_write_gen = ckpt.write_gen + 1;
+
+	__wt_meta_checkpoint_free(session, &ckpt);
+
+	return (0);
+}
+
+/*
+ * __ckptlist_review_write_gen --
+ *	Review the checkpoint's write generation.
+ */
+static void
+__ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
+{
+	uint64_t v;
+
+	/*
+	 * Every page written in a given wiredtiger_open() session needs to be
+	 * in a single "generation", it's how we know to ignore transactional
+	 * information found on pages written in previous generations. We make
+	 * this work by writing the maximum write generation we've ever seen
+	 * as the write-generation of the metadata file's checkpoint. When
+	 * wiredtiger_open() is called, we copy that write generation into the
+	 * connection's name space as the base write generation value. Then,
+	 * whenever we open a file, if the file's write generation is less than
+	 * the base value, we update the file's write generation so all writes
+	 * will appear after the base value, and we ignore transactions on pages
+	 * where the write generation is less than the base value.
+	 *
+	 * At every checkpoint, if the file's checkpoint write generation is
+	 * larger than the connection's maximum write generation, update the
+	 * connection.
+	 */
+	do {
+		WT_ORDERED_READ(v, S2C(session)->max_write_gen);
+	} while (ckpt->write_gen > v && !__wt_atomic_cas64(
+	    &S2C(session)->max_write_gen, v, ckpt->write_gen));
+
+	/*
+	 * If checkpointing the metadata file, update its write generation to
+	 * be the maximum we've seen.
+	 */
+	if (WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
+		ckpt->write_gen = v;
+}
+
+/*
  * __wt_meta_ckptlist_set --
  *	Set a file's checkpoint value from the WT_CKPT list.
  */
@@ -452,6 +516,9 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
 			WT_ERR(__wt_buf_catfmt(session, buf,
 			    ".%" PRId64, ckpt->order));
+
+		/* Review the checkpoint's write generation. */
+		__ckptlist_review_write_gen(session, ckpt);
 
 		/*
 		 * Use PRId64 formats: WiredTiger's configuration code handles
