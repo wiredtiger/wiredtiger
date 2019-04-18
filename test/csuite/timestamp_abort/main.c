@@ -91,7 +91,7 @@ static volatile uint64_t global_ts = 1;
     "diagnostic=(table_logging=true),"					\
     "statistics=(fast),statistics_log=(wait=1,json=true),"		\
     "transaction_sync=(enabled,method=none),session_max=%" PRIu32
-#define	ENV_CONFIG_REC "log=(archive=false,recover=on),verbose=(recovery,log)"
+#define	ENV_CONFIG_REC "log=(archive=false,recover=on)"
 
 typedef struct {
 	uint64_t absent_key;	/* Last absent key */
