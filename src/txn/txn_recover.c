@@ -271,6 +271,11 @@ __txn_op_apply(
 			WT_TRET(stop->close(stop));
 		WT_ERR(ret);
 		break;
+	case WT_LOGOP_TXN_TIMESTAMP:
+		/*
+		 * Timestamp records are informational only. Ignore.
+		 */
+		break;
 
 	WT_ILLEGAL_VALUE_ERR(session, optype);
 	}
