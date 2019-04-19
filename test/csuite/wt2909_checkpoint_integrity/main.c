@@ -79,9 +79,9 @@
 #define	MAX_OP_RANGE			1000
 #define	STDERR_FILE			"stderr.txt"
 #define	STDOUT_FILE			"stdout.txt"
-#define	VERBOSE_PRINT			10000
 #define	TESTS_PER_CALIBRATION		2
 #define	TESTS_WITH_RECALIBRATION	5
+#define	VERBOSE_PRINT			10000
 
 static int check_results(TEST_OPTS *, uint64_t *);
 static void check_values(WT_CURSOR *, int, int, int, char *);
