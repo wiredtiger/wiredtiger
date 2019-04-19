@@ -441,7 +441,8 @@ static void
 run_check_subtest_range_retry(TEST_OPTS *opts, const char *debugger,
     bool close_test)
 {
-	int tries, ret;
+	WT_DECL_RET;
+	int tries;
 
 	for (tries = 0; tries < TESTS_WITH_RECALIBRATION; tries++) {
 		if (tries != 0) {
