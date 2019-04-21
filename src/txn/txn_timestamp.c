@@ -950,7 +950,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_RET;
-	WT_TXN *txn = &session->txn;
 	wt_timestamp_t ts;
 
 	WT_TRET(__wt_txn_context_check(session, true));
