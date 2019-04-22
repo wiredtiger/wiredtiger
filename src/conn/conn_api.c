@@ -1841,15 +1841,14 @@ __wt_diagnostic_config(WT_SESSION_IMPL *session, const char *cfg[])
 	else
 		FLD_CLR(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS);
 
+	/*
+	 * Ignore reconfigure for now. Allocate once on open.
+	 */
 	WT_RET(__wt_config_gets(session,
 	    cfg, "diagnostic.checkpoint_retention", &cval));
 	conn->diag_ckpt_cnt = (uint32_t)cval.val;
-	if (cval.val == 0) {
-		if (conn->diag_ckpt != NULL)
-			__wt_free(session, conn->diag_ckpt);
-	} else if (conn->diag_ckpt != NULL)
-		WT_RET(__wt_realloc(session, NULL,
-		    conn->diag_ckpt_cnt, &conn->diag_ckpt));
+	if (cval.val == 0)
+		conn->diag_ckpt = NULL;
 	else
 		WT_RET(__wt_calloc_def(session,
 		    conn->diag_ckpt_cnt, &conn->diag_ckpt));
