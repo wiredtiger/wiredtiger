@@ -236,16 +236,26 @@ __log_fs_write(WT_SESSION_IMPL *session,
  *	thread as needed.
  */
 void
-__wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn)
+__wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
+	uint32_t i;
 
 	conn = S2C(session);
 	log = conn->log;
-	log->ckpt_lsn = *ckp_lsn;
+	log->ckpt_lsn = *ckpt_lsn;
 	if (conn->log_cond != NULL)
 		__wt_cond_signal(session, conn->log_cond);
+	/*
+	 * If we are storing diagnostic LSNs to retain additional log files
+	 * from archiving, then rotate the newest LSN into the array.
+	 */
+	if (conn->diag_ckpt_cnt != 0) {
+		for (i = conn->diag_ckpt_cnt; i > 0; --i)
+			conn->diag_ckpt[i] = conn->diag_ckpt[i-1];
+		conn->diag_ckpt[0] = *ckpt_lsn;
+	}
 }
 
 /*

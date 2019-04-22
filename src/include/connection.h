@@ -207,6 +207,9 @@ struct __wt_connection_impl {
 	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
 	uintmax_t optrack_pid;		/* Cache the process ID. */
 
+	WT_LSN		*diag_ckpt;	/* Diagnostic checkpoint LSNs. */
+	uint32_t	 diag_ckpt_cnt;	/* Checkpoint retention number */
+
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
 	size_t  foc_size;		/* Array size */

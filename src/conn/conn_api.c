@@ -1841,6 +1841,19 @@ __wt_diagnostic_config(WT_SESSION_IMPL *session, const char *cfg[])
 	else
 		FLD_CLR(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS);
 
+	WT_RET(__wt_config_gets(session,
+	    cfg, "diagnostic.checkpoint_retention", &cval));
+	conn->diag_ckpt_cnt = (uint32_t)cval.val;
+	if (cval.val == 0) {
+		if (conn->diag_ckpt != NULL)
+			__wt_free(session, conn->diag_ckpt);
+	} else if (conn->diag_ckpt != NULL)
+		WT_RET(__wt_realloc(session, NULL,
+		    conn->diag_ckpt_cnt, &conn->diag_ckpt));
+	else
+		WT_RET(__wt_calloc_def(session,
+		    conn->diag_ckpt_cnt, &conn->diag_ckpt));
+
 	return (0);
 }
 
@@ -2614,8 +2627,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		WT_ERR(__wt_strndup(
 		    session, cval.str, cval.len, &conn->error_prefix));
 	}
-	WT_ERR(__wt_diagnostic_config(session, cfg));
 	WT_ERR(__wt_verbose_config(session, cfg));
+	WT_ERR(__wt_diagnostic_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
 	__wt_btree_page_version_config(session);
 

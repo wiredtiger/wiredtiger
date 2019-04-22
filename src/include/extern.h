@@ -391,7 +391,7 @@ extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC
 extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing, uint32_t previous_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
 extern int __wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn);
+extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn);
 extern int __wt_log_flush_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn, bool start) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_log_background(WT_SESSION_IMPL *session, WT_LSN *lsn);
 extern int __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -479,6 +479,10 @@ connection_runtime_config = [
     Config('diagnostic', '', r'''
         control the settings of various extended diagnostic features''',
         type='category', subconfig=[
+        Config('checkpoint_retention', '0', r'''
+            adjust log archiving to retain the log records of this number
+            of checkpoints. Zero means perform unchanged archiving.''',
+            min='0', max='1024'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about
             every Nth operation to simulate a collision''',

@@ -83,12 +83,12 @@ static volatile uint64_t global_ts = 1;
 
 #define	ENV_CONFIG_COMPAT	",compatibility=(release=\"2.9\")"
 #define	ENV_CONFIG_DEF						\
-    "cache_size=20M,create,log=(archive=false,file_max=10M,enabled),"	\
-    "diagnostic=(table_logging=true),"					\
+    "cache_size=20M,create,log=(archive=true,file_max=10M,enabled),"	\
+    "diagnostic=(table_logging=true,checkpoint_retention=5),verbose=(temporary),"					\
     "statistics=(fast),statistics_log=(wait=1,json=true),session_max=%" PRIu32
 #define	ENV_CONFIG_TXNSYNC					\
-    "cache_size=20M,create,log=(archive=false,file_max=10M,enabled),"	\
-    "diagnostic=(table_logging=true),"					\
+    "cache_size=20M,create,log=(archive=true,file_max=10M,enabled),"	\
+    "diagnostic=(table_logging=true,checkpoint_retention=5),verbose=(temporary),"					\
     "statistics=(fast),statistics_log=(wait=1,json=true),"		\
     "transaction_sync=(enabled,method=none),session_max=%" PRIu32
 #define	ENV_CONFIG_REC "log=(archive=false,recover=on)"
