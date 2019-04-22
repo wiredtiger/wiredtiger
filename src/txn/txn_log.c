@@ -388,6 +388,7 @@ __wt_txn_checkpoint_logread(WT_SESSION_IMPL *session,
 int
 __wt_txn_ts_log(WT_SESSION_IMPL *session)
 {
+	struct timespec t;
 	WT_CONNECTION_IMPL *conn;
 	WT_ITEM *logrec;
 	WT_TXN *txn;
@@ -418,8 +419,10 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	if (WT_TXN_HAS_TS_READ)
 		read = txn->read_timestamp;
 
-	return (__wt_logop_txn_timestamp_pack(session,
-	    logrec, commit, durable, first, prepare, read));
+	__wt_epoch(session, &t);
+	return (__wt_logop_txn_timestamp_pack(session, logrec,
+	    (uint64_t)t.tv_sec, (uint64_t)t.tv_nsec,
+	    commit, durable, first, prepare, read));
 }
 
 /*
