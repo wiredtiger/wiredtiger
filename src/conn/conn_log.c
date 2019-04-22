@@ -1184,13 +1184,6 @@ __wt_logmgr_destroy(WT_SESSION_IMPL *session)
 
 	F_CLR(conn, WT_CONN_SERVER_LOG);
 
-	/*
-	 * If the array of checkpoint LSNs for diagnostics was allocated,
-	 * free it here on close.
-	 */
-	if (conn->diag_ckpt != NULL)
-		__wt_free(session, conn->diag_ckpt);
-
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
 		/*
 		 * We always set up the log_path so printlog can work without
