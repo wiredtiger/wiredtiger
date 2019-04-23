@@ -787,6 +787,9 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
+	WT_STAT_CONN_SET(session, lookaside_bytes,
+	    S2BT(session)->bm->block->size);
+
 	return (ret);
 }
 
