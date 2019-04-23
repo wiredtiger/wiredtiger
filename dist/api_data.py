@@ -481,7 +481,7 @@ connection_runtime_config = [
         type='category', subconfig=[
         Config('checkpoint_retention', '0', r'''
             adjust log archiving to retain the log records of this number
-            of checkpoints. Zero means perform unchanged archiving.''',
+            of checkpoints. Zero means perform normal archiving.''',
             min='0', max='1024'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about
@@ -489,8 +489,8 @@ connection_runtime_config = [
             min='0', max='10M'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all
-            transactions, even operations for tables with logging turned off.
-            These log records are informational and not used in recovery''',
+            operations, even operations for tables with logging turned off.
+            These operation records are informational and skipped in recovery''',
             type='boolean'),
         ]),
     Config('error_prefix', '', r'''
