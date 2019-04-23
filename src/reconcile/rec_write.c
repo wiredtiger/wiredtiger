@@ -1403,24 +1403,21 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * TIMESTAMP-FIXME
 		 * This is waiting on the WT_UPDATE structure's start/stop
 		 * timestamp/transaction work. For now, if we don't have a
-		 * timestamp/transaction, just pretend it's durable, else
-		 * pretend the durable, start and stop timestamps are all
-		 * the same, and the start and stop transactions are the
-		 * update's transaction.
+		 * timestamp/transaction, just pretend it's durable. If we
+		 * do have a timestamp/transaction, make the durable and
+		 * start timestamps equal to the start timestamp and the
+		 * start transaction equal to the transaction, and again,
+		 * pretend it's durable.
 		 */
-		if (upd_select->upd->start_ts == WT_TS_NONE) {
+		upd_select->start_ts = upd_select->durable_ts = WT_TS_NONE;
+		upd_select->stop_ts = WT_TS_MAX;
+		upd_select->start_txn = WT_TXN_NONE;
+		upd_select->stop_txn = WT_TXN_MAX;
+		if (upd_select->upd->start_ts != WT_TS_NONE)
 			upd_select->start_ts =
-			    upd_select->durable_ts = WT_TS_NONE;
-			upd_select->stop_ts = WT_TS_MAX;
-		} else
-			upd_select->start_ts = upd_select->durable_ts =
-			    upd_select->stop_ts = upd_select->upd->start_ts;
-		if (upd_select->upd->txnid == WT_TXN_NONE) {
-			upd_select->start_txn = WT_TXN_NONE;
-			upd_select->stop_txn = WT_TXN_MAX;
-		} else
-			upd_select->start_txn =
-			    upd_select->stop_txn = upd_select->upd->txnid;
+			    upd_select->durable_ts = upd_select->upd->start_ts;
+		if (upd_select->upd->txnid != WT_TXN_NONE)
+			upd_select->start_txn = upd_select->upd->txnid;
 
 		/*
 		 * Finalize the timestamps and transactions, checking if the
