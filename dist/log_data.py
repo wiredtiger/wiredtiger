@@ -35,7 +35,7 @@ rectypes = [
     # the allocated LSN to reduce the amount of work recovery has to do, and
     # they are useful for debugging recovery.
     LogRecordType('file_sync', 'file sync', [
-        ('uint32', 'fileid'), ('int', 'start')]),
+        ('uint32_id', 'fileid'), ('int', 'start')]),
 
     # Debugging message in the log
     LogRecordType('message', 'message', [('string', 'message')]),
@@ -61,21 +61,21 @@ class LogOperationType:
 optypes = [
 # commit operations
     LogOperationType('col_modify', 'column modify',
-        [('uint32', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
     LogOperationType('col_put', 'column put',
-        [('uint32', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('recno', 'recno'), ('item', 'value')]),
     LogOperationType('col_remove', 'column remove',
-        [('uint32', 'fileid'), ('recno', 'recno')]),
+        [('uint32_id', 'fileid'), ('recno', 'recno')]),
     LogOperationType('col_truncate', 'column truncate',
-        [('uint32', 'fileid'), ('recno', 'start'), ('recno', 'stop')]),
+        [('uint32_id', 'fileid'), ('recno', 'start'), ('recno', 'stop')]),
     LogOperationType('row_modify', 'row modify',
-        [('uint32', 'fileid'), ('item', 'key'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('item', 'key'), ('item', 'value')]),
     LogOperationType('row_put', 'row put',
-        [('uint32', 'fileid'), ('item', 'key'), ('item', 'value')]),
+        [('uint32_id', 'fileid'), ('item', 'key'), ('item', 'value')]),
     LogOperationType('row_remove', 'row remove',
-        [('uint32', 'fileid'), ('item', 'key')]),
+        [('uint32_id', 'fileid'), ('item', 'key')]),
     LogOperationType('row_truncate', 'row truncate',
-        [('uint32', 'fileid'), ('item', 'start'), ('item', 'stop'),
+        [('uint32_id', 'fileid'), ('item', 'start'), ('item', 'stop'),
             ('uint32', 'mode')]),
 
 # system operations
