@@ -217,7 +217,7 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	 * location cookie pairs.  Keys are on-page/overflow items and location
 	 * cookies are WT_CELL_ADDR_XXX items.
 	 */
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
 		switch (unpack.type) {
 		case WT_CELL_ADDR_INT:
 			/* An internal page: read it and recursively walk it. */
@@ -265,7 +265,7 @@ __rebalance_row_leaf_key(WT_SESSION_IMPL *session,
 	 * the page into memory and we don't want page discard to free it.
 	 */
 	WT_RET(__wt_bt_read(session, rs->tmp1, addr, addr_len));
-	WT_RET(__wt_page_inmem(session, NULL, rs->tmp1->data, 0, &page));
+	WT_RET(__wt_page_inmem(session, NULL, rs->tmp1->data, 0, false, &page));
 	ret = __wt_row_leaf_key_copy(session, page, &page->pg_row[0], key);
 	__wt_page_out(session, &page);
 	return (ret);
@@ -304,7 +304,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	 * cookies are WT_CELL_ADDR_XXX items.
 	 */
 	first_cell = true;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
 		switch (unpack.type) {
 		case WT_CELL_KEY:
 			key = unpack;

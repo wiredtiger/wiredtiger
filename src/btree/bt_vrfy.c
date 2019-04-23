@@ -853,7 +853,7 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 
 	/* Walk the page, tracking timestamps and verifying overflow pages. */
 	cell_num = 0;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, false) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
 		++cell_num;
 		switch (unpack.type) {
 		case WT_CELL_KEY_OVFL:

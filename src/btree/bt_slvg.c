@@ -561,7 +561,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		 * the page.
 		 */
 		stop_recno = dsk->recno;
-		WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+		WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
 			stop_recno += __wt_cell_rle(&unpack);
 		} WT_CELL_FOREACH_END;
 
@@ -590,7 +590,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session,
 		 * to read the page into memory and we don't want page discard
 		 * to free it.
 		 */
-		WT_ERR(__wt_page_inmem(session, NULL, dsk, 0, &page));
+		WT_ERR(__wt_page_inmem(session, NULL, dsk, 0, false, &page));
 		WT_ERR(__wt_row_leaf_key_copy(session,
 		    page, &page->pg_row[0], &trk->row_start));
 		WT_ERR(__wt_row_leaf_key_copy(session,
@@ -662,7 +662,7 @@ __slvg_trk_leaf_ovfl(
 
 	/* Count page overflow items. */
 	ovfl_cnt = 0;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
 		if (unpack.ovfl)
 			++ovfl_cnt;
 	} WT_CELL_FOREACH_END;
@@ -677,7 +677,7 @@ __slvg_trk_leaf_ovfl(
 	trk->trk_ovfl_cnt = ovfl_cnt;
 
 	ovfl_cnt = 0;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack, true) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
 		if (unpack.ovfl) {
 			WT_RET(__wt_memdup(session, unpack.data,
 			    unpack.size, &trk->trk_ovfl_addr[ovfl_cnt].addr));
@@ -1749,7 +1749,7 @@ __slvg_row_trk_update_start(
 	 */
 	WT_RET(__wt_scr_alloc(session, trk->trk_size, &dsk));
 	WT_ERR(__wt_bt_read(session, dsk, trk->trk_addr, trk->trk_addr_size));
-	WT_ERR(__wt_page_inmem(session, NULL, dsk->data, 0, &page));
+	WT_ERR(__wt_page_inmem(session, NULL, dsk->data, 0, false, &page));
 
 	/*
 	 * Walk the page, looking for a key sorting greater than the specified

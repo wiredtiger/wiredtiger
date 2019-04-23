@@ -1450,7 +1450,7 @@ __split_multi_inmem(
 	 * allocated page on error, when discarding the allocated WT_REF.
 	 */
 	WT_RET(__wt_page_inmem(
-	    session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
+	    session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, false, &page));
 	multi->disk_image = NULL;
 
 	/*

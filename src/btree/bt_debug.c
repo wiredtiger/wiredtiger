@@ -531,7 +531,7 @@ __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 
 	btree = S2BT(ds->session);
 
-	WT_CELL_FOREACH_BEGIN(ds->session, btree, dsk, unpack, false) {
+	WT_CELL_FOREACH_BEGIN(ds->session, btree, dsk, unpack) {
 		WT_RET(__debug_cell(ds, dsk, &unpack));
 	} WT_CELL_FOREACH_END;
 	return (0);
