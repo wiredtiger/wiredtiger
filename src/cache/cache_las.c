@@ -616,6 +616,7 @@ int
 __wt_las_insert_block(WT_CURSOR *cursor,
     WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
 {
+	WT_BTREE *las_btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_ITEM las_value;
@@ -787,8 +788,10 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
-	WT_STAT_CONN_SET(session, lookaside_bytes,
-	    S2BT(session)->bm->block->size);
+	las_btree = S2BT_SAFE(session);
+	if (las_btree != NULL)
+		WT_STAT_CONN_SET(session, lookaside_bytes,
+		    las_btree->bm->block->size);
 
 	return (ret);
 }
