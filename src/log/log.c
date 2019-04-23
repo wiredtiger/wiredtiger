@@ -240,7 +240,7 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
-	uint32_t i;
+	int i;
 
 	conn = S2C(session);
 	log = conn->log;
@@ -252,7 +252,7 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
 	 * from archiving, then rotate the newest LSN into the array.
 	 */
 	if (conn->diag_ckpt_cnt != 0) {
-		for (i = conn->diag_ckpt_cnt; i > 0; --i)
+		for (i = (int)conn->diag_ckpt_cnt - 1; i >= 0; --i)
 			conn->diag_ckpt[i] = conn->diag_ckpt[i-1];
 		conn->diag_ckpt[0] = *ckpt_lsn;
 	}
