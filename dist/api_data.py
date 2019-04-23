@@ -490,7 +490,7 @@ connection_runtime_config = [
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all
             operations, even operations for tables with logging turned off.
-            These operation records are informational and skipped in recovery''',
+            These operations are informational and skipped in recovery''',
             type='boolean'),
         ]),
     Config('error_prefix', '', r'''
