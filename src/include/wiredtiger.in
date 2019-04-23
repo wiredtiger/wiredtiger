@@ -2265,9 +2265,9 @@ struct __wt_connection {
 	 * simulate a collision., an integer between 0 and 10M; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write
 	 * transaction related information to the log for all operations\, even
-	 * operations for tables with logging turned off.  These operation
-	 * records are informational and skipped in recovery., a boolean flag;
-	 * default \c false.}
+	 * operations for tables with logging turned off.  These operations are
+	 * informational and skipped in recovery., a boolean flag; default \c
+	 * false.}
 	 * @config{ ),,}
 	 * @config{error_prefix, prefix string for error messages., a string;
 	 * default empty.}
@@ -2898,8 +2898,8 @@ struct __wt_connection {
  * collision., an integer between 0 and 10M; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write transaction
  * related information to the log for all operations\, even operations for
- * tables with logging turned off.  These operation records are informational
- * and skipped in recovery., a boolean flag; default \c false.}
+ * tables with logging turned off.  These operations are informational and
+ * skipped in recovery., a boolean flag; default \c false.}
  * @config{ ),,}
  * @config{direct_io, Use \c O_DIRECT on POSIX systems\, and \c
  * FILE_FLAG_NO_BUFFERING on Windows to access files.  Options are given as a
