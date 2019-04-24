@@ -1234,7 +1234,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_lookaside_score */
 		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
-	stats->cache_lookaside_ondisk = 0;
+		/* not clearing cache_lookaside_ondisk */
 	stats->cache_lookaside_remove = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_get_ref = 0;
