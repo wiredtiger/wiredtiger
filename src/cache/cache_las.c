@@ -763,6 +763,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		} while ((upd = upd->next) != NULL);
 	}
 
+	WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
+	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
+
 err:	/* Resolve the transaction. */
 	if (local_txn) {
 		if (ret == 0)
@@ -787,9 +790,6 @@ err:	/* Resolve the transaction. */
 		multi->page_las.has_prepares = prepared_insert_cnt > 0;
 		__las_insert_block_verbose(session, btree, multi);
 	}
-
-	WT_RET(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
-	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
 
 	return (ret);
 }
