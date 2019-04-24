@@ -17,7 +17,7 @@
  * There are 4 basic cell types: keys and data (each of which has an overflow
  * form), deleted cells and off-page references.  The cell is usually followed
  * by additional data, varying by type: keys are followed by a chunk of data,
- * values are is followed by an optional validity window and a chunk of data,
+ * values are followed by an optional validity window and a chunk of data,
  * overflow and off-page cells are followed by an optional validity window and
  * an address cookie.
  *
