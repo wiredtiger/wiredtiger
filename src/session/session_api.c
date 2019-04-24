@@ -865,7 +865,7 @@ __session_log_printf(WT_SESSION *wt_session, const char *fmt, ...)
 	SESSION_API_CALL_NOCONF_PREPARE_NOT_ALLOWED(session, log_printf);
 
 	va_start(ap, fmt);
-	ret = __wt_log_vprintf(session, fmt, ap);
+	ret = __wt_log_vprintf(session, NULL, fmt, ap);
 	va_end(ap);
 
 err:	API_END_RET(session, ret);

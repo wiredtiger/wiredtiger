@@ -476,6 +476,23 @@ connection_runtime_config = [
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
         ]),
+    Config('diagnostic', '', r'''
+        control the settings of various extended diagnostic features''',
+        type='category', subconfig=[
+        Config('checkpoint_retention', '0', r'''
+            adjust log archiving to retain the log records of this number
+            of checkpoints. Zero means perform normal archiving.''',
+            min='0', max='1024'),
+        Config('rollback_error', '0', r'''
+            return a WT_ROLLBACK error from a transaction operation about
+            every Nth operation to simulate a collision''',
+            min='0', max='10M'),
+        Config('table_logging', 'false', r'''
+            if true, write transaction related information to the log for all
+            operations, even operations for tables with logging turned off.
+            These operations are informational and skipped in recovery''',
+            type='boolean'),
+        ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
     Config('eviction', '', r'''

@@ -26,13 +26,13 @@ static int __log_write_internal(
  *	Write a text message to the log.
  */
 int
-__wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...)
+__wt_log_printf(WT_SESSION_IMPL *session, WT_LSN *lsnp, const char *format, ...)
 {
 	WT_DECL_RET;
 	va_list ap;
 
 	va_start(ap, format);
-	ret = __wt_log_vprintf(session, format, ap);
+	ret = __wt_log_vprintf(session, lsnp, format, ap);
 	va_end(ap);
 	return (ret);
 }
@@ -236,16 +236,26 @@ __log_fs_write(WT_SESSION_IMPL *session,
  *	thread as needed.
  */
 void
-__wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn)
+__wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_LOG *log;
+	int i;
 
 	conn = S2C(session);
 	log = conn->log;
-	log->ckpt_lsn = *ckp_lsn;
+	log->ckpt_lsn = *ckpt_lsn;
 	if (conn->log_cond != NULL)
 		__wt_cond_signal(session, conn->log_cond);
+	/*
+	 * If we are storing diagnostic LSNs to retain additional log files
+	 * from archiving, then rotate the newest LSN into the array.
+	 */
+	if (conn->diag_ckpt_cnt != 0) {
+		for (i = (int)conn->diag_ckpt_cnt - 1; i >= 0; --i)
+			conn->diag_ckpt[i] = conn->diag_ckpt[i-1];
+		conn->diag_ckpt[0] = *ckpt_lsn;
+	}
 }
 
 /*
@@ -1378,7 +1388,7 @@ __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t version,
 	 * an archive correctly removes all earlier logs.
 	 * Write an internal printf record.
 	 */
-	WT_ERR(__wt_log_printf(session,
+	WT_ERR(__wt_log_printf(session, NULL,
 	    "COMPATIBILITY: Version now %" PRIu16, log->log_version));
 	if (lognump != NULL)
 		*lognump = log->alloc_lsn.l.file;
@@ -2563,8 +2573,9 @@ advance:
 				    session, cbbuf, uncitem));
 				cbbuf = uncitem;
 			}
-			WT_ERR((*func)(session,
-			    cbbuf, &rd_lsn, &next_lsn, cookie, firstrecord));
+
+			WT_ERR((*func)(session, cbbuf,
+			    &rd_lsn, &next_lsn, cookie, firstrecord));
 
 			firstrecord = 0;
 
@@ -2964,7 +2975,8 @@ err:
  *	Write a message into the log.
  */
 int
-__wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
+__wt_log_vprintf(WT_SESSION_IMPL *session,
+    WT_LSN *lsnp, const char *fmt, va_list ap)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(logrec);
@@ -3009,7 +3021,7 @@ __wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
 	    "log_printf: %s", (char *)logrec->data + logrec->size);
 
 	logrec->size += len;
-	WT_ERR(__wt_log_write(session, logrec, NULL, 0));
+	WT_ERR(__wt_log_write(session, logrec, lsnp, 0));
 err:	__wt_scr_free(session, &logrec);
 	return (ret);
 }
