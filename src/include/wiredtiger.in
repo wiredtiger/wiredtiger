@@ -5244,50 +5244,50 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_WRITE_RESTORE		1122
 /*! cache: percentage overhead */
 #define	WT_STAT_CONN_CACHE_OVERHEAD			1123
+/*! cache: the ondisk size of the cache overflow table */
+#define	WT_STAT_CONN_CACHE_LOOKASIDE_ONDISK		1124
 /*! cache: tracked bytes belonging to internal pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1124
+#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1125
 /*! cache: tracked bytes belonging to leaf pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1125
+#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1126
 /*! cache: tracked dirty bytes in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1126
+#define	WT_STAT_CONN_CACHE_BYTES_DIRTY			1127
 /*! cache: tracked dirty pages in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1127
+#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1128
 /*! cache: unmodified pages evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_CLEAN		1128
+#define	WT_STAT_CONN_CACHE_EVICTION_CLEAN		1129
 /*! capacity: background fsync file handles considered */
-#define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1129
+#define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1130
 /*! capacity: background fsync file handles synced */
-#define	WT_STAT_CONN_FSYNC_ALL_FH			1130
+#define	WT_STAT_CONN_FSYNC_ALL_FH			1131
 /*! capacity: background fsync time (msecs) */
-#define	WT_STAT_CONN_FSYNC_ALL_TIME			1131
+#define	WT_STAT_CONN_FSYNC_ALL_TIME			1132
 /*! capacity: bytes read */
-#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1132
+#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1133
 /*! capacity: bytes written for checkpoint */
-#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1133
+#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1134
 /*! capacity: bytes written for eviction */
-#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1134
+#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1135
 /*! capacity: bytes written for log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1135
+#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1136
 /*! capacity: bytes written total */
-#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1136
+#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1137
 /*! capacity: threshold to call fsync */
-#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1137
+#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1138
 /*! capacity: time waiting due to total capacity (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1138
+#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1139
 /*! capacity: time waiting during checkpoint (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1139
+#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1140
 /*! capacity: time waiting during eviction (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1140
+#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1141
 /*! capacity: time waiting during logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1141
+#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1142
 /*! capacity: time waiting during read (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_READ			1142
+#define	WT_STAT_CONN_CAPACITY_TIME_READ			1143
 /*! connection: auto adjusting condition resets */
-#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1143
+#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1144
 /*! connection: auto adjusting condition wait calls */
-#define	WT_STAT_CONN_COND_AUTO_WAIT			1144
-/*! connection: bytes in lookaside file */
-#define	WT_STAT_CONN_LOOKASIDE_BYTES			1145
+#define	WT_STAT_CONN_COND_AUTO_WAIT			1145
 /*! connection: detected system time went backwards */
 #define	WT_STAT_CONN_TIME_TRAVEL			1146
 /*! connection: files currently open */

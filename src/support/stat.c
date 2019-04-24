@@ -877,6 +877,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
 	"cache: percentage overhead",
+	"cache: the ondisk size of the cache overflow table",
 	"cache: tracked bytes belonging to internal pages in the cache",
 	"cache: tracked bytes belonging to leaf pages in the cache",
 	"cache: tracked dirty bytes in the cache",
@@ -898,7 +899,6 @@ static const char * const __stats_connection_desc[] = {
 	"capacity: time waiting during read (usecs)",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
-	"connection: bytes in lookaside file",
 	"connection: detected system time went backwards",
 	"connection: files currently open",
 	"connection: memory allocations",
@@ -1311,6 +1311,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
 		/* not clearing cache_overhead */
+	stats->cache_lookaside_ondisk = 0;
 		/* not clearing cache_bytes_internal */
 		/* not clearing cache_bytes_leaf */
 		/* not clearing cache_bytes_dirty */
@@ -1332,7 +1333,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->capacity_time_read = 0;
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
-	stats->lookaside_bytes = 0;
 	stats->time_travel = 0;
 		/* not clearing file_open */
 	stats->memory_allocation = 0;
@@ -1791,6 +1791,8 @@ __wt_stat_connection_aggregate(
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
 	to->cache_overhead += WT_STAT_READ(from, cache_overhead);
+	to->cache_lookaside_ondisk +=
+	    WT_STAT_READ(from, cache_lookaside_ondisk);
 	to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
 	to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
@@ -1813,7 +1815,6 @@ __wt_stat_connection_aggregate(
 	to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
-	to->lookaside_bytes += WT_STAT_READ(from, lookaside_bytes);
 	to->time_travel += WT_STAT_READ(from, time_travel);
 	to->file_open += WT_STAT_READ(from, file_open);
 	to->memory_allocation += WT_STAT_READ(from, memory_allocation);

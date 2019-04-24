@@ -448,6 +448,7 @@ struct __wt_connection_stats {
 	int64_t cache_write;
 	int64_t cache_write_restore;
 	int64_t cache_overhead;
+	int64_t cache_lookaside_ondisk;
 	int64_t cache_bytes_internal;
 	int64_t cache_bytes_leaf;
 	int64_t cache_bytes_dirty;
@@ -469,7 +470,6 @@ struct __wt_connection_stats {
 	int64_t capacity_time_read;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
-	int64_t lookaside_bytes;
 	int64_t time_travel;
 	int64_t file_open;
 	int64_t memory_allocation;

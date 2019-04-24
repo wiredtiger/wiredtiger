@@ -616,7 +616,6 @@ int
 __wt_las_insert_block(WT_CURSOR *cursor,
     WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
 {
-	WT_BTREE *las_btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_ITEM las_value;
@@ -624,6 +623,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
+	wt_off_t las_size;
 	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
@@ -788,10 +788,8 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
-	las_btree = S2BT_SAFE(session);
-	if (las_btree != NULL)
-		WT_STAT_CONN_SET(session, lookaside_bytes,
-		    las_btree->bm->block->size);
+	WT_RET(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
+	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
 
 	return (ret);
 }
