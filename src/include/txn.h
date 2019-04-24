@@ -169,6 +169,7 @@ struct __wt_txn_global {
 	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
 	wt_timestamp_t	  checkpoint_timestamp;	/* Checkpoint's timestamp */
 
+	WT_LSN		  diag_lsn;		/* Diagnostic LSN */
 	volatile uint64_t diag_ops;		/* Diagnostic op counter */
 	uint64_t	  diag_rollback;	/* Diagnostic rollback */
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
@@ -315,8 +316,6 @@ struct __wt_txn {
 
 	/* Scratch buffer for in-memory log records. */
 	WT_ITEM	       *logrec;
-
-	WT_LSN		diag_lsn;
 
 	/* Requested notification when transactions are resolved. */
 	WT_TXN_NOTIFY *notify;
