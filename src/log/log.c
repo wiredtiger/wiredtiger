@@ -26,13 +26,13 @@ static int __log_write_internal(
  *	Write a text message to the log.
  */
 int
-__wt_log_printf(WT_SESSION_IMPL *session, WT_LSN *lsnp, const char *format, ...)
+__wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...)
 {
 	WT_DECL_RET;
 	va_list ap;
 
 	va_start(ap, format);
-	ret = __wt_log_vprintf(session, lsnp, format, ap);
+	ret = __wt_log_vprintf(session, format, ap);
 	va_end(ap);
 	return (ret);
 }
@@ -2974,8 +2974,7 @@ err:
  *	Write a message into the log.
  */
 int
-__wt_log_vprintf(WT_SESSION_IMPL *session,
-    WT_LSN *lsnp, const char *fmt, va_list ap)
+__wt_log_vprintf(WT_SESSION_IMPL *session, const char *fmt, va_list ap)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(logrec);
@@ -3020,7 +3019,7 @@ __wt_log_vprintf(WT_SESSION_IMPL *session,
 	    "log_printf: %s", (char *)logrec->data + logrec->size);
 
 	logrec->size += len;
-	WT_ERR(__wt_log_write(session, logrec, lsnp, 0));
+	WT_ERR(__wt_log_write(session, logrec, NULL, 0));
 err:	__wt_scr_free(session, &logrec);
 	return (ret);
 }

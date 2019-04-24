@@ -486,7 +486,7 @@ __wt_txn_checkpoint_log(
 			    session, logrec));
 			WT_ERR(__wt_log_write(session, logrec, ckpt_lsn, 0));
 		} else {
-			WT_ERR(__wt_log_printf(session, NULL,
+			WT_ERR(__wt_log_printf(session,
 			    "CHECKPOINT: Starting record"));
 			WT_ERR(__wt_log_flush_lsn(session, ckpt_lsn, true));
 		}
