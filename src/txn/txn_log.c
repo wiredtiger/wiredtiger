@@ -317,10 +317,24 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 int
 __wt_txn_log_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	struct timespec now;
+	WT_LSN lsn;
 	WT_TXN *txn;
 
 	WT_UNUSED(cfg);
 	txn = &session->txn;
+
+	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DIAGNOSTICS)) {
+		__wt_epoch(session, &now);
+		WT_RET(__wt_log_printf(session, &lsn,
+		    "[%" PRIu64 ":%" PRIu64 "] COMMIT: txn_id: %"
+		    PRIu64 " flags: 0x%" PRIx32
+		    " prev LSN [%" PRIu32 ",%" PRIu32 "]",
+		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+		    txn->id, txn->flags,
+		    txn->diag_lsn.l.file, txn->diag_lsn.l.offset));
+		txn->diag_lsn = lsn;
+	}
 	/*
 	 * If there are no log records there is nothing to do.
 	 */

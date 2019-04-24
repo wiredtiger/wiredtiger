@@ -1162,7 +1162,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	struct timespec now;
 	WT_DECL_RET;
+	WT_LSN lsn;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
@@ -1230,6 +1232,17 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_txn_op_free(session, op);
 	}
 	txn->mod_count = 0;
+	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DIAGNOSTICS)) {
+		__wt_epoch(session, &now);
+		WT_RET(__wt_log_printf(session, &lsn,
+		    "[%" PRIu64 ":%" PRIu64 "] ROLLBACK: txn_id: %"
+		    PRIu64 " flags: 0x%" PRIx32
+		    " prev LSN [%" PRIu32 ",%" PRIu32 "]",
+		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+		    txn->id, txn->flags,
+		    txn->diag_lsn.l.file, txn->diag_lsn.l.offset));
+		txn->diag_lsn = lsn;
+	}
 
 	__wt_txn_release(session);
 	/*
