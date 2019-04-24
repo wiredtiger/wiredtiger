@@ -266,12 +266,14 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 */
 	if (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS)) {
 		__wt_epoch(session, &now);
+		WT_ASSERT(session, op->btree->dhandle != NULL);
 		WT_RET(__wt_log_printf(session, &lsn,
 		    "[%" PRIu64 ":%" PRIu64 "] TXN_OP: type: %d txn_id: %"
-		    PRIu64 " fileid: %" PRIu32 " (%s) flags: 0x%" PRIx32
+		    PRIu64 " fileid: %" PRIu32 " (%s %s) flags: 0x%" PRIx32
 		    " prev LSN [%" PRIu32 ",%" PRIu32 "]",
 		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
 		    op->type, txn->id, fileid,
+		    op->btree->dhandle->name,
 		    F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) ?
 		    "NOT LOGGED" : "logged", txn->flags,
 		    txn->diag_lsn.l.file, txn->diag_lsn.l.offset));
