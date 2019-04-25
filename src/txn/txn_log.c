@@ -431,16 +431,16 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	commit = durable = first = prepare = read = WT_TS_NONE;
-	if (WT_TXN_HAS_TS_COMMIT) {
-		commit = (uint64_t)txn->commit_timestamp;
-		first = (uint64_t)txn->first_commit_timestamp;
+	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+		commit = txn->commit_timestamp;
+		first = txn->first_commit_timestamp;
 	}
-	if (WT_TXN_HAS_TS_DURABLE)
-		durable = (uint64_t)txn->durable_timestamp;
-	if (WT_TXN_HAS_TS_PREPARE)
-		prepare = (uint64_t)txn->prepare_timestamp;
-	if (WT_TXN_HAS_TS_READ)
-		read = (uint64_t)txn->read_timestamp;
+	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+		durable = txn->durable_timestamp;
+	if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
+		prepare = txn->prepare_timestamp;
+	if (F_ISSET(txn, WT_TXN_HAS_TS_READ))
+		read = txn->read_timestamp;
 
 	__wt_epoch(session, &now);
 	WT_RET(__wt_log_printf(session, &lsn,
