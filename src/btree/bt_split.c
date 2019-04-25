@@ -1444,6 +1444,10 @@ __split_multi_inmem(
 	 * here either because an update could not be written when evicting a
 	 * page, or eviction chose to keep a page in memory.
 	 *
+	 * Reconciliation won't create a disk image with entries the running
+	 * database no longer cares about (at least, not based on the current
+	 * tests we're performing), ignore the validity window.
+	 *
 	 * Steal the disk image and link the page into the passed-in WT_REF to
 	 * simplify error handling: our caller will not discard the disk image
 	 * when discarding the original page, and our caller will discard the
