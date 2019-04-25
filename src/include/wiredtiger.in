@@ -2262,9 +2262,10 @@ struct __wt_connection {
 	 * log archiving to retain the log records of this number of
 	 * checkpoints.  Zero means perform normal archiving., an integer
 	 * between 0 and 1024; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK
-	 * error from a transaction operation about every Nth operation to
-	 * simulate a collision., an integer between 0 and 10M; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
+	 * rollback_error, return a WT_ROLLBACK error from a transaction
+	 * operation about every Nth operation to simulate a collision., an
+	 * integer between 0 and 10M; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write
 	 * transaction related information to the log for all operations\, even
 	 * operations for tables with logging turned off.  These operations are
