@@ -1388,7 +1388,7 @@ __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t version,
 	 * an archive correctly removes all earlier logs.
 	 * Write an internal printf record.
 	 */
-	WT_ERR(__wt_log_printf(session, NULL,
+	WT_ERR(__wt_log_printf(session,
 	    "COMPATIBILITY: Version now %" PRIu16, log->log_version));
 	if (lognump != NULL)
 		*lognump = log->alloc_lsn.l.file;
