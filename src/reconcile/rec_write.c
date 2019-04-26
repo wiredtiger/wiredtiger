@@ -1260,6 +1260,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (WT_TXNID_LT(max_txn, txnid))
 			max_txn = txnid;
 
+		/* Track the first update with non-zero timestamp. */
+		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
+			first_ts_upd = upd;
+
 		/*
 		 * Track if all the updates are not with in-progress prepare
 		 * state.
@@ -1272,33 +1276,23 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * started.  The global commit point can move forward during
 		 * reconciliation so we use a cached copy to avoid races when a
 		 * concurrent transaction commits or rolls back while we are
-		 * examining its updates. As prepared transaction id's are
+		 * examining its updates. As prepared transaction IDs are
 		 * globally visible, need to check the update state as well.
 		 */
 		if (F_ISSET(r, WT_REC_EVICT)) {
 			if (upd->prepare_state == WT_PREPARE_LOCKED ||
 			    upd->prepare_state == WT_PREPARE_INPROGRESS)
 				prepared = true;
-
-			if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+			else if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			    WT_TXNID_LE(r->last_running, txnid) :
-			    !__txn_visible_id(session, txnid))
+			    !__txn_visible_id(session, txnid)) ||
+			    (upd->start_ts != WT_TS_NONE &&
+			    !__wt_txn_upd_durable(session, upd)))
 				uncommitted = r->update_uncommitted = true;
 
 			if (prepared || uncommitted)
 			       continue;
-
-			/* Consider a non durable update as uncommitted. */
-			if (upd->start_ts != WT_TS_NONE &&
-			    !__wt_txn_upd_durable(session, upd)) {
-				uncommitted = r->update_uncommitted = true;
-				continue;
-			}
 		}
-
-		/* Track the first update with non-zero timestamp. */
-		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
-			first_ts_upd = upd;
 
 		/*
 		 * Find the first update we can use.
