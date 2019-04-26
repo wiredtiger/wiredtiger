@@ -424,22 +424,23 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	/*
 	 * Skip lookaside pages if reading as of a timestamp, we evicted new
 	 * versions of data and all the updates are in the past.
-	 */
-	if (ref->page_las->skew_newest &&
-	    txn->read_timestamp > ref->page_las->unstable_durable_timestamp)
-		return (true);
-
-	/*
+	 *
 	 * Skip lookaside pages if reading as of a timestamp, we evicted old
 	 * versions of data and all the unstable updates are in the future.
+	 *
+	 * Checkpoint should respect durable timestamps, but all reads should
+	 * respect ordinary visibility.  Checking for just the unstable updates
+	 * during checkpoint would end up reading more content from lookaside
+	 * than necessary.
 	 */
-	if (!ref->page_las->skew_newest) {
-		/*
-		 * Skip lookaside pages during checkpoint if all the unstable
-		 * durable updates are in the future. Checking for just the
-		 * unstable updates during checkpoint would end up reading more
-		 * content from lookaside than necessary.
-		 */
+	if (ref->page_las->skew_newest) {
+		if (WT_SESSION_IS_CHECKPOINT(session) &&
+		    txn->read_timestamp > ref->page_las->unstable_durable_timestamp)
+			return (true);
+
+		if (txn->read_timestamp > ref->page_las->unstable_timestamp)
+			return (true);
+	} else {
 		if (WT_SESSION_IS_CHECKPOINT(session) &&
 		    txn->read_timestamp <
 		    ref->page_las->unstable_durable_timestamp)
