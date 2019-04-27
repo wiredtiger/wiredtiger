@@ -938,12 +938,12 @@ __rec_init(WT_SESSION_IMPL *session,
 	 */
 	if (r->las_skew_newest) {
 		r->unstable_txn = WT_TXN_NONE;
-		r->unstable_timestamp = 0;
-		r->unstable_durable_timestamp = 0;
+		r->unstable_timestamp = WT_TS_NONE;
+		r->unstable_durable_timestamp = WT_TS_NONE;
 	} else {
 		r->unstable_txn = WT_TXN_ABORTED;
-		r->unstable_timestamp = UINT64_MAX;
-		r->unstable_durable_timestamp = UINT64_MAX;
+		r->unstable_timestamp = WT_TS_MAX;
+		r->unstable_durable_timestamp = WT_TS_MAX;
 	}
 
 	/* Track if updates were used and/or uncommitted. */
@@ -1216,7 +1216,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
 	wt_timestamp_t timestamp;
 	size_t upd_memsize;
-	uint64_t max_txn, ts, txnid;
+	uint64_t max_txn, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	/*
@@ -1260,10 +1260,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (WT_TXNID_LT(max_txn, txnid))
 			max_txn = txnid;
 
-		/* Track the first update with non-zero timestamp. */
-		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
-			first_ts_upd = upd;
-
 		/*
 		 * Track if all the updates are not with in-progress prepare
 		 * state.
@@ -1293,6 +1289,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (prepared || uncommitted)
 			       continue;
 		}
+
+		/* Track the first update with non-zero timestamp. */
+		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
+			first_ts_upd = upd;
 
 		/*
 		 * Find the first update we can use.
@@ -1516,18 +1516,13 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			   WT_PREPARE_INPROGRESS ||
 			   first_ts_upd->start_ts <= first_ts_upd->durable_ts);
 
-			ts = first_ts_upd->start_ts;
-			if (r->unstable_timestamp < ts)
-				r->unstable_timestamp = ts;
+			if (r->unstable_timestamp < first_ts_upd->start_ts)
+				r->unstable_timestamp = first_ts_upd->start_ts;
 
 			if (r->unstable_durable_timestamp <
 			    first_ts_upd->durable_ts)
 				r->unstable_durable_timestamp =
 				    first_ts_upd->durable_ts;
-			else if (r->unstable_durable_timestamp <
-			    first_ts_upd->start_ts)
-				r->unstable_durable_timestamp =
-				    first_ts_upd->start_ts;
 		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
@@ -1547,9 +1542,8 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			   upd->prepare_state == WT_PREPARE_INPROGRESS ||
 			   upd->durable_ts >= upd->start_ts);
 
-			ts = upd->start_ts;
-			if (r->unstable_timestamp > ts)
-				r->unstable_timestamp = ts;
+			if (r->unstable_timestamp > upd->start_ts)
+				r->unstable_timestamp = upd->start_ts;
 			/*
 			 * Don't set the unstable durable timestamp with the
 			 * durable timestamp of an in-progress prepared update.
@@ -1559,8 +1553,6 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
 			    r->unstable_durable_timestamp > upd->durable_ts)
 				r->unstable_durable_timestamp = upd->durable_ts;
-			else if (r->unstable_durable_timestamp > ts)
-				r->unstable_durable_timestamp = ts;
 		}
 	}
 

@@ -422,19 +422,22 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (ref->page_las->skew_newest);
 
 	/*
-	 * Skip lookaside pages if reading as of a timestamp, we evicted new
-	 * versions of data and all the updates are in the past.
+	 * Skip lookaside history if reading as of a timestamp, we evicted new
+	 * versions of data and all the updates are in the past.  This is not
+	 * possible for prepared updates, because the commit timestamp was not
+	 * known when the page was evicted.
 	 *
 	 * Skip lookaside pages if reading as of a timestamp, we evicted old
 	 * versions of data and all the unstable updates are in the future.
 	 *
-	 * Checkpoint should respect durable timestamps, but all reads should
+	 * Checkpoint should respect durable timestamps, other reads should
 	 * respect ordinary visibility.  Checking for just the unstable updates
 	 * during checkpoint would end up reading more content from lookaside
 	 * than necessary.
 	 */
 	if (ref->page_las->skew_newest) {
-		if (txn->read_timestamp > (WT_SESSION_IS_CHECKPOINT(session) ?
+		if (!ref->page_las->has_prepares &&
+		    txn->read_timestamp > (WT_SESSION_IS_CHECKPOINT(session) ?
 		    ref->page_las->unstable_durable_timestamp :
 		    ref->page_las->unstable_timestamp))
 			return (true);
