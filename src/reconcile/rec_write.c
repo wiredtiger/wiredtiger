@@ -1216,7 +1216,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
 	wt_timestamp_t timestamp;
 	size_t upd_memsize;
-	uint64_t max_txn, txnid;
+	uint64_t max_txn, ts, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	/*
@@ -1516,13 +1516,18 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			   WT_PREPARE_INPROGRESS ||
 			   first_ts_upd->start_ts <= first_ts_upd->durable_ts);
 
-			if (r->unstable_timestamp < first_ts_upd->start_ts)
-				r->unstable_timestamp = first_ts_upd->start_ts;
+			ts = first_ts_upd->start_ts;
+			if (r->unstable_timestamp < ts)
+				r->unstable_timestamp = ts;
 
 			if (r->unstable_durable_timestamp <
 			    first_ts_upd->durable_ts)
 				r->unstable_durable_timestamp =
 				    first_ts_upd->durable_ts;
+			else if (r->unstable_durable_timestamp <
+			    first_ts_upd->start_ts)
+				r->unstable_durable_timestamp =
+				    first_ts_upd->start_ts;
 		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
@@ -1542,8 +1547,9 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			   upd->prepare_state == WT_PREPARE_INPROGRESS ||
 			   upd->durable_ts >= upd->start_ts);
 
-			if (upd->start_ts < r->unstable_timestamp)
-				r->unstable_timestamp = upd->start_ts;
+			ts = upd->start_ts;
+			if (r->unstable_timestamp > ts)
+				r->unstable_timestamp = ts;
 			/*
 			 * Don't set the unstable durable timestamp with the
 			 * durable timestamp of an in-progress prepared update.
@@ -1551,8 +1557,10 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * zero durable timestamp.
 			 */
 			if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
-			    upd->durable_ts < r->unstable_durable_timestamp)
+			    r->unstable_durable_timestamp > upd->durable_ts)
 				r->unstable_durable_timestamp = upd->durable_ts;
+			else if (r->unstable_durable_timestamp > ts)
+				r->unstable_durable_timestamp = ts;
 		}
 	}
 

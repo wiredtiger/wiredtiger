@@ -434,20 +434,14 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * than necessary.
 	 */
 	if (ref->page_las->skew_newest) {
-		if (WT_SESSION_IS_CHECKPOINT(session) &&
-		    txn->read_timestamp >
-		    ref->page_las->unstable_durable_timestamp)
-			return (true);
-
-		if (txn->read_timestamp > ref->page_las->unstable_timestamp)
+		if (txn->read_timestamp > (WT_SESSION_IS_CHECKPOINT(session) ?
+		    ref->page_las->unstable_durable_timestamp :
+		    ref->page_las->unstable_timestamp))
 			return (true);
 	} else {
-		if (WT_SESSION_IS_CHECKPOINT(session) &&
-		    txn->read_timestamp <
-		    ref->page_las->unstable_durable_timestamp)
-			return (true);
-
-		if (txn->read_timestamp < ref->page_las->unstable_timestamp)
+		if (txn->read_timestamp < (WT_SESSION_IS_CHECKPOINT(session) ?
+		    ref->page_las->unstable_durable_timestamp :
+		    ref->page_las->unstable_timestamp))
 			return (true);
 	}
 
