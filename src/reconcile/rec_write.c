@@ -1216,7 +1216,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
 	wt_timestamp_t timestamp;
 	size_t upd_memsize;
-	uint64_t max_txn, txnid;
+	uint64_t max_txn, ts, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	/*
@@ -1532,11 +1532,12 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
+
 			/*
-			 * The durable timestamp is always set, and usually
-			 * the same as the start timestamp, which makes it OK
-			 * to use the two independently and be confident both
-			 * will be set.
+			 * The durable timestamp is always set by commit, and
+			 * usually the same as the start timestamp, which makes
+			 * it OK to use the two independently and be confident
+			 * both will be set.
 			 */
 			WT_ASSERT(session,
 			   upd->prepare_state == WT_PREPARE_INPROGRESS ||
@@ -1544,15 +1545,18 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 
 			if (r->unstable_timestamp > upd->start_ts)
 				r->unstable_timestamp = upd->start_ts;
+
 			/*
-			 * Don't set the unstable durable timestamp with the
-			 * durable timestamp of an in-progress prepared update.
 			 * An in-progress prepared update will always have a
-			 * zero durable timestamp.
+			 * zero durable timestamp.  Checkpoints can only skip
+			 * reading lookaside history if all updates are in the
+			 * future, including the prepare, so including the
+			 * prepare timestamp instead.
 			 */
-			if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
-			    r->unstable_durable_timestamp > upd->durable_ts)
-				r->unstable_durable_timestamp = upd->durable_ts;
+			ts = upd->prepare_state == WT_PREPARE_INPROGRESS ?
+			    upd->start_ts : upd->durable_ts;
+			if (r->unstable_durable_timestamp > ts)
+				r->unstable_durable_timestamp = ts;
 		}
 	}
 
