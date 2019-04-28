@@ -307,8 +307,6 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* thread RNG state */
 
-	bool prepare_txn;			/* is prepare transaction */
-
 	volatile bool quit;			/* thread should quit */
 
 	uint64_t ops;				/* total operations */

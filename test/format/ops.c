@@ -637,7 +637,7 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo, WT_SESSION *session)
+commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 {
 	uint64_t ts;
 	char buf[64];
@@ -653,7 +653,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
 		testutil_check(session->timestamp_transaction(session, buf));
 
-		if (tinfo->prepare_txn) {
+		if (prepared) {
 			testutil_check(__wt_snprintf(buf, sizeof(buf),
 			    "durable_timestamp=%" PRIx64, ts));
 			testutil_check(
@@ -663,8 +663,6 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
 	testutil_check(session->commit_transaction(session, NULL));
-
-	tinfo->prepare_txn = false;
 }
 
 /*
@@ -677,8 +675,6 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 	++tinfo->rollback;
 
 	testutil_check(session->rollback_transaction(session, NULL));
-
-	tinfo->prepare_txn = false;
 }
 
 /*
@@ -713,7 +709,6 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 
 	testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 
-	tinfo->prepare_txn = true;
 	return (ret);
 }
 
@@ -757,7 +752,7 @@ ops(void *arg)
 	uint64_t reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
-	bool greater_than, intxn, next, positioned, readonly;
+	bool greater_than, intxn, next, positioned, prepared, readonly;
 
 	tinfo = arg;
 
@@ -797,7 +792,7 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session);
+				commit_transaction(tinfo, session, false);
 				intxn = false;
 			}
 
@@ -1161,12 +1156,14 @@ update_instead_of_chosen_op:
 		 * If prepare configured, prepare the transaction 10% of the
 		 * time.
 		 */
+		prepared = false;
 		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			ret = prepare_transaction(tinfo, session);
 			if (ret != 0)
 				WRITE_OP_FAILED(false);
 
 			__wt_yield();		/* Let other threads proceed. */
+			prepared = true;
 		}
 
 		/*
@@ -1175,7 +1172,7 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
-			commit_transaction(tinfo, session);
+			commit_transaction(tinfo, session, prepared);
 			break;
 		case 5:						/* 10% */
 rollback:		rollback_transaction(tinfo, session);
