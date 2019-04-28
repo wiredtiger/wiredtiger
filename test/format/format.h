@@ -284,6 +284,23 @@ typedef struct {
 } GLOBAL;
 extern GLOBAL g;
 
+/* Worker thread operations. */
+typedef enum { INSERT, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
+
+typedef struct {
+	thread_op op;				/* Operation */
+	uint64_t  keyno;			/* Row number */
+	uint64_t  last;			/* Inclusive end of a truncate range */
+
+	void    *kdata;			/* If an insert, the generated key */
+	size_t   ksize;
+	size_t   kmemsize;
+
+	void    *vdata;			/* If not a delete, the value */
+	size_t   vsize;
+	size_t   vmemsize;
+} SNAP_OPS;
+
 typedef struct {
 	int	    id;				/* simple thread ID */
 	wt_thread_t tid;			/* thread ID */
@@ -310,6 +327,8 @@ typedef struct {
 
 	uint64_t last;				/* truncate range */
 	WT_ITEM	 *lastkey, _lastkey;
+
+	SNAP_OPS *snap, *snap_first, snap_list[256];
 
 	WT_ITEM  *tbuf, _tbuf;			/* temporary buffer */
 

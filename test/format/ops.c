@@ -338,25 +338,9 @@ read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
 	return (ret);
 }
 
-typedef enum { INSERT, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
-typedef struct {
-	thread_op op;			/* Operation */
-	uint64_t  keyno;		/* Row number */
-	uint64_t  last;			/* Inclusive end of a truncate range */
-
-	void    *kdata;			/* If an insert, the generated key */
-	size_t   ksize;
-	size_t   kmemsize;
-
-	void    *vdata;			/* If not a delete, the value */
-	size_t   vsize;
-	size_t   vmemsize;
-} SNAP_OPS;
-
-#define	SNAP_TRACK(op, tinfo) do {					\
-	if (snap != NULL &&						\
-	    (size_t)(snap - snap_list) < WT_ELEMENTS(snap_list))	\
-		snap_track(snap++, op, tinfo);				\
+#define	SNAP_TRACK(tinfo, op) do {					\
+	if (intxn && iso_config == ISOLATION_SNAPSHOT)			\
+		snap_track(tinfo, op);					\
 } while (0)
 
 /*
@@ -364,10 +348,12 @@ typedef struct {
  *     Add a single snapshot isolation returned value to the list.
  */
 static void
-snap_track(SNAP_OPS *snap, thread_op op, TINFO *tinfo)
+snap_track(TINFO *tinfo, thread_op op)
 {
 	WT_ITEM *ip;
+	SNAP_OPS *snap;
 
+	snap = tinfo->snap;
 	snap->op = op;
 	snap->keyno = tinfo->keyno;
 	snap->last = op == TRUNCATE ? tinfo->last : 0;
@@ -389,6 +375,16 @@ snap_track(SNAP_OPS *snap, thread_op op, TINFO *tinfo)
 		}
 		memcpy(snap->vdata, ip->data, snap->vsize = ip->size);
 	}
+
+	/*
+	 * Move to the next slot, wrap at the end of the circular buffer.
+	 *
+	 * It's possible to pass this transaction's buffer starting point and
+	 * start replacing our own entries. That's OK, we just skip earlier
+	 * operations when we check.
+	 */
+	if (++tinfo->snap >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+		tinfo->snap = tinfo->snap_list;
 }
 
 /*
@@ -396,14 +392,24 @@ snap_track(SNAP_OPS *snap, thread_op op, TINFO *tinfo)
  *	Check snapshot isolation operations are repeatable.
  */
 static int
-snap_check(WT_CURSOR *cursor,
-    SNAP_OPS *start, SNAP_OPS *stop, WT_ITEM *key, WT_ITEM *value)
+snap_check(WT_CURSOR *cursor, TINFO *tinfo)
 {
+	SNAP_OPS *p, *start, *stop;
 	WT_DECL_RET;
-	SNAP_OPS *p;
+	WT_ITEM *key, *value;
 	uint8_t bitfield;
 
-	for (; start < stop; ++start) {
+	key = tinfo->key;
+	value = tinfo->value;
+
+	/* Check from the first operation we saved to the last. */
+	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
+		/* Wrap at the end of the circular buffer. */
+		if (start >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+			start = tinfo->snap_list;
+		if (start == stop)
+			break;
+
 		/*
 		 * We don't test all of the records in a truncate range, only
 		 * the first because that matches the rest of the isolation
@@ -417,11 +423,18 @@ snap_check(WT_CURSOR *cursor,
 
 		/*
 		 * Check for subsequent changes to this record. If we find a
-		 * read, don't treat it was a subsequent change, that way we
+		 * read, don't treat it as a subsequent change, that way we
 		 * verify the results of the change as well as the results of
 		 * the read.
 		 */
-		for (p = start + 1; p < stop; ++p) {
+		for (p = start + 1;; ++p) {
+			/* Wrap at the end of the circular buffer. */
+			if (p >=
+			    &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+				p = tinfo->snap_list;
+			if (p == stop)
+				break;
+
 			if (p->op == READ)
 				continue;
 			if (p->keyno == start->keyno)
@@ -525,10 +538,10 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "found {deleted}\n");
+				fprintf(stderr, "   found {deleted}\n");
 			else
 				print_item_data(
-				    "found", value->data, value->size);
+				    "   found", value->data, value->size);
 
 			testutil_die(ret,
 			    "snapshot-isolation: %.*s search mismatch",
@@ -545,10 +558,10 @@ snap_check(WT_CURSOR *cursor,
 				print_item_data(
 				    "expected", start->vdata, start->vsize);
 			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "found {deleted}\n");
+				fprintf(stderr, "   found {deleted}\n");
 			else
 				print_item_data(
-				    "found", value->data, value->size);
+				    "   found", value->data, value->size);
 
 			testutil_die(ret,
 			    "snapshot-isolation: %" PRIu64 " search mismatch",
@@ -556,6 +569,7 @@ snap_check(WT_CURSOR *cursor,
 			/* NOTREACHED */
 		}
 	}
+
 	return (0);
 }
 
@@ -734,7 +748,6 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 static WT_THREAD_RET
 ops(void *arg)
 {
-	SNAP_OPS *snap, snap_list[128];
 	TINFO *tinfo;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
@@ -749,12 +762,11 @@ ops(void *arg)
 	tinfo = arg;
 
 	conn = g.wts_conn;
+	iso_config = ISOLATION_RANDOM;	/* -Wconditional-uninitialized */
 	readonly = false;		/* -Wconditional-uninitialized */
 
 	/* Initialize tracking of snapshot isolation transaction returns. */
-	snap = NULL;
-	iso_config = 0;
-	memset(snap_list, 0, sizeof(snap_list));
+	tinfo->snap = tinfo->snap_first = tinfo->snap_list;
 
 	/* Set up the default key and value buffers. */
 	tinfo->key = &tinfo->_key;
@@ -866,9 +878,8 @@ ops(void *arg)
 		 */
 		if (!SINGLETHREADED &&
 		    !intxn && mmrand(&tinfo->rnd, 1, 100) >= g.c_txn_freq) {
+			tinfo->snap_first = tinfo->snap;
 			begin_transaction(tinfo, session, &iso_config);
-			snap =
-			    iso_config == ISOLATION_SNAPSHOT ? snap_list : NULL;
 			intxn = true;
 		}
 
@@ -909,7 +920,7 @@ ops(void *arg)
 			ret = read_row(tinfo, cursor);
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(READ, tinfo);
+				SNAP_TRACK(tinfo, READ);
 			} else
 				READ_OP_FAILED(true);
 		}
@@ -958,7 +969,7 @@ ops(void *arg)
 			positioned = false;
 			if (ret == 0) {
 				++tinfo->insert;
-				SNAP_TRACK(INSERT, tinfo);
+				SNAP_TRACK(tinfo, INSERT);
 			} else
 				WRITE_OP_FAILED(false);
 			break;
@@ -982,7 +993,7 @@ ops(void *arg)
 			}
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(MODIFY, tinfo);
+				SNAP_TRACK(tinfo, MODIFY);
 			} else
 				WRITE_OP_FAILED(true);
 			break;
@@ -991,7 +1002,7 @@ ops(void *arg)
 			ret = read_row(tinfo, cursor);
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(READ, tinfo);
+				SNAP_TRACK(tinfo, READ);
 			} else
 				READ_OP_FAILED(true);
 			break;
@@ -1012,7 +1023,7 @@ remove_instead_of_truncate:
 				 * Don't set positioned: it's unchanged from the
 				 * previous state, but not necessarily set.
 				 */
-				SNAP_TRACK(REMOVE, tinfo);
+				SNAP_TRACK(tinfo, REMOVE);
 			} else
 				WRITE_OP_FAILED(true);
 			break;
@@ -1084,7 +1095,7 @@ remove_instead_of_truncate:
 			positioned = false;
 			if (ret == 0) {
 				++tinfo->truncate;
-				SNAP_TRACK(TRUNCATE, tinfo);
+				SNAP_TRACK(tinfo, TRUNCATE);
 			} else
 				WRITE_OP_FAILED(false);
 			break;
@@ -1102,7 +1113,7 @@ update_instead_of_chosen_op:
 			}
 			if (ret == 0) {
 				positioned = true;
-				SNAP_TRACK(UPDATE, tinfo);
+				SNAP_TRACK(tinfo, UPDATE);
 			} else
 				WRITE_OP_FAILED(false);
 			break;
@@ -1139,9 +1150,8 @@ update_instead_of_chosen_op:
 		 * Ending the transaction. If in snapshot isolation, repeat the
 		 * operations and confirm they're unchanged.
 		 */
-		if (snap != NULL) {
-			ret = snap_check(
-			    cursor, snap_list, snap, tinfo->key, tinfo->value);
+		if (intxn && iso_config == ISOLATION_SNAPSHOT) {
+			ret = snap_check(cursor, tinfo);
 			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			if (ret == WT_ROLLBACK)
 				goto rollback;
@@ -1173,15 +1183,14 @@ rollback:		rollback_transaction(tinfo, session);
 		}
 
 		intxn = false;
-		snap = NULL;
 	}
 
 	if (session != NULL)
 		testutil_check(session->close(session, NULL));
 
-	for (i = 0; i < WT_ELEMENTS(snap_list); ++i) {
-		free(snap_list[i].kdata);
-		free(snap_list[i].vdata);
+	for (i = 0; i < WT_ELEMENTS(tinfo->snap_list); ++i) {
+		free(tinfo->snap_list[i].kdata);
+		free(tinfo->snap_list[i].vdata);
 	}
 	key_gen_teardown(tinfo->key);
 	val_gen_teardown(tinfo->value);
