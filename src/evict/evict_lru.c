@@ -1359,7 +1359,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_TRACK_OP_DECL;
-	u_int max_entries, retries, slot, start_slot, total_candidates, random, random_target;
+	u_int max_entries, retries, slot, start_slot, total_candidates, target;
 	bool dhandle_locked, incr;
 
 	WT_TRACK_OP_INIT(session);
@@ -1385,7 +1385,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	total_candidates = (u_int)(F_ISSET(cache, WT_CACHE_EVICT_CLEAN) ?
 	    __wt_cache_pages_inuse(cache) : cache->pages_dirty_leaf);
 	max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
-
+    target=max_entries-slot;
 retry:	while (slot < max_entries) {
 		/*
 		 * If another thread is waiting on the eviction server to clear
@@ -1412,10 +1412,6 @@ retry:	while (slot < max_entries) {
 				cache->walk_tree = NULL;
 			else{
 				dhandle = TAILQ_FIRST(&conn->dhqh);
-				random_target = (u_int)rand() % conn->dhandle_count;
-				for( random = 0; random < random_target; random = random + 1 ){
-                 dhandle = TAILQ_NEXT(dhandle, q);
-                }
 			}
 		} else {
 			if (incr) {
@@ -1425,20 +1421,9 @@ retry:	while (slot < max_entries) {
 				incr = false;
 				cache->walk_tree = NULL;
 			}
-			/*
-			 * If there are more than RAND_MAX dhandles (highly unlikely)
-			 * go to the next dhandle as the random will not go to the tailing dhandles
-			 */
-			if(conn->dhandle_count > RAND_MAX){
+			
                dhandle = TAILQ_NEXT(dhandle, q);
-			}
-			else{
-				dhandle = TAILQ_FIRST(&conn->dhqh);
-			    random_target = (u_int)rand() % conn->dhandle_count;
-				for( random = 0; random < random_target; random = random + 1 ){
-                 dhandle = TAILQ_NEXT(dhandle, q);
-                }
-			}	
+			
 		}
 
 		/* If we reach the end of the list, we're done. */
@@ -1520,7 +1505,7 @@ retry:	while (slot < max_entries) {
 				cache->walk_tree = dhandle;
 				WT_WITH_DHANDLE(session, dhandle,
 				    ret = __evict_walk_tree(
-				    session, queue, max_entries, &slot));
+				    session, queue, target, &slot));
 
 				WT_ASSERT(session, __wt_session_gen(
 				    session, WT_GEN_SPLIT) == 0);
@@ -1545,6 +1530,7 @@ retry:	while (slot < max_entries) {
 	    (retries < WT_RETRY_MAX &&
 	    (slot == queue->evict_entries || slot > start_slot)))) {
 		start_slot = slot;
+		target=max_entries-slot;
 		++retries;
 		goto retry;
 	}
@@ -1700,7 +1686,7 @@ __evict_walk_target(WT_SESSION_IMPL *session, u_int max_entries)
  */
 static int
 __evict_walk_tree(WT_SESSION_IMPL *session,
-    WT_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp)
+    WT_EVICT_QUEUE *queue, u_int total_pages, u_int *slotp)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -1726,11 +1712,17 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	 * Note that some care is taken in the calculation to avoid overflow.
 	 */
 	start = queue->evict_queue + *slotp;
-	remaining_slots = max_entries - *slotp;
+	remaining_slots = total_pages;
 	if (btree->evict_walk_progress >= btree->evict_walk_target) {
 		btree->evict_walk_target =
-		    __evict_walk_target(session, max_entries);
+		    __evict_walk_target(session, total_pages);
 		btree->evict_walk_progress = 0;
+	}
+	else{
+		btree->evict_walk_target =
+		    __evict_walk_target(session, total_pages);
+			if (btree->evict_walk_progress >= btree->evict_walk_target)
+			btree->evict_walk_progress = 0;
 	}
 	target_pages = WT_MIN(btree->evict_walk_target / QUEUE_FILLS_PER_PASS,
 	    btree->evict_walk_target - btree->evict_walk_progress);
