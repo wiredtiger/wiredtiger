@@ -1136,17 +1136,11 @@ __wt_cell_unpack_dsk(WT_SESSION_IMPL *session,
 		unpack->stop_ts = WT_TS_MAX;
 		unpack->start_txn = WT_TXN_NONE;
 		unpack->stop_txn = WT_TXN_MAX;
-		/*
-		 * Uninitialized address validity window: they aren't valid for
-		 * value items, hopefully the compiler will notice if they're
-		 * actually used somewhere.
-		 *
-		unpack->oldest_start_ts
-		unpack->newest_durable_ts
-		unpack->newest_stop_ts
-		unpack->oldest_start_txn
-		unpack->newest_stop_txn
-		 */
+		unpack->oldest_start_ts = WT_TS_NONE;
+		unpack->newest_durable_ts = WT_TS_NONE;
+		unpack->newest_stop_ts = WT_TS_MAX;
+		unpack->oldest_start_txn = WT_TXN_NONE;
+		unpack->newest_stop_txn = WT_TXN_MAX;
 		unpack->data = "";
 		unpack->size = 0;
 		unpack->__len = 0;
