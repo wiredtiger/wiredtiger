@@ -290,6 +290,11 @@ typedef enum { INSERT, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
 typedef struct {
 	thread_op op;				/* Operation */
 	uint64_t  keyno;			/* Row number */
+
+#define	SNAP_TS_NONE	WT_TS_NONE		/* Needs a timestamp */
+#define	SNAP_TS_IGNORE	1			/* Not repeatable, ignore */
+	uint64_t  timestamp;			/* Read/commit timestamp */
+
 	uint64_t  last;			/* Inclusive end of a truncate range */
 
 	void    *kdata;			/* If an insert, the generated key */

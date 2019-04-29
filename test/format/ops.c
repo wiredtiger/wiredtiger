@@ -354,6 +354,7 @@ snap_track(TINFO *tinfo, thread_op op)
 	SNAP_OPS *snap;
 
 	snap = tinfo->snap;
+	snap->timestamp = SNAP_TS_NONE;
 	snap->op = op;
 	snap->keyno = tinfo->keyno;
 	snap->last = op == TRUNCATE ? tinfo->last : 0;
@@ -388,6 +389,154 @@ snap_track(TINFO *tinfo, thread_op op)
 }
 
 /*
+ * snap_ts_update --
+ *	Update the snapshot isolation operations with their timestamps.
+ */
+static void
+snap_ts_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
+{
+	SNAP_OPS *start, *stop;
+
+	/* Check from the first operation we saved to the last. */
+	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
+		/* Wrap at the end of the circular buffer. */
+		if (start >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+			start = tinfo->snap_list;
+		if (start == stop)
+			break;
+
+		if (start->timestamp != SNAP_TS_IGNORE)
+			start->timestamp =
+			    start->op == READ ? read_ts : commit_ts;
+	}
+}
+
+/*
+ * snap_verify --
+ *	Repeat a read and verify the contents.
+ */
+static int
+snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
+{
+	WT_DECL_RET;
+	WT_ITEM *key, *value;
+	uint8_t bitfield;
+
+	key = tinfo->key;
+	value = tinfo->value;
+
+	/*
+	 * Retrieve the key/value pair by key. Row-store inserts have a unique
+	 * generated key we saved, else generate the key from the key number.
+	 */
+	if (snap->op == INSERT && g.type == ROW) {
+		key->data = snap->kdata;
+		key->size = snap->ksize;
+		cursor->set_key(cursor, key);
+	} else {
+		switch (g.type) {
+		case FIX:
+		case VAR:
+			cursor->set_key(cursor, snap->keyno);
+			break;
+		case ROW:
+			key_gen(key, snap->keyno);
+			cursor->set_key(cursor, key);
+			break;
+		}
+	}
+
+	switch (ret = read_op(cursor, SEARCH, NULL)) {
+	case 0:
+		if (g.type == FIX) {
+			testutil_check(cursor->get_value(cursor, &bitfield));
+			*(uint8_t *)(value->data) = bitfield;
+			value->size = 1;
+		} else
+			testutil_check(cursor->get_value(cursor, value));
+		break;
+	case WT_NOTFOUND:
+		break;
+	default:
+		return (ret);
+	}
+
+	/* Check for simple matches. */
+	if (ret == 0 &&
+	    snap->op != REMOVE && snap->op != TRUNCATE &&
+	    value->size == snap->vsize &&
+	    memcmp(value->data, snap->vdata, value->size) == 0)
+		return (0);
+	if (ret == WT_NOTFOUND && (snap->op == REMOVE || snap->op == TRUNCATE))
+		return (0);
+
+	/*
+	 * In fixed length stores, zero values at the end of the key space are
+	 * returned as not-found, and not-found row reads are saved as zero
+	 * values. Map back-and-forth for simplicity.
+	 */
+	if (g.type == FIX) {
+		if (ret == WT_NOTFOUND &&
+		    snap->vsize == 1 && *(uint8_t *)snap->vdata == 0)
+			return (0);
+		if ((snap->op == REMOVE || snap->op == TRUNCATE) &&
+		    value->size == 1 && *(uint8_t *)value->data == 0)
+			return (0);
+	}
+
+	/* Things went pear-shaped. */
+	switch (g.type) {
+	case FIX:
+		testutil_die(ret,
+		    "snapshot-isolation: %" PRIu64 " search: "
+		    "expected {0x%02x}, found {0x%02x}",
+		    snap->keyno,
+		    snap->op == REMOVE ? 0 : *(uint8_t *)snap->vdata,
+		    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
+		/* NOTREACHED */
+	case ROW:
+		fprintf(stderr,
+		    "snapshot-isolation %.*s search mismatch\n",
+		    (int)key->size, (const char *)key->data);
+
+		if (snap->op == REMOVE)
+			fprintf(stderr, "expected {deleted}\n");
+		else
+			print_item_data("expected", snap->vdata, snap->vsize);
+		if (ret == WT_NOTFOUND)
+			fprintf(stderr, "   found {deleted}\n");
+		else
+			print_item_data("   found", value->data, value->size);
+
+		testutil_die(ret,
+		    "snapshot-isolation: %.*s search mismatch",
+		    (int)key->size, key->data);
+		/* NOTREACHED */
+	case VAR:
+		fprintf(stderr,
+		    "snapshot-isolation %" PRIu64 " search mismatch\n",
+		    snap->keyno);
+
+		if (snap->op == REMOVE)
+			fprintf(stderr, "expected {deleted}\n");
+		else
+			print_item_data("expected", snap->vdata, snap->vsize);
+		if (ret == WT_NOTFOUND)
+			fprintf(stderr, "   found {deleted}\n");
+		else
+			print_item_data("   found", value->data, value->size);
+
+		testutil_die(ret,
+		    "snapshot-isolation: %" PRIu64 " search mismatch",
+		    snap->keyno);
+		/* NOTREACHED */
+	}
+
+	/* NOTREACHED */
+	return (1);
+}
+
+/*
  * snap_check --
  *	Check snapshot isolation operations are repeatable.
  */
@@ -395,12 +544,6 @@ static int
 snap_check(WT_CURSOR *cursor, TINFO *tinfo)
 {
 	SNAP_OPS *p, *start, *stop;
-	WT_DECL_RET;
-	WT_ITEM *key, *value;
-	uint8_t bitfield;
-
-	key = tinfo->key;
-	value = tinfo->value;
 
 	/* Check from the first operation we saved to the last. */
 	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
@@ -451,126 +594,64 @@ snap_check(WT_CURSOR *cursor, TINFO *tinfo)
 			    (p->last == 0 || p->last >= start->keyno))
 				break;
 		}
-		if (p != stop)
+		if (p != stop) {
+			/* The operation isn't repeatable, ignore it. */
+			start->timestamp = SNAP_TS_IGNORE;
 			continue;
-
-		/*
-		 * Retrieve the key/value pair by key. Row-store inserts have a
-		 * unique generated key we saved, else generate the key from the
-		 * key number.
-		 */
-		if (start->op == INSERT && g.type == ROW) {
-			key->data = start->kdata;
-			key->size = start->ksize;
-			cursor->set_key(cursor, key);
-		} else {
-			switch (g.type) {
-			case FIX:
-			case VAR:
-				cursor->set_key(cursor, start->keyno);
-				break;
-			case ROW:
-				key_gen(key, start->keyno);
-				cursor->set_key(cursor, key);
-				break;
-			}
 		}
 
-		switch (ret = read_op(cursor, SEARCH, NULL)) {
-		case 0:
-			if (g.type == FIX) {
-				testutil_check(
-				    cursor->get_value(cursor, &bitfield));
-				*(uint8_t *)(value->data) = bitfield;
-				value->size = 1;
-			} else
-				testutil_check(
-				    cursor->get_value(cursor, value));
-			break;
-		case WT_NOTFOUND:
-			break;
-		default:
-			return (ret);
-		}
-
-		/* Check for simple matches. */
-		if (ret == 0 &&
-		    start->op != REMOVE && start->op != TRUNCATE &&
-		    value->size == start->vsize &&
-		    memcmp(value->data, start->vdata, value->size) == 0)
-			continue;
-		if (ret == WT_NOTFOUND &&
-		    (start->op == REMOVE || start->op == TRUNCATE))
-			continue;
-
-		/*
-		 * In fixed length stores, zero values at the end of the key
-		 * space are returned as not-found, and not-found row reads
-		 * are saved as zero values. Map back-and-forth for simplicity.
-		 */
-		if (g.type == FIX) {
-			if (ret == WT_NOTFOUND &&
-			    start->vsize == 1 && *(uint8_t *)start->vdata == 0)
-				continue;
-			if ((start->op == REMOVE || start->op == TRUNCATE) &&
-			    value->size == 1 && *(uint8_t *)value->data == 0)
-				continue;
-		}
-
-		/* Things went pear-shaped. */
-		switch (g.type) {
-		case FIX:
-			testutil_die(ret,
-			    "snapshot-isolation: %" PRIu64 " search: "
-			    "expected {0x%02x}, found {0x%02x}",
-			    start->keyno,
-			    start->op == REMOVE ? 0 : *(uint8_t *)start->vdata,
-			    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
-			/* NOTREACHED */
-		case ROW:
-			fprintf(stderr,
-			    "snapshot-isolation %.*s search mismatch\n",
-			    (int)key->size, (const char *)key->data);
-
-			if (start->op == REMOVE)
-				fprintf(stderr, "expected {deleted}\n");
-			else
-				print_item_data(
-				    "expected", start->vdata, start->vsize);
-			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "   found {deleted}\n");
-			else
-				print_item_data(
-				    "   found", value->data, value->size);
-
-			testutil_die(ret,
-			    "snapshot-isolation: %.*s search mismatch",
-			    (int)key->size, key->data);
-			/* NOTREACHED */
-		case VAR:
-			fprintf(stderr,
-			    "snapshot-isolation %" PRIu64 " search mismatch\n",
-			    start->keyno);
-
-			if (start->op == REMOVE)
-				fprintf(stderr, "expected {deleted}\n");
-			else
-				print_item_data(
-				    "expected", start->vdata, start->vsize);
-			if (ret == WT_NOTFOUND)
-				fprintf(stderr, "   found {deleted}\n");
-			else
-				print_item_data(
-				    "   found", value->data, value->size);
-
-			testutil_die(ret,
-			    "snapshot-isolation: %" PRIu64 " search mismatch",
-			    start->keyno);
-			/* NOTREACHED */
-		}
+		WT_RET(snap_verify(cursor, tinfo, start));
 	}
 
 	return (0);
+}
+
+/*
+ * snap_repeat --
+ *	Repeat an historic read.
+ */
+static void
+snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
+{
+	SNAP_OPS *snap;
+	WT_DECL_RET;
+	WT_SESSION *session;
+	u_int v;
+	int count;
+	char buf[64];
+
+	session = cursor->session;
+
+	v = mmrand(&tinfo->rnd, 1, WT_ELEMENTS(tinfo->snap_list)) - 1;
+
+	for (count = WT_ELEMENTS(tinfo->snap_list) /10,
+	    snap = &tinfo->snap_list[v]; count > 0; --count, ++snap) {
+		/* Wrap at the end of the circular buffer. */
+		if (snap >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+			snap = tinfo->snap_list;
+		if (snap->timestamp == SNAP_TS_NONE ||
+		    snap->timestamp == SNAP_TS_IGNORE)
+			continue;
+
+		/*
+		 * Start a new transaction.
+		 * Set the read timestamp.
+		 * Verify the record.
+		 * Discard the transaction.
+		 */
+		while ((ret = session->begin_transaction(
+		    session, "isolation=snapshot")) == WT_CACHE_FULL)
+			;
+		testutil_check(ret);
+
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "read_timestamp=%" PRIx64, snap->timestamp));
+		testutil_check(session->timestamp_transaction(session, buf));
+
+		testutil_check(snap_verify(cursor, tinfo, snap));
+
+		testutil_check(session->rollback_transaction(session, NULL));
+	}
 }
 
 /*
@@ -578,12 +659,16 @@ snap_check(WT_CURSOR *cursor, TINFO *tinfo)
  *	Choose an isolation configuration and begin a transaction.
  */
 static void
-begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
+begin_transaction(TINFO *tinfo,
+    WT_SESSION *session, uint64_t *read_tsp, u_int *iso_configp)
 {
 	WT_DECL_RET;
+	uint64_t ts;
 	u_int v;
 	char buf[64];
 	const char *config;
+
+	*read_tsp = WT_TS_NONE;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
 		v = mmrand(&tinfo->rnd, 1, 3);
@@ -623,12 +708,14 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 		 */
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
-		testutil_check(__wt_snprintf(buf, sizeof(buf),
-		    "read_timestamp=%" PRIx64,
-		    __wt_atomic_addv64(&g.timestamp, 1)));
+		ts = __wt_atomic_addv64(&g.timestamp, 1);
+		testutil_check(__wt_snprintf(
+		    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
 		testutil_check(session->timestamp_transaction(session, buf));
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+
+		*read_tsp = ts;
 	}
 }
 
@@ -637,10 +724,14 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
+commit_transaction(TINFO *tinfo,
+    WT_SESSION *session, bool prepared, uint64_t *commit_tsp)
 {
 	uint64_t ts;
 	char buf[64];
+
+	if (commit_tsp != NULL)
+		*commit_tsp = WT_TS_NONE;
 
 	++tinfo->commit;
 
@@ -661,6 +752,9 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 		}
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+
+		if (commit_tsp != NULL)
+			*commit_tsp = ts;
 	}
 	testutil_check(session->commit_transaction(session, NULL));
 }
@@ -749,7 +843,7 @@ ops(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *session;
 	thread_op op;
-	uint64_t reset_op, session_op, truncate_op;
+	uint64_t commit_ts, read_ts, reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
 	bool greater_than, intxn, next, positioned, prepared, readonly;
@@ -792,7 +886,7 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session, false);
+				commit_transaction(tinfo, session, NULL, false);
 				intxn = false;
 			}
 
@@ -874,12 +968,10 @@ ops(void *arg)
 		if (!SINGLETHREADED &&
 		    !intxn && mmrand(&tinfo->rnd, 1, 100) >= g.c_txn_freq) {
 			tinfo->snap_first = tinfo->snap;
-			begin_transaction(tinfo, session, &iso_config);
+			begin_transaction(
+			    tinfo, session, &read_ts, &iso_config);
 			intxn = true;
 		}
-
-		/* Select a row. */
-		tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
 
 		/* Select an operation. */
 		op = READ;
@@ -904,6 +996,17 @@ ops(void *arg)
 		}
 
 		/*
+		 * If about to do a read, occasionally try and repeat a read
+		 * first.
+		 */
+		if (op == READ && !intxn &&
+		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1)
+			snap_repeat(cursor, tinfo);
+
+		/* Select a row. */
+		tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
+
+		/*
 		 * Inserts, removes and updates can be done following a cursor
 		 * set-key, or based on a cursor position taken from a previous
 		 * search. If not already doing a read, position the cursor at
@@ -920,7 +1023,10 @@ ops(void *arg)
 				READ_OP_FAILED(true);
 		}
 
-		/* Optionally reserve a row. */
+		/*
+		 * Optionally reserve a row. Reserving a row before a read isn't
+		 * all that sensible, but not unexpected, either.
+		 */
 		if (!readonly && intxn && mmrand(&tinfo->rnd, 0, 20) == 1) {
 			switch (g.type) {
 			case ROW:
@@ -1146,6 +1252,8 @@ update_instead_of_chosen_op:
 		 * operations and confirm they're unchanged.
 		 */
 		if (intxn && iso_config == ISOLATION_SNAPSHOT) {
+			__wt_yield();		/* Encourage races */
+
 			ret = snap_check(cursor, tinfo);
 			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			if (ret == WT_ROLLBACK)
@@ -1162,7 +1270,7 @@ update_instead_of_chosen_op:
 			if (ret != 0)
 				WRITE_OP_FAILED(false);
 
-			__wt_yield();		/* Let other threads proceed. */
+			__wt_yield();		/* Encourage races */
 			prepared = true;
 		}
 
@@ -1172,12 +1280,21 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
-			commit_transaction(tinfo, session, prepared);
+			commit_transaction(
+			    tinfo, session, prepared, &commit_ts);
 			break;
 		case 5:						/* 10% */
 rollback:		rollback_transaction(tinfo, session);
+			commit_ts = SNAP_TS_NONE;
 			break;
 		}
+
+		/*
+		 * Update any snapshot isolation operations with the timestamp
+		 * we can use to repeat them.
+		 */
+		if (intxn && g.c_txn_timestamps)
+			snap_ts_update(tinfo, read_ts, commit_ts);
 
 		intxn = false;
 	}
