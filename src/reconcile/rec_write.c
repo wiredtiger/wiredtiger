@@ -945,12 +945,12 @@ __rec_init(WT_SESSION_IMPL *session,
 	 */
 	if (r->las_skew_newest) {
 		r->unstable_txn = WT_TXN_NONE;
-		r->unstable_timestamp = 0;
-		r->unstable_durable_timestamp = 0;
+		r->unstable_timestamp = WT_TS_NONE;
+		r->unstable_durable_timestamp = WT_TS_NONE;
 	} else {
 		r->unstable_txn = WT_TXN_ABORTED;
-		r->unstable_timestamp = UINT64_MAX;
-		r->unstable_durable_timestamp = UINT64_MAX;
+		r->unstable_timestamp = WT_TS_MAX;
+		r->unstable_durable_timestamp = WT_TS_MAX;
 	}
 
 	/* Track if updates were used and/or uncommitted. */
@@ -1223,7 +1223,7 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
 	wt_timestamp_t timestamp;
 	size_t upd_memsize;
-	uint64_t max_txn, txnid;
+	uint64_t max_txn, ts, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	/*
@@ -1279,28 +1279,22 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * started.  The global commit point can move forward during
 		 * reconciliation so we use a cached copy to avoid races when a
 		 * concurrent transaction commits or rolls back while we are
-		 * examining its updates. As prepared transaction id's are
+		 * examining its updates. As prepared transaction IDs are
 		 * globally visible, need to check the update state as well.
 		 */
 		if (F_ISSET(r, WT_REC_EVICT)) {
 			if (upd->prepare_state == WT_PREPARE_LOCKED ||
 			    upd->prepare_state == WT_PREPARE_INPROGRESS)
 				prepared = true;
-
-			if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+			else if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			    WT_TXNID_LE(r->last_running, txnid) :
-			    !__txn_visible_id(session, txnid))
+			    !__txn_visible_id(session, txnid)) ||
+			    (upd->start_ts != WT_TS_NONE &&
+			    !__wt_txn_upd_durable(session, upd)))
 				uncommitted = r->update_uncommitted = true;
 
 			if (prepared || uncommitted)
 			       continue;
-
-			/* Consider a non durable update as uncommitted. */
-			if (upd->start_ts != WT_TS_NONE &&
-			    !__wt_txn_upd_durable(session, upd)) {
-				uncommitted = r->update_uncommitted = true;
-				continue;
-			}
 		}
 
 		/* Track the first update with non-zero timestamp. */
@@ -1550,27 +1544,31 @@ __rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->txnid != WT_TXN_NONE &&
 			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
+
 			/*
-			 * The durable timestamp is always set, and usually
-			 * the same as the start timestamp, which makes it OK
-			 * to use the two independently and be confident both
-			 * will be set.
+			 * The durable timestamp is always set by commit, and
+			 * usually the same as the start timestamp, which makes
+			 * it OK to use the two independently and be confident
+			 * both will be set.
 			 */
 			WT_ASSERT(session,
 			   upd->prepare_state == WT_PREPARE_INPROGRESS ||
 			   upd->durable_ts >= upd->start_ts);
 
-			if (upd->start_ts < r->unstable_timestamp)
+			if (r->unstable_timestamp > upd->start_ts)
 				r->unstable_timestamp = upd->start_ts;
+
 			/*
-			 * Don't set the unstable durable timestamp with the
-			 * durable timestamp of an in-progress prepared update.
 			 * An in-progress prepared update will always have a
-			 * zero durable timestamp.
+			 * zero durable timestamp.  Checkpoints can only skip
+			 * reading lookaside history if all updates are in the
+			 * future, including the prepare, so including the
+			 * prepare timestamp instead.
 			 */
-			if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
-			    upd->durable_ts < r->unstable_durable_timestamp)
-				r->unstable_durable_timestamp = upd->durable_ts;
+			ts = upd->prepare_state == WT_PREPARE_INPROGRESS ?
+			    upd->start_ts : upd->durable_ts;
+			if (r->unstable_durable_timestamp > ts)
+				r->unstable_durable_timestamp = ts;
 		}
 	}
 
