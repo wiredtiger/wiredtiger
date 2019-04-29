@@ -132,9 +132,11 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
-	wt_timestamp_t oldest_start_ts;	/* Aggregated timestamp information */
+	wt_timestamp_t oldest_start_ts;	/* Validity window */
 	wt_timestamp_t newest_durable_ts;
 	wt_timestamp_t newest_stop_ts;
+	uint64_t oldest_start_txn;
+	uint64_t newest_stop_txn;
 
 	uint8_t *addr;			/* Block-manager's cookie */
 	uint8_t  size;			/* Block-manager's cookie length */
