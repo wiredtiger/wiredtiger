@@ -383,6 +383,7 @@ bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
+	wt_timestamp_t unstable_timestamp;
 
 	txn = &session->txn;
 
@@ -435,18 +436,15 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * during checkpoint would end up reading more content from lookaside
 	 * than necessary.
 	 */
-	if (ref->page_las->skew_newest) {
-		if (!ref->page_las->has_prepares &&
-		    txn->read_timestamp > (WT_SESSION_IS_CHECKPOINT(session) ?
-		    ref->page_las->unstable_durable_timestamp :
-		    ref->page_las->unstable_timestamp))
-			return (true);
-	} else {
-		if (txn->read_timestamp < (WT_SESSION_IS_CHECKPOINT(session) ?
-		    ref->page_las->unstable_durable_timestamp :
-		    ref->page_las->unstable_timestamp))
-			return (true);
-	}
+	unstable_timestamp = WT_SESSION_IS_CHECKPOINT(session) ?
+	    ref->page_las->unstable_durable_timestamp :
+	    ref->page_las->unstable_timestamp;
+	if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
+	    txn->read_timestamp > unstable_timestamp)
+		return (true);
+	if (!ref->page_las->skew_newest &&
+	    txn->read_timestamp < unstable_timestamp)
+		return (true);
 
 	return (false);
 }
