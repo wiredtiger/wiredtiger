@@ -128,7 +128,7 @@ threads = ins_thread * 2 + upd_thread * 10
 workload = Workload(context, threads)
 workload.options.run_time = 60
 workload.options.report_interval = 1
-workload.options.sample_interval_ms = 1000
+workload.options.sample_interval = 1
 workload.options.sample_rate = 1
 print('Update heavy workload:')
 workload.run(conn)

@@ -120,7 +120,7 @@ workload = Workload(context, threads)
 ##workload.options.run_time = 3600
 workload.options.run_time = 30
 workload.options.report_interval = 1
-workload.options.sample_interval_ms = 5000
+workload.options.sample_interval = 5
 workload.options.sample_rate = 1
 print('heavy stress workload:')
 workload.run(conn)
