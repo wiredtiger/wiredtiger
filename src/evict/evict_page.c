@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
-static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, uint32_t);
-static int __evict_review(WT_SESSION_IMPL *, WT_REF *, uint32_t, bool *);
+static int __evict_page_clean_update(WT_SESSION_IMPL *, WT_REF *, bool, bool);
+static int __evict_page_dirty_update(WT_SESSION_IMPL *, WT_REF *, bool, bool);
+static int __evict_review(WT_SESSION_IMPL *, WT_REF *, bool, bool *);
 
 /*
  * __evict_exclusive_clear --
@@ -130,19 +130,20 @@ __wt_evict(WT_SESSION_IMPL *session,
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
-	bool clean_page, closing, inmem_split, local_gen, tree_dead;
+	bool clean_page, closing, inmem_split, local_gen, nosplit, tree_dead;
 
 	conn = S2C(session);
 	page = ref->page;
-	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
 	local_gen = false;
 
 	__wt_verbose(session, WT_VERB_EVICT,
 	    "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
 
+	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
+	nosplit = LF_ISSET(WT_EVICT_CALL_NO_SPLIT);
 	tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
 	if (tree_dead)
-		LF_SET(WT_EVICT_CALL_NO_SPLIT);
+		nosplit = true;
 
 	/*
 	 * Enter the eviction generation. If we re-enter eviction, leave the
@@ -177,7 +178,7 @@ __wt_evict(WT_SESSION_IMPL *session,
 	 * Make this check for clean pages, too: while unlikely eviction would
 	 * choose an internal page with children, it's not disallowed.
 	 */
-	WT_ERR(__evict_review(session, ref, flags, &inmem_split));
+	WT_ERR(__evict_review(session, ref, closing, &inmem_split));
 
 	/*
 	 * If there was an in-memory split, the tree has been left in the state
@@ -221,9 +222,11 @@ __wt_evict(WT_SESSION_IMPL *session,
 		 * Pages that belong to dead trees never write back to disk
 		 * and can't support page splits.
 		 */
-		WT_ERR(__evict_page_clean_update(session, ref, flags));
+		WT_ERR(
+		    __evict_page_clean_update(session, ref, closing, nosplit));
 	else
-		WT_ERR(__evict_page_dirty_update(session, ref, flags));
+		WT_ERR(
+		    __evict_page_dirty_update(session, ref, closing, nosplit));
 
 	if (clean_page) {
 		WT_STAT_CONN_INCR(session, cache_eviction_clean);
@@ -254,7 +257,7 @@ done:	/* Leave any local eviction generation. */
  *	split.
  */
 static int
-__evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, bool nosplit)
 {
 	WT_DECL_RET;
 	WT_PAGE *parent;
@@ -265,10 +268,11 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		return (0);
 
 	/*
-	 * Avoid doing reverse splits when closing the file, it is wasted work
-	 * and some structures may have already been freed.
+	 * Avoid doing reverse splits when closing the file (it is wasted work
+	 * and some structures may have already been freed), or reading where
+	 * we don't split to avoid deadlock.
 	 */
-	if (!LF_ISSET(WT_EVICT_CALL_NO_SPLIT | WT_EVICT_CALL_CLOSING)) {
+	if (!nosplit) {
 		parent = ref->home;
 		WT_INTL_INDEX_GET(session, parent, pindex);
 		ndeleted = __wt_atomic_addv32(&pindex->deleted_entries, 1);
@@ -306,12 +310,10 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  *	Update a clean page's reference on eviction.
  */
 static int
-__evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref,
+    bool closing, bool nosplit)
 {
 	WT_DECL_RET;
-	bool closing;
-
-	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
 
 	/*
 	 * Before discarding a page, assert that all updates are globally
@@ -341,7 +343,7 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
 	} else if (ref->addr == NULL) {
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __evict_delete_ref(session, ref, flags));
+		    ret = __evict_delete_ref(session, ref, closing || nosplit));
 		WT_RET_BUSY_OK(ret);
 	} else
 		WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -355,16 +357,14 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
  */
 static int
 __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref,
-    uint32_t evict_flags)
+    bool closing, bool nosplit)
 {
 	WT_ADDR *addr;
 	WT_DECL_RET;
 	WT_MULTI multi;
 	WT_PAGE_MODIFY *mod;
-	bool closing;
 
 	mod = ref->page->modify;
-	closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 
 	WT_ASSERT(session, ref->addr == NULL);
 
@@ -380,7 +380,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref,
 		 */
 		__wt_ref_out(session, ref);
 		WT_WITH_PAGE_INDEX(session,
-		    ret = __evict_delete_ref(session, ref, evict_flags));
+		    ret = __evict_delete_ref(session, ref, closing || nosplit));
 		WT_RET_BUSY_OK(ret);
 		break;
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
@@ -521,22 +521,20 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
  */
 static int
 __evict_review(
-    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags,
-	bool *inmem_splitp)
+    WT_SESSION_IMPL *session, WT_REF *ref, bool closing, bool *inmem_splitp)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint32_t flags;
-	bool closing, lookaside_retry, *lookaside_retryp, modified;
+	bool lookaside_retry, *lookaside_retryp, modified;
 
 	*inmem_splitp = false;
 
 	conn = S2C(session);
 	page = ref->page;
 	flags = WT_REC_EVICT;
-	closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
 	if (!WT_SESSION_BTREE_SYNC(session))
 		LF_SET(WT_REC_VISIBLE_ALL);
 
