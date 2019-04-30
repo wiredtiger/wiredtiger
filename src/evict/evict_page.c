@@ -89,8 +89,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool nosplit)
 	 * Track how long the call to evict took. If eviction is successful then
 	 * we have one of two pairs of stats to increment.
 	 */
-	ret = __wt_evict(session,
-	    ref, previous_state, nosplit ? WT_EVICT_CALL_NO_SPLIT : 0);
+	ret = __wt_evict(session, ref, previous_state, false, nosplit);
 	time_stop = __wt_clock(session);
 	if (ret == 0) {
 		if (too_big) {
@@ -125,12 +124,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool nosplit)
  */
 int
 __wt_evict(WT_SESSION_IMPL *session,
-    WT_REF *ref, uint32_t previous_state, uint32_t flags)
+    WT_REF *ref, uint32_t previous_state, bool closing, bool nosplit)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
-	bool clean_page, closing, inmem_split, local_gen, nosplit, tree_dead;
+	bool clean_page, inmem_split, local_gen, tree_dead;
 
 	conn = S2C(session);
 	page = ref->page;
@@ -139,8 +138,6 @@ __wt_evict(WT_SESSION_IMPL *session,
 	__wt_verbose(session, WT_VERB_EVICT,
 	    "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
 
-	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
-	nosplit = LF_ISSET(WT_EVICT_CALL_NO_SPLIT);
 	tree_dead = F_ISSET(session->dhandle, WT_DHANDLE_DEAD);
 	if (tree_dead)
 		nosplit = true;
