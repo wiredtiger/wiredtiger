@@ -31,12 +31,16 @@ uint32_t
 int
 @m_endif
 operation counter within that log record.  When a log record maps
-one-to-one to a transaction (in other words, the returned log record has
-the only database operation the transaction made), the operation counter
-returned for the key will be zero.
+to a record that is not a transaction, the operation counter
+returned for the key will be zero. When the log record maps to a
+transaction, the first record returned, with an operation counter of
+zero, will be the entire record. Then the WT_CURSOR::next call will
+step into the transaction and return the first individual operation
+within that transaction. So, a transaction with a single operation will
+return two records related to that transaction.
 
 The unique log record identifier maps to a WT_LSN data structure, which
-has two fields: WT_LSN::id, the log file identifier, and WT_LSN::offset,
+has two fields: WT_LSN::file, the log file identifier, and WT_LSN::offset,
 the offset of the log record in the log file.
 
 Here is an example of getting the log cursor's key:
@@ -78,17 +82,20 @@ Here is an example of getting the log cursor's value:
 
 For clarity, imagine a set of three log records:
 
-- the first with a single operation,
-- the second with five operations,
-- the third with a single operation.
+- the first recording an internal operation,
+- the second committing a transaction with five operations,
+- the third committing a transaction with a single operation.
 
-The log cursor's WT_CURSOR::next call will return a total of seven
+The log cursor's WT_CURSOR::next call will return a total of nine
 records.  The first time the log cursor will return a key with a unique
-log ID, a unique transaction ID, and an operation counter of 0.  The
-next five returns from the log cursor will have a common log ID, a
-common transaction ID, and operation counters starting at 1 and ending
-at 5.  The final return from the log cursor will again have a unique log
-ID, a unique transaction ID, and an operation counter of 0.
+log ID, no transaction ID, and an operation counter of 0.  The
+next six returns from the log cursor will have a common log ID, a
+common transaction ID, and operation counters starting at 0, returning
+the whole record and then starting at 1 and ending at 5 for each
+of the five individual operations. The next return from the log cursor
+will again have a unique log ID, a unique transaction ID, and an
+operation counter of 0. And the final return from the log cursor
+will have an operation counter of 1.
 
 Here's a more complete example of walking the log and displaying
 the results:
