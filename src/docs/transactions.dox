@@ -182,6 +182,10 @@ single transaction.
 Setting a read timestamp in WT_SESSION::begin_transaction forces a transaction
 to run at snapshot isolation and ignore any commits with a newer timestamp.
 
+Committing an update without a timestamp truncates the update's timestamp
+history and limits repeatable reads: no earlier version of the update will
+be returned regardless of the setting of the read timestamp.
+
 Commit timestamps cannot be set in the past of any read timestamp that has
 been used.  This is enforced by assertions in diagnostic builds, if
 applications violate this rule, data consistency can be violated.
