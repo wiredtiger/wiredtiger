@@ -825,7 +825,8 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 	btree->evict_ref = NULL;
 
 	WT_WITH_DHANDLE(cache->walk_session, session->dhandle,
-	    (ret = __wt_page_release(cache->walk_session, ref, false)));
+	    (ret = __wt_page_release(cache->walk_session,
+	    ref, WT_READ_NO_EVICT)));
 	return (ret);
 }
 

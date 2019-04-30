@@ -1610,7 +1610,8 @@ check_original_value:
 #define	WT_CHILD_RELEASE(session, hazard, ref) do {			\
 	if (hazard) {							\
 		(hazard) = false;					\
-		WT_TRET(__wt_page_release(session, ref, false));	\
+		WT_TRET(						\
+		    __wt_page_release(session, ref, WT_READ_NO_EVICT));	\
 	}								\
 } while (0)
 #define	WT_CHILD_RELEASE_ERR(session, hazard, ref) do {			\
