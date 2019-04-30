@@ -18,7 +18,7 @@ static int  __evict_server(WT_SESSION_IMPL *, bool *);
 static void __evict_tune_workers(WT_SESSION_IMPL *session);
 static int  __evict_walk(WT_SESSION_IMPL *, WT_EVICT_QUEUE *);
 static int  __evict_walk_tree(
-    WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *);
+    WT_SESSION_IMPL *, WT_EVICT_QUEUE *, u_int, u_int *, uint64_t *);
 
 #define	WT_EVICT_HAS_WORKERS(s)				\
 	(S2C(s)->evict_threads.current_threads > 1)
@@ -1413,6 +1413,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_TRACK_OP_DECL;
+	uint64_t pages_seen_file, pages_seen_total;
 	u_int max_entries, retries, slot, start_slot, total_candidates;
 	bool dhandle_locked, incr;
 
@@ -1439,8 +1440,17 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	total_candidates = (u_int)(F_ISSET(cache, WT_CACHE_EVICT_CLEAN) ?
 	    __wt_cache_pages_inuse(cache) : cache->pages_dirty_leaf);
 	max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
+	pages_seen_total = 0;
 
 retry:	while (slot < max_entries) {
+		/* We're done if shutting down */
+		if (F_ISSET(conn, WT_CONN_CLOSING))
+			break;
+
+		/* If we have seen enough pages in this walk, we're done. */
+		if (pages_seen_total > WT_EVICT_WALK_INCR * 100)
+			break;
+
 		/*
 		 * If another thread is waiting on the eviction server to clear
 		 * the walk point in a tree, give up.
@@ -1461,7 +1471,7 @@ retry:	while (slot < max_entries) {
 			/*
 			 * On entry, continue from wherever we got to in the
 			 * scan last time through.  If we don't have a saved
-			 * handle, start from the beginning of the list.
+			 * handle, pick one randomly from the list.
 			 */
 			if ((dhandle = cache->walk_tree) != NULL)
 				cache->walk_tree = NULL;
@@ -1556,8 +1566,9 @@ retry:	while (slot < max_entries) {
 				 */
 				cache->walk_tree = dhandle;
 				WT_WITH_DHANDLE(session, dhandle,
-				    ret = __evict_walk_tree(
-				    session, queue, max_entries, &slot));
+				    ret = __evict_walk_tree(session, queue,
+					max_entries, &slot, &pages_seen_file));
+				pages_seen_total += pages_seen_file;
 
 				WT_ASSERT(session, __wt_session_gen(
 				    session, WT_GEN_SPLIT) == 0);
@@ -1574,9 +1585,8 @@ retry:	while (slot < max_entries) {
 	}
 
 	/*
-	 * Walk the list of files a few times if we don't find enough pages.
-	 * Try two passes through all the files, give up when we have some
-	 * candidates and we aren't finding more.
+	 * Repeat the walks a few times if we don't find enough pages.
+	 * Give up when we have some candidates and we aren't finding more.
 	 */
 	if (slot < max_entries && (retries < 2 ||
 	    (retries < WT_RETRY_MAX &&
@@ -1736,8 +1746,8 @@ __evict_walk_target(WT_SESSION_IMPL *session, u_int max_entries)
  *	Get a few page eviction candidates from a single underlying file.
  */
 static int
-__evict_walk_tree(WT_SESSION_IMPL *session,
-    WT_EVICT_QUEUE *queue, u_int max_entries, u_int *slotp)
+__evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
+    u_int max_entries, u_int *slotp, uint64_t *pages_seen_p)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -1757,6 +1767,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 	last_parent = NULL;
 	restarts = 0;
 	give_up = urgent_queued = false;
+	*pages_seen_p = 0;
 
 	/*
 	 * Figure out how many slots to fill from this tree.
@@ -2126,6 +2137,8 @@ fast:		/* If the page can't be evicted, give up. */
 				    session, &ref, &refs_walked, walk_flags));
 		btree->evict_ref = ref;
 	}
+
+	*pages_seen_p = pages_seen;
 
 	WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
 	WT_STAT_CONN_INCRV(session, cache_eviction_pages_seen, pages_seen);
