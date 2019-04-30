@@ -774,7 +774,8 @@ read:			/*
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
-				ret = __wt_page_release_evict(session, ref, 0);
+				ret =
+				__wt_page_release_evict(session, ref, false);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					WT_NOT_READ(ret, 0);

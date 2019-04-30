@@ -51,20 +51,19 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Release a reference to a page, and attempt to immediately evict it.
  */
 int
-__wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+__wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool nosplit)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_PAGE *page;
 	uint64_t time_start, time_stop;
-	uint32_t evict_flags, previous_state;
+	uint32_t previous_state;
 	bool locked, too_big;
 
 	btree = S2BT(session);
 	locked = false;
 	page = ref->page;
 	time_start = __wt_clock(session);
-	evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
 
 	/*
 	 * This function always releases the hazard pointer - ensure that's
@@ -90,7 +89,8 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * Track how long the call to evict took. If eviction is successful then
 	 * we have one of two pairs of stats to increment.
 	 */
-	ret = __wt_evict(session, ref, previous_state, evict_flags);
+	ret = __wt_evict(session,
+	    ref, previous_state, nosplit ? WT_EVICT_CALL_NO_SPLIT : 0);
 	time_stop = __wt_clock(session);
 	if (ret == 0) {
 		if (too_big) {

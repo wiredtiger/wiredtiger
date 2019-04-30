@@ -560,7 +560,7 @@ celltype_err:		WT_RET_MSG(session, WT_ERROR,
 			++vs->depth;
 			WT_RET(__wt_page_in(session, child_ref, 0));
 			ret = __verify_tree(session, child_ref, unpack, vs);
-			WT_TRET(__wt_page_release(session, child_ref, 0));
+			WT_TRET(__wt_page_release(session, child_ref, false));
 			--vs->depth;
 			WT_RET(ret);
 
@@ -595,7 +595,7 @@ celltype_err:		WT_RET_MSG(session, WT_ERROR,
 			++vs->depth;
 			WT_RET(__wt_page_in(session, child_ref, 0));
 			ret = __verify_tree(session, child_ref, unpack, vs);
-			WT_TRET(__wt_page_release(session, child_ref, 0));
+			WT_TRET(__wt_page_release(session, child_ref, false));
 			--vs->depth;
 			WT_RET(ret);
 

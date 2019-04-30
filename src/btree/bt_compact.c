@@ -224,7 +224,7 @@ __wt_compact(WT_SESSION_IMPL *session)
 	}
 
 err:	if (ref != NULL)
-		WT_TRET(__wt_page_release(session, ref, 0));
+		WT_TRET(__wt_page_release(session, ref, false));
 
 	return (ret);
 }

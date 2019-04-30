@@ -284,12 +284,13 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	WT_REF *couple, *ref, *ref_orig;
 	uint64_t restart_sleep, restart_yield, swap_sleep, swap_yield;
 	uint32_t current_state, slot;
-	bool empty_internal, prev, skip;
+	bool empty_internal, nosplit, prev, skip;
 
 	btree = S2BT(session);
 	pindex = NULL;
 	restart_sleep = restart_yield = swap_sleep = swap_yield = 0;
 	empty_internal = false;
+	nosplit = LF_ISSET(WT_READ_NO_SPLIT);
 
 	/*
 	 * We're not supposed to walk trees without root pages. As this has not
@@ -360,7 +361,7 @@ restart:		/*
 			 */
 			__wt_spin_backoff(&restart_yield, &restart_sleep);
 
-			WT_ERR(__wt_page_release(session, couple, flags));
+			WT_ERR(__wt_page_release(session, couple, nosplit));
 			couple = NULL;
 		}
 
@@ -581,8 +582,8 @@ descend:		/*
 
 done:
 err:
-	WT_TRET(__wt_page_release(session, couple, flags));
-	WT_TRET(__wt_page_release(session, ref_orig, flags));
+	WT_TRET(__wt_page_release(session, couple, nosplit));
+	WT_TRET(__wt_page_release(session, ref_orig, nosplit));
 	WT_LEAVE_PAGE_INDEX(session);
 	return (ret);
 }

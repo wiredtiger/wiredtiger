@@ -144,7 +144,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 		__split_verify_intl_key_order(session, ref->page);
 
-		WT_ERR(__wt_page_release(session, ref, read_flags));
+		WT_ERR(__wt_page_release(session, ref, false));
 	} WT_INTL_FOREACH_END;
 
 	return (0);

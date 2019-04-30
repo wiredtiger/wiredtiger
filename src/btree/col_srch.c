@@ -121,7 +121,7 @@ restart:	/*
 		 * Discard the currently held page and restart the search from
 		 * the root.
 		 */
-		WT_RET(__wt_page_release(session, current, 0));
+		WT_RET(__wt_page_release(session, current, false));
 	}
 
 	/* Search the internal pages of the tree. */

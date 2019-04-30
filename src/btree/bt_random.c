@@ -196,7 +196,8 @@ restart:	/*
 		 * Discard the currently held page and restart the search from
 		 * the root.
 		 */
-		WT_RET(__wt_page_release(session, current, flags));
+		WT_RET(__wt_page_release(
+		    session, current, LF_ISSET(WT_READ_NO_SPLIT)));
 	}
 
 	/* Search the internal pages of the tree. */
@@ -250,7 +251,8 @@ restart:	/*
 			if (--retry > 0)
 				goto restart;
 
-			WT_RET(__wt_page_release(session, current, flags));
+			WT_RET(__wt_page_release(
+			    session, current, LF_ISSET(WT_READ_NO_SPLIT)));
 			return (WT_NOTFOUND);
 		}
 

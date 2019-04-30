@@ -825,8 +825,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
 	btree->evict_ref = NULL;
 
 	WT_WITH_DHANDLE(cache->walk_session, session->dhandle,
-	    (ret = __wt_page_release(cache->walk_session,
-	    ref, WT_READ_NO_EVICT)));
+	    (ret = __wt_page_release(cache->walk_session, ref, false)));
 	return (ret);
 }
 
@@ -2063,7 +2062,7 @@ fast:		/* If the page can't be evicted, give up. */
 				WT_STAT_CONN_INCR(
 				    session, cache_eviction_walks_abandoned);
 			WT_RET(__wt_page_release(
-			    cache->walk_session, ref, walk_flags));
+			    cache->walk_session, ref, false));
 			ref = NULL;
 		} else
 			while (ref != NULL && (ref->state != WT_REF_MEM ||

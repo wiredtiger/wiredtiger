@@ -305,7 +305,7 @@ __txn_abort_newer_updates(
 	}
 
 err:	if (local_read)
-		WT_TRET(__wt_page_release(session, ref, read_flags));
+		WT_TRET(__wt_page_release(session, ref, false));
 	return (ret);
 }
 

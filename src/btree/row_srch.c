@@ -281,7 +281,7 @@ restart:	/*
 		 * Discard the currently held page and restart the search from
 		 * the root.
 		 */
-		WT_RET(__wt_page_release(session, current, 0));
+		WT_RET(__wt_page_release(session, current, false));
 		skiphigh = skiplow = 0;
 	}
 
@@ -627,6 +627,6 @@ leaf_match:	cbt->compare = 0;
 
 	return (0);
 
-err:	WT_TRET(__wt_page_release(session, current, 0));
+err:	WT_TRET(__wt_page_release(session, current, false));
 	return (ret);
 }
