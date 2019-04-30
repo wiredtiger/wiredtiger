@@ -962,6 +962,8 @@ struct __wt_session {
 	/*!
 	 * Reconfigure a session handle.
 	 *
+	 * @not_transactional
+	 *
 	 * @snippet ex_all.c Reconfigure a session
 	 *
 	 * WT_SESSION::reconfigure will fail if a transaction is in progress
@@ -1187,6 +1189,8 @@ struct __wt_session {
 
 	/*!
 	 * Create a table, column group, index or file.
+	 *
+	 * @not_transactional
 	 *
 	 * @snippet ex_all.c Create a table
 	 *
@@ -1469,6 +1473,8 @@ struct __wt_session {
 	 * Drop (delete) an object.
 	 *
 	 * @exclusive
+	 *
+	 * @not_transactional
 	 *
 	 * @snippet ex_all.c Drop a table
 	 *
