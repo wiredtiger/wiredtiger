@@ -386,8 +386,8 @@ extern bool __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC
 extern void __wt_evict_priority_set(WT_SESSION_IMPL *session, uint64_t v);
 extern void __wt_evict_priority_clear(WT_SESSION_IMPL *session);
 extern int __wt_verbose_dump_cache(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool closing, uint32_t previous_state) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
 extern int __wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn);
