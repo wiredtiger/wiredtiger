@@ -640,6 +640,11 @@ __txn_assert_after_reads(
 
 	if (prevp != NULL)
 		*prevp = prev;
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(op);
+	WT_UNUSED(ts);
+	WT_UNUSED(prevp);
 #endif
 
 	return (0);
