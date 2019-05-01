@@ -635,7 +635,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	 */
 	__wt_txn_release_snapshot(session);
 	txn->isolation = session->isolation;
+#ifdef HAVE_DIAGNOSTIC
 	txn->multi_update_count = 0;
+#endif
 
 	txn->rollback_reason = NULL;
 
