@@ -67,14 +67,16 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Duplicate a tree walk point.
  */
 static inline int
-__sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, WT_REF **dupp)
+__sync_dup_walk(
+    WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF **dupp)
 {
 	WT_REF *old;
 	bool busy;
 
 	if ((old = *dupp) != NULL) {
 		*dupp = NULL;
-		WT_RET(__wt_page_release(session, old, false));
+		WT_RET(__wt_page_release(
+		    session, old, LF_ISSET(WT_READ_NO_SPLIT)));
 	}
 
 	/* It is okay to duplicate a walk before it starts. */
@@ -254,7 +256,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
 
 		for (;;) {
-			WT_ERR(__sync_dup_walk(session, walk, &prev));
+			WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
 			WT_ERR(__wt_tree_walk(session, &walk, flags));
 
 			if (walk == NULL)
@@ -371,8 +373,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	}
 
 err:	/* On error, clear any left-over tree walk. */
-	WT_TRET(__wt_page_release(session, walk, false));
-	WT_TRET(__wt_page_release(session, prev, false));
+	WT_TRET(__wt_page_release(session, walk, LF_ISSET(WT_READ_NO_SPLIT)));
+	WT_TRET(__wt_page_release(session, prev, LF_ISSET(WT_READ_NO_SPLIT)));
 
 	/*
 	 * If we got a snapshot in order to write pages, and there was no
