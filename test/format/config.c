@@ -40,7 +40,7 @@ static void	   config_helium_reset(void);
 static void	   config_in_memory(void);
 static void	   config_in_memory_reset(void);
 static int	   config_is_perm(const char *);
-static void	   config_isolation(void);
+static void	   config_transaction(void);
 static void	   config_lrt(void);
 static void	   config_lsm_reset(void);
 static void	   config_map_checkpoint(const char *, u_int *);
@@ -192,7 +192,7 @@ config_setup(void)
 	config_compression("compression");
 	config_compression("logging_compression");
 	config_encryption();
-	config_isolation();
+	config_transaction();
 	config_lrt();
 	config_pct();
 	config_prepare();
@@ -612,20 +612,27 @@ config_lsm_reset(void)
 }
 
 /*
- * config_isolation --
- *	Isolation configuration.
+ * config_transaction --
+ *	Transaction configuration.
  */
 static void
-config_isolation(void)
+config_transaction(void)
 {
+	char buf[256];
 	const char *cstr;
+	bool timestamps;
+
+	timestamps =
+	    config_is_perm("transaction_timestamps") && g.c_txn_timestamps;
 
 	/*
 	 * Isolation: choose something if isolation wasn't specified.
+	 *
+	 * Timestamps can only be used with snapshot isolation.
 	 */
 	if (!config_is_perm("isolation")) {
 		/* Avoid "maybe uninitialized" warnings. */
-		switch (mmrand(NULL, 1, 4)) {
+		switch (timestamps ? 0 : mmrand(NULL, 1, 4)) {
 		case 1:
 			cstr = "isolation=random";
 			break;
@@ -641,6 +648,13 @@ config_isolation(void)
 			break;
 		}
 		config_single(cstr, 0);
+	}
+
+	if (!config_is_perm("transaction-frequency")) {
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "transaction-frequency=%" PRIu32,
+		    timestamps ? 100: mmrand(NULL, 0, 100)));
+		config_single(buf, 0);
 	}
 }
 
