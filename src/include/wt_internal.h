@@ -427,6 +427,7 @@ typedef uint64_t wt_timestamp_t;
 #include "os_fs.i"
 #include "os_fstream.i"
 #include "packing.i"
+#include "reconcile.i"
 #include "serial.i"
 
 #if defined(__cplusplus)
