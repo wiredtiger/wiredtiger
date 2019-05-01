@@ -809,7 +809,7 @@ __wt_txn_set_prepare_timestamp(
 			__wt_timestamp_to_string(tmp_timestamp, ts_string[1]);
 			WT_RET_MSG(session, EINVAL,
 			    "prepare timestamp %s must be greater than the "
-			    "latest active read timestamp %s ",
+			    "latest active read timestamp %s",
 			    ts_string[0], ts_string[1]);
 		}
 		break;
@@ -846,10 +846,10 @@ __wt_txn_set_prepare_timestamp(
 			prepare_ts = oldest_ts;
 		} else {
 			__wt_timestamp_to_string(prepare_ts, ts_string[0]);
-			__wt_timestamp_to_string(oldest_ts, ts_string[0]);
+			__wt_timestamp_to_string(oldest_ts, ts_string[1]);
 			WT_RET_MSG(session, EINVAL,
 			    "prepare timestamp %s is older than the oldest "
-			    "timestamp %s ", ts_string[0], ts_string[1]);
+			    "timestamp %s", ts_string[0], ts_string[1]);
 		}
 	}
 	txn->prepare_timestamp = prepare_ts;
