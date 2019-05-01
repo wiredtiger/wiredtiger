@@ -902,7 +902,7 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session,
 	/* Don't touch the key item memory, that memory is reused. */
 	chunk->key.size = 0;
 	chunk->entries = 0;
-	__rec_addr_ts_init(r, &chunk->oldest_start_ts,
+	__wt_rec_addr_ts_init(r, &chunk->oldest_start_ts,
 	    &chunk->newest_durable_ts, &chunk->newest_stop_ts,
 	    &chunk->oldest_start_txn, &chunk->newest_stop_txn);
 
@@ -910,7 +910,7 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session,
 	/* Don't touch the key item memory, that memory is reused. */
 	chunk->min_key.size = 0;
 	chunk->min_entries = 0;
-	__rec_addr_ts_init(r, &chunk->min_oldest_start_ts,
+	__wt_rec_addr_ts_init(r, &chunk->min_oldest_start_ts,
 	    &chunk->min_newest_durable_ts, &chunk->min_newest_stop_ts,
 	    &chunk->min_oldest_start_txn, &chunk->min_newest_stop_txn);
 	chunk->min_offset = 0;
@@ -1254,7 +1254,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	btree = S2BT(session);
 
 	/* Fixed length col store can call with next_len 0 */
-	WT_ASSERT(session, next_len == 0 || __rec_need_split(r, next_len));
+	WT_ASSERT(session, next_len == 0 || __wt_rec_need_split(r, next_len));
 
 	/*
 	 * We should never split during salvage, and we're about to drop core
@@ -1272,7 +1272,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	 * Additionally, grow the buffer to contain the current item if we
 	 * haven't already consumed a reasonable portion of a split chunk.
 	 */
-	if (inuse < r->split_size / 2 && !__rec_need_split(r, 0))
+	if (inuse < r->split_size / 2 && !__wt_rec_need_split(r, 0))
 		goto done;
 
 	/* All page boundaries reset the dictionary. */
@@ -1350,7 +1350,7 @@ int
 __wt_rec_split_crossing_bnd(
     WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 {
-	WT_ASSERT(session, __rec_need_split(r, next_len));
+	WT_ASSERT(session, __wt_rec_need_split(r, next_len));
 
 	/*
 	 * If crossing the minimum split size boundary, store the boundary
@@ -1359,7 +1359,7 @@ __wt_rec_split_crossing_bnd(
 	 * large enough, just split at this point.
 	 */
 	if (WT_CROSSING_MIN_BND(r, next_len) &&
-	    !WT_CROSSING_SPLIT_BND(r, next_len) && !__rec_need_split(r, 0)) {
+	    !WT_CROSSING_SPLIT_BND(r, next_len) && !__wt_rec_need_split(r, 0)) {
 		/*
 		 * If the first record doesn't fit into the minimum split size,
 		 * we end up here. Write the record without setting a boundary
@@ -2148,7 +2148,7 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	switch (btree->type) {
 	case BTREE_COL_FIX:
 		if (cbulk->entry != 0)
-			__rec_incr(session, r, cbulk->entry,
+			__wt_rec_incr(session, r, cbulk->entry,
 			    __bitstr_size(
 			    (size_t)cbulk->entry * btree->bitcnt));
 		break;

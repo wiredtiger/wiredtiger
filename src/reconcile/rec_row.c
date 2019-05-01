@@ -215,7 +215,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	val = &r->v;
 	WT_RET(__rec_cell_build_leaf_key(session, r,	/* Build key cell */
 	    cursor->key.data, cursor->key.size, &ovfl_key));
-	WT_RET(__rec_cell_build_val(session, r,		/* Build value cell */
+	WT_RET(__wt_rec_cell_build_val(session, r,	/* Build value cell */
 	    cursor->value.data, cursor->value.size,
 	    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX, 0));
 
@@ -237,18 +237,18 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 	}
 
 	/* Copy the key/value pair onto the page. */
-	__rec_image_copy(session, r, key);
+	__wt_rec_image_copy(session, r, key);
 	if (val->len == 0)
 		r->any_empty_value = true;
 	else {
 		r->all_empty_value = false;
 		if (btree->dictionary)
-			WT_RET(__rec_dict_replace(session, r,
+			WT_RET(__wt_rec_dict_replace(session, r,
 			    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX,
 			    0, val));
-		__rec_image_copy(session, r, val);
+		__wt_rec_image_copy(session, r, val);
 	}
-	__rec_addr_ts_update(r,
+	__wt_rec_addr_ts_update(r,
 	    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
 
 	/* Update compression state. */
@@ -286,17 +286,17 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		r->cell_zero = false;
 
 		addr = &multi->addr;
-		__rec_cell_build_addr(session, r, addr, false, WT_RECNO_OOB);
+		__wt_rec_cell_build_addr(session, r, addr, false, WT_RECNO_OOB);
 
 		/* Boundary: split or write the page. */
-		if (__rec_need_split(r, key->len + val->len))
+		if (__wt_rec_need_split(r, key->len + val->len))
 			WT_RET(__wt_rec_split_crossing_bnd(
 			    session, r, key->len + val->len));
 
 		/* Copy the key and value onto the page. */
-		__rec_image_copy(session, r, key);
-		__rec_image_copy(session, r, val);
-		__rec_addr_ts_update(r, addr->oldest_start_ts,
+		__wt_rec_image_copy(session, r, key);
+		__wt_rec_image_copy(session, r, val);
+		__wt_rec_addr_ts_update(r, addr->oldest_start_ts,
 		    addr->newest_durable_ts, addr->newest_stop_ts,
 		    addr->oldest_start_txn, addr->newest_stop_txn);
 
@@ -475,7 +475,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		 * original cell.
 		 */
 		if (__wt_off_page(page, addr)) {
-			__rec_cell_build_addr(session, r, addr,
+			__wt_rec_cell_build_addr(session, r, addr,
 			    state == WT_CHILD_PROXY, WT_RECNO_OOB);
 			oldest_start_ts = addr->oldest_start_ts;
 			newest_durable_ts = addr->newest_durable_ts;
@@ -521,7 +521,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		r->cell_zero = false;
 
 		/* Boundary: split or write the page. */
-		if (__rec_need_split(r, key->len + val->len)) {
+		if (__wt_rec_need_split(r, key->len + val->len)) {
 			/*
 			 * In one path above, we copied address blocks from the
 			 * page rather than building the actual key. In that
@@ -539,9 +539,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		}
 
 		/* Copy the key and value onto the page. */
-		__rec_image_copy(session, r, key);
-		__rec_image_copy(session, r, val);
-		__rec_addr_ts_update(r,
+		__wt_rec_image_copy(session, r, key);
+		__wt_rec_image_copy(session, r, val);
+		__wt_rec_addr_ts_update(r,
 		    oldest_start_ts, newest_durable_ts, newest_stop_ts,
 		    oldest_start_txn, newest_stop_txn);
 
@@ -618,7 +618,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			 */
 			if (!upd_saved)
 				continue;
-			if (!__rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
+			if (!__wt_rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
 				continue;
 
 			/* Copy the current key into place and then split. */
@@ -644,13 +644,13 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			cbt->slot = UINT32_MAX;
 			WT_RET(__wt_value_return_upd(
 			    session, cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
-			WT_RET(__rec_cell_build_val(session, r,
+			WT_RET(__wt_rec_cell_build_val(session, r,
 			    cbt->iface.value.data, cbt->iface.value.size,
 			    start_ts, stop_ts, start_txn, stop_txn, 0));
 			break;
 		case WT_UPDATE_STANDARD:
 			/* Take the value from the update. */
-			WT_RET(__rec_cell_build_val(session, r,
+			WT_RET(__wt_rec_cell_build_val(session, r,
 			    upd->data, upd->size,
 			    start_ts, stop_ts, start_txn, stop_txn, 0));
 			break;
@@ -664,7 +664,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		    WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
 		/* Boundary: split or write the page. */
-		if (__rec_need_split(r, key->len + val->len)) {
+		if (__wt_rec_need_split(r, key->len + val->len)) {
 			/*
 			 * Turn off prefix compression until a full key written
 			 * to the new page, and (unless already working with an
@@ -682,19 +682,19 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 		}
 
 		/* Copy the key/value pair onto the page. */
-		__rec_image_copy(session, r, key);
+		__wt_rec_image_copy(session, r, key);
 		if (val->len == 0 && __rec_row_zero_len(
 		    session, start_ts, stop_ts, start_txn, stop_txn))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
 			if (btree->dictionary)
-				WT_RET(__rec_dict_replace(session, r,
+				WT_RET(__wt_rec_dict_replace(session, r,
 				    start_ts, stop_ts, start_txn, stop_txn,
 				    0, val));
-			__rec_image_copy(session, r, val);
+			__wt_rec_image_copy(session, r, val);
 		}
-		__rec_addr_ts_update(r,
+		__wt_rec_addr_ts_update(r,
 		    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
 
 		/* Update compression state. */
@@ -850,7 +850,8 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 					p = tmpval->data;
 					size = tmpval->size;
 				}
-				WT_ERR(__rec_cell_build_val(session, r, p, size,
+				WT_ERR(__wt_rec_cell_build_val(
+				    session, r, p, size,
 				    start_ts, stop_ts, start_txn, stop_txn, 0));
 				dictionary = true;
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
@@ -895,7 +896,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 				 * The on-page value will never be accessed,
 				 * write a placeholder record.
 				 */
-				WT_ERR(__rec_cell_build_val(session, r,
+				WT_ERR(__wt_rec_cell_build_val(session, r,
 				    "ovfl-unused", strlen("ovfl-unused"),
 				    start_ts, stop_ts, start_txn, stop_txn, 0));
 			} else {
@@ -922,7 +923,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 				cbt->slot = WT_ROW_SLOT(page, rip);
 				WT_ERR(__wt_value_return_upd(session, cbt, upd,
 				    F_ISSET(r, WT_REC_VISIBLE_ALL)));
-				WT_ERR(__rec_cell_build_val(session, r,
+				WT_ERR(__wt_rec_cell_build_val(session, r,
 				    cbt->iface.value.data,
 				    cbt->iface.value.size,
 				    start_ts, stop_ts, start_txn, stop_txn, 0));
@@ -930,7 +931,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 				break;
 			case WT_UPDATE_STANDARD:
 				/* Take the value from the update. */
-				WT_ERR(__rec_cell_build_val(session, r,
+				WT_ERR(__wt_rec_cell_build_val(session, r,
 				    upd->data, upd->size,
 				    start_ts, stop_ts, start_txn, stop_txn, 0));
 				dictionary = true;
@@ -1050,7 +1051,7 @@ build:
 		}
 
 		/* Boundary: split or write the page. */
-		if (__rec_need_split(r, key->len + val->len)) {
+		if (__wt_rec_need_split(r, key->len + val->len)) {
 			/*
 			 * If we copied address blocks from the page rather than
 			 * building the actual key, we have to build the key now
@@ -1079,19 +1080,19 @@ build:
 		}
 
 		/* Copy the key/value pair onto the page. */
-		__rec_image_copy(session, r, key);
+		__wt_rec_image_copy(session, r, key);
 		if (val->len == 0 && __rec_row_zero_len(
 			session, start_ts, stop_ts, start_txn, stop_txn))
 			r->any_empty_value = true;
 		else {
 			r->all_empty_value = false;
 			if (dictionary && btree->dictionary)
-				WT_ERR(__rec_dict_replace(session, r,
+				WT_ERR(__wt_rec_dict_replace(session, r,
 				    start_ts, stop_ts, start_txn, stop_txn,
 				    0, val));
-			__rec_image_copy(session, r, val);
+			__wt_rec_image_copy(session, r, val);
 		}
-		__rec_addr_ts_update(r,
+		__wt_rec_addr_ts_update(r,
 		    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
 
 		/* Update compression state. */

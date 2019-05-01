@@ -35,7 +35,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
 			 * pages are filled 100% except the last, allowing it to
 			 * grow in the future.
 			 */
-			__rec_incr(session, r, cbulk->entry,
+			__wt_rec_incr(session, r, cbulk->entry,
 			    __bitstr_size(
 			    (size_t)cbulk->entry * btree->bitcnt));
 			WT_RET(__wt_rec_split(session, r, 0));
@@ -135,7 +135,7 @@ __wt_bulk_insert_var(
 		 * we're tracking duplicates, which means we want the previous
 		 * value seen, not the current value.
 		 */
-		WT_RET(__rec_cell_build_val(session, r,
+		WT_RET(__wt_rec_cell_build_val(session, r,
 		    cbulk->last.data, cbulk->last.size,
 		    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX,
 		    cbulk->rle));
@@ -146,11 +146,11 @@ __wt_bulk_insert_var(
 
 	/* Copy the value onto the page. */
 	if (btree->dictionary)
-		WT_RET(__rec_dict_replace(session, r,
+		WT_RET(__wt_rec_dict_replace(session, r,
 		    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX,
 		    cbulk->rle, val));
-	__rec_image_copy(session, r, val);
-	__rec_addr_ts_update(r,
+	__wt_rec_image_copy(session, r, val);
+	__wt_rec_addr_ts_update(r,
 	    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
 
 	/* Update the starting record number in case we split. */
@@ -184,16 +184,16 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
 		/* Build the value cell. */
 		addr = &multi->addr;
-		__rec_cell_build_addr(session, r, addr, false, r->recno);
+		__wt_rec_cell_build_addr(session, r, addr, false, r->recno);
 
 		/* Boundary: split or write the page. */
-		if (__rec_need_split(r, val->len))
+		if (__wt_rec_need_split(r, val->len))
 			WT_RET(
 			    __wt_rec_split_crossing_bnd(session, r, val->len));
 
 		/* Copy the value onto the page. */
-		__rec_image_copy(session, r, val);
-		__rec_addr_ts_update(r, addr->oldest_start_ts,
+		__wt_rec_image_copy(session, r, val);
+		__wt_rec_addr_ts_update(r, addr->oldest_start_ts,
 		    addr->newest_durable_ts, addr->newest_stop_ts,
 		    addr->oldest_start_txn, addr->newest_stop_txn);
 	}
@@ -310,7 +310,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			oldest_start_txn = vpack->oldest_start_txn;
 			newest_stop_txn = vpack->newest_stop_txn;
 		} else {
-			__rec_cell_build_addr(
+			__wt_rec_cell_build_addr(
 			    session, r, addr, false, ref->ref_recno);
 			oldest_start_ts = addr->oldest_start_ts;
 			newest_durable_ts = addr->newest_durable_ts;
@@ -321,13 +321,13 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
 		/* Boundary: split or write the page. */
-		if (__rec_need_split(r, val->len))
+		if (__wt_rec_need_split(r, val->len))
 			WT_ERR(
 			    __wt_rec_split_crossing_bnd(session, r, val->len));
 
 		/* Copy the value onto the page. */
-		__rec_image_copy(session, r, val);
-		__rec_addr_ts_update(r,
+		__wt_rec_image_copy(session, r, val);
+		__wt_rec_addr_ts_update(r,
 		    oldest_start_ts, newest_durable_ts, newest_stop_ts,
 		    oldest_start_txn, newest_stop_txn);
 	} WT_INTL_FOREACH_END;
@@ -447,7 +447,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			 * pages are filled 100% except the last, allowing it to
 			 * grow in the future.
 			 */
-			__rec_incr(session, r, entry,
+			__wt_rec_incr(session, r, entry,
 			    __bitstr_size((size_t)entry * btree->bitcnt));
 			WT_RET(__wt_rec_split(session, r, 0));
 
@@ -465,7 +465,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 	}
 
 	/* Update the counters. */
-	__rec_incr(
+	__wt_rec_incr(
 	    session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
 	/* Write the remnant page. */
@@ -522,7 +522,7 @@ __wt_rec_col_fix_slvg(WT_SESSION_IMPL *session,
 			(uint32_t)page_start, btree->bitcnt));
 
 	r->recno += entry;
-	__rec_incr(session, r, entry,
+	__wt_rec_incr(session, r, entry,
 	    __bitstr_size((size_t)entry * btree->bitcnt));
 
 	/*
@@ -601,20 +601,20 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		val->buf.size = value->size;
 		val->len = val->cell_len + value->size;
 	} else
-		WT_RET(__rec_cell_build_val(session, r,
+		WT_RET(__wt_rec_cell_build_val(session, r,
 		    value->data, value->size,
 		    start_ts, stop_ts, start_txn, stop_txn, rle));
 
 	/* Boundary: split or write the page. */
-	if (__rec_need_split(r, val->len))
+	if (__wt_rec_need_split(r, val->len))
 		WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
 	/* Copy the value onto the page. */
 	if (!deleted && !overflow_type && btree->dictionary)
-		WT_RET(__rec_dict_replace(session, r,
+		WT_RET(__wt_rec_dict_replace(session, r,
 		    start_ts, stop_ts, start_txn, stop_txn, rle, val));
-	__rec_image_copy(session, r, val);
-	__rec_addr_ts_update(r,
+	__wt_rec_image_copy(session, r, val);
+	__wt_rec_addr_ts_update(r,
 	    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
 
 	/* Update the starting record number in case we split. */

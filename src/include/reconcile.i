@@ -14,11 +14,11 @@
 	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
- * __rec_need_split --
+ * __wt_rec_need_split --
  *	Check whether adding some bytes to the page requires a split.
  */
 static inline bool
-__rec_need_split(WT_RECONCILE *r, size_t len)
+__wt_rec_need_split(WT_RECONCILE *r, size_t len)
 {
 	/*
 	 * In the case of a row-store leaf page, trigger a split if a threshold
@@ -43,11 +43,11 @@ __rec_need_split(WT_RECONCILE *r, size_t len)
 }
 
 /*
- * __rec_addr_ts_init --
+ * __wt_rec_addr_ts_init --
  *	Initialize an address timestamp triplet.
  */
 static inline void
-__rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
+__wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
     wt_timestamp_t *newest_durable_ts, wt_timestamp_t *newest_stop_tsp,
     uint64_t *oldest_start_txnp, uint64_t *newest_stop_txnp)
 {
@@ -71,11 +71,11 @@ __rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
 }
 
 /*
- * __rec_addr_ts_update --
+ * __wt_rec_addr_ts_update --
  *	Update the chunk's timestamp information.
  */
 static inline void
-__rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
+__wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
     wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts,
     uint64_t oldest_start_txn, uint64_t newest_stop_txn)
 {
@@ -93,11 +93,12 @@ __rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
 }
 
 /*
- * __rec_incr --
+ * __wt_rec_incr --
  *	Update the memory tracking structure for a set of new entries.
  */
 static inline void
-__rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
+__wt_rec_incr(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
 {
 	/*
 	 * The buffer code is fragile and prone to off-by-one errors -- check
@@ -124,11 +125,11 @@ __rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
 }
 
 /*
- * __rec_image_copy --
+ * __wt_rec_image_copy --
  *	Copy a key/value cell and buffer pair into the new image.
  */
 static inline void
-__rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
+__wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 {
 	size_t len;
 	uint8_t *p, *t;
@@ -150,16 +151,16 @@ __rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 		memcpy(p, kv->buf.data, kv->buf.size);
 
 	WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
-	__rec_incr(session, r, 1, kv->len);
+	__wt_rec_incr(session, r, 1, kv->len);
 }
 
 /*
- * __rec_cell_build_addr --
+ * __wt_rec_cell_build_addr --
  *	Process an address reference and return a cell structure to be stored
  *	on the page.
  */
 static inline void
-__rec_cell_build_addr(WT_SESSION_IMPL *session,
+__wt_rec_cell_build_addr(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_ADDR *addr, bool proxy_cell, uint64_t recno)
 {
 	WT_REC_KV *val;
@@ -212,12 +213,12 @@ __rec_cell_build_addr(WT_SESSION_IMPL *session,
 }
 
 /*
- * __rec_cell_build_val --
+ * __wt_rec_cell_build_val --
  *	Process a data item and return a WT_CELL structure and byte string to
  *	be stored on the page.
  */
 static inline int
-__rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
+__wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     const void *data, size_t size,
     wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
     uint64_t start_txn, uint64_t stop_txn, uint64_t rle)
@@ -261,11 +262,11 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 }
 
 /*
- * __rec_dict_replace --
+ * __wt_rec_dict_replace --
  *	Check for a dictionary match.
  */
 static inline int
-__rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
+__wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
     uint64_t start_txn, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
 {
