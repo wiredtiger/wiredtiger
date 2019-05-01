@@ -1443,8 +1443,9 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	pages_seen_total = 0;
 
 retry:	while (slot < max_entries) {
-		/* We're done if shutting down */
-		if (F_ISSET(conn, WT_CONN_CLOSING))
+		/* We're done if shutting down or reconfiguring */
+		if (F_ISSET(conn, WT_CONN_CLOSING) ||
+		    F_ISSET(conn, WT_CONN_RECONFIGURING))
 			break;
 
 		/* If we have seen enough pages in this walk, we're done. */
