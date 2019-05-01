@@ -607,6 +607,7 @@ extern int __wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const ui
 extern void __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page);
 extern int __wt_ovfl_track_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_ovfl_track_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags, bool *lookaside_retryp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint32_t __wt_split_page_size(int split_pct, uint32_t maxpagesize, uint32_t allocsize);
 extern int __wt_bulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
