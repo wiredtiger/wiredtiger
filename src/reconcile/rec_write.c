@@ -8,288 +8,6 @@
 
 #include "wt_internal.h"
 
-struct __rec_chunk;		typedef struct __rec_chunk WT_CHUNK;
-struct __rec_dictionary;	typedef struct __rec_dictionary WT_DICTIONARY;
-struct __rec_kv;		typedef struct __rec_kv WT_KV;
-
-/*
- * Reconciliation is the process of taking an in-memory page, walking each entry
- * in the page, building a backing disk image in a temporary buffer representing
- * that information, and writing that buffer to disk.  What could be simpler?
- *
- * WT_RECONCILE --
- *	Information tracking a single page reconciliation.
- */
-typedef struct {
-	WT_REF  *ref;			/* Page being reconciled */
-	WT_PAGE *page;
-	uint32_t flags;			/* Caller's configuration */
-
-	/*
-	 * Track start/stop write generation to decide if all changes to the
-	 * page are written.
-	 */
-	uint32_t orig_write_gen;
-
-	/*
-	 * Track start/stop checkpoint generations to decide if lookaside table
-	 * records are correct.
-	 */
-	uint64_t orig_btree_checkpoint_gen;
-	uint64_t orig_txn_checkpoint_gen;
-
-	/*
-	 * Track the oldest running transaction and whether to skew lookaside
-	 * to the newest update.
-	 */
-	bool las_skew_newest;
-	uint64_t last_running;
-
-	/* Track the page's min/maximum transactions. */
-	uint64_t max_txn;
-	wt_timestamp_t max_timestamp;
-
-	/* Lookaside boundary tracking. */
-	uint64_t unstable_txn;
-	wt_timestamp_t unstable_durable_timestamp;
-	wt_timestamp_t unstable_timestamp;
-
-	u_int updates_seen;		/* Count of updates seen. */
-	u_int updates_unstable;		/* Count of updates not visible_all. */
-
-	bool update_uncommitted;	/* An update was uncommitted */
-	bool update_used;		/* An update could be used */
-
-	/* All the updates are with prepare in-progress state. */
-	bool all_upd_prepare_in_prog;
-
-	/*
-	 * When we can't mark the page clean (for example, checkpoint found some
-	 * uncommitted updates), there's a leave-dirty flag.
-	 */
-	bool leave_dirty;
-
-	/*
-	 * Track if reconciliation has seen any overflow items.  If a leaf page
-	 * with no overflow items is written, the parent page's address cell is
-	 * set to the leaf-no-overflow type.  This means we can delete the leaf
-	 * page without reading it because we don't have to discard any overflow
-	 * items it might reference.
-	 *
-	 * The test test is per-page reconciliation, that is, once we see an
-	 * overflow item on the page, all subsequent leaf pages written for the
-	 * page will not be leaf-no-overflow type, regardless of whether or not
-	 * they contain overflow items.  In other words, leaf-no-overflow is not
-	 * guaranteed to be set on every page that doesn't contain an overflow
-	 * item, only that if it is set, the page contains no overflow items.
-	 * XXX
-	 * This was originally done because raw compression couldn't do better,
-	 * now that raw compression has been removed, we should do better.
-	 */
-	bool	ovfl_items;
-
-	/*
-	 * Track if reconciliation of a row-store leaf page has seen empty (zero
-	 * length) values.  We don't write out anything for empty values, so if
-	 * there are empty values on a page, we have to make two passes over the
-	 * page when it's read to figure out how many keys it has, expensive in
-	 * the common case of no empty values and (entries / 2) keys.  Likewise,
-	 * a page with only empty values is another common data set, and keys on
-	 * that page will be equal to the number of entries.  In both cases, set
-	 * a flag in the page's on-disk header.
-	 *
-	 * The test is per-page reconciliation as described above for the
-	 * overflow-item test.
-	 */
-	bool	all_empty_value, any_empty_value;
-
-	/*
-	 * Reconciliation gets tricky if we have to split a page, which happens
-	 * when the disk image we create exceeds the page type's maximum disk
-	 * image size.
-	 *
-	 * First, the target size of the page we're building.
-	 */
-	uint32_t page_size;		/* Page size */
-
-	/*
-	 * Second, the split size: if we're doing the page layout, split to a
-	 * smaller-than-maximum page size when a split is required so we don't
-	 * repeatedly split a packed page.
-	 */
-	uint32_t split_size;		/* Split page size */
-	uint32_t min_split_size;	/* Minimum split page size */
-
-	/*
-	 * We maintain two split chunks in the memory during reconciliation to
-	 * be written out as pages. As we get to the end of the data, if the
-	 * last one turns out to be smaller than the minimum split size, we go
-	 * back into the penultimate chunk and split at this minimum split size
-	 * boundary. This moves some data from the penultimate chunk to the last
-	 * chunk, hence increasing the size of the last page written without
-	 * decreasing the penultimate page size beyond the minimum split size.
-	 * For this reason, we maintain an expected split percentage boundary
-	 * and a minimum split percentage boundary.
-	 *
-	 * Chunks are referenced by current and previous pointers. In case of a
-	 * split, previous references the first chunk and current switches to
-	 * the second chunk. If reconciliation generates more split chunks, the
-	 * the previous chunk is written to the disk and current and previous
-	 * swap.
-	 */
-	struct __rec_chunk {
-		/*
-		 * The recno and entries fields are the starting record number
-		 * of the split chunk (for column-store splits), and the number
-		 * of entries in the split chunk.
-		 *
-		 * The key for a row-store page; no column-store key is needed
-		 * because the page's recno, stored in the recno field, is the
-		 * column-store key.
-		 */
-		uint32_t entries;
-		uint64_t recno;
-		WT_ITEM  key;
-		wt_timestamp_t oldest_start_ts;
-		wt_timestamp_t newest_durable_ts;
-		wt_timestamp_t newest_stop_ts;
-		uint64_t oldest_start_txn;
-		uint64_t newest_stop_txn;
-
-		/* Saved minimum split-size boundary information. */
-		uint32_t min_entries;
-		uint64_t min_recno;
-		WT_ITEM  min_key;
-		wt_timestamp_t min_oldest_start_ts;
-		wt_timestamp_t min_newest_durable_ts;
-		wt_timestamp_t min_newest_stop_ts;
-		uint64_t min_oldest_start_txn;
-		uint64_t min_newest_stop_txn;
-
-		size_t   min_offset;			/* byte offset */
-
-		WT_ITEM image;				/* disk-image */
-	} chunkA, chunkB, *cur_ptr, *prev_ptr;
-
-	/*
-	 * We track current information about the current record number, the
-	 * number of entries copied into the disk image buffer, where we are
-	 * in the buffer, how much memory remains, and the current min/max of
-	 * the timestamps. Those values are packaged here rather than passing
-	 * pointers to stack locations around the code.
-	 */
-	uint64_t recno;			/* Current record number */
-	uint32_t entries;		/* Current number of entries */
-	uint8_t *first_free;		/* Current first free byte */
-	size_t	 space_avail;		/* Remaining space in this chunk */
-	/* Remaining space in this chunk to put a minimum size boundary */
-	size_t	 min_space_avail;
-
-	/*
-	 * Saved update list, supporting the WT_REC_UPDATE_RESTORE and
-	 * WT_REC_LOOKASIDE configurations. While reviewing updates for each
-	 * page, we save WT_UPDATE lists here, and then move them to per-block
-	 * areas as the blocks are defined.
-	 */
-	WT_SAVE_UPD *supd;		/* Saved updates */
-	uint32_t     supd_next;
-	size_t	     supd_allocated;
-	size_t       supd_memsize;	/* Size of saved update structures */
-
-	/* List of pages we've written so far. */
-	WT_MULTI *multi;
-	uint32_t  multi_next;
-	size_t	  multi_allocated;
-
-	/*
-	 * Root pages are written when wrapping up the reconciliation, remember
-	 * the image we're going to write.
-	 */
-	WT_ITEM *wrapup_checkpoint;
-	bool	 wrapup_checkpoint_compressed;
-
-	/*
-	 * We don't need to keep the 0th key around on internal pages, the
-	 * search code ignores them as nothing can sort less by definition.
-	 * There's some trickiness here, see the code for comments on how
-	 * these fields work.
-	 */
-	bool	cell_zero;		/* Row-store internal page 0th key */
-
-	/*
-	 * We calculate checksums to find previously written identical blocks,
-	 * but once a match fails during an eviction, there's no point trying
-	 * again.
-	 */
-	bool	evict_matching_checksum_failed;
-
-	/*
-	 * WT_DICTIONARY --
-	 *	We optionally build a dictionary of values for leaf pages. Where
-	 * two value cells are identical, only write the value once, the second
-	 * and subsequent copies point to the original cell. The dictionary is
-	 * fixed size, but organized in a skip-list to make searches faster.
-	 */
-	struct __rec_dictionary {
-		uint64_t hash;				/* Hash value */
-		uint32_t offset;			/* Matching cell */
-
-		u_int depth;				/* Skiplist */
-		WT_DICTIONARY *next[0];
-	} **dictionary;					/* Dictionary */
-	u_int dictionary_next, dictionary_slots;	/* Next, max entries */
-							/* Skiplist head. */
-	WT_DICTIONARY *dictionary_head[WT_SKIP_MAXDEPTH];
-
-	/*
-	 * WT_KV--
-	 *	An on-page key/value item we're building.
-	 */
-	struct __rec_kv {
-		WT_ITEM	 buf;		/* Data */
-		WT_CELL	 cell;		/* Cell and cell's length */
-		size_t cell_len;
-		size_t len;		/* Total length of cell + data */
-	} k, v;				/* Key/Value being built */
-
-	WT_ITEM *cur, _cur;		/* Key/Value being built */
-	WT_ITEM *last, _last;		/* Last key/value built */
-
-	bool key_pfx_compress;		/* If can prefix-compress next key */
-	bool key_pfx_compress_conf;	/* If prefix compression configured */
-	bool key_sfx_compress;		/* If can suffix-compress next key */
-	bool key_sfx_compress_conf;	/* If suffix compression configured */
-
-	bool is_bulk_load;		/* If it's a bulk load */
-
-	WT_SALVAGE_COOKIE *salvage;	/* If it's a salvage operation */
-
-	bool cache_write_lookaside;	/* Used the lookaside table */
-	bool cache_write_restore;	/* Used update/restoration */
-
-	uint32_t tested_ref_state;	/* Debugging information */
-
-	/*
-	 * XXX
-	 * In the case of a modified update, we may need a copy of the current
-	 * value as a set of bytes. We call back into the btree code using a
-	 * fake cursor to do that work. This a layering violation and fragile,
-	 * we need a better solution.
-	 */
-	WT_CURSOR_BTREE update_modify_cbt;
-} WT_RECONCILE;
-
-typedef struct {
-	WT_UPDATE *upd;			/* Update to write (or NULL) */
-
-					/* Transaction IDs, timestamps */
-	wt_timestamp_t start_ts, durable_ts, stop_ts;
-	uint64_t start_txn, stop_txn;
-
-	bool upd_saved;			/* Updates saved to list */
-
-} WT_UPDATE_SELECT;
-
 #define	WT_CROSSING_MIN_BND(r, next_len)				\
 	((r)->cur_ptr->min_offset == 0 &&				\
 	    (next_len) > (r)->min_space_avail)
@@ -304,7 +22,7 @@ static int  __rec_cell_build_int_key(WT_SESSION_IMPL *,
 static int  __rec_cell_build_leaf_key(WT_SESSION_IMPL *,
 		WT_RECONCILE *, const void *, size_t, bool *);
 static int  __rec_cell_build_ovfl(WT_SESSION_IMPL *, WT_RECONCILE *,
-		WT_KV *, uint8_t,
+		WT_REC_KV *, uint8_t,
 		wt_timestamp_t, wt_timestamp_t, uint64_t, uint64_t, uint64_t);
 static int  __rec_cell_build_val(WT_SESSION_IMPL *, WT_RECONCILE *,
 		const void *, size_t,
@@ -332,8 +50,8 @@ static int  __rec_row_merge(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int  __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int  __rec_split_row_promote(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
-static int  __rec_split_write(
-		WT_SESSION_IMPL *, WT_RECONCILE *, WT_CHUNK *, WT_ITEM *, bool);
+static int  __rec_split_write(WT_SESSION_IMPL *,
+		WT_RECONCILE *, WT_REC_CHUNK *, WT_ITEM *, bool);
 static int  __rec_write_check_complete(
 		WT_SESSION_IMPL *, WT_RECONCILE *, int, bool *);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
@@ -343,8 +61,8 @@ static int  __rec_write_wrapup_err(
 
 static void __rec_dictionary_free(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int  __rec_dictionary_init(WT_SESSION_IMPL *, WT_RECONCILE *, u_int);
-static int  __rec_dictionary_lookup(
-		WT_SESSION_IMPL *, WT_RECONCILE *, WT_KV *, WT_DICTIONARY **);
+static int  __rec_dictionary_lookup(WT_SESSION_IMPL *,
+		WT_RECONCILE *, WT_REC_KV *, WT_REC_DICTIONARY **);
 static void __rec_dictionary_reset(WT_RECONCILE *);
 
 /*
@@ -1982,7 +1700,7 @@ __rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
  *	Copy a key/value cell and buffer pair into the new image.
  */
 static inline void
-__rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_KV *kv)
+__rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 {
 	size_t len;
 	uint8_t *p, *t;
@@ -2014,9 +1732,9 @@ __rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_KV *kv)
 static int
 __rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle, WT_KV *val)
+    uint64_t start_txn, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
 {
-	WT_DICTIONARY *dp;
+	WT_REC_DICTIONARY *dp;
 	uint64_t offset;
 
 	/*
@@ -2302,8 +2020,8 @@ __rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
  *	Initialize a single chunk structure.
  */
 static int
-__rec_split_chunk_init(
-    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_CHUNK *chunk, size_t memsize)
+__rec_split_chunk_init(WT_SESSION_IMPL *session,
+    WT_RECONCILE *r, WT_REC_CHUNK *chunk, size_t memsize)
 {
 	chunk->recno = WT_RECNO_OOB;
 	/* Don't touch the key item memory, that memory is reused. */
@@ -2351,7 +2069,7 @@ __rec_split_init(WT_SESSION_IMPL *session,
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
-	WT_CHUNK *chunk;
+	WT_REC_CHUNK *chunk;
 	WT_REF *ref;
 	size_t corrected_page_size, disk_img_buf_size;
 
@@ -2655,7 +2373,7 @@ static int
 __rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 {
 	WT_BTREE *btree;
-	WT_CHUNK *tmp;
+	WT_REC_CHUNK *tmp;
 	size_t inuse;
 
 	btree = S2BT(session);
@@ -2817,8 +2535,8 @@ static int
 __rec_split_finish_process_prev(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
 	WT_BTREE *btree;
-	WT_CHUNK *cur_ptr, *prev_ptr, *tmp;
 	WT_PAGE_HEADER *dsk;
+	WT_REC_CHUNK *cur_ptr, *prev_ptr, *tmp;
 	size_t combined_size, len_to_move;
 	uint8_t *cur_dsk_start;
 
@@ -2987,13 +2705,13 @@ __rec_supd_move(
  */
 static int
 __rec_split_write_supd(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_CHUNK *chunk, WT_MULTI *multi, bool last_block)
+    WT_RECONCILE *r, WT_REC_CHUNK *chunk, WT_MULTI *multi, bool last_block)
 {
 	WT_BTREE *btree;
-	WT_CHUNK *next;
 	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_PAGE *page;
+	WT_REC_CHUNK *next;
 	WT_SAVE_UPD *supd;
 	WT_UPDATE *upd;
 	uint32_t i, j;
@@ -3098,7 +2816,7 @@ err:	__wt_scr_free(session, &key);
  */
 static void
 __rec_split_write_header(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_CHUNK *chunk, WT_MULTI *multi, WT_PAGE_HEADER *dsk)
+    WT_RECONCILE *r, WT_REC_CHUNK *chunk, WT_MULTI *multi, WT_PAGE_HEADER *dsk)
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
@@ -3311,7 +3029,7 @@ __rec_compression_adjust(WT_SESSION_IMPL *session,
  */
 static int
 __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_CHUNK *chunk, WT_ITEM *compressed_image, bool last_block)
+    WT_REC_CHUNK *chunk, WT_ITEM *compressed_image, bool last_block)
 {
 	WT_BTREE *btree;
 	WT_MULTI *multi;
@@ -3591,8 +3309,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
 	WT_BTREE *btree;
 	WT_CURSOR *cursor;
-	WT_KV *key, *val;
 	WT_RECONCILE *r;
+	WT_REC_KV *key, *val;
 	bool ovfl_key;
 
 	r = cbulk->reconcile;
@@ -3753,8 +3471,8 @@ __wt_bulk_insert_var(
     WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool deleted)
 {
 	WT_BTREE *btree;
-	WT_KV *val;
 	WT_RECONCILE *r;
+	WT_REC_KV *val;
 
 	r = cbulk->reconcile;
 	btree = S2BT(session);
@@ -3808,8 +3526,8 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 	WT_CELL_UNPACK *vpack, _vpack;
 	WT_CHILD_STATE state;
 	WT_DECL_RET;
-	WT_KV *val;
 	WT_PAGE *child, *page;
+	WT_REC_KV *val;
 	WT_REF *ref;
 	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
 	uint64_t oldest_start_txn, newest_stop_txn;
@@ -3942,9 +3660,9 @@ static int
 __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
 	WT_ADDR *addr;
-	WT_KV *val;
 	WT_MULTI *multi;
 	WT_PAGE_MODIFY *mod;
+	WT_REC_KV *val;
 	uint32_t i;
 
 	mod = page->modify;
@@ -4186,7 +3904,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     uint64_t rle, bool deleted, bool overflow_type)
 {
 	WT_BTREE *btree;
-	WT_KV *val;
+	WT_REC_KV *val;
 
 	btree = S2BT(session);
 	val = &r->v;
@@ -4903,8 +4621,8 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	WT_CHILD_STATE state;
 	WT_DECL_RET;
 	WT_IKEY *ikey;
-	WT_KV *key, *val;
 	WT_PAGE *child;
+	WT_REC_KV *key, *val;
 	WT_REF *ref;
 	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
 	size_t size;
@@ -5147,9 +4865,9 @@ static int
 __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
 	WT_ADDR *addr;
-	WT_KV *key, *val;
 	WT_MULTI *multi;
 	WT_PAGE_MODIFY *mod;
+	WT_REC_KV *key, *val;
 	uint32_t i;
 	bool ovfl_key;
 
@@ -5228,8 +4946,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	WT_IKEY *ikey;
 	WT_INSERT *ins;
-	WT_KV *key, *val;
 	WT_PAGE *page;
+	WT_REC_KV *key, *val;
 	WT_ROW *rip;
 	WT_UPDATE *upd;
 	WT_UPDATE_SELECT upd_select;
@@ -5625,7 +5343,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
 	WT_BTREE *btree;
 	WT_CURSOR_BTREE *cbt;
-	WT_KV *key, *val;
+	WT_REC_KV *key, *val;
 	WT_UPDATE *upd;
 	WT_UPDATE_SELECT upd_select;
 	wt_timestamp_t start_ts, durable_ts, stop_ts;
@@ -6156,7 +5874,7 @@ __rec_cell_build_int_key(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
 {
 	WT_BTREE *btree;
-	WT_KV *key;
+	WT_REC_KV *key;
 
 	*is_ovflp = false;
 
@@ -6192,7 +5910,7 @@ __rec_cell_build_leaf_key(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
 {
 	WT_BTREE *btree;
-	WT_KV *key;
+	WT_REC_KV *key;
 	size_t pfx_max;
 	const uint8_t *a, *b;
 	uint8_t pfx;
@@ -6294,7 +6012,7 @@ static void
 __rec_cell_build_addr(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_ADDR *addr, bool proxy_cell, uint64_t recno)
 {
-	WT_KV *val;
+	WT_REC_KV *val;
 	u_int cell_type;
 
 	val = &r->v;
@@ -6355,7 +6073,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     uint64_t start_txn, uint64_t stop_txn, uint64_t rle)
 {
 	WT_BTREE *btree;
-	WT_KV *val;
+	WT_REC_KV *val;
 
 	btree = S2BT(session);
 
@@ -6398,7 +6116,7 @@ __rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
  */
 static int
 __rec_cell_build_ovfl(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_KV *kv, uint8_t type,
+    WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
     wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
     uint64_t start_txn, uint64_t stop_txn, uint64_t rle)
 {
@@ -6471,10 +6189,10 @@ err:	__wt_scr_free(session, &tmp);
  * __rec_dictionary_skip_search --
  *	Search a dictionary skiplist.
  */
-static WT_DICTIONARY *
-__rec_dictionary_skip_search(WT_DICTIONARY **head, uint64_t hash)
+static WT_REC_DICTIONARY *
+__rec_dictionary_skip_search(WT_REC_DICTIONARY **head, uint64_t hash)
 {
-	WT_DICTIONARY **e;
+	WT_REC_DICTIONARY **e;
 	int i;
 
 	/*
@@ -6509,9 +6227,9 @@ __rec_dictionary_skip_search(WT_DICTIONARY **head, uint64_t hash)
  */
 static void
 __rec_dictionary_skip_search_stack(
-    WT_DICTIONARY **head, WT_DICTIONARY ***stack, uint64_t hash)
+    WT_REC_DICTIONARY **head, WT_REC_DICTIONARY ***stack, uint64_t hash)
 {
-	WT_DICTIONARY **e;
+	WT_REC_DICTIONARY **e;
 	int i;
 
 	/*
@@ -6531,9 +6249,9 @@ __rec_dictionary_skip_search_stack(
  */
 static void
 __rec_dictionary_skip_insert(
-    WT_DICTIONARY **head, WT_DICTIONARY *e, uint64_t hash)
+    WT_REC_DICTIONARY **head, WT_REC_DICTIONARY *e, uint64_t hash)
 {
-	WT_DICTIONARY **stack[WT_SKIP_MAXDEPTH];
+	WT_REC_DICTIONARY **stack[WT_SKIP_MAXDEPTH];
 	u_int i;
 
 	/* Insert the new entry into the skiplist. */
@@ -6558,12 +6276,11 @@ __rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots)
 
 	r->dictionary_slots = slots;
 	WT_RET(__wt_calloc(session,
-	    r->dictionary_slots, sizeof(WT_DICTIONARY *), &r->dictionary));
+	    r->dictionary_slots, sizeof(WT_REC_DICTIONARY *), &r->dictionary));
 	for (i = 0; i < r->dictionary_slots; ++i) {
 		depth = __wt_skip_choose_depth(session);
-		WT_RET(__wt_calloc(session, 1,
-		    sizeof(WT_DICTIONARY) + depth * sizeof(WT_DICTIONARY *),
-		    &r->dictionary[i]));
+		WT_RET(__wt_calloc(session, 1, sizeof(WT_REC_DICTIONARY) +
+		    depth * sizeof(WT_REC_DICTIONARY *), &r->dictionary[i]));
 		r->dictionary[i]->depth = depth;
 	}
 	return (0);
@@ -6610,10 +6327,10 @@ __rec_dictionary_reset(WT_RECONCILE *r)
  *	Check the dictionary for a matching value on this page.
  */
 static int
-__rec_dictionary_lookup(
-    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_KV *val, WT_DICTIONARY **dpp)
+__rec_dictionary_lookup(WT_SESSION_IMPL *session,
+    WT_RECONCILE *r, WT_REC_KV *val, WT_REC_DICTIONARY **dpp)
 {
-	WT_DICTIONARY *dp, *next;
+	WT_REC_DICTIONARY *dp, *next;
 	uint64_t hash;
 	bool match;
 
