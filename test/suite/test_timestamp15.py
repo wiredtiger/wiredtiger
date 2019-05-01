@@ -57,7 +57,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
                 '/commit timestamp \(0,2\) older ' +
-                    'than stable timestamp \(0,3\)/')
+                    'than or equal to stable timestamp \(0,3\)/')
 
         # Scenario 2:
         # Specify multiple commit timestamps some being after
@@ -70,41 +70,60 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
                 '/commit timestamp \(0,4\) older ' +
-                    'than stable timestamp \(0,5\)/')
+                    'than or equal to stable timestamp \(0,5\)/')
 
         # Scenario 3:
         # Specify a commit timestamp equal to a stable timestamp.
-        # This is also not legal.
+        # This is also invalid.
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction('commit_timestamp=5'),
-                '/commit timestamp 5 older than stable timestamp \(0,5\)/')
+                '/commit timestamp \(0,5\) is less than the stable timestamp \(0,5\)/')
         self.session.commit_transaction()
 
         # Scenario 4:
         # Ensure that if the transaction is prepared it is not
         # going to be rejected if a durable timestamp that is
-        # older than the stable timestamp is provided.
+        # newer than the stable timestamp is provided.
         self.session.begin_transaction()
         cur1[3] = 3
-        self.session.prepare_transaction('prepare_timestamp=3')
-        self.session.timestamp_transaction('commit_timestamp=4')
-        self.session.timestamp_transaction('durable_timestamp=6')
+        self.session.prepare_transaction('prepare_timestamp=6')
+        self.session.timestamp_transaction('commit_timestamp=7')
+        self.session.timestamp_transaction('durable_timestamp=9')
+        self.conn.set_timestamp('stable_timestamp=8')
+
         self.session.commit_transaction()
 
         # Scenario 5:
-        # Given a prepared transaction ensure that first commit
-        # timestamp provided is newer than the stable timestamp
-        # as we are not specifying a durable
-        # timestamp.
+        # Ensure that if the transaction is prepared it is
+        # going to be rejected if a durable timestamp that is
+        # older than the stable timestamp is provided.
         self.session.begin_transaction()
-        cur1[4] = 4
-        self.session.prepare_transaction('prepare_timestamp=3')
-        self.session.timestamp_transaction('commit_timestamp=4')
+        cur1[3] = 3
+        self.session.prepare_transaction('prepare_timestamp=9')
+        self.session.timestamp_transaction('commit_timestamp=A')
+        self.session.timestamp_transaction('durable_timestamp=B')
+
+        self.conn.set_timestamp('stable_timestamp=C')
+
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(),
-                '/commit timestamp \(0,4\) older ' +
-                    'than stable timestamp \(0,5\)/')
+                '/commit timestamp \(0,11\) older ' +
+                    'than or equal to stable timestamp \(0,12\)/')
+
+        # Scenario 6:
+        # Specify a durable timestamp equal to a stable timestamp.
+        # This is also invalid.
+        self.session.begin_transaction()
+        cur1[3] = 3
+        self.session.prepare_transaction('prepare_timestamp=D')
+        self.session.timestamp_transaction('commit_timestamp=E')
+        self.session.timestamp_transaction('durable_timestamp=F')
+        self.conn.set_timestamp('stable_timestamp=F')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.commit_transaction(),
+                '/commit timestamp \(0,15\) older ' +
+                    'than or equal to stable timestamp \(0,15\)/')
 
 if __name__ == '__main__':
     wttest.run()

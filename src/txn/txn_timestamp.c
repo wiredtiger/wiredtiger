@@ -633,7 +633,7 @@ __wt_txn_set_commit_timestamp(
 			    __wt_timestamp_to_string(commit_ts, ts_string[0]),
 			    __wt_timestamp_to_string(oldest_ts, ts_string[1]));
 
-		if (has_stable_ts && commit_ts < stable_ts)
+		if (has_stable_ts && commit_ts <= stable_ts)
 			WT_RET_MSG(session, EINVAL,
 			    "commit timestamp %s is less than the stable "
 			    "timestamp %s",
