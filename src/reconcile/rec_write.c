@@ -8,13 +8,6 @@
 
 #include "wt_internal.h"
 
-#define	WT_CROSSING_MIN_BND(r, next_len)				\
-	((r)->cur_ptr->min_offset == 0 &&				\
-	    (next_len) > (r)->min_space_avail)
-#define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
-#define	WT_CHECK_CROSSING_BND(r, next_len)				\
-	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
-
 static void __rec_cell_build_addr(
 		WT_SESSION_IMPL *, WT_RECONCILE *, WT_ADDR *, bool, uint64_t);
 static int  __rec_cell_build_int_key(WT_SESSION_IMPL *,
@@ -1405,6 +1398,13 @@ __rec_leaf_page_max(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 */
 	return (page_size * 2);
 }
+
+#define	WT_CROSSING_MIN_BND(r, next_len)				\
+	((r)->cur_ptr->min_offset == 0 &&				\
+	    (next_len) > (r)->min_space_avail)
+#define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
+#define	WT_CHECK_CROSSING_BND(r, next_len)				\
+	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
  * __rec_need_split --
