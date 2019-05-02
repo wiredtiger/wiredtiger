@@ -29,10 +29,12 @@
 
 import argparse
 import multiprocessing
+from multiprocessing import Process
 import numpy as np
 import os
 import pandas as pd
 import sys
+import time
 
 # The time units used in the input files is nanoseconds. Presently the
 # operation tracking code does not produce data using any other time
@@ -283,8 +285,6 @@ def parseIntervals(df, firstTimeStamp, fname):
     for i in range (0, len(allFuncs)):
         outputDict[columnNamePrefix + allFuncs[i]] = [];
 
-    print(outputDict);
-
     # We have two time formats. The data in the file is using fine-granular
     # time units, mostly likely from the CPU's cycle counter. The output
     # format will use coarse-granular time intervals in seconds. So we need
@@ -306,11 +306,6 @@ def parseIntervals(df, firstTimeStamp, fname):
               ". Skipping this file." + color.END);
         return;
 
-    print(str(firstIntervalTimestampSeconds));
-    print(str(lastIntervalTimestampSeconds));
-    print(str(firstTimestampUnits));
-    print(str(lastTimestampUnits));
-
     currentIntervalSeconds = firstIntervalTimestampSeconds;
     currentIntBeginUnits = firstTimestampUnits;
 
@@ -324,14 +319,6 @@ def parseIntervals(df, firstTimeStamp, fname):
 
         currentIntEndUnits = currentIntBeginUnits + \
                              intervalLength * unitsPerSecond;
-
-        print("#");
-        print("#");
-        print("#");
-        print("Processing new interval:");
-        print("Begin seconds: " + str(currentIntervalSeconds));
-        print("Begin units:" + str(currentIntBeginUnits));
-        print("End units:  " + str(currentIntEndUnits));
 
         # Select all functions, whose begin and end time fall within the
         # current interval.
@@ -351,10 +338,6 @@ def parseIntervals(df, firstTimeStamp, fname):
             else:
                 thisIntDict[func] += duration;
 
-        print("beginAndEndInInterval:");
-        print(beginAndEndInInterval);
-        print();
-
         # Select all functions, whose begin timestamp is within this
         # interval, but the end timestamp is outside of it.
         # Only the duration up to the end of the interval gets added
@@ -372,10 +355,6 @@ def parseIntervals(df, firstTimeStamp, fname):
                 thisIntDict[func] = duration;
             else:
                 thisIntDict[func] += duration;
-
-        print("beginInInterval");
-        print(beginInInterval);
-        print();
 
         # Select all functions, whose end timestamp is within this
         # interval, but the begin timestamp is in an earlier interval.
@@ -395,10 +374,6 @@ def parseIntervals(df, firstTimeStamp, fname):
             else:
                 thisIntDict[func] += duration;
 
-        print("endInInterval");
-        print(endInInterval)
-        print();
-
         # Select all functions, whose begin timestamp is in an earlier
         # interval and end timestamp is in a later interval.
         # For functions that last during the entire interval the duration
@@ -415,10 +390,6 @@ def parseIntervals(df, firstTimeStamp, fname):
             else:
                 thisIntDict[func] += duration;
 
-        print("beginEndOutsideInterval");
-        print(beginEndOutsideInterval);
-        print();
-
         # Convert the durations to percentages and record them
         # in the output dictionary
         for func, duration in thisIntDict.iteritems():
@@ -426,8 +397,6 @@ def parseIntervals(df, firstTimeStamp, fname):
             percentDuration = float(duration) / \
                               float(intervalLength * unitsPerSecond) * 100;
             outputDict[outputDictKey].append(percentDuration);
-            print("Appended: " + outputDictKey + ", " + str(percentDuration)
-                  + "%");
 
         # In the output dictionary find all functions that did not
         # execute during this interval and append zero.
@@ -441,17 +410,25 @@ def parseIntervals(df, firstTimeStamp, fname):
         currentIntervalSeconds += intervalLength;
         currentIntBeginUnits = currentIntEndUnits + 1;
 
-    # Write the data to file
-    outputDF = pd.DataFrame(data=outputDict);
-    outputCSV = makeCSVFname(fname);
+    # Make the dataframe from the dictionary. Arrange the columns
+    # such that 'time' is first.
+    #
+    targetColumns = ['time'];
 
+    for key, value in outputDict.iteritems():
+        if key != 'time':
+            targetColumns.append(key);
+
+    outputDF = pd.DataFrame(data=outputDict, columns = targetColumns);
+
+    # Write the data to file
+    outputCSV = makeCSVFname(fname);
     outputDF.to_csv(path_or_buf=outputCSV, index=False, header=True);
 
 
 def processFile(fname):
 
     firstTimeStamp, skipRows = checkForTimestampAndGetRowSkip(fname);
-    print(str(skipRows));
 
     rawData = pd.read_csv(fname,
                           header=None, delimiter=" ",
@@ -465,9 +442,29 @@ def processFile(fname):
 
     iDF = createCallstackSeries(rawData, "." + fname + ".log");
 
-    parseIntervals(iDF, firstTimeStamp, fname);
+    if not iDF.empty:
+        parseIntervals(iDF, firstTimeStamp, fname);
+
+def waitOnOneProcess(runningProcesses):
+
+    i = 0;
+    success = False;
+    while i < len(runningProcesses):
+        p = runningProcesses[i];
+        if (not p.is_alive()):
+            del runningProcesses[i];
+            success = True;
+        else:
+            i+=1;
+
+    # If we have not found a terminated process, sleep for a while
+    if (not success):
+        time.sleep(1);
 
 def main():
+
+    runnableProcesses = [];
+    runningProcesses = [];
 
     # Set up the argument parser
     #
@@ -491,10 +488,26 @@ def main():
     else:
         targetParallelism = multiprocessing.cpu_count() * 2;
 
-    # Parallelize this later, so we are working on files in parallel.
+    # Process all files in parallel
     for fname in args.files:
-        processFile(fname);
+        p = Process(target=processFile,
+                    args=(fname,));
+        runnableProcesses.append(p);
 
+    while (len(runnableProcesses) > 0):
+        while (len(runningProcesses) < targetParallelism
+               and len(runnableProcesses) > 0):
+
+            p = runnableProcesses.pop();
+            p.start();
+            runningProcesses.append(p);
+
+        # Find at least one terminated process
+        waitOnOneProcess(runningProcesses);
+
+    # Wait for all processes to terminate
+    while (len(runningProcesses) > 0):
+        waitOnOneProcess(runningProcesses);
 
 if __name__ == '__main__':
     main()
