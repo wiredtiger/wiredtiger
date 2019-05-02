@@ -37,7 +37,7 @@ returned for the key will be zero. When the log record maps to a
 transaction, the first log record returned, with an operation counter of
 zero, will be the entire log record. Then the WT_CURSOR::next call will
 step into the transaction and return the first individual operation
-within that transaction and each additional individual oepration, incrementing
+within that transaction and each additional individual operation, adding one to
 the operation counter for each one. A transaction with a single operation will
 return two records related to that transaction.
 
