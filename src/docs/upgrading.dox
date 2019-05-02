@@ -1,6 +1,17 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
 </dl><hr>
+@section version_321 Upgrading to Version 3.2.1
+<dl>
+
+<dt>LevelDB support</dt>
+<dd>
+Support for the Google LevelDB API compatibility layer (as well as the
+related Basho Technologies Riak, HyperLevelDB HyperDex and Facebook
+RocksDB compatibility layers), has been removed in the 3.2.1 release.
+</dd>
+
+</dl><hr>
 @section version_320 Upgrading to Version 3.2.0
 <dl>
 
