@@ -63,8 +63,11 @@ typedef struct {
 	int ntables_created;			/* Number tables opened */
 	int running;				/* Whether to stop */
 	int status;				/* Exit status */
+	u_int ts;				/* Current timestamp */
 	COOKIE *cookies;			/* Per-thread info */
+	WT_RWLOCK clock_lock;			/* Clock synchronization */
 	wt_thread_t checkpoint_thread;		/* Checkpoint thread */
+	wt_thread_t clock_thread;		/* Clock thread */
 } GLOBAL;
 extern GLOBAL g;
 

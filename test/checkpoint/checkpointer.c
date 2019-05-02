@@ -29,6 +29,7 @@
 #include "test_checkpoint.h"
 
 static WT_THREAD_RET checkpointer(void *);
+static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(
     WT_CURSOR *, const char *, WT_CURSOR *, const char *);
 static int diagnose_key_error(WT_CURSOR *, int, WT_CURSOR *, int);
@@ -42,8 +43,11 @@ static int verify_consistency(WT_SESSION *, bool);
 void
 start_checkpoints(void)
 {
+	testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
 	testutil_check(__wt_thread_create(NULL,
 	    &g.checkpoint_thread, checkpointer, NULL));
+	testutil_check(__wt_thread_create(NULL,
+	    &g.clock_thread, clock_thread, NULL));
 }
 
 /*
@@ -54,6 +58,43 @@ void
 end_checkpoints(void)
 {
 	testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
+	testutil_check(__wt_thread_join(NULL, &g.clock_thread));
+	__wt_rwlock_destroy(NULL, &g.clock_lock);
+}
+
+/*
+ * clock_thread --
+ *	Clock thread: ticks up timestamps.
+ */
+static WT_THREAD_RET
+clock_thread(void *arg)
+{
+	WT_SESSION *wt_session;
+	WT_SESSION_IMPL *session;
+	char buf[128];
+
+	WT_UNUSED(arg);
+
+	testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	g.ts = 0;
+	while (g.running) {
+		__wt_writelock(session, &g.clock_lock);
+		++g.ts;
+		testutil_check(__wt_snprintf(
+		    buf, sizeof(buf),
+		    "oldest_timestamp=%x,stable_timestamp=%x", g.ts, g.ts));
+		testutil_check(g.conn->set_timestamp(g.conn, buf));
+		if (g.ts % 997 == 0)
+			__wt_sleep(10, 0);
+		__wt_writeunlock(session, &g.clock_lock);
+		__wt_sleep(0, 10000);
+	}
+
+	testutil_check(wt_session->close(wt_session, NULL));
+
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
@@ -83,8 +124,8 @@ static int
 real_checkpointer(void)
 {
 	WT_SESSION *session;
-	int ret;
 	char buf[128], *checkpoint_config;
+	int ret;
 
 	if (g.running == 0)
 		return (log_print_err(
@@ -115,14 +156,17 @@ real_checkpointer(void)
 		    session, checkpoint_config)) != 0)
 			return (log_print_err("session.checkpoint", ret, 1));
 		printf("Finished a checkpoint\n");
++		fflush(stdout);
 
 		if (!g.running)
 			goto done;
 
 		/* Verify the content of the checkpoint. */
-		if ((ret = verify_consistency(session, true)) != 0)
+		if (0 && (ret = verify_consistency(session, true)) != 0)
 			return (log_print_err(
 			    "verify_consistency (offline)", ret, 1));
+
+		__wt_sleep(5, 0);
 	}
 
 done:	if ((ret = session->close(session, NULL)) != 0)
@@ -234,6 +278,7 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
 	printf("Finished verifying a %s with %d tables and %" PRIu64
 	    " keys\n", use_checkpoint ? "checkpoint" : "snapshot",
 	    g.ntables, key_count);
+	fflush(stdout);
 
 err:	for (i = 0; i < g.ntables; i++) {
 		if (cursors[i] != NULL &&
