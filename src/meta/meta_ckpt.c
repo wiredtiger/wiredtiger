@@ -461,27 +461,28 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	int64_t maxorder;
 	const char *sep;
 
-	WT_ERR(__wt_scr_alloc(session, 0, &buf));
+	/*
+	 * Each internal checkpoint name is appended with a generation to make
+	 * it a unique name.  We're solving two problems: when two checkpoints
+	 * are taken quickly, the timer may not be unique and/or we can even
+	 * see time travel on the second checkpoint if we snapshot in-between
+	 * nanoseconds rolling over. Second, if we reset the generational
+	 * counter when new checkpoints arrive, we could logically re-create
+	 * specific checkpoints, racing with cursors open on those checkpoints.
+	 * I can't think of any way to return incorrect results by racing with
+	 * those cursors, but it's simpler not to worry about it.
+	 *
+	 * Determine the current maximum checkpoint generation.
+	 */
 	maxorder = 0;
-	sep = "";
-	WT_ERR(__wt_buf_fmt(session, buf, "checkpoint=("));
-	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		/*
-		 * Each internal checkpoint name is appended with a generation
-		 * to make it a unique name.  We're solving two problems: when
-		 * two checkpoints are taken quickly, the timer may not be
-		 * unique and/or we can even see time travel on the second
-		 * checkpoint if we snapshot the time in-between nanoseconds
-		 * rolling over.  Second, if we reset the generational counter
-		 * when new checkpoints arrive, we could logically re-create
-		 * specific checkpoints, racing with cursors open on those
-		 * checkpoints.  I can't think of any way to return incorrect
-		 * results by racing with those cursors, but it's simpler not
-		 * to worry about it.
-		 */
+	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (ckpt->order > maxorder)
 			maxorder = ckpt->order;
 
+	WT_ERR(__wt_scr_alloc(session, 0, &buf));
+	sep = "";
+	WT_ERR(__wt_buf_fmt(session, buf, "checkpoint=("));
+	WT_CKPT_FOREACH(ckptbase, ckpt) {
 		/* Skip deleted checkpoints. */
 		if (F_ISSET(ckpt, WT_CKPT_DELETE))
 			continue;
