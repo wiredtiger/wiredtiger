@@ -862,7 +862,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (txn_global->has_stable_timestamp ||
 	    txn_global->has_oldest_timestamp) {
-		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)){
+		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
 			if (txn->first_commit_timestamp <
 			    txn_global->oldest_timestamp) {
 				__wt_timestamp_to_string(
