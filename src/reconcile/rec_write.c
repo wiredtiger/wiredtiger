@@ -2586,8 +2586,8 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 int
 __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session,
     WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -2647,7 +2647,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session,
 
 	/* Build the cell and return. */
 	kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type,
-	    start_ts, stop_ts, start_txn, stop_txn, rle, kv->buf.size);
+	    start_ts, start_txn, stop_ts, stop_txn, rle, kv->buf.size);
 	kv->len = kv->cell_len + kv->buf.size;
 
 err:	__wt_scr_free(session, &tmp);

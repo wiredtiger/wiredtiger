@@ -963,7 +963,6 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 				    unpack.start_ts, ts_string[0]),
 				    __wt_timestamp_to_string(
 				    unpack.stop_ts, ts_string[1]));
-
 			if (unpack.stop_txn == WT_TXN_NONE)
 				WT_RET_MSG(session, WT_ERROR,
 				    "cell %" PRIu32 " on page at %s has a stop "
@@ -985,15 +984,14 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 			    "start", unpack.start_ts,
 			    "oldest start", addr_unpack->oldest_start_ts,
 			    true, vs));
-			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
-			    "stop", unpack.stop_ts,
-			    "newest stop", addr_unpack->newest_stop_ts,
-			    false, vs));
-
 			WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1,
 			    "start", unpack.start_txn,
 			    "oldest start", addr_unpack->oldest_start_txn,
 			    true, vs));
+			WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1,
+			    "stop", unpack.stop_ts,
+			    "newest stop", addr_unpack->newest_stop_ts,
+			    false, vs));
 			WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1,
 			    "stop", unpack.stop_txn,
 			    "newest stop", addr_unpack->newest_stop_txn,

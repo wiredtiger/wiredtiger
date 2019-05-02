@@ -125,7 +125,7 @@ __wt_bulk_insert_var(
 	val = &r->v;
 	if (deleted) {
 		val->cell_len = __wt_cell_pack_del(session, &val->cell,
-		    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX, cbulk->rle);
+		    WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
@@ -137,7 +137,7 @@ __wt_bulk_insert_var(
 		 */
 		WT_RET(__wt_rec_cell_build_val(session, r,
 		    cbulk->last.data, cbulk->last.size,
-		    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX,
+		    WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX,
 		    cbulk->rle));
 
 	/* Boundary: split or write the page. */
@@ -147,7 +147,7 @@ __wt_bulk_insert_var(
 	/* Copy the value onto the page. */
 	if (btree->dictionary)
 		WT_RET(__wt_rec_dict_replace(session, r,
-		    WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX,
+		    WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX,
 		    cbulk->rle, val));
 	__wt_rec_image_copy(session, r, val);
 	__wt_rec_addr_ts_update(r,
@@ -590,21 +590,21 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 	if (deleted) {
 		val->cell_len = __wt_cell_pack_del(session,
-		    &val->cell, start_ts, stop_ts, start_txn, stop_txn, rle);
+		    &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 		val->len = val->cell_len;
 	} else if (overflow_type) {
 		val->cell_len = __wt_cell_pack_ovfl(session, &val->cell,
-		    WT_CELL_VALUE_OVFL, start_ts, stop_ts,
-		    start_txn, stop_txn, rle, value->size);
+		    WT_CELL_VALUE_OVFL,
+		    start_ts, start_txn, stop_ts, stop_txn, rle, value->size);
 		val->buf.data = value->data;
 		val->buf.size = value->size;
 		val->len = val->cell_len + value->size;
 	} else
 		WT_RET(__wt_rec_cell_build_val(session, r,
 		    value->data, value->size,
-		    start_ts, stop_ts, start_txn, stop_txn, rle));
+		    start_ts, start_txn, stop_ts, stop_txn, rle));
 
 	/* Boundary: split or write the page. */
 	if (__wt_rec_need_split(r, val->len))
@@ -613,7 +613,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	/* Copy the value onto the page. */
 	if (!deleted && !overflow_type && btree->dictionary)
 		WT_RET(__wt_rec_dict_replace(session, r,
-		    start_ts, stop_ts, start_txn, stop_txn, rle, val));
+		    start_ts, start_txn, stop_ts, stop_txn, rle, val));
 	__wt_rec_image_copy(session, r, val);
 	__wt_rec_addr_ts_update(r,
 	    durable_ts, start_ts, start_txn, stop_ts, stop_txn);
@@ -635,8 +635,10 @@ __wt_rec_col_var(WT_SESSION_IMPL *session,
 	enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
 	struct {
 		WT_ITEM	*value;				/* Value */
-		wt_timestamp_t start_ts, stop_ts;	/* Timestamps */
-		uint64_t start_txn, stop_txn;		/* Transactions */
+		wt_timestamp_t	start_ts;		/* Timestamps/TxnID */
+		uint64_t	start_txn;
+		wt_timestamp_t	stop_ts;
+		uint64_t	stop_txn;
 		bool deleted;				/* If deleted */
 	} last;
 	WT_ADDR *addr;
@@ -683,8 +685,8 @@ __wt_rec_col_var(WT_SESSION_IMPL *session,
 	/* Set the "last" values to cause failure if they're not set. */
 	last.value = r->last;
 	last.start_ts = WT_TS_MAX;
-	last.stop_ts = WT_TS_NONE;
 	last.start_txn = WT_TXN_MAX;
+	last.stop_ts = WT_TS_NONE;
 	last.stop_txn = WT_TXN_NONE;
 	last.deleted = false;
 
@@ -720,8 +722,8 @@ __wt_rec_col_var(WT_SESSION_IMPL *session,
 		if (salvage->skip == 0) {
 			rle = salvage->missing;
 			last.start_ts = WT_TS_NONE;
-			last.stop_ts = WT_TS_MAX;
 			last.start_txn = WT_TXN_NONE;
+			last.stop_ts = WT_TS_MAX;
 			last.stop_txn = WT_TXN_MAX;
 			last.deleted = true;
 
@@ -981,8 +983,8 @@ compare:		/*
 			if (rle != 0) {
 				if ((!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts &&
 				    last.start_txn == start_txn &&
+				    last.stop_ts == stop_ts &&
 				    last.stop_txn == stop_txn)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
@@ -1026,8 +1028,8 @@ compare:		/*
 					    session, last.value, data, size));
 			}
 			last.start_ts = start_ts;
-			last.stop_ts = stop_ts;
 			last.start_txn = start_txn;
+			last.stop_ts = stop_ts;
 			last.stop_txn = stop_txn;
 			last.deleted = deleted;
 			rle = repeat_count;
@@ -1112,8 +1114,8 @@ compare:		/*
 				if (last.deleted &&
 				    (!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts &&
 				    last.start_txn == start_txn &&
+				    last.stop_ts == stop_ts &&
 				    last.stop_txn == stop_txn))) {
 					/*
 					 * The record adjustment is decremented
@@ -1181,8 +1183,8 @@ compare:		/*
 			if (rle != 0) {
 				if ((!__wt_process.page_version_ts ||
 				    (last.start_ts == start_ts &&
-				    last.stop_ts == stop_ts &&
 				    last.start_txn == start_txn &&
+				    last.stop_ts == stop_ts &&
 				    last.stop_txn == stop_txn)) &&
 				    ((deleted && last.deleted) ||
 				    (!deleted && !last.deleted &&
@@ -1219,8 +1221,8 @@ compare:		/*
 
 			/* Ready for the next loop, reset the RLE counter. */
 			last.start_ts = start_ts;
-			last.stop_ts = stop_ts;
 			last.start_txn = start_txn;
+			last.stop_ts = stop_ts;
 			last.stop_txn = stop_txn;
 			last.deleted = deleted;
 			rle = 1;

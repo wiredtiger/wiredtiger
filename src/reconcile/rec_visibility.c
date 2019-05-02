@@ -300,13 +300,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * start transaction equal to the transaction, and again,
 		 * pretend it's durable.
 		 */
-		upd_select->start_ts = upd_select->durable_ts = WT_TS_NONE;
-		upd_select->stop_ts = WT_TS_MAX;
+		upd_select->durable_ts = WT_TS_NONE;
+		upd_select->start_ts = WT_TS_NONE;
 		upd_select->start_txn = WT_TXN_NONE;
+		upd_select->stop_ts = WT_TS_MAX;
 		upd_select->stop_txn = WT_TXN_MAX;
 		if (upd_select->upd->start_ts != WT_TS_NONE)
-			upd_select->start_ts =
-			    upd_select->durable_ts = upd_select->upd->start_ts;
+			upd_select->durable_ts =
+			    upd_select->start_ts = upd_select->upd->start_ts;
 		if (upd_select->upd->txnid != WT_TXN_NONE)
 			upd_select->start_txn = upd_select->upd->txnid;
 
@@ -321,8 +322,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		    __wt_txn_visible_all(
 		    session, upd_select->start_txn, upd_select->start_ts))) {
 			upd_select->start_ts = WT_TS_NONE;
-			upd_select->stop_ts = WT_TS_MAX;
 			upd_select->start_txn = WT_TXN_NONE;
+			upd_select->stop_ts = WT_TS_MAX;
 			upd_select->stop_txn = WT_TXN_MAX;
 		}
 	}

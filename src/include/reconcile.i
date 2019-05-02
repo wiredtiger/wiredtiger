@@ -221,8 +221,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session,
 static inline int
 __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
     const void *data, size_t size,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
 	WT_BTREE *btree;
 	WT_REC_KV *val;
@@ -252,11 +252,11 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 
 			return (__wt_rec_cell_build_ovfl(session, r, val,
 			    WT_CELL_VALUE_OVFL,
-			    start_ts, stop_ts, start_txn, stop_txn, rle));
+			    start_ts, start_txn, stop_ts, stop_txn, rle));
 		}
 	}
 	val->cell_len = __wt_cell_pack_value(session, &val->cell,
-	    start_ts, stop_ts, start_txn, stop_txn, rle, val->buf.size);
+	    start_ts, start_txn, stop_ts, stop_txn, rle, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 
 	return (0);
@@ -268,8 +268,8 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
  */
 static inline int
 __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
 {
 	WT_REC_DICTIONARY *dp;
 	uint64_t offset;
@@ -313,7 +313,7 @@ __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		    (uint8_t *)r->cur_ptr->image.mem + dp->offset);
 		val->len = val->cell_len = __wt_cell_pack_copy(session,
 		    &val->cell,
-		    start_ts, stop_ts, start_txn, stop_txn, rle, offset);
+		    start_ts, start_txn, stop_ts, stop_txn, rle, offset);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 	}
