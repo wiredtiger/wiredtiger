@@ -47,9 +47,9 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
  *	Initialize an address timestamp triplet.
  */
 static inline void
-__wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
-    wt_timestamp_t *newest_durable_ts, wt_timestamp_t *newest_stop_tsp,
-    uint64_t *oldest_start_txnp, uint64_t *newest_stop_txnp)
+__wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *newest_durable_ts,
+    wt_timestamp_t *oldest_start_tsp, uint64_t *oldest_start_txnp,
+    wt_timestamp_t *newest_stop_tsp, uint64_t *newest_stop_txnp)
 {
 	/*
 	 * If the page format supports address timestamps (and not fixed-length
@@ -58,14 +58,16 @@ __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
 	 * so they're corrected as we process key/value items. Otherwise, set
 	 * the oldest/newest timestamps to simple durability.
 	 */
+	*newest_durable_ts = WT_TS_NONE;
 	*oldest_start_tsp = WT_TS_MAX;
-	*newest_durable_ts = *newest_stop_tsp = WT_TS_NONE;
 	*oldest_start_txnp = WT_TXN_MAX;
+	*newest_stop_tsp = WT_TS_NONE;
 	*newest_stop_txnp = WT_TXN_NONE;
 	if (!__wt_process.page_version_ts || r->page->type == WT_PAGE_COL_FIX) {
-		*oldest_start_tsp = *newest_durable_ts = WT_TS_NONE;
-		*newest_stop_tsp = WT_TS_MAX;
+		*newest_durable_ts = WT_TS_NONE;
+		*oldest_start_tsp = WT_TS_NONE;
 		*oldest_start_txnp = WT_TXN_NONE;
+		*newest_stop_tsp = WT_TS_MAX;
 		*newest_stop_txnp = WT_TXN_MAX;
 	}
 }
@@ -75,19 +77,18 @@ __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *oldest_start_tsp,
  *	Update the chunk's timestamp information.
  */
 static inline void
-__wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t oldest_start_ts,
-    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts,
-    uint64_t oldest_start_txn, uint64_t newest_stop_txn)
+__wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t newest_durable_ts,
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
-	r->cur_ptr->oldest_start_ts =
-	    WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
 	r->cur_ptr->newest_durable_ts =
 	    WT_MAX(newest_durable_ts, r->cur_ptr->newest_durable_ts);
-	r->cur_ptr->newest_stop_ts =
-	    WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
-
+	r->cur_ptr->oldest_start_ts =
+	    WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
 	r->cur_ptr->oldest_start_txn =
 	    WT_MIN(oldest_start_txn, r->cur_ptr->oldest_start_txn);
+	r->cur_ptr->newest_stop_ts =
+	    WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
 	r->cur_ptr->newest_stop_txn =
 	    WT_MAX(newest_stop_txn, r->cur_ptr->newest_stop_txn);
 }
@@ -206,9 +207,9 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session,
 	val->buf.data = addr->addr;
 	val->buf.size = addr->size;
 	val->cell_len = __wt_cell_pack_addr(
-	    session, &val->cell, cell_type, recno, addr->oldest_start_ts,
-	    addr->newest_durable_ts, addr->newest_stop_ts,
-	    addr->oldest_start_txn, addr->newest_stop_txn, val->buf.size);
+	    session, &val->cell, cell_type, recno, addr->newest_durable_ts,
+	    addr->oldest_start_ts, addr->oldest_start_txn,
+	    addr->newest_stop_ts, addr->newest_stop_txn, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 }
 

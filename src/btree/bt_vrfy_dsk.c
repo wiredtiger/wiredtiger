@@ -315,6 +315,11 @@ __verify_dsk_validity(WT_SESSION_IMPL *session,
 			    "cell %" PRIu32 " on page at %s has a newest stop "
 			    "timestamp of 0",
 			    cell_num - 1, tag);
+		if (unpack->newest_stop_txn == WT_TXN_NONE)
+			WT_RET_VRFY(session,
+			    "cell %" PRIu32 " on page at %s has a newest stop "
+			    "transaction of 0",
+			    cell_num - 1, tag);
 		if (unpack->oldest_start_ts > unpack->newest_stop_ts)
 			WT_RET_VRFY(session,
 			    "cell %" PRIu32 " on page at %s has an oldest "
@@ -325,12 +330,6 @@ __verify_dsk_validity(WT_SESSION_IMPL *session,
 			    unpack->oldest_start_ts, ts_string[0]),
 			    __wt_timestamp_to_string(
 			    unpack->newest_stop_ts, ts_string[1]));
-
-		if (unpack->newest_stop_txn == WT_TXN_NONE)
-			WT_RET_VRFY(session,
-			    "cell %" PRIu32 " on page at %s has a newest stop "
-			    "transaction of 0",
-			    cell_num - 1, tag);
 		if (unpack->oldest_start_txn > unpack->newest_stop_txn)
 			WT_RET_VRFY(session,
 			    "cell %" PRIu32 " on page at %s has an oldest "
@@ -343,22 +342,21 @@ __verify_dsk_validity(WT_SESSION_IMPL *session,
 			break;
 
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
-		    "oldest start", unpack->oldest_start_ts,
-		    "oldest start", addr->oldest_start_ts,
-		    true, tag));
-		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
 		    "newest durable", unpack->newest_durable_ts,
 		    "newest durable", addr->newest_durable_ts,
 		    false, tag));
 		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
-		    "newest stop", unpack->newest_stop_ts,
-		    "newest stop", addr->newest_stop_ts,
-		    false, tag));
-
+		    "oldest start", unpack->oldest_start_ts,
+		    "oldest start", addr->oldest_start_ts,
+		    true, tag));
 		WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1,
 		    "oldest start", unpack->oldest_start_txn,
 		    "oldest start", addr->oldest_start_txn,
 		    true, tag));
+		WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1,
+		    "newest stop", unpack->newest_stop_ts,
+		    "newest stop", addr->newest_stop_ts,
+		    false, tag));
 		WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1,
 		    "newest stop", unpack->newest_stop_txn,
 		    "newest stop", addr->newest_stop_txn,

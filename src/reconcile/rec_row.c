@@ -249,7 +249,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 		__wt_rec_image_copy(session, r, val);
 	}
 	__wt_rec_addr_ts_update(r,
-	    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
+	    WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
 
 	/* Update compression state. */
 	__rec_key_state_update(r, ovfl_key);
@@ -296,9 +296,9 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Copy the key and value onto the page. */
 		__wt_rec_image_copy(session, r, key);
 		__wt_rec_image_copy(session, r, val);
-		__wt_rec_addr_ts_update(r, addr->oldest_start_ts,
-		    addr->newest_durable_ts, addr->newest_stop_ts,
-		    addr->oldest_start_txn, addr->newest_stop_txn);
+		__wt_rec_addr_ts_update(r, addr->newest_durable_ts,
+		    addr->oldest_start_ts, addr->oldest_start_txn,
+		    addr->newest_stop_ts, addr->newest_stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -323,9 +323,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 	WT_PAGE *child;
 	WT_REC_KV *key, *val;
 	WT_REF *ref;
-	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
+	wt_timestamp_t newest_durable_ts, newest_stop_ts, oldest_start_ts;
 	size_t size;
-	uint64_t oldest_start_txn, newest_stop_txn;
+	uint64_t newest_stop_txn, oldest_start_txn;
 	bool hazard, key_onpage_ovfl, ovfl_key;
 	const void *p;
 
@@ -477,10 +477,10 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		if (__wt_off_page(page, addr)) {
 			__wt_rec_cell_build_addr(session, r, addr,
 			    state == WT_CHILD_PROXY, WT_RECNO_OOB);
-			oldest_start_ts = addr->oldest_start_ts;
 			newest_durable_ts = addr->newest_durable_ts;
-			newest_stop_ts = addr->newest_stop_ts;
+			oldest_start_ts = addr->oldest_start_ts;
 			oldest_start_txn = addr->oldest_start_txn;
+			newest_stop_ts = addr->newest_stop_ts;
 			newest_stop_txn = addr->newest_stop_txn;
 		} else {
 			__wt_cell_unpack(session, page, ref->addr, vpack);
@@ -495,10 +495,10 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 			}
 			val->cell_len = 0;
 			val->len = val->buf.size;
-			oldest_start_ts = vpack->oldest_start_ts;
 			newest_durable_ts = vpack->newest_durable_ts;
-			newest_stop_ts = vpack->newest_stop_ts;
+			oldest_start_ts = vpack->oldest_start_ts;
 			oldest_start_txn = vpack->oldest_start_txn;
+			newest_stop_ts = vpack->newest_stop_ts;
 			newest_stop_txn = vpack->newest_stop_txn;
 		}
 		WT_CHILD_RELEASE_ERR(session, hazard, ref);
@@ -541,9 +541,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		/* Copy the key and value onto the page. */
 		__wt_rec_image_copy(session, r, key);
 		__wt_rec_image_copy(session, r, val);
-		__wt_rec_addr_ts_update(r,
-		    oldest_start_ts, newest_durable_ts, newest_stop_ts,
-		    oldest_start_txn, newest_stop_txn);
+		__wt_rec_addr_ts_update(r, newest_durable_ts,
+		    oldest_start_ts, oldest_start_txn,
+		    newest_stop_ts, newest_stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -695,7 +695,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			__wt_rec_image_copy(session, r, val);
 		}
 		__wt_rec_addr_ts_update(r,
-		    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
+		    durable_ts, start_ts, start_txn, stop_ts, stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
@@ -727,7 +727,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 	WT_ROW *rip;
 	WT_UPDATE *upd;
 	WT_UPDATE_SELECT upd_select;
-	wt_timestamp_t start_ts, durable_ts, newest_durable_ts, stop_ts;
+	wt_timestamp_t durable_ts, newest_durable_ts, start_ts, stop_ts;
 	size_t size;
 	uint64_t slvg_skip, start_txn, stop_txn;
 	uint32_t i;
@@ -808,20 +808,20 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 
 		/* Unpack the on-page value cell, set the default timestamps. */
 		__wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-		start_ts = vpack->start_ts;
 		durable_ts = newest_durable_ts;
-		stop_ts = vpack->stop_ts;
+		start_ts = vpack->start_ts;
 		start_txn = vpack->start_txn;
+		stop_ts = vpack->stop_ts;
 		stop_txn = vpack->stop_txn;
 
 		/* Look for an update. */
 		WT_ERR(__wt_rec_upd_select(
 		    session, r, NULL, rip, vpack, &upd_select));
 		if ((upd = upd_select.upd) != NULL) {
-			start_ts = upd_select.start_ts;
 			durable_ts = upd_select.durable_ts;
-			stop_ts = upd_select.stop_ts;
+			start_ts = upd_select.start_ts;
 			start_txn = upd_select.start_txn;
+			stop_ts = upd_select.stop_ts;
 			stop_txn = upd_select.stop_txn;
 		}
 
@@ -1093,7 +1093,7 @@ build:
 			__wt_rec_image_copy(session, r, val);
 		}
 		__wt_rec_addr_ts_update(r,
-		    start_ts, durable_ts, stop_ts, start_txn, stop_txn);
+		    durable_ts, start_ts, start_txn, stop_ts, stop_txn);
 
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);

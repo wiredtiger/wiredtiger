@@ -144,20 +144,20 @@ struct __wt_reconcile {
 		uint32_t entries;
 		uint64_t recno;
 		WT_ITEM  key;
-		wt_timestamp_t oldest_start_ts;
 		wt_timestamp_t newest_durable_ts;
-		wt_timestamp_t newest_stop_ts;
+		wt_timestamp_t oldest_start_ts;
 		uint64_t oldest_start_txn;
+		wt_timestamp_t newest_stop_ts;
 		uint64_t newest_stop_txn;
 
 		/* Saved minimum split-size boundary information. */
 		uint32_t min_entries;
 		uint64_t min_recno;
 		WT_ITEM  min_key;
-		wt_timestamp_t min_oldest_start_ts;
 		wt_timestamp_t min_newest_durable_ts;
-		wt_timestamp_t min_newest_stop_ts;
+		wt_timestamp_t min_oldest_start_ts;
 		uint64_t min_oldest_start_txn;
+		wt_timestamp_t min_newest_stop_ts;
 		uint64_t min_newest_stop_txn;
 
 		size_t   min_offset;			/* byte offset */

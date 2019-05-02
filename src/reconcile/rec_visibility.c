@@ -118,9 +118,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
-	wt_timestamp_t timestamp;
+	wt_timestamp_t timestamp, ts;
 	size_t upd_memsize;
-	uint64_t max_txn, ts, txnid;
+	uint64_t max_txn, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	/*
