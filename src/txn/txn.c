@@ -855,37 +855,46 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
 	/*
-	 * Confirm if the commit timestamp valid with both prepared
-	 * and unprepared transactions. This check is required as
-	 * the stable timestamp can be moved beyond the commit / durable
-	 * timestamp after they are set.
+	 * Confirm that the commit and durable timestamps are valid with both
+	 * prepared and unprepared transactions. This check is required as
+	 * the stable/oldest timestamps can be moved beyond the commit/durable
+	 * timestamps after they are set.
 	 */
-	if (txn_global->has_stable_timestamp) {
-		if (prepare && txn->durable_timestamp <=
-		    txn_global->stable_timestamp) {
-			__wt_timestamp_to_string(txn->durable_timestamp,
-			    ts_string[0]);
-			__wt_timestamp_to_string(txn_global->stable_timestamp,
-			    ts_string[1]);
-			WT_ERR_MSG(session, EINVAL,
-			    "commit timestamp %s older than or equal"
-			    " to stable timestamp %s",
-			    ts_string[0], ts_string[1]);
-		}
-		if (!prepare) {
-			if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-				txn->first_commit_timestamp <=
-				txn_global->stable_timestamp) {
+	if (txn_global->has_stable_timestamp ||
+	    txn_global->has_oldest_timestamp) {
+		if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)){
+			if (txn->first_commit_timestamp <
+			    txn_global->oldest_timestamp) {
 				__wt_timestamp_to_string(
-				    txn->first_commit_timestamp,
-				    ts_string[0]);
+				    txn->first_commit_timestamp, ts_string[0]);
+				__wt_timestamp_to_string(
+				    txn_global->oldest_timestamp, ts_string[1]);
+				WT_ERR_MSG(session, EINVAL,
+				    "commit timestamp %s less than oldest "
+				    "timestamp %s", ts_string[0], ts_string[1]);
+			}
+			if (!prepare && txn->first_commit_timestamp <=
+			    txn_global->stable_timestamp) {
+				__wt_timestamp_to_string(
+				    txn->first_commit_timestamp, ts_string[0]);
 				__wt_timestamp_to_string(
 				    txn_global->stable_timestamp, ts_string[1]);
 				WT_ERR_MSG(session, EINVAL,
-				    "commit timestamp %s older than or equal"
-				    " to stable timestamp %s",
+				    "commit timestamp %s less than or "
+				    "equal to stable timestamp %s",
 				    ts_string[0], ts_string[1]);
 			}
+		}
+		if (prepare && txn->durable_timestamp <=
+		    txn_global->stable_timestamp) {
+			__wt_timestamp_to_string(
+			    txn->durable_timestamp, ts_string[0]);
+			__wt_timestamp_to_string(
+			    txn_global->stable_timestamp, ts_string[1]);
+			WT_ERR_MSG(session, EINVAL,
+			    "durable timestamp %s less than or "
+			    "equal to stable timestamp %s",
+			    ts_string[0], ts_string[1]);
 		}
 	}
 
