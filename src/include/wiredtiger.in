@@ -962,8 +962,6 @@ struct __wt_session {
 	/*!
 	 * Reconfigure a session handle.
 	 *
-	 * @not_transactional
-	 *
 	 * @snippet ex_all.c Reconfigure a session
 	 *
 	 * WT_SESSION::reconfigure will fail if a transaction is in progress
@@ -1605,6 +1603,8 @@ struct __wt_session {
 
 	/*!
 	 * Rename an object.
+	 *
+	 * @not_transactional
 	 *
 	 * @snippet ex_all.c Rename a table
 	 *
