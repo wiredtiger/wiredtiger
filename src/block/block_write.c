@@ -43,10 +43,8 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 	 * more targeted solution at some point.
 	 */
 	if (!conn->hot_backup) {
-		__wt_readlock(session, &conn->hot_backup_lock);
-		if (!conn->hot_backup)
-			ret = __wt_ftruncate(session, block->fh, len);
-		__wt_readunlock(session, &conn->hot_backup_lock);
+		WT_WITH_HOTBACKUP_READ_LOCK(session,
+		    ret = __wt_ftruncate(session, block->fh, len), NULL);
 	}
 
 	/*
@@ -351,9 +349,9 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * cache, but only if the current session can wait.
 	 */
 	if (block->os_cache_dirty_max != 0 &&
-	    (block->os_cache_dirty += align_size) > block->os_cache_dirty_max &&
+	    fh->written > block->os_cache_dirty_max &&
 	    __wt_session_can_wait(session)) {
-		block->os_cache_dirty = 0;
+		fh->written = 0;
 		if ((ret = __wt_fsync(session, fh, false)) != 0) {
 			 /*
 			  * Ignore ENOTSUP, but don't try again.

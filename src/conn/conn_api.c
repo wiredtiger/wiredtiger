@@ -1835,6 +1835,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
 		{ "checkpoint",		WT_VERB_CHECKPOINT },
 		{ "checkpoint_progress",WT_VERB_CHECKPOINT_PROGRESS },
 		{ "compact",		WT_VERB_COMPACT },
+		{ "compact_progress",	WT_VERB_COMPACT_PROGRESS },
 		{ "error_returns",      WT_VERB_ERROR_RETURNS },
 		{ "evict",		WT_VERB_EVICT },
 		{ "evict_stuck",	WT_VERB_EVICT_STUCK },
@@ -2019,6 +2020,7 @@ __wt_timing_stress_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * conditions aren't encountered.
 	 */
 	static const WT_NAME_FLAG stress_types[] = {
+		{ "aggressive_sweep",   WT_TIMING_STRESS_AGGRESSIVE_SWEEP },
 		{ "checkpoint_slow",	WT_TIMING_STRESS_CHECKPOINT_SLOW },
 		{ "lookaside_sweep_race",WT_TIMING_STRESS_LOOKASIDE_SWEEP },
 		{ "split_1",		WT_TIMING_STRESS_SPLIT_1 },
@@ -2138,6 +2140,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    "config_base=,"
 	    "create=,"
 	    "encryption=(secretkey=),"
+	    "error_prefix=,"
 	    "exclusive=,"
 	    "in_memory=,"
 	    "log=(recover=),"
@@ -2764,6 +2767,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 */
 	if (F_ISSET(conn, WT_CONN_SALVAGE))
 		WT_ERR(__wt_metadata_salvage(session));
+
+	/* Set the connection's base write generation. */
+	WT_ERR(__wt_metadata_set_base_write_gen(session));
 
 	WT_ERR(__wt_metadata_cursor(session, NULL));
 

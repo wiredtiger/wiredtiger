@@ -121,7 +121,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 		F_SET(btree, WT_BTREE_READONLY);
 
 	/* Get the checkpoint information for this name/checkpoint pair. */
-	WT_CLEAR(ckpt);
 	WT_RET(__wt_meta_checkpoint(
 	    session, dhandle->name, dhandle->checkpoint, &ckpt));
 
@@ -437,6 +436,22 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		FLD_SET(btree->assert_flags, WT_ASSERT_COMMIT_TS_KEYS);
 	else if (WT_STRING_MATCH("never", cval.str, cval.len))
 		FLD_SET(btree->assert_flags, WT_ASSERT_COMMIT_TS_NEVER);
+
+	/*
+	 * A durable timestamp always implies a commit timestamp. But never
+	 * having a durable timestamp does not imply anything about a commit
+	 * timestamp.
+	 */
+	WT_RET(__wt_config_gets(session,
+	    cfg, "assert.durable_timestamp", &cval));
+	if (WT_STRING_MATCH("always", cval.str, cval.len))
+		FLD_SET(btree->assert_flags,
+		    WT_ASSERT_COMMIT_TS_ALWAYS | WT_ASSERT_DURABLE_TS_ALWAYS);
+	else if (WT_STRING_MATCH("key_consistent", cval.str, cval.len))
+		FLD_SET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEYS);
+	else if (WT_STRING_MATCH("never", cval.str, cval.len))
+		FLD_SET(btree->assert_flags, WT_ASSERT_DURABLE_TS_NEVER);
+
 	WT_RET(__wt_config_gets(session, cfg, "assert.read_timestamp", &cval));
 	if (WT_STRING_MATCH("always", cval.str, cval.len))
 		FLD_SET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS);
@@ -488,15 +503,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	 *	Don't do compression adjustment for fixed-size column store, the
 	 * leaf page sizes don't change. (We could adjust internal pages but not
 	 * internal pages, but that seems an unlikely use case.)
-	 * 	XXX
-	 * 	Don't do compression adjustment of snappy-compressed blocks.
 	 */
 	btree->intlpage_compadjust = false;
 	btree->maxintlpage_precomp = btree->maxintlpage;
 	btree->leafpage_compadjust = false;
 	btree->maxleafpage_precomp = btree->maxleafpage;
 	if (btree->compressor != NULL && btree->compressor->compress != NULL &&
-	    !WT_STRING_MATCH("snappy", cval.str, cval.len) &&
 	    btree->type != BTREE_COL_FIX) {
 		/*
 		 * Don't do compression adjustment when on-disk page sizes are
@@ -551,8 +563,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	btree->modified = false;			/* Clean */
 
 	btree->syncing = WT_BTREE_SYNC_OFF;	/* Not syncing */
-	btree->write_gen = ckpt->write_gen;	/* Write generation */
+						/* Checkpoint generation */
 	btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+						/* Write generation */
+	btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen);
 
 	return (0);
 }
@@ -611,6 +625,12 @@ __wt_btree_tree_open(
 	F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 	if ((ret = __wt_bt_read(session, &dsk, addr, addr_size)) == 0)
 		ret = __wt_verify_dsk(session, tmp->data, &dsk);
+	/*
+	 * Flag any failed read or verification: if we're in startup, it may
+	 * be fatal.
+	 */
+	if (ret != 0)
+		F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
 	F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 	if (ret != 0)
 		__wt_err(session, ret,
@@ -620,12 +640,12 @@ __wt_btree_tree_open(
 	 * Try to provide a helpful failure message.
 	 */
 	if (ret != 0 && WT_IS_METADATA(session->dhandle)) {
-		__wt_errx(session,
+		__wt_err(session, ret,
 		    "WiredTiger has failed to open its metadata");
-		__wt_errx(session, "This may be due to the database"
+		__wt_err(session, ret, "This may be due to the database"
 		    " files being encrypted, being from an older"
 		    " version or due to corruption on disk");
-		__wt_errx(session, "You should confirm that you have"
+		__wt_err(session, ret, "You should confirm that you have"
 		    " opened the database with the correct options including"
 		    " all encryption and compression options");
 	}
@@ -638,7 +658,7 @@ __wt_btree_tree_open(
 	 */
 	WT_ERR(__wt_page_inmem(session, NULL, dsk.data,
 	    WT_DATA_IN_ITEM(&dsk) ?
-	    WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page));
+	    WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, true, &page));
 	dsk.mem = NULL;
 
 	/* Finish initializing the root, root reference links. */

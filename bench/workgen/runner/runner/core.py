@@ -38,6 +38,23 @@ def txn(op, config=None):
     op._transaction = t
     return op
 
+# sleep --
+#   Create an operation to sleep a given number of seconds.
+def sleep(seconds):
+    return Operation(Operation.OP_SLEEP, str(seconds))
+
+# timed --
+#   Configure the operation (and suboperations) to run until the time elapses.
+def timed(seconds, op):
+    if op._group == None:
+        result = Operation()
+        result._group = OpList([op])
+        result._repeatgroup = 1
+    else:
+        result = op
+    result._timed = seconds
+    return result
+
 # Check for a local build that contains the wt utility. First check in
 # current working directory, then in build_posix and finally in the disttop
 # directory. This isn't ideal - if a user has multiple builds in a tree we
@@ -60,7 +77,15 @@ def _wiredtiger_builddir():
 
 # Return the wiredtiger_open extension argument for any needed shared library.
 # Called with a list of extensions, e.g.
-#    [ 'compressors/snappy', 'encryptors/rotn=config_string' ]
+# conn_config += extensions_config(['compressors/snappy',\
+#                                   'encryptors/rotn=config_string'])
+#
+# What compressors and encryptors are available, and the connection
+# configuration needed, depends on what compressors and encryptors have been
+# configured into the WiredTiger library linked by workgen. That is, arguments
+# given to the configure program when building WiredTiger influence what calls
+# to extensions_config must be made. Any compressors that are explicitly
+# 'built-in' to WiredTiger will not need an explicit extension parameter.
 def extensions_config(exts):
     result = ''
     extfiles = {}
@@ -97,7 +122,7 @@ def extensions_config(exts):
         else:
             extfiles[ext] = complete
     if len(extfiles) != 0:
-        result = ',extensions=[' + ','.join(extfiles.values()) + ']'
+        result = ',extensions=[' + ','.join(list(extfiles.values())) + ']'
     return result
 
 _PARETO_SHAPE = 1.5
@@ -305,7 +330,7 @@ def op_group_transaction(ops_arg, ops_per_txn, txn_config):
 # the regular part of the run.
 def op_populate_with_range(ops_arg, tables, icount, random_range, pop_threads):
     table_count = len(tables)
-    entries_per_table = (icount + random_range) / table_count
+    entries_per_table = (icount + random_range) // table_count
     if entries_per_table == 0:
         # This can happen if table_count is huge relative to
         # icount/random_range.  Not really worth handling.
@@ -319,8 +344,8 @@ def op_populate_with_range(ops_arg, tables, icount, random_range, pop_threads):
         # Another situation that is not handled exactly.
         raise Exception('(icount + random_range) is not evenly divisible by ' +
                         'populate_threads')
-    fill_tables = icount / entries_per_table
-    fill_per_thread = entries_per_table / pop_threads
+    fill_tables = icount // entries_per_table
+    fill_per_thread = entries_per_table // pop_threads
     ops = None
     for i in range(0, fill_tables):
         op = Operation(ops_arg)
@@ -328,7 +353,7 @@ def op_populate_with_range(ops_arg, tables, icount, random_range, pop_threads):
         ops = op_append(ops, op * fill_per_thread)
     partial_fill = icount % entries_per_table
     if partial_fill > 0:
-        fill_per_thread = partial_fill / pop_threads
+        fill_per_thread = partial_fill // pop_threads
         op = Operation(ops_arg)
         op._table = tables[fill_tables]
         ops = op_append(ops, op * fill_per_thread)

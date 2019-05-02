@@ -800,6 +800,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: cache overflow score",
 	"cache: cache overflow table entries",
 	"cache: cache overflow table insert calls",
+	"cache: cache overflow table on-disk size",
 	"cache: cache overflow table remove calls",
 	"cache: checkpoint blocked page eviction",
 	"cache: eviction calls to get a page",
@@ -882,6 +883,20 @@ static const char * const __stats_connection_desc[] = {
 	"cache: tracked dirty bytes in the cache",
 	"cache: tracked dirty pages in the cache",
 	"cache: unmodified pages evicted",
+	"capacity: background fsync file handles considered",
+	"capacity: background fsync file handles synced",
+	"capacity: background fsync time (msecs)",
+	"capacity: bytes read",
+	"capacity: bytes written for checkpoint",
+	"capacity: bytes written for eviction",
+	"capacity: bytes written for log",
+	"capacity: bytes written total",
+	"capacity: threshold to call fsync",
+	"capacity: time waiting due to total capacity (usecs)",
+	"capacity: time waiting during checkpoint (usecs)",
+	"capacity: time waiting during eviction (usecs)",
+	"capacity: time waiting during logging (usecs)",
+	"capacity: time waiting during read (usecs)",
 	"connection: auto adjusting condition resets",
 	"connection: auto adjusting condition wait calls",
 	"connection: detected system time went backwards",
@@ -923,6 +938,7 @@ static const char * const __stats_connection_desc[] = {
 	"cursor: cursor update value size change",
 	"cursor: cursors reused from cache",
 	"cursor: open cursor count",
+	"data-handle: connection data handle size",
 	"data-handle: connection data handles currently active",
 	"data-handle: connection sweep candidate became referenced",
 	"data-handle: connection sweep dhandles closed",
@@ -1122,7 +1138,9 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction range of IDs currently pinned by named snapshots",
 	"transaction: transaction range of timestamps currently pinned",
 	"transaction: transaction range of timestamps pinned by a checkpoint",
+	"transaction: transaction range of timestamps pinned by the oldest active read timestamp",
 	"transaction: transaction range of timestamps pinned by the oldest timestamp",
+	"transaction: transaction read timestamp of the oldest active reader",
 	"transaction: transaction sync calls",
 	"transaction: transactions committed",
 	"transaction: transactions rolled back",
@@ -1216,6 +1234,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_lookaside_score */
 		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
+		/* not clearing cache_lookaside_ondisk */
 	stats->cache_lookaside_remove = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_get_ref = 0;
@@ -1298,6 +1317,20 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_bytes_dirty */
 		/* not clearing cache_pages_dirty */
 	stats->cache_eviction_clean = 0;
+	stats->fsync_all_fh_total = 0;
+	stats->fsync_all_fh = 0;
+		/* not clearing fsync_all_time */
+	stats->capacity_bytes_read = 0;
+	stats->capacity_bytes_ckpt = 0;
+	stats->capacity_bytes_evict = 0;
+	stats->capacity_bytes_log = 0;
+	stats->capacity_bytes_written = 0;
+	stats->capacity_threshold = 0;
+	stats->capacity_time_total = 0;
+	stats->capacity_time_ckpt = 0;
+	stats->capacity_time_evict = 0;
+	stats->capacity_time_log = 0;
+	stats->capacity_time_read = 0;
 	stats->cond_auto_wait_reset = 0;
 	stats->cond_auto_wait = 0;
 	stats->time_travel = 0;
@@ -1339,6 +1372,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cursor_update_bytes_changed = 0;
 	stats->cursor_reopen = 0;
 		/* not clearing cursor_open_count */
+		/* not clearing dh_conn_handle_size */
 		/* not clearing dh_conn_handle_count */
 	stats->dh_sweep_ref = 0;
 	stats->dh_sweep_close = 0;
@@ -1538,7 +1572,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_pinned_snapshot_range */
 		/* not clearing txn_pinned_timestamp */
 		/* not clearing txn_pinned_timestamp_checkpoint */
+		/* not clearing txn_pinned_timestamp_reader */
 		/* not clearing txn_pinned_timestamp_oldest */
+		/* not clearing txn_timestamp_oldest_active_read */
 	stats->txn_sync = 0;
 	stats->txn_commit = 0;
 	stats->txn_rollback = 0;
@@ -1621,6 +1657,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_lookaside_entries);
 	to->cache_lookaside_insert +=
 	    WT_STAT_READ(from, cache_lookaside_insert);
+	to->cache_lookaside_ondisk +=
+	    WT_STAT_READ(from, cache_lookaside_ondisk);
 	to->cache_lookaside_remove +=
 	    WT_STAT_READ(from, cache_lookaside_remove);
 	to->cache_eviction_checkpoint +=
@@ -1760,6 +1798,21 @@ __wt_stat_connection_aggregate(
 	to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
 	to->cache_pages_dirty += WT_STAT_READ(from, cache_pages_dirty);
 	to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
+	to->fsync_all_fh_total += WT_STAT_READ(from, fsync_all_fh_total);
+	to->fsync_all_fh += WT_STAT_READ(from, fsync_all_fh);
+	to->fsync_all_time += WT_STAT_READ(from, fsync_all_time);
+	to->capacity_bytes_read += WT_STAT_READ(from, capacity_bytes_read);
+	to->capacity_bytes_ckpt += WT_STAT_READ(from, capacity_bytes_ckpt);
+	to->capacity_bytes_evict += WT_STAT_READ(from, capacity_bytes_evict);
+	to->capacity_bytes_log += WT_STAT_READ(from, capacity_bytes_log);
+	to->capacity_bytes_written +=
+	    WT_STAT_READ(from, capacity_bytes_written);
+	to->capacity_threshold += WT_STAT_READ(from, capacity_threshold);
+	to->capacity_time_total += WT_STAT_READ(from, capacity_time_total);
+	to->capacity_time_ckpt += WT_STAT_READ(from, capacity_time_ckpt);
+	to->capacity_time_evict += WT_STAT_READ(from, capacity_time_evict);
+	to->capacity_time_log += WT_STAT_READ(from, capacity_time_log);
+	to->capacity_time_read += WT_STAT_READ(from, capacity_time_read);
 	to->cond_auto_wait_reset += WT_STAT_READ(from, cond_auto_wait_reset);
 	to->cond_auto_wait += WT_STAT_READ(from, cond_auto_wait);
 	to->time_travel += WT_STAT_READ(from, time_travel);
@@ -1804,6 +1857,7 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cursor_update_bytes_changed);
 	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_open_count += WT_STAT_READ(from, cursor_open_count);
+	to->dh_conn_handle_size += WT_STAT_READ(from, dh_conn_handle_size);
 	to->dh_conn_handle_count += WT_STAT_READ(from, dh_conn_handle_count);
 	to->dh_sweep_ref += WT_STAT_READ(from, dh_sweep_ref);
 	to->dh_sweep_close += WT_STAT_READ(from, dh_sweep_close);
@@ -2121,8 +2175,12 @@ __wt_stat_connection_aggregate(
 	to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
 	to->txn_pinned_timestamp_checkpoint +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_checkpoint);
+	to->txn_pinned_timestamp_reader +=
+	    WT_STAT_READ(from, txn_pinned_timestamp_reader);
 	to->txn_pinned_timestamp_oldest +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_oldest);
+	to->txn_timestamp_oldest_active_read +=
+	    WT_STAT_READ(from, txn_timestamp_oldest_active_read);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);

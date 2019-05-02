@@ -132,9 +132,11 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
-	wt_timestamp_t oldest_start_ts;	/* Aggregated timestamp information */
-	wt_timestamp_t newest_start_ts;
+	wt_timestamp_t oldest_start_ts;	/* Validity window */
+	wt_timestamp_t newest_durable_ts;
 	wt_timestamp_t newest_stop_ts;
+	uint64_t oldest_start_txn;
+	uint64_t newest_stop_txn;
 
 	uint8_t *addr;			/* Block-manager's cookie */
 	uint8_t  size;			/* Block-manager's cookie length */
@@ -247,6 +249,9 @@ struct __wt_page_lookaside {
 	uint64_t unstable_txn;		/* First transaction ID not on page */
 	wt_timestamp_t max_timestamp;	/* Maximum timestamp */
 	wt_timestamp_t unstable_timestamp;/* First timestamp not on page */
+	wt_timestamp_t unstable_durable_timestamp;
+					/* First durable timestamp not on
+					 * page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
 	bool skew_newest;		/* Page image has newest versions */
@@ -987,8 +992,6 @@ struct __wt_col {
 	 * of a base pointer.  The on-page data is a WT_CELL (same as row-store
 	 * pages).
 	 *
-	 * If the value is 0, it's a single, deleted record.
-	 *
 	 * Obscure the field name, code shouldn't use WT_COL->__col_value, the
 	 * public interface is WT_COL_PTR and WT_COL_PTR_SET.
 	 */
@@ -1001,8 +1004,7 @@ struct __wt_col {
  * not exist on the page, return a NULL.)
  */
 #define	WT_COL_PTR(page, cip)						\
-	((cip)->__col_value == 0 ?					\
-	    NULL : WT_PAGE_REF_OFFSET(page, (cip)->__col_value))
+	WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
 #define	WT_COL_PTR_SET(cip, value)					\
 	(cip)->__col_value = (value)
 

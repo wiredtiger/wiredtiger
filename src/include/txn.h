@@ -6,9 +6,10 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_TXN_NONE	0		/* No txn running in a session. */
-#define	WT_TXN_FIRST	1		/* First transaction to run. */
-#define	WT_TXN_ABORTED	UINT64_MAX	/* Update rolled back, ignore. */
+#define	WT_TXN_NONE	0			/* Beginning of time */
+#define	WT_TXN_FIRST	1			/* First transaction to run */
+#define	WT_TXN_MAX	(UINT64_MAX - 10)	/* End of time */
+#define	WT_TXN_ABORTED	UINT64_MAX		/* Update rolled back */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_LOG_CKPT_CLEANUP	0x01u
@@ -21,6 +22,12 @@
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_OLDEST_STRICT	0x1u
 #define	WT_TXN_OLDEST_WAIT	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_TS_ALREADY_LOCKED	0x1u
+#define	WT_TXN_TS_INCLUDE_CKPT		0x2u
+#define	WT_TXN_TS_INCLUDE_OLDEST	0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -98,6 +105,7 @@ struct __wt_txn_state {
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
+	volatile bool is_allocating;
 
 	WT_CACHE_LINE_PAD_END
 };
@@ -319,24 +327,31 @@ struct __wt_txn {
 	const char *rollback_reason;		/* If rollback, the reason */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_AUTOCOMMIT	0x00001u
-#define	WT_TXN_ERROR		0x00002u
-#define	WT_TXN_HAS_ID		0x00004u
-#define	WT_TXN_HAS_SNAPSHOT	0x00008u
-#define	WT_TXN_HAS_TS_COMMIT	0x00010u
-#define	WT_TXN_HAS_TS_READ	0x00020u
-#define	WT_TXN_IGNORE_PREPARE	0x00040u
-#define	WT_TXN_NAMED_SNAPSHOT	0x00080u
-#define	WT_TXN_PREPARE		0x00100u
-#define	WT_TXN_PUBLIC_TS_COMMIT	0x00200u
-#define	WT_TXN_PUBLIC_TS_READ	0x00400u
-#define	WT_TXN_READONLY		0x00800u
-#define	WT_TXN_RUNNING		0x01000u
-#define	WT_TXN_SYNC_SET		0x02000u
-#define	WT_TXN_TS_COMMIT_ALWAYS	0x04000u
-#define	WT_TXN_TS_COMMIT_KEYS	0x08000u
-#define	WT_TXN_TS_COMMIT_NEVER	0x10000u
-#define	WT_TXN_UPDATE	        0x20000u
+#define	WT_TXN_AUTOCOMMIT	0x0000001u
+#define	WT_TXN_ERROR		0x0000002u
+#define	WT_TXN_HAS_ID		0x0000004u
+#define	WT_TXN_HAS_SNAPSHOT	0x0000008u
+#define	WT_TXN_HAS_TS_COMMIT	0x0000010u
+#define	WT_TXN_HAS_TS_DURABLE	0x0000020u
+#define	WT_TXN_HAS_TS_PREPARE	0x0000040u
+#define	WT_TXN_HAS_TS_READ	0x0000080u
+#define	WT_TXN_IGNORE_PREPARE	0x0000100u
+#define	WT_TXN_NAMED_SNAPSHOT	0x0000200u
+#define	WT_TXN_PREPARE		0x0000400u
+#define	WT_TXN_PUBLIC_TS_COMMIT	0x0000800u
+#define	WT_TXN_PUBLIC_TS_READ	0x0001000u
+#define	WT_TXN_READONLY		0x0002000u
+#define	WT_TXN_RUNNING		0x0004000u
+#define	WT_TXN_SYNC_SET		0x0008000u
+#define	WT_TXN_TS_COMMIT_ALWAYS	0x0010000u
+#define	WT_TXN_TS_COMMIT_KEYS	0x0020000u
+#define	WT_TXN_TS_COMMIT_NEVER	0x0040000u
+#define	WT_TXN_TS_DURABLE_ALWAYS	0x0080000u
+#define	WT_TXN_TS_DURABLE_KEYS	0x0100000u
+#define	WT_TXN_TS_DURABLE_NEVER	0x0200000u
+#define	WT_TXN_TS_ROUND_PREPARED	0x0400000u
+#define	WT_TXN_TS_ROUND_READ	0x0800000u
+#define	WT_TXN_UPDATE	        0x1000000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

@@ -90,8 +90,6 @@ struct __wt_cache {
 
 	uint64_t app_waits;		/* User threads waited for cache */
 	uint64_t app_evicts;		/* Pages evicted by user threads */
-	uint64_t server_evicts;		/* Pages evicted by server thread */
-	uint64_t worker_evicts;		/* Pages evicted by worker threads */
 
 	uint64_t evict_max_page_size;	/* Largest page seen at eviction */
 	struct timespec stuck_time;	/* Stuck time */
@@ -289,3 +287,9 @@ struct __wt_cache_pool {
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t flags;
 };
+
+/* Flags used with __wt_evict */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_EVICT_CALL_CLOSING  0x1u		/* Closing connection or tree */
+#define	WT_EVICT_CALL_NO_SPLIT 0x2u		/* Splits not allowed */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */

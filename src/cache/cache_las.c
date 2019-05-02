@@ -383,6 +383,7 @@ bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
+	wt_timestamp_t unstable_timestamp;
 
 	txn = &session->txn;
 
@@ -422,19 +423,27 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (ref->page_las->skew_newest);
 
 	/*
-	 * Skip lookaside pages if reading as of a timestamp, we evicted new
-	 * versions of data and all the updates are in the past.
-	 */
-	if (ref->page_las->skew_newest &&
-	    txn->read_timestamp > ref->page_las->unstable_timestamp)
-		return (true);
-
-	/*
+	 * Skip lookaside history if reading as of a timestamp, we evicted new
+	 * versions of data and all the updates are in the past.  This is not
+	 * possible for prepared updates, because the commit timestamp was not
+	 * known when the page was evicted.
+	 *
 	 * Skip lookaside pages if reading as of a timestamp, we evicted old
 	 * versions of data and all the unstable updates are in the future.
+	 *
+	 * Checkpoint should respect durable timestamps, other reads should
+	 * respect ordinary visibility.  Checking for just the unstable updates
+	 * during checkpoint would end up reading more content from lookaside
+	 * than necessary.
 	 */
+	unstable_timestamp = WT_SESSION_IS_CHECKPOINT(session) ?
+	    ref->page_las->unstable_durable_timestamp :
+	    ref->page_las->unstable_timestamp;
+	if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
+	    txn->read_timestamp > unstable_timestamp)
+		return (true);
 	if (!ref->page_las->skew_newest &&
-	    txn->read_timestamp < ref->page_las->unstable_timestamp)
+	    txn->read_timestamp < unstable_timestamp)
 		return (true);
 
 	return (false);
@@ -545,7 +554,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char ts_string[WT_TS_INT_STRING_SIZE];
+	char ts_string[2][WT_TS_INT_STRING_SIZE];
 
 	btree_id = btree->id;
 
@@ -570,20 +579,22 @@ __las_insert_block_verbose(
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
 		__wt_timestamp_to_string(
-		    multi->page_las.unstable_timestamp,
-		    ts_string, sizeof(ts_string));
+		    multi->page_las.unstable_timestamp, ts_string[0]);
+		__wt_timestamp_to_string(
+		    multi->page_las.unstable_durable_timestamp, ts_string[1]);
 
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
 		    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
-		    "Max txn ID %" PRIu64 ", unstable timestamp %s, %s. "
+		    "Max txn ID %" PRIu64 ", unstable timestamp %s,"
+		    " unstable durable timestamp %s, %s. "
 		    "Entries now in lookaside file: %" PRId64 ", "
 		    "cache dirty: %2.3f%% , "
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
-		    ts_string,
+		    ts_string[0], ts_string[1],
 		    multi->page_las.skew_newest ? "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
@@ -609,6 +620,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
+	wt_off_t las_size;
 	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
@@ -747,6 +759,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				++prepared_insert_cnt;
 		} while ((upd = upd->next) != NULL);
 	}
+
+	WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
+	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
 
 err:	/* Resolve the transaction. */
 	if (local_txn) {
@@ -1128,6 +1143,25 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			    session, saved_key, las_key.data, las_key.size));
 
 			/*
+			 * Expect an update entry with:
+			 *	1. not in a prepare locked state
+			 *	2. durable timestamp as not max timestamp.
+			 *	3. for an in-progress prepared update, durable
+			 *	timestamp should be zero.
+			 *	4. no restriction on durable timestamp value
+			 *	for other updates.
+			 */
+			WT_ASSERT(session,
+			    prepare_state != WT_PREPARE_LOCKED &&
+			    durable_timestamp != WT_TS_MAX &&
+			    (prepare_state != WT_PREPARE_INPROGRESS ||
+			    durable_timestamp == 0));
+
+			WT_ASSERT(session,
+			    (prepare_state == WT_PREPARE_INPROGRESS ||
+			    durable_timestamp >= las_timestamp));
+
+			/*
 			 * There are several conditions that need to be met
 			 * before we choose to remove a key block:
 			 *  * The entries were written with skew newest.
@@ -1136,8 +1170,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 			 *  * The entry wasn't from a prepared transaction.
 			 */
 			if (upd_type == WT_UPDATE_BIRTHMARK &&
-			    __wt_txn_visible_all(
-			    session, las_txnid, las_timestamp) &&
+			    __wt_txn_visible_all(session,
+			    las_txnid, durable_timestamp) &&
 			    prepare_state != WT_PREPARE_INPROGRESS)
 				removing_key_block = true;
 			else

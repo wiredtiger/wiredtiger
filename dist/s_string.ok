@@ -101,6 +101,7 @@ DUPLICATEV
 DataSet
 DbCursor
 DbEnv
+DeadStores
 Decrement
 Decrypt
 DeleteFileW
@@ -155,6 +156,7 @@ Fsync
 Fuerst
 GCC
 GIDs
+GLIBC
 Gcc
 Geoff
 GetEnvironmentVariableA
@@ -170,6 +172,7 @@ HHHH
 HHHHLL
 HHHLL
 HILQr
+HOTBACKUP
 Hendrik
 HyperLevelDB
 ID's
@@ -264,6 +267,8 @@ Mutex
 MySecret
 NEEDKEY
 NEEDVALUE
+NOLINT
+NOLINTNEXTLINE
 NOLL
 NOLOCK
 NONINFRINGEMENT
@@ -292,6 +297,7 @@ PARAM
 POSIX
 PPC
 PREDEFINE
+PRId
 PRIu
 PRNG
 PTHREAD
@@ -389,6 +395,7 @@ UIDs
 UINT
 ULINE
 UNC
+UNCOND
 URI
 URIs
 UTF
@@ -638,6 +645,7 @@ dbc
 dbs
 dcalloc
 ddd
+deadcode
 decile
 deciles
 decl
@@ -835,7 +843,6 @@ iiu
 ikey
 im
 impl
-incase
 incr
 incrementals
 incrementing
@@ -1048,6 +1055,7 @@ online
 onpage
 oo
 opcode
+openat
 opendir
 openfile
 oplist
@@ -1101,6 +1109,7 @@ primary's
 printf
 printlog
 priv
+prog
 progname
 ps
 psp
@@ -1175,6 +1184,7 @@ scalability
 sched
 scr
 sd
+second's
 secretkey
 sed
 sessionp
@@ -1189,6 +1199,7 @@ sizep
 sizev
 skiplist
 skiplists
+skipp
 slotsp
 slvg
 snaplen
@@ -1208,6 +1219,7 @@ stdin
 stdout
 stepp
 str
+strace
 strcmp
 strdup
 strerror
@@ -1230,6 +1242,7 @@ subinit
 sublicense
 subone
 suboptimal
+subsystem's
 subtest
 subtree
 sunique
@@ -1254,6 +1267,7 @@ th
 tid
 timedwait
 timestamp
+timestamped
 timestamps
 tmp
 todo

@@ -240,6 +240,8 @@ __wt_open(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_calloc_one(session, &fh));
 	WT_ERR(__wt_strdup(session, name, &fh->name));
 
+	fh->file_type = file_type;
+
 	/*
 	 * If this is a read-only connection, open all files read-only except
 	 * the lock file.
@@ -299,7 +301,6 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
 	if (fh->ref != 0) {
 		__wt_errx(session,
 		    "Closing a file handle with open references: %s", fh->name);
-		WT_TRET(EBUSY);
 	}
 
 	/* Remove from the list. */
@@ -356,6 +357,134 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
 }
 
 /*
+ * __wt_fsync_background_chk --
+ *	Return if background fsync is supported.
+ */
+bool
+__wt_fsync_background_chk(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_FH *fh;
+	WT_FILE_HANDLE *handle;
+	bool supported;
+
+	conn = S2C(session);
+	supported = true;
+	__wt_spin_lock(session, &conn->fh_lock);
+	/*
+	 * Look for the first data file handle and see if
+	 * the fsync nowait function is supported.
+	 */
+	TAILQ_FOREACH(fh, &conn->fhqh, q) {
+		handle = fh->handle;
+		if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
+			continue;
+		/*
+		 * If we don't have a function, return false, otherwise
+		 * return true. In any case, we are done with the loop.
+		 */
+		if (handle->fh_sync_nowait == NULL)
+			supported = false;
+		break;
+	}
+	__wt_spin_unlock(session, &conn->fh_lock);
+	return (supported);
+}
+
+/*
+ * __fsync_background --
+ *	Background fsync for a single dirty file handle.
+ */
+static int
+__fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_FILE_HANDLE *handle;
+	uint64_t now;
+
+	conn = S2C(session);
+	WT_STAT_CONN_INCR(session, fsync_all_fh_total);
+
+	handle = fh->handle;
+	if (handle->fh_sync_nowait == NULL ||
+	    fh->written < WT_CAPACITY_FILE_THRESHOLD)
+		return (0);
+
+	/* Only sync data files. */
+	if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
+		return (0);
+
+	now = __wt_clock(session);
+	if (fh->last_sync == 0 || WT_CLOCKDIFF_SEC(now, fh->last_sync) > 0) {
+		__wt_spin_unlock(session, &conn->fh_lock);
+
+		/*
+		 * We set the false flag to indicate a non-blocking background
+		 * fsync, but there is no guarantee that it doesn't block. If
+		 * we wanted to detect if it is blocking, adding a clock call
+		 * and checking the time would be done here.
+		 */
+		ret = __wt_fsync(session, fh, false);
+		if (ret == 0) {
+			WT_STAT_CONN_INCR(session, fsync_all_fh);
+			fh->last_sync = now;
+			fh->written = 0;
+		}
+
+		__wt_spin_lock(session, &conn->fh_lock);
+	}
+	return (ret);
+}
+
+/*
+ * __wt_fsync_background --
+ *	Background fsync for all dirty file handles.
+ */
+int
+__wt_fsync_background(WT_SESSION_IMPL *session)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+	WT_FH *fh, *fhnext;
+
+	conn = S2C(session);
+	__wt_spin_lock(session, &conn->fh_lock);
+	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
+		/*
+		 * The worker routine will unlock the list to avoid holding it
+		 * locked over an fsync. Increment the count on the current and
+		 * next handles to guarantee their validity.
+		 */
+		if (fhnext != NULL)
+			++fhnext->ref;
+		++fh->ref;
+
+		WT_TRET(__fsync_background(session, fh));
+
+		/*
+		 * The file handle reference may have gone to 0, in which case
+		 * we're responsible for the close. Configure the close routine
+		 * to drop the lock, which means we must re-acquire it.
+		 */
+		if (--fh->ref == 0) {
+			WT_TRET(__handle_close(session, fh, true));
+			__wt_spin_lock(session, &conn->fh_lock);
+		}
+
+		/*
+		 * Decrement the next element's reference count. It might have
+		 * gone to 0 as well, in which case we'll close it in the next
+		 * loop iteration.
+		 */
+		if (fhnext != NULL)
+			--fhnext->ref;
+	}
+	__wt_spin_unlock(session, &conn->fh_lock);
+	return (ret);
+}
+
+/*
  * __wt_close_connection_close --
  *	Close any open file handles at connection close.
  */
@@ -368,5 +497,55 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
 	WT_TAILQ_SAFE_REMOVE_BEGIN(fh, &S2C(session)->fhqh, q, fh_tmp) {
 		WT_TRET(__handle_close(session, fh, false));
 	} WT_TAILQ_SAFE_REMOVE_END
+	return (ret);
+}
+
+/*
+ * __wt_file_zero --
+ *	Zero out the file from offset for size bytes.
+ */
+int
+__wt_file_zero(WT_SESSION_IMPL *session,
+    WT_FH *fh, wt_off_t start_off, wt_off_t size)
+{
+	WT_DECL_ITEM(zerobuf);
+	WT_DECL_RET;
+	WT_THROTTLE_TYPE type;
+	uint64_t bufsz, off, partial, wrlen;
+
+	zerobuf = NULL;
+	bufsz = WT_MIN((uint64_t)size, WT_MEGABYTE);
+	/*
+	 * For now logging is the only type and statistic. This needs
+	 * updating if block manager decides to use this function.
+	 */
+	type = WT_THROTTLE_LOG;
+	WT_STAT_CONN_INCR(session, log_zero_fills);
+	WT_RET(__wt_scr_alloc(session, bufsz, &zerobuf));
+	memset(zerobuf->mem, 0, zerobuf->memsize);
+	off = (uint64_t)start_off;
+	while (off < (uint64_t)size) {
+		/*
+		 * We benefit from aligning our writes when we can. Log files
+		 * will typically want to start to zero after the log header
+		 * and the bufsz is a sector-aligned size. So align when
+		 * we can.
+		 */
+		partial = off % bufsz;
+		if (partial != 0)
+			wrlen = bufsz - partial;
+		else
+			wrlen = bufsz;
+		/*
+		 * Check if we're writing a partial amount at the end too.
+		 */
+		if ((uint64_t)size - off < bufsz)
+			wrlen = (uint64_t)size - off;
+		__wt_capacity_throttle(session, wrlen, type);
+		WT_ERR(__wt_write(session,
+		    fh, (wt_off_t)off, (size_t)wrlen, zerobuf->mem));
+		off += wrlen;
+	}
+err:	__wt_scr_free(session, &zerobuf);
 	return (ret);
 }

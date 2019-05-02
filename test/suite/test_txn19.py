@@ -124,7 +124,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     # (having no records initially).  The last log file is this
     # (nrecords/2 + 1), given that we start with log 1.
     def record_to_logfile(self, recordnum):
-        return recordnum / 2 + 1
+        return recordnum // 2 + 1
 
     # Returns the first record number in a log file.
     def logfile_to_record(self, logfile):
@@ -201,6 +201,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     def corrupt_log(self, homedir):
         if not self.corrupted():
             return
+        # Mark this test has having corrupted files
+        self.databaseCorrupted()
         self.f(self.log_number_to_file_name(homedir, self.corruptpos))
 
         # Corrupt a second log file if needed

@@ -392,7 +392,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
-	time_t now;
+	uint64_t now;
 
 	conn = S2C(session);
 
@@ -401,7 +401,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 	 * do it again.
 	 */
 	__wt_seconds(session, &now);
-	if (difftime(now, session->last_sweep) < conn->sweep_interval)
+	if (now - session->last_sweep < conn->sweep_interval)
 		return;
 	session->last_sweep = now;
 
@@ -414,8 +414,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 		    dhandle->session_inuse == 0 &&
 		    (WT_DHANDLE_INACTIVE(dhandle) ||
 		    (dhandle->timeofdeath != 0 &&
-		    difftime(now, dhandle->timeofdeath) >
-		    conn->sweep_idle_time))) {
+		    now - dhandle->timeofdeath > conn->sweep_idle_time))) {
 			WT_STAT_CONN_INCR(session, dh_session_handles);
 			WT_ASSERT(session, !WT_IS_METADATA(dhandle));
 			__session_discard_dhandle(session, dhandle_cache);
@@ -601,7 +600,7 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
 	 * the underlying file are visible to the in-memory pages.
 	 */
 	WT_ERR(__wt_evict_file_exclusive_on(session));
-	ret = __wt_cache_op(session, WT_SYNC_DISCARD);
+	ret = __wt_evict_file(session, WT_SYNC_DISCARD);
 	__wt_evict_file_exclusive_off(session);
 	WT_ERR(ret);
 

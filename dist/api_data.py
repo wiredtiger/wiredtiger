@@ -23,8 +23,24 @@ class Config:
         self.subconfig = subconfig
         self.flags = flags
 
-    def __cmp__(self, other):
-        return cmp(self.name, other.name)
+    # Comparators for sorting.
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __ne__(self, other):
+        return self.name != other.name
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+    def __le__(self, other):
+        return self.name <= other.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+    def __ge__(self, other):
+        return self.name >= other.name
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -162,12 +178,16 @@ file_runtime_config = common_runtime_config + [
             if mixed update use is allowed. If 'key_consistent' is
             set then all updates to a specific key must be the same
             with respect to timestamp usage or not.''',
-            choices=['always','key_consistent', 'never','none']),
+            choices=['always', 'key_consistent', 'never', 'none']),
+        Config('durable_timestamp', 'none', r'''
+            verify that durable timestamps should 'always' or 'never' be used
+            on modifications with this table.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'
             if mixed read use is allowed.''',
-            choices=['always','never','none'])
+            choices=['always', 'never', 'none'])
         ], undoc=True),
     Config('cache_resident', 'false', r'''
         do not ever evict the object's pages from cache. Not compatible with
@@ -519,6 +539,17 @@ connection_runtime_config = [
             interval in seconds at which to check for files that are
             inactive and close them''', min=1, max=100000),
         ]),
+    Config('io_capacity', '', r'''
+        control how many bytes per second are written and read. Exceeding
+        the capacity results in throttling.''',
+        type='category', subconfig=[
+        Config('total', '0', r'''
+            number of bytes per second available to all subsystems in total.
+            When set, decisions about what subsystems are throttled, and in
+            what proportion, are made internally. The minimum non-zero setting
+            is 1MB.''',
+            min='0', max='1TB'),
+        ]),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
         manager is started automatically the first time an LSM tree is opened.
@@ -597,8 +628,9 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'checkpoint_slow', 'lookaside_sweep_race', 'split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8']),
+        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
+        'split_7', 'split_8']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
@@ -608,6 +640,7 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_progress',
             'compact',
+            'compact_progress',
             'error_returns',
             'evict',
             'evict_stuck',
@@ -1265,17 +1298,31 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+    Config('roundup_timestamps', '', r'''
+        round up timestamps of the transaction. This setting alters the
+        visibility expected in a transaction. See @ref
+        transaction_timestamps''',
+        type='category', subconfig= [
+        Config('prepared', 'false', r'''
+            applicable only for prepared transactions. Indicates if the prepare
+            timestamp and the commit timestamp of this transaction can be
+            rounded up. If the prepare timestamp is less than the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
+            timestamp. If the commit timestamp is less than the prepare
+            timestamp, the commit timestamp will be rounded up to the prepare
+            timestamp''', type='boolean'),
+        Config('read', 'false', r'''
+            if the read timestamp is less than the oldest timestamp, the
+            read timestamp will be rounded up to the oldest timestamp''',
+            type='boolean'),
+        ]),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
-        type='boolean'),
+        type='boolean')
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
@@ -1306,8 +1353,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps.
-        This configuration option is mandatory.  See
-        @ref transaction_timestamps'''),
+        See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1323,14 +1369,14 @@ methods = {
         current transaction.  The value must also not be older than the
         current stable timestamp.  See
         @ref transaction_timestamps'''),
+    Config('prepare_timestamp', '', r'''
+        set the prepare timestamp for the updates of the current transaction.
+        The supplied value must not be older than any active read timestamps.
+        See @ref transaction_timestamps'''),
     Config('read_timestamp', '', r'''
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  This can only be set once
-        for a transaction.  @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+        for a transaction. See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),
@@ -1471,13 +1517,15 @@ methods = {
     Config('get', 'all_committed', r'''
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
-        \c oldest returns the most recent \c oldest_timestamp set with
-        WT_CONNECTION::set_timestamp, \c oldest_reader returns the
+        \c last_checkpoint returns the timestamp of the most recent stable
+        checkpoint, \c oldest returns the most recent \c oldest_timestamp set
+        with WT_CONNECTION::set_timestamp, \c oldest_reader returns the
         minimum of the read timestamps of all active readers \c pinned returns
-        the minimum of the\c oldest_timestamp and the read timestamps of all
-        active readers, and \c stable returns the most recent
-        \c stable_timestamp set with WT_CONNECTION::set_timestamp. See
-        @ref transaction_timestamps''',
+        the minimum of the \c oldest_timestamp and the read timestamps of all
+        active readers, \c recovery returns the timestamp of the most recent
+        stable checkpoint taken prior to a shutdown and \c stable returns the
+        most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
+        See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),

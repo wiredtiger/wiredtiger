@@ -921,7 +921,7 @@ transaction_ops(WT_SESSION *session_arg)
 	error_check(session->prepare_transaction(
 	    session, "prepare_timestamp=2a"));
 	error_check(session->commit_transaction(
-	    session, "commit_timestamp=2b"));
+	    session, "commit_timestamp=2b,durable_timestamp=2b"));
 	/*! [transaction prepare] */
 	}
 
@@ -1282,6 +1282,12 @@ main(int argc, char *argv[])
 	error_check(wiredtiger_open(
 	    home, NULL, "create,file_extend=(data=16MB)", &conn));
 	/*! [Configure file_extend] */
+	error_check(conn->close(conn, NULL));
+
+	/*! [Configure capacity] */
+	error_check(wiredtiger_open(
+	    home, NULL, "create,io_capacity=(total=40MB)", &conn));
+	/*! [Configure capacity] */
 	error_check(conn->close(conn, NULL));
 
 	/*! [Eviction configuration] */

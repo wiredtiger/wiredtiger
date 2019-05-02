@@ -839,7 +839,7 @@ err:
 	__wt_free(session, ctable->cg_valcopy);
 	__wt_free(session, ctable->idx_cursors);
 
-	WT_TRET(__wt_schema_release_table(session, ctable->table));
+	WT_TRET(__wt_schema_release_table(session, &ctable->table));
 	/* The URI is owned by the table. */
 	cursor->internal_uri = NULL;
 	__wt_cursor_close(cursor);
@@ -999,7 +999,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 		ret = __wt_open_cursor(session,
 		    table->cgroups[0]->source, NULL, cfg, cursorp);
 
-		WT_TRET(__wt_schema_release_table(session, table));
+		WT_TRET(__wt_schema_release_table(session, &table));
 		if (ret == 0) {
 			/* Fix up the public URI to match what was passed in. */
 			cursor = *cursorp;
@@ -1050,8 +1050,8 @@ __wt_curtable_open(WT_SESSION_IMPL *session,
 	    cursor, cursor->internal_uri, owner, cfg, cursorp));
 
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
-		__wt_json_column_init(
-		    cursor, uri, table->key_format, NULL, &table->colconf);
+		WT_ERR(__wt_json_column_init(
+		    cursor, uri, table->key_format, NULL, &table->colconf));
 
 	/*
 	 * Open the colgroup cursors immediately: we're going to need them for

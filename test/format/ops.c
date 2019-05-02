@@ -64,6 +64,21 @@ modify_repl_init(void)
 		modify_repl[i] = "zyxwvutsrqponmlkjihgfedcba"[i % 26];
 }
 
+static void
+set_alarm(void)
+{
+#ifdef HAVE_TIMER_CREATE
+	struct itimerspec timer_val;
+	timer_t timer_id;
+
+	testutil_check(timer_create(CLOCK_REALTIME, NULL, &timer_id));
+	memset(&timer_val, 0, sizeof(timer_val));
+	timer_val.it_value.tv_sec = 60 * 2;
+	timer_val.it_value.tv_nsec = 0;
+	testutil_check(timer_settime(timer_id, 0, &timer_val, NULL));
+#endif
+}
+
 /*
  * wts_ops --
  *	Perform a number of operations in a set of threads.
@@ -239,13 +254,22 @@ wts_ops(int lastrun)
 			--fourths;
 		if (quit_fourths != -1 && --quit_fourths == 0) {
 			fprintf(stderr, "%s\n",
-			    "format run exceeded 15 minutes past the maximum "
-			    "time, aborting the process.");
+			    "format run more than 15 minutes past the maximum "
+			    "time");
+			fprintf(stderr, "%s\n",
+			    "format run dumping cache and transaction state, "
+			    "then aborting the process");
+
+			/*
+			 * If the library is deadlocked, we might just join the
+			 * mess, set a timer to limit our exposure.
+			 */
+			set_alarm();
 
 			(void)conn->debug_info(conn, "txn");
 			(void)conn->debug_info(conn, "cache");
 
-			abort();
+			__wt_abort(NULL);
 		}
 	}
 
@@ -615,9 +639,18 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
 		testutil_check(session->timestamp_transaction(session, buf));
 
+		if (tinfo->prepare_txn) {
+			testutil_check(__wt_snprintf(buf, sizeof(buf),
+			    "durable_timestamp=%" PRIx64, ts));
+			testutil_check(
+			    session->timestamp_transaction(session, buf));
+		}
+
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
 	testutil_check(session->commit_transaction(session, NULL));
+
+	tinfo->prepare_txn = false;
 }
 
 /*
@@ -630,6 +663,8 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
 	++tinfo->rollback;
 
 	testutil_check(session->rollback_transaction(session, NULL));
+
+	tinfo->prepare_txn = false;
 }
 
 /*
@@ -663,6 +698,8 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 	ret = session->prepare_transaction(session, buf);
 
 	testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+
+	tinfo->prepare_txn = true;
 	return (ret);
 }
 

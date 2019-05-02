@@ -371,6 +371,7 @@ struct __wt_connection_stats {
 	int64_t cache_lookaside_score;
 	int64_t cache_lookaside_entries;
 	int64_t cache_lookaside_insert;
+	int64_t cache_lookaside_ondisk;
 	int64_t cache_lookaside_remove;
 	int64_t cache_eviction_checkpoint;
 	int64_t cache_eviction_get_ref;
@@ -453,6 +454,20 @@ struct __wt_connection_stats {
 	int64_t cache_bytes_dirty;
 	int64_t cache_pages_dirty;
 	int64_t cache_eviction_clean;
+	int64_t fsync_all_fh_total;
+	int64_t fsync_all_fh;
+	int64_t fsync_all_time;
+	int64_t capacity_bytes_read;
+	int64_t capacity_bytes_ckpt;
+	int64_t capacity_bytes_evict;
+	int64_t capacity_bytes_log;
+	int64_t capacity_bytes_written;
+	int64_t capacity_threshold;
+	int64_t capacity_time_total;
+	int64_t capacity_time_ckpt;
+	int64_t capacity_time_evict;
+	int64_t capacity_time_log;
+	int64_t capacity_time_read;
 	int64_t cond_auto_wait_reset;
 	int64_t cond_auto_wait;
 	int64_t time_travel;
@@ -494,6 +509,7 @@ struct __wt_connection_stats {
 	int64_t cursor_update_bytes_changed;
 	int64_t cursor_reopen;
 	int64_t cursor_open_count;
+	int64_t dh_conn_handle_size;
 	int64_t dh_conn_handle_count;
 	int64_t dh_sweep_ref;
 	int64_t dh_sweep_close;
@@ -693,7 +709,9 @@ struct __wt_connection_stats {
 	int64_t txn_pinned_snapshot_range;
 	int64_t txn_pinned_timestamp;
 	int64_t txn_pinned_timestamp_checkpoint;
+	int64_t txn_pinned_timestamp_reader;
 	int64_t txn_pinned_timestamp_oldest;
+	int64_t txn_timestamp_oldest_active_read;
 	int64_t txn_sync;
 	int64_t txn_commit;
 	int64_t txn_rollback;

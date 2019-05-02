@@ -16,6 +16,30 @@ functions:
         remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
         bucket: build_external
         extract_to: wiredtiger
+  "fetch artifacts from little-endian" :
+    - command: s3.get
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
+        bucket: build_external
+        local_file: WT_TEST-little-endian.tgz
+    - command: archive.targz_extract
+      params:
+        path: "WT_TEST-little-endian.tgz"
+        destination: "wiredtiger/build_posix/test/format"
+  "fetch artifacts from big-endian" :
+    - command: s3.get
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
+        bucket: build_external
+        local_file: WT_TEST-big-endian.tgz
+    - command: archive.targz_extract
+      params:
+        path: "WT_TEST-big-endian.tgz"
+        destination: "wiredtiger/build_posix/test/format"
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
@@ -59,7 +83,7 @@ post:
         set -o errexit
         set -o verbose
         cd wiredtiger
-        tar cvfz ../wiredtiger.tgz .
+        tar cfz ../wiredtiger.tgz .
         cd ..
   - command: s3.put
     params:
@@ -634,6 +658,20 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test_wt4156_metadata_salvage 2>&1
 
+  - name: csuite-wt4699-json-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test_wt4699_json 2>&1
+
   - name: csuite-rwlock-test
     depends_on:
       - name: compile
@@ -965,6 +1003,140 @@ tasks:
             ulimit -c unlimited 
             largescale/run-million-collection-test.sh .
 
+  - name: compatibility-test-for-mongodb-releases
+    commands:
+      - func: "fetch source"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            test/evergreen/compatibility_test_for_mongodb_releases.sh
+
+  - name: generate-datafile-little-endian
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/format"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq 10)
+            do
+              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../../../test/format/CONFIG.endian
+            done
+            # Archive the WT_TEST directories which include the generated wt data files
+            tar -zcvf WT_TEST.tgz WT_TEST*
+          shell: bash
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
+          bucket: build_external
+          permissions: public-read
+          content_type: application/tar
+          display_name: WT_TEST
+          remote_file: wiredtiger/little-endian/${revision}/artifacts/WT_TEST.tgz
+
+  - name: verify-datafile-little-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-little-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch artifacts from little-endian"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+
+  - name: verify-datafile-from-little-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-little-endian
+      variant: little-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch artifacts from little-endian"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+
+  - name: generate-datafile-big-endian
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/format"
+          script: |
+            set -o errexit
+            set -o verbose
+            for i in $(seq 10)
+            do
+              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../../../test/format/CONFIG.endian
+            done
+            # Archive the WT_TEST directories which include the generated wt data files
+            tar -zcvf WT_TEST.tgz WT_TEST*
+          shell: bash
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_file: wiredtiger/build_posix/test/format/WT_TEST.tgz
+          bucket: build_external
+          permissions: public-read
+          content_type: application/tar
+          display_name: WT_TEST
+          remote_file: wiredtiger/big-endian/${revision}/artifacts/WT_TEST.tgz
+
+  - name: verify-datafile-big-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-big-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch artifacts from big-endian"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+
+  - name: verify-datafile-from-big-endian
+    depends_on:
+    - name: compile
+    - name: generate-datafile-big-endian
+      variant: big-endian
+    commands:
+      - func: "fetch artifacts"
+      - func: "fetch artifacts from big-endian"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./test/evergreen/verify_wt_datafiles.sh 2>&1
+
+
 buildvariants:
 - name: ubuntu1404
   display_name: Ubuntu 14.04
@@ -972,9 +1144,10 @@ buildvariants:
   - ubuntu1404-test
   expansions:
     # It's ugly, but we need the absolute path here, not the relative
-    test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++ PATH=/opt/mongodbtoolchain/v2/bin:$PATH
+    configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
     - name: compile
     - name: lang-python-test
@@ -1012,6 +1185,7 @@ buildvariants:
     - name: csuite-wt4105-large-doc-small-upd-test
     - name: csuite-wt4117-checksum-test
     - name: csuite-wt4156-metadata-salvage-test
+    - name: csuite-wt4699-json-test
     - name: csuite-rwlock-test
     - name: csuite-wt2246-col-append-test
     - name: csuite-wt2323-join-visibility-test
@@ -1037,9 +1211,17 @@ buildvariants:
   run_on:
   - rhel62-large
   expansions:
-    configure_env_vars: CC=/opt/mongodbtoolchain/bin/gcc CXX=/opt/mongodbtoolchain/bin/g++
+    configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++
   tasks:
     - name: million-collection-test
+
+- name: compatibility-tests
+  display_name: Compatibility tests
+  batchtime: 10080 # 7 days
+  run_on:
+  - ubuntu1404-test
+  tasks:
+    - name: compatibility-test-for-mongodb-releases
 
 - name: windows-64
   display_name: Windows 64-bit
@@ -1048,7 +1230,14 @@ buildvariants:
   tasks:
     - name: compile
     - name: compile-windows-alt
-    - name: unit-test
+    - name: unit-test-bucket00
+    - name: unit-test-bucket01
+    - name: unit-test-bucket02
+    - name: unit-test-bucket03
+    - name: unit-test-bucket04
+    - name: unit-test-bucket05
+    - name: unit-test-bucket06
+    - name: unit-test-bucket07
     #- name: format  - Enable when we have a solution for hangs and crashses
     - name: fops
 
@@ -1058,12 +1247,43 @@ buildvariants:
   - macos-1012
   expansions:
     smp_command: -j $(sysctl -n hw.logicalcpu)
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH
-    make_command: PATH=/opt/mongodbtoolchain/v2/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
-    test_env_vars: PATH=/opt/mongodbtoolchain/v2/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs
   tasks:
     - name: compile
     - name: make-check-test
     - name: unit-test
     - name: fops
 
+- name: little-endian
+  display_name: Little-endian (x86)
+  run_on:
+  - ubuntu1404-test
+  batchtime: 1440 # 1 day
+  expansions:
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+  tasks:
+  - name: compile
+  - name: generate-datafile-little-endian
+  - name: verify-datafile-little-endian
+  - name: verify-datafile-from-big-endian
+
+- name: big-endian
+  display_name: Big-endian (s390x/zSeries)
+  modules:
+  - enterprise
+  run_on:
+  - ubuntu1604-zseries-small
+  batchtime: 1440 # 1 day
+  expansions:
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+  tasks:
+  - name: compile
+  - name: generate-datafile-big-endian
+  - name: verify-datafile-big-endian
+  - name: verify-datafile-from-little-endian

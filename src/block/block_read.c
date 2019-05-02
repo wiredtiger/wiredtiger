@@ -98,6 +98,7 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
 	    block, "read", offset, size, bm->is_live, __func__, __LINE__));
 #endif
 	/* Read the block. */
+	__wt_capacity_throttle(session, size, WT_THROTTLE_READ);
 	WT_RET(
 	    __wt_block_read_off(session, block, buf, offset, size, checksum));
 
@@ -250,6 +251,16 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	WT_RET(__wt_buf_init(session, buf, bufsize));
 	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 	buf->size = size;
+
+	/*
+	 * Ensure we don't read information that isn't there. It shouldn't ever
+	 * happen, but it's a cheap test.
+	 */
+	if (size < block->allocsize)
+		WT_RET_MSG(session, EINVAL,
+		"%s: impossibly small block size of %" PRIu32 "B, less than "
+		"allocation size of %" PRIu32,
+		block->name, size, block->allocsize);
 
 	/*
 	 * We incrementally read through the structure before doing a checksum,
