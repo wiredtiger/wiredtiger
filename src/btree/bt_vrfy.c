@@ -335,15 +335,15 @@ __verify_addr_ts(WT_SESSION_IMPL *session,
 		    "internal page reference at %s has a newest stop "
 		    "timestamp of 0",
 		    __wt_page_addr_string(session, ref, vs->tmp1));
-	if (unpack->oldest_start_ts > unpack->newest_stop_ts) {
-		__wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[0]);
-		__wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[1]);
+	if (unpack->oldest_start_ts > unpack->newest_stop_ts)
 		WT_RET_MSG(session, WT_ERROR,
 		    "internal page reference at %s has an oldest start "
 		    "timestamp %s newer than its newest stop timestamp %s",
 		    __wt_page_addr_string(session, ref, vs->tmp1),
-		    ts_string[0], ts_string[1]);
-	}
+		    __wt_timestamp_to_string(
+		    unpack->oldest_start_ts, ts_string[0]),
+		    __wt_timestamp_to_string(
+		    unpack->newest_stop_ts, ts_string[1]));
 	if (unpack->newest_stop_txn == WT_TXN_NONE)
 		WT_RET_MSG(session, WT_ERROR,
 		    "internal page reference at %s has a newest stop "
@@ -773,8 +773,7 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
 		ts1_bp = "WT_TS_NONE";
 		break;
 	default:
-		__wt_timestamp_to_string(ts1, ts_string[0]);
-		ts1_bp = ts_string[0];
+		ts1_bp = __wt_timestamp_to_string(ts1, ts_string[0]);
 		break;
 	}
 	switch (ts2) {
@@ -785,8 +784,7 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
 		ts2_bp = "WT_TS_NONE";
 		break;
 	default:
-		__wt_timestamp_to_string(ts2, ts_string[1]);
-		ts2_bp = ts_string[1];
+		ts2_bp = __wt_timestamp_to_string(ts2, ts_string[1]);
 		break;
 	}
 	WT_RET_MSG(session, WT_ERROR,
@@ -889,19 +887,18 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 				    cell_num - 1,
 				    __wt_page_addr_string(
 				    session, ref, vs->tmp1));
-			if (unpack.oldest_start_ts > unpack.newest_stop_ts) {
-				__wt_timestamp_to_string(
-				    unpack.oldest_start_ts, ts_string[0]);
-				__wt_timestamp_to_string(
-				    unpack.newest_stop_ts, ts_string[1]);
+			if (unpack.oldest_start_ts > unpack.newest_stop_ts)
 				WT_RET_MSG(session, WT_ERROR,
 				    "cell %" PRIu32 " on page at %s has an "
 				    "oldest start timestamp %s newer than "
 				    "its newest stop timestamp %s",
 				    cell_num - 1,
 				    __wt_page_addr_string(session,
-				    ref, vs->tmp1), ts_string[0], ts_string[1]);
-			}
+				    ref, vs->tmp1),
+				    __wt_timestamp_to_string(
+					unpack.oldest_start_ts, ts_string[0]),
+				    __wt_timestamp_to_string(
+					unpack.newest_stop_ts, ts_string[1]));
 
 			if (unpack.newest_stop_txn == WT_TXN_NONE)
 				WT_RET_MSG(session, WT_ERROR,
@@ -956,19 +953,18 @@ __verify_page_cell(WT_SESSION_IMPL *session,
 				    cell_num - 1,
 				    __wt_page_addr_string(
 				    session, ref, vs->tmp1));
-			if (unpack.start_ts > unpack.stop_ts) {
-				__wt_timestamp_to_string(
-				    unpack.start_ts, ts_string[0]);
-				__wt_timestamp_to_string(
-				    unpack.stop_ts, ts_string[1]);
+			if (unpack.start_ts > unpack.stop_ts)
 				WT_RET_MSG(session, WT_ERROR,
 				    "cell %" PRIu32 " on page at %s has a "
 				    "start timestamp %s newer than its stop "
 				    "timestamp %s",
 				    cell_num - 1,
 				    __wt_page_addr_string(session,
-				    ref, vs->tmp1), ts_string[0], ts_string[1]);
-			}
+				    ref, vs->tmp1),
+				    __wt_timestamp_to_string(
+				    unpack.start_ts, ts_string[0]),
+				    __wt_timestamp_to_string(
+				    unpack.stop_ts, ts_string[1]));
 
 			if (unpack.stop_txn == WT_TXN_NONE)
 				WT_RET_MSG(session, WT_ERROR,

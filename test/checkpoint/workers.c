@@ -172,7 +172,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 			return (log_print_err("cursor.insert", ret, 1));
 		}
 	}
-	
+
 	return (0);
 }
 
@@ -277,7 +277,7 @@ real_worker(void)
 			testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
 			testutil_check(session->timestamp_transaction(session, buf));
 			__wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-		
+
 			for (j = 0; !has_cursors && j < g.ntables; j++)
 				if ((ret = session->open_cursor(session,
 				    g.cookies[j].uri, NULL, NULL, &cursors[j])) != 0) {

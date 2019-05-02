@@ -578,10 +578,6 @@ __las_insert_block_verbose(
 	    ckpt_gen_last, ckpt_gen_current))) {
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-		__wt_timestamp_to_string(
-		    multi->page_las.unstable_timestamp, ts_string[0]);
-		__wt_timestamp_to_string(
-		    multi->page_las.unstable_durable_timestamp, ts_string[1]);
 
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
@@ -594,7 +590,10 @@ __las_insert_block_verbose(
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
-		    ts_string[0], ts_string[1],
+		    __wt_timestamp_to_string(
+		    multi->page_las.unstable_timestamp, ts_string[0]),
+		    __wt_timestamp_to_string(
+		    multi->page_las.unstable_durable_timestamp, ts_string[1]),
 		    multi->page_las.skew_newest ? "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);

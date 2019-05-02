@@ -29,7 +29,7 @@ define([AC_LIBTOOL_LANG_F77_CONFIG], [:])dnl
 # reason to believe "c++" can build compatible objects.
 #
 # Check whether the C++ compiler works by linking a trivial program.
-if test $CC = "cc"; then
+if test "$CC" = "cc"; then
 	AC_CACHE_CHECK([whether the C++ compiler works],
 		       [wt_cv_prog_cxx_works],
 		       [AC_LANG_PUSH([C++])
