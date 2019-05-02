@@ -270,8 +270,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				    mod->rec_max_txn > btree->rec_max_txn)
 					btree->rec_max_txn = mod->rec_max_txn;
 				if (mod != NULL &&
-				    btree->rec_max_timestamp <
-				    mod->rec_max_timestamp)
+				    mod->rec_max_timestamp >
+				    btree->rec_max_timestamp)
 					btree->rec_max_timestamp =
 					    mod->rec_max_timestamp;
 				continue;

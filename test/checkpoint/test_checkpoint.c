@@ -34,7 +34,7 @@ static int  handle_error(WT_EVENT_HANDLER *, WT_SESSION *, int, const char *);
 static int  handle_message(WT_EVENT_HANDLER *, WT_SESSION *, const char *);
 static void onint(int)
     WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
-static void cleanup(void);
+static void cleanup(bool);
 static int  usage(void);
 static int  wt_connect(const char *);
 static int  wt_shutdown(void);
@@ -130,11 +130,12 @@ main(int argc, char *argv[])
 	testutil_work_dir_from_path(g.home, 512, working_dir);
 
 	printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
+
 	for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
+		cleanup(cnt == 1);		/* Clean up previous runs */
+
 		printf("    %d: %d workers, %d tables\n",
 		    cnt, g.nworkers, g.ntables);
-
-		cleanup();			/* Clean up previous runs */
 
 		/* Setup a fresh set of cookies in the global array. */
 		if ((g.cookies = calloc(
@@ -189,12 +190,10 @@ wt_connect(const char *config_open)
 		NULL	/* Close handler. */
 	};
 	int ret;
-	char config[128];
-
-	testutil_make_work_dir(g.home);
+	char config[512];
 
 	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "create,statistics=(fast),error_prefix=\"%s\",cache_size=1GB%s%s",
+	    "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix=\"%s\",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1),timing_stress_for_test=(aggressive_sweep),log=(enabled),cache_size=1GB%s%s",
 	    progname,
 	    config_open == NULL ? "" : ",",
 	    config_open == NULL ? "" : config_open));
@@ -230,12 +229,14 @@ wt_shutdown(void)
  *	Clean up from previous runs.
  */
 static void
-cleanup(void)
+cleanup(bool remove_dir)
 {
 	g.running = 0;
 	g.ntables_created = 0;
+	g.ts = 0;
 
-	testutil_clean_work_dir(g.home);
+	if (remove_dir)
+		testutil_make_work_dir(g.home);
 }
 
 static int
@@ -271,7 +272,7 @@ onint(int signo)
 {
 	WT_UNUSED(signo);
 
-	cleanup();
+	cleanup(false);
 
 	fprintf(stderr, "\n");
 	exit(EXIT_FAILURE);

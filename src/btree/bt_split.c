@@ -1409,6 +1409,19 @@ err:	if (parent != NULL)
 	return (0);
 }
 
+static void
+__check_upd_list(WT_SESSION_IMPL *session, WT_SAVE_UPD *supd, WT_UPDATE *upd)
+{
+	bool seen = false;
+
+	for (; upd != NULL; upd = upd->next) {
+		WT_ASSERT(session, !seen || upd->type != WT_UPDATE_BIRTHMARK);
+		seen = seen || upd->type == WT_UPDATE_BIRTHMARK;
+	}
+
+	WT_UNUSED(supd);
+}
+
 /*
  * __split_multi_inmem --
  *	Instantiate a page from a disk image.
@@ -1507,6 +1520,8 @@ __split_multi_inmem(
 				key->data = WT_INSERT_KEY(supd->ins);
 				key->size = WT_INSERT_KEY_SIZE(supd->ins);
 			}
+
+			__check_upd_list(session, supd, upd);
 
 			/* Search the page. */
 			WT_ERR(__wt_row_search(
@@ -1814,9 +1829,11 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
 		    WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page))) != NULL) {
 			key->data = WT_INSERT_KEY(ins);
 			key->size = WT_INSERT_KEY_SIZE(ins);
-		} else
+		} else {
+			WT_ASSERT(session, page->entries > 0);
 			WT_ERR(__wt_row_leaf_key(
 			    session, page, &page->pg_row[0], key, true));
+		}
 		WT_ERR(__wt_row_ikey(session, 0, key->data, key->size, child));
 		parent_incr += sizeof(WT_IKEY) + key->size;
 		__wt_scr_free(session, &key);

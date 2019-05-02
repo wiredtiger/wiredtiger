@@ -656,7 +656,8 @@ __evict_review(
 		else if (!WT_IS_METADATA(session->dhandle)) {
 			LF_SET(WT_REC_UPDATE_RESTORE);
 
-			if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB))
+			if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB) ||
+			    __wt_random(&session->rnd) % 3 == 0)
 				LF_SET(WT_REC_SCRUB);
 
 			/*
@@ -665,8 +666,13 @@ __evict_review(
 			 * suggests trying the lookaside table.
 			 */
 			if (F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE) &&
-			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE))
+			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE)) {
+				if (__wt_random(&session->rnd) % 10 == 1) {
+					LF_CLR(WT_REC_SCRUB | WT_REC_UPDATE_RESTORE);
+					LF_SET(WT_REC_LOOKASIDE);
+				}
 				lookaside_retryp = &lookaside_retry;
+			}
 		}
 	}
 
