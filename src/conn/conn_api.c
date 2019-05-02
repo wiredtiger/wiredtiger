@@ -2187,6 +2187,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 	    "in_memory=,"
 	    "log=(recover=),"
 	    "readonly=,"
+	    "timing_stress_for_test=,"
 	    "use_environment_priv=,"
 	    "verbose=,", &base_config));
 	__wt_config_init(session, &parser, base_config);
