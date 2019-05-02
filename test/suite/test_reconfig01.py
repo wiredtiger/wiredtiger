@@ -34,6 +34,20 @@ from wtdataset import SimpleDataSet
 #    Smoke-test the connection reconfiguration operations.
 class test_reconfig01(wttest.WiredTigerTestCase):
 
+    def test_reconfig_diagnostic(self):
+        # Turn checkpoint_retention on.
+        self.conn.reconfigure("diagnostic=(checkpoint_retention=3)")
+        # Turn it off.
+        self.conn.reconfigure("diagnostic=(checkpoint_retention=0)")
+        # Turn rollback error on.
+        self.conn.reconfigure("diagnostic=(rollback_error=3)")
+        # Turn it off.
+        self.conn.reconfigure("diagnostic=(rollback_error=0)")
+        # Turn table logging on.
+        self.conn.reconfigure("diagnostic=(table_logging=true)")
+        # Turn it off.
+        self.conn.reconfigure("diagnostic=(table_logging=false)")
+
     def test_reconfig_shared_cache(self):
         self.conn.reconfigure("shared_cache=(name=pool,size=300M)")
 
