@@ -1209,8 +1209,6 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 
 		WT_RET(ds->f(ds, ", start_ts %s",
 		    __wt_timestamp_to_string(upd->start_ts, ts_string)));
-		WT_RET(ds->f(ds, ", stop_ts %s",
-		    __wt_timestamp_to_string(upd->stop_ts, ts_string)));
 		if (upd->durable_ts != WT_TS_NONE)
 			WT_RET(ds->f(ds, ", durable-ts %s",
 			    __wt_timestamp_to_string(

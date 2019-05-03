@@ -90,7 +90,6 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 		append->txnid = upd->txnid;
 		append->start_ts = upd->start_ts;
 		append->durable_ts = upd->durable_ts;
-		append->stop_ts = upd->stop_ts;
 		append->next = upd->next;
 	}
 
