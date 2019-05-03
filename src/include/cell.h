@@ -156,8 +156,8 @@ struct __wt_cell_unpack {
 
 	wt_timestamp_t	start_ts;	/* Value validity window */
 	uint64_t	start_txn;
-	uint64_t	stop_txn;
 	wt_timestamp_t	stop_ts;
+	uint64_t	stop_txn;
 
 					/* Address validity window */
 	wt_timestamp_t	newest_durable_ts;
