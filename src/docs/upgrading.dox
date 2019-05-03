@@ -1,17 +1,6 @@
 /*! @page upgrading Upgrading WiredTiger applications
 
 </dl><hr>
-@section version_321 Upgrading to Version 3.2.1
-<dl>
-
-<dt>LevelDB support</dt>
-<dd>
-Support for the Google LevelDB API compatibility layer (as well as the
-related Basho Technologies Riak, HyperLevelDB HyperDex and Facebook
-RocksDB compatibility layers), has been removed in the 3.2.1 release.
-</dd>
-
-</dl><hr>
 @section version_320 Upgrading to Version 3.2.0
 <dl>
 
@@ -24,6 +13,13 @@ structure's \c WT_COMPRESSOR::compress_raw field. Applications configuring
 the "lz4" or "zlib" compressors (the existing WiredTiger compressors that
 supported raw compression), will work without change, but applications may
 see different compression ratios from previous releases.
+</dd>
+
+<dt>LevelDB support</dt>
+<dd>
+Support for the Google LevelDB API compatibility layer (as well as the
+related Basho Technologies Riak, HyperLevelDB HyperDex and Facebook
+RocksDB compatibility layers), has been removed in the 3.2.0 release.
 </dd>
 
 <dt>WiredTiger timestamps</dt>
