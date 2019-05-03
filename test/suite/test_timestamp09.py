@@ -135,7 +135,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
                 'commit_timestamp=' + timestamp_str(5)),
-                '/less than the stable timestamp/')
+                '/less than or equal to the stable timestamp/')
         c[5] = 5
         self.session.rollback_transaction()
 
@@ -144,7 +144,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
                 'commit_timestamp=' + timestamp_str(5)),
-                '/less than the stable timestamp/')
+                '/less than or equal to the stable timestamp/')
 
         # When explicitly set, commit timestamp for a transaction can be earlier
         # than the commit timestamp of an earlier transaction.
