@@ -697,7 +697,7 @@ begin_transaction(TINFO *tinfo,
 
 		/*
 		 * Keep trying to start a new transaction if it's timing out.
-		 * There are no resources pinned so it should succeed eventually.
+		 * There are no resources pinned, it should succeed eventually.
 		 */
 		while ((ret = session->begin_transaction(
 		    session, "isolation=snapshot")) == WT_CACHE_FULL)
@@ -743,10 +743,10 @@ begin_transaction(TINFO *tinfo,
 
 		/*
 		 * Keep trying to start a new transaction if it's timing out.
-		 * There are no resources pinned so it should succeed eventually.
+		 * There are no resources pinned, it should succeed eventually.
 		 */
-		while ((ret =
-		    session->begin_transaction(session, config)) == WT_CACHE_FULL)
+		while ((ret = session->begin_transaction(
+		    session, config)) == WT_CACHE_FULL)
 			;
 		testutil_check(ret);
 
@@ -984,10 +984,10 @@ ops(void *arg)
 		}
 
 		/*
-		 * If not in a transaction, reset the session every now and then,
-		 * just to make sure that operation gets tested. The test is not
-		 * for equality, we have to do the reset outside of a transaction
-		 * so we aren't likely to get an exact match.
+		 * If not in a transaction, reset the session now and then, just
+		 * to make sure that operation gets tested. The test is not for
+		 * equality, we have to do the reset outside of a transaction so
+		 * we aren't likely to get an exact match.
 		 */
 		if (!intxn && tinfo->ops > reset_op) {
 			testutil_check(session->reset(session));
@@ -1007,12 +1007,13 @@ ops(void *arg)
 		}
 
 		/*
-		 * If not in a transaction, choose an isolation level and start a
-		 * transaction some percentage of the time.
+		 * If not in a transaction, choose an isolation level and start
+		 * a transaction some percentage of the time.
 		 */
 		if (!intxn && mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq) {
 			tinfo->snap_first = tinfo->snap;
-			begin_transaction(tinfo, session, &read_ts, &iso_config);
+			begin_transaction(
+			    tinfo, session, &read_ts, &iso_config);
 			intxn = true;
 		}
 

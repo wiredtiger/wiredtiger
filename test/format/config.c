@@ -749,8 +749,8 @@ static void
 config_transaction(void)
 {
 	/*
-	 * We cannot prepare a transaction if logging is configured or timestamps
-	 * are not configured. Further, for repeatable reads to work in timestamp
+	 * We can't prepare a transaction if logging is configured or timestamps
+	 * aren't configured. Further, for repeatable reads to work in timestamp
 	 * testing, all updates must be within a snapshot-isolation transaction.
 	 * Check for incompatible configurations, then let prepare and timestamp
 	 * drive the remaining configuration.
