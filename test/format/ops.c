@@ -666,7 +666,6 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
 	ret = session->timestamp_transaction(session, buf);
 	if (ret != EINVAL)
 		testutil_check(ret);
-		
 
 	/* The only expected error is rollback. */
 	if (ret == 0) {
