@@ -40,7 +40,6 @@ static void	   config_helium_reset(void);
 static void	   config_in_memory(void);
 static void	   config_in_memory_reset(void);
 static int	   config_is_perm(const char *);
-static void	   config_isolation(void);
 static void	   config_lrt(void);
 static void	   config_lsm_reset(void);
 static void	   config_map_checkpoint(const char *, u_int *);
@@ -50,8 +49,8 @@ static void	   config_map_encryption(const char *, u_int *);
 static void	   config_map_file_type(const char *, u_int *);
 static void	   config_map_isolation(const char *, u_int *);
 static void	   config_pct(void);
-static void	   config_prepare(void);
 static void	   config_reset(void);
+static void	   config_transaction(void);
 
 /*
  * config_setup --
@@ -187,15 +186,19 @@ config_setup(void)
 	if (!config_is_perm("threads") && mmrand(NULL, 1, 20) == 1)
 		g.c_threads = 1;
 
+	/* First, transaction configuration, it configures other features. */
+	config_transaction();
+
+	/* Simple selection. */
 	config_checkpoint();
 	config_checksum();
 	config_compression("compression");
 	config_compression("logging_compression");
 	config_encryption();
-	config_isolation();
 	config_lrt();
+
+	/* Configuration based on the configuration already chosen. */
 	config_pct();
-	config_prepare();
 	config_cache();
 
 	/* Give Helium, in-memory and LSM configurations a final review. */
@@ -612,39 +615,6 @@ config_lsm_reset(void)
 }
 
 /*
- * config_isolation --
- *	Isolation configuration.
- */
-static void
-config_isolation(void)
-{
-	const char *cstr;
-
-	/*
-	 * Isolation: choose something if isolation wasn't specified.
-	 */
-	if (!config_is_perm("isolation")) {
-		/* Avoid "maybe uninitialized" warnings. */
-		switch (mmrand(NULL, 1, 4)) {
-		case 1:
-			cstr = "isolation=random";
-			break;
-		case 2:
-			cstr = "isolation=read-uncommitted";
-			break;
-		case 3:
-			cstr = "isolation=read-committed";
-			break;
-		case 4:
-		default:
-			cstr = "isolation=snapshot";
-			break;
-		}
-		config_single(cstr, 0);
-	}
-}
-
-/*
  * config_lrt --
  *	Long-running transaction configuration.
  */
@@ -772,41 +742,86 @@ config_pct(void)
 }
 
 /*
- * config_prepare --
- *	Transaction prepare configuration.
+ * config_transaction --
+ *	Transaction configuration.
  */
 static void
-config_prepare(void)
+config_transaction(void)
 {
 	/*
-	 * We cannot prepare a transaction if logging is configured, or if
-	 * timestamps are not configured.
-	 *
-	 * Prepare isn't configured often, let it control other features, unless
-	 * they're explicitly set/not-set.
+	 * We cannot prepare a transaction if logging is configured or timestamps
+	 * are not configured. Further, for repeatable reads to work in timestamp
+	 * testing, all updates must be within a snapshot-isolation transaction.
+	 * Check for incompatible configurations, then let prepare and timestamp
+	 * drive the remaining configuration.
 	 */
-	if (!g.c_prepare)
-		return;
-	if (config_is_perm("prepare")) {
-		if (g.c_logging && config_is_perm("logging"))
-			testutil_die(EINVAL,
-			    "prepare is incompatible with logging");
-		if (!g.c_txn_timestamps &&
-		    config_is_perm("transaction_timestamps"))
-			testutil_die(EINVAL,
-			    "prepare requires transaction timestamps");
-	}
-	if (g.c_logging && config_is_perm("logging")) {
-		config_single("prepare=off", 0);
-		return;
-	}
-	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps")) {
-		config_single("prepare=off", 0);
-		return;
+	if (g.c_prepare) {
+		if (config_is_perm("prepare")) {
+			if (g.c_logging && config_is_perm("logging"))
+				testutil_die(EINVAL,
+				    "prepare is incompatible with logging");
+			if (!g.c_txn_timestamps &&
+			    config_is_perm("transaction_timestamps"))
+				testutil_die(EINVAL,
+				    "prepare requires transaction timestamps");
+		} else
+			if ((g.c_logging && config_is_perm("logging")) ||
+			    (!g.c_txn_timestamps &&
+			    config_is_perm("transaction_timestamps")))
+				config_single("prepare=off", 0);
+		if (g.c_prepare) {
+			if (g.c_logging)
+				config_single("logging=off", 0);
+			/*
+			 * Configure timestamps permanently so the rest of the
+			 * tests in this function behave correctly.
+			 */
+			if (!g.c_txn_timestamps)
+				config_single("transaction_timestamps=on", 1);
+		}
 	}
 
-	config_single("logging=off", 0);
-	config_single("transaction_timestamps=on", 0);
+	if (g.c_txn_timestamps) {
+		if (config_is_perm("transaction_timestamps")) {
+			if (g.c_isolation_flag != ISOLATION_SNAPSHOT &&
+			    config_is_perm("isolation"))
+				testutil_die(EINVAL,
+				    "transaction_timestamps or prepare require "
+				    "isolation=snapshot");
+			if (g.c_txn_freq != 100 &&
+			    config_is_perm("transaction-frequency"))
+				testutil_die(EINVAL,
+				    "transaction_timestamps or prepare require "
+				    "transaction-frequency=100");
+		} else
+			if ((g.c_isolation_flag != ISOLATION_SNAPSHOT &&
+			    config_is_perm("isolation")) ||
+			    (g.c_txn_freq != 100 &&
+			    config_is_perm("transaction-frequency")))
+				config_single("transaction_timestamps=off", 0);
+	}
+	if (g.c_txn_timestamps) {
+		if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
+			config_single("isolation=snapshot", 0);
+		if (g.c_txn_freq != 100)
+			config_single("transaction-frequency=100", 0);
+	} else
+		if (!config_is_perm("isolation"))
+			switch (mmrand(NULL, 1, 4)) {
+			case 1:
+				config_single("isolation=random", 0);
+				break;
+			case 2:
+				config_single("isolation=read-uncommitted", 0);
+				break;
+			case 3:
+				config_single("isolation=read-committed", 0);
+				break;
+			case 4:
+			default:
+				config_single("isolation=snapshot", 0);
+				break;
+			}
 }
 
 /*

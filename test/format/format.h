@@ -155,6 +155,8 @@ typedef struct {
 
 	uint32_t c_abort;			/* Config values */
 	uint32_t c_alter;
+	uint32_t c_assert_commit_timestamp;
+	uint32_t c_assert_read_timestamp;
 	uint32_t c_auto_throttle;
 	uint32_t c_backups;
 	uint32_t c_bitcnt;
@@ -291,9 +293,8 @@ typedef struct {
 	thread_op op;				/* Operation */
 	uint64_t  keyno;			/* Row number */
 
-#define	SNAP_TS_NONE	WT_TS_NONE		/* Needs a timestamp */
-#define	SNAP_TS_IGNORE	1			/* Not repeatable, ignore */
 	uint64_t  timestamp;			/* Read/commit timestamp */
+	uint64_t  repeat_ts;			/* Repeat timestamp */
 
 	uint64_t  last;			/* Inclusive end of a truncate range */
 

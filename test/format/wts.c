@@ -436,6 +436,15 @@ wts_init(void)
 	/* Configure Btree split page percentage. */
 	CONFIG_APPEND(p, ",split_pct=%" PRIu32, g.c_split_pct);
 
+	/*
+	 * Assertions.
+	 * Assertions slow down the code for additional diagnostic checking.
+	 */
+	if (g.c_txn_timestamps && g.c_assert_commit_timestamp)
+		CONFIG_APPEND(p, ",assert=(commit_timestamp=key_consistent)");
+	if (g.c_txn_timestamps && g.c_assert_read_timestamp)
+		CONFIG_APPEND(p, ",assert=(read_timestamp=always)");
+
 	/* Configure LSM and data-sources. */
 	if (DATASOURCE("helium"))
 		CONFIG_APPEND(p,

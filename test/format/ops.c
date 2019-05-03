@@ -354,7 +354,7 @@ snap_track(TINFO *tinfo, thread_op op)
 	SNAP_OPS *snap;
 
 	snap = tinfo->snap;
-	snap->timestamp = SNAP_TS_NONE;
+	snap->timestamp = WT_TS_NONE;
 	snap->op = op;
 	snap->keyno = tinfo->keyno;
 	snap->last = op == TRUNCATE ? tinfo->last : 0;
@@ -405,8 +405,14 @@ snap_ts_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
 		if (start == stop)
 			break;
 
-		if (start->timestamp != SNAP_TS_IGNORE)
-			start->timestamp =
+		/*
+		 * Updates superseded later are ignored entirely. Else, reads
+		 * are done at the original transaction's read timestamp, and
+		 * anything else is done at the eventual commit timestamp.
+		 */
+		start->repeat_ts = WT_TS_NONE;
+		if (start->timestamp != WT_TS_NONE)
+			start->repeat_ts =
 			    start->op == READ ? read_ts : commit_ts;
 	}
 }
@@ -596,7 +602,7 @@ snap_check(WT_CURSOR *cursor, TINFO *tinfo)
 		}
 		if (p != stop) {
 			/* The operation isn't repeatable, ignore it. */
-			start->timestamp = SNAP_TS_IGNORE;
+			start->timestamp = WT_TS_NONE;
 			continue;
 		}
 
@@ -616,42 +622,61 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
 	SNAP_OPS *snap;
 	WT_DECL_RET;
 	WT_SESSION *session;
-	u_int v;
 	int count;
+	u_int v;
 	char buf[64];
 
 	session = cursor->session;
 
+	/*
+	 * Start at a random spot in the list of operations and look for a read
+	 * to retry. Stop when we've walked the entire list or found one.
+	 */
 	v = mmrand(&tinfo->rnd, 1, WT_ELEMENTS(tinfo->snap_list)) - 1;
-
-	for (count = WT_ELEMENTS(tinfo->snap_list) /10,
-	    snap = &tinfo->snap_list[v]; count > 0; --count, ++snap) {
+	for (snap = &tinfo->snap_list[v],
+	    count = WT_ELEMENTS(tinfo->snap_list); count > 0; --count, ++snap) {
 		/* Wrap at the end of the circular buffer. */
 		if (snap >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
 			snap = tinfo->snap_list;
-		if (snap->timestamp == SNAP_TS_NONE ||
-		    snap->timestamp == SNAP_TS_IGNORE)
-			continue;
 
-		/*
-		 * Start a new transaction.
-		 * Set the read timestamp.
-		 * Verify the record.
-		 * Discard the transaction.
-		 */
-		while ((ret = session->begin_transaction(
-		    session, "isolation=snapshot")) == WT_CACHE_FULL)
-			;
-		testutil_check(ret);
-
-		testutil_check(__wt_snprintf(buf, sizeof(buf),
-		    "read_timestamp=%" PRIx64, snap->timestamp));
-		testutil_check(session->timestamp_transaction(session, buf));
-
-		testutil_check(snap_verify(cursor, tinfo, snap));
-
-		testutil_check(session->rollback_transaction(session, NULL));
+		if (snap->repeat_ts != WT_TS_NONE)
+			break;
 	}
+
+	if (count == 0)
+		return;
+
+	/*
+	 * Start a new transaction.
+	 * Set the read timestamp.
+	 * Verify the record.
+	 * Discard the transaction.
+	 */
+	while ((ret = session->begin_transaction(
+	    session, "isolation=snapshot")) == WT_CACHE_FULL)
+		;
+	testutil_check(ret);
+
+	/*
+	 * If the timestamp we're using has aged out of the system, we'll get
+	 * EINVAL when we try and set it.
+	 */
+	testutil_check(__wt_snprintf(
+	    buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->timestamp));
+	ret = session->timestamp_transaction(session, buf);
+	if (ret != EINVAL)
+		testutil_check(ret);
+		
+
+	/* The only expected error is rollback. */
+	if (ret == 0) {
+		ret = snap_verify(cursor, tinfo, snap);
+		if (ret != WT_ROLLBACK)
+			testutil_check(ret);
+	}
+
+	/* Discard the transaction. */
+	testutil_check(session->rollback_transaction(session, NULL));
 }
 
 /*
@@ -668,37 +693,18 @@ begin_transaction(TINFO *tinfo,
 	char buf[64];
 	const char *config;
 
-	*read_tsp = WT_TS_NONE;
+	if (g.c_txn_timestamps) {
+		*iso_configp = ISOLATION_SNAPSHOT;
 
-	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
-		v = mmrand(&tinfo->rnd, 1, 3);
-	switch (v) {
-	case 1:
-		v = ISOLATION_READ_UNCOMMITTED;
-		config = "isolation=read-uncommitted";
-		break;
-	case 2:
-		v = ISOLATION_READ_COMMITTED;
-		config = "isolation=read-committed";
-		break;
-	case 3:
-	default:
-		v = ISOLATION_SNAPSHOT;
-		config = "isolation=snapshot";
-		break;
-	}
-	*iso_configp = v;
+		/*
+		 * Keep trying to start a new transaction if it's timing out.
+		 * There are no resources pinned so it should succeed eventually.
+		 */
+		while ((ret = session->begin_transaction(
+		    session, "isolation=snapshot")) == WT_CACHE_FULL)
+			;
+		testutil_check(ret);
 
-	/*
-	 * Keep trying to start a new transaction if it's timing out - we know
-	 * there aren't any resources pinned so it should succeed eventually.
-	 */
-	while ((ret =
-	    session->begin_transaction(session, config)) == WT_CACHE_FULL)
-		;
-	testutil_check(ret);
-
-	if (v == ISOLATION_SNAPSHOT && g.c_txn_timestamps) {
 		/*
 		 * Prepare returns an error if the prepare timestamp is less
 		 * than any active read timestamp, single-thread transaction
@@ -716,6 +722,36 @@ begin_transaction(TINFO *tinfo,
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 
 		*read_tsp = ts;
+	} else {
+		if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
+			v = mmrand(&tinfo->rnd, 1, 3);
+		switch (v) {
+		case 1:
+			v = ISOLATION_READ_UNCOMMITTED;
+			config = "isolation=read-uncommitted";
+			break;
+		case 2:
+			v = ISOLATION_READ_COMMITTED;
+			config = "isolation=read-committed";
+			break;
+		case 3:
+		default:
+			v = ISOLATION_SNAPSHOT;
+			config = "isolation=snapshot";
+			break;
+		}
+		*iso_configp = v;
+
+		/*
+		 * Keep trying to start a new transaction if it's timing out.
+		 * There are no resources pinned so it should succeed eventually.
+		 */
+		while ((ret =
+		    session->begin_transaction(session, config)) == WT_CACHE_FULL)
+			;
+		testutil_check(ret);
+
+		*read_tsp = WT_TS_NONE;
 	}
 }
 
@@ -949,11 +985,12 @@ ops(void *arg)
 		}
 
 		/*
-		 * Reset the session every now and then, just to make sure that
-		 * operation gets tested. Note the test is not for equality, we
-		 * have to do the reset outside of a transaction.
+		 * If not in a transaction, reset the session every now and then,
+		 * just to make sure that operation gets tested. The test is not
+		 * for equality, we have to do the reset outside of a transaction
+		 * so we aren't likely to get an exact match.
 		 */
-		if (tinfo->ops > reset_op && !intxn) {
+		if (!intxn && tinfo->ops > reset_op) {
 			testutil_check(session->reset(session));
 
 			/* Pick the next reset operation. */
@@ -961,15 +998,22 @@ ops(void *arg)
 		}
 
 		/*
-		 * If we're not single-threaded and not in a transaction, choose
-		 * an isolation level and start a transaction some percentage of
-		 * the time.
+		 * If not in a transaction and running in a timestamp world,
+		 * occasionally repeat a timestamped read.
 		 */
-		if (!SINGLETHREADED &&
-		    !intxn && mmrand(&tinfo->rnd, 1, 100) >= g.c_txn_freq) {
+		if (!intxn &&
+		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1) {
+			++tinfo->search;
+			snap_repeat(cursor, tinfo);
+		}
+
+		/*
+		 * If not in a transaction, choose an isolation level and start a
+		 * transaction some percentage of the time.
+		 */
+		if (!intxn && mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq) {
 			tinfo->snap_first = tinfo->snap;
-			begin_transaction(
-			    tinfo, session, &read_ts, &iso_config);
+			begin_transaction(tinfo, session, &read_ts, &iso_config);
 			intxn = true;
 		}
 
@@ -994,14 +1038,6 @@ ops(void *arg)
 			    g.c_insert_pct + g.c_modify_pct + g.c_write_pct)
 				op = UPDATE;
 		}
-
-		/*
-		 * If about to do a read, occasionally try and repeat a read
-		 * first.
-		 */
-		if (op == READ && !intxn &&
-		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1)
-			snap_repeat(cursor, tinfo);
 
 		/* Select a row. */
 		tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
@@ -1285,7 +1321,7 @@ update_instead_of_chosen_op:
 			break;
 		case 5:						/* 10% */
 rollback:		rollback_transaction(tinfo, session);
-			commit_ts = SNAP_TS_NONE;
+			commit_ts = WT_TS_NONE;
 			break;
 		}
 
@@ -1330,6 +1366,13 @@ wts_read_scan(void)
 	uint64_t keyno, last_keyno;
 
 	conn = g.wts_conn;
+
+	/*
+	 * We're not configuring transactions or read timestamps, if there's a
+	 * diagnostic check, skip the scan.
+	 */
+	if (g.c_assert_read_timestamp)
+		return;
 
 	/* Set up the default key/value buffers. */
 	key_gen_init(&key);
