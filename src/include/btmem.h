@@ -1063,7 +1063,7 @@ struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
 
 	wt_timestamp_t durable_ts;	/* timestamps */
-	wt_timestamp_t start_ts, stop_ts;
+	wt_timestamp_t start_ts;
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -1100,7 +1100,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	46
+#define	WT_UPDATE_SIZE	38
 
 /*
  * The memory size of an update: include some padding because this is such a
