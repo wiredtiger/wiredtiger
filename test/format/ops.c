@@ -922,7 +922,7 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session, NULL, false);
+				commit_transaction(tinfo, session, false, NULL);
 				intxn = false;
 			}
 
