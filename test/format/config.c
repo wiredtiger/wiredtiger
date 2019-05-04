@@ -748,6 +748,8 @@ config_pct(void)
 static void
 config_transaction(void)
 {
+	bool prepare_requires_ts;
+
 	/*
 	 * We can't prepare a transaction if logging is configured or timestamps
 	 * aren't configured. Further, for repeatable reads to work in timestamp
@@ -755,6 +757,7 @@ config_transaction(void)
 	 * Check for incompatible configurations, then let prepare and timestamp
 	 * drive the remaining configuration.
 	 */
+	prepare_requires_ts = false;
 	if (g.c_prepare) {
 		if (config_is_perm("prepare")) {
 			if (g.c_logging && config_is_perm("logging"))
@@ -770,20 +773,18 @@ config_transaction(void)
 			    config_is_perm("transaction_timestamps")))
 				config_single("prepare=off", false);
 		if (g.c_prepare) {
+			prepare_requires_ts = true;
 			if (g.c_logging)
 				config_single("logging=off", false);
-			/*
-			 * Configure timestamps permanently so the rest of the
-			 * tests in this function behave correctly.
-			 */
 			if (!g.c_txn_timestamps)
 				config_single(
-				    "transaction_timestamps=on", true);
+				    "transaction_timestamps=on", false);
 		}
 	}
 
 	if (g.c_txn_timestamps) {
-		if (config_is_perm("transaction_timestamps")) {
+		if (prepare_requires_ts ||
+		    config_is_perm("transaction_timestamps")) {
 			if (g.c_isolation_flag != ISOLATION_SNAPSHOT &&
 			    config_is_perm("isolation"))
 				testutil_die(EINVAL,
