@@ -517,7 +517,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
 	if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 		FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
+	WT_ERR(__wt_page_inmem(
+	    session, ref, tmp.data, page_flags, true, &notused));
 	tmp.mem = NULL;
 
 	/*
@@ -773,7 +774,7 @@ read:			/*
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
-				ret = __wt_page_release_evict(session, ref);
+				ret = __wt_page_release_evict(session, ref, 0);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					WT_NOT_READ(ret, 0);

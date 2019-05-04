@@ -96,7 +96,7 @@ class test_las03(wttest.WiredTigerTestCase):
             # Since we're dealing with eviction concurrent with checkpoints
             # and skewing is controlled by a heuristic, we can't put too tight
             # a bound on this.
-            self.assertLessEqual(las_reads, 100)
+            self.assertLessEqual(las_reads, 200)
 
 if __name__ == '__main__':
     wttest.run()

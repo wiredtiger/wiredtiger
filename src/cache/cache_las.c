@@ -383,6 +383,7 @@ bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
+	wt_timestamp_t unstable_timestamp;
 
 	txn = &session->txn;
 
@@ -422,32 +423,28 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (ref->page_las->skew_newest);
 
 	/*
-	 * Skip lookaside pages if reading as of a timestamp, we evicted new
-	 * versions of data and all the updates are in the past.
-	 */
-	if (ref->page_las->skew_newest &&
-	    txn->read_timestamp > ref->page_las->unstable_durable_timestamp)
-		return (true);
-
-	/*
+	 * Skip lookaside history if reading as of a timestamp, we evicted new
+	 * versions of data and all the updates are in the past.  This is not
+	 * possible for prepared updates, because the commit timestamp was not
+	 * known when the page was evicted.
+	 *
 	 * Skip lookaside pages if reading as of a timestamp, we evicted old
 	 * versions of data and all the unstable updates are in the future.
+	 *
+	 * Checkpoint should respect durable timestamps, other reads should
+	 * respect ordinary visibility.  Checking for just the unstable updates
+	 * during checkpoint would end up reading more content from lookaside
+	 * than necessary.
 	 */
-	if (!ref->page_las->skew_newest) {
-		/*
-		 * Skip lookaside pages during checkpoint if all the unstable
-		 * durable updates are in the future. Checking for just the
-		 * unstable updates during checkpoint would end up reading more
-		 * content from lookaside than necessary.
-		 */
-		if (WT_SESSION_IS_CHECKPOINT(session) &&
-		    txn->read_timestamp <
-		    ref->page_las->unstable_durable_timestamp)
-			return (true);
-
-		if (txn->read_timestamp < ref->page_las->unstable_timestamp)
-			return (true);
-	}
+	unstable_timestamp = WT_SESSION_IS_CHECKPOINT(session) ?
+	    ref->page_las->unstable_durable_timestamp :
+	    ref->page_las->unstable_timestamp;
+	if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
+	    txn->read_timestamp > unstable_timestamp)
+		return (true);
+	if (!ref->page_las->skew_newest &&
+	    txn->read_timestamp < unstable_timestamp)
+		return (true);
 
 	return (false);
 }
@@ -581,10 +578,6 @@ __las_insert_block_verbose(
 	    ckpt_gen_last, ckpt_gen_current))) {
 		(void)__wt_eviction_clean_needed(session, &pct_full);
 		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
-		__wt_timestamp_to_string(
-		    multi->page_las.unstable_timestamp, ts_string[0]);
-		__wt_timestamp_to_string(
-		    multi->page_las.unstable_durable_timestamp, ts_string[1]);
 
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
@@ -597,7 +590,10 @@ __las_insert_block_verbose(
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
-		    ts_string[0], ts_string[1],
+		    __wt_timestamp_to_string(
+		    multi->page_las.unstable_timestamp, ts_string[0]),
+		    __wt_timestamp_to_string(
+		    multi->page_las.unstable_durable_timestamp, ts_string[1]),
 		    multi->page_las.skew_newest ? "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
