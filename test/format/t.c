@@ -165,7 +165,7 @@ main(int argc, char *argv[])
 	 * the base configuration.
 	 */
 	for (; *argv != NULL; ++argv)
-		config_single(*argv, 1);
+		config_single(*argv, true);
 
 	/*
 	 * Multithreaded runs can be replayed: it's useful and we'll get the
@@ -203,7 +203,7 @@ main(int argc, char *argv[])
 		startup();			/* Start a run */
 
 		config_setup();			/* Run configuration */
-		config_print(0);		/* Dump run configuration */
+		config_print(false);		/* Dump run configuration */
 		key_init();			/* Setup keys/values */
 		val_init();
 
@@ -267,7 +267,7 @@ main(int argc, char *argv[])
 		 * and Berkeley DB data sets.
 		 */
 		if (SINGLETHREADED)
-			wts_dump("standard", 1);
+			wts_dump("standard", true);
 
 		/*
 		 * Salvage testing.
@@ -289,7 +289,7 @@ main(int argc, char *argv[])
 	fclose_and_clear(&g.logfp);
 	fclose_and_clear(&g.randfp);
 
-	config_print(0);
+	config_print(false);
 
 	testutil_check(pthread_rwlock_destroy(&g.append_lock));
 	testutil_check(pthread_rwlock_destroy(&g.backup_lock));
@@ -352,7 +352,7 @@ format_die(void)
 
 	/* Display the configuration that failed. */
 	if (g.run_cnt)
-		config_print(1);
+		config_print(true);
 }
 
 /*

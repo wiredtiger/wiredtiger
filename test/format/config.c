@@ -74,30 +74,30 @@ config_setup(void)
 	 */
 	if (!config_is_perm("file_type")) {
 		if (config_is_perm("data_source") && DATASOURCE("lsm"))
-			config_single("file_type=row", 0);
+			config_single("file_type=row", false);
 		else
 			switch (mmrand(NULL, 1, 10)) {
 			case 1: case 2: case 3:			/* 30% */
-				config_single("file_type=var", 0);
+				config_single("file_type=var", false);
 				break;
 			case 4:					/* 10% */
 				if (config_fix()) {
-					config_single("file_type=fix", 0);
+					config_single("file_type=fix", false);
 					break;
 				}
 				/* FALLTHROUGH */		/* 60% */
 			case 5: case 6: case 7: case 8: case 9: case 10:
-				config_single("file_type=row", 0);
+				config_single("file_type=row", false);
 				break;
 			}
 	}
 	config_map_file_type(g.c_file_type, &g.type);
 
-	config_single("data_source=table", 0);
+	config_single("data_source=table", false);
 	if (!config_is_perm("data_source"))
 		switch (mmrand(NULL, 1, 5)) {
 		case 1:						/* 20% */
-			config_single("data_source=file", 0);
+			config_single("data_source=file", false);
 			break;
 		case 2:						/* 20% */
 			/*
@@ -116,7 +116,7 @@ config_setup(void)
 				break;
 			if (config_is_perm("truncate") && g.c_truncate)
 				break;
-			config_single("data_source=lsm", 0);
+			config_single("data_source=lsm", false);
 			break;
 		case 3: case 4: case 5:				/* 60% */
 			break;
@@ -163,7 +163,7 @@ config_setup(void)
 			testutil_check(__wt_snprintf(buf, sizeof(buf),
 			    "%s=%" PRIu32,
 			    cp->name, mmrand(NULL, cp->min, cp->maxrand)));
-		config_single(buf, 0);
+		config_single(buf, false);
 	}
 
 	/* Required shared libraries. */
@@ -177,7 +177,7 @@ config_setup(void)
 	 * Some data-sources don't support user-specified collations.
 	 */
 	if (g.type != ROW || DATASOURCE("kvsbdb"))
-		config_single("reverse=off", 0);
+		config_single("reverse=off", false);
 
 	/*
 	 * Periodically, run single-threaded so we can compare the results to
@@ -244,12 +244,12 @@ config_setup(void)
 	 */
 	if (config_is_perm("timer")) {
 		if (!config_is_perm("ops"))
-			config_single("ops=0", 0);
+			config_single("ops=0", false);
 	} else {
 		if (!config_is_perm("ops"))
-			config_single("timer=30", 0);
+			config_single("timer=30", false);
 		else
-			config_single("timer=360", 0);
+			config_single("timer=360", false);
 	}
 
 	/* Reset the key count. */
@@ -328,13 +328,13 @@ config_checkpoint(void)
 	if (!config_is_perm("checkpoints"))
 		switch (mmrand(NULL, 1, 20)) {
 		case 1: case 2: case 3: case 4:		/* 20% */
-			config_single("checkpoints=wiredtiger", 0);
+			config_single("checkpoints=wiredtiger", false);
 			break;
 		case 5:					/* 5 % */
-			config_single("checkpoints=off", 0);
+			config_single("checkpoints=off", false);
 			break;
 		default:				/* 75% */
-			config_single("checkpoints=on", 0);
+			config_single("checkpoints=on", false);
 			break;
 		}
 }
@@ -350,13 +350,13 @@ config_checksum(void)
 	if (!config_is_perm("checksum"))
 		switch (mmrand(NULL, 1, 10)) {
 		case 1:					/* 10% */
-			config_single("checksum=on", 0);
+			config_single("checksum=on", false);
 			break;
 		case 2:					/* 10% */
-			config_single("checksum=off", 0);
+			config_single("checksum=off", false);
 			break;
 		default:				/* 80% */
-			config_single("checksum=uncompressed", 0);
+			config_single("checksum=uncompressed", false);
 			break;
 		}
 }
@@ -383,7 +383,7 @@ config_compression(const char *conf_name)
 	if (strcmp(conf_name, "logging_compression") == 0 && g.c_logging == 0) {
 		testutil_check(__wt_snprintf(
 		    confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr));
-		config_single(confbuf, 0);
+		config_single(confbuf, false);
 		return;
 	}
 
@@ -422,7 +422,7 @@ config_compression(const char *conf_name)
 
 	testutil_check(__wt_snprintf(
 	    confbuf, sizeof(confbuf), "%s=%s", conf_name, cstr));
-	config_single(confbuf, 0);
+	config_single(confbuf, false);
 }
 
 /*
@@ -448,7 +448,7 @@ config_encryption(void)
 			break;
 		}
 
-		config_single(cstr, 0);
+		config_single(cstr, false);
 	}
 }
 
@@ -479,25 +479,25 @@ config_helium_reset(void)
 {
 	/* Turn off a lot of stuff. */
 	if (!config_is_perm("alter"))
-		config_single("alter=off", 0);
+		config_single("alter=off", false);
 	if (!config_is_perm("backups"))
-		config_single("backups=off", 0);
+		config_single("backups=off", false);
 	if (!config_is_perm("checkpoints"))
-		config_single("checkpoints=off", 0);
+		config_single("checkpoints=off", false);
 	if (!config_is_perm("compression"))
-		config_single("compression=none", 0);
+		config_single("compression=none", false);
 	if (!config_is_perm("in_memory"))
-		config_single("in_memory=off", 0);
+		config_single("in_memory=off", false);
 	if (!config_is_perm("logging"))
-		config_single("logging=off", 0);
+		config_single("logging=off", false);
 	if (!config_is_perm("rebalance"))
-		config_single("rebalance=off", 0);
+		config_single("rebalance=off", false);
 	if (!config_is_perm("reverse"))
-		config_single("reverse=off", 0);
+		config_single("reverse=off", false);
 	if (!config_is_perm("salvage"))
-		config_single("salvage=off", 0);
+		config_single("salvage=off", false);
 	if (!config_is_perm("transaction_timestamps"))
-		config_single("transaction_timestamps=off", 0);
+		config_single("transaction_timestamps=off", false);
 }
 
 /*
@@ -545,30 +545,30 @@ config_in_memory_reset(void)
 
 	/* Turn off a lot of stuff. */
 	if (!config_is_perm("alter"))
-		config_single("alter=off", 0);
+		config_single("alter=off", false);
 	if (!config_is_perm("backups"))
-		config_single("backups=off", 0);
+		config_single("backups=off", false);
 	if (!config_is_perm("checkpoints"))
-		config_single("checkpoints=off", 0);
+		config_single("checkpoints=off", false);
 	if (!config_is_perm("compression"))
-		config_single("compression=none", 0);
+		config_single("compression=none", false);
 	if (!config_is_perm("logging"))
-		config_single("logging=off", 0);
+		config_single("logging=off", false);
 	if (!config_is_perm("rebalance"))
-		config_single("rebalance=off", 0);
+		config_single("rebalance=off", false);
 	if (!config_is_perm("salvage"))
-		config_single("salvage=off", 0);
+		config_single("salvage=off", false);
 	if (!config_is_perm("verify"))
-		config_single("verify=off", 0);
+		config_single("verify=off", false);
 
 	/*
 	 * Keep keys/values small, overflow items aren't an issue for in-memory
 	 * configurations and it keeps us from overflowing the cache.
 	 */
 	if (!config_is_perm("key_max"))
-		config_single("key_max=32", 0);
+		config_single("key_max=32", false);
 	if (!config_is_perm("value_max"))
-		config_single("value_max=80", 0);
+		config_single("value_max=80", false);
 
 	/*
 	 * Size the cache relative to the initial data set, use 2x the base
@@ -598,7 +598,7 @@ config_lsm_reset(void)
 	 * always result in a timeout).
 	 */
 	if (!config_is_perm("truncate"))
-		config_single("truncate=off", 0);
+		config_single("truncate=off", false);
 
 	/*
 	 * LSM doesn't currently play nicely with timestamps, don't choose the
@@ -609,8 +609,8 @@ config_lsm_reset(void)
 	 */
 	if (!config_is_perm("prepare") &&
 	    !config_is_perm("transaction_timestamps")) {
-		config_single("prepare=off", 0);
-		config_single("transaction_timestamps=off", 0);
+		config_single("prepare=off", false);
+		config_single("transaction_timestamps=off", false);
 	}
 }
 
@@ -630,7 +630,7 @@ config_lrt(void)
 			testutil_die(EINVAL,
 			    "long_running_txn not supported with fixed-length "
 			    "column store");
-		config_single("long_running_txn=off", 0);
+		config_single("long_running_txn=off", false);
 	}
 }
 
@@ -694,7 +694,7 @@ config_pct(void)
 			list[CONFIG_MODIFY_ENTRY].order = 0;
 			*list[CONFIG_MODIFY_ENTRY].vp = 0;
 		} else
-			config_single("isolation=random", 0);
+			config_single("isolation=random", false);
 	}
 
 	/*
@@ -768,16 +768,17 @@ config_transaction(void)
 			if ((g.c_logging && config_is_perm("logging")) ||
 			    (!g.c_txn_timestamps &&
 			    config_is_perm("transaction_timestamps")))
-				config_single("prepare=off", 0);
+				config_single("prepare=off", false);
 		if (g.c_prepare) {
 			if (g.c_logging)
-				config_single("logging=off", 0);
+				config_single("logging=off", false);
 			/*
 			 * Configure timestamps permanently so the rest of the
 			 * tests in this function behave correctly.
 			 */
 			if (!g.c_txn_timestamps)
-				config_single("transaction_timestamps=on", 1);
+				config_single(
+				    "transaction_timestamps=on", true);
 		}
 	}
 
@@ -798,28 +799,31 @@ config_transaction(void)
 			    config_is_perm("isolation")) ||
 			    (g.c_txn_freq != 100 &&
 			    config_is_perm("transaction-frequency")))
-				config_single("transaction_timestamps=off", 0);
+				config_single(
+				    "transaction_timestamps=off", false);
 	}
 	if (g.c_txn_timestamps) {
 		if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
-			config_single("isolation=snapshot", 0);
+			config_single("isolation=snapshot", false);
 		if (g.c_txn_freq != 100)
-			config_single("transaction-frequency=100", 0);
+			config_single("transaction-frequency=100", false);
 	} else
 		if (!config_is_perm("isolation"))
 			switch (mmrand(NULL, 1, 4)) {
 			case 1:
-				config_single("isolation=random", 0);
+				config_single("isolation=random", false);
 				break;
 			case 2:
-				config_single("isolation=read-uncommitted", 0);
+				config_single(
+				    "isolation=read-uncommitted", false);
 				break;
 			case 3:
-				config_single("isolation=read-committed", 0);
+				config_single(
+				    "isolation=read-committed", false);
 				break;
 			case 4:
 			default:
-				config_single("isolation=snapshot", 0);
+				config_single("isolation=snapshot", false);
 				break;
 			}
 }
@@ -849,7 +853,7 @@ config_error(void)
  *	Print configuration information.
  */
 void
-config_print(int error_display)
+config_print(bool error_display)
 {
 	CONFIG *cp;
 	FILE *fp;
@@ -899,7 +903,7 @@ config_file(const char *name)
 		*p = '\0';
 		if (buf[0] == '\0' || buf[0] == '#')
 			continue;
-		config_single(buf, 1);
+		config_single(buf, true);
 	}
 	fclose_and_clear(&fp);
 }
@@ -978,7 +982,7 @@ config_find(const char *s, size_t len, bool fatal)
  *	Set a single configuration structure value.
  */
 void
-config_single(const char *s, int perm)
+config_single(const char *s, bool perm)
 {
 	CONFIG *cp;
 	long vlong;

@@ -84,7 +84,7 @@ set_alarm(void)
  *	Perform a number of operations in a set of threads.
  */
 void
-wts_ops(int lastrun)
+wts_ops(bool lastrun)
 {
 	TINFO **tinfo_list, *tinfo, total;
 	WT_CONNECTION *conn;

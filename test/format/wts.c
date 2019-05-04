@@ -504,7 +504,7 @@ wts_close(void)
 }
 
 void
-wts_dump(const char *tag, int dump_bdb)
+wts_dump(const char *tag, bool dump_bdb)
 {
 #ifdef HAVE_BERKELEY_DB
 	size_t len;
