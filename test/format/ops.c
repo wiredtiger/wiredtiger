@@ -886,6 +886,7 @@ ops(void *arg)
 	tinfo = arg;
 
 	conn = g.wts_conn;
+	commit_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
 	read_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
 	iso_config = ISOLATION_RANDOM;	/* -Wconditional-uninitialized */
 	readonly = false;		/* -Wconditional-uninitialized */
