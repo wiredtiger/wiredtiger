@@ -1174,9 +1174,9 @@ __slvg_col_build_internal(
 		 * transaction IDs.
 		 */
 		WT_ERR(__wt_calloc_one(session, &addr));
-		addr->oldest_start_ts = addr->newest_durable_ts = WT_TS_NONE;
-		addr->newest_stop_ts = WT_TS_MAX;
+		addr->newest_durable_ts = addr->oldest_start_ts = WT_TS_NONE;
 		addr->oldest_start_txn = WT_TXN_NONE;
+		addr->newest_stop_ts = WT_TS_MAX;
 		addr->newest_stop_txn = WT_TXN_MAX;
 		WT_ERR(__wt_memdup(
 		    session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
@@ -1843,9 +1843,9 @@ __slvg_row_build_internal(
 		 * transaction IDs.
 		 */
 		WT_ERR(__wt_calloc_one(session, &addr));
-		addr->oldest_start_ts = addr->newest_durable_ts = WT_TS_NONE;
-		addr->newest_stop_ts = WT_TS_MAX;
+		addr->newest_durable_ts = addr->oldest_start_ts = WT_TS_NONE;
 		addr->oldest_start_txn = WT_TXN_NONE;
+		addr->newest_stop_ts = WT_TS_MAX;
 		addr->newest_stop_txn = WT_TXN_MAX;
 		WT_ERR(__wt_memdup(
 		    session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
