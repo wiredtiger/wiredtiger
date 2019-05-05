@@ -479,19 +479,11 @@ check_original_value:
 
 	/*
 	 * Returning an update means the original on-page value might be lost,
-	 * and that's a problem if there's a reader that needs it. There are
-	 * several cases:
-	 * - any update from a modify operation (because the modify has to be
-	 *   applied to a stable update, not the new on-page update),
-	 * - any lookaside table eviction (because the backing disk image is
-	 *   rewritten),
-	 * - or any reconciliation of a backing overflow record that will be
-	 *   physically removed once it's no longer needed.
+	 * and that's a problem if there's a reader that needs it.  This call
+	 * makes a copy of the on-page value and if there is a birthmark in the
+	 * update list, replaces it.
 	 */
-	if (upd_select->upd != NULL &&
-	    (!WT_UPDATE_DATA_VALUE(upd_select->upd) ||
-	    F_ISSET(r, WT_REC_LOOKASIDE) || (vpack != NULL &&
-	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+	if (upd_select->upd != NULL && upd_select->upd_saved)
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
 
