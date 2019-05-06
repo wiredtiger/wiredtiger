@@ -60,12 +60,12 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
         bigvalue1 = b"bbbbb" * 100
         cursor = self.session.open_cursor(uri)
 
-        for i in range(2, nsessions * nkeys):
+        for i in range(1, nsessions * nkeys):
             self.session.begin_transaction('isolation=snapshot')
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(bigvalue1)
             self.assertEquals(cursor.insert(), 0)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Have prepared updates in multiple sessions. This should ensure writing
         # prepared updates to the lookaside
@@ -83,13 +83,13 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
                 cursors[j].set_key(ds.key(nrows + i))
                 cursors[j].set_value(bigvalue2)
                 self.assertEquals(cursors[j].insert(), 0)
-            sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(2))
+            sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(3))
 
         # Re-read the original versions of all the data.  To do this, the pages
         # that were just evicted need to be read back. This ensures reading
         # prepared updates from the lookaside
         cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         for i in range(1, nsessions * nkeys):
             cursor.set_key(ds.key(nrows + i))
             self.assertEquals(cursor.search(), 0)
