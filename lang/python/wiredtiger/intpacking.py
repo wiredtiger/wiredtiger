@@ -28,7 +28,7 @@
 #
 
 from __future__ import print_function
-from wiredtiger.packing import _chr, _ord
++from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
 import math, struct, sys
 
 # Variable-length integer packing
@@ -63,14 +63,6 @@ POS_2BYTE_MAX = 2**13 + POS_1BYTE_MAX
 
 MINUS_BIT = -1 << 64
 UINT64_MASK = 0xffffffffffffffff
-
-_python3 = (sys.version_info >= (3, 0, 0))
-if _python3:
-    xff_entry = 0xff
-    x00_entry = 0x00
-else:
-    xff_entry = '\xff'
-    x00_entry = '\x00'
 
 def getbits(x, start, end=0):
     '''return the least significant bits of x, from start to end'''
