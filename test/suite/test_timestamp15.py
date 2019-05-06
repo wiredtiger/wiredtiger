@@ -51,7 +51,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 1: A simple case where we start a transaction
         # specify a commit timestamp then the move the stable timestamp
         # past the commit timestamp, then attempt to commit.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(2))
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(3))
         cur1[1] = 1
@@ -63,7 +63,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 2:
         # Specify multiple commit timestamps some being after
         # the stable timestamp.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(4))
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
         cur1[2] = 2
@@ -76,7 +76,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 3:
         # Specify a commit timestamp equal to a stable timestamp.
         # This is also invalid.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(5)),
                 '/commit timestamp \(0,5\) is less than or equal to the stable timestamp \(0,5\)/')
@@ -86,7 +86,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Ensure that if the transaction is prepared it is not
         # going to be rejected if a durable timestamp that is
         # newer than the stable timestamp is provided.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(6))
@@ -102,7 +102,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Ensure that if the transaction is prepared it is
         # going to be rejected if a durable timestamp that is
         # older than the stable timestamp is provided.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(9))
@@ -120,7 +120,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 6:
         # Specify a durable timestamp equal to a stable timestamp.
         # This is also invalid.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(13))
@@ -143,7 +143,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 1: A simple case where we start a transaction
         # specify a commit timestamp then the move the oldest timestamp
         # past the commit timestamp, then attempt to commit.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(2))
         self.conn.set_timestamp(
@@ -156,7 +156,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 2:
         # Specify multiple commit timestamps some being after
         # the oldest timestamp.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(4))
         self.conn.set_timestamp(
@@ -171,7 +171,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 3:
         # Specify a commit timestamp equal to a oldest timestamp.
         # This is valid.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(5))
         self.session.commit_transaction()
@@ -180,7 +180,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Ensure that if the transaction is prepared it is
         # going to be rejected if the commit timestamp
         # is less than the oldest timestamp.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(6))
@@ -198,7 +198,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Ensure that if the transaction is prepared it is
         # going to be rejected if the prepare / commit timestamps
         # are less than the oldest timestamp.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(9))
@@ -215,7 +215,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 6:
         # Move the oldest timestamp past the prepared timestamp and commit.
         # This is valid behaviour.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(13))
@@ -230,7 +230,7 @@ class test_timestamp15(wttest.WiredTigerTestCase, suite_subprocess):
         # Scenario 7:
         # Specify a durable timestamp equal to the oldest timestamp.
         # This is also valid.
-        self.session.begin_transaction()
+        self.session.begin_transaction('isolation=snapshot')
         cur1[3] = 3
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(15))
