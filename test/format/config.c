@@ -676,7 +676,7 @@ config_transaction(void)
 	if (!config_is_perm("transaction-frequency")) {
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
 		    "transaction-frequency=%" PRIu32,
-		    timestamps ? 100: mmrand(NULL, 0, 100)));
+		    timestamps ? 100: mmrand(NULL, 1, 100)));
 		config_single(buf, 0);
 	}
 }
