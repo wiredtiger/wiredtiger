@@ -875,7 +875,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			    "commit timestamp %s less than oldest "
 			    "timestamp %s", ts_string[0], ts_string[1]);
 		}
-		if (!prepare && txn->first_commit_timestamp <=
+		if (!prepare && txn_global->has_stable_timestamp &&
+		    txn->first_commit_timestamp <=
 		    txn_global->stable_timestamp) {
 			__wt_timestamp_to_string(
 			    txn->first_commit_timestamp, ts_string[0]);
