@@ -802,6 +802,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
 	u_int i;
+	char ts_string[2][WT_TS_INT_STRING_SIZE];
 	bool locked, prepare, readonly, update_timestamp;
 
 	txn = &session->txn;
@@ -856,6 +857,48 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
+	/*
+	 * Confirm that the commit and durable timestamps are valid with both
+	 * prepared and unprepared transactions. This check is required as
+	 * the stable/oldest timestamps can be moved beyond the commit/durable
+	 * timestamps after they are set.
+	 */
+	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+		if (txn_global->has_oldest_timestamp &&
+		    txn->first_commit_timestamp <
+		    txn_global->oldest_timestamp) {
+			__wt_timestamp_to_string(
+			    txn->first_commit_timestamp, ts_string[0]);
+			__wt_timestamp_to_string(
+			    txn_global->oldest_timestamp, ts_string[1]);
+			WT_ERR_MSG(session, EINVAL,
+			    "commit timestamp %s less than oldest "
+			    "timestamp %s", ts_string[0], ts_string[1]);
+		}
+		if (!prepare && txn_global->has_stable_timestamp &&
+		    txn->first_commit_timestamp <=
+		    txn_global->stable_timestamp) {
+			__wt_timestamp_to_string(
+			    txn->first_commit_timestamp, ts_string[0]);
+			__wt_timestamp_to_string(
+			    txn_global->stable_timestamp, ts_string[1]);
+			WT_ERR_MSG(session, EINVAL,
+			    "commit timestamp %s less than or "
+			    "equal to stable timestamp %s",
+			    ts_string[0], ts_string[1]);
+		}
+	}
+	if (prepare && txn_global->has_stable_timestamp &&
+	    txn->durable_timestamp <= txn_global->stable_timestamp) {
+		__wt_timestamp_to_string(
+		    txn->durable_timestamp, ts_string[0]);
+		__wt_timestamp_to_string(
+		    txn_global->stable_timestamp, ts_string[1]);
+		WT_ERR_MSG(session, EINVAL,
+		    "durable timestamp %s less than or "
+		    "equal to stable timestamp %s",
+		    ts_string[0], ts_string[1]);
+	}
 
 	WT_ERR(__txn_commit_timestamps_assert(session));
 
