@@ -15,6 +15,13 @@ supported raw compression), will work without change, but applications may
 see different compression ratios from previous releases.
 </dd>
 
+<dt>LevelDB support</dt>
+<dd>
+Support for the Google LevelDB API compatibility layer (as well as the
+related Basho Technologies Riak, HyperLevelDB HyperDex and Facebook
+RocksDB compatibility layers), has been removed in the 3.2.0 release.
+</dd>
+
 <dt>WiredTiger timestamps</dt>
 <dd>
 In previous releases of WiredTiger, it was possible to disable timestamp

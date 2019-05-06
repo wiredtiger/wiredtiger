@@ -635,6 +635,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	 */
 	__wt_txn_release_snapshot(session);
 	txn->isolation = session->isolation;
+#ifdef HAVE_DIAGNOSTIC
+	txn->multi_update_count = 0;
+#endif
 
 	txn->rollback_reason = NULL;
 
@@ -799,6 +802,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
 	u_int i;
+	char ts_string[2][WT_TS_INT_STRING_SIZE];
 	bool locked, prepare, readonly, update_timestamp;
 
 	txn = &session->txn;
@@ -823,7 +827,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
 	/* Set the commit and the durable timestamps. */
-	WT_ERR( __wt_txn_set_timestamp(session, cfg));
+	WT_ERR(__wt_txn_set_timestamp(session, cfg));
 
 	if (prepare) {
 		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -853,6 +857,48 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
+	/*
+	 * Confirm that the commit and durable timestamps are valid with both
+	 * prepared and unprepared transactions. This check is required as
+	 * the stable/oldest timestamps can be moved beyond the commit/durable
+	 * timestamps after they are set.
+	 */
+	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
+		if (txn_global->has_oldest_timestamp &&
+		    txn->first_commit_timestamp <
+		    txn_global->oldest_timestamp) {
+			__wt_timestamp_to_string(
+			    txn->first_commit_timestamp, ts_string[0]);
+			__wt_timestamp_to_string(
+			    txn_global->oldest_timestamp, ts_string[1]);
+			WT_ERR_MSG(session, EINVAL,
+			    "commit timestamp %s less than oldest "
+			    "timestamp %s", ts_string[0], ts_string[1]);
+		}
+		if (!prepare && txn_global->has_stable_timestamp &&
+		    txn->first_commit_timestamp <=
+		    txn_global->stable_timestamp) {
+			__wt_timestamp_to_string(
+			    txn->first_commit_timestamp, ts_string[0]);
+			__wt_timestamp_to_string(
+			    txn_global->stable_timestamp, ts_string[1]);
+			WT_ERR_MSG(session, EINVAL,
+			    "commit timestamp %s less than or "
+			    "equal to stable timestamp %s",
+			    ts_string[0], ts_string[1]);
+		}
+	}
+	if (prepare && txn_global->has_stable_timestamp &&
+	    txn->durable_timestamp <= txn_global->stable_timestamp) {
+		__wt_timestamp_to_string(
+		    txn->durable_timestamp, ts_string[0]);
+		__wt_timestamp_to_string(
+		    txn_global->stable_timestamp, ts_string[1]);
+		WT_ERR_MSG(session, EINVAL,
+		    "durable timestamp %s less than or "
+		    "equal to stable timestamp %s",
+		    ts_string[0], ts_string[1]);
+	}
 
 	WT_ERR(__txn_commit_timestamps_assert(session));
 
@@ -990,6 +1036,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+
+	/*
+	 * FIXME: I think we want to say that all prepared updates were
+	 * resolved.
+	 * WT_ASSERT(session, txn->multi_update_count == 0);
+	 */
 	txn->mod_count = 0;
 
 	/*
@@ -1377,10 +1429,6 @@ __wt_txn_release_resources(WT_SESSION_IMPL *session)
 	__wt_free(session, txn->mod);
 	txn->mod_alloc = 0;
 	txn->mod_count = 0;
-#ifdef HAVE_DIAGNOSTIC
-	WT_ASSERT(session, txn->multi_update_count == 0);
-	txn->multi_update_count = 0;
-#endif
 }
 
 /*

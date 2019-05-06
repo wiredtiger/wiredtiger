@@ -154,12 +154,17 @@ struct __wt_cell_unpack {
 
 	uint64_t v;			/* RLE count or recno */
 
-	uint64_t start_txn, stop_txn;	/* Value validity window */
-	wt_timestamp_t start_ts, stop_ts;
+	wt_timestamp_t	start_ts;	/* Value validity window */
+	uint64_t	start_txn;
+	wt_timestamp_t	stop_ts;
+	uint64_t	stop_txn;
 
 					/* Address validity window */
-	uint64_t oldest_start_txn, newest_stop_txn;
-	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
+	wt_timestamp_t	newest_durable_ts;
+	wt_timestamp_t	oldest_start_ts;
+	uint64_t	oldest_start_txn;
+	wt_timestamp_t	newest_stop_ts;
+	uint64_t	newest_stop_txn;
 
 	/*
 	 * !!!
