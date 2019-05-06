@@ -28,7 +28,7 @@
 #
 
 from __future__ import print_function
-+from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
+from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
 import math, struct, sys
 
 # Variable-length integer packing
