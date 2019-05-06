@@ -90,7 +90,6 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 		append->txnid = upd->txnid;
 		append->start_ts = upd->start_ts;
 		append->durable_ts = upd->durable_ts;
-		append->stop_ts = upd->stop_ts;
 		append->next = upd->next;
 	}
 
@@ -118,9 +117,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
-	wt_timestamp_t timestamp;
+	wt_timestamp_t timestamp, ts;
 	size_t upd_memsize;
-	uint64_t max_txn, ts, txnid;
+	uint64_t max_txn, txnid;
 	bool all_visible, prepared, skipped_birthmark, uncommitted;
 
 	/*
@@ -300,13 +299,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * start transaction equal to the transaction, and again,
 		 * pretend it's durable.
 		 */
-		upd_select->start_ts = upd_select->durable_ts = WT_TS_NONE;
-		upd_select->stop_ts = WT_TS_MAX;
+		upd_select->durable_ts = WT_TS_NONE;
+		upd_select->start_ts = WT_TS_NONE;
 		upd_select->start_txn = WT_TXN_NONE;
+		upd_select->stop_ts = WT_TS_MAX;
 		upd_select->stop_txn = WT_TXN_MAX;
 		if (upd_select->upd->start_ts != WT_TS_NONE)
-			upd_select->start_ts =
-			    upd_select->durable_ts = upd_select->upd->start_ts;
+			upd_select->durable_ts =
+			    upd_select->start_ts = upd_select->upd->start_ts;
 		if (upd_select->upd->txnid != WT_TXN_NONE)
 			upd_select->start_txn = upd_select->upd->txnid;
 
@@ -321,8 +321,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		    __wt_txn_visible_all(
 		    session, upd_select->start_txn, upd_select->start_ts))) {
 			upd_select->start_ts = WT_TS_NONE;
-			upd_select->stop_ts = WT_TS_MAX;
 			upd_select->start_txn = WT_TXN_NONE;
+			upd_select->stop_ts = WT_TS_MAX;
 			upd_select->stop_txn = WT_TXN_MAX;
 		}
 	}
@@ -480,19 +480,11 @@ check_original_value:
 
 	/*
 	 * Returning an update means the original on-page value might be lost,
-	 * and that's a problem if there's a reader that needs it. There are
-	 * several cases:
-	 * - any update from a modify operation (because the modify has to be
-	 *   applied to a stable update, not the new on-page update),
-	 * - any lookaside table eviction (because the backing disk image is
-	 *   rewritten),
-	 * - or any reconciliation of a backing overflow record that will be
-	 *   physically removed once it's no longer needed.
+	 * and that's a problem if there's a reader that needs it.  This call
+	 * makes a copy of the on-page value and if there is a birthmark in the
+	 * update list, replaces it.
 	 */
-	if (upd_select->upd != NULL &&
-	    (!WT_UPDATE_DATA_VALUE(upd_select->upd) ||
-	    F_ISSET(r, WT_REC_LOOKASIDE) || (vpack != NULL &&
-	    vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+	if (upd_select->upd != NULL && upd_select->upd_saved)
 		WT_RET(
 		    __rec_append_orig_value(session, page, first_upd, vpack));
 

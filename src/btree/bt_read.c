@@ -188,8 +188,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = las_txnid;
-		upd->start_ts = las_timestamp;
 		upd->durable_ts = durable_timestamp;
+		upd->start_ts = las_timestamp;
 		upd->prepare_state = prepare_state;
 
 		switch (page->type) {

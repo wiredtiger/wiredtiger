@@ -635,6 +635,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	 */
 	__wt_txn_release_snapshot(session);
 	txn->isolation = session->isolation;
+#ifdef HAVE_DIAGNOSTIC
+	txn->multi_update_count = 0;
+#endif
 
 	txn->rollback_reason = NULL;
 
@@ -824,7 +827,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		F_CLR(txn, WT_TXN_TS_ROUND_PREPARED);
 
 	/* Set the commit and the durable timestamps. */
-	WT_ERR( __wt_txn_set_timestamp(session, cfg));
+	WT_ERR(__wt_txn_set_timestamp(session, cfg));
 
 	if (prepare) {
 		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1034,6 +1037,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+
+	/*
+	 * FIXME: I think we want to say that all prepared updates were
+	 * resolved.
+	 * WT_ASSERT(session, txn->multi_update_count == 0);
+	 */
 	txn->mod_count = 0;
 
 	/*
@@ -1421,10 +1430,6 @@ __wt_txn_release_resources(WT_SESSION_IMPL *session)
 	__wt_free(session, txn->mod);
 	txn->mod_alloc = 0;
 	txn->mod_count = 0;
-#ifdef HAVE_DIAGNOSTIC
-	WT_ASSERT(session, txn->multi_update_count == 0);
-	txn->multi_update_count = 0;
-#endif
 }
 
 /*

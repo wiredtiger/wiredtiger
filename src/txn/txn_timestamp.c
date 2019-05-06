@@ -591,6 +591,65 @@ set:	__wt_writelock(session, &txn_global->rwlock);
 }
 
 /*
+ * __txn_assert_after_reads --
+ *	Assert that commit and prepare timestamps are greater than the latest
+ *	active read timestamp, if any.
+ */
+static int
+__txn_assert_after_reads(
+    WT_SESSION_IMPL *session, const char *op, wt_timestamp_t ts, WT_TXN **prevp)
+{
+#ifdef HAVE_DIAGNOSTIC
+	WT_TXN *prev, *txn = &session->txn;
+	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
+	wt_timestamp_t tmp_timestamp;
+	char ts_string[2][WT_TS_INT_STRING_SIZE];
+
+	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
+	prev = TAILQ_LAST(
+	    &txn_global->read_timestamph, __wt_txn_rts_qh);
+	while (prev != NULL) {
+		/*
+		 * Skip self and non-active transactions. Copy out value of
+		 * read timestamp to prevent possible race where a transaction
+		 * resets its read timestamp while we traverse the queue.
+		 */
+		if (!__txn_get_read_timestamp(prev, &tmp_timestamp) ||
+		    prev == txn) {
+			prev = TAILQ_PREV(
+			    prev, __wt_txn_rts_qh, read_timestampq);
+			continue;
+		}
+
+		if (tmp_timestamp >= ts) {
+			__wt_readunlock(session,
+			    &txn_global->read_timestamp_rwlock);
+			WT_RET_MSG(session, EINVAL,
+			    "%s timestamp %s must be greater than the "
+			    "latest active read timestamp %s ",
+			    op,
+			    __wt_timestamp_to_string(ts, ts_string[0]),
+			    __wt_timestamp_to_string(
+				tmp_timestamp, ts_string[1]));
+		}
+		break;
+	}
+
+	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
+
+	if (prevp != NULL)
+		*prevp = prev;
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(op);
+	WT_UNUSED(ts);
+	WT_UNUSED(prevp);
+#endif
+
+	return (0);
+}
+
+/*
  * __wt_txn_set_commit_timestamp --
  *	Validate the commit timestamp of a transaction.
  *	If the commit timestamp is less than the oldest timestamp and
@@ -609,7 +668,13 @@ __wt_txn_set_commit_timestamp(
 	bool has_oldest_ts, has_stable_ts;
 
 	/* Added this redundant initialization to circumvent build failure. */
-	oldest_ts = stable_ts = 0;
+	oldest_ts = stable_ts = WT_TS_NONE;
+
+	if (txn->isolation != WT_ISO_SNAPSHOT)
+		WT_RET_MSG(session, EINVAL, "setting a commit_timestamp"
+		    " requires a transaction running at snapshot"
+		    " isolation");
+
 	/*
 	 * Compare against the oldest and the stable timestamp. Return an error
 	 * if the given timestamp is less than oldest and/or stable timestamp.
@@ -657,6 +722,9 @@ __wt_txn_set_commit_timestamp(
 			    __wt_timestamp_to_string(commit_ts, ts_string[0]),
 			    __wt_timestamp_to_string(
 			    txn->first_commit_timestamp, ts_string[1]));
+
+		WT_RET(__txn_assert_after_reads(
+		    session, "commit", commit_ts, NULL));
 	} else {
 		/*
 		 * For a prepared transaction, the commit timestamp should not
@@ -674,6 +742,7 @@ __wt_txn_set_commit_timestamp(
 			commit_ts = txn->prepare_timestamp;
 		}
 	}
+
 	WT_ASSERT(session, txn->durable_timestamp == WT_TS_NONE ||
 	    txn->durable_timestamp == txn->commit_timestamp);
 	txn->durable_timestamp = txn->commit_timestamp = commit_ts;
@@ -763,7 +832,7 @@ __wt_txn_set_prepare_timestamp(
 {
 	WT_TXN *prev, *txn = &session->txn;
 	WT_TXN_GLOBAL *txn_global = &S2C(session)->txn_global;
-	wt_timestamp_t oldest_ts, tmp_timestamp;
+	wt_timestamp_t oldest_ts;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 
 	WT_RET(__wt_txn_context_prepare_check(session));
@@ -775,46 +844,13 @@ __wt_txn_set_prepare_timestamp(
 		WT_RET_MSG(session, EINVAL, "commit timestamp "
 		    "should not have been set before the prepare timestamp");
 
-	__wt_readlock(session, &txn_global->read_timestamp_rwlock);
-	oldest_ts = txn_global->oldest_timestamp;
-	/*
-	 * Prepare timestamp must be greater than the latest active read
-	 * timestamp, if any.
-	 */
-	prev = TAILQ_LAST(
-	    &txn_global->read_timestamph, __wt_txn_rts_qh);
-	while (prev != NULL) {
-		/*
-		 * Skip self and non-active transactions. Copy out value of
-		 * read timestamp to prevent possible race where a transaction
-		 * resets its read timestamp while we traverse the queue.
-		 */
-		if (!__txn_get_read_timestamp(prev, &tmp_timestamp) ||
-		    prev == txn) {
-			prev = TAILQ_PREV(
-			    prev, __wt_txn_rts_qh, read_timestampq);
-			continue;
-		}
+	WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts, &prev));
 
-		if (tmp_timestamp >= prepare_ts) {
-			__wt_readunlock(session,
-			    &txn_global->read_timestamp_rwlock);
-			WT_RET_MSG(session, EINVAL,
-			    "prepare timestamp %s must be greater than the "
-			    "latest active read timestamp %s",
-			    __wt_timestamp_to_string(prepare_ts, ts_string[0]),
-			    __wt_timestamp_to_string(
-			    tmp_timestamp, ts_string[1]));
-		}
-		break;
-	}
-
-	/* Unlock here to have less code branches. */
-	__wt_readunlock(session, &txn_global->read_timestamp_rwlock);
 	/*
 	 * Check whether the prepare timestamp is less than the oldest
 	 * timestamp.
 	 */
+	oldest_ts = txn_global->oldest_timestamp;
 	if (prepare_ts < oldest_ts) {
 		/*
 		 * Check whether the prepare timestamp needs to be rounded up to
