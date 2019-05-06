@@ -7,186 +7,13 @@
  */
 
 /*
- * WT_CELL --
- *	Variable-length cell type.
- *
- * Pages containing variable-length keys or values data (the WT_PAGE_ROW_INT,
- * WT_PAGE_ROW_LEAF, WT_PAGE_COL_INT and WT_PAGE_COL_VAR page types), have
- * cells after the page header.
- *
- * There are 4 basic cell types: keys and data (each of which has an overflow
- * form), deleted cells and off-page references.  The cell is usually followed
- * by additional data, varying by type: keys are followed by a chunk of data,
- * values are followed by an optional validity window and a chunk of data,
- * overflow and off-page cells are followed by an optional validity window and
- * an address cookie.
- *
- * Deleted cells are place-holders for column-store files, where entries cannot
- * be removed in order to preserve the record count.
- *
- * Here's the cell use by page type:
- *
- * WT_PAGE_ROW_INT (row-store internal page):
- *	Keys and offpage-reference pairs (a WT_CELL_KEY or WT_CELL_KEY_OVFL
- * cell followed by a WT_CELL_ADDR_XXX cell).
- *
- * WT_PAGE_ROW_LEAF (row-store leaf page):
- *	Keys with optional data cells (a WT_CELL_KEY or WT_CELL_KEY_OVFL cell,
- *	normally followed by a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell).
- *
- *	WT_PAGE_ROW_LEAF pages optionally prefix-compress keys, using a single
- *	byte count immediately following the cell.
- *
- * WT_PAGE_COL_INT (Column-store internal page):
- *	Off-page references (a WT_CELL_ADDR_XXX cell).
- *
- * WT_PAGE_COL_VAR (Column-store leaf page storing variable-length cells):
- *	Data cells (a WT_CELL_{VALUE,VALUE_COPY,VALUE_OVFL} cell), or deleted
- * cells (a WT_CELL_DEL cell).
- *
- * Each cell starts with a descriptor byte:
- *
- * Bits 1 and 2 are reserved for "short" key and value cells (that is, a cell
- * carrying data less than 64B, where we can store the data length in the cell
- * descriptor byte):
- *	0x00	Not a short key/data cell
- *	0x01	Short key cell
- *	0x10	Short key cell, with a following prefix-compression byte
- *	0x11	Short value cell
- * In the "short" variants, the other 6 bits of the descriptor byte are the
- * data length.
- *
- * Bit 3 marks an 8B packed, uint64_t value following the cell description byte.
- * (A run-length counter or a record number for variable-length column store.)
- *
- * Bit 4 marks a value with an additional descriptor byte. If this flag is set,
- * the next byte after the initial cell byte is an additional description byte.
- * The bottom 4 bits describe a validity window of timestamp/transaction IDs.
- * The top 4 bits are currently unused.
- *
- * Bits 5-8 are cell "types".
- */
-#define	WT_CELL_KEY_SHORT	0x01		/* Short key */
-#define	WT_CELL_KEY_SHORT_PFX	0x02		/* Short key with prefix byte */
-#define	WT_CELL_VALUE_SHORT	0x03		/* Short data */
-#define	WT_CELL_SHORT_TYPE(v)	((v) & 0x03U)
-
-#define	WT_CELL_SHORT_MAX	63		/* Maximum short key/value */
-#define	WT_CELL_SHORT_SHIFT	2		/* Shift for short key/value */
-
-#define	WT_CELL_64V		0x04		/* Associated value */
-#define	WT_CELL_SECOND_DESC	0x08		/* Second descriptor byte */
-
-#define	WT_CELL_TS_DURABLE	0x01		/* Newest-durable timestamp */
-#define	WT_CELL_TS_START	0x02		/* Oldest-start timestamp */
-#define	WT_CELL_TS_STOP		0x04		/* Newest-stop timestamp */
-#define	WT_CELL_TXN_START	0x08		/* Oldest-start txn ID */
-#define	WT_CELL_TXN_STOP	0x10		/* Newest-stop txn ID */
-
-/*
- * WT_CELL_ADDR_INT is an internal block location, WT_CELL_ADDR_LEAF is a leaf
- * block location, and WT_CELL_ADDR_LEAF_NO is a leaf block location where the
- * page has no overflow items.  (The goal is to speed up truncation as we don't
- * have to read pages without overflow items in order to delete them.  Note,
- * WT_CELL_ADDR_LEAF_NO is not guaranteed to be set on every page without
- * overflow items, the only guarantee is that if set, the page has no overflow
- * items.)
- *
- * WT_CELL_VALUE_COPY is a reference to a previous cell on the page, supporting
- * value dictionaries: if the two values are the same, we only store them once
- * and have any second and subsequent uses reference the original.
- */
-#define	WT_CELL_ADDR_DEL	 (0)		/* Address: deleted */
-#define	WT_CELL_ADDR_INT	 (1 << 4)	/* Address: internal  */
-#define	WT_CELL_ADDR_LEAF	 (2 << 4)	/* Address: leaf */
-#define	WT_CELL_ADDR_LEAF_NO	 (3 << 4)	/* Address: leaf no overflow */
-#define	WT_CELL_DEL		 (4 << 4)	/* Deleted value */
-#define	WT_CELL_KEY		 (5 << 4)	/* Key */
-#define	WT_CELL_KEY_OVFL	 (6 << 4)	/* Overflow key */
-#define	WT_CELL_KEY_OVFL_RM	(12 << 4)	/* Overflow key (removed) */
-#define	WT_CELL_KEY_PFX		 (7 << 4)	/* Key with prefix byte */
-#define	WT_CELL_VALUE		 (8 << 4)	/* Value */
-#define	WT_CELL_VALUE_COPY	 (9 << 4)	/* Value copy */
-#define	WT_CELL_VALUE_OVFL	(10 << 4)	/* Overflow value */
-#define	WT_CELL_VALUE_OVFL_RM	(11 << 4)	/* Overflow value (removed) */
-
-#define	WT_CELL_TYPE_MASK	(0x0fU << 4)	/* Maximum 16 cell types */
-#define	WT_CELL_TYPE(v)		((v) & WT_CELL_TYPE_MASK)
-
-/*
- * When unable to create a short key or value (and where it wasn't an associated
- * RLE or validity window that prevented creating a short value), the data must
- * be at least 64B, else we'd have used a short cell. When packing/unpacking the
- * size, decrement/increment the size, in the hopes that a smaller size will
- * pack into a single byte instead of two.
- */
-#define	WT_CELL_SIZE_ADJUST	(WT_CELL_SHORT_MAX + 1)
-
-/*
- * WT_CELL --
- *	Variable-length, on-page cell header.
- */
-struct __wt_cell {
-	/*
-	 * Maximum of 62 bytes:
-	 *  1: cell descriptor byte
-	 *  1: prefix compression count
-	 *  1: secondary descriptor byte
-	 * 27: 3 timestamps		(uint64_t encoding, max 9 bytes)
-	 * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
-	 *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
-	 *  5: data length		(uint32_t encoding, max 5 bytes)
-	 *
-	 * This calculation is extremely pessimistic: the prefix compression
-	 * count and 64V value overlap, and the validity window, 64V value
-	 * and data length are all optional in some cases.
-	 */
-	uint8_t __chunk[1 + 1 + 1 +
-	    6 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
-};
-
-/*
- * WT_CELL_UNPACK --
- *	Unpacked cell.
- */
-struct __wt_cell_unpack {
-	WT_CELL *cell;			/* Cell's disk image address */
-
-	uint64_t v;			/* RLE count or recno */
-
-	uint64_t start_txn, stop_txn;	/* Value validity window */
-	wt_timestamp_t start_ts, stop_ts;
-
-					/* Address validity window */
-	uint64_t oldest_start_txn, newest_stop_txn;
-	wt_timestamp_t oldest_start_ts, newest_durable_ts, newest_stop_ts;
-
-	/*
-	 * !!!
-	 * The size and __len fields are reasonably type size_t; don't change
-	 * the type, performance drops significantly if they're type size_t.
-	 */
-	const void *data;		/* Data */
-	uint32_t    size;		/* Data size */
-
-	uint32_t __len;			/* Cell + data length (usually) */
-
-	uint8_t prefix;			/* Cell prefix length */
-
-	uint8_t raw;			/* Raw cell type (include "shorts") */
-	uint8_t type;			/* Cell type */
-
-	uint8_t ovfl;			/* boolean: cell is an overflow */
-};
-
-/*
  * __cell_check_value_validity --
  *	Check the value's validity window for sanity.
  */
 static inline void
 __cell_check_value_validity(WT_SESSION_IMPL *session,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
 #ifdef HAVE_DIAGNOSTIC
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -196,11 +23,10 @@ __cell_check_value_validity(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, stop_ts != WT_TS_NONE);
 	}
 	if (start_ts > stop_ts) {
-		__wt_timestamp_to_string(start_ts, ts_string[0]);
-		__wt_timestamp_to_string(stop_ts, ts_string[1]);
 		__wt_errx(session,
 		    "a start timestamp %s newer than its stop timestamp %s",
-		    ts_string[0], ts_string[1]);
+		    __wt_timestamp_to_string(start_ts, ts_string[0]),
+		    __wt_timestamp_to_string(stop_ts, ts_string[1]));
 		WT_ASSERT(session, start_ts <= stop_ts);
 	}
 
@@ -218,8 +44,8 @@ __cell_check_value_validity(WT_SESSION_IMPL *session,
 #else
 	WT_UNUSED(session);
 	WT_UNUSED(start_ts);
-	WT_UNUSED(stop_ts);
 	WT_UNUSED(start_txn);
+	WT_UNUSED(stop_ts);
 	WT_UNUSED(stop_txn);
 #endif
 }
@@ -230,21 +56,21 @@ __cell_check_value_validity(WT_SESSION_IMPL *session,
  */
 static inline void
 __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn)
 {
 	uint8_t flags, *flagsp;
 
 	__cell_check_value_validity(
-	    session, start_ts, stop_ts, start_txn, stop_txn);
+	    session, start_ts, start_txn, stop_ts, stop_txn);
 
 	/*
 	 * Historic page versions and globally visible values have no associated
 	 * validity window, else set a flag bit and store them.
 	 */
 	if (!__wt_process.page_version_ts ||
-	    (start_ts == WT_TS_NONE && stop_ts == WT_TS_MAX &&
-	    start_txn == WT_TXN_NONE && stop_txn == WT_TXN_MAX))
+	    (start_ts == WT_TS_NONE && start_txn == WT_TXN_NONE &&
+	    stop_ts == WT_TS_MAX && stop_txn == WT_TXN_MAX))
 		++*pp;
 	else {
 		**pp |= WT_CELL_SECOND_DESC;
@@ -257,14 +83,14 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp,
 			(void)__wt_vpack_uint(pp, 0, start_ts);
 			LF_SET(WT_CELL_TS_START);
 		}
+		if (start_txn != WT_TXN_NONE) {
+			(void)__wt_vpack_uint(pp, 0, start_txn);
+			LF_SET(WT_CELL_TXN_START);
+		}
 		if (stop_ts != WT_TS_MAX) {
 			/* Store differences, not absolutes. */
 			(void)__wt_vpack_uint(pp, 0, stop_ts - start_ts);
 			LF_SET(WT_CELL_TS_STOP);
-		}
-		if (start_txn != WT_TXN_NONE) {
-			(void)__wt_vpack_uint(pp, 0, start_txn);
-			LF_SET(WT_CELL_TXN_START);
 		}
 		if (stop_txn != WT_TXN_MAX) {
 			/* Store differences, not absolutes. */
@@ -281,8 +107,8 @@ __cell_pack_value_validity(WT_SESSION_IMPL *session, uint8_t **pp,
  */
 static inline void
 __wt_check_addr_validity(WT_SESSION_IMPL *session,
-    wt_timestamp_t oldest_start_ts, wt_timestamp_t newest_stop_ts,
-    uint64_t oldest_start_txn, uint64_t newest_stop_txn)
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
 #ifdef HAVE_DIAGNOSTIC
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
@@ -292,12 +118,11 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session,
 		WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
 	}
 	if (oldest_start_ts > newest_stop_ts) {
-		__wt_timestamp_to_string(oldest_start_ts, ts_string[0]);
-		__wt_timestamp_to_string(newest_stop_ts, ts_string[1]);
 		__wt_errx(session,
 		    "an oldest start timestamp %s newer than its newest "
 		    "stop timestamp %s",
-		    ts_string[0], ts_string[1]);
+		    __wt_timestamp_to_string(oldest_start_ts, ts_string[0]),
+		    __wt_timestamp_to_string(newest_stop_ts, ts_string[1]));
 		WT_ASSERT(session, oldest_start_ts <= newest_stop_ts);
 	}
 	if (newest_stop_txn == WT_TXN_NONE) {
@@ -314,8 +139,8 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session,
 #else
 	WT_UNUSED(session);
 	WT_UNUSED(oldest_start_ts);
-	WT_UNUSED(newest_stop_ts);
 	WT_UNUSED(oldest_start_txn);
+	WT_UNUSED(newest_stop_ts);
 	WT_UNUSED(newest_stop_txn);
 #endif
 }
@@ -326,23 +151,23 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session,
  */
 static inline void
 __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp,
-    wt_timestamp_t oldest_start_ts, wt_timestamp_t newest_durable_ts,
-    wt_timestamp_t newest_stop_ts,
-    uint64_t oldest_start_txn, uint64_t newest_stop_txn)
+    wt_timestamp_t newest_durable_ts, wt_timestamp_t oldest_start_ts,
+    uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts,
+    uint64_t newest_stop_txn)
 {
 	uint8_t flags, *flagsp;
 
 	__wt_check_addr_validity(session,
-	   oldest_start_ts, newest_stop_ts, oldest_start_txn, newest_stop_txn);
+	   oldest_start_ts, oldest_start_txn, newest_stop_ts, newest_stop_txn);
 
 	/*
 	 * Historic page versions and globally visible values have no associated
 	 * validity window, else set a flag bit and store them.
 	 */
 	if (!__wt_process.page_version_ts ||
-	    (oldest_start_ts == WT_TS_NONE && newest_durable_ts == WT_TS_NONE &&
-	    newest_stop_ts == WT_TS_MAX && oldest_start_txn == WT_TXN_NONE &&
-	    newest_stop_txn == WT_TXN_MAX))
+	    (newest_durable_ts == WT_TS_NONE &&
+	    oldest_start_ts == WT_TS_NONE && oldest_start_txn == WT_TXN_NONE &&
+	    newest_stop_ts == WT_TS_MAX && newest_stop_txn == WT_TXN_MAX))
 		++*pp;
 	else {
 		**pp |= WT_CELL_SECOND_DESC;
@@ -351,23 +176,23 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp,
 		++*pp;
 
 		flags = 0;
+		if (newest_durable_ts != WT_TS_NONE) {
+			(void)__wt_vpack_uint(pp, 0, newest_durable_ts);
+			LF_SET(WT_CELL_TS_DURABLE);
+		}
 		if (oldest_start_ts != WT_TS_NONE) {
 			(void)__wt_vpack_uint(pp, 0, oldest_start_ts);
 			LF_SET(WT_CELL_TS_START);
 		}
-		if (newest_durable_ts != WT_TS_NONE) {
-			(void)__wt_vpack_uint(pp, 0, newest_durable_ts);
-			LF_SET(WT_CELL_TS_DURABLE);
+		if (oldest_start_txn != WT_TXN_NONE) {
+			(void)__wt_vpack_uint(pp, 0, oldest_start_txn);
+			LF_SET(WT_CELL_TXN_START);
 		}
 		if (newest_stop_ts != WT_TS_MAX) {
 			/* Store differences, not absolutes. */
 			(void)__wt_vpack_uint(
 			    pp, 0, newest_stop_ts - oldest_start_ts);
 			LF_SET(WT_CELL_TS_STOP);
-		}
-		if (oldest_start_txn != WT_TXN_NONE) {
-			(void)__wt_vpack_uint(pp, 0, oldest_start_txn);
-			LF_SET(WT_CELL_TXN_START);
 		}
 		if (newest_stop_txn != WT_TXN_MAX) {
 			/* Store differences, not absolutes. */
@@ -386,9 +211,9 @@ __cell_pack_addr_validity(WT_SESSION_IMPL *session, uint8_t **pp,
 static inline size_t
 __wt_cell_pack_addr(WT_SESSION_IMPL *session,
     WT_CELL *cell, u_int cell_type, uint64_t recno,
-    wt_timestamp_t oldest_start_ts, wt_timestamp_t newest_durable_ts,
-    wt_timestamp_t newest_stop_ts,
-    uint64_t oldest_start_txn, uint64_t newest_stop_txn, size_t size)
+    wt_timestamp_t newest_durable_ts,
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn, size_t size)
 {
 	uint8_t *p;
 
@@ -397,8 +222,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session,
 	*p = '\0';
 
 	__cell_pack_addr_validity(session, &p,
-	    oldest_start_ts, newest_durable_ts, newest_stop_ts,
-	    oldest_start_txn, newest_stop_txn);
+	    newest_durable_ts, oldest_start_ts,
+	    oldest_start_txn, newest_stop_ts, newest_stop_txn);
 
 	if (recno == WT_RECNO_OOB)
 		cell->__chunk[0] |= (uint8_t)cell_type;	/* Type */
@@ -416,8 +241,8 @@ __wt_cell_pack_addr(WT_SESSION_IMPL *session,
  */
 static inline size_t
 __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle, size_t size)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, size_t size)
 {
 	uint8_t byte, *p;
 	bool validity;
@@ -427,7 +252,7 @@ __wt_cell_pack_value(WT_SESSION_IMPL *session, WT_CELL *cell,
 	*p = '\0';
 
 	__cell_pack_value_validity(
-	    session, &p, start_ts, stop_ts, start_txn, stop_txn);
+	    session, &p, start_ts, start_txn, stop_ts, stop_txn);
 
 	/*
 	 * Short data cells without a validity window or run-length encoding
@@ -543,8 +368,8 @@ __wt_cell_pack_value_match(WT_CELL *page_cell,
  */
 static inline size_t
 __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle, uint64_t v)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, uint64_t v)
 {
 	uint8_t *p;
 
@@ -553,7 +378,7 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
 	*p = '\0';
 
 	__cell_pack_value_validity(
-	    session, &p, start_ts, stop_ts, start_txn, stop_txn);
+	    session, &p, start_ts, start_txn, stop_ts, stop_txn);
 
 	if (rle < 2)
 		cell->__chunk[0] |= WT_CELL_VALUE_COPY;	/* Type */
@@ -572,8 +397,8 @@ __wt_cell_pack_copy(WT_SESSION_IMPL *session, WT_CELL *cell,
  */
 static inline size_t
 __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
 {
 	uint8_t *p;
 
@@ -582,7 +407,7 @@ __wt_cell_pack_del(WT_SESSION_IMPL *session, WT_CELL *cell,
 	*p = '\0';
 
 	__cell_pack_value_validity(
-	    session, &p, start_ts, stop_ts, start_txn, stop_txn);
+	    session, &p, start_ts, start_txn, stop_ts, stop_txn);
 
 	if (rle < 2)
 		cell->__chunk[0] |= WT_CELL_DEL;	/* Type */
@@ -673,8 +498,8 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
  */
 static inline size_t
 __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
-    wt_timestamp_t start_ts, wt_timestamp_t stop_ts,
-    uint64_t start_txn, uint64_t stop_txn, uint64_t rle, size_t size)
+    wt_timestamp_t start_ts, uint64_t start_txn,
+    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, size_t size)
 {
 	uint8_t *p;
 
@@ -690,7 +515,7 @@ __wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type,
 	case WT_CELL_VALUE_OVFL:
 	case WT_CELL_VALUE_OVFL_RM:
 		__cell_pack_value_validity(
-		    session, &p, start_ts, stop_ts, start_txn, stop_txn);
+		    session, &p, start_ts, start_txn, stop_ts, stop_txn);
 		break;
 	}
 
@@ -851,8 +676,10 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
 {
 	struct {
 		uint64_t v;
-		wt_timestamp_t start_ts, stop_ts;
-		uint64_t start_txn, stop_txn;
+		wt_timestamp_t start_ts;
+		uint64_t start_txn;
+		wt_timestamp_t stop_ts;
+		uint64_t stop_txn;
 		uint32_t len;
 	} copy;
 	uint64_t v;
@@ -861,8 +688,8 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
 
 	copy.v = 0;			/* -Werror=maybe-uninitialized */
 	copy.start_ts = WT_TS_NONE;
-	copy.stop_ts = WT_TS_MAX;
 	copy.start_txn = WT_TXN_NONE;
+	copy.stop_ts = WT_TS_MAX;
 	copy.stop_txn = WT_TXN_MAX;
 	copy.len = 0;
 
@@ -899,12 +726,13 @@ restart:
 	 */
 	unpack->v = 0;
 	unpack->start_ts = WT_TS_NONE;
-	unpack->stop_ts = WT_TS_MAX;
 	unpack->start_txn = WT_TXN_NONE;
+	unpack->stop_ts = WT_TS_MAX;
 	unpack->stop_txn = WT_TXN_MAX;
-	unpack->oldest_start_ts = unpack->newest_durable_ts = WT_TS_NONE;
-	unpack->newest_stop_ts = WT_TS_MAX;
+	unpack->newest_durable_ts = WT_TS_NONE;
+	unpack->oldest_start_ts = WT_TS_NONE;
 	unpack->oldest_start_txn = WT_TXN_NONE;
+	unpack->newest_stop_ts = WT_TS_MAX;
 	unpack->newest_stop_txn = WT_TXN_MAX;
 	unpack->raw = (uint8_t)__wt_cell_type_raw(cell);
 	unpack->type = (uint8_t)__wt_cell_type(cell);
@@ -958,28 +786,28 @@ restart:
 			break;
 		flags = *p++;		/* skip second descriptor byte */
 
-		if (LF_ISSET(WT_CELL_TS_START))
-			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-			    WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
 		if (LF_ISSET(WT_CELL_TS_DURABLE))
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 			    WT_PTRDIFF(end, p), &unpack->newest_durable_ts));
+		if (LF_ISSET(WT_CELL_TS_START))
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
+		if (LF_ISSET(WT_CELL_TXN_START))
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
+			    WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
 		if (LF_ISSET(WT_CELL_TS_STOP)) {
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 			    WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
 			unpack->newest_stop_ts += unpack->oldest_start_ts;
 		}
-		if (LF_ISSET(WT_CELL_TXN_START))
-			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
-			    WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
 		if (LF_ISSET(WT_CELL_TXN_STOP)) {
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 :
 			    WT_PTRDIFF(end, p), &unpack->newest_stop_txn));
 			unpack->newest_stop_txn += unpack->oldest_start_txn;
 		}
 		__wt_check_addr_validity(session,
-		    unpack->oldest_start_ts, unpack->newest_stop_ts,
-		    unpack->oldest_start_txn, unpack->newest_stop_txn);
+		    unpack->oldest_start_ts, unpack->oldest_start_txn,
+		    unpack->newest_stop_ts, unpack->newest_stop_txn);
 		break;
 	case WT_CELL_DEL:
 	case WT_CELL_VALUE:
@@ -993,22 +821,22 @@ restart:
 		if (LF_ISSET(WT_CELL_TS_START))
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ?
 			    0 : WT_PTRDIFF(end, p), &unpack->start_ts));
+		if (LF_ISSET(WT_CELL_TXN_START))
+			WT_RET(__wt_vunpack_uint(&p, end == NULL ?
+			    0 : WT_PTRDIFF(end, p), &unpack->start_txn));
 		if (LF_ISSET(WT_CELL_TS_STOP)) {
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ?
 			    0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
 			unpack->stop_ts += unpack->start_ts;
 		}
-		if (LF_ISSET(WT_CELL_TXN_START))
-			WT_RET(__wt_vunpack_uint(&p, end == NULL ?
-			    0 : WT_PTRDIFF(end, p), &unpack->start_txn));
 		if (LF_ISSET(WT_CELL_TXN_STOP)) {
 			WT_RET(__wt_vunpack_uint(&p, end == NULL ?
 			    0 : WT_PTRDIFF(end, p), &unpack->stop_txn));
 			unpack->stop_txn += unpack->start_txn;
 		}
 		__cell_check_value_validity(session,
-		    unpack->start_ts, unpack->stop_ts,
-		    unpack->start_txn, unpack->stop_txn);
+		    unpack->start_ts, unpack->start_txn,
+		    unpack->stop_ts, unpack->stop_txn);
 		break;
 	}
 
@@ -1038,8 +866,8 @@ restart:
 		    &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 		copy.v = unpack->v;
 		copy.start_ts = unpack->start_ts;
-		copy.stop_ts = unpack->stop_ts;
 		copy.start_txn = unpack->start_txn;
+		copy.stop_ts = unpack->stop_ts;
 		copy.stop_txn = unpack->stop_txn;
 		copy.len = WT_PTRDIFF32(p, cell);
 		cell = (WT_CELL *)((uint8_t *)cell - v);
@@ -1103,8 +931,8 @@ done:	WT_CELL_LEN_CHK(cell, unpack->__len);
 		unpack->raw = WT_CELL_VALUE_COPY;
 		unpack->v = copy.v;
 		unpack->start_ts = copy.start_ts;
-		unpack->stop_ts = copy.stop_ts;
 		unpack->start_txn = copy.start_txn;
+		unpack->stop_ts = copy.stop_ts;
 		unpack->stop_txn = copy.stop_txn;
 		unpack->__len = copy.len;
 	}
@@ -1133,13 +961,13 @@ __wt_cell_unpack_dsk(WT_SESSION_IMPL *session,
 		 * stable.
 		 */
 		unpack->start_ts = WT_TS_NONE;
-		unpack->stop_ts = WT_TS_MAX;
 		unpack->start_txn = WT_TXN_NONE;
+		unpack->stop_ts = WT_TS_MAX;
 		unpack->stop_txn = WT_TXN_MAX;
-		unpack->oldest_start_ts = WT_TS_NONE;
 		unpack->newest_durable_ts = WT_TS_NONE;
-		unpack->newest_stop_ts = WT_TS_MAX;
+		unpack->oldest_start_ts = WT_TS_NONE;
 		unpack->oldest_start_txn = WT_TXN_NONE;
+		unpack->newest_stop_ts = WT_TS_MAX;
 		unpack->newest_stop_txn = WT_TXN_MAX;
 		unpack->data = "";
 		unpack->size = 0;

@@ -38,8 +38,8 @@ def timestamp_str(t):
 # Ensure checkpoints don't read too unnecessary lookaside entries.
 class test_las03(wttest.WiredTigerTestCase):
     # Force a small cache.
-    def conn_config(self):
-        return 'cache_size=50MB,statistics=(fast)'
+    conn_config = 'cache_size=50MB,statistics=(fast)'
+    session_config = 'isolation=snapshot'
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
