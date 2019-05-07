@@ -869,6 +869,9 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 			__wt_free(session, next_ref->page_del->update_list);
 			__wt_free(session, next_ref->page_del);
 		}
+		WT_ASSERT(session, next_ref->page_las == NULL ||
+		    __wt_txn_visible_all(session, next_ref->page_las->max_txn,
+		    next_ref->page_las->max_timestamp));
 		__wt_free(session, next_ref->page_las);
 
 		/* Free the backing block and address. */
