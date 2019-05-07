@@ -901,6 +901,11 @@ __wt_las_remove_dropped(WT_SESSION_IMPL *session)
 				cache->las_dropped[j] =
 				    cache->las_dropped[j + 1];
 			cache->las_dropped_next--;
+			/*
+			 * Force next sweep pass to re-initialize its saved
+			 * bitmaps that may have contained this id.
+			 */
+			cache->las_sweep_key.size = 0;
 			break;
 		}
 	}
