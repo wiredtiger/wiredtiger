@@ -107,7 +107,14 @@ def getIntervalData(intervalBeginningsStack, intervalEnd, logfile):
     errorOccurred = False;
     matchFound = False;
 
-    if (intervalEnd[1] != 1):
+    beginTimestamp = 0;
+    beginFunctionName = "";
+
+    endTimestamp = intervalEnd[0];
+    eventType = intervalEnd[1];
+    endFunctionName = intervalEnd[2];
+
+    if (eventType != 1):
         logfile.write(
             "getIntervaldata: only rows with event type 1 can be used.\n");
         logfile.write(str(intervalEnd) + "\n");
@@ -126,7 +133,10 @@ def getIntervalData(intervalBeginningsStack, intervalEnd, logfile):
                           " for the following operation end record: \n");
             logfile.write(str(intervalEnd) + "\n");
             return None;
-        if (intervalBegin[2] != intervalEnd[2]):
+
+        beginTimestamp = intervalBegin[0];
+        beginFunctionName = intervalBegin[2];
+        if (beginFunctionName != endFunctionName):
             logfile.write("Operation end record does not match the available " +
                           "operation begin record. " +
                           "Your log file may be incomplete.\n" +
@@ -137,7 +147,7 @@ def getIntervalData(intervalBeginningsStack, intervalEnd, logfile):
         else:
             matchFound = True;
 
-    return intervalBegin[0], intervalEnd[0], intervalEnd[2], errorOccurred;
+    return beginTimestamp, endTimestamp, endFunctionName, errorOccurred;
 
 def createCallstackSeries(data, logfilename):
 
@@ -158,12 +168,14 @@ def createCallstackSeries(data, logfilename):
         logfile = sys.stdout;
 
     for row in data.itertuples():
-        # row[0] is the timestamp, row[1] is the event type,
-        # row[2] is the function name.
-        #
-        if (row[1] == 0):
+
+        timestamp = row[0];
+        eventType = row[1];
+        function = row[2];
+
+        if (eventType == 0):
             intervalBeginningsStack.append(row);
-        elif (row[1] == 1):
+        elif (eventType == 1):
             try:
                 intervalBegin, intervalEnd, function, error\
                     = getIntervalData(intervalBeginningsStack, row, logfile);
@@ -180,7 +192,7 @@ def createCallstackSeries(data, logfilename):
 
         else:
             print("Invalid event in this line:");
-            print(str(row[0]) + " " + str(row[1]) + " " + str(row[2]));
+            print(str(timestamp) + " " + str(eventType) + " " + str(function));
             continue;
 
     if (len(intervalBeginningsStack) > 0):
@@ -192,13 +204,13 @@ def createCallstackSeries(data, logfilename):
             errorReported = reportDataError(logfile, logfilename);
         intervalBeginningsStack = [];
 
-    dict = {};
-    dict['start'] = beginIntervals;
-    dict['end'] = endIntervals;
-    dict['function'] = functionNames;
-    dict['stackdepth'] = [0] * len(beginIntervals);
+    dataDict = {};
+    dataDict['start'] = beginIntervals;
+    dataDict['end'] = endIntervals;
+    dataDict['function'] = functionNames;
+    dataDict['stackdepth'] = [0] * len(beginIntervals);
 
-    dataframe = pd.DataFrame(data=dict);
+    dataframe = pd.DataFrame(data=dataDict);
     dataframe = assignStackDepths(dataframe);
 
     dataframe['durations'] = dataframe['end'] - dataframe['start'];
@@ -222,7 +234,7 @@ def checkForTimestampAndGetRowSkip(fname):
             except ValueError:
                 print(color.BOLD + color.RED +
                       "Could not parse seconds since Epoch on first line" +
-                      + color.END);
+                      color.END);
                 firstTimeStamp = 0;
             return firstTimeStamp, 1;
         else:

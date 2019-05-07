@@ -87,9 +87,7 @@ __optrack_open_file(WT_SESSION_IMPL *session)
 	optrack_header.optrack_tsc_nsec_ratio =
 		(uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
 
-	/*
-	 * Record the time in seconds since the Epoch.
-	 */
+	/* Record the time in seconds since the Epoch. */
 	__wt_epoch(session, &ts);
 	optrack_header.optrack_seconds_epoch = (uint64_t)ts.tv_sec;
 
