@@ -28,8 +28,12 @@
 #
 
 from __future__ import print_function
-from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
 import math, struct, sys
+try:
+    from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
+except ImportError:
+    # When WiredTiger is installed as a package, python2 needs this
+    from .packutil import _chr, _ord, x00_entry, xff_entry
 
 # Variable-length integer packing
 # need: up to 64 bits, both signed and unsigned

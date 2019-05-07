@@ -49,9 +49,15 @@ Format  Python  Notes
   u     str     raw byte array
 """
 
-from wiredtiger.packutil import _chr, _is_string, _ord, _string_result, \
-    x00, empty_pack
-from wiredtiger.intpacking import pack_int, unpack_int
+try:
+    from wiredtiger.packutil import _chr, _is_string, _ord, _string_result, \
+        empty_pack, x00
+    from wiredtiger.intpacking import pack_int, unpack_int
+except ImportError:
+    # When WiredTiger is installed as a package, python2 needs this
+    from .packutil import _chr, _is_string, _ord, _string_result, \
+        empty_pack, x00
+    from intpacking import pack_int, unpack_int
 
 def __get_type(fmt):
     if not fmt:
