@@ -382,11 +382,11 @@ __txn_rollback_to_stable_btree(WT_SESSION_IMPL *session, const char *cfg[])
 		 * Add the btree ID to the bitstring, so we can exclude any
 		 * lookaside entries for this btree.
 		 */
-		if (btree->log_id >= conn->stable_rollback_maxfile)
-			WT_PANIC_RET(session, EINVAL, "btree file ID %" PRIu32
+		if (btree->las_id >= conn->stable_rollback_maxfile)
+			WT_PANIC_RET(session, EINVAL, "btree LAS ID %" PRIu32
 			    " larger than max %" PRIu32,
-			    btree->log_id, conn->stable_rollback_maxfile);
-		__bit_set(conn->stable_rollback_bitstring, btree->log_id);
+			    btree->las_id, conn->stable_rollback_maxfile);
+		__bit_set(conn->stable_rollback_bitstring, btree->las_id);
 		return (0);
 	}
 
@@ -493,7 +493,7 @@ __txn_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[])
 	 * value before using it, so the current value is already in use, and
 	 * hence we need to add one here.
 	 */
-	conn->stable_rollback_maxfile = conn->next_file_id + 1;
+	conn->stable_rollback_maxfile = conn->cache->las_id + 1;
 	WT_ERR(__bit_alloc(session,
 	    conn->stable_rollback_maxfile, &conn->stable_rollback_bitstring));
 	WT_ERR(__wt_conn_btree_apply(session,
