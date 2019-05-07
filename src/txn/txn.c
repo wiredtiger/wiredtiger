@@ -941,7 +941,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Process and free updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-		fileid = op->btree->id;
+		fileid = op->btree->log_id;
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
 			break;

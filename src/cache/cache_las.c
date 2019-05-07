@@ -235,7 +235,7 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session)
 
 	/* Track the lookaside file ID. */
 	if (S2C(session)->cache->las_fileid == 0)
-		S2C(session)->cache->las_fileid = btree->id;
+		S2C(session)->cache->las_fileid = btree->log_id;
 
 	/*
 	 * Set special flags for the lookaside table: the lookaside flag (used,
@@ -553,10 +553,10 @@ __las_insert_block_verbose(
 	WT_CONNECTION_IMPL *conn;
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
-	uint32_t btree_id;
+	uint32_t las_id;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-	btree_id = btree->id;
+	las_id = btree->las_id;
 
 	if (!WT_VERBOSE_ISSET(session,
 	    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
@@ -582,13 +582,13 @@ __las_insert_block_verbose(
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
-		    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
+		    "LAS ID %" PRIu32 ", page ID %" PRIu64 ". "
 		    "Max txn ID %" PRIu64 ", unstable timestamp %s,"
 		    " unstable durable timestamp %s, %s. "
 		    "Entries now in lookaside file: %" PRId64 ", "
 		    "cache dirty: %2.3f%% , "
 		    "cache use: %2.3f%%",
-		    btree_id, multi->page_las.las_pageid,
+		    las_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
 		    __wt_timestamp_to_string(
 		    multi->page_las.unstable_timestamp, ts_string[0]),
@@ -621,7 +621,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_UPDATE *upd;
 	wt_off_t las_size;
 	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt;
-	uint32_t btree_id, i, slot;
+	uint32_t i, las_id, slot;
 	uint8_t *p;
 	bool local_txn;
 
@@ -629,7 +629,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	conn = S2C(session);
 	WT_CLEAR(las_value);
 	insert_cnt = prepared_insert_cnt = 0;
-	btree_id = btree->id;
+	las_id = btree->las_id;
 	local_txn = false;
 
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
@@ -724,7 +724,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			}
 
 			cursor->set_key(cursor,
-			    las_pageid, btree_id, ++las_counter, key);
+			    las_pageid, las_id, ++las_counter, key);
 
 			/*
 			 * If saving a non-zero length value on the page, save a
@@ -893,7 +893,7 @@ __wt_las_save_dropped(WT_SESSION_IMPL *session)
 	__wt_spin_lock(session, &cache->las_sweep_lock);
 	WT_ERR(__wt_realloc_def(session, &cache->las_dropped_alloc,
 	    cache->las_dropped_next + 1, &cache->las_dropped));
-	cache->las_dropped[cache->las_dropped_next++] = btree->id;
+	cache->las_dropped[cache->las_dropped_next++] = btree->las_id;
 err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 	return (ret);
 }

@@ -102,8 +102,8 @@ __las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
 			__wt_verbose(session,
 			    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 			    "Read from lookaside file triggered for "
-			    "file ID %" PRIu32 ", page ID %" PRIu64,
-			    S2BT(session)->id, las_pageid);
+			    "LAS ID %" PRIu32 ", page ID %" PRIu64,
+			    S2BT(session)->las_id, las_pageid);
 		}
 	}
 }

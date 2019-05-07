@@ -70,7 +70,7 @@ __txn_op_log(WT_SESSION_IMPL *session,
 
 	cursor = &cbt->iface;
 
-	fileid = op->btree->id;
+	fileid = op->btree->log_id;
 
 	upd = op->u.op_upd;
 	value.data = upd->data;
@@ -253,7 +253,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 	WT_ASSERT(session, txn->mod_count > 0);
 	op = txn->mod + txn->mod_count - 1;
-	fileid = op->btree->id;
+	fileid = op->btree->log_id;
 
 	WT_RET(__txn_logrec_init(session));
 	logrec = txn->logrec;
@@ -325,12 +325,12 @@ __txn_log_file_sync(WT_SESSION_IMPL *session, uint32_t flags, WT_LSN *lsnp)
 	need_sync = LF_ISSET(WT_TXN_LOG_CKPT_SYNC);
 
 	WT_RET(__wt_struct_size(
-	    session, &header_size, fmt, rectype, btree->id, start));
+	    session, &header_size, fmt, rectype, btree->log_id, start));
 	WT_RET(__wt_logrec_alloc(session, header_size, &logrec));
 
 	WT_ERR(__wt_struct_pack(session,
 	    (uint8_t *)logrec->data + logrec->size, header_size,
-	    fmt, rectype, btree->id, start));
+	    fmt, rectype, btree->log_id, start));
 	logrec->size += (uint32_t)header_size;
 
 	WT_ERR(__wt_log_write(

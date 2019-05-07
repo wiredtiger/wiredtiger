@@ -84,7 +84,8 @@ struct __wt_btree {
 	WT_COLLATOR *collator;		/* Row-store comparator */
 	int collator_owned;		/* The collator needs to be freed */
 
-	uint32_t id;			/* File ID, for logging */
+	uint32_t las_id;		/* Temporary file ID, for lookaside */
+	uint32_t log_id;		/* Permanent file ID, for logging */
 
 	uint32_t key_gap;		/* Row-store prefix key gap */
 

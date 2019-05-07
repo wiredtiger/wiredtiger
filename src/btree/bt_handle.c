@@ -337,9 +337,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		    "%" PRId64 ".%" PRId64, maj_version, min_version);
 	}
 
-	/* Get the file ID. */
+	/* Get the logging/permanent file ID. */
 	WT_RET(__wt_config_gets(session, cfg, "id", &cval));
-	btree->id = (uint32_t)cval.val;
+	btree->log_id = (uint32_t)cval.val;
+
+	/* Set the temporary file ID. */
+	btree->las_id = __wt_atomic_add32(&conn->cache->las_id, 1);
 
 	/* Validate file types and check the data format plan. */
 	WT_RET(__wt_config_gets(session, cfg, "key_format", &cval));
