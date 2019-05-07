@@ -235,7 +235,11 @@ real_worker(void)
 	has_cursors = true;
 
 	for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
+#if 0
 		if ((ret = session->begin_transaction(session, "read_timestamp=1,roundup_timestamps=(read=true)")) != 0) {
+#else
+		if ((ret = session->begin_transaction(session, NULL)) != 0) {
+#endif
 			(void)log_print_err(
 			    "real_worker:begin_transaction", ret, 1);
 			goto err;
@@ -248,10 +252,18 @@ real_worker(void)
 					testutil_check(cursors[j]->close(cursors[j]));
 				has_cursors = false;
 				__wt_readlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+#if 0
 				testutil_check(session->begin_transaction(session, "read_timestamp=1,roundup_timestamps=(read=true)"));
+#else
+				testutil_check(session->begin_transaction(session, NULL));
+#endif
 			}
+#if 0
 			testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
 			testutil_check(session->timestamp_transaction(session, buf));
+#else
+			testutil_check(session->timestamp_transaction(session, NULL));
+#endif
 			__wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
 
 			for (j = 0; !has_cursors && j < g.ntables; j++)

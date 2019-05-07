@@ -612,6 +612,7 @@ int
 __wt_las_insert_block(WT_CURSOR *cursor,
     WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
 {
+	struct timespec now;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_ITEM las_value;
@@ -734,6 +735,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			 * table. (We check the length because row-store doesn't
 			 * write zero-length data items.)
 			 */
+			__wt_epoch(session, &now);
 			if (upd == list->onpage_upd &&
 			    upd->size > 0 &&
 			    (upd->type == WT_UPDATE_STANDARD ||
@@ -744,10 +746,23 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, WT_UPDATE_BIRTHMARK,
 				    &las_value);
+				WT_IGNORE_RET(__wt_log_printf(session,
+				    "LAS INSERT: [%" PRIu64 ":%" PRIu64
+				    "] BIRTHMARK upd type: %d txnid %" PRIu32
+				    " table %s",
+				    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+				    upd->type, upd->txnid, btree->dhandle->name));
 			} else
+			{
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, upd->type, &las_value);
+				WT_IGNORE_RET(__wt_log_printf(session,
+				    "LAS INSERT: [%" PRIu64 ":%" PRIu64
+				    "] upd type: %d txnid %" PRIu32 " table %s",
+				    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+				    upd->type, upd->txnid, btree->dhandle->name));
+			}
 
 			/*
 			 * Using update looks a little strange because the keys
@@ -989,6 +1004,7 @@ err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 int
 __wt_las_sweep(WT_SESSION_IMPL *session)
 {
+	struct timespec now;
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(saved_key);
@@ -1190,6 +1206,13 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		    " saved key size: %" WT_SIZET_FMT ", record type: %" PRIu8
 		    " transaction ID: %" PRIu64,
 		    las_pageid, las_id, saved_key->size, upd_type, las_txnid);
+		__wt_epoch(session, &now);
+		WT_IGNORE_RET(__wt_log_printf(session,
+		    "LAS SWEEP: [%" PRIu64 ":%" PRIu64
+		    "] page id %" PRIu64 " btree id %" PRIu32
+		    " upd type %" PRIu8 " txn ID: %" PRIu64,
+		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+		    las_pageid, las_id, upd_type, las_txnid));
 		WT_ERR(cursor->remove(cursor));
 		++remove_cnt;
 	}
