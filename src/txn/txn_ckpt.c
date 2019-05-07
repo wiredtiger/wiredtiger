@@ -679,6 +679,8 @@ __checkpoint_prepare(
 		 * Get a new one.
 		 */
 		__wt_txn_get_snapshot(session);
+		__wt_log_printf(session, "CKPT: txn id %" PRIu64 " read ts %"
+		    PRIu64, txn->id, txn->read_timestamp);
 	}
 
 	/*
@@ -870,6 +872,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	generation = __wt_gen_next(session, WT_GEN_CHECKPOINT);
 	WT_STAT_CONN_SET(session, txn_checkpoint_generation, generation);
+	__wt_sleep(1, 0);
 
 	/*
 	 * We want to skip checkpointing clean handles whenever possible.  That
@@ -890,6 +893,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	    ret = __checkpoint_prepare(session, &tracking, cfg));
 	WT_ERR(ret);
 
+	__wt_sleep(1, 0);
 	WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
 	/*

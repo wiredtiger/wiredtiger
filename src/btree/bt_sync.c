@@ -114,6 +114,7 @@ __sync_dup_walk(
 int
 __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
+	struct timespec now;
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -269,9 +270,23 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				if (((mod = walk->page->modify) != NULL) &&
 				    mod->rec_max_txn > btree->rec_max_txn)
 					btree->rec_max_txn = mod->rec_max_txn;
+				if (mod != NULL) {
+				__wt_epoch(session, &now);
+				WT_ERR(__wt_log_printf(session,
+				    "[%" PRIu64 ":%" PRIu64 "] SYNC:"
+				    " Clean page update to %s"
+				    " old rec_max_timestamp: %" PRIu64 " 0x%" PRIx64
+				    " mod rec_max_timestamp: %" PRIu64 " 0x%" PRIx64
+				    " tmp_rec_max_timestamp: %" PRIu64 " 0x%" PRIx64,
+				    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+				    btree->dhandle->name,
+				    btree->rec_max_timestamp, btree->rec_max_timestamp,
+				    mod->rec_max_timestamp, mod->rec_max_timestamp,
+				    btree->tmp_rec_max_timestamp, btree->tmp_rec_max_timestamp));
+				}
 				if (mod != NULL &&
-				    btree->rec_max_timestamp <
-				    mod->rec_max_timestamp)
+				    mod->rec_max_timestamp >
+				    btree->rec_max_timestamp)
 					btree->rec_max_timestamp =
 					    mod->rec_max_timestamp;
 				continue;

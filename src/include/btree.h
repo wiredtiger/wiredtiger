@@ -167,6 +167,10 @@ struct __wt_btree {
 	uint64_t rec_max_txn;		/* Maximum txn seen (clean trees) */
 	wt_timestamp_t rec_max_timestamp;
 
+	/* The largest transaction seen on the page by reconciliation. */
+	uint64_t tmp_rec_max_txn;
+	wt_timestamp_t tmp_rec_max_timestamp;
+
 	uint64_t checkpoint_gen;	/* Checkpoint generation */
 	WT_SESSION_IMPL *sync_session;	/* Syncing session */
 	volatile enum {

@@ -136,7 +136,8 @@ thread_ts_run(void *arg)
 
 	td = (THREAD_DATA *)arg;
 
-	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	testutil_check(td->conn->open_session(td->conn,
+	    NULL, "isolation=snapshot", &session));
 	/* Update the oldest timestamp every 1 millisecond. */
 	for (;;) {
 		/*
@@ -191,7 +192,8 @@ thread_ckpt_run(void *arg)
 	 * Keep a separate file with the records we wrote for checking.
 	 */
 	(void)unlink(ckpt_file);
-	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	testutil_check(td->conn->open_session(td->conn,
+	    NULL, "isolation=snapshot", &session));
 	first_ckpt = true;
 	for (i = 0; ;++i) {
 		sleep_time = __wt_random(&rnd) % MAX_CKPT_INVL;
@@ -275,10 +277,11 @@ thread_run(void *arg)
 	 * that modify a table that is logged. But we also want to test mixed
 	 * logged and not-logged transactions.
 	 */
-	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	testutil_check(td->conn->open_session(td->conn,
+	    NULL, "isolation=snapshot", &session));
 	if (use_prep)
 		testutil_check(td->conn->open_session(
-		    td->conn, NULL, NULL, &prepared_session));
+		    td->conn, NULL, "isolation=snapshot", &prepared_session));
 	/*
 	 * Open a cursor to each table.
 	 */
@@ -463,7 +466,8 @@ run_workload(uint32_t nth)
 		strcat(envconf, ENV_CONFIG_COMPAT);
 
 	testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+	testutil_check(conn->open_session(conn,
+	    NULL, "isolation=snapshot", &session));
 	/*
 	 * Create all the tables.
 	 */
@@ -756,7 +760,8 @@ main(int argc, char *argv[])
 	 * Open the connection which forces recovery to be run.
 	 */
 	testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
-	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+	testutil_check(conn->open_session(conn,
+	    NULL, "isolation=snapshot", &session));
 	/*
 	 * Open a cursor on all the tables.
 	 */
