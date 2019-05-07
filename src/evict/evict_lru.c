@@ -1413,7 +1413,8 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_TRACK_OP_DECL;
-	uint64_t pages_seen_file, pages_seen_total;
+	uint64_t loop_count;
+	uint64_t pages_seen_file, pages_seen_interim, pages_seen_total;
 	u_int max_entries, retries, slot, start_slot, total_candidates;
 	bool dhandle_locked, incr;
 
@@ -1440,9 +1441,12 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
 	total_candidates = (u_int)(F_ISSET(cache, WT_CACHE_EVICT_CLEAN) ?
 	    __wt_cache_pages_inuse(cache) : cache->pages_dirty_leaf);
 	max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
-	pages_seen_total = 0;
+	pages_seen_interim = pages_seen_total = 0;
 
-retry:	while (slot < max_entries) {
+retry:	loop_count = 0;
+	while (slot < max_entries) {
+		loop_count++;
+
 		/* We're done if shutting down or reconfiguring */
 		if (F_ISSET(conn, WT_CONN_CLOSING) ||
 		    F_ISSET(conn, WT_CONN_RECONFIGURING))
@@ -1451,6 +1455,16 @@ retry:	while (slot < max_entries) {
 		/* If we have seen enough pages in this walk, we're done. */
 		if (pages_seen_total > WT_EVICT_WALK_INCR * 100)
 			break;
+
+		/*
+		 * If we are not finding pages at all, we're done.
+		 * Every 100th iteration, check if we made progress.
+		 */
+		if (loop_count % 100 == 0) {
+			if (pages_seen_interim == pages_seen_total)
+				break;
+			pages_seen_interim = pages_seen_total;
+		}
 
 		/*
 		 * If another thread is waiting on the eviction server to clear
