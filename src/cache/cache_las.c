@@ -582,13 +582,13 @@ __las_insert_block_verbose(
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
-		    "LAS ID %" PRIu32 ", page ID %" PRIu64 ". "
+		    "LAS ID %" PRIu32 " (log ID %" PRIu32
+		    "), page ID %" PRIu64 ". "
 		    "Max txn ID %" PRIu64 ", unstable timestamp %s,"
 		    " unstable durable timestamp %s, %s. "
 		    "Entries now in lookaside file: %" PRId64 ", "
-		    "cache dirty: %2.3f%% , "
-		    "cache use: %2.3f%%",
-		    las_id, multi->page_las.las_pageid,
+		    "cache dirty: %2.3f%% , cache use: %2.3f%%",
+		    las_id, btree->log_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
 		    __wt_timestamp_to_string(
 		    multi->page_las.unstable_timestamp, ts_string[0]),

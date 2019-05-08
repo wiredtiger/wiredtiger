@@ -202,7 +202,7 @@ struct __wt_cache {
 	uint64_t las_remove_count;      /* Count of removes from lookaside */
 	uint64_t las_pageid;		/* Lookaside table page ID counter */
 
-	bool las_reader;		/* Indicate a LAS reader to sweep */
+	bool las_reader;		/* Indicate an LAS reader to sweep */
 	WT_RWLOCK las_sweepwalk_lock;
 	WT_SPINLOCK las_sweep_lock;
 	WT_ITEM las_sweep_key;		/* Track sweep position. */

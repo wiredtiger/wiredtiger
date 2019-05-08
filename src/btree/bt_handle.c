@@ -341,7 +341,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	WT_RET(__wt_config_gets(session, cfg, "id", &cval));
 	btree->log_id = (uint32_t)cval.val;
 
-	/* Set the temporary file ID. */
+	/*
+	 * Set the temporary file ID. This ID is used for lookaside
+	 * activity and is distinct from the file ID used in log records.
+	 * This allows lookaside sweep to distinguish old records if this
+	 * is a re-open of the btree.
+	 */
 	btree->las_id = __wt_atomic_add32(&conn->cache->las_id, 1);
 
 	/* Validate file types and check the data format plan. */
