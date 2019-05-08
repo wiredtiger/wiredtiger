@@ -980,6 +980,19 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 		goto err;
 	}
 
+	/*
+	 * Record the current page ID: sweep will stop after this point.
+	 *
+	 * Since the btree IDs we're scanning are closed, any eviction must
+	 * have already completed, so we won't miss anything with this
+	 * approach.
+	 *
+	 * Also, if a tree is reopened and there is lookaside activity before
+	 * this sweep completes, it will have a higher page ID and should not
+	 * be removed.
+	 */
+	cache->las_sweep_max_pageid = cache->las_pageid;
+
 	/* Scan the btree IDs to find min/max. */
 	cache->las_sweep_dropmin = UINT32_MAX;
 	cache->las_sweep_dropmax = 0;
@@ -1001,7 +1014,6 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 
 	/* Clear the list of btree IDs. */
 	cache->las_dropped_next = 0;
-	cache->las_sweep_max_pageid = cache->las_pageid;
 
 err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 	return (ret);
@@ -1111,7 +1123,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * If a file is reopened, it's ID may be reused past this point
 		 * so the bitmap we're using is not valid.
 		 */
-		if (las_pageid >= cache->las_sweep_max_pageid) {
+		if (las_pageid > cache->las_sweep_max_pageid) {
 			__wt_buf_free(session, sweep_key);
 			ret = WT_NOTFOUND;
 			break;
