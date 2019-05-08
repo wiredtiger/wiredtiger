@@ -890,27 +890,17 @@ __wt_las_remove_dropped(WT_SESSION_IMPL *session)
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 
-	/*
-	 * Wait for any in progress sweeps to finish.
-	 */
-	__wt_readlock(session, &cache->las_sweepwalk_lock);
 	__wt_spin_lock(session, &cache->las_sweep_lock);
-	for (i = 0; i < cache->las_dropped_next; i++) {
-		if (cache->las_dropped[i] == btree->id) {
-			for (j = i; j < (cache->las_dropped_next - 1); j++)
-				cache->las_dropped[j] =
-				    cache->las_dropped[j + 1];
-			cache->las_dropped_next--;
-			/*
-			 * Force next sweep pass to re-initialize its saved
-			 * bitmaps that may have contained this id.
-			 */
-			cache->las_sweep_key.size = 0;
-			break;
-		}
+	for (i = 0; i < cache->las_dropped_next &&
+	    cache->las_dropped[i] != btree->id; i++)
+		;
+
+	if (i < cache->las_dropped_next) {
+		cache->las_dropped_next--;
+		for (j = i; j < cache->las_dropped_next; j++)
+			cache->las_dropped[j] = cache->las_dropped[j + 1];
 	}
 	__wt_spin_unlock(session, &cache->las_sweep_lock);
-	__wt_readunlock(session, &cache->las_sweepwalk_lock);
 }
 
 /*
@@ -1011,6 +1001,7 @@ __las_sweep_init(WT_SESSION_IMPL *session)
 
 	/* Clear the list of btree IDs. */
 	cache->las_dropped_next = 0;
+	cache->las_sweep_max_pageid = cache->las_pageid;
 
 err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 	return (ret);
@@ -1086,7 +1077,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 * table. Searching for the same key could leave us stuck at
 		 * the end of the table, repeatedly checking the same rows.
 		 */
-		sweep_key->size = 0;
+		__wt_buf_free(session, sweep_key);
 	} else
 		ret = __las_sweep_init(session);
 	if (ret != 0)
@@ -1114,6 +1105,17 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 		 */
 		if (__wt_cache_stuck(session))
 			cnt = 0;
+
+		/*
+		 * Don't go past the end of lookaside from when sweep started.
+		 * If a file is reopened, it's ID may be reused past this point
+		 * so the bitmap we're using is not valid.
+		 */
+		if (las_pageid >= cache->las_sweep_max_pageid) {
+			__wt_buf_free(session, sweep_key);
+			ret = WT_NOTFOUND;
+			break;
+		}
 
 		/*
 		 * We only want to break between key blocks. Stop if we've
