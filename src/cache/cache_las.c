@@ -1120,7 +1120,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
 		/*
 		 * Don't go past the end of lookaside from when sweep started.
-		 * If a file is reopened, it's ID may be reused past this point
+		 * If a file is reopened, its ID may be reused past this point
 		 * so the bitmap we're using is not valid.
 		 */
 		if (las_pageid > cache->las_sweep_max_pageid) {
