@@ -1188,6 +1188,8 @@ struct __wt_session {
 	/*!
 	 * Create a table, column group, index or file.
 	 *
+	 * @not_transactional
+	 *
 	 * @snippet ex_all.c Create a table
 	 *
 	 * @param session the session handle
@@ -1470,6 +1472,8 @@ struct __wt_session {
 	 *
 	 * @exclusive
 	 *
+	 * @not_transactional
+	 *
 	 * @snippet ex_all.c Drop a table
 	 *
 	 * @param session the session handle
@@ -1599,6 +1603,8 @@ struct __wt_session {
 
 	/*!
 	 * Rename an object.
+	 *
+	 * @not_transactional
 	 *
 	 * @snippet ex_all.c Rename a table
 	 *
