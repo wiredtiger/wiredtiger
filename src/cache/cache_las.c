@@ -886,6 +886,7 @@ __wt_las_remove_block(WT_SESSION_IMPL *session, uint64_t pageid)
 void
 __wt_las_remove_dropped(WT_SESSION_IMPL *session)
 {
+	struct timespec now;
 	WT_BTREE *btree;
 	WT_CACHE *cache;
 	u_int i, j;
@@ -899,6 +900,12 @@ __wt_las_remove_dropped(WT_SESSION_IMPL *session)
 		;
 
 	if (i < cache->las_dropped_next) {
+		__wt_epoch(session, &now);
+		WT_IGNORE_RET(__wt_log_printf(session,
+		    "[%" PRIu64 ":%" PRIu64
+		    "] REMOVE DROPPED found  file %s id %" PRIu32,
+		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+		    btree->dhandle->name, btree->id));
 		cache->las_dropped_next--;
 		for (j = i; j < cache->las_dropped_next; j++)
 			cache->las_dropped[j] = cache->las_dropped[j + 1];
@@ -913,6 +920,7 @@ __wt_las_remove_dropped(WT_SESSION_IMPL *session)
 int
 __wt_las_save_dropped(WT_SESSION_IMPL *session)
 {
+	struct timespec now;
 	WT_BTREE *btree;
 	WT_CACHE *cache;
 	WT_DECL_RET;
@@ -923,6 +931,12 @@ __wt_las_save_dropped(WT_SESSION_IMPL *session)
 	__wt_spin_lock(session, &cache->las_sweep_lock);
 	WT_ERR(__wt_realloc_def(session, &cache->las_dropped_alloc,
 	    cache->las_dropped_next + 1, &cache->las_dropped));
+	__wt_epoch(session, &now);
+	WT_IGNORE_RET(__wt_log_printf(session,
+	    "[%" PRIu64 ":%" PRIu64
+	    "] SAVE DROPPED file %s idx %" PRIu32 "  id %" PRIu32,
+	    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+	    btree->dhandle->name, cache->las_dropped_next, btree->id));
 	cache->las_dropped[cache->las_dropped_next++] = btree->id;
 err:	__wt_spin_unlock(session, &cache->las_sweep_lock);
 	return (ret);

@@ -185,12 +185,12 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
 {
 	WT_CURSOR **cursors;
 	uint64_t key_count;
-	int err, err_ret, i, ret, t_ret;
+	int err_cnt, i, ret, t_ret;
 	const char *ckpt, *type0, *typei;
 	char ckpt_buf[128], next_uri[128];
 
 	ret = t_ret = 0;
-	err = err_ret = 0;
+	err_cnt = 0;
 	key_count = 0;
 	cursors = calloc((size_t)g.ntables, sizeof(*cursors));
 	if (cursors == NULL)
@@ -272,19 +272,18 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
 				(void)log_print_err(
 				    "verify_consistency - mismatching data",
 				    EFAULT, 1);
-				err++;
-				if (err_ret == 0)
-					err_ret = ret;
-				ret = 0;
+				err_cnt++;
 #if 0
 				goto err;
 #endif
 			}
 		}
+		if (err_cnt)
+			goto err;
 	}
 	printf("Finished verifying a %s (%d errors) with %d tables and %" PRIu64
 	    " keys\n", use_checkpoint ? "checkpoint" : "snapshot",
-	    err, g.ntables, key_count);
+	    err_cnt, g.ntables, key_count);
 	fflush(stdout);
 
 err:	for (i = 0; i < g.ntables; i++) {
@@ -296,7 +295,7 @@ err:	for (i = 0; i < g.ntables; i++) {
 	if (!use_checkpoint)
 		testutil_check(session->commit_transaction(session, NULL));
 	free(cursors);
-	return (err_ret);
+	return (ret);
 }
 
 /*

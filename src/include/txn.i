@@ -885,6 +885,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 static inline int
 __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	struct timespec now;
 	WT_TXN *txn;
 
 	txn = &session->txn;
@@ -907,6 +908,12 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
 
 		__wt_txn_get_snapshot(session);
+		__wt_epoch(session, &now);
+		WT_IGNORE_RET(__wt_log_printf(session,
+		    "[%" PRIu64 ":%" PRIu64 "] TXN BEGIN: snapshot min %"
+		    PRIu64 " max %" PRIu64 " count %" PRIu64,
+		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+		    txn->snap_min, txn->snap_max, txn->snapshot_count));
 	}
 
 	F_SET(txn, WT_TXN_RUNNING);

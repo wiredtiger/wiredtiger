@@ -59,6 +59,7 @@ __sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 static int
 __sweep_expire_one(WT_SESSION_IMPL *session)
 {
+	struct timespec now;
 	WT_BTREE *btree;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
@@ -97,11 +98,43 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 		    __wt_txn_oldest_id(session), pinned_ts));
 
 		/*
-		 * XXX These assertions are firing regularly, possibly because
-		 * updates are seen, then rolled back.
+		 * XXX This isn't valid: we might leave a page dirty with an uncommitted transaction that gets rolled back.
 		 * WT_ASSERT(session, btree->rec_max_txn >= btree->tmp_rec_max_txn);
-		 * WT_ASSERT(session, btree->rec_max_timestamp >= btree->tmp_rec_max_timestamp);
+		WT_ASSERT(session, btree->rec_max_timestamp >= btree->tmp_rec_max_timestamp);
 		*/
+		__wt_epoch(session, &now);
+		if (btree->rec_max_timestamp < btree->tmp_rec_max_timestamp) {
+			WT_IGNORE_RET(__wt_log_printf(session,
+			    "[%" PRIu64 ":%" PRIu64 "] SWEEP ERROR:"
+			    " Missing data in %s"
+			    " rec_max_timestamp: %" PRIu64 " 0x%" PRIx64
+			    " tmp_rec_max_timestamp: %" PRIu64 " 0x%" PRIx64,
+			    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+			    btree->dhandle->name,
+			    btree->rec_max_timestamp, btree->rec_max_timestamp,
+			    btree->tmp_rec_max_timestamp, btree->tmp_rec_max_timestamp));
+			WT_IGNORE_RET(__wt_msg(session,
+			    "SWEEP ERROR:"
+			    " Missing data in %s"
+			    " rec_max_timestamp: %" PRIu64 " 0x%" PRIx64
+			    " tmp_rec_max_timestamp: %" PRIu64 " 0x%" PRIx64,
+			    btree->dhandle->name,
+			    btree->rec_max_timestamp, btree->rec_max_timestamp,
+			    btree->tmp_rec_max_timestamp, btree->tmp_rec_max_timestamp));
+		}
+		WT_IGNORE_RET(__wt_log_printf(session,
+		    "[%" PRIu64 ":%" PRIu64 "] SWEEP:"
+		    " CLOSE %s"
+		    " rec_max_txn: %" PRIu64 " 0x%" PRIx64
+		    " tmp_rec_max_txn: %" PRIu64 " 0x%" PRIx64
+		    " rec_max_timestamp: %" PRIu64 " 0x%" PRIx64
+		    " tmp_rec_max_timestamp: %" PRIu64 " 0x%" PRIx64,
+		    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec,
+		    btree->dhandle->name,
+		    btree->rec_max_txn, btree->rec_max_txn,
+		    btree->tmp_rec_max_txn, btree->tmp_rec_max_txn,
+		    btree->rec_max_timestamp, btree->rec_max_timestamp,
+		    btree->tmp_rec_max_timestamp, btree->tmp_rec_max_timestamp));
 	}
 
 	/*

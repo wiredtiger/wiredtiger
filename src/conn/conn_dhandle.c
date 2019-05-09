@@ -239,6 +239,7 @@ int
 __wt_conn_dhandle_close(
     WT_SESSION_IMPL *session, bool final, bool mark_dead)
 {
+	struct timespec now;
 	WT_BM *bm;
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
@@ -351,6 +352,10 @@ __wt_conn_dhandle_close(
 		WT_TRET(__wt_evict_file(session, WT_SYNC_DISCARD));
 
 	/* Close the underlying handle. */
+	__wt_epoch(session, &now);
+	WT_IGNORE_RET(__wt_log_printf(session,
+	    "[%" PRIu64 ":%" PRIu64"] CLOSE file %s",
+	    (uint64_t)now.tv_sec, (uint64_t)now.tv_nsec, dhandle->name));
 	switch (dhandle->type) {
 	case WT_DHANDLE_TYPE_BTREE:
 		WT_TRET(__wt_btree_close(session));
