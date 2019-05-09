@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -359,8 +359,8 @@ __curindex_close(WT_CURSOR *cursor)
 
 	cindex = (WT_CURSOR_INDEX *)cursor;
 	idx = cindex->index;
-
 	JOINABLE_CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if ((cp = cindex->cg_cursors) != NULL)
 		for (i = 0, cp = cindex->cg_cursors;
@@ -382,12 +382,12 @@ __curindex_close(WT_CURSOR *cursor)
 	if (cindex->child != NULL)
 		WT_TRET(cindex->child->close(cindex->child));
 
-	WT_TRET(__wt_schema_release_table(session, cindex->table));
+	WT_TRET(__wt_schema_release_table(session, &cindex->table));
 	/* The URI is owned by the index. */
 	cursor->internal_uri = NULL;
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*
@@ -489,14 +489,14 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 
 	if ((ret = __wt_schema_open_index(
 	    session, table, idxname, namesize, &idx)) != 0) {
-		WT_TRET(__wt_schema_release_table(session, table));
+		WT_TRET(__wt_schema_release_table(session, &table));
 		return (ret);
 	}
 	WT_RET(__wt_calloc_one(session, &cindex));
 
-	cursor = &cindex->iface;
+	cursor = (WT_CURSOR *)cindex;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 
 	cindex->table = table;
 	cindex->index = idx;
@@ -544,8 +544,8 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	WT_ERR(__curindex_open_colgroups(session, cindex, cfg));
 
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
-		__wt_json_column_init(cursor, uri, table->key_format,
-		    &idx->colconf, &table->colconf);
+		WT_ERR(__wt_json_column_init(cursor, uri, table->key_format,
+		    &idx->colconf, &table->colconf));
 
 	if (0) {
 err:		WT_TRET(__curindex_close(cursor));

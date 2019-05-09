@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -84,4 +84,10 @@ __wt_verify_build(void)
 	 * disallow them for now.
 	 */
 	WT_STATIC_ASSERT(sizeof(wt_off_t) == 8);
+
+	/*
+	 * We require a time_t be an integral type and fit into a uint64_t for
+	 * simplicity.
+	 */
+	WT_STATIC_ASSERT(sizeof(time_t) <= sizeof(uint64_t));
 }

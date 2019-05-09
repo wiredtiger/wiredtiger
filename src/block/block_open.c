@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -372,11 +372,8 @@ __desc_read(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 	__wt_verbose(session, WT_VERB_BLOCK,
 	    "%s: magic %" PRIu32
-	    ", major/minor: %" PRIu32 "/%" PRIu32
-	    ", checksum %#" PRIx32,
-	    block->name, desc->magic,
-	    desc->majorv, desc->minorv,
-	    desc->checksum);
+	    ", major/minor: %" PRIu32 "/%" PRIu32,
+	    block->name, desc->magic, desc->majorv, desc->minorv);
 
 err:	__wt_scr_free(session, &buf);
 	return (ret);

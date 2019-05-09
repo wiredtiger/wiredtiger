@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -36,8 +36,6 @@ extern "C" {
 }
 #endif
 
-#define	RANDOMIZER_SIZE  5    /* ":000:" prefix */
-
 namespace workgen {
 
 // A 'tint' or ('table integer') is a unique small value integer
@@ -69,13 +67,15 @@ struct WorkgenException {
 
 struct Throttle {
     ThreadRunner &_runner;
-    double _throttle;
+    double _throttle;                          // operations per second
     double _burst;
     timespec _next_div;
     int64_t _ops_delta;
-    uint64_t _ops_prev;         // previously returned value
-    uint64_t _ops_per_div;      // statically calculated.
-    uint64_t _ms_per_div;       // statically calculated.
+    uint64_t _ops_prev;                        // previously returned value
+    uint64_t _ops_per_div;                     // statically calculated.
+    uint64_t _ms_per_div;                      // statically calculated.
+    double _ops_left_this_second;              // ops left to go this second
+    uint_t _div_pos;                           // count within THROTTLE_PER_SEC
     bool _started;
 
     Throttle(ThreadRunner &runner, double throttle, double burst);
@@ -101,6 +101,8 @@ struct ThreadRunner {
     Throttle *_throttle;
     uint64_t _throttle_ops;
     uint64_t _throttle_limit;
+    uint64_t _start_time_us;
+    uint64_t _op_time_us;   // time that current operation starts
     bool _in_transaction;
     uint32_t _number;
     Stats _stats;
@@ -131,6 +133,8 @@ struct ThreadRunner {
     uint64_t op_get_key_recno(Operation *, uint64_t range, tint_t tint);
     void op_get_static_counts(Operation *, Stats &, int);
     int op_run(Operation *);
+    float random_signed();
+    uint32_t random_value();
 
 #ifdef _DEBUG
     std::stringstream _debug_messages;
@@ -174,6 +178,59 @@ struct ContextInternal {
     ContextInternal();
     ~ContextInternal();
     int create_all();
+};
+
+struct OperationInternal {
+#define	WORKGEN_OP_REOPEN		0x0001 // reopen cursor for each op
+    uint32_t _flags;
+
+    OperationInternal() : _flags(0) {}
+    OperationInternal(const OperationInternal &other) : _flags(other._flags) {}
+    virtual ~OperationInternal() {}
+    virtual void parse_config(const std::string &config) { (void)config; }
+    virtual int run(ThreadRunner *runner, WT_SESSION *session) {
+	(void)runner; (void)session; return (0); }
+    virtual uint64_t sync_time_us() const { return (0); }
+};
+
+struct CheckpointOperationInternal : OperationInternal {
+    CheckpointOperationInternal() : OperationInternal() {}
+    CheckpointOperationInternal(const CheckpointOperationInternal &other) :
+	OperationInternal(other) {}
+    virtual int run(ThreadRunner *runner, WT_SESSION *session);
+};
+
+struct LogFlushOperationInternal : OperationInternal {
+    LogFlushOperationInternal() : OperationInternal() {}
+    LogFlushOperationInternal(const LogFlushOperationInternal &other) :
+	OperationInternal(other) {}
+    virtual int run(ThreadRunner *runner, WT_SESSION *session);
+};
+
+struct TableOperationInternal : OperationInternal {
+    uint_t _keysize;    // derived from Key._size and Table.options.key_size
+    uint_t _valuesize;
+    uint_t _keymax;
+    uint_t _valuemax;
+
+    TableOperationInternal() : OperationInternal(), _keysize(0), _valuesize(0),
+			       _keymax(0),_valuemax(0) {}
+    TableOperationInternal(const TableOperationInternal &other) :
+	OperationInternal(other),
+	_keysize(other._keysize), _valuesize(other._valuesize),
+	_keymax(other._keymax), _valuemax(other._valuemax) {}
+    virtual void parse_config(const std::string &config);
+};
+
+struct SleepOperationInternal : OperationInternal {
+    float _sleepvalue;
+
+    SleepOperationInternal() : OperationInternal(), _sleepvalue(0) {}
+    SleepOperationInternal(const SleepOperationInternal &other) :
+	OperationInternal(other),_sleepvalue(other._sleepvalue) {}
+    virtual void parse_config(const std::string &config);
+    virtual int run(ThreadRunner *runner, WT_SESSION *session);
+    virtual uint64_t sync_time_us() const;
 };
 
 struct TableInternal {

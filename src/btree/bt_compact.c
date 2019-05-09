@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -16,7 +16,6 @@ static int
 __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
 	WT_BM *bm;
-	WT_DECL_RET;
 	WT_MULTI *multi;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
@@ -28,15 +27,10 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 	bm = S2BT(session)->bm;
 	page = ref->page;
-	mod = page->modify;
 
-	/*
-	 * If the page is clean, test the original addresses.
-	 * If the page is a replacement, test the replacement addresses.
-	 * Ignore empty pages, they get merged into the parent.
-	 */
+	/* If the page is clean, test the original addresses. */
 	if (__wt_page_evict_clean(page)) {
-		__wt_ref_info(ref, &addr, &addr_size, NULL);
+		__wt_ref_info(session, ref, &addr, &addr_size, NULL);
 		if (addr == NULL)
 			return (0);
 		return (
@@ -44,34 +38,31 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	}
 
 	/*
-	 * The page's modification information can change underfoot if the page
-	 * is being reconciled, serialize with reconciliation.
+	 * If the page is a replacement, test the replacement addresses.
+	 * Ignore empty pages, they get merged into the parent.
+	 *
+	 * Page-modify variable initialization done here because the page could
+	 * be modified while we're looking at it, so the page modified structure
+	 * may appear at any time (but cannot disappear). We've confirmed there
+	 * is a page modify structure, it's OK to look at it.
 	 */
-	if (mod->rec_result == WT_PM_REC_REPLACE ||
-	    mod->rec_result == WT_PM_REC_MULTIBLOCK)
-		WT_PAGE_LOCK(session, page);
-
+	mod = page->modify;
 	if (mod->rec_result == WT_PM_REC_REPLACE)
-		ret = bm->compact_page_skip(bm, session,
-		    mod->mod_replace.addr, mod->mod_replace.size, skipp);
+		return (bm->compact_page_skip(bm, session,
+		    mod->mod_replace.addr, mod->mod_replace.size, skipp));
 
 	if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
 		for (multi = mod->mod_multi,
 		    i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
 			if (multi->addr.addr == NULL)
 				continue;
-			if ((ret = bm->compact_page_skip(bm, session,
-			    multi->addr.addr, multi->addr.size, skipp)) != 0)
-				break;
+			WT_RET(bm->compact_page_skip(bm, session,
+			    multi->addr.addr, multi->addr.size, skipp));
 			if (!*skipp)
 				break;
 		}
 
-	if (mod->rec_result == WT_PM_REC_REPLACE ||
-	    mod->rec_result == WT_PM_REC_MULTIBLOCK)
-		WT_PAGE_UNLOCK(session, page);
-
-	return (ret);
+	return (0);
 }
 
 /*
@@ -98,10 +89,9 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	 * There are two ways we call reconciliation: checkpoints and eviction.
 	 * Get the tree's flush lock which blocks threads writing pages for
 	 * checkpoints. If checkpoint is holding the lock, quit working this
-	 * file, we'll visit it again in our next pass.
-	 *
-	 * Serializing with eviction is not quite as simple, and it gets done
-	 * in the underlying function that checks modification information.
+	 * file, we'll visit it again in our next pass. We don't have to worry
+	 * about eviction, we're holding a hazard pointer on the WT_REF, it's
+	 * not going anywhere.
 	 */
 	WT_RET(__wt_spin_trylock(session, &btree->flush_lock));
 
@@ -111,6 +101,39 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 	__wt_spin_unlock(session, &btree->flush_lock);
 
 	return (ret);
+}
+
+/*
+ * __compact_progress --
+ *     Output a compact progress message.
+ */
+static void
+__compact_progress(WT_SESSION_IMPL *session)
+{
+	struct timespec cur_time;
+	WT_BM *bm;
+	uint64_t time_diff;
+
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS))
+		return;
+
+	bm = S2BT(session)->bm;
+	__wt_epoch(session, &cur_time);
+
+	/* Log one progress message every twenty seconds. */
+	time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
+	if (time_diff / WT_PROGRESS_MSG_PERIOD >
+	    session->compact->prog_msg_count) {
+		__wt_verbose(session,
+		    WT_VERB_COMPACT_PROGRESS, "Compact running"
+		    " for %" PRIu64 " seconds; reviewed %"
+		    PRIu64 " pages, skipped %" PRIu64 " pages,"
+		    " wrote %" PRIu64 " pages", time_diff,
+		    bm->block->compact_pages_reviewed,
+		    bm->block->compact_pages_skipped,
+		    bm->block->compact_pages_written);
+		session->compact->prog_msg_count++;
+	}
 }
 
 /*
@@ -147,6 +170,7 @@ __wt_compact(WT_SESSION_IMPL *session)
 		 * Quit if eviction is stuck, we're making the problem worse.
 		 */
 		if (++i > 100) {
+			__compact_progress(session);
 			WT_ERR(__wt_session_compact_check_timeout(session));
 
 			if (__wt_cache_stuck(session))
@@ -259,7 +283,7 @@ __wt_compact_page_skip(
 	 * if it's useful to rewrite leaf pages, don't do the I/O if a rewrite
 	 * won't help.
 	 */
-	__wt_ref_info(ref, &addr, &addr_size, &type);
+	__wt_ref_info(session, ref, &addr, &addr_size, &type);
 	WT_ASSERT(session, addr != NULL);
 	if (addr != NULL && type != WT_CELL_ADDR_INT) {
 		bm = S2BT(session)->bm;
@@ -268,7 +292,7 @@ __wt_compact_page_skip(
 	}
 
 	/* Reset the WT_REF state. */
-	ref->state = WT_REF_DISK;
+	WT_REF_SET_STATE(ref, WT_REF_DISK);
 
 	return (ret);
 }

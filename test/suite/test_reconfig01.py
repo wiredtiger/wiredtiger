@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -105,6 +105,13 @@ class test_reconfig01(wttest.WiredTigerTestCase):
         self.conn.reconfigure("statistics=(all)")
         self.conn.reconfigure("statistics=(fast)")
         self.conn.reconfigure("statistics=(none)")
+
+    def test_reconfig_capacity(self):
+        self.conn.reconfigure("io_capacity=(total=80M)")
+        self.conn.reconfigure("io_capacity=(total=100M)")
+        msg = '/below minimum/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.conn.reconfigure("io_capacity=(total=16K)"), msg)
 
     def test_reconfig_checkpoints(self):
         self.conn.reconfigure("checkpoint=(wait=0)")

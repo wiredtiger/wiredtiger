@@ -74,8 +74,8 @@ when the cursor was opened), as well as statistics logging, when it is
 configured.
 
 The following example configures WiredTiger to maintain only relatively
-inexpensive statistics, and to clears statistics after they are gathered
-or logged:
+inexpensive statistics, and to clear statistics after they are gathered or
+logged:
 
 @snippet ex_all.c Statistics clear configuration
 
@@ -87,6 +87,14 @@ The statistics gathered will be organized by reference cursors participating
 in the join (see WT_SESSION::join); the uri of each reference cursor appears
 as a prefix in the description field returned as a value by the statistics
 cursor.
+
+The following example opens a statistics cursor on an open WiredTiger session:
+
+@snippet ex_all.c Statistics cursor session
+
+A reset call on this cursor would reset the session statistics values to zero,
+with or without the statistics configuration \c clear being specified to the
+WT_SESSION::open_cursor method.
 
 @section statistics_log Statistics logging
 
@@ -155,10 +163,5 @@ No statistics are logged for any data source for which a handle is not
 currently open in the database, nor will any statistics requiring the
 traversal of a tree (as if the \c statistics_fast configuration string
 were set).
-
-A Python script that parses the default logging output and uses the
-<a href="http://www.gnuplot.info/">gnuplot</a>, utility to generate
-Portable Network Graphics (PNG) format graphs is included in the
-WiredTiger distribution in the file \c tools/statlog.py.
 
 */

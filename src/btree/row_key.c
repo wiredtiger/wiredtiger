@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -262,7 +262,7 @@ switch_and_jump:	/* Switching to a forward roll. */
 		/*
 		 * It must be an on-page cell, unpack it.
 		 */
-		__wt_cell_unpack(cell, unpack);
+		__wt_cell_unpack(session, page, cell, unpack);
 
 		/* 3: the test for an on-page reference to an overflow key. */
 		if (unpack->type == WT_CELL_KEY_OVFL) {
@@ -286,7 +286,8 @@ switch_and_jump:	/* Switching to a forward roll. */
 				copy = WT_ROW_KEY_COPY(rip);
 				if (!__wt_row_leaf_key_info(page, copy,
 				    NULL, &cell, &keyb->data, &keyb->size)) {
-					__wt_cell_unpack(cell, unpack);
+					__wt_cell_unpack(
+					    session, page, cell, unpack);
 					ret = __wt_dsk_cell_data_ref(session,
 					    WT_PAGE_ROW_LEAF, unpack, keyb);
 				}

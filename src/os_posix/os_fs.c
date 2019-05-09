@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -140,7 +140,7 @@ __posix_directory_sync(WT_SESSION_IMPL *session, const char *path)
 
 	fd = 0;				/* -Wconditional-uninitialized */
 	WT_SYSCALL_RETRY((
-	    (fd = open(dir, O_RDONLY, 0444)) == -1 ? -1 : 0), ret);
+	    (fd = open(dir, O_RDONLY | O_CLOEXEC, 0444)) == -1 ? -1 : 0), ret);
 	if (ret != 0)
 		WT_ERR_MSG(session, ret, "%s: directory-sync: open", dir);
 
@@ -338,7 +338,7 @@ __posix_file_advise(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	 */
 	if (ret == EINVAL) {
 		file_handle->fh_advise = NULL;
-		return (ENOTSUP);
+		return (__wt_set_return(session, ENOTSUP));
 	}
 
 	WT_RET_MSG(session, ret,
@@ -440,7 +440,8 @@ __posix_file_read(WT_FILE_HANDLE *file_handle,
 	for (addr = buf; len > 0; addr += nr, len -= (size_t)nr, offset += nr) {
 		chunk = WT_MIN(len, WT_GIGABYTE);
 		if ((nr = pread(pfh->fd, addr, chunk, offset)) <= 0)
-			WT_RET_MSG(session, nr == 0 ? WT_ERROR : __wt_errno(),
+			WT_RET_MSG(session,
+			    nr == 0 ? WT_ERROR : __wt_errno(),
 			    "%s: handle-read: pread: failed to read %"
 			    WT_SIZET_FMT " bytes at offset %" PRIuMAX,
 			    file_handle->name, chunk, (uintmax_t)offset);

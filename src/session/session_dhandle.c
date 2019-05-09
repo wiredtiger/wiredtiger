@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -119,7 +119,7 @@ __wt_session_lock_dhandle(
 	WT_DECL_RET;
 	bool is_open, lock_busy, want_exclusive;
 
-	*is_deadp = 0;
+	*is_deadp = false;
 
 	dhandle = session->dhandle;
 	btree = dhandle->handle;
@@ -140,7 +140,7 @@ __wt_session_lock_dhandle(
 		if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
 		    (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))))
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		++dhandle->excl_ref;
 		return (0);
 	}
@@ -158,7 +158,7 @@ __wt_session_lock_dhandle(
 	for (;;) {
 		/* If the handle is dead, give up. */
 		if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-			*is_deadp = 1;
+			*is_deadp = true;
 			return (0);
 		}
 
@@ -167,7 +167,7 @@ __wt_session_lock_dhandle(
 		 * give up.
 		 */
 		if (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 
 		/*
 		 * If the handle is open, get a read lock and recheck.
@@ -182,7 +182,7 @@ __wt_session_lock_dhandle(
 		    (!want_exclusive || lock_busy)) {
 			__wt_readlock(session, &dhandle->rwlock);
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-				*is_deadp = 1;
+				*is_deadp = true;
 				__wt_readunlock(session, &dhandle->rwlock);
 				return (0);
 			}
@@ -203,7 +203,7 @@ __wt_session_lock_dhandle(
 		if ((ret =
 		    __wt_try_writelock(session, &dhandle->rwlock)) == 0) {
 			if (F_ISSET(dhandle, WT_DHANDLE_DEAD)) {
-				*is_deadp = 1;
+				*is_deadp = true;
 				__wt_writeunlock(session, &dhandle->rwlock);
 				return (0);
 			}
@@ -392,7 +392,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DATA_HANDLE_CACHE *dhandle_cache, *dhandle_cache_tmp;
-	time_t now;
+	uint64_t now;
 
 	conn = S2C(session);
 
@@ -401,7 +401,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 	 * do it again.
 	 */
 	__wt_seconds(session, &now);
-	if (difftime(now, session->last_sweep) < conn->sweep_interval)
+	if (now - session->last_sweep < conn->sweep_interval)
 		return;
 	session->last_sweep = now;
 
@@ -414,8 +414,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 		    dhandle->session_inuse == 0 &&
 		    (WT_DHANDLE_INACTIVE(dhandle) ||
 		    (dhandle->timeofdeath != 0 &&
-		    difftime(now, dhandle->timeofdeath) >
-		    conn->sweep_idle_time))) {
+		    now - dhandle->timeofdeath > conn->sweep_idle_time))) {
 			WT_STAT_CONN_INCR(session, dh_session_handles);
 			WT_ASSERT(session, !WT_IS_METADATA(dhandle));
 			__session_discard_dhandle(session, dhandle_cache);
@@ -601,7 +600,7 @@ __wt_session_lock_checkpoint(WT_SESSION_IMPL *session, const char *checkpoint)
 	 * the underlying file are visible to the in-memory pages.
 	 */
 	WT_ERR(__wt_evict_file_exclusive_on(session));
-	ret = __wt_cache_op(session, WT_SYNC_DISCARD);
+	ret = __wt_evict_file(session, WT_SYNC_DISCARD);
 	__wt_evict_file_exclusive_off(session);
 	WT_ERR(ret);
 

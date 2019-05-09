@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -40,11 +40,9 @@ def timestamp_str(t):
 
 class test_timestamp05(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:ts05'
+    session_config = 'isolation=snapshot'
 
     def test_create(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         s = self.session
         conn = self.conn
 
@@ -64,9 +62,6 @@ class test_timestamp05(wttest.WiredTigerTestCase, suite_subprocess):
         s.checkpoint('use_timestamp=true')
 
     def test_bulk(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         s = self.session
         conn = self.conn
 
@@ -75,9 +70,7 @@ class test_timestamp05(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Insert keys 1..100 each with timestamp=key, in some order
         nkeys = 100
-        keys = range(1, nkeys+1)
-
-        for k in keys:
+        for k in range(1, nkeys+1):
             c[k] = 'some value'
 
         # Start timestamps at 50

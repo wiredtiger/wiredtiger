@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -117,7 +117,7 @@ class test_async01(wttest.WiredTigerTestCase, suite_subprocess):
     """
     table_name1 = 'test_async01'
     nentries = 100
-    async_ops = nentries / 2
+    async_ops = nentries // 2
     async_threads = 3
     current = {}
 
@@ -140,7 +140,7 @@ class test_async01(wttest.WiredTigerTestCase, suite_subprocess):
         if self.tablekind == 'row':
             return 'key' + str(i)
         else:
-            return long(i+1)
+            return self.recno(i+1)
 
     def genvalue(self, i):
         if self.tablekind == 'fix':

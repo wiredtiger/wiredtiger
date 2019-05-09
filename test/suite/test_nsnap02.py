@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -70,13 +70,13 @@ class test_nsnap02(wttest.WiredTigerTestCase, suite_subprocess):
         # Each snapshot removes a (smaller) bunch of old data
         snapshots = []
         c = self.session.open_cursor(self.uri)
-        for n in xrange(self.nsnapshots):
+        for n in range(self.nsnapshots):
             self.session.snapshot("name=%d" % (n))
             snapshots.append((n, end - start, 0))
-            for i in xrange(2 * self.nrows_per_snap):
+            for i in range(2 * self.nrows_per_snap):
                 c[end + i] = "some value"
             end += 2 * self.nrows_per_snap
-            for i in xrange(self.nrows_per_snap):
+            for i in range(self.nrows_per_snap):
                 del c[start + i]
             start += self.nrows_per_snap
         return snapshots

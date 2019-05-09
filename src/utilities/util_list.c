@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -69,6 +69,8 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 	int tret;
 	char *config;
 
+	*allocsize = 0;
+
 	wt_api = session->connection->get_extension_api(session->connection);
 	if ((ret = wt_api->metadata_search(wt_api, session, key, &config)) != 0)
 		return (util_err(
@@ -78,10 +80,9 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 		return (util_err(
 		    session, ret, "WT_EXTENSION_API.config_parser_open"));
 	if ((ret = parser->get(parser, "allocation_size", &szvalue)) != 0) {
-		if (ret == WT_NOTFOUND) {
-			*allocsize = 0;
+		if (ret == WT_NOTFOUND)
 			ret = 0;
-		} else
+		else
 			ret = util_err(session, ret, "WT_CONFIG_PARSER.get");
 		if ((tret = parser->close(parser)) != 0)
 			(void)util_err(session, tret, "WT_CONFIG_PARSER.close");
@@ -218,7 +219,7 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 		t = (time_t)ckpt->sec;
 		printf("\t%*s: %.24s", (int)len, ckpt->name, ctime(&t));
 
-		v = ckpt->ckpt_size;
+		v = ckpt->size;
 		if (v >= WT_PETABYTE)
 			printf(" (%" PRIu64 " PB)\n", v / WT_PETABYTE);
 		else if (v >= WT_TERABYTE)

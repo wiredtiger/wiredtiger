@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -59,7 +59,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor, *cursor_tmp;
 	WT_CURSOR_LIST *cached_list;
 	WT_DECL_RET;
-	time_t now;
+	uint64_t now;
 	uint32_t position;
 	int i, t_ret, nbuckets, nexamined, nclosed;
 	bool productive;
@@ -72,7 +72,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
 	 * do it again.
 	 */
 	__wt_seconds(session, &now);
-	if (difftime(now, session->last_cursor_sweep) < 1)
+	if (now - session->last_cursor_sweep < 1)
 		return (0);
 	session->last_cursor_sweep = now;
 
@@ -182,37 +182,6 @@ __wt_session_release_resources(WT_SESSION_IMPL *session)
 }
 
 /*
- * __session_clear_commit_queue --
- *	We're about to clear the session and overwrite the txn structure.
- *	Remove ourselves from the commit timestamp queue if we're on it.
- */
-static void
-__session_clear_commit_queue(WT_SESSION_IMPL *session)
-{
-	WT_TXN *txn;
-	WT_TXN_GLOBAL *txn_global;
-
-	txn = &session->txn;
-	txn_global = &S2C(session)->txn_global;
-
-	if (!txn->clear_ts_queue)
-		return;
-
-	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
-	/*
-	 * Recheck after acquiring the lock.
-	 */
-	if (txn->clear_ts_queue) {
-		TAILQ_REMOVE(
-		    &txn_global->commit_timestamph, txn, commit_timestampq);
-		--txn_global->commit_timestampq_len;
-		txn->clear_ts_queue = false;
-	}
-	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
-
-}
-
-/*
  * __session_clear --
  *	Clear a session structure.
  */
@@ -231,7 +200,7 @@ __session_clear(WT_SESSION_IMPL *session)
 	 *
 	 * For these reasons, be careful when clearing the session structure.
 	 */
-	__session_clear_commit_queue(session);
+	__wt_txn_clear_timestamp_queues(session);
 	memset(session, 0, WT_SESSION_CLEAR_SIZE);
 
 	WT_INIT_LSN(&session->bg_sync_lsn);
@@ -259,7 +228,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
 			 */
 			WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
 		else if (session->event_handler->handle_close != NULL &&
-		    !WT_STREQ(cursor->internal_uri, WT_LAS_URI))
+		    strcmp(cursor->internal_uri, WT_LAS_URI) != 0)
 			/*
 			 * Notify the user that we are closing the cursor
 			 * handle via the registered close callback.
@@ -524,7 +493,7 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri,
 	case 'b':
 		if (WT_PREFIX_MATCH(uri, "backup:"))
 			WT_RET(__wt_curbackup_open(
-			    session, uri, cfg, cursorp));
+			    session, uri, other, cfg, cursorp));
 		break;
 	case 's':
 		if (WT_PREFIX_MATCH(uri, "statistics:"))
@@ -601,15 +570,16 @@ __session_open_cursor(WT_SESSION *wt_session,
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	bool statjoin;
+	bool dup_backup, statjoin;
 
 	cursor = *cursorp = NULL;
 
+	dup_backup = false;
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL(session, open_cursor, config, cfg);
 
 	statjoin = (to_dup != NULL && uri != NULL &&
-	    WT_STREQ(uri, "statistics:join"));
+	    strcmp(uri, "statistics:join") == 0);
 	if (!statjoin) {
 		if ((to_dup == NULL && uri == NULL) ||
 		    (to_dup != NULL && uri != NULL))
@@ -620,11 +590,19 @@ __session_open_cursor(WT_SESSION *wt_session,
 		if ((ret = __wt_cursor_cache_get(
 		    session, uri, to_dup, cfg, &cursor)) == 0)
 			goto done;
+
+		/*
+		 * Detect if we're duplicating a backup cursor specifically.
+		 * That needs special handling.
+		 */
+		if (to_dup != NULL && strcmp(to_dup->uri, "backup:") == 0)
+			dup_backup = true;
 		WT_ERR_NOTFOUND_OK(ret);
 
 		if (to_dup != NULL) {
 			uri = to_dup->uri;
-			if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
+			if (!WT_PREFIX_MATCH(uri, "backup:") &&
+			    !WT_PREFIX_MATCH(uri, "colgroup:") &&
 			    !WT_PREFIX_MATCH(uri, "index:") &&
 			    !WT_PREFIX_MATCH(uri, "file:") &&
 			    !WT_PREFIX_MATCH(uri, "lsm:") &&
@@ -636,10 +614,10 @@ __session_open_cursor(WT_SESSION *wt_session,
 	}
 
 	WT_ERR(__session_open_cursor_int(session, uri, NULL,
-	    statjoin ? to_dup : NULL, cfg, &cursor));
+	    statjoin || dup_backup ? to_dup : NULL, cfg, &cursor));
 
 done:
-	if (to_dup != NULL && !statjoin)
+	if (to_dup != NULL && !statjoin && !dup_backup)
 		WT_ERR(__wt_cursor_dup_position(to_dup, cursor));
 
 	*cursorp = cursor;
@@ -1038,10 +1016,18 @@ __session_reset(WT_SESSION *wt_session)
 
 	WT_TRET(__wt_session_reset_cursors(session, true));
 
-	WT_TRET(__wt_session_cursor_cache_sweep(session));
+	if (--session->cursor_sweep_countdown == 0) {
+		session->cursor_sweep_countdown =
+		    WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+		WT_TRET(__wt_session_cursor_cache_sweep(session));
+	}
 
 	/* Release common session resources. */
 	WT_TRET(__wt_session_release_resources(session));
+
+	/* Reset the session statistics. */
+	if (WT_STAT_ENABLED(session))
+		__wt_stat_session_clear_single(&session->stats);
 
 err:	API_END_RET_NOTFOUND_MAP(session, ret);
 }
@@ -1490,7 +1476,7 @@ __session_truncate(WT_SESSION *wt_session,
 			 * Verify the user only gave the URI prefix and not
 			 * a specific target name after that.
 			 */
-			if (!WT_STREQ(uri, "log:"))
+			if (strcmp(uri, "log:") != 0)
 				WT_ERR_MSG(session, EINVAL,
 				    "the truncate method should not specify any"
 				    "target after the log: URI prefix");
@@ -1790,6 +1776,24 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 	cfg[1] = config;
 #endif
 	WT_TRET(__wt_txn_set_timestamp(session, cfg));
+err:	API_END_RET(session, ret);
+}
+
+/*
+ * __session_query_timestamp --
+ *	WT_SESSION->query_timestamp method.
+ */
+static int
+__session_query_timestamp(
+    WT_SESSION *wt_session, char *hex_timestamp, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    query_timestamp, config, cfg);
+	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg, false));
 err:	API_END_RET(session, ret);
 }
 
@@ -2105,6 +2109,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_prepare_transaction,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
+		__session_query_timestamp,
 		__session_checkpoint,
 		__session_snapshot,
 		__session_transaction_pinned_range,
@@ -2136,6 +2141,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_prepare_transaction_readonly,
 		__session_rollback_transaction,
 		__session_timestamp_transaction,
+		__session_query_timestamp,
 		__session_checkpoint_readonly,
 		__session_snapshot,
 		__session_transaction_pinned_range,
@@ -2241,6 +2247,8 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		    session, WT_OPTRACK_BUFSIZE, &session_ret->optrack_buf));
 		session_ret->optrackbuf_ptr = 0;
 	}
+
+       __wt_stat_session_init_single(&session_ret->stats);
 
 	/* Set the default value for session flags. */
 	if (F_ISSET(conn, WT_CONN_CACHE_CURSORS))

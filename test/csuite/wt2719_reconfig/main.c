@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -208,7 +208,7 @@ on_alarm(int signo)
 static void
 reconfig(TEST_OPTS *opts, WT_SESSION *session, const char *config)
 {
-	int ret;
+	WT_DECL_RET;
 
 	current = config;
 

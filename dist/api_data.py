@@ -23,8 +23,24 @@ class Config:
         self.subconfig = subconfig
         self.flags = flags
 
-    def __cmp__(self, other):
-        return cmp(self.name, other.name)
+    # Comparators for sorting.
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __ne__(self, other):
+        return self.name != other.name
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+    def __le__(self, other):
+        return self.name <= other.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+    def __ge__(self, other):
+        return self.name >= other.name
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -153,10 +169,6 @@ file_runtime_config = common_runtime_config + [
         option leads to an advisory call to an appropriate operating
         system API where available''',
         choices=['none', 'random', 'sequential']),
-    Config('cache_resident', 'false', r'''
-        do not ever evict the object's pages from cache. Not compatible with
-        LSM tables; see @ref tuning_cache_resident for more information''',
-        type='boolean'),
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
@@ -166,13 +178,21 @@ file_runtime_config = common_runtime_config + [
             if mixed update use is allowed. If 'key_consistent' is
             set then all updates to a specific key must be the same
             with respect to timestamp usage or not.''',
-            choices=['always','key_consistent', 'never','none']),
+            choices=['always', 'key_consistent', 'never', 'none']),
+        Config('durable_timestamp', 'none', r'''
+            verify that durable timestamps should 'always' or 'never' be used
+            on modifications with this table.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
         Config('read_timestamp', 'none', r'''
             verify that timestamps should 'always' or 'never' be used
             on reads with this table.  Verification is 'none'
             if mixed read use is allowed.''',
-            choices=['always','never','none'])
+            choices=['always', 'never', 'none'])
         ], undoc=True),
+    Config('cache_resident', 'false', r'''
+        do not ever evict the object's pages from cache. Not compatible with
+        LSM tables; see @ref tuning_cache_resident for more information''',
+        type='boolean'),
     Config('log', '', r'''
         the transaction log configuration for this object.  Only valid if
         log is enabled in ::wiredtiger_open''',
@@ -181,6 +201,17 @@ file_runtime_config = common_runtime_config + [
             if false, this object has checkpoint-level durability''',
             type='boolean'),
         ]),
+    Config('os_cache_max', '0', r'''
+        maximum system buffer cache usage, in bytes.  If non-zero, evict
+        object blocks from the system buffer cache after that many bytes
+        from this object are read or written into the buffer cache''',
+        min=0),
+    Config('os_cache_dirty_max', '0', r'''
+        maximum dirty system buffer cache usage, in bytes.  If non-zero,
+        schedule writes for dirty blocks belonging to this object in the
+        system buffer cache after that many bytes from this object are
+        written into the buffer cache''',
+        min=0),
 ]
 
 # Per-file configuration
@@ -302,6 +333,14 @@ file_config = format_meta + file_runtime_config + [
     Config('leaf_item_max', '0', r'''
         historic term for leaf_key_max and leaf_value_max''',
         min=0, undoc=True),
+    Config('memory_page_image_max', '0', r'''
+        the maximum in-memory page image represented by a single storage block.
+        Depending on compression efficiency, compression can create storage
+        blocks which require significant resources to re-instantiate in the
+        cache, penalizing the performance of future point updates. The value
+        limits the maximum in-memory page image a storage block will need. If
+        set to 0, a default of 4 times \c leaf_page_max is used''',
+        min='0'),
     Config('memory_page_max', '5MB', r'''
         the maximum size a page can grow to in memory before being
         reconciled to disk.  The specified size will be adjusted to a lower
@@ -310,17 +349,6 @@ file_config = format_meta + file_runtime_config + [
         for pages to be temporarily larger than this value.  This setting
         is ignored for LSM trees, see \c chunk_size''',
         min='512B', max='10TB'),
-    Config('os_cache_max', '0', r'''
-        maximum system buffer cache usage, in bytes.  If non-zero, evict
-        object blocks from the system buffer cache after that many bytes
-        from this object are read or written into the buffer cache''',
-        min=0),
-    Config('os_cache_dirty_max', '0', r'''
-        maximum dirty system buffer cache usage, in bytes.  If non-zero,
-        schedule writes for dirty blocks belonging to this object in the
-        system buffer cache after that many bytes from this object are
-        written into the buffer cache''',
-        min=0),
     Config('prefix_compression', 'false', r'''
         configure prefix compression on row-store leaf pages''',
         type='boolean'),
@@ -417,6 +445,11 @@ connection_runtime_config = [
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
         min='1MB', max='10TB'),
+    Config('cache_max_wait_ms', '0', r'''
+        the maximum number of milliseconds an application thread will wait
+        for space to be available in cache before giving up. Default will
+        wait forever''',
+        min=0),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and
         adjust the cache usage by that amount (for example, if there is 10GB
@@ -460,7 +493,7 @@ connection_runtime_config = [
                 vary depending on the current eviction load''',
                 min=1, max=20),
             ]),
-    Config('eviction_checkpoint_target', '5', r'''
+    Config('eviction_checkpoint_target', '1', r'''
         perform eviction at the beginning of checkpoints to bring the dirty
         content in cache to this level. It is a percentage of the cache size if
         the value is within the range of 0 to 100 or an absolute size when
@@ -505,6 +538,17 @@ connection_runtime_config = [
         Config('close_scan_interval', '10', r'''
             interval in seconds at which to check for files that are
             inactive and close them''', min=1, max=100000),
+        ]),
+    Config('io_capacity', '', r'''
+        control how many bytes per second are written and read. Exceeding
+        the capacity results in throttling.''',
+        type='category', subconfig=[
+        Config('total', '0', r'''
+            number of bytes per second available to all subsystems in total.
+            When set, decisions about what subsystems are throttled, and in
+            what proportion, are made internally. The minimum non-zero setting
+            is 1MB.''',
+            min='0', max='1TB'),
         ]),
     Config('lsm_manager', '', r'''
         configure database wide options for LSM tree management. The LSM
@@ -584,8 +628,9 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'checkpoint_slow', 'lookaside_sweep_race', 'split_1', 'split_2',
-        'split_3', 'split_4', 'split_5', 'split_6', 'split_7']),
+        'aggressive_sweep', 'checkpoint_slow', 'lookaside_sweep_race',
+        'split_1', 'split_2', 'split_3', 'split_4', 'split_5', 'split_6',
+        'split_7', 'split_8']),
     Config('verbose', '', r'''
         enable messages for various events. Options are given as a
         list, such as <code>"verbose=[evictserver,read]"</code>''',
@@ -595,6 +640,8 @@ connection_runtime_config = [
             'checkpoint',
             'checkpoint_progress',
             'compact',
+            'compact_progress',
+            'error_returns',
             'evict',
             'evict_stuck',
             'evictserver',
@@ -662,6 +709,13 @@ log_configuration_common = [
     Config('archive', 'true', r'''
         automatically archive unneeded log files''',
         type='boolean'),
+    Config('os_cache_dirty_pct', '0', r'''
+        maximum dirty system buffer cache usage, as a percentage of the
+        log's \c file_max.  If non-zero, schedule writes for dirty blocks
+        belonging to the log in the system buffer cache after that percentage
+        of the log has been written into the buffer cache without an
+        intervening file sync.''',
+        min='0', max='100'),
     Config('prealloc', 'true', r'''
         pre-allocate log files''',
         type='boolean'),
@@ -694,7 +748,8 @@ wiredtiger_open_log_configuration = [
             information'''),
         Config('file_max', '100MB', r'''
             the maximum size of log files''',
-            min='100KB', max='2GB'),
+            min='100KB',    # !!! Must match WT_LOG_FILE_MIN
+            max='2GB'),    # !!! Must match WT_LOG_FILE_MAX
         Config('path', '"."', r'''
             the name of a directory into which log files are written. The
             directory must already exist. If the value is not an absolute path,
@@ -703,7 +758,7 @@ wiredtiger_open_log_configuration = [
         Config('recover', 'on', r'''
             run recovery or error if recovery needs to run after an
             unclean shutdown''',
-            choices=['error','on'])
+            choices=['error', 'on'])
     ]),
 ]
 
@@ -848,7 +903,11 @@ wiredtiger_open_common =\
         file extension configuration.  If set, extend files of the set
         type in allocations of the set size, instead of a block at a
         time as each new block is written.  For example,
-        <code>file_extend=(data=16MB)</code>''',
+        <code>file_extend=(data=16MB)</code>. If set to 0, disable the file
+        extension for the set type. For log files, the allowed range is
+        between 100KB and 2GB; values larger than the configured maximum log
+        size and the default config would extend log files in allocations of
+        the maximum log file size.''',
         type='list', choices=['data', 'log']),
     Config('hazard_max', '1000', r'''
         maximum number of simultaneous hazard pointers per session
@@ -866,6 +925,14 @@ wiredtiger_open_common =\
         open connection in read-only mode.  The database must exist.  All
         methods that may modify a database are disabled.  See @ref readonly
         for more information''',
+        type='boolean'),
+    Config('salvage', 'false', r'''
+        open connection and salvage any WiredTiger-owned database and log
+        files that it detects as corrupted. This API should only be used
+        after getting an error return of WT_TRY_SALVAGE.
+        Salvage rebuilds files in place, overwriting existing files.
+        We recommend making a backup copy of all files with the
+        WiredTiger prefix prior to passing this flag.''',
         type='boolean'),
     Config('session_max', '100', r'''
         maximum expected number of sessions (including server
@@ -1114,6 +1181,10 @@ methods = {
         ignore the encodings for the key and value, manage data as if
         the formats were \c "u".  See @ref cursor_raw for details''',
         type='boolean'),
+    Config('read_once', 'false', r'''
+        results that are brought into cache from disk by this cursor will be
+        given less priority in the cache.''',
+        type='boolean'),
     Config('readonly', 'false', r'''
         only query operations are supported by this cursor. An error is
         returned if a modification is attempted using the cursor.  The
@@ -1146,6 +1217,16 @@ methods = {
         if non-empty, backup the list of objects; valid only for a
         backup data source''',
         type='list'),
+]),
+
+'WT_SESSION.query_timestamp' : Method([
+    Config('get', 'read', r'''
+        specify which timestamp to query: \c commit returns the most recently
+        set commit_timestamp.  \c first_commit returns the first set
+        commit_timestamp.  \c prepare returns the timestamp used in preparing a
+        transaction.  \c read returns the timestamp at which the transaction is
+        reading at.  See @ref transaction_timestamps''',
+        choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
 'WT_SESSION.rebalance' : Method([]),
@@ -1217,17 +1298,31 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+    Config('roundup_timestamps', '', r'''
+        round up timestamps of the transaction. This setting alters the
+        visibility expected in a transaction. See @ref
+        transaction_timestamps''',
+        type='category', subconfig= [
+        Config('prepared', 'false', r'''
+            applicable only for prepared transactions. Indicates if the prepare
+            timestamp and the commit timestamp of this transaction can be
+            rounded up. If the prepare timestamp is less than the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
+            timestamp. If the commit timestamp is less than the prepare
+            timestamp, the commit timestamp will be rounded up to the prepare
+            timestamp''', type='boolean'),
+        Config('read', 'false', r'''
+            if the read timestamp is less than the oldest timestamp, the
+            read timestamp will be rounded up to the oldest timestamp''',
+            type='boolean'),
+        ]),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
-        type='boolean'),
+        type='boolean')
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
@@ -1236,6 +1331,12 @@ methods = {
         value must not be older than the first commit timestamp set for the
         current transaction.  The value must also not be older than the
         current oldest and stable timestamps.  See
+        @ref transaction_timestamps'''),
+    Config('durable_timestamp', '', r'''
+        set the durable timestamp for the current transaction.  The supplied
+        value must not be older than the commit timestamp set for the
+        current transaction.  The value must also not be older than the
+        current stable timestamp.  See
         @ref transaction_timestamps'''),
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits,
@@ -1252,8 +1353,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps.
-        This configuration option is mandatory.  See
-        @ref transaction_timestamps'''),
+        See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1263,14 +1363,20 @@ methods = {
         current transaction.  The value must also not be older than the
         current oldest and stable timestamps.  See
         @ref transaction_timestamps'''),
+    Config('durable_timestamp', '', r'''
+        set the durable timestamp for the current transaction.  The supplied
+        value must not be older than the commit timestamp set for the
+        current transaction.  The value must also not be older than the
+        current stable timestamp.  See
+        @ref transaction_timestamps'''),
+    Config('prepare_timestamp', '', r'''
+        set the prepare timestamp for the updates of the current transaction.
+        The supplied value must not be older than any active read timestamps.
+        See @ref transaction_timestamps'''),
     Config('read_timestamp', '', r'''
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  This can only be set once
-        for a transaction.  @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+        for a transaction. See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),
@@ -1411,13 +1517,17 @@ methods = {
     Config('get', 'all_committed', r'''
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
-        \c oldest returns the most recent \c oldest_timestamp set with
-        WT_CONNECTION::set_timestamp, \c pinned returns the minimum of the
-        \c oldest_timestamp and the read timestamps of all active readers, and
-        \c stable returns the most recent \c stable_timestamp set with
-        WT_CONNECTION::set_timestamp.  See @ref transaction_timestamps''',
+        \c last_checkpoint returns the timestamp of the most recent stable
+        checkpoint, \c oldest returns the most recent \c oldest_timestamp set
+        with WT_CONNECTION::set_timestamp, \c oldest_reader returns the
+        minimum of the read timestamps of all active readers \c pinned returns
+        the minimum of the \c oldest_timestamp and the read timestamps of all
+        active readers, \c recovery returns the timestamp of the most recent
+        stable checkpoint taken prior to a shutdown and \c stable returns the
+        most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
+        See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
-            'oldest','pinned','recovery','stable']),
+            'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([

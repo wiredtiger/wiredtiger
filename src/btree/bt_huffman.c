@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -336,6 +336,7 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip,
 		WT_ERR(__wt_getline(session, fs, tmp));
 		if (tmp->size == 0)
 			break;
+		/* NOLINTNEXTLINE(cert-err34-c) */
 		n = sscanf(
 		    tmp->data, "%" SCNi64 " %" SCNi64, &symbol, &frequency);
 		/*

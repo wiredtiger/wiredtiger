@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -38,6 +38,7 @@ def timestamp_str(t):
 
 class test_timestamp12(wttest.WiredTigerTestCase):
     conn_config = 'config_base=false,create,log=(enabled)'
+    session_config = 'isolation=snapshot'
     coll_uri = 'table:collection12'
     oplog_uri = 'table:oplog12'
     closecfg = [
@@ -64,9 +65,6 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         self.assertTrue(coll_actual == coll_exp)
 
     def test_timestamp_recovery(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         #
         # Create several collection-like tables that are checkpoint durability.
         # Add data to each of them separately and checkpoint so that each one

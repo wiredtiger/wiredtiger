@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -76,7 +76,7 @@ typedef CONDITION_VARIABLE pthread_cond_t;
 
 struct rwlock_wrapper {
 	SRWLOCK rwlock;
-	int exclusive_locked;
+	DWORD exclusive_locked;
 };
 
 struct rwlock_wrapper;
@@ -93,6 +93,7 @@ int pthread_join(pthread_t, void **);
 int pthread_rwlock_destroy(pthread_rwlock_t *);
 int pthread_rwlock_init(pthread_rwlock_t *, const pthread_rwlockattr_t *);
 int pthread_rwlock_rdlock(pthread_rwlock_t *);
+int pthread_rwlock_tryrdlock(pthread_rwlock_t *);
 int pthread_rwlock_trywrlock(pthread_rwlock_t *);
 int pthread_rwlock_unlock(pthread_rwlock_t *);
 int pthread_rwlock_wrlock(pthread_rwlock_t *);

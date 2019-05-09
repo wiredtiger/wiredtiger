@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,18 +26,23 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import Queue
+try:
+    import Queue as queue  # python2
+except ImportError:
+    import queue
 import threading, time, wiredtiger, wttest
 from wtthread import backup_thread, checkpoint_thread, op_thread
-from wtscenario import make_scenarios
 
 # test_backup02.py
 #   Run background checkpoints and backups repeatedly while doing inserts
 #   in another thread
 class test_backup02(wttest.WiredTigerTestCase):
-    scenarios = make_scenarios([
-        ('table', dict(uri='table:test',fmt='L',dsize=100,nops=200,nthreads=1,time=30)),
-    ])
+    uri = 'table:test_backup02'
+    fmt = 'L'
+    dsize = 100
+    nops = 200
+    nthreads = 1
+    time = 60 if wttest.islongtest() else 10
 
     def test_backup02(self):
         done = threading.Event()
@@ -55,14 +60,14 @@ class test_backup02(wttest.WiredTigerTestCase):
         bkp = backup_thread(self.conn, 'backup.dir', done)
         bkp.start()
 
-        queue = Queue.Queue()
+        work_queue = queue.Queue()
         my_data = 'a' * self.dsize
-        for i in xrange(self.nops):
-            queue.put_nowait(('gi', i, my_data))
+        for i in range(self.nops):
+            work_queue.put_nowait(('gi', i, my_data))
 
         opthreads = []
-        for i in xrange(self.nthreads):
-            t = op_thread(self.conn, uris, self.fmt, queue, done)
+        for i in range(self.nthreads):
+            t = op_thread(self.conn, uris, self.fmt, work_queue, done)
             opthreads.append(t)
             t.start()
 
@@ -72,10 +77,10 @@ class test_backup02(wttest.WiredTigerTestCase):
             time.sleep(0.1)
             my_data = str(more_time) + 'a' * (self.dsize - len(str(more_time)))
             more_time = more_time - 0.1
-            for i in xrange(self.nops):
-                queue.put_nowait(('gu', i, my_data))
+            for i in range(self.nops):
+                work_queue.put_nowait(('gu', i, my_data))
 
-        queue.join()
+        work_queue.join()
         done.set()
 #        # Wait for checkpoint thread to notice status change.
 #        ckpt.join()

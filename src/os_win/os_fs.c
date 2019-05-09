@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,6 +7,28 @@
  */
 
 #include "wt_internal.h"
+
+#define	WT_WINCALL_RETRY(call, ret) do {				\
+	int __retry;							\
+	for (__retry = 0; __retry < WT_RETRY_MAX; ++__retry) {		\
+		ret = 0;						\
+		if ((call) == FALSE) {					\
+			windows_error = __wt_getlasterror();		\
+			ret = __wt_map_windows_error(windows_error);	\
+			if (windows_error == ERROR_ACCESS_DENIED) {	\
+				if (__retry == 0)			\
+					__wt_errx(session,		\
+	"Access denied to a file owned by WiredTiger."			\
+	" It will attempt a few more times. You should confirm"		\
+	" no other processes, such as virus scanners, are"		\
+	" accessing the WiredTiger files.");				\
+				__wt_sleep(0L, 50000L);			\
+				continue;				\
+			}						\
+		}							\
+		break;							\
+	}								\
+} while (0)
 
 /*
  * __win_fs_exist --
@@ -41,10 +63,10 @@ static int
 __win_fs_remove(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *name, uint32_t flags)
 {
-	DWORD windows_error;
 	WT_DECL_ITEM(name_wide);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	DWORD windows_error;
 
 	WT_UNUSED(file_system);
 	WT_UNUSED(flags);
@@ -53,9 +75,8 @@ __win_fs_remove(WT_FILE_SYSTEM *file_system,
 
 	WT_RET(__wt_to_utf16_string(session, name, &name_wide));
 
-	if (DeleteFileW(name_wide->data) == FALSE) {
-		windows_error = __wt_getlasterror();
-		ret = __wt_map_windows_error(windows_error);
+	WT_WINCALL_RETRY(DeleteFileW(name_wide->data), ret);
+	if (ret != 0) {
 		__wt_err(session, ret,
 		    "%s: file-remove: DeleteFileW: %s",
 		    name, __wt_formatmessage(session, windows_error));
@@ -74,11 +95,11 @@ static int
 __win_fs_rename(WT_FILE_SYSTEM *file_system,
     WT_SESSION *wt_session, const char *from, const char *to, uint32_t flags)
 {
-	DWORD windows_error;
 	WT_DECL_ITEM(from_wide);
 	WT_DECL_ITEM(to_wide);
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
+	DWORD windows_error;
 
 	WT_UNUSED(file_system);
 	WT_UNUSED(flags);
@@ -96,10 +117,9 @@ __win_fs_rename(WT_FILE_SYSTEM *file_system,
 	 * directory and we expect that to be an atomic metadata update on any
 	 * modern filesystem.
 	 */
-	if (MoveFileExW(from_wide->data, to_wide->data,
-	    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) == FALSE) {
-		windows_error = __wt_getlasterror();
-		ret = __wt_map_windows_error(windows_error);
+	WT_WINCALL_RETRY(MoveFileExW(from_wide->data, to_wide->data,
+	    MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH), ret);
+	if (ret != 0) {
 		__wt_err(session, ret,
 		    "%s to %s: file-rename: MoveFileExW: %s",
 		    from, to, __wt_formatmessage(session, windows_error));
@@ -153,10 +173,10 @@ err:	__wt_scr_free(session, &name_wide);
 static int
 __win_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-	DWORD windows_error;
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
+	DWORD windows_error;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -201,10 +221,10 @@ static int
 __win_file_lock(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
-	DWORD windows_error;
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
+	DWORD windows_error;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -327,10 +347,10 @@ __win_file_size(
 static int
 __win_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
-	DWORD windows_error;
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
+	DWORD windows_error;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -393,7 +413,7 @@ __win_file_set_end(
 
 	if (SetEndOfFile(win_fh->filehandle_secondary) == FALSE) {
 		if (GetLastError() == ERROR_USER_MAPPED_FILE)
-			return (EBUSY);
+			return (__wt_set_return(session, EBUSY));
 		windows_error = __wt_getlasterror();
 		ret = __wt_map_windows_error(windows_error);
 		__wt_err(session, ret,
@@ -464,13 +484,13 @@ __win_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
     const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
     WT_FILE_HANDLE **file_handlep)
 {
-	DWORD dwCreationDisposition, windows_error;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(name_wide);
 	WT_DECL_RET;
 	WT_FILE_HANDLE *file_handle;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
+	DWORD dwCreationDisposition, windows_error;
 	int desired_access, f;
 
 	WT_UNUSED(file_system);

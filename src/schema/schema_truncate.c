@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -34,7 +34,7 @@ __truncate_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 		WT_ERR(__wt_schema_truncate(
 		    session, table->indices[i]->source, cfg));
 
-err:	WT_TRET(__wt_schema_release_table(session, table));
+err:	WT_TRET(__wt_schema_release_table(session, &table));
 	return (ret);
 }
 

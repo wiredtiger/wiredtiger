@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -82,7 +82,8 @@ __metadata_load_hot_backup(WT_SESSION_IMPL *session)
 			break;
 		WT_ERR(__wt_getline(session, fs, value));
 		if (value->size == 0)
-			WT_ERR(__wt_illegal_value(session, WT_METADATA_BACKUP));
+			WT_PANIC_ERR(session, EINVAL,
+			    "%s: zero-length value", WT_METADATA_BACKUP);
 		WT_ERR(__wt_metadata_update(session, key->data, value->data));
 	}
 
@@ -141,6 +142,46 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 }
 
 /*
+ * __wt_turtle_exists --
+ *	Return if the turtle file exists on startup.
+ */
+int
+__wt_turtle_exists(WT_SESSION_IMPL *session, bool *existp)
+{
+	/*
+	 * The last thing we do in database initialization is rename a turtle
+	 * file into place, and there's never a database home after that point
+	 * without a turtle file. On startup we check if the turtle file exists
+	 * to decide if we're creating the database or re-opening an existing
+	 * database.
+	 *	Unfortunately, we re-write the turtle file at checkpoint end,
+	 * first creating the "set" file and then renaming it into place.
+	 * Renames on Windows aren't guaranteed to be atomic, a power failure
+	 * could leave us with only the set file. The turtle file is the file
+	 * we regularly rename when WiredTiger is running, so if we're going to
+	 * get caught, the turtle file is where it will happen. If we have a set
+	 * file and no turtle file, rename the set file into place. We don't
+	 * know what went wrong for sure, so this can theoretically make it
+	 * worse, but there aren't alternatives other than human intervention.
+	 */
+	WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, existp));
+	if (*existp)
+		return (0);
+
+	WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE_SET, existp));
+	if (!*existp)
+		return (0);
+
+	WT_RET(__wt_fs_rename(session,
+	    WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE, true));
+	WT_RET(__wt_msg(session,
+	    "%s not found, %s renamed to %s",
+	    WT_METADATA_TURTLE, WT_METADATA_TURTLE_SET, WT_METADATA_TURTLE));
+	*existp = true;
+	return  (0);
+}
+
+/*
  * __wt_turtle_init --
  *	Check the turtle file and create if necessary.
  */
@@ -148,11 +189,11 @@ int
 __wt_turtle_init(WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
-	char *metaconf;
-	bool exist_backup, exist_incr, exist_isrc, exist_turtle, load;
+	char *metaconf, *unused_value;
+	bool exist_backup, exist_incr, exist_isrc, exist_turtle;
+	bool load, loadTurtle;
 
-	metaconf = NULL;
-	load = false;
+	load = loadTurtle = false;
 
 	/*
 	 * Discard any turtle setup file left-over from previous runs.  This
@@ -161,6 +202,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 	WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false));
 
 	/*
+	 * If we found a corrupted turtle file, then delete it and create a new.
 	 * We could die after creating the turtle file and before creating the
 	 * metadata file, or worse, the metadata file might be in some random
 	 * state.  Make sure that doesn't happen: if we don't find the turtle
@@ -179,6 +221,23 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 	WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
 	WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist_turtle));
 	if (exist_turtle) {
+		/*
+		 * Failure to read means a bad turtle file. Remove it and create
+		 * a new turtle file.
+		 */
+		if (F_ISSET(S2C(session), WT_CONN_SALVAGE)) {
+			WT_WITH_TURTLE_LOCK(session,
+			    ret = __wt_turtle_read(
+			    session, WT_METAFILE_URI, &unused_value));
+			__wt_free(session, unused_value);
+		}
+
+		if (ret != 0) {
+			WT_RET(__wt_remove_if_exists(
+			    session, WT_METADATA_TURTLE, false));
+			loadTurtle = true;
+		}
+
 		/*
 		 * We need to detect the difference between a source database
 		 * that may have crashed with an incremental backup file
@@ -217,19 +276,19 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 
 		/* Create any bulk-loaded file stubs. */
 		WT_RET(__metadata_load_bulk(session));
+	}
 
+	if (load || loadTurtle) {
 		/* Create the turtle file. */
 		WT_RET(__metadata_config(session, &metaconf));
 		WT_WITH_TURTLE_LOCK(session, ret =
 		    __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
-		WT_ERR(ret);
+		__wt_free(session, metaconf);
+		WT_RET(ret);
 	}
 
 	/* Remove the backup files, we'll never read them again. */
-	WT_ERR(__wt_backup_file_remove(session));
-
-err:	__wt_free(session, metaconf);
-	return (ret);
+	return (__wt_backup_file_remove(session));
 }
 
 /*
@@ -288,9 +347,14 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 	 * A file error or a missing key/value pair in the turtle file means
 	 * something has gone horribly wrong, except for the compatibility
 	 * setting which is optional.
+	 * Failure to read the turtle file when salvaging means it can't be
+	 * used for salvage.
 	 */
-	return (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 ? ret :
-	    __wt_illegal_value(session, WT_METADATA_TURTLE));
+	if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 ||
+	    F_ISSET(S2C(session), WT_CONN_SALVAGE))
+		return (ret);
+	WT_PANIC_RET(session, ret,
+	    "%s: fatal turtle file read error", WT_METADATA_TURTLE);
 }
 
 /*
@@ -348,5 +412,8 @@ err:	WT_TRET(__wt_fclose(session, &fs));
 	 * An error updating the turtle file means something has gone horribly
 	 * wrong -- we're done.
 	 */
-	return (ret == 0 ? 0 : __wt_illegal_value(session, WT_METADATA_TURTLE));
+	if (ret == 0)
+		return (ret);
+	WT_PANIC_RET(session, ret,
+	    "%s: fatal turtle file update error", WT_METADATA_TURTLE);
 }

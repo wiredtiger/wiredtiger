@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,9 +53,6 @@ typedef unsigned long	u_long;
 #ifndef HAVE_SSIZE_T
 typedef int ssize_t;
 #endif
-
-/* Provide a custom version of localtime_r */
-struct tm *localtime_r(const time_t* timer, struct tm* result);
 
 /* Windows does not provide fsync */
 #define	fsync	_commit

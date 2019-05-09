@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -8,6 +8,7 @@
 
 #include "wt_internal.h"
 
+#undef	WT_ENABLE_SCHEMA_TXN
 /*
  * WT_META_TRACK -- A tracked metadata operation: a non-transactional log,
  * maintained to make it easy to unroll simple metadata and filesystem
@@ -118,6 +119,7 @@ __wt_meta_track_on(WT_SESSION_IMPL *session)
 		if (!F_ISSET(&session->txn, WT_TXN_RUNNING)) {
 #ifdef WT_ENABLE_SCHEMA_TXN
 			WT_RET(__wt_txn_begin(session, NULL));
+			__wt_errx(session, "TRACK: Using internal schema txn");
 #endif
 			F_SET(session, WT_SESSION_SCHEMA_TXN);
 		}
@@ -247,6 +249,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 	WT_META_TRACK *trk, *trk_orig;
 	WT_SESSION_IMPL *ckpt_session;
 	int saved_ret;
+	bool did_drop;
 
 	saved_ret = 0;
 
@@ -279,6 +282,7 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 		F_CLR(session, WT_SESSION_SCHEMA_TXN);
 #ifdef WT_ENABLE_SCHEMA_TXN
 		WT_ERR(__wt_txn_commit(session, NULL));
+		__wt_errx(session, "TRACK: Commit internal schema txn");
 #endif
 	}
 
@@ -304,12 +308,11 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
 		 * should be included in the checkpoint.
 		 */
 		ckpt_session->txn.id = session->txn.id;
-		F_SET(ckpt_session, WT_SESSION_LOCKED_METADATA);
-		WT_WITH_METADATA_LOCK(session,
-		    WT_WITH_DHANDLE(ckpt_session,
-		    WT_SESSION_META_DHANDLE(session),
-		    ret = __wt_checkpoint(ckpt_session, NULL)));
-		F_CLR(ckpt_session, WT_SESSION_LOCKED_METADATA);
+		WT_ASSERT(session,
+		    !F_ISSET(session, WT_SESSION_LOCKED_METADATA));
+		WT_WITH_DHANDLE(ckpt_session, WT_SESSION_META_DHANDLE(session),
+		    WT_WITH_METADATA_LOCK(ckpt_session,
+			ret = __wt_checkpoint(ckpt_session, NULL)));
 		ckpt_session->txn.id = WT_TXN_NONE;
 		if (ret == 0)
 			WT_WITH_DHANDLE(session,
@@ -321,14 +324,20 @@ err:	/*
 	 * Undo any tracked operations on failure.
 	 * Apply any tracked operations post-commit.
 	 */
+	did_drop = false;
 	if (unroll || ret != 0) {
 		saved_ret = ret;
 		ret = 0;
-		while (--trk >= trk_orig)
+		while (--trk >= trk_orig) {
+			did_drop = did_drop || trk->op == WT_ST_DROP_COMMIT;
 			WT_TRET(__meta_track_unroll(session, trk));
+		}
 	} else
-		for (; trk_orig < trk; trk_orig++)
+		for (; trk_orig < trk; trk_orig++) {
+			did_drop = did_drop ||
+			    trk_orig->op == WT_ST_DROP_COMMIT;
 			WT_TRET(__meta_track_apply(session, trk_orig));
+		}
 
 	if (F_ISSET(session, WT_SESSION_SCHEMA_TXN)) {
 		F_CLR(session, WT_SESSION_SCHEMA_TXN);
@@ -339,9 +348,18 @@ err:	/*
 		WT_ASSERT(session, unroll || saved_ret != 0 ||
 		    session->txn.mod_count == 0);
 #ifdef WT_ENABLE_SCHEMA_TXN
+		__wt_err(session, saved_ret,
+		    "TRACK: Abort internal schema txn");
 		WT_TRET(__wt_txn_rollback(session, NULL));
 #endif
 	}
+
+	/*
+	 * Wake up the sweep thread: particularly for the in-memory
+	 * storage engine, we want to reclaim space immediately.
+	 */
+	if (did_drop && S2C(session)->sweep_cond != NULL)
+		__wt_cond_signal(session, S2C(session)->sweep_cond);
 
 	if (ret != 0)
 		WT_PANIC_RET(session, ret,

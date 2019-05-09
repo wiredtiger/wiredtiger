@@ -53,19 +53,6 @@ AM_CONDITIONAL([HAVE_BUILTIN_EXTENSION_ZSTD],
     [test "$wt_cv_with_builtin_extension_zstd" = "yes"])
 AC_MSG_RESULT($with_builtins)
 
-AH_TEMPLATE(
-    HAVE_CRC32_HARDWARE, [Define to 1 to configure CRC32 hardware support.])
-AC_MSG_CHECKING(if --enable-crc32-hardware option specified)
-AC_ARG_ENABLE(crc32-hardware,
-	AS_HELP_STRING([--enable-crc32-hardware],
-	    [Enable CRC32 hardware support.]), r=$enableval, r=yes)
-case "$r" in
-no)	wt_cv_enable_crc32_hardware=no;;
-*)	AC_DEFINE(HAVE_CRC32_HARDWARE)
-	wt_cv_enable_crc32_hardware=yes;;
-esac
-AC_MSG_RESULT($wt_cv_enable_crc32_hardware)
-
 AH_TEMPLATE(HAVE_DIAGNOSTIC, [Define to 1 for diagnostic tests.])
 AC_MSG_CHECKING(if --enable-diagnostic option specified)
 AC_ARG_ENABLE(diagnostic,
@@ -91,42 +78,6 @@ no)	wt_cv_enable_java=no;;
 esac
 AC_MSG_RESULT($wt_cv_enable_java)
 AM_CONDITIONAL([JAVA], [test x$wt_cv_enable_java = xyes])
-
-AC_MSG_CHECKING(if --enable-leveldb option specified)
-AC_ARG_ENABLE(leveldb,
-	[AS_HELP_STRING([--enable-leveldb[[=yes|basho|hyper|rocksdb]]],
-	    [Build the LevelDB API.])], r=$enableval, r=no)
-wt_cv_enable_leveldb=yes
-wt_cv_enable_basholeveldb=no
-wt_cv_enable_hyperleveldb=no
-wt_cv_enable_rocksdb=no
-case "$r" in
-yes)		;;
-no)		wt_cv_enable_leveldb=no;;
-basho)		wt_cv_enable_basholeveldb=yes;;
-hyper)		wt_cv_enable_hyperleveldb=yes;;
-rocksdb)	wt_cv_enable_rocksdb=yes;;
-*)		AC_MSG_ERROR([Unknown LevelDB configuration "$r"]);;
-esac
-
-AH_TEMPLATE(HAVE_BASHOLEVELDB, [Build the LevelDB API with Basho LevelDB support.])
-if test "$wt_cv_enable_basholeveldb" = "yes"; then
-	AC_DEFINE(HAVE_BASHOLEVELDB)
-fi
-AH_TEMPLATE(HAVE_HYPERLEVELDB,
-    [Build the LevelDB API with HyperLevelDB support.])
-if test "$wt_cv_enable_hyperleveldb" = "yes"; then
-	AC_DEFINE(HAVE_HYPERLEVELDB)
-fi
-AH_TEMPLATE(HAVE_ROCKSDB, [Build the LevelDB API with RocksDB support.])
-if test "$wt_cv_enable_rocksdb" = "yes"; then
-	AC_DEFINE(HAVE_ROCKSDB)
-fi
-AC_MSG_RESULT($wt_cv_enable_leveldb)
-AM_CONDITIONAL([LEVELDB], [test "$wt_cv_enable_leveldb" = "yes"])
-AM_CONDITIONAL([HAVE_BASHOLEVELDB], [test "$wt_cv_enable_basholeveldb" = "yes"])
-AM_CONDITIONAL([HAVE_HYPERLEVELDB], [test "$wt_cv_enable_hyperleveldb" = "yes"])
-AM_CONDITIONAL([HAVE_ROCKSDB], [test "$wt_cv_enable_rocksdb" = "yes"])
 
 AC_MSG_CHECKING(if --enable-python option specified)
 AC_ARG_ENABLE(python,
@@ -234,6 +185,20 @@ pthread_adaptive|pthreads_adaptive)
 esac
 AC_MSG_RESULT($with_spinlock)
 
+AH_TEMPLATE(HAVE_PAGE_VERSION_TS,
+    [Define to 1 to enable writing timestamp version page formats.])
+AC_MSG_CHECKING(if --enable-page-version-ts option specified)
+AC_ARG_ENABLE(page-version-ts,
+	[AS_HELP_STRING([--enable-page-version-ts],
+	    [Configure for timestamp version page formats])],
+	    r=$enableval, r=no)
+case "$r" in
+no)	wt_cv_enable_page_version_ts=no;;
+*)	AC_DEFINE(HAVE_PAGE_VERSION_TS)
+	wt_cv_enable_page_version_ts=yes;;
+esac
+AC_MSG_RESULT($wt_cv_enable_page_version_ts)
+
 AC_MSG_CHECKING(if --enable-strict option specified)
 AC_ARG_ENABLE(strict,
 	[AS_HELP_STRING([--enable-strict],
@@ -243,15 +208,6 @@ no)	wt_cv_enable_strict=no;;
 *)	wt_cv_enable_strict=yes;;
 esac
 AC_MSG_RESULT($wt_cv_enable_strict)
-
-AC_MSG_CHECKING(if --with-timestamp-size option specified)
-AC_ARG_WITH(timestamp-size,
-	[AS_HELP_STRING([--with-timestamp-size=NUM],
-	    [Size of transaction timestamps in bytes, default 8.])],
-	    [with_timestamp_size=$withval],
-	    [with_timestamp_size=8])
-AC_MSG_RESULT($with_timestamp_size)
-AC_DEFINE_UNQUOTED(WT_TIMESTAMP_SIZE, [$with_timestamp_size], [Size of a transaction timestamp in bytes])
 
 AC_MSG_CHECKING(if --enable-zlib option specified)
 AC_ARG_ENABLE(zlib,
@@ -304,5 +260,19 @@ if test "$wt_cv_enable_zstd" = "yes"; then
 	    [AC_MSG_ERROR([--enable-zstd requires Zstd library])])
 fi
 AM_CONDITIONAL([ZSTD], [test "$wt_cv_enable_zstd" = "yes"])
+
+AH_TEMPLATE(HAVE_NO_CRC32_HARDWARE,
+    [Define to 1 to disable any crc32 hardware support.])
+AC_MSG_CHECKING(if --disable-crc32-hardware option specified)
+AC_ARG_ENABLE(crc32-hardware,
+	[AS_HELP_STRING([--disable-crc32-hardware],
+	    [Disable any crc32 hardware support.])], r=$enableval, r=yes)
+case "$r" in
+no)	wt_cv_crc32_hardware=no
+	AC_DEFINE(HAVE_NO_CRC32_HARDWARE)
+	AC_MSG_RESULT(yes);;
+*)	wt_cv_crc32_hardware=yes
+	AC_MSG_RESULT(no);;
+esac
 
 ])

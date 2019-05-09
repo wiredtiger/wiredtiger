@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -16,11 +16,12 @@ int
 __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     void *mapped_regionp, size_t *lenp, void *mapped_cookiep)
 {
-	DWORD windows_error;
+	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
-	size_t len;
 	wt_off_t file_size;
+	DWORD windows_error;
+	size_t len;
 	void *map, *mapped_cookie;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
@@ -42,25 +43,27 @@ __wt_win_map(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	    win_fh->filehandle, NULL, PAGE_READONLY, 0, 0, NULL);
 	if (mapped_cookie == NULL) {
 		windows_error = __wt_getlasterror();
-		__wt_errx(session,
+		ret = __wt_map_windows_error(windows_error);
+		__wt_err(session, ret,
 		    "%s: memory-map: CreateFileMappingW: %s",
 		    file_handle->name,
 		    __wt_formatmessage(session, windows_error));
-		return (__wt_map_windows_error(windows_error));
+		return (ret);
 	}
 
 	if ((map =
 	    MapViewOfFile(mapped_cookie, FILE_MAP_READ, 0, 0, len)) == NULL) {
 		/* Retrieve the error before cleaning up. */
 		windows_error = __wt_getlasterror();
+		ret = __wt_map_windows_error(windows_error);
 
 		(void)CloseHandle(mapped_cookie);
 
-		__wt_errx(session,
+		__wt_err(session, ret,
 		    "%s: memory-map: MapViewOfFile: %s",
 		    file_handle->name,
 		    __wt_formatmessage(session, windows_error));
-		return (__wt_map_windows_error(windows_error));
+		return (ret);
 	}
 
 	*(void **)mapped_cookiep = mapped_cookie;
@@ -77,10 +80,10 @@ int
 __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
     void *mapped_region, size_t length, void *mapped_cookie)
 {
-	DWORD windows_error;
 	WT_DECL_RET;
 	WT_FILE_HANDLE_WIN *win_fh;
 	WT_SESSION_IMPL *session;
+	DWORD windows_error;
 
 	win_fh = (WT_FILE_HANDLE_WIN *)file_handle;
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -91,20 +94,20 @@ __wt_win_unmap(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 
 	if (UnmapViewOfFile(mapped_region) == 0) {
 		windows_error = __wt_getlasterror();
-		__wt_errx(session,
+		ret = __wt_map_windows_error(windows_error);
+		__wt_err(session, ret,
 		    "%s: memory-unmap: UnmapViewOfFile: %s",
 		    file_handle->name,
 		    __wt_formatmessage(session, windows_error));
-		ret = __wt_map_windows_error(windows_error);
 	}
 
 	if (CloseHandle(*(void **)mapped_cookie) == 0) {
 		windows_error = __wt_getlasterror();
-		__wt_errx(session,
+		ret = __wt_map_windows_error(windows_error);
+		__wt_err(session, ret,
 		    "%s: memory-unmap: CloseHandle: %s",
 		    file_handle->name,
 		    __wt_formatmessage(session, windows_error));
-		ret = __wt_map_windows_error(windows_error);
 	}
 
 	return (ret);

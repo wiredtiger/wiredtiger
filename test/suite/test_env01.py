@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -126,7 +126,7 @@ class test_priv01(wttest.WiredTigerTestCase):
         edir = 'envdir'
         os.mkdir(edir)
         if os.getuid() != os.geteuid():
-            print 'Running ' + str(self) + ' as privileged user'
+            print('Running ' + str(self) + ' as privileged user')
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda: self.common_test(None, edir, None),
                 '/WIREDTIGER_HOME environment variable set but\
@@ -137,7 +137,7 @@ class test_priv01(wttest.WiredTigerTestCase):
         os.mkdir(edir)
         privarg = 'use_environment_priv=true'
         if os.getuid() != os.geteuid():
-            print 'Running ' + str(self) + ' as privileged user'
+            print('Running ' + str(self) + ' as privileged user')
             self.common_test(None, edir, privarg)
             self.checkfiles(edir)
             self.checknofiles(".")

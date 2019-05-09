@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -97,6 +97,8 @@ struct __wt_cache;
     typedef struct __wt_cache WT_CACHE;
 struct __wt_cache_pool;
     typedef struct __wt_cache_pool WT_CACHE_POOL;
+struct __wt_capacity;
+    typedef struct __wt_capacity WT_CAPACITY;
 struct __wt_cell;
     typedef struct __wt_cell WT_CELL;
 struct __wt_cell_unpack;
@@ -269,8 +271,18 @@ struct __wt_page_modify;
     typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_process;
     typedef struct __wt_process WT_PROCESS;
+struct __wt_rec_chunk;
+    typedef struct __wt_rec_chunk WT_REC_CHUNK;
+struct __wt_rec_dictionary;
+    typedef struct __wt_rec_dictionary WT_REC_DICTIONARY;
+struct __wt_rec_kv;
+    typedef struct __wt_rec_kv WT_REC_KV;
+struct __wt_reconcile;
+    typedef struct __wt_reconcile WT_RECONCILE;
 struct __wt_ref;
     typedef struct __wt_ref WT_REF;
+struct __wt_ref_hist;
+    typedef struct __wt_ref_hist WT_REF_HIST;
 struct __wt_row;
     typedef struct __wt_row WT_ROW;
 struct __wt_rwlock;
@@ -285,6 +297,8 @@ struct __wt_session_impl;
     typedef struct __wt_session_impl WT_SESSION_IMPL;
 struct __wt_session_stash;
     typedef struct __wt_session_stash WT_SESSION_STASH;
+struct __wt_session_stats;
+    typedef struct __wt_session_stats WT_SESSION_STATS;
 struct __wt_size;
     typedef struct __wt_size WT_SIZE;
 struct __wt_spinlock;
@@ -297,14 +311,14 @@ struct __wt_thread;
     typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
     typedef struct __wt_thread_group WT_THREAD_GROUP;
-struct __wt_timestamp_t;
-    typedef struct __wt_timestamp_t WT_TIMESTAMP_T;
 struct __wt_txn;
     typedef struct __wt_txn WT_TXN;
 struct __wt_txn_global;
     typedef struct __wt_txn_global WT_TXN_GLOBAL;
 struct __wt_txn_op;
     typedef struct __wt_txn_op WT_TXN_OP;
+struct __wt_txn_printlog_args;
+    typedef struct __wt_txn_printlog_args WT_TXN_PRINTLOG_ARGS;
 struct __wt_txn_state;
     typedef struct __wt_txn_state WT_TXN_STATE;
 struct __wt_update;
@@ -313,6 +327,9 @@ union __wt_lsn;
     typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
     typedef union __wt_rand_state WT_RAND_STATE;
+
+typedef uint64_t wt_timestamp_t;
+
 /*
  * Forward type declarations for internal types: END
  * DO NOT EDIT: automatically built by dist/s_typedef.
@@ -328,6 +345,16 @@ union __wt_rand_state;
 #elif defined(_MSC_VER)
 #include "msvc.h"
 #endif
+/*
+ * GLIBC 2.26 and later use the openat syscall to implement open.
+ * Set this flag so that our strace tests know to expect this.
+ */
+#ifdef __GLIBC_PREREQ
+#if __GLIBC_PREREQ(2, 26)
+#define	WT_USE_OPENAT 1
+#endif
+#endif
+
 #include "hardware.h"
 #include "swap.h"
 
@@ -352,6 +379,8 @@ union __wt_rand_state;
 #include "btmem.h"
 #include "btree.h"
 #include "cache.h"
+#include "capacity.h"
+#include "cell.h"
 #include "compact.h"
 #include "config.h"
 #include "cursor.h"
@@ -362,6 +391,7 @@ union __wt_rand_state;
 #include "meta.h"
 #include "optrack.h"
 #include "os.h"
+#include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "txn.h"
@@ -397,6 +427,7 @@ union __wt_rand_state;
 #include "os_fs.i"
 #include "os_fstream.i"
 #include "packing.i"
+#include "reconcile.i"
 #include "serial.i"
 
 #if defined(__cplusplus)

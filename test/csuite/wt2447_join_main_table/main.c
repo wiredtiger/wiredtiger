@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -56,8 +56,8 @@ get_stat_total(WT_SESSION *session, WT_CURSOR *jcursor, const char *descmatch,
     uint64_t *pval)
 {
 	WT_CURSOR *statcursor;
+	WT_DECL_RET;
 	uint64_t val;
-	int ret;
 	char *desc, *valstr;
 	bool match;
 

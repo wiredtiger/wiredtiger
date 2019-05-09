@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -306,7 +306,7 @@ static inline uint64_t CityHash64(const char *s, size_t len) {
 	if (len <= 32) {
 		if (len <= 16) {
 			return HashLen0to16(s, len);
-		} else {
+		} else { /* NOLINT(readability-else-after-return) */
 			return HashLen17to32(s, len);
 		}
 	} else if (len <= 64) {

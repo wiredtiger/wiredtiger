@@ -1,14 +1,15 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_TXN_NONE	0		/* No txn running in a session. */
-#define	WT_TXN_FIRST	1		/* First transaction to run. */
-#define	WT_TXN_ABORTED	UINT64_MAX	/* Update rolled back, ignore. */
+#define	WT_TXN_NONE	0			/* Beginning of time */
+#define	WT_TXN_FIRST	1			/* First transaction to run */
+#define	WT_TXN_MAX	(UINT64_MAX - 10)	/* End of time */
+#define	WT_TXN_ABORTED	UINT64_MAX		/* Update rolled back */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_LOG_CKPT_CLEANUP	0x01u
@@ -21,6 +22,12 @@
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_OLDEST_STRICT	0x1u
 #define	WT_TXN_OLDEST_WAIT	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_TS_ALREADY_LOCKED	0x1u
+#define	WT_TXN_TS_INCLUDE_CKPT		0x2u
+#define	WT_TXN_TS_INCLUDE_OLDEST	0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -40,6 +47,19 @@
 
 #define	WT_SESSION_IS_CHECKPOINT(s)					\
 	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
+
+#define	WT_TS_NONE	0		/* Beginning of time */
+#define	WT_TS_MAX	UINT64_MAX	/* End of time */
+
+/*
+ * We format timestamps in a couple of ways, declare appropriate sized buffers.
+ * Hexadecimal is 2x the size of the value. MongoDB format (high/low pairs of
+ * 4B unsigned integers, with surrounding parenthesis and dividing comma), is
+ * 2x the maximum digits from a 4B unsigned integer + 3. Both sizes include a
+ * trailing nul byte as well.
+ */
+#define	WT_TS_HEX_STRING_SIZE	(2 * sizeof(wt_timestamp_t) + 1)
+#define	WT_TS_INT_STRING_SIZE	(2 * 10 + 3 + 1)
 
 /*
  * Perform an operation at the specified isolation level.
@@ -85,6 +105,7 @@ struct __wt_txn_state {
 	volatile uint64_t id;
 	volatile uint64_t pinned_id;
 	volatile uint64_t metadata_pinned;
+	volatile bool is_allocating;
 
 	WT_CACHE_LINE_PAD_END
 };
@@ -101,13 +122,13 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-	WT_DECL_TIMESTAMP(commit_timestamp)
-	WT_DECL_TIMESTAMP(last_ckpt_timestamp)
-	WT_DECL_TIMESTAMP(meta_ckpt_timestamp)
-	WT_DECL_TIMESTAMP(oldest_timestamp)
-	WT_DECL_TIMESTAMP(pinned_timestamp)
-	WT_DECL_TIMESTAMP(recovery_timestamp)
-	WT_DECL_TIMESTAMP(stable_timestamp)
+	wt_timestamp_t commit_timestamp;
+	wt_timestamp_t last_ckpt_timestamp;
+	wt_timestamp_t meta_ckpt_timestamp;
+	wt_timestamp_t oldest_timestamp;
+	wt_timestamp_t pinned_timestamp;
+	wt_timestamp_t recovery_timestamp;
+	wt_timestamp_t stable_timestamp;
 	bool has_commit_timestamp;
 	bool has_oldest_timestamp;
 	bool has_pinned_timestamp;
@@ -147,7 +168,7 @@ struct __wt_txn_global {
 	volatile bool	  checkpoint_running;	/* Checkpoint running */
 	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
 	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
-	WT_TXN           *checkpoint_txn;	/* Checkpoint's txn structure */
+	wt_timestamp_t	  checkpoint_timestamp;	/* Checkpoint's timestamp */
 
 	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
 
@@ -172,18 +193,36 @@ typedef enum __wt_txn_isolation {
  *	records during commit or undo the operations during rollback.
  */
 struct __wt_txn_op {
-	uint32_t fileid;
+	WT_BTREE *btree;
 	enum {
-		WT_TXN_OP_NONE,
-		WT_TXN_OP_BASIC,
-		WT_TXN_OP_INMEM,
+		WT_TXN_OP_NONE=0,
+		WT_TXN_OP_BASIC_COL,
+		WT_TXN_OP_BASIC_ROW,
+		WT_TXN_OP_INMEM_COL,
+		WT_TXN_OP_INMEM_ROW,
 		WT_TXN_OP_REF_DELETE,
 		WT_TXN_OP_TRUNCATE_COL,
 		WT_TXN_OP_TRUNCATE_ROW
 	} type;
 	union {
-		/* WT_TXN_OP_BASIC, WT_TXN_OP_INMEM */
-		WT_UPDATE *upd;
+		/* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
+		struct {
+			WT_UPDATE *upd;
+			WT_ITEM key;
+		} op_row;
+
+		/* WT_TXN_OP_BASIC_COL, WT_TXN_OP_INMEM_COL */
+		struct {
+			WT_UPDATE *upd;
+			uint64_t recno;
+		} op_col;
+/*
+ * upd is pointing to same memory in both op_row and op_col, so for simplicity
+ * just chose op_row upd
+ */
+#undef op_upd
+#define	op_upd	op_row.upd
+
 		/* WT_TXN_OP_REF_DELETE */
 		WT_REF *ref;
 		/* WT_TXN_OP_TRUNCATE_COL */
@@ -231,31 +270,47 @@ struct __wt_txn {
 	 * In some use cases, this can be updated while the transaction is
 	 * running.
 	 */
-	WT_DECL_TIMESTAMP(commit_timestamp)
+	wt_timestamp_t commit_timestamp;
+
+	/*
+	 * Durable timestamp copied into updates created by this transaction.
+	 * It is used to decide whether to consider this update to be persisted
+	 * or not by stable checkpoint.
+	 */
+	wt_timestamp_t durable_timestamp;
 
 	/*
 	 * Set to the first commit timestamp used in the transaction and fixed
 	 * while the transaction is on the public list of committed timestamps.
 	 */
-	WT_DECL_TIMESTAMP(first_commit_timestamp)
+	wt_timestamp_t first_commit_timestamp;
 
 	/*
 	 * Timestamp copied into updates created by this transaction, when this
 	 * transaction is prepared.
 	 */
-	WT_DECL_TIMESTAMP(prepare_timestamp)
+	wt_timestamp_t prepare_timestamp;
 
 	/* Read updates committed as of this timestamp. */
-	WT_DECL_TIMESTAMP(read_timestamp)
+	wt_timestamp_t read_timestamp;
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
-	bool clear_ts_queue;	/* Set if we need to clear from the queue */
+	bool clear_commit_q;	/* Set if need to clear from the commit queue */
+	bool clear_read_q;	/* Set if need to clear from the read queue */
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
 	size_t		mod_alloc;
 	u_int		mod_count;
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * Reference count of multiple updates processed, as part of a single
+	 * transaction operation processing for resolving the indirect update
+	 * references in a prepared transaction as part of commit.
+	 */
+	u_int		multi_update_count;
+#endif
 
 	/* Scratch buffer for in-memory log records. */
 	WT_ITEM	       *logrec;
@@ -272,24 +327,31 @@ struct __wt_txn {
 	const char *rollback_reason;		/* If rollback, the reason */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_AUTOCOMMIT	0x00001u
-#define	WT_TXN_ERROR		0x00002u
-#define	WT_TXN_HAS_ID		0x00004u
-#define	WT_TXN_HAS_SNAPSHOT	0x00008u
-#define	WT_TXN_HAS_TS_COMMIT	0x00010u
-#define	WT_TXN_HAS_TS_READ	0x00020u
-#define	WT_TXN_IGNORE_PREPARE	0x00040u
-#define	WT_TXN_NAMED_SNAPSHOT	0x00080u
-#define	WT_TXN_PREPARE		0x00100u
-#define	WT_TXN_PUBLIC_TS_COMMIT	0x00200u
-#define	WT_TXN_PUBLIC_TS_READ	0x00400u
-#define	WT_TXN_READONLY		0x00800u
-#define	WT_TXN_RUNNING		0x01000u
-#define	WT_TXN_SYNC_SET		0x02000u
-#define	WT_TXN_TS_COMMIT_ALWAYS	0x04000u
-#define	WT_TXN_TS_COMMIT_KEYS	0x08000u
-#define	WT_TXN_TS_COMMIT_NEVER	0x10000u
-#define	WT_TXN_UPDATE	        0x20000u
+#define	WT_TXN_AUTOCOMMIT	0x0000001u
+#define	WT_TXN_ERROR		0x0000002u
+#define	WT_TXN_HAS_ID		0x0000004u
+#define	WT_TXN_HAS_SNAPSHOT	0x0000008u
+#define	WT_TXN_HAS_TS_COMMIT	0x0000010u
+#define	WT_TXN_HAS_TS_DURABLE	0x0000020u
+#define	WT_TXN_HAS_TS_PREPARE	0x0000040u
+#define	WT_TXN_HAS_TS_READ	0x0000080u
+#define	WT_TXN_IGNORE_PREPARE	0x0000100u
+#define	WT_TXN_NAMED_SNAPSHOT	0x0000200u
+#define	WT_TXN_PREPARE		0x0000400u
+#define	WT_TXN_PUBLIC_TS_COMMIT	0x0000800u
+#define	WT_TXN_PUBLIC_TS_READ	0x0001000u
+#define	WT_TXN_READONLY		0x0002000u
+#define	WT_TXN_RUNNING		0x0004000u
+#define	WT_TXN_SYNC_SET		0x0008000u
+#define	WT_TXN_TS_COMMIT_ALWAYS	0x0010000u
+#define	WT_TXN_TS_COMMIT_KEYS	0x0020000u
+#define	WT_TXN_TS_COMMIT_NEVER	0x0040000u
+#define	WT_TXN_TS_DURABLE_ALWAYS	0x0080000u
+#define	WT_TXN_TS_DURABLE_KEYS	0x0100000u
+#define	WT_TXN_TS_DURABLE_NEVER	0x0200000u
+#define	WT_TXN_TS_ROUND_PREPARED	0x0400000u
+#define	WT_TXN_TS_ROUND_READ	0x0800000u
+#define	WT_TXN_UPDATE	        0x1000000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

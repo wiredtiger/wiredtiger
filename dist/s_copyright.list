@@ -1,5 +1,3 @@
-skip	api/leveldb/leveldb_wt_config.h
-skip	api/leveldb/leveldb_wt_config.in
 skip	bench/workgen/workgen/workgen.py
 skip	bench/workgen/workgen_wrap.cxx
 skip	build_win/wiredtiger_config.h
@@ -41,6 +39,7 @@ skip	src/include/flags.h
 skip	src/include/queue.h
 skip	src/log/log_auto.c
 skip	src/support/stat.c
+skip	test/evergreen/evg_cfg.py
 skip	test/packing/intpack-test.c
 skip	test/packing/intpack-test2.c
 skip	test/packing/packing-test.c

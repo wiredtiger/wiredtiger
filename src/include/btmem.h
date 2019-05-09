@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -80,12 +80,12 @@ struct __wt_page_header {
 #define	WT_PAGE_LAS_UPDATE	0x10u	/* Page updates in lookaside store */
 	uint8_t flags;			/* 25: flags */
 
-	/*
-	 * End the structure with 2 bytes of padding: it wastes space, but it
-	 * leaves the structure 32-bit aligned and having a few bytes to play
-	 * with in the future can't hurt.
-	 */
-	uint8_t unused[2];		/* 26-27: unused padding */
+	/* A byte of padding, positioned to be added to the flags. */
+	uint8_t unused;			/* 26: unused padding */
+
+#define	WT_PAGE_VERSION_ORIG	0	/* Original version */
+#define	WT_PAGE_VERSION_TS	1	/* Timestamps added */
+	uint8_t version;		/* 27: version */
 };
 /*
  * WT_PAGE_HEADER_SIZE is the number of bytes we allocate for the structure: if
@@ -132,6 +132,13 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
+					/* Validity window */
+	wt_timestamp_t	newest_durable_ts;
+	wt_timestamp_t	oldest_start_ts;
+	uint64_t	oldest_start_txn;
+	wt_timestamp_t	newest_stop_ts;
+	uint64_t	newest_stop_txn;
+
 	uint8_t *addr;			/* Block-manager's cookie */
 	uint8_t  size;			/* Block-manager's cookie length */
 
@@ -205,8 +212,13 @@ struct __wt_ovfl_reuse {
  * this way so that overall the lookaside table is append-mostly), a counter
  * (used to ensure the update records remain in the original order), and the
  * record's key (byte-string for row-store, record number for column-store).
- * The value is the WT_UPDATE structure's transaction ID, timestamp, update
- * type and value.
+ * The value is the WT_UPDATE structure's:
+ * 	- transaction ID
+ * 	- timestamp
+ * 	- durable timestamp
+ * 	- update's prepare state
+ *	- update type
+ *	- value.
  *
  * As the key for the lookaside table is different for row- and column-store, we
  * store both key types in a WT_ITEM, building/parsing them in the code, because
@@ -223,7 +235,7 @@ struct __wt_ovfl_reuse {
 #endif
 #define	WT_LAS_CONFIG							\
     "key_format=" WT_UNCHECKED_STRING(QIQu)				\
-    ",value_format=" WT_UNCHECKED_STRING(QuBu)				\
+    ",value_format=" WT_UNCHECKED_STRING(QQQBBu)			\
     ",block_compressor=" WT_LOOKASIDE_COMPRESSOR			\
     ",leaf_value_max=64MB"						\
     ",prefix_compression=true"
@@ -234,14 +246,16 @@ struct __wt_ovfl_reuse {
  */
 struct __wt_page_lookaside {
 	uint64_t las_pageid;		/* Page ID in lookaside */
-	uint64_t las_max_txn;		/* Max transaction ID in lookaside */
-	uint64_t las_min_txn;		/* Min transaction ID in lookaside */
-	WT_DECL_TIMESTAMP(min_timestamp)/* Min timestamp in lookaside */
-					/* Max timestamp on page */
-	WT_DECL_TIMESTAMP(onpage_timestamp)
+	uint64_t max_txn;		/* Maximum transaction ID */
+	uint64_t unstable_txn;		/* First transaction ID not on page */
+	wt_timestamp_t max_timestamp;	/* Maximum timestamp */
+	wt_timestamp_t unstable_timestamp;/* First timestamp not on page */
+	wt_timestamp_t unstable_durable_timestamp;
+					/* First durable timestamp not on
+					 * page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
-	bool las_skew_newest;		/* On-page skewed to newest */
-	bool invalid;			/* History is required correct reads */
+	bool has_prepares;		/* One or more updates are prepared */
+	bool skew_newest;		/* Page image has newest versions */
 };
 
 /*
@@ -255,7 +269,7 @@ struct __wt_page_modify {
 	/* The transaction state last time eviction was attempted. */
 	uint64_t last_evict_pass_gen;
 	uint64_t last_eviction_id;
-	WT_DECL_TIMESTAMP(last_eviction_timestamp)
+	wt_timestamp_t last_eviction_timestamp;
 
 #ifdef HAVE_DIAGNOSTIC
 	/* Check that transaction time moves forward. */
@@ -264,11 +278,14 @@ struct __wt_page_modify {
 
 	/* Avoid checking for obsolete updates during checkpoints. */
 	uint64_t obsolete_check_txn;
-	WT_DECL_TIMESTAMP(obsolete_check_timestamp)
+	wt_timestamp_t obsolete_check_timestamp;
 
 	/* The largest transaction seen on the page by reconciliation. */
 	uint64_t rec_max_txn;
-	WT_DECL_TIMESTAMP(rec_max_timestamp)
+	wt_timestamp_t rec_max_timestamp;
+
+	/* Stable timestamp at last reconciliation. */
+	wt_timestamp_t last_stable_timestamp;
 
 	/* The largest update transaction ID (approximate). */
 	uint64_t update_txn;
@@ -481,7 +498,9 @@ struct __wt_page_modify {
 #define	WT_PM_REC_REPLACE	3	/* Reconciliation: single block */
 	uint8_t rec_result;		/* Reconciliation state */
 
-	uint8_t update_restored;	/* Page created by restoring updates */
+#define	WT_PAGE_RS_LOOKASIDE	0x1
+#define	WT_PAGE_RS_RESTORED	0x2
+	uint8_t restore_state;		/* Created by restoring updates */
 };
 
 /*
@@ -814,7 +833,9 @@ struct __wt_page {
  */
 struct __wt_page_deleted {
 	volatile uint64_t txnid;		/* Transaction ID */
-	WT_DECL_TIMESTAMP(timestamp)
+
+	wt_timestamp_t timestamp;		/* Timestamps */
+	wt_timestamp_t durable_timestamp;
 
 	/*
 	 * The state is used for transaction prepare to manage visibility
@@ -874,12 +895,40 @@ struct __wt_ref {
 
 	WT_PAGE_DELETED	  *page_del;	/* Deleted page information */
 	WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
+
+#ifdef HAVE_DIAGNOSTIC
+	/* Capture history of ref state changes. */
+	struct __wt_ref_hist {
+		WT_SESSION_IMPL *session;
+		const char *name;
+		const char *file;
+		int line;
+		uint32_t state;
+	} hist[3];
+	uint64_t histoff;
+#define	WT_REF_SET_STATE(ref, s) do {					\
+	(ref)->hist[(ref)->histoff].session = session;			\
+	(ref)->hist[(ref)->histoff].name = session->name;		\
+	(ref)->hist[(ref)->histoff].file = __FILE__;			\
+	(ref)->hist[(ref)->histoff].line = __LINE__;			\
+	(ref)->hist[(ref)->histoff].state = s;				\
+	(ref)->histoff =						\
+	    ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist);		\
+	WT_PUBLISH((ref)->state, s);					\
+} while (0)
+#else
+#define	WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
+#endif
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure
  * the compiler hasn't inserted padding which would break the world.
  */
+#ifdef HAVE_DIAGNOSTIC
+#define	WT_REF_SIZE	(56 + 3 * sizeof(WT_REF_HIST) + 8)
+#else
 #define	WT_REF_SIZE	56
+#endif
 
 /*
  * WT_ROW --
@@ -944,8 +993,6 @@ struct __wt_col {
 	 * of a base pointer.  The on-page data is a WT_CELL (same as row-store
 	 * pages).
 	 *
-	 * If the value is 0, it's a single, deleted record.
-	 *
 	 * Obscure the field name, code shouldn't use WT_COL->__col_value, the
 	 * public interface is WT_COL_PTR and WT_COL_PTR_SET.
 	 */
@@ -958,8 +1005,7 @@ struct __wt_col {
  * not exist on the page, return a NULL.)
  */
 #define	WT_COL_PTR(page, cip)						\
-	((cip)->__col_value == 0 ?					\
-	    NULL : WT_PAGE_REF_OFFSET(page, (cip)->__col_value))
+	WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
 #define	WT_COL_PTR_SET(cip, value)					\
 	(cip)->__col_value = (value)
 
@@ -1016,9 +1062,9 @@ struct __wt_ikey {
  */
 struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
-#if WT_TIMESTAMP_SIZE == 8
-	WT_DECL_TIMESTAMP(timestamp)	/* aligned uint64_t timestamp */
-#endif
+
+	wt_timestamp_t durable_ts;	/* timestamps */
+	wt_timestamp_t start_ts;
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -1037,15 +1083,11 @@ struct __wt_update {
 	((upd)->type == WT_UPDATE_STANDARD ||				\
 	(upd)->type == WT_UPDATE_TOMBSTONE)
 
-#if WT_TIMESTAMP_SIZE != 8
-	WT_DECL_TIMESTAMP(timestamp)	/* unaligned uint8_t array timestamp */
-#endif
-
 	/*
 	 * The update state is used for transaction prepare to manage
 	 * visibility and transitioning update structure state safely.
 	 */
-	volatile uint8_t prepare_state;	/* Prepare state. */
+	volatile uint8_t prepare_state;	/* prepare state */
 
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the
@@ -1059,7 +1101,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	(22 + WT_TIMESTAMP_SIZE)
+#define	WT_UPDATE_SIZE	38
 
 /*
  * The memory size of an update: include some padding because this is such a

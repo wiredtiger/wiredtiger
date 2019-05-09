@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -331,6 +331,8 @@ cursor_ops(WT_SESSION *session)
 	error_check(cursor->insert(cursor));
 	}
 
+	/* Modify requires an explicit transaction. */
+	error_check(session->begin_transaction(session, NULL));
 	{
 	/*! [Modify an existing record] */
 	WT_MODIFY entries[3];
@@ -361,6 +363,7 @@ cursor_ops(WT_SESSION *session)
 	error_check(cursor->modify(cursor, entries, 3));
 	/*! [Modify an existing record] */
 	}
+	error_check(session->commit_transaction(session, NULL));
 
 	{
 	/*! [Update an existing record or insert a new record] */
@@ -575,6 +578,11 @@ cursor_statistics(WT_SESSION *session)
 	    "statistics:table:mytable",
 	    NULL, "statistics=(all,clear)", &cursor));
 	/*! [Statistics cursor clear configuration] */
+
+	/*! [Statistics cursor session] */
+	error_check(session->open_cursor(
+	    session, "statistics:session", NULL, NULL, &cursor));
+	/*! [Statistics cursor session] */
 }
 
 static void
@@ -898,7 +906,6 @@ transaction_ops(WT_SESSION *session_arg)
 	error_check(session->commit_transaction(session, NULL));
 	/*! [transaction isolation] */
 
-#ifdef HAVE_TIMESTAMPS
 	{
 	/*! [transaction prepare] */
 	/*
@@ -914,10 +921,9 @@ transaction_ops(WT_SESSION *session_arg)
 	error_check(session->prepare_transaction(
 	    session, "prepare_timestamp=2a"));
 	error_check(session->commit_transaction(
-	    session, "commit_timestamp=2b"));
+	    session, "commit_timestamp=2b,durable_timestamp=2b"));
 	/*! [transaction prepare] */
 	}
-#endif
 
 	/*! [session isolation configuration] */
 	/* Open a session configured for read-uncommitted isolation. */
@@ -944,10 +950,9 @@ transaction_ops(WT_SESSION *session_arg)
 
 	error_check(session->begin_transaction(session, NULL));
 
-#ifdef HAVE_TIMESTAMPS
 	{
 	/*! [query timestamp] */
-	char timestamp_buf[2 * WT_TIMESTAMP_SIZE + 1];
+	char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
 	/*! [transaction timestamp] */
 	error_check(
@@ -976,7 +981,6 @@ transaction_ops(WT_SESSION *session_arg)
 	/*! [rollback to stable] */
 	error_check(conn->rollback_to_stable(conn, NULL));
 	/*! [rollback to stable] */
-#endif
 }
 
 /*! [Implement WT_COLLATOR] */
@@ -1280,6 +1284,12 @@ main(int argc, char *argv[])
 	/*! [Configure file_extend] */
 	error_check(conn->close(conn, NULL));
 
+	/*! [Configure capacity] */
+	error_check(wiredtiger_open(
+	    home, NULL, "create,io_capacity=(total=40MB)", &conn));
+	/*! [Configure capacity] */
+	error_check(conn->close(conn, NULL));
+
 	/*! [Eviction configuration] */
 	/*
 	 * Configure eviction to begin at 90% full, and run until the cache
@@ -1353,11 +1363,32 @@ main(int argc, char *argv[])
 	}
 
 	{
+	/*! [Calculate a modify operation] */
+	WT_MODIFY mod[3];
+	int nmod = 3;
+	WT_ITEM prev, newv;
+	prev.data = "the quick brown fox jumped over the lazy dog. " \
+		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
+		"the quick brown fox jumped over the lazy dog. " \
+		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. ";
+	prev.size = strlen(prev.data);
+	newv.data = "A quick brown fox jumped over the lazy dog. " \
+		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
+		"then a quick brown fox jumped over the lazy dog. " \
+		"THE QUICK BROWN FOX JUMPED OVER THE LAZY DOG. " \
+		"then what?";
+	newv.size = strlen(newv.data);
+	error_check(wiredtiger_calc_modify(NULL, &prev, &newv, 20, mod, &nmod));
+	/*! [Calculate a modify operation] */
+	}
+
+	{
 	const char *buffer = "some string";
 	size_t len = strlen(buffer);
 	/*! [Checksum a buffer] */
-	uint32_t crc32c;
-	crc32c = wiredtiger_checksum_crc32c(buffer, len);
+	uint32_t crc32c, (*func)(const void *, size_t);
+	func = wiredtiger_crc32c_func();
+	crc32c = func(buffer, len);
 	/*! [Checksum a buffer] */
 	(void)crc32c;
 	}

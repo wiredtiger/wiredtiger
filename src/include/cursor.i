@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -417,9 +417,15 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	 * Unpack the cell and deal with overflow and prefix-compressed keys.
 	 * Inline building simple prefix-compressed keys from a previous key,
 	 * otherwise build from scratch.
+	 *
+	 * Clear the key cell structure. It shouldn't be necessary (as far as I
+	 * can tell, and we don't do it in lots of other places), but disabling
+	 * shared builds (--disable-shared) results in the compiler complaining
+	 * about uninitialized field use.
 	 */
 	kpack = &_kpack;
-	__wt_cell_unpack(cell, kpack);
+	memset(kpack, 0, sizeof(*kpack));
+	__wt_cell_unpack(session, page, cell, kpack);
 	if (kpack->type == WT_CELL_KEY &&
 	    cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
 		WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
@@ -464,6 +470,6 @@ value:
 		return (0);
 
 	/* Else, take the value from the original page cell. */
-	__wt_row_leaf_value_cell(page, rip, kpack, vpack);
+	__wt_row_leaf_value_cell(session, page, rip, kpack, vpack);
 	return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
 }

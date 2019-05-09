@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -270,6 +270,10 @@ __curstat_reset(WT_CURSOR *cursor)
 	cst->notinitialized = cst->notpositioned = true;
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
+	/* Reset the session statistics to zero. */
+	if (strcmp(cursor->uri, "statistics:session") == 0)
+		__wt_stat_session_clear_single(&session->stats);
+
 err:	API_END_RET(session, ret);
 }
 
@@ -321,6 +325,7 @@ __curstat_close(WT_CURSOR *cursor)
 
 	cst = (WT_CURSOR_STAT *)cursor;
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if (cst->cfg != NULL) {
 		for (i = 0; cst->cfg[i] != NULL; ++i)
@@ -331,9 +336,9 @@ __curstat_close(WT_CURSOR *cursor)
 	__wt_buf_free(session, &cst->pv);
 	__wt_free(session, cst->desc_buf);
 
-	WT_ERR(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*
@@ -352,6 +357,7 @@ __curstat_conn_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 	 * Optionally clear the connection statistics.
 	 */
 	__wt_conn_stat_init(session);
+	__wt_stat_connection_init_single(&cst->u.conn_stats);
 	__wt_stat_connection_aggregate(conn->stats, &cst->u.conn_stats);
 	if (F_ISSET(cst, WT_STAT_CLEAR))
 		__wt_stat_connection_clear_all(conn->stats);
@@ -513,6 +519,28 @@ __curstat_join_init(WT_SESSION_IMPL *session,
 }
 
 /*
+ * __curstat_session_init --
+ *	Initialize the statistics for a session.
+ */
+static void
+__curstat_session_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
+{
+	/*
+	 * Copy stats from the session to the cursor. Optionally clear the
+	 * session's statistics.
+	 */
+	memcpy(&cst->u.session_stats,
+	    &session->stats, sizeof(WT_SESSION_STATS));
+	if (F_ISSET(cst, WT_STAT_CLEAR))
+		__wt_stat_session_clear_single(&session->stats);
+
+	cst->stats = (int64_t *)&cst->u.session_stats;
+	cst->stats_base = WT_SESSION_STATS_BASE;
+	cst->stats_count = sizeof(WT_SESSION_STATS) / sizeof(int64_t);
+	cst->stats_desc = __wt_stat_session_desc;
+}
+
+/*
  * __wt_curstat_init --
  *	Initialize a statistics cursor.
  */
@@ -529,25 +557,23 @@ __wt_curstat_init(WT_SESSION_IMPL *session,
 
 	dsrc_uri = uri + strlen("statistics:");
 
-	if (WT_STREQ(dsrc_uri, "join"))
+	if (strcmp(dsrc_uri, "join") == 0)
 		WT_RET(__curstat_join_init(session, curjoin, cfg, cst));
-
+	else if (strcmp(dsrc_uri, "session") == 0) {
+		__curstat_session_init(session, cst);
+		return (0);
+	}
 	else if (WT_PREFIX_MATCH(dsrc_uri, "colgroup:"))
 		WT_RET(
 		    __wt_curstat_colgroup_init(session, dsrc_uri, cfg, cst));
-
 	else if (WT_PREFIX_MATCH(dsrc_uri, "file:"))
 		WT_RET(__curstat_file_init(session, dsrc_uri, cfg, cst));
-
 	else if (WT_PREFIX_MATCH(dsrc_uri, "index:"))
 		WT_RET(__wt_curstat_index_init(session, dsrc_uri, cfg, cst));
-
 	else if (WT_PREFIX_MATCH(dsrc_uri, "lsm:"))
 		WT_RET(__wt_curstat_lsm_init(session, dsrc_uri, cst));
-
 	else if (WT_PREFIX_MATCH(dsrc_uri, "table:"))
 		WT_RET(__wt_curstat_table_init(session, dsrc_uri, cfg, cst));
-
 	else
 		return (__wt_bad_object_type(session, uri));
 
@@ -595,9 +621,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session,
 	conn = S2C(session);
 
 	WT_RET(__wt_calloc_one(session, &cst));
-	cursor = &cst->iface;
+	cursor = (WT_CURSOR *)cst;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 
 	/*
 	 * Statistics cursor configuration: must match (and defaults to), the

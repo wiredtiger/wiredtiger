@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -39,7 +39,7 @@ class test_util09(wttest.WiredTigerTestCase, suite_subprocess):
 
     def populate_file(self, filename, low, high):
         """
-        Insert some simple key / value lines into the file
+        Insert some simple key // value lines into the file
         """
         keys = {}
         with open("loadtext.in", "w") as f:

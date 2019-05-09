@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -69,7 +69,7 @@ except:
             py_args.insert(0, sys.executable)
             try:
                 os.execv(sys.executable, py_args)
-            except Exception, exception:
+            except Exception as exception:
                 print('re-exec failed: ' + str(exception), file=sys.stderr)
                 print('  exec(' + sys.executable + ', ' + str(py_args) + ')')
                 print('Try adding "' + dotlibs + '" to the', file=sys.stderr)
@@ -88,5 +88,5 @@ except:
 shutil.rmtree('WT_TEST', True)
 os.mkdir('WT_TEST')
 
-from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range
+from .core import txn, extensions_config, op_append, op_group_transaction, op_log_like, op_multi_table, op_populate_with_range, sleep, timed
 from .latency import workload_latency

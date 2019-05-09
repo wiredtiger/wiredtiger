@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -236,7 +236,7 @@ __rename_table(WT_SESSION_IMPL *session,
 		    table->indices[i]->name, cfg));
 
 	/* Make sure the table data handle is closed. */
-	WT_TRET(__wt_schema_release_table(session, table));
+	WT_ERR(__wt_schema_release_table(session, &table));
 	WT_ERR(__wt_schema_get_table_uri(
 	    session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
 	F_SET(&table->iface, WT_DHANDLE_DISCARD);
@@ -251,16 +251,16 @@ __rename_table(WT_SESSION_IMPL *session,
 	ret = __metadata_rename(session, uri, newuri);
 
 err:	if (!tracked)
-		WT_TRET(__wt_schema_release_table(session, table));
+		WT_TRET(__wt_schema_release_table(session, &table));
 	return (ret);
 }
 
 /*
- * __wt_schema_rename --
+ * __schema_rename --
  *	WT_SESSION::rename.
  */
-int
-__wt_schema_rename(WT_SESSION_IMPL *session,
+static int
+__schema_rename(WT_SESSION_IMPL *session,
     const char *uri, const char *newuri, const char *cfg[])
 {
 	WT_DATA_SOURCE *dsrc;
@@ -298,4 +298,21 @@ __wt_schema_rename(WT_SESSION_IMPL *session,
 
 	/* If we didn't find a metadata entry, map that error to ENOENT. */
 	return (ret == WT_NOTFOUND ? ENOENT : ret);
+}
+
+/*
+ * __wt_schema_rename --
+ *	WT_SESSION::rename.
+ */
+int
+__wt_schema_rename(WT_SESSION_IMPL *session,
+    const char *uri, const char *newuri, const char *cfg[])
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *int_session;
+
+	WT_RET(__wt_schema_internal_session(session, &int_session));
+	ret = __schema_rename(int_session, uri, newuri, cfg);
+	WT_TRET(__wt_schema_session_release(session, int_session));
+	return (ret);
 }

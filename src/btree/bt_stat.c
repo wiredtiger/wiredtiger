@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -44,6 +44,9 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 
 	WT_STAT_SET(session, stats, cache_bytes_dirty,
 	    __wt_btree_dirty_inuse(session));
+	WT_STAT_SET(session, stats, cache_bytes_dirty_total,
+	    __wt_cache_bytes_plus_overhead(
+	    S2C(session)->cache, btree->bytes_dirty_total));
 	WT_STAT_SET(session, stats, cache_bytes_inuse,
 	    __wt_btree_bytes_inuse(session));
 
@@ -122,7 +125,7 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 	case WT_PAGE_ROW_LEAF:
 		__stat_page_row_leaf(session, page, stats);
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, page->type);
 	}
 	return (0);
 }
@@ -157,21 +160,18 @@ __stat_page_col_var(
 	 * we see.
 	 */
 	WT_COL_FOREACH(page, cip, i) {
-		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
+		cell = WT_COL_PTR(page, cip);
+		__wt_cell_unpack(session, page, cell, unpack);
+		if (unpack->type == WT_CELL_DEL) {
 			orig_deleted = true;
-			++deleted_cnt;
+			deleted_cnt += __wt_cell_rle(unpack);
 		} else {
 			orig_deleted = false;
-			__wt_cell_unpack(cell, unpack);
-			if (unpack->type == WT_CELL_DEL)
-				orig_deleted = true;
-			else {
-				entry_cnt += __wt_cell_rle(unpack);
-				rle_cnt += __wt_cell_rle(unpack) - 1;
-			}
-			if (unpack->ovfl)
-				++ovfl_cnt;
+			entry_cnt += __wt_cell_rle(unpack);
 		}
+		rle_cnt += __wt_cell_rle(unpack) - 1;
+		if (unpack->ovfl)
+			++ovfl_cnt;
 
 		/*
 		 * Walk the insert list, checking for changes.  For each insert
@@ -227,9 +227,8 @@ __stat_page_row_int(
     WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
-	uint32_t i, ovfl_cnt;
+	uint32_t ovfl_cnt;
 
 	btree = S2BT(session);
 	ovfl_cnt = 0;
@@ -242,11 +241,10 @@ __stat_page_row_int(
 	 * a reference to the original cell.
 	 */
 	if (page->dsk != NULL)
-		WT_CELL_FOREACH(btree, page->dsk, cell, &unpack, i) {
-			__wt_cell_unpack(cell, &unpack);
-			if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
+		WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+			if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
 				++ovfl_cnt;
-		}
+		} WT_CELL_FOREACH_END;
 
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
 }
@@ -260,15 +258,15 @@ __stat_page_row_leaf(
     WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
 	WT_INSERT *ins;
 	WT_ROW *rip;
 	WT_UPDATE *upd;
-	uint32_t entry_cnt, i, ovfl_cnt;
+	uint32_t empty_values, entry_cnt, i, ovfl_cnt;
+	bool key;
 
 	btree = S2BT(session);
-	entry_cnt = ovfl_cnt = 0;
+	empty_values = entry_cnt = ovfl_cnt = 0;
 
 	WT_STAT_INCR(session, stats, btree_row_leaf);
 
@@ -292,7 +290,8 @@ __stat_page_row_leaf(
 		    upd->type != WT_UPDATE_TOMBSTONE))
 			++entry_cnt;
 		if (upd == NULL) {
-			__wt_row_leaf_value_cell(page, rip, NULL, &unpack);
+			__wt_row_leaf_value_cell(
+			    session, page, rip, NULL, &unpack);
 			if (unpack.type == WT_CELL_VALUE_OVFL)
 				++ovfl_cnt;
 		}
@@ -308,14 +307,33 @@ __stat_page_row_leaf(
 	 * Overflow keys are hard: we have to walk the disk image to count them,
 	 * the in-memory representation of the page doesn't necessarily contain
 	 * a reference to the original cell.
+	 *
+	 * Zero-length values are the same, we have to look at the disk image to
+	 * know. They aren't stored but we know they exist if there are two keys
+	 * in a row, or a key as the last item.
 	 */
-	if (page->dsk != NULL)
-		WT_CELL_FOREACH(btree, page->dsk, cell, &unpack, i) {
-			__wt_cell_unpack(cell, &unpack);
-			if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
+	if (page->dsk != NULL) {
+		key = false;
+		WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+			switch (__wt_cell_type(unpack.cell)) {
+			case WT_CELL_KEY_OVFL:
 				++ovfl_cnt;
-		}
+				/* FALLTHROUGH */
+			case WT_CELL_KEY:
+				if (key)
+					++empty_values;
+				key = true;
+				break;
+			default:
+				key = false;
+				break;
+			}
+		} WT_CELL_FOREACH_END;
+		if (key)
+			++empty_values;
+	}
 
+	WT_STAT_INCRV(session, stats, btree_row_empty_values, empty_values);
 	WT_STAT_INCRV(session, stats, btree_entries, entry_cnt);
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
 }

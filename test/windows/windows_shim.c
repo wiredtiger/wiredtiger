@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -52,8 +52,8 @@ usleep(useconds_t useconds)
 int
 gettimeofday(struct timeval* tp, void* tzp)
 {
-	uint64_t ns100;
 	FILETIME time;
+	uint64_t ns100;
 
 	tzp = tzp;
 
@@ -70,7 +70,7 @@ gettimeofday(struct timeval* tp, void* tzp)
 int
 pthread_rwlock_destroy(pthread_rwlock_t *lock)
 {
-	lock = lock;
+	lock = lock;				/* Unused variable. */
 	return (0);
 }
 
@@ -78,17 +78,10 @@ int
 pthread_rwlock_init(pthread_rwlock_t *rwlock,
     const pthread_rwlockattr_t *ignored)
 {
-	ignored = ignored;
+	ignored = ignored;			/* Unused variable. */
 	InitializeSRWLock(&rwlock->rwlock);
 	rwlock->exclusive_locked = 0;
 
-	return (0);
-}
-
-int
-pthread_rwlock_rdlock(pthread_rwlock_t *rwlock)
-{
-	AcquireSRWLockShared(&rwlock->rwlock);
 	return (0);
 }
 
@@ -101,6 +94,19 @@ pthread_rwlock_unlock(pthread_rwlock_t *rwlock)
 	} else
 		ReleaseSRWLockShared(&rwlock->rwlock);
 
+	return (0);
+}
+
+int
+pthread_rwlock_tryrdlock(pthread_rwlock_t *rwlock)
+{
+	return (TryAcquireSRWLockShared(&rwlock->rwlock) ? 0 : EBUSY);
+}
+
+int
+pthread_rwlock_rdlock(pthread_rwlock_t *rwlock)
+{
+	AcquireSRWLockShared(&rwlock->rwlock);
 	return (0);
 }
 

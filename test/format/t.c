@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -38,6 +38,19 @@ static void usage(void)
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+/*
+ * signal_handler --
+ *	Handle signals.
+ */
+static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void
+signal_handler(int signo)
+{
+	fprintf(stderr,
+	    "format caught signal %d, aborting the process\n", signo);
+	__wt_abort(NULL);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -50,6 +63,20 @@ main(int argc, char *argv[])
 	config = NULL;
 
 	(void)testutil_set_progname(argv);
+
+	/*
+	 * Windows and Linux support different sets of signals, be conservative
+	 * about installing handlers.
+	 */
+#ifdef SIGALRM
+	(void)signal(SIGALRM, signal_handler);
+#endif
+#ifdef SIGHUP
+	(void)signal(SIGHUP, signal_handler);
+#endif
+#ifdef SIGTERM
+	(void)signal(SIGTERM, signal_handler);
+#endif
 
 #if 0
 	/* Configure the GNU malloc for debugging. */
@@ -67,7 +94,7 @@ main(int argc, char *argv[])
 	home = NULL;
 	onerun = 0;
 	while ((ch = __wt_getopt(
-	    progname, argc, argv, "1C:c:H:h:Llqrt:")) != EOF)
+	    progname, argc, argv, "1C:c:h:Llqrt:")) != EOF)
 		switch (ch) {
 		case '1':			/* One run */
 			onerun = 1;
@@ -77,9 +104,6 @@ main(int argc, char *argv[])
 			break;
 		case 'c':			/* Configuration from a file */
 			config = __wt_optarg;
-			break;
-		case 'H':
-			g.helium_mount = __wt_optarg;
 			break;
 		case 'h':
 			home = __wt_optarg;
@@ -104,7 +128,6 @@ main(int argc, char *argv[])
 		default:
 			usage();
 		}
-	argc -= __wt_optind;
 	argv += __wt_optind;
 
 	/* Initialize the global RNG. */
@@ -170,7 +193,7 @@ main(int argc, char *argv[])
 	testutil_check(pthread_rwlock_init(&g.append_lock, NULL));
 	testutil_check(pthread_rwlock_init(&g.backup_lock, NULL));
 	testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
-	testutil_check(pthread_rwlock_init(&g.prepare_lock, NULL));
+	testutil_check(pthread_rwlock_init(&g.ts_lock, NULL));
 
 	printf("%s: process %" PRIdMAX "\n", progname, (intmax_t)getpid());
 	while (++g.run_cnt <= g.c_runs || g.c_runs == 0 ) {
@@ -268,7 +291,7 @@ main(int argc, char *argv[])
 	testutil_check(pthread_rwlock_destroy(&g.append_lock));
 	testutil_check(pthread_rwlock_destroy(&g.backup_lock));
 	testutil_check(pthread_rwlock_destroy(&g.death_lock));
-	testutil_check(pthread_rwlock_destroy(&g.prepare_lock));
+	testutil_check(pthread_rwlock_destroy(&g.ts_lock));
 
 	config_clear();
 
@@ -338,14 +361,12 @@ usage(void)
 {
 	fprintf(stderr,
 	    "usage: %s [-1Llqr] [-C wiredtiger-config]\n    "
-	    "[-c config-file] [-H mount] [-h home] "
-	    "[name=value ...]\n",
+	    "[-c config-file] [-h home] [name=value ...]\n",
 	    progname);
 	fprintf(stderr, "%s",
 	    "\t-1 run once\n"
 	    "\t-C specify wiredtiger_open configuration arguments\n"
 	    "\t-c read test program configuration from a file\n"
-	    "\t-H mount Helium volume mount point\n"
 	    "\t-h home (default 'RUNDIR')\n"
 	    "\t-L output to a log file\n"
 	    "\t-l log operations (implies -L)\n"

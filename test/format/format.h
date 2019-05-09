@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -27,6 +27,8 @@
  */
 
 #include "test_util.h"
+
+#include <signal.h>
 
 #ifdef BDB
 /*
@@ -59,17 +61,13 @@
 
 #define	KVS_BDB_PATH							\
 	EXTPATH "test/kvs_bdb/.libs/libwiredtiger_kvs_bdb.so"
-#define	HELIUM_PATH							\
-	EXTPATH "datasources/helium/.libs/libwiredtiger_helium.so"
-
-#define	LZO_PATH	".libs/lzo_compress.so"
 
 #undef	M
-#define	M(v)		((v) * 1000000)		/* Million */
+#define	M(v)		((v) * WT_MILLION)	/* Million */
 #undef	KILOBYTE
-#define	KILOBYTE(v)	((v) * 1024)
+#define	KILOBYTE(v)	((v) * WT_KILOBYTE)
 #undef	MEGABYTE
-#define	MEGABYTE(v)	((v) * 1048576)
+#define	MEGABYTE(v)	((v) * WT_MEGABYTE)
 
 #define	WT_NAME	"wt"				/* Object name */
 
@@ -91,8 +89,6 @@ typedef struct {
 	char *home_rand;			/* RNG log file path */
 	char *home_salvage_copy;		/* Salvage copy command */
 	char *home_stats;			/* Statistics file path */
-
-	char *helium_mount;			/* Helium volume */
 
 	char wiredtiger_open_config[8 * 1024];	/* Database open config */
 
@@ -122,7 +118,16 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* Global RNG state */
 
-	pthread_rwlock_t prepare_lock;		/* Prepare running */
+	/*
+	 * Prepare will return an error if the prepare timestamp is less than
+	 * any active read timestamp. Lock across allocating prepare and read
+	 * timestamps.
+	 *
+	 * We get the last committed timestamp periodically in order to update
+	 * the oldest timestamp, that requires locking out transactional ops
+	 * that set a timestamp.
+	 */
+	pthread_rwlock_t ts_lock;
 
 	uint64_t timestamp;			/* Counter for timestamps */
 
@@ -192,6 +197,7 @@ typedef struct {
 	uint32_t c_logging_prealloc;
 	uint32_t c_long_running_txn;
 	uint32_t c_lsm_worker_threads;
+	uint32_t c_memory_page_max;
 	uint32_t c_merge_max;
 	uint32_t c_mmap;
 	uint32_t c_modify_pct;
@@ -212,6 +218,7 @@ typedef struct {
 	uint32_t c_statistics_server;
 	uint32_t c_threads;
 	uint32_t c_timer;
+	uint32_t c_timing_stress_aggressive_sweep;
 	uint32_t c_timing_stress_checkpoint;
 	uint32_t c_timing_stress_lookaside_sweep;
 	uint32_t c_timing_stress_split_1;
@@ -221,6 +228,7 @@ typedef struct {
 	uint32_t c_timing_stress_split_5;
 	uint32_t c_timing_stress_split_6;
 	uint32_t c_timing_stress_split_7;
+	uint32_t c_timing_stress_split_8;
 	uint32_t c_truncate;
 	uint32_t c_txn_freq;
 	uint32_t c_txn_timestamps;
@@ -246,12 +254,9 @@ typedef struct {
 
 #define	COMPRESS_NONE			1
 #define	COMPRESS_LZ4			2
-#define	COMPRESS_LZ4_NO_RAW		3
-#define	COMPRESS_LZO			4
-#define	COMPRESS_SNAPPY			5
-#define	COMPRESS_ZLIB			6
-#define	COMPRESS_ZLIB_NO_RAW		7
-#define	COMPRESS_ZSTD			8
+#define	COMPRESS_SNAPPY			3
+#define	COMPRESS_ZLIB			4
+#define	COMPRESS_ZSTD			5
 	u_int c_compression_flag;		/* Compression flag value */
 	u_int c_logging_compression_flag;	/* Log compression flag value */
 
@@ -281,8 +286,7 @@ typedef struct {
 
 	WT_RAND_STATE rnd;			/* thread RNG state */
 
-	uint64_t commit_timestamp;		/* last committed timestamp */
-	uint64_t read_timestamp;		/* read timestamp */
+	bool prepare_txn;			/* is prepare transaction */
 
 	volatile bool quit;			/* thread should quit */
 
@@ -374,9 +378,40 @@ mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
 	uint32_t v;
 	u_int range;
 
+	/*
+	 * Test runs with small row counts can easily pass a max of 0 (for
+	 * example, "g.rows / 20"). Avoid the problem.
+	 */
+	if (max <= min)
+		return (min);
+
 	v = rng(rnd);
 	range = (max - min) + 1;
 	v %= range;
 	v += min;
 	return (v);
+}
+
+static inline void
+random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
+{
+	uint64_t i, micro_seconds;
+
+	/*
+	 * We need a fast way to choose a sleep time. We want to sleep a short
+	 * period most of the time, but occasionally wait longer. Divide the
+	 * maximum period of time into 10 buckets (where bucket 0 doesn't sleep
+	 * at all), and roll dice, advancing to the next bucket 50% of the time.
+	 * That means we'll hit the maximum roughly every 1K calls.
+	 */
+	for (i = 0;;)
+		if (rng(rnd) & 0x1 || ++i > 9)
+			break;
+
+	if (i == 0)
+		__wt_yield();
+	else {
+		micro_seconds = (uint64_t)max_seconds * WT_MILLION;
+		__wt_sleep(0, i * (micro_seconds / 10));
+	}
 }

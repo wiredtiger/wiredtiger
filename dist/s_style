@@ -88,7 +88,6 @@ else
 	fi
 
 	if ! expr "$f" : 'examples/c/.*' > /dev/null &&
-	   ! expr "$f" : 'ext/datasources/helium/helium.c' > /dev/null &&
 	   ! expr "$f" : 'src/include/os.h' > /dev/null &&
 	    egrep "%[0-9]*zu" $f | grep -v 'SIZET_FMT' > $t; then
 		echo "$f: %zu needs to be fixed for Windows"
@@ -100,6 +99,12 @@ else
 		echo "$f: off_t type declaration, use wt_off_t"
 		cat $t
 	}
+
+	if ! expr "$f" : 'src/include/misc.h' > /dev/null &&
+	    grep '[[:space:]]qsort(' $f > $t; then
+		echo "$f: qsort call, use WiredTiger __wt_qsort instead"
+		cat $t
+	fi
 
 	if ! expr "$f" : 'src/.*/os_setvbuf.c' > /dev/null &&
 	    egrep -w 'setvbuf' $f > $t; then

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -33,6 +33,7 @@ typedef struct {
 /*
  * Thread callbacks need to match the platform specific callback types
  */
+/* NOLINTNEXTLINE(misc-macro-parentheses) */
 #define	WT_THREAD_CALLBACK(x)	void* (x)
 #define	WT_THREAD_RET		void*
 #define	WT_THREAD_RET_VALUE	NULL

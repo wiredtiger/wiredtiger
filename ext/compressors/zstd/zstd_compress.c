@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -296,7 +296,7 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	 * ratio). In other words, position zstd as a zlib replacement, having
 	 * similar compression at much higher compression/decompression speeds.
 	 */
-	compression_level = 3;
+	compression_level = 6;
 	if ((ret =
 	    zstd_init_config(connection, config, &compression_level)) != 0)
 		return (ret);
@@ -305,7 +305,6 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 		return (errno);
 
 	zstd_compressor->compressor.compress = zstd_compress;
-	zstd_compressor->compressor.compress_raw = NULL;
 	zstd_compressor->compressor.decompress = zstd_decompress;
 	zstd_compressor->compressor.pre_size = zstd_pre_size;
 	zstd_compressor->compressor.terminate = zstd_terminate;
@@ -315,8 +314,12 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	zstd_compressor->compression_level = compression_level;
 
 	/* Load the compressor */
-	return (connection->add_compressor(
-	    connection, "zstd", (WT_COMPRESSOR *)zstd_compressor, NULL));
+	if ((ret = connection->add_compressor(
+	    connection, "zstd", (WT_COMPRESSOR *)zstd_compressor, NULL)) == 0)
+		return (0);
+
+	free(zstd_compressor);
+	return (ret);
 }
 
 /*

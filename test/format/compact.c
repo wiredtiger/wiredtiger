@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -43,7 +43,7 @@ compact(void *arg)
 	(void)(arg);
 
 	/* Compaction isn't supported for all data sources. */
-	if (DATASOURCE("helium") || DATASOURCE("kvsbdb"))
+	if (DATASOURCE("kvsbdb"))
 		return (WT_THREAD_RET_VALUE);
 
 	/* Open a session. */

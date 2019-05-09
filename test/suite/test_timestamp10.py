@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -39,6 +39,7 @@ def timestamp_str(t):
 
 class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'config_base=false,create,log=(enabled)'
+    session_config = 'isolation=snapshot'
     coll1_uri = 'table:collection10.1'
     coll2_uri = 'table:collection10.2'
     coll3_uri = 'table:collection10.3'
@@ -126,9 +127,6 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
 
     def test_timestamp_recovery(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         # Add some data and checkpoint at a stable timestamp.
         last_stable = self.data_and_checkpoint()
 

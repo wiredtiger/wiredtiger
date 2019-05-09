@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -41,6 +41,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
     """
     table_name = 'test_prepare_cursor'
     nentries = 10
+    session_config = 'isolation=snapshot'
 
     scenarios = make_scenarios([
         ('file-col', dict(tablekind='col',uri='file', format='key_format=r,value_format=S')),
@@ -56,7 +57,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
         if self.tablekind == 'row':
             return 'key' + str(i)
         else:
-            return long(i+1)
+            return self.recno(i+1)
 
     def genvalue(self, i):
         if self.tablekind == 'fix':
@@ -74,9 +75,6 @@ class test_prepare03(wttest.WiredTigerTestCase):
 
     # Create the table and test cursor operations.
     def test_prepare_cursor(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         tablearg = self.uri + ':' + self.table_name
         create_args = self.format
         preparemsg = "/ not permitted in a prepared transaction/"
@@ -96,7 +94,9 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=2a")
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.insert(), preparemsg)
-            self.session.commit_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("durable_timestamp=2b")
+            self.session.commit_transaction()
             cursor.insert()
 
         # Check next, get_key, get_value operations.
@@ -113,7 +113,9 @@ class test_prepare03(wttest.WiredTigerTestCase):
                 lambda:cursor.get_key(), preparemsg)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.get_value(), preparemsg)
-            self.session.commit_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("durable_timestamp=2b")
+            self.session.commit_transaction()
             nextret = cursor.next()
             if nextret != 0:
                 break
@@ -137,7 +139,9 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=2a")
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.prev(), preparemsg)
-            self.session.commit_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("commit_timestamp=2b")
+            self.session.timestamp_transaction("durable_timestamp=2b")
+            self.session.commit_transaction()
             prevret = cursor.prev()
             if prevret != 0:
                 break
@@ -158,7 +162,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
         # Search for a specific key.
         # Verify we get the expected error and then later we can update and
         # remove it.
-        cursor.set_key(self.genkey(self.nentries/2))
+        cursor.set_key(self.genkey(self.nentries//2))
         self.session.begin_transaction()
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -171,9 +175,11 @@ class test_prepare03(wttest.WiredTigerTestCase):
             lambda:cursor.reserve(), preparemsg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.reconfigure(), preparemsg)
-        self.session.commit_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("durable_timestamp=2b")
+        self.session.commit_transaction()
         cursor.search()
-        cursor.set_value(self.genvalue(self.nentries + self.nentries/2))
+        cursor.set_value(self.genvalue(self.nentries + self.nentries//2))
         cursor.update()
         cursor.remove()
 
@@ -183,7 +189,9 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.search_near(), preparemsg)
-        self.session.commit_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("durable_timestamp=2b")
+        self.session.commit_transaction()
         # There is a bug with search_near operation when no key is set.
         # This fix is being tracked in WT-3918.
         if self.uri == 'lsm':

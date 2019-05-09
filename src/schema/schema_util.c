@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,6 +7,37 @@
  */
 
 #include "wt_internal.h"
+
+/*
+ * __schema_backup_check_int --
+ *	Helper for __wt_schema_backup_check.  Intended to be called while
+ *	holding the hot backup read lock.
+ */
+static int
+__schema_backup_check_int(WT_SESSION_IMPL *session, const char *name)
+{
+	WT_CONNECTION_IMPL *conn;
+	int i;
+	char **backup_list;
+
+	conn = S2C(session);
+
+	/*
+	 * There is a window at the end of a backup where the list has been
+	 * cleared from the connection but the flag is still set.  It is safe
+	 * to drop at that point.
+	 */
+	if (!conn->hot_backup ||
+	    (backup_list = conn->hot_backup_list) == NULL) {
+		return (0);
+	}
+	for (i = 0; backup_list[i] != NULL; ++i) {
+		if (strcmp(backup_list[i], name) == 0)
+			return __wt_set_return(session, EBUSY);
+	}
+
+	return (0);
+}
 
 /*
  * __wt_schema_backup_check --
@@ -20,30 +51,12 @@ __wt_schema_backup_check(WT_SESSION_IMPL *session, const char *name)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	int i;
-	char **backup_list;
 
 	conn = S2C(session);
 	if (!conn->hot_backup)
 		return (0);
-	__wt_readlock(session, &conn->hot_backup_lock);
-	/*
-	 * There is a window at the end of a backup where the list has been
-	 * cleared from the connection but the flag is still set.  It is safe
-	 * to drop at that point.
-	 */
-	if (!conn->hot_backup ||
-	    (backup_list = conn->hot_backup_list) == NULL) {
-		__wt_readunlock(session, &conn->hot_backup_lock);
-		return (0);
-	}
-	for (i = 0; backup_list[i] != NULL; ++i) {
-		if (strcmp(backup_list[i], name) == 0) {
-			ret = EBUSY;
-			break;
-		}
-	}
-	__wt_readunlock(session, &conn->hot_backup_lock);
+	WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
+	    ret = __schema_backup_check_int(session, name));
 	return (ret);
 }
 
@@ -60,6 +73,48 @@ __wt_schema_get_source(WT_SESSION_IMPL *session, const char *name)
 		if (WT_PREFIX_MATCH(name, ndsrc->prefix))
 			return (ndsrc->dsrc);
 	return (NULL);
+}
+
+/*
+ * __wt_schema_internal_session --
+ *	Create and return an internal schema session if necessary.
+ */
+int
+__wt_schema_internal_session(
+    WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
+{
+	/*
+	 * Open an internal session if a transaction is running so that the
+	 * schema operations are not logged and buffered with any log records
+	 * in the transaction.  The new session inherits its flags from the
+	 * original.
+	 */
+	*int_sessionp = session;
+	if (F_ISSET(&session->txn, WT_TXN_RUNNING)) {
+		/* We should not have a schema txn running now. */
+		WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
+		WT_RET(__wt_open_internal_session(S2C(session), "schema",
+		    true, session->flags, int_sessionp));
+	}
+	return (0);
+}
+
+/*
+ * __wt_schema_session_release --
+ *	Release an internal schema session if needed.
+ */
+int
+__wt_schema_session_release(
+    WT_SESSION_IMPL *session, WT_SESSION_IMPL *int_session)
+{
+	WT_SESSION *wt_session;
+
+	if (session != int_session) {
+		wt_session = &int_session->iface;
+		WT_RET(wt_session->close(wt_session, NULL));
+	}
+
+	return (0);
 }
 
 /*

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -36,11 +36,10 @@ static void	   config_compression(const char *);
 static void	   config_encryption(void);
 static const char *config_file_type(u_int);
 static bool	   config_fix(void);
-static void	   config_helium_reset(void);
 static void	   config_in_memory(void);
 static void	   config_in_memory_reset(void);
 static int	   config_is_perm(const char *);
-static void	   config_isolation(void);
+static void	   config_transaction(void);
 static void	   config_lrt(void);
 static void	   config_lsm_reset(void);
 static void	   config_map_checkpoint(const char *, u_int *);
@@ -50,7 +49,6 @@ static void	   config_map_encryption(const char *, u_int *);
 static void	   config_map_file_type(const char *, u_int *);
 static void	   config_map_isolation(const char *, u_int *);
 static void	   config_pct(void);
-static void	   config_prepare(void);
 static void	   config_reset(void);
 
 /*
@@ -141,8 +139,6 @@ config_setup(void)
 	 */
 	g.uri = dmalloc(256);
 	strcpy(g.uri, DATASOURCE("file") ? "file:" : "table:");
-	if (DATASOURCE("helium"))
-		strcat(g.uri, "dev1/");
 	strcat(g.uri, WT_NAME);
 
 	/* Fill in random values for the rest of the run. */
@@ -168,8 +164,6 @@ config_setup(void)
 	}
 
 	/* Required shared libraries. */
-	if (DATASOURCE("helium") && access(HELIUM_PATH, R_OK) != 0)
-		testutil_die(errno, "Helium shared library: %s", HELIUM_PATH);
 	if (DATASOURCE("kvsbdb") && access(KVS_BDB_PATH, R_OK) != 0)
 		testutil_die(errno, "kvsbdb shared library: %s", KVS_BDB_PATH);
 
@@ -192,15 +186,12 @@ config_setup(void)
 	config_compression("compression");
 	config_compression("logging_compression");
 	config_encryption();
-	config_isolation();
 	config_lrt();
+	config_transaction();
 	config_pct();
-	config_prepare();
 	config_cache();
 
-	/* Give Helium, in-memory and LSM configurations a final review. */
-	if (DATASOURCE("helium"))
-		config_helium_reset();
+	/* Give in-memory and LSM configurations a final review. */
 	if (g.c_in_memory != 0)
 		config_in_memory_reset();
 	if (DATASOURCE("lsm"))
@@ -260,12 +251,13 @@ config_setup(void)
 static void
 config_cache(void)
 {
-	uint32_t max_dirty_bytes, required;
+	uint32_t required;
 
 	/* Page sizes are powers-of-two for bad historic reasons. */
 	g.intl_page_max = 1U << g.c_intl_page_max;
 	g.leaf_page_max = 1U << g.c_leaf_page_max;
 
+	/* Check if a minimum cache size has been specified. */
 	if (config_is_perm("cache")) {
 		if (config_is_perm("cache_minimum") &&
 		    g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
@@ -276,35 +268,24 @@ config_cache(void)
 		return;
 	}
 
-	/* Check if a minimum cache size has been specified. */
-	if (g.c_cache_minimum != 0 && g.c_cache < g.c_cache_minimum)
-		g.c_cache = g.c_cache_minimum;
-
-	/* Ensure there is at least 1MB of cache per thread. */
-	if (g.c_cache < g.c_threads)
-		g.c_cache = g.c_threads;
+	g.c_cache = WT_MAX(g.c_cache, g.c_cache_minimum);
 
 	/*
 	 * Maximum internal/leaf page size sanity.
 	 *
 	 * Ensure we can service at least one operation per-thread concurrently
 	 * without filling the cache with pinned pages, that is, every thread
-	 * consuming an internal page and a leaf page. Page-size configurations
-	 * control on-disk sizes and in-memory pages are often larger than their
-	 * disk counterparts, so it's hard to translate from one to the other.
-	 * Use a size-adjustment multiplier as an estimate.
+	 * consuming an internal page and a leaf page (or a pair of leaf pages
+	 * for cursor movements).
 	 *
-	 * Assuming all of those pages are dirty, don't let the maximum dirty
-	 * bytes exceed 40% of the cache (the default eviction trigger is 20%).
+	 * Maximum memory pages are in units of MB.
+	 *
+	 * This code is what dramatically increases the cache size when there
+	 * are lots of threads, it grows the cache to several megabytes per
+	 * thread.
 	 */
-#define	SIZE_ADJUSTMENT	3
-	for (;;) {
-		max_dirty_bytes = ((g.c_cache * WT_MEGABYTE) / 10) * 4;
-		if (SIZE_ADJUSTMENT * g.c_threads *
-		    (g.intl_page_max + g.leaf_page_max) <= max_dirty_bytes)
-			break;
-		++g.c_cache;
-	}
+	g.c_cache = WT_MAX(g.c_cache,
+	    2 * g.c_threads * g.c_memory_page_max);
 
 	/*
 	 * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
@@ -402,11 +383,8 @@ config_compression(const char *conf_name)
 	 */
 	switch (mmrand(NULL, 1, 20)) {
 #ifdef HAVE_BUILTIN_EXTENSION_LZ4
-	case 1: case 2:				/* 10% lz4 */
+	case 1: case 2: case 3:			/* 15% lz4 */
 		cstr = "lz4";
-		break;
-	case 3:					/* 5% lz4-no-raw */
-		cstr = "lz4-noraw";
 		break;
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
@@ -419,12 +397,9 @@ config_compression(const char *conf_name)
 	case 10: case 11: case 12: case 13:	/* 20% zlib */
 		cstr = "zlib";
 		break;
-	case 14:				/* 5% zlib-no-raw */
-		cstr = "zlib-noraw";
-		break;
 #endif
 #ifdef HAVE_BUILTIN_EXTENSION_ZSTD
-	case 15: case 16: case 17:		/* 15% zstd */
+	case 14: case 15: case 16: case 17:	/* 20% zstd */
 		cstr = "zstd";
 		break;
 #endif
@@ -481,36 +456,6 @@ config_fix(void)
 	if (config_is_perm("modify_pct"))
 		return (false);
 	return (true);
-}
-
-/*
- * config_helium_reset --
- *	Helium configuration review.
- */
-static void
-config_helium_reset(void)
-{
-	/* Turn off a lot of stuff. */
-	if (!config_is_perm("alter"))
-		config_single("alter=off", 0);
-	if (!config_is_perm("backups"))
-		config_single("backups=off", 0);
-	if (!config_is_perm("checkpoints"))
-		config_single("checkpoints=off", 0);
-	if (!config_is_perm("compression"))
-		config_single("compression=none", 0);
-	if (!config_is_perm("in_memory"))
-		config_single("in_memory=off", 0);
-	if (!config_is_perm("logging"))
-		config_single("logging=off", 0);
-	if (!config_is_perm("rebalance"))
-		config_single("rebalance=off", 0);
-	if (!config_is_perm("reverse"))
-		config_single("reverse=off", 0);
-	if (!config_is_perm("salvage"))
-		config_single("salvage=off", 0);
-	if (!config_is_perm("transaction_timestamps"))
-		config_single("transaction_timestamps=off", 0);
 }
 
 /*
@@ -615,27 +560,65 @@ config_lsm_reset(void)
 
 	/*
 	 * LSM doesn't currently play nicely with timestamps, don't choose the
-	 * pair unless forced to. Remove this code with WT-4067.
+	 * pair unless forced to. If we turn off timestamps, make sure we turn
+	 * off prepare as well, it requires timestamps. Remove this code with
+	 * WT-4067.
+	 *
 	 */
-	if (!config_is_perm("transaction_timestamps"))
+	if (!config_is_perm("prepare") &&
+	    !config_is_perm("transaction_timestamps")) {
+		config_single("prepare=off", 0);
 		config_single("transaction_timestamps=off", 0);
+	}
 }
 
 /*
- * config_isolation --
- *	Isolation configuration.
+ * config_transaction --
+ *	Transaction configuration.
  */
 static void
-config_isolation(void)
+config_transaction(void)
 {
+	char buf[256];
 	const char *cstr;
+	bool timestamps;
+
+	/*
+	 * We cannot prepare a transaction if logging is configured, or if
+	 * timestamps are not configured.
+	 *
+	 * Prepare isn't configured often, let it control other features, unless
+	 * they're explicitly set/not-set.
+	 */
+	if (g.c_prepare && config_is_perm("prepare")) {
+		if (g.c_logging && config_is_perm("logging"))
+			testutil_die(EINVAL,
+			    "prepare is incompatible with logging");
+		if (!g.c_txn_timestamps &&
+		    config_is_perm("transaction_timestamps"))
+			testutil_die(EINVAL,
+			    "prepare requires transaction timestamps");
+	}
+	if (g.c_logging && config_is_perm("logging"))
+		config_single("prepare=off", 0);
+	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps"))
+		config_single("prepare=off", 0);
+
+	if (g.c_prepare) {
+		config_single("logging=off", 0);
+		config_single("transaction_timestamps=on", 0);
+	}
+
+	timestamps = g.c_txn_timestamps;
 
 	/*
 	 * Isolation: choose something if isolation wasn't specified.
+	 *
+	 * Timestamps can only be used with snapshot isolation.
 	 */
 	if (!config_is_perm("isolation")) {
 		/* Avoid "maybe uninitialized" warnings. */
-		switch (mmrand(NULL, 1, 4)) {
+		switch (timestamps ? 0 : mmrand(NULL, 1, 4)) {
 		case 1:
 			cstr = "isolation=random";
 			break;
@@ -651,6 +634,13 @@ config_isolation(void)
 			break;
 		}
 		config_single(cstr, 0);
+	}
+
+	if (!config_is_perm("transaction-frequency")) {
+		testutil_check(__wt_snprintf(buf, sizeof(buf),
+		    "transaction-frequency=%" PRIu32,
+		    timestamps ? 100: mmrand(NULL, 1, 100)));
+		config_single(buf, 0);
 	}
 }
 
@@ -779,44 +769,6 @@ config_pct(void)
 
 	testutil_assert(g.c_delete_pct + g.c_insert_pct +
 	    g.c_modify_pct + g.c_read_pct + g.c_write_pct == 100);
-}
-
-/*
- * config_prepare --
- *	Transaction prepare configuration.
- */
-static void
-config_prepare(void)
-{
-	/*
-	 * We cannot prepare a transaction if logging is configured, or if
-	 * timestamps are not configured.
-	 *
-	 * Prepare isn't configured often, let it control other features, unless
-	 * they're explicitly set/not-set.
-	 */
-	if (!g.c_prepare)
-		return;
-	if (config_is_perm("prepare")) {
-		if (g.c_logging && config_is_perm("logging"))
-			testutil_die(EINVAL,
-			    "prepare is incompatible with logging");
-		if (!g.c_txn_timestamps &&
-		    config_is_perm("transaction_timestamps"))
-			testutil_die(EINVAL,
-			    "prepare requires transaction timestamps");
-	}
-	if (g.c_logging && config_is_perm("logging")) {
-		config_single("prepare=off", 0);
-		return;
-	}
-	if (!g.c_txn_timestamps && config_is_perm("transaction_timestamps")) {
-		config_single("prepare=off", 0);
-		return;
-	}
-
-	config_single("logging=off", 0);
-	config_single("transaction_timestamps=on", 0);
 }
 
 /*
@@ -1016,7 +968,6 @@ config_single(const char *s, int perm)
 		} else if (strncmp(s,
 		    "data_source", strlen("data_source")) == 0 &&
 		    strncmp("file", ep, strlen("file")) != 0 &&
-		    strncmp("helium", ep, strlen("helium")) != 0 &&
 		    strncmp("kvsbdb", ep, strlen("kvsbdb")) != 0 &&
 		    strncmp("lsm", ep, strlen("lsm")) != 0 &&
 		    strncmp("table", ep, strlen("table")) != 0) {
@@ -1142,16 +1093,14 @@ config_map_compression(const char *s, u_int *vp)
 		*vp = COMPRESS_NONE;
 	else if (strcmp(s, "lz4") == 0)
 		*vp = COMPRESS_LZ4;
-	else if (strcmp(s, "lz4-noraw") == 0)
-		*vp = COMPRESS_LZ4_NO_RAW;
-	else if (strcmp(s, "lzo") == 0)
-		*vp = COMPRESS_LZO;
+	else if (strcmp(s, "lz4-noraw") == 0)	/* CONFIG compatibility */
+		*vp = COMPRESS_LZ4;
 	else if (strcmp(s, "snappy") == 0)
 		*vp = COMPRESS_SNAPPY;
 	else if (strcmp(s, "zlib") == 0)
 		*vp = COMPRESS_ZLIB;
-	else if (strcmp(s, "zlib-noraw") == 0)
-		*vp = COMPRESS_ZLIB_NO_RAW;
+	else if (strcmp(s, "zlib-noraw") == 0)	/* CONFIG compatibility */
+		*vp = COMPRESS_ZLIB;
 	else if (strcmp(s, "zstd") == 0)
 		*vp = COMPRESS_ZSTD;
 	else

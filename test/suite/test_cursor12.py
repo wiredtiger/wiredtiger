@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import random, string
+import random, string, sys
 import wiredtiger, wttest
 from helper import copy_wiredtiger_home
 from wtdataset import SimpleDataSet
@@ -180,6 +180,39 @@ class test_cursor12(wttest.WiredTigerTestCase):
     }
     ]
 
+    def setUp(self):
+        if sys.version_info[0] >= 3 and self.valuefmt == 'u':
+            # Python3 distinguishes bytes from strings
+            self.nullbyte = b'\x00'
+            self.spacebyte = b' '
+        else:
+            self.nullbyte = '\x00'
+            self.spacebyte = ' '
+        super(test_cursor12, self).setUp()
+
+    # Convert a string to the correct type for the value.
+    def make_value(self, s):
+        if self.valuefmt == 'u':
+            return bytes(s.encode())
+        else:
+            return s
+
+    def fix_mods(self, mods):
+        if bytes != str and self.valuefmt == 'u':
+            # In Python3, bytes and strings are independent types, and
+            # the WiredTiger API needs bytes when the format calls for bytes.
+            newmods = []
+            for mod in mods:
+                # We need to check because we may converted some of the Modify
+                # records already.
+                if type(mod.data) == str:
+                    newmods.append(wiredtiger.Modify(
+                        self.make_value(mod.data), mod.offset, mod.size))
+                else:
+                    newmods.append(mod)
+            mods = newmods
+        return mods
+
     # Create a set of modified records and verify in-memory reads.
     def modify_load(self, ds, single):
         # For each test in the list:
@@ -190,22 +223,26 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(self.uri, None)
         for i in self.list:
             c.set_key(ds.key(row))
-            c.set_value(i['o'])
+            c.set_value(self.make_value(i['o']))
             self.assertEquals(c.update(), 0)
             c.reset()
 
+            self.session.begin_transaction()
             c.set_key(ds.key(row))
             mods = []
             for j in i['mods']:
                 mod = wiredtiger.Modify(j[0], j[1], j[2])
                 mods.append(mod)
+            mods = self.fix_mods(mods)
             self.assertEquals(c.modify(mods), 0)
+            self.session.commit_transaction()
             c.reset()
 
             c.set_key(ds.key(row))
             self.assertEquals(c.search(), 0)
             v = c.get_value()
-            self.assertEquals(v.replace("\x00", " "), i['f'])
+            expect = self.make_value(i['f'])
+            self.assertEquals(v.replace(self.nullbyte, self.spacebyte), expect)
 
             if not single:
                 row = row + 1
@@ -221,7 +258,8 @@ class test_cursor12(wttest.WiredTigerTestCase):
             c.set_key(ds.key(row))
             self.assertEquals(c.search(), 0)
             v = c.get_value()
-            self.assertEquals(v.replace("\x00", " "), i['f'])
+            expect = self.make_value(i['f'])
+            self.assertEquals(v.replace(self.nullbyte, self.spacebyte), expect)
 
             if not single:
                 row = row + 1
@@ -288,17 +326,21 @@ class test_cursor12(wttest.WiredTigerTestCase):
         ds.populate()
 
         c = self.session.open_cursor(self.uri, None)
+        self.session.begin_transaction()
         c.set_key(ds.key(10))
-        orig = 'abcdefghijklmnopqrstuvwxyz'
+        orig = self.make_value('abcdefghijklmnopqrstuvwxyz')
         c.set_value(orig)
         self.assertEquals(c.update(), 0)
         for i in range(0, 50000):
-            new = "".join([random.choice(string.digits) for i in xrange(5)])
+            new = self.make_value("".join([random.choice(string.digits) \
+                for i in range(5)]))
             orig = orig[:10] + new + orig[15:]
             mods = []
             mod = wiredtiger.Modify(new, 10, 5)
             mods.append(mod)
+            mods = self.fix_mods(mods)
             self.assertEquals(c.modify(mods), 0)
+        self.session.commit_transaction()
 
         c.set_key(ds.key(10))
         self.assertEquals(c.search(), 0)
@@ -314,12 +356,15 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c.set_key(ds.key(10))
         self.assertEquals(c.remove(), 0)
 
+        self.session.begin_transaction()
         mods = []
         mod = wiredtiger.Modify('ABCD', 3, 3)
         mods.append(mod)
+        mods = self.fix_mods(mods)
 
         c.set_key(ds.key(10))
         self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
+        self.session.commit_transaction()
 
     # Check that modify returns not-found when an insert is not yet committed
     # and after it's aborted.
@@ -342,28 +387,35 @@ class test_cursor12(wttest.WiredTigerTestCase):
         mod = wiredtiger.Modify('ABCD', 3, 3)
         mods.append(mod)
         c.set_key(ds.key(30))
+        mods = self.fix_mods(mods)
         self.assertEqual(c.modify(mods), 0)
 
         # Test that another transaction cannot modify our uncommitted record.
         xs = self.conn.open_session()
         xc = xs.open_cursor(self.uri, None)
+        xs.begin_transaction()
         xc.set_key(ds.key(30))
         xc.set_value(ds.value(30))
         mods = []
         mod = wiredtiger.Modify('ABCD', 3, 3)
         mods.append(mod)
+        mods = self.fix_mods(mods)
         xc.set_key(ds.key(30))
         self.assertEqual(xc.modify(mods), wiredtiger.WT_NOTFOUND)
+        xs.rollback_transaction()
 
         # Rollback our transaction.
         self.session.rollback_transaction()
 
         # Test that we can't modify our aborted insert.
+        self.session.begin_transaction()
         mods = []
         mod = wiredtiger.Modify('ABCD', 3, 3)
         mods.append(mod)
+        mods = self.fix_mods(mods)
         c.set_key(ds.key(30))
         self.assertEqual(c.modify(mods), wiredtiger.WT_NOTFOUND)
+        self.session.rollback_transaction()
 
 if __name__ == '__main__':
     wttest.run()

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -58,7 +58,7 @@ typedef struct {
 } CONFIG;
 
 #define	COMPRESSION_LIST						\
-	"(none | lz4 | lz4-noraw | snappy | zlib | zlib-noraw | zstd)"
+	"(none | lz4 | snappy | zlib | zstd)"
 
 static CONFIG c[] = {
 	{ "abort",
@@ -138,7 +138,7 @@ static CONFIG c[] = {
 	  C_BOOL, 5, 0, 0, &g.c_data_extend, NULL },
 
 	{ "data_source",
-	  "data source (file | helium | kvsbdb | lsm | table)",
+	  "data source (file | kvsbdb | lsm | table)",
 	  C_IGNORE|C_STRING, 0, 0, 0, NULL, &g.c_data_source },
 
 	{ "delete_pct",
@@ -250,6 +250,10 @@ static CONFIG c[] = {
 	  "the number of LSM worker threads",
 	  0x0, 3, 4, 20, &g.c_lsm_worker_threads, NULL },
 
+	{ "memory_page_max",
+	  "maximum size of in-memory pages",
+	  0x0, 1, 10, 128, &g.c_memory_page_max, NULL },
+
 	{ "merge_max",
 	  "the maximum number of chunks to include in a merge operation",
 	  0x0, 4, 20, 100, &g.c_merge_max, NULL },
@@ -330,41 +334,49 @@ static CONFIG c[] = {
 	  "maximum time to run in minutes",
 	  C_IGNORE, 0, 0, UINT_MAX, &g.c_timer, NULL },
 
+	{ "timing_stress_aggressive_sweep",
+	  "stress aggressive sweep",				/* 2% */
+	  C_BOOL, 2, 0, 0, &g.c_timing_stress_aggressive_sweep, NULL },
+
 	{ "timing_stress_checkpoint",
-	  "configure slow checkpoints",				/* 2% */
+	  "stress checkpoints",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL },
 
 	{ "timing_stress_lookaside_sweep",
-	  "configure slow lookaside sweep",			/* 2% */
+	  "stress lookaside sweep",				/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_lookaside_sweep, NULL },
 
 	{ "timing_stress_split_1",
-	  "configure slow splits (#1)",				/* 2% */
+	  "stress splits (#1)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_1, NULL },
 
 	{ "timing_stress_split_2",
-	  "configure slow splits (#2)",				/* 2% */
+	  "stress splits (#2)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_2, NULL },
 
 	{ "timing_stress_split_3",
-	  "configure slow splits (#3)",				/* 2% */
+	  "stress splits (#3)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_3, NULL },
 
 	{ "timing_stress_split_4",
-	  "configure slow splits (#4)",				/* 2% */
+	  "stress splits (#4)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_4, NULL },
 
 	{ "timing_stress_split_5",
-	  "configure slow splits (#5)",				/* 2% */
+	  "stress splits (#5)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_5, NULL },
 
 	{ "timing_stress_split_6",
-	  "configure slow splits (#6)",				/* 2% */
+	  "stress splits (#6)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_6, NULL },
 
 	{ "timing_stress_split_7",
-	  "configure slow splits (#7)",				/* 2% */
+	  "stress splits (#7)",					/* 2% */
 	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_7, NULL },
+
+	{ "timing_stress_split_8",
+	  "stress splits (#8)",					/* 2% */
+	  C_BOOL, 2, 0, 0, &g.c_timing_stress_split_8, NULL },
 
 	{ "transaction_timestamps",				/* 10% */
 	  "enable transaction timestamp support",
@@ -372,7 +384,7 @@ static CONFIG c[] = {
 
 	{ "transaction-frequency",
 	  "percent operations done inside an explicit transaction",
-	  0x0, 1, 100, 100, &g.c_txn_freq, NULL },
+	  C_IGNORE, 1, 0, 100, &g.c_txn_freq, NULL },
 
 	{ "truncate",						/* 100% */
 	  "enable truncation",

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -81,7 +81,7 @@ class test_reconfig02(wttest.WiredTigerTestCase):
         #
         # Potentially loop a few times in case it is a very slow system.
         self.conn.reconfigure("log=(prealloc=true)")
-        for x in xrange(0, 100):
+        for x in range(0, 100):
             time.sleep(1)
             prep_logs = fnmatch.filter(os.listdir('.'), "*Prep*")
             if len(prep_logs) != 0:

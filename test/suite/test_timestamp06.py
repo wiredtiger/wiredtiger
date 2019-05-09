@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -60,25 +60,24 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         ('V1', dict(conn_config='create,log=(archive=false,enabled),compatibility=(release="2.9")', using_log=True)),
         ('V2', dict(conn_config='create,log=(archive=false,enabled)', using_log=True)),
     ]
+    session_config = 'isolation=snapshot'
 
     scenarios = make_scenarios(conncfg, types, ckpt)
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
-    def check(self, session, txn_config, tablename, expected, prn=False):
+    def check(self, session, txn_config, tablename, expected):
         if txn_config:
             session.begin_transaction(txn_config)
 
         cur = session.open_cursor(tablename, None)
         actual = dict((k, v) for k, v in cur if v != 0)
-        if prn == True:
-            print "CHECK : Expected"
-            print expected
-            print "CHECK : Actual"
-            print actual
+        if actual != expected:
+            print("missing: ", sorted(set(expected.items()) - set(actual.items())))
+            print("extras: ", sorted(set(actual.items()) - set(expected.items())))
         self.assertTrue(actual == expected)
         # Search for the expected items as well as iterating
-        for k, v in expected.iteritems():
+        for k, v in expected.items():
             self.assertEqual(cur[k], v, "for key " + str(k))
         cur.close()
         if txn_config:
@@ -123,9 +122,6 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog)
 
     def test_timestamp06(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         # Open two timestamp tables:
         # 1. Table is logged and uses timestamps.
         # 2. Table is not logged and uses timestamps.
@@ -136,7 +132,7 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Insert keys 1..100
         nkeys = 100
-        orig_keys = range(1, nkeys+1)
+        orig_keys = list(range(1, nkeys+1))
         keys = orig_keys[:]
         random.shuffle(keys)
 

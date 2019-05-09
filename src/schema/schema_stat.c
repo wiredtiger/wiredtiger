@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -184,7 +184,7 @@ __wt_curstat_table_init(WT_SESSION_IMPL *session,
 
 	__wt_curstat_dsrc_final(cst);
 
-err:	WT_TRET(__wt_schema_release_table(session, table));
+err:	WT_TRET(__wt_schema_release_table(session, &table));
 
 	__wt_scr_free(session, &buf);
 	return (ret);

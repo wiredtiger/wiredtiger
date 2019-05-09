@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -72,7 +72,7 @@ __wt_fextend(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
 	if (handle->fh_extend != NULL)
 		return (handle->fh_extend(
 		    handle, (WT_SESSION *)session, offset));
-	return (ENOTSUP);
+	return (__wt_set_return(session, ENOTSUP));
 }
 
 /*
@@ -113,6 +113,10 @@ __wt_read(
 
 	ret = fh->handle->fh_read(
 	    fh->handle, (WT_SESSION *)session, offset, len, buf);
+
+	/* Flag any failed read: if we're in startup, it may be fatal. */
+	if (ret != 0)
+		F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
 
 	time_stop = __wt_clock(session);
 	__wt_stat_msecs_hist_incr_fsread(session,
@@ -157,7 +161,7 @@ __wt_ftruncate(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset)
 	if (handle->fh_truncate != NULL)
 		return (handle->fh_truncate(
 		    handle, (WT_SESSION *)session, offset));
-	return (ENOTSUP);
+	return (__wt_set_return(session, ENOTSUP));
 }
 
 /*
@@ -196,6 +200,7 @@ __wt_write(WT_SESSION_IMPL *session,
 	time_stop = __wt_clock(session);
 	__wt_stat_msecs_hist_incr_fswrite(session,
 	    WT_CLOCKDIFF_MS(time_stop, time_start));
+	(void)__wt_atomic_addv64(&fh->written, len);
 	WT_STAT_CONN_DECR_ATOMIC(session, thread_write_active);
 	return (ret);
 }

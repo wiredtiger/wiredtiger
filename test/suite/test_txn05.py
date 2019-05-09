@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -82,7 +82,7 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         c = session.open_cursor(self.uri, None)
         actual = dict((k, v) for k, v in c if v != 0)
         # Search for the expected items as well as iterating
-        for k, v in expected.iteritems():
+        for k, v in expected.items():
             self.assertEqual(c[k], v)
         c.close()
         if txn_config:
@@ -237,7 +237,7 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check the log state after the entire op completes
         # and run recovery.
-        if self.scenario_number % (len(test_txn05.scenarios) / 100 + 1) == 0:
+        if self.scenario_number % (len(test_txn05.scenarios) // 100 + 1) == 0:
             self.check_log(committed)
 
 if __name__ == '__main__':

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -93,7 +93,7 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
             count += 1
 
         # Remove a number of entries, at each step checking that stats match.
-        for i in range(0, self.nentries / 37):
+        for i in range(0, self.nentries // 37):
             cursor.set_key(self.genkey(i*11 % self.nentries))
             if cursor.remove() == 0:
                 count -= 1

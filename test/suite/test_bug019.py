@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -28,41 +28,57 @@
 
 import fnmatch, os, time
 import wiredtiger, wttest
+from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
 # test_bug019.py
 #    Test that pre-allocating log files only pre-allocates a small number.
 class test_bug019(wttest.WiredTigerTestCase):
-    conn_config = 'log=(enabled,file_max=100K)'
+    conn_config = 'log=(enabled,file_max=100K),statistics=(fast)'
     uri = "table:bug019"
-    entries = 100000
+    entries = 5000
+    max_prealloc = 1
 
     # Modify rows so we write log records. We're writing a lot more than a
     # single log file, so we know the underlying library will churn through
     # log files.
+    def get_prealloc_stat(self):
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        prealloc = stat_cursor[stat.conn.log_prealloc_max][2]
+        stat_cursor.close()
+        return prealloc
+
     def populate(self, nentries):
         c = self.session.open_cursor(self.uri, None, None)
         for i in range(0, nentries):
-            c[i] = i
+            # Make the values about 200 bytes. That's about 1MB of data for
+            # 5000 records, generating 10 log files used plus more for overhead.
+            c[i] = "abcde" * 40
+            if i % 500 == 0:
+                prealloc = self.get_prealloc_stat()
+                if prealloc > self.max_prealloc:
+                    self.max_prealloc = prealloc
         c.close()
 
     # Wait for a log file to be pre-allocated. Avoid timing problems, but
-    # assert a file is created within 30 seconds.
+    # assert a file is created within 90 seconds.
     def prepfiles(self):
-        for i in range(1,30):
+        for i in range(1,90):
                 f = fnmatch.filter(os.listdir('.'), "*Prep*")
                 if f:
                         return f
-                time.sleep(1)
+                time.sleep(1.0)
         self.assertFalse(not f)
 
     # There was a bug where pre-allocated log files accumulated on
     # Windows systems due to an issue with the directory list code.
     def test_bug019(self):
         # Create a table just to write something into the log.
-        self.session.create(self.uri, 'key_format=i,value_format=i')
+        self.session.create(self.uri, 'key_format=i,value_format=S')
+        start_prealloc = self.get_prealloc_stat()
         self.populate(self.entries)
         self.session.checkpoint()
+        self.assertTrue(self.max_prealloc > start_prealloc)
 
         # Loop, making sure pre-allocation is working and the range is moving.
         older = self.prepfiles()
@@ -77,6 +93,16 @@ class test_bug019(wttest.WiredTigerTestCase):
 
             older = newer
             self.session.checkpoint()
+
+        # Wait for a long time for pre-allocate to drop in an idle system
+        # it should usually be fast, but on slow systems can take time.
+        max_wait_time = 90
+        for sleepcount in range(1,max_wait_time):
+            new_prealloc = self.get_prealloc_stat()
+            if new_prealloc < self.max_prealloc:
+                break
+            time.sleep(1.0)
+        self.assertTrue(sleepcount < max_wait_time)
 
 if __name__ == '__main__':
     wttest.run()

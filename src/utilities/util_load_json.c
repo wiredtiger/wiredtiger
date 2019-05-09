@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -173,10 +173,10 @@ static int
 json_strdup(WT_SESSION *session, JSON_INPUT_STATE *ins, char **resultp)
 {
 	WT_DECL_RET;
+	size_t srclen;
+	ssize_t resultlen;
 	char *result, *resultcpy;
 	const char *src;
-	ssize_t resultlen;
-	size_t srclen;
 
 	result = NULL;
 	src = ins->tokstart + 1;  /*strip "" from token */
@@ -254,7 +254,7 @@ json_data(WT_SESSION *session,
 		goto err;
 	}
 	keyformat = cursor->key_format;
-	isrec = strcmp(keyformat, "r") == 0;
+	isrec = WT_STREQ(keyformat, "r");
 	for (nkeys = 0; *keyformat; keyformat++)
 		if (!__wt_isdigit((u_char)*keyformat))
 			nkeys++;
@@ -599,16 +599,16 @@ util_load_json(WT_SESSION *session, const char *filename, uint32_t flags)
 
 	memset(&instate, 0, sizeof(instate));
 	instate.session = session;
-	if (util_read_line(session, &instate.line, false, &instate.ateof))
-		return (1);
-	instate.p = (const char *)instate.line.mem;
-	instate.linenum = 1;
-	instate.filename = filename;
+	if ((ret = util_read_line(
+	    session, &instate.line, false, &instate.ateof)) == 0) {
+		instate.p = (const char *)instate.line.mem;
+		instate.linenum = 1;
+		instate.filename = filename;
 
-	if ((ret = json_top_level(session, &instate, flags)) != 0)
-		goto err;
+		ret = json_top_level(session, &instate, flags);
+	}
 
-err:	free(instate.line.mem);
+	free(instate.line.mem);
 	free(instate.kvraw);
 	return (ret);
 }

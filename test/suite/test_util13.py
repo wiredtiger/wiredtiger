@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -100,11 +100,11 @@ class test_util13(wttest.WiredTigerTestCase, suite_subprocess):
         # the actual configuration and they match.
         match = all(item in da.items() for item in dx.items())
         if match == False:
-            print "MISMATCH:"
-            print "Original dict: "
-            print da
-            print "Expected config: "
-            print dx
+            print("MISMATCH:")
+            print("Original dict: ")
+            print(da)
+            print("Expected config: ")
+            print(dx)
         return match
 
     def compare_files(self, expect_subset, dump_out):

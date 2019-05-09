@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -133,9 +133,9 @@ static WT_THREAD_RET
 do_checkpoints(void *_opts)
 {
 	TEST_OPTS *opts;
+	WT_DECL_RET;
 	WT_SESSION *session;
 	time_t now, start;
-	int ret;
 
 	opts = (TEST_OPTS *)_opts;
 	(void)time(&start);

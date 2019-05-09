@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -53,7 +53,7 @@ wts_load(void)
 	 * match the collation order.
 	 */
 	is_bulk = true;
-	if (DATASOURCE("kvsbdb") && DATASOURCE("helium"))
+	if (DATASOURCE("kvsbdb"))
 		is_bulk = false;
 	if (g.c_reverse)
 		is_bulk = false;

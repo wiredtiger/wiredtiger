@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -37,10 +37,9 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
-    def test_timestamp_alter(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
+    session_config = 'isolation=snapshot'
 
+    def test_timestamp_alter(self):
         base = 'assert04'
         uri = 'file:' + base
         cfg_on = 'assert=(commit_timestamp=key_consistent)'
@@ -127,6 +126,9 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
         # Detect using a timestamp on the non-timestamp key.
+        # We must first use a non timestamped operation on the key
+        # in order to violate the key consistency condition in the
+        # following transaction.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c['key_nots'] = 'value_nots3'
@@ -168,9 +170,6 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
 
     def test_timestamp_usage(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         base = 'assert04'
         uri = 'file:' + base
         msg_ooo='/out of order/'

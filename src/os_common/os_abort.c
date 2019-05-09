@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -15,6 +15,7 @@
 void
 __wt_abort(WT_SESSION_IMPL *session)
     WT_GCC_FUNC_ATTRIBUTE((noreturn))
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 #ifdef HAVE_ATTACH
 	u_int i;

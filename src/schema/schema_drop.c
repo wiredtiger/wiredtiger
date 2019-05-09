@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -131,7 +131,7 @@ __drop_table(
 	 */
 	WT_ERR(__wt_schema_get_table_uri(session, uri, true,
 	    WT_DHANDLE_EXCLUSIVE, &table));
-	WT_ERR(__wt_schema_release_table(session, table));
+	WT_ERR(__wt_schema_release_table(session, &table));
 	WT_ERR(__wt_schema_get_table_uri(session, uri, true, 0, &table));
 
 	/* Drop the column groups. */
@@ -162,7 +162,7 @@ __drop_table(
 	}
 
 	/* Make sure the table data handle is closed. */
-	WT_TRET(__wt_schema_release_table(session, table));
+	WT_ERR(__wt_schema_release_table(session, &table));
 	WT_ERR(__wt_schema_get_table_uri(
 	    session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
 	F_SET(&table->iface, WT_DHANDLE_DISCARD);
@@ -176,17 +176,17 @@ __drop_table(
 	/* Remove the metadata entry (ignore missing items). */
 	WT_ERR(__wt_metadata_remove(session, uri));
 
-err:	if (table != NULL && !tracked)
-		WT_TRET(__wt_schema_release_table(session, table));
+err:	if (!tracked)
+		WT_TRET(__wt_schema_release_table(session, &table));
 	return (ret);
 }
 
 /*
- * __wt_schema_drop --
+ * __schema_drop --
  *	Process a WT_SESSION::drop operation for all supported types.
  */
-int
-__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+static int
+__schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_DATA_SOURCE *dsrc;
@@ -228,5 +228,21 @@ __wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
 	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
 
+	return (ret);
+}
+
+/*
+ * __wt_schema_drop --
+ *	Process a WT_SESSION::drop operation for all supported types.
+ */
+int
+__wt_schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *int_session;
+
+	WT_RET(__wt_schema_internal_session(session, &int_session));
+	ret = __schema_drop(int_session, uri, cfg);
+	WT_TRET(__wt_schema_session_release(session, int_session));
 	return (ret);
 }

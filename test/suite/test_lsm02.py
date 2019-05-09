@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -43,19 +43,19 @@ class test_lsm02(wttest.WiredTigerTestCase):
         cursor.set_key(key)
         cursor.search()
         if value != cursor.get_value():
-            print 'Unexpected value from LSM tree'
+            print('Unexpected value from LSM tree')
         cursor.close()
 
     # Put some special values that start with the LSM tombstone
     def test_lsm_tombstone(self):
         self.session.create(self.uri, 'key_format=S,value_format=u')
-        v = '\x14\x14'
+        v = b'\x14\x14'
         self.add_key(self.uri, 'k1', v)
         self.verify_key_exists(self.uri, 'k1', v)
-        v = '\x14\x14\0\0\0\0\0\0'
+        v = b'\x14\x14\0\0\0\0\0\0'
         self.add_key(self.uri, 'k2', v)
         self.verify_key_exists(self.uri, 'k2', v)
-        v += 'a' * 1000
+        v += b'a' * 1000
         self.add_key(self.uri, 'k3', v)
         self.verify_key_exists(self.uri, 'k3', v)
 

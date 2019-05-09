@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -53,7 +53,7 @@ err:	__wt_free(session, config);
 	 * there was no metadata entry.
 	 */
 	if (ret == WT_NOTFOUND)
-		ret = ENOENT;
+		ret = __wt_set_return(session, ENOENT);
 
 	return (ret);
 }
@@ -250,9 +250,12 @@ __wt_schema_alter(WT_SESSION_IMPL *session,
     const char *uri, const char *newcfg[])
 {
 	WT_DECL_RET;
+	WT_SESSION_IMPL *int_session;
 
-	WT_RET(__wt_meta_track_on(session));
-	ret = __schema_alter(session, uri, newcfg);
-	WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+	WT_RET(__wt_schema_internal_session(session, &int_session));
+	WT_ERR(__wt_meta_track_on(int_session));
+	ret = __schema_alter(int_session, uri, newcfg);
+	WT_TRET(__wt_meta_track_off(int_session, true, ret != 0));
+err:	WT_TRET(__wt_schema_session_release(session, int_session));
 	return (ret);
 }

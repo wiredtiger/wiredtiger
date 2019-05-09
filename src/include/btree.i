@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -341,6 +341,8 @@ __wt_cache_dirty_incr(WT_SESSION_IMPL *session, WT_PAGE *page)
 		}
 		(void)__wt_atomic_add64(&cache->pages_dirty_leaf, 1);
 	}
+	(void)__wt_atomic_add64(&btree->bytes_dirty_total, size);
+	(void)__wt_atomic_add64(&cache->bytes_dirty_total, size);
 	(void)__wt_atomic_addsize(&page->modify->bytes_dirty, size);
 }
 
@@ -857,6 +859,10 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy,
 		if (cellp != NULL)
 			*cellp =
 			    WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+		if (datap != NULL) {
+			*(void **)datap = NULL;
+			*sizep = 0;
+		}
 		return (false);
 	case WT_K_FLAG:
 		/* Encoded key: no instantiated key, no cell. */
@@ -1016,7 +1022,7 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
  *	Return the unpacked value for a row-store leaf page key.
  */
 static inline void
-__wt_row_leaf_value_cell(
+__wt_row_leaf_value_cell(WT_SESSION_IMPL *session,
     WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_CELL_UNPACK *vpack)
 {
 	WT_CELL *kcell, *vcell;
@@ -1046,13 +1052,14 @@ __wt_row_leaf_value_cell(
 		    page, copy, NULL, &kcell, &key, &size) && kcell == NULL)
 			vcell = (WT_CELL *)((uint8_t *)key + size);
 		else {
-			__wt_cell_unpack(kcell, &unpack);
+			__wt_cell_unpack(session, page, kcell, &unpack);
 			vcell = (WT_CELL *)((uint8_t *)
 			    unpack.cell + __wt_cell_total_len(&unpack));
 		}
 	}
 
-	__wt_cell_unpack(__wt_cell_leaf_value_parse(page, vcell), vpack);
+	__wt_cell_unpack(session,
+	    page, __wt_cell_leaf_value_parse(page, vcell), vpack);
 }
 
 /*
@@ -1085,13 +1092,16 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
  *	Return the addr/size and type triplet for a reference.
  */
 static inline void
-__wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
+__wt_ref_info(WT_SESSION_IMPL *session,
+    WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 {
 	WT_ADDR *addr;
 	WT_CELL_UNPACK *unpack, _unpack;
+	WT_PAGE *page;
 
 	addr = ref->addr;
 	unpack = &_unpack;
+	page = ref->home;
 
 	/*
 	 * If NULL, there is no location.
@@ -1105,7 +1115,7 @@ __wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 		*sizep = 0;
 		if (typep != NULL)
 			*typep = 0;
-	} else if (__wt_off_page(ref->home, addr)) {
+	} else if (__wt_off_page(page, addr)) {
 		*addrp = addr->addr;
 		*sizep = addr->size;
 		if (typep != NULL)
@@ -1124,7 +1134,7 @@ __wt_ref_info(WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 				break;
 			}
 	} else {
-		__wt_cell_unpack((WT_CELL *)addr, unpack);
+		__wt_cell_unpack(session, page, (WT_CELL *)addr, unpack);
 		*addrp = unpack->data;
 		*sizep = unpack->size;
 		if (typep != NULL)
@@ -1145,7 +1155,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (ref->addr == NULL)
 		return (0);
 
-	__wt_ref_info(ref, &addr, &addr_size, NULL);
+	__wt_ref_info(session, ref, &addr, &addr_size, NULL);
 	WT_RET(__wt_btree_block_free(session, addr, addr_size));
 
 	/* Clear the address (so we don't free it twice). */
@@ -1158,8 +1168,7 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Return if a truncate operation is active.
  */
 static inline bool
-__wt_page_del_active(
-    WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
+__wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 {
 	WT_PAGE_DELETED *page_del;
 	uint8_t prepare_state;
@@ -1174,9 +1183,8 @@ __wt_page_del_active(
 		return (true);
 	return (visible_all ?
 	    !__wt_txn_visible_all(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)) :
-	    !__wt_txn_visible(session,
-	    page_del->txnid, WT_TIMESTAMP_NULL(&page_del->timestamp)));
+	    page_del->txnid, page_del->timestamp) :
+	    !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
 }
 
 /*
@@ -1190,10 +1198,10 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	if ((page_las = ref->page_las) == NULL)
 		return (false);
-	if (page_las->invalid || !ref->page_las->las_skew_newest)
+	if (!page_las->skew_newest || page_las->has_prepares)
 		return (true);
-	if (__wt_txn_visible_all(session, page_las->las_max_txn,
-	    WT_TIMESTAMP_NULL(&page_las->onpage_timestamp)))
+	if (__wt_txn_visible_all(session, page_las->max_txn,
+	    page_las->max_timestamp))
 		return (false);
 
 	return (true);
@@ -1217,9 +1225,8 @@ __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
 	WT_BTREE *btree;
 
 	btree = S2BT(session);
-	return ((btree->checkpointing == WT_CKPT_OFF &&
-	    !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) ||
-	    WT_SESSION_IS_CHECKPOINT(session));
+	return ((!WT_BTREE_SYNCING(btree) || WT_SESSION_BTREE_SYNC(session)) &&
+	    !F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP));
 }
 
 /*
@@ -1236,6 +1243,14 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	int count;
 
 	btree = S2BT(session);
+
+	/*
+	 * Checkpoints can't do in-memory splits in the tree they are walking:
+	 * that can lead to corruption when the parent internal page is
+	 * updated.
+	 */
+	if (WT_SESSION_BTREE_SYNC(session))
+		return (false);
 
 	/*
 	 * Only split a page once, otherwise workloads that update in the middle
@@ -1331,6 +1346,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_PAGE_MODIFY *mod;
 	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t pinned_ts;
 
 	txn_global = &S2C(session)->txn_global;
 
@@ -1338,7 +1354,8 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * If the page hasn't been through one round of update/restore, give it
 	 * a try.
 	 */
-	if ((mod = page->modify) == NULL || !mod->update_restored)
+	if ((mod = page->modify) == NULL ||
+	    !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
 		return (true);
 
 	/*
@@ -1355,20 +1372,12 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	    mod->last_eviction_id != __wt_txn_oldest_id(session))
 		return (true);
 
-#ifdef HAVE_TIMESTAMPS
-	{
-	bool same_timestamp;
-
-	same_timestamp = false;
-	if (!__wt_timestamp_iszero(&mod->last_eviction_timestamp))
-		WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-		    same_timestamp = __wt_timestamp_cmp(
-		    &mod->last_eviction_timestamp,
-		    &txn_global->pinned_timestamp) == 0);
-	if (!same_timestamp)
+	if (mod->last_eviction_timestamp == WT_TS_NONE)
 		return (true);
-	}
-#endif
+
+	__wt_txn_pinned_timestamp(session, &pinned_ts);
+	if (pinned_ts > mod->last_eviction_timestamp)
+		return (true);
 
 	return (false);
 }
@@ -1455,7 +1464,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * evict, skip it.
 	 */
 	if (!modified && !__wt_txn_visible_all(session,
-	    mod->rec_max_txn, WT_TIMESTAMP_NULL(&mod->rec_max_timestamp)))
+	    mod->rec_max_txn, mod->rec_max_timestamp))
 		return (false);
 
 	return (true);
@@ -1509,11 +1518,12 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		if (!__wt_page_evict_clean(page) &&
 		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
-			if (!WT_SESSION_IS_CHECKPOINT(session))
+			if (!WT_SESSION_BTREE_SYNC(session))
 				WT_IGNORE_RET(
 				    __wt_page_evict_urgent(session, ref));
 		} else {
-			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
+			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref,
+			    flags));
 			return (0);
 		}
 	}
@@ -1605,6 +1615,8 @@ __wt_split_descent_race(
 	 * update. A thread can read the parent page's original page index and
 	 * then read the split page's replacement index.
 	 *
+	 * For example, imagine a search descending the tree.
+	 *
 	 * Because internal page splits work by truncating the original page to
 	 * the initial part of the original page, the result of this race is we
 	 * will have a search key that points past the end of the current page.
@@ -1649,73 +1661,17 @@ __wt_split_descent_race(
 	 * work by truncating the split page, so the split page search is for
 	 * content the split page retains after the split, and we ignore this
 	 * race.
+	 *
+	 * This code is a general purpose check for a descent race and we call
+	 * it in other cases, for example, a cursor traversing backwards through
+	 * the tree.
+	 *
+	 * Presumably we acquired a page index on the child page before calling
+	 * this code, don't re-order that acquisition with this check.
 	 */
+	WT_BARRIER();
 	WT_INTL_INDEX_GET(session, ref->home, pindex);
 	return (pindex != saved_pindex);
-}
-
-/*
- * __wt_split_prev_race --
- *	Return if we raced with an internal page split when moving backwards
- * through the tree.
- */
-static inline bool
-__wt_split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-	WT_PAGE_INDEX *pindex;
-
-	/*
-	 * There's a split race when a cursor moving backwards through the tree
-	 * descends the tree. If we're splitting an internal page into its
-	 * parent, we move the WT_REF structures and update the parent's page
-	 * index before updating the split page's page index, and it's not an
-	 * atomic update. A thread can read the parent and split page's original
-	 * indexes during a split, or read the parent page's replacement page
-	 * index and then read the split page's original index, either of which
-	 * can lead to skipping pages.
-	 *
-	 * For example, imagine an internal page with 3 child pages, with the
-	 * namespaces a-f, g-h and i-j; the first child page splits. The parent
-	 * starts out with the following page-index:
-	 *
-	 *	| ... | a | g | i | ... |
-	 *
-	 * The split page starts out with the following page-index:
-	 *
-	 *	| a | b | c | d | e | f |
-	 *
-	 * The first step is to move the c-f ranges into a new subtree, so, for
-	 * example we might have two new internal pages 'c' and 'e', where the
-	 * new 'c' page references the c-d namespace and the new 'e' page
-	 * references the e-f namespace. The top of the subtree references the
-	 * parent page, but until the parent's page index is updated, threads in
-	 * the subtree won't be able to ascend out of the subtree. However, once
-	 * the parent page's page index is updated to this:
-	 *
-	 *	| ... | a | c | e | g | i | ... |
-	 *
-	 * threads in the subtree can ascend into the parent. Imagine a cursor
-	 * in the c-d part of the namespace that ascends to the parent's 'c'
-	 * slot. It would then decrement to the slot before the 'c' slot, the
-	 * 'a' slot.
-	 *
-	 * The previous-cursor movement selects the last slot in the 'a' page;
-	 * if the split page's page-index hasn't been updated yet, it selects
-	 * the 'f' slot, which is incorrect. Once the split page's page index is
-	 * updated to this:
-	 *
-	 *	| a | b |
-	 *
-	 * the previous-cursor movement will select the 'b' slot, which is
-	 * correct.
-	 *
-	 * This function takes an argument which is the internal page into which
-	 * we're coupling. If the last slot on the page no longer points to
-	 * the current page as its "home", the page is being split and part of
-	 * its namespace moved, we have to restart.
-	 */
-	WT_INTL_INDEX_GET(session, ref->page, pindex);
-	return (pindex->index[pindex->entries - 1]->home != ref->page);
 }
 
 /*
@@ -1724,10 +1680,10 @@ __wt_split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref)
  * coupling up/down the tree.
  */
 static inline int
-__wt_page_swap_func(WT_SESSION_IMPL *session,
-    WT_REF *held, WT_REF *want, bool prev_race, uint32_t flags
+__wt_page_swap_func(
+    WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
-    , const char *file, int line
+    , const char *func, int line
 #endif
     )
 {
@@ -1750,21 +1706,9 @@ __wt_page_swap_func(WT_SESSION_IMPL *session,
 	/* Get the wanted page. */
 	ret = __wt_page_in_func(session, want, flags
 #ifdef HAVE_DIAGNOSTIC
-	    , file, line
+	    , func, line
 #endif
 	    );
-
-	/*
-	 * We can race when descending into an internal page as part of moving
-	 * backwards through the tree, and we have to detect that race before
-	 * releasing the page from which we are coupling, else we can't restart
-	 * the movement.
-	 */
-	if (ret == 0 && prev_race && WT_PAGE_IS_INTERNAL(want->page) &&
-	    __wt_split_prev_race(session, want)) {
-		ret = WT_RESTART;
-		WT_TRET(__wt_page_release(session, want, flags));
-	}
 
 	/*
 	 * Expected failures: page not found or restart. Our callers list the

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -72,6 +72,7 @@ struct __wt_cache {
 	uint64_t bytes_dirty_intl;	/* Bytes/pages currently dirty */
 	uint64_t pages_dirty_intl;
 	uint64_t bytes_dirty_leaf;
+	uint64_t bytes_dirty_total;
 	uint64_t pages_dirty_leaf;
 	uint64_t bytes_evict;		/* Bytes/pages discarded by eviction */
 	uint64_t pages_evicted;
@@ -89,8 +90,6 @@ struct __wt_cache {
 
 	uint64_t app_waits;		/* User threads waited for cache */
 	uint64_t app_evicts;		/* Pages evicted by user threads */
-	uint64_t server_evicts;		/* Pages evicted by server thread */
-	uint64_t worker_evicts;		/* Pages evicted by worker threads */
 
 	uint64_t evict_max_page_size;	/* Largest page seen at eviction */
 	struct timespec stuck_time;	/* Stuck time */
@@ -120,11 +119,11 @@ struct __wt_cache {
 
 	double eviction_checkpoint_target;/* Percent to reduce dirty
 					   to during checkpoint scrubs */
-	double eviction_scrub_limit;	/* Percent of cache to trigger
-					   dirty eviction during checkpoint
-					   scrubs */
+	double eviction_scrub_target;	/* Current scrub target */
 
 	u_int overhead_pct;	        /* Cache percent adjustment */
+	uint64_t cache_max_wait_us;	/* Maximum time an operation waits for
+					 * space in cache */
 
 	/*
 	 * Eviction thread tuning information.
@@ -149,7 +148,6 @@ struct __wt_cache {
 	WT_SPINLOCK evict_pass_lock;	/* Eviction pass lock */
 	WT_SESSION_IMPL *walk_session;	/* Eviction pass session */
 	WT_DATA_HANDLE *walk_tree;	/* LRU walk current tree */
-	uint32_t walk_progress, walk_target;/* Progress in current tree */
 
 	WT_SPINLOCK evict_queue_lock;	/* Eviction current queue lock */
 	WT_EVICT_QUEUE evict_queues[WT_EVICT_QUEUE_MAX];
@@ -211,6 +209,7 @@ struct __wt_cache {
 	uint32_t las_sweep_dropmin;	/* Minimum btree ID in current set. */
 	uint8_t *las_sweep_dropmap;	/* Bitmap of dropped btree IDs. */
 	uint32_t las_sweep_dropmax;	/* Maximum btree ID in current set. */
+	uint64_t las_sweep_max_pageid;	/* Maximum page ID for sweep. */
 
 	uint32_t *las_dropped;		/* List of dropped btree IDs. */
 	size_t las_dropped_next;	/* Next index into drop list. */
@@ -289,3 +288,9 @@ struct __wt_cache_pool {
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t flags;
 };
+
+/* Flags used with __wt_evict */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_EVICT_CALL_CLOSING  0x1u		/* Closing connection or tree */
+#define	WT_EVICT_CALL_NO_SPLIT 0x2u		/* Splits not allowed */
+/* AUTOMATIC FLAG VALUE GENERATION STOP */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -13,12 +13,16 @@
  *	Return the next entry on the append list.
  */
 static inline int
-__cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
+__cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
+
+	/* If restarting after a prepare conflict, jump to the right spot. */
+	if (restart)
+		goto restart_read;
 
 	if (newpage) {
 		if ((cbt->ins = WT_SKIP_FIRST(cbt->ins_head)) == NULL)
@@ -58,7 +62,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
 	} else {
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+restart_read:	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 		if (upd == NULL) {
 			cbt->v = 0;
 			cbt->iface.value.data = &cbt->v;
@@ -74,7 +78,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
  *	Move to the next, fixed-length column-store item.
  */
 static inline int
-__cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage)
+__cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
@@ -85,6 +89,10 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	btree = S2BT(session);
 	page = cbt->ref->page;
 	upd = NULL;
+
+	/* If restarting after a prepare conflict, jump to the right spot. */
+	if (restart)
+		goto restart_read;
 
 	/* Initialize for each new page. */
 	if (newpage) {
@@ -108,7 +116,7 @@ new_page:
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
 	if (cbt->ins != NULL)
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+restart_read:	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
 		cbt->iface.value.data = &cbt->v;
@@ -123,12 +131,16 @@ new_page:
  *	Return the next variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage)
+__cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
 	WT_SESSION_IMPL *session;
 	WT_UPDATE *upd;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
+
+	/* If restarting after a prepare conflict, jump to the right spot. */
+	if (restart)
+		goto restart_read;
 
 	if (newpage) {
 		cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
@@ -141,7 +153,7 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-		WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+restart_read:	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
 		if (upd == NULL)
 			continue;
 		if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -160,7 +172,7 @@ new_page:	if (cbt->ins == NULL)
  *	Move to the next, variable-length column-store item.
  */
 static inline int
-__cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
+__cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
 	WT_CELL *cell;
 	WT_CELL_UNPACK unpack;
@@ -176,8 +188,17 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
 
 	rle_start = 0;			/* -Werror=maybe-uninitialized */
 
+	/* If restarting after a prepare conflict, jump to the right spot. */
+	if (restart)
+		goto restart_read;
+
 	/* Initialize for each new page. */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
+		cbt->slot = UINT32_MAX;
 		cbt->last_standard_recno = __col_var_last_recno(cbt->ref);
 		if (cbt->last_standard_recno == 0)
 			return (WT_NOTFOUND);
@@ -192,7 +213,8 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
 			return (WT_NOTFOUND);
 		__cursor_set_recno(cbt, cbt->recno + 1);
 
-new_page:	/* Find the matching WT_COL slot. */
+new_page:
+restart_read:	/* Find the matching WT_COL slot. */
 		if ((cip =
 		    __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
 			return (WT_NOTFOUND);
@@ -222,9 +244,8 @@ new_page:	/* Find the matching WT_COL slot. */
 		 * information.
 		 */
 		if (cbt->cip_saved != cip) {
-			if ((cell = WT_COL_PTR(page, cip)) == NULL)
-				continue;
-			__wt_cell_unpack(cell, &unpack);
+			cell = WT_COL_PTR(page, cip);
+			__wt_cell_unpack(session, page, cell, &unpack);
 			if (unpack.type == WT_CELL_DEL) {
 				if ((rle = __wt_cell_rle(&unpack)) == 1)
 					continue;
@@ -277,7 +298,7 @@ new_page:	/* Find the matching WT_COL slot. */
  *	Move to the next row-store item.
  */
 static inline int
-__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
+__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
 	WT_INSERT *ins;
 	WT_ITEM *key;
@@ -289,6 +310,15 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
 	page = cbt->ref->page;
 	key = &cbt->iface.key;
+
+	/* If restarting after a prepare conflict, jump to the right spot. */
+	if (restart) {
+		if (cbt->iter_retry == WT_CBT_RETRY_INSERT)
+			goto restart_read_insert;
+		if (cbt->iter_retry == WT_CBT_RETRY_PAGE)
+			goto restart_read_page;
+	}
+	cbt->iter_retry = WT_CBT_RETRY_NOTSET;
 
 	/*
 	 * For row-store pages, we need a single item that tells us the part
@@ -302,6 +332,11 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 	 * Initialize for each new page.
 	 */
 	if (newpage) {
+		/*
+		 * Be paranoid and set the slot out of bounds when moving to a
+		 * new page.
+		 */
+		cbt->slot = UINT32_MAX;
 		cbt->ins_head = WT_ROW_INSERT_SMALLEST(page);
 		cbt->ins = WT_SKIP_FIRST(cbt->ins_head);
 		cbt->row_iteration_slot = 1;
@@ -319,7 +354,10 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage)
 		if (cbt->ins != NULL)
 			cbt->ins = WT_SKIP_NEXT(cbt->ins);
 
-new_insert:	if ((ins = cbt->ins) != NULL) {
+new_insert:
+		cbt->iter_retry = WT_CBT_RETRY_INSERT;
+restart_read_insert:
+		if ((ins = cbt->ins) != NULL) {
 			WT_RET(__wt_txn_read(session, ins->upd, &upd));
 			if (upd == NULL)
 				continue;
@@ -352,7 +390,9 @@ new_insert:	if ((ins = cbt->ins) != NULL) {
 		cbt->ins_head = NULL;
 		cbt->ins = NULL;
 
+		cbt->iter_retry = WT_CBT_RETRY_PAGE;
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
+restart_read_page:
 		rip = &page->pg_row[cbt->slot];
 		WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
 		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
@@ -429,7 +469,8 @@ __cursor_key_order_check_row(
 	WT_ERR(__wt_scr_alloc(session, 512, &b));
 
 	WT_PANIC_ERR(session, EINVAL,
-	    "WT_CURSOR.%s out-of-order returns: returned key %s then key %s",
+	    "WT_CURSOR.%s out-of-order returns: returned key %.1024s then "
+	    "key %.1024s",
 	    next ? "next" : "prev",
 	    __wt_buf_set_printable_format(session,
 	    cbt->lastkey->data, cbt->lastkey->size, btree->key_format, a),
@@ -456,7 +497,7 @@ __wt_cursor_key_order_check(
 		return (__cursor_key_order_check_col(session, cbt, next));
 	case WT_PAGE_ROW_LEAF:
 		return (__cursor_key_order_check_row(session, cbt, next));
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, cbt->ref->page->type);
 	}
 	/* NOTREACHED */
 }
@@ -481,7 +522,7 @@ __wt_cursor_key_order_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	case WT_PAGE_ROW_LEAF:
 		return (__wt_buf_set(session,
 		    cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, cbt->ref->page->type);
 	}
 	/* NOTREACHED */
 }
@@ -581,9 +622,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_SESSION_IMPL *session;
-	WT_UPDATE *upd;
 	uint32_t flags;
-	bool newpage, valid;
+	bool newpage, restart;
 
 	cursor = &cbt->iface;
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -591,29 +631,13 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	WT_STAT_CONN_INCR(session, cursor_next);
 	WT_STAT_DATA_INCR(session, cursor_next);
 
+	flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL;	/* tree walk flags */
+	if (truncating)
+		LF_SET(WT_READ_TRUNCATE);
+
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-	/*
-	 * In case of retrying a next operation due to a prepare conflict,
-	 * cursor would have been already positioned at an update structure
-	 * which resulted in conflict. So, now when retrying we should examine
-	 * the same update again instead of starting from the next one in the
-	 * update chain.
-	 */
-	F_CLR(cbt, WT_CBT_RETRY_PREV);
-	if (F_ISSET(cbt, WT_CBT_RETRY_NEXT)) {
-		WT_RET(__wt_cursor_valid(cbt, &upd, &valid));
-		F_CLR(cbt, WT_CBT_RETRY_NEXT);
-		if (valid) {
-			/*
-			 * If the update, which returned prepared conflict is
-			 * visible, return the value.
-			 */
-			return (__cursor_kv_return(session, cbt, upd));
-		}
-	}
-
-	WT_RET(__cursor_func_init(cbt, false));
+	WT_ERR(__cursor_func_init(cbt, false));
 
 	/*
 	 * If we aren't already iterating in the right direction, there's
@@ -627,23 +651,24 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 	 * found.  Then, move to the next page, until we reach the end of the
 	 * file.
 	 */
-	flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL;	/* tree walk flags */
-	if (truncating)
-		LF_SET(WT_READ_TRUNCATE);
-	for (newpage = false;; newpage = true) {
+	restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
+	F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
+	for (newpage = false;; newpage = true, restart = false) {
 		page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
 		if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				ret = __cursor_fix_append_next(cbt, newpage);
+				ret = __cursor_fix_append_next(
+				    cbt, newpage, restart);
 				break;
 			case WT_PAGE_COL_VAR:
-				ret = __cursor_var_append_next(cbt, newpage);
+				ret = __cursor_var_append_next(
+				    cbt, newpage, restart);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(session, page->type);
 			}
-			if (ret == 0)
+			if (ret == 0 || ret == WT_PREPARE_CONFLICT)
 				break;
 			F_CLR(cbt, WT_CBT_ITERATE_APPEND);
 			if (ret != WT_NOTFOUND)
@@ -651,15 +676,15 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 		} else if (page != NULL) {
 			switch (page->type) {
 			case WT_PAGE_COL_FIX:
-				ret = __cursor_fix_next(cbt, newpage);
+				ret = __cursor_fix_next(cbt, newpage, restart);
 				break;
 			case WT_PAGE_COL_VAR:
-				ret = __cursor_var_next(cbt, newpage);
+				ret = __cursor_var_next(cbt, newpage, restart);
 				break;
 			case WT_PAGE_ROW_LEAF:
-				ret = __cursor_row_next(cbt, newpage);
+				ret = __cursor_row_next(cbt, newpage, restart);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session);
+			WT_ILLEGAL_VALUE_ERR(session, page->type);
 			}
 			if (ret != WT_NOTFOUND)
 				break;
@@ -690,16 +715,32 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 			__wt_page_evict_soon(session, cbt->ref);
 		cbt->page_deleted_count = 0;
 
+		if (F_ISSET(cbt, WT_CBT_READ_ONCE))
+			LF_SET(WT_READ_WONT_NEED);
 		WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
 		WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND);
 	}
-#ifdef HAVE_DIAGNOSTIC
-	if (ret == 0)
-		WT_ERR(__wt_cursor_key_order_check(session, cbt, true));
-#endif
+
 err:	switch (ret) {
 	case 0:
 		F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+#ifdef HAVE_DIAGNOSTIC
+		/*
+		 * Skip key order check, if prev is called after a next returned
+		 * a prepare conflict error, i.e cursor has changed direction
+		 * at a prepared update, hence current key returned could be
+		 * same as earlier returned key.
+		 *
+		 * eg: Initial data set : (1,2,3,...10)
+		 * insert key 11 in a prepare transaction.
+		 * loop on next will return 1,2,3...10 and subsequent call to
+		 * next will return a prepare conflict. Now if we call prev
+		 * key 10 will be returned which will be same as earlier
+		 * returned key.
+		 */
+		if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
+			ret = __wt_cursor_key_order_check(session, cbt, true);
+#endif
 		break;
 	case WT_PREPARE_CONFLICT:
 		/*
@@ -707,10 +748,11 @@ err:	switch (ret) {
 		 * as current cursor position will be reused in case of a
 		 * retry from user.
 		 */
-		F_SET(cbt, WT_CBT_RETRY_NEXT);
+		F_SET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
 		break;
 	default:
 		WT_TRET(__cursor_reset(cbt));
 	}
+	F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
 	return (ret);
 }

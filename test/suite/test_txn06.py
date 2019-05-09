@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -45,7 +45,7 @@ class test_txn06(wttest.WiredTigerTestCase, suite_subprocess):
         SimpleDataSet(self, self.source_uri, self.nrows).populate()
 
         # Now scan the table and copy the rows into a new table
-        c_src = self.session.create(self.uri, "key_format=S")
+        c_src = self.session.create(self.uri, "key_format=S,value_format=S")
         c_src = self.session.open_cursor(self.source_uri)
         c = self.session.open_cursor(self.uri)
         for k, v in c_src:

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -10,9 +10,10 @@
 
 static void __inmem_col_fix(WT_SESSION_IMPL *, WT_PAGE *);
 static void __inmem_col_int(WT_SESSION_IMPL *, WT_PAGE *);
-static int  __inmem_col_var(WT_SESSION_IMPL *, WT_PAGE *, uint64_t, size_t *);
+static int  __inmem_col_var(
+	WT_SESSION_IMPL *, WT_PAGE *, uint64_t, size_t *, bool);
 static int  __inmem_row_int(WT_SESSION_IMPL *, WT_PAGE *, size_t *);
-static int  __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
+static int  __inmem_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, bool);
 static int  __inmem_row_leaf_entries(
 	WT_SESSION_IMPL *, const WT_PAGE_HEADER *, uint32_t *);
 
@@ -57,7 +58,7 @@ __wt_page_alloc(WT_SESSION_IMPL *session,
 		 */
 		size += alloc_entries * sizeof(WT_ROW);
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, type);
 	}
 
 	WT_RET(__wt_calloc(session, 1, size, &page));
@@ -112,7 +113,7 @@ err:			if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
 		    NULL : (WT_ROW *)((uint8_t *)page + sizeof(WT_PAGE));
 		page->entries = alloc_entries;
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, type);
 	}
 
 	/* Increment the cache statistics. */
@@ -129,8 +130,8 @@ err:			if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
  *	Build in-memory page information.
  */
 int
-__wt_page_inmem(WT_SESSION_IMPL *session,
-    WT_REF *ref, const void *image, uint32_t flags, WT_PAGE **pagep)
+__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
+    const void *image, uint32_t flags, bool check_unstable, WT_PAGE **pagep)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -154,7 +155,8 @@ __wt_page_inmem(WT_SESSION_IMPL *session,
 		/*
 		 * Column-store leaf page entries map one-to-one to the number
 		 * of physical entries on the page (each physical entry is a
-		 * value item).
+		 * value item). Note this value isn't necessarily correct, we
+		 * may skip values when reading the disk image.
 		 *
 		 * Column-store internal page entries map one-to-one to the
 		 * number of physical entries on the page (each entry is a
@@ -176,7 +178,9 @@ __wt_page_inmem(WT_SESSION_IMPL *session,
 		 * entries map one-to-one to the number of physical entries
 		 * on the page (each physical entry is a key or value item).
 		 * If that flag is not set, there are more keys than values,
-		 * we have to walk the page to figure it out.
+		 * we have to walk the page to figure it out. Note this value
+		 * isn't necessarily correct, we may skip values when reading
+		 * the disk image.
 		 */
 		if (F_ISSET(dsk, WT_PAGE_EMPTY_V_ALL))
 			alloc_entries = dsk->u.entries;
@@ -186,7 +190,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session,
 			WT_RET(__inmem_row_leaf_entries(
 			    session, dsk, &alloc_entries));
 		break;
-	WT_ILLEGAL_VALUE(session);
+	WT_ILLEGAL_VALUE(session, dsk->type);
 	}
 
 	/* Allocate and initialize a new WT_PAGE. */
@@ -214,15 +218,16 @@ __wt_page_inmem(WT_SESSION_IMPL *session,
 		__inmem_col_int(session, page);
 		break;
 	case WT_PAGE_COL_VAR:
-		WT_ERR(__inmem_col_var(session, page, dsk->recno, &size));
+		WT_ERR(__inmem_col_var(
+		    session, page, dsk->recno, &size, check_unstable));
 		break;
 	case WT_PAGE_ROW_INT:
 		WT_ERR(__inmem_row_int(session, page, &size));
 		break;
 	case WT_PAGE_ROW_LEAF:
-		WT_ERR(__inmem_row_leaf(session, page));
+		WT_ERR(__inmem_row_leaf(session, page, check_unstable));
 		break;
-	WT_ILLEGAL_VALUE_ERR(session);
+	WT_ILLEGAL_VALUE_ERR(session, page->type);
 	}
 
 	/* Update the page's cache statistics. */
@@ -272,16 +277,12 @@ static void
 __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
-	const WT_PAGE_HEADER *dsk;
+	WT_CELL_UNPACK unpack;
 	WT_PAGE_INDEX *pindex;
 	WT_REF **refp, *ref;
-	uint32_t hint, i;
+	uint32_t hint;
 
 	btree = S2BT(session);
-	dsk = page->dsk;
-	unpack = &_unpack;
 
 	/*
 	 * Walk the page, building references: the page contains value items.
@@ -290,15 +291,13 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
 	pindex = WT_INTL_INDEX_GET_SAFE(page);
 	refp = pindex->index;
 	hint = 0;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
+	WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
 		ref = *refp++;
 		ref->home = page;
 		ref->pindex_hint = hint++;
-
-		__wt_cell_unpack(cell, unpack);
-		ref->addr = cell;
-		ref->ref_recno = unpack->v;
-	}
+		ref->addr = unpack.cell;
+		ref->ref_recno = unpack.v;
+	} WT_CELL_FOREACH_END;
 }
 
 /*
@@ -309,23 +308,35 @@ static void
 __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
-	const WT_PAGE_HEADER *dsk;
-	uint32_t i;
+	WT_CELL_UNPACK unpack;
 
 	*np = 0;
 
 	btree = S2BT(session);
-	dsk = page->dsk;
-	unpack = &_unpack;
 
 	/* Walk the page, counting entries for the repeats array. */
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
-		if (__wt_cell_rle(unpack) > 1)
+	WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+		if (__wt_cell_rle(&unpack) > 1)
 			++*np;
-	}
+	} WT_CELL_FOREACH_END;
+}
+
+/*
+ * __unstable_skip --
+ *	Optionally skip unstable entries
+ */
+static inline bool
+__unstable_skip(WT_SESSION_IMPL *session,
+    const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
+{
+	/*
+	 * Skip unstable entries after downgrade to releases without validity
+	 * windows and from previous wiredtiger_open connections.
+	 */
+	return ((unpack->stop_ts != WT_TS_MAX ||
+	    unpack->stop_txn != WT_TXN_MAX) &&
+	    (S2C(session)->base_write_gen > dsk->write_gen ||
+	    !__wt_process.page_version_ts));
 }
 
 /*
@@ -334,26 +345,22 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
  *	column-store trees.
  */
 static int
-__inmem_col_var(
-    WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t *sizep)
+__inmem_col_var(WT_SESSION_IMPL *session,
+    WT_PAGE *page, uint64_t recno, size_t *sizep, bool check_unstable)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
+	WT_CELL_UNPACK unpack;
 	WT_COL *cip;
 	WT_COL_RLE *repeats;
-	const WT_PAGE_HEADER *dsk;
 	size_t size;
 	uint64_t rle;
-	uint32_t i, indx, n, repeat_off;
+	uint32_t indx, n, repeat_off;
 	void *p;
 
 	btree = S2BT(session);
-	dsk = page->dsk;
 
 	repeats = NULL;
 	repeat_off = 0;
-	unpack = &_unpack;
 
 	/*
 	 * Walk the page, building references: the page contains unsorted value
@@ -362,9 +369,15 @@ __inmem_col_var(
 	 */
 	indx = 0;
 	cip = page->pg_var;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
-		WT_COL_PTR_SET(cip, WT_PAGE_DISK_OFFSET(page, cell));
+	WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+		/* Optionally skip unstable values */
+		if (check_unstable &&
+		    __unstable_skip(session, page->dsk, &unpack)) {
+			--page->entries;
+			continue;
+		}
+
+		WT_COL_PTR_SET(cip, WT_PAGE_DISK_OFFSET(page, unpack.cell));
 		cip++;
 
 		/*
@@ -373,7 +386,7 @@ __inmem_col_var(
 		 * repeats array triggers a re-walk from the start of the page
 		 * to determine the size of the array.
 		 */
-		rle = __wt_cell_rle(unpack);
+		rle = __wt_cell_rle(&unpack);
 		if (rle > 1) {
 			if (repeats == NULL) {
 				__inmem_col_var_repeats(session, page, &n);
@@ -392,7 +405,7 @@ __inmem_col_var(
 		}
 		indx++;
 		recno += rle;
-	}
+	} WT_CELL_FOREACH_END;
 
 	return (0);
 }
@@ -405,19 +418,15 @@ static int
 __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
+	WT_CELL_UNPACK unpack;
 	WT_DECL_ITEM(current);
 	WT_DECL_RET;
-	const WT_PAGE_HEADER *dsk;
 	WT_PAGE_INDEX *pindex;
 	WT_REF *ref, **refp;
-	uint32_t hint, i;
+	uint32_t hint;
 	bool overflow_keys;
 
 	btree = S2BT(session);
-	unpack = &_unpack;
-	dsk = page->dsk;
 
 	WT_RET(__wt_scr_alloc(session, 0, &current));
 
@@ -430,19 +439,18 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 	refp = pindex->index;
 	overflow_keys = false;
 	hint = 0;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
+	WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
 		ref = *refp;
 		ref->home = page;
 		ref->pindex_hint = hint++;
 
-		__wt_cell_unpack(cell, unpack);
-		switch (unpack->type) {
+		switch (unpack.type) {
 		case WT_CELL_KEY:
 			/*
 			 * Note: we don't Huffman encode internal page keys,
 			 * there's no decoding work to do.
 			 */
-			__wt_ref_key_onpage_set(page, ref, unpack);
+			__wt_ref_key_onpage_set(page, ref, &unpack);
 			break;
 		case WT_CELL_KEY_OVFL:
 			/*
@@ -452,10 +460,10 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 			 * items.
 			 */
 			WT_ERR(__wt_dsk_cell_data_ref(
-			    session, page->type, unpack, current));
+			    session, page->type, &unpack, current));
 
 			WT_ERR(__wt_row_ikey_incr(session, page,
-			    WT_PAGE_DISK_OFFSET(page, cell),
+			    WT_PAGE_DISK_OFFSET(page, unpack.cell),
 			    current->data, current->size, ref));
 
 			*sizep += sizeof(WT_IKEY) + current->size;
@@ -481,8 +489,8 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 			 *
 			 * Re-create the state of a deleted page.
 			 */
-			ref->addr = cell;
-			ref->state = WT_REF_DELETED;
+			ref->addr = unpack.cell;
+			WT_REF_SET_STATE(ref, WT_REF_DELETED);
 			++refp;
 
 			/*
@@ -500,12 +508,12 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 		case WT_CELL_ADDR_INT:
 		case WT_CELL_ADDR_LEAF:
 		case WT_CELL_ADDR_LEAF_NO:
-			ref->addr = cell;
+			ref->addr = unpack.cell;
 			++refp;
 			break;
-		WT_ILLEGAL_VALUE_ERR(session);
+		WT_ILLEGAL_VALUE_ERR(session, unpack.type);
 		}
-	}
+	} WT_CELL_FOREACH_END;
 
 	/*
 	 * We track if an internal page has backing overflow keys, as overflow
@@ -527,12 +535,10 @@ __inmem_row_leaf_entries(
     WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint32_t *nindxp)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
-	uint32_t i, nindx;
+	WT_CELL_UNPACK unpack;
+	uint32_t nindx;
 
 	btree = S2BT(session);
-	unpack = &_unpack;
 
 	/*
 	 * Leaf row-store page entries map to a maximum of one-to-one to the
@@ -546,9 +552,8 @@ __inmem_row_leaf_entries(
 	 * single on-page (WT_CELL_VALUE) or overflow (WT_CELL_VALUE_OVFL) item.
 	 */
 	nindx = 0;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
-		switch (unpack->type) {
+	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
+		switch (unpack.type) {
 		case WT_CELL_KEY:
 		case WT_CELL_KEY_OVFL:
 			++nindx;
@@ -556,9 +561,9 @@ __inmem_row_leaf_entries(
 		case WT_CELL_VALUE:
 		case WT_CELL_VALUE_OVFL:
 			break;
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, unpack.type);
 		}
-	}
+	} WT_CELL_FOREACH_END;
 
 	*nindxp = nindx;
 	return (0);
@@ -569,26 +574,20 @@ __inmem_row_leaf_entries(
  *	Build in-memory index for row-store leaf pages.
  */
 static int
-__inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
+__inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
 {
 	WT_BTREE *btree;
-	WT_CELL *cell;
-	WT_CELL_UNPACK *unpack, _unpack;
-	const WT_PAGE_HEADER *dsk;
+	WT_CELL_UNPACK unpack;
 	WT_ROW *rip;
-	uint32_t i;
 
 	btree = S2BT(session);
-	dsk = page->dsk;
-	unpack = &_unpack;
 
 	/* Walk the page, building indices. */
 	rip = page->pg_row;
-	WT_CELL_FOREACH(btree, dsk, cell, unpack, i) {
-		__wt_cell_unpack(cell, unpack);
-		switch (unpack->type) {
+	WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+		switch (unpack.type) {
 		case WT_CELL_KEY_OVFL:
-			__wt_row_leaf_key_set_cell(page, rip, cell);
+			__wt_row_leaf_key_set_cell(page, rip, unpack.cell);
 			++rip;
 			break;
 		case WT_CELL_KEY:
@@ -597,26 +596,40 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 			 * or prefix compressed), can be directly referenced on
 			 * the page to avoid repeatedly unpacking their cells.
 			 */
-			if (!btree->huffman_key && unpack->prefix == 0)
-				__wt_row_leaf_key_set(page, rip, unpack);
+			if (!btree->huffman_key && unpack.prefix == 0)
+				__wt_row_leaf_key_set(page, rip, &unpack);
 			else
-				__wt_row_leaf_key_set_cell(page, rip, cell);
+				__wt_row_leaf_key_set_cell(
+				    page, rip, unpack.cell);
 			++rip;
 			break;
 		case WT_CELL_VALUE:
+			/* Optionally skip unstable values */
+			if (check_unstable &&
+			    __unstable_skip(session, page->dsk, &unpack)) {
+				--rip;
+				--page->entries;
+			}
+
 			/*
 			 * Simple values without compression can be directly
 			 * referenced on the page to avoid repeatedly unpacking
 			 * their cells.
 			 */
 			if (!btree->huffman_value)
-				__wt_row_leaf_value_set(page, rip - 1, unpack);
+				__wt_row_leaf_value_set(page, rip - 1, &unpack);
 			break;
 		case WT_CELL_VALUE_OVFL:
+			/* Optionally skip unstable values */
+			if (check_unstable &&
+			    __unstable_skip(session, page->dsk, &unpack)) {
+				--rip;
+				--page->entries;
+			}
 			break;
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, unpack.type);
 		}
-	}
+	} WT_CELL_FOREACH_END;
 
 	/*
 	 * We do not currently instantiate keys on leaf pages when the page is

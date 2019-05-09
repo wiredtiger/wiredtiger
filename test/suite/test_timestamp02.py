@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -49,6 +49,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
     ])
 
     conn_config = 'log=(enabled)'
+    session_config = 'isolation=snapshot'
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -59,22 +60,19 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         actual = dict((k, v) for k, v in c if v != 0)
         self.assertTrue(actual == expected)
         # Search for the expected items as well as iterating
-        for k, v in expected.iteritems():
+        for k, v in expected.items():
             self.assertEqual(c[k], v, "for key " + str(k))
         c.close()
         if txn_config:
             session.commit_transaction()
 
     def test_basic(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         self.session.create(self.uri,
             'key_format=i,value_format=i' + self.extra_config)
         c = self.session.open_cursor(self.uri)
 
         # Insert keys 1..100 each with timestamp=key, in some order
-        orig_keys = range(1, 101)
+        orig_keys = list(range(1, 101))
         keys = orig_keys[:]
         random.shuffle(keys)
 
@@ -136,9 +134,6 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
                 dict((k, 2) for k in orig_keys[i+1:]))
 
     def test_read_your_writes(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         self.session.create(self.uri,
             'key_format=i,value_format=i' + self.extra_config)
         c = self.session.open_cursor(self.uri)

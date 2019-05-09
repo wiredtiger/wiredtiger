@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -120,14 +120,15 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_CURSOR_BTREE cbt;
 	WT_DECL_ITEM(current_key);
 	WT_DECL_RET;
-	WT_ITEM las_key, las_timestamp, las_value;
+	WT_ITEM las_key, las_value;
 	WT_PAGE *page;
 	WT_UPDATE *first_upd, *last_upd, *upd;
+	wt_timestamp_t durable_timestamp, las_timestamp;
 	size_t incr, total_incr;
 	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
 	uint32_t las_id, session_flags;
 	const uint8_t *p;
-	uint8_t upd_type;
+	uint8_t prepare_state, upd_type;
 	bool locked;
 
 	cursor = NULL;
@@ -180,16 +181,16 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			break;
 
 		/* Allocate the WT_UPDATE structure. */
-		WT_ERR(cursor->get_value(cursor,
-		    &las_txnid, &las_timestamp, &upd_type, &las_value));
+		WT_ERR(cursor->get_value(
+		    cursor, &las_txnid, &las_timestamp,
+		    &durable_timestamp, &prepare_state, &upd_type, &las_value));
 		WT_ERR(__wt_update_alloc(
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = las_txnid;
-#ifdef HAVE_TIMESTAMPS
-		WT_ASSERT(session, las_timestamp.size == WT_TIMESTAMP_SIZE);
-		memcpy(&upd->timestamp, las_timestamp.data, las_timestamp.size);
-#endif
+		upd->durable_ts = durable_timestamp;
+		upd->start_ts = las_timestamp;
+		upd->prepare_state = prepare_state;
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
@@ -221,7 +222,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			WT_ERR(__wt_buf_set(session,
 			    current_key, las_key.data, las_key.size));
 			break;
-		WT_ILLEGAL_VALUE_ERR(session);
+		WT_ILLEGAL_VALUE_ERR(session, page->type);
 		}
 
 		/* Append the latest update to the list. */
@@ -251,7 +252,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			    current_key, ref, &cbt, first_upd));
 			first_upd = NULL;
 			break;
-		WT_ILLEGAL_VALUE_ERR(session);
+		WT_ILLEGAL_VALUE_ERR(session, page->type);
 		}
 
 	/* Discard the cursor. */
@@ -276,13 +277,16 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		 */
 		page->modify->first_dirty_txn = WT_TXN_FIRST;
 
-		if (ref->page_las->las_skew_newest &&
+		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+
+		if (ref->page_las->skew_newest &&
+		    !ref->page_las->has_prepares &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
-		    __wt_txn_visible_all(session, ref->page_las->las_max_txn,
-		    WT_TIMESTAMP_NULL(&ref->page_las->onpage_timestamp))) {
-			page->modify->rec_max_txn = ref->page_las->las_max_txn;
-			__wt_timestamp_set(&page->modify->rec_max_timestamp,
-			    &ref->page_las->onpage_timestamp);
+		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
+		    ref->page_las->unstable_durable_timestamp)) {
+			page->modify->rec_max_txn = ref->page_las->max_txn;
+			page->modify->rec_max_timestamp =
+			    ref->page_las->max_timestamp;
 			__wt_page_modify_clear(session, page);
 		}
 	}
@@ -313,6 +317,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_BTREE *btree;
 	WT_PAGE *page;
+	size_t footprint;
 
 	btree = S2BT(session);
 	page = ref->page;
@@ -328,8 +333,20 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	if (__wt_page_evict_clean(page))
 		return (false);
 
+	/*
+	 * Exclude the disk image size from the footprint checks.  Usually the
+	 * disk image size is small compared with the in-memory limit (e.g.
+	 * 16KB vs 5MB), so this doesn't make a big difference.  Where it is
+	 * important is for pages with a small number of large values, where
+	 * the disk image size takes into account large values that have
+	 * already been written and should not trigger forced eviction.
+	 */
+	footprint = page->memory_footprint;
+	if (page->dsk != NULL)
+		footprint -= page->dsk->mem_size;
+
 	/* Pages are usually small enough, check that first. */
-	if (page->memory_footprint < btree->splitmempage)
+	if (footprint < btree->splitmempage)
 		return (false);
 
 	/*
@@ -342,7 +359,7 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 	/* If we can do an in-memory split, do it. */
 	if (__wt_leaf_page_can_split(session, page))
 		return (true);
-	if (page->memory_footprint < btree->maxmempage)
+	if (footprint < btree->maxmempage)
 		return (false);
 
 	/* Bump the oldest ID, we're about to do some visibility checks. */
@@ -365,6 +382,43 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __page_read_lookaside --
+ *	Figure out whether to instantiate content from lookaside on
+ *	page access.
+ */
+static inline int
+__page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
+    uint32_t previous_state, uint32_t *final_statep)
+{
+	/*
+	 * Reading a lookaside ref for the first time, and not requiring the
+	 * history triggers a transition to WT_REF_LIMBO, if we are already
+	 * in limbo and still don't need the history - we are done.
+	 */
+	if (__wt_las_page_skip_locked(session, ref)) {
+		if (previous_state == WT_REF_LOOKASIDE) {
+			WT_STAT_CONN_INCR(
+			    session, cache_read_lookaside_skipped);
+			ref->page_las->eviction_to_lookaside = true;
+		}
+		*final_statep = WT_REF_LIMBO;
+		return (0);
+	}
+
+	/* Instantiate updates from the database's lookaside table. */
+	if (previous_state == WT_REF_LIMBO) {
+		WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
+		if (WT_SESSION_IS_CHECKPOINT(session))
+			WT_STAT_CONN_INCR(session,
+			    cache_read_lookaside_delay_checkpoint);
+	}
+
+	WT_RET(__las_page_instantiate(session, ref));
+	ref->page_las->eviction_to_lookaside = false;
+	return (0);
+}
+
+/*
  * __page_read --
  *	Read a page from the file.
  */
@@ -375,7 +429,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	WT_ITEM tmp;
 	WT_PAGE *notused;
 	size_t addr_size;
-	uint64_t time_start, time_stop;
+	uint64_t time_diff, time_start, time_stop;
 	uint32_t page_flags, final_state, new_state, previous_state;
 	const uint8_t *addr;
 	bool timer;
@@ -424,7 +478,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * only lookaside entries, and a subsequent search or insert is forcing
 	 * re-creation of the name space.
 	 */
-	__wt_ref_info(ref, &addr, &addr_size, NULL);
+	__wt_ref_info(session, ref, &addr, &addr_size, NULL);
 	if (addr == NULL) {
 		WT_ASSERT(session, previous_state != WT_REF_DISK);
 
@@ -442,9 +496,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	WT_ERR(__wt_bt_read(session, &tmp, addr, addr_size));
 	if (timer) {
 		time_stop = __wt_clock(session);
+		time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 		WT_STAT_CONN_INCR(session, cache_read_app_count);
-		WT_STAT_CONN_INCRV(session, cache_read_app_time,
-		    WT_CLOCKDIFF_US(time_stop, time_start));
+		WT_STAT_CONN_INCRV(session, cache_read_app_time, time_diff);
+		WT_STAT_SESSION_INCRV(session, read_time, time_diff);
 	}
 
 	/*
@@ -462,7 +517,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
 	if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 		FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
+	WT_ERR(__wt_page_inmem(
+	    session, ref, tmp.data, page_flags, true, &notused));
 	tmp.mem = NULL;
 
 	/*
@@ -492,41 +548,31 @@ skip_read:
 		/* Move all records to a deleted state. */
 		WT_ERR(__wt_delete_page_instantiate(session, ref));
 		break;
-	case WT_REF_LOOKASIDE:
-		if (__wt_las_page_skip_locked(session, ref)) {
-			WT_STAT_CONN_INCR(
-			    session, cache_read_lookaside_skipped);
-			ref->page_las->eviction_to_lookaside = true;
-			final_state = WT_REF_LIMBO;
-			break;
-		}
-		/* FALLTHROUGH */
 	case WT_REF_LIMBO:
-		/* Instantiate updates from the database's lookaside table. */
-		if (previous_state == WT_REF_LIMBO) {
-			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
-			if (WT_SESSION_IS_CHECKPOINT(session))
-				WT_STAT_CONN_INCR(session,
-				    cache_read_lookaside_delay_checkpoint);
-		}
-
-		WT_ERR(__las_page_instantiate(session, ref));
-		ref->page_las->eviction_to_lookaside = false;
+	case WT_REF_LOOKASIDE:
+		WT_ERR(__page_read_lookaside(
+		    session, ref, previous_state, &final_state));
 		break;
 	}
 
 	/*
-	 * We no longer need lookaside entries once the page is instantiated.
-	 * There's no reason for the lookaside remove to fail, but ignore it
-	 * if for some reason it fails, we've got a valid page.
+	 * Once the page is instantiated, we no longer need the history in
+	 * lookaside.  We leave the lookaside sweep thread to do most cleanup,
+	 * but it can only remove committed updates and keys that skew newest
+	 * (if there are entries in the lookaside newer than the page, they need
+	 * to be read back into cache or they will be lost).
+	 *
+	 * Prepared updates can not be removed by the lookaside sweep, remove
+	 * them as we read the page back in memory.
 	 *
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
-	if (final_state == WT_REF_MEM && ref->page_las != NULL)
-		WT_IGNORE_RET(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid, false));
+	if (final_state == WT_REF_MEM && ref->page_las != NULL &&
+	    (!ref->page_las->skew_newest || ref->page_las->has_prepares))
+		WT_ERR(__wt_las_remove_block(
+		    session, ref->page_las->las_pageid));
 
-	WT_PUBLISH(ref->state, final_state);
+	WT_REF_SET_STATE(ref, final_state);
 	return (ret);
 
 err:	/*
@@ -536,7 +582,7 @@ err:	/*
 	 */
 	if (ref->page != NULL && previous_state != WT_REF_LIMBO)
 		__wt_ref_out(session, ref);
-	WT_PUBLISH(ref->state, previous_state);
+	WT_REF_SET_STATE(ref, previous_state);
 
 	__wt_buf_free(session, &tmp);
 
@@ -551,7 +597,7 @@ err:	/*
 int
 __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
-    , const char *file, int line
+    , const char *func, int line
 #endif
     )
 {
@@ -681,7 +727,7 @@ read:			/*
 			 */
 #ifdef HAVE_DIAGNOSTIC
 			WT_RET(
-			    __wt_hazard_set(session, ref, &busy, file, line));
+			    __wt_hazard_set(session, ref, &busy, func, line));
 #else
 			WT_RET(__wt_hazard_set(session, ref, &busy));
 #endif
@@ -728,7 +774,7 @@ read:			/*
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
-				ret = __wt_page_release_evict(session, ref);
+				ret = __wt_page_release_evict(session, ref, 0);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					WT_NOT_READ(ret, 0);
@@ -786,7 +832,7 @@ skip_evict:		/*
 			return (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
 			    !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?
 			    0 : __wt_txn_autocommit_check(session));
-		WT_ILLEGAL_VALUE(session);
+		WT_ILLEGAL_VALUE(session, current_state);
 		}
 
 		/*

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -116,6 +116,22 @@ public class ex_stat {
 	ret = idx_cursor.close();
 
 	return (ret);
+    }
+
+    int
+    print_session_stats(Session session)
+        throws WiredTigerException
+    {
+        Cursor cursor;
+        int ret;
+
+        /*! [statistics session function] */
+        cursor = session.open_cursor("statistics:session", null, null);
+        ret = print_cursor(cursor);
+        ret = cursor.close();
+        /*! [statistics session function] */
+
+        return (ret);
     }
 
     int
@@ -263,6 +279,8 @@ public class ex_stat {
         ret = print_file_stats(session);
 
         ret = print_join_cursor_stats(session);
+
+        ret = print_session_stats(session);
 
         ret = print_overflow_pages(session);
 

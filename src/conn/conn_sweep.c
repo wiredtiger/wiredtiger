@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -18,7 +18,7 @@
  *	handles.
  */
 static void
-__sweep_mark(WT_SESSION_IMPL *session, time_t now)
+__sweep_mark(WT_SESSION_IMPL *session, uint64_t now)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -85,7 +85,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 
 	/* Only sweep clean trees where all updates are visible. */
 	if (btree != NULL && (btree->modified || !__wt_txn_visible_all(session,
-	    btree->rec_max_txn, WT_TIMESTAMP_NULL(&btree->rec_max_timestamp))))
+	    btree->rec_max_txn, btree->rec_max_timestamp)))
 		goto err;
 
 	/*
@@ -107,7 +107,7 @@ err:	__wt_writeunlock(session, &dhandle->rwlock);
  *	until we have reached the configured minimum number of handles.
  */
 static int
-__sweep_expire(WT_SESSION_IMPL *session, time_t now)
+__sweep_expire(WT_SESSION_IMPL *session, uint64_t now)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
@@ -127,8 +127,7 @@ __sweep_expire(WT_SESSION_IMPL *session, time_t now)
 		    !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
 		    dhandle->session_inuse != 0 ||
 		    dhandle->timeofdeath == 0 ||
-		    difftime(now, dhandle->timeofdeath) <=
-		    conn->sweep_idle_time)
+		    now - dhandle->timeofdeath <= conn->sweep_idle_time)
 			continue;
 
 		/*
@@ -277,14 +276,20 @@ __sweep_server(void *arg)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
-	time_t last, now;
-	uint64_t last_las_sweep_id, min_sleep, oldest_id;
+	uint64_t last, now;
+	uint64_t last_las_sweep_id, min_sleep, oldest_id, sweep_interval;
 	u_int dead_handles;
+	bool cv_signalled;
 
 	session = arg;
 	conn = S2C(session);
 	last_las_sweep_id = WT_TXN_NONE;
 	min_sleep = WT_MIN(WT_LAS_SWEEP_SEC, conn->sweep_interval);
+	if (FLD_ISSET(conn->timing_stress_flags,
+	    WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
+		sweep_interval = conn->sweep_interval / 10;
+	else
+		sweep_interval = conn->sweep_interval;
 
 	/*
 	 * Sweep for dead and excess handles.
@@ -292,8 +297,15 @@ __sweep_server(void *arg)
 	__wt_seconds(session, &last);
 	for (;;) {
 		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->sweep_cond,
-		    min_sleep * WT_MILLION, __sweep_server_run_chk);
+		if (FLD_ISSET(conn->timing_stress_flags,
+		    WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
+			__wt_cond_wait_signal(session, conn->sweep_cond,
+			    min_sleep * 100 * WT_THOUSAND,
+			    __sweep_server_run_chk, &cv_signalled);
+		else
+			__wt_cond_wait_signal(session,
+			    conn->sweep_cond, min_sleep * WT_MILLION,
+			    __sweep_server_run_chk, &cv_signalled);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__sweep_server_run_chk(session))
@@ -312,7 +324,9 @@ __sweep_server(void *arg)
 		 * bringing in and evicting pages from the lookaside table,
 		 * which will stop the cache from moving into the stuck state.
 		 */
-		if (now - last >= WT_LAS_SWEEP_SEC &&
+		if ((FLD_ISSET(conn->timing_stress_flags,
+		    WT_TIMING_STRESS_AGGRESSIVE_SWEEP) ||
+		    now - last >= WT_LAS_SWEEP_SEC) &&
 		    !__wt_las_empty(session) &&
 		    !__wt_cache_stuck(session)) {
 			oldest_id = __wt_txn_oldest_id(session);
@@ -327,7 +341,7 @@ __sweep_server(void *arg)
 		 * less frequently than the lookaside table by default and the
 		 * frequency is controlled by a user setting.
 		 */
-		if ((uint64_t)(now - last) < conn->sweep_interval)
+		if (!cv_signalled && (now - last < sweep_interval))
 			continue;
 		WT_STAT_CONN_INCR(session, dh_sweeps);
 		/*
@@ -350,6 +364,9 @@ __sweep_server(void *arg)
 
 		if (dead_handles > 0)
 			WT_ERR(__sweep_remove_handles(session));
+
+		/* Remember the last sweep time. */
+		last = now;
 	}
 
 	if (0) {
@@ -451,7 +468,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 	F_CLR(conn, WT_CONN_SERVER_SWEEP);
 	if (conn->sweep_tid_set) {
 		__wt_cond_signal(session, conn->sweep_cond);
-		WT_TRET(__wt_thread_join(session, conn->sweep_tid));
+		WT_TRET(__wt_thread_join(session, &conn->sweep_tid));
 		conn->sweep_tid_set = 0;
 	}
 	__wt_cond_destroy(session, &conn->sweep_cond);

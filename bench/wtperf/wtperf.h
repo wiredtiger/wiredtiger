@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -268,7 +268,7 @@ int	 run_truncate(
 	    WTPERF *, WTPERF_THREAD *, WT_CURSOR *, WT_SESSION *, int *);
 int	 setup_log_file(WTPERF *);
 void	 setup_throttle(WTPERF_THREAD *);
-int	 setup_truncate(WTPERF *, WTPERF_THREAD *, WT_SESSION *);
+void	 setup_truncate(WTPERF *, WTPERF_THREAD *, WT_SESSION *);
 void	 start_idle_table_cycle(WTPERF *, wt_thread_t *);
 void	 stop_idle_table_cycle(WTPERF *, wt_thread_t);
 void	 worker_throttle(WTPERF_THREAD *);

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -21,12 +21,15 @@ __wt_optrack_record_funcid(
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	wt_off_t fsize;
+	bool locked;
 
 	conn = S2C(session);
+	locked = false;
 
 	WT_ERR(__wt_scr_alloc(session, strlen(func) + 32, &tmp));
 
 	__wt_spin_lock(session, &conn->optrack_map_spinlock);
+	locked = true;
 	if (*func_idp == 0) {
 		*func_idp = ++optrack_uid;
 
@@ -38,10 +41,12 @@ __wt_optrack_record_funcid(
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "%s", __func__);
+err:		WT_PANIC_MSG(session, ret,
+		    "operation tracking initialization failure");
 	}
 
-	__wt_spin_unlock(session, &conn->optrack_map_spinlock);
+	if (locked)
+		__wt_spin_unlock(session, &conn->optrack_map_spinlock);
 	__wt_scr_free(session, &tmp);
 }
 
@@ -52,17 +57,17 @@ err:		WT_PANIC_MSG(session, ret, "%s", __func__);
 static int
 __optrack_open_file(WT_SESSION_IMPL *session)
 {
+	struct timespec ts;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_OPTRACK_HEADER optrack_header = { WT_OPTRACK_VERSION, 0,
-	    (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND };
+			     (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND, 0,0};
 
 	conn = S2C(session);
 
 	if (!F_ISSET(conn, WT_CONN_OPTRACK))
-		WT_RET_MSG(session, WT_ERROR,
-		    "%s: WT_CONN_OPTRACK not set", __func__);
+		WT_RET_MSG(session, WT_ERROR, "WT_CONN_OPTRACK not set");
 
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
 	WT_ERR(__wt_filename_construct(session, conn->optrack_path,
@@ -81,6 +86,10 @@ __optrack_open_file(WT_SESSION_IMPL *session)
 	 */
 	optrack_header.optrack_tsc_nsec_ratio =
 		(uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
+
+	/* Record the time in seconds since the Epoch. */
+	__wt_epoch(session, &ts);
+	optrack_header.optrack_seconds_epoch = (uint64_t)ts.tv_sec;
 
 	/* Write the header into the operation-tracking file. */
 	WT_ERR(session->optrack_fh->handle->fh_write(

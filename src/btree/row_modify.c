@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -205,8 +205,15 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		    &ins, ins_size, skipdepth, exclusive));
 	}
 
-	if (logged && modify_type != WT_UPDATE_RESERVE)
+	if (logged && modify_type != WT_UPDATE_RESERVE) {
 		WT_ERR(__wt_txn_log_op(session, cbt));
+		/*
+		 * Set the key in the transaction operation to be used in case
+		 * this transaction is prepared to retrieve the update
+		 * corresponding to this operation.
+		 */
+		WT_ERR(__wt_txn_op_set_key(session, key));
+	}
 
 	if (0) {
 err:		/*
@@ -349,13 +356,9 @@ __wt_update_obsolete_check(
 	 */
 	if (count > 20 && page->modify != NULL) {
 		page->modify->obsolete_check_txn = txn_global->last_running;
-#ifdef HAVE_TIMESTAMPS
 		if (txn_global->has_pinned_timestamp)
-			WT_WITH_TIMESTAMP_READLOCK(session, &txn_global->rwlock,
-			    __wt_timestamp_set(
-				&page->modify->obsolete_check_timestamp,
-				&txn_global->pinned_timestamp));
-#endif
+			page->modify->obsolete_check_timestamp =
+			    txn_global->pinned_timestamp;
 	}
 
 	return (NULL);

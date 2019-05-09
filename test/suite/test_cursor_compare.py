@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest, exceptions
+import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import filter_scenarios, make_scenarios
 
@@ -99,7 +99,7 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
             wiredtiger.WiredTigerError, lambda: cX.compare(c1), msg)
         msg = '/wt_cursor.* is None/'
         self.assertRaisesHavingMessage(
-            exceptions.RuntimeError,  lambda: cX.compare(None), msg)
+            RuntimeError,  lambda: cX.compare(None), msg)
         if ix0_0 != None:
             self.assertEqual(ix0_0.compare(ix0_1), 0)
             ix0_1.reset()
@@ -188,7 +188,7 @@ class test_cursor_comparison(wttest.WiredTigerTestCase):
             wiredtiger.WiredTigerError, lambda: cX.equals(c1), msg)
         msg = '/wt_cursor.* is None/'
         self.assertRaisesHavingMessage(
-            exceptions.RuntimeError,  lambda: cX.equals(None), msg)
+            RuntimeError,  lambda: cX.equals(None), msg)
         if ix0_0 != None:
             self.assertTrue(ix0_0.equals(ix0_1))
             ix0_1.reset()

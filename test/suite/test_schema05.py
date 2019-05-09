@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -84,9 +84,9 @@ class test_schema05(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor('table:schema05', None, None)
         if phase == 0:
             range_from = 0
-            range_to = self.nentries / 2
+            range_to = self.nentries // 2
         elif phase == 1:
-            range_from = self.nentries / 2
+            range_from = self.nentries // 2
             range_to = self.nentries - 5
         else:
             range_from = self.nentries - 5

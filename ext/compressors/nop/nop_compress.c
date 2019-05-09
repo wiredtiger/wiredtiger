@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -155,6 +155,7 @@ int
 wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 {
 	NOP_COMPRESSOR *nop_compressor;
+	int ret;
 
 	(void)config;				/* Unused parameters */
 
@@ -169,7 +170,6 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	 * Heap memory (not static), because it can support multiple databases.
 	 */
 	nop_compressor->compressor.compress = nop_compress;
-	nop_compressor->compressor.compress_raw = NULL;
 	nop_compressor->compressor.decompress = nop_decompress;
 	nop_compressor->compressor.pre_size = nop_pre_size;
 	nop_compressor->compressor.terminate = nop_terminate;
@@ -177,7 +177,11 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
 	nop_compressor->wt_api = connection->get_extension_api(connection);
 
 						/* Load the compressor */
-	return (connection->add_compressor(
-	    connection, "nop", (WT_COMPRESSOR *)nop_compressor, NULL));
+	if ((ret = connection->add_compressor(
+	    connection, "nop", (WT_COMPRESSOR *)nop_compressor, NULL)) == 0)
+		return (0);
+
+	free(nop_compressor);
+	return (ret);
 }
 /*! [WT_COMPRESSOR initialization function] */

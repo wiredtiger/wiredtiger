@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -50,9 +50,10 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     ]
 
     conncfg = [
-        ('nolog', dict(conn_config='create,cache_size=1M', using_log=False)),
-        ('log', dict(conn_config='create,log=(archive=false,enabled),cache_size=1M', using_log=True)),
+        ('nolog', dict(conn_config='create,cache_size=2M', using_log=False)),
+        ('log', dict(conn_config='create,log=(file_max=1M,archive=false,enabled),cache_size=2M', using_log=True)),
     ]
+    session_config = 'isolation=snapshot'
 
     nkeys = [
         ('100keys', dict(nkeys=100)),
@@ -173,9 +174,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
             check_value, valcnt, valcnt2, valcnt)
 
     def test_timestamp07(self):
-        if not wiredtiger.timestamp_build():
-            self.skipTest('requires a timestamp build')
-
         uri = self.uri + self.tablename
         uri2 = self.uri + self.tablename2
         uri3 = self.uri + self.tablename3
@@ -194,7 +192,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # print "tables created"
 
         # Insert keys 1..nkeys each with timestamp=key, in some order.
-        orig_keys = range(1, self.nkeys+1)
+        orig_keys = list(range(1, self.nkeys+1))
         keys = orig_keys[:]
         random.shuffle(keys)
 

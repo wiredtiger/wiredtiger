@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -491,6 +491,11 @@ cursor_statistics(Session session)
     cursor = session.open_cursor("statistics:table:mytable",
         null, "statistics=(all,clear)");
     /*! [Statistics cursor clear configuration] */
+
+    /*! [Statistics cursor session] */
+    cursor = session.open_cursor(
+        "statistics:session", null, null);
+    /*! [Statistics cursor session] */
 
     return (true);
 }

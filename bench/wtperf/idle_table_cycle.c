@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -129,7 +129,7 @@ cycle_idle_tables(void *arg)
 		    session, uri, "force,checkpoint_wait=false")) == EBUSY)
 			__wt_sleep(1, 0);
 
-		if (ret != 0 && ret != EBUSY) {
+		if (ret != 0) {
 			lprintf(wtperf, ret, 0,
 			     "Table drop failed in cycle_idle_tables.");
 			wtperf->error = true;
@@ -178,5 +178,5 @@ stop_idle_table_cycle(WTPERF *wtperf, wt_thread_t idle_table_cycle_thread)
 		return;
 
 	wtperf->idle_cycle_run = false;
-	testutil_check(__wt_thread_join(NULL, idle_table_cycle_thread));
+	testutil_check(__wt_thread_join(NULL, &idle_table_cycle_thread));
 }

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -142,6 +142,10 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
 		    "eviction=(threads_max)");
 	conn->evict_threads_max = evict_threads_max;
 	conn->evict_threads_min = evict_threads_min;
+
+	/* Retrieve the wait time and convert from milliseconds */
+	WT_RET(__wt_config_gets(session, cfg, "cache_max_wait_ms", &cval));
+	cache->cache_max_wait_us = (uint64_t)(cval.val * WT_THOUSAND);
 
 	return (0);
 }
@@ -310,6 +314,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
 
 	WT_STAT_SET(session, stats,
 	    cache_bytes_dirty, __wt_cache_dirty_inuse(cache));
+	WT_STAT_SET(session, stats, cache_bytes_dirty_total,
+	    __wt_cache_bytes_plus_overhead(cache, cache->bytes_dirty_total));
 	WT_STAT_SET(session, stats,
 	    cache_bytes_image, __wt_cache_bytes_image(cache));
 	WT_STAT_SET(session, stats,

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -358,6 +358,7 @@ __curds_update(WT_CURSOR *cursor)
 
 	WT_STAT_CONN_INCR(session, cursor_update);
 	WT_STAT_DATA_INCR(session, cursor_update);
+	WT_STAT_CONN_INCRV(session, cursor_update_bytes, cursor->value.size);
 	WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
 
 	WT_ERR(__curds_txn_enter(session, true));
@@ -389,6 +390,7 @@ __curds_remove(WT_CURSOR *cursor)
 
 	WT_STAT_CONN_INCR(session, cursor_remove);
 	WT_STAT_DATA_INCR(session, cursor_remove);
+	WT_STAT_CONN_INCRV(session, cursor_remove_bytes, cursor->key.size);
 	WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
 	WT_ERR(__curds_txn_enter(session, true));
@@ -443,11 +445,11 @@ __curds_close(WT_CURSOR *cursor)
 	WT_SESSION_IMPL *session;
 
 	cds = (WT_CURSOR_DATA_SOURCE *)cursor;
-
 	CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
+err:
 
 	if (cds->source != NULL)
-		ret = cds->source->close(cds->source);
+		WT_TRET(cds->source->close(cds->source));
 
 	if (cds->collator_owned) {
 		if (cds->collator->terminate != NULL)
@@ -464,9 +466,9 @@ __curds_close(WT_CURSOR *cursor)
 	__wt_free(session, cursor->key_format);
 	__wt_free(session, cursor->value_format);
 
-	WT_TRET(__wt_cursor_close(cursor));
+	__wt_cursor_close(cursor);
 
-err:	API_END_RET(session, ret);
+	API_END_RET(session, ret);
 }
 
 /*
@@ -507,13 +509,12 @@ __wt_curds_open(
 
 	WT_STATIC_ASSERT(offsetof(WT_CURSOR_DATA_SOURCE, iface) == 0);
 
-	data_source = NULL;
 	metaconf = NULL;
 
 	WT_RET(__wt_calloc_one(session, &data_source));
-	cursor = &data_source->iface;
+	cursor = (WT_CURSOR *)data_source;
 	*cursor = iface;
-	cursor->session = &session->iface;
+	cursor->session = (WT_SESSION *)session;
 
 	/*
 	 * XXX

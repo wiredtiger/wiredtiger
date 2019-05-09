@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -80,7 +80,8 @@ struct __wt_cursor_backup {
 	size_t list_next;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_CURBACKUP_LOCKER	0x1u	/* Hot-backup started */
+#define	WT_CURBACKUP_DUP	0x1u	/* Duplicated backup cursor */
+#define	WT_CURBACKUP_LOCKER	0x2u	/* Hot-backup started */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint8_t	flags;
 };
@@ -216,6 +217,14 @@ struct __wt_cursor_btree {
 
 	uint8_t	append_tree;		/* Cursor appended to the tree */
 
+	/*
+	 * We have to restart cursor next/prev after a prepare conflict. Keep
+	 * the state of the cursor separately so we can restart at exactly the
+	 * right point.
+	 */
+	enum { WT_CBT_RETRY_NOTSET=0,
+	    WT_CBT_RETRY_INSERT, WT_CBT_RETRY_PAGE } iter_retry;
+
 #ifdef HAVE_DIAGNOSTIC
 	/* Check that cursor next/prev never returns keys out-of-order. */
 	WT_ITEM *lastkey, _lastkey;
@@ -227,17 +236,18 @@ struct __wt_cursor_btree {
 #define	WT_CBT_ITERATE_APPEND	0x002u	/* Col-store: iterating append list */
 #define	WT_CBT_ITERATE_NEXT	0x004u	/* Next iteration configuration */
 #define	WT_CBT_ITERATE_PREV	0x008u	/* Prev iteration configuration */
-#define	WT_CBT_NO_TXN   	0x010u	/* Non-txn cursor (e.g. a checkpoint) */
-#define	WT_CBT_RETRY_NEXT	0x020u	/* Next, resulted in prepare conflict */
-#define	WT_CBT_RETRY_PREV	0x040u	/* Prev, resulted in prepare conflict */
-#define	WT_CBT_SEARCH_SMALLEST	0x080u	/* Row-store: small-key insert list */
-#define	WT_CBT_VAR_ONPAGE_MATCH	0x100u	/* Var-store: on-page recno match */
+#define	WT_CBT_ITERATE_RETRY_NEXT	0x010u	/* Prepare conflict by next. */
+#define	WT_CBT_ITERATE_RETRY_PREV	0x020u	/* Prepare conflict by prev. */
+#define	WT_CBT_NO_TXN   	0x040u	/* Non-txn cursor (e.g. a checkpoint) */
+#define	WT_CBT_READ_ONCE	0x080u	/* Page in with WT_READ_WONT_NEED */
+#define	WT_CBT_SEARCH_SMALLEST	0x100u	/* Row-store: small-key insert list */
+#define	WT_CBT_VAR_ONPAGE_MATCH	0x200u	/* Var-store: on-page recno match */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 #define	WT_CBT_POSITION_MASK		/* Flags associated with position */ \
 	(WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV | \
-	WT_CBT_RETRY_NEXT | WT_CBT_RETRY_PREV | WT_CBT_SEARCH_SMALLEST |     \
-	WT_CBT_VAR_ONPAGE_MATCH)
+	WT_CBT_ITERATE_RETRY_NEXT | WT_CBT_ITERATE_RETRY_PREV |		     \
+	WT_CBT_SEARCH_SMALLEST | WT_CBT_VAR_ONPAGE_MATCH)
 
 	uint32_t flags;
 };
@@ -486,6 +496,7 @@ struct __wt_cursor_stat {
 		WT_DSRC_STATS dsrc_stats;
 		WT_CONNECTION_STATS conn_stats;
 		WT_JOIN_STATS_GROUP join_stats_group;
+		WT_SESSION_STATS session_stats;
 	} u;
 
 	const char **cfg;		/* Original cursor configuration */

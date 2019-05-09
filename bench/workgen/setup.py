@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -62,7 +62,8 @@ wt_ver = '%d.%d' % (WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR)
 setup(name='workgen', version=wt_ver,
     ext_modules=[Extension('_workgen',
                 [os.path.join(dir, 'workgen_wrap.cxx')],
-        libraries=['wiredtiger', 'pthread', 'workgen'],
+        # The ordering of libraries is significant, and matters to some linkers.
+        libraries=['workgen', 'wiredtiger', 'pthread'],
         extra_compile_args=extra_cflags,
     )],
     package_dir={'' : dir},

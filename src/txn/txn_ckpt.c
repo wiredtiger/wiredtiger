@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -56,14 +56,13 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 
 	/*
 	 * This function exists as a place for this comment: named checkpoints
-	 * are only supported on file objects, and not on LSM trees or Helium
-	 * devices.  If a target list is configured for the checkpoint, this
-	 * function is called with each target list entry; check the entry to
-	 * make sure it's backed by a file.  If no target list is configured,
-	 * confirm the metadata file contains no non-file objects. Skip any
-	 * internal system objects. We don't want spurious error messages,
-	 * other code will skip over them and the user has no control over
-	 * their existence.
+	 * are only supported on file objects, and not on LSM trees. If a target
+	 * list is configured for the checkpoint, this function is called with
+	 * each target list entry; check the entry to make sure it's backed by
+	 * a file.  If no target list is configured, confirm the metadata file
+	 * contains no non-file objects. Skip any internal system objects. We
+	 * don't want spurious error messages, other code will skip over them
+	 * and the user has no control over their existence.
 	 */
 	if (uri == NULL) {
 		WT_RET(__wt_metadata_cursor(session, &cursor));
@@ -234,12 +233,12 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_NAMED_DATA_SOURCE *ndsrc;
 
 	/*
-	 * A place-holder, to support Helium devices: we assume calling the
+	 * A place-holder, to support data sources: we assume calling the
 	 * underlying data-source session checkpoint function is sufficient to
 	 * checkpoint all objects in the data source, open or closed, and we
 	 * don't attempt to optimize the checkpoint of individual targets.
-	 * Those assumptions is correct for the Helium device, but it's not
-	 * necessarily going to be true for other data sources.
+	 * Those assumptions are not necessarily going to be true for all
+	 * data sources.
 	 *
 	 * It's not difficult to support data-source checkpoints of individual
 	 * targets (__wt_schema_worker is the underlying function that will do
@@ -372,12 +371,11 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
-	double current_dirty, delta, scrub_min;
-	uint64_t bytes_written_last, bytes_written_start, bytes_written_total;
+	double current_dirty, prev_dirty;
+	uint64_t bytes_written_start, bytes_written_total;
 	uint64_t cache_size, max_write;
-	uint64_t current_us, stepdown_us, total_ms, work_us;
-	uint64_t time_last, time_start, time_stop;
-	bool progress;
+	uint64_t time_start, time_stop;
+	uint64_t total_ms;
 
 	conn = S2C(session);
 	cache = conn->cache;
@@ -388,61 +386,41 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 	 * scrubbing cannot help).
 	 */
 	if (F_ISSET(conn, WT_CONN_CLOSING_TIMESTAMP) ||
-	    cache->eviction_checkpoint_target < DBL_EPSILON ||
-	    cache->eviction_checkpoint_target >= cache->eviction_dirty_trigger)
+	    cache->eviction_checkpoint_target < DBL_EPSILON)
 		return;
 
-	time_last = time_start = __wt_clock(session);
-	bytes_written_last = 0;
+	time_start = __wt_clock(session);
 	bytes_written_start = cache->bytes_written;
-	cache_size = conn->cache_size;
+
 	/*
 	 * If the cache size is zero or very small, we're done.  The cache
 	 * size can briefly become zero if we're transitioning to a shared
 	 * cache via reconfigure.  This avoids potential divide by zero.
 	 */
-	if (cache_size < 10 * WT_MEGABYTE)
+	if ((cache_size = conn->cache_size) < 10 * WT_MEGABYTE)
 		return;
 
-	/*
-	 * Skip scrubbing if it won't perform at-least some minimum amount of
-	 * work. Scrubbing is supposed to bring down the dirty data to eviction
-	 * checkpoint target before the actual checkpoint starts. Do not perform
-	 * scrubbing if the dirty data to scrub is less than a pre-configured
-	 * size. This size is to an extent based on the configured cache size
-	 * without being too large or too small for large cache sizes. For the
-	 * values chosen, for instance, 100 GB cache will require at-least
-	 * 200 MB of dirty data above eviction checkpoint target, which should
-	 * equate to a scrub phase a few seconds long. That said, the value of
-	 * 0.2% and 500 MB are still somewhat arbitrary.
-	 */
-	scrub_min = WT_MIN((0.2 * conn->cache_size) / 100, 500 * WT_MEGABYTE);
-	if (__wt_cache_dirty_leaf_inuse(cache) <
-	    ((cache->eviction_checkpoint_target * conn->cache_size) / 100) +
-	    scrub_min)
+	current_dirty =
+	    (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
+	if (current_dirty <= cache->eviction_checkpoint_target)
 		return;
-
-	stepdown_us = 10000;
-	work_us = 0;
-	progress = false;
-
-	/* Step down the scrub target (as a percentage) in units of 10MB. */
-	delta = WT_MIN(1.0, (100 * 10.0 * WT_MEGABYTE) / cache_size);
-
-	/*
-	 * Start with the scrub target equal to the expected maximum percentage
-	 * of dirty data in cache.
-	 */
-	cache->eviction_scrub_limit = cache->eviction_dirty_trigger;
 
 	/* Stop if we write as much dirty data as is currently in cache. */
 	max_write = __wt_cache_dirty_leaf_inuse(cache);
 
-	/* Step down the dirty target to the eviction trigger */
+	/* Set the dirty trigger to the target value. */
+	cache->eviction_scrub_target = cache->eviction_checkpoint_target;
+	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, 0);
+
+	/* Wait while the dirty level is going down. */
 	for (;;) {
+		__wt_sleep(0, 100 * WT_THOUSAND);
+
+		prev_dirty = current_dirty;
 		current_dirty =
 		    (100.0 * __wt_cache_dirty_leaf_inuse(cache)) / cache_size;
-		if (current_dirty <= cache->eviction_checkpoint_target)
+		if (current_dirty <= cache->eviction_checkpoint_target ||
+		    current_dirty >= prev_dirty)
 			break;
 
 		/*
@@ -452,63 +430,17 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 		if (F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE))
 			break;
 
-		__wt_sleep(0, stepdown_us / 10);
-		time_stop = __wt_clock(session);
-		current_us = WT_CLOCKDIFF_US(time_stop, time_last);
+		/*
+		 * We haven't reached the current target.
+		 *
+		 * Don't wait indefinitely: there might be dirty pages
+		 * that can't be evicted.  If we can't meet the target,
+		 * give up and start the checkpoint for real.
+		 */
 		bytes_written_total =
 		    cache->bytes_written - bytes_written_start;
-
-		if (current_dirty > cache->eviction_scrub_limit) {
-			/*
-			 * We haven't reached the current target.
-			 *
-			 * Don't wait indefinitely: there might be dirty pages
-			 * that can't be evicted.  If we can't meet the target,
-			 * give up and start the checkpoint for real.
-			 */
-			if (current_us > WT_MAX(WT_MILLION, 10 * stepdown_us) ||
-			    bytes_written_total > max_write)
-				break;
-			continue;
-		}
-
-		/*
-		 * Estimate how long the next step down of dirty data should
-		 * take.
-		 *
-		 * The calculation here assumes that the system is writing from
-		 * cache as fast as it can, and determines the write throughput
-		 * based on the change in the bytes written from cache since
-		 * the start of the call.  We use that to estimate how long it
-		 * will take to step the dirty target down by delta.
-		 *
-		 * Take care to avoid dividing by zero.
-		 */
-		if (bytes_written_total - bytes_written_last > WT_MEGABYTE &&
-		    work_us > 0) {
-			stepdown_us = (uint64_t)((delta * cache_size / 100) /
-			    ((double)bytes_written_total / work_us));
-			stepdown_us = WT_MAX(1, stepdown_us);
-			if (!progress)
-				stepdown_us = WT_MIN(stepdown_us, 200000);
-			progress = true;
-
-			bytes_written_last = bytes_written_total;
-		}
-
-		work_us += current_us;
-
-		/*
-		 * Smooth out step down: try to limit the impact on
-		 * performance to 10% by waiting once we reach the last
-		 * level.
-		 */
-		__wt_sleep(0, 10 * stepdown_us);
-		cache->eviction_scrub_limit =
-		    WT_MAX(cache->eviction_dirty_target, current_dirty - delta);
-		WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target,
-		    cache->eviction_scrub_limit);
-		time_last = __wt_clock(session);
+		if (bytes_written_total > max_write)
+			break;
 	}
 
 	time_stop = __wt_clock(session);
@@ -534,7 +466,8 @@ __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
 	time_diff = WT_TIMEDIFF_SEC(cur_time,
 	    conn->ckpt_timer_start);
 
-	if (closing || (time_diff / 20) > conn->ckpt_progress_msg_count) {
+	if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) >
+	    conn->ckpt_progress_msg_count) {
 		__wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
 		    "Checkpoint %s for %" PRIu64
 		    " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
@@ -681,8 +614,7 @@ __checkpoint_prepare(
 	 */
 	__wt_writelock(session, &txn_global->rwlock);
 	txn_global->checkpoint_state = *txn_state;
-	txn_global->checkpoint_txn = txn;
-	txn_global->checkpoint_state.pinned_id = WT_MIN(txn->id, txn->snap_min);
+	txn_global->checkpoint_state.pinned_id = txn->snap_min;
 
 	/*
 	 * Sanity check that the oldest ID hasn't moved on before we have
@@ -702,7 +634,6 @@ __checkpoint_prepare(
 	txn_state->id = txn_state->pinned_id =
 	    txn_state->metadata_pinned = WT_TXN_NONE;
 
-#ifdef HAVE_TIMESTAMPS
 	/*
 	 * Set the checkpoint transaction's timestamp, if requested.
 	 *
@@ -722,27 +653,22 @@ __checkpoint_prepare(
 		 * timestamp until its checkpoint is complete.
 		 */
 		if (txn_global->has_stable_timestamp) {
-			__wt_timestamp_set(&txn->read_timestamp,
-			    &txn_global->stable_timestamp);
+			txn->read_timestamp = txn_global->stable_timestamp;
+			txn_global->checkpoint_timestamp = txn->read_timestamp;
 			F_SET(txn, WT_TXN_HAS_TS_READ);
 			if (!F_ISSET(conn, WT_CONN_RECOVERING))
-				__wt_timestamp_set(
-				    &txn_global->meta_ckpt_timestamp,
-				    &txn->read_timestamp);
+				txn_global->meta_ckpt_timestamp =
+				    txn->read_timestamp;
 		} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
-			__wt_timestamp_set(&txn_global->meta_ckpt_timestamp,
-			    &txn_global->recovery_timestamp);
+			txn_global->meta_ckpt_timestamp =
+			    txn_global->recovery_timestamp;
 	} else if (!F_ISSET(conn, WT_CONN_RECOVERING))
-		__wt_timestamp_set_zero(&txn_global->meta_ckpt_timestamp);
-#else
-	WT_UNUSED(use_timestamp);
-#endif
+		txn_global->meta_ckpt_timestamp = 0;
 
 	__wt_writeunlock(session, &txn_global->rwlock);
 
-#ifdef HAVE_TIMESTAMPS
 	if (F_ISSET(txn, WT_TXN_HAS_TS_READ)) {
-		__wt_verbose_timestamp(session, &txn->read_timestamp,
+		__wt_verbose_timestamp(session, txn->read_timestamp,
 		    "Checkpoint requested at stable timestamp");
 
 		/*
@@ -753,7 +679,6 @@ __checkpoint_prepare(
 		 */
 		__wt_txn_get_snapshot(session);
 	}
-#endif
 
 	/*
 	 * Get a list of handles we want to flush; for named checkpoints this
@@ -763,8 +688,8 @@ __checkpoint_prepare(
 	 * then release any clean handles.
 	 */
 	WT_ASSERT(session, session->ckpt_handle_next == 0);
-	WT_WITH_TABLE_READ_LOCK(session, ret = __checkpoint_apply_all(
-	    session, cfg, __wt_checkpoint_get_handles));
+	WT_WITH_TABLE_READ_LOCK(session, ret =
+	    __checkpoint_apply_all(session, cfg, __wt_checkpoint_get_handles));
 	return (ret);
 }
 
@@ -802,14 +727,10 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "target", &cval));
 	__wt_config_subinit(session, &targetconf, &cval);
-	full = __wt_config_next(&targetconf, &k, &v) != 0;
-	if (fullp != NULL)
-		*fullp = full;
+	*fullp = full = __wt_config_next(&targetconf, &k, &v) != 0;
 
 	WT_RET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
-	use_timestamp = cval.val != 0;
-	if (use_timestampp != NULL)
-		*use_timestampp = use_timestamp;
+	*use_timestampp = use_timestamp = cval.val != 0;
 
 	/* Never skip non-full checkpoints */
 	if (!full)
@@ -838,22 +759,17 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 		return (0);
 	}
 
-#ifdef HAVE_TIMESTAMPS
 	/*
 	 * If the checkpoint is using timestamps, and the stable timestamp
 	 * hasn't been updated since the last checkpoint there is nothing
 	 * more that could be written.
 	 */
 	if (use_timestamp && txn_global->has_stable_timestamp &&
-	    !__wt_timestamp_iszero(&txn_global->last_ckpt_timestamp) &&
-	    __wt_timestamp_cmp(&txn_global->last_ckpt_timestamp,
-	    &txn_global->stable_timestamp) == 0) {
+	    txn_global->last_ckpt_timestamp != WT_TS_NONE &&
+	    txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
 		*can_skipp = true;
 		return (0);
 	}
-#else
-	WT_UNUSED(txn_global);
-#endif
 
 	return (0);
 }
@@ -868,10 +784,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
-	WT_DECL_TIMESTAMP(ckpt_tmp_ts)
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_ISOLATION saved_isolation;
+	wt_timestamp_t ckpt_tmp_ts;
 	uint64_t fsync_duration_usecs, generation, time_start, time_stop;
 	u_int i;
 	bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
@@ -979,7 +895,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Unblock updates -- we can figure out that any updates to clean pages
 	 * after this point are too new to be written in the checkpoint.
 	 */
-	cache->eviction_scrub_limit = 0.0;
+	cache->eviction_scrub_target = 0.0;
 	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, 0);
 
 	/* Tell logging that we have started a database checkpoint. */
@@ -998,7 +914,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	session->dhandle = NULL;
 
-#ifdef HAVE_TIMESTAMPS
 	/*
 	 * Record the timestamp from the transaction if we were successful.
 	 * Store it in a temp variable now because it will be invalidated during
@@ -1006,12 +921,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	 * is successful. We have to set the system information before we
 	 * release the snapshot.
 	 */
-	__wt_timestamp_set_zero(&ckpt_tmp_ts);
+	ckpt_tmp_ts = 0;
 	if (full) {
 		WT_ERR(__wt_meta_sysinfo_set(session));
-		__wt_timestamp_set(&ckpt_tmp_ts, &txn->read_timestamp);
+		ckpt_tmp_ts = txn->read_timestamp;
 	}
-#endif
 
 	/* Release the snapshot so we aren't pinning updates in cache. */
 	__wt_txn_release_snapshot(session);
@@ -1060,9 +974,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		/* Disable metadata tracking during the metadata checkpoint. */
 		saved_meta_next = session->meta_track_next;
 		session->meta_track_next = NULL;
-		WT_WITH_METADATA_LOCK(session,
-		    WT_WITH_DHANDLE(session,
-			WT_SESSION_META_DHANDLE(session),
+		WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
+		    WT_WITH_METADATA_LOCK(session,
 			ret = __wt_checkpoint(session, cfg)));
 		session->meta_track_next = saved_meta_next;
 		WT_ERR(ret);
@@ -1087,7 +1000,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (full) {
 		__checkpoint_stats(session);
-#ifdef HAVE_TIMESTAMPS
+
 		/*
 		 * If timestamps were used to define the content of the
 		 * checkpoint update the saved last checkpoint timestamp,
@@ -1096,10 +1009,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 		 * the saved last checkpoint timestamp regardless.
 		 */
 		if (use_timestamp)
-			__wt_timestamp_set(
-			    &conn->txn_global.last_ckpt_timestamp,
-			    &ckpt_tmp_ts);
-#endif
+			conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
 	}
 
 err:	/*
@@ -1129,7 +1039,7 @@ err:	/*
 	if (tracking)
 		WT_TRET(__wt_meta_track_off(session, false, failed));
 
-	cache->eviction_scrub_limit = 0.0;
+	cache->eviction_scrub_target = 0.0;
 	WT_STAT_CONN_SET(session, txn_checkpoint_scrub_target, 0);
 
 	if (F_ISSET(txn, WT_TXN_RUNNING)) {
@@ -1361,6 +1271,93 @@ __drop_to(WT_CKPT *ckptbase, const char *name, size_t len)
 }
 
 /*
+ * __checkpoint_lock_dirty_tree_int --
+ *	Helper for __checkpoint_lock_dirty_tree.  Intended to be called while
+ *	holding the hot backup lock.
+ */
+static int
+__checkpoint_lock_dirty_tree_int(
+    WT_SESSION_IMPL *session, bool is_checkpoint,
+    bool force, WT_BTREE *btree, WT_CKPT *ckpt, WT_CKPT *ckptbase)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	WT_UNUSED(is_checkpoint);
+	conn = S2C(session);
+
+	/*
+	 * We can't delete checkpoints if a backup cursor is open.  WiredTiger
+	 * checkpoints are uniquely named and it's OK to have multiple of them
+	 * in the system: clear the delete flag for them, and otherwise fail.
+	 * Hold the lock until we're done (blocking hot backups from starting),
+	 * we don't want to race with a future hot backup.
+	 */
+	if (conn->hot_backup)
+		WT_CKPT_FOREACH(ckptbase, ckpt) {
+			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+				continue;
+			if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+				F_CLR(ckpt, WT_CKPT_DELETE);
+				continue;
+			}
+			WT_RET_MSG(session, EBUSY,
+			    "checkpoint %s blocked by hot backup: it would"
+			    "delete an existing checkpoint, and checkpoints "
+			    "cannot be deleted during a hot backup",
+			    ckpt->name);
+		}
+	/*
+	 * Mark old checkpoints that are being deleted and figure out which
+	 * trees we can skip in this checkpoint.
+	 */
+	WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
+	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+		return (0);
+	/*
+	 * Lock the checkpoints that will be deleted.
+	 *
+	 * Checkpoints are only locked when tracking is enabled, which covers
+	 * checkpoint and drop operations, but not close.  The reasoning is
+	 * there should be no access to a checkpoint during close, because any
+	 * thread accessing a checkpoint will also have the current file handle
+	 * open.
+	 */
+	if (WT_META_TRACKING(session))
+		WT_CKPT_FOREACH(ckptbase, ckpt) {
+			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+				continue;
+			/*
+			 * We can't delete checkpoints referenced by a cursor.
+			 * WiredTiger checkpoints are uniquely named and it's
+			 * OK to have multiple in the system: clear the delete
+			 * flag for them, and otherwise fail.
+			 */
+			ret = __wt_session_lock_checkpoint(session, ckpt->name);
+			if (ret == 0)
+				continue;
+			if (ret == EBUSY &&
+			    WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+				F_CLR(ckpt, WT_CKPT_DELETE);
+				continue;
+			}
+			WT_RET_MSG(session, ret,
+			    "checkpoints cannot be dropped when in-use");
+		}
+	/*
+	 * There are special trees: those being bulk-loaded, salvaged, upgraded
+	 * or verified during the checkpoint. They should never be part of a
+	 * checkpoint: we will fail to lock them because the operations have
+	 * exclusive access to the handles. Named checkpoints will fail in that
+	 * case, ordinary checkpoints skip files that cannot be opened normally.
+	 */
+	WT_ASSERT(session,
+	    !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
+
+	return (0);
+}
+
+/*
  * __checkpoint_lock_dirty_tree --
  *	Decide whether the tree needs to be included in the checkpoint and if
  *	so, acquire the necessary locks.
@@ -1373,18 +1370,14 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	WT_CKPT *ckpt, *ckptbase;
 	WT_CONFIG dropconf;
 	WT_CONFIG_ITEM cval, k, v;
-	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	const char *name;
 	char *name_alloc;
-	bool hot_backup_locked;
 
 	btree = S2BT(session);
-	conn = S2C(session);
 	ckpt = ckptbase = NULL;
 	dhandle = session->dhandle;
-	hot_backup_locked = false;
 	name_alloc = NULL;
 
 	/* Only referenced in diagnostic builds. */
@@ -1468,81 +1461,16 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	F_SET(ckpt, WT_CKPT_ADD);
 
 	/*
-	 * We can't delete checkpoints if a backup cursor is open.  WiredTiger
-	 * checkpoints are uniquely named and it's OK to have multiple of them
-	 * in the system: clear the delete flag for them, and otherwise fail.
-	 * Hold the lock until we're done (blocking hot backups from starting),
-	 * we don't want to race with a future hot backup.
+	 * There is some interaction between backups and checkpoints.  Perform
+	 * all backup related operations that the checkpoint needs now, while
+	 * holding the hot backup read lock.
 	 */
-	__wt_readlock(session, &conn->hot_backup_lock);
-	hot_backup_locked = true;
-	if (conn->hot_backup)
-		WT_CKPT_FOREACH(ckptbase, ckpt) {
-			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-				continue;
-			if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-				F_CLR(ckpt, WT_CKPT_DELETE);
-				continue;
-			}
-			WT_ERR_MSG(session, EBUSY,
-			    "checkpoint %s blocked by hot backup: it would "
-			    "delete an existing checkpoint, and checkpoints "
-			    "cannot be deleted during a hot backup",
-			    ckpt->name);
-		}
-
-	/*
-	 * Mark old checkpoints that are being deleted and figure out which
-	 * trees we can skip in this checkpoint.
-	 */
-	WT_ERR(__checkpoint_mark_skip(session, ckptbase, force));
+	WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
+	    ret = __checkpoint_lock_dirty_tree_int(
+		session, is_checkpoint, force, btree, ckpt, ckptbase));
+	WT_ERR(ret);
 	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
 		goto err;
-
-	/*
-	 * Lock the checkpoints that will be deleted.
-	 *
-	 * Checkpoints are only locked when tracking is enabled, which covers
-	 * checkpoint and drop operations, but not close.  The reasoning is
-	 * there should be no access to a checkpoint during close, because any
-	 * thread accessing a checkpoint will also have the current file handle
-	 * open.
-	 */
-	if (WT_META_TRACKING(session))
-		WT_CKPT_FOREACH(ckptbase, ckpt) {
-			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-				continue;
-
-			/*
-			 * We can't delete checkpoints referenced by a cursor.
-			 * WiredTiger checkpoints are uniquely named and it's
-			 * OK to have multiple in the system: clear the delete
-			 * flag for them, and otherwise fail.
-			 */
-			ret = __wt_session_lock_checkpoint(session, ckpt->name);
-			if (ret == 0)
-				continue;
-			if (ret == EBUSY &&
-			    WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-				F_CLR(ckpt, WT_CKPT_DELETE);
-				continue;
-			}
-			WT_ERR_MSG(session, ret,
-			    "checkpoints cannot be dropped when in-use");
-		}
-
-	/*
-	 * There are special tree: those being bulk-loaded, salvaged, upgraded
-	 * or verified during the checkpoint. They should never be part of a
-	 * checkpoint: we will fail to lock them because the operations have
-	 * exclusive access to the handles. Named checkpoints will fail in that
-	 * case, ordinary checkpoints will skip files that cannot be opened
-	 * normally.
-	 */
-	WT_ASSERT(session,
-	    !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
-
-	__wt_readunlock(session, &conn->hot_backup_lock);
 
 	WT_ASSERT(session, btree->ckpt == NULL &&
 	    !F_ISSET(btree, WT_BTREE_SKIP_CKPT));
@@ -1550,10 +1478,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 
 	return (0);
 
-err:	if (hot_backup_locked)
-		__wt_readunlock(session, &conn->hot_backup_lock);
-
-	__wt_meta_ckptlist_free(session, &ckptbase);
+err:	__wt_meta_ckptlist_free(session, &ckptbase);
 	__wt_free(session, name_alloc);
 
 	return (ret);
@@ -1627,6 +1552,39 @@ __checkpoint_mark_skip(
 }
 
 /*
+ * __wt_checkpoint_tree_reconcile_update --
+ *	Update a checkpoint based on reconciliation results.
+ */
+void
+__wt_checkpoint_tree_reconcile_update(
+    WT_SESSION_IMPL *session, wt_timestamp_t newest_durable_ts,
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
+{
+	WT_BTREE *btree;
+	WT_CKPT *ckpt, *ckptbase;
+
+	btree = S2BT(session);
+
+	/*
+	 * Reconciliation just wrote a checkpoint, everything has been written.
+	 * Update the checkpoint with reconciliation information. The reason
+	 * for this function is the reconciliation code just passes through the
+	 * btree structure's checkpoint array, it doesn't know any more.
+	 */
+	ckptbase = btree->ckpt;
+	WT_CKPT_FOREACH(ckptbase, ckpt)
+		if (F_ISSET(ckpt, WT_CKPT_ADD)) {
+			ckpt->write_gen = btree->write_gen;
+			ckpt->newest_durable_ts = newest_durable_ts;
+			ckpt->oldest_start_ts = oldest_start_ts;
+			ckpt->oldest_start_txn = oldest_start_txn;
+			ckpt->newest_stop_ts = newest_stop_ts;
+			ckpt->newest_stop_txn = newest_stop_txn;
+		}
+}
+
+/*
  * __checkpoint_tree --
  *	Checkpoint a single tree.
  *	Assumes all necessary locks have been acquired by the caller.
@@ -1637,7 +1595,6 @@ __checkpoint_tree(
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
-	WT_CKPT *ckpt, *ckptbase;
 	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
@@ -1648,7 +1605,6 @@ __checkpoint_tree(
 
 	btree = S2BT(session);
 	bm = btree->bm;
-	ckptbase = btree->ckpt;
 	conn = S2C(session);
 	dhandle = session->dhandle;
 	fake_ckpt = resolve_bm = false;
@@ -1675,11 +1631,13 @@ __checkpoint_tree(
 	 * same name you would have to use the bulk-load's fake checkpoint to
 	 * delete a physical checkpoint, and that will end in tears.
 	 */
-	if (is_checkpoint)
-		if (btree->original) {
-			fake_ckpt = true;
-			goto fake;
-		}
+	if (is_checkpoint && btree->original) {
+		__wt_checkpoint_tree_reconcile_update(session,
+		    WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
+
+		fake_ckpt = true;
+		goto fake;
+	}
 
 	/*
 	 * Mark the root page dirty to ensure something gets written. (If the
@@ -1721,17 +1679,9 @@ __checkpoint_tree(
 
 	/* Flush the file from the cache, creating the checkpoint. */
 	if (is_checkpoint)
-		WT_ERR(__wt_cache_op(session, WT_SYNC_CHECKPOINT));
+		WT_ERR(__wt_sync_file(session, WT_SYNC_CHECKPOINT));
 	else
-		WT_ERR(__wt_cache_op(session, WT_SYNC_CLOSE));
-
-	/*
-	 * All blocks being written have been written; set the object's write
-	 * generation.
-	 */
-	WT_CKPT_FOREACH(ckptbase, ckpt)
-		if (F_ISSET(ckpt, WT_CKPT_ADD))
-			ckpt->write_gen = btree->write_gen;
+		WT_ERR(__wt_evict_file(session, WT_SYNC_CLOSE));
 
 fake:	/*
 	 * If we're faking a checkpoint and logging is enabled, recovery should
@@ -1760,7 +1710,7 @@ fake:	/*
 		WT_ERR(__wt_checkpoint_sync(session, NULL));
 
 	WT_ERR(__wt_meta_ckptlist_set(
-	    session, dhandle->name, ckptbase, &ckptlsn));
+	    session, dhandle->name, btree->ckpt, &ckptlsn));
 
 	/*
 	 * If we wrote a checkpoint (rather than faking one), we have to resolve
@@ -1945,7 +1895,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	 * validate exit accounting.
 	 */
 	if (final && !WT_IS_METADATA(session->dhandle))
-		return (__wt_cache_op(session, WT_SYNC_DISCARD));
+		return (__wt_evict_file(session, WT_SYNC_DISCARD));
 
 	/*
 	 * If closing an unmodified file, check that no update is required
@@ -1955,8 +1905,8 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 		WT_RET(__wt_txn_update_oldest(
 		    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 		return (__wt_txn_visible_all(session, btree->rec_max_txn,
-		    WT_TIMESTAMP_NULL(&btree->rec_max_timestamp)) ?
-		    __wt_cache_op(session, WT_SYNC_DISCARD) : EBUSY);
+		    btree->rec_max_timestamp) ?
+		    __wt_evict_file(session, WT_SYNC_DISCARD) : EBUSY);
 	}
 
 	/*
@@ -1966,7 +1916,7 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
 	if (btree->modified && !bulk &&
 	    S2C(session)->txn_global.has_stable_timestamp &&
 	    !__wt_btree_immediately_durable(session))
-		return (EBUSY);
+		return (__wt_set_return(session, EBUSY));
 
 	/*
 	 * Turn on metadata tracking if:

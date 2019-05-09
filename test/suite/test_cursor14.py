@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -53,7 +53,7 @@ class test_cursor14(wttest.WiredTigerTestCase):
         ds = self.dataset(self, uri, 100, key_format=self.keyfmt)
         ds.populate()
 
-        for i in xrange(66000):
+        for i in range(66000):
             cursor = self.session.open_cursor(uri, None, None)
 
 if __name__ == '__main__':

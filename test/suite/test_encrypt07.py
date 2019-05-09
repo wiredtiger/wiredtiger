@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -61,7 +61,7 @@ class test_encrypt07(test_salvage.test_salvage):
     # (to find a physical spot to damage) we'll need to search for
     # the rot13 encrypted string.
     def damage(self, tablename):
-        self.damage_inner(tablename, self.rot13(self.unique))
+        self.damage_inner(tablename, self.rot13(self.unique).encode())
 
 if __name__ == '__main__':
     wttest.run()

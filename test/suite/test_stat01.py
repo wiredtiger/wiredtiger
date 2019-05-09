@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -107,7 +107,8 @@ class test_stat01(wttest.WiredTigerTestCase):
     # Test simple object statistics.
     def test_basic_data_source_stats(self):
         # Build an object.
-        config = self.config + ',key_format=' + self.keyfmt
+        config = self.config + ',key_format=' + self.keyfmt + \
+            ',value_format=S'
         self.session.create(self.uri, config)
         cursor = self.session.open_cursor(self.uri, None, None)
         value = ""

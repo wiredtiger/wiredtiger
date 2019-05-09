@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -473,44 +473,31 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
 /* pre_load_data --
  *	Pull everything into cache before starting the workload phase.
  */
-static int
+static void
 pre_load_data(WTPERF *wtperf)
 {
 	CONFIG_OPTS *opts;
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_SESSION *session;
-	char *key;
-	int ret;
 	size_t i;
+	int ret;
+	char *key;
 
 	opts = wtperf->opts;
 	conn = wtperf->conn;
 
-	if ((ret = conn->open_session(
-	    conn, NULL, opts->sess_config, &session)) != 0) {
-		lprintf(wtperf, ret, 0, "worker: WT_CONNECTION.open_session");
-		goto err;
-	}
+	testutil_check(conn->open_session(
+	    conn, NULL, opts->sess_config, &session));
 	for (i = 0; i < opts->table_count; i++) {
-		if ((ret = session->open_cursor(session,
-		    wtperf->uris[i], NULL, NULL, &cursor)) != 0) {
-			lprintf(wtperf, ret, 0,
-			    "worker: WT_SESSION.open_cursor: %s",
-			    wtperf->uris[i]);
-			goto err;
-		}
-		while (cursor->next(cursor) == 0)
-			if ((ret = cursor->get_key(cursor, &key)) != 0)
-				goto err;
-		if ((ret = cursor->close(cursor)) != 0)
-			goto err;
+		testutil_check(session->open_cursor(
+		    session, wtperf->uris[i], NULL, NULL, &cursor));
+		while ((ret = cursor->next(cursor)) == 0)
+			testutil_check(cursor->get_key(cursor, &key));
+		testutil_assert(ret == WT_NOTFOUND);
+		testutil_check(cursor->close(cursor));
 	}
-	if ((ret = session->close(session, NULL)) != 0)
-		goto err;
-	if (ret != 0)
-err:		lprintf(wtperf, ret, 0, "Pre-workload traverse error");
-	return (ret);
+	testutil_check(session->close(session, NULL));
 }
 
 static WT_THREAD_RET
@@ -608,8 +595,7 @@ worker(void *arg)
 
 	/* Setup for truncate */
 	if (workload->truncate != 0)
-		if ((ret = setup_truncate(wtperf, thread, session)) != 0)
-			goto err;
+		setup_truncate(wtperf, thread, session);
 
 	key_buf = thread->key_buf;
 	value_buf = thread->value_buf;
@@ -823,8 +809,26 @@ op_err:			if (ret == WT_ROLLBACK && ops_per_txn != 0) {
 			    log_table_cursor, value_buf);
 			if ((ret =
 			    log_table_cursor->insert(log_table_cursor)) != 0) {
-				lprintf(wtperf, ret, 0, "Cursor insert failed");
-				goto err;
+				lprintf(wtperf, ret, 1, "Cursor insert failed");
+				if (ret == WT_ROLLBACK && ops_per_txn == 0) {
+					lprintf(wtperf, ret, 1,
+					    "log-table: ROLLBACK");
+					if ((ret =
+					    session->rollback_transaction(
+					    session, NULL)) != 0) {
+						lprintf(wtperf, ret, 0, "Failed"
+						     " rollback_transaction");
+						goto err;
+					}
+					if ((ret = session->begin_transaction(
+					    session, NULL)) != 0) {
+						lprintf(wtperf, ret, 0,
+						    "Worker begin "
+						    "transaction failed");
+						goto err;
+					}
+				} else
+					goto err;
 			}
 		}
 
@@ -1268,9 +1272,9 @@ static WT_THREAD_RET
 monitor(void *arg)
 {
 	struct timespec t;
-	struct tm *tm, _tm;
+	struct tm localt;
 	CONFIG_OPTS *opts;
-	FILE *fp;
+	FILE *fp, *jfp;
 	WTPERF *wtperf;
 	size_t len;
 	uint64_t min_thr, reads, inserts, updates;
@@ -1281,15 +1285,18 @@ monitor(void *arg)
 	uint32_t update_avg, update_min, update_max;
 	uint32_t latency_max, level;
 	u_int i;
+	size_t buf_size;
 	int msg_err;
 	const char *str;
 	char buf[64], *path;
+	bool first;
 
 	wtperf = (WTPERF *)arg;
 	opts = wtperf->opts;
 	assert(opts->sample_interval != 0);
 
-	fp = NULL;
+	fp = jfp = NULL;
+	first = true;
 	path = NULL;
 
 	min_thr = (uint64_t)opts->min_throughput;
@@ -1304,8 +1311,15 @@ monitor(void *arg)
 		lprintf(wtperf, errno, 0, "%s", path);
 		goto err;
 	}
+	testutil_check(__wt_snprintf(
+	    path, len, "%s/monitor.json", wtperf->monitor_dir));
+	if ((jfp = fopen(path, "w")) == NULL) {
+		lprintf(wtperf, errno, 0, "%s", path);
+		goto err;
+	}
 	/* Set line buffering for monitor file. */
 	__wt_stream_set_line_buffer(fp);
+	__wt_stream_set_line_buffer(jfp);
 	fprintf(fp,
 	    "#time,"
 	    "totalsec,"
@@ -1337,8 +1351,9 @@ monitor(void *arg)
 			continue;
 
 		__wt_epoch(NULL, &t);
-		tm = localtime_r(&t.tv_sec, &_tm);
-		(void)strftime(buf, sizeof(buf), "%b %d %H:%M:%S", tm);
+		testutil_check(__wt_localtime(NULL, &t.tv_sec, &localt));
+		testutil_assert(
+		    strftime(buf, sizeof(buf), "%b %d %H:%M:%S", &localt) != 0);
 
 		reads = sum_read_ops(wtperf);
 		inserts = sum_insert_ops(wtperf);
@@ -1374,6 +1389,43 @@ monitor(void *arg)
 		    read_avg, read_min, read_max,
 		    insert_avg, insert_min, insert_max,
 		    update_avg, update_min, update_max);
+		if (jfp != NULL) {
+			buf_size = strftime(buf,
+			    sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt);
+			testutil_assert(buf_size != 0);
+			testutil_check(__wt_snprintf(&buf[buf_size],
+			    sizeof(buf) - buf_size,
+			    ".%3.3" PRIu64 "Z",
+			    ns_to_ms((uint64_t)t.tv_nsec)));
+			(void)fprintf(jfp, "{");
+			if (first) {
+				(void)fprintf(jfp, "\"version\":\"%s\",",
+				    WIREDTIGER_VERSION_STRING);
+				first = false;
+			}
+			(void)fprintf(jfp,
+			    "\"localTime\":\"%s\",\"wtperf\":{", buf);
+			/* Note does not have initial comma before "read" */
+			(void)fprintf(jfp,
+			    "\"read\":{\"ops per sec\":%" PRIu64
+			    ",\"average latency\":%" PRIu32
+			    ",\"min latency\":%" PRIu32
+			    ",\"max latency\":%" PRIu32 "}",
+			    cur_reads, read_avg, read_min, read_max);
+			(void)fprintf(jfp,
+			    ",\"insert\":{\"ops per sec\":%" PRIu64
+			    ",\"average latency\":%" PRIu32
+			    ",\"min latency\":%" PRIu32
+			    ",\"max latency\":%" PRIu32 "}",
+			    cur_inserts, insert_avg, insert_min, insert_max);
+			(void)fprintf(jfp,
+			    ",\"update\":{\"ops per sec\":%" PRIu64
+			    ",\"average latency\":%" PRIu32
+			    ",\"min latency\":%" PRIu32
+			    ",\"max latency\":%" PRIu32 "}",
+			    cur_updates, update_avg, update_min, update_max);
+			fprintf(jfp, "}}\n");
+		}
 
 		if (latency_max != 0 &&
 		    (read_max > latency_max || insert_max > latency_max ||
@@ -1424,6 +1476,8 @@ err:		wtperf->error = wtperf->stop = true;
 
 	if (fp != NULL)
 		(void)fclose(fp);
+	if (jfp != NULL)
+		(void)fclose(jfp);
 	free(path);
 
 	return (WT_THREAD_RET_VALUE);
@@ -2197,7 +2251,7 @@ start_all_runs(WTPERF *wtperf)
 
 	/* Wait for threads to finish. */
 	for (i = 0; i < opts->database_count; i++)
-		testutil_check(__wt_thread_join(NULL, threads[i]));
+		testutil_check(__wt_thread_join(NULL, &threads[i]));
 
 	for (i = 0; i < opts->database_count && wtperfs[i] != NULL; i++) {
 		wtperf_free(wtperfs[i]);
@@ -2286,8 +2340,9 @@ start_run(WTPERF *wtperf)
 			start_threads(wtperf, NULL, wtperf->ckptthreads,
 			    opts->checkpoint_threads, checkpoint_worker);
 		}
-		if (opts->pre_load_data && (ret = pre_load_data(wtperf)) != 0)
-			goto err;
+		if (opts->pre_load_data)
+			pre_load_data(wtperf);
+
 		/* Execute the workload. */
 		if ((ret = execute_workload(wtperf)) != 0)
 			goto err;
@@ -2341,7 +2396,7 @@ err:		if (ret == 0)
 	stop_threads(1, wtperf->ckptthreads);
 
 	if (monitor_created != 0)
-		testutil_check(__wt_thread_join(NULL, monitor_thread));
+		testutil_check(__wt_thread_join(NULL, &monitor_thread));
 
 	if (wtperf->conn != NULL && opts->close_conn &&
 	    (t_ret = wtperf->conn->close(wtperf->conn, NULL)) != 0) {
@@ -2381,10 +2436,9 @@ static void
 usage(void)
 {
 	printf("wtperf [-C config] "
-	    "[-H mount] [-h home] [-O file] [-o option] [-T config]\n");
+	    "[-h home] [-O file] [-o option] [-T config]\n");
 	printf("\t-C <string> additional connection configuration\n");
 	printf("\t            (added to option conn_config)\n");
-	printf("\t-H <mount> configure Helium volume mount point\n");
 	printf("\t-h <string> Wired Tiger home must exist, default WT_TEST\n");
 	printf("\t-O <file> file contains options as listed below\n");
 	printf("\t-o option=val[,option=val,...] set options listed below\n");
@@ -2761,7 +2815,7 @@ stop_threads(u_int num, WTPERF_THREAD *threads)
 		return;
 
 	for (i = 0; i < num; ++i, ++threads) {
-		testutil_check(__wt_thread_join(NULL, threads->handle));
+		testutil_check(__wt_thread_join(NULL, &threads->handle));
 
 		free(threads->key_buf);
 		threads->key_buf = NULL;

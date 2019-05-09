@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -29,6 +29,9 @@ __wt_meta_checkpoint(WT_SESSION_IMPL *session,
 	char *config;
 
 	config = NULL;
+
+	/* Clear the returned information. */
+	memset(ckpt, 0, sizeof(*ckpt));
 
 	/* Retrieve the metadata entry for the file. */
 	WT_ERR(__wt_metadata_search(session, fname, &config));
@@ -291,7 +294,7 @@ __wt_meta_ckptlist_get(
 	WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &ckptbase));
 
 	/* Sort in creation-order. */
-	qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
+	__wt_qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
 
 	/* Return the array to our caller. */
 	*ckptbasep = ckptbase;
@@ -314,6 +317,7 @@ __ckpt_load(WT_SESSION_IMPL *session,
     WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_CKPT *ckpt)
 {
 	WT_CONFIG_ITEM a;
+	WT_DECL_RET;
 	char timebuf[64];
 
 	/*
@@ -339,26 +343,108 @@ __ckpt_load(WT_SESSION_IMPL *session,
 		goto format;
 	memcpy(timebuf, a.str, a.len);
 	timebuf[a.len] = '\0';
-	if (sscanf(timebuf, "%" SCNuMAX, &ckpt->sec) != 1)
+	/* NOLINTNEXTLINE(cert-err34-c) */
+	if (sscanf(timebuf, "%" SCNu64, &ckpt->sec) != 1)
 		goto format;
 
 	WT_RET(__wt_config_subgets(session, v, "size", &a));
-	ckpt->ckpt_size = (uint64_t)a.val;
+	ckpt->size = (uint64_t)a.val;
+
+	/* Default to durability. */
+	ret = __wt_config_subgets(session, v, "newest_durable_ts", &a);
+	WT_RET_NOTFOUND_OK(ret);
+	ckpt->newest_durable_ts =
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+	ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
+	WT_RET_NOTFOUND_OK(ret);
+	ckpt->oldest_start_ts =
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+	ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
+	WT_RET_NOTFOUND_OK(ret);
+	ckpt->oldest_start_txn =
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+	ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
+	WT_RET_NOTFOUND_OK(ret);
+	ckpt->newest_stop_ts =
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+	ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
+	WT_RET_NOTFOUND_OK(ret);
+	ckpt->newest_stop_txn =
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+	__wt_check_addr_validity(session,
+	    ckpt->oldest_start_ts, ckpt->oldest_start_txn,
+	    ckpt->newest_stop_ts, ckpt->newest_stop_txn);
 
 	WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
 	if (a.len == 0)
 		goto format;
-	/*
-	 * The largest value a WT_CONFIG_ITEM can handle is signed: this value
-	 * appears on disk and I don't want to sign it there, so I'm casting it
-	 * here instead.
-	 */
 	ckpt->write_gen = (uint64_t)a.val;
 
 	return (0);
 
 format:
 	WT_RET_MSG(session, WT_ERROR, "corrupted checkpoint list");
+}
+
+/*
+ * __wt_metadata_set_base_write_gen --
+ *	Set the connection's base write generation.
+ */
+int
+__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
+{
+	WT_CKPT ckpt;
+
+	WT_RET(__wt_meta_checkpoint(session, WT_METAFILE_URI, NULL, &ckpt));
+
+	/*
+	 * We track the maximum page generation we've ever seen, and I'm not
+	 * interested in debugging off-by-ones.
+	 */
+	S2C(session)->base_write_gen = ckpt.write_gen + 1;
+
+	__wt_meta_checkpoint_free(session, &ckpt);
+
+	return (0);
+}
+
+/*
+ * __ckptlist_review_write_gen --
+ *	Review the checkpoint's write generation.
+ */
+static void
+__ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
+{
+	uint64_t v;
+
+	/*
+	 * Every page written in a given wiredtiger_open() session needs to be
+	 * in a single "generation", it's how we know to ignore transactional
+	 * information found on pages written in previous generations. We make
+	 * this work by writing the maximum write generation we've ever seen
+	 * as the write-generation of the metadata file's checkpoint. When
+	 * wiredtiger_open() is called, we copy that write generation into the
+	 * connection's name space as the base write generation value. Then,
+	 * whenever we open a file, if the file's write generation is less than
+	 * the base value, we update the file's write generation so all writes
+	 * will appear after the base value, and we ignore transactions on pages
+	 * where the write generation is less than the base value.
+	 *
+	 * At every checkpoint, if the file's checkpoint write generation is
+	 * larger than the connection's maximum write generation, update the
+	 * connection.
+	 */
+	do {
+		WT_ORDERED_READ(v, S2C(session)->max_write_gen);
+	} while (ckpt->write_gen > v && !__wt_atomic_cas64(
+	    &S2C(session)->max_write_gen, v, ckpt->write_gen));
+
+	/*
+	 * If checkpointing the metadata file, update its write generation to
+	 * be the maximum we've seen.
+	 */
+	if (WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
+		ckpt->write_gen = v;
 }
 
 /*
@@ -372,31 +458,31 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 	WT_CKPT *ckpt;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	time_t secs;
 	int64_t maxorder;
 	const char *sep;
 
-	WT_ERR(__wt_scr_alloc(session, 0, &buf));
+	/*
+	 * Each internal checkpoint name is appended with a generation to make
+	 * it a unique name.  We're solving two problems: when two checkpoints
+	 * are taken quickly, the timer may not be unique and/or we can even
+	 * see time travel on the second checkpoint if we snapshot in-between
+	 * nanoseconds rolling over. Second, if we reset the generational
+	 * counter when new checkpoints arrive, we could logically re-create
+	 * specific checkpoints, racing with cursors open on those checkpoints.
+	 * I can't think of any way to return incorrect results by racing with
+	 * those cursors, but it's simpler not to worry about it.
+	 *
+	 * Determine the current maximum checkpoint generation.
+	 */
 	maxorder = 0;
-	sep = "";
-	WT_ERR(__wt_buf_fmt(session, buf, "checkpoint=("));
-	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		/*
-		 * Each internal checkpoint name is appended with a generation
-		 * to make it a unique name.  We're solving two problems: when
-		 * two checkpoints are taken quickly, the timer may not be
-		 * unique and/or we can even see time travel on the second
-		 * checkpoint if we snapshot the time in-between nanoseconds
-		 * rolling over.  Second, if we reset the generational counter
-		 * when new checkpoints arrive, we could logically re-create
-		 * specific checkpoints, racing with cursors open on those
-		 * checkpoints.  I can't think of any way to return incorrect
-		 * results by racing with those cursors, but it's simpler not
-		 * to worry about it.
-		 */
+	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (ckpt->order > maxorder)
 			maxorder = ckpt->order;
 
+	WT_ERR(__wt_scr_alloc(session, 0, &buf));
+	sep = "";
+	WT_ERR(__wt_buf_fmt(session, buf, "checkpoint=("));
+	WT_CKPT_FOREACH(ckptbase, ckpt) {
 		/* Skip deleted checkpoints. */
 		if (F_ISSET(ckpt, WT_CKPT_DELETE))
 			continue;
@@ -418,34 +504,47 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 			if (F_ISSET(ckpt, WT_CKPT_ADD))
 				ckpt->order = ++maxorder;
 
-			/*
-			 * XXX
-			 * Assumes a time_t fits into a uintmax_t, which isn't
-			 * guaranteed, a time_t has to be an arithmetic type,
-			 * but not an integral type.
-			 */
-			__wt_seconds(session, &secs);
-			ckpt->sec = (uintmax_t)secs;
+			__wt_seconds(session, &ckpt->sec);
 		}
+
+		__wt_check_addr_validity(session,
+		    ckpt->oldest_start_ts, ckpt->oldest_start_txn,
+		    ckpt->newest_stop_ts, ckpt->newest_stop_txn);
+
+		WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
+		sep = ",";
+
 		if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
 			WT_ERR(__wt_buf_catfmt(session, buf,
-			    "%s%s.%" PRId64 "=(addr=\"%.*s\",order=%" PRId64
-			    ",time=%" PRIuMAX ",size=%" PRIu64
-			    ",write_gen=%" PRIu64 ")",
-			    sep, ckpt->name, ckpt->order,
-			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
-			    ckpt->order, ckpt->sec, ckpt->ckpt_size,
-			    ckpt->write_gen));
-		else
-			WT_ERR(__wt_buf_catfmt(session, buf,
-			    "%s%s=(addr=\"%.*s\",order=%" PRId64
-			    ",time=%" PRIuMAX ",size=%" PRIu64
-			    ",write_gen=%" PRIu64 ")",
-			    sep, ckpt->name,
-			    (int)ckpt->addr.size, (char *)ckpt->addr.data,
-			    ckpt->order, ckpt->sec, ckpt->ckpt_size,
-			    ckpt->write_gen));
-		sep = ",";
+			    ".%" PRId64, ckpt->order));
+
+		/* Review the checkpoint's write generation. */
+		__ckptlist_review_write_gen(session, ckpt);
+
+		/*
+		 * Use PRId64 formats: WiredTiger's configuration code handles
+		 * signed 8B values.
+		 */
+		WT_ERR(__wt_buf_catfmt(session, buf,
+		    "=(addr=\"%.*s\",order=%" PRId64
+		    ",time=%" PRIu64
+		    ",size=%" PRId64
+		    ",newest_durable_ts=%" PRId64
+		    ",oldest_start_ts=%" PRId64
+		    ",oldest_start_txn=%" PRId64
+		    ",newest_stop_ts=%" PRId64
+		    ",newest_stop_txn=%" PRId64
+		    ",write_gen=%" PRId64 ")",
+		    (int)ckpt->addr.size, (char *)ckpt->addr.data,
+		    ckpt->order,
+		    ckpt->sec,
+		    (int64_t)ckpt->size,
+		    (int64_t)ckpt->newest_durable_ts,
+		    (int64_t)ckpt->oldest_start_ts,
+		    (int64_t)ckpt->oldest_start_txn,
+		    (int64_t)ckpt->newest_stop_ts,
+		    (int64_t)ckpt->newest_stop_txn,
+		    (int64_t)ckpt->write_gen));
 	}
 	WT_ERR(__wt_buf_catfmt(session, buf, ")"));
 	if (ckptlsn != NULL)
@@ -502,20 +601,19 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	char hex_timestamp[2 * WT_TIMESTAMP_SIZE + 2];
+	char hex_timestamp[2 * sizeof(wt_timestamp_t) + 2];
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 	hex_timestamp[0] = '0';
 	hex_timestamp[1] = '\0';
-#ifdef HAVE_TIMESTAMPS
+
 	/*
 	 * We need to record the timestamp of the checkpoint in the metadata.
 	 * The timestamp value is set at a higher level, either in checkpoint
 	 * or in recovery.
 	 */
-	WT_ERR(__wt_timestamp_to_hex_string(session, hex_timestamp,
-	    &S2C(session)->txn_global.meta_ckpt_timestamp));
-#endif
+	__wt_timestamp_to_hex_string(
+	    S2C(session)->txn_global.meta_ckpt_timestamp, hex_timestamp);
 
 	/*
 	 * Don't leave a zero entry in the metadata: remove it.  This avoids

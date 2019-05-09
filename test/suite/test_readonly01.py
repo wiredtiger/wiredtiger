@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -100,8 +100,8 @@ class test_readonly01(wttest.WiredTigerTestCase, suite_subprocess):
         if self.dirchmod and os.name == 'posix':
             for f in os.listdir(self.home):
                 if os.path.isfile(f):
-                    os.chmod(f, 0444)
-            os.chmod(self.home, 0555)
+                    os.chmod(f, 0o444)
+            os.chmod(self.home, 0o555)
         self.conn = self.setUpConnectionOpen(self.home)
         self.session = self.setUpSessionOpen(self.conn)
 

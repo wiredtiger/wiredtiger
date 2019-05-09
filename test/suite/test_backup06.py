@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -95,8 +95,8 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         dh_after = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
         if (dh_before != dh_after):
-            print "Dhandles open before backup open: " + str(dh_before)
-            print "Dhandles open after backup open: " + str(dh_after)
+            print("Dhandles open before backup open: " + str(dh_before))
+            print("Dhandles open after backup open: " + str(dh_after))
         self.assertEqual(dh_after == dh_before, True)
         cursor.close()
 

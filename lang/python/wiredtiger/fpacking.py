@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,6 +30,7 @@
 # struct library.
 
 import struct
+from wiredtiger.packing import empty_pack
 
 def __wt2struct(fmt):
     if not fmt:
@@ -88,7 +89,7 @@ def unpack(fmt, s):
 def pack(fmt, *values):
     pfmt, fmt = __wt2struct(fmt)
     if not fmt:
-        return ''
+        return empty_pack
     i = sizebytes = 0
     for offset, f in enumerate(fmt):
         if f == 'S':

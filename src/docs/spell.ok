@@ -152,6 +152,7 @@ colgroups
 combinatorial
 command's
 comparator
+compressibility
 cond
 config
 configurign
@@ -180,6 +181,7 @@ dbformat
 dbm
 dbt
 decl
+decrementing
 decrypt
 decrypted
 del
@@ -189,6 +191,8 @@ destructors
 dev
 devdoc
 dhandle
+dhandles
+dhandle's
 disjunction
 disjunctions
 distclean
@@ -262,7 +266,6 @@ html
 htmlinclude
 huffman
 hugepage
-hyperleveldb
 icount
 iflag
 indices
@@ -271,6 +274,7 @@ intl
 inuse
 io
 ip
+ie
 je
 jemalloc
 jitter
@@ -288,13 +292,13 @@ lang
 lastname
 le
 len
-leveldb
 li
 libdir
 libhe
 libkvs
 libtool
 libwiredtiger
+lifecycle
 lmin
 ln
 loadtext
@@ -355,7 +359,6 @@ nolock
 nolocking
 nommap
 nop
-noraw
 nosql
 nosync
 notgranted
@@ -382,9 +385,9 @@ perf
 petabyte
 pget
 php
+pid
 plantuml
 png
-pid
 posix
 pre
 prepends
@@ -423,7 +426,6 @@ ret
 rf
 rmw
 ro
-rocksdb
 rotn
 rpc
 runnable
@@ -465,7 +467,6 @@ substring
 superset
 sys
 sz
-tid
 tRuE
 tablename
 tcl
@@ -473,6 +474,7 @@ tcmalloc
 td
 th
 thang
+tid
 timestamp
 timestamps
 todo

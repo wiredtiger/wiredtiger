@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2018 MongoDB, Inc.
+ * Public Domain 2014-2019 MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -103,7 +103,7 @@ start_workers(table_type type)
 
 	/* Wait for the threads. */
 	for (i = 0; i < g.nworkers; ++i)
-		testutil_check(__wt_thread_join(NULL, tids[i]));
+		testutil_check(__wt_thread_join(NULL, &tids[i]));
 
 	(void)gettimeofday(&stop, NULL);
 	seconds = (stop.tv_sec - start.tv_sec) +
@@ -126,13 +126,22 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 	char valuebuf[64];
 
 	cursor->set_key(cursor, keyno);
-	testutil_check(__wt_snprintf(
-	    valuebuf, sizeof(valuebuf), "%037u", new_val));
-	cursor->set_value(cursor, valuebuf);
-	if ((ret = cursor->insert(cursor)) != 0) {
-		if (ret == WT_ROLLBACK)
-			return (WT_ROLLBACK);
-		return (log_print_err("cursor.insert", ret, 1));
+	/* Roughly 5% removes. */
+	if (new_val % 19 == 0) {
+		if ((ret = cursor->remove(cursor)) != 0) {
+			if (ret == WT_ROLLBACK)
+				return (WT_ROLLBACK);
+			return (log_print_err("cursor.remove", ret, 1));
+		}
+	} else {
+		testutil_check(__wt_snprintf(
+		    valuebuf, sizeof(valuebuf), "%037u", new_val));
+		cursor->set_value(cursor, valuebuf);
+		if ((ret = cursor->insert(cursor)) != 0) {
+			if (ret == WT_ROLLBACK)
+				return (WT_ROLLBACK);
+			return (log_print_err("cursor.insert", ret, 1));
+		}
 	}
 	return (0);
 }

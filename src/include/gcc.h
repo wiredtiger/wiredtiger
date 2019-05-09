@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -11,6 +11,7 @@
 
 /* GCC-specific attributes. */
 #define	WT_PACKED_STRUCT_BEGIN(name)					\
+	/* NOLINTNEXTLINE(misc-macro-parentheses) */	\
 	struct __attribute__ ((__packed__)) name {
 #define	WT_PACKED_STRUCT_END						\
 	};

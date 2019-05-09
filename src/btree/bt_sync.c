@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2018 MongoDB, Inc.
+ * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -108,16 +108,17 @@ __sync_dup_walk(
 }
 
 /*
- * __sync_file --
+ * __wt_sync_file --
  *	Flush pages for a specific file.
  */
-static int
-__sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
+int
+__wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
 	WT_BTREE *btree;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
+	WT_PAGE_MODIFY *mod;
 	WT_REF *prev, *walk;
 	WT_TXN *txn;
 	uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
@@ -239,9 +240,13 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * Set the checkpointing flag to block such actions and wait for
 		 * any problematic eviction or page splits to complete.
 		 */
-		btree->checkpointing = WT_CKPT_PREPARE;
+		WT_ASSERT(session, btree->syncing == WT_BTREE_SYNC_OFF &&
+		    btree->sync_session == NULL);
+
+		btree->sync_session = session;
+		btree->syncing = WT_BTREE_SYNC_WAIT;
 		(void)__wt_gen_next_drain(session, WT_GEN_EVICT);
-		btree->checkpointing = WT_CKPT_RUNNING;
+		btree->syncing = WT_BTREE_SYNC_RUNNING;
 
 		/* Write all dirty in-cache pages. */
 		LF_SET(WT_READ_NO_EVICT);
@@ -256,9 +261,21 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			if (walk == NULL)
 				break;
 
-			/* Skip clean pages. */
-			if (!__wt_page_is_modified(walk->page))
+			/*
+			 * Skip clean pages, but need to make sure maximum
+			 * transaction ID is always updated.
+			 */
+			if (!__wt_page_is_modified(walk->page)) {
+				if (((mod = walk->page->modify) != NULL) &&
+				    mod->rec_max_txn > btree->rec_max_txn)
+					btree->rec_max_txn = mod->rec_max_txn;
+				if (mod != NULL &&
+				    btree->rec_max_timestamp <
+				    mod->rec_max_timestamp)
+					btree->rec_max_timestamp =
+					    mod->rec_max_timestamp;
 				continue;
+			}
 
 			/*
 			 * Take a local reference to the page modify structure
@@ -309,7 +326,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			    page->read_gen == WT_READGEN_WONT_NEED &&
 			    !tried_eviction) {
 				WT_ERR_BUSY_OK(
-				    __wt_page_release_evict(session, walk));
+				    __wt_page_release_evict(session, walk, 0));
 				walk = prev;
 				prev = NULL;
 				tried_eviction = true;
@@ -338,7 +355,7 @@ __sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		break;
 	case WT_SYNC_CLOSE:
 	case WT_SYNC_DISCARD:
-		WT_ERR(__wt_illegal_value(session, NULL));
+		WT_ERR(__wt_illegal_value(session, syncop));
 		break;
 	}
 
@@ -367,7 +384,8 @@ err:	/* On error, clear any left-over tree walk. */
 		__wt_txn_release_snapshot(session);
 
 	/* Clear the checkpoint flag. */
-	btree->checkpointing = WT_CKPT_OFF;
+	btree->syncing = WT_BTREE_SYNC_OFF;
+	btree->sync_session = NULL;
 
 	__wt_spin_unlock(session, &btree->flush_lock);
 
@@ -380,43 +398,5 @@ err:	/* On error, clear any left-over tree walk. */
 	    syncop == WT_SYNC_WRITE_LEAVES && F_ISSET(conn, WT_CONN_CKPT_SYNC))
 		WT_RET(btree->bm->sync(btree->bm, session, false));
 
-	return (ret);
-}
-
-/*
- * __wt_cache_op --
- *	Cache operations.
- */
-int
-__wt_cache_op(WT_SESSION_IMPL *session, WT_CACHE_OP op)
-{
-	WT_DECL_RET;
-
-	switch (op) {
-	case WT_SYNC_CHECKPOINT:
-	case WT_SYNC_CLOSE:
-		/*
-		 * Make sure the checkpoint reference is set for
-		 * reconciliation; it's ugly, but drilling a function parameter
-		 * path from our callers to the reconciliation of the tree's
-		 * root page is going to be worse.
-		 */
-		WT_ASSERT(session, S2BT(session)->ckpt != NULL);
-		break;
-	case WT_SYNC_DISCARD:
-	case WT_SYNC_WRITE_LEAVES:
-		break;
-	}
-
-	switch (op) {
-	case WT_SYNC_CHECKPOINT:
-	case WT_SYNC_WRITE_LEAVES:
-		ret = __sync_file(session, op);
-		break;
-	case WT_SYNC_CLOSE:
-	case WT_SYNC_DISCARD:
-		ret = __wt_evict_file(session, op);
-		break;
-	}
 	return (ret);
 }

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -46,7 +46,7 @@ class test_empty(wttest.WiredTigerTestCase):
     # Creating an object and then closing it shouldn't write any blocks.
     def test_empty_create(self):
         uri = self.type + self.name
-        self.session.create(uri, 'key_format=' + self.fmt)
+        self.session.create(uri, 'key_format=' + self.fmt + ',value_format=S')
         self.session.close()
         name = self.name
         if self.type == "table:":
@@ -59,7 +59,7 @@ class test_empty(wttest.WiredTigerTestCase):
     def empty(self):
         uri = self.type + self.name
         self.session = self.conn.open_session()
-        self.session.create(uri, 'key_format=' + self.fmt)
+        self.session.create(uri, 'key_format=' + self.fmt + ',value_format=S')
 
         # Add a few records to the object and remove them.
         cursor = self.session.open_cursor(uri, None, None)

@@ -58,7 +58,6 @@ each of which is ordered by one or more columns.
 - @subpage custom_extractors
 - @subpage custom_data_sources
 - @subpage custom_file_systems
-- @subpage helium
 @m_endif
 
 <h2>Performance monitoring and tuning</h2>
@@ -68,6 +67,7 @@ each of which is ordered by one or more columns.
 - @subpage_single tune_build_options
 - @subpage_single tune_bulk_load
 - @subpage_single tune_cache
+- @subpage_single tune_capacity
 - @subpage_single tune_checksum
 - @subpage_single tune_close
 - @subpage_single tune_cursor_persist

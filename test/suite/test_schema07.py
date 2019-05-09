@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2018 MongoDB, Inc.
+# Public Domain 2014-2019 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -40,7 +40,7 @@ class test_schema07(wttest.WiredTigerTestCase):
         s = self.session
         # We have a 10MB cache, metadata is (well) over 512B per table,
         # if we can create 20K tables, something must be cleaning up.
-        for i in xrange(20000):
+        for i in range(20000):
             uri = '%s-%06d' % (self.tablename, i)
             s.create(uri)
             c = s.open_cursor(uri)
