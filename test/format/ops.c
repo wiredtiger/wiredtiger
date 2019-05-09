@@ -808,7 +808,7 @@ ops(void *arg)
 			 * Skip if we are using data-sources or LSM, they don't
 			 * support reading from checkpoints.
 			 */
-			if (!SINGLETHREADED && !DATASOURCE("helium") &&
+			if (!SINGLETHREADED &&
 			    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
 			    mmrand(&tinfo->rnd, 1, 10) == 1) {
 				/*
@@ -865,7 +865,7 @@ ops(void *arg)
 		 * the time.
 		 */
 		if (!SINGLETHREADED &&
-		    !intxn && mmrand(&tinfo->rnd, 1, 100) >= g.c_txn_freq) {
+		    !intxn && mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq) {
 			begin_transaction(tinfo, session, &iso_config);
 			snap =
 			    iso_config == ISOLATION_SNAPSHOT ? snap_list : NULL;
