@@ -56,14 +56,13 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 
 	/*
 	 * This function exists as a place for this comment: named checkpoints
-	 * are only supported on file objects, and not on LSM trees or Helium
-	 * devices.  If a target list is configured for the checkpoint, this
-	 * function is called with each target list entry; check the entry to
-	 * make sure it's backed by a file.  If no target list is configured,
-	 * confirm the metadata file contains no non-file objects. Skip any
-	 * internal system objects. We don't want spurious error messages,
-	 * other code will skip over them and the user has no control over
-	 * their existence.
+	 * are only supported on file objects, and not on LSM trees. If a target
+	 * list is configured for the checkpoint, this function is called with
+	 * each target list entry; check the entry to make sure it's backed by
+	 * a file.  If no target list is configured, confirm the metadata file
+	 * contains no non-file objects. Skip any internal system objects. We
+	 * don't want spurious error messages, other code will skip over them
+	 * and the user has no control over their existence.
 	 */
 	if (uri == NULL) {
 		WT_RET(__wt_metadata_cursor(session, &cursor));
@@ -234,12 +233,12 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_NAMED_DATA_SOURCE *ndsrc;
 
 	/*
-	 * A place-holder, to support Helium devices: we assume calling the
+	 * A place-holder, to support data sources: we assume calling the
 	 * underlying data-source session checkpoint function is sufficient to
 	 * checkpoint all objects in the data source, open or closed, and we
 	 * don't attempt to optimize the checkpoint of individual targets.
-	 * Those assumptions is correct for the Helium device, but it's not
-	 * necessarily going to be true for other data sources.
+	 * Those assumptions are not necessarily going to be true for all
+	 * data sources.
 	 *
 	 * It's not difficult to support data-source checkpoints of individual
 	 * targets (__wt_schema_worker is the underlying function that will do
@@ -1560,9 +1559,9 @@ __checkpoint_mark_skip(
  */
 void
 __wt_checkpoint_tree_reconcile_update(
-    WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_ts,
-    wt_timestamp_t newest_durable_ts, wt_timestamp_t newest_stop_ts,
-    uint64_t oldest_start_txn, uint64_t newest_stop_txn)
+    WT_SESSION_IMPL *session, wt_timestamp_t newest_durable_ts,
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
 	WT_BTREE *btree;
 	WT_CKPT *ckpt, *ckptbase;
@@ -1579,10 +1578,10 @@ __wt_checkpoint_tree_reconcile_update(
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (F_ISSET(ckpt, WT_CKPT_ADD)) {
 			ckpt->write_gen = btree->write_gen;
-			ckpt->oldest_start_ts = oldest_start_ts;
 			ckpt->newest_durable_ts = newest_durable_ts;
-			ckpt->newest_stop_ts = newest_stop_ts;
+			ckpt->oldest_start_ts = oldest_start_ts;
 			ckpt->oldest_start_txn = oldest_start_txn;
+			ckpt->newest_stop_ts = newest_stop_ts;
 			ckpt->newest_stop_txn = newest_stop_txn;
 		}
 }
@@ -1636,7 +1635,7 @@ __checkpoint_tree(
 	 */
 	if (is_checkpoint && btree->original) {
 		__wt_checkpoint_tree_reconcile_update(session,
-		    WT_TS_NONE, WT_TS_NONE, WT_TS_MAX, WT_TXN_NONE, WT_TXN_MAX);
+		    WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
 
 		fake_ckpt = true;
 		goto fake;
