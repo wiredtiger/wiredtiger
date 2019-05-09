@@ -88,6 +88,22 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 	    btree->rec_max_txn, btree->rec_max_timestamp)))
 		goto err;
 
+	if (btree != NULL) {
+		wt_timestamp_t pinned_ts;
+		__wt_txn_pinned_timestamp(session, &pinned_ts);
+		WT_IGNORE_RET(__wt_msg(session, "Killing handle %s with max_txn %" PRIu64 " and max_timestamp %" PRIx64
+		    " vs %" PRIu64 ", %" PRIx64,
+		    dhandle->name, btree->rec_max_txn, btree->rec_max_timestamp,
+		    __wt_txn_oldest_id(session), pinned_ts));
+
+		/*
+		 * XXX These assertions are firing regularly, possibly because
+		 * updates are seen, then rolled back.
+		 * WT_ASSERT(session, btree->rec_max_txn >= btree->tmp_rec_max_txn);
+		 * WT_ASSERT(session, btree->rec_max_timestamp >= btree->tmp_rec_max_timestamp);
+		*/
+	}
+
 	/*
 	 * Mark the handle dead and close the underlying handle.
 	 *

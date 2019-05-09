@@ -344,6 +344,35 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	mod = page->modify;
 
 	/*
+	 * Track the page's maximum transaction ID (used to decide if
+	 * we can evict a clean page and discard its history).
+	 */
+	if (WT_TXNID_LT(mod->rec_max_txn, r->max_txn))
+		mod->rec_max_txn = r->max_txn;
+	if (mod->rec_max_timestamp < r->max_timestamp)
+		mod->rec_max_timestamp = r->max_timestamp;
+
+	/*
+	 * Track the tree's maximum transaction ID (used to decide if
+	 * it's safe to discard the tree). Reconciliation for eviction
+	 * is multi-threaded, only update the tree's maximum transaction
+	 * ID when doing a checkpoint. That's sufficient, we only care
+	 * about the maximum transaction ID of current updates in the
+	 * tree, and checkpoint visits every dirty page in the tree.
+	 */
+	if (!F_ISSET(r, WT_REC_EVICT)) {
+		if (WT_TXNID_LT(btree->rec_max_txn, mod->rec_max_txn))
+			btree->rec_max_txn = mod->rec_max_txn;
+		if (btree->rec_max_timestamp < mod->rec_max_timestamp)
+			btree->rec_max_timestamp = mod->rec_max_timestamp;
+	}
+
+	if (WT_TXNID_LT(btree->tmp_rec_max_txn, mod->rec_max_txn))
+		btree->tmp_rec_max_txn = mod->rec_max_txn;
+	if (btree->tmp_rec_max_timestamp < mod->rec_max_timestamp)
+		btree->tmp_rec_max_timestamp = mod->rec_max_timestamp;
+
+	/*
 	 * Set the page's status based on whether or not we cleaned the page.
 	 */
 	if (r->leave_dirty) {
@@ -380,28 +409,6 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		if (r->las_skew_newest)
 			mod->first_dirty_txn = WT_TXN_FIRST;
 	} else {
-		/*
-		 * Track the page's maximum transaction ID (used to decide if
-		 * we can evict a clean page and discard its history).
-		 */
-		mod->rec_max_txn = r->max_txn;
-		mod->rec_max_timestamp = r->max_timestamp;
-
-		/*
-		 * Track the tree's maximum transaction ID (used to decide if
-		 * it's safe to discard the tree). Reconciliation for eviction
-		 * is multi-threaded, only update the tree's maximum transaction
-		 * ID when doing a checkpoint. That's sufficient, we only care
-		 * about the maximum transaction ID of current updates in the
-		 * tree, and checkpoint visits every dirty page in the tree.
-		 */
-		if (!F_ISSET(r, WT_REC_EVICT)) {
-			if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
-				btree->rec_max_txn = r->max_txn;
-			if (btree->rec_max_timestamp < r->max_timestamp)
-				btree->rec_max_timestamp = r->max_timestamp;
-		}
-
 		/*
 		 * The page only might be clean; if the write generation is
 		 * unchanged since reconciliation started, it's clean.
@@ -574,7 +581,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * history, or the stable timestamp hasn't changed since last time this
 	 * page was successfully, skew oldest instead.
 	 */
-	r->las_skew_newest =
+	r->las_skew_newest = false &&
 	    LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
 	if (r->las_skew_newest &&
 	    !__wt_btree_immediately_durable(session) &&
@@ -615,7 +622,7 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
-	r->max_timestamp = 0;
+	r->max_timestamp = WT_TS_NONE;
 
 	/*
 	 * Track the first unstable transaction (when skewing newest this is

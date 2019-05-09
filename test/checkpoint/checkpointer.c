@@ -29,8 +29,9 @@
 #include "test_checkpoint.h"
 
 static WT_THREAD_RET checkpointer(void *);
+static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(
-    WT_CURSOR *, const char *, WT_CURSOR *, const char *);
+    WT_CURSOR *, const char *, WT_CURSOR *, const char *, int);
 static int diagnose_key_error(WT_CURSOR *, int, WT_CURSOR *, int);
 static int real_checkpointer(void);
 static int verify_consistency(WT_SESSION *, bool);
@@ -42,8 +43,11 @@ static int verify_consistency(WT_SESSION *, bool);
 void
 start_checkpoints(void)
 {
+	testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
 	testutil_check(__wt_thread_create(NULL,
 	    &g.checkpoint_thread, checkpointer, NULL));
+	testutil_check(__wt_thread_create(NULL,
+	    &g.clock_thread, clock_thread, NULL));
 }
 
 /*
@@ -54,6 +58,43 @@ void
 end_checkpoints(void)
 {
 	testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
+	testutil_check(__wt_thread_join(NULL, &g.clock_thread));
+	__wt_rwlock_destroy(NULL, &g.clock_lock);
+}
+
+/*
+ * clock_thread --
+ *	Clock thread: ticks up timestamps.
+ */
+static WT_THREAD_RET
+clock_thread(void *arg)
+{
+	WT_SESSION *wt_session;
+	WT_SESSION_IMPL *session;
+	char buf[128];
+
+	WT_UNUSED(arg);
+
+	testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	g.ts = 0;
+	while (g.running) {
+		__wt_writelock(session, &g.clock_lock);
+		++g.ts;
+		testutil_check(__wt_snprintf(
+		    buf, sizeof(buf),
+		    "oldest_timestamp=%x,stable_timestamp=%x", g.ts, g.ts));
+		testutil_check(g.conn->set_timestamp(g.conn, buf));
+		if (g.ts % 997 == 0)
+			__wt_sleep(10, 0);
+		__wt_writeunlock(session, &g.clock_lock);
+		__wt_sleep(0, 10000);
+	}
+
+	testutil_check(wt_session->close(wt_session, NULL));
+
+	return (WT_THREAD_RET_VALUE);
 }
 
 /*
@@ -115,14 +156,17 @@ real_checkpointer(void)
 		    session, checkpoint_config)) != 0)
 			return (log_print_err("session.checkpoint", ret, 1));
 		printf("Finished a checkpoint\n");
++		fflush(stdout);
 
 		if (!g.running)
 			goto done;
 
 		/* Verify the content of the checkpoint. */
-		if ((ret = verify_consistency(session, true)) != 0)
+		if (0 && (ret = verify_consistency(session, true)) != 0)
 			return (log_print_err(
 			    "verify_consistency (offline)", ret, 1));
+
+		__wt_sleep(5, 0);
 	}
 
 done:	if ((ret = session->close(session, NULL)) != 0)
@@ -141,11 +185,12 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
 {
 	WT_CURSOR **cursors;
 	uint64_t key_count;
-	int i, ret, t_ret;
+	int err, err_ret, i, ret, t_ret;
 	const char *ckpt, *type0, *typei;
 	char ckpt_buf[128], next_uri[128];
 
 	ret = t_ret = 0;
+	err = err_ret = 0;
 	key_count = 0;
 	cursors = calloc((size_t)g.ntables, sizeof(*cursors));
 	if (cursors == NULL)
@@ -221,19 +266,26 @@ verify_consistency(WT_SESSION *session, bool use_checkpoint)
 			type0 = type_to_string(g.cookies[0].type);
 			typei = type_to_string(g.cookies[i].type);
 			if ((ret = compare_cursors(
-			    cursors[0], type0, cursors[i], typei)) != 0) {
+			    cursors[0], type0, cursors[i], typei, i)) != 0) {
 				(void)diagnose_key_error(
 				    cursors[0], 0, cursors[i], i);
 				(void)log_print_err(
 				    "verify_consistency - mismatching data",
 				    EFAULT, 1);
+				err++;
+				if (err_ret == 0)
+					err_ret = ret;
+				ret = 0;
+#if 0
 				goto err;
+#endif
 			}
 		}
 	}
-	printf("Finished verifying a %s with %d tables and %" PRIu64
+	printf("Finished verifying a %s (%d errors) with %d tables and %" PRIu64
 	    " keys\n", use_checkpoint ? "checkpoint" : "snapshot",
-	    g.ntables, key_count);
+	    err, g.ntables, key_count);
+	fflush(stdout);
 
 err:	for (i = 0; i < g.ntables; i++) {
 		if (cursors[i] != NULL &&
@@ -244,7 +296,7 @@ err:	for (i = 0; i < g.ntables; i++) {
 	if (!use_checkpoint)
 		testutil_check(session->commit_transaction(session, NULL));
 	free(cursors);
-	return (ret);
+	return (err_ret);
 }
 
 /*
@@ -254,19 +306,21 @@ err:	for (i = 0; i < g.ntables; i++) {
 static int
 compare_cursors(
     WT_CURSOR *cursor1, const char *type1,
-    WT_CURSOR *cursor2, const char *type2)
+    WT_CURSOR *cursor2, const char *type2, int i)
 {
 	uint64_t key1, key2;
 	int ret;
-	char buf[128], *val1, *val2;
+	char buf[128], *k1, *k2, *val1, *val2;
 
 	ret = 0;
 	memset(buf, 0, 128);
 
-	if (cursor1->get_key(cursor1, &key1) != 0 ||
-	    cursor2->get_key(cursor2, &key2) != 0)
+	if (cursor1->get_key(cursor1, &k1) != 0 ||
+	    cursor2->get_key(cursor2, &k2) != 0)
 		return (log_print_err("Error getting keys", EINVAL, 1));
 
+	sscanf(k1, "%" SCNu64, &key1);
+	sscanf(k2, "%" SCNu64, &key2);
 	if (cursor1->get_value(cursor1, &val1) != 0 ||
 	    cursor2->get_value(cursor2, &val2) != 0)
 		return (log_print_err("Error getting values", EINVAL, 1));
@@ -283,8 +337,12 @@ compare_cursors(
 		return (0);
 
 	printf("Key/value mismatch: %" PRIu64 "/%s from a %s table is not %"
-	    PRIu64 "/%s from a %s table\n",
-	    key1, val1, type1, key2, val2, type2);
+	    PRIu64 "/%s from a %s table %d)\n",
+	    key1, val1, type1, key2, val2, type2, i);
+	if (key1 < key2)
+		cursor1->next(cursor1);
+	else
+		cursor2->next(cursor2);
 
 	return (ret);
 }
@@ -303,7 +361,7 @@ diagnose_key_error(
 	WT_SESSION *session;
 	uint64_t key1, key1_orig, key2, key2_orig;
 	int ret;
-	char ckpt[128], next_uri[128];
+	char ckpt[128], keybuf[16], next_uri[128], *k1, *k2;
 
 	/* Hack to avoid passing session as parameter. */
 	session = cursor1->session;
@@ -313,11 +371,13 @@ diagnose_key_error(
 	    ckpt, sizeof(ckpt), "checkpoint=%s", g.checkpoint_name));
 
 	/* Save the failed keys. */
-	if (cursor1->get_key(cursor1, &key1_orig) != 0 ||
-	    cursor2->get_key(cursor2, &key2_orig) != 0) {
+	if (cursor1->get_key(cursor1, &k1) != 0 ||
+	    cursor2->get_key(cursor2, &k2) != 0) {
 		(void)log_print_err("Error retrieving key.", EINVAL, 0);
 		goto live_check;
 	}
+	sscanf(k1, "%" SCNu64, &key1_orig);
+	sscanf(k2, "%" SCNu64, &key2_orig);
 
 	if (key1_orig == key2_orig)
 		goto live_check;
@@ -325,28 +385,40 @@ diagnose_key_error(
 	/* See if previous values are still valid. */
 	if (cursor1->prev(cursor1) != 0 || cursor2->prev(cursor2) != 0)
 		return (1);
-	if (cursor1->get_key(cursor1, &key1) != 0 ||
-	    cursor2->get_key(cursor2, &key2) != 0)
+	if (cursor1->get_key(cursor1, &k1) != 0 ||
+	    cursor2->get_key(cursor2, &k2) != 0)
 		(void)log_print_err("Error decoding key", EINVAL, 1);
-	else if (key1 != key2)
-		(void)log_print_err("Now previous keys don't match", EINVAL, 0);
+	else {
+		sscanf(k1, "%" SCNu64, &key1);
+		sscanf(k2, "%" SCNu64, &key2);
+		if (key1 != key2)
+			(void)log_print_err("Now previous keys don't match", EINVAL, 0);
+	}
 
 	if (cursor1->next(cursor1) != 0 || cursor2->next(cursor2) != 0)
 		return (1);
-	if (cursor1->get_key(cursor1, &key1) != 0 ||
-	    cursor2->get_key(cursor2, &key2) != 0)
+	if (cursor1->get_key(cursor1, &k1) != 0 ||
+	    cursor2->get_key(cursor2, &k2) != 0)
 		(void)log_print_err("Error decoding key", EINVAL, 1);
-	else if (key1 == key2)
-		(void)log_print_err("After prev/next keys match", EINVAL, 0);
+	else  {
+		sscanf(k1, "%" SCNu64, &key1);
+		sscanf(k2, "%" SCNu64, &key2);
+		if (key1 == key2)
+			(void)log_print_err("After prev/next keys match", EINVAL, 0);
+	}
 
 	if (cursor1->next(cursor1) != 0 || cursor2->next(cursor2) != 0)
 		return (1);
-	if (cursor1->get_key(cursor1, &key1) != 0 ||
-	    cursor2->get_key(cursor2, &key2) != 0)
+	if (cursor1->get_key(cursor1, &k1) != 0 ||
+	    cursor2->get_key(cursor2, &k2) != 0)
 		(void)log_print_err("Error decoding key", EINVAL, 1);
-	else if (key1 == key2)
-		(void)log_print_err(
-		    "After prev/next/next keys match", EINVAL, 0);
+	else {
+		sscanf(k1, "%" SCNu64, &key1);
+		sscanf(k2, "%" SCNu64, &key2);
+		if (key1 == key2)
+			(void)log_print_err(
+			    "After prev/next/next keys match", EINVAL, 0);
+	}
 
 	/*
 	 * Now try opening new cursors on the checkpoints and see if we
@@ -356,10 +428,14 @@ diagnose_key_error(
 	    next_uri, sizeof(next_uri), "table:__wt%04d", index1));
 	if (session->open_cursor(session, next_uri, NULL, ckpt, &c) != 0)
 		return (1);
-	c->set_key(c, key1_orig);
+	testutil_check(__wt_snprintf(
+	    keybuf, sizeof(keybuf), "%08u", key1_orig));
+	c->set_key(c, keybuf);
 	if ((ret = c->search(c)) != 0)
 		(void)log_print_err("1st cursor didn't find 1st key", ret, 0);
-	c->set_key(c, key2_orig);
+	testutil_check(__wt_snprintf(
+	    keybuf, sizeof(keybuf), "%08u", key2_orig));
+	c->set_key(c, keybuf);
 	if ((ret = c->search(c)) != 0)
 		(void)log_print_err("1st cursor didn't find 2nd key", ret, 0);
 	if (c->close(c) != 0)
@@ -369,10 +445,14 @@ diagnose_key_error(
 	    next_uri, sizeof(next_uri), "table:__wt%04d", index2));
 	if (session->open_cursor(session, next_uri, NULL, ckpt, &c) != 0)
 		return (1);
-	c->set_key(c, key1_orig);
+	testutil_check(__wt_snprintf(
+	    keybuf, sizeof(keybuf), "%08u", key1_orig));
+	c->set_key(c, keybuf);
 	if ((ret = c->search(c)) != 0)
 		(void)log_print_err("2nd cursor didn't find 1st key", ret, 0);
-	c->set_key(c, key2_orig);
+	testutil_check(__wt_snprintf(
+	    keybuf, sizeof(keybuf), "%08u", key2_orig));
+	c->set_key(c, keybuf);
 	if ((ret = c->search(c)) != 0)
 		(void)log_print_err("2nd cursor didn't find 2nd key", ret, 0);
 	if (c->close(c) != 0)
@@ -387,9 +467,11 @@ live_check:
 	    next_uri, sizeof(next_uri), "table:__wt%04d", index1));
 	if (session->open_cursor(session, next_uri, NULL, NULL, &c) != 0)
 		return (1);
-	c->set_key(c, key1_orig);
+	testutil_check(__wt_snprintf(
+	    keybuf, sizeof(keybuf), "%08u", key1_orig));
+	c->set_key(c, keybuf);
 	if ((ret = c->search(c)) != 0)
-		(void)log_print_err("1st cursor didn't find 1st key", ret, 0);
+		(void)log_print_err("LIVE: 1st cursor didn't find 1st key", ret, 0);
 	if (c->close(c) != 0)
 		return (1);
 
@@ -397,9 +479,11 @@ live_check:
 	    next_uri, sizeof(next_uri), "table:__wt%04d", index2));
 	if (session->open_cursor(session, next_uri, NULL, NULL, &c) != 0)
 		return (1);
-	c->set_key(c, key2_orig);
+	testutil_check(__wt_snprintf(
+	    keybuf, sizeof(keybuf), "%08u", key2_orig));
+	c->set_key(c, keybuf);
 	if ((ret = c->search(c)) != 0)
-		(void)log_print_err("2nd cursor didn't find 2nd key", ret, 0);
+		(void)log_print_err("LIVE: 2nd cursor didn't find 2nd key", ret, 0);
 	if (c->close(c) != 0)
 		return (1);
 

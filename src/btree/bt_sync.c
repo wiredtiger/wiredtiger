@@ -267,13 +267,19 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 */
 			if (!__wt_page_is_modified(walk->page)) {
 				if (((mod = walk->page->modify) != NULL) &&
-				    mod->rec_max_txn > btree->rec_max_txn)
+				    btree->rec_max_txn < mod->rec_max_txn)
 					btree->rec_max_txn = mod->rec_max_txn;
 				if (mod != NULL &&
-				    btree->rec_max_timestamp <
-				    mod->rec_max_timestamp)
+				    mod->rec_max_timestamp >
+				    btree->rec_max_timestamp)
 					btree->rec_max_timestamp =
 					    mod->rec_max_timestamp;
+				if (walk->page_las != NULL &&
+				    btree->rec_max_txn < walk->page_las->max_txn)
+					btree->rec_max_txn = walk->page_las->max_txn;
+				if (walk->page_las != NULL &&
+				    btree->rec_max_timestamp < walk->page_las->max_timestamp)
+					btree->rec_max_timestamp = walk->page_las->max_timestamp;
 				continue;
 			}
 
