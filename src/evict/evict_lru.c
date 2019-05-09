@@ -118,8 +118,8 @@ __evict_lru_cmp(const void *a_arg, const void *b_arg)
 
 	a = a_arg;
 	b = b_arg;
-	a_score = (a->ref == NULL ? UINT64_MAX : a->score);
-	b_score = (b->ref == NULL ? UINT64_MAX : b->score);
+	a_score = (a->ref == NULL ? UINT64_MAX : 0);
+	b_score = (b->ref == NULL ? UINT64_MAX : 0);
 
 	return ((a_score < b_score) ? -1 : (a_score == b_score) ? 0 : 1);
 }
@@ -1980,7 +1980,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 		 * The goal here is that if trees become completely idle, we
 		 * eventually push them out of cache completely.
 		 */
-		if (WT_PAGE_IS_INTERNAL(page)) {
+		if (false && WT_PAGE_IS_INTERNAL(page)) {
 			if (page == last_parent)
 				continue;
 			if (btree->evict_walk_period == 0 &&

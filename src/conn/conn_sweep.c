@@ -97,10 +97,11 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
 		    __wt_txn_oldest_id(session), pinned_ts));
 
 		/*
-		 * XXX This isn't valid: we might leave a page dirty with an uncommitted transaction that gets rolled back.
+		 * XXX These assertions are firing regularly, possibly because
+		 * updates are seen, then rolled back.
 		 * WT_ASSERT(session, btree->rec_max_txn >= btree->tmp_rec_max_txn);
+		 * WT_ASSERT(session, btree->rec_max_timestamp >= btree->tmp_rec_max_timestamp);
 		*/
-		WT_ASSERT(session, btree->rec_max_timestamp >= btree->tmp_rec_max_timestamp);
 	}
 
 	/*

@@ -124,8 +124,8 @@ static int
 real_checkpointer(void)
 {
 	WT_SESSION *session;
-	char buf[128], *checkpoint_config;
 	int ret;
+	char buf[128], *checkpoint_config;
 
 	if (g.running == 0)
 		return (log_print_err(
@@ -162,7 +162,7 @@ real_checkpointer(void)
 			goto done;
 
 		/* Verify the content of the checkpoint. */
-		if (0 && (ret = verify_consistency(session, true)) != 0)
+		if ((ret = verify_consistency(session, true)) != 0)
 			return (log_print_err(
 			    "verify_consistency (offline)", ret, 1));
 

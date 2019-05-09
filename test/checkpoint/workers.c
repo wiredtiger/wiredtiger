@@ -133,12 +133,16 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 		if ((ret = cursor->search_near(cursor, &cmp)) != 0) {
 			if (ret == WT_NOTFOUND)
 				return (0);
+			if (ret == WT_ROLLBACK)
+				return (WT_ROLLBACK);
 			return (log_print_err("cursor.search_near", ret, 1));
 		}
 		if (cmp < 0) {
 			if ((ret = cursor->next(cursor)) != 0) {
 				if (ret == WT_NOTFOUND)
 					return (0);
+				if (ret == WT_ROLLBACK)
+					return (WT_ROLLBACK);
 				return (log_print_err("cursor.next", ret, 1));
 			}
 		}
@@ -151,6 +155,8 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 			if ((ret = cursor->next(cursor)) != 0) {
 				if (ret == WT_NOTFOUND)
 					return (0);
+				if (ret == WT_ROLLBACK)
+					return (WT_ROLLBACK);
 				return (log_print_err("cursor.next", ret, 1));
 			}
 		}

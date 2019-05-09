@@ -581,7 +581,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * history, or the stable timestamp hasn't changed since last time this
 	 * page was successfully, skew oldest instead.
 	 */
-	r->las_skew_newest =
+	r->las_skew_newest = false &&
 	    LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
 	if (r->las_skew_newest &&
 	    !__wt_btree_immediately_durable(session) &&
