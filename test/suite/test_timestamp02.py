@@ -141,8 +141,8 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         k = 10
         c[k] = 0
 
-        self.session.begin_transaction('read_timestamp=10')
-        self.session.timestamp_transaction('commit_timestamp=20')
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(10))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '20')
         c[k] = 1
         # We should see the value we just inserted
         self.assertEqual(c[k], 1)

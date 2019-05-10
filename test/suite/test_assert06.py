@@ -42,10 +42,10 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
     def apply_timestamps(self, timestamp):
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(timestamp))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(timestamp))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + timestamp_str(timestamp))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + str(timestamp))
+        self.session.timestamp_transaction_numeric(
+            'durable_timestamp=' + str(timestamp))
 
     def test_timestamp_alter(self):
         base = 'assert06'
@@ -368,10 +368,10 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         c['key_ts6'] = 'value22'
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(22))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(22))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + timestamp_str(22))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '22')
+        self.session.timestamp_transaction_numeric(
+            'durable_timestamp=' + '22')
         self.session.commit_transaction()
         c.close()
 
@@ -380,8 +380,8 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         c['key_nots'] = 'value23'
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(23))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(23))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '23')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
             'durable_timestamp=' + timestamp_str(23)), msg_usage)

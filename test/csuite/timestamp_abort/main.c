@@ -318,7 +318,7 @@ thread_run(void *arg)
 			testutil_check(pthread_rwlock_rdlock(&ts_lock));
 			active_ts = __wt_atomic_addv64(&global_ts, 1);
 			testutil_check(__wt_snprintf(tscfg,
-			    sizeof(tscfg), "commit_timestamp=%" PRIx64,
+			    sizeof(tscfg), "commit_timestamp=%" PRIu64,
 			    active_ts));
 			/*
 			 * Set the transaction's timestamp now before performing
@@ -327,7 +327,7 @@ thread_run(void *arg)
 			 * collection session in that case would continue to use
 			 * this timestamp.
 			 */
-			testutil_check(session->timestamp_transaction(
+			testutil_check(session->timestamp_transaction_numeric(
 			    session, tscfg));
 			testutil_check(pthread_rwlock_unlock(&ts_lock));
 		}

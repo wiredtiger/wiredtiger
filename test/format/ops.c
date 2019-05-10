@@ -610,9 +610,10 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
 		testutil_check(__wt_snprintf(buf, sizeof(buf),
-		    "read_timestamp=%" PRIx64,
+		    "read_timestamp=%" PRIu64,
 		    __wt_atomic_addv64(&g.timestamp, 1)));
-		testutil_check(session->timestamp_transaction(session, buf));
+		testutil_check(
+		    session->timestamp_transaction_numeric(session, buf));
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
@@ -636,14 +637,15 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(__wt_snprintf(
-		    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
-		testutil_check(session->timestamp_transaction(session, buf));
+		    buf, sizeof(buf), "commit_timestamp=%" PRIu64, ts));
+		testutil_check(
+		    session->timestamp_transaction_numeric(session, buf));
 
 		if (tinfo->prepare_txn) {
 			testutil_check(__wt_snprintf(buf, sizeof(buf),
-			    "durable_timestamp=%" PRIx64, ts));
-			testutil_check(
-			    session->timestamp_transaction(session, buf));
+			    "durable_timestamp=%" PRIu64, ts));
+			testutil_check(session->timestamp_transaction_numeric(
+			    session, buf));
 		}
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));

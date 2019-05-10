@@ -957,8 +957,58 @@ __wt_txn_set_read_timestamp(
 }
 
 /*
+ * __wt_txn_set_timestamp_numeric --
+ *	Parse a request to set a timestamp in a transaction, when timestamp is
+ *	provided in a numeric form.
+ */
+int
+__wt_txn_set_timestamp_numeric(WT_SESSION_IMPL *session, const char *cfg[])
+{
+	WT_CONFIG_ITEM cval;
+	WT_DECL_RET;
+
+	WT_RET(__wt_txn_context_check(session, true));
+
+	/* Look for a commit timestamp. */
+	ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);
+	WT_RET_NOTFOUND_OK(ret);
+	if (ret == 0 && cval.val != 0) {
+		WT_RET(__wt_txn_set_commit_timestamp(
+		    session, (wt_timestamp_t) cval.val));
+		__wt_txn_publish_commit_timestamp(session);
+	}
+
+	/*
+	 * Look for a durable timestamp. Durable timestamp should be set only
+	 * after setting the commit timestamp.
+	 */
+	ret = __wt_config_gets_def(
+	    session, cfg, "durable_timestamp", 0, &cval);
+	WT_RET_NOTFOUND_OK(ret);
+	if (ret == 0 && cval.val != 0)
+		WT_RET(__wt_txn_set_durable_timestamp(
+		    session, (wt_timestamp_t) cval.val));
+
+	/* Look for a read timestamp. */
+	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
+	if (ret == 0 && cval.val != 0)
+		WT_RET(__wt_txn_set_read_timestamp(
+		    session, (wt_timestamp_t) cval.val));
+
+	/* Look for a prepare timestamp. */
+	WT_RET(__wt_config_gets_def(session,
+	    cfg, "prepare_timestamp", 0, &cval));
+	if (ret == 0 && cval.val != 0)
+		WT_RET(__wt_txn_set_prepare_timestamp(
+		    session, (wt_timestamp_t) cval.val));
+
+	return (0);
+}
+
+/*
  * __wt_txn_set_timestamp --
- *	Parse a request to set a timestamp in a transaction.
+ *	Parse a request to set a timestamp in a transaction, when timestamp is
+ *	provided in a hex string form.
  */
 int
 __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])

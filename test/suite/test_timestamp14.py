@@ -64,25 +64,25 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # result in the all_committed timestamp being set.
         session1.begin_transaction()
         cur1[1]=1
-        session1.commit_transaction('commit_timestamp=1')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(1))
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "1")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(1))
 
         # Scenario 2: A transaction begins and specifies that it intends
         # to commit at timestamp 2, a second transaction begins and commits
         # at timestamp 3.
         session1.begin_transaction()
-        session1.timestamp_transaction('commit_timestamp=2')
+        session1.timestamp_transaction_numeric('commit_timestamp=' + '2')
 
         session2.begin_transaction()
         cur2 = session2.open_cursor(all_committed_uri)
         cur2[2] = 2
-        session2.commit_transaction('commit_timestamp=3')
+        session2.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # As the original transaction is still running the all_committed
         # timestamp is being held at 1.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "1")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(1))
         cur1[1] = 2
         session1.commit_transaction()
 
@@ -90,41 +90,41 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # timestamp has moved to 3, skipping 2 as there is a commit with
         # a greater timestamp already existing.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "3")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(3))
 
         # Senario 3: Commit with a commit timestamp of 5 and then begin a
         # transaction intending to commit at 4, the all_committed timestamp
         # should move back to 3. Until the transaction at 4 completes.
         session1.begin_transaction()
         cur1[1] = 3
-        session1.commit_transaction('commit_timestamp=5')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(5))
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "5")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(5))
 
         session1.begin_transaction()
         # All committed will now move back to 3 as it is the point at which
         # all transactions up to that point have committed.
-        session1.timestamp_transaction('commit_timestamp=4')
+        session1.timestamp_transaction_numeric('commit_timestamp=' + '4')
 
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "3")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(3))
 
         session1.commit_transaction()
 
         # Now that the transaction at timestamp 4 has completed the
         # all committed timestamp is back at 5.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "5")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(5))
 
         # Scenario 4: Holding a transaction open without a commit timestamp
         # Will not affect the all_committed timestamp.
         session1.begin_transaction()
         session2.begin_transaction()
         cur2[2] = 2
-        session2.commit_transaction('commit_timestamp=6')
+        session2.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "6")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(6))
         cur1[1] = 2
         session1.commit_transaction()
 
@@ -143,17 +143,17 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.begin_transaction()
         cur1 = session1.open_cursor(oldest_reader_uri)
         cur1[1]=1
-        session1.commit_transaction('commit_timestamp=5')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # No active sessions so no oldest reader.
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.conn.query_timestamp('get=oldest_reader'))
 
         # Create an active read session.
-        session1.begin_transaction('read_timestamp=5')
+        session1.begin_transaction('read_timestamp=' + timestamp_str(5))
         # Oldest reader should now exist and be equal to our read timestamp.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), '5')
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(5))
 
         # Start transaction without read timestamp specified
         # Should not affect the current oldest reader.
@@ -162,23 +162,23 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         cur2[2] = 2
 
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), '5')
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(5))
 
-        session2.commit_transaction('commit_timestamp=7')
+        session2.commit_transaction('commit_timestamp=' + timestamp_str(7))
 
         # Open read transaction with newer read timestamp, oldest
         # Reader should therefore be unchanged.
-        session2.begin_transaction('read_timestamp=7')
+        session2.begin_transaction('read_timestamp=' + timestamp_str(7))
 
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), '5')
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(5))
 
         # End current oldest reader transaction, it will have now moved
         # up to our transaction created before.
         session1.commit_transaction()
 
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), '7')
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(7))
 
         session2.commit_transaction()
 
@@ -203,7 +203,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.begin_transaction()
         cur1 = session1.open_cursor(pinned_oldest_uri)
         cur1[1]=1
-        session1.commit_transaction('commit_timestamp=5')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Confirm no oldest timestamp exists.
         self.assertRaisesException(wiredtiger.WiredTigerError,
@@ -213,30 +213,30 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.conn.query_timestamp('get=pinned'))
 
-        self.conn.set_timestamp('oldest_timestamp=5')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(5))
 
         # Pinned timestamp should now match oldest timestamp
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), '5')
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), timestamp_str(5))
 
         # Write some more data for reading.
         session1.begin_transaction()
         cur1[2]=2
-        session1.commit_transaction('commit_timestamp=8')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(8))
 
         # Create an active read session.
-        session1.begin_transaction('read_timestamp=5')
+        session1.begin_transaction('read_timestamp=' + timestamp_str(5))
 
         # Move oldest timestamp past active read session.
-        self.conn.set_timestamp('oldest_timestamp=8')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(8))
 
         # Pinned timestamp should now reflect oldest reader.
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), '5')
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), timestamp_str(5))
 
         # End active read session.
         session1.commit_transaction()
 
         # Pinned timestamp should now match oldest timestamp.
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), '8')
+        self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), timestamp_str(8))
 
     def test_all(self):
         all_uri = self.uri + 'pinned_oldest'
@@ -247,37 +247,37 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         cur1 = session1.open_cursor(all_uri)
         cur2 = session2.open_cursor(all_uri)
         # Set up oldest timestamp.
-        self.conn.set_timestamp('oldest_timestamp=1')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
 
         # Write some data for reading.
 
         session1.begin_transaction()
         cur1[1]=1
-        session1.commit_transaction('commit_timestamp=2')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(2))
         session1.begin_transaction()
         cur1[1]=2
-        session1.commit_transaction('commit_timestamp=4')
+        session1.commit_transaction('commit_timestamp=' + timestamp_str(4))
         # Confirm all_committed is now 4.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "4")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(4))
 
         # Create a read session.
-        session1.begin_transaction('read_timestamp=2')
+        session1.begin_transaction('read_timestamp=' + timestamp_str(2))
         # Confirm oldest reader is 2 and the the value we read is 1.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), "2")
+            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(2))
 
         self.assertEqual(cur1[1], 1)
         # Commit some data at timestamp 7.
         session2.begin_transaction()
         cur2[2] = 2
-        session2.commit_transaction('commit_timestamp=7')
+        session2.commit_transaction('commit_timestamp=' + timestamp_str(7))
         # All_committed should now be 7.
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "7")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(7))
 
         # Move oldest to 5.
-        self.conn.set_timestamp('oldest_timestamp=5')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(5))
 
         # Confirm pinned timestamp is pointing at oldest_reader.
         self.assertTimestampsEqual(
@@ -288,7 +288,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # this is below our current all_committed so it should move back
         # to the oldest timestamp.
         session2.begin_transaction()
-        session2.timestamp_transaction('commit_timestamp=6')
+        session2.timestamp_transaction_numeric('commit_timestamp=' + '6')
         cur2[2] = 3
 
         # Confirm all_committed is now equal to oldest.
@@ -298,7 +298,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         session2.commit_transaction()
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), "7")
+            self.conn.query_timestamp('get=all_committed'), timestamp_str(7))
         # End our read transaction.
         session1.commit_transaction()
 

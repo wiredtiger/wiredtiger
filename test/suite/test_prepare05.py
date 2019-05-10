@@ -57,8 +57,8 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         # Check setting the prepare timestamp same as oldest timestamp is valid.
         self.session.begin_transaction()
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(2))
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(3))
-        self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(3))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '3')
+        self.session.timestamp_transaction_numeric('durable_timestamp=' + '3')
         self.session.commit_transaction()
 
         # In a single transaction it is illegal to set a commit timestamp
@@ -66,8 +66,7 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         # Note: Values are not important, setting commit timestamp before
         # prepare itself is illegal.
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(3))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '3')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(2)),
@@ -114,8 +113,8 @@ class test_prepare05(wttest.WiredTigerTestCase, suite_subprocess):
         c[1] = 1
         self.session.prepare_transaction(
                 'prepare_timestamp=' + timestamp_str(5))
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(5))
-        self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(5))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '5')
+        self.session.timestamp_transaction_numeric('durable_timestamp=' + '5')
         self.session.commit_transaction()
 
 if __name__ == '__main__':

@@ -35,6 +35,9 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
+def timestamp_str(t):
+    return '%x' % t
+
 class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp13'
     uri = 'table:' + tablename
@@ -63,7 +66,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         # Nothing has been set, all queries will return timestamp 0.
         for query in query_choices:
             self.assertTimestampsEqual(
-                self.session.query_timestamp('get=' + query), '0')
+                self.session.query_timestamp('get=' + query), timestamp_str(0))
 
         self.assertRaisesWithMessage(
             wiredtiger.WiredTigerError,
@@ -82,45 +85,45 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
             'key_format=i,value_format=i' + self.extra_config)
 
         self.session.begin_transaction('isolation=snapshot')
-        self.session.timestamp_transaction('read_timestamp=10')
+        self.session.timestamp_transaction_numeric('read_timestamp=' + '10')
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=read'), '10')
+            self.session.query_timestamp('get=read'), timestamp_str(10))
 
         # The first commit_timestamp will set both the commit and first_commit
         # values.
-        self.session.timestamp_transaction('commit_timestamp=20')
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '20')
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=commit'), '20')
+            self.session.query_timestamp('get=commit'), timestamp_str(20))
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=first_commit'), '20')
+            self.session.query_timestamp('get=first_commit'), timestamp_str(20))
 
         # The second commit_timestamp will update the commit value, leaving
         # first_commit alone.
-        self.session.timestamp_transaction('commit_timestamp=30')
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '30')
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=commit'), '30')
+            self.session.query_timestamp('get=commit'), timestamp_str(30))
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=first_commit'), '20')
+            self.session.query_timestamp('get=first_commit'), timestamp_str(20))
         self.session.commit_transaction()
 
     def test_query_round_read_timestamp(self):
         self.session.create(self.uri,
             'key_format=i,value_format=i' + self.extra_config)
 
-        self.conn.set_timestamp('oldest_timestamp=10')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10))
         # Rounding to the oldest timestamp will allow the stale read_timestamp
         # to succeed. The follow-up call to get the read timestamp returns the
         # chosen read timestamp.
         self.session.begin_transaction('isolation=snapshot,roundup_timestamps=(read=true)')
-        self.session.timestamp_transaction('read_timestamp=5')
+        self.session.timestamp_transaction_numeric('read_timestamp=' + '5')
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=read'), '10')
+            self.session.query_timestamp('get=read'), timestamp_str(10))
 
         # Moving the oldest timestamp has no bearing on the read timestamp
         # returned.
-        self.conn.set_timestamp('oldest_timestamp=20')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(20))
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=read'), '10')
+            self.session.query_timestamp('get=read'), timestamp_str(10))
         self.session.commit_transaction()
 
     def test_query_prepare_timestamp(self):
@@ -128,14 +131,14 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
             'key_format=i,value_format=i' + self.extra_config)
 
         self.session.begin_transaction()
-        self.session.prepare_transaction('prepare_timestamp=10')
+        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(10))
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=prepare'), '10')
+            self.session.query_timestamp('get=prepare'), timestamp_str(10))
 
-        self.session.timestamp_transaction('commit_timestamp=20')
-        self.session.timestamp_transaction('durable_timestamp=20')
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '20')
+        self.session.timestamp_transaction_numeric('durable_timestamp=' + '20')
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=prepare'), '10')
+            self.session.query_timestamp('get=prepare'), timestamp_str(10))
         self.assertTimestampsEqual(
-            self.session.query_timestamp('get=commit'), '20')
+            self.session.query_timestamp('get=commit'), timestamp_str(20))
         self.session.commit_transaction()

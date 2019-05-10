@@ -29,6 +29,9 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
+def timestamp_str(t):
+    return '%x' % t
+
 # test_prepare01.py
 #    Transactions: basic functionality with prepare
 class test_prepare01(wttest.WiredTigerTestCase):
@@ -117,9 +120,9 @@ class test_prepare01(wttest.WiredTigerTestCase):
         for i in range(self.nentries):
             if i > 0 and i % (self.nentries // 37) == 0:
                 self.check(cursor, committed, i)
-                self.session.prepare_transaction("prepare_timestamp=2a")
-                self.session.timestamp_transaction("commit_timestamp=3a")
-                self.session.timestamp_transaction("durable_timestamp=3a")
+                self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
+                self.session.timestamp_transaction_numeric("commit_timestamp=30")
+                self.session.timestamp_transaction_numeric("durable_timestamp=30")
                 self.session.commit_transaction()
                 committed = i
                 self.session.begin_transaction()
@@ -136,10 +139,10 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
         self.check(cursor, committed, self.nentries)
 
-        self.session.timestamp_transaction("prepare_timestamp=2a")
+        self.session.timestamp_transaction_numeric("prepare_timestamp=20")
         self.session.prepare_transaction()
-        self.session.timestamp_transaction("commit_timestamp=3a")
-        self.session.timestamp_transaction("durable_timestamp=3a")
+        self.session.timestamp_transaction_numeric("commit_timestamp=30")
+        self.session.timestamp_transaction_numeric("durable_timestamp=30")
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
 

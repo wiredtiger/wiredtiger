@@ -535,6 +535,14 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction_numeric[] = {
+	{ "commit_timestamp", "int", NULL, "min=0", NULL, 0 },
+	{ "durable_timestamp", "int", NULL, "min=0", NULL, 0 },
+	{ "prepare_timestamp", "int", NULL, "min=0", NULL, 0 },
+	{ "read_timestamp", "int", NULL, "min=0", NULL, 0 },
+	{ NULL, NULL, NULL, NULL, NULL, 0 }
+};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_transaction_sync[] = {
 	{ "timeout_ms", "int", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
@@ -1481,6 +1489,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"
 	  "read_timestamp=",
 	  confchk_WT_SESSION_timestamp_transaction, 4
+	},
+	{ "WT_SESSION.timestamp_transaction_numeric",
+	  "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"
+	  "read_timestamp=",
+	  confchk_WT_SESSION_timestamp_transaction_numeric, 4
 	},
 	{ "WT_SESSION.transaction_sync",
 	  "timeout_ms=1200000",

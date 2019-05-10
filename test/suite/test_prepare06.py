@@ -60,8 +60,8 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         # oldest timestamp is valid with roundup_timestamps settings.
         self.session.begin_transaction('roundup_timestamps=(prepared=true)')
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(10))
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(15))
-        self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(35))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '15')
+        self.session.timestamp_transaction_numeric('durable_timestamp=' + '35')
         self.session.commit_transaction()
 
         # Check setting a prepared transaction timestamps earlier than the
@@ -69,10 +69,9 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         # stable timestamp.
         self.session.begin_transaction('roundup_timestamps=(prepared=true)')
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(10))
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(15))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '15')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-            'durable_timestamp=' + timestamp_str(25)),
+            lambda: self.session.timestamp_transaction_numeric('durable_timestamp=' + '25'),
             "/is less than the stable timestamp/")
         self.session.rollback_transaction()
 
@@ -118,11 +117,10 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         c[1] = 1
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(45))
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(30))
-        #self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(30))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '30')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-            'durable_timestamp=' + timestamp_str(30)),
+            lambda:
+            self.session.timestamp_transaction_numeric('durable_timestamp=' + '30'),
             "/is less than the commit timestamp/")
         self.session.rollback_transaction()
 

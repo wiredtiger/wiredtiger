@@ -55,8 +55,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # Insert a data item at timestamp 2.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(2))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '2')
         c['key_ts1'] = 'value2'
         self.session.commit_transaction()
         c.close()
@@ -64,8 +64,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # Modify the data item at timestamp 1.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '1')
         c['key_ts1'] = 'value1'
         self.session.commit_transaction()
         c.close()
@@ -80,8 +80,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(2))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '2')
         c['key_nots'] = 'value2'
         self.session.commit_transaction()
         c.close()
@@ -102,16 +102,16 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # Detect decreasing timestamp.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(5))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '5')
         c['key_ts1'] = 'value5'
         self.session.commit_transaction()
         c.close()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(4))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '4')
         c['key_ts1'] = 'value4'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_ooo)
@@ -137,8 +137,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(3))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '3')
         c['key_nots'] = 'value3'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_usage)
@@ -163,8 +163,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(6))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '6')
         c['key_nots'] = 'value6'
         self.session.commit_transaction()
         c.close()
@@ -184,8 +184,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # Insert a data item at timestamp 2.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(2))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '2')
         c['key_ts1'] = 'value2'
         self.session.commit_transaction()
         c.close()
@@ -193,8 +193,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # Modify the data item at timestamp 1. We should detect it is wrong.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '1')
         c['key_ts1'] = 'value1'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_ooo)
@@ -203,8 +203,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # Make sure we can successfully add a different key at timestamp 1.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(1))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '1')
         c['key_ts2'] = 'value1'
         self.session.commit_transaction()
         c.close()
@@ -217,20 +217,20 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         #
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(10))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '10')
         c['key_ts3'] = 'value10'
         self.session.commit_transaction()
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(15))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '15')
         c['key_ts4'] = 'value15'
         self.session.commit_transaction()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '13')
         c['key_ts3'] = 'value13'
         c['key_ts4'] = 'value13'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -248,15 +248,15 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         #
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '13')
         c['key_ts3'] = 'value13'
         self.session.commit_transaction()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(13))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '13')
         c['key_ts4'] = 'value13'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_ooo)
@@ -267,8 +267,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         # in the update chain are not considered for the timestamp check.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(14))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '14')
         c['key_ts4'] = 'value14'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_ooo)
@@ -279,8 +279,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(16))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '16')
         c['key_ts4'] = 'value16'
         self.session.commit_transaction()
         c.close()
@@ -318,8 +318,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(16))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '16')
         c['key_nots'] = 'value16'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_usage)
@@ -333,8 +333,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(17))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '17')
         c['key_nots'] = 'value17'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(), msg_usage)
@@ -349,8 +349,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         c['key_ts5'] = 'value_notsyet'
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(20))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '20')
         c['key_ts5'] = 'value20'
         self.session.commit_transaction()
         c.close()
@@ -363,8 +363,8 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         c['key_ts6'] = 'value_notsyet'
         c['key_ts6'] = 'value21_after'
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(21))
+        self.session.timestamp_transaction_numeric(
+            'commit_timestamp=' + '21')
         self.session.commit_transaction()
         c.close()
 

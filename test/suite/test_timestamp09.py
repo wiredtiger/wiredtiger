@@ -53,21 +53,18 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
 
         # In a single transaction it is illegal to set a commit timestamp
         # older than the first commit timestamp used for this transaction.
-        # Check both timestamp_transaction and commit_transaction APIs.
+        # Check both timestamp_transaction_numeric and commit_transaction APIs.
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(3))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '3')
         c[3] = 3
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-                'commit_timestamp=' + timestamp_str(2)),
+            lambda: self.session.timestamp_transaction_numeric('commit_timestamp=' + '2'),
                 '/older than the first commit timestamp/')
         c[2] = 2
         self.session.rollback_transaction()
 
         self.session.begin_transaction()
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(4))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '4')
         c[4] = 4
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
@@ -75,7 +72,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
                 '/older than the first commit timestamp/')
 
         # Commit timestamp >= Oldest timestamp
-        # Check both timestamp_transaction and commit_transaction APIs.
+        # Check both timestamp_transaction_numeric and commit_transaction APIs.
         self.session.begin_transaction()
         c[3] = 3
         self.session.commit_transaction(
@@ -84,8 +81,8 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-                'commit_timestamp=' + timestamp_str(2)),
+            lambda:
+            self.session.timestamp_transaction_numeric('commit_timestamp=' + '2'),
                 '/less than the oldest timestamp/')
         c[2] = 2
         self.session.rollback_transaction()
@@ -129,13 +126,12 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
                 '/oldest timestamp \(0,6\) must not be later than stable timestamp \(0,5\)/')
 
         # Commit timestamp >= Stable timestamp.
-        # Check both timestamp_transaction and commit_transaction APIs.
+        # Check both timestamp_transaction_numeric and commit_transaction APIs.
         # Oldest and stable timestamp are set to 5 at the moment.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(6))
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-                'commit_timestamp=' + timestamp_str(5)),
+            lambda: self.session.timestamp_transaction_numeric('commit_timestamp=' + '5'),
                 '/less than the stable timestamp/')
         c[5] = 5
         self.session.rollback_transaction()

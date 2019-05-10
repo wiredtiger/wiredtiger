@@ -95,10 +95,11 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.begin_transaction(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.session.prepare_transaction("prepare_timestamp=2a"), msg)
+            lambda:self.session.prepare_transaction(
+                "prepare_timestamp=" + timestamp_str(20)), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction(
-                "read_timestamp=2a"), msg)
+            lambda: self.session.timestamp_transaction_numeric(
+                "read_timestamp=20"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.checkpoint(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -110,28 +111,28 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit after prepare is permitted.
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
-        self.session.prepare_transaction("prepare_timestamp=2a")
-        self.session.timestamp_transaction("commit_timestamp=2b")
-        self.session.timestamp_transaction("durable_timestamp=2b")
+        self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
+        self.session.timestamp_transaction_numeric("commit_timestamp=30")
+        self.session.timestamp_transaction_numeric("durable_timestamp=30")
         self.session.commit_transaction()
 
-        # Setting commit timestamp via timestamp_transaction after
+        # Setting commit timestamp via timestamp_transaction_numeric after
         # prepare is also permitted.
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
-        self.session.prepare_transaction("prepare_timestamp=2a")
-        self.session.timestamp_transaction("commit_timestamp=2b")
-        self.session.timestamp_transaction("durable_timestamp=2b")
+        self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
+        self.session.timestamp_transaction_numeric("commit_timestamp=30")
+        self.session.timestamp_transaction_numeric("durable_timestamp=30")
         self.session.commit_transaction()
 
         # Rollback after prepare is permitted.
         self.session.begin_transaction()
-        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
         self.session.rollback_transaction()
 
         # Close after prepare is permitted.
         self.session.begin_transaction()
-        self.session.prepare_transaction("prepare_timestamp=2a")
+        self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
         self.session.close()
 
 if __name__ == '__main__':

@@ -115,8 +115,8 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         s_other.commit_transaction()
         #'''
 
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(300))
-        self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(300))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '300')
+        self.session.timestamp_transaction_numeric('durable_timestamp=' + '300')
         self.session.commit_transaction()
 
 if __name__ == '__main__':

@@ -138,17 +138,17 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.begin_transaction()
         # Make three updates with different timestamps.
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(1))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '1')
         for k in keys:
             cur_ts_log[k] = 1
             cur_ts_nolog[k] = 1
 
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(101))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '101')
         for k in keys:
             cur_ts_log[k] = 2
             cur_ts_nolog[k] = 2
 
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(201))
+        self.session.timestamp_transaction_numeric('commit_timestamp=' + '201')
         for k in keys:
             cur_ts_log[k] = 3
             cur_ts_nolog[k] = 3
