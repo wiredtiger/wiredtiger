@@ -270,10 +270,11 @@ thread_run(void *arg)
 	 * that modify a table that is logged. But we also want to test mixed
 	 * logged and not-logged transactions.
 	 */
-	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	testutil_check(td->conn->open_session(
+	    td->conn, NULL, "isolation=snapshot", &session));
 	if (use_prep)
 		testutil_check(td->conn->open_session(
-		    td->conn, NULL, NULL, &prepared_session));
+		    td->conn, NULL, "isolation=snapshot", &prepared_session));
 	/*
 	 * Open a cursor to each table.
 	 */
@@ -370,10 +371,16 @@ thread_run(void *arg)
 				    prepared_session, tscfg));
 				if (i % PREPARE_YIELD == 0)
 					__wt_yield();
-			}
-			testutil_check(
-			    __wt_snprintf(tscfg, sizeof(tscfg),
-			    "commit_timestamp=%" PRIx64, active_ts));
+				testutil_check(
+				    __wt_snprintf(tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64
+				    ",durable_timestamp=%" PRIx64,
+				    active_ts, active_ts));
+			} else
+				testutil_check(
+				    __wt_snprintf(tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64, active_ts));
+
 			testutil_check(
 			    prepared_session->commit_transaction(
 			    prepared_session, tscfg));

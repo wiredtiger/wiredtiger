@@ -148,6 +148,16 @@ struct __wt_named_extractor {
 } while (0)
 
 /*
+ * WT_CONN_HOTBACKUP_START --
+ *	Macro to set connection data appropriately for when we commence hot
+ *	backup.
+ */
+#define	WT_CONN_HOTBACKUP_START(conn) do {				\
+	conn->hot_backup = true;					\
+	conn->hot_backup_list = NULL;					\
+} while (0)
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -281,6 +291,10 @@ struct __wt_connection_impl {
 	uint64_t ckpt_progress_msg_count;
 	uint64_t ckpt_write_bytes;
 	uint64_t ckpt_write_pages;
+
+	/* Connection's maximum and base write generations. */
+	uint64_t max_write_gen;
+	uint64_t base_write_gen;
 
 	uint32_t stat_flags;		/* Options declared in flags.py */
 

@@ -32,6 +32,8 @@ from wtscenario import make_scenarios
 # test_prepare01.py
 #    Transactions: basic functionality with prepare
 class test_prepare01(wttest.WiredTigerTestCase):
+    session_config = 'isolation=snapshot'
+
     nentries = 1000
     scenarios = make_scenarios([
         ('col-f', dict(uri='file:text_txn01',key_format='r',value_format='S')),
@@ -112,11 +114,13 @@ class test_prepare01(wttest.WiredTigerTestCase):
         self.check(cursor, 0, 0)
 
         self.session.begin_transaction("ignore_prepare=false")
-        for i in xrange(self.nentries):
-            if i > 0 and i % (self.nentries / 37) == 0:
+        for i in range(self.nentries):
+            if i > 0 and i % (self.nentries // 37) == 0:
                 self.check(cursor, committed, i)
                 self.session.prepare_transaction("prepare_timestamp=2a")
-                self.session.commit_transaction("commit_timestamp=3a")
+                self.session.timestamp_transaction("commit_timestamp=3a")
+                self.session.timestamp_transaction("durable_timestamp=3a")
+                self.session.commit_transaction()
                 committed = i
                 self.session.begin_transaction()
 
@@ -132,47 +136,12 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
         self.check(cursor, committed, self.nentries)
 
-        self.session.prepare_transaction("prepare_timestamp=2a")
-        self.session.commit_transaction("commit_timestamp=3a")
+        self.session.timestamp_transaction("prepare_timestamp=2a")
+        self.session.prepare_transaction()
+        self.session.timestamp_transaction("commit_timestamp=3a")
+        self.session.timestamp_transaction("durable_timestamp=3a")
+        self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
-
-# Test that read-committed is the default isolation level.
-class test_read_committed_default(wttest.WiredTigerTestCase):
-    uri = 'table:test_prepare'
-
-    # Return the number of records visible to the cursor.
-    def cursor_count(self, cursor):
-        count = 0
-        for r in cursor:
-            count += 1
-        return count
-
-    def test_read_committed_default(self):
-        self.session.create(self.uri, 'key_format=S,value_format=S')
-        cursor = self.session.open_cursor(self.uri, None)
-        self.session.begin_transaction()
-        cursor['key: aaa'] = 'value: aaa'
-
-        self.session.prepare_transaction("prepare_timestamp=2a")
-        self.session.commit_transaction("commit_timestamp=3a")
-        self.session.begin_transaction()
-        cursor['key: bbb'] = 'value: bbb'
-
-        s = self.conn.open_session()
-        cursor = s.open_cursor(self.uri, None)
-        s.begin_transaction("isolation=read-committed")
-        self.assertEqual(self.cursor_count(cursor), 1)
-
-        s.prepare_transaction("prepare_timestamp=4a")
-        # commit timestamp can be same as prepare timestamp
-        s.commit_transaction("commit_timestamp=4a")
-        s.begin_transaction()
-        self.assertEqual(self.cursor_count(cursor), 1)
-        s.prepare_transaction("prepare_timestamp=7a")
-
-        # commit timestamp can be greater than prepare timestamp
-        s.commit_transaction("commit_timestamp=8a")
-        s.close()
 
 if __name__ == '__main__':
     wttest.run()

@@ -72,7 +72,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
 	 * again. Even though only prepared updates can be evicted, at this
 	 * stage we don't know whether this transaction will be prepared or
 	 * not, hence we are copying the key for all operations, so that we can
-	 * use this key to fetch the update incase this transaction is
+	 * use this key to fetch the update in case this transaction is
 	 * prepared.
 	 */
 	op->u.op_col.recno = recno;
@@ -108,7 +108,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 	 * again. Even though only prepared updates can be evicted, at this
 	 * stage we don't know whether this transaction will be prepared or
 	 * not, hence we are copying the key for all operations, so that we can
-	 * use this key to fetch the update incase this transaction is
+	 * use this key to fetch the update in case this transaction is
 	 * prepared.
 	 */
 	return (__wt_buf_set(session, &op->u.op_row.key, key->data, key->size));
@@ -203,7 +203,10 @@ __wt_txn_resolve_prepared_op(
 	 * set it to aborted.
 	 */
 	if (upd == NULL && commit) {
-		WT_ASSERT(session, txn->multi_update_count > 0);
+		/*
+		 * FIXME:
+		 * WT_ASSERT(session, txn->multi_update_count > 0);
+		 */
 		--txn->multi_update_count;
 	}
 #endif
@@ -259,7 +262,10 @@ __wt_txn_resolve_prepared_op(
 		 * updates processed in resolution of an transaction operation.
 		 */
 		if (upd->prepare_state == WT_PREPARE_RESOLVED) {
-			WT_ASSERT(session, txn->multi_update_count > 0);
+			/*
+			 * FIXME:
+			 * WT_ASSERT(session, txn->multi_update_count > 0);
+			 */
 			--txn->multi_update_count;
 		} else if (upd != op->u.op_upd)
 			++txn->multi_update_count;
@@ -272,7 +278,8 @@ __wt_txn_resolve_prepared_op(
 		__txn_resolve_prepared_update(session, upd);
 	}
 
-#ifdef HAVE_DIAGNOSTIC
+	/* FIXME: it isn't safe to walk updates after they are resolved. */
+#if 0 && defined(HAVE_DIAGNOSTIC)
 	upd = op->u.op_upd;
 	/* Ensure that we have not missed any of this transaction updates. */
 	for (; upd != NULL; upd = upd->next) {

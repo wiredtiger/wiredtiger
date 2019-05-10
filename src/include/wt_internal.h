@@ -271,6 +271,14 @@ struct __wt_page_modify;
     typedef struct __wt_page_modify WT_PAGE_MODIFY;
 struct __wt_process;
     typedef struct __wt_process WT_PROCESS;
+struct __wt_rec_chunk;
+    typedef struct __wt_rec_chunk WT_REC_CHUNK;
+struct __wt_rec_dictionary;
+    typedef struct __wt_rec_dictionary WT_REC_DICTIONARY;
+struct __wt_rec_kv;
+    typedef struct __wt_rec_kv WT_REC_KV;
+struct __wt_reconcile;
+    typedef struct __wt_reconcile WT_RECONCILE;
 struct __wt_ref;
     typedef struct __wt_ref WT_REF;
 struct __wt_ref_hist;
@@ -337,6 +345,16 @@ typedef uint64_t wt_timestamp_t;
 #elif defined(_MSC_VER)
 #include "msvc.h"
 #endif
+/*
+ * GLIBC 2.26 and later use the openat syscall to implement open.
+ * Set this flag so that our strace tests know to expect this.
+ */
+#ifdef __GLIBC_PREREQ
+#if __GLIBC_PREREQ(2, 26)
+#define	WT_USE_OPENAT 1
+#endif
+#endif
+
 #include "hardware.h"
 #include "swap.h"
 
@@ -362,6 +380,7 @@ typedef uint64_t wt_timestamp_t;
 #include "btree.h"
 #include "cache.h"
 #include "capacity.h"
+#include "cell.h"
 #include "compact.h"
 #include "config.h"
 #include "cursor.h"
@@ -372,6 +391,7 @@ typedef uint64_t wt_timestamp_t;
 #include "meta.h"
 #include "optrack.h"
 #include "os.h"
+#include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
 #include "txn.h"
@@ -393,9 +413,9 @@ typedef uint64_t wt_timestamp_t;
 
 #include "buf.i"                        /* required by cell.i */
 #include "cache.i"			/* required by txn.i */
-#include "mutex.i"			/* required by txn.i */
-#include "txn.i"			/* required by cell.i */
 #include "cell.i"			/* required by btree.i */
+#include "mutex.i"			/* required by btree.i */
+#include "txn.i"			/* required by btree.i */
 
 #include "bitstring.i"
 #include "block.i"
@@ -408,6 +428,7 @@ typedef uint64_t wt_timestamp_t;
 #include "os_fs.i"
 #include "os_fstream.i"
 #include "packing.i"
+#include "reconcile.i"
 #include "serial.i"
 
 #if defined(__cplusplus)

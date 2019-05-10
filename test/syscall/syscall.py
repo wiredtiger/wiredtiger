@@ -156,7 +156,7 @@ defines_used = [
     'HAVE_FTRUNCATE', 'O_ACCMODE', 'O_APPEND', 'O_ASYNC',
     'O_CLOEXEC', 'O_CREAT', 'O_EXCL', 'O_EXLOCK', 'O_NOATIME',
     'O_NOFOLLOW', 'O_NONBLOCK', 'O_RDONLY', 'O_RDWR', 'O_SHLOCK',
-    'O_TRUNC', 'O_WRONLY' ]
+    'O_TRUNC', 'O_WRONLY', 'WT_USE_OPENAT' ]
 
 ################################################################
 
@@ -354,7 +354,7 @@ class PreprocessedReader(Reader):
                 cmd.append('-D' + name + '=' + str(predefines[name]))
         cmd.append('-')
         proc = subprocess.Popen(cmd, stdin=open(filename),
-            stdout=subprocess.PIPE)
+            stdout=subprocess.PIPE, universal_newlines=True)
         super(PreprocessedReader, self).__init__(wttop, filename,
                                                  proc.stdout, raw, True)
 
@@ -890,7 +890,8 @@ class SyscallCommand:
         if subret != 0:
             msg("probe compilation returned " + str(subret))
             return False
-        proc = subprocess.Popen([probe_exe], stdout=subprocess.PIPE)
+        proc = subprocess.Popen([probe_exe], stdout=subprocess.PIPE,
+            universal_newlines=True)
         out, err = proc.communicate()
         subret = proc.returncode
         if subret != 0 or err:

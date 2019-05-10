@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from __future__ import print_function
 import os, re, sys, textwrap
 import api_data
 from dist import compare_srcfile
@@ -110,7 +111,7 @@ for line in open(f, 'r'):
 
     prefix, config_name = m.groups()
     if config_name not in api_data.methods:
-        print >>sys.stderr, "Missing configuration for " + config_name
+        print("Missing configuration for " + config_name, file=sys.stderr)
         tfile.write(line)
         continue
 
@@ -126,8 +127,12 @@ for line in open(f, 'r'):
 
     w = textwrap.TextWrapper(width=80-len(prefix.expandtabs()),
             break_on_hyphens=False,
+            break_long_words=False,
             replace_whitespace=False,
             fix_sentence_endings=True)
+    # Separate at spaces, and after a set of non-breaking space indicators.
+    w.wordsep_re = w.wordsep_simple_re = \
+        re.compile(r'(\s+|(?<=&nbsp;)[\w_,.;:]*)')
     for c in api_data.methods[config_name].config:
         if 'undoc' in c.flags:
             continue
@@ -152,11 +157,13 @@ tfile.write('''/* DO NOT EDIT: automatically built by dist/api_config.py. */
 ''')
 
 # Make a TextWrapper that wraps at commas.
-w = textwrap.TextWrapper(width=64, break_on_hyphens=False)
+w = textwrap.TextWrapper(width=64, break_on_hyphens=False,
+                         break_long_words=False)
 w.wordsep_re = w.wordsep_simple_re = re.compile(r'(,)')
 
 # TextWrapper that wraps at whitespace.
-ws = textwrap.TextWrapper(width=64, break_on_hyphens=False)
+ws = textwrap.TextWrapper(width=64, break_on_hyphens=False,
+                          break_long_words=False)
 
 def checkstr(c):
     '''Generate the function reference and JSON string used by __wt_config_check
@@ -259,7 +266,7 @@ for name in sorted(api_data.methods.keys()):
     # #defines are used to avoid a list search where we know the correct slot).
     config_defines +=\
         '#define\tWT_CONFIG_ENTRY_' + name.replace('.', '_') + '\t' * \
-            max(1, 6 - (len('WT_CONFIG_ENTRY_' + name) / 8)) + \
+            max(1, 6 - (len('WT_CONFIG_ENTRY_' + name) // 8)) + \
             "%2s" % str(slot) + '\n'
 
     # Write the method name and base.

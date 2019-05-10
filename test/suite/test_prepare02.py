@@ -37,6 +37,8 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
+    session_config = 'isolation=snapshot'
+
     def test_prepare_session_operations(self):
         self.session.create("table:mytable", "key_format=S,value_format=S")
         cursor = self.session.open_cursor("table:mytable", None)
@@ -109,7 +111,9 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction("prepare_timestamp=2a")
-        self.session.commit_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("durable_timestamp=2b")
+        self.session.commit_transaction()
 
         # Setting commit timestamp via timestamp_transaction after
         # prepare is also permitted.
@@ -117,6 +121,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.timestamp_transaction("commit_timestamp=2b")
+        self.session.timestamp_transaction("durable_timestamp=2b")
         self.session.commit_transaction()
 
         # Rollback after prepare is permitted.

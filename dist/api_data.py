@@ -23,8 +23,24 @@ class Config:
         self.subconfig = subconfig
         self.flags = flags
 
-    def __cmp__(self, other):
-        return cmp(self.name, other.name)
+    # Comparators for sorting.
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __ne__(self, other):
+        return self.name != other.name
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+    def __le__(self, other):
+        return self.name <= other.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+    def __ge__(self, other):
+        return self.name >= other.name
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -1285,17 +1301,31 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+    Config('roundup_timestamps', '', r'''
+        round up timestamps of the transaction. This setting alters the
+        visibility expected in a transaction. See @ref
+        transaction_timestamps''',
+        type='category', subconfig= [
+        Config('prepared', 'false', r'''
+            applicable only for prepared transactions. Indicates if the prepare
+            timestamp and the commit timestamp of this transaction can be
+            rounded up. If the prepare timestamp is less than the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
+            timestamp. If the commit timestamp is less than the prepare
+            timestamp, the commit timestamp will be rounded up to the prepare
+            timestamp''', type='boolean'),
+        Config('read', 'false', r'''
+            if the read timestamp is less than the oldest timestamp, the
+            read timestamp will be rounded up to the oldest timestamp''',
+            type='boolean'),
+        ]),
     Config('snapshot', '', r'''
         use a named, in-memory snapshot, see
         @ref transaction_named_snapshots'''),
     Config('sync', '', r'''
         whether to sync log records when the transaction commits,
         inherited from ::wiredtiger_open \c transaction_sync''',
-        type='boolean'),
+        type='boolean')
 ]),
 
 'WT_SESSION.commit_transaction' : Method([
@@ -1326,8 +1356,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps.
-        This configuration option is mandatory.  See
-        @ref transaction_timestamps'''),
+        See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1343,14 +1372,14 @@ methods = {
         current transaction.  The value must also not be older than the
         current stable timestamp.  See
         @ref transaction_timestamps'''),
+    Config('prepare_timestamp', '', r'''
+        set the prepare timestamp for the updates of the current transaction.
+        The supplied value must not be older than any active read timestamps.
+        See @ref transaction_timestamps'''),
     Config('read_timestamp', '', r'''
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  This can only be set once
-        for a transaction.  @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+        for a transaction. See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),

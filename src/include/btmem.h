@@ -132,9 +132,12 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
-	wt_timestamp_t oldest_start_ts;	/* Aggregated timestamp information */
-	wt_timestamp_t newest_start_ts;
-	wt_timestamp_t newest_stop_ts;
+					/* Validity window */
+	wt_timestamp_t	newest_durable_ts;
+	wt_timestamp_t	oldest_start_ts;
+	uint64_t	oldest_start_txn;
+	wt_timestamp_t	newest_stop_ts;
+	uint64_t	newest_stop_txn;
 
 	uint8_t *addr;			/* Block-manager's cookie */
 	uint8_t  size;			/* Block-manager's cookie length */
@@ -990,8 +993,6 @@ struct __wt_col {
 	 * of a base pointer.  The on-page data is a WT_CELL (same as row-store
 	 * pages).
 	 *
-	 * If the value is 0, it's a single, deleted record.
-	 *
 	 * Obscure the field name, code shouldn't use WT_COL->__col_value, the
 	 * public interface is WT_COL_PTR and WT_COL_PTR_SET.
 	 */
@@ -1004,8 +1005,7 @@ struct __wt_col {
  * not exist on the page, return a NULL.)
  */
 #define	WT_COL_PTR(page, cip)						\
-	((cip)->__col_value == 0 ?					\
-	    NULL : WT_PAGE_REF_OFFSET(page, (cip)->__col_value))
+	WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
 #define	WT_COL_PTR_SET(cip, value)					\
 	(cip)->__col_value = (value)
 
@@ -1064,7 +1064,7 @@ struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
 
 	wt_timestamp_t durable_ts;	/* timestamps */
-	wt_timestamp_t start_ts, stop_ts;
+	wt_timestamp_t start_ts;
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -1101,7 +1101,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	46
+#define	WT_UPDATE_SIZE	38
 
 /*
  * The memory size of an update: include some padding because this is such a

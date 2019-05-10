@@ -274,6 +274,7 @@ connection_stats = [
     CacheStat('cache_lookaside_cursor_wait_internal', 'cache overflow cursor internal thread wait time (usecs)'),
     CacheStat('cache_lookaside_entries', 'cache overflow table entries', 'no_clear,no_scale'),
     CacheStat('cache_lookaside_insert', 'cache overflow table insert calls'),
+    CacheStat('cache_lookaside_ondisk', 'cache overflow table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_lookaside_remove', 'cache overflow table remove calls'),
     CacheStat('cache_lookaside_score', 'cache overflow score', 'no_clear,no_scale'),
     CacheStat('cache_overhead', 'percentage overhead', 'no_clear,no_scale'),
@@ -559,6 +560,7 @@ connection_stats = [
     TxnStat('txn_pinned_timestamp', 'transaction range of timestamps currently pinned', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp_checkpoint', 'transaction range of timestamps pinned by a checkpoint', 'no_clear,no_scale'),
     TxnStat('txn_pinned_timestamp_oldest', 'transaction range of timestamps pinned by the oldest timestamp', 'no_clear,no_scale'),
+    TxnStat('txn_pinned_timestamp_reader', 'transaction range of timestamps pinned by the oldest active read timestamp', 'no_clear,no_scale'),
     TxnStat('txn_prepare', 'prepared transactions'),
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),
@@ -586,6 +588,7 @@ connection_stats = [
     TxnStat('txn_snapshots_created', 'number of named snapshots created'),
     TxnStat('txn_snapshots_dropped', 'number of named snapshots dropped'),
     TxnStat('txn_sync', 'transaction sync calls'),
+    TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
     TxnStat('txn_update_conflict', 'update conflicts'),
 
     ##########################################

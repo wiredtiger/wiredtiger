@@ -121,7 +121,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 		F_SET(btree, WT_BTREE_READONLY);
 
 	/* Get the checkpoint information for this name/checkpoint pair. */
-	WT_CLEAR(ckpt);
 	WT_RET(__wt_meta_checkpoint(
 	    session, dhandle->name, dhandle->checkpoint, &ckpt));
 
@@ -143,6 +142,12 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
 	/* Initialize and configure the WT_BTREE structure. */
 	WT_ERR(__btree_conf(session, &ckpt));
+
+	/*
+	 * We could be a re-open of a table that was put in the lookaside
+	 * dropped list. Remove our id from that list.
+	 */
+	__wt_las_remove_dropped(session);
 
 	/* Connect to the underlying block manager. */
 	filename = dhandle->name;
@@ -569,8 +574,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	btree->modified = false;			/* Clean */
 
 	btree->syncing = WT_BTREE_SYNC_OFF;	/* Not syncing */
-	btree->write_gen = ckpt->write_gen;	/* Write generation */
+						/* Checkpoint generation */
 	btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+						/* Write generation */
+	btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen);
 
 	return (0);
 }
@@ -644,12 +651,12 @@ __wt_btree_tree_open(
 	 * Try to provide a helpful failure message.
 	 */
 	if (ret != 0 && WT_IS_METADATA(session->dhandle)) {
-		__wt_errx(session,
+		__wt_err(session, ret,
 		    "WiredTiger has failed to open its metadata");
-		__wt_errx(session, "This may be due to the database"
+		__wt_err(session, ret, "This may be due to the database"
 		    " files being encrypted, being from an older"
 		    " version or due to corruption on disk");
-		__wt_errx(session, "You should confirm that you have"
+		__wt_err(session, ret, "You should confirm that you have"
 		    " opened the database with the correct options including"
 		    " all encryption and compression options");
 	}
@@ -662,7 +669,7 @@ __wt_btree_tree_open(
 	 */
 	WT_ERR(__wt_page_inmem(session, NULL, dsk.data,
 	    WT_DATA_IN_ITEM(&dsk) ?
-	    WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, &page));
+	    WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED, true, &page));
 	dsk.mem = NULL;
 
 	/* Finish initializing the root, root reference links. */

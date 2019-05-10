@@ -156,6 +156,7 @@ Fsync
 Fuerst
 GCC
 GIDs
+GLIBC
 Gcc
 Geoff
 GetEnvironmentVariableA
@@ -171,6 +172,7 @@ HHHH
 HHHHLL
 HHHLL
 HILQr
+HOTBACKUP
 Hendrik
 HyperLevelDB
 ID's
@@ -393,6 +395,7 @@ UIDs
 UINT
 ULINE
 UNC
+UNCOND
 URI
 URIs
 UTF
@@ -840,7 +843,6 @@ iiu
 ikey
 im
 impl
-incase
 incr
 incrementals
 incrementing
@@ -1053,6 +1055,7 @@ online
 onpage
 oo
 opcode
+openat
 opendir
 openfile
 oplist
@@ -1196,6 +1199,7 @@ sizep
 sizev
 skiplist
 skiplists
+skipp
 slotsp
 slvg
 snaplen
@@ -1215,6 +1219,7 @@ stdin
 stdout
 stepp
 str
+strace
 strcmp
 strdup
 strerror

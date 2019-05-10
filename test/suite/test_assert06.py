@@ -37,6 +37,8 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
+    session_config = 'isolation=snapshot'
+
     def apply_timestamps(self, timestamp):
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(timestamp))
@@ -368,8 +370,9 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
             'prepare_timestamp=' + timestamp_str(22))
         self.session.timestamp_transaction(
             'commit_timestamp=' + timestamp_str(22))
-        self.session.commit_transaction('durable_timestamp=' +
-            timestamp_str(22))
+        self.session.timestamp_transaction(
+            'durable_timestamp=' + timestamp_str(22))
+        self.session.commit_transaction()
         c.close()
 
         c = self.session.open_cursor(uri)

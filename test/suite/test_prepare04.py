@@ -41,6 +41,8 @@ def timestamp_str(t):
 class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_prepare_cursor'
     uri = 'table:' + tablename
+    session_config = 'isolation=snapshot'
+
     before_ts = timestamp_str(150)
     prepare_ts = timestamp_str(200)
     after_ts = timestamp_str(250)
@@ -72,7 +74,7 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(self.uri)
 
         # Insert keys 1..100 each with timestamp=key, in some order
-        orig_keys = range(1, 101)
+        orig_keys = list(range(1, 101))
         keys = orig_keys[:]
         random.shuffle(keys)
 
@@ -113,7 +115,9 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         s_other.commit_transaction()
         #'''
 
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(300))
+        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(300))
+        self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(300))
+        self.session.commit_transaction()
 
 if __name__ == '__main__':
     wttest.run()

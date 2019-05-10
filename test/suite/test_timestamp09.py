@@ -39,6 +39,7 @@ def timestamp_str(t):
 class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp09'
     uri = 'table:' + tablename
+    session_config = 'isolation=snapshot'
 
     def test_timestamp_api(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
@@ -85,7 +86,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
                 'commit_timestamp=' + timestamp_str(2)),
-                '/older than oldest timestamp/')
+                '/less than the oldest timestamp/')
         c[2] = 2
         self.session.rollback_transaction()
 
@@ -94,7 +95,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
                 'commit_timestamp=' + timestamp_str(2)),
-                '/older than oldest timestamp/')
+                '/less than the oldest timestamp/')
 
         self.session.begin_transaction()
         c[4] = 4
@@ -135,7 +136,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction(
                 'commit_timestamp=' + timestamp_str(5)),
-                '/older than stable timestamp/')
+                '/less than the stable timestamp/')
         c[5] = 5
         self.session.rollback_transaction()
 
@@ -144,7 +145,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
                 'commit_timestamp=' + timestamp_str(5)),
-                '/older than stable timestamp/')
+                '/less than the stable timestamp/')
 
         # When explicitly set, commit timestamp for a transaction can be earlier
         # than the commit timestamp of an earlier transaction.
@@ -167,7 +168,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.begin_transaction('read_timestamp=' +
                 timestamp_str(6)),
-                '/older than oldest timestamp/')
+                '/less than the oldest timestamp/')
 
         # c[8] is not visible at read_timestamp < 8
         self.session.begin_transaction('read_timestamp=' + timestamp_str(7))
@@ -191,7 +192,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.begin_transaction('read_timestamp=' +
                 timestamp_str(4)),
-                '/older than oldest timestamp/')
+                '/less than the oldest timestamp/')
         self.session.begin_transaction('read_timestamp=' + timestamp_str(6))
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=oldest_reader'), timestamp_str(6))

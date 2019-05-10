@@ -156,6 +156,10 @@ __debug_item_value(
 
 	session = ds->session;
 
+	if (size == 0)
+		return (ds->f(ds, "\t%s%s{}\n",
+		    tag == NULL ? "" : tag, tag == NULL ? "" : " "));
+
 	/*
 	 * If the format is 'S', it's a string and our version of it may
 	 * not yet be nul-terminated.
@@ -527,7 +531,7 @@ __debug_dsk_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 
 	btree = S2BT(ds->session);
 
-	WT_CELL_FOREACH_BEGIN(ds->session, btree, dsk, unpack, false) {
+	WT_CELL_FOREACH_BEGIN(ds->session, btree, dsk, unpack) {
 		WT_RET(__debug_cell(ds, dsk, &unpack));
 	} WT_CELL_FOREACH_END;
 	return (0);
@@ -993,13 +997,9 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 	recno = ref->ref_recno;
 
 	WT_COL_FOREACH(page, cip, i) {
-		if ((cell = WT_COL_PTR(page, cip)) == NULL) {
-			unpack = NULL;
-			rle = 1;
-		} else {
-			__wt_cell_unpack(ds->session, page, cell, unpack);
-			rle = __wt_cell_rle(unpack);
-		}
+		cell = WT_COL_PTR(page, cip);
+		__wt_cell_unpack(ds->session, page, cell, unpack);
+		rle = __wt_cell_rle(unpack);
 		WT_RET(__wt_snprintf(
 		    tag, sizeof(tag), "%" PRIu64 " %" PRIu64, recno, rle));
 		WT_RET(
@@ -1207,14 +1207,12 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
 		else
 			WT_RET(ds->f(ds, "\t" "txn id %" PRIu64, upd->txnid));
 
-		__wt_timestamp_to_string(upd->start_ts, ts_string);
-		WT_RET(ds->f(ds, ", start_ts %s", ts_string));
-		__wt_timestamp_to_string(upd->stop_ts, ts_string);
-		WT_RET(ds->f(ds, ", stop_ts %s", ts_string));
-		if (upd->durable_ts != WT_TS_NONE) {
-			__wt_timestamp_to_string(upd->durable_ts, ts_string);
-			WT_RET(ds->f(ds, ", durable-ts %s", ts_string));
-		}
+		WT_RET(ds->f(ds, ", start_ts %s",
+		    __wt_timestamp_to_string(upd->start_ts, ts_string)));
+		if (upd->durable_ts != WT_TS_NONE)
+			WT_RET(ds->f(ds, ", durable-ts %s",
+			    __wt_timestamp_to_string(
+			    upd->durable_ts, ts_string)));
 
 		prepare_state = NULL;
 		switch (upd->prepare_state) {
@@ -1338,11 +1336,16 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	case WT_CELL_ADDR_INT:
 	case WT_CELL_ADDR_LEAF:
 	case WT_CELL_ADDR_LEAF_NO:
-		__wt_timestamp_to_string(unpack->oldest_start_ts, ts_string[0]);
-		__wt_timestamp_to_string(unpack->newest_start_ts, ts_string[1]);
-		__wt_timestamp_to_string(unpack->newest_stop_ts, ts_string[2]);
 		WT_RET(ds->f(ds,
-		    ", ts %s,%s,%s", ts_string[0], ts_string[1], ts_string[2]));
+		    ", ts/txn %s,%s/%" PRIu64 ",%s/%" PRIu64,
+		    __wt_timestamp_to_string(
+		    unpack->newest_durable_ts, ts_string[0]),
+		    __wt_timestamp_to_string(
+		    unpack->oldest_start_ts, ts_string[1]),
+		    unpack->oldest_start_txn,
+		    __wt_timestamp_to_string(
+		    unpack->newest_stop_ts, ts_string[2]),
+		    unpack->newest_stop_txn));
 		break;
 	case WT_CELL_DEL:
 	case WT_CELL_VALUE:
@@ -1350,9 +1353,11 @@ __debug_cell(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
 	case WT_CELL_VALUE_OVFL:
 	case WT_CELL_VALUE_OVFL_RM:
 	case WT_CELL_VALUE_SHORT:
-		__wt_timestamp_to_string(unpack->start_ts, ts_string[0]);
-		__wt_timestamp_to_string(unpack->stop_ts, ts_string[1]);
-		WT_RET(ds->f(ds, ", ts %s-%s", ts_string[0], ts_string[1]));
+		WT_RET(ds->f(ds, ", ts/txn %s/%" PRIu64 ",%s/%" PRIu64,
+		    __wt_timestamp_to_string(unpack->start_ts, ts_string[0]),
+		    unpack->start_txn,
+		    __wt_timestamp_to_string(unpack->stop_ts, ts_string[1]),
+		    unpack->stop_txn));
 		break;
 	}
 

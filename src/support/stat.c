@@ -800,6 +800,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: cache overflow score",
 	"cache: cache overflow table entries",
 	"cache: cache overflow table insert calls",
+	"cache: cache overflow table on-disk size",
 	"cache: cache overflow table remove calls",
 	"cache: checkpoint blocked page eviction",
 	"cache: eviction calls to get a page",
@@ -1137,7 +1138,9 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: transaction range of IDs currently pinned by named snapshots",
 	"transaction: transaction range of timestamps currently pinned",
 	"transaction: transaction range of timestamps pinned by a checkpoint",
+	"transaction: transaction range of timestamps pinned by the oldest active read timestamp",
 	"transaction: transaction range of timestamps pinned by the oldest timestamp",
+	"transaction: transaction read timestamp of the oldest active reader",
 	"transaction: transaction sync calls",
 	"transaction: transactions committed",
 	"transaction: transactions rolled back",
@@ -1231,6 +1234,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_lookaside_score */
 		/* not clearing cache_lookaside_entries */
 	stats->cache_lookaside_insert = 0;
+		/* not clearing cache_lookaside_ondisk */
 	stats->cache_lookaside_remove = 0;
 	stats->cache_eviction_checkpoint = 0;
 	stats->cache_eviction_get_ref = 0;
@@ -1568,7 +1572,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing txn_pinned_snapshot_range */
 		/* not clearing txn_pinned_timestamp */
 		/* not clearing txn_pinned_timestamp_checkpoint */
+		/* not clearing txn_pinned_timestamp_reader */
 		/* not clearing txn_pinned_timestamp_oldest */
+		/* not clearing txn_timestamp_oldest_active_read */
 	stats->txn_sync = 0;
 	stats->txn_commit = 0;
 	stats->txn_rollback = 0;
@@ -1651,6 +1657,8 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_lookaside_entries);
 	to->cache_lookaside_insert +=
 	    WT_STAT_READ(from, cache_lookaside_insert);
+	to->cache_lookaside_ondisk +=
+	    WT_STAT_READ(from, cache_lookaside_ondisk);
 	to->cache_lookaside_remove +=
 	    WT_STAT_READ(from, cache_lookaside_remove);
 	to->cache_eviction_checkpoint +=
@@ -2167,8 +2175,12 @@ __wt_stat_connection_aggregate(
 	to->txn_pinned_timestamp += WT_STAT_READ(from, txn_pinned_timestamp);
 	to->txn_pinned_timestamp_checkpoint +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_checkpoint);
+	to->txn_pinned_timestamp_reader +=
+	    WT_STAT_READ(from, txn_pinned_timestamp_reader);
 	to->txn_pinned_timestamp_oldest +=
 	    WT_STAT_READ(from, txn_pinned_timestamp_oldest);
+	to->txn_timestamp_oldest_active_read +=
+	    WT_STAT_READ(from, txn_timestamp_oldest_active_read);
 	to->txn_sync += WT_STAT_READ(from, txn_sync);
 	to->txn_commit += WT_STAT_READ(from, txn_commit);
 	to->txn_rollback += WT_STAT_READ(from, txn_rollback);
