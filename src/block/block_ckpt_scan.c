@@ -11,15 +11,16 @@
 /*
  * In historic WiredTiger files, it wasn't possible to open standalone files,
  * you're done if you lose the file's associated metadata. That was a mistake
- * and this code is the workaround. Separately we store file creation metadata
- * in the file's descriptor block. The file creation metadata is enough to read
- * a file: it includes allocation size, compression and so on, with it we can
- * open a file and read the blocks. The other thing we need to verify a file is
- * a list of active checkpoints as of the file's clean shutdown (also normally
- * stored in the database metadata). The last write done in a block manager's
- * checkpoint is the avail list. If we include checkpoint information with that
- * write, we're close. We could then open the file, read the blocks, scan until
- * we find an avail list, and read the active checkpoint information from there.
+ * and this code is the workaround. First, we store file creation metadata in
+ * the file's descriptor block. The file creation metadata is enough to read
+ * a file: it includes allocation size, compression, encryptors and so on, with
+ * it we can open a file and read the blocks. The other thing we need to verify
+ * a file is a list of active checkpoints as of the file's clean shutdown (also
+ * normally stored in the database metadata). The last write done in a block
+ * manager's checkpoint is the avail list. If we include checkpoint information
+ * with that write, we're close. We can then open the file, read the blocks,
+ * scan until we find the avail list, and read the active checkpoint information
+ * from there.
  *	Two problems remain: first, the checkpoint information can't be correct
  * until we write the avail list, the checkpoint information has to include the
  * avail list address plus the final file size after the write. Fortunately,
@@ -42,7 +43,7 @@
  * consist of a set of offset/size pairs, with magic offset/size pairs at the
  * beginning and end of the list. Historic releases only verified the offset of
  * the special pairs, ignoring the size. To detect avail lists that include the
- * checkpoint information, This change adds a version to the extent list: if the
+ * checkpoint information, this change adds a version to the extent list: if the
  * size is WT_BLOCK_EXTLIST_VERSION_CKPT, then checkpoint information follows.
  */
 
