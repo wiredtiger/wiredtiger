@@ -234,7 +234,8 @@ __wt_txn_resolve_prepared_op(
 
 		if (upd->prepare_state == WT_PREPARE_RESOLVED)
 			break;
-		++(*resolved_update_countp);
+		if (resolved_update_countp != NULL)
+			++(*resolved_update_countp);
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
 	}
@@ -415,7 +416,7 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
  *	Mark a WT_UPDATE object modified by the current transaction.
  */
 static inline int
-__wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_OP** opp)
+__wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_OP **opp)
 {
 	WT_TXN *txn;
 	WT_TXN_OP *op;
@@ -443,9 +444,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_OP** opp)
 
 	__wt_txn_op_set_timestamp(session, op);
 
-	if (opp != NULL) {
+	if (opp != NULL)
 		*opp = op;
-	}
 	return (0);
 }
 

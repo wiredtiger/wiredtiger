@@ -30,10 +30,6 @@
 #define	WT_TXN_TS_INCLUDE_OLDEST	0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_MOD_REPEATED	0x1u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
-
 /*
  * Transaction ID comparison dealing with edge cases.
  *
@@ -246,6 +242,9 @@ struct __wt_txn_op {
 	} u;
 
 #ifdef HAVE_DIAGNOSTIC
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_TXN_OP_REPEATED	0x1u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 #endif
 };

@@ -129,9 +129,8 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 
 #ifdef HAVE_DIAGNOSTIC
 		if (op != NULL && upd->next != NULL &&
-		    upd->txnid == upd->next->txnid) {
+		    upd->txnid == upd->next->txnid)
 			F_SET(op, WT_TXN_MOD_REPEATED);
-		}
 #endif
 		/* Serialize the update. */
 		WT_ERR(__wt_update_serial(

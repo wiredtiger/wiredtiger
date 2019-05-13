@@ -997,9 +997,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 #ifdef HAVE_DIAGNOSTIC
-	if (prepare) {
+	if (prepare)
 		WT_ASSERT(session, txn->mod_count == resolved_update_count);
-	}
 #endif
 
 	txn->mod_count = 0;
@@ -1178,14 +1177,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	u_int i, resolved_update_count;
+	u_int i;
 	bool readonly;
 
 	WT_UNUSED(cfg);
 
 	txn = &session->txn;
 	readonly = txn->mod_count == 0;
-	resolved_update_count = 0;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	/* Rollback notification. */
@@ -1222,8 +1220,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 				if (!F_ISSET(op, WT_TXN_MOD_REPEATED))
 #endif
 					WT_RET(__wt_txn_resolve_prepared_op(
-					    session, op, false,
-					    &resolved_update_count));
+					    session, op, false, NULL));
 			} else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
@@ -1246,7 +1243,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
-
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);
