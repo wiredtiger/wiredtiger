@@ -976,7 +976,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
 #ifdef HAVE_DIAGNOSTIC
-				if (!F_ISSET(op, WT_TXN_MOD_REPEATED))
+				if (!F_ISSET(op, WT_TXN_OP_REPEATED))
 #endif
 					WT_ERR(__wt_txn_resolve_prepared_op(
 					    session, op, true,
@@ -1217,7 +1217,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
 #ifdef HAVE_DIAGNOSTIC
-				if (!F_ISSET(op, WT_TXN_MOD_REPEATED))
+				if (!F_ISSET(op, WT_TXN_OP_REPEATED))
 #endif
 					WT_RET(__wt_txn_resolve_prepared_op(
 					    session, op, false, NULL));

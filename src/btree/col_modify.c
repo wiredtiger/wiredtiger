@@ -157,7 +157,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 #ifdef HAVE_DIAGNOSTIC
 		if (op != NULL && upd->next != NULL &&
 		    upd->txnid == upd->next->txnid)
-			F_SET(op, WT_TXN_MOD_REPEATED);
+			F_SET(op, WT_TXN_OP_REPEATED);
 #endif
 
 		/* Serialize the update. */
