@@ -50,8 +50,8 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	WT_INSERT_HEAD *ins_head, **ins_headp;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
-	WT_UPDATE *old_upd, *upd, **upd_entry;
 	WT_TXN_OP *op;
+	WT_UPDATE *old_upd, *upd, **upd_entry;
 	size_t ins_size, upd_size;
 	uint32_t ins_slot;
 	u_int i, skipdepth;
