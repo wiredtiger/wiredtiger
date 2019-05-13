@@ -1247,12 +1247,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_txn_op_free(session, op);
 	}
 
-#ifdef HAVE_DIAGNOSTIC
-	if (F_ISSET(txn, WT_TXN_PREPARE)) {
-		WT_ASSERT(session, txn->mod_count == resolved_update_count);
-	}
-#endif
-
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);
