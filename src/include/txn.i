@@ -444,7 +444,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_TXN_OP** opp)
 	__wt_txn_op_set_timestamp(session, op);
 
 	if (opp != NULL) {
-		*opp = NULL;
 		*opp = op;
 	}
 	return (0);
