@@ -162,7 +162,7 @@ __wt_txn_resolve_prepared_op(
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_UPDATE *upd;
-	int resolved_update_count;
+	u_int resolved_update_count;
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
 
