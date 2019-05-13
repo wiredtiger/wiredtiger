@@ -104,7 +104,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 */
 			WT_ASSERT(session,
 			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-			    F_ISSET(conn, WT_CONN_CLOSING) ||
+			    F_ISSET(S2C(session), WT_CONN_CLOSING) ||
 			    __wt_page_can_evict(session, ref, NULL));
 			__wt_ref_out(session, ref);
 			break;
