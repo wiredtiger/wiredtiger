@@ -204,7 +204,7 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 
 			/*
 			 * Once a modify is found, all previously committed
-			 * modificaions should be applied regardless of
+			 * modifications should be applied regardless of
 			 * visibility.
 			 */
 			ignore_visibility = true;
