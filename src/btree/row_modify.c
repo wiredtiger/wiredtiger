@@ -61,6 +61,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	page = cbt->ref->page;
 	upd = upd_arg;
 	logged = false;
+	op = NULL;
 
 	/* We're going to modify the page, we should have loaded history. */
 	WT_ASSERT(session, cbt->ref->state != WT_REF_LIMBO);
@@ -127,8 +128,10 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		upd->next = old_upd;
 
 #ifdef HAVE_DIAGNOSTIC
-		if (upd->next != NULL && upd->txnid == upd->next->txnid)
+		if (op != NULL && upd->next != NULL &&
+		    upd->txnid == upd->next->txnid) {
 			F_SET(op, WT_TXN_MOD_REPEATED);
+		}
 #endif
 		/* Serialize the update. */
 		WT_ERR(__wt_update_serial(

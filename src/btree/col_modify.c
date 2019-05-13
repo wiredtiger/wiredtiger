@@ -38,6 +38,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	page = cbt->ref->page;
 	upd = upd_arg;
 	append = logged = false;
+	op = NULL;
 
 	if (upd_arg == NULL) {
 		if (modify_type == WT_UPDATE_RESERVE ||
@@ -154,7 +155,8 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		upd->next = old_upd;
 
 #ifdef HAVE_DIAGNOSTIC
-		if (upd->next != NULL && upd->txnid == upd->next->txnid)
+		if (op != NULL && upd->next != NULL &&
+		    upd->txnid == upd->next->txnid)
 			F_SET(op, WT_TXN_MOD_REPEATED);
 #endif
 
