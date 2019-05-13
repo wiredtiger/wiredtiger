@@ -798,7 +798,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE *upd;
 	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
-	u_int i, resolved_update_count, resolved_update_sum;
+	u_int i, resolved_update_count;
 	bool locked, prepare, readonly, update_timestamp;
 
 	txn = &session->txn;
@@ -806,7 +806,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
 	locked = false;
-	resolved_update_sum = 0;
+	resolved_update_count = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -976,17 +976,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
 #ifdef HAVE_DIAGNOSTIC
-				if (!F_ISSET(op, WT_TXN_MOD_REPEATED)) {
+				if (!F_ISSET(op, WT_TXN_MOD_REPEATED))
+#endif
 					WT_ERR(__wt_txn_resolve_prepared_op(
 					    session, op, true,
 					    &resolved_update_count));
-					resolved_update_sum +=
-					    resolved_update_count;
-				}
-#else
-				WT_ERR(__wt_txn_resolve_prepared_op(
-				    session, op, true, &resolved_update_count));
-#endif
 			}
 
 			break;
@@ -1004,7 +998,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 #ifdef HAVE_DIAGNOSTIC
 	if (prepare) {
-		WT_ASSERT(session, txn->mod_count == resolved_update_sum);
+		WT_ASSERT(session, txn->mod_count == resolved_update_count);
 	}
 #endif
 
@@ -1191,6 +1185,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 	txn = &session->txn;
 	readonly = txn->mod_count == 0;
+	resolved_update_count = 0;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	/* Rollback notification. */
@@ -1253,8 +1248,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 #ifdef HAVE_DIAGNOSTIC
-	if (prepare) {
-		WT_ASSERT(session, txn->mod_count == resolved_update_sum);
+	if (F_ISSET(txn, WT_TXN_PREPARE)) {
+		WT_ASSERT(session, txn->mod_count == resolved_update_count);
 	}
 #endif
 

@@ -162,12 +162,10 @@ __wt_txn_resolve_prepared_op(
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_UPDATE *upd;
-	u_int resolved_update_count;
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
 
 	txn = &session->txn;
-	resolved_update_count = 0;
 
 	if (op->type == WT_TXN_OP_NONE || op->type == WT_TXN_OP_REF_DELETE ||
 	    op->type == WT_TXN_OP_TRUNCATE_COL ||
@@ -236,11 +234,10 @@ __wt_txn_resolve_prepared_op(
 
 		if (upd->prepare_state == WT_PREPARE_RESOLVED)
 			break;
-		++resolved_update_count;
+		++(*resolved_update_countp);
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
 	}
-	*resolved_update_countp = resolved_update_count;
 err:    WT_TRET(cursor->close(cursor));
 	return (ret);
 }
