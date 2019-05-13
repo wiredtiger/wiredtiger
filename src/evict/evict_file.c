@@ -16,7 +16,6 @@ int
 __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
 	WT_BTREE *btree;
-	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -25,7 +24,6 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
 	dhandle = session->dhandle;
 	btree = dhandle->handle;
-	conn = S2C(session);
 
 	/*
 	 * We need exclusive access to the file, we're about to discard the root
