@@ -248,15 +248,29 @@ __txn_abort_newer_updates(
 	 */
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
-	if (ref->page_las != NULL && ref->page_las->skew_newest &&
-	    rollback_timestamp < ref->page_las->unstable_durable_timestamp) {
-		/* Make sure get back a page with history, not limbo page */
-		WT_ASSERT(session,
-		    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
-		WT_RET(__wt_page_in(session, ref, read_flags));
-		WT_ASSERT(session, ref->state != WT_REF_LIMBO &&
-		    ref->page != NULL && __wt_page_is_modified(ref->page));
-		local_read = true;
+	if (ref->page_las != NULL) {
+		if (ref->page_las->skew_newest && rollback_timestamp <
+		    ref->page_las->unstable_durable_timestamp) {
+			/*
+			 * Make sure get back a page with history, not limbo
+			 * page.
+			 */
+			WT_ASSERT(session,
+			    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
+			WT_RET(__wt_page_in(session, ref, read_flags));
+			WT_ASSERT(session, ref->state != WT_REF_LIMBO &&
+			    ref->page != NULL &&
+			    __wt_page_is_modified(ref->page));
+			local_read = true;
+		}
+		if (ref->page_las->max_timestamp > rollback_timestamp)
+			ref->page_las->max_timestamp = rollback_timestamp;
+		if (ref->page_las->unstable_durable_timestamp >
+		    rollback_timestamp)
+			ref->page_las->unstable_durable_timestamp =
+			    rollback_timestamp;
+		if (ref->page_las->unstable_timestamp > rollback_timestamp)
+			ref->page_las->unstable_timestamp = rollback_timestamp;
 	}
 
 	/* Review deleted page saved to the ref */
