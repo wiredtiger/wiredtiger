@@ -635,9 +635,6 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	 */
 	__wt_txn_release_snapshot(session);
 	txn->isolation = session->isolation;
-#ifdef HAVE_DIAGNOSTIC
-	txn->multi_update_count = 0;
-#endif
 
 	txn->rollback_reason = NULL;
 
@@ -801,7 +798,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE *upd;
 	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
-	u_int i;
+	u_int i, resolved_update_count, resolved_update_sum;
 	bool locked, prepare, readonly, update_timestamp;
 
 	txn = &session->txn;
@@ -809,6 +806,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
 	locked = false;
+	resolved_update_sum = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -977,8 +975,18 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
+#ifdef HAVE_DIAGNOSTIC
+				if (!F_ISSET(op, WT_TXN_MOD_REPEATED)){
+					WT_ERR(__wt_txn_resolve_prepared_op(
+					    session, op, true,
+					    &resolved_update_count));
+					resolved_update_sum +=
+					    resolved_update_count;
+				}
+#else
 				WT_ERR(__wt_txn_resolve_prepared_op(
-				    session, op, true));
+				    session, op, true, &resolved_update_count));
+#endif
 			}
 
 			break;
@@ -994,11 +1002,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_txn_op_free(session, op);
 	}
 
-	/*
-	 * FIXME: I think we want to say that all prepared updates were
-	 * resolved.
-	 * WT_ASSERT(session, txn->multi_update_count == 0);
-	 */
+#ifdef HAVE_DIAGNOSTIC
+	if (prepare){
+		WT_ASSERT(session, txn->mod_count == resolved_update_sum);
+	}
+#endif
+
 	txn->mod_count = 0;
 
 	/*
@@ -1175,7 +1184,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	u_int i;
+	u_int i, resolved_update_count;
 	bool readonly;
 
 	WT_UNUSED(cfg);
@@ -1213,10 +1222,14 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Need to resolve indirect references of transaction
 			 * operation, in case of prepared transaction.
 			 */
-			if (F_ISSET(txn, WT_TXN_PREPARE))
-				WT_RET(__wt_txn_resolve_prepared_op(
-				    session, op, false));
-			else {
+			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+#ifdef HAVE_DIAGNOSTIC
+				if (!F_ISSET(op, WT_TXN_MOD_REPEATED))
+#endif
+					WT_RET(__wt_txn_resolve_prepared_op(
+					    session, op, false,
+					    &resolved_update_count));
+			} else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;
@@ -1238,6 +1251,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+
+#ifdef HAVE_DIAGNOSTIC
+	if (prepare){
+		WT_ASSERT(session, txn->mod_count == resolved_update_sum);
+	}
+#endif
+
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);

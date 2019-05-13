@@ -27,6 +27,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	WT_INSERT_HEAD *ins_head, **ins_headp;
 	WT_PAGE *page;
 	WT_PAGE_MODIFY *mod;
+	WT_TXN_OP *op;
 	WT_UPDATE *old_upd, *upd;
 	size_t ins_size, upd_size;
 	u_int i, skipdepth;
@@ -139,7 +140,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		/* Allocate a WT_UPDATE structure and transaction ID. */
 		WT_ERR(__wt_update_alloc(session,
 		    value, &upd, &upd_size, modify_type));
-		WT_ERR(__wt_txn_modify(session, upd));
+		WT_ERR(__wt_txn_modify(session, upd, &op));
 		logged = true;
 
 		/* Avoid a data copy in WT_CURSOR.update. */
@@ -151,6 +152,11 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * our memory barrier to flush this write.
 		 */
 		upd->next = old_upd;
+
+#ifdef HAVE_DIAGNOSTIC
+		if (upd->next != NULL && upd->txnid == upd->next->txnid)
+			F_SET(op, WT_TXN_MOD_REPEATED);
+#endif
 
 		/* Serialize the update. */
 		WT_ERR(__wt_update_serial(
@@ -200,7 +206,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		if (upd_arg == NULL) {
 			WT_ERR(__wt_update_alloc(session,
 			    value, &upd, &upd_size, modify_type));
-			WT_ERR(__wt_txn_modify(session, upd));
+			WT_ERR(__wt_txn_modify(session, upd, &op));
 			logged = true;
 
 			/* Avoid a data copy in WT_CURSOR.update. */
