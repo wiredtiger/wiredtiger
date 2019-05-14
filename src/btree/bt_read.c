@@ -415,6 +415,7 @@ __page_read_lookaside(WT_SESSION_IMPL *session,
 
 	WT_RET(__las_page_instantiate(session, ref));
 	ref->page_las->eviction_to_lookaside = false;
+	ref->page_las->resolved = true;
 	return (0);
 }
 
