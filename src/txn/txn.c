@@ -800,7 +800,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	uint32_t fileid;
 	u_int i;
 	bool locked, prepare, readonly, update_timestamp;
-
+#ifdef HAVE_DIAGNOSTIC
+	u_int resolved_update_count = 0;
+#endif
 	txn = &session->txn;
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
@@ -976,9 +978,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			} else {
 #ifdef HAVE_DIAGNOSTIC
 				if (!F_ISSET(op, WT_TXN_OP_REPEATED))
-#endif
 					WT_ERR(__wt_txn_resolve_prepared_op(
-					    session, op, true));
+					    session, op, true,
+					    &resolved_update_count));
+				WT_ASSERT(session,
+				    resolved_update_count >= i + 1);
+#else
+				WT_ERR(__wt_txn_resolve_prepared_op(
+				    session, op, true, NULL));
+#endif
 			}
 
 			break;
@@ -1213,7 +1221,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE))
 				WT_RET(__wt_txn_resolve_prepared_op(
-				    session, op, false));
+				    session, op, false, NULL));
 			else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
