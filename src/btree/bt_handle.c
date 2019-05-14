@@ -242,6 +242,16 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 	F_SET(btree, WT_BTREE_CLOSED);
 
 	/*
+	 * If closing a tree let sweep drop lookaside entries for it.
+	 */
+	if (F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) &&
+	    btree->lookaside_entries) {
+		WT_ASSERT(session, !WT_IS_METADATA(btree->dhandle) &&
+		    !F_ISSET(btree, WT_BTREE_LOOKASIDE));
+		WT_TRET(__wt_las_save_dropped(session));
+	}
+
+	/*
 	 * If we turned eviction off and never turned it back on, do that now,
 	 * otherwise the counter will be off.
 	 */
