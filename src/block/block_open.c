@@ -293,17 +293,20 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
 	memset(buf->mem, 0, allocsize);
 
 	/* If there's room for the metadata, copy it into place. */
-	metadata_len = strlen(metadata) + 1;
-	if (WT_BLOCK_DESC_SIZE + metadata_len <= allocsize)
-		memcpy((uint8_t *)buf->mem +
-		    WT_BLOCK_DESC_SIZE, metadata, metadata_len);
-	else {
-		__wt_verbose(session, WT_VERB_BLOCK,
-		    "%s: metadata not stored in the file description block, "
-		    "the metadata length of %" WT_SIZET_FMT " is too large "
-		    "for the allocation size of %" PRIu32,
-		    filename, metadata_len, allocsize);
-		metadata_len = 0;
+	metadata_len = metadata == NULL ? 0 : strlen(metadata);
+	if (metadata_len != 0) {
+		++metadata_len;
+		if (WT_BLOCK_DESC_SIZE + metadata_len <= allocsize)
+			memcpy((uint8_t *)buf->mem +
+			    WT_BLOCK_DESC_SIZE, metadata, metadata_len);
+		else {
+			__wt_verbose(session, WT_VERB_BLOCK,
+			    "%s: metadata not stored in the file description "
+			    "block, the metadata length of %" WT_SIZET_FMT
+			    " is too large for the allocation size of %" PRIu32,
+			    filename, metadata_len, allocsize);
+			metadata_len = 0;
+		}
 	}
 
 	/*
