@@ -1126,6 +1126,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 			/* Set prepare timestamp. */
 			upd->start_ts = txn->prepare_timestamp;
+
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
 			WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
@@ -1210,10 +1211,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Need to resolve indirect references of transaction
 			 * operation, in case of prepared transaction.
 			 */
-			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+			if (F_ISSET(txn, WT_TXN_PREPARE))
 				WT_RET(__wt_txn_resolve_prepared_op(
 				    session, op, false));
-			} else {
+			else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;

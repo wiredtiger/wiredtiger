@@ -150,8 +150,8 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *      references (i.e keys/recnos), which need to be resolved as part of that
  *      transaction commit/rollback.
  *
- *      Additionally return a counter to the number of updates resolved, which
- *      is then used to determine if we've found the expected number of updates.
+ *      Additionally, in diagnostic mode, validate that we resolve the expected
+ *      number of updates.
  */
 static inline int
 __wt_txn_resolve_prepared_op(
@@ -449,7 +449,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	upd->txnid = session->txn.id;
 
 	__wt_txn_op_set_timestamp(session, op);
-
 	return (0);
 }
 
