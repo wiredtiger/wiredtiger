@@ -245,6 +245,19 @@ __txn_abort_newer_updates(
 	 * dirty.  Otherwise, the history we need could be swept from the
 	 * lookaside table before the page is read because the lookaside sweep
 	 * code has no way to tell that the page image is invalid.
+	 *
+	 * So, if there is lookaside history for a page, first check if the
+	 * history needs to be rolled back make sure that history is loaded
+	 * into cache.  That is, if skew_newest is true, so the disk image
+	 * potentially contained unstable updates, and the history is more
+	 * recent than the rollback timestamp.
+	 *
+	 * Also, we have separately discarded any lookaside history more recent
+	 * than the rollback timestamp.  For page_las structures in cache,
+	 * reset any future timestamps back to the rollback timestamp.  This
+	 * allows those structures to be discarded once the rollback timestamp
+	 * is stable (crucially for tests, they can be discarded if the
+	 * connection is closed right after a rollback_to_stable call).
 	 */
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
@@ -252,8 +265,8 @@ __txn_abort_newer_updates(
 		if (ref->page_las->skew_newest && rollback_timestamp <
 		    ref->page_las->unstable_durable_timestamp) {
 			/*
-			 * Make sure get back a page with history, not limbo
-			 * page.
+			 * Make sure we get back a page with history, not a
+			 * limbo page.
 			 */
 			WT_ASSERT(session,
 			    !F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
