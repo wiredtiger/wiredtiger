@@ -153,7 +153,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *      Additionally, in diagnostic mode, validate that we resolve the expected
  *      number of updates.
  */
-static int
+static inline int
 __wt_txn_resolve_prepared_op(
     WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit,
     u_int *resolved_update_countp)
