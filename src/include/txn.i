@@ -150,8 +150,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *      references (i.e keys/recnos), which need to be resolved as part of that
  *      transaction commit/rollback.
  *
- *      Additionally, in diagnostic mode, validate that we resolve the expected
- *      number of updates.
+ *      Additionally, return the number of resolved updates.
  */
 static inline int
 __wt_txn_resolve_prepared_op(
