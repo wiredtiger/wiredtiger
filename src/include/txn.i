@@ -193,10 +193,7 @@ __wt_txn_resolve_prepared_op(
 	    (WT_CURSOR_BTREE *)cursor, &upd));
 	WT_ERR(ret);
 
-	WT_STAT_CONN_INCR(session, txn_prepared_updates_resolved);
-
-	for (; upd != NULL && upd->txnid == txn->id &&
-		upd->prepare_state != WT_PREPARE_RESOLVED; upd = upd->next) {
+	for (; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
 

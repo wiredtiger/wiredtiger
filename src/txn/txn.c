@@ -995,6 +995,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
+	    resolved_update_count);
+
 	txn->mod_count = 0;
 
 	/*
@@ -1240,6 +1243,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
+	    resolved_update_count);
+
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);
