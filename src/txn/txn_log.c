@@ -187,9 +187,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 	(void)__wt_atomic_subi32(&op->btree->dhandle->session_inuse, 1);
 
 	op->type = WT_TXN_OP_NONE;
-#ifdef HAVE_DIAGNOSTIC
 	op->flags = 0;
-#endif
 }
 
 /*
