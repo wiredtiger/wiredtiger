@@ -798,16 +798,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE *upd;
 	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
-	u_int i;
+	u_int i, resolved_update_count;
 	bool locked, prepare, readonly, update_timestamp;
-#ifdef HAVE_DIAGNOSTIC
-	u_int resolved_update_count = 0;
-#endif
+
 	txn = &session->txn;
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
 	locked = false;
+	resolved_update_count = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -976,17 +975,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
-#ifdef HAVE_DIAGNOSTIC
-				if (!F_ISSET(op, WT_TXN_OP_REPEATED))
+				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
 					WT_ERR(__wt_txn_resolve_prepared_op(
 					    session, op, true,
 					    &resolved_update_count));
 				WT_ASSERT(session,
 				    resolved_update_count >= i + 1);
-#else
-				WT_ERR(__wt_txn_resolve_prepared_op(
-				    session, op, true, NULL));
-#endif
 			}
 
 			break;
@@ -1138,10 +1132,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
 			WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
-#ifdef HAVE_DIAGNOSTIC
 			if (upd->next != NULL && upd->txnid == upd->next->txnid)
-				F_SET(op, WT_TXN_OP_REPEATED);
-#endif
+				F_SET(op, WT_TXN_OP_KEY_REPEATED);
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_txn_op_apply_prepare_state(
@@ -1181,11 +1173,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	u_int i;
+	u_int i, resolved_update_count;
 	bool readonly;
 
 	WT_UNUSED(cfg);
-
+	resolved_update_count = 0;
 	txn = &session->txn;
 	readonly = txn->mod_count == 0;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1219,10 +1211,14 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Need to resolve indirect references of transaction
 			 * operation, in case of prepared transaction.
 			 */
-			if (F_ISSET(txn, WT_TXN_PREPARE))
-				WT_RET(__wt_txn_resolve_prepared_op(
-				    session, op, false, NULL));
-			else {
+			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
+					WT_RET(__wt_txn_resolve_prepared_op(
+					    session, op, false,
+					    &resolved_update_count));
+				WT_ASSERT(session,
+				    resolved_update_count >= i + 1);
+			} else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;

@@ -241,12 +241,10 @@ struct __wt_txn_op {
 		} truncate_row;
 	} u;
 
-#ifdef HAVE_DIAGNOSTIC
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_OP_REPEATED	0x1u
+#define	WT_TXN_OP_KEY_REPEATED	0x1u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
-#endif
 };
 
 /*

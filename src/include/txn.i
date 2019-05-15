@@ -195,9 +195,13 @@ __wt_txn_resolve_prepared_op(
 
 	WT_STAT_CONN_INCR(session, txn_prepared_updates_resolved);
 
-	for (; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
+	for (; upd != NULL && upd->txnid == txn->id &&
+		upd->prepare_state != WT_PREPARE_RESOLVED; upd = upd->next) {
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
+
+		if (resolved_update_countp != NULL)
+			++(*resolved_update_countp);
 
 		if (!commit) {
 			upd->txnid = WT_TXN_ABORTED;
@@ -232,10 +236,6 @@ __wt_txn_resolve_prepared_op(
 		 * thing as part of "txn_op2".
 		 */
 
-		if (upd->prepare_state == WT_PREPARE_RESOLVED)
-			break;
-		if (resolved_update_countp != NULL)
-			++(*resolved_update_countp);
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
 	}
