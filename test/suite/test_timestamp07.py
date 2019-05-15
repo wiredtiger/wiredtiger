@@ -68,6 +68,18 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     value2 = u'\u0001\u0002dcba\u0007\u0004'
     value3 = u'\u0001\u0002cdef\u0007\u0004'
 
+    # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
+    def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
+        # Confirm the expected hex timestamp return value
+        q = resource.query_timestamp(ts_query)
+        self.pr(ts_query + ' in hex:' + q)
+        self.assertTimestampsEqual(q, timestamp_str(expected_val_numeric))
+
+        # Confirm the expected numeric timestamp return value
+        q = resource.query_timestamp_numeric(ts_query)
+        self.pr(ts_query + ' in decimal:' + str(q))
+        self.assertEqual(q, expected_val_numeric)
+
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected value for a key
     def check(self, session, txn_config, k, expected):
@@ -216,7 +228,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # print "all values read, updating timestamps"
 
         # Bump the oldest timestamp, we're not going back...
-        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(self.nkeys))
+        self.assert_query_timestamp_equals(self.conn, '', self.nkeys)
         self.oldts = self.stablets = timestamp_str(self.nkeys)
         self.conn.set_timestamp('oldest_timestamp=' + self.oldts)
         self.conn.set_timestamp('stable_timestamp=' + self.stablets)

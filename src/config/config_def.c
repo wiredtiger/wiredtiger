@@ -52,6 +52,14 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
 
+static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp_numeric[] = {
+	{ "get", "string",
+	    NULL, "choices=[\"all_committed\",\"last_checkpoint\",\"oldest\""
+	    ",\"oldest_reader\",\"pinned\",\"recovery\",\"stable\"]",
+	    NULL, 0 },
+	{ NULL, NULL, NULL, NULL, NULL, 0 }
+};
+
 static const WT_CONFIG_CHECK
     confchk_wiredtiger_open_async_subconfigs[] = {
 	{ "enabled", "boolean", NULL, NULL, NULL, 0 },
@@ -487,6 +495,14 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_prepare_transaction[] = {
 };
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp[] = {
+	{ "get", "string",
+	    NULL, "choices=[\"commit\",\"first_commit\",\"prepare\","
+	    "\"read\"]",
+	    NULL, 0 },
+	{ NULL, NULL, NULL, NULL, NULL, 0 }
+};
+
+static const WT_CONFIG_CHECK confchk_WT_SESSION_query_timestamp_numeric[] = {
 	{ "get", "string",
 	    NULL, "choices=[\"commit\",\"first_commit\",\"prepare\","
 	    "\"read\"]",
@@ -1328,6 +1344,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "get=all_committed",
 	  confchk_WT_CONNECTION_query_timestamp, 1
 	},
+	{ "WT_CONNECTION.query_timestamp_numeric",
+	  "get=all_committed",
+	  confchk_WT_CONNECTION_query_timestamp_numeric, 1
+	},
 	{ "WT_CONNECTION.reconfigure",
 	  "async=(enabled=false,ops_max=1024,threads=2),cache_max_wait_ms=0"
 	  ",cache_overhead=8,cache_size=100MB,checkpoint=(log_size=0,"
@@ -1451,6 +1471,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	{ "WT_SESSION.query_timestamp",
 	  "get=read",
 	  confchk_WT_SESSION_query_timestamp, 1
+	},
+	{ "WT_SESSION.query_timestamp_numeric",
+	  "get=read",
+	  confchk_WT_SESSION_query_timestamp_numeric, 1
 	},
 	{ "WT_SESSION.rebalance",
 	  "",

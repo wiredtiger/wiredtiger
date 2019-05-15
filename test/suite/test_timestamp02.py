@@ -51,6 +51,18 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
     session_config = 'isolation=snapshot'
 
+    # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
+    def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
+        # Confirm the expected hex timestamp return value
+        q = resource.query_timestamp(ts_query)
+        self.pr(ts_query + ' in hex:' + q)
+        self.assertTimestampsEqual(q, timestamp_str(expected_val_numeric))
+
+        # Confirm the expected numeric timestamp return value
+        q = resource.query_timestamp_numeric(ts_query)
+        self.pr(ts_query + ' in decimal:' + str(q))
+        self.assertEqual(q, expected_val_numeric)
+
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
     def check(self, session, txn_config, expected):
@@ -90,7 +102,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
                 dict((k, 1) for k in orig_keys[:i+1]))
 
         # Everything up to and including timestamp 100 has been committed.
-        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(100))
+        self.assert_query_timestamp_equals(self.conn, '', 100)
 
         # Bump the oldest timestamp, we're not going back...
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100))
@@ -103,11 +115,11 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(k + 100))
 
         # Everything up to and including timestamp 200 has been committed.
-        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(200))
+        self.assert_query_timestamp_equals(self.conn, '', 200)
 
         # Test that we can manually move the commit timestamp back
         self.conn.set_timestamp('commit_timestamp=' + timestamp_str(150))
-        self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(150))
+        self.assert_query_timestamp_equals(self.conn, '', 150)
         self.conn.set_timestamp('commit_timestamp=' + timestamp_str(200))
 
         # Now the stable timestamp before we read.

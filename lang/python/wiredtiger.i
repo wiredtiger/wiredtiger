@@ -652,6 +652,11 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 		$result = SWIG_FromCharPtr($1);
 }
 
+/* Handle returned wt_timestamp_t timestamps. */
+%typemap(in,numinputs=0) (wt_timestamp_t *timestamp) (uint64_t ts) { $1 = &ts; }
+%typemap(frearg) (wt_timestamp_t *timestamp) "";
+%typemap(argout) (wt_timestamp_t *timestamp) { $result = PyLong_FromUnsignedLongLong(*$1); }
+
 %{
 typedef int int_void;
 %}

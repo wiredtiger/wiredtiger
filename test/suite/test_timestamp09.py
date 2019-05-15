@@ -41,6 +41,18 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:' + tablename
     session_config = 'isolation=snapshot'
 
+    # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
+    def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
+        # Confirm the expected hex timestamp return value
+        q = resource.query_timestamp(ts_query)
+        self.pr(ts_query + ' in hex:' + q)
+        self.assertTimestampsEqual(q, timestamp_str(expected_val_numeric))
+
+        # Confirm the expected numeric timestamp return value
+        q = resource.query_timestamp_numeric(ts_query)
+        self.pr(ts_query + ' in decimal:' + str(q))
+        self.assertEqual(q, expected_val_numeric)
+
     def test_timestamp_api(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
         c = self.session.open_cursor(self.uri)
@@ -109,7 +121,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # Oldest timestamp is 3 at the moment, trying to set it to an earlier
         # timestamp is a no-op.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=oldest'), timestamp_str(3))
+        self.assert_query_timestamp_equals(self.conn, 'get=oldest', 3)
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(3) +
             ',stable_timestamp=' + timestamp_str(3))
@@ -117,7 +129,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # Stable timestamp is 5 at the moment, trying to set it to an earlier
         # timestamp is a no-op.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(4))
-        self.assertTimestampsEqual(self.conn.query_timestamp('get=stable'), timestamp_str(5))
+        self.assert_query_timestamp_equals(self.conn, 'get=stable', 5)
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(5))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -178,8 +190,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(c[6], 6)
         self.assertEqual(c[7], 7)
         self.assertEqual(c[8], 8)
-        self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(8))
+        self.assert_query_timestamp_equals(self.conn, 'get=oldest_reader', 8)
         self.session.commit_transaction()
 
         # We can move the oldest timestamp backwards with "force"
@@ -190,8 +201,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
                 timestamp_str(4)),
                 '/less than the oldest timestamp/')
         self.session.begin_transaction('read_timestamp=' + timestamp_str(6))
-        self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=oldest_reader'), timestamp_str(6))
+        self.assert_query_timestamp_equals(self.conn, 'get=oldest_reader', 6)
         self.session.commit_transaction()
 
 if __name__ == '__main__':

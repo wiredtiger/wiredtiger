@@ -341,16 +341,30 @@ __txn_query_timestamp(
  */
 int
 __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
+    wt_timestamp_t *ts, const char *cfg[], bool global_txn)
+{
+	if (global_txn)
+		WT_RET(__txn_global_query_timestamp(session, ts, cfg));
+	else
+		WT_RET(__txn_query_timestamp(session, ts, cfg));
+
+	return (0);
+}
+
+/*
+ * __wt_txn_query_timestamp_hex --
+ *	Query a timestamp in it's hexadecimal encoding. The caller may query the
+ *	global transaction or the session's transaction.
+ */
+int
+__wt_txn_query_timestamp_hex(WT_SESSION_IMPL *session,
     char *hex_timestamp, const char *cfg[], bool global_txn)
 {
 	wt_timestamp_t ts;
 
-	if (global_txn)
-		WT_RET(__txn_global_query_timestamp(session, &ts, cfg));
-	else
-		WT_RET(__txn_query_timestamp(session, &ts, cfg));
-
+	WT_RET(__wt_txn_query_timestamp(session, &ts, cfg, global_txn));
 	__wt_timestamp_to_hex_string(ts, hex_timestamp);
+
 	return (0);
 }
 

@@ -589,6 +589,7 @@ timestamp(void *arg)
 	WT_CONNECTION *conn;
 	WT_DECL_RET;
 	WT_SESSION *session;
+	wt_timestamp_t ts;
 	char buf[WT_TS_HEX_STRING_SIZE + 64];
 	bool done;
 
@@ -623,8 +624,19 @@ timestamp(void *arg)
 		ret = conn->query_timestamp(conn,
 		    buf + strlen("oldest_timestamp="), "get=all_committed");
 		testutil_assert(ret == 0 || ret == WT_NOTFOUND);
-		if (ret == 0)
+		if (ret == 0) {
+			/*
+			 * Confirm that the numeric version of query_timestamp
+			 * returns the same result
+			 */
+			ret = conn->query_timestamp_numeric(
+			    conn, &ts, "get=all_committed");
+			testutil_assert(ret == 0);
+			testutil_assert(ts == strtoul(
+			    buf + strlen("oldest_timestamp="), NULL, 0));
+
 			testutil_check(conn->set_timestamp(conn, buf));
+		}
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	} while (!done);

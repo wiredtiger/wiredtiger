@@ -44,31 +44,40 @@ class test_timestamp16(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:' + tablename
     session_config = 'isolation=snapshot'
 
+    # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
+    def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
+        # Confirm the expected hex timestamp return value
+        q = resource.query_timestamp(ts_query)
+        self.pr(ts_query + ' in hex:' + q)
+        self.assertTimestampsEqual(q, timestamp_str(expected_val_numeric))
+
+        # Confirm the expected numeric timestamp return value
+        q = resource.query_timestamp_numeric(ts_query)
+        self.pr(ts_query + ' in decimal:' + str(q))
+        self.assertEqual(q, expected_val_numeric)
+
     def test_read_timestamp_cleared(self):
         # Ensure that the read timestamp doesn't move our checkpoint.
         self.session.create(self.uri, 'key_format=i,value_format=i')
-        self.session.begin_transaction('read_timestamp=100')
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(100))
         self.session.rollback_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('0',
-            self.conn.query_timestamp('get=last_checkpoint'))
+        self.assert_query_timestamp_equals(self.conn, 'get=last_checkpoint', 0)
 
         # Set a stable and make sure that we still checkpoint at
         # the stable.
-        self.conn.set_timestamp('stable_timestamp=1')
-        self.session.begin_transaction('read_timestamp=100')
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(100))
         self.session.rollback_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('1',
-            self.conn.query_timestamp('get=last_checkpoint'))
+        self.assert_query_timestamp_equals(self.conn, 'get=last_checkpoint', 1)
 
         # Finally make sure that commit also resets the read timestamp.
         self.session.create(self.uri, 'key_format=i,value_format=i')
-        self.session.begin_transaction('read_timestamp=150')
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(150))
         self.session.commit_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('1',
-            self.conn.query_timestamp('get=last_checkpoint'))
+        self.assert_query_timestamp_equals(self.conn, 'get=last_checkpoint', 1)
 
 if __name__ == '__main__':
     wttest.run()

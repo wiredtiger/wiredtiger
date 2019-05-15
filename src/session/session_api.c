@@ -1817,7 +1817,26 @@ __session_query_timestamp(
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
 	    query_timestamp, config, cfg);
-	WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg, false));
+	WT_TRET(__wt_txn_query_timestamp_hex(
+	    session, hex_timestamp, cfg, false));
+err:	API_END_RET(session, ret);
+}
+
+/*
+ * __session_query_timestamp_numeric --
+ *	WT_SESSION->query_timestamp_numeric method.
+ */
+static int
+__session_query_timestamp_numeric(
+    WT_SESSION *wt_session, wt_timestamp_t *timestamp, const char *config)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	SESSION_API_CALL_PREPARE_ALLOWED(session,
+	    query_timestamp_numeric, config, cfg);
+	WT_TRET(__wt_txn_query_timestamp(session, timestamp, cfg, false));
 err:	API_END_RET(session, ret);
 }
 
@@ -2135,6 +2154,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_timestamp_transaction,
 		__session_timestamp_transaction_numeric,
 		__session_query_timestamp,
+		__session_query_timestamp_numeric,
 		__session_checkpoint,
 		__session_snapshot,
 		__session_transaction_pinned_range,
@@ -2168,6 +2188,7 @@ __open_session(WT_CONNECTION_IMPL *conn,
 		__session_timestamp_transaction,
 		__session_timestamp_transaction_numeric,
 		__session_query_timestamp,
+		__session_query_timestamp_numeric,
 		__session_checkpoint_readonly,
 		__session_snapshot,
 		__session_transaction_pinned_range,

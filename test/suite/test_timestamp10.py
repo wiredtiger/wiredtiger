@@ -61,6 +61,18 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     scenarios = make_scenarios(types)
 
+    # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
+    def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
+        # Confirm the expected hex timestamp return value
+        q = resource.query_timestamp(ts_query)
+        self.pr(ts_query + ' in hex:' + q)
+        self.assertTimestampsEqual(q, timestamp_str(expected_val_numeric))
+
+        # Confirm the expected numeric timestamp return value
+        q = resource.query_timestamp_numeric(ts_query)
+        self.pr(ts_query + ' in decimal:' + str(q))
+        self.assertEqual(q, expected_val_numeric)
+
     def data_and_checkpoint(self):
         #
         # Create several collection-like tables that are checkpoint durability.
@@ -98,8 +110,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
                 ',stable_timestamp=' + timestamp_str(ts))
             # This forces a different checkpoint timestamp for each table.
             self.session.checkpoint()
-            q = self.conn.query_timestamp('get=last_checkpoint')
-            self.assertTimestampsEqual(q, timestamp_str(ts))
+            self.assert_query_timestamp_equals(self.conn, 'get=last_checkpoint', ts)
         return ts
 
     def close_and_recover(self, expected_rec_ts):
@@ -122,9 +133,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
             self.runWt(['-h', '.', '-R', 'list', '-v'], outfilename="list.out")
 
         self.open_conn()
-        q = self.conn.query_timestamp('get=recovery')
-        self.pr("query recovery ts: " + q)
-        self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
+        self.assert_query_timestamp_equals(self.conn, 'get=recovery', expected_rec_ts)
 
     def test_timestamp_recovery(self):
         # Add some data and checkpoint at a stable timestamp.
