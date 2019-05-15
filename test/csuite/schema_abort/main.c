@@ -1171,8 +1171,8 @@ main(int argc, char *argv[])
 	 */
 	stable_val = 0;
 	if (use_ts) {
-		testutil_check(
-		    conn->query_timestamp_numeric(conn, &stable_val, "get=recovery"));
+		testutil_check(conn->query_timestamp_numeric(
+		    conn, &stable_val, "get=recovery"));
 		printf("Got stable_val %" PRIu64 "\n", stable_val);
 	}
 

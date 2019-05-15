@@ -81,6 +81,11 @@ struct __wt_file_system;    typedef struct __wt_file_system WT_FILE_SYSTEM;
 struct __wt_item;	    typedef struct __wt_item WT_ITEM;
 struct __wt_modify;	    typedef struct __wt_modify WT_MODIFY;
 struct __wt_session;	    typedef struct __wt_session WT_SESSION;
+
+/*!
+ * A timestamp type.
+ * XXX Put a definition.
+ */
 typedef uint64_t wt_timestamp_t;
 
 #if defined(SWIGJAVA)
