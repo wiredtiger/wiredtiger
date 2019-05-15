@@ -127,7 +127,7 @@ thread_ts_run(void *arg)
 	WT_DECL_RET;
 	WT_SESSION *session;
 	THREAD_DATA *td;
-	char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
+	char tscfg[64];
 	wt_timestamp_t ts;
 
 	td = (THREAD_DATA *)arg;
@@ -141,17 +141,8 @@ thread_ts_run(void *arg)
 		 * transactional ops that set or query a timestamp.
 		 */
 		testutil_check(pthread_rwlock_wrlock(&ts_lock));
-		ret = td->conn->query_timestamp(
-		    td->conn, ts_string, "get=all_committed");
-
-		// Confirm that we get the same results with the numeric API.
-		if (ret == 0) {
-			ret = td->conn->query_timestamp_numeric(
-			    td->conn, &ts, "get=all_committed");
-			testutil_assert(ret == 0);
-			testutil_assert(ts == strtoul(ts_string, NULL, 0));
-		}
-
+		ret = td->conn->query_timestamp_numeric(
+		    td->conn, &ts, "get=all_committed");
 		testutil_check(pthread_rwlock_unlock(&ts_lock));
 		testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 		if (ret == 0) {
@@ -162,8 +153,9 @@ thread_ts_run(void *arg)
 			 */
 			testutil_check(__wt_snprintf(
 			    tscfg, sizeof(tscfg),
-			    "oldest_timestamp=%s,stable_timestamp=%s",
-			    ts_string, ts_string));
+			    "oldest_timestamp=%"PRIx64","
+			    "stable_timestamp=%"PRIx64"",
+			    ts, ts));
 			testutil_check(
 			    td->conn->set_timestamp(td->conn, tscfg));
 		}

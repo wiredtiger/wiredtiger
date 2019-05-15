@@ -621,20 +621,12 @@ timestamp(void *arg)
 		 */
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
-		ret = conn->query_timestamp(conn,
-		    buf + strlen("oldest_timestamp="), "get=all_committed");
+		ret = conn->query_timestamp_numeric(
+		    conn, &ts, "get=all_committed");
 		testutil_assert(ret == 0 || ret == WT_NOTFOUND);
 		if (ret == 0) {
-			/*
-			 * Confirm that the numeric version of query_timestamp
-			 * returns the same result
-			 */
-			ret = conn->query_timestamp_numeric(
-			    conn, &ts, "get=all_committed");
-			testutil_assert(ret == 0);
-			testutil_assert(ts == strtoul(
-			    buf + strlen("oldest_timestamp="), NULL, 0));
-
+			__wt_snprintf(buf + strlen("oldest_timestamp="),
+			    sizeof(buf), "%"PRIx64"", ts);
 			testutil_check(conn->set_timestamp(conn, buf));
 		}
 
