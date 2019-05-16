@@ -1,4 +1,5 @@
 # Data for log.py, describes the format of log records
+
 # There are a small number of main log record types.
 #
 # Some log record types, such as transaction commit, also include a list of
@@ -82,6 +83,11 @@ optypes = [
     LogOperationType('checkpoint_start', 'checkpoint start', []),
     LogOperationType('prev_lsn', 'previous LSN',
         [('WT_LSN', 'prev_lsn')]),
+
+# diagnostic operations
+# Operations used only for diagnostic purposes should be have its type
+# value in the diagnostic range in src/include/wiredtiger.in so that they
+# are always ignored by recovery.
     #
     # We need to know the base size/type of a 'struct timespec'. Cast its
     # parts to uint64_t and split it into seconds and nanoseconds.
