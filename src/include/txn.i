@@ -193,7 +193,15 @@ __wt_txn_resolve_prepared_op(
 	    (WT_CURSOR_BTREE *)cursor, &upd));
 	WT_ERR(ret);
 
-	for (; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
+	/*
+	 * If we haven't found anything then there's an error.
+	 */
+	if (upd == NULL) {
+		WT_ASSERT(session, upd != NULL);
+		WT_ERR(WT_NOTFOUND);
+	}
+
+	for (; upd->txnid == txn->id; upd = upd->next) {
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
 
@@ -235,15 +243,6 @@ __wt_txn_resolve_prepared_op(
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
 	}
-
-	/*
-	 * If we haven't found anything then there's an error.
-	 */
-	if (*resolved_update_countp == 0) {
-		WT_ASSERT(session, *resolved_update_countp != 0);
-		ret = WT_NOTFOUND;
-	}
-
 err:    WT_TRET(cursor->close(cursor));
 	return (ret);
 }
