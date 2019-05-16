@@ -611,7 +611,7 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 
 		read_ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(session->timestamp_transaction_numeric(
-		    session, read_ts, "read_timestamp"));
+		    session, read_ts, "set=read_timestamp"));
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
@@ -634,11 +634,11 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
 		testutil_check(session->timestamp_transaction_numeric(
-		    session, ts, "commit_timestamp"));
+		    session, ts, "set=commit_timestamp"));
 
 		if (tinfo->prepare_txn)
 			testutil_check(session->timestamp_transaction_numeric(
-			    session, ts, "durable_timestamp"));
+			    session, ts, "set=durable_timestamp"));
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}

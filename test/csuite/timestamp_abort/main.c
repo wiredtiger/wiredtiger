@@ -325,7 +325,7 @@ thread_run(void *arg)
 			 * this timestamp.
 			 */
 			testutil_check(session->timestamp_transaction_numeric(
-			    session, active_ts, "commit_timestamp"));
+			    session, active_ts, "set=commit_timestamp"));
 			testutil_check(pthread_rwlock_unlock(&ts_lock));
 		}
 

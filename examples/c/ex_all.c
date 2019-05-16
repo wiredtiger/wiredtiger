@@ -957,7 +957,7 @@ transaction_ops(WT_SESSION *session_arg)
 	/*! [transaction timestamp] */
 	/* 2a hex is 42 decimal */
 	error_check(session->timestamp_transaction_numeric(
-	    session, 42, "commit_timestamp"));
+	    session, 42, "set=commit_timestamp"));
 	/*! [transaction timestamp] */
 
 	error_check(session->commit_transaction(session, NULL));
