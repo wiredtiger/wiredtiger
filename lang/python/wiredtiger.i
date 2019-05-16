@@ -668,12 +668,16 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
  * couldn't make it work.
  */
 %typemap(in) wt_timestamp_t {
+#if PY_MAJOR_VERSION >= 3
+        $1 = PyLong_AsUnsignedLongLong($input);
+#else
         if (PyInt_CheckExact($input)) {
                 if (PyInt_AS_LONG($input) < 0)
                         SWIG_exception(SWIG_OverflowError,"can't convert negative long to unsigned.");
                 $1 = PyInt_AsUnsignedLongLongMask($input);
         } else if (PyLong_CheckExact($input))
                 $1 = PyLong_AsUnsignedLongLong($input);
+#endif
         if (PyErr_Occurred() != NULL)
                 SWIG_fail;
 }
