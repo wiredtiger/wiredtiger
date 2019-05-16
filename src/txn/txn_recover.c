@@ -136,8 +136,10 @@ __txn_op_apply(
 	 * Note that file ids within known operations also use the same
 	 * macros to indicate that operation should be ignored.
 	 */
-	if (WT_LOGOP_IS_IGNORED(optype))
+	if (WT_LOGOP_IS_IGNORED(optype)) {
+		*pp += opsize;
 		goto done;
+	}
 
 	switch (optype) {
 	case WT_LOGOP_COL_MODIFY:
