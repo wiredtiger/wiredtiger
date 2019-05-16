@@ -201,7 +201,7 @@ __wt_txn_resolve_prepared_op(
 		WT_ERR(WT_NOTFOUND);
 	}
 
-	for (; upd->txnid == txn->id; upd = upd->next) {
+	for (; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
 
