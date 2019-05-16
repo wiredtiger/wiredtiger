@@ -142,7 +142,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 /*
  * __wt_txn_resolve_prepared_op --
- *      Resolve a transaction operation indirect references.
+ *      Resolve a transaction's operations indirect references.
  *
  *      In case of prepared transactions, the prepared updates could be evicted
  *      using cache overflow mechanism. Transaction operations referring to
@@ -150,7 +150,8 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *      references (i.e keys/recnos), which need to be resolved as part of that
  *      transaction commit/rollback.
  *
- *      Additionally, return the number of resolved updates.
+ *      If no updates are resolved throw an error. Return the count of
+ *      resolved updates.
  */
 static inline int
 __wt_txn_resolve_prepared_op(
@@ -196,8 +197,7 @@ __wt_txn_resolve_prepared_op(
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
 
-		if (resolved_update_countp != NULL)
-			++(*resolved_update_countp);
+		++(*resolved_update_countp);
 
 		if (!commit) {
 			upd->txnid = WT_TXN_ABORTED;
@@ -235,6 +235,15 @@ __wt_txn_resolve_prepared_op(
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
 	}
+
+	/*
+	 * If we haven't found anything then there's an error.
+	 */
+	if (*resolved_update_countp == 0) {
+		WT_ASSERT(session, *resolved_update_countp != 0);
+		ret = WT_NOTFOUND;
+	}
+
 err:    WT_TRET(cursor->close(cursor));
 	return (ret);
 }
