@@ -85,8 +85,8 @@ optypes = [
         [('WT_LSN', 'prev_lsn')]),
 
 # diagnostic operations
-# Operations used only for diagnostic purposes should be have its type
-# value in the diagnostic range in src/include/wiredtiger.in so that they
+# Operations used only for diagnostic purposes should be have their type
+# values in the diagnostic range in src/include/wiredtiger.in so that they
 # are always ignored by recovery.
     #
     # We need to know the base size/type of a 'struct timespec'. Cast its
