@@ -60,7 +60,7 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit with a timestamp
         self.session.begin_transaction()
         self.session.timestamp_transaction_numeric(
-            'commit_timestamp=' + str(self.count))
+            self.count, 'set=commit_timestamp')
         c[key] = val
         # All settings other than never should commit successfully
         if (use_ts != 'never'):

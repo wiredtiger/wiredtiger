@@ -976,45 +976,24 @@ __wt_txn_set_read_timestamp(
  *	provided in a numeric form.
  */
 int
-__wt_txn_set_timestamp_numeric(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_txn_set_timestamp_numeric(
+    WT_SESSION_IMPL *session, wt_timestamp_t timestamp, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
-	WT_DECL_RET;
 
 	WT_RET(__wt_txn_context_check(session, true));
 
-	/* Look for a commit timestamp. */
-	ret = __wt_config_gets_def(session, cfg, "commit_timestamp", 0, &cval);
-	WT_RET_NOTFOUND_OK(ret);
-	if (ret == 0 && cval.val != 0) {
-		WT_RET(__wt_txn_set_commit_timestamp(
-		    session, (wt_timestamp_t) cval.val));
+	WT_RET(__wt_config_gets(session, cfg, "set", &cval));
+
+	if (WT_STRING_MATCH("commit_timestamp", cval.str, cval.len)) {
+		WT_RET(__wt_txn_set_commit_timestamp(session, timestamp));
 		__wt_txn_publish_commit_timestamp(session);
-	}
-
-	/*
-	 * Look for a durable timestamp. Durable timestamp should be set only
-	 * after setting the commit timestamp.
-	 */
-	ret = __wt_config_gets_def(
-	    session, cfg, "durable_timestamp", 0, &cval);
-	WT_RET_NOTFOUND_OK(ret);
-	if (ret == 0 && cval.val != 0)
-		WT_RET(__wt_txn_set_durable_timestamp(
-		    session, (wt_timestamp_t) cval.val));
-
-	/* Look for a read timestamp. */
-	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
-	if (ret == 0 && cval.val != 0)
-		WT_RET(__wt_txn_set_read_timestamp(
-		    session, (wt_timestamp_t) cval.val));
-
-	/* Look for a prepare timestamp. */
-	WT_RET(__wt_config_gets_def(session,
-	    cfg, "prepare_timestamp", 0, &cval));
-	if (ret == 0 && cval.val != 0)
-		WT_RET(__wt_txn_set_prepare_timestamp(
-		    session, (wt_timestamp_t) cval.val));
+	} else if (WT_STRING_MATCH("durable_timestamp", cval.str, cval.len))
+		WT_RET(__wt_txn_set_durable_timestamp(session, timestamp));
+	else if (WT_STRING_MATCH("read_timestamp", cval.str, cval.len))
+		WT_RET(__wt_txn_set_read_timestamp(session, timestamp));
+	else if (WT_STRING_MATCH("prepare_timestamp", cval.str, cval.len))
+		WT_RET(__wt_txn_set_prepare_timestamp(session, timestamp));
 
 	return (0);
 }

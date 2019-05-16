@@ -121,8 +121,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
             if i > 0 and i % (self.nentries // 37) == 0:
                 self.check(cursor, committed, i)
                 self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
-                self.session.timestamp_transaction_numeric("commit_timestamp=30")
-                self.session.timestamp_transaction_numeric("durable_timestamp=30")
+                self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+                self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
                 self.session.commit_transaction()
                 committed = i
                 self.session.begin_transaction()
@@ -139,10 +139,10 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
         self.check(cursor, committed, self.nentries)
 
-        self.session.timestamp_transaction_numeric("prepare_timestamp=20")
+        self.session.timestamp_transaction_numeric(20, "set=prepare_timestamp")
         self.session.prepare_transaction()
-        self.session.timestamp_transaction_numeric("commit_timestamp=30")
-        self.session.timestamp_transaction_numeric("durable_timestamp=30")
+        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
 

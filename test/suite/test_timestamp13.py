@@ -104,18 +104,18 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
             'key_format=i,value_format=i' + self.extra_config)
 
         self.session.begin_transaction('isolation=snapshot')
-        self.session.timestamp_transaction_numeric('read_timestamp=' + '10')
+        self.session.timestamp_transaction_numeric(10, 'set=read_timestamp')
         self.assert_query_timestamp_equals(self.session, 'get=read', 10)
 
         # The first commit_timestamp will set both the commit and first_commit
         # values.
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '20')
+        self.session.timestamp_transaction_numeric(20, 'set=commit_timestamp')
         self.assert_query_timestamp_equals(self.session, 'get=commit', 20)
         self.assert_query_timestamp_equals(self.session, 'get=first_commit', 20)
 
         # The second commit_timestamp will update the commit value, leaving
         # first_commit alone.
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '30')
+        self.session.timestamp_transaction_numeric(30, 'set=commit_timestamp')
         self.assert_query_timestamp_equals(self.session, 'get=commit', 30)
         self.assert_query_timestamp_equals(self.session, 'get=first_commit', 20)
         self.session.commit_transaction()
@@ -129,7 +129,7 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         # to succeed. The follow-up call to get the read timestamp returns the
         # chosen read timestamp.
         self.session.begin_transaction('isolation=snapshot,roundup_timestamps=(read=true)')
-        self.session.timestamp_transaction_numeric('read_timestamp=' + '5')
+        self.session.timestamp_transaction_numeric(5, 'set=read_timestamp')
         self.assert_query_timestamp_equals(self.session, 'get=read', 10)
 
         # Moving the oldest timestamp has no bearing on the read timestamp
@@ -146,8 +146,8 @@ class test_timestamp13(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(10))
         self.assert_query_timestamp_equals(self.session, 'get=prepare', 10)
 
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '20')
-        self.session.timestamp_transaction_numeric('durable_timestamp=' + '20')
+        self.session.timestamp_transaction_numeric(20, 'set=commit_timestamp')
+        self.session.timestamp_transaction_numeric(20, 'set=durable_timestamp')
         self.assert_query_timestamp_equals(self.session, 'get=prepare', 10)
         self.assert_query_timestamp_equals(self.session, 'get=commit', 20)
         self.session.commit_transaction()

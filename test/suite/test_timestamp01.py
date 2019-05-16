@@ -43,7 +43,7 @@ class test_timestamp01(wttest.WiredTigerTestCase, suite_subprocess):
         # Cannot set a timestamp on a non-running transaction
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_numeric(
-                'commit_timestamp=' + str(1)),
+                1, 'set=commit_timestamp'),
                 '/only permitted in a running/')
 
         # Zero is not permitted

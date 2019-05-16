@@ -317,9 +317,6 @@ thread_run(void *arg)
 		if (use_ts) {
 			testutil_check(pthread_rwlock_rdlock(&ts_lock));
 			active_ts = __wt_atomic_addv64(&global_ts, 1);
-			testutil_check(__wt_snprintf(tscfg,
-			    sizeof(tscfg), "commit_timestamp=%" PRIu64,
-			    active_ts));
 			/*
 			 * Set the transaction's timestamp now before performing
 			 * the operation. If we are using prepared transactions,
@@ -328,7 +325,7 @@ thread_run(void *arg)
 			 * this timestamp.
 			 */
 			testutil_check(session->timestamp_transaction_numeric(
-			    session, tscfg));
+			    session, active_ts, "commit_timestamp"));
 			testutil_check(pthread_rwlock_unlock(&ts_lock));
 		}
 

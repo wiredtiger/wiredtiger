@@ -50,7 +50,7 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         # Insert two data items at timestamp 2
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '2')
+        self.session.timestamp_transaction_numeric(2, 'set=commit_timestamp')
         c['key'] = 'value2'
         c['key2'] = 'value2'
         self.session.commit_transaction()
@@ -62,7 +62,7 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         #
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '5')
+        self.session.timestamp_transaction_numeric(5, 'set=commit_timestamp')
         c['key'] = 'value5'
         self.session.commit_transaction()
         c.close()
@@ -102,7 +102,7 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         #
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '5')
+        self.session.timestamp_transaction_numeric(5, 'set=commit_timestamp')
         c['key2'] = 'value5'
         self.session.commit_transaction()
         c.close()

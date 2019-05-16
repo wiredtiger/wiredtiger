@@ -657,6 +657,23 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 %typemap(frearg) (wt_timestamp_t *timestamp) "";
 %typemap(argout) (wt_timestamp_t *timestamp) { $result = PyLong_FromUnsignedLongLong(*$1); }
 
+/* 
+ * Handle input of wt_timestamp_t type:
+ * PyInt_AsUnsignedLongLongMask() doesn't check for overflow, but
+ * PyLong_AsUnsignedLongLong() does.
+ */
+%typemap(in) wt_timestamp_t {
+        if (PyInt_CheckExact($input)) {
+                /* XXX: Need to fix here */ 
+                if ($input < 0)
+                        SWIG_fail;
+                $1 = PyInt_AsUnsignedLongLongMask($input);
+        } else if (PyLong_CheckExact($input))
+                $1 = PyLong_AsUnsignedLongLong($input);
+        if (PyErr_Occurred() != NULL)
+                SWIG_fail;
+}
+
 %{
 typedef int int_void;
 %}

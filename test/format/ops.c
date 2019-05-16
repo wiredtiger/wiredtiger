@@ -567,8 +567,8 @@ static void
 begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 {
 	WT_DECL_RET;
+	wt_timestamp_t read_ts;
 	u_int v;
-	char buf[64];
 	const char *config;
 
 	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
@@ -609,11 +609,9 @@ begin_transaction(TINFO *tinfo, WT_SESSION *session, u_int *iso_configp)
 		 */
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
-		testutil_check(__wt_snprintf(buf, sizeof(buf),
-		    "read_timestamp=%" PRIu64,
-		    __wt_atomic_addv64(&g.timestamp, 1)));
-		testutil_check(
-		    session->timestamp_transaction_numeric(session, buf));
+		read_ts = __wt_atomic_addv64(&g.timestamp, 1);
+		testutil_check(session->timestamp_transaction_numeric(
+		    session, read_ts, "read_timestamp"));
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}
@@ -627,7 +625,6 @@ static void
 commit_transaction(TINFO *tinfo, WT_SESSION *session)
 {
 	uint64_t ts;
-	char buf[64];
 
 	++tinfo->commit;
 
@@ -636,17 +633,12 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session)
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
 		ts = __wt_atomic_addv64(&g.timestamp, 1);
-		testutil_check(__wt_snprintf(
-		    buf, sizeof(buf), "commit_timestamp=%" PRIu64, ts));
-		testutil_check(
-		    session->timestamp_transaction_numeric(session, buf));
+		testutil_check(session->timestamp_transaction_numeric(
+		    session, ts, "commit_timestamp"));
 
-		if (tinfo->prepare_txn) {
-			testutil_check(__wt_snprintf(buf, sizeof(buf),
-			    "durable_timestamp=%" PRIu64, ts));
+		if (tinfo->prepare_txn)
 			testutil_check(session->timestamp_transaction_numeric(
-			    session, buf));
-		}
+			    session, ts, "durable_timestamp"));
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 	}

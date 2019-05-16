@@ -67,16 +67,16 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         # older than the first commit timestamp used for this transaction.
         # Check both timestamp_transaction_numeric and commit_transaction APIs.
         self.session.begin_transaction()
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '3')
+        self.session.timestamp_transaction_numeric(3, 'set=commit_timestamp')
         c[3] = 3
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction_numeric('commit_timestamp=' + '2'),
+            lambda: self.session.timestamp_transaction_numeric(2, 'set=commit_timestamp'),
                 '/older than the first commit timestamp/')
         c[2] = 2
         self.session.rollback_transaction()
 
         self.session.begin_transaction()
-        self.session.timestamp_transaction_numeric('commit_timestamp=' + '4')
+        self.session.timestamp_transaction_numeric(4, 'set=commit_timestamp')
         c[4] = 4
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.commit_transaction(
@@ -94,7 +94,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:
-            self.session.timestamp_transaction_numeric('commit_timestamp=' + '2'),
+            self.session.timestamp_transaction_numeric(2, 'set=commit_timestamp'),
                 '/less than the oldest timestamp/')
         c[2] = 2
         self.session.rollback_transaction()
@@ -143,7 +143,7 @@ class test_timestamp09(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(6))
         self.session.begin_transaction()
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.timestamp_transaction_numeric('commit_timestamp=' + '5'),
+            lambda: self.session.timestamp_transaction_numeric(5, 'set=commit_timestamp'),
                 '/less than the stable timestamp/')
         c[5] = 5
         self.session.rollback_transaction()

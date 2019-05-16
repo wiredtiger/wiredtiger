@@ -99,7 +99,7 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
                 "prepare_timestamp=" + timestamp_str(20)), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.timestamp_transaction_numeric(
-                "read_timestamp=20"), msg)
+                20, "set=read_timestamp"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.checkpoint(), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -112,8 +112,8 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
-        self.session.timestamp_transaction_numeric("commit_timestamp=30")
-        self.session.timestamp_transaction_numeric("durable_timestamp=30")
+        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
         self.session.commit_transaction()
 
         # Setting commit timestamp via timestamp_transaction_numeric after
@@ -121,8 +121,8 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction()
         c1 = self.session.open_cursor("table:mytable", None)
         self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
-        self.session.timestamp_transaction_numeric("commit_timestamp=30")
-        self.session.timestamp_transaction_numeric("durable_timestamp=30")
+        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
         self.session.commit_transaction()
 
         # Rollback after prepare is permitted.

@@ -88,8 +88,8 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), 0)
 
         session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-        session.timestamp_transaction_numeric('commit_timestamp=' + '200')
-        session.timestamp_transaction_numeric('durable_timestamp=' + '220')
+        session.timestamp_transaction_numeric(200, 'set=commit_timestamp')
+        session.timestamp_transaction_numeric(220, 'set=durable_timestamp')
         session.commit_transaction()
 
         # Check the values read are correct with different timestamps.
@@ -136,8 +136,8 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
 
         # Commit timestamp is earlier to stable timestamp but durable timestamp
         # is later than stable timestamp. Hence second update value is not durable.
-        session.timestamp_transaction_numeric('commit_timestamp=' + '240')
-        session.timestamp_transaction_numeric('durable_timestamp=' + '300')
+        session.timestamp_transaction_numeric(240, 'set=commit_timestamp')
+        session.timestamp_transaction_numeric(300, 'set=durable_timestamp')
         session.commit_transaction()
 
         # Checkpoint so that first update value will be visible and durable,

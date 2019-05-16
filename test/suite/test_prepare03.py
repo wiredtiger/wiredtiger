@@ -97,8 +97,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.insert(), preparemsg)
-            self.session.timestamp_transaction_numeric("commit_timestamp=30")
-            self.session.timestamp_transaction_numeric("durable_timestamp=30")
+            self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+            self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
             self.session.commit_transaction()
             cursor.insert()
 
@@ -116,8 +116,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
                 lambda:cursor.get_key(), preparemsg)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.get_value(), preparemsg)
-            self.session.timestamp_transaction_numeric("commit_timestamp=30")
-            self.session.timestamp_transaction_numeric("durable_timestamp=30")
+            self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+            self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
             self.session.commit_transaction()
             nextret = cursor.next()
             if nextret != 0:
@@ -142,8 +142,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.prev(), preparemsg)
-            self.session.timestamp_transaction_numeric("commit_timestamp=30")
-            self.session.timestamp_transaction_numeric("durable_timestamp=30")
+            self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+            self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
             self.session.commit_transaction()
             prevret = cursor.prev()
             if prevret != 0:
@@ -178,8 +178,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
             lambda:cursor.reserve(), preparemsg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.reconfigure(), preparemsg)
-        self.session.timestamp_transaction_numeric("commit_timestamp=30")
-        self.session.timestamp_transaction_numeric("durable_timestamp=30")
+        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
         self.session.commit_transaction()
         cursor.search()
         cursor.set_value(self.genvalue(self.nentries + self.nentries//2))
@@ -192,8 +192,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.search_near(), preparemsg)
-        self.session.timestamp_transaction_numeric("commit_timestamp=30")
-        self.session.timestamp_transaction_numeric("durable_timestamp=30")
+        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
+        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
         self.session.commit_transaction()
         # There is a bug with search_near operation when no key is set.
         # This fix is being tracked in WT-3918.

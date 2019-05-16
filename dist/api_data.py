@@ -1390,30 +1390,13 @@ methods = {
 ]),
 
 'WT_SESSION.timestamp_transaction_numeric' : Method([
-    Config('commit_timestamp', '', r'''
-        set the commit timestamp for the current transaction.  The supplied
-        value must not be older than the first commit timestamp set for the
-        current transaction.  The value must also not be older than the
-        current oldest and stable timestamps.  See
-        @ref transaction_timestamps''',
-        min='0'),
-    Config('durable_timestamp', '', r'''
-        set the durable timestamp for the current transaction.  The supplied
-        value must not be older than the commit timestamp set for the
-        current transaction.  The value must also not be older than the
-        current stable timestamp.  See
-        @ref transaction_timestamps''',
-        min='0'),
-    Config('prepare_timestamp', '', r'''
-        set the prepare timestamp for the updates of the current transaction.
-        The supplied value must not be older than any active read timestamps.
-        See @ref transaction_timestamps''',
-        min='0'),
-    Config('read_timestamp', '', r'''
-        read using the specified timestamp.  The supplied value must not be
-        older than the current oldest timestamp.  This can only be set once
-        for a transaction. See @ref transaction_timestamps''',
-        min='0'),
+    Config('set', '', r'''
+        blah blah.  See @ref transaction_timestamps''',
+        choices=[
+            'commit_timestamp',
+            'durable_timestamp',
+            'prepare_timestamp',
+            'read_timestamp']),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),

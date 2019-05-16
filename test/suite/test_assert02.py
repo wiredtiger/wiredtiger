@@ -69,7 +69,7 @@ class test_assert02(wttest.WiredTigerTestCase, suite_subprocess):
         c_none = self.session.open_cursor(uri_none)
         self.session.begin_transaction()
         self.session.timestamp_transaction_numeric(
-            'commit_timestamp=' + '1')
+            1, 'set=commit_timestamp')
         c_always['key1'] = 'value1'
         c_def['key1'] = 'value1'
         c_never['key1'] = 'value1'

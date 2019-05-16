@@ -1762,7 +1762,7 @@ err:	API_END_RET(session, ret);
  */
 static int
 __session_timestamp_transaction_numeric(
-    WT_SESSION *wt_session, const char *config)
+    WT_SESSION *wt_session, wt_timestamp_t timestamp, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -1770,13 +1770,13 @@ __session_timestamp_transaction_numeric(
 	session = (WT_SESSION_IMPL *)wt_session;
 #ifdef HAVE_DIAGNOSTIC
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
-	    timestamp_transaction, config, cfg);
+	    timestamp_transaction_numeric, config, cfg);
 #else
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
-	    timestamp_transaction, NULL, cfg);
+	    timestamp_transaction_numeric, NULL, cfg);
 	cfg[1] = config;
 #endif
-	WT_TRET(__wt_txn_set_timestamp_numeric(session, cfg));
+	WT_TRET(__wt_txn_set_timestamp_numeric(session, timestamp, cfg));
 err:	API_END_RET(session, ret);
 }
 

@@ -72,8 +72,8 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor[i] = valueB
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-            session.timestamp_transaction_numeric('commit_timestamp=' + '200')
-            session.timestamp_transaction_numeric('durable_timestamp=' + '220')
+            session.timestamp_transaction_numeric(200, 'set=commit_timestamp')
+            session.timestamp_transaction_numeric(220, 'set=durable_timestamp')
             session.commit_transaction()
 
         # Check the checkpoint wrote only the durable updates.
@@ -112,8 +112,8 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor[i] = valueC
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(220))
-            session.timestamp_transaction_numeric('commit_timestamp=' + '230')
-            session.timestamp_transaction_numeric('durable_timestamp=' + '240')
+            session.timestamp_transaction_numeric(230, 'set=commit_timestamp')
+            session.timestamp_transaction_numeric(240, 'set=durable_timestamp')
             session.commit_transaction()
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))

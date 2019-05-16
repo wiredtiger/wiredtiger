@@ -90,7 +90,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # to commit at timestamp 2, a second transaction begins and commits
         # at timestamp 3.
         session1.begin_transaction()
-        session1.timestamp_transaction_numeric('commit_timestamp=' + '2')
+        session1.timestamp_transaction_numeric(2, 'set=commit_timestamp')
 
         session2.begin_transaction()
         cur2 = session2.open_cursor(all_committed_uri)
@@ -119,7 +119,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.begin_transaction()
         # All committed will now move back to 3 as it is the point at which
         # all transactions up to that point have committed.
-        session1.timestamp_transaction_numeric('commit_timestamp=' + '4')
+        session1.timestamp_transaction_numeric(4, 'set=commit_timestamp')
 
         self.assert_query_timestamp_equals(self.conn, 'get=all_committed', 3)
 
@@ -285,7 +285,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # this is below our current all_committed so it should move back
         # to the oldest timestamp.
         session2.begin_transaction()
-        session2.timestamp_transaction_numeric('commit_timestamp=' + '6')
+        session2.timestamp_transaction_numeric(6, 'set=commit_timestamp')
         cur2[2] = 3
 
         # Confirm all_committed is now equal to oldest.

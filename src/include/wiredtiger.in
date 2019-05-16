@@ -1951,31 +1951,18 @@ struct __wt_session {
 	 * @requires_transaction
 	 *
 	 * @param session the session handle
+	 * @param timestamp a wt_timestamp_t type, timestamp value being set.
 	 * @configstart{WT_SESSION.timestamp_transaction_numeric, see
-	 * dist/api_data.py}
-	 * @config{commit_timestamp, set the commit timestamp for the current
-	 * transaction.  The supplied value must not be older than the first
-	 * commit timestamp set for the current transaction.  The value must
-	 * also not be older than the current oldest and stable timestamps.  See
-	 * @ref transaction_timestamps., a string; default empty.}
-	 * @config{durable_timestamp, set the durable timestamp for the current
-	 * transaction.  The supplied value must not be older than the commit
-	 * timestamp set for the current transaction.  The value must also not
-	 * be older than the current stable timestamp.  See @ref
-	 * transaction_timestamps., a string; default empty.}
-	 * @config{prepare_timestamp, set the prepare timestamp for the updates
-	 * of the current transaction.  The supplied value must not be older
-	 * than any active read timestamps.  See @ref transaction_timestamps., a
-	 * string; default empty.}
-	 * @config{read_timestamp, read using the specified timestamp.  The
-	 * supplied value must not be older than the current oldest timestamp.
-	 * This can only be set once for a transaction.  See @ref
-	 * transaction_timestamps., a string; default empty.}
+	 * dist/api_data.py XXX blah blah}
+	 * @config{set, specify which timestamp to set: blah blah, a
+	 * string\, chosen from the following options: \c "commit_timestamp"\,
+	 * \c "durable_timestamp"\, \c "prepare_timestamp"\,
+	 * \c "read_timestamp".}
 	 * @configend
 	 * @errors
 	 */
 	int __F(timestamp_transaction_numeric)(
-	    WT_SESSION *session, const char *config);
+	    WT_SESSION *session, wt_timestamp_t timestamp, const char *config);
 
 	/*!
 	 * Query the session's transaction timestamp state.
