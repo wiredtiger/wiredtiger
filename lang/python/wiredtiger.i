@@ -31,6 +31,7 @@
  *	The SWIG interface file defining the wiredtiger python API.
  */
 %include <pybuffer.i>
+%include <exception.i>
 
 %define DOCSTRING
 "Python wrappers around the WiredTiger C API
@@ -660,13 +661,16 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 /* 
  * Handle input of wt_timestamp_t type:
  * PyInt_AsUnsignedLongLongMask() doesn't check for overflow, but
- * PyLong_AsUnsignedLongLong() does.
+ * PyLong_AsUnsignedLongLong() does. So we need to add some custom checking to
+ * make sure we do not accept negative timestamps when the input is of PyInt
+ * type.
+ * Ideally we could use functionality provided by constraints.i library, but I
+ * couldn't make it work.
  */
 %typemap(in) wt_timestamp_t {
         if (PyInt_CheckExact($input)) {
-                /* XXX: Need to fix here */ 
-                if ($input < 0)
-                        SWIG_fail;
+                if (PyInt_AS_LONG($input) < 0)
+                        SWIG_exception(SWIG_OverflowError,"can't convert negative long to unsigned.");
                 $1 = PyInt_AsUnsignedLongLongMask($input);
         } else if (PyLong_CheckExact($input))
                 $1 = PyLong_AsUnsignedLongLong($input);
