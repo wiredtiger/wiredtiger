@@ -4988,8 +4988,12 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_LOGOP_COL_MODIFY	9
 /*! row-store modify */
 #define	WT_LOGOP_ROW_MODIFY	10
-/*! transaction timestamps */
-#define	WT_LOGOP_TXN_TIMESTAMP	11
+/*
+ * NOTE: Diagnostic-only log operations should have values in
+ * the ignore range.
+ */
+/*! Diagnostic: transaction timestamps */
+#define	WT_LOGOP_TXN_TIMESTAMP	(WT_LOGOP_IGNORE | 11)
 /*! @} */
 
 /*******************************************

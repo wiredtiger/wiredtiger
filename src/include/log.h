@@ -21,8 +21,8 @@
 #define	WT_LOG_SYNC_ENABLED	0x10u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
-#define	WT_LOGOP_ID_IGNORE	0x80000000
-#define	WT_LOGOP_IGNORE(id)	(id & WT_LOGOP_ID_IGNORE)
+#define	WT_LOGOP_IGNORE	0x80000000
+#define	WT_LOGOP_IS_IGNORED(val)	(val & WT_LOGOP_IGNORE)
 
 /*
  * WT_LSN --
@@ -340,7 +340,7 @@ struct __wt_log_record {
 	 */
 #define	WT_LOG_RECORD_COMPRESSED	0x01u	/* Compressed except hdr */
 #define	WT_LOG_RECORD_ENCRYPTED		0x02u	/* Encrypted except hdr */
-#define	WT_LOG_RECORD_ALL_FLAGS		\
+#define	WT_LOG_RECORD_ALL_FLAGS					\
 	(WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)
 	uint16_t	flags;		/* 08-09: Flags */
 	uint8_t		unused[2];	/* 10-11: Padding */

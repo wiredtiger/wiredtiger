@@ -269,7 +269,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 */
 	if (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS))
-		FLD_SET(fileid, WT_LOGOP_ID_IGNORE);
+		FLD_SET(fileid, WT_LOGOP_IGNORE);
 
 	WT_RET(__txn_logrec_init(session));
 	logrec = txn->logrec;

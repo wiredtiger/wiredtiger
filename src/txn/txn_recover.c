@@ -53,7 +53,7 @@ __recovery_cursor(WT_SESSION_IMPL *session, WT_RECOVERY *r,
 	/*
 	 * File ids with the bit set to ignore this operation are skipped.
 	 */
-	if (WT_LOGOP_IGNORE(id))
+	if (WT_LOGOP_IS_IGNORED(id))
 		return (0);
 	/*
 	 * Metadata operations have an id of 0.  Match operations based
@@ -130,6 +130,14 @@ __txn_op_apply(
 	/* Peek at the size and the type. */
 	WT_ERR(__wt_logop_read(session, pp, end, &optype, &opsize));
 	end = *pp + opsize;
+
+	/*
+	 * If it is an operation type that should be ignored, we're done.
+	 * Note that file ids within known operations also use the same
+	 * macros to indicate that operation should be ignored.
+	 */
+	if (WT_LOGOP_IS_IGNORED(optype))
+		goto done;
 
 	switch (optype) {
 	case WT_LOGOP_COL_MODIFY:
@@ -285,6 +293,7 @@ __txn_op_apply(
 	WT_ILLEGAL_VALUE_ERR(session, optype);
 	}
 
+done:
 	/* Reset the cursor so it doesn't block eviction. */
 	if (cursor != NULL)
 		WT_ERR(cursor->reset(cursor));
