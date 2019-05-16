@@ -25,7 +25,10 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref,
 {
 	bool cas_result;
 
-	WT_UNUSED(session);	/* Used in a macro for diagnostic builds */
+	/* Parameters that are used in a macro for diagnostic builds */
+	WT_UNUSED(session);
+	WT_UNUSED(file);
+	WT_UNUSED(line);
 
 	cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
 
