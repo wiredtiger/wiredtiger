@@ -1225,7 +1225,8 @@ methods = {
         set commit_timestamp.  \c first_commit returns the first set
         commit_timestamp.  \c prepare returns the timestamp used in preparing a
         transaction.  \c read returns the timestamp at which the transaction is
-        reading at.  See @ref transaction_timestamps''',
+        reading at.  Returns the hexadecimal encoding of the timestamp in the
+        form of a string.  See @ref transaction_timestamps''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1235,7 +1236,8 @@ methods = {
         set commit_timestamp.  \c first_commit returns the first set
         commit_timestamp.  \c prepare returns the timestamp used in preparing a
         transaction.  \c read returns the timestamp at which the transaction is
-        reading at.  See @ref transaction_timestamps''',
+        reading at.  Returns the timestamp in a numeric form.  See @ref
+        transaction_timestamps''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1391,7 +1393,20 @@ methods = {
 
 'WT_SESSION.timestamp_transaction_numeric' : Method([
     Config('set', '', r'''
-        blah blah.  See @ref transaction_timestamps''',
+        specify which timestamp to set along with the timestamp in a numeric
+        form: \c commit_timestamp sets the commit timestamp for the current
+        transaction.  The supplied value must not be older than the first commit
+        timestamp set for the current transaction.  The value must also not be
+        older than the current oldest and stable timestamps.
+        \c durable_timestamp sets the durable timestamp for the current
+        transaction.  The supplied value must not be older than the commit
+        timestamp set for the current transaction.  The value must also not be
+        older than the current stable timestamp.  \c prepare_timestamp sets the
+        prepare timestamp for the updates of the current transaction. The
+        supplied value must not be older than any active read timestamps.
+        \c read_timestamp read using the specified timestamp.  The supplied
+        value must not be older than the current oldest timestamp.  This can
+        only be set once for a transaction. See @ref transaction_timestamps''',
         choices=[
             'commit_timestamp',
             'durable_timestamp',
@@ -1545,7 +1560,8 @@ methods = {
         active readers, \c recovery returns the timestamp of the most recent
         stable checkpoint taken prior to a shutdown and \c stable returns the
         most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
-        See @ref transaction_timestamps''',
+        Returns the hexadecimal encoding of the timestamp in the form of a
+        string.  See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
@@ -1562,6 +1578,7 @@ methods = {
         active readers, \c recovery returns the timestamp of the most recent
         stable checkpoint taken prior to a shutdown and \c stable returns the
         most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
+        Returns the timestamp in a numeric form.
         See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),

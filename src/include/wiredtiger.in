@@ -84,7 +84,6 @@ struct __wt_session;	    typedef struct __wt_session WT_SESSION;
 
 /*!
  * A timestamp type.
- * XXX Put a definition.
  */
 typedef uint64_t wt_timestamp_t;
 
@@ -1953,9 +1952,22 @@ struct __wt_session {
 	 * @param session the session handle
 	 * @param timestamp a wt_timestamp_t type, timestamp value being set.
 	 * @configstart{WT_SESSION.timestamp_transaction_numeric, see
-	 * dist/api_data.py XXX blah blah}
-	 * @config{set, specify which timestamp to set: blah blah, a
-	 * string\, chosen from the following options: \c "commit_timestamp"\,
+	 * dist/api_data.py}
+	 * @config{set, specify which timestamp to set: \c commit_timestamp sets
+	 * the commit timestamp for the current transaction.  The supplied value
+	 * must not be older than the first commit timestamp set for the current
+	 * transaction.  The value must also not be older than the current
+	 * oldest and stable timestamps.  \c durable_timestamp sets the durable
+	 * timestamp for the current transaction.  The supplied value must not
+	 * be older than the commit timestamp set for the current transaction.
+	 * The value must also not be older than the current stable timestamp.
+	 * \c prepare_timestamp sets the prepare timestamp for the updates of
+	 * the current transaction. The supplied value must not be older than
+	 * any active read timestamps.  \c read_timestamp read using the
+	 * specified timestamp.  The supplied value must not be older than the
+	 * current oldest timestamp.  This can only be set once for a
+	 * transaction. See @ref transaction_timestamps., a string\, chosen from
+	 * the following options: \c "commit_timestamp"\,
 	 * \c "durable_timestamp"\, \c "prepare_timestamp"\,
 	 * \c "read_timestamp".}
 	 * @configend
@@ -1976,8 +1988,9 @@ struct __wt_session {
 	 * most recently set commit_timestamp.  \c first_commit returns the
 	 * first set commit_timestamp.  \c prepare returns the timestamp used in
 	 * preparing a transaction.  \c read returns the timestamp at which the
-	 * transaction is reading at.  See @ref transaction_timestamps., a
-	 * string\, chosen from the following options: \c "commit"\, \c
+	 * transaction is reading at.  Returns the hexadecimal encoding of the
+	 * timestamp in the form of a string.  See @ref transaction_timestamps.,
+	 * a string\, chosen from the following options: \c "commit"\, \c
 	 * "first_commit"\, \c "prepare"\, \c "read"; default \c read.}
 	 * @configend
 	 * @errors
@@ -2602,8 +2615,9 @@ struct __wt_connection {
 	 * oldest_timestamp and the read timestamps of all active readers\, \c
 	 * recovery returns the timestamp of the most recent stable checkpoint
 	 * taken prior to a shutdown and \c stable returns the most recent \c
-	 * stable_timestamp set with WT_CONNECTION::set_timestamp.  See @ref
-	 * transaction_timestamps., a string\, chosen from the following
+	 * stable_timestamp set with WT_CONNECTION::set_timestamp.  Returns the
+	 * hexadecimal encoding of the timestamp in the form of a string.  See
+	 * @ref transaction_timestamps., a string\, chosen from the following
 	 * options: \c "all_committed"\, \c "last_checkpoint"\, \c "oldest"\, \c
 	 * "oldest_reader"\, \c "pinned"\, \c "recovery"\, \c "stable"; default
 	 * \c all_committed.}
