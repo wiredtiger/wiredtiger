@@ -193,7 +193,11 @@ wt_connect(const char *config_open)
 	char config[512];
 
 	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix=\"%s\",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1),timing_stress_for_test=(aggressive_sweep),log=(enabled),cache_size=1GB%s%s",
+	    "create,cache_cursors=false,statistics=(fast),"		\
+	    "statistics_log=(json,wait=1),error_prefix=\"%s\","		\
+	    "file_manager=(close_handle_minimum=1,close_idle_time=1,"	\
+	    "close_scan_interval=1),log=(enabled),cache_size=1GB,"	\
+	    "timing_stress_for_test=(aggressive_sweep)%s%s",
 	    progname,
 	    config_open == NULL ? "" : ",",
 	    config_open == NULL ? "" : config_open));

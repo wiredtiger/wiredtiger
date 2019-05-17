@@ -42,7 +42,9 @@ create_table(WT_SESSION *session, COOKIE *cookie)
 	char config[256];
 
 	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "key_format=%s,value_format=S,allocation_size=512,leaf_page_max=1KB,internal_page_max=1KB,memory_page_max=64KB,log=(enabled=false),%s",
+	    "key_format=%s,value_format=S,allocation_size=512,"		\
+	    "leaf_page_max=1KB,internal_page_max=1KB,"			\
+	    "memory_page_max=64KB,log=(enabled=false),%s",
 	    cookie->type == COL ? "r" : "q",
 	    cookie->type == LSM ? ",type=lsm" : ""));
 
@@ -239,29 +241,42 @@ real_worker(void)
 	has_cursors = true;
 
 	for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
-		if ((ret = session->begin_transaction(session, "read_timestamp=1,roundup_timestamps=(read=true)")) != 0) {
+		if ((ret = session->begin_transaction(session,
+		    "read_timestamp=1,roundup_timestamps=(read=true)")) != 0) {
 			(void)log_print_err(
 			    "real_worker:begin_transaction", ret, 1);
 			goto err;
 		}
 		keyno = __wt_random(&rnd) % g.nkeys + 1;
 		if (i % 23 == 0) {
-			if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) != 0) {
-				testutil_check(session->commit_transaction(session, NULL));
+			if (__wt_try_readlock(
+			    (WT_SESSION_IMPL *)session, &g.clock_lock) != 0) {
+				testutil_check(
+				    session->commit_transaction(session, NULL));
 				for (j = 0; j < g.ntables; j++)
-					testutil_check(cursors[j]->close(cursors[j]));
+					testutil_check(
+					    cursors[j]->close(cursors[j]));
 				has_cursors = false;
-				__wt_readlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-				testutil_check(session->begin_transaction(session, "read_timestamp=1,roundup_timestamps=(read=true)"));
+				__wt_readlock(
+				    (WT_SESSION_IMPL *)session, &g.clock_lock);
+				testutil_check(
+				    session->begin_transaction(session,
+				    "read_timestamp=1,"
+				    "roundup_timestamps=(read=true)"));
 			}
-			testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
-			testutil_check(session->timestamp_transaction(session, buf));
-			__wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+			testutil_check(__wt_snprintf(
+			    buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
+			testutil_check(
+			    session->timestamp_transaction(session, buf));
+			__wt_readunlock(
+			    (WT_SESSION_IMPL *)session, &g.clock_lock);
 
 			for (j = 0; !has_cursors && j < g.ntables; j++)
-				if ((ret = session->open_cursor(session,
-				    g.cookies[j].uri, NULL, NULL, &cursors[j])) != 0) {
-					(void)log_print_err("session.open_cursor", ret, 1);
+				if ((ret = session->open_cursor(
+				    session, g.cookies[j].uri,
+				    NULL, NULL, &cursors[j])) != 0) {
+					(void)log_print_err(
+					    "session.open_cursor", ret, 1);
 					goto err;
 				}
 			has_cursors = true;
@@ -269,33 +284,6 @@ real_worker(void)
 		for (j = 0; ret == 0 && j < g.ntables; j++) {
 			ret = worker_op(cursors[j], keyno, i);
 		}
-#if 0
-		if (i % 23 == 0) {
-			if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) != 0) {
-				testutil_check(session->commit_transaction(session, NULL));
-				for (j = 0; j < g.ntables; j++)
-					testutil_check(cursors[j]->close(cursors[j]));
-				has_cursors = false;
-				__wt_readlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-				testutil_check(session->begin_transaction(session, "read_timestamp=1,roundup_timestamps=(read=true)"));
-			}
-
-			testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
-			testutil_check(session->timestamp_transaction(session, buf));
-			__wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-
-			for (j = 0; !has_cursors && j < g.ntables; j++)
-				if ((ret = session->open_cursor(session,
-				    g.cookies[j].uri, NULL, NULL, &cursors[j])) != 0) {
-					(void)log_print_err("session.open_cursor", ret, 1);
-					goto err;
-				}
-			has_cursors = true;
-		}
-		for (j = 0; ret == 0 && j < g.ntables; j++) {
-			ret = worker_op(cursors[j], keyno, i + 1);
-		}
-#endif
 		if (ret != 0 && ret != WT_ROLLBACK) {
 			(void)log_print_err("worker op failed", ret, 1);
 			goto err;
