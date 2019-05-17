@@ -4964,7 +4964,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * Statistic reference.
  *******************************************/
 /*
- * DO NOT EDIT: automatically built by dist/api_stat.py.
+ * DO NOT EDIT: automatically built by dist/stat.py.
  * Statistics section: BEGIN
  */
 
@@ -6272,7 +6272,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! @} */
 /*
  * Statistics section: END
- * DO NOT EDIT: automatically built by dist/api_stat.py.
+ * DO NOT EDIT: automatically built by dist/stat.py.
  */
 /*! @} */
 
