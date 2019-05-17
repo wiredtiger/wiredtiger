@@ -1988,9 +1988,8 @@ struct __wt_session {
 	 * most recently set commit_timestamp.  \c first_commit returns the
 	 * first set commit_timestamp.  \c prepare returns the timestamp used in
 	 * preparing a transaction.  \c read returns the timestamp at which the
-	 * transaction is reading at.  Returns the hexadecimal encoding of the
-	 * timestamp in the form of a string.  See @ref transaction_timestamps.,
-	 * a string\, chosen from the following options: \c "commit"\, \c
+	 * transaction is reading at.  See @ref transaction_timestamps., a
+	 * string\, chosen from the following options: \c "commit"\, \c
 	 * "first_commit"\, \c "prepare"\, \c "read"; default \c read.}
 	 * @configend
 	 * @errors
@@ -2615,9 +2614,8 @@ struct __wt_connection {
 	 * oldest_timestamp and the read timestamps of all active readers\, \c
 	 * recovery returns the timestamp of the most recent stable checkpoint
 	 * taken prior to a shutdown and \c stable returns the most recent \c
-	 * stable_timestamp set with WT_CONNECTION::set_timestamp.  Returns the
-	 * hexadecimal encoding of the timestamp in the form of a string.  See
-	 * @ref transaction_timestamps., a string\, chosen from the following
+	 * stable_timestamp set with WT_CONNECTION::set_timestamp.  See @ref
+	 * transaction_timestamps., a string\, chosen from the following
 	 * options: \c "all_committed"\, \c "last_checkpoint"\, \c "oldest"\, \c
 	 * "oldest_reader"\, \c "pinned"\, \c "recovery"\, \c "stable"; default
 	 * \c all_committed.}

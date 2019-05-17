@@ -1225,8 +1225,7 @@ methods = {
         set commit_timestamp.  \c first_commit returns the first set
         commit_timestamp.  \c prepare returns the timestamp used in preparing a
         transaction.  \c read returns the timestamp at which the transaction is
-        reading at.  Returns the hexadecimal encoding of the timestamp in the
-        form of a string.  See @ref transaction_timestamps''',
+        reading at.  See @ref transaction_timestamps''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1236,8 +1235,7 @@ methods = {
         set commit_timestamp.  \c first_commit returns the first set
         commit_timestamp.  \c prepare returns the timestamp used in preparing a
         transaction.  \c read returns the timestamp at which the transaction is
-        reading at.  Returns the timestamp in a numeric form.  See @ref
-        transaction_timestamps''',
+        reading at.  See @ref transaction_timestamps''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1560,8 +1558,7 @@ methods = {
         active readers, \c recovery returns the timestamp of the most recent
         stable checkpoint taken prior to a shutdown and \c stable returns the
         most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
-        Returns the hexadecimal encoding of the timestamp in the form of a
-        string.  See @ref transaction_timestamps''',
+        See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
@@ -1578,7 +1575,6 @@ methods = {
         active readers, \c recovery returns the timestamp of the most recent
         stable checkpoint taken prior to a shutdown and \c stable returns the
         most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
-        Returns the timestamp in a numeric form.
         See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
