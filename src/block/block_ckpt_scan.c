@@ -258,7 +258,7 @@ __wt_block_checkpoint_info(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
 	ext_off = 0;			/* [-Werror=maybe-uninitialized] */
 	ext_size = 0;
-	live_counter = 0;
+	len = live_counter = 0;
 
 	F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
