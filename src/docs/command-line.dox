@@ -342,7 +342,7 @@ data that cannot be recovered.  Underlying files are re-written in place,
 overwriting the original file contents.
 
 @subsection util_salvage_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] salvage [-F force] uri</code>
+<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] salvage [-F] uri</code>
 
 @subsection util_salvage_options Options
 The following are command-specific options for the \c salvage command:
@@ -404,10 +404,21 @@ The \c verify command verifies the specified table, exiting success if
 the data source is correct, and failure if the data source is corrupted.
 
 @subsection util_verify_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] verify uri</code>
+<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] verify [-F] uri</code>
 
 @subsection util_verify_options Options
-The \c verify command has no command-specific options.
+The following are command-specific options for the \c verify command:
+
+@par <code>-F</code>
+The \c -F option allows verification of standalone WiredTiger files. In
+this mode, once verify has completed successfully, an up-to-date metadata
+entry for the file will be written to standard output. To verify a
+standalone file, create a temporary WiredTiger directory and specify an
+absolute path to the standalone file. For example, in Bourne shell syntax:
+@code
+$ rm -rf TMP && mkdir TMP
+$ wt -h TMP verify -F /root-directory/directory/file
+@endcode
 
 <hr>
 @section util_write wt write

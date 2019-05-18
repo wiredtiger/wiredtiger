@@ -27,7 +27,6 @@ extern int   __wt_optreset;		/* reset getopt */
 extern char *__wt_optarg;		/* argument associated with option */
 
 int	 util_alter(WT_SESSION *, int, char *[]);
-int	 util_analyze(WT_SESSION *, int, char *[]);
 int	 util_backup(WT_SESSION *, int, char *[]);
 int	 util_cerr(WT_CURSOR *, const char *, int);
 int	 util_compact(WT_SESSION *, int, char *[]);

@@ -5,6 +5,7 @@ ActiveState
 Adler's
 Atomicity
 BLOBs
+Bourne
 CFLAGS
 CPPFLAGS
 CRC
@@ -83,6 +84,7 @@ Rrx
 SCons
 Seward's
 SiH
+TMP
 TXT
 UNC
 URIs
@@ -191,8 +193,8 @@ destructors
 dev
 devdoc
 dhandle
-dhandles
 dhandle's
+dhandles
 disjunction
 disjunctions
 distclean
@@ -267,6 +269,7 @@ htmlinclude
 huffman
 hugepage
 icount
+ie
 iflag
 indices
 init
@@ -274,7 +277,6 @@ intl
 inuse
 io
 ip
-ie
 je
 jemalloc
 jitter

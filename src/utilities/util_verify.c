@@ -8,20 +8,129 @@
 
 #include "util.h"
 
-static int usage(void);
+static int
+usage(void)
+{
+	(void)fprintf(stderr,
+	    "usage: %s %s "
+	    "verify %s\n",
+	    progname, usage_prefix,
+	    "[-F] [-d dump_address | dump_blocks | dump_layout | "
+	    "dump_offsets=#,# | dump_pages] uri");
+	return (1);
+}
 
-int
-util_verify(WT_SESSION *session, int argc, char *argv[])
+/*
+ * read_metadata --
+ *	Retrieve the file's metadata information.
+ */
+static int
+read_metadata(WT_SESSION *wt_session, const char *path, char **metadatap)
 {
 	WT_DECL_RET;
-	size_t size;
+	WT_FH *fh;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	fh = NULL;
+
+	WT_ERR(__wt_open(session, path,
+	   WT_FS_OPEN_FILE_TYPE_REGULAR,
+	   WT_FS_OPEN_FIXED | WT_FS_OPEN_READONLY | WT_FS_OPEN_ACCESS_SEQ,
+	   &fh));
+
+	if ((ret = __wt_desc_read(
+	    session, fh, 0, path, metadatap)) != 0 || *metadatap == NULL)
+		WT_ERR(util_err(wt_session, ret,
+		    "%s: no metadata information available", path));
+
+err:	WT_TRET(__wt_close(session, &fh));
+
+	return (ret);
+}
+
+/*
+ * insert_metadata --
+ *	Insert the metadata into the database.
+ */
+static int
+insert_metadata(
+    WT_SESSION *wt_session, const char *path, const char *uri, char *metadata)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	size_t len;
+	const char *filecfg[] = {
+	    WT_CONFIG_BASE(
+	    (WT_SESSION_IMPL *)wt_session, file_meta), NULL, NULL, NULL };
+	char *fileconf, *source;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+	fileconf = source = NULL;
+
+	/* Build the source entry. */
+	len = strlen("source=") + strlen(path) + 10;
+	if ((source = malloc(len)) == NULL)
+		WT_ERR(util_err(wt_session, errno, NULL));
+	if ((ret = __wt_snprintf(source, len, "source=%s", path)) != 0)
+		WT_ERR(util_err(wt_session, ret, NULL));
+
+	/*
+	 * Add metadata read from the file to the default configuration, where
+	 * read metadata overrides the defaults, flatten it and insert it.
+	 */
+	filecfg[1] = metadata;
+	filecfg[2] = source;
+	if ((ret = __wt_config_collapse(session, filecfg, &fileconf)) != 0)
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if ((ret = __wt_metadata_insert(session, uri, fileconf)) != 0)
+		WT_ERR(util_err(wt_session, ret,
+		    "%s: metadata replacement failed", path));
+
+err:	free(fileconf);
+	free(source);
+	return (ret);
+}
+
+/*
+ * report_metadata --
+ *	Report the final database metadata.
+ */
+static int
+report_metadata(WT_SESSION *wt_session, const char *uri)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	char *value;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	if ((ret = __wt_metadata_search(session, uri, &value)) == 0)
+		printf("%s\n%s\n", uri, value);
+	else
+		ret = util_err(wt_session, ret,
+		    "%s: no object metadata found", uri);
+	free(value);
+	return (ret);
+}
+
+int
+util_verify(WT_SESSION *wt_session, int argc, char *argv[])
+{
+	WT_DECL_ITEM(config);
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+	size_t len;
 	int ch;
-	char *config, *dump_offsets, *uri;
-	bool dump_address, dump_blocks, dump_layout, dump_pages;
+	char *dump_offsets, *metadata, *name, *source, *uri;
+	bool dump_address, dump_blocks, dump_layout, dump_pages, standalone;
+
+	session = (WT_SESSION_IMPL *)wt_session;
 
 	dump_address = dump_blocks = dump_layout = dump_pages = false;
-	config = dump_offsets = uri = NULL;
-	while ((ch = __wt_getopt(progname, argc, argv, "d:")) != EOF)
+	dump_offsets = metadata = source = uri = NULL;
+	standalone = false;
+	while ((ch = __wt_getopt(progname, argc, argv, "d:F")) != EOF)
 		switch (ch) {
 		case 'd':
 			if (strcmp(__wt_optarg, "dump_address") == 0)
@@ -45,6 +154,9 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 			else
 				return (usage());
 			break;
+		case 'F':
+			standalone = true;
+			break;
 		case '?':
 		default:
 			return (usage());
@@ -52,63 +164,75 @@ util_verify(WT_SESSION *session, int argc, char *argv[])
 	argc -= __wt_optind;
 	argv += __wt_optind;
 
-	/* The remaining argument is the table name. */
 	if (argc != 1)
 		return (usage());
-	if ((uri = util_uri(session, *argv, "table")) == NULL)
-		return (1);
 
-	/* Build the configuration string as necessary. */
-	if (dump_address ||
-	    dump_blocks || dump_layout || dump_offsets != NULL || dump_pages) {
-		size =
-		    strlen("dump_address,") +
-		    strlen("dump_blocks,") +
-		    strlen("dump_layout,") +
-		    strlen("dump_pages,") +
-		    strlen("dump_offsets[],") +
-		    (dump_offsets == NULL ? 0 : strlen(dump_offsets)) + 20;
-		if ((config = malloc(size)) == NULL) {
-			ret = util_err(session, errno, NULL);
-			goto err;
-		}
-		if ((ret = __wt_snprintf(config, size,
-		    "%s%s%s%s%s%s%s",
-		    dump_address ? "dump_address," : "",
-		    dump_blocks ? "dump_blocks," : "",
-		    dump_layout ? "dump_layout," : "",
-		    dump_offsets != NULL ? "dump_offsets=[" : "",
-		    dump_offsets != NULL ? dump_offsets : "",
-		    dump_offsets != NULL ? "]," : "",
-		    dump_pages ? "dump_pages," : "")) != 0) {
-			(void)util_err(session, ret, NULL);
-			goto err;
-		}
-	}
-	if ((ret = session->verify(session, uri, config)) != 0)
-		(void)util_err(session, ret, "session.verify: %s", uri);
-	else {
-		/*
-		 * Verbose configures a progress counter, move to the next
-		 * line.
-		 */
-		if (verbose)
-			printf("\n");
+	/* Build the configuration string. */
+	if ((ret = __wt_scr_alloc(session, 0, &config)) != 0)
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if (dump_address &&
+	    (ret = __wt_buf_catfmt(session, config, "dump_address,") != 0))
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if (dump_blocks &&
+	    (ret = __wt_buf_catfmt(session, config, "dump_blocks,") != 0))
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if (dump_layout &&
+	    (ret = __wt_buf_catfmt(session, config, "dump_layout,") != 0))
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if (dump_offsets != NULL && (ret = __wt_buf_catfmt(
+	    session, config, "dump_offsets=[%s],", dump_offsets) != 0))
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if (dump_pages &&
+	    (ret = __wt_buf_catfmt(session, config, "dump_pages,") != 0))
+		WT_ERR(util_err(wt_session, ret, NULL));
+	if (standalone &&
+	    (ret = __wt_buf_catfmt(session, config, "load_checkpoints,") != 0))
+		WT_ERR(util_err(wt_session, ret, NULL));
+
+	if (standalone) {
+		/* The remaining argument is a standalone source file. */
+		source = *argv;
+		if (!__wt_absolute_path(source))
+			WT_ERR(util_err(wt_session, EINVAL,
+			    "%s: must be an absolute path", source));
+
+		/* Build the URI. */
+		if ((name = strrchr(source, '/')) == NULL)
+			name = source;
+		else
+			++name;
+		len = strlen("file:") + strlen(name) + 10;
+		if ((uri = malloc(len)) == NULL)
+			WT_ERR(util_err(wt_session, errno, NULL));
+		if ((ret = __wt_snprintf(uri, len, "file:%s", name)) != 0)
+			WT_ERR(util_err(wt_session, ret, NULL));
+
+		/* Read the metadata from the descriptor block. */
+		WT_ERR(read_metadata(wt_session, source, &metadata));
+
+		/* Update the metadata. */
+		WT_ERR(insert_metadata(wt_session, source, uri, metadata));
+	} else {
+		/* The remaining argument is the table name. */
+		if ((uri = util_uri(wt_session, *argv, "table")) == NULL)
+			WT_ERR(1);
 	}
 
-err:	free(config);
+	/* Verify the object. */
+	ret = wt_session->verify(wt_session, uri, (char *)config->data);
+
+	/* Verbose configures a progress counter, move to the next line. */
+	if (verbose)
+		printf("\n");
+
+	if (ret != 0)
+		WT_ERR(util_err(wt_session, ret, "WT_SESSION.verify: %s", uri));
+
+	/* Report the final metadata. */
+	if (standalone)
+		WT_ERR(report_metadata(wt_session, uri));
+
+err:	__wt_scr_free(session, &config);
 	free(uri);
 	return (ret);
-}
-
-static int
-usage(void)
-{
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "verify %s\n",
-	    progname, usage_prefix,
-	    "[-d dump_address | dump_blocks | dump_layout | "
-	    "dump_offsets=#,# | dump_pages] uri");
-	return (1);
 }
