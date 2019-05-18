@@ -93,6 +93,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 	WT_CKPT ckpt;
 	WT_CONFIG_ITEM cval;
 	WT_DATA_HANDLE *dhandle;
+	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	size_t root_addr_size;
 	uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
@@ -155,8 +156,12 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 		WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
 	if ((ret =
 	    __wt_config_gets(session, dhandle->cfg, "source", &cval)) == 0 &&
-	    cval.len != 0)
-		filename = cval.str;
+	    cval.len != 0) {
+		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+		WT_ERR(__wt_buf_fmt(
+		    session, tmp, "%.*s", (int)cval.len, cval.str));
+		filename = tmp->data;
+	}
 	WT_ERR_NOTFOUND_OK(ret);
 
 	WT_ERR(__wt_block_manager_open(session, filename, dhandle->cfg,
@@ -244,6 +249,7 @@ err:		WT_TRET(__wt_btree_close(session));
 	}
 	__wt_meta_checkpoint_free(session, &ckpt);
 
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 

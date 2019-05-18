@@ -127,6 +127,10 @@ __wt_config_discard_defaults(WT_SESSION_IMPL *session,
 		 * Skip exact matches and simple things we can catch like "none"
 		 * and an empty string, "true" and 1, "false" and 0.
 		 */
+		if (v.type == WT_CONFIG_ITEM_STRUCT &&
+		    vtmp.type == WT_CONFIG_ITEM_STRUCT &&
+		    v.len == vtmp.len && memcmp(v.str, vtmp.str, v.len) == 0)
+			continue;
 		if ((v.type == WT_CONFIG_ITEM_BOOL ||
 		    v.type == WT_CONFIG_ITEM_NUM) &&
 		    (vtmp.type == WT_CONFIG_ITEM_BOOL ||

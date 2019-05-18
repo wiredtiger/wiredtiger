@@ -58,10 +58,10 @@ __create_file(WT_SESSION_IMPL *session,
 {
 	WT_DECL_ITEM(val);
 	WT_DECL_RET;
-	const char *filename, **p, *filecfg[] =
-	    { WT_CONFIG_BASE(session, file_meta), NULL, NULL, NULL };
-	char *fileconf, *min_config;
 	uint32_t allocsize;
+	const char *filename, *filecfg[] =
+	    { WT_CONFIG_BASE(session, file_meta), NULL, NULL };
+	char *fileconf, *min_config;
 	bool is_metadata;
 
 	fileconf = min_config = NULL;
@@ -80,6 +80,16 @@ __create_file(WT_SESSION_IMPL *session,
 	}
 
 	/*
+	 * Create a configuration string that combines the application-specified
+	 * configuration plus the file ID and version information.
+	 */
+	WT_ERR(__wt_scr_alloc(session, 0, &val));
+	WT_ERR(__wt_buf_fmt(session, val,
+	    "%s,id=%" PRIu32 ",version=(major=%d,minor=%d)",
+	    config == NULL ? "" : config, ++S2C(session)->next_file_id,
+	    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
+
+	/*
 	 * Figure out where the application's file configuration differs from
 	 * the base defaults, the block manager stores a minimal configuration
 	 * so we can get something out of a standalone file. Once that's done,
@@ -87,8 +97,8 @@ __create_file(WT_SESSION_IMPL *session,
 	 */
 	if (config != NULL)
 		WT_ERR(__wt_config_discard_defaults(session,
-		    filecfg, config, "app_metadata=", &min_config));
-	filecfg[1] = config;
+		    filecfg, val->data, "app_metadata=", &min_config));
+	filecfg[1] = val->data;
 
 	/* Sanity check the allocation size. */
 	WT_ERR(__wt_direct_io_size_check(
@@ -101,19 +111,10 @@ __create_file(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
 
 	/*
-	 * If creating an ordinary file, append the file ID and current version
-	 * numbers to the passed-in configuration and insert the resulting
+	 * If creating an ordinary file, insert the complete, flattened
 	 * configuration into the metadata.
 	 */
 	if (!is_metadata) {
-		WT_ERR(__wt_scr_alloc(session, 0, &val));
-		WT_ERR(__wt_buf_fmt(session, val,
-		    "id=%" PRIu32 ",version=(major=%d,minor=%d)",
-		    ++S2C(session)->next_file_id,
-		    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
-		for (p = filecfg; *p != NULL; ++p)
-			;
-		*p = val->data;
 		WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 		WT_ERR(__wt_metadata_insert(session, uri, fileconf));
 	}

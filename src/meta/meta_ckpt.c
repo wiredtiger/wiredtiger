@@ -248,17 +248,17 @@ __ckpt_compare_order(const void *a, const void *b)
  *	Load all available checkpoint information for a file.
  */
 int
-__wt_meta_ckptlist_get(
-    WT_SESSION_IMPL *session, const char *fname, WT_CKPT **ckptbasep)
+__wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
+    const char *fname, bool update, WT_CKPT **ckptbasep)
 {
 	WT_CKPT *ckpt, *ckptbase;
 	WT_CONFIG ckptconf;
 	WT_CONFIG_ITEM k, v;
-	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	size_t allocated, slot;
 	int64_t maxorder;
 	char *config;
+	const char *filecfg[] = { WT_CONFIG_BASE(session, file_meta), NULL };
 
 	*ckptbasep = NULL;
 
@@ -270,8 +270,8 @@ __wt_meta_ckptlist_get(
 	WT_RET(__wt_metadata_search(session, fname, &config));
 
 	/* Load any existing checkpoints into the array. */
-	WT_ERR(__wt_scr_alloc(session, 0, &buf));
-	if (__wt_config_getones(session, config, "checkpoint", &v) == 0) {
+	if ((ret =
+	    __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
 		__wt_config_subinit(session, &ckptconf, &v);
 		for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
 			WT_ERR(__wt_realloc_def(
@@ -281,34 +281,40 @@ __wt_meta_ckptlist_get(
 			WT_ERR(__ckpt_load(session, &k, &v, ckpt));
 		}
 	}
-
-	/*
-	 * Allocate an extra slot for a new value, plus a slot to mark the end.
-	 *
-	 * This isn't very clean, but there's necessary cooperation between the
-	 * schema layer (that maintains the list of checkpoints), the btree
-	 * layer (that knows when the root page is written, creating a new
-	 * checkpoint), and the block manager (which actually creates the
-	 * checkpoint).  All of that cooperation is handled in the WT_CKPT
-	 * structure referenced from the WT_BTREE structure.
-	 */
-	WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &ckptbase));
+	WT_ERR_NOTFOUND_OK(ret);
+	if (!update && slot == 0)
+		WT_ERR(WT_NOTFOUND);
 
 	/* Sort in creation-order. */
 	__wt_qsort(ckptbase, slot, sizeof(WT_CKPT), __ckpt_compare_order);
 
-	/*
-	 * The caller may be adding a value, initialize it. We set the order
-	 * here so that when it's written by the block manager we can figure
-	 * out the latest checkpoint we find when we scan the file.
-	 */
-	maxorder = 0;
-	WT_CKPT_FOREACH(ckptbase, ckpt)
-		if (ckpt->order > maxorder)
-			maxorder = ckpt->order;
-	ckpt->order = maxorder + 1;
-	__wt_seconds(session, &ckpt->sec);
-	F_SET(ckpt, WT_CKPT_ADD);
+	if (update) {
+		/*
+		 * Allocate an extra slot for a new value, plus a slot to mark
+		 * mark the end.
+		 *
+		 * This isn't clean, but there's necessary cooperation between
+		 * the schema layer (that maintains the list of checkpoints),
+		 * the btree layer (that knows when the root page is written,
+		 * creating a new checkpoint), and the block manager (which
+		 * actually creates the checkpoint). All of that cooperation is
+		 * handled in the array of checkpoint structures referenced from
+		 * the WT_BTREE structure.
+		 */
+		WT_ERR(__wt_realloc_def(
+		    session, &allocated, slot + 2, &ckptbase));
+
+		/* The caller may be adding a value, initialize it. */
+		maxorder = 0;
+		WT_CKPT_FOREACH(ckptbase, ckpt)
+			if (ckpt->order > maxorder)
+				maxorder = ckpt->order;
+		ckpt->order = maxorder + 1;
+		__wt_seconds(session, &ckpt->sec);
+		WT_ERR(__wt_config_discard_defaults(
+		    session, filecfg, config, NULL, &ckpt->metadata));
+		F_SET(ckpt, WT_CKPT_ADD);
+	}
 
 	/* Return the array to our caller. */
 	*ckptbasep = ckptbase;
@@ -317,7 +323,6 @@ __wt_meta_ckptlist_get(
 err:		__wt_meta_ckptlist_free(session, &ckptbase);
 	}
 	__wt_free(session, config);
-	__wt_scr_free(session, &buf);
 
 	return (ret);
 }
@@ -593,6 +598,7 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		return;
 
 	__wt_free(session, ckpt->name);
+	__wt_free(session, ckpt->metadata);
 	__wt_buf_free(session, &ckpt->addr);
 	__wt_buf_free(session, &ckpt->raw);
 	__wt_free(session, ckpt->bpriv);

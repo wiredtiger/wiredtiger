@@ -374,7 +374,7 @@ file_config = format_meta + file_runtime_config + [
 ]
 
 # File metadata, including both configurable and non-configurable (internal)
-file_meta = file_config + [
+file_meta = file_config + source_meta + [
     Config('checkpoint', '', r'''
         the file checkpoint entries'''),
     Config('checkpoint_lsn', '', r'''

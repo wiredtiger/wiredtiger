@@ -206,7 +206,7 @@ __wt_block_ckpt_decode(WT_SESSION *wt_session,
  */
 int
 __wt_block_ckpt_to_buffer(WT_SESSION_IMPL *session,
-    WT_BLOCK *block, uint8_t **pp, WT_BLOCK_CKPT *ci)
+    WT_BLOCK *block, uint8_t **pp, WT_BLOCK_CKPT *ci, bool skip_avail)
 {
 	uint64_t a;
 
@@ -220,8 +220,11 @@ __wt_block_ckpt_to_buffer(WT_SESSION_IMPL *session,
 	    ci->root_offset, ci->root_size, ci->root_checksum));
 	WT_RET(__wt_block_addr_to_buffer(block, pp,
 	    ci->alloc.offset, ci->alloc.size, ci->alloc.checksum));
-	WT_RET(__wt_block_addr_to_buffer(block, pp,
-	    ci->avail.offset, ci->avail.size, ci->avail.checksum));
+	if (skip_avail)
+		WT_RET(__wt_block_addr_to_buffer(block, pp, 0, 0, 0));
+	else
+		WT_RET(__wt_block_addr_to_buffer(block, pp,
+		    ci->avail.offset, ci->avail.size, ci->avail.checksum));
 	WT_RET(__wt_block_addr_to_buffer(block, pp,
 	    ci->discard.offset, ci->discard.size, ci->discard.checksum));
 	a = (uint64_t)ci->file_size;

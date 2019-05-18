@@ -197,7 +197,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ERR(bm->checkpoint_info(bm, session));
 
 	/* Get a list of the checkpoints for this file. */
-	WT_ERR(__wt_meta_ckptlist_get(session, name, &ckptbase));
+	WT_ERR(__wt_meta_ckptlist_get(session, name, false, &ckptbase));
 	if (ckptbase->name == NULL)
 		WT_ERR_MSG(session, WT_NOTFOUND,
 		    "%s has no checkpoints to verify", name);

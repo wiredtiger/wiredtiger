@@ -1400,7 +1400,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	    WT_IS_METADATA(dhandle) || WT_META_TRACKING(session));
 
 	/* Get the list of checkpoints for this file. */
-	WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, &ckptbase));
+	WT_RET(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
 
 	/* This may be a named checkpoint, check the configuration. */
 	cval.len = 0;
