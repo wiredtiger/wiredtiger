@@ -90,9 +90,13 @@ __create_file(WT_SESSION_IMPL *session,
 	    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
 
 	/*
-	 * Figure out where the application's file configuration differs from
-	 * the base defaults, the block manager stores a minimal configuration
-	 * so we can get something out of a standalone file. Once that's done,
+	 * Get a copy of where the application's file configuration differs from
+	 * the base defaults. The block manager stores a minimal configuration
+	 * so we can read standalone files. Standalone files have limited space
+	 * when first created, so explicitly strip the app_metadata field since
+	 * that's the field that's likely to be large: we'll get a copy of it on
+	 * the first checkpoint (when the standalone file can grow to store as
+	 * much configuration information as we have). Once that's done,
 	 * complete the configuration array used for higher-level processing.
 	 */
 	if (config != NULL)

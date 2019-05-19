@@ -120,8 +120,14 @@ __wt_config_discard_defaults(WT_SESSION_IMPL *session,
 		    __wt_config_getone(session, strip, &k, &vtmp) == 0)
 			continue;
 
-		/* Get the default value. */
-		WT_ERR(__wt_config_get(session, cfg, &k, &vtmp));
+		/*
+		 * Get the default value. There isn't a default value in some
+		 * cases, so not finding one isn't an error.
+		 */
+		if ((ret =
+		    __wt_config_get(session, cfg, &k, &vtmp)) == WT_NOTFOUND)
+			goto keep;
+		WT_RET(ret);
 
 		/*
 		 * Skip exact matches and simple things we can catch like "none"
@@ -147,7 +153,7 @@ __wt_config_discard_defaults(WT_SESSION_IMPL *session,
 			continue;
 
 		/* Include the quotes around string keys/values. */
-		if (k.type == WT_CONFIG_ITEM_STRING) {
+keep:		if (k.type == WT_CONFIG_ITEM_STRING) {
 			--k.str;
 			k.len += 2;
 		}
