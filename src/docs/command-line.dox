@@ -410,15 +410,11 @@ the data source is correct, and failure if the data source is corrupted.
 The following are command-specific options for the \c verify command:
 
 @par <code>-F</code>
-The \c -F option allows verification of standalone WiredTiger files. In
-this mode, once verify has completed successfully, an up-to-date metadata
-entry for the file will be written to standard output. To verify a
-standalone file, create a temporary WiredTiger directory and specify an
-absolute path to the standalone file. For example, in Bourne shell syntax:
-@code
-$ rm -rf TMP && mkdir TMP
-$ wt -h TMP verify -F /root-directory/directory/file
-@endcode
+The \c -F option supports verification of standalone WiredTiger files. The
+\c uri argument is a filesystem path for the file being verified, and
+must be an absolute (not relative), path. In this mode, once verify has
+completed successfully, an up-to-date metadata entry for the file will
+be written to standard output.
 
 <hr>
 @section util_write wt write

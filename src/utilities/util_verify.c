@@ -51,7 +51,7 @@ err:	WT_TRET(__wt_close(session, &fh));
 
 /*
  * insert_metadata --
- *	Insert the metadata into the database.
+ *	Set the database metadata.
  */
 static int
 insert_metadata(
@@ -77,15 +77,16 @@ insert_metadata(
 
 	/*
 	 * Add metadata read from the file to the default configuration, where
-	 * read metadata overrides the defaults, flatten it and insert it.
+	 * read metadata overrides the defaults, flatten it and insert it. Use
+	 * the update call, there's some non-zero chance it's already there.
 	 */
 	filecfg[1] = metadata;
 	filecfg[2] = source;
 	if ((ret = __wt_config_collapse(session, filecfg, &fileconf)) != 0)
 		WT_ERR(util_err(wt_session, ret, NULL));
-	if ((ret = __wt_metadata_insert(session, uri, fileconf)) != 0)
+	if ((ret = __wt_metadata_update(session, uri, fileconf)) != 0)
 		WT_ERR(util_err(wt_session, ret,
-		    "%s: metadata replacement failed", path));
+		    "%s: metadata update failed", uri));
 
 err:	free(fileconf);
 	free(source);
@@ -114,6 +115,24 @@ report_metadata(WT_SESSION *wt_session, const char *uri)
 	return (ret);
 }
 
+/*
+ * remove_metadata --
+ *	Remove the database metadata.
+ */
+static int
+remove_metadata(WT_SESSION *wt_session, const char *uri)
+{
+	WT_DECL_RET;
+	WT_SESSION_IMPL *session;
+
+	session = (WT_SESSION_IMPL *)wt_session;
+
+	if ((ret = __wt_metadata_remove(session, uri)) != 0)
+		WT_RET(util_err(wt_session, ret,
+		    "%s: metadata removal failed", uri));
+	return (0);
+}
+
 int
 util_verify(WT_SESSION *wt_session, int argc, char *argv[])
 {
@@ -122,7 +141,7 @@ util_verify(WT_SESSION *wt_session, int argc, char *argv[])
 	WT_SESSION_IMPL *session;
 	size_t len;
 	int ch;
-	char *dump_offsets, *metadata, *name, *source, *uri;
+	char *dump_offsets, *metadata, *source, *uri;
 	bool dump_address, dump_blocks, dump_layout, dump_pages, standalone;
 
 	session = (WT_SESSION_IMPL *)wt_session;
@@ -196,21 +215,18 @@ util_verify(WT_SESSION *wt_session, int argc, char *argv[])
 			WT_ERR(util_err(wt_session, EINVAL,
 			    "%s: must be an absolute path", source));
 
-		/* Build the URI. */
-		if ((name = strrchr(source, '/')) == NULL)
-			name = source;
-		else
-			++name;
-		len = strlen("file:") + strlen(name) + 10;
+		/* Use a temporary URI. */
+#define	WT_VRFY_TMP	"wt.verify.temporary"
+		len = strlen("file:") + strlen(WT_VRFY_TMP) + 10;
 		if ((uri = malloc(len)) == NULL)
 			WT_ERR(util_err(wt_session, errno, NULL));
-		if ((ret = __wt_snprintf(uri, len, "file:%s", name)) != 0)
+		if ((ret = __wt_snprintf(uri, len, "file:" WT_VRFY_TMP)) != 0)
 			WT_ERR(util_err(wt_session, ret, NULL));
 
 		/* Read the metadata from the descriptor block. */
 		WT_ERR(read_metadata(wt_session, source, &metadata));
 
-		/* Update the metadata. */
+		/* Set the database metadata. */
 		WT_ERR(insert_metadata(wt_session, source, uri, metadata));
 	} else {
 		/* The remaining argument is the table name. */
@@ -228,9 +244,13 @@ util_verify(WT_SESSION *wt_session, int argc, char *argv[])
 	if (ret != 0)
 		WT_ERR(util_err(wt_session, ret, "WT_SESSION.verify: %s", uri));
 
-	/* Report the final metadata. */
-	if (standalone)
+	if (standalone) {
+		/* Report the final metadata. */
 		WT_ERR(report_metadata(wt_session, uri));
+
+		/* Remove the database metadata. */
+		WT_ERR(remove_metadata(wt_session, uri));
+	}
 
 err:	__wt_scr_free(session, &config);
 	free(uri);
