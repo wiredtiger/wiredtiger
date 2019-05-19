@@ -127,7 +127,7 @@ __wt_config_discard_defaults(WT_SESSION_IMPL *session,
 		if ((ret =
 		    __wt_config_get(session, cfg, &k, &vtmp)) == WT_NOTFOUND)
 			goto keep;
-		WT_RET(ret);
+		WT_ERR(ret);
 
 		/*
 		 * Skip exact matches and simple things we can catch like "none"
