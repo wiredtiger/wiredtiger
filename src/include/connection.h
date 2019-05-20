@@ -207,8 +207,8 @@ struct __wt_connection_impl {
 	WT_SPINLOCK optrack_map_spinlock; /* Translation file spinlock. */
 	uintmax_t optrack_pid;		/* Cache the process ID. */
 
-	WT_LSN		*diag_ckpt;	/* Diagnostic checkpoint LSNs. */
-	uint32_t	 diag_ckpt_cnt;	/* Checkpoint retention number */
+	WT_LSN		*debug_ckpt;	/* Debug mode checkpoint LSNs. */
+	uint32_t	 debug_ckpt_cnt;/* Checkpoint retention number */
 
 	void  **foc;			/* Free-on-close array */
 	size_t  foc_cnt;		/* Array entries */
@@ -342,7 +342,7 @@ struct __wt_connection_impl {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_CONN_LOG_ARCHIVE		0x001u	/* Archive is enabled */
-#define	WT_CONN_LOG_DIAGNOSTICS		0x002u	/* Diagnostic logging enabled */
+#define	WT_CONN_LOG_DEBUG_MODE		0x002u	/* Debug-mode logging enabled */
 #define	WT_CONN_LOG_DOWNGRADED		0x004u	/* Running older version */
 #define	WT_CONN_LOG_ENABLED		0x008u	/* Logging is enabled */
 #define	WT_CONN_LOG_EXISTED		0x010u	/* Log files found */

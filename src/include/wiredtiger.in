@@ -2261,12 +2261,12 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release
 	 * version string., a string; default empty.}
 	 * @config{ ),,}
-	 * @config{diagnostic = (, control the settings of various extended
-	 * diagnostic features., a set of related configuration options defined
+	 * @config{debug_mode = (, control the settings of various extended
+	 * debugging features., a set of related configuration options defined
 	 * below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust
 	 * log archiving to retain the log records of this number of
-	 * checkpoints.  Zero means perform normal archiving., an integer
+	 * checkpoints.  Zero or one means perform normal archiving., an integer
 	 * between 0 and 1024; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * rollback_error, return a WT_ROLLBACK error from a transaction
@@ -2898,11 +2898,11 @@ struct __wt_connection {
  * true.}
  * @config{create, create the database if it does not exist., a boolean flag;
  * default \c false.}
- * @config{diagnostic = (, control the settings of various extended diagnostic
+ * @config{debug_mode = (, control the settings of various extended debugging
  * features., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_retention, adjust log archiving to
- * retain the log records of this number of checkpoints.  Zero means perform
- * normal archiving., an integer between 0 and 1024; default \c 0.}
+ * retain the log records of this number of checkpoints.  Zero or one means
+ * perform normal archiving., an integer between 0 and 1024; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;rollback_error, return a WT_ROLLBACK error
  * from a transaction operation about every Nth operation to simulate a
  * collision., an integer between 0 and 10M; default \c 0.}

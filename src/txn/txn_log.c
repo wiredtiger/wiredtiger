@@ -210,7 +210,7 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
 	 * The only way we should ever get in here without a txn id is if we
 	 * are recording diagnostic information. In that case, allocate an id.
 	 */
-	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DIAGNOSTICS) &&
+	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
 	    txn->id == WT_TXN_NONE)
 		WT_RET(__wt_txn_id_check(session));
 	else
@@ -252,7 +252,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
 	    F_ISSET(session, WT_SESSION_NO_LOGGING) ||
 	    (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
-	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS)))
+	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE)))
 		return (0);
 
 	/* We'd better have a transaction. */
@@ -268,7 +268,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	 * fileid so that recovery can skip it.
 	 */
 	if (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
-	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS))
+	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
 		FLD_SET(fileid, WT_LOGOP_IGNORE);
 
 	WT_RET(__txn_logrec_init(session));
@@ -399,7 +399,7 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
 	    F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DIAGNOSTICS))
+	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
 		return (0);
 
 	/* We'd better have a transaction running. */

@@ -476,12 +476,12 @@ connection_runtime_config = [
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
         ]),
-    Config('diagnostic', '', r'''
-        control the settings of various extended diagnostic features''',
+    Config('debug_mode', '', r'''
+        control the settings of various extended debugging features''',
         type='category', subconfig=[
         Config('checkpoint_retention', '0', r'''
             adjust log archiving to retain the log records of this number
-            of checkpoints. Zero means perform normal archiving.''',
+            of checkpoints. Zero or one means perform normal archiving.''',
             min='0', max='1024'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about

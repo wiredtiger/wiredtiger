@@ -1081,9 +1081,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 	/*
 	 * A transaction should not have updated any of the logged tables,
-	 * if diagnostic logging is not turned on.
+	 * if debug mode logging is not turned on.
 	 */
-	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DIAGNOSTICS))
+	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
 		WT_ASSERT(session, txn->logrec == NULL);
 
 	/* Set the prepare timestamp.  */

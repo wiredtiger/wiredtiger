@@ -248,13 +248,13 @@ __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn)
 	if (conn->log_cond != NULL)
 		__wt_cond_signal(session, conn->log_cond);
 	/*
-	 * If we are storing diagnostic LSNs to retain additional log files
+	 * If we are storing debugging LSNs to retain additional log files
 	 * from archiving, then rotate the newest LSN into the array.
 	 */
-	if (conn->diag_ckpt_cnt != 0) {
-		for (i = (int)conn->diag_ckpt_cnt - 1; i >= 0; --i)
-			conn->diag_ckpt[i] = conn->diag_ckpt[i-1];
-		conn->diag_ckpt[0] = *ckpt_lsn;
+	if (conn->debug_ckpt_cnt != 0) {
+		for (i = (int)conn->debug_ckpt_cnt - 1; i >= 0; --i)
+			conn->debug_ckpt[i] = conn->debug_ckpt[i-1];
+		conn->debug_ckpt[0] = *ckpt_lsn;
 	}
 }
 
