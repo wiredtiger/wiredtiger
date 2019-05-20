@@ -955,15 +955,15 @@ transaction_ops(WT_SESSION *session_arg)
 	char timestamp_buf[2 * sizeof(uint64_t) + 1];
 
 	/*! [transaction timestamp numeric] */
-	/* 2a hex is 42 decimal */
+	/* 29 hex is 41 decimal */
 	error_check(session->timestamp_transaction_numeric(
-	    session, 42, "set=commit_timestamp"));
+	    session, 41, "set=commit_timestamp"));
 	/*! [transaction timestamp numeric] */
 
 	/*! [transaction timestamp] */
 	/* 2a hex is 42 decimal */
 	error_check(
-	    session->timestamp_transaction(session, "durable_timestamp=2a"));
+	    session->timestamp_transaction(session, "commit_timestamp=2a"));
 	/*! [transaction timestamp] */
 
 	error_check(session->commit_transaction(session, NULL));
