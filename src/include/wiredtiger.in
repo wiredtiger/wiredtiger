@@ -2236,7 +2236,8 @@ struct __wt_connection {
 	 * If the cache overflow file exceeds this size\, a panic will be
 	 * triggered.  The default value means that the cache overflow file is
 	 * unbounded and may use as much space as the filesystem will
-	 * accommodate., an integer greater than or equal to 0; default \c 0.}
+	 * accommodate.  The minimum non-zero setting is 100MB., an integer
+	 * greater than or equal to 0; default \c 0.}
 	 * @config{ ),,}
 	 * @config{cache_overhead, assume the heap allocator overhead is the
 	 * specified percentage\, and adjust the cache usage by that amount (for
@@ -2848,8 +2849,8 @@ struct __wt_connection {
  * WiredTiger is allowed to use for its cache overflow mechanism.  If the cache
  * overflow file exceeds this size\, a panic will be triggered.  The default
  * value means that the cache overflow file is unbounded and may use as much
- * space as the filesystem will accommodate., an integer greater than or equal
- * to 0; default \c 0.}
+ * space as the filesystem will accommodate.  The minimum non-zero setting is
+ * 100MB., an integer greater than or equal to 0; default \c 0.}
  * @config{ ),,}
  * @config{cache_overhead, assume the heap allocator overhead is the specified
  * percentage\, and adjust the cache usage by that amount (for example\, if

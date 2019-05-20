@@ -18,6 +18,8 @@
 	(WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED |	\
 	WT_SESSION_NO_RECONCILE)
 
+#define	WT_LAS_FILE_MIN	(100 * WT_MEGABYTE)
+
 /*
  * __las_set_isolation --
  *	Switch to read-uncommitted.
@@ -68,6 +70,11 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 
 	WT_RET(__wt_config_gets(
 	    session, cfg, "cache_overflow.file_max", &cval));
+
+	if (cval.val != 0 && cval.val < WT_LAS_FILE_MIN)
+		WT_RET_MSG(session, EINVAL,
+		    "max cache overflow size %" PRId64 " below minimum %d",
+		    cval.val, WT_LAS_FILE_MIN);
 
 	btree = S2BT(session);
 	btree->file_max = (uint64_t)cval.val;
@@ -785,9 +792,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
 	max_las_size = S2BT(session)->file_max;
 	if (max_las_size != 0 && (uint32_t)las_size > max_las_size)
-		WT_PANIC_MSG(session, WT_PANIC, "WiredTigerLAS: file size of %"
-		    PRIu32 " exceeds maximum size %" PRIu64, (uint32_t)las_size,
-		    max_las_size);
+		WT_PANIC_MSG(session, WT_PANIC,
+		    "WiredTigerLAS: file size of %" PRId64 " exceeds maximum "
+		    "size %" PRIu64, las_size, max_las_size);
 
 err:	/* Resolve the transaction. */
 	if (local_txn) {
