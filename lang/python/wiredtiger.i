@@ -630,7 +630,6 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 /* Handle binary data returns from get_key/value -- avoid cstring.i: it creates a list of returns. */
 %typemap(in,numinputs=0) (char **datap, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
 %typemap(in,numinputs=0) (char **charp, int *sizep) (char *data, int size) { $1 = &data; $2 = &size; }
-%typemap(frearg) (char **datap, int *sizep) "";
 %typemap(argout) (char **charp, int *sizep) {
 	if (*$1)
 		$result = PyUnicode_FromStringAndSize(*$1, *$2);
@@ -643,7 +642,6 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 
 /* Handle record number returns from get_recno */
 %typemap(in,numinputs=0) (uint64_t *recnop) (uint64_t recno) { $1 = &recno; }
-%typemap(frearg) (uint64_t *recnop) "";
 %typemap(argout) (uint64_t *recnop) { $result = PyLong_FromUnsignedLongLong(*$1); }
 
 /* Handle returned hexadecimal timestamps. */
@@ -655,12 +653,12 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 
 /* Handle returned wt_timestamp_t timestamps. */
 %typemap(in,numinputs=0) (wt_timestamp_t *timestamp) (uint64_t ts) { $1 = &ts; }
-%typemap(frearg) (wt_timestamp_t *timestamp) "";
 %typemap(argout) (wt_timestamp_t *timestamp) { $result = PyLong_FromUnsignedLongLong(*$1); }
 
 /* 
  * Handle input of wt_timestamp_t type:
- * PyInt_AsUnsignedLongLongMask() doesn't check for overflow, but
+ * Any numeric type (int or long in Py2, or int in Py3) is allowed as input for
+ * a timestamp. PyInt_AsUnsignedLongLongMask() doesn't check for overflow, but
  * PyLong_AsUnsignedLongLong() does. So we need to add some custom checking to
  * make sure we do not accept negative timestamps when the input is of PyInt
  * type.
@@ -673,10 +671,12 @@ OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
 #else
         if (PyInt_CheckExact($input)) {
                 if (PyInt_AS_LONG($input) < 0)
-                        SWIG_exception(SWIG_OverflowError,"can't convert negative long to unsigned.");
+                        SWIG_exception(SWIG_OverflowError,"can't convert negative int to unsigned.");
                 $1 = PyInt_AsUnsignedLongLongMask($input);
         } else if (PyLong_CheckExact($input))
                 $1 = PyLong_AsUnsignedLongLong($input);
+        else
+                SWIG_exception(SWIG_TypeError,"an integer is required.");
 #endif
         if (PyErr_Occurred() != NULL)
                 SWIG_fail;

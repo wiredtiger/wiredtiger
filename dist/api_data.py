@@ -1231,11 +1231,8 @@ methods = {
 
 'WT_SESSION.query_timestamp_numeric' : Method([
     Config('get', 'read', r'''
-        specify which timestamp to query: \c commit returns the most recently
-        set commit_timestamp.  \c first_commit returns the first set
-        commit_timestamp.  \c prepare returns the timestamp used in preparing a
-        transaction.  \c read returns the timestamp at which the transaction is
-        reading at.  See @ref transaction_timestamps''',
+        same as WT_SESSION::query_timestamp but returns the timestamp in a
+        numeric form.  See @ref transaction_timestamps''',
         choices=['commit', 'first_commit', 'prepare', 'read']),
 ]),
 
@@ -1391,20 +1388,8 @@ methods = {
 
 'WT_SESSION.timestamp_transaction_numeric' : Method([
     Config('set', '', r'''
-        specify which timestamp to set along with the timestamp in a numeric
-        form: \c commit_timestamp sets the commit timestamp for the current
-        transaction.  The supplied value must not be older than the first commit
-        timestamp set for the current transaction.  The value must also not be
-        older than the current oldest and stable timestamps.
-        \c durable_timestamp sets the durable timestamp for the current
-        transaction.  The supplied value must not be older than the commit
-        timestamp set for the current transaction.  The value must also not be
-        older than the current stable timestamp.  \c prepare_timestamp sets the
-        prepare timestamp for the updates of the current transaction. The
-        supplied value must not be older than any active read timestamps.
-        \c read_timestamp read using the specified timestamp.  The supplied
-        value must not be older than the current oldest timestamp.  This can
-        only be set once for a transaction. See @ref transaction_timestamps''',
+        same as WT_SESSION::timestamp_transaction but accepts the timestamp
+        in a numeric form.  See @ref transaction_timestamps''',
         choices=[
             'commit_timestamp',
             'durable_timestamp',
@@ -1565,17 +1550,8 @@ methods = {
 
 'WT_CONNECTION.query_timestamp_numeric' : Method([
     Config('get', 'all_committed', r'''
-        specify which timestamp to query: \c all_committed returns the largest
-        timestamp such that all timestamps up to that value have committed,
-        \c last_checkpoint returns the timestamp of the most recent stable
-        checkpoint, \c oldest returns the most recent \c oldest_timestamp set
-        with WT_CONNECTION::set_timestamp, \c oldest_reader returns the
-        minimum of the read timestamps of all active readers \c pinned returns
-        the minimum of the \c oldest_timestamp and the read timestamps of all
-        active readers, \c recovery returns the timestamp of the most recent
-        stable checkpoint taken prior to a shutdown and \c stable returns the
-        most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
-        See @ref transaction_timestamps''',
+        same as WT_CONNECTION::query_timestamp but returns the timestamp in
+        a numeric form.  See @ref transaction_timestamps''',
         choices=['all_committed','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
