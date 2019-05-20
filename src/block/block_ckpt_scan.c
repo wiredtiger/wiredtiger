@@ -324,8 +324,9 @@ __wt_block_checkpoint_info(WT_SESSION_IMPL *session, WT_BLOCK *block)
 			continue;
 		}
 		/*
-		 * Check less-than, that way we can extend this with additional
-		 * values in the future.
+		 * Note the less-than check of WT_BLOCK_EXTLIST_VERSION_CKPT,
+		 * that way we can extend this with additional values in the
+		 * future.
 		 */
 		if (ext_size < WT_BLOCK_EXTLIST_VERSION_CKPT)
 			continue;

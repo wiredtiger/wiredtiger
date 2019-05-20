@@ -282,31 +282,57 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	size_t metadata_len;
+	size_t min_config_len, total_len;
+	uint8_t *p;
+	const char *filecfg[] = { WT_CONFIG_BASE(session, file_meta), NULL };
+	char *min_config;
+
+	min_config = NULL;
 
 	/* If in-memory, we don't read or write the descriptor structure. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
 		return (0);
 
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
-	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
+	WT_ERR(__wt_scr_alloc(session, allocsize, &buf));
 	memset(buf->mem, 0, allocsize);
 
+	/* Initialize the block descriptor structure. */
+	desc = buf->mem;
+	desc->magic = WT_BLOCK_MAGIC;
+	desc->majorv = WT_BLOCK_MAJOR_VERSION;
+	desc->minorv = WT_BLOCK_MINOR_VERSION;
+	desc->checksum = 0;
+	desc->allocsize = allocsize;
+	p = (uint8_t *)buf->mem + WT_BLOCK_DESC_SIZE;
+
+	/*
+	 * Get a copy of where the application's file configuration differs from
+	 * the base defaults. The block manager stores a minimal configuration
+	 * so we can read standalone files. Standalone files have limited space
+	 * when first created, so explicitly strip the app_metadata field since
+	 * that's the field that's likely to be large: we'll get a copy of it on
+	 * the first checkpoint (when the standalone file can grow to store as
+	 * much configuration information as we have).
+	 */
+	WT_ERR(__wt_config_discard_defaults(session,
+	    filecfg, metadata, "app_metadata=", &min_config));
+
 	/* If there's room for the metadata, copy it into place. */
-	metadata_len = metadata == NULL ? 0 : strlen(metadata);
-	if (metadata_len != 0) {
-		++metadata_len;
-		if (WT_BLOCK_DESC_SIZE + metadata_len <= allocsize)
-			memcpy((uint8_t *)buf->mem +
-			    WT_BLOCK_DESC_SIZE, metadata, metadata_len);
-		else {
-			__wt_verbose(session, WT_VERB_BLOCK,
-			    "%s: metadata not stored in the file description "
-			    "block, the metadata length of %" WT_SIZET_FMT
-			    " is too large for the allocation size of %" PRIu32,
-			    filename, metadata_len, allocsize);
-			metadata_len = 0;
-		}
+	min_config_len = strlen(min_config);
+	total_len =
+	    WT_BLOCK_DESC_SIZE + 1 + WT_INTPACK64_MAXSIZE + min_config_len;
+	if (total_len > allocsize) {
+		*p = WT_BLOCK_DESC_VERSION_ORIG;
+		__wt_verbose(session, WT_VERB_BLOCK,
+		    "%s: metadata not stored in the file description block, "
+		    "the metadata length of %" WT_SIZET_FMT " is too large "
+		    "for the allocation size of %" PRIu32,
+		    filename, min_config_len, allocsize);
+	} else {
+		*p++ = WT_BLOCK_DESC_VERSION_METADATA;
+		WT_ERR(__wt_vpack_uint(&p, 0, (uint64_t)min_config_len));
+		memcpy(p, min_config, min_config_len);
 	}
 
 	/*
@@ -314,13 +340,6 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
 	 * in little-endian format. The checksum is (potentially) returned in a
 	 * big-endian format, swap it into place in a separate step.
 	 */
-	desc = buf->mem;
-	desc->magic = WT_BLOCK_MAGIC;
-	desc->majorv = WT_BLOCK_MAJOR_VERSION;
-	desc->minorv = WT_BLOCK_MINOR_VERSION;
-	desc->checksum = 0;
-	desc->allocsize = allocsize;
-	desc->metadata_len = (uint32_t)metadata_len;
 	__wt_block_desc_byteswap(desc);
 	desc->checksum = __wt_checksum(desc, allocsize);
 #ifdef WORDS_BIGENDIAN
@@ -328,7 +347,8 @@ __wt_desc_write(WT_SESSION_IMPL *session, WT_FH *fh,
 #endif
 	ret = __wt_write(session, fh, (wt_off_t)0, (size_t)allocsize, desc);
 
-	__wt_scr_free(session, &buf);
+err:	__wt_scr_free(session, &buf);
+	__wt_free(session, min_config);
 	return (ret);
 }
 
@@ -343,7 +363,14 @@ __wt_desc_read(WT_SESSION_IMPL *session,
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
+	uint64_t min_config_len;
 	uint32_t checksum_calculate, checksum_tmp;
+	const uint8_t *p;
+	const char *filecfg[] =
+	    { WT_CONFIG_BASE(session, file_meta), NULL, NULL };
+	char *min_config;
+
+	min_config = NULL;
 
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(
@@ -420,13 +447,25 @@ __wt_desc_read(WT_SESSION_IMPL *session,
 	    ", major/minor: %" PRIu32 "/%" PRIu32,
 	    filename, desc->magic, desc->majorv, desc->minorv);
 
-	/* Read any metadata. It's optional, so might not be there. */
-	if (metadatap != NULL && desc->metadata_len != 0)
-		WT_ERR(__wt_strndup(session,
-		    (uint8_t *)desc + WT_BLOCK_DESC_SIZE, desc->metadata_len,
-		    metadatap));
+	/*
+	 * Read any metadata. It did not appear in historic versions of the
+	 * file, and it might not have fit in any case, so it might not be
+	 * there.
+	 *
+	 * Note the less-than check of WT_BLOCK_DESC_VERSION_METADATA, that
+	 * way we can extend this with additional values in the future.
+	 */
+	p = (uint8_t *)buf->mem + WT_BLOCK_DESC_SIZE;
+	if (metadatap != NULL && *p++ >= WT_BLOCK_DESC_VERSION_METADATA) {
+		WT_ERR(__wt_vunpack_uint(&p, 0, &min_config_len));
+		WT_ERR(__wt_strndup(
+		    session, p, (size_t)min_config_len, &min_config));
+		filecfg[1] = min_config;
+		WT_ERR(__wt_config_collapse(session, filecfg, metadatap));
+	}
 
 err:	__wt_scr_free(session, &buf);
+	__wt_free(session, min_config);
 	return (ret);
 }
 

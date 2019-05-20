@@ -60,11 +60,11 @@ __create_file(WT_SESSION_IMPL *session,
 	WT_DECL_RET;
 	uint32_t allocsize;
 	const char *filename, *filecfg[] =
-	    { WT_CONFIG_BASE(session, file_meta), NULL, NULL };
-	char *fileconf, *min_config;
+	    { WT_CONFIG_BASE(session, file_meta), config, NULL, NULL };
+	char *fileconf;
 	bool is_metadata;
 
-	fileconf = min_config = NULL;
+	fileconf = NULL;
 
 	is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
 
@@ -79,38 +79,29 @@ __create_file(WT_SESSION_IMPL *session,
 		goto err;
 	}
 
-	/*
-	 * Create a configuration string that combines the application-specified
-	 * configuration plus the file ID and version information.
-	 */
-	WT_ERR(__wt_scr_alloc(session, 0, &val));
-	WT_ERR(__wt_buf_fmt(session, val,
-	    "%s,id=%" PRIu32 ",version=(major=%d,minor=%d)",
-	    config == NULL ? "" : config, ++S2C(session)->next_file_id,
-	    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
-
-	/*
-	 * Get a copy of where the application's file configuration differs from
-	 * the base defaults. The block manager stores a minimal configuration
-	 * so we can read standalone files. Standalone files have limited space
-	 * when first created, so explicitly strip the app_metadata field since
-	 * that's the field that's likely to be large: we'll get a copy of it on
-	 * the first checkpoint (when the standalone file can grow to store as
-	 * much configuration information as we have). Once that's done,
-	 * complete the configuration array used for higher-level processing.
-	 */
-	if (config != NULL)
-		WT_ERR(__wt_config_discard_defaults(session,
-		    filecfg, val->data, "app_metadata=", &min_config));
-	filecfg[1] = val->data;
-
 	/* Sanity check the allocation size. */
 	WT_ERR(__wt_direct_io_size_check(
 	    session, filecfg, "allocation_size", &allocsize));
 
-	/* Create the file. */
+	/*
+	 * Create a configuration string that combines the file ID and version
+	 * information, and append it into the configuration. (Test for the
+	 * first NULL slot, config may have been NULL.)
+	 */
+	WT_ERR(__wt_scr_alloc(session, 0, &val));
+	WT_ERR(__wt_buf_fmt(session, val,
+	    "id=%" PRIu32 ",version=(major=%d,minor=%d)",
+	     ++S2C(session)->next_file_id,
+	    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
+	if (filecfg[1] == NULL)
+		filecfg[1] = val->data;
+	else
+		filecfg[2] = val->data;
+
+	/* Flatten the configuration and create the file. */
+	WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 	WT_ERR(__wt_block_manager_create(
-	    session, filename, allocsize, min_config));
+	    session, filename, allocsize, fileconf));
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
 
@@ -118,10 +109,8 @@ __create_file(WT_SESSION_IMPL *session,
 	 * If creating an ordinary file, insert the complete, flattened
 	 * configuration into the metadata.
 	 */
-	if (!is_metadata) {
-		WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
+	if (!is_metadata)
 		WT_ERR(__wt_metadata_insert(session, uri, fileconf));
-	}
 
 	/*
 	 * Open the file to check that it was setup correctly. We don't need to
@@ -141,7 +130,6 @@ __create_file(WT_SESSION_IMPL *session,
 
 err:	__wt_scr_free(session, &val);
 	__wt_free(session, fileconf);
-	__wt_free(session, min_config);
 	return (ret);
 }
 
