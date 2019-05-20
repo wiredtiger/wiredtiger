@@ -78,6 +78,8 @@ class test_debug_mode01(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=i,value_format=i')
         rollback = self.rollback_error(1)
         rollback += self.rollback_error(2)
+        self.pr("Rollback: " + str(rollback))
+        self.pr("Minimum: " + str(self.min_error))
         self.assertTrue(rollback >= self.min_error)
 
     def test_rollback_error_off(self):
