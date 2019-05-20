@@ -1363,13 +1363,13 @@ __evict_walk_choose_dhandle(
 
 	WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
 
-	// Nothing to do if the dhandle list is empty
+	/* Nothing to do if the dhandle list is empty. */
 	if (TAILQ_EMPTY(&conn->dhqh))
 		return;
 
 	/*
 	 * If we do not have a lot of dhandles, most hash buckets will be empty.
-	 * Just pick a random dhandle from the list in that case
+	 * Just pick a random dhandle from the list in that case.
 	 */
 	if (conn->dhandle_count < 10 * WT_HASH_ARRAY_SIZE) {
 		rnd_dh = __wt_random(&session->rnd) % conn->dhandle_count;
@@ -1380,7 +1380,9 @@ __evict_walk_choose_dhandle(
 		return;
 	}
 
-	// Keep picking up a random bucket until we find one that is not empty
+	/*
+	 * Keep picking up a random bucket until we find one that is not empty.
+	 */
 	dh_bucket_count = 0;
 	rnd_bucket = 0;
 	while (dh_bucket_count == 0) {
@@ -1388,10 +1390,10 @@ __evict_walk_choose_dhandle(
 		dh_bucket_count = conn->dh_bucket_count[rnd_bucket];
 	}
 
-	// We can't pick up an empty bucket with a non zero bucket count
+	/* We can't pick up an empty bucket with a non zero bucket count. */
 	WT_ASSERT(session, !TAILQ_EMPTY(&conn->dhhash[rnd_bucket]));
 
-	// Pick a random dhandle in the chosen bucket
+	/* Pick a random dhandle in the chosen bucket. */
 	rnd_dh = __wt_random(&session->rnd) % dh_bucket_count;
 	dhandle = TAILQ_FIRST(&conn->dhhash[rnd_bucket]);
 	for (; rnd_dh > 0; rnd_dh--)
@@ -1447,7 +1449,7 @@ retry:	loop_count = 0;
 	while (slot < max_entries) {
 		loop_count++;
 
-		/* We're done if shutting down or reconfiguring */
+		/* We're done if shutting down or reconfiguring. */
 		if (F_ISSET(conn, WT_CONN_CLOSING) ||
 		    F_ISSET(conn, WT_CONN_RECONFIGURING))
 			break;
