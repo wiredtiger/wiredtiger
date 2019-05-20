@@ -531,12 +531,26 @@ class WiredTigerTestCase(unittest.TestCase):
         try:
             expr()
         except BaseException as err:
+            self.pr('Exception of type raised, got type: ' + \
+                    str(type(err)))
+            self.pr('Exception with string raised, got: "' + \
+                    str(err) + '"')
             if not isinstance(err, exceptionType):
                 self.fail('Exception of incorrect type raised, got type: ' + \
                     str(type(err)))
-            if exceptionString != None and exceptionString != str(err):
-                self.fail('Exception with incorrect string raised, got: "' + \
-                    str(err) + '"')
+            if exceptionString != None:
+                # Check for a pattern instead of exact string.
+                fail = False
+                self.pr('Expecting string msg: ' + exceptionString)
+                if len(exceptionString) > 2 and \
+                  exceptionString[0] == '/' and exceptionString[-1] == '/' :
+                      if re.search(exceptionString[1:-1], str(err)) == None:
+                        fail = True
+                elif exceptionString != str(err):
+                        fail = True
+                if fail:
+                    self.fail('Exception with incorrect string raised, got: "' + \
+                        str(err) + '" Expected: ' + exceptionString)
             raised = True
         if not raised and not optional:
             self.fail('no assertion raised')
