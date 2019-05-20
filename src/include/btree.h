@@ -196,8 +196,11 @@ struct __wt_btree {
 	uint64_t    bytes_dirty_leaf;	/* Bytes in dirty leaf pages. */
 	uint64_t    bytes_dirty_total;	/* Bytes ever dirtied in cache. */
 
-	uint64_t    file_max;		/* The maximum bytes allowed to be used
-					   for the table on disk. */
+	/*
+	 * The maximum bytes allowed to be used for the table on disk.  This is
+	 * currently only used for the lookaside table.
+	 */
+	uint64_t    file_max;
 
 	/*
 	 * We flush pages from the tree (in order to make checkpoint faster),

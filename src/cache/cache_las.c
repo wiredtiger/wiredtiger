@@ -65,8 +65,9 @@ __las_entry_count(WT_CACHE *cache)
 int
 __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 {
-	WT_BTREE *btree;
 	WT_CONFIG_ITEM cval;
+	WT_CURSOR_BTREE *las_cursor;
+	WT_SESSION_IMPL *las_session;
 
 	WT_RET(__wt_config_gets(
 	    session, cfg, "cache_overflow.file_max", &cval));
@@ -76,8 +77,9 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 		    "max cache overflow size %" PRId64 " below minimum %d",
 		    cval.val, WT_LAS_FILE_MIN);
 
-	btree = S2BT(session);
-	btree->file_max = (uint64_t)cval.val;
+	las_session = S2C(session)->cache->las_session[0];
+	las_cursor = (WT_CURSOR_BTREE *)las_session->las_cursor;
+	las_cursor->btree->file_max = (uint64_t)cval.val;
 
 	return (0);
 }
