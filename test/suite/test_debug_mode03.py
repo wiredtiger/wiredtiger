@@ -75,6 +75,5 @@ class test_debug_mode03(wttest.WiredTigerTestCase):
         count = self.find_log_recs()
         self.assertEqual(count, 0)
 
-
 if __name__ == '__main__':
     wttest.run()
