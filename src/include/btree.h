@@ -196,6 +196,9 @@ struct __wt_btree {
 	uint64_t    bytes_dirty_leaf;	/* Bytes in dirty leaf pages. */
 	uint64_t    bytes_dirty_total;	/* Bytes ever dirtied in cache. */
 
+	uint64_t    file_max;		/* The maximum bytes allowed to be used
+					   for the table on disk. */
+
 	/*
 	 * We flush pages from the tree (in order to make checkpoint faster),
 	 * without a high-level lock.  To avoid multiple threads flushing at

@@ -57,6 +57,25 @@ __las_entry_count(WT_CACHE *cache)
 }
 
 /*
+ * __wt_las_config --
+ *	Configure the lookaside table.
+ */
+int
+__wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
+{
+	WT_BTREE *btree;
+	WT_CONFIG_ITEM cval;
+
+	WT_RET(__wt_config_gets(
+	    session, cfg, "cache_overflow.file_max", &cval));
+
+	btree = S2BT(session);
+	btree->file_max = (uint64_t)cval.val;
+
+	return (0);
+}
+
+/*
  * __wt_las_empty --
  *	Return when there are entries in the lookaside table.
  */
@@ -126,7 +145,7 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
  *	Initialize the database's lookaside store.
  */
 int
-__wt_las_create(WT_SESSION_IMPL *session)
+__wt_las_create(WT_SESSION_IMPL *session, const char **cfg)
 {
 	WT_CACHE *cache;
 	WT_CONNECTION_IMPL *conn;
@@ -165,6 +184,8 @@ __wt_las_create(WT_SESSION_IMPL *session)
 		    true, WT_LAS_SESSION_FLAGS, &cache->las_session[i]));
 		WT_RET(__wt_las_cursor_open(cache->las_session[i]));
 	}
+
+	WT_RET(__wt_las_config(session, cfg));
 
 	/* The statistics server is already running, make sure we don't race. */
 	WT_WRITE_BARRIER();
@@ -620,7 +641,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
 	wt_off_t las_size;
-	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt;
+	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt,
+	    max_las_size;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool local_txn;
@@ -761,6 +783,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 
 	WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
 	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
+	max_las_size = S2BT(session)->file_max;
+	if (max_las_size != 0 && (uint32_t)las_size > max_las_size)
+		WT_PANIC_MSG(session, WT_PANIC, "WiredTigerLAS: file size of %"
+		    PRIu32 " exceeds maximum size %" PRIu64, (uint32_t)las_size,
+		    max_las_size);
 
 err:	/* Resolve the transaction. */
 	if (local_txn) {

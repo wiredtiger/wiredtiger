@@ -456,9 +456,9 @@ connection_runtime_config = [
         Config('file_max', '0', r'''
             The maximum number of bytes that WiredTiger is allowed to use for
             its cache overflow mechanism. If the cache overflow file exceeds
-            this size, a panic will be triggered. The default value will means
-            that the cache overflow file is unbounded and may use as much space
-            as the filesystem will accommodate.''',
+            this size, a panic will be triggered. The default value means that
+            the cache overflow file is unbounded and may use as much space as
+            the filesystem will accommodate.''',
             min='0')
         ]),
     Config('cache_overhead', '8', r'''
