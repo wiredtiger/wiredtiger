@@ -34,7 +34,7 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
     uri = 'file:test_debug'
 
     entries = 100
-    loop = 1
+    loop = 0
     retain = 5
 
     def conn_config(self):
@@ -50,7 +50,7 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
         # Write data in small chunks until we switch log files.
         while cur_logs == new_logs:
             for k in keys:
-                c[k * self.loop] = 1
+                c[k + (self.loop * self.entries)] = 1
             self.loop += 1
             new_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
         c.close()
