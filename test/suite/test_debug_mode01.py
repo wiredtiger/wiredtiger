@@ -36,7 +36,7 @@ class test_debug_mode01(wttest.WiredTigerTestCase):
     uri = 'file:test_debug'
 
     entries = 22
-    min_error = entries / 5
+    min_error = entries // 5
 
     def rollback_error(self, val=1):
 
