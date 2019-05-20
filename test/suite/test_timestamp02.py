@@ -42,14 +42,28 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp02'
     uri = 'table:' + tablename
 
-    scenarios = make_scenarios([
+    schema_types = [
         ('col', dict(extra_config=',key_format=r')),
         ('lsm', dict(extra_config=',type=lsm')),
         ('row', dict(extra_config='')),
-    ])
+    ]
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(schema_types, ts_api_types)
 
     conn_config = 'log=(enabled)'
     session_config = 'isolation=snapshot'
+
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
     def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
@@ -154,7 +168,7 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         c[k] = 0
 
         self.session.begin_transaction('read_timestamp=' + timestamp_str(10))
-        self.session.timestamp_transaction_numeric(20, 'set=commit_timestamp')
+        self.timestamp_transaction(self.session, 20, 'commit_timestamp')
         c[k] = 1
         # We should see the value we just inserted
         self.assertEqual(c[k], 1)

@@ -56,7 +56,20 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
         ('isolation_default', dict(isolation='')),
         ('isolation_snapshot', dict(isolation='snapshot'))
     ]
-    scenarios = make_scenarios(types, keyfmt, iso_types)
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(types, keyfmt, iso_types, ts_api_types)
+
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     def skip(self):
         return self.keyfmt == 'r' and \
@@ -88,8 +101,8 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), 0)
 
         session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-        session.timestamp_transaction_numeric(200, 'set=commit_timestamp')
-        session.timestamp_transaction_numeric(220, 'set=durable_timestamp')
+        self.timestamp_transaction(session, 200, 'commit_timestamp')
+        self.timestamp_transaction(session, 220, 'durable_timestamp')
         session.commit_transaction()
 
         # Check the values read are correct with different timestamps.
@@ -136,8 +149,8 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase):
 
         # Commit timestamp is earlier to stable timestamp but durable timestamp
         # is later than stable timestamp. Hence second update value is not durable.
-        session.timestamp_transaction_numeric(240, 'set=commit_timestamp')
-        session.timestamp_transaction_numeric(300, 'set=durable_timestamp')
+        self.timestamp_transaction(session, 240, 'commit_timestamp')
+        self.timestamp_transaction(session, 300, 'durable_timestamp')
         session.commit_transaction()
 
         # Checkpoint so that first update value will be visible and durable,

@@ -38,14 +38,28 @@ class test_prepare01(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     nentries = 1000
-    scenarios = make_scenarios([
+    schema_types = [
         ('col-f', dict(uri='file:text_txn01',key_format='r',value_format='S')),
         ('col-t', dict(uri='table:text_txn01',key_format='r',value_format='S')),
         ('fix-f', dict(uri='file:text_txn01',key_format='r',value_format='8t')),
         ('fix-t', dict(uri='table:text_txn01',key_format='r',value_format='8t')),
         ('row-f', dict(uri='file:text_txn01',key_format='S',value_format='S')),
         ('row-t', dict(uri='table:text_txn01',key_format='S',value_format='S')),
-    ])
+    ]
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(schema_types, ts_api_types)
+
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     # Return the number of records visible to the cursor.
     def cursor_count(self, cursor):
@@ -121,8 +135,8 @@ class test_prepare01(wttest.WiredTigerTestCase):
             if i > 0 and i % (self.nentries // 37) == 0:
                 self.check(cursor, committed, i)
                 self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
-                self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-                self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+                self.timestamp_transaction(self.session, 30, "commit_timestamp")
+                self.timestamp_transaction(self.session, 30, "durable_timestamp")
                 self.session.commit_transaction()
                 committed = i
                 self.session.begin_transaction()
@@ -139,10 +153,10 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
         self.check(cursor, committed, self.nentries)
 
-        self.session.timestamp_transaction_numeric(20, "set=prepare_timestamp")
+        self.timestamp_transaction(self.session, 20, "prepare_timestamp")
         self.session.prepare_transaction()
-        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+        self.timestamp_transaction(self.session, 30, "commit_timestamp")
+        self.timestamp_transaction(self.session, 30, "durable_timestamp")
         self.session.commit_transaction()
         self.check(cursor, self.nentries, self.nentries)
 

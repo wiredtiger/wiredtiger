@@ -64,9 +64,21 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         ('ignore_false', dict(ignore_config=',ignore_prepare=false', ignore=False)),
         ('ignore_true', dict(ignore_config=',ignore_prepare=true', ignore=True)),
     ]
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(types, txncfg, preparecfg, ts_api_types)
     conn_config = 'log=(enabled)'
 
-    scenarios = make_scenarios(types, txncfg, preparecfg)
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     # Check if query_timestamp and query_timestamp_numeric return the expected timestamp
     def assert_query_timestamp_equals(self, resource, ts_query, expected_val_numeric):
@@ -127,8 +139,8 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         s_other.commit_transaction()
         #'''
 
-        self.session.timestamp_transaction_numeric(300, 'set=commit_timestamp')
-        self.session.timestamp_transaction_numeric(300, 'set=durable_timestamp')
+        self.timestamp_transaction(self.session, 300, 'commit_timestamp')
+        self.timestamp_transaction(self.session, 300, 'durable_timestamp')
         self.session.commit_transaction()
 
 if __name__ == '__main__':

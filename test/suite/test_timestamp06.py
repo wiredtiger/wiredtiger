@@ -60,9 +60,21 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         ('V1', dict(conn_config='create,log=(archive=false,enabled),compatibility=(release="2.9")', using_log=True)),
         ('V2', dict(conn_config='create,log=(archive=false,enabled)', using_log=True)),
     ]
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(conncfg, types, ckpt, ts_api_types)
     session_config = 'isolation=snapshot'
 
-    scenarios = make_scenarios(conncfg, types, ckpt)
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     # Check that a cursor (optionally started in a new transaction), sees the
     # expected values.
@@ -138,17 +150,17 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.session.begin_transaction()
         # Make three updates with different timestamps.
-        self.session.timestamp_transaction_numeric(1, 'set=commit_timestamp')
+        self.timestamp_transaction(self.session, 1, 'commit_timestamp')
         for k in keys:
             cur_ts_log[k] = 1
             cur_ts_nolog[k] = 1
 
-        self.session.timestamp_transaction_numeric(101, 'set=commit_timestamp')
+        self.timestamp_transaction(self.session, 101, 'commit_timestamp')
         for k in keys:
             cur_ts_log[k] = 2
             cur_ts_nolog[k] = 2
 
-        self.session.timestamp_transaction_numeric(201, 'set=commit_timestamp')
+        self.timestamp_transaction(self.session, 201, 'commit_timestamp')
         for k in keys:
             cur_ts_log[k] = 3
             cur_ts_nolog[k] = 3

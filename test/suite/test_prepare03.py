@@ -46,7 +46,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
     nentries = 10
     session_config = 'isolation=snapshot'
 
-    scenarios = make_scenarios([
+    schema_types = [
         ('file-col', dict(tablekind='col',uri='file', format='key_format=r,value_format=S')),
         ('file-fix', dict(tablekind='fix',uri='file', format='key_format=r,value_format=8t')),
         ('file-row', dict(tablekind='row',uri='file', format='key_format=S,value_format=S')),
@@ -54,7 +54,21 @@ class test_prepare03(wttest.WiredTigerTestCase):
         ('table-col', dict(tablekind='col',uri='table', format='key_format=r,value_format=S')),
         ('table-fix', dict(tablekind='fix',uri='table', format='key_format=r,value_format=8t')),
         ('table-row', dict(tablekind='row',uri='table', format='key_format=S,value_format=S'))
-    ])
+    ]
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(schema_types, ts_api_types)
+
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     def genkey(self, i):
         if self.tablekind == 'row':
@@ -97,8 +111,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.insert(), preparemsg)
-            self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-            self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+            self.timestamp_transaction(self.session, 30, "commit_timestamp")
+            self.timestamp_transaction(self.session, 30, "durable_timestamp")
             self.session.commit_transaction()
             cursor.insert()
 
@@ -116,8 +130,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
                 lambda:cursor.get_key(), preparemsg)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.get_value(), preparemsg)
-            self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-            self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+            self.timestamp_transaction(self.session, 30, "commit_timestamp")
+            self.timestamp_transaction(self.session, 30, "durable_timestamp")
             self.session.commit_transaction()
             nextret = cursor.next()
             if nextret != 0:
@@ -142,8 +156,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.prev(), preparemsg)
-            self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-            self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+            self.timestamp_transaction(self.session, 30, "commit_timestamp")
+            self.timestamp_transaction(self.session, 30, "durable_timestamp")
             self.session.commit_transaction()
             prevret = cursor.prev()
             if prevret != 0:
@@ -178,8 +192,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
             lambda:cursor.reserve(), preparemsg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.reconfigure(), preparemsg)
-        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+        self.timestamp_transaction(self.session, 30, "commit_timestamp")
+        self.timestamp_transaction(self.session, 30, "durable_timestamp")
         self.session.commit_transaction()
         cursor.search()
         cursor.set_value(self.genvalue(self.nentries + self.nentries//2))
@@ -192,8 +206,8 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.session.prepare_transaction("prepare_timestamp=" + timestamp_str(20))
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.search_near(), preparemsg)
-        self.session.timestamp_transaction_numeric(30, "set=commit_timestamp")
-        self.session.timestamp_transaction_numeric(30, "set=durable_timestamp")
+        self.timestamp_transaction(self.session, 30, "commit_timestamp")
+        self.timestamp_transaction(self.session, 30, "durable_timestamp")
         self.session.commit_transaction()
         # There is a bug with search_near operation when no key is set.
         # This fix is being tracked in WT-3918.

@@ -50,7 +50,20 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         ('isolation_read_committed', dict(isolation='read-committed')),
         ('isolation_snapshot', dict(isolation='snapshot'))
     ]
-    scenarios = make_scenarios(types, keyfmt, iso_types)
+
+    ts_api_types = [
+        ('ts_api_hex_string', dict(ts_api='hex_string')),
+        ('ts_api_numeric', dict(ts_api='numeric')),
+    ]
+
+    scenarios = make_scenarios(types, keyfmt, iso_types, ts_api_types)
+
+    # Set timestamp with numeric or hex string based API
+    def timestamp_transaction(self, session, ts, ts_type):
+        if self.ts_api == 'hex_string':
+            session.timestamp_transaction(ts_type + '=' + timestamp_str(ts))
+        else:
+            session.timestamp_transaction_numeric(ts, 'set=' + ts_type)
 
     def skip(self):
         return self.keyfmt == 'r' and \
@@ -134,8 +147,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(200, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(200, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 200, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 200, 'durable_timestamp')
         prep_session.commit_transaction()
 
         before_ts_s.commit_transaction()
@@ -192,8 +205,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(200, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(200, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 200, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 200, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # As read is between(i.e before commit), prev is not found.
@@ -252,8 +265,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(400, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(400, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 400, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 400, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # Check to see before cursor still gets the old value.
@@ -316,8 +329,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(400, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(400, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 400, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 400, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # Check to see before cursor still gets the old value.
@@ -383,8 +396,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(600, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(600, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 600, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 600, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # Check to see before cursor still gets the old value.
@@ -439,8 +452,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(600, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(600, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 600, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 600, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # Check to see before cursor still gets the old value.
@@ -502,8 +515,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.next())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(800, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(800, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 800, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 800, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # Check to see before cursor still gets the old value.
@@ -560,8 +573,8 @@ class test_prepare_cursor01(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda: cursor.prev())
 
         # Commit the prepared transaction.
-        prep_session.timestamp_transaction_numeric(800, 'set=commit_timestamp')
-        prep_session.timestamp_transaction_numeric(800, 'set=durable_timestamp')
+        self.timestamp_transaction(prep_session, 800, 'commit_timestamp')
+        self.timestamp_transaction(prep_session, 800, 'durable_timestamp')
         prep_session.commit_transaction()
 
         # Check to see before cursor still gets the old value.
