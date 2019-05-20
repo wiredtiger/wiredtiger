@@ -942,6 +942,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		fileid = op->btree->id;
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
+			/*
+			 * Increment the resolved update count for empty
+			 * operations to avoid thinking we've lost a prepared
+			 * update as we've got less resolved updates than
+			 * the txn mod count.
+			 */
 			resolved_update_count++;
 			break;
 		case WT_TXN_OP_BASIC_COL:
@@ -1206,6 +1212,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
+			/*
+			 * Increment the resolved update count for empty
+			 * operations to avoid thinking we've lost a prepared
+			 * update as we've got less resolved updates than
+			 * the txn mod count.
+			 */
 			resolved_update_count++;
 			break;
 		case WT_TXN_OP_BASIC_COL:
