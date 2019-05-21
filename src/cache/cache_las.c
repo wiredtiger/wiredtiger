@@ -792,7 +792,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 
 	WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
 	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
-	max_las_size = S2BT(session)->file_max;
+	max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
 	if (max_las_size != 0 && (uint32_t)las_size > max_las_size)
 		WT_PANIC_MSG(session, WT_PANIC,
 		    "WiredTigerLAS: file size of %" PRId64 " exceeds maximum "
