@@ -944,9 +944,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_NONE:
 			/*
 			 * Increment the resolved update count for empty
-			 * operations to avoid thinking we've lost a prepared
-			 * update as we've got less resolved updates than
-			 * the txn mod count.
+			 * operations, if we don't increment the value here we
+			 * will fail our check when we go to resolve prepared
+			 * operations as txn->mod_count will not equal the
+			 * number of resolved operations.
 			 */
 			resolved_update_count++;
 			break;
@@ -982,6 +983,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
+				/*
+				 * If we have set the key repeated flag
+				 * we can skip resolving prepared updates as
+				 * it would have happened on a previous
+				 * modification in this txn.
+				 */
 				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
 					WT_ERR(__wt_txn_resolve_prepared_op(
 					    session, op, true,
@@ -1142,6 +1149,11 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
 			WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
+			/*
+			 * Set the key repeated flag which tells us that we've
+			 * got multiple updates to the same key by the same txn.
+			 * This is later used in txn commit.
+			 */
 			if (upd->next != NULL && upd->txnid == upd->next->txnid)
 				F_SET(op, WT_TXN_OP_KEY_REPEATED);
 			break;
@@ -1214,9 +1226,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		case WT_TXN_OP_NONE:
 			/*
 			 * Increment the resolved update count for empty
-			 * operations to avoid thinking we've lost a prepared
-			 * update as we've got less resolved updates than
-			 * the txn mod count.
+			 * operations, if we don't increment the value here we
+			 * will fail our check when we go to resolve prepared
+			 * operations as txn->mod_count will not equal the
+			 * number of resolved operations.
 			 */
 			resolved_update_count++;
 			break;
@@ -1229,6 +1242,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * operation, in case of prepared transaction.
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+				/*
+				 * If we have set the key repeated flag
+				 * we can skip resolving prepared updates as
+				 * it would have happened on a previous
+				 * modification in this txn.
+				 */
 				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
 					WT_RET(__wt_txn_resolve_prepared_op(
 					    session, op, false,

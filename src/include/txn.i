@@ -179,8 +179,8 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *      references (i.e keys/recnos), which need to be resolved as part of that
  *      transaction commit/rollback.
  *
- *      If no updates are resolved throw an error. Return the count of
- *      resolved updates.
+ *      If no updates are resolved throw an error. Increment resolved update
+ *      count for each resolved update count we locate.
  */
 static inline int
 __wt_txn_resolve_prepared_op(
@@ -222,9 +222,7 @@ __wt_txn_resolve_prepared_op(
 	    (WT_CURSOR_BTREE *)cursor, &upd));
 	WT_ERR(ret);
 
-	/*
-	 * If we haven't found anything then there's an error.
-	 */
+	/* If we haven't found anything then there's an error. */
 	if (upd == NULL) {
 		WT_ASSERT(session, upd != NULL);
 		WT_ERR(WT_NOTFOUND);
