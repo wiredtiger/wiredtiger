@@ -81,6 +81,9 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 	las_cursor = (WT_CURSOR_BTREE *)las_session->las_cursor;
 	las_cursor->btree->file_max = (uint64_t)cval.val;
 
+	WT_STAT_CONN_SET(
+	    session, cache_lookaside_ondisk_max, las_cursor->btree->file_max);
+
 	return (0);
 }
 
