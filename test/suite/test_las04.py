@@ -82,9 +82,8 @@ class test_las04(wttest.WiredTigerTestCase):
         # In the 99MB case, we're expecting an error here.
         with self.expectedStderrPattern(''):
             try:
-                self.conn.reconfigure(
-                    'cache_overflow=(file_max={})'.format(
-                        self.reconfig_file_max))
+                self.conn.reconfigure('cache_overflow=(file_max={})'.format(
+                    self.reconfig_file_max))
             except wiredtiger.WiredTigerError:
                 # Ensure that we raised an error on the invalid value only.
                 self.assertEqual(self.reconfig_file_max, '99MB')
