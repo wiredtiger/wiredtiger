@@ -131,7 +131,7 @@ __wt_block_checkpoint_info_set(WT_SESSION_IMPL *session,
 	 * make sure that we're still in compliance.
 	 */
 	align_size = WT_ALIGN(buf->size, block->allocsize);
-	if (align_size < buf->memsize)
+	if (align_size > buf->memsize)
 		WT_RET(__wt_buf_extend(session, buf, align_size));
 
 	return (0);
