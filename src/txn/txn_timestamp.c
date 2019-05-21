@@ -352,12 +352,12 @@ __wt_txn_query_timestamp(WT_SESSION_IMPL *session,
 }
 
 /*
- * __wt_txn_query_timestamp_hex --
+ * __wt_txn_query_timestamp_hex_str --
  *	Query a timestamp in it's hexadecimal encoding. The caller may query the
  *	global transaction or the session's transaction.
  */
 int
-__wt_txn_query_timestamp_hex(WT_SESSION_IMPL *session,
+__wt_txn_query_timestamp_hex_str(WT_SESSION_IMPL *session,
     char *hex_timestamp, const char *cfg[], bool global_txn)
 {
 	wt_timestamp_t ts;

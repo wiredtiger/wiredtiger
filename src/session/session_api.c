@@ -1817,7 +1817,7 @@ __session_query_timestamp(
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_PREPARE_ALLOWED(session,
 	    query_timestamp, config, cfg);
-	WT_TRET(__wt_txn_query_timestamp_hex(
+	WT_TRET(__wt_txn_query_timestamp_hex_str(
 	    session, hex_timestamp, cfg, false));
 err:	API_END_RET(session, ret);
 }
