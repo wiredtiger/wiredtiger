@@ -157,11 +157,79 @@ static int  __slvg_trk_ovfl(WT_SESSION_IMPL *,
 		const WT_PAGE_HEADER *, uint8_t *, size_t, WT_STUFF *);
 
 /*
- * __wt_bt_salvage --
+ * __slvg_checkpoint --
+ *	Create the post-salvage checkpoint.
+ */
+static int
+__slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
+{
+	WT_BTREE *btree;
+	WT_CKPT *ckptbase;
+	WT_DATA_HANDLE *dhandle;
+	WT_DECL_RET;
+	char *config;
+	const char *filecfg[] = { WT_CONFIG_BASE(session, file_meta), NULL };
+
+	btree = S2BT(session);
+	dhandle = session->dhandle;
+	config = NULL;
+
+	/*
+	 * XXX
+	 * The salvage process reads and discards previous checkpoints, so the
+	 * underlying block manager has to ignore any previous checkpoint
+	 * entries when creating a new checkpoint, in other words, we can't use
+	 * the metadata checkpoint list, it has all of those checkpoint listed
+	 * and we don't care about them.  Build a clean checkpoint list and use
+	 * it instead.
+	 *
+	 * Don't first clear the metadata checkpoint list and call the function
+	 * to get a list of checkpoints: a crash between clearing the metadata
+	 * checkpoint list and creating a new checkpoint list would look like a
+	 * create or open of a file without a checkpoint to roll-forward from,
+	 * and the contents of the file would be discarded.
+	 */
+	WT_RET(__wt_calloc_def(session, 2, &ckptbase));
+	WT_ERR(__wt_strdup(session, WT_CHECKPOINT, &ckptbase->name));
+	ckptbase->order = 1;
+	__wt_seconds(session, &ckptbase->sec);
+	WT_ERR(__wt_metadata_search(session, dhandle->name, &config));
+	WT_ERR(__wt_config_discard_defaults(
+	    session, filecfg, config, NULL, &ckptbase->metadata));
+	ckptbase->newest_durable_ts = WT_TS_NONE;
+	ckptbase->oldest_start_ts = WT_TS_NONE;
+	ckptbase->oldest_start_txn = WT_TXN_NONE;
+	ckptbase->newest_stop_ts = WT_TS_MAX;
+	ckptbase->newest_stop_txn = WT_TXN_MAX;
+	F_SET(ckptbase, WT_CKPT_ADD);
+
+	btree->ckpt = ckptbase;
+	ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
+	root->page = NULL;
+	btree->ckpt = NULL;
+
+	/*
+	 * If no checkpoint was created, well, it's probably bad news, but there
+	 * is nothing to do but clear any recorded checkpoints for the file.  If
+	 * a checkpoint was created, life is good, replace any existing list of
+	 * checkpoints with the single new one.
+	 */
+	if (ret == 0 && ckptbase->raw.data != NULL)
+		WT_ERR(__wt_meta_ckptlist_set(
+		    session, dhandle->name, ckptbase, NULL));
+	else
+		WT_ERR(__wt_meta_checkpoint_clear(session, dhandle->name));
+
+err:	__wt_meta_ckptlist_free(session, &ckptbase);
+	return (ret);
+}
+
+/*
+ * __wt_salvage --
  *	Salvage a Btree.
  */
 int
-__wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
+__wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -326,13 +394,8 @@ __wt_bt_salvage(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 	 * Step 9:
 	 * Evict the newly created root page, creating a checkpoint.
 	 */
-	if (ss->root_ref.page != NULL) {
-		btree->ckpt = ckptbase;
-		ret = __wt_evict(session, &ss->root_ref, WT_REF_MEM,
-		    WT_EVICT_CALL_CLOSING);
-		ss->root_ref.page = NULL;
-		btree->ckpt = NULL;
-	}
+	if (ss->root_ref.page != NULL)
+		WT_ERR(__slvg_checkpoint(session, &ss->root_ref));
 
 	/*
 	 * Step 10:
