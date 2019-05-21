@@ -43,10 +43,12 @@ class test_las04(wttest.WiredTigerTestCase):
     ]
     reconfig_file_max_values = [
         ('zero', dict(reconfig_file_max='0')),
+        ('too-low', dict(reconfig_file_max='99MB')),
         ('non-zero', dict(reconfig_file_max='100MB'))
     ]
     scenarios = make_scenarios(init_file_max_values, reconfig_file_max_values)
-    WT_MB = 1048576 # taken from misc.h
+    # Taken from misc.h.
+    WT_MB = 1048576
 
     def conn_config(self):
         config = 'statistics=(fast)'
@@ -77,8 +79,16 @@ class test_las04(wttest.WiredTigerTestCase):
             self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
             self.config_value_to_expected(self.init_file_max))
 
-        self.conn.reconfigure(
-            'cache_overflow=(file_max={})'.format(self.reconfig_file_max))
+        # In the 99MB case, we're expecting an error here.
+        with self.expectedStderrPattern(''):
+            try:
+                self.conn.reconfigure(
+                    'cache_overflow=(file_max={})'.format(
+                        self.reconfig_file_max))
+            except wiredtiger.WiredTigerError:
+                # Ensure that we raised an error on the invalid value only.
+                self.assertEqual(self.reconfig_file_max, '99MB')
+                return
 
         self.assertEqual(
             self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
