@@ -359,6 +359,7 @@ err:	__wt_scr_free(session, &buf);
 int
 __wt_desc_read(WT_SESSION_IMPL *session,
     WT_FH *fh, uint32_t allocsize, const char *filename, char **metadatap)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);

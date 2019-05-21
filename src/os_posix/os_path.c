@@ -14,6 +14,7 @@
  */
 bool
 __wt_absolute_path(const char *path)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	return (path[0] == '/');
 }
