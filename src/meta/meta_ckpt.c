@@ -381,7 +381,7 @@ __ckpt_load(WT_SESSION_IMPL *session,
 	ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
 	WT_RET_NOTFOUND_OK(ret);
 	ckpt->oldest_start_txn =
-	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_NONE : (uint64_t)a.val;
 	ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
 	WT_RET_NOTFOUND_OK(ret);
 	ckpt->newest_stop_ts =
@@ -389,7 +389,7 @@ __ckpt_load(WT_SESSION_IMPL *session,
 	ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
 	WT_RET_NOTFOUND_OK(ret);
 	ckpt->newest_stop_txn =
-	    ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
+	    ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
 	__wt_check_addr_validity(session,
 	    ckpt->oldest_start_ts, ckpt->oldest_start_txn,
 	    ckpt->newest_stop_ts, ckpt->newest_stop_txn);
