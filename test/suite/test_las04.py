@@ -27,14 +27,13 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_las04.py
-#   Test the file_max configuration and reconfiguration for the lookaside table.
+#   Test file_max configuration and reconfiguration for the lookaside table.
 #
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
 class test_las04(wttest.WiredTigerTestCase):
-
     uri = 'table:las_04'
     init_file_max_values = [
         ('default', dict(init_file_max=None)),
