@@ -66,7 +66,7 @@ class test_las05(unittest.TestCase):
     def test_las(self):
         python_path = ':'.join(sys.path)
         env = os.environ.copy()
-        env["PYTHONPATH"] = python_path;
+        env["PYTHONPATH"] = python_path
         las_workload_program = \
                           'import test_las05;' \
                           'test_las05.las_workload(\'100MB\');'
