@@ -40,6 +40,19 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
     def conn_config(self):
         return 'log=(enabled=true,file_max=100K),debug_mode=(checkpoint_retention=%d)' % self.retain
 
+    def check_archive(self, cur):
+        cur_set = set(cur)
+        for i in range(1,90):
+            # Sleep and then see if archive ran. We do this in a loop
+            # for slow machines. Max out at 90 seconds.
+            time.sleep(2.0)
+            new_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
+            new_set = set(new_logs)
+            diff = new_set.difference(cur_set)
+            if len(diff) != 0:
+                break
+        self.assertFalse(new_set.issuperset(cur_set))
+
     def advance_log_checkpoint(self):
 
         # Advance the log file to the next file and write a checkpoint.
@@ -65,7 +78,10 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
         for i in range(1, self.retain):
             cur_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
             self.advance_log_checkpoint()
-            time.sleep(1.0)
+            # We don't accomodate slow machines here because we don't expect
+            # the files the change and there is no way to know if archive ran
+            # otherwise.
+            time.sleep(2.0)
             new_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
             cur_set = set(cur_logs)
             new_set = set(new_logs)
@@ -73,12 +89,7 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
 
         cur_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
         self.advance_log_checkpoint()
-        time.sleep(1.0)
-        new_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
-        cur_set = set(cur_logs)
-        new_set = set(new_logs)
-        # This time archive should have happened.
-        self.assertFalse(new_set.issuperset(cur_set))
+        self.check_archive(cur_logs)
 
     # Test that both zero and one archive as usual. And test reconfigure.
     def test_checkpoint_retain_off(self):
@@ -87,22 +98,12 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
         cur_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
 
         self.advance_log_checkpoint()
-        time.sleep(1.0)
-        new_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
-        cur_set = set(cur_logs)
-        new_set = set(new_logs)
-        # Archive should have happened.
-        self.assertFalse(new_set.issuperset(cur_set))
+        self.check_archive(cur_logs)
 
         self.conn.reconfigure("debug_mode=(checkpoint_retention=1)")
         cur_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
         self.advance_log_checkpoint()
-        time.sleep(1.0)
-        new_logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
-        cur_set = set(cur_logs)
-        new_set = set(new_logs)
-        # Archive should have happened.
-        self.assertFalse(new_set.issuperset(cur_set))
+        self.check_archive(cur_logs)
 
 if __name__ == '__main__':
     wttest.run()
