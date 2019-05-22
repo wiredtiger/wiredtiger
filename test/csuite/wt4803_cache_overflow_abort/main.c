@@ -87,7 +87,6 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 		/* Child process from here. */
 		status = las_workload(&opts, las_file_max);
 		exit(status);
-		return (status);
 	}
 
 	/* Parent process from here. */
