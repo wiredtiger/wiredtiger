@@ -38,8 +38,7 @@ class test_debug_mode01(wttest.WiredTigerTestCase):
     entries = 22
     min_error = entries // 5
 
-    def rollback_error(self, val=1):
-
+    def rollback_error(self, val, insert=True):
         keys = range(1, self.entries)
         c = self.session.open_cursor(self.uri, None)
         # We expect some operations to return an exception so we cannot
@@ -54,18 +53,16 @@ class test_debug_mode01(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             c.set_key(k)
             c.set_value(val)
-            # Execute the insert or update. It will return true of the simulated
-            # conflict exception is raised, false if no expection occurred.
-            # Any other exception raises a test suite failure.
-            if val == 1:
-                simu = self.assertRaisesException(wiredtiger.WiredTigerError, \
+            # Execute the insert or update. It will return true if the simulated
+            # conflict exception is raised, false if no exception occurred.
+            if insert:
+                conflict = self.assertRaisesException(wiredtiger.WiredTigerError, \
                     lambda:c.insert(), msg, True)
             else:
-                simu = self.assertRaisesException(wiredtiger.WiredTigerError, \
+                conflict = self.assertRaisesException(wiredtiger.WiredTigerError, \
                     lambda:c.update(), msg, True)
 
-            self.pr("Key: " + str(k) + " Val: " + str(val) + " Simu: " + str(simu))
-            if simu == True:
+            if conflict:
                 rollback += 1
                 self.pr("Key: " + str(k) + " Rolled back")
                 self.session.rollback_transaction()
@@ -77,7 +74,7 @@ class test_debug_mode01(wttest.WiredTigerTestCase):
     def test_rollback_error(self):
         self.session.create(self.uri, 'key_format=i,value_format=i')
         rollback = self.rollback_error(1)
-        rollback += self.rollback_error(2)
+        rollback += self.rollback_error(2, False)
         self.pr("Rollback: " + str(rollback))
         self.pr("Minimum: " + str(self.min_error))
         self.assertTrue(rollback >= self.min_error)

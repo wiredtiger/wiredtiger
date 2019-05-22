@@ -523,23 +523,22 @@ class WiredTigerTestCase(unittest.TestCase):
         """
         Like TestCase.assertRaises(), with some additional options.
         If the exceptionString argument is used, the exception's string
-        must match it. If optional is set, then no assertion occurs
-        if the exception doesn't occur.
+        must match it, or its pattern if the string starts and ends with
+        a slash. If optional is set, then no assertion occurs if the
+        exception doesn't occur.
         Returns true if the assertion is raised.
         """
         raised = False
         try:
             expr()
         except BaseException as err:
-            self.pr('Exception of type raised, got type: ' + \
-                    str(type(err)))
-            self.pr('Exception with string raised, got: "' + \
+            self.pr('Exception raised shown as string: "' + \
                     str(err) + '"')
             if not isinstance(err, exceptionType):
                 self.fail('Exception of incorrect type raised, got type: ' + \
                     str(type(err)))
             if exceptionString != None:
-                # Check for a pattern instead of exact string.
+                # Match either a pattern or an exact string.
                 fail = False
                 self.pr('Expecting string msg: ' + exceptionString)
                 if len(exceptionString) > 2 and \
