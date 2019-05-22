@@ -3,21 +3,19 @@
 #include <signal.h>
 #include <sys/wait.h>
 
-#define CONFIG_SIZE 100
+#define	CONFIG_SIZE	100
 
 static void
 las_workload(TEST_OPTS *opts, const char *las_file_max)
 {
 	WT_CURSOR *cursor;
-	WT_SESSION *session, *other_session;
+	WT_SESSION *other_session, *session;
+	int i;
 	char buf[WT_MEGABYTE], open_config[CONFIG_SIZE];
-	int i, ret;
 
-	ret = snprintf(open_config, CONFIG_SIZE,
+	testutil_check(__wt_snprintf(open_config, CONFIG_SIZE,
 	    "create,cache_size=50MB,cache_overflow=(file_max=%s)",
-	    las_file_max);
-	if (ret < 0)
-		testutil_die(ret, "snprintf");
+	    las_file_max));
 
 	testutil_check(
 	    wiredtiger_open(opts->home, NULL, open_config, &opts->conn));
@@ -48,8 +46,8 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	 * money.
 	 *
 	 * Since the small file_max example is only 100MB, it shouldn't take
-	 * much. I'm doing 2000 1MB updates for good measure since we have
-	 * compression and other things.
+	 * much. I'm doing 2000 1MB updates for good measure since we
+	 * automatically use snappy for lookaside.
 	 */
 	for (i = 0; i < 2000; ++i) {
 		memset(buf, 0xB, WT_MEGABYTE);
@@ -68,7 +66,7 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 }
 
 static int
-exec_las_workload(int argc, char **argv, const char *las_file_max)
+test_las_workload(int argc, char **argv, const char *las_file_max)
 {
 	TEST_OPTS opts;
 	pid_t pid;
@@ -86,6 +84,7 @@ exec_las_workload(int argc, char **argv, const char *las_file_max)
 		/* Child process from here. */
 		las_workload(&opts, las_file_max);
 		exit(EXIT_SUCCESS);
+		return (EXIT_SUCCESS);
 	}
 
 	/* Parent process from here. */
@@ -101,10 +100,10 @@ main(int argc, char **argv)
 {
 	int ret;
 
-	ret = exec_las_workload(argc, argv, "1GB");
+	ret = test_las_workload(argc, argv, "1GB");
 	testutil_assert(ret == 0);
 
-	ret = exec_las_workload(argc, argv, "100MB");
+	ret = test_las_workload(argc, argv, "100MB");
 	testutil_assert(ret != 0);
 
 	return (0);
