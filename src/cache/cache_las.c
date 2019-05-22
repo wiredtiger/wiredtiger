@@ -76,7 +76,7 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 		    cval.val, WT_LAS_FILE_MIN);
 
 	/*
-	 * We need to set file_max on the  btree associated with one of the
+	 * We need to set file_max on the btree associated with one of the
 	 * lookaside sessions.
 	 */
 	las_session = S2C(session)->cache->las_session[0];
