@@ -798,7 +798,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE *upd;
 	wt_timestamp_t prev_commit_timestamp;
 	uint32_t fileid;
-	u_int i, resolved_update_count;
+	u_int i;
+	int64_t resolved_update_count;
 	bool locked, prepare, readonly, update_timestamp;
 
 	txn = &session->txn;
@@ -1196,7 +1197,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	u_int i, resolved_update_count;
+	u_int i;
+	int64_t resolved_update_count;
 	bool readonly;
 
 	WT_UNUSED(cfg);

@@ -185,7 +185,7 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_resolve_prepared_op(
     WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit,
-    u_int *resolved_update_countp)
+    int64_t *resolved_update_countp)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
