@@ -66,7 +66,7 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
             for k in keys:
                 c[k + (self.loop * self.entries)] = 1
             self.loop += 1
-            new_logs = self.log_set()
+            new_set = self.log_set()
         c.close()
         # Write a checkpoint into the new log file.
         self.session.checkpoint()
