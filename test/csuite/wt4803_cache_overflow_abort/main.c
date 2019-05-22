@@ -87,6 +87,7 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 		/* Child process from here. */
 		status = las_workload(&opts, las_file_max);
 		exit(status);
+		return (status);
 	}
 
 	/* Parent process from here. */
@@ -94,7 +95,7 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 		testutil_die(errno, "waitpid");
 
 	testutil_cleanup(&opts);
-	return (WTERMSIG(status));
+	return (status);
 }
 
 int
@@ -109,7 +110,8 @@ main(int argc, char **argv)
 	testutil_assert(ret == 0);
 
 	ret = test_las_workload(argc, argv, "100MB");
-	testutil_assert(ret == SIGABRT);
+	testutil_assert(
+	    ret != 0 && WIFSIGNALED(ret) && WTERMSIG(ret) == SIGABRT);
 
 	return (0);
 }
