@@ -5,7 +5,7 @@
 
 #define	CONFIG_SIZE	100
 
-static void
+static int
 las_workload(TEST_OPTS *opts, const char *las_file_max)
 {
 	WT_CURSOR *cursor;
@@ -13,18 +13,15 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	int i;
 	char buf[WT_MEGABYTE], open_config[CONFIG_SIZE];
 
-	testutil_check(__wt_snprintf(open_config, CONFIG_SIZE,
+	WT_RET(__wt_snprintf(open_config, CONFIG_SIZE,
 	    "create,cache_size=50MB,cache_overflow=(file_max=%s)",
 	    las_file_max));
 
-	testutil_check(
-	    wiredtiger_open(opts->home, NULL, open_config, &opts->conn));
-	testutil_check(
-	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	testutil_check(
+	WT_RET(wiredtiger_open(opts->home, NULL, open_config, &opts->conn));
+	WT_RET(opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	WT_RET(
 	    session->create(session, opts->uri, "key_format=i,value_format=S"));
-	testutil_check(
-	    session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+	WT_RET(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
 
 	memset(buf, 0xA, WT_MEGABYTE);
 	buf[WT_MEGABYTE - 1] = 0;
@@ -33,11 +30,11 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	for (i = 0; i < 2000; ++i) {
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, buf);
-		testutil_check(cursor->insert(cursor));
+		WT_RET(cursor->insert(cursor));
 	}
 
 	/* Begin another transaction. */
-	testutil_check(
+	WT_RET(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &other_session));
 	other_session->begin_transaction(other_session, "isolation=snapshot");
 
@@ -58,16 +55,17 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 		memset(buf, 0xB, WT_MEGABYTE);
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, buf);
-		testutil_check(cursor->update(cursor));
+		WT_RET(cursor->update(cursor));
 	}
 
 	/* Cleanup. */
-	testutil_check(
-	    other_session->rollback_transaction(other_session, NULL));
-	testutil_check(other_session->close(other_session, NULL));
+	WT_RET(other_session->rollback_transaction(other_session, NULL));
+	WT_RET(other_session->close(other_session, NULL));
 
-	testutil_check(cursor->close(cursor));
-	testutil_check(session->close(session, NULL));
+	WT_RET(cursor->close(cursor));
+	WT_RET(session->close(session, NULL));
+
+	return (0);
 }
 
 static int
@@ -87,9 +85,8 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 		testutil_die(errno, "fork");
 	else if (pid == 0) {
 		/* Child process from here. */
-		las_workload(&opts, las_file_max);
-		exit(EXIT_SUCCESS);
-		return (EXIT_SUCCESS);
+		status = las_workload(&opts, las_file_max);
+		exit(status);
 	}
 
 	/* Parent process from here. */
@@ -97,7 +94,7 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 		testutil_die(errno, "waitpid");
 
 	testutil_cleanup(&opts);
-	return (status);
+	return (WTERMSIG(status));
 }
 
 int
@@ -112,7 +109,7 @@ main(int argc, char **argv)
 	testutil_assert(ret == 0);
 
 	ret = test_las_workload(argc, argv, "100MB");
-	testutil_assert(ret != 0);
+	testutil_assert(ret == SIGABRT);
 
 	return (0);
 }
