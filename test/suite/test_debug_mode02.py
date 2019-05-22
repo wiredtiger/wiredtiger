@@ -45,6 +45,7 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
         return set(logs)
 
     def check_archive(self, cur_set):
+        archived = False
         for i in range(1,90):
             # Sleep and then see if archive ran. We do this in a loop
             # for slow machines. Max out at 90 seconds.
@@ -52,7 +53,16 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
             new_set = self.log_set()
             diff = new_set.difference(cur_set)
             if len(diff) != 0:
+                archived = True
+                self.conn.reconfigure('verbose=()')
                 break
+            if i == 60:
+                # If we've gotten past a minute, turn on verbose for logging
+                # to see what is going on with archive in case of failure.
+                self.conn.reconfigure('verbose=(log)')
+
+        if not archived:
+            self.pr("Archive did not remove files")
         self.assertFalse(new_set.issuperset(cur_set))
 
     def advance_log_checkpoint(self):
