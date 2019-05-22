@@ -942,14 +942,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		fileid = op->btree->id;
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
-			/*
-			 * Increment the resolved update count for empty
-			 * operations, if we don't increment the value here we
-			 * will fail our check when we go to resolve prepared
-			 * operations as txn->mod_count will not equal the
-			 * number of resolved operations.
-			 */
-			resolved_update_count++;
 			break;
 		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
@@ -984,6 +976,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
 				/*
+				 * Decrement the resolved update count as we
+				 * as we would either resolve at least 1 update
+				 * or have previously resolved the update linked
+				 * to this modification when we resolved the
+				 * prepared updates of a previous modification
+				 * in this txn.
+				 */
+				resolved_update_count--;
+				/*
 				 * If we have set the key repeated flag
 				 * we can skip resolving prepared updates as
 				 * it would have happened on a previous
@@ -994,7 +995,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					    session, op, true,
 					    &resolved_update_count));
 				WT_ASSERT(session,
-				    resolved_update_count >= i + 1);
+				    resolved_update_count >= 0);
 			}
 
 			break;
@@ -1224,14 +1225,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		switch (op->type) {
 		case WT_TXN_OP_NONE:
-			/*
-			 * Increment the resolved update count for empty
-			 * operations, if we don't increment the value here we
-			 * will fail our check when we go to resolve prepared
-			 * operations as txn->mod_count will not equal the
-			 * number of resolved operations.
-			 */
-			resolved_update_count++;
 			break;
 		case WT_TXN_OP_BASIC_COL:
 		case WT_TXN_OP_BASIC_ROW:
@@ -1243,6 +1236,15 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
 				/*
+				 * Decrement the resolved update count as we
+				 * as we would either resolve at least 1 update
+				 * or have previously resolved the update linked
+				 * to this modification when we resolved the
+				 * prepared updates of a previous modification
+				 * in this txn.
+				 */
+				resolved_update_count--;
+				/*
 				 * If we have set the key repeated flag
 				 * we can skip resolving prepared updates as
 				 * it would have happened on a previous
@@ -1253,7 +1255,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 					    session, op, false,
 					    &resolved_update_count));
 				WT_ASSERT(session,
-				    resolved_update_count >= i + 1);
+				    resolved_update_count >= 0);
 			} else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
