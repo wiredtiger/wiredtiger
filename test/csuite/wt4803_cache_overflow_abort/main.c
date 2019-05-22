@@ -51,8 +51,8 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	 * money.
 	 *
 	 * Since the small file_max example is only 100MB, it shouldn't take
-	 * much. I'm doing 2000 1MB updates for good measure since we
-	 * automatically use snappy for lookaside.
+	 * much. I'm doing 2000 1MB updates for good measure since we might be
+	 * automatically using snappy for lookaside.
 	 */
 	for (i = 0; i < 2000; ++i) {
 		memset(buf, 0xB, WT_MEGABYTE);
@@ -105,7 +105,10 @@ main(int argc, char **argv)
 {
 	int ret;
 
-	ret = test_las_workload(argc, argv, "1GB");
+	ret = test_las_workload(argc, argv, "0");
+	testutil_assert(ret == 0);
+
+	ret = test_las_workload(argc, argv, "5GB");
 	testutil_assert(ret == 0);
 
 	ret = test_las_workload(argc, argv, "100MB");
