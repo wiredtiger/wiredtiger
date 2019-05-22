@@ -26,9 +26,11 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	testutil_check(
 	    session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
 
+	memset(buf, 0xA, WT_MEGABYTE);
+	buf[WT_MEGABYTE - 1] = 0;
+
 	/* Populate the table. */
 	for (i = 0; i < 2000; ++i) {
-		memset(buf, 0xA, WT_MEGABYTE);
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, buf);
 		testutil_check(cursor->insert(cursor));
@@ -38,6 +40,9 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &other_session));
 	other_session->begin_transaction(other_session, "isolation=snapshot");
+
+	memset(buf, 0xB, WT_MEGABYTE);
+	buf[WT_MEGABYTE - 1] = 0;
 
 	/*
 	 * And at the same time, do a bunch of updates. Since we've got a
