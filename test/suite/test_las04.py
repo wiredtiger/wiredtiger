@@ -37,13 +37,13 @@ class test_las04(wttest.WiredTigerTestCase):
     uri = 'table:las_04'
     init_file_max_values = [
         ('default', dict(init_file_max=None)),
-        ('zero', dict(init_file_max='0')),
-        ('non-zero', dict(init_file_max='100MB'))
+        ('non-zero', dict(init_file_max='100MB')),
+        ('zero', dict(init_file_max='0'))
     ]
     reconfig_file_max_values = [
-        ('zero', dict(reconfig_file_max='0')),
+        ('non-zero', dict(reconfig_file_max='100MB')),
         ('too-low', dict(reconfig_file_max='99MB')),
-        ('non-zero', dict(reconfig_file_max='100MB'))
+        ('zero', dict(reconfig_file_max='0'))
     ]
     scenarios = make_scenarios(init_file_max_values, reconfig_file_max_values)
     # Taken from misc.h.
@@ -69,7 +69,7 @@ class test_las04(wttest.WiredTigerTestCase):
         elif config_value == '100MB':
             return self.WT_MB * 100
         else:
-            raise Exception('unrecognised config value')
+            raise ValueError('unrecognised config value')
 
     def test_las(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
@@ -78,15 +78,16 @@ class test_las04(wttest.WiredTigerTestCase):
             self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
             self.config_value_to_expected(self.init_file_max))
 
+        reconfigure = lambda: self.conn.reconfigure(
+            'cache_overflow=(file_max={})'.format(self.reconfig_file_max))
+
         # In the 99MB case, we're expecting an error here.
-        with self.expectedStderrPattern(''):
-            try:
-                self.conn.reconfigure('cache_overflow=(file_max={})'.format(
-                    self.reconfig_file_max))
-            except wiredtiger.WiredTigerError:
-                # Ensure that we raised an error on the invalid value only.
-                self.assertEqual(self.reconfig_file_max, '99MB')
-                return
+        if self.reconfig_file_max == '99MB':
+            self.assertRaisesWithMessage(
+                wiredtiger.WiredTigerError, reconfigure, '/below minimum/')
+            return
+
+        reconfigure()
 
         self.assertEqual(
             self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),

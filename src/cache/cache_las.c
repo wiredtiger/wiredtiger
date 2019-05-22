@@ -18,8 +18,6 @@
 	(WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED |	\
 	WT_SESSION_NO_RECONCILE)
 
-#define	WT_LAS_FILE_MIN	(100 * WT_MEGABYTE)
-
 /*
  * __las_set_isolation --
  *	Switch to read-uncommitted.
@@ -77,6 +75,10 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 		    "max cache overflow size %" PRId64 " below minimum %d",
 		    cval.val, WT_LAS_FILE_MIN);
 
+	/*
+	 * We need to set file_max on the  btree associated with one of the
+	 * lookaside sessions.
+	 */
 	las_session = S2C(session)->cache->las_session[0];
 	las_cursor = (WT_CURSOR_BTREE *)las_session->las_cursor;
 	las_cursor->btree->file_max = (uint64_t)cval.val;
@@ -653,8 +655,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_TXN_ISOLATION saved_isolation;
 	WT_UPDATE *upd;
 	wt_off_t las_size;
-	uint64_t insert_cnt, las_counter, las_pageid, prepared_insert_cnt,
-	    max_las_size;
+	uint64_t insert_cnt, las_counter, las_pageid, max_las_size;
+	uint64_t prepared_insert_cnt;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
 	bool local_txn;
@@ -796,7 +798,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
 	WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
 	max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
-	if (max_las_size != 0 && (uint32_t)las_size > max_las_size)
+	if (max_las_size != 0 && (uint64_t)las_size > max_las_size)
 		WT_PANIC_MSG(session, WT_PANIC,
 		    "WiredTigerLAS: file size of %" PRId64 " exceeds maximum "
 		    "size %" PRIu64, las_size, max_las_size);
