@@ -82,14 +82,21 @@ conn_config="create,cache_size=2GB,session_max=1000,eviction=(threads_min=4,thre
 table_config="allocation_size=4k,memory_page_max=10MB,prefix_compression=false,split_pct=90,leaf_page_max=32k,internal_page_max=16k,type=file"
 compression_opts = {
     "none" : "block_compressor=none",
-    "lz4" : "block_compressor=lz4"
-    "snappy" : "block_compressor=snappy"
+    "lz4" : "block_compressor=lz4",
+    "snappy" : "block_compressor=snappy",
     "zlib" : "block_compressor=zlib",
     "zlib_onepage" : "block_compressor=zlib,memory_page_image_max=32k",
     "zlib_tenpage" : "block_compressor=zlib,memory_page_image_max=320k",
     "zstd" : "block_compressor=zstd"
 }
+
+# What compressors are available for testing, and the connection configuration
+# needed, depends on what compressors have been configured into the WiredTiger
+# library linked by workgen.  Any compressors that are explicitly 'built-in'
+# to WiredTiger will not need an explicit extension parameter.
+#
 #conn_config += extensions_config(['compressors/snappy'])
+
 conn = wiredtiger_open("WT_TEST", conn_config)
 s = conn.open_session()
 

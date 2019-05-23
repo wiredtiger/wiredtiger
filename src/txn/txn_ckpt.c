@@ -56,14 +56,13 @@ __checkpoint_name_check(WT_SESSION_IMPL *session, const char *uri)
 
 	/*
 	 * This function exists as a place for this comment: named checkpoints
-	 * are only supported on file objects, and not on LSM trees or Helium
-	 * devices.  If a target list is configured for the checkpoint, this
-	 * function is called with each target list entry; check the entry to
-	 * make sure it's backed by a file.  If no target list is configured,
-	 * confirm the metadata file contains no non-file objects. Skip any
-	 * internal system objects. We don't want spurious error messages,
-	 * other code will skip over them and the user has no control over
-	 * their existence.
+	 * are only supported on file objects, and not on LSM trees. If a target
+	 * list is configured for the checkpoint, this function is called with
+	 * each target list entry; check the entry to make sure it's backed by
+	 * a file.  If no target list is configured, confirm the metadata file
+	 * contains no non-file objects. Skip any internal system objects. We
+	 * don't want spurious error messages, other code will skip over them
+	 * and the user has no control over their existence.
 	 */
 	if (uri == NULL) {
 		WT_RET(__wt_metadata_cursor(session, &cursor));
@@ -234,12 +233,12 @@ __checkpoint_data_source(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_NAMED_DATA_SOURCE *ndsrc;
 
 	/*
-	 * A place-holder, to support Helium devices: we assume calling the
+	 * A place-holder, to support data sources: we assume calling the
 	 * underlying data-source session checkpoint function is sufficient to
 	 * checkpoint all objects in the data source, open or closed, and we
 	 * don't attempt to optimize the checkpoint of individual targets.
-	 * Those assumptions is correct for the Helium device, but it's not
-	 * necessarily going to be true for other data sources.
+	 * Those assumptions are not necessarily going to be true for all
+	 * data sources.
 	 *
 	 * It's not difficult to support data-source checkpoints of individual
 	 * targets (__wt_schema_worker is the underlying function that will do
@@ -1272,6 +1271,93 @@ __drop_to(WT_CKPT *ckptbase, const char *name, size_t len)
 }
 
 /*
+ * __checkpoint_lock_dirty_tree_int --
+ *	Helper for __checkpoint_lock_dirty_tree.  Intended to be called while
+ *	holding the hot backup lock.
+ */
+static int
+__checkpoint_lock_dirty_tree_int(
+    WT_SESSION_IMPL *session, bool is_checkpoint,
+    bool force, WT_BTREE *btree, WT_CKPT *ckpt, WT_CKPT *ckptbase)
+{
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
+
+	WT_UNUSED(is_checkpoint);
+	conn = S2C(session);
+
+	/*
+	 * We can't delete checkpoints if a backup cursor is open.  WiredTiger
+	 * checkpoints are uniquely named and it's OK to have multiple of them
+	 * in the system: clear the delete flag for them, and otherwise fail.
+	 * Hold the lock until we're done (blocking hot backups from starting),
+	 * we don't want to race with a future hot backup.
+	 */
+	if (conn->hot_backup)
+		WT_CKPT_FOREACH(ckptbase, ckpt) {
+			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+				continue;
+			if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+				F_CLR(ckpt, WT_CKPT_DELETE);
+				continue;
+			}
+			WT_RET_MSG(session, EBUSY,
+			    "checkpoint %s blocked by hot backup: it would"
+			    "delete an existing checkpoint, and checkpoints "
+			    "cannot be deleted during a hot backup",
+			    ckpt->name);
+		}
+	/*
+	 * Mark old checkpoints that are being deleted and figure out which
+	 * trees we can skip in this checkpoint.
+	 */
+	WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
+	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+		return (0);
+	/*
+	 * Lock the checkpoints that will be deleted.
+	 *
+	 * Checkpoints are only locked when tracking is enabled, which covers
+	 * checkpoint and drop operations, but not close.  The reasoning is
+	 * there should be no access to a checkpoint during close, because any
+	 * thread accessing a checkpoint will also have the current file handle
+	 * open.
+	 */
+	if (WT_META_TRACKING(session))
+		WT_CKPT_FOREACH(ckptbase, ckpt) {
+			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
+				continue;
+			/*
+			 * We can't delete checkpoints referenced by a cursor.
+			 * WiredTiger checkpoints are uniquely named and it's
+			 * OK to have multiple in the system: clear the delete
+			 * flag for them, and otherwise fail.
+			 */
+			ret = __wt_session_lock_checkpoint(session, ckpt->name);
+			if (ret == 0)
+				continue;
+			if (ret == EBUSY &&
+			    WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
+				F_CLR(ckpt, WT_CKPT_DELETE);
+				continue;
+			}
+			WT_RET_MSG(session, ret,
+			    "checkpoints cannot be dropped when in-use");
+		}
+	/*
+	 * There are special trees: those being bulk-loaded, salvaged, upgraded
+	 * or verified during the checkpoint. They should never be part of a
+	 * checkpoint: we will fail to lock them because the operations have
+	 * exclusive access to the handles. Named checkpoints will fail in that
+	 * case, ordinary checkpoints skip files that cannot be opened normally.
+	 */
+	WT_ASSERT(session,
+	    !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
+
+	return (0);
+}
+
+/*
  * __checkpoint_lock_dirty_tree --
  *	Decide whether the tree needs to be included in the checkpoint and if
  *	so, acquire the necessary locks.
@@ -1284,18 +1370,14 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	WT_CKPT *ckpt, *ckptbase;
 	WT_CONFIG dropconf;
 	WT_CONFIG_ITEM cval, k, v;
-	WT_CONNECTION_IMPL *conn;
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	const char *name;
 	char *name_alloc;
-	bool hot_backup_locked;
 
 	btree = S2BT(session);
-	conn = S2C(session);
 	ckpt = ckptbase = NULL;
 	dhandle = session->dhandle;
-	hot_backup_locked = false;
 	name_alloc = NULL;
 
 	/* Only referenced in diagnostic builds. */
@@ -1379,80 +1461,16 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	F_SET(ckpt, WT_CKPT_ADD);
 
 	/*
-	 * We can't delete checkpoints if a backup cursor is open.  WiredTiger
-	 * checkpoints are uniquely named and it's OK to have multiple of them
-	 * in the system: clear the delete flag for them, and otherwise fail.
-	 * Hold the lock until we're done (blocking hot backups from starting),
-	 * we don't want to race with a future hot backup.
+	 * There is some interaction between backups and checkpoints.  Perform
+	 * all backup related operations that the checkpoint needs now, while
+	 * holding the hot backup read lock.
 	 */
-	__wt_readlock(session, &conn->hot_backup_lock);
-	hot_backup_locked = true;
-	if (conn->hot_backup)
-		WT_CKPT_FOREACH(ckptbase, ckpt) {
-			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-				continue;
-			if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-				F_CLR(ckpt, WT_CKPT_DELETE);
-				continue;
-			}
-			WT_ERR_MSG(session, EBUSY,
-			    "checkpoint %s blocked by hot backup: it would "
-			    "delete an existing checkpoint, and checkpoints "
-			    "cannot be deleted during a hot backup",
-			    ckpt->name);
-		}
-
-	/*
-	 * Mark old checkpoints that are being deleted and figure out which
-	 * trees we can skip in this checkpoint.
-	 */
-	WT_ERR(__checkpoint_mark_skip(session, ckptbase, force));
+	WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
+	    ret = __checkpoint_lock_dirty_tree_int(
+		session, is_checkpoint, force, btree, ckpt, ckptbase));
+	WT_ERR(ret);
 	if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
 		goto err;
-
-	/*
-	 * Lock the checkpoints that will be deleted.
-	 *
-	 * Checkpoints are only locked when tracking is enabled, which covers
-	 * checkpoint and drop operations, but not close.  The reasoning is
-	 * there should be no access to a checkpoint during close, because any
-	 * thread accessing a checkpoint will also have the current file handle
-	 * open.
-	 */
-	if (WT_META_TRACKING(session))
-		WT_CKPT_FOREACH(ckptbase, ckpt) {
-			if (!F_ISSET(ckpt, WT_CKPT_DELETE))
-				continue;
-
-			/*
-			 * We can't delete checkpoints referenced by a cursor.
-			 * WiredTiger checkpoints are uniquely named and it's
-			 * OK to have multiple in the system: clear the delete
-			 * flag for them, and otherwise fail.
-			 */
-			ret = __wt_session_lock_checkpoint(session, ckpt->name);
-			if (ret == 0)
-				continue;
-			if (ret == EBUSY &&
-			    WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT)) {
-				F_CLR(ckpt, WT_CKPT_DELETE);
-				continue;
-			}
-			WT_ERR_MSG(session, ret,
-			    "checkpoints cannot be dropped when in-use");
-		}
-
-	/*
-	 * There are special trees: those being bulk-loaded, salvaged, upgraded
-	 * or verified during the checkpoint. They should never be part of a
-	 * checkpoint: we will fail to lock them because the operations have
-	 * exclusive access to the handles. Named checkpoints will fail in that
-	 * case, ordinary checkpoints skip files that cannot be opened normally.
-	 */
-	WT_ASSERT(session,
-	    !is_checkpoint || !F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS));
-
-	__wt_readunlock(session, &conn->hot_backup_lock);
 
 	WT_ASSERT(session, btree->ckpt == NULL &&
 	    !F_ISSET(btree, WT_BTREE_SKIP_CKPT));
@@ -1460,10 +1478,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 
 	return (0);
 
-err:	if (hot_backup_locked)
-		__wt_readunlock(session, &conn->hot_backup_lock);
-
-	__wt_meta_ckptlist_free(session, &ckptbase);
+err:	__wt_meta_ckptlist_free(session, &ckptbase);
 	__wt_free(session, name_alloc);
 
 	return (ret);
@@ -1542,16 +1557,14 @@ __checkpoint_mark_skip(
  */
 void
 __wt_checkpoint_tree_reconcile_update(
-    WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_ts,
-    wt_timestamp_t newest_start_ts, wt_timestamp_t newest_stop_ts)
+    WT_SESSION_IMPL *session, wt_timestamp_t newest_durable_ts,
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
+    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
 {
 	WT_BTREE *btree;
 	WT_CKPT *ckpt, *ckptbase;
 
 	btree = S2BT(session);
-
-	__wt_timestamp_addr_check(session,
-	    oldest_start_ts, newest_start_ts, newest_stop_ts);
 
 	/*
 	 * Reconciliation just wrote a checkpoint, everything has been written.
@@ -1563,9 +1576,11 @@ __wt_checkpoint_tree_reconcile_update(
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (F_ISSET(ckpt, WT_CKPT_ADD)) {
 			ckpt->write_gen = btree->write_gen;
+			ckpt->newest_durable_ts = newest_durable_ts;
 			ckpt->oldest_start_ts = oldest_start_ts;
-			ckpt->newest_start_ts = newest_start_ts;
+			ckpt->oldest_start_txn = oldest_start_txn;
 			ckpt->newest_stop_ts = newest_stop_ts;
+			ckpt->newest_stop_txn = newest_stop_txn;
 		}
 }
 
@@ -1617,8 +1632,8 @@ __checkpoint_tree(
 	 * delete a physical checkpoint, and that will end in tears.
 	 */
 	if (is_checkpoint && btree->original) {
-		__wt_checkpoint_tree_reconcile_update(
-		    session, WT_TS_NONE, WT_TS_NONE, WT_TS_MAX);
+		__wt_checkpoint_tree_reconcile_update(session,
+		    WT_TS_NONE, WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX);
 
 		fake_ckpt = true;
 		goto fake;

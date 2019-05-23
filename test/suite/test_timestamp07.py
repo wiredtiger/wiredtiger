@@ -53,6 +53,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         ('nolog', dict(conn_config='create,cache_size=2M', using_log=False)),
         ('log', dict(conn_config='create,log=(file_max=1M,archive=false,enabled),cache_size=2M', using_log=True)),
     ]
+    session_config = 'isolation=snapshot'
 
     nkeys = [
         ('100keys', dict(nkeys=100)),
@@ -191,7 +192,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # print "tables created"
 
         # Insert keys 1..nkeys each with timestamp=key, in some order.
-        orig_keys = range(1, self.nkeys+1)
+        orig_keys = list(range(1, self.nkeys+1))
         keys = orig_keys[:]
         random.shuffle(keys)
 

@@ -35,24 +35,24 @@ def timestamp_str(t):
 # test_durable_ts03.py
 #    Check that the checkpoint honors the durable timestamp of updates.
 class test_durable_ts03(wttest.WiredTigerTestCase):
-    def conn_config(self):
-        return 'cache_size=10MB'
+    conn_config = 'cache_size=10MB'
+    session_config = 'isolation=snapshot'
 
     def test_durable_ts03(self):
         # Create a table.
         uri = 'table:test_durable_ts03'
         nrows = 3000
         self.session.create(uri, 'key_format=i,value_format=u')
-        valueA = "aaaaa" * 100
-        valueB = "bbbbb" * 100
-        valueC = "ccccc" * 100
+        valueA = b"aaaaa" * 100
+        valueB = b"bbbbb" * 100
+        valueC = b"ccccc" * 100
 
         # Start with setting a stable and oldest timestamp.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1) + \
                                 ',oldest_timestamp=' + timestamp_str(1))
 
         # Load the data into the table.
-        session = self.conn.open_session()
+        session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
         for i in range(0, nrows):
             session.begin_transaction()
@@ -72,8 +72,9 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor[i] = valueB
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-            session.commit_transaction('commit_timestamp=' + timestamp_str(200) + \
-                                       ',durable_timestamp=' + timestamp_str(220))
+            session.timestamp_transaction('commit_timestamp=' + timestamp_str(200))
+            session.timestamp_transaction('durable_timestamp=' + timestamp_str(220))
+            session.commit_transaction()
 
         # Check the checkpoint wrote only the durable updates.
         cursor2 = self.session.open_cursor(
@@ -99,7 +100,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         session.close()
 
         self.reopen_conn()
-        session = self.conn.open_session()
+        session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(210) + \
                                 ',oldest_timestamp=' + timestamp_str(210))
@@ -111,8 +112,9 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor[i] = valueC
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(220))
-            session.commit_transaction('commit_timestamp=' + timestamp_str(230) + \
-                                       ',durable_timestamp=' + timestamp_str(240))
+            session.timestamp_transaction('commit_timestamp=' + timestamp_str(230))
+            session.timestamp_transaction('durable_timestamp=' + timestamp_str(240))
+            session.commit_transaction()
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
         self.session.checkpoint()
@@ -120,7 +122,7 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         session.close()
 
         self.reopen_conn()
-        session = self.conn.open_session()
+        session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250) + \
                                 ',oldest_timestamp=' + timestamp_str(250))

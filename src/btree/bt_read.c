@@ -188,8 +188,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = las_txnid;
-		upd->start_ts = las_timestamp;
 		upd->durable_ts = durable_timestamp;
+		upd->start_ts = las_timestamp;
 		upd->prepare_state = prepare_state;
 
 		switch (page->type) {
@@ -290,6 +290,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			__wt_page_modify_clear(session, page);
 		}
 	}
+
+	/*
+	 * Now the lookaside history has been read into cache there is no
+	 * further need to maintain a reference to it.
+	 */
+	ref->page_las->eviction_to_lookaside = false;
+	ref->page_las->resolved = true;
 
 err:	if (locked)
 		__wt_readunlock(session, &cache->las_sweepwalk_lock);
@@ -414,7 +421,6 @@ __page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
 	}
 
 	WT_RET(__las_page_instantiate(session, ref));
-	ref->page_las->eviction_to_lookaside = false;
 	return (0);
 }
 
@@ -464,7 +470,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	default:
 		return (0);
 	}
-	if (!__wt_atomic_casv32(&ref->state, previous_state, new_state))
+	if (!WT_REF_CAS_STATE(session, ref, previous_state, new_state))
 		return (0);
 
 	final_state = WT_REF_MEM;
@@ -517,7 +523,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
 	if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 		FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused));
+	WT_ERR(__wt_page_inmem(
+	    session, ref, tmp.data, page_flags, true, &notused));
 	tmp.mem = NULL;
 
 	/*
@@ -539,10 +546,8 @@ skip_read:
 		 * information), first update based on the lookaside table and
 		 * then apply the delete.
 		 */
-		if (ref->page_las != NULL) {
+		if (ref->page_las != NULL)
 			WT_ERR(__las_page_instantiate(session, ref));
-			ref->page_las->eviction_to_lookaside = false;
-		}
 
 		/* Move all records to a deleted state. */
 		WT_ERR(__wt_delete_page_instantiate(session, ref));
@@ -773,7 +778,7 @@ read:			/*
 			if (force_attempts < 10 &&
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
-				ret = __wt_page_release_evict(session, ref);
+				ret = __wt_page_release_evict(session, ref, 0);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					WT_NOT_READ(ret, 0);

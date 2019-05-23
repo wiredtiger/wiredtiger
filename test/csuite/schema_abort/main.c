@@ -664,7 +664,8 @@ thread_run(void *arg)
 	 * a table that is logged. But we also want to test mixed logged and
 	 * not-logged transactions.
 	 */
-	testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+	testutil_check(td->conn->open_session(
+	    td->conn, NULL, "isolation=snapshot", &session));
 	/*
 	 * Open a cursor to each table.
 	 */
@@ -675,7 +676,7 @@ thread_run(void *arg)
 	oplog_session = NULL;
 	if (use_prep) {
 		testutil_check(td->conn->open_session(
-		    td->conn, NULL, NULL, &oplog_session));
+		    td->conn, NULL, "isolation=snapshot", &oplog_session));
 		testutil_check(session->open_cursor(oplog_session,
 		    uri_oplog, NULL, NULL, &cur_oplog));
 	} else
@@ -784,15 +785,32 @@ thread_run(void *arg)
 				    session, tscfg));
 				if (i % PREPARE_YIELD == 0)
 					__wt_yield();
-			}
-			testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-			    "commit_timestamp=%" PRIx64, stable_ts));
+
+				testutil_check(__wt_snprintf(
+				    tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64
+				    ",durable_timestamp=%" PRIx64,
+				    stable_ts, stable_ts));
+			} else
+				testutil_check(__wt_snprintf(
+				    tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64, stable_ts));
+
 			testutil_check(
 			    session->commit_transaction(session, tscfg));
-			if (use_prep)
+			if (use_prep) {
+				/*
+				 * Durable timestamp should not be passed as
+				 * oplog transaction is a non-prepared
+				 * transaction.
+				 */
+				testutil_check(__wt_snprintf(
+				    tscfg, sizeof(tscfg),
+				    "commit_timestamp=%" PRIx64, stable_ts));
 				testutil_check(
 				    oplog_session->commit_transaction(
 				    oplog_session, tscfg));
+			}
 			/*
 			 * Update the thread's last-committed timestamp.
 			 * Don't let the compiler re-order this statement,

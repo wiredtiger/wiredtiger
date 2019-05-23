@@ -859,6 +859,10 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy,
 		if (cellp != NULL)
 			*cellp =
 			    WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+		if (datap != NULL) {
+			*(void **)datap = NULL;
+			*sizep = 0;
+		}
 		return (false);
 	case WT_K_FLAG:
 		/* Encoded key: no instantiated key, no cell. */
@@ -1194,6 +1198,8 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	if ((page_las = ref->page_las) == NULL)
 		return (false);
+	if (page_las->resolved)
+		return (false);
 	if (!page_las->skew_newest || page_las->has_prepares)
 		return (true);
 	if (__wt_txn_visible_all(session, page_las->max_txn,
@@ -1518,7 +1524,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 				WT_IGNORE_RET(
 				    __wt_page_evict_urgent(session, ref));
 		} else {
-			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref));
+			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref,
+			    flags));
 			return (0);
 		}
 	}

@@ -132,9 +132,12 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
  *	An in-memory structure to hold a block's location.
  */
 struct __wt_addr {
-	wt_timestamp_t oldest_start_ts;	/* Aggregated timestamp information */
-	wt_timestamp_t newest_start_ts;
-	wt_timestamp_t newest_stop_ts;
+					/* Validity window */
+	wt_timestamp_t	newest_durable_ts;
+	wt_timestamp_t	oldest_start_ts;
+	uint64_t	oldest_start_txn;
+	wt_timestamp_t	newest_stop_ts;
+	uint64_t	newest_stop_txn;
 
 	uint8_t *addr;			/* Block-manager's cookie */
 	uint8_t  size;			/* Block-manager's cookie length */
@@ -252,6 +255,7 @@ struct __wt_page_lookaside {
 					 * page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
+	bool resolved;			/* History has been read into cache */
 	bool skew_newest;		/* Page image has newest versions */
 };
 
@@ -893,6 +897,10 @@ struct __wt_ref {
 	WT_PAGE_DELETED	  *page_del;	/* Deleted page information */
 	WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
 
+/* A macro wrapper allowing us to remember the callers code location */
+#define	WT_REF_CAS_STATE(session, ref, old_state, new_state)          \
+	__wt_ref_cas_state_int((session), (ref), (old_state), (new_state),\
+	__FILE__, __LINE__)
 #ifdef HAVE_DIAGNOSTIC
 	/* Capture history of ref state changes. */
 	struct __wt_ref_hist {
@@ -903,14 +911,17 @@ struct __wt_ref {
 		uint32_t state;
 	} hist[3];
 	uint64_t histoff;
-#define	WT_REF_SET_STATE(ref, s) do {					\
+#define	WT_REF_SAVE_STATE(ref, s, f, l) do {				\
 	(ref)->hist[(ref)->histoff].session = session;			\
 	(ref)->hist[(ref)->histoff].name = session->name;		\
-	(ref)->hist[(ref)->histoff].file = __FILE__;			\
-	(ref)->hist[(ref)->histoff].line = __LINE__;			\
+	(ref)->hist[(ref)->histoff].file = (f);				\
+	(ref)->hist[(ref)->histoff].line = (l);				\
 	(ref)->hist[(ref)->histoff].state = s;				\
 	(ref)->histoff =						\
 	    ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist);		\
+} while (0)
+#define	WT_REF_SET_STATE(ref, s) do {					\
+	WT_REF_SAVE_STATE(ref, s, __FILE__, __LINE__);			\
 	WT_PUBLISH((ref)->state, s);					\
 } while (0)
 #else
@@ -990,8 +1001,6 @@ struct __wt_col {
 	 * of a base pointer.  The on-page data is a WT_CELL (same as row-store
 	 * pages).
 	 *
-	 * If the value is 0, it's a single, deleted record.
-	 *
 	 * Obscure the field name, code shouldn't use WT_COL->__col_value, the
 	 * public interface is WT_COL_PTR and WT_COL_PTR_SET.
 	 */
@@ -1004,8 +1013,7 @@ struct __wt_col {
  * not exist on the page, return a NULL.)
  */
 #define	WT_COL_PTR(page, cip)						\
-	((cip)->__col_value == 0 ?					\
-	    NULL : WT_PAGE_REF_OFFSET(page, (cip)->__col_value))
+	WT_PAGE_REF_OFFSET(page, (cip)->__col_value)
 #define	WT_COL_PTR_SET(cip, value)					\
 	(cip)->__col_value = (value)
 
@@ -1064,7 +1072,7 @@ struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
 
 	wt_timestamp_t durable_ts;	/* timestamps */
-	wt_timestamp_t start_ts, stop_ts;
+	wt_timestamp_t start_ts;
 
 	WT_UPDATE *next;		/* forward-linked list */
 
@@ -1101,7 +1109,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	46
+#define	WT_UPDATE_SIZE	38
 
 /*
  * The memory size of an update: include some padding because this is such a

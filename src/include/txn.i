@@ -14,6 +14,35 @@ typedef enum {
 	WT_VISIBLE_PREPARE=1,   /* Prepared update */
 	WT_VISIBLE_TRUE=2       /* A visible update */
 } WT_VISIBLE_TYPE;
+/*
+ * __wt_ref_cas_state_int --
+ *	Try to do a compare and swap, if successful update the ref history in
+ *      diagnostic mode.
+ */
+static inline bool
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref,
+    uint32_t old_state, uint32_t new_state, const char *file, int line)
+{
+	bool cas_result;
+
+	/* Parameters that are used in a macro for diagnostic builds */
+	WT_UNUSED(session);
+	WT_UNUSED(file);
+	WT_UNUSED(line);
+
+	cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
+
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * The history update here has potential to race; if the state gets
+	 * updated again after the CAS above but before the history has been
+	 * updated.
+	 */
+	 if (cas_result)
+		WT_REF_SAVE_STATE(ref, new_state, file, line);
+#endif
+	return (cas_result);
+}
 
 /*
  * __wt_txn_timestamp_flags --
@@ -203,7 +232,10 @@ __wt_txn_resolve_prepared_op(
 	 * set it to aborted.
 	 */
 	if (upd == NULL && commit) {
-		WT_ASSERT(session, txn->multi_update_count > 0);
+		/*
+		 * FIXME:
+		 * WT_ASSERT(session, txn->multi_update_count > 0);
+		 */
 		--txn->multi_update_count;
 	}
 #endif
@@ -259,7 +291,10 @@ __wt_txn_resolve_prepared_op(
 		 * updates processed in resolution of an transaction operation.
 		 */
 		if (upd->prepare_state == WT_PREPARE_RESOLVED) {
-			WT_ASSERT(session, txn->multi_update_count > 0);
+			/*
+			 * FIXME:
+			 * WT_ASSERT(session, txn->multi_update_count > 0);
+			 */
 			--txn->multi_update_count;
 		} else if (upd != op->u.op_upd)
 			++txn->multi_update_count;
@@ -272,7 +307,8 @@ __wt_txn_resolve_prepared_op(
 		__txn_resolve_prepared_update(session, upd);
 	}
 
-#ifdef HAVE_DIAGNOSTIC
+	/* FIXME: it isn't safe to walk updates after they are resolved. */
+#if 0 && defined(HAVE_DIAGNOSTIC)
 	upd = op->u.op_upd;
 	/* Ensure that we have not missed any of this transaction updates. */
 	for (; upd != NULL; upd = upd->next) {
@@ -373,9 +409,8 @@ __wt_txn_op_apply_prepare_state(
 	for (;; __wt_yield()) {
 		previous_state = ref->state;
 		WT_ASSERT(session, previous_state != WT_REF_READING);
-		if (previous_state != WT_REF_LOCKED &&
-		    __wt_atomic_casv32(
-		    &ref->state, previous_state, WT_REF_LOCKED))
+		if (previous_state != WT_REF_LOCKED && WT_REF_CAS_STATE(
+		    session, ref, previous_state, WT_REF_LOCKED))
 			break;
 	}
 
@@ -1079,13 +1114,19 @@ static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
 	bool ignore_prepare_set;
 
 	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
 
 	if (txn->isolation != WT_ISO_SNAPSHOT)
 		return (0);
 
+	if (txn_global->debug_rollback != 0 &&
+	    ++txn_global->debug_ops % txn_global->debug_rollback == 0)
+		return (__wt_txn_rollback_required(session,
+		    "debug mode simulated conflict"));
 	/*
 	 * Always include prepared transactions in this check: they are not
 	 * supposed to affect visibility for update operations.

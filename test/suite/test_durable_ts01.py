@@ -38,6 +38,7 @@ def timestamp_str(t):
 #    Checking visibility and durability of updates with durable_timestamp and
 #    with restart.
 class test_durable_ts01(wttest.WiredTigerTestCase):
+    session_config = 'isolation=snapshot'
 
     keyfmt = [
         ('row-string', dict(keyfmt='S')),
@@ -71,7 +72,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         ds = self.ds(self, uri, 50, key_format=self.keyfmt)
         ds.populate()
 
-        session = self.conn.open_session()
+        session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
 
         # Set stable timestamp to checkpoint initial data set.
@@ -87,7 +88,9 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
             self.assertEquals(cursor.next(), 0)
 
         session.prepare_transaction('prepare_timestamp=' + timestamp_str(150))
-        session.commit_transaction('commit_timestamp=' + timestamp_str(200) + ',durable_timestamp=' + timestamp_str(220))
+        session.timestamp_transaction('commit_timestamp=' + timestamp_str(200))
+        session.timestamp_transaction('durable_timestamp=' + timestamp_str(220))
+        session.commit_transaction()
 
         # Check the values read are correct with different timestamps.
         # Read the initial dataset.
@@ -133,7 +136,9 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
 
         # Commit timestamp is earlier to stable timestamp but durable timestamp
         # is later than stable timestamp. Hence second update value is not durable.
-        session.commit_transaction('commit_timestamp=' + timestamp_str(240) + ',durable_timestamp=' + timestamp_str(300))
+        session.timestamp_transaction('commit_timestamp=' + timestamp_str(240))
+        session.timestamp_transaction('durable_timestamp=' + timestamp_str(300))
+        session.commit_transaction()
 
         # Checkpoint so that first update value will be visible and durable,
         # but second update value will be only visible but not durable.
@@ -151,7 +156,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
 
         # Check that second update value was not durable by reopening.
         self.reopen_conn()
-        session = self.conn.open_session()
+        session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(250))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(250))

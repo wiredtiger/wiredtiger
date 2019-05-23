@@ -78,7 +78,7 @@ class test_alter02(wttest.WiredTigerTestCase):
         try:
             self.conn = wiredtiger.wiredtiger_open(self.home, conn_params)
         except wiredtiger.WiredTigerError as e:
-            print "Failed conn at '%s' with config '%s'" % (dir, conn_params)
+            print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = self.conn.open_session()
 
     # Verify the metadata string for this URI and that its setting in the
@@ -116,14 +116,16 @@ class test_alter02(wttest.WiredTigerTestCase):
             keys = c.get_key()
             # txnid, rectype, optype, fileid, logrec_key, logrec_value
             values = c.get_value()
-            try:
-                if self.value in str(values[5]):     # logrec_value
-                    count += 1
-                self.assertFalse(value2 in str(values[5]))
-            except:
-                pass
+            if self.value.encode() in values[5]:     # logrec_value
+                count += 1
+            self.assertFalse(self.value2.encode() in values[5])
         c.close()
-        self.assertEqual(count, expected_keys)
+        #
+        # We check that we saw the expected keys at twice the rate because
+        # the log cursor, for each commit record, will first return the entire,
+        # full record, and then return the individual operation. We will detect
+        # the string in both records.
+        self.assertEqual(count, expected_keys * 2)
 
     # Alter: Change the log setting after creation
     def test_alter02_log(self):

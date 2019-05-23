@@ -23,8 +23,24 @@ class Config:
         self.subconfig = subconfig
         self.flags = flags
 
-    def __cmp__(self, other):
-        return cmp(self.name, other.name)
+    # Comparators for sorting.
+    def __eq__(self, other):
+        return self.name == other.name
+
+    def __ne__(self, other):
+        return self.name != other.name
+
+    def __lt__(self, other):
+        return self.name < other.name
+
+    def __le__(self, other):
+        return self.name <= other.name
+
+    def __gt__(self, other):
+        return self.name > other.name
+
+    def __ge__(self, other):
+        return self.name >= other.name
 
 common_runtime_config = [
     Config('app_metadata', '', r'''
@@ -459,6 +475,25 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
+        ]),
+    Config('debug_mode', '', r'''
+        control the settings of various extended debugging features''',
+        type='category', subconfig=[
+        Config('checkpoint_retention', '0', r'''
+            adjust log archiving to retain the log records of this number
+            of checkpoints. Zero or one means perform normal archiving.''',
+            min='0', max='1024'),
+        Config('rollback_error', '0', r'''
+            return a WT_ROLLBACK error from a transaction operation about
+            every Nth operation to simulate a collision''',
+            min='0', max='10M'),
+        Config('table_logging', 'false', r'''
+            if true, write transaction related information to the log for all
+            operations, even operations for tables with logging turned off.
+            This setting introduces a log format change that may break older
+            versions of WiredTiger. These operations are informational and
+            skipped in recovery.''',
+            type='boolean'),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
@@ -1286,10 +1321,6 @@ methods = {
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  See
         @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
     Config('roundup_timestamps', '', r'''
         round up timestamps of the transaction. This setting alters the
         visibility expected in a transaction. See @ref
@@ -1345,8 +1376,7 @@ methods = {
     Config('prepare_timestamp', '', r'''
         set the prepare timestamp for the updates of the current transaction.
         The supplied value must not be older than any active read timestamps.
-        This configuration option is mandatory.  See
-        @ref transaction_timestamps'''),
+        See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.timestamp_transaction' : Method([
@@ -1362,14 +1392,14 @@ methods = {
         current transaction.  The value must also not be older than the
         current stable timestamp.  See
         @ref transaction_timestamps'''),
+    Config('prepare_timestamp', '', r'''
+        set the prepare timestamp for the updates of the current transaction.
+        The supplied value must not be older than any active read timestamps.
+        See @ref transaction_timestamps'''),
     Config('read_timestamp', '', r'''
         read using the specified timestamp.  The supplied value must not be
         older than the current oldest timestamp.  This can only be set once
-        for a transaction.  @ref transaction_timestamps'''),
-    Config('round_to_oldest', 'false', r'''
-        if read timestamp is earlier than oldest timestamp,
-        read timestamp will be rounded to oldest timestamp''',
-        type='boolean'),
+        for a transaction. See @ref transaction_timestamps'''),
 ]),
 
 'WT_SESSION.rollback_transaction' : Method([]),
