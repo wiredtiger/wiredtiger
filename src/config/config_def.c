@@ -279,7 +279,9 @@ static const WT_CONFIG_CHECK
 };
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
-	{ "ignore_prepare", "boolean", NULL, NULL, NULL, 0 },
+	{ "ignore_prepare", "string",
+	    NULL, "choices=[\"false\",\"force\",\"true\"]",
+	    NULL, 0 },
 	{ "isolation", "string",
 	    NULL, "choices=[\"read-uncommitted\",\"read-committed\","
 	    "\"snapshot\"]",
