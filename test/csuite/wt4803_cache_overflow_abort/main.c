@@ -6,6 +6,33 @@
 #define	NUM_KEYS	2000
 
 static int
+handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error,
+    const char *message)
+{
+	WT_UNUSED(handler);
+	WT_UNUSED(session);
+
+	(void)fprintf(
+	    stderr, "%s: %s\n", message, session->strerror(session, error));
+
+	if (error == WT_PANIC &&
+	    strstr(message, "exceeds maximum size") != NULL) {
+		fprintf(
+		    stderr, "Got cache overflow error. Exiting with EINVAL.\n");
+		exit(EINVAL);
+	}
+
+	return (0);
+}
+
+static WT_EVENT_HANDLER event_handler = {
+	handle_error,
+	NULL,
+	NULL,
+	NULL
+};
+
+static int
 las_workload(TEST_OPTS *opts, const char *las_file_max)
 {
 	WT_CURSOR *cursor;
@@ -13,15 +40,18 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	int i;
 	char buf[WT_MEGABYTE], open_config[128];
 
-	WT_RET(__wt_snprintf(open_config, sizeof(open_config),
+	testutil_check(__wt_snprintf(open_config, sizeof(open_config),
 	    "create,cache_size=50MB,cache_overflow=(file_max=%s)",
 	    las_file_max));
 
-	WT_RET(wiredtiger_open(opts->home, NULL, open_config, &opts->conn));
-	WT_RET(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-	WT_RET(
+	testutil_check(wiredtiger_open(
+	    opts->home, &event_handler, open_config, &opts->conn));
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
+	testutil_check(
 	    session->create(session, opts->uri, "key_format=i,value_format=S"));
-	WT_RET(session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
+	testutil_check(
+	    session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
 
 	memset(buf, 0xA, WT_MEGABYTE);
 	buf[WT_MEGABYTE - 1] = '\0';
@@ -30,7 +60,7 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	for (i = 0; i < NUM_KEYS; ++i) {
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, buf);
-		WT_RET(cursor->insert(cursor));
+		testutil_check(cursor->insert(cursor));
 	}
 
 	/*
@@ -44,7 +74,7 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	 * reached and we should panic. When the maximum size is large or not
 	 * set, then we should succeed.
 	 */
-	WT_RET(
+	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &other_session));
 	other_session->begin_transaction(other_session, "isolation=snapshot");
 
@@ -54,7 +84,7 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	for (i = 0; i < NUM_KEYS; ++i) {
 		cursor->set_key(cursor, i);
 		cursor->set_value(cursor, buf);
-		WT_RET(cursor->update(cursor));
+		testutil_check(cursor->update(cursor));
 	}
 
 	/*
@@ -63,25 +93,27 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 	 * have already hit the maximum and exited. This code only executes on
 	 * the successful path.
 	 */
-	WT_RET(other_session->rollback_transaction(other_session, NULL));
-	WT_RET(other_session->close(other_session, NULL));
+	testutil_check(
+	    other_session->rollback_transaction(other_session, NULL));
+	testutil_check(other_session->close(other_session, NULL));
 
-	WT_RET(cursor->close(cursor));
-	WT_RET(session->close(session, NULL));
+	testutil_check(cursor->close(cursor));
+	testutil_check(session->close(session, NULL));
 
 	return (0);
 }
 
 static int
-test_las_workload(int argc, char **argv, const char *las_file_max)
+test_las_workload(TEST_OPTS *opts, const char *las_file_max)
 {
-	TEST_OPTS opts;
 	pid_t pid;
 	int status;
 
-	memset(&opts, 0x0, sizeof(opts));
-	testutil_check(testutil_parse_opts(argc, argv, &opts));
-	testutil_make_work_dir(opts.home);
+	/*
+	 * We're going to run this workload for different configurations of
+	 * file_max. So clean out the work directory each time.
+	 */
+	testutil_make_work_dir(opts->home);
 
 	/*
 	 * Since it's possible that the workload will panic and abort, we will
@@ -96,7 +128,7 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 		testutil_die(errno, "fork");
 	else if (pid == 0) {
 		/* Child process from here. */
-		status = las_workload(&opts, las_file_max);
+		status = las_workload(opts, las_file_max);
 		exit(status);
 	}
 
@@ -104,24 +136,28 @@ test_las_workload(int argc, char **argv, const char *las_file_max)
 	if (waitpid(pid, &status, 0) == -1)
 		testutil_die(errno, "waitpid");
 
-	testutil_cleanup(&opts);
 	return (status);
 }
 
 int
 main(int argc, char **argv)
 {
+	TEST_OPTS opts;
 	int ret;
 
-	ret = test_las_workload(argc, argv, "0");
+	memset(&opts, 0x0, sizeof(opts));
+	testutil_check(testutil_parse_opts(argc, argv, &opts));
+
+	ret = test_las_workload(&opts, "0");
 	testutil_assert(ret == 0);
 
-	ret = test_las_workload(argc, argv, "5GB");
+	ret = test_las_workload(&opts, "5GB");
 	testutil_assert(ret == 0);
 
-	ret = test_las_workload(argc, argv, "100MB");
-	testutil_assert(
-	    ret != 0 && WIFSIGNALED(ret) && WTERMSIG(ret) == SIGABRT);
+	ret = test_las_workload(&opts, "100MB");
+	testutil_assert(ret != 0 && WIFEXITED(ret) && WEXITSTATUS(ret) == EINVAL);
+
+	testutil_cleanup(&opts);
 
 	return (0);
 }
