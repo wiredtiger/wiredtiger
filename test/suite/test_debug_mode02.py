@@ -36,6 +36,8 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
     entries = 100
     loop = 0
     retain = 5
+    log1 = 'WiredTigerLog.0000000001'
+    log2 = 'WiredTigerLog.0000000002'
 
     def conn_config(self):
         return 'log=(enabled=true,file_max=100K),debug_mode=(checkpoint_retention=%d)' % self.retain
@@ -44,26 +46,16 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
         logs = fnmatch.filter(os.listdir(self.home), "*gerLog*")
         return set(logs)
 
-    def check_archive(self, cur_set):
+    def check_archive(self, logfile):
         archived = False
         for i in range(1,90):
             # Sleep and then see if archive ran. We do this in a loop
             # for slow machines. Max out at 90 seconds.
             time.sleep(1.0)
-            new_set = self.log_set()
-            diff = new_set.difference(cur_set)
-            if len(diff) != 0:
+            if not os.path.exists(logfile):
                 archived = True
-                self.conn.reconfigure('verbose=()')
                 break
-            if i == 60:
-                # If we've gotten past a minute, turn on verbose for logging
-                # to see what is going on with archive in case of failure.
-                self.conn.reconfigure('verbose=(log)')
-
-        if not archived:
-            self.pr("Archive did not remove files")
-        self.assertFalse(new_set.issuperset(cur_set))
+        self.assertTrue(archived)
 
     def advance_log_checkpoint(self):
         # Advance the log file to the next file and write a checkpoint.
@@ -96,23 +88,21 @@ class test_debug_mode02(wttest.WiredTigerTestCase):
             new_set = self.log_set()
             self.assertTrue(new_set.issuperset(cur_set))
 
-        cur_set = self.log_set()
+        self.assertTrue(os.path.exists(self.log1))
         self.advance_log_checkpoint()
-        self.check_archive(cur_set)
+        self.check_archive(self.log1)
 
     # Test that both zero and one archive as usual. And test reconfigure.
     def test_checkpoint_retain_off(self):
         self.conn.reconfigure("debug_mode=(checkpoint_retention=0)")
         self.session.create(self.uri, 'key_format=i,value_format=i')
-        cur_set = self.log_set()
 
         self.advance_log_checkpoint()
-        self.check_archive(cur_set)
+        self.check_archive(self.log1)
 
         self.conn.reconfigure("debug_mode=(checkpoint_retention=1)")
-        cur_set = self.log_set()
         self.advance_log_checkpoint()
-        self.check_archive(cur_set)
+        self.check_archive(self.log2)
 
 if __name__ == '__main__':
     wttest.run()
