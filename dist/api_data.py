@@ -459,7 +459,7 @@ connection_runtime_config = [
             this size, a panic will be triggered. The default value means that
             the cache overflow file is unbounded and may use as much space as
             the filesystem will accommodate. The minimum non-zero setting is
-            100MB.''',
+            100MB.''',    # !!! Must match WT_LAS_FILE_MIN
             min='0')
         ]),
     Config('cache_overhead', '8', r'''

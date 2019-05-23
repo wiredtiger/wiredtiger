@@ -33,21 +33,23 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
+# Taken from src/include/misc.h.
+WT_MB = 1048576
+
 class test_las04(wttest.WiredTigerTestCase):
     uri = 'table:las_04'
     init_file_max_values = [
-        ('default', dict(init_file_max=None)),
-        ('non-zero', dict(init_file_max='100MB')),
-        ('zero', dict(init_file_max='0'))
+        ('default', dict(init_file_max=None, init_stat_val=0)),
+        ('non-zero', dict(init_file_max='100MB', init_stat_val=(WT_MB * 100))),
+        ('zero', dict(init_file_max='0', init_stat_val=0))
     ]
     reconfig_file_max_values = [
-        ('non-zero', dict(reconfig_file_max='100MB')),
-        ('too-low', dict(reconfig_file_max='99MB')),
-        ('zero', dict(reconfig_file_max='0'))
+        ('non-zero', dict(reconfig_file_max='100MB',
+                          reconfig_stat_val=(WT_MB * 100))),
+        ('too-low', dict(reconfig_file_max='99MB', reconfig_stat_val=None)),
+        ('zero', dict(reconfig_file_max='0', reconfig_stat_val=0))
     ]
     scenarios = make_scenarios(init_file_max_values, reconfig_file_max_values)
-    # Taken from misc.h.
-    WT_MB = 1048576
 
     def conn_config(self):
         config = 'statistics=(fast)'
@@ -61,28 +63,18 @@ class test_las04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def config_value_to_expected(self, config_value):
-        if config_value is None:
-            return 0
-        elif config_value == '0':
-            return 0
-        elif config_value == '100MB':
-            return self.WT_MB * 100
-        else:
-            raise ValueError('unrecognised config value')
-
     def test_las(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         self.assertEqual(
             self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
-            self.config_value_to_expected(self.init_file_max))
+            self.init_stat_val)
 
         reconfigure = lambda: self.conn.reconfigure(
             'cache_overflow=(file_max={})'.format(self.reconfig_file_max))
 
         # In the 99MB case, we're expecting an error here.
-        if self.reconfig_file_max == '99MB':
+        if self.reconfig_stat_val is None:
             self.assertRaisesWithMessage(
                 wiredtiger.WiredTigerError, reconfigure, '/below minimum/')
             return
@@ -91,7 +83,7 @@ class test_las04(wttest.WiredTigerTestCase):
 
         self.assertEqual(
             self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
-            self.config_value_to_expected(self.reconfig_file_max))
+            self.reconfig_stat_val)
 
 if __name__ == '__main__':
     wttest.run()

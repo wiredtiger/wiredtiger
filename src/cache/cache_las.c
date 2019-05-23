@@ -800,8 +800,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
 	if (max_las_size != 0 && (uint64_t)las_size > max_las_size)
 		WT_PANIC_MSG(session, WT_PANIC,
-		    "WiredTigerLAS: file size of %" PRId64 " exceeds maximum "
-		    "size %" PRIu64, las_size, max_las_size);
+		    "WiredTigerLAS: file size of %" PRIu64 " exceeds maximum "
+		    "size %" PRIu64, (uint64_t)las_size, max_las_size);
 
 err:	/* Resolve the transaction. */
 	if (local_txn) {
