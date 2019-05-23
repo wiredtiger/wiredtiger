@@ -6,7 +6,7 @@
 #define	NUM_KEYS	2000
 
 static int
-handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error,
+handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error,
     const char *message)
 {
 	WT_UNUSED(handler);
@@ -26,13 +26,13 @@ handle_error(WT_EVENT_HANDLER *handler, WT_SESSION *session, int error,
 }
 
 static WT_EVENT_HANDLER event_handler = {
-	handle_error,
+	handle_message,
 	NULL,
 	NULL,
 	NULL
 };
 
-static int
+static void
 las_workload(TEST_OPTS *opts, const char *las_file_max)
 {
 	WT_CURSOR *cursor;
@@ -99,8 +99,6 @@ las_workload(TEST_OPTS *opts, const char *las_file_max)
 
 	testutil_check(cursor->close(cursor));
 	testutil_check(session->close(session, NULL));
-
-	return (0);
 }
 
 static int
@@ -128,8 +126,8 @@ test_las_workload(TEST_OPTS *opts, const char *las_file_max)
 		testutil_die(errno, "fork");
 	else if (pid == 0) {
 		/* Child process from here. */
-		status = las_workload(opts, las_file_max);
-		exit(status);
+		las_workload(opts, las_file_max);
+		exit(EXIT_SUCCESS);
 	}
 
 	/* Parent process from here. */
@@ -148,14 +146,30 @@ main(int argc, char **argv)
 	memset(&opts, 0x0, sizeof(opts));
 	testutil_check(testutil_parse_opts(argc, argv, &opts));
 
+	/*
+	 * The lookaside is unbounded.
+	 * We don't expect any failure since we can use as much as needed.
+	 */
 	ret = test_las_workload(&opts, "0");
 	testutil_assert(ret == 0);
 
+	/*
+	 * The lookaside is limited to 5GB.
+	 * This is more than enough for this workload so we don't expect any
+	 * failure.
+	 */
 	ret = test_las_workload(&opts, "5GB");
 	testutil_assert(ret == 0);
 
+	/*
+	 * The lookaside is limited to 100MB.
+	 * This is insufficient for this workload so we're expecting a failure.
+	 * We have an error handler that will exit with EINVAL when we see this
+	 * particular error.
+	 */
 	ret = test_las_workload(&opts, "100MB");
-	testutil_assert(ret != 0 && WIFEXITED(ret) && WEXITSTATUS(ret) == EINVAL);
+	testutil_assert(
+	    ret != 0 && WIFEXITED(ret) && WEXITSTATUS(ret) == EINVAL);
 
 	testutil_cleanup(&opts);
 
