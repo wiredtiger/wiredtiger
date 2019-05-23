@@ -81,14 +81,14 @@ do
 		fi
 
 		if [ "${verbose}" == true ]; then
-			dump=$(${wt_binary} -h ${d} dump ${t})
-			if [ "$?" -ne "0" ]; then
-				echo "Failed to dump '${t}' table under '${d}' directory, exiting ..."
-				exit 3
-			fi
-			# Print out the table dump if verbose flag is on
-			echo ${dump}
-			unset dump
+			${wt_binary} -h ${d} dump ${t}
+		else
+			${wt_binary} -h ${d} dump ${t} > /dev/null
+		fi
+
+		if [ "$?" -ne "0" ]; then
+			echo "Failed to dump '${t}' table under '${d}' directory, exiting ..."
+			exit 3
 		fi
 
 		# Table verification is successful, increment the counter
