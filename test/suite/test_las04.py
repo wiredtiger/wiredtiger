@@ -73,7 +73,8 @@ class test_las04(wttest.WiredTigerTestCase):
         reconfigure = lambda: self.conn.reconfigure(
             'cache_overflow=(file_max={})'.format(self.reconfig_file_max))
 
-        # In the 99MB case, we're expecting an error here.
+        # We expect an error when the statistic value is None because the value
+        # is out of range.
         if self.reconfig_stat_val is None:
             self.assertRaisesWithMessage(
                 wiredtiger.WiredTigerError, reconfigure, '/below minimum/')
