@@ -191,9 +191,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 
 			if (prepared || uncommitted)
 			       continue;
-		} else {
-			break;
 		}
+
 		/* Track the first update with non-zero timestamp. */
 		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
 			first_ts_upd = upd;
@@ -254,6 +253,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 */
 		if (upd_select->upd == NULL)
 			upd_select->upd = upd;
+
+		if (!F_ISSET(r, WT_REC_EVICT)) break;
 	}
 
 	/* Keep track of the selected update. */
