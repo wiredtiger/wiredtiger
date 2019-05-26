@@ -243,7 +243,7 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 			    " (0x%" PRIx32 ")\n",
 			    ci.root_checksum, ci.root_checksum);
 		} else {
-			/* Ignore the error and continue if damaaged. */
+			/* Ignore the error and continue if damaged. */
 			(void)util_err(session, ret, "__wt_block_ckpt_decode");
 		}
 	}
