@@ -206,7 +206,8 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 
 	memset(&ci, 0, sizeof(ci));
 	WT_CKPT_FOREACH(ckptbase, ckpt) {
-		if (allocsize != 0 && (ret = __wt_block_ckpt_decode(
+		if (ckpt->raw.data != NULL &&
+		    (ret = __wt_block_ckpt_decode(
 		    session, allocsize, ckpt->raw.data, &ci)) != 0) {
 			(void)util_err(session, ret, "__wt_block_ckpt_decode");
 			/* continue if damaged */
