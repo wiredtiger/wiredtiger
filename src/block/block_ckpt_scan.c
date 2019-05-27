@@ -11,24 +11,16 @@
 /*
  * In historic WiredTiger files, it wasn't possible to open standalone files,
  * you're done if you lose the file's associated metadata. That was a mistake
- * and this code is the workaround. First, we store file creation metadata in
- * the file's descriptor block. The file creation metadata is enough to read
- * a file: it includes allocation size, compression, encryptors and so on, with
- * it we can open a file and read the blocks. The other thing we need to verify
- * a file is a list of active checkpoints as of the file's clean shutdown (also
- * normally stored in the database metadata). The last write done in a block
- * manager's checkpoint is the avail list. If we include checkpoint information
- * with that write, we're close. We can then open the file, read the blocks,
- * scan until we find the avail list, and read the active checkpoint information
- * from there.
- *	This is a pretty large violation of layering: the block manager has to
- * match the behavior of the upper layers in creating checkpoint information,
- * and ideally the block manager wouldn't know anything about that. Regardless,
- * it was deemed important enough to be able to crack standalone files that we
- * went in this direction.
- *	Three problems remain: first, the checkpoint information isn't correct
- * until we write the avail list, the checkpoint information has to include the
- * avail list address plus the final file size after the write. Fortunately,
+ * and this code is the workaround. What we need to crack a file is database
+ * metadata plus a list of active checkpoints as of the file's clean shutdown
+ * (normally stored in the database metadata). The last write done in a block
+ * manager's checkpoint is the avail list. If current metadata and checkpoint
+ * information is included in that write, we're close. We can open the file,
+ * read the blocks, scan until we find the avail list, and read the metadata
+ * and checkpoint information from there.
+ *	Two problems remain: first, the checkpoint information isn't correct
+ * until we write the avail list and the checkpoint information has to include
+ * the avail list address plus the final file size after the write. Fortunately,
  * when scanning the file for the avail lists, we're figuring out exactly the
  * information needed to fix up the checkpoint information we wrote, that is,
  * the avail list's offset, size and checksum triplet. As for the final file
@@ -47,18 +39,15 @@
  * awhile. Happily, historic WiredTiger releases have a bug. Extent lists
  * consist of a set of offset/size pairs, with magic offset/size pairs at the
  * beginning and end of the list. Historic releases only verified the offset of
- * the special pairs, ignoring the size. To detect avail lists that include the
- * checkpoint information, this change adds a version to the extent list: if the
- * size is WT_BLOCK_EXTLIST_VERSION_CKPT, then checkpoint information follows.
- *	The third problem is that we'd like to have the current file metadata
- * so we have correct app_metadata information, for example. To solve this, the
- * upper layers of the checkpoint code pass down the file's metadata with each
- * checkpoint, and we simply include it in the information we're writing.
+ * the special pair at the end of the list, ignoring the size. To detect avail
+ * lists that include appended metadata and checkpoint information, this change
+ * adds a version to the extent list: if size is WT_BLOCK_EXTLIST_VERSION_CKPT,
+ * then metadata/checkpoint information follows.
  */
 
 /*
  * __wt_block_checkpoint_final --
- *	Append the file checkpoint information to a buffer.
+ *	Append metadata and checkpoint information to a buffer.
  */
 int
 __wt_block_checkpoint_final(WT_SESSION_IMPL *session,
