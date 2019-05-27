@@ -270,7 +270,6 @@ __wt_meta_block_metadata(
 	 * the minimal configuration.
 	 */
 	WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
-	WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
 	if (kencryptor == NULL) {
 		metadata = min_config;
 		metadata_len = strlen(min_config);
