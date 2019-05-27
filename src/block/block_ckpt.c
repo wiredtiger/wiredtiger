@@ -674,9 +674,7 @@ live_update:
 			 * the checkpoint information to the write routine.
 			 */
 			block->final_ckpt = ckpt;
-			block->final = true;
 			ret = __ckpt_update(session, block, ckpt, ci);
-			block->final = false;
 			block->final_ckpt = NULL;
 			WT_ERR(ret);
 		}
@@ -757,7 +755,7 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * checkpoint information to the avail list for standalone retrieval.
 	 * Copy the INCOMPLETE checkpoint information into the checkpoint.
 	 */
-	if (block->final) {
+	if (block->final_ckpt != NULL) {
 		WT_RET(__wt_buf_init(
 		    session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
 		endp = ckpt->raw.mem;
@@ -778,7 +776,7 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * it's not truly available until the new checkpoint locations have been
 	 * saved to the metadata.
 	 */
-	if (block->final)
+	if (block->final_ckpt != NULL)
 		WT_RET(__wt_block_extlist_write(
 		    session, block, &ci->avail, &ci->ckpt_avail));
 
@@ -800,7 +798,7 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * Currently, there's no API to roll-forward intermediate checkpoints,
 	 * if there ever is, this will need to be fixed.
 	 */
-	if (block->final)
+	if (block->final_ckpt != NULL)
 		ci->file_size = block->size;
 
 	/* Copy the COMPLETE checkpoint information into the checkpoint. */

@@ -1259,7 +1259,7 @@ __wt_block_extlist_write(WT_SESSION_IMPL *session,
 	 * the extent list to include the checkpoint recovery information.
 	 */
 	entries = el->entries + (additional == NULL ? 0 : additional->entries);
-	if (entries == 0 && !block->final) {
+	if (entries == 0 && block->final_ckpt == NULL) {
 		el->offset = WT_BLOCK_INVALID_OFFSET;
 		el->checksum = el->size = 0;
 		return (0);
@@ -1293,7 +1293,7 @@ __wt_block_extlist_write(WT_SESSION_IMPL *session,
 			    __wt_extlist_write_pair(&p, ext->off, ext->size));
 							/* Extent list stops */
 	WT_ERR(__wt_extlist_write_pair(&p, WT_BLOCK_INVALID_OFFSET,
-	    block->final ? WT_BLOCK_EXTLIST_VERSION_CKPT : 0));
+	    block->final_ckpt == NULL ? 0 : WT_BLOCK_EXTLIST_VERSION_CKPT));
 
 	dsk->u.datalen = WT_PTRDIFF32(p, WT_BLOCK_HEADER_BYTE(dsk));
 	tmp->size = dsk->mem_size = WT_PTRDIFF32(p, dsk);

@@ -252,7 +252,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * File checkpoint/recovery magic: done before sizing the buffer as it
 	 * may grow the buffer.
 	 */
-	if (block->final)
+	if (block->final_ckpt != NULL)
 		WT_RET(__wt_block_checkpoint_final(
 		    session, block, buf, &file_sizep));
 
@@ -301,7 +301,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * The file has finished changing size. If this is the final write in a
 	 * checkpoint, update the checkpoint's information inline.
 	 */
-	if (block->final)
+	if (block->final_ckpt != NULL)
 		WT_RET(__wt_vpack_uint(&file_sizep, 0, (uint64_t)block->size));
 
 	/* Zero out any unused bytes at the end of the buffer. */

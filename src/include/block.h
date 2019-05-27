@@ -270,8 +270,7 @@ struct __wt_block {
 	enum { WT_CKPT_NONE=0, WT_CKPT_INPROGRESS,
 	    WT_CKPT_PANIC_ON_FAILURE, WT_CKPT_SALVAGE } ckpt_state;
 
-	bool		 final;		/* Final live checkpoint write */
-	WT_CKPT		*final_ckpt;	/* Final checkpoint */
+	WT_CKPT		*final_ckpt;	/* Final live checkpoint write */
 
 				/* Compaction support */
 	int	 compact_pct_tenths;	/* Percent to compact */
