@@ -240,6 +240,9 @@ __wt_rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 */
 		if (*updp == NULL)
 			*updp = upd;
+
+		if (!F_ISSET(r, WT_REC_EVICT))
+			break;
 	}
 
 	/* Keep track of the selected update. */
