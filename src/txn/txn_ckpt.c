@@ -1449,7 +1449,7 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	/* Drop checkpoints with the same name as the one we're taking. */
 	__drop(ckptbase, name, strlen(name));
 
-	/* Add a new checkpoint entry at the end of the list. */
+	/* Set the name of the new entry at the end of the list. */
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		;
 	WT_ERR(__wt_strdup(session, name, &ckpt->name));
@@ -1470,9 +1470,10 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 	    !F_ISSET(btree, WT_BTREE_SKIP_CKPT));
 	btree->ckpt = ckptbase;
 
-	return (0);
-
-err:	__wt_meta_ckptlist_free(session, &ckptbase);
+	if (0) {
+err:
+		__wt_meta_ckptlist_free(session, &ckptbase);
+	}
 	__wt_free(session, name_alloc);
 
 	return (ret);
