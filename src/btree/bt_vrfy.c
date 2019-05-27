@@ -188,11 +188,15 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 	if (quit)
 		goto done;
 
-	/* Get a list of the checkpoints for this file. */
+	/*
+	 * Get a list of the checkpoints for this file. Empty objects have no
+	 * checkpoints, in which case there's no work to do.
+	 */
 	ret = __wt_meta_ckptlist_get(session, name, false, &ckptbase);
-	if (ret == WT_NOTFOUND)
-		WT_ERR_MSG(session, WT_NOTFOUND,
-		    "%s has no checkpoints to verify", name);
+	if (ret == WT_NOTFOUND) {
+		ret = 0;
+		goto done;
+	}
 	WT_ERR(ret);
 
 	/* Inform the underlying block manager we're verifying. */
