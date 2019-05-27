@@ -246,9 +246,9 @@ __wt_meta_block_metadata(
 	    WT_CONFIG_BASE(session, file_meta), NULL, NULL };
 	char *min_config;
 
+	min_config = NULL;
 	WT_ERR(__wt_scr_alloc(session, 0, &a));
 	WT_ERR(__wt_scr_alloc(session, 0, &b));
-	min_config = NULL;
 
 	/*
 	 * The metadata has to be encrypted because it contains private data
