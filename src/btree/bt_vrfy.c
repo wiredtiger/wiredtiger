@@ -23,11 +23,10 @@ typedef struct {
 #define	WT_VRFY_DUMP(vs)						\
 	((vs)->dump_address ||						\
 	    (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
-	bool dump_address;			/* Configuration */
+	bool dump_address;			/* Configure: dump special */
 	bool dump_blocks;
 	bool dump_layout;
 	bool dump_pages;
-	bool load_checkpoints;
 						/* Page layout information */
 	uint64_t depth, depth_internal[100], depth_leaf[100];
 
@@ -64,9 +63,6 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
 	WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
 	vs->dump_pages = cval.val != 0;
-
-	WT_RET(__wt_config_gets(session, cfg, "load_checkpoints", &cval));
-	vs->load_checkpoints = cval.val != 0;
 
 #if !defined(HAVE_DIAGNOSTIC)
 	if (vs->dump_blocks || vs->dump_pages)
@@ -192,15 +188,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 	if (quit)
 		goto done;
 
-	/* Optionally use the block manager's information. */
-	if (vs->load_checkpoints)
-		WT_ERR(bm->checkpoint_info(bm, session));
-
 	/* Get a list of the checkpoints for this file. */
-	WT_ERR(__wt_meta_ckptlist_get(session, name, false, &ckptbase));
-	if (ckptbase->name == NULL)
+	ret = __wt_meta_ckptlist_get(session, name, false, &ckptbase);
+	if (ret == WT_NOTFOUND)
 		WT_ERR_MSG(session, WT_NOTFOUND,
 		    "%s has no checkpoints to verify", name);
+	WT_ERR(ret);
 
 	/* Inform the underlying block manager we're verifying. */
 	WT_ERR(bm->verify_start(bm, session, ckptbase, cfg));

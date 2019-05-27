@@ -178,7 +178,7 @@ struct __wt_bm {
 	u_int (*block_header)(WT_BM *);
 	int (*checkpoint)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
-	int (*checkpoint_info)(WT_BM *, WT_SESSION_IMPL *);
+	int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, WT_ITEM *);
 	int (*checkpoint_load)(WT_BM *, WT_SESSION_IMPL *,
 	    const uint8_t *, size_t, uint8_t *, size_t *, bool);
 	int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);
@@ -308,7 +308,7 @@ struct __wt_block_desc {
 
 	uint32_t checksum;		/* 08-11: Description block checksum */
 
-	uint32_t allocsize;		/* 12-15: Allocation size */
+	uint32_t unused;		/* 12-15: Padding */
 };
 /*
  * WT_BLOCK_DESC_SIZE is the expected structure size -- we verify the build to
@@ -317,13 +317,6 @@ struct __wt_block_desc {
  * but it would be worth investigation, regardless).
  */
 #define	WT_BLOCK_DESC_SIZE		16
-
-/*
- * In current versions of the file, there's a flag byte following the file's
- * description block and a copy of the interesting parts of the file metadata.
- */
-#define	WT_BLOCK_DESC_VERSION_ORIG	0	/* Original version */
-#define	WT_BLOCK_DESC_VERSION_METADATA	1	/* Metadata follows */
 
 /*
  * __wt_block_desc_byteswap --
@@ -337,7 +330,6 @@ __wt_block_desc_byteswap(WT_BLOCK_DESC *desc)
 	desc->majorv = __wt_bswap16(desc->majorv);
 	desc->minorv = __wt_bswap16(desc->minorv);
 	desc->checksum = __wt_bswap32(desc->checksum);
-	desc->allocsize = __wt_bswap32(desc->allocsize);
 #else
 	WT_UNUSED(desc);
 #endif

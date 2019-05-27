@@ -58,10 +58,10 @@ __create_file(WT_SESSION_IMPL *session,
 {
 	WT_DECL_ITEM(val);
 	WT_DECL_RET;
-	uint32_t allocsize;
-	const char *filename, *filecfg[] =
+	const char *filename, **p, *filecfg[] =
 	    { WT_CONFIG_BASE(session, file_meta), config, NULL, NULL };
 	char *fileconf;
+	uint32_t allocsize;
 	bool is_metadata;
 
 	fileconf = NULL;
@@ -83,34 +83,28 @@ __create_file(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_direct_io_size_check(
 	    session, filecfg, "allocation_size", &allocsize));
 
-	/*
-	 * Create a configuration string that combines the file ID and version
-	 * information, and append it into the configuration. (Test for the
-	 * first NULL slot, config may have been NULL.)
-	 */
-	WT_ERR(__wt_scr_alloc(session, 0, &val));
-	WT_ERR(__wt_buf_fmt(session, val,
-	    "id=%" PRIu32 ",version=(major=%d,minor=%d)",
-	     ++S2C(session)->next_file_id,
-	    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
-	if (filecfg[1] == NULL)
-		filecfg[1] = val->data;
-	else
-		filecfg[2] = val->data;
-
-	/* Flatten the configuration and create the file. */
-	WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
-	WT_ERR(__wt_block_manager_create(
-	    session, filename, allocsize, fileconf));
+	/* Create the file. */
+	WT_ERR(__wt_block_manager_create(session, filename, allocsize));
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
 
 	/*
-	 * If creating an ordinary file, insert the complete, flattened
+	 * If creating an ordinary file, append the file ID and current version
+	 * numbers to the passed-in configuration and insert the resulting
 	 * configuration into the metadata.
 	 */
-	if (!is_metadata)
+	if (!is_metadata) {
+		WT_ERR(__wt_scr_alloc(session, 0, &val));
+		WT_ERR(__wt_buf_fmt(session, val,
+		    "id=%" PRIu32 ",version=(major=%d,minor=%d)",
+		    ++S2C(session)->next_file_id,
+		    WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX));
+		for (p = filecfg; *p != NULL; ++p)
+			;
+		*p = val->data;
+		WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 		WT_ERR(__wt_metadata_insert(session, uri, fileconf));
+	}
 
 	/*
 	 * Open the file to check that it was setup correctly. We don't need to

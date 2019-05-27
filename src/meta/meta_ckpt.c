@@ -8,13 +8,14 @@
 
 #include "wt_internal.h"
 
-static int  __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
-static int  __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
-static int  __ckpt_load(WT_SESSION_IMPL *,
+static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
+static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
+static int __ckpt_load(WT_SESSION_IMPL *,
 		WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
-static int  __ckpt_named(
+static int __ckpt_named(
 		WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
-static int  __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
+static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *);
+static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 
 /*
  * __wt_meta_checkpoint --
@@ -96,18 +97,17 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
 	 * metadata entry.  If no entry is found to update and we're trying to
 	 * clear the checkpoint, just ignore it.
 	 */
-	WT_RET_NOTFOUND_OK(__wt_meta_checkpoint_set(session, fname, NULL));
+	WT_RET_NOTFOUND_OK(__ckpt_set(session, fname, NULL));
 
 	return (0);
 }
 
 /*
- * __wt_meta_checkpoint_set --
+ * __ckpt_set --
  *	Set a file's checkpoint.
  */
-int
-__wt_meta_checkpoint_set(
-    WT_SESSION_IMPL *session, const char *fname, const char *v)
+static int
+__ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
 {
 	WT_DECL_RET;
 	const char *cfg[3];
@@ -229,6 +229,84 @@ err:		__wt_free(session, *namep);
 }
 
 /*
+ * __wt_meta_block_metadata --
+ *	Build a version of the file's metadata for the block manager to store.
+ */
+int
+__wt_meta_block_metadata(
+    WT_SESSION_IMPL *session, const char *config, WT_CKPT *ckpt)
+{
+	WT_CONFIG_ITEM cval;
+	WT_DECL_ITEM(a);
+	WT_DECL_ITEM(b);
+	WT_DECL_RET;
+	WT_KEYED_ENCRYPTOR *kencryptor;
+	size_t encrypt_size, metadata_len;
+	const char *metadata, *filecfg[] = {
+	    WT_CONFIG_BASE(session, file_meta), NULL, NULL };
+	char *min_config;
+
+	WT_ERR(__wt_scr_alloc(session, 0, &a));
+	WT_ERR(__wt_scr_alloc(session, 0, &b));
+	min_config = NULL;
+
+	/*
+	 * The metadata has to be encrypted because it contains private data
+	 * (for example, column names). We pass the block manager text that
+	 * describes the metadata (the encryption information), and the
+	 * possibly encrypted metadata encoded as a hexadecimal string.
+	 * configuration string.
+	 *
+	 * Get a minimal configuration string, just the non-default entries.
+	 */
+	WT_ERR(__wt_config_discard_defaults(
+	    session, filecfg, config, NULL, &min_config));
+
+	/* Fill out the configuration array for normal retrieval. */
+	filecfg[1] = config;
+
+	/*
+	 * Find out if this file is encrypted. If encrypting, encrypt and encode
+	 * the minimal configuration.
+	 */
+	WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
+	WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
+	if (kencryptor == NULL) {
+		metadata = min_config;
+		metadata_len = strlen(min_config);
+	} else {
+		__wt_buf_set(session, a, min_config, strlen(min_config));
+		__wt_encrypt_size(session, kencryptor, a->size, &encrypt_size);
+		WT_ERR(__wt_buf_grow(session, b, encrypt_size));
+		WT_ERR(__wt_encrypt(session, kencryptor, 0, a, b));
+		WT_ERR(__wt_buf_grow(session, a, b->size * 2));
+		__wt_fill_hex(b->mem, b->size, a->mem, a->memsize, &a->size);
+
+		metadata = a->data;
+		metadata_len = a->size;
+	}
+
+	/*
+	 * Get a copy of the encryption information and flag if we're doing
+	 * encryption. The latter isn't necessary, but it makes it easier to
+	 * diagnose issues during the load.
+	 */
+	WT_ERR(__wt_config_gets(session, filecfg, "encryption", &cval));
+	WT_ERR(__wt_buf_fmt(session, b,
+	    "encryption=%.*s,"
+	    "block_metadata_encrypted=%s,block_metadata=\"%.*s\"",
+	    (int)cval.len, cval.str, kencryptor == NULL ? "false" : "true",
+	    (int)metadata_len, metadata));
+	WT_ERR(__wt_strndup(session, b->data, b->size, &ckpt->metadata));
+
+err:
+	__wt_free(session, min_config);
+	__wt_scr_free(session, &a);
+	__wt_scr_free(session, &b);
+	return (ret);
+}
+
+/*
  * __ckpt_compare_order --
  *	Qsort comparison routine for the checkpoint list.
  */
@@ -258,7 +336,6 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
 	size_t allocated, slot;
 	int64_t maxorder;
 	char *config;
-	const char *filecfg[] = { WT_CONFIG_BASE(session, file_meta), NULL };
 
 	*ckptbasep = NULL;
 
@@ -311,8 +388,9 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
 				maxorder = ckpt->order;
 		ckpt->order = maxorder + 1;
 		__wt_seconds(session, &ckpt->sec);
-		WT_ERR(__wt_config_discard_defaults(
-		    session, filecfg, config, NULL, &ckpt->metadata));
+
+		WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
+
 		F_SET(ckpt, WT_CKPT_ADD);
 	}
 
@@ -462,7 +540,8 @@ __ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 	 * If checkpointing the metadata file, update its write generation to
 	 * be the maximum we've seen.
 	 */
-	if (WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
+	if (session->dhandle != NULL &&
+	    WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
 		ckpt->write_gen = v;
 }
 
@@ -560,7 +639,7 @@ __wt_meta_ckptlist_set(WT_SESSION_IMPL *session,
 		    ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
 		    ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
-	WT_ERR(__wt_meta_checkpoint_set(session, fname, buf->mem));
+	WT_ERR(__ckpt_set(session, fname, buf->mem));
 
 	/* Review the checkpoint's write generation. */
 	WT_CKPT_FOREACH(ckptbase, ckpt)

@@ -296,6 +296,7 @@ wtbin = env.Program("wt", [
     "src/utilities/util_downgrade.c",
     "src/utilities/util_drop.c",
     "src/utilities/util_dump.c",
+    "src/utilities/util_import.c",
     "src/utilities/util_list.c",
     "src/utilities/util_load.c",
     "src/utilities/util_load_json.c",

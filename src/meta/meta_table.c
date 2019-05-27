@@ -206,7 +206,6 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
 int
 __wt_metadata_update(
     WT_SESSION_IMPL *session, const char *key, const char *value)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -242,7 +241,6 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
  */
 int
 __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -284,7 +282,6 @@ err:	WT_TRET(__wt_metadata_cursor_release(session, &cursor));
  */
 int
 __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;

@@ -546,7 +546,6 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
 	{ "dump_layout", "boolean", NULL, NULL, NULL, 0 },
 	{ "dump_offsets", "list", NULL, NULL, NULL, 0 },
 	{ "dump_pages", "boolean", NULL, NULL, NULL, 0 },
-	{ "load_checkpoints", "boolean", NULL, NULL, NULL, 0 },
 	{ "strict", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -1418,6 +1417,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "remove_files=true",
 	  confchk_WT_SESSION_drop, 4
 	},
+	{ "WT_SESSION.import",
+	  "",
+	  NULL, 0
+	},
 	{ "WT_SESSION.join",
 	  "bloom_bit_count=16,bloom_false_positives=false,"
 	  "bloom_hash_count=8,compare=\"eq\",count=,operation=\"and\","
@@ -1499,9 +1502,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	},
 	{ "WT_SESSION.verify",
 	  "dump_address=false,dump_blocks=false,dump_layout=false,"
-	  "dump_offsets=,dump_pages=false,load_checkpoints=false,"
-	  "strict=false",
-	  confchk_WT_SESSION_verify, 7
+	  "dump_offsets=,dump_pages=false,strict=false",
+	  confchk_WT_SESSION_verify, 6
 	},
 	{ "colgroup.meta",
 	  "app_metadata=,collator=,columns=,source=,type=file",

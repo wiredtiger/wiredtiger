@@ -210,7 +210,6 @@ err:	__wt_scr_free(session, &tmp);
 int
 __wt_open(WT_SESSION_IMPL *session,
     const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -257,7 +256,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	}
 
 	/* Create the path to the file. */
-	if (!LF_ISSET(WT_FS_OPEN_FIXED))
+	if (!__wt_absolute_path(name) && !LF_ISSET(WT_FS_OPEN_FIXED))
 		WT_ERR(__wt_filename(session, name, &path));
 
 	/* Call the underlying open function. */
@@ -327,7 +326,6 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
  */
 int
 __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;

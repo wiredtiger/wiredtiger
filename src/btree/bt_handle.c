@@ -335,6 +335,44 @@ __wt_btree_discard(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_btree_config_encryptor --
+ *	Return an encryptor handle based on the configuration.
+ */
+int
+__wt_btree_config_encryptor(WT_SESSION_IMPL *session,
+    const char **cfg, WT_KEYED_ENCRYPTOR **kencryptorp)
+{
+	WT_CONFIG_ITEM cval, enc, keyid;
+	WT_DECL_RET;
+	const char *enc_cfg[] = { NULL, NULL };
+
+	/*
+	 * We do not use __wt_config_gets_none here because "none" and the empty
+	 * string have different meanings. The empty string means inherit the
+	 * system encryption setting and "none" means this table is in the clear
+	 * even if the database is encrypted.
+	 */
+	WT_RET(__wt_config_gets(session, cfg, "encryption.name", &cval));
+	if (cval.len == 0)
+		*kencryptorp = S2C(session)->kencryptor;
+	else if (WT_STRING_MATCH("none", cval.str, cval.len))
+		*kencryptorp = NULL;
+	else {
+		WT_RET(__wt_config_gets_none(
+		    session, cfg, "encryption.keyid", &keyid));
+		WT_RET(__wt_config_gets(session, cfg, "encryption", &enc));
+		if (enc.len != 0)
+			WT_RET(__wt_strndup(session, enc.str, enc.len,
+			    &enc_cfg[0]));
+		ret = __wt_encryptor_config(session, &cval, &keyid,
+		    (WT_CONFIG_ARG *)enc_cfg, kencryptorp);
+		__wt_free(session, enc_cfg[0]);
+		WT_RET(ret);
+	}
+	return (0);
+}
+
+/*
  * __btree_conf --
  *	Configure a WT_BTREE structure.
  */
@@ -342,12 +380,11 @@ static int
 __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 {
 	WT_BTREE *btree;
-	WT_CONFIG_ITEM cval, enc, keyid, metadata;
+	WT_CONFIG_ITEM cval, metadata;
 	WT_CONNECTION_IMPL *conn;
-	WT_DECL_RET;
 	int64_t maj_version, min_version;
 	uint32_t bitcnt;
-	const char **cfg, *enc_cfg[] = { NULL, NULL };
+	const char **cfg;
 	bool fixed;
 
 	btree = S2BT(session);
@@ -559,29 +596,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		}
 	}
 
-	/*
-	 * We do not use __wt_config_gets_none here because "none" and the empty
-	 * string have different meanings. The empty string means inherit the
-	 * system encryption setting and "none" means this table is in the clear
-	 * even if the database is encrypted.
-	 */
-	WT_RET(__wt_config_gets(session, cfg, "encryption.name", &cval));
-	if (cval.len == 0)
-		btree->kencryptor = conn->kencryptor;
-	else if (WT_STRING_MATCH("none", cval.str, cval.len))
-		btree->kencryptor = NULL;
-	else {
-		WT_RET(__wt_config_gets_none(
-		    session, cfg, "encryption.keyid", &keyid));
-		WT_RET(__wt_config_gets(session, cfg, "encryption", &enc));
-		if (enc.len != 0)
-			WT_RET(__wt_strndup(session, enc.str, enc.len,
-			    &enc_cfg[0]));
-		ret = __wt_encryptor_config(session, &cval, &keyid,
-		    (WT_CONFIG_ARG *)enc_cfg, &btree->kencryptor);
-		__wt_free(session, enc_cfg[0]);
-		WT_RET(ret);
-	}
+	/* Configure encryption. */
+	WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
 
 	/* Initialize locks. */
 	WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));

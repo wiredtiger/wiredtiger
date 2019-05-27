@@ -253,7 +253,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * may grow the buffer.
 	 */
 	if (block->final)
-		WT_RET(__wt_block_checkpoint_info_set(
+		WT_RET(__wt_block_checkpoint_final(
 		    session, block, buf, &file_sizep));
 
 	/*

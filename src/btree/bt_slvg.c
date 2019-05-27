@@ -168,7 +168,6 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 	WT_DATA_HANDLE *dhandle;
 	WT_DECL_RET;
 	char *config;
-	const char *filecfg[] = { WT_CONFIG_BASE(session, file_meta), NULL };
 
 	btree = S2BT(session);
 	dhandle = session->dhandle;
@@ -194,8 +193,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 	ckptbase->order = 1;
 	__wt_seconds(session, &ckptbase->sec);
 	WT_ERR(__wt_metadata_search(session, dhandle->name, &config));
-	WT_ERR(__wt_config_discard_defaults(
-	    session, filecfg, config, NULL, &ckptbase->metadata));
+	WT_ERR(__wt_meta_block_metadata(session, config, ckptbase));
 	ckptbase->newest_durable_ts = WT_TS_NONE;
 	ckptbase->oldest_start_ts = WT_TS_NONE;
 	ckptbase->oldest_start_txn = WT_TXN_NONE;

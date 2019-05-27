@@ -337,13 +337,12 @@ wts_init(void)
 
 	CONFIG_APPEND(p,
 	    "key_format=%s"
-	    ",allocation_size=%" PRIu32
+	    ",allocation_size=512"
 	    ",%s"
 	    ",internal_page_max=%" PRIu32
 	    ",leaf_page_max=%" PRIu32
 	    ",memory_page_max=%" PRIu32,
 	    (g.type == ROW) ? "u" : "r",
-	    g.allocation_size,
 	    g.c_firstfit ? "block_allocation=first" : "",
 	    g.intl_page_max, g.leaf_page_max, MEGABYTE(g.c_memory_page_max));
 

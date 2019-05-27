@@ -404,17 +404,10 @@ The \c verify command verifies the specified table, exiting success if
 the data source is correct, and failure if the data source is corrupted.
 
 @subsection util_verify_synopsis Synopsis
-<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] verify [-F] uri</code>
+<code>wt [-RVv] [-C config] [-E secretkey ] [-h directory] verify uri</code>
 
 @subsection util_verify_options Options
-The following are command-specific options for the \c verify command:
-
-@par <code>-F</code>
-The \c -F option supports verification of standalone WiredTiger files. The
-\c uri argument is a filesystem path for the file being verified, and
-must be an absolute (not relative), path. In this mode, once verify has
-completed successfully, an up-to-date metadata entry for the file will
-be written to standard output.
+The \c verify command has no command-specific options.
 
 <hr>
 @section util_write wt write
