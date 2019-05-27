@@ -730,6 +730,8 @@ dsrc_stats = [
     CompressStat('compress_write', 'compressed pages written'),
     CompressStat('compress_write_fail', 'page written failed to compress'),
     CompressStat('compress_write_too_small', 'page written was too small to compress'),
+    CompressStat('compress_precomp_leaf_maximum_page_size', 'pre-compressed maximum size for leaf pages', 'no_clear,no_scale,size'),
+    CompressStat('compress_precomp_intl_maximum_page_size', 'pre-compressed maximum size for internal pages', 'no_clear,no_scale,size'),
 
     ##########################################
     # Cursor operations

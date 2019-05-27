@@ -829,6 +829,8 @@ struct __wt_dsrc_stats {
 	int64_t compress_write;
 	int64_t compress_write_fail;
 	int64_t compress_write_too_small;
+	int64_t compress_precomp_intl_maximum_page_size;
+	int64_t compress_precomp_leaf_maximum_page_size;
 	int64_t cursor_insert_bulk;
 	int64_t cursor_reopen;
 	int64_t cursor_cache;
