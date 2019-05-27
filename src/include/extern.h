@@ -242,7 +242,7 @@ extern void __wt_conn_foc_discard(WT_SESSION_IMPL *session);
 extern int __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *uri, const char *config, const char *type, const char *check) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_check(WT_SESSION_IMPL *session, const WT_CONFIG_ENTRY *entry, const char *config, size_t config_len) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_config_discard_defaults(WT_SESSION_IMPL *session, const char **cfg, const char *config, const char *strip, char **config_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_config_discard_defaults(WT_SESSION_IMPL *session, const char **cfg, const char *config, char **config_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_merge(WT_SESSION_IMPL *session, const char **cfg, const char *cfg_strip, const char **config_ret) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_config_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_conn_config_discard(WT_SESSION_IMPL *session);

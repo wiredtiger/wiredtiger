@@ -89,11 +89,10 @@ err:	__wt_scr_free(session, &tmp);
  * default values. It takes a NULL-terminated list of configuration strings, the
  * defaults, and a configuration string, and copies into allocated memory the
  * strings from the configuration string that aren't the same as the defaults.
- * It also optionally strips out strings that aren't wanted.
  */
 int
 __wt_config_discard_defaults(WT_SESSION_IMPL *session,
-    const char **cfg, const char *config, const char *strip, char **config_ret)
+    const char **cfg, const char *config, char **config_ret)
 {
 	WT_CONFIG cparser;
 	WT_CONFIG_ITEM k, v, vtmp;
@@ -114,11 +113,6 @@ __wt_config_discard_defaults(WT_SESSION_IMPL *session,
 		    k.type != WT_CONFIG_ITEM_ID)
 			WT_ERR_MSG(session, EINVAL,
 			    "Invalid configuration key found: '%s'", k.str);
-
-		/* Optionally strip configuration entirely. */
-		if (strip != NULL &&
-		    __wt_config_getone(session, strip, &k, &vtmp) == 0)
-			continue;
 
 		/*
 		 * Get the default value. There isn't a default value in some

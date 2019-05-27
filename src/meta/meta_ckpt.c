@@ -260,7 +260,7 @@ __wt_meta_block_metadata(
 	 * Get a minimal configuration string, just the non-default entries.
 	 */
 	WT_ERR(__wt_config_discard_defaults(
-	    session, filecfg, config, NULL, &min_config));
+	    session, filecfg, config, &min_config));
 
 	/* Fill out the configuration array for normal retrieval. */
 	filecfg[1] = config;
