@@ -272,7 +272,6 @@ struct __wt_block {
 
 	bool		 final;		/* Final live checkpoint write */
 	WT_CKPT		*final_ckpt;	/* Final checkpoint */
-	uint64_t	 final_count;	/* Final durable counter */
 
 				/* Compaction support */
 	int	 compact_pct_tenths;	/* Percent to compact */

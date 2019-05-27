@@ -1174,7 +1174,6 @@ __wt_block_extlist_read(WT_SESSION_IMPL *session,
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	wt_off_t off, size;
-	uint64_t live_count;
 	int (*func)(
 	    WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
 	const uint8_t *p;
@@ -1228,20 +1227,6 @@ corrupted:		__wt_scr_free(session, &tmp);
 		}
 
 		WT_ERR(func(session, block, el, off, size));
-	}
-
-	/*
-	 * Check for appended checkpoint information, specifically, a checkpoint
-	 * counter. If the checkpoint counter goes backward in time, we'd choose
-	 * the wrong checkpoints when recovering standalone files. To make sure
-	 * that never happens, update our counter as necessary whenever we read
-	 * an avail list. This is safe because it's not possible to open a file
-	 * without reading a checkpoint avail list.
-	 */
-	if (size == WT_BLOCK_EXTLIST_VERSION_CKPT) {
-		WT_ERR(__wt_vunpack_uint(&p, 0, &live_count));
-		if (live_count > block->final_count)
-			block->final_count = live_count;
 	}
 
 	WT_ERR(__block_extlist_dump(session, block, el, "read"));

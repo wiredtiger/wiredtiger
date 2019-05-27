@@ -64,11 +64,23 @@ __wt_block_checkpoint_final(WT_SESSION_IMPL *session,
 	 * First, add in a counter to uniquely order checkpoints at our level.
 	 * There's order and time information in the checkpoint itself, but the
 	 * order isn't written and the time is only at second granularity.
+	 *	I'm using the Btree write generation for this purpose. That's
+	 * safe and guaranteed correct because everything is locked down for the
+	 * checkpoint, we're the only writer. Plus, because we use the write
+	 * generation as a database connection generation, it's guaranteed to
+	 * move forward and never repeat.
+	 *	It's a layering violation though, this is the only place the
+	 * block manager uses the write generation. The alternative would be to
+	 * add our own write-generation scheme in the block manager, storing a
+	 * value and recovering it when we open the file. We could do that, as
+	 * reading the final avail list when a file is opened is unavoidable,
+	 * so we can retrieve the value written here when we open the file, but
+	 * this approach is simpler.
 	 */
 	size = buf->size + WT_INTPACK64_MAXSIZE;
 	WT_RET(__wt_buf_extend(session, buf, size));
 	p = (uint8_t *)buf->mem + buf->size;
-	WT_RET(__wt_vpack_uint(&p, 0, ++block->final_count));
+	WT_RET(__wt_vpack_uint(&p, 0, ++S2BT(session)->write_gen));
 	buf->size = WT_PTRDIFF(p, buf->mem);
 
 	/*
@@ -127,7 +139,7 @@ __wt_block_checkpoint_final(WT_SESSION_IMPL *session,
 }
 
 struct saved_block_info {
-	uint64_t live_counter;
+	uint64_t write_gen;
 	wt_off_t offset;
 	uint32_t size;
 	uint32_t checksum;
@@ -195,7 +207,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 	WT_FH *fh;
 	const WT_PAGE_HEADER *dsk;
 	wt_off_t ext_off, ext_size, offset;
-	uint64_t len, live_counter, nblocks;
+	uint64_t len, nblocks, write_gen;
 	uint32_t checksum, size;
 	const uint8_t *p, *t;
 
@@ -205,7 +217,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 
 	ext_off = 0;			/* [-Werror=maybe-uninitialized] */
 	ext_size = 0;
-	len = live_counter = 0;
+	len = write_gen = 0;
 
 	F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
@@ -282,15 +294,16 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 		 * Skip any entries that aren't the most recent we've seen so
 		 * far.
 		 */
-		WT_BLOCK_SKIP(__wt_vunpack_uint(&p, 0, &live_counter));
-		if (live_counter < saved.live_counter)
+		WT_BLOCK_SKIP(__wt_vunpack_uint(&p, 0, &write_gen));
+		if (write_gen < saved.write_gen)
 			continue;
 
 		__wt_verbose(session, WT_VERB_CHECKPOINT,
-		    "scan: checkpoint block #%" PRIu64 " at %" PRIuMAX,
-		    live_counter, (uintmax_t)offset);
+		    "scan: checkpoint block at offset %" PRIuMAX
+		    ", generation #%" PRIu64,
+		    (uintmax_t)offset, write_gen);
 
-		saved.live_counter = live_counter;
+		saved.write_gen = write_gen;
 		saved.offset = offset;
 		saved.size = size;
 		saved.checksum = checksum;
