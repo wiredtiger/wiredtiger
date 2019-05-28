@@ -66,7 +66,7 @@ main(int argc, char *argv[])
 	runs = 1;
 
 	while ((ch = __wt_getopt(
-	    progname, argc, argv, "C:c:h:k:l:n:pr:T:t:wW:")) != EOF)
+	    progname, argc, argv, "C:c:h:k:l:n:pr:sT:t:W:")) != EOF)
 		switch (ch) {
 		case 'c':
 			g.checkpoint_name = __wt_optarg;
@@ -96,6 +96,9 @@ main(int argc, char *argv[])
 		case 'r':			/* runs */
 			runs = atoi(__wt_optarg);
 			break;
+		case 's':
+			g.sweep_stress = true;
+			break;
 		case 't':
 			switch (__wt_optarg[0]) {
 			case 'c':
@@ -116,9 +119,6 @@ main(int argc, char *argv[])
 			break;
 		case 'T':
 			g.ntables = atoi(__wt_optarg);
-			break;
-		case 'w':
-			g.sweep_stress = true;
 			break;
 		case 'W':
 			g.nworkers = atoi(__wt_optarg);
