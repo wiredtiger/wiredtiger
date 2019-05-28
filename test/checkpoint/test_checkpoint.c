@@ -66,7 +66,7 @@ main(int argc, char *argv[])
 	runs = 1;
 
 	while ((ch = __wt_getopt(
-	    progname, argc, argv, "C:c:h:k:l:n:pr:sT:t:W:")) != EOF)
+	    progname, argc, argv, "C:c:h:k:l:n:r:sT:t:W:x")) != EOF)
 		switch (ch) {
 		case 'c':
 			g.checkpoint_name = __wt_optarg;
@@ -89,9 +89,6 @@ main(int argc, char *argv[])
 			break;
 		case 'n':			/* operations */
 			g.nops = (u_int)atoi(__wt_optarg);
-			break;
-		case 'p':
-			g.use_timestamps = true;
 			break;
 		case 'r':			/* runs */
 			runs = atoi(__wt_optarg);
@@ -122,6 +119,9 @@ main(int argc, char *argv[])
 			break;
 		case 'W':
 			g.nworkers = atoi(__wt_optarg);
+			break;
+		case 'x':
+			g.use_timestamps = true;
 			break;
 		default:
 			return (usage());

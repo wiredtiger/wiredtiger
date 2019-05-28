@@ -65,7 +65,7 @@ typedef struct {
 	int status;				/* Exit status */
 	bool sweep_stress;			/* Sweep stress test */
 	u_int ts;				/* Current timestamp */
-	bool use_timestamps;			/* Use timestamps */
+	bool use_timestamps;			/* Use txn timestamps */
 	COOKIE *cookies;			/* Per-thread info */
 	WT_RWLOCK clock_lock;			/* Clock synchronization */
 	wt_thread_t checkpoint_thread;		/* Checkpoint thread */
