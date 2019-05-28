@@ -43,11 +43,13 @@ static int verify_consistency(WT_SESSION *, bool);
 void
 start_checkpoints(void)
 {
-	testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
 	testutil_check(__wt_thread_create(NULL,
 	    &g.checkpoint_thread, checkpointer, NULL));
-	testutil_check(__wt_thread_create(NULL,
-	    &g.clock_thread, clock_thread, NULL));
+	if (g.use_timestamps) {
+		testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
+		testutil_check(__wt_thread_create(NULL,
+		    &g.clock_thread, clock_thread, NULL));
+	}
 }
 
 /*
@@ -58,8 +60,10 @@ void
 end_checkpoints(void)
 {
 	testutil_check(__wt_thread_join(NULL, &g.checkpoint_thread));
-	testutil_check(__wt_thread_join(NULL, &g.clock_thread));
-	__wt_rwlock_destroy(NULL, &g.clock_lock);
+	if (g.use_timestamps) {
+		testutil_check(__wt_thread_join(NULL, &g.clock_thread));
+		__wt_rwlock_destroy(NULL, &g.clock_lock);
+	}
 }
 
 /*
@@ -166,7 +170,8 @@ real_checkpointer(void)
 			return (log_print_err(
 			    "verify_consistency (offline)", ret, 1));
 
-		__wt_sleep(5, 0);
+		if (g.sweep_stress)
+			__wt_sleep(5, 0);
 	}
 
 done:	if ((ret = session->close(session, NULL)) != 0)

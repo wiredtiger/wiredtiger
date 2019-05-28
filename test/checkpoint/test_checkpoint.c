@@ -62,10 +62,11 @@ main(int argc, char *argv[])
 	g.nops = 100000;
 	g.ntables = 3;
 	g.nworkers = 1;
+	g.sweep_stress = g.use_timestamps = false;
 	runs = 1;
 
 	while ((ch = __wt_getopt(
-	    progname, argc, argv, "C:c:h:k:l:n:r:T:t:W:")) != EOF)
+	    progname, argc, argv, "C:c:h:k:l:n:pr:T:t:wW:")) != EOF)
 		switch (ch) {
 		case 'c':
 			g.checkpoint_name = __wt_optarg;
@@ -88,6 +89,9 @@ main(int argc, char *argv[])
 			break;
 		case 'n':			/* operations */
 			g.nops = (u_int)atoi(__wt_optarg);
+			break;
+		case 'p':
+			g.use_timestamps = true;
 			break;
 		case 'r':			/* runs */
 			runs = atoi(__wt_optarg);
@@ -113,6 +117,9 @@ main(int argc, char *argv[])
 		case 'T':
 			g.ntables = atoi(__wt_optarg);
 			break;
+		case 'w':
+			g.sweep_stress = true;
+			break;
 		case 'W':
 			g.nworkers = atoi(__wt_optarg);
 			break;
@@ -130,7 +137,6 @@ main(int argc, char *argv[])
 	testutil_work_dir_from_path(g.home, 512, working_dir);
 
 	printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
-
 	for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
 		cleanup(cnt == 1);		/* Clean up previous runs */
 
@@ -192,15 +198,28 @@ wt_connect(const char *config_open)
 	int ret;
 	char config[512];
 
-	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "create,cache_cursors=false,statistics=(fast),"		\
-	    "statistics_log=(json,wait=1),error_prefix=\"%s\","		\
-	    "file_manager=(close_handle_minimum=1,close_idle_time=1,"	\
-	    "close_scan_interval=1),log=(enabled),cache_size=1GB,"	\
-	    "timing_stress_for_test=(aggressive_sweep)%s%s",
-	    progname,
-	    config_open == NULL ? "" : ",",
-	    config_open == NULL ? "" : config_open));
+	/*
+	 * If we want to stress sweep, we have a lot of additional
+	 * configuration settings to set.
+	 */
+	if (g.sweep_stress)
+		testutil_check(__wt_snprintf(config, sizeof(config),
+		    "create,cache_cursors=false,statistics=(fast),"	\
+		    "statistics_log=(json,wait=1),error_prefix=\"%s\","	\
+		    "file_manager=(close_handle_minimum=1,close_idle_time=1,"\
+		    "close_scan_interval=1),log=(enabled),cache_size=1GB,"\
+		    "timing_stress_for_test=(aggressive_sweep)%s%s",
+		    progname,
+		    config_open == NULL ? "" : ",",
+		    config_open == NULL ? "" : config_open));
+	else
+		testutil_check(__wt_snprintf(config, sizeof(config),
+		    "create,cache_cursors=false,statistics=(fast),"	\
+		    "statistics_log=(json,wait=1),error_prefix=\"%s\""	\
+		    "%s%s",
+		    progname,
+		    config_open == NULL ? "" : ",",
+		    config_open == NULL ? "" : config_open));
 
 	if ((ret = wiredtiger_open(
 	    g.home, &event_handler, config, &g.conn)) != 0)

@@ -41,12 +41,21 @@ create_table(WT_SESSION *session, COOKIE *cookie)
 	int ret;
 	char config[256];
 
-	testutil_check(__wt_snprintf(config, sizeof(config),
-	    "key_format=%s,value_format=S,allocation_size=512,"		\
-	    "leaf_page_max=1KB,internal_page_max=1KB,"			\
-	    "memory_page_max=64KB,log=(enabled=false),%s",
-	    cookie->type == COL ? "r" : "q",
-	    cookie->type == LSM ? ",type=lsm" : ""));
+	/*
+	 * If we're using timestamps, turn off logging for the table.
+	 */
+	if (g.use_timestamps)
+		testutil_check(__wt_snprintf(config, sizeof(config),
+		    "key_format=%s,value_format=S,allocation_size=512,"	\
+		    "leaf_page_max=1KB,internal_page_max=1KB,"		\
+		    "memory_page_max=64KB,log=(enabled=false),%s",
+		    cookie->type == COL ? "r" : "q",
+		    cookie->type == LSM ? ",type=lsm" : ""));
+	else
+		testutil_check(__wt_snprintf(config, sizeof(config),
+		    "key_format=%s,value_format=S,%s",
+		    cookie->type == COL ? "r" : "q",
+		    cookie->type == LSM ? ",type=lsm" : ""));
 
 	if ((ret = session->create(session, cookie->uri, config)) != 0)
 		if (ret != EEXIST)
@@ -162,14 +171,16 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 				return (log_print_err("cursor.next", ret, 1));
 			}
 		}
-		testutil_check(cursor->reset(cursor));
+		if (g.sweep_stress)
+			testutil_check(cursor->reset(cursor));
 	} else if (new_val % 39 < 10) {
 		if ((ret = cursor->search(cursor)) != 0 && ret != WT_NOTFOUND) {
 			if (ret == WT_ROLLBACK)
 				return (WT_ROLLBACK);
 			return (log_print_err("cursor.search", ret, 1));
 		}
-		testutil_check(cursor->reset(cursor));
+		if (g.sweep_stress)
+			testutil_check(cursor->reset(cursor));
 	} else {
 		testutil_check(__wt_snprintf(
 		    valuebuf, sizeof(valuebuf), "%052u", new_val));
@@ -215,7 +226,7 @@ real_worker(void)
 	WT_SESSION *session;
 	u_int i, keyno;
 	int j, ret, t_ret;
-	char buf[128];
+	char *begin_cfg, buf[128];
 	bool has_cursors;
 
 	ret = t_ret = 0;
@@ -240,15 +251,20 @@ real_worker(void)
 		}
 	has_cursors = true;
 
+	if (g.use_timestamps)
+		begin_cfg = "read_timestamp=1,roundup_timestamps=(read=true)";
+	else
+		begin_cfg = NULL;
+
 	for (i = 0; i < g.nops && g.running; ++i, __wt_yield()) {
-		if ((ret = session->begin_transaction(session,
-		    "read_timestamp=1,roundup_timestamps=(read=true)")) != 0) {
+		if ((ret =
+		    session->begin_transaction(session, begin_cfg)) != 0) {
 			(void)log_print_err(
 			    "real_worker:begin_transaction", ret, 1);
 			goto err;
 		}
 		keyno = __wt_random(&rnd) % g.nkeys + 1;
-		if (i % 23 == 0) {
+		if (g.use_timestamps && i % 23 == 0) {
 			if (__wt_try_readlock(
 			    (WT_SESSION_IMPL *)session, &g.clock_lock) != 0) {
 				testutil_check(
@@ -259,10 +275,8 @@ real_worker(void)
 				has_cursors = false;
 				__wt_readlock(
 				    (WT_SESSION_IMPL *)session, &g.clock_lock);
-				testutil_check(
-				    session->begin_transaction(session,
-				    "read_timestamp=1,"
-				    "roundup_timestamps=(read=true)"));
+				testutil_check(session->begin_transaction(
+				    session, begin_cfg));
 			}
 			testutil_check(__wt_snprintf(
 			    buf, sizeof(buf), "commit_timestamp=%x", g.ts + 1));
