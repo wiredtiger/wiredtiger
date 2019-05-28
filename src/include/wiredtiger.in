@@ -6207,9 +6207,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache_walk or all statistics are enabled
  */
 #define	WT_STAT_DSRC_CACHE_STATE_PAGES			2100
-/*! compression: compressed page pre-compressed internal max size */
+/*!
+ * compression: compressed page maximum internal page size prior to
+ * compression
+ */
 #define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2101
-/*! compression: compressed page pre-compressed leaf max size */
+/*!
+ * compression: compressed page maximum leaf page size prior to
+ * compression
+ */
 #define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2102
 /*! compression: compressed pages read */
 #define	WT_STAT_DSRC_COMPRESS_READ			2103
