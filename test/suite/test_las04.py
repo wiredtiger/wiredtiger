@@ -40,8 +40,8 @@ class test_las04(wttest.WiredTigerTestCase):
     uri = 'table:las_04'
     in_memory_values = [
         ('false', dict(in_memory=False)),
-        ('true', dict(in_memory=True)),
-        ('none', dict(in_memory=None))
+        ('none', dict(in_memory=None)),
+        ('true', dict(in_memory=True))
     ]
     init_file_max_values = [
         ('default', dict(init_file_max=None, init_stat_val=0)),
@@ -75,6 +75,8 @@ class test_las04(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         if self.in_memory:
+            # For in-memory configurations, we simply ignore any lookaside
+            # related configuration.
             self.assertEqual(
                 self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
                 0)
