@@ -77,6 +77,9 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 
 	/* This is expected for in-memory configurations. */
 	las_session = S2C(session)->cache->las_session[0];
+	WT_ASSERT(session,
+	    las_session != NULL || F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
+
 	if (las_session == NULL)
 		return (0);
 
