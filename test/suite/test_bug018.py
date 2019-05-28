@@ -92,7 +92,6 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
         subdir = 'SUBPROCESS'
         [ignore_result, new_home_dir] = self.run_subprocess_function(subdir,
             'test_bug018.test_bug018.subprocess_bug018')
-        #os.system('ls -R ' + new_home_dir + '>/dev/tty')
 
         # Make a backup for forensics in case something goes wrong.
         backup_dir = 'BACKUP'
@@ -106,7 +105,6 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
         c2 = self.session.open_cursor(self.uri2)
         results1 = list(c1)
         results2 = list(c2)
-        #self.assertGreater(len(results1), 0)
         self.assertEqual(results1, results2)
 
 if __name__ == '__main__':
