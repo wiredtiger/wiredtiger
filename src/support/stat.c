@@ -104,12 +104,12 @@ static const char * const __stats_dsrc_desc[] = {
 	"cache_walk: Refs skipped during cache traversal",
 	"cache_walk: Size of the root page",
 	"cache_walk: Total number of pages currently in cache",
+	"compression: compressed page pre-compressed internal max size",
+	"compression: compressed page pre-compressed leaf max size",
 	"compression: compressed pages read",
 	"compression: compressed pages written",
 	"compression: page written failed to compress",
 	"compression: page written was too small to compress",
-	"compression: pre-compressed maximum size for internal pages",
-	"compression: pre-compressed maximum size for leaf pages",
 	"cursor: bulk loaded cursor insert calls",
 	"cursor: cache cursors reuse count",
 	"cursor: close calls that result in cache",
@@ -292,12 +292,12 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
 		/* not clearing cache_state_refs_skipped */
 		/* not clearing cache_state_root_size */
 		/* not clearing cache_state_pages */
+		/* not clearing compress_precomp_intl_max_page_size */
+		/* not clearing compress_precomp_leaf_max_page_size */
 	stats->compress_read = 0;
 	stats->compress_write = 0;
 	stats->compress_write_fail = 0;
 	stats->compress_write_too_small = 0;
-		/* not clearing compress_precomp_intl_maximum_page_size */
-		/* not clearing compress_precomp_leaf_maximum_page_size */
 	stats->cursor_insert_bulk = 0;
 	stats->cursor_reopen = 0;
 	stats->cursor_cache = 0;
@@ -481,14 +481,14 @@ __wt_stat_dsrc_aggregate_single(
 	to->cache_state_refs_skipped += from->cache_state_refs_skipped;
 	to->cache_state_root_size += from->cache_state_root_size;
 	to->cache_state_pages += from->cache_state_pages;
+	to->compress_precomp_intl_max_page_size +=
+	    from->compress_precomp_intl_max_page_size;
+	to->compress_precomp_leaf_max_page_size +=
+	    from->compress_precomp_leaf_max_page_size;
 	to->compress_read += from->compress_read;
 	to->compress_write += from->compress_write;
 	to->compress_write_fail += from->compress_write_fail;
 	to->compress_write_too_small += from->compress_write_too_small;
-	to->compress_precomp_intl_maximum_page_size +=
-	    from->compress_precomp_intl_maximum_page_size;
-	to->compress_precomp_leaf_maximum_page_size +=
-	    from->compress_precomp_leaf_maximum_page_size;
 	to->cursor_insert_bulk += from->cursor_insert_bulk;
 	to->cursor_reopen += from->cursor_reopen;
 	to->cursor_cache += from->cursor_cache;
@@ -705,15 +705,15 @@ __wt_stat_dsrc_aggregate(
 	to->cache_state_root_size +=
 	    WT_STAT_READ(from, cache_state_root_size);
 	to->cache_state_pages += WT_STAT_READ(from, cache_state_pages);
+	to->compress_precomp_intl_max_page_size +=
+	    WT_STAT_READ(from, compress_precomp_intl_max_page_size);
+	to->compress_precomp_leaf_max_page_size +=
+	    WT_STAT_READ(from, compress_precomp_leaf_max_page_size);
 	to->compress_read += WT_STAT_READ(from, compress_read);
 	to->compress_write += WT_STAT_READ(from, compress_write);
 	to->compress_write_fail += WT_STAT_READ(from, compress_write_fail);
 	to->compress_write_too_small +=
 	    WT_STAT_READ(from, compress_write_too_small);
-	to->compress_precomp_intl_maximum_page_size +=
-	    WT_STAT_READ(from, compress_precomp_intl_maximum_page_size);
-	to->compress_precomp_leaf_maximum_page_size +=
-	    WT_STAT_READ(from, compress_precomp_leaf_maximum_page_size);
 	to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
 	to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
 	to->cursor_cache += WT_STAT_READ(from, cursor_cache);

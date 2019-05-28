@@ -6207,18 +6207,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache_walk or all statistics are enabled
  */
 #define	WT_STAT_DSRC_CACHE_STATE_PAGES			2100
+/*! compression: compressed page pre-compressed internal max size */
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2101
+/*! compression: compressed page pre-compressed leaf max size */
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2102
 /*! compression: compressed pages read */
-#define	WT_STAT_DSRC_COMPRESS_READ			2101
+#define	WT_STAT_DSRC_COMPRESS_READ			2103
 /*! compression: compressed pages written */
-#define	WT_STAT_DSRC_COMPRESS_WRITE			2102
+#define	WT_STAT_DSRC_COMPRESS_WRITE			2104
 /*! compression: page written failed to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2103
+#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2105
 /*! compression: page written was too small to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2104
-/*! compression: pre-compressed maximum size for internal pages */
-#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAXIMUM_PAGE_SIZE	2105
-/*! compression: pre-compressed maximum size for leaf pages */
-#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAXIMUM_PAGE_SIZE	2106
+#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2106
 /*! cursor: bulk loaded cursor insert calls */
 #define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2107
 /*! cursor: cache cursors reuse count */

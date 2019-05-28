@@ -825,12 +825,12 @@ struct __wt_dsrc_stats {
 	int64_t cache_state_refs_skipped;
 	int64_t cache_state_root_size;
 	int64_t cache_state_pages;
+	int64_t compress_precomp_intl_max_page_size;
+	int64_t compress_precomp_leaf_max_page_size;
 	int64_t compress_read;
 	int64_t compress_write;
 	int64_t compress_write_fail;
 	int64_t compress_write_too_small;
-	int64_t compress_precomp_intl_maximum_page_size;
-	int64_t compress_precomp_leaf_maximum_page_size;
 	int64_t cursor_insert_bulk;
 	int64_t cursor_reopen;
 	int64_t cursor_cache;
