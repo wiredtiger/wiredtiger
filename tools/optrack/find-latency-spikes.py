@@ -463,7 +463,7 @@ def createLegendFigure(legendDict):
 
     p = figure(title="TRACKED FUNCTIONS",
                plot_width=plotWidth,
-               plot_height = max((max_ycoord + 2) * pixelsForLegendItem, 90),
+               plot_height = int(max((max_ycoord + 2) * pixelsForLegendItem, 90)),
                tools = [], toolbar_location="above",
                x_range = (0, (FUNCS_PER_ROW + 1)* HSPACE_BETWEEN_FUNCS),
                y_range = (0, max_ycoord + 2),
