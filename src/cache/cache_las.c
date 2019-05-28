@@ -75,11 +75,15 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
 		    "max cache overflow size %" PRId64 " below minimum %d",
 		    cval.val, WT_LAS_FILE_MIN);
 
+	/* This is expected for in-memory configurations. */
+	las_session = S2C(session)->cache->las_session[0];
+	if (las_session == NULL)
+		return (0);
+
 	/*
 	 * We need to set file_max on the btree associated with one of the
 	 * lookaside sessions.
 	 */
-	las_session = S2C(session)->cache->las_session[0];
 	las_cursor = (WT_CURSOR_BTREE *)las_session->las_cursor;
 	las_cursor->btree->file_max = (uint64_t)cval.val;
 
