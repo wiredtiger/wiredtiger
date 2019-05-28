@@ -73,12 +73,15 @@ end_checkpoints(void)
 static WT_THREAD_RET
 clock_thread(void *arg)
 {
+	WT_RAND_STATE rnd;
 	WT_SESSION *wt_session;
 	WT_SESSION_IMPL *session;
+	uint64_t delay;
 	char buf[128];
 
 	WT_UNUSED(arg);
 
+	__wt_random_init(&rnd);
 	testutil_check(g.conn->open_session(g.conn, NULL, NULL, &wt_session));
 	session = (WT_SESSION_IMPL *)wt_session;
 
@@ -90,10 +93,19 @@ clock_thread(void *arg)
 		    buf, sizeof(buf),
 		    "oldest_timestamp=%x,stable_timestamp=%x", g.ts, g.ts));
 		testutil_check(g.conn->set_timestamp(g.conn, buf));
-		if (g.ts % 997 == 0)
-			__wt_sleep(10, 0);
+		if (g.ts % 997 == 0) {
+			/*
+			 * Random value between 6 and 10 seconds.
+			 */
+			delay = __wt_random(&rnd) % 5;
+			__wt_sleep(delay + 6, 0);
+		}
 		__wt_writeunlock(session, &g.clock_lock);
-		__wt_sleep(0, 10000);
+		/*
+		 * Random value between 5000 and 10000.
+		 */
+		delay = __wt_random(&rnd) % 5001;
+		__wt_sleep(0, delay + 5000);
 	}
 
 	testutil_check(wt_session->close(wt_session, NULL));
@@ -127,7 +139,9 @@ checkpointer(void *arg)
 static int
 real_checkpointer(void)
 {
+	WT_RAND_STATE rnd;
 	WT_SESSION *session;
+	uint64_t delay;
 	int ret;
 	char buf[128], *checkpoint_config;
 
@@ -135,6 +149,7 @@ real_checkpointer(void)
 		return (log_print_err(
 		    "Checkpoint thread started stopped\n", EINVAL, 1));
 
+	__wt_random_init(&rnd);
 	while (g.ntables > g.ntables_created)
 		__wt_yield();
 
@@ -170,8 +185,13 @@ real_checkpointer(void)
 			return (log_print_err(
 			    "verify_consistency (offline)", ret, 1));
 
-		if (g.sweep_stress)
-			__wt_sleep(5, 0);
+		/*
+		 * Random value between 4 and 8 seconds.
+		 */
+		if (g.sweep_stress) {
+			delay = __wt_random(&rnd) % 5;
+			__wt_sleep(delay + 4, 0);
+		}
 	}
 
 done:	if ((ret = session->close(session, NULL)) != 0)
