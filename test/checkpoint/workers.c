@@ -226,7 +226,8 @@ real_worker(void)
 	WT_SESSION *session;
 	u_int i, keyno;
 	int j, ret, t_ret;
-	char *begin_cfg, buf[128];
+	const char *begin_cfg;
+	char buf[128];
 	bool has_cursors;
 
 	ret = t_ret = 0;
