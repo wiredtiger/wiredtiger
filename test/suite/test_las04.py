@@ -38,6 +38,11 @@ WT_MB = 1048576
 
 class test_las04(wttest.WiredTigerTestCase):
     uri = 'table:las_04'
+    in_memory_values = [
+        ('false', dict(in_memory=False)),
+        ('none', dict(in_memory=None)),
+        ('true', dict(in_memory=True))
+    ]
     init_file_max_values = [
         ('default', dict(init_file_max=None, init_stat_val=0)),
         ('non-zero', dict(init_file_max='100MB', init_stat_val=(WT_MB * 100))),
@@ -49,12 +54,15 @@ class test_las04(wttest.WiredTigerTestCase):
         ('too-low', dict(reconfig_file_max='99MB', reconfig_stat_val=None)),
         ('zero', dict(reconfig_file_max='0', reconfig_stat_val=0))
     ]
-    scenarios = make_scenarios(init_file_max_values, reconfig_file_max_values)
+    scenarios = make_scenarios(init_file_max_values, reconfig_file_max_values,
+                               in_memory_values)
 
     def conn_config(self):
         config = 'statistics=(fast)'
         if self.init_file_max is not None:
             config += ',cache_overflow=(file_max={})'.format(self.init_file_max)
+        if self.in_memory is not None:
+            config += ',in_memory=' + ('true' if self.in_memory else 'false')
         return config
 
     def get_stat(self, stat):
@@ -66,9 +74,16 @@ class test_las04(wttest.WiredTigerTestCase):
     def test_las(self):
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
-        self.assertEqual(
-            self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
-            self.init_stat_val)
+        if self.in_memory:
+            # For in-memory configurations, we simply ignore any lookaside
+            # related configuration.
+            self.assertEqual(
+                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                0)
+        else:
+            self.assertEqual(
+                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                self.init_stat_val)
 
         reconfigure = lambda: self.conn.reconfigure(
             'cache_overflow=(file_max={})'.format(self.reconfig_file_max))
@@ -82,9 +97,14 @@ class test_las04(wttest.WiredTigerTestCase):
 
         reconfigure()
 
-        self.assertEqual(
-            self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
-            self.reconfig_stat_val)
+        if self.in_memory:
+            self.assertEqual(
+                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                0)
+        else:
+            self.assertEqual(
+                self.get_stat(wiredtiger.stat.conn.cache_lookaside_ondisk_max),
+                self.reconfig_stat_val)
 
 if __name__ == '__main__':
     wttest.run()

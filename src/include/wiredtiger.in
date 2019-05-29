@@ -6227,95 +6227,105 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache_walk or all statistics are enabled
  */
 #define	WT_STAT_DSRC_CACHE_STATE_PAGES			2100
+/*!
+ * compression: compressed page maximum internal page size prior to
+ * compression
+ */
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_INTL_MAX_PAGE_SIZE	2101
+/*!
+ * compression: compressed page maximum leaf page size prior to
+ * compression
+ */
+#define	WT_STAT_DSRC_COMPRESS_PRECOMP_LEAF_MAX_PAGE_SIZE	2102
 /*! compression: compressed pages read */
-#define	WT_STAT_DSRC_COMPRESS_READ			2101
+#define	WT_STAT_DSRC_COMPRESS_READ			2103
 /*! compression: compressed pages written */
-#define	WT_STAT_DSRC_COMPRESS_WRITE			2102
+#define	WT_STAT_DSRC_COMPRESS_WRITE			2104
 /*! compression: page written failed to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2103
+#define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2105
 /*! compression: page written was too small to compress */
-#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2104
+#define	WT_STAT_DSRC_COMPRESS_WRITE_TOO_SMALL		2106
 /*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2105
+#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2107
 /*! cursor: cache cursors reuse count */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2106
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2108
 /*! cursor: close calls that result in cache */
-#define	WT_STAT_DSRC_CURSOR_CACHE			2107
+#define	WT_STAT_DSRC_CURSOR_CACHE			2109
 /*! cursor: create calls */
-#define	WT_STAT_DSRC_CURSOR_CREATE			2108
+#define	WT_STAT_DSRC_CURSOR_CREATE			2110
 /*! cursor: insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT			2109
+#define	WT_STAT_DSRC_CURSOR_INSERT			2111
 /*! cursor: insert key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2110
+#define	WT_STAT_DSRC_CURSOR_INSERT_BYTES		2112
 /*! cursor: modify */
-#define	WT_STAT_DSRC_CURSOR_MODIFY			2111
+#define	WT_STAT_DSRC_CURSOR_MODIFY			2113
 /*! cursor: modify key and value bytes affected */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2112
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES		2114
 /*! cursor: modify value bytes modified */
-#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2113
+#define	WT_STAT_DSRC_CURSOR_MODIFY_BYTES_TOUCH		2115
 /*! cursor: next calls */
-#define	WT_STAT_DSRC_CURSOR_NEXT			2114
+#define	WT_STAT_DSRC_CURSOR_NEXT			2116
 /*! cursor: open cursor count */
-#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2115
+#define	WT_STAT_DSRC_CURSOR_OPEN_COUNT			2117
 /*! cursor: operation restarted */
-#define	WT_STAT_DSRC_CURSOR_RESTART			2116
+#define	WT_STAT_DSRC_CURSOR_RESTART			2118
 /*! cursor: prev calls */
-#define	WT_STAT_DSRC_CURSOR_PREV			2117
+#define	WT_STAT_DSRC_CURSOR_PREV			2119
 /*! cursor: remove calls */
-#define	WT_STAT_DSRC_CURSOR_REMOVE			2118
+#define	WT_STAT_DSRC_CURSOR_REMOVE			2120
 /*! cursor: remove key bytes removed */
-#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2119
+#define	WT_STAT_DSRC_CURSOR_REMOVE_BYTES		2121
 /*! cursor: reserve calls */
-#define	WT_STAT_DSRC_CURSOR_RESERVE			2120
+#define	WT_STAT_DSRC_CURSOR_RESERVE			2122
 /*! cursor: reset calls */
-#define	WT_STAT_DSRC_CURSOR_RESET			2121
+#define	WT_STAT_DSRC_CURSOR_RESET			2123
 /*! cursor: search calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH			2122
+#define	WT_STAT_DSRC_CURSOR_SEARCH			2124
 /*! cursor: search near calls */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2123
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR			2125
 /*! cursor: truncate calls */
-#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2124
+#define	WT_STAT_DSRC_CURSOR_TRUNCATE			2126
 /*! cursor: update calls */
-#define	WT_STAT_DSRC_CURSOR_UPDATE			2125
+#define	WT_STAT_DSRC_CURSOR_UPDATE			2127
 /*! cursor: update key and value bytes */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2126
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES		2128
 /*! cursor: update value size change */
-#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2127
+#define	WT_STAT_DSRC_CURSOR_UPDATE_BYTES_CHANGED	2129
 /*! reconciliation: dictionary matches */
-#define	WT_STAT_DSRC_REC_DICTIONARY			2128
+#define	WT_STAT_DSRC_REC_DICTIONARY			2130
 /*! reconciliation: fast-path pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2129
+#define	WT_STAT_DSRC_REC_PAGE_DELETE_FAST		2131
 /*!
  * reconciliation: internal page key bytes discarded using suffix
  * compression
  */
-#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2130
+#define	WT_STAT_DSRC_REC_SUFFIX_COMPRESSION		2132
 /*! reconciliation: internal page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2131
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_INTERNAL		2133
 /*! reconciliation: internal-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_INTERNAL		2132
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_INTERNAL		2134
 /*! reconciliation: leaf page key bytes discarded using prefix compression */
-#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION		2133
+#define	WT_STAT_DSRC_REC_PREFIX_COMPRESSION		2135
 /*! reconciliation: leaf page multi-block writes */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2134
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_LEAF		2136
 /*! reconciliation: leaf-page overflow keys */
-#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2135
+#define	WT_STAT_DSRC_REC_OVERFLOW_KEY_LEAF		2137
 /*! reconciliation: maximum blocks required for a page */
-#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2136
+#define	WT_STAT_DSRC_REC_MULTIBLOCK_MAX			2138
 /*! reconciliation: overflow values written */
-#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2137
+#define	WT_STAT_DSRC_REC_OVERFLOW_VALUE			2139
 /*! reconciliation: page checksum matches */
-#define	WT_STAT_DSRC_REC_PAGE_MATCH			2138
+#define	WT_STAT_DSRC_REC_PAGE_MATCH			2140
 /*! reconciliation: page reconciliation calls */
-#define	WT_STAT_DSRC_REC_PAGES				2139
+#define	WT_STAT_DSRC_REC_PAGES				2141
 /*! reconciliation: page reconciliation calls for eviction */
-#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2140
+#define	WT_STAT_DSRC_REC_PAGES_EVICTION			2142
 /*! reconciliation: pages deleted */
-#define	WT_STAT_DSRC_REC_PAGE_DELETE			2141
+#define	WT_STAT_DSRC_REC_PAGE_DELETE			2143
 /*! session: object compaction */
-#define	WT_STAT_DSRC_SESSION_COMPACT			2142
+#define	WT_STAT_DSRC_SESSION_COMPACT			2144
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2143
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2145
 
 /*!
  * @}
