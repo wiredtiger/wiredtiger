@@ -228,7 +228,16 @@ __wt_txn_resolve_prepared_op(
 		WT_ERR(WT_NOTFOUND);
 	}
 
-	for (; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
+	for (; upd != NULL; upd = upd->next) {
+		/*
+		 * Aborted updates can exist in the update chain of our TXN
+		 * generally this will occur due to a reserved update.
+		 * As such we should skip over these updates, if the txn
+		 * id is then different and not aborted we know we've
+		 * reached the end of our update chain and can exit.
+		 */
+		if (upd->txnid == WT_TXN_ABORTED) continue;
+		if (upd->txnid != txn->id) break;
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
 
