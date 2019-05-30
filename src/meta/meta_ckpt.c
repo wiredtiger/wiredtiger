@@ -293,7 +293,7 @@ __wt_meta_block_metadata(
 	WT_ERR(__wt_config_gets(session, filecfg, "encryption", &cval));
 	WT_ERR(__wt_buf_fmt(session, b,
 	    "encryption=%.*s,"
-	    "block_metadata_encrypted=%s,block_metadata=\"%.*s\"",
+	    "block_metadata_encrypted=%s,block_metadata=[%.*s]",
 	    (int)cval.len, cval.str, kencryptor == NULL ? "false" : "true",
 	    (int)metadata_len, metadata));
 	WT_ERR(__wt_strndup(session, b->data, b->size, &ckpt->metadata));
