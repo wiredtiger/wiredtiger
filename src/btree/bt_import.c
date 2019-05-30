@@ -30,9 +30,9 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 	ckptbase = NULL;
 	fileconf = metadata = NULL;
 
-	WT_RET(__wt_scr_alloc(session, 0, &a));
-	WT_RET(__wt_scr_alloc(session, 0, &b));
-	WT_RET(__wt_scr_alloc(session, 0, &checkpoint));
+	WT_ERR(__wt_scr_alloc(session, 0, &a));
+	WT_ERR(__wt_scr_alloc(session, 0, &b));
+	WT_ERR(__wt_scr_alloc(session, 0, &checkpoint));
 
 	/*
 	 * Open the file, request block manager checkpoint information.
