@@ -270,6 +270,21 @@ tasks:
 
             ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/huge ${smp_command|} 2>&1
 
+  - name: import-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/import ${smp_command|} 2>&1
+
   - name: manydbs-test
     depends_on:
       - name: compile
@@ -1172,6 +1187,7 @@ buildvariants:
     - name: fops-test
     - name: format-test
     - name: huge-test
+    - name: import-test
     - name: manydbs-test
     - name: packing-test
     - name: readonly-test
