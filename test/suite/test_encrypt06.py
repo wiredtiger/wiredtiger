@@ -140,8 +140,6 @@ class test_encrypt06(wttest.WiredTigerTestCase):
 
     # Create a table, add key/values with specific lengths, then verify them.
     def test_encrypt(self):
-        if not self.match:
-            self.skipTest('test for non-matching encryption args disabled')
         name0 = 'test_encrypt06-0'
         name1 = 'test_encrypt06-1'
 
@@ -216,21 +214,40 @@ class test_encrypt06(wttest.WiredTigerTestCase):
         # Force everything to disk so we can examine it
         self.close_conn()
 
-        # Key and value names are encrypted according to the
-        # encryption level on the associated table.
-        self.assertEqual(self.visible_data(self.table0_encrypt),
-            self.match_string_in_rundir(txt0))
-        self.assertEqual(self.visible_name(self.table0_encrypt, True),
-            self.match_string_in_rundir(keyname0))
-        self.assertEqual(self.visible_name(self.table0_encrypt, False),
-            self.match_string_in_rundir(valname0))
+        if self.match:
+            # Key and value names are encrypted according to the
+            # encryption level on the associated table.
+            self.assertEqual(self.visible_data(self.table0_encrypt),
+                self.match_string_in_rundir(txt0))
+            self.assertEqual(self.visible_name(self.table0_encrypt, True),
+                self.match_string_in_rundir(keyname0))
+            self.assertEqual(self.visible_name(self.table0_encrypt, False),
+                self.match_string_in_rundir(valname0))
 
-        self.assertEqual(self.visible_data(self.table1_encrypt),
-            self.match_string_in_rundir(txt1))
-        self.assertEqual(self.visible_name(self.table1_encrypt, True),
-            self.match_string_in_rundir(keyname1))
-        self.assertEqual(self.visible_name(self.table1_encrypt, False),
-            self.match_string_in_rundir(valname1))
+            self.assertEqual(self.visible_data(self.table1_encrypt),
+                self.match_string_in_rundir(txt1))
+            self.assertEqual(self.visible_name(self.table1_encrypt, True),
+                self.match_string_in_rundir(keyname1))
+            self.assertEqual(self.visible_name(self.table1_encrypt, False),
+                self.match_string_in_rundir(valname1))
+        else:
+            # If the encryption config for indices and column groups is blank,
+            # we make a conservative check - if we specified encryption on the
+            # table, none of our data or key/value names should be exposed.
+            #
+            # If we have system encryption on, set table encryption to 'none',
+            # and set the index or column group config to blank, we technically
+            # should get no encryption for names or data. That currently
+            # doesn't work (CGs and indices instead will be encrypted),
+            # so we don't cover that case.
+            if self.table0_encrypt != 'none':
+                self.assertFalse(self.match_string_in_rundir(txt0))
+                self.assertFalse(self.match_string_in_rundir(keyname0))
+                self.assertFalse(self.match_string_in_rundir(valname0))
+            if self.table1_encrypt != 'none':
+                self.assertFalse(self.match_string_in_rundir(txt1))
+                self.assertFalse(self.match_string_in_rundir(keyname1))
+                self.assertFalse(self.match_string_in_rundir(valname1))
 
 if __name__ == '__main__':
     wttest.run()
