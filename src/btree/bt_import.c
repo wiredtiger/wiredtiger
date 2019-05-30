@@ -75,11 +75,10 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 		WT_ERR(__wt_buf_set(session, a, v.str, v.len));
 		((uint8_t *)a->data)[a->size] = '\0';
 	} else {
-		WT_ERR(__wt_buf_set(session, a, v.str, v.len));
-		WT_ERR(__wt_buf_grow(session, b, a->size));
-		WT_ERR(__wt_nhex_to_raw(session, a->data, a->size, b));
+		WT_ERR(__wt_buf_grow(session, b, v.len));
+		WT_ERR(__wt_nhex_to_raw(session, v.str, v.len, b));
+		WT_ERR(__wt_buf_grow(session, a, b->size + 1));
 		WT_ERR(__wt_decrypt(session, kencryptor->encryptor, 0, b, a));
-		WT_ERR(__wt_buf_grow(session, b, a->size + 1));
 		((uint8_t *)a->data)[a->size] = '\0';
 	}
 	filecfg[1] = a->data;
