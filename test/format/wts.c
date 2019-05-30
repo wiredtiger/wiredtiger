@@ -509,23 +509,13 @@ wts_verify(const char *tag)
 	WT_CONNECTION *conn;
 	WT_DECL_RET;
 	WT_SESSION *session;
-	size_t max;
-	char *p, timing_cfg[128];
 
 	if (g.c_verify == 0)
 		return;
 
 	conn = g.wts_conn;
-	p = timing_cfg;
-	max = sizeof(timing_cfg);
 	track("verify", 0ULL, NULL);
 
-	/*
-	 * Turn off timing stress during verify. It can cause a lot of
-	 * stuck cache failures because it slows things down sufficiently and
-	 * verify does not allow eviction on the file.
-	 */
-	testutil_check(conn->reconfigure(conn, "timing_stress_for_test=[]"));
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 	if (g.logging != 0)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
@@ -544,35 +534,6 @@ wts_verify(const char *tag)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
 		    "=============== verify stop ===============");
 	testutil_check(session->close(session, NULL));
-
-	/*
-	 * Turn timing stress back on.
-	 */
-	CONFIG_APPEND(p, ",timing_stress_for_test=[");
-	if (g.c_timing_stress_aggressive_sweep)
-		CONFIG_APPEND(p, ",aggressive_sweep");
-	if (g.c_timing_stress_checkpoint)
-		CONFIG_APPEND(p, ",checkpoint_slow");
-	if (g.c_timing_stress_lookaside_sweep)
-		CONFIG_APPEND(p, ",lookaside_sweep_race");
-	if (g.c_timing_stress_split_1)
-		CONFIG_APPEND(p, ",split_1");
-	if (g.c_timing_stress_split_2)
-		CONFIG_APPEND(p, ",split_2");
-	if (g.c_timing_stress_split_3)
-		CONFIG_APPEND(p, ",split_3");
-	if (g.c_timing_stress_split_4)
-		CONFIG_APPEND(p, ",split_4");
-	if (g.c_timing_stress_split_5)
-		CONFIG_APPEND(p, ",split_5");
-	if (g.c_timing_stress_split_6)
-		CONFIG_APPEND(p, ",split_6");
-	if (g.c_timing_stress_split_7)
-		CONFIG_APPEND(p, ",split_7");
-	if (g.c_timing_stress_split_8)
-		CONFIG_APPEND(p, ",split_8");
-	CONFIG_APPEND(p, "]");
-	testutil_check(conn->reconfigure(conn, timing_cfg));
 }
 
 /*
