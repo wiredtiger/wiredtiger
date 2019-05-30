@@ -44,6 +44,8 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 	ret = bm->checkpoint_last(bm, session, &metadata, checkpoint);
 	WT_TRET(bm->close(bm, session));
 	WT_ERR(ret);
+	__wt_verbose(
+	    session, WT_VERB_CHECKPOINT, "import metadata: %s", metadata);
 
 	/*
 	 * The metadata may have been encrypted, in which case it's also
@@ -59,10 +61,18 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 		    "%s: loaded object's encryption configuration doesn't "
 		    "match the database's encryption configuration",
 		    source);
+	/*
+	 * The metadata was quoted to avoid configuration string characters
+	 * acting as separators. Discard any quote characters.
+	 */
 	WT_ERR(__wt_config_getones(session, metadata, "block_metadata", &v));
+	if (v.len > 0 && (v.str[0] == '[' || v.str[0] == '(')) {
+		++v.str;
+		v.len -= 2;
+	}
 	if (kencryptor == NULL) {
+		WT_ERR(__wt_buf_grow(session, a, v.len + 1));
 		WT_ERR(__wt_buf_set(session, a, v.str, v.len));
-		WT_ERR(__wt_buf_grow(session, b, a->size + 1));
 		((uint8_t *)a->data)[a->size] = '\0';
 	} else {
 		WT_ERR(__wt_buf_set(session, a, v.str, v.len));
@@ -73,8 +83,6 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 		((uint8_t *)a->data)[a->size] = '\0';
 	}
 	filecfg[1] = a->data;
-	__wt_verbose(
-	    session, WT_VERB_CHECKPOINT, "load metadata: %s", filecfg[1]);
 
 	/*
 	 * Build and flatten the complete configuration string, including the
@@ -85,7 +93,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 	filecfg[2] = b->data;
 	WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 	__wt_verbose(session,
-	    WT_VERB_CHECKPOINT, "load configuration: %s/%s", uri, fileconf);
+	    WT_VERB_CHECKPOINT, "import configuration: %s/%s", uri, fileconf);
 	WT_ERR(__wt_metadata_insert(session, uri, fileconf));
 
 	/*
