@@ -101,10 +101,14 @@ class test_bug018(wttest.WiredTigerTestCase, suite_subprocess):
         # sync even though table 1 was successfully written and table 2
         # had an error on close.
         self.open_conn(new_home_dir)
-        c1 = self.session.open_cursor(self.uri1)
-        c2 = self.session.open_cursor(self.uri2)
-        results1 = list(c1)
-        results2 = list(c2)
+
+        # It's possible the second table can't even be opened,
+        # that's okay for our test.
+        results1 = list(self.session.open_cursor(self.uri1))
+        try:
+            results2 = list(self.session.open_cursor(self.uri2))
+        except:
+            results2 = []
         self.assertEqual(results1, results2)
 
 if __name__ == '__main__':
