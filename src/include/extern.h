@@ -151,7 +151,7 @@ extern int __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_PAGE **pagep) W
 extern bool __wt_btree_immediately_durable(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_huffman_open(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern void __wt_btree_huffman_close(WT_SESSION_IMPL *session);
-extern int __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_import(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep, size_t *compressed_sizep, bool checkpoint, bool checkpoint_io, bool compressed) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_page_type_string(u_int type) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));

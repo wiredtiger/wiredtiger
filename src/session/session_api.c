@@ -1119,8 +1119,7 @@ err:	API_END_RET(session, ret);
  *	WT_SESSION->import method.
  */
 static int
-__session_import(WT_SESSION *wt_session,
-    const char *uri, const char *path, const char *config)
+__session_import(WT_SESSION *wt_session, const char *uri, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -1133,22 +1132,16 @@ __session_import(WT_SESSION *wt_session,
 
 	WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
-	if (!WT_PREFIX_MATCH(uri, "file:") &&
-	    !WT_PREFIX_MATCH(uri, "table:"))
+	if (!WT_PREFIX_MATCH(uri, "file:"))
 		WT_ERR(__wt_bad_object_type(session, uri));
-	if (!__wt_absolute_path(path))
-		WT_ERR_MSG(session, EINVAL,
-		    "WT_SESSION.import requires %s be an absolute path",
-		    path);
 
-	ret = __wt_metadata_search(session, uri, &value);
-	if (ret == 0)
+	if ((ret = __wt_metadata_search(session, uri, &value)) == 0)
 		WT_ERR_MSG(session, EINVAL,
 		    "an object named \"%s\" already exists in the database",
 		    uri);
 	WT_ERR_NOTFOUND_OK(ret);
 
-	WT_ERR(__wt_import(session, uri, path));
+	WT_ERR(__wt_import(session, uri));
 
 err:
 	if (ret != 0)
@@ -1163,14 +1156,13 @@ err:
  *	WT_SESSION->import method; readonly version.
  */
 static int
-__session_import_readonly(WT_SESSION *wt_session,
-    const char *uri, const char *path, const char *config)
+__session_import_readonly(
+    WT_SESSION *wt_session, const char *uri, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 
 	WT_UNUSED(uri);
-	WT_UNUSED(path);
 	WT_UNUSED(config);
 
 	session = (WT_SESSION_IMPL *)wt_session;

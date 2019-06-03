@@ -1455,13 +1455,12 @@ struct __wt_session {
 	 * @snippet ex_all.c Import a table
 	 *
 	 * @param session the session handle
-	 * @param name the intended URI of the imported object
-	 * @param path the absolute path of the object to be imported
+	 * @param name the URI of the object to import
 	 * @configempty{WT_SESSION.import, see dist/api_data.py}
 	 * @errors
 	 */
 	int __F(import)(WT_SESSION *session,
-	    const char *name, const char *path, const char *config);
+	    const char *name, const char *config);
 #endif
 
 	/*!

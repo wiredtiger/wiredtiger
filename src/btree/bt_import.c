@@ -13,7 +13,7 @@
  *	Import a WiredTiger file into the database.
  */
 int
-__wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
+__wt_import(WT_SESSION_IMPL *session, const char *uri)
 {
 	WT_BM *bm;
 	WT_CKPT *ckpt, *ckptbase;
@@ -23,12 +23,17 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 	WT_DECL_ITEM(checkpoint);
 	WT_DECL_RET;
 	WT_KEYED_ENCRYPTOR *kencryptor;
+	const char *filename;
 	const char *filecfg[] = {
-	   WT_CONFIG_BASE(session, file_meta), NULL, NULL, NULL };
+	   WT_CONFIG_BASE(session, file_meta), NULL, NULL, };
 	char *fileconf, *metadata;
 
 	ckptbase = NULL;
 	fileconf = metadata = NULL;
+
+	WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
+	filename = uri;
+	WT_PREFIX_SKIP(filename, "file:");
 
 	WT_ERR(__wt_scr_alloc(session, 0, &a));
 	WT_ERR(__wt_scr_alloc(session, 0, &b));
@@ -40,7 +45,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 	 * the descriptor block and that's all we care about.
 	 */
 	WT_ERR(__wt_block_manager_open(
-	    session, source, filecfg, false, true, 512, &bm));
+	    session, filename, filecfg, false, true, 512, &bm));
 	ret = bm->checkpoint_last(bm, session, &metadata, checkpoint);
 	WT_TRET(bm->close(bm, session));
 	WT_ERR(ret);
@@ -60,7 +65,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 		WT_ERR_MSG(session, EINVAL,
 		    "%s: loaded object's encryption configuration doesn't "
 		    "match the database's encryption configuration",
-		    source);
+		    filename);
 	/*
 	 * The metadata was quoted to avoid configuration string characters
 	 * acting as separators. Discard any quote characters.
@@ -88,8 +93,6 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri, const char *source)
 	 * returned metadata and a reference to the source file, then update
 	 * the database metadata.
 	 */
-	WT_ERR(__wt_buf_fmt(session, b, "source=%s", source));
-	filecfg[2] = b->data;
 	WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 	__wt_verbose(session,
 	    WT_VERB_CHECKPOINT, "import configuration: %s/%s", uri, fileconf);

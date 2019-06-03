@@ -34,7 +34,8 @@ verify()
 
 	rm -rf FOREIGN && mkdir FOREIGN || exit 1
 	$wt -C "$EXT" -h FOREIGN create file:xxx || exit 1
-	$wt -C "$EXT" -h FOREIGN import file:yyy $PWD/RUNDIR/wt || exit 1
+	mv $PWD/RUNDIR/wt FOREIGN/yyy || exit 1
+	$wt -C "$EXT" -h FOREIGN import file:yyy || exit 1
 }
 
 format

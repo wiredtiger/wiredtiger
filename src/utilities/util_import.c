@@ -13,7 +13,7 @@ usage(void)
 {
 	(void)fprintf(stderr,
 	    "usage: %s %s "
-	    "import uri path\n",
+	    "import uri\n",
 	    progname, usage_prefix);
 	return (1);
 }
@@ -35,13 +35,13 @@ util_import(WT_SESSION *session, int argc, char *argv[])
 	argc -= __wt_optind;
 	argv += __wt_optind;
 
-	/* The remaining argument is the table name and a path. */
-	if (argc != 2)
+	/* The remaining argument is the file URI. */
+	if (argc != 1)
 		return (usage());
-	if ((uri = util_uri(session, *argv, "table")) == NULL)
+	if ((uri = util_uri(session, *argv, "file")) == NULL)
 		return (1);
 
-	if ((ret = session->import(session, uri, argv[1], NULL)) != 0)
+	if ((ret = session->import(session, uri, NULL)) != 0)
 		(void)util_err(session, ret, "WT_SESSION.import: %s", uri);
 
 	free(uri);
