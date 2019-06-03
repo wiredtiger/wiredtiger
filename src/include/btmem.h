@@ -780,10 +780,6 @@ struct __wt_page {
  *	row-store leaf pages without reading them if they don't reference
  *	overflow items.
  *
- * WT_REF_LIMBO:
- *	The page image has been loaded into memory but there is additional
- *	history in the lookaside table that has not been applied.
- *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
  *	been selected for eviction; once hazard pointers are checked, the page
@@ -867,12 +863,11 @@ struct __wt_ref {
 
 #define	WT_REF_DISK	 0		/* Page is on disk */
 #define	WT_REF_DELETED	 1		/* Page is on disk, but deleted */
-#define	WT_REF_LIMBO	 2		/* Page is in cache without history */
-#define	WT_REF_LOCKED	 3		/* Page locked for exclusive access */
-#define	WT_REF_LOOKASIDE 4		/* Page is on disk with lookaside */
-#define	WT_REF_MEM	 5		/* Page is in cache and valid */
-#define	WT_REF_READING	 6		/* Page being read */
-#define	WT_REF_SPLIT	 7		/* Parent page split (WT_REF dead) */
+#define	WT_REF_LOCKED	 2		/* Page locked for exclusive access */
+#define	WT_REF_LOOKASIDE 3		/* Page is on disk with lookaside */
+#define	WT_REF_MEM	 4		/* Page is in cache and valid */
+#define	WT_REF_READING	 5		/* Page being read */
+#define	WT_REF_SPLIT	 6		/* Parent page split (WT_REF dead) */
 	volatile uint32_t state;	/* Page state */
 
 	/*

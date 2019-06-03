@@ -73,7 +73,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * without first locking the page, it could be evicted in between.
 	 */
 	previous_state = ref->state;
-	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	if (previous_state == WT_REF_MEM &&
 	    WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
 		locked = true;
 	if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
@@ -326,12 +326,10 @@ __evict_page_clean_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	    ref->page->modify->rec_max_timestamp));
 
 	/*
-	 * Discard the page and update the reference structure. If evicting a
-	 * WT_REF_LIMBO page with active history, transition back to
-	 * WT_REF_LOOKASIDE. Otherwise, a page with a disk address is an
-	 * on-disk page, and a page without a disk address is a re-instantiated
-	 * deleted page (for example, by searching), that was never
-	 * subsequently written.
+	 * Discard the page and update the reference structure.
+	 * A page with a disk address is an on-disk page, and a page without a
+	 * disk address is a re-instantiated deleted page (for example, by
+	 * searching), that was never subsequently written.
 	 */
 	__wt_ref_out(session, ref);
 	if (!closing && ref->page_las != NULL &&

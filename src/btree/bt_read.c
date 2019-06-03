@@ -389,42 +389,6 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __page_read_lookaside --
- *	Figure out whether to instantiate content from lookaside on
- *	page access.
- */
-static inline int
-__page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
-    uint32_t previous_state, uint32_t *final_statep)
-{
-	/*
-	 * Reading a lookaside ref for the first time, and not requiring the
-	 * history triggers a transition to WT_REF_LIMBO, if we are already
-	 * in limbo and still don't need the history - we are done.
-	 */
-	if (__wt_las_page_skip_locked(session, ref)) {
-		if (previous_state == WT_REF_LOOKASIDE) {
-			WT_STAT_CONN_INCR(
-			    session, cache_read_lookaside_skipped);
-			ref->page_las->eviction_to_lookaside = true;
-		}
-		*final_statep = WT_REF_LIMBO;
-		return (0);
-	}
-
-	/* Instantiate updates from the database's lookaside table. */
-	if (previous_state == WT_REF_LIMBO) {
-		WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
-		if (WT_SESSION_IS_CHECKPOINT(session))
-			WT_STAT_CONN_INCR(session,
-			    cache_read_lookaside_delay_checkpoint);
-	}
-
-	WT_RET(__las_page_instantiate(session, ref));
-	return (0);
-}
-
-/*
  * __page_read --
  *	Read a page from the file.
  */
@@ -463,7 +427,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		new_state = WT_REF_READING;
 		break;
 	case WT_REF_DELETED:
-	case WT_REF_LIMBO:
 	case WT_REF_LOOKASIDE:
 		new_state = WT_REF_LOCKED;
 		break;
@@ -474,10 +437,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		return (0);
 
 	final_state = WT_REF_MEM;
-
-	/* If we already have the page image, just instantiate the history. */
-	if (previous_state == WT_REF_LIMBO)
-		goto skip_read;
 
 	/*
 	 * Get the address: if there is no address, the page was deleted or had
@@ -532,8 +491,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * any page we read.
 	 */
 	WT_ASSERT(session,
-	    (previous_state != WT_REF_LIMBO &&
-	    previous_state != WT_REF_LOOKASIDE) ||
+	    previous_state != WT_REF_LOOKASIDE ||
 	    ref->page->dsk == NULL ||
 	    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
 
@@ -552,10 +510,8 @@ skip_read:
 		/* Move all records to a deleted state. */
 		WT_ERR(__wt_delete_page_instantiate(session, ref));
 		break;
-	case WT_REF_LIMBO:
 	case WT_REF_LOOKASIDE:
-		WT_ERR(__page_read_lookaside(
-		    session, ref, previous_state, &final_state));
+		WT_ERR(__las_page_instantiate(session, ref));
 		break;
 	}
 
@@ -584,7 +540,7 @@ err:	/*
 	 * it discarded the page, but not the disk image.  Discard the page
 	 * and separately discard the disk image in all cases.
 	 */
-	if (ref->page != NULL && previous_state != WT_REF_LIMBO)
+	if (ref->page != NULL)
 		__wt_ref_out(session, ref);
 	WT_REF_SET_STATE(ref, previous_state);
 
@@ -713,7 +669,6 @@ read:			/*
 			break;
 		case WT_REF_SPLIT:
 			return (WT_RESTART);
-		case WT_REF_LIMBO:
 		case WT_REF_MEM:
 			/*
 			 * The page is in memory.
@@ -739,22 +694,6 @@ read:			/*
 				WT_STAT_CONN_INCR(session, page_busy_blocked);
 				break;
 			}
-			/*
-			 * If we are a limbo page check whether we need to
-			 * instantiate the history. By having a hazard pointer
-			 * we can use the locked version.
-			 */
-			if (current_state == WT_REF_LIMBO &&
-			    ((!LF_ISSET(WT_READ_CACHE) ||
-			    LF_ISSET(WT_READ_LOOKASIDE)) &&
-			    !__wt_las_page_skip_locked(session, ref))) {
-				WT_RET(__wt_hazard_clear(session, ref));
-				goto read;
-			}
-			if (current_state == WT_REF_LIMBO &&
-			    LF_ISSET(WT_READ_CACHE) &&
-			    LF_ISSET(WT_READ_LOOKASIDE))
-				__wt_tree_modify_set(session);
 
 			/*
 			 * Check if the page requires forced eviction.
