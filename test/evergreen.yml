@@ -270,21 +270,6 @@ tasks:
 
             ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/huge ${smp_command|} 2>&1
 
-  - name: import-test
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/import ${smp_command|} 2>&1
-
   - name: manydbs-test
     depends_on:
       - name: compile
@@ -378,6 +363,21 @@ tasks:
   # End of normal make check test tasks
 
   # Start of csuite test tasks
+
+  - name: csuite-import-test
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/../../../test/csuite/import/smoke.sh 2>&1
 
   - name: csuite-random-abort-test
     depends_on:
@@ -1173,7 +1173,7 @@ buildvariants:
   - ubuntu1404-test
   expansions:
     # It's ugly, but we need the absolute path here, not the relative
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/wiredtiger top_builddir=$(pwd)/wiredtiger/build_posix
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -1187,13 +1187,13 @@ buildvariants:
     - name: fops-test
     - name: format-test
     - name: huge-test
-    - name: import-test
     - name: manydbs-test
     - name: packing-test
     - name: readonly-test
     - name: salvage-test
     - name: thread-test
     - name: bench-wtperf-test
+    - name: csuite-import-test
     - name: csuite-random-abort-test
     - name: csuite-random-directio-test
     - name: csuite-schema-abort-test
@@ -1240,7 +1240,7 @@ buildvariants:
   run_on:
   - ubuntu1404-test
   expansions:
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/wiredtiger top_builddir=$(pwd)/wiredtiger/build_posix
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     configure_python_setting: PYTHON=python3
@@ -1301,7 +1301,7 @@ buildvariants:
     smp_command: -j $(sysctl -n hw.logicalcpu)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/wiredtiger top_builddir=$(pwd)/wiredtiger/build_posix
   tasks:
     - name: compile
     - name: make-check-test
@@ -1316,7 +1316,7 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/wiredtiger top_builddir=$(pwd)/wiredtiger/build_posix
   tasks:
   - name: compile
   - name: generate-datafile-little-endian
@@ -1333,7 +1333,7 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.lib top_srcdir=$(pwd)/wiredtiger top_builddir=$(pwd)/wiredtiger/build_posixs
   tasks:
   - name: compile
   - name: generate-datafile-big-endian
