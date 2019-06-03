@@ -57,6 +57,7 @@ main(int argc, char *argv[])
 	working_dir = NULL;
 	ttype = MIX;
 	g.checkpoint_name = "WiredTigerCheckpoint";
+	g.debug_mode = false;
 	g.home = dmalloc(512);
 	g.nkeys = 10000;
 	g.nops = 100000;
@@ -66,13 +67,16 @@ main(int argc, char *argv[])
 	runs = 1;
 
 	while ((ch = __wt_getopt(
-	    progname, argc, argv, "C:c:h:k:l:n:r:sT:t:W:x")) != EOF)
+	    progname, argc, argv, "C:c:Dh:k:l:n:r:sT:t:W:x")) != EOF)
 		switch (ch) {
 		case 'c':
 			g.checkpoint_name = __wt_optarg;
 			break;
 		case 'C':			/* wiredtiger_open config */
 			config_open = __wt_optarg;
+			break;
+		case 'D':
+			g.debug_mode = true;
 			break;
 		case 'h':			/* wiredtiger_open config */
 			working_dir = __wt_optarg;
@@ -220,6 +224,11 @@ wt_connect(const char *config_open)
 		    progname,
 		    config_open == NULL ? "" : ",",
 		    config_open == NULL ? "" : config_open));
+
+	if (g.debug_mode)
+		testutil_check(__wt_snprintf(config, sizeof(config),
+		    "%s,debug_mode=(aggressive_lookaside=true,"		\
+		    "table_logging=true)", config));
 
 	if ((ret = wiredtiger_open(
 	    g.home, &event_handler, config, &g.conn)) != 0)
