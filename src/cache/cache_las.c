@@ -840,6 +840,7 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
+	WT_UNUSED(first_upd);
 	return (ret);
 }
 
