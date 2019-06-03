@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /*
- * In historic WiredTiger files, it wasn't possible to open standalone files,
+ * It wasn't possible to open standalone files in historic WiredTiger databases,
  * you're done if you lose the file's associated metadata. That was a mistake
  * and this code is the workaround. What we need to crack a file is database
  * metadata plus a list of active checkpoints as of the file's clean shutdown
@@ -30,7 +30,7 @@
  *	The second problem is we have to be able to find the avail lists that
  * include checkpoint information (ignoring previous files created by previous
  * releases, and, of course, making upgrade/downgrade work seamlessly). Extent
- * list are written to their own pages, and we could version this change using
+ * lists are written to their own pages, and we could version this change using
  * the page header version. Extent lists have WT_PAGE_BLOCK_MANAGER page types,
  * we could version this change using the upcoming WT_PAGE_VERSION_TS upgrade.
  * However, that requires waiting a release (we would have to first release a
@@ -214,7 +214,6 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 	*metadatap = NULL;
 
 	memset(&saved, 0, sizeof(saved));
-
 	ext_off = 0;			/* [-Werror=maybe-uninitialized] */
 	ext_size = 0;
 	len = write_gen = 0;
@@ -224,12 +223,11 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_scr_alloc(session, 64 * 1024, &tmp));
 
 	/*
-	 * Scan the file, starting after the descriptor block, looking for
-	 * pages. The minimum block size in WiredTiger is 512B, use that as
-	 * our minimum scan chunk.
+	 * Scan the file for pages, using the minimum possible WiredTiger
+	 * allocation size.
 	 */
 	fh = block->fh;
-	for (nblocks = 0, offset = 512; offset < block->size; offset += size) {
+	for (nblocks = 0, offset = 0; offset < block->size; offset += size) {
 		/* Report progress occasionally. */
 #define	WT_CHECKPOINT_LIST_PROGRESS_INTERVAL	100
 		if (++nblocks % WT_CHECKPOINT_LIST_PROGRESS_INTERVAL == 0)
@@ -240,8 +238,8 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 		 * it. Move to the next allocation sized boundary, we'll never
 		 * consider this one again.
 		 */
-		if ((ret = __wt_read(
-		    session, fh, offset, (size_t)512, tmp->mem)) != 0)
+		if ((ret = __wt_read(session, fh,
+		    offset, (size_t)WT_BTREE_MIN_ALLOC_SIZE, tmp->mem)) != 0)
 			break;
 		blk = WT_BLOCK_HEADER_REF(tmp->mem);
 		__wt_block_header_byteswap(blk);
@@ -259,7 +257,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session,
 		if (__wt_block_offset_invalid(block, offset, size) ||
 		    __wt_block_read_off(
 		    session, block, tmp, offset, size, checksum) != 0) {
-			size = 512;
+			size = WT_BTREE_MIN_ALLOC_SIZE;
 			continue;
 		}
 

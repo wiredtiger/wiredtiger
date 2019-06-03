@@ -177,10 +177,10 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 	 * XXX
 	 * The salvage process reads and discards previous checkpoints, so the
 	 * underlying block manager has to ignore any previous checkpoint
-	 * entries when creating a new checkpoint, in other words, we can't use
-	 * the metadata checkpoint list, it has all of those checkpoint listed
-	 * and we don't care about them.  Build a clean checkpoint list and use
-	 * it instead.
+	 * entries when creating a new checkpoint. In other words, we can't use
+	 * the metadata checkpoint list, it lists the previous checkpoints and
+	 * we don't care about them. Build a clean checkpoint list and use it
+	 * instead.
 	 *
 	 * Don't first clear the metadata checkpoint list and call the function
 	 * to get a list of checkpoints: a crash between clearing the metadata

@@ -256,7 +256,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	}
 
 	/* Create the path to the file. */
-	if (!__wt_absolute_path(name) && !LF_ISSET(WT_FS_OPEN_FIXED))
+	if (!LF_ISSET(WT_FS_OPEN_FIXED))
 		WT_ERR(__wt_filename(session, name, &path));
 
 	/* Call the underlying open function. */
