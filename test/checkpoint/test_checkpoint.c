@@ -186,6 +186,7 @@ main(int argc, char *argv[])
 	return (g.status);
 }
 
+#define	DEBUG_MODE_CFG	",debug_mode=(aggressive_lookaside=true,table_logging=true)"
 /*
  * wt_connect --
  *	Configure the WiredTiger connection.
@@ -212,23 +213,20 @@ wt_connect(const char *config_open)
 		    "statistics_log=(json,wait=1),error_prefix=\"%s\","	\
 		    "file_manager=(close_handle_minimum=1,close_idle_time=1,"\
 		    "close_scan_interval=1),log=(enabled),cache_size=1GB,"\
-		    "timing_stress_for_test=(aggressive_sweep)%s%s",
+		    "timing_stress_for_test=(aggressive_sweep)%s%s%s",
 		    progname,
+		    g.debug_mode ? DEBUG_MODE_CFG : "",
 		    config_open == NULL ? "" : ",",
 		    config_open == NULL ? "" : config_open));
 	else
 		testutil_check(__wt_snprintf(config, sizeof(config),
 		    "create,cache_cursors=false,statistics=(fast),"	\
 		    "statistics_log=(json,wait=1),error_prefix=\"%s\""	\
-		    "%s%s",
+		    "%s%s%s",
 		    progname,
+		    g.debug_mode ? DEBUG_MODE_CFG : "",
 		    config_open == NULL ? "" : ",",
 		    config_open == NULL ? "" : config_open));
-
-	if (g.debug_mode)
-		testutil_check(__wt_snprintf(config, sizeof(config),
-		    "%s,debug_mode=(aggressive_lookaside=true,"		\
-		    "table_logging=true)", config));
 
 	if ((ret = wiredtiger_open(
 	    g.home, &event_handler, config, &g.conn)) != 0)
