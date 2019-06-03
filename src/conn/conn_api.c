@@ -2646,7 +2646,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		    session, cval.str, cval.len, &conn->error_prefix));
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
-	WT_ERR(__wt_debug_mode_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
 	__wt_btree_page_version_config(session);
 
@@ -2769,6 +2768,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	 */
 	WT_ERR(__wt_connection_open(conn, cfg));
 	session = conn->default_session;
+
+	/*
+	 * This function expects the cache to be created so parse this after
+	 * the rest of the connection is set up.
+	 */
+	WT_ERR(__wt_debug_mode_config(session, cfg));
 
 	/*
 	 * Load the extensions after initialization completes; extensions expect
