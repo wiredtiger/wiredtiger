@@ -661,8 +661,8 @@ __evict_review(
 			 * if we are in debugging mode.
 			 */
 			if (F_ISSET(cache, WT_CACHE_EVICT_SCRUB) ||
-			    (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE &&
-			    __wt_random(&session->rnd) % 3 == 0)))
+			    (F_ISSET(cache, WT_CACHE_EVICT_DEBUG_MODE) &&
+			    __wt_random(&session->rnd) % 3 == 0))
 				LF_SET(WT_REC_SCRUB);
 
 			/*
@@ -672,7 +672,9 @@ __evict_review(
 			 */
 			if (F_ISSET(cache, WT_CACHE_EVICT_LOOKASIDE) &&
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE)) {
-				if (__wt_random(&session->rnd) % 10 == 1) {
+				if (F_ISSET(cache,
+				    WT_CACHE_EVICT_DEBUG_MODE) &&
+				    __wt_random(&session->rnd) % 10 == 1) {
 					LF_CLR(WT_REC_SCRUB |
 					    WT_REC_UPDATE_RESTORE);
 					LF_SET(WT_REC_LOOKASIDE);

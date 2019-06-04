@@ -187,7 +187,7 @@ main(int argc, char *argv[])
 }
 
 #define	DEBUG_MODE_CFG						\
-",debug_mode=(aggressive_lookaside=true,table_logging=true)"
+",debug_mode=(eviction=true,table_logging=true)"
 /*
  * wt_connect --
  *	Configure the WiredTiger connection.

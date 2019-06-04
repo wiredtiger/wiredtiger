@@ -1840,13 +1840,6 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 
 	WT_RET(__wt_config_gets(session,
-	    cfg, "debug_mode.aggressive_lookaside", &cval));
-	if (cval.val)
-		F_SET(cache, WT_CACHE_EVICT_DEBUG_MODE);
-	else
-		F_CLR(cache, WT_CACHE_EVICT_DEBUG_MODE);
-
-	WT_RET(__wt_config_gets(session,
 	    cfg, "debug_mode.checkpoint_retention", &cval));
 	conn->debug_ckpt_cnt = (uint32_t)cval.val;
 	if (cval.val == 0) {
@@ -1859,6 +1852,13 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 	else
 		WT_RET(__wt_calloc_def(session,
 		    conn->debug_ckpt_cnt, &conn->debug_ckpt));
+
+	WT_RET(__wt_config_gets(session,
+	    cfg, "debug_mode.eviction", &cval));
+	if (cval.val)
+		F_SET(cache, WT_CACHE_EVICT_DEBUG_MODE);
+	else
+		F_CLR(cache, WT_CACHE_EVICT_DEBUG_MODE);
 
 	WT_RET(__wt_config_gets(session,
 	    cfg, "debug_mode.rollback_error", &cval));
