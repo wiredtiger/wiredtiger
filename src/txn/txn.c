@@ -798,7 +798,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	wt_timestamp_t prev_commit_timestamp;
-	int64_t resolved_update_count;
+	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
 	bool locked, prepare, readonly, update_timestamp;
@@ -808,7 +808,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
 	locked = false;
-	resolved_update_count = 0;
+	resolved_update_count = visited_update_count = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -977,15 +977,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
-				/*
-				 * Decrement the resolved update count as we
-				 * as we would either resolve at least 1 update
-				 * or have previously resolved the update linked
-				 * to this modification when we resolved the
-				 * prepared updates of a previous modification
-				 * in this txn.
-				 */
-				resolved_update_count--;
+				visited_update_count++;
 				/*
 				 * If we have set the key repeated flag
 				 * we can skip resolving prepared updates as
@@ -996,8 +988,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 					WT_ERR(__wt_txn_resolve_prepared_op(
 					    session, op, true,
 					    &resolved_update_count));
+				/*
+				 * We should resolve at least one or more
+				 * updates each time we call
+				 * __wt_txn_resolve_prepared_op, as such
+				 * resolved update count should never be less
+				 * than visited update count.
+				 */
 				WT_ASSERT(session,
-				    resolved_update_count >= 0);
+				    resolved_update_count >=
+				    visited_update_count);
 			}
 
 			break;
@@ -1012,6 +1012,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+	WT_ASSERT(session, resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
@@ -1202,12 +1203,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	int64_t resolved_update_count;
+	int64_t resolved_update_count, visited_update_count;
 	u_int i;
 	bool readonly;
 
 	WT_UNUSED(cfg);
-	resolved_update_count = 0;
+	resolved_update_count = visited_update_count = 0;
 	txn = &session->txn;
 	readonly = txn->mod_count == 0;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1242,15 +1243,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * operation, in case of prepared transaction.
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
-				/*
-				 * Decrement the resolved update count as we
-				 * as we would either resolve at least 1 update
-				 * or have previously resolved the update linked
-				 * to this modification when we resolved the
-				 * prepared updates of a previous modification
-				 * in this txn.
-				 */
-				resolved_update_count--;
+				visited_update_count++;
 				/*
 				 * If we have set the key repeated flag
 				 * we can skip resolving prepared updates as
@@ -1261,8 +1254,16 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 					WT_RET(__wt_txn_resolve_prepared_op(
 					    session, op, false,
 					    &resolved_update_count));
+				/*
+				 * We should resolve at least one or more
+				 * updates each time we call
+				 * __wt_txn_resolve_prepared_op, as such
+				 * resolved update count should never be less
+				 * than visited update count.
+				 */
 				WT_ASSERT(session,
-				    resolved_update_count >= 0);
+				    resolved_update_count >=
+				    visited_update_count);
 			} else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
@@ -1285,6 +1286,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+	WT_ASSERT(session, resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
