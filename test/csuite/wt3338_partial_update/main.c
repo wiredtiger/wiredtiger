@@ -50,7 +50,6 @@ static char modify_repl[MAX_REPL_BYTES * 2];		/* Replacement bytes */
 
 static WT_RAND_STATE rnd;				/* RNG state */
 
-#if DEBUG
 /*
  * show --
  *	Dump out a buffer.
@@ -70,7 +69,6 @@ show(WT_ITEM *buf, const char *tag)
 	}
 	fprintf(stderr, "\n");
 }
-#endif
 
 /*
  * modify_repl_init --
@@ -115,7 +113,7 @@ modify_build(void)
 		printf(
 		    "%d: {%.*s} %" WT_SIZET_FMT " bytes replacing %"
 		    WT_SIZET_FMT " bytes @ %" WT_SIZET_FMT "\n",
-		    i, (int)entries[i].data.size, entries[i].data.data,
+		    i, (int)entries[i].data.size, (char *)entries[i].data.data,
 		    entries[i].data.size, entries[i].size, entries[i].offset);
 #endif
 }
@@ -217,16 +215,29 @@ slow_apply_api(WT_ITEM *orig)
  *	Compare two results.
  */
 static void
-compare(WT_ITEM *local, WT_ITEM *library)
+compare(WT_ITEM *orig, WT_ITEM *local, WT_ITEM *library)
 {
-#if DEBUG
+	size_t i, max;
+	const uint8_t *p, *t;
+
+	max = WT_MIN(local->size, library->size);
 	if (local->size != library->size ||
 	    memcmp(local->data, library->data, local->size) != 0) {
-		fprintf(stderr, "results differ\n");
+		for (i = 0,
+		    p = local->data, t = library->data; i < max; ++i, ++p, ++t)
+			if (*p != *t)
+				break;
+		fprintf(stderr, "results differ: ");
+		if (max == 0)
+			fprintf(stderr,
+			    "identical up to %" WT_SIZET_FMT " bytes\n", max);
+		else
+			fprintf(stderr,
+			    "first mismatch at offset %" WT_SIZET_FMT "\n", i);
+		show(orig, "original");
 		show(local, "local results");
 		show(library, "library results");
 	}
-#endif
 	testutil_assert(
 	    local->size == library->size && memcmp(
 	    local->data, library->data, local->size) == 0);
@@ -250,16 +261,21 @@ compare(WT_ITEM *local, WT_ITEM *library)
  *	calculate-modify API.
  */
 static void
-modify_run(bool verbose)
+modify_run(TEST_OPTS *opts)
 {
 	WT_CURSOR *cursor, _cursor;
 	WT_DECL_RET;
 	WT_ITEM *localA, _localA, *localB, _localB;
+	WT_SESSION_IMPL *session;
 	size_t len;
 	int i, j;
+	bool verbose;
+
+	session = (WT_SESSION_IMPL *)opts->session;
+	verbose = opts->verbose;
 
 	/* Initialize the RNG. */
-	__wt_random_init_seed(NULL, &rnd);
+	__wt_random_init_seed(session, &rnd);
 
 	/* Set up replacement information. */
 	modify_repl_init();
@@ -277,12 +293,12 @@ modify_run(bool verbose)
 	for (i = 0; i < NRUNS; ++i) {
 		/* Create an initial value. */
 		len = (size_t)(__wt_random(&rnd) % MAX_REPL_BYTES);
-		testutil_check(__wt_buf_set(NULL, localA, modify_repl, len));
+		testutil_check(__wt_buf_set(session, localA, modify_repl, len));
 
 		for (j = 0; j < 1000; ++j) {
 			/* Copy the current value into the second item. */
 			testutil_check(__wt_buf_set(
-			    NULL, localB, localA->data, localA->size));
+			    session, localB, localA->data, localA->size));
 
 			/*
 			 * Create a random set of modify vectors, run the
@@ -291,12 +307,12 @@ modify_run(bool verbose)
 			 * of modify.
 			 */
 			modify_build();
-			testutil_check(__wt_buf_set(
-			    NULL, &cursor->value, localA->data, localA->size));
+			testutil_check(__wt_buf_set(session,
+			    &cursor->value, localA->data, localA->size));
 			testutil_check(__wt_modify_apply_api(
-			    NULL, cursor, entries, nentries));
+			    session, cursor, entries, nentries));
 			slow_apply_api(localA);
-			compare(localA, &cursor->value);
+			compare(localB, localA, &cursor->value);
 
 			/*
 			 * Call the WiredTiger function to build a modification
@@ -305,18 +321,18 @@ modify_run(bool verbose)
 			 * against our implementation of modify.
 			 */
 			nentries = WT_ELEMENTS(entries);
-			ret = wiredtiger_calc_modify(NULL,
+			ret = wiredtiger_calc_modify(opts->session,
 			    localB, localA,
 			    WT_MAX(localB->size, localA->size) + 100,
 			    entries, &nentries);
 			if (ret == WT_NOTFOUND)
 				continue;
 			testutil_check(ret);
-			testutil_check(__wt_buf_set(
-			    NULL, &cursor->value, localB->data, localB->size));
+			testutil_check(__wt_buf_set(session,
+			    &cursor->value, localB->data, localB->size));
 			testutil_check(__wt_modify_apply_api(
-			    NULL, cursor, entries, nentries));
-			compare(localA, &cursor->value);
+			    session, cursor, entries, nentries));
+			compare(localB, localA, &cursor->value);
 		}
 		if (verbose) {
 			printf("%d (%d%%)\r", i, (i * 100) / NRUNS);
@@ -326,9 +342,9 @@ modify_run(bool verbose)
 	if (verbose)
 		printf("%d (100%%)\n", i);
 
-	__wt_buf_free(NULL, localA);
-	__wt_buf_free(NULL, localB);
-	__wt_buf_free(NULL, &cursor->value);
+	__wt_buf_free(session, localA);
+	__wt_buf_free(session, localB);
+	__wt_buf_free(session, &cursor->value);
 }
 
 int
@@ -342,9 +358,11 @@ main(int argc, char *argv[])
 	testutil_make_work_dir(opts->home);
 	testutil_check(
 	    wiredtiger_open(opts->home, NULL, "create", &opts->conn));
+	testutil_check(
+	    opts->conn->open_session(opts->conn, NULL, NULL, &opts->session));
 
 	/* Run the test. */
-	modify_run(opts->verbose);
+	modify_run(opts);
 
 	testutil_cleanup(opts);
 	return (EXIT_SUCCESS);
