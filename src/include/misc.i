@@ -266,6 +266,7 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
 	 * If there is a lot of cache pressure, don't let the sleep time
 	 * get too large. If the cache is totally full, return.
 	 */
+        pct = 0.0;
 	if (__wt_eviction_needed(session, false, false, &pct))
 		max = 5;
 	else
