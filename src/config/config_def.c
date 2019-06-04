@@ -707,11 +707,9 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 	{ "os_cache_max", "int", NULL, "min=0", NULL, 0 },
 	{ "prefix_compression", "boolean", NULL, NULL, NULL, 0 },
 	{ "prefix_compression_min", "int", NULL, "min=0", NULL, 0 },
-	{ "source", "string", NULL, NULL, NULL, 0 },
 	{ "split_deepen_min_child", "int", NULL, NULL, NULL, 0 },
 	{ "split_deepen_per_child", "int", NULL, NULL, NULL, 0 },
 	{ "split_pct", "int", NULL, "min=50,max=100", NULL, 0 },
-	{ "type", "string", NULL, NULL, NULL, 0 },
 	{ "value_format", "format",
 	    __wt_struct_confchk, NULL,
 	    NULL, 0 },
@@ -1589,10 +1587,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
 	  "leaf_value_max=0,log=(enabled=true),memory_page_image_max=0,"
 	  "memory_page_max=5MB,os_cache_dirty_max=0,os_cache_max=0,"
-	  "prefix_compression=false,prefix_compression_min=4,source=,"
+	  "prefix_compression=false,prefix_compression_min=4,"
 	  "split_deepen_min_child=0,split_deepen_per_child=0,split_pct=90,"
-	  "type=file,value_format=u,version=(major=0,minor=0)",
-	  confchk_file_meta, 43
+	  "value_format=u,version=(major=0,minor=0)",
+	  confchk_file_meta, 41
 	},
 	{ "index.meta",
 	  "app_metadata=,collator=,columns=,extractor=,immutable=false,"
