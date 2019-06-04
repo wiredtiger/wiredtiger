@@ -928,6 +928,8 @@ __wt_txn_set_read_timestamp(
 			did_roundup_to_oldest = true;
 		} else {
 			__wt_readunlock(session, &txn_global->rwlock);
+			if (!WT_VERBOSE_ISSET(session, WT_VERB_TIMESTAMP))
+				return (EINVAL);
 			WT_RET_MSG(session, EINVAL, "read timestamp "
 			    "%s less than the oldest timestamp %s",
 			    __wt_timestamp_to_string(read_ts, ts_string[0]),
