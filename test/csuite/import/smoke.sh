@@ -6,12 +6,21 @@ set -e
 test "$TESTUTIL_SLOW_MACHINE" = "1" && exit 0
 test "$TESTUTIL_BYPASS_VALGRIND" = "1" && exit 0
 
+dir=WT_TEST.import
+rm -rf $dir && mkdir $dir
+
+rundir=$dir/RUNDIR
+foreign=$dir/FOREIGN
+
 # Run test/format to create an object.
 format()
 {
-	rm -rf RUNDIR || exit 1
+	rm -rf $rundir || exit 1
 
-	$top_builddir/test/format/t -1q -c $top_srcdir/test/format/CONFIG.stress \
+	$top_builddir/test/format/t \
+	    -1q \
+	    -c $top_srcdir/test/format/CONFIG.stress \
+	    -h $rundir \
 	    backups=0 \
 	    checkpoints=1 \
 	    data_source=file \
@@ -28,14 +37,14 @@ verify()
 	EXT="extensions=[\
 	$top_builddir/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so,\
 	$top_builddir/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so]"
-	egrep 'encryption=none' RUNDIR/CONFIG > /dev/null ||
+	egrep 'encryption=none' $rundir/CONFIG > /dev/null ||
 	    EXT="encryption=(name=rotn,keyid=7),$EXT"
 	wt="$top_builddir/wt"
 
-	rm -rf FOREIGN && mkdir FOREIGN || exit 1
-	$wt -C "$EXT" -h FOREIGN create file:xxx || exit 1
-	mv $PWD/RUNDIR/wt FOREIGN/yyy || exit 1
-	$wt -C "$EXT" -h FOREIGN import file:yyy || exit 1
+	rm -rf $foreign && mkdir $foreign || exit 1
+	$wt -C "$EXT" -h $foreign create file:xxx || exit 1
+	mv $rundir/wt $foreign/yyy || exit 1
+	$wt -C "$EXT" -h $foreign import file:yyy || exit 1
 }
 
 format
