@@ -89,9 +89,8 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
 	filecfg[1] = a->data;
 
 	/*
-	 * Build and flatten the complete configuration string, including the
-	 * returned metadata and a reference to the source file, then update
-	 * the database metadata.
+	 * Build and flatten the complete configuration string (including the
+	 * returned metadata), then update the database metadata.
 	 */
 	WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
 	__wt_verbose(session,
