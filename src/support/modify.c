@@ -328,8 +328,8 @@ __modify_apply(WT_SESSION_IMPL *session,
 	/* Check for completion, else, skip any entries consumed. */
 	if (i == nentries)
 		return (0);
-	entries += i;
 	nentries -= i;
+	entries += i;
 
 	/* Try fast path #2. */
 	WT_RET(__modify_apply_no_overlap(
@@ -426,7 +426,7 @@ __wt_modify_apply(
 		data += entries[i].data.size;
 	}
 
-	ret = __modify_apply(session, cursor, entries, nentries);
+	ret = __modify_apply(session, cursor, entries, (int)nentries);
 
 	if (entries != _entries)
 		__wt_free(session, entries);
