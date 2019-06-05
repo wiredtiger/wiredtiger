@@ -315,8 +315,7 @@ __modify_apply(WT_SESSION_IMPL *session,
 	 */
 	for (i = 0; i < nentries; ++i) {
 		if (entries[i].data.size != entries[i].size ||
-		    value->size < entries[i].offset + entries[i].size ||
-		    value->size < entries[i].offset + entries[i].data.size)
+		    value->size < entries[i].offset + entries[i].size)
 			break;
 
 		memmove((uint8_t *)value->data + entries[i].offset,
