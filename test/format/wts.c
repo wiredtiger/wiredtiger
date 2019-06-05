@@ -96,6 +96,15 @@ handle_message(WT_EVENT_HANDLER *handler,
 	(void)(handler);
 	(void)(session);
 
+	/*
+	 * WiredTiger logs a verbose message when the read timestamp is set to a
+	 * value older than the oldest timestamp. Ignore the message, it happens
+	 * when repeating operations to confirm timestamped values don't change
+	 * underneath us.
+	 */
+	if (strstr(message, "less than the oldest timestamp") != NULL)
+		return (0);
+
 	/* Write and flush the message so we're up-to-date on error. */
 	if (g.logfp == NULL) {
 		out = printf("%p:%s\n", (void *)session, message);
