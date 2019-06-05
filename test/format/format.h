@@ -290,7 +290,7 @@ typedef struct {
 	uint64_t  keyno;			/* Row number */
 
 	uint64_t  timestamp;			/* Read/commit timestamp */
-	uint64_t  repeat_ts;			/* Repeat timestamp */
+	bool	  repeatable;			/* Operation can be repeated */
 
 	uint64_t  last;			/* Inclusive end of a truncate range */
 

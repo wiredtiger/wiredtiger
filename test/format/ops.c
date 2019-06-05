@@ -354,9 +354,10 @@ snap_track(TINFO *tinfo, thread_op op)
 	SNAP_OPS *snap;
 
 	snap = tinfo->snap;
-	snap->timestamp = WT_TS_NONE;
 	snap->op = op;
 	snap->keyno = tinfo->keyno;
+	snap->timestamp = WT_TS_NONE;
+	snap->repeatable = false;
 	snap->last = op == TRUNCATE ? tinfo->last : 0;
 
 	if (op == INSERT && g.type == ROW) {
@@ -406,14 +407,17 @@ snap_ts_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
 			break;
 
 		/*
-		 * Updates superseded later are ignored entirely. Else, reads
-		 * are done at the original transaction's read timestamp, and
-		 * anything else is done at the eventual commit timestamp.
+		 * Repeat reads at the original transaction's read timestamp and
+		 * updates at the eventual commit timestamp. We repeated all of
+		 * the operations before resolving the transaction, setting the
+		 * "repeatable" flag when the operation could be repeated in the
+		 * future. However, if we then rolled back the transaction, we
+		 * are passed an invalid commit timestamp and have to clear that
+		 * flag.
 		 */
-		start->repeat_ts = WT_TS_NONE;
-		if (start->timestamp != WT_TS_NONE)
-			start->repeat_ts =
-			    start->op == READ ? read_ts : commit_ts;
+		start->timestamp = start->op == READ ? read_ts : commit_ts;
+		if (start->timestamp == WT_TS_NONE)
+			start->repeatable = false;
 	}
 }
 
@@ -544,7 +548,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 
 /*
  * snap_check --
- *	Check snapshot isolation operations are repeatable.
+ *	Repeat any operations done under snapshot isolation.
  */
 static int
 snap_check(WT_CURSOR *cursor, TINFO *tinfo)
@@ -600,13 +604,10 @@ snap_check(WT_CURSOR *cursor, TINFO *tinfo)
 			    (p->last == 0 || p->last >= start->keyno))
 				break;
 		}
-		if (p != stop) {
-			/* The operation isn't repeatable, ignore it. */
-			start->timestamp = WT_TS_NONE;
-			continue;
-		}
 
-		WT_RET(snap_verify(cursor, tinfo, start));
+		start->repeatable = p == stop;
+		if (start->repeatable)
+			WT_RET(snap_verify(cursor, tinfo, start));
 	}
 
 	return (0);
@@ -639,7 +640,7 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
 		if (snap >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
 			snap = tinfo->snap_list;
 
-		if (snap->repeat_ts != WT_TS_NONE)
+		if (snap->repeatable)
 			break;
 	}
 
@@ -1331,7 +1332,8 @@ rollback:		rollback_transaction(tinfo, session);
 		 * Update any snapshot isolation operations with the timestamp
 		 * we can use to repeat them.
 		 */
-		if (intxn && g.c_txn_timestamps)
+		if (intxn &&
+		    g.c_txn_timestamps && iso_config == ISOLATION_SNAPSHOT)
 			snap_ts_update(tinfo, read_ts, commit_ts);
 
 		intxn = false;
