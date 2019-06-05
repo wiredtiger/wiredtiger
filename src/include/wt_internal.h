@@ -407,12 +407,12 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
+#include "cache.i"			/* required by misc.i */
 #include "ctype.i"			/* required by packing.i */
 #include "intpack.i"			/* required by cell.i, packing.i */
 #include "misc.i"			/* required by mutex.i */
 
 #include "buf.i"                        /* required by cell.i */
-#include "cache.i"			/* required by txn.i */
 #include "cell.i"			/* required by btree.i */
 #include "mutex.i"			/* required by btree.i */
 #include "txn.i"			/* required by btree.i */
