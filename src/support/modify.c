@@ -194,12 +194,10 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session,
 	const uint8_t *from;
 	uint8_t *to;
 	int i;
-	bool sformat;
 
 	*successp = false;
 
 	value = &cursor->value;
-	sformat = cursor->value_format[0] == 'S';
 
 	/*
 	 * If the modifications are sorted and don't overlap, we need a second
@@ -268,14 +266,14 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session,
 	 * called using a cursor buffer referencing on-page memory and it's easy
 	 * to overwrite a page. A side-effect of setting the buffer is to ensure
 	 * the buffer's value is in buffer-local memory.
+	 *
+	 * Assert we didn't lose the trailing nul byte in the 'S' format.
 	 */
 	WT_ERR(__wt_buf_set(session, value, tmp->data, tmp->size));
+	WT_ASSERT(session,
+	    cursor->value_format[0] != 'S' ||
+	    ((char *)value->data)[value->size - 1] == '\0');
 
-	/* Restore the trailing nul. */
-	if (sformat) {
-		WT_ERR(__wt_buf_grow(session, value, value->size + 1));
-		((char *)value->data)[value->size++] = '\0';
-	}
 	*successp = true;
 
 err:	__wt_scr_free(session, &tmp);
