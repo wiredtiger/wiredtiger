@@ -453,11 +453,9 @@ __wt_txn_op_delete_commit_apply_timestamps(
 {
 	WT_TXN *txn;
 	WT_UPDATE **updp;
-	wt_timestamp_t ts;
 	uint32_t previous_state;
 
 	txn = &session->txn;
-	ts = txn->commit_timestamp;
 
 	/*
 	 * Lock the ref to ensure we don't race with eviction freeing the page
@@ -473,7 +471,7 @@ __wt_txn_op_delete_commit_apply_timestamps(
 
 	for (updp = ref->page_del->update_list;
 	    updp != NULL && *updp != NULL; ++updp) {
-		(*updp)->start_ts = ts;
+		(*updp)->start_ts = txn->commit_timestamp;
 		(*updp)->durable_ts = txn->durable_timestamp;
 	}
 
