@@ -529,7 +529,8 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Check if prepared updates should be ignored during reads. */
 	WT_RET(__wt_config_gets_def(session, cfg, "ignore_prepare", 0, &cval));
-	if (cval.val)
+	if (cval.val ||
+	    (cval.len > 0 && WT_STRING_MATCH("force", cval.str, cval.len)))
 		F_SET(txn, WT_TXN_IGNORE_PREPARE);
 
 	/*
@@ -635,9 +636,6 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	 */
 	__wt_txn_release_snapshot(session);
 	txn->isolation = session->isolation;
-#ifdef HAVE_DIAGNOSTIC
-	txn->multi_update_count = 0;
-#endif
 
 	txn->rollback_reason = NULL;
 
@@ -801,6 +799,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	wt_timestamp_t prev_commit_timestamp;
+	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
 	bool locked, prepare, readonly, update_timestamp;
@@ -810,6 +809,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
 	locked = false;
+	resolved_update_count = visited_update_count = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -978,8 +978,27 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 				__wt_txn_op_set_timestamp(session, op);
 			} else {
-				WT_ERR(__wt_txn_resolve_prepared_op(
-				    session, op, true));
+				visited_update_count++;
+				/*
+				 * If we have set the key repeated flag
+				 * we can skip resolving prepared updates as
+				 * it would have happened on a previous
+				 * modification in this txn.
+				 */
+				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
+					WT_ERR(__wt_txn_resolve_prepared_op(
+					    session, op, true,
+					    &resolved_update_count));
+				/*
+				 * We should resolve at least one or more
+				 * updates each time we call
+				 * __wt_txn_resolve_prepared_op, as such
+				 * resolved update count should never be less
+				 * than visited update count.
+				 */
+				WT_ASSERT(session,
+				    resolved_update_count >=
+				    visited_update_count);
 			}
 
 			break;
@@ -994,12 +1013,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+	WT_ASSERT(session, resolved_update_count == visited_update_count);
+	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
+	    resolved_update_count);
 
-	/*
-	 * FIXME: I think we want to say that all prepared updates were
-	 * resolved.
-	 * WT_ASSERT(session, txn->multi_update_count == 0);
-	 */
 	txn->mod_count = 0;
 
 	/*
@@ -1080,8 +1097,12 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
-	/* Transaction should not have updated any of the logged tables. */
-	WT_ASSERT(session, txn->logrec == NULL);
+	/*
+	 * A transaction should not have updated any of the logged tables,
+	 * if debug mode logging is not turned on.
+	 */
+	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
+		WT_ASSERT(session, txn->logrec == NULL);
 
 	/* Set the prepare timestamp.  */
 	WT_RET(__wt_txn_set_timestamp(session, cfg));
@@ -1137,6 +1158,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
 			op->u.op_upd = NULL;
 			WT_STAT_CONN_INCR(session, txn_prepared_updates_count);
+			/*
+			 * Set the key repeated flag which tells us that we've
+			 * got multiple updates to the same key by the same txn.
+			 * This is later used in txn commit.
+			 */
+			if (upd->next != NULL && upd->txnid == upd->next->txnid)
+				F_SET(op, WT_TXN_OP_KEY_REPEATED);
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_txn_op_apply_prepare_state(
@@ -1176,11 +1204,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
+	int64_t resolved_update_count, visited_update_count;
 	u_int i;
 	bool readonly;
 
 	WT_UNUSED(cfg);
-
+	resolved_update_count = visited_update_count = 0;
 	txn = &session->txn;
 	readonly = txn->mod_count == 0;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -1214,10 +1243,29 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Need to resolve indirect references of transaction
 			 * operation, in case of prepared transaction.
 			 */
-			if (F_ISSET(txn, WT_TXN_PREPARE))
-				WT_RET(__wt_txn_resolve_prepared_op(
-				    session, op, false));
-			else {
+			if (F_ISSET(txn, WT_TXN_PREPARE)) {
+				visited_update_count++;
+				/*
+				 * If we have set the key repeated flag
+				 * we can skip resolving prepared updates as
+				 * it would have happened on a previous
+				 * modification in this txn.
+				 */
+				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
+					WT_RET(__wt_txn_resolve_prepared_op(
+					    session, op, false,
+					    &resolved_update_count));
+				/*
+				 * We should resolve at least one or more
+				 * updates each time we call
+				 * __wt_txn_resolve_prepared_op, as such
+				 * resolved update count should never be less
+				 * than visited update count.
+				 */
+				WT_ASSERT(session,
+				    resolved_update_count >=
+				    visited_update_count);
+			} else {
 				WT_ASSERT(session, upd->txnid == txn->id ||
 				    upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;
@@ -1239,6 +1287,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
+	WT_ASSERT(session, resolved_update_count == visited_update_count);
+	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
+	    resolved_update_count);
+
 	txn->mod_count = 0;
 
 	__wt_txn_release(session);

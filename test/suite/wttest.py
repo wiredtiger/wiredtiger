@@ -247,6 +247,9 @@ class WiredTigerTestCase(unittest.TestCase):
         return "%s.%s.%s" %  (self.__module__,
                               self.className(), self._testMethodName)
 
+    def buildDirectory(self):
+        return self._builddir
+
     # Return the wiredtiger_open extension argument for
     # any needed shared library.
     def extensionsConfig(self):
@@ -523,20 +526,33 @@ class WiredTigerTestCase(unittest.TestCase):
         """
         Like TestCase.assertRaises(), with some additional options.
         If the exceptionString argument is used, the exception's string
-        must match it. If optional is set, then no assertion occurs
-        if the exception doesn't occur.
+        must match it, or its pattern if the string starts and ends with
+        a slash. If optional is set, then no assertion occurs if the
+        exception doesn't occur.
         Returns true if the assertion is raised.
         """
         raised = False
         try:
             expr()
         except BaseException as err:
+            self.pr('Exception raised shown as string: "' + \
+                    str(err) + '"')
             if not isinstance(err, exceptionType):
                 self.fail('Exception of incorrect type raised, got type: ' + \
                     str(type(err)))
-            if exceptionString != None and exceptionString != str(err):
-                self.fail('Exception with incorrect string raised, got: "' + \
-                    str(err) + '"')
+            if exceptionString != None:
+                # Match either a pattern or an exact string.
+                fail = False
+                self.pr('Expecting string msg: ' + exceptionString)
+                if len(exceptionString) > 2 and \
+                  exceptionString[0] == '/' and exceptionString[-1] == '/' :
+                      if re.search(exceptionString[1:-1], str(err)) == None:
+                        fail = True
+                elif exceptionString != str(err):
+                        fail = True
+                if fail:
+                    self.fail('Exception with incorrect string raised, got: "' + \
+                        str(err) + '" Expected: ' + exceptionString)
             raised = True
         if not raised and not optional:
             self.fail('no assertion raised')

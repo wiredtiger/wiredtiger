@@ -14,6 +14,35 @@ typedef enum {
 	WT_VISIBLE_PREPARE=1,   /* Prepared update */
 	WT_VISIBLE_TRUE=2       /* A visible update */
 } WT_VISIBLE_TYPE;
+/*
+ * __wt_ref_cas_state_int --
+ *	Try to do a compare and swap, if successful update the ref history in
+ *      diagnostic mode.
+ */
+static inline bool
+__wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref,
+    uint32_t old_state, uint32_t new_state, const char *file, int line)
+{
+	bool cas_result;
+
+	/* Parameters that are used in a macro for diagnostic builds */
+	WT_UNUSED(session);
+	WT_UNUSED(file);
+	WT_UNUSED(line);
+
+	cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
+
+#ifdef HAVE_DIAGNOSTIC
+	/*
+	 * The history update here has potential to race; if the state gets
+	 * updated again after the CAS above but before the history has been
+	 * updated.
+	 */
+	 if (cas_result)
+		WT_REF_SAVE_STATE(ref, new_state, file, line);
+#endif
+	return (cas_result);
+}
 
 /*
  * __wt_txn_timestamp_flags --
@@ -142,17 +171,21 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 /*
  * __wt_txn_resolve_prepared_op --
- *      Resolve a transaction operation indirect references.
+ *      Resolve a transaction's operations indirect references.
  *
  *      In case of prepared transactions, the prepared updates could be evicted
  *      using cache overflow mechanism. Transaction operations referring to
  *      these prepared updates would be referring to them using indirect
  *      references (i.e keys/recnos), which need to be resolved as part of that
  *      transaction commit/rollback.
+ *
+ *      If no updates are resolved throw an error. Increment resolved update
+ *      count for each resolved update count we locate.
  */
 static inline int
 __wt_txn_resolve_prepared_op(
-    WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
+    WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit,
+    int64_t *resolved_update_countp)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -189,36 +222,28 @@ __wt_txn_resolve_prepared_op(
 	    (WT_CURSOR_BTREE *)cursor, &upd));
 	WT_ERR(ret);
 
-#ifdef HAVE_DIAGNOSTIC
-	/*
-	 * Do what we can to ensure that finding prepared updates from a key
-	 * is working as expected. In the case where a transaction has updated
-	 * the same key multiple times, it's possible to resolve all updates
-	 * for the key when processing the first op structure, and then have
-	 * eviction free those updates before subsequent ops are processed,
-	 * which means a search could reasonably not find an update in that
-	 * case.
-	 * We track the update count only for commit, but not for rollback, as
-	 * our tracking is based on transaction id, and in case of rollback, we
-	 * set it to aborted.
-	 */
-	if (upd == NULL && commit) {
-		/*
-		 * FIXME:
-		 * WT_ASSERT(session, txn->multi_update_count > 0);
-		 */
-		--txn->multi_update_count;
+	/* If we haven't found anything then there's an error. */
+	if (upd == NULL) {
+		WT_ASSERT(session, upd != NULL);
+		WT_ERR(WT_NOTFOUND);
 	}
-#endif
-
-	WT_STAT_CONN_INCR(session, txn_prepared_updates_resolved);
 
 	for (; upd != NULL; upd = upd->next) {
-		 if (upd->txnid != txn->id)
+		/*
+		 * Aborted updates can exist in the update chain of our txn.
+		 * Generally this will occur due to a reserved update.
+		 * As such we should skip over these updates. If the txn
+		 * id is then different and not aborted we know we've
+		 * reached the end of our update chain and can exit.
+		 */
+		if (upd->txnid == WT_TXN_ABORTED)
 			continue;
-
+		if (upd->txnid != txn->id)
+			break;
 		if (op->u.op_upd == NULL)
 			op->u.op_upd = upd;
+
+		++(*resolved_update_countp);
 
 		if (!commit) {
 			upd->txnid = WT_TXN_ABORTED;
@@ -253,52 +278,9 @@ __wt_txn_resolve_prepared_op(
 		 * thing as part of "txn_op2".
 		 */
 
-#ifdef HAVE_DIAGNOSTIC
-		/*
-		 * When an update is not identified for resolution of a
-		 * transaction operation, it might have been already processed
-		 * during the resolution of a previous update belonging to the
-		 * same key. To ascertain transaction tracks multiple extra
-		 * updates processed in resolution of an transaction operation.
-		 */
-		if (upd->prepare_state == WT_PREPARE_RESOLVED) {
-			/*
-			 * FIXME:
-			 * WT_ASSERT(session, txn->multi_update_count > 0);
-			 */
-			--txn->multi_update_count;
-		} else if (upd != op->u.op_upd)
-			++txn->multi_update_count;
-#endif
-
-		if (upd->prepare_state == WT_PREPARE_RESOLVED)
-			break;
-
 		/* Resolve the prepared update to be committed update. */
 		__txn_resolve_prepared_update(session, upd);
 	}
-
-	/* FIXME: it isn't safe to walk updates after they are resolved. */
-#if 0 && defined(HAVE_DIAGNOSTIC)
-	upd = op->u.op_upd;
-	/* Ensure that we have not missed any of this transaction updates. */
-	for (; upd != NULL; upd = upd->next) {
-		/*
-		 * Should not have an unprocessed uncommitted update of this
-		 * transaction. For commit, no uncommitted update of this
-		 * transaction should be in prepared state. For rollback, there
-		 * should not be any more uncommitted updates from this
-		 * transaction.
-		 */
-		if (commit && upd->txnid == txn->id)
-			WT_ASSERT(session,
-			    upd->prepare_state != WT_PREPARE_INPROGRESS);
-		else
-			WT_ASSERT(session, upd->txnid != txn->id);
-
-	}
-#endif
-
 err:    WT_TRET(cursor->close(cursor));
 	return (ret);
 }
@@ -380,9 +362,8 @@ __wt_txn_op_apply_prepare_state(
 	for (;; __wt_yield()) {
 		previous_state = ref->state;
 		WT_ASSERT(session, previous_state != WT_REF_READING);
-		if (previous_state != WT_REF_LOCKED &&
-		    __wt_atomic_casv32(
-		    &ref->state, previous_state, WT_REF_LOCKED))
+		if (previous_state != WT_REF_LOCKED && WT_REF_CAS_STATE(
+		    session, ref, previous_state, WT_REF_LOCKED))
 			break;
 	}
 
@@ -1081,13 +1062,19 @@ static inline int
 __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	WT_TXN *txn;
+	WT_TXN_GLOBAL *txn_global;
 	bool ignore_prepare_set;
 
 	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
 
 	if (txn->isolation != WT_ISO_SNAPSHOT)
 		return (0);
 
+	if (txn_global->debug_rollback != 0 &&
+	    ++txn_global->debug_ops % txn_global->debug_rollback == 0)
+		return (__wt_txn_rollback_required(session,
+		    "debug mode simulated conflict"));
 	/*
 	 * Always include prepared transactions in this check: they are not
 	 * supposed to affect visibility for update operations.
