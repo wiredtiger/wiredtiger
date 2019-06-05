@@ -1939,8 +1939,6 @@ struct __wt_session {
 	 * transaction_timestamps., a string; default empty.}
 	 * @configend
 	 * @errors
-	 * If the \c read_timestamp is newer than the current oldest timestamp,
-	 * \c EINVAL will be returned.
 	 */
 	int __F(timestamp_transaction)(WT_SESSION *session, const char *config);
 
