@@ -521,8 +521,8 @@ subtest_main(int argc, char *argv[], bool close_test)
 	struct rlimit rlim;
 	TEST_OPTS *opts, _opts;
 	WT_SESSION *session;
-	const char *p;
 	char config[1024], filename[1024];
+	const char *p;
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -571,7 +571,6 @@ subtest_main(int argc, char *argv[], bool close_test)
 	    "columns=(v1)"));
 	testutil_check(session->create(session, "index:subtest:v2",
 	    "columns=(v2)"));
-
 
 	testutil_check(session->close(session, NULL));
 
