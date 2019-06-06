@@ -552,7 +552,8 @@ subtest_main(int argc, char *argv[], bool close_test)
 	    "create,cache_size=250M,log=(enabled),"
 	    "transaction_sync=(enabled,method=none),"
 	    "extensions=(%s/%s="
-	    "(early_load,config={environment=true,verbose=true}))", p, WT_FAIL_FS_LIB));
+	    "(early_load,config={environment=true,verbose=true}))",
+	    p, WT_FAIL_FS_LIB));
 	testutil_check(
 	    wiredtiger_open(opts->home, &event_handler, config, &opts->conn));
 
