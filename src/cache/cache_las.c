@@ -651,7 +651,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
-	WT_UPDATE *upd;
+	WT_UPDATE *first_upd, *upd;
 	wt_off_t las_size;
 	uint64_t insert_cnt, las_counter, las_pageid, max_las_size;
 	uint64_t prepared_insert_cnt;
@@ -732,7 +732,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			slot = page->type == WT_PAGE_ROW_LEAF ?
 			    WT_ROW_SLOT(page, list->ripcip) :
 			    WT_COL_SLOT(page, list->ripcip);
-		upd = list->ins == NULL ?
+		first_upd = upd = list->ins == NULL ?
 		    page->modify->mod_row_update[slot] : list->ins->upd;
 
 		/*
@@ -751,6 +751,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				las_value.size = upd->size;
 				break;
 			case WT_UPDATE_BIRTHMARK:
+				WT_ASSERT(session, upd != first_upd ||
+				    multi->page_las.skew_newest);
+				/* FALLTHROUGH */
 			case WT_UPDATE_TOMBSTONE:
 				las_value.size = 0;
 				break;
@@ -771,6 +774,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
+				WT_ASSERT(session, upd != first_upd ||
+				    multi->page_las.skew_newest);
 				cursor->set_value(cursor, upd->txnid,
 				    upd->timestamp, upd->prepare_state,
 				    WT_UPDATE_BIRTHMARK, &las_value);
@@ -825,6 +830,7 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
+	WT_UNUSED(first_upd);
 	return (ret);
 }
 
