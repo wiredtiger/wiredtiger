@@ -117,9 +117,9 @@ Options:\n\
   -h      | --help               show this message\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run the entire test suite\n\
-  -o N    | --Nth N              randomly sort scenarios to be run, then\n\
-                                 execute every Nth (2<=N<=1000) scenario.\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
+  -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
+                                 execute every Nth (2<=N<=1000) scenario.\n\
   -s N    | --scenario N         use scenario N (N can be number or symbolic)\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
@@ -271,7 +271,7 @@ if __name__ == '__main__':
     # Turn numbers and ranges into test module names
     preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = False
     parallel = 0
-    n_th = 0
+    random_sample = 0
     configfile = None
     configwrite = False
     dirarg = None
@@ -310,12 +310,12 @@ if __name__ == '__main__':
             if option == '-long' or option == 'l':
                 longtest = True
                 continue
-            if option == '-Nth' or option == 'o':
+            if option == '-random-sample' or option == 'r':
                 if len(args) == 0:
                     usage()
                     sys.exit(2)
-                n_th = int(args.pop(0))
-                if n_th < 2 or n_th > 1000:
+                random_sample = int(args.pop(0))
+                if random_sample < 2 or random_sample > 1000:
                     usage()
                     sys.exit(2)
                 continue
@@ -390,12 +390,12 @@ if __name__ == '__main__':
 
     # Shuffle the tests and create a new suite containing every Nth test from
     # the original suite
-    if n_th > 0:
-        n_th_tests = []
+    if random_sample > 0:
+        random_sample_tests = []
         for test in tests:
-            n_th_tests.append(test)
-        random.shuffle(n_th_tests)
-        tests = unittest.TestSuite(n_th_tests[::n_th])
+            random_sample_tests.append(test)
+        random.shuffle(random_sample_tests)
+        tests = unittest.TestSuite(random_sample_tests[::random_sample])
     if debug:
         import pdb
         pdb.set_trace()
