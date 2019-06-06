@@ -109,7 +109,7 @@ __evict_entry_priority(WT_SESSION_IMPL *session, WT_REF *ref)
 /*
  * __evict_lru_cmp_debug --
  *	Qsort function: sort the eviction array.
- *	Debug mode version for aggressive lookaside.
+ *	Version for eviction debug mode.
  */
 static int WT_CDECL
 __evict_lru_cmp_debug(const void *a_arg, const void *b_arg)
@@ -2087,7 +2087,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		 *
 		 * Also skip internal page unless we get aggressive, the tree
 		 * is idle (indicated by the tree being skipped for walks),
-		 * or we are in debug mode for aggressive lookaside.
+		 * or we are in eviction debug mode.
 		 * The goal here is that if trees become completely idle, we
 		 * eventually push them out of cache completely.
 		 */

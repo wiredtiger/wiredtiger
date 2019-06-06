@@ -674,7 +674,7 @@ __evict_review(
 			    !F_ISSET(conn, WT_CONN_EVICTION_NO_LOOKASIDE)) {
 				if (F_ISSET(cache,
 				    WT_CACHE_EVICT_DEBUG_MODE) &&
-				    __wt_random(&session->rnd) % 10 == 1) {
+				    __wt_random(&session->rnd) % 10 == 0) {
 					LF_CLR(WT_REC_SCRUB |
 					    WT_REC_UPDATE_RESTORE);
 					LF_SET(WT_REC_LOOKASIDE);
