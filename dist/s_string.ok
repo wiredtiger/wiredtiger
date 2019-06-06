@@ -105,6 +105,7 @@ DeadStores
 Decrement
 Decrypt
 DeleteFileW
+Dh
 EACCES
 EAGAIN
 EB
