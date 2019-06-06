@@ -316,7 +316,7 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 		subtest_args[narg++] = (char *)"--";
 	}
 
-	subtest_args[narg++] = (char *)opts->progname;
+	subtest_args[narg++] = (char *)opts->argv0;
 	/* "subtest" must appear before arguments */
 	if (close_test)
 		subtest_args[narg++] = (char *)"subtest_close";
@@ -340,7 +340,7 @@ run_check_subtest(TEST_OPTS *opts, const char *debugger, uint64_t nops,
 		    " operations until fail...\n", nops);
 	testutil_clean_work_dir(opts->home);
 	testutil_check(run_process(
-	    opts, debugger != NULL ? debugger : opts->progname,
+	    opts, debugger != NULL ? debugger : opts->argv0,
 	    subtest_args, &estatus));
 	if (opts->verbose)
 		printf("process exited %d\n", estatus);
@@ -521,7 +521,8 @@ subtest_main(int argc, char *argv[], bool close_test)
 	struct rlimit rlim;
 	TEST_OPTS *opts, _opts;
 	WT_SESSION *session;
-	char *p, config[1024], filename[1024], fs_lib[1024];
+	const char *p;
+	char config[1024], filename[1024];
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -546,18 +547,12 @@ subtest_main(int argc, char *argv[], bool close_test)
 	 */
 #define	WT_FAIL_FS_LIB	"ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
 	if ((p = getenv("top_builddir")) == NULL)
-		testutil_check(__wt_snprintf(
-		    fs_lib, sizeof(fs_lib), "../../%s", WT_FAIL_FS_LIB));
-	else {
-		testutil_check(__wt_snprintf(
-		    fs_lib, sizeof(fs_lib), "%s/%s", p, WT_FAIL_FS_LIB));
-		free(p);
-	}
+		p = "../..";
 	testutil_check(__wt_snprintf(config, sizeof(config),
 	    "create,cache_size=250M,log=(enabled),"
 	    "transaction_sync=(enabled,method=none),"
-	    "extensions=(%s="
-	    "(early_load,config={environment=true,verbose=true})]", fs_lib));
+	    "extensions=(%s/%s="
+	    "(early_load,config={environment=true,verbose=true}))", p, WT_FAIL_FS_LIB));
 	testutil_check(
 	    wiredtiger_open(opts->home, &event_handler, config, &opts->conn));
 
@@ -576,6 +571,7 @@ subtest_main(int argc, char *argv[], bool close_test)
 	    "columns=(v1)"));
 	testutil_check(session->create(session, "index:subtest:v2",
 	    "columns=(v2)"));
+
 
 	testutil_check(session->close(session, NULL));
 
