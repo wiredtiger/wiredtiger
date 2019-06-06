@@ -6,6 +6,10 @@ set -e
 test "$TESTUTIL_SLOW_MACHINE" = "1" && exit 0
 test "$TESTUTIL_BYPASS_VALGRIND" = "1" && exit 0
 
+# If $top_builddir/$top_srcdir aren't set, default to running in test/csuite.
+top_builddir=${top_builddir:-../..}
+top_srcdir=${top_srcdir:-../..}
+
 dir=WT_TEST.import
 rm -rf $dir && mkdir $dir
 

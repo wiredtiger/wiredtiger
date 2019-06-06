@@ -4,6 +4,10 @@ set -e
 
 # Smoke-test random_directio as part of running "make check".
 
+# If $top_builddir/$top_srcdir aren't set, default to running in test/csuite.
+top_builddir=${top_builddir:-../..}
+top_srcdir=${top_srcdir:-../..}
+
 RUN_TEST_CMD="$TEST_WRAPPER $top_builddir/test/csuite/test_random_directio"
 
 # Replace for more complete testing

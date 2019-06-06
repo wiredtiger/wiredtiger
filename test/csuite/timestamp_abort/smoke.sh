@@ -4,6 +4,10 @@ set -e
 
 # Smoke-test timestamp-abort as part of running "make check".
 
+# If $top_builddir/$top_srcdir aren't set, default to running in test/csuite.
+top_builddir=${top_builddir:-../..}
+top_srcdir=${top_srcdir:-../..}
+
  $TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -t 10 -T 5
 #$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -t 10 -T 5 -L
  $TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -m -t 10 -T 5
