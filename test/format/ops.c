@@ -390,6 +390,23 @@ snap_track(TINFO *tinfo, thread_op op)
 }
 
 /*
+ * snap_ts_clear --
+ *	Clear snapshots at or before a specified timestamp.
+ */
+static void
+snap_ts_clear(TINFO *tinfo, uint64_t ts)
+{
+	SNAP_OPS *snap;
+	int count;
+
+	/* Check from the first operation to the last. */
+	for (snap = tinfo->snap_list,
+	    count = WT_ELEMENTS(tinfo->snap_list); count > 0; --count, ++snap)
+		if (snap->repeatable && snap->timestamp <= ts)
+			snap->repeatable = false;
+}
+
+/*
  * snap_ts_update --
  *	Update the snapshot isolation operations with their timestamps.
  */
@@ -655,7 +672,7 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
 	 */
 	while ((ret = session->begin_transaction(
 	    session, "isolation=snapshot")) == WT_CACHE_FULL)
-		;
+		__wt_yield();
 	testutil_check(ret);
 
 	/*
@@ -664,16 +681,17 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
 	 */
 	testutil_check(__wt_snprintf(
 	    buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->timestamp));
-	ret = session->timestamp_transaction(session, buf);
-	if (ret != EINVAL)
-		testutil_check(ret);
 
-	/* The only expected error is rollback. */
+	ret = session->timestamp_transaction(session, buf);
 	if (ret == 0) {
+		/* The only expected error is rollback. */
 		ret = snap_verify(cursor, tinfo, snap);
-		if (ret != WT_ROLLBACK)
+		if (ret != 0 && ret != WT_ROLLBACK)
 			testutil_check(ret);
-	}
+	} else if (ret == EINVAL)
+		snap_ts_clear(tinfo, snap->timestamp);
+	else
+		testutil_check(ret);
 
 	/* Discard the transaction. */
 	testutil_check(session->rollback_transaction(session, NULL));
@@ -702,7 +720,7 @@ begin_transaction(TINFO *tinfo,
 		 */
 		while ((ret = session->begin_transaction(
 		    session, "isolation=snapshot")) == WT_CACHE_FULL)
-			;
+			__wt_yield();
 		testutil_check(ret);
 
 		/*
@@ -748,7 +766,7 @@ begin_transaction(TINFO *tinfo,
 		 */
 		while ((ret = session->begin_transaction(
 		    session, config)) == WT_CACHE_FULL)
-			;
+			__wt_yield();
 		testutil_check(ret);
 
 		*read_tsp = WT_TS_NONE;
