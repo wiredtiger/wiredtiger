@@ -4,7 +4,7 @@ set -e
 
 # Smoke-test random_directio as part of running "make check".
 
-RUN_TEST_CMD="$TEST_WRAPPER ./test_random_directio"
+RUN_TEST_CMD="$TEST_WRAPPER $top_builddir/test/csuite/test_random_directio"
 
 # Replace for more complete testing
 #TEST_THREADS="1 5 10"

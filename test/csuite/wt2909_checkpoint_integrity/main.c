@@ -102,8 +102,6 @@ static void subtest_populate(TEST_OPTS *, bool);
 
 extern int   __wt_optind;
 
-#define	WT_FAIL_FS_LIB	"../../ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
-
 /*
  * check_results --
  *	Check all the tables and verify the results.
@@ -523,7 +521,7 @@ subtest_main(int argc, char *argv[], bool close_test)
 	struct rlimit rlim;
 	TEST_OPTS *opts, _opts;
 	WT_SESSION *session;
-	char config[1024], filename[1024];
+	char *p, config[1024], filename[1024], fs_lib[1024];
 
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
@@ -541,17 +539,30 @@ subtest_main(int argc, char *argv[], bool close_test)
 	testutil_check(__wt_snprintf(
 	    filename, sizeof(filename), "%s/%s", opts->home, STDOUT_FILE));
 	testutil_assert(freopen(filename, "a", stdout) != NULL);
+
+	/*
+	 * Use $top_builddir if it's available, otherwise assume we're running
+	 * from the test/csuite directory.
+	 */
+#define	WT_FAIL_FS_LIB	"ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
+	if ((p = getenv("top_builddir")) == NULL)
+		testutil_check(__wt_snprintf(
+		    fs_lib, sizeof(fs_lib), "../../%s", WT_FAIL_FS_LIB));
+	else {
+		testutil_check(__wt_snprintf(
+		    fs_lib, sizeof(fs_lib), "%s/%s", p, WT_FAIL_FS_LIB));
+		free(p);
+	}
 	testutil_check(__wt_snprintf(config, sizeof(config),
 	    "create,cache_size=250M,log=(enabled),"
-	    "transaction_sync=(enabled,method=none),extensions=("
-	    WT_FAIL_FS_LIB
-	    "=(early_load,config={environment=true,verbose=true})]"));
-
+	    "transaction_sync=(enabled,method=none),"
+	    "extensions=(%s="
+	    "(early_load,config={environment=true,verbose=true})]", fs_lib));
 	testutil_check(
 	    wiredtiger_open(opts->home, &event_handler, config, &opts->conn));
+
 	testutil_check(
 	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
-
 	testutil_check(session->create(session, "table:subtest",
 	    "key_format=i,value_format=iiiS,"
 	    "columns=(id,v0,v1,v2,big)"));
