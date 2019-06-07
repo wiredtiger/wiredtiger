@@ -51,12 +51,12 @@ main(int argc, char *argv[])
 	testutil_make_work_dir(opts->home);
 
 	/*
-	 * Use $top_builddir if it's available, otherwise assume we're running
-	 * from the test/csuite directory.
+	 * Use $top_builddir if it's available, otherwise assume we're building
+	 * in build_posix and running in the test/csuite directory.
 	 */
 #define	WT_FAIL_FS_LIB	"ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
 	if ((p = getenv("top_builddir")) == NULL)
-		p = "../..";
+		p = "../../build_posix";
 	testutil_check(__wt_snprintf(buf, sizeof(buf),
 	    "create,extensions=(%s/%s=(early_load=true))", p, WT_FAIL_FS_LIB));
 	testutil_check(wiredtiger_open(opts->home, NULL, buf, &opts->conn));
