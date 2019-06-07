@@ -86,7 +86,7 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	 * we have a valid reference.
 	 */
 	current_state = ref->state;
-	if (current_state != WT_REF_LIMBO && current_state != WT_REF_MEM) {
+	if (current_state != WT_REF_MEM) {
 		*busyp = true;
 		return (0);
 	}
@@ -134,8 +134,8 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	 * Do the dance:
 	 *
 	 * The memory location which makes a page "real" is the WT_REF's state
-	 * of WT_REF_LIMBO or WT_REF_MEM, which can be set to WT_REF_LOCKED
-	 * at any time by the page eviction server.
+	 * of WT_REF_MEM, which can be set to WT_REF_LOCKED at any time by the
+	 * page eviction server.
 	 *
 	 * Add the WT_REF reference to the session's hazard list and flush the
 	 * write, then see if the page's state is still valid.  If so, we can
@@ -154,10 +154,10 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 
 	/*
 	 * Check if the page state is still valid, where valid means a
-	 * state of WT_REF_LIMBO or WT_REF_MEM.
+	 * state of WT_REF_MEM.
 	 */
 	current_state = ref->state;
-	if (current_state == WT_REF_LIMBO || current_state == WT_REF_MEM) {
+	if (current_state == WT_REF_MEM) {
 		++session->nhazard;
 
 		/*
