@@ -16,6 +16,10 @@ rm -rf $dir && mkdir $dir
 rundir=$dir/RUNDIR
 foreign=$dir/FOREIGN
 
+EXT="extensions=[\
+$top_builddir/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so,\
+$top_builddir/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so]"
+
 # Run test/format to create an object.
 format()
 {
@@ -23,6 +27,7 @@ format()
 
 	$top_builddir/test/format/t \
 	    -1q \
+	    -C "$EXT" \
 	    -c $top_srcdir/test/format/CONFIG.stress \
 	    -h $rundir \
 	    backups=0 \
@@ -38,9 +43,6 @@ format()
 verify()
 {
 	# Import and verify the object.
-	EXT="extensions=[\
-	$top_builddir/ext/encryptors/rotn/.libs/libwiredtiger_rotn.so,\
-	$top_builddir/ext/collators/reverse/.libs/libwiredtiger_reverse_collator.so]"
 	egrep 'encryption=none' $rundir/CONFIG > /dev/null ||
 	    EXT="encryption=(name=rotn,keyid=7),$EXT"
 	wt="$top_builddir/wt"
