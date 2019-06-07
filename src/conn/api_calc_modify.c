@@ -69,8 +69,8 @@ static void
 __cm_extend(WT_CM_STATE *cms,
     const uint8_t *m1, const uint8_t *m2, WT_CM_MATCH *match)
 {
+	ptrdiff_t n;
 	const uint8_t *p1, *p2;
-	int n;
 
 	p1 = m1;
 	p2 = m2;
