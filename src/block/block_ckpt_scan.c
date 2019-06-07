@@ -54,8 +54,10 @@ __wt_block_checkpoint_final(WT_SESSION_IMPL *session,
     WT_BLOCK *block, WT_ITEM *buf, uint8_t **file_sizep)
 {
 	WT_CKPT *ckpt;
-	size_t align_size, len, size;
+	size_t align_size, file_size_offset, len, size;
 	uint8_t *p;
+
+	*file_sizep = 0;
 
 	ckpt = block->final_ckpt;
 	p = (uint8_t *)buf->mem + buf->size;
@@ -89,7 +91,7 @@ __wt_block_checkpoint_final(WT_SESSION_IMPL *session,
 	 */
 	size = buf->size + WT_INTPACK64_MAXSIZE;
 	WT_RET(__wt_buf_extend(session, buf, size));
-	*file_sizep = (uint8_t *)buf->mem + buf->size;
+	file_size_offset = buf->size;
 	buf->size = size;
 
 	/* 3a, copy the metadata length into the buffer. */
@@ -134,6 +136,8 @@ __wt_block_checkpoint_final(WT_SESSION_IMPL *session,
 	align_size = WT_ALIGN(buf->size, block->allocsize);
 	if (align_size > buf->memsize)
 		WT_RET(__wt_buf_extend(session, buf, align_size));
+
+	*file_sizep = (uint8_t *)buf->mem + file_size_offset;
 
 	return (0);
 }
