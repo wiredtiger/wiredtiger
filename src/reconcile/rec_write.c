@@ -513,6 +513,7 @@ __rec_init(WT_SESSION_IMPL *session,
     WT_REF *ref, uint32_t flags, WT_SALVAGE_COOKIE *salvage, void *reconcilep)
 {
 	WT_BTREE *btree;
+	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_RECONCILE *r;
 	WT_TXN_GLOBAL *txn_global;
@@ -681,7 +682,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * Sanity check the size: 100 slots is the smallest dictionary we use.
 	 */
 	if (btree->dictionary != 0 && btree->dictionary > r->dictionary_slots)
-		WT_RET(__wt_rec_dictionary_init(session,
+		WT_ERR(__wt_rec_dictionary_init(session,
 		    r, btree->dictionary < 100 ? 100 : btree->dictionary));
 	__wt_rec_dictionary_reset(r);
 
@@ -722,7 +723,12 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->update_modify_cbt.ref = ref;
 	r->update_modify_cbt.iface.value_format = btree->value_format;
 
-	return (0);
+	if (0) {
+err:		__wt_free(session, r);
+		reconcilep = NULL;
+	}
+
+	return (ret);
 }
 
 /*
