@@ -170,6 +170,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 	char *config;
 
 	btree = S2BT(session);
+	ckptbase = NULL;
 	dhandle = session->dhandle;
 	config = NULL;
 
@@ -219,6 +220,7 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 		WT_ERR(__wt_meta_checkpoint_clear(session, dhandle->name));
 
 err:	__wt_meta_ckptlist_free(session, &ckptbase);
+	__wt_free(session, config);
 	return (ret);
 }
 
