@@ -864,7 +864,7 @@ def generateTSSlicesForBuckets():
                               numBuckets, "Generating timeline charts");
 
     for i, fname in returnValues.items():
-        bucketFilenames.append(fname.value.decode("ascii"));
+        bucketFilenames.append(fname.value.decode());
     print(color.END);
 
     return bucketFilenames;
