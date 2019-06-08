@@ -88,7 +88,7 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 		ret = ret == WT_NOTFOUND ?
 		    0 : util_err(session, ret, "WT_CONFIG_PARSER.get");
 err:
-	if ((tret = parser->close(parser)) != 0) {
+	if (parser != NULL && (tret = parser->close(parser)) != 0) {
 		tret = util_err(session, tret, "WT_CONFIG_PARSER.close");
 		if (ret == 0)
 			ret = tret;
