@@ -172,6 +172,27 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 }
 
 /*
+ * list_print_size --
+ *	List a size found in the checkpoint information.
+ */
+static void
+list_print_size(uint64_t v)
+{
+	if (v >= WT_PETABYTE)
+		printf("%" PRIu64 " PB", v / WT_PETABYTE);
+	else if (v >= WT_TERABYTE)
+		printf("%" PRIu64 " TB", v / WT_TERABYTE);
+	else if (v >= WT_GIGABYTE)
+		printf("%" PRIu64 " GB", v / WT_GIGABYTE);
+	else if (v >= WT_MEGABYTE)
+		printf("%" PRIu64 " MB", v / WT_MEGABYTE);
+	else if (v >= WT_KILOBYTE)
+		printf("%" PRIu64 " KB", v / WT_KILOBYTE);
+	else
+		printf("%" PRIu64 " B", v);
+}
+
+/*
  * list_print_checkpoint --
  *	List the checkpoint information.
  */
@@ -183,7 +204,6 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 	WT_DECL_RET;
 	size_t allocsize, len;
 	time_t t;
-	uint64_t v;
 
 	/*
 	 * We may not find any checkpoints for this file, in which case we don't
@@ -210,38 +230,55 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 		 * Call ctime, not ctime_r; ctime_r has portability problems,
 		 * the Solaris version is different from the POSIX standard.
 		 */
+		if (ckpt != ckptbase)
+			printf("\n");
 		t = (time_t)ckpt->sec;
 		printf("\t%*s: %.24s", (int)len, ckpt->name, ctime(&t));
 
-		v = ckpt->size;
-		if (v >= WT_PETABYTE)
-			printf(" (%" PRIu64 " PB)\n", v / WT_PETABYTE);
-		else if (v >= WT_TERABYTE)
-			printf(" (%" PRIu64 " TB)\n", v / WT_TERABYTE);
-		else if (v >= WT_GIGABYTE)
-			printf(" (%" PRIu64 " GB)\n", v / WT_GIGABYTE);
-		else if (v >= WT_MEGABYTE)
-			printf(" (%" PRIu64 " MB)\n", v / WT_MEGABYTE);
-		else if (v >= WT_KILOBYTE)
-			printf(" (%" PRIu64 " KB)\n", v / WT_KILOBYTE);
-		else
-			printf(" (%" PRIu64 " B)\n", v);
+		printf(" (size ");
+		list_print_size(ckpt->size);
+		printf(")\n");
 
 		/* Decode the checkpoint block. */
 		if (ckpt->raw.data == NULL)
 			continue;
 		if ((ret = __wt_block_ckpt_decode(
 		    session, allocsize, ckpt->raw.data, &ci)) == 0) {
-			printf("\t\t" "root offset: %" PRIuMAX
-			    " (0x%" PRIxMAX ")\n",
+			printf("\t\t" "file-size: ");
+			list_print_size((uint64_t)ci.file_size);
+			printf(", checkpoint-size: ");
+			list_print_size(ci.ckpt_size);
+			printf("\n\n");
+
+			printf("\t\t" "          offset, size, checksum\n");
+			printf(
+			    "\t\t" "root    "
+			    ": %" PRIuMAX
+			    ", %" PRIu32
+			    ", %" PRIu32 "\n",
 			    (uintmax_t)ci.root_offset,
-			    (uintmax_t)ci.root_offset);
-			printf("\t\t" "root size: %" PRIu32
-			    " (0x%" PRIx32 ")\n",
-			    ci.root_size, ci.root_size);
-			printf("\t\t" "root checksum: %" PRIu32
-			    " (0x%" PRIx32 ")\n",
-			    ci.root_checksum, ci.root_checksum);
+			    ci.root_size, ci.root_checksum);
+			printf(
+			    "\t\t" "alloc   "
+			    ": %" PRIuMAX
+			    ", %" PRIu32
+			    ", %" PRIu32 "\n",
+			    (uintmax_t)ci.alloc.offset,
+			    ci.alloc.size, ci.alloc.checksum);
+			printf(
+			    "\t\t" "discard "
+			    ": %" PRIuMAX
+			    ", %" PRIu32
+			    ", %" PRIu32 "\n",
+			    (uintmax_t)ci.discard.offset,
+			    ci.discard.size, ci.discard.checksum);
+			printf(
+			    "\t\t" "avail   "
+			    ": %" PRIuMAX
+			    ", %" PRIu32
+			    ", %" PRIu32 "\n",
+			    (uintmax_t)ci.avail.offset,
+			    ci.avail.size, ci.avail.checksum);
 		} else {
 			/* Ignore the error and continue if damaged. */
 			(void)util_err(session, ret, "__wt_block_ckpt_decode");
