@@ -71,27 +71,31 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 
 	*allocsize = 0;
 
+	parser = NULL;
+	config = NULL;
+
 	wt_api = session->connection->get_extension_api(session->connection);
 	if ((ret = wt_api->metadata_search(wt_api, session, key, &config)) != 0)
-		return (util_err(
+		WT_ERR(util_err(
 		    session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
 	if ((ret = wt_api->config_parser_open(wt_api, session, config,
 	    strlen(config), &parser)) != 0)
-		return (util_err(
+		WT_ERR(util_err(
 		    session, ret, "WT_EXTENSION_API.config_parser_open"));
-	if ((ret = parser->get(parser, "allocation_size", &szvalue)) != 0) {
-		if (ret == WT_NOTFOUND)
-			ret = 0;
-		else
-			ret = util_err(session, ret, "WT_CONFIG_PARSER.get");
-		if ((tret = parser->close(parser)) != 0)
-			(void)util_err(session, tret, "WT_CONFIG_PARSER.close");
-		return (ret);
+	if ((ret = parser->get(parser, "allocation_size", &szvalue)) == 0)
+		*allocsize = (size_t)szvalue.val;
+	else
+		ret = ret == WT_NOTFOUND ?
+		    0 : util_err(session, ret, "WT_CONFIG_PARSER.get");
+err:
+	if (parser != NULL && (tret = parser->close(parser)) != 0) {
+		tret = util_err(session, tret, "WT_CONFIG_PARSER.close");
+		if (ret == 0)
+			ret = tret;
 	}
-	if ((ret = parser->close(parser)) != 0)
-		return (util_err(session, ret, "WT_CONFIG_PARSER.close"));
-	*allocsize = (size_t)szvalue.val;
-	return (0);
+
+	free(config);
+	return (ret);
 }
 
 /*
