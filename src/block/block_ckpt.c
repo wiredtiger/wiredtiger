@@ -9,8 +9,8 @@
 #include "wt_internal.h"
 
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
-static int __ckpt_update(
-	WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_BLOCK_CKPT *);
+static int __ckpt_update(WT_SESSION_IMPL *,
+	WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *, bool);
 
 /*
  * __wt_block_ckpt_init --
@@ -625,8 +625,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 	/* Update checkpoints marked for update. */
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (F_ISSET(ckpt, WT_CKPT_UPDATE))
-			WT_ERR(__ckpt_update(
-			    session, block, ckpt, ckpt->bpriv));
+			WT_ERR(__ckpt_update(session,
+			    block, ckptbase, ckpt, ckpt->bpriv, false));
 
 live_update:
 	/* Truncate the file if that's possible. */
@@ -669,14 +669,8 @@ live_update:
 			ci->ckpt_size =
 			    WT_MIN(ckpt_size, (uint64_t)block->size);
 
-			/*
-			 * Configure final checkpoint recovery magic by flagging
-			 * the checkpoint information to the write routine.
-			 */
-			block->final_ckpt = ckpt;
-			ret = __ckpt_update(session, block, ckpt, ci);
-			block->final_ckpt = NULL;
-			WT_ERR(ret);
+			WT_ERR(__ckpt_update(
+			    session, block, ckptbase, ckpt, ci, true));
 		}
 
 	/*
@@ -731,9 +725,11 @@ err:	if (ret != 0 && fatal) {
  *	Update a checkpoint.
  */
 static int
-__ckpt_update(WT_SESSION_IMPL *session,
-    WT_BLOCK *block, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
+__ckpt_update(WT_SESSION_IMPL *session, WT_BLOCK *block,
+    WT_CKPT *ckptbase, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci, bool is_live)
 {
+	WT_DECL_ITEM(a);
+	WT_DECL_RET;
 	uint8_t *endp;
 
 #ifdef HAVE_DIAGNOSTIC
@@ -753,15 +749,32 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	/*
 	 * If this is the final block, we append an incomplete copy of the
 	 * checkpoint information to the avail list for standalone retrieval.
-	 * Copy the INCOMPLETE checkpoint information into the checkpoint.
 	 */
-	if (block->final_ckpt != NULL) {
+	if (is_live) {
+		/*
+		 * Copy the INCOMPLETE checkpoint information into the
+		 * checkpoint.
+		 */
 		WT_RET(__wt_buf_init(
 		    session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
 		endp = ckpt->raw.mem;
 		WT_RET(__wt_block_ckpt_to_buffer(
 		    session, block, &endp, ci, true));
 		ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
+
+		/*
+		 * Convert the INCOMPLETE checkpoint array into its metadata
+		 * representation. This must match what is eventually written
+		 * into the metadata file, in other words, everything must be
+		 * initialized before the block manager does the checkpoint.
+		 */
+		WT_RET(__wt_scr_alloc(session, 8 * 1024, &a));
+		ret = __wt_meta_ckptlist_to_meta(session, ckptbase, a);
+		if (ret == 0)
+			ret = __wt_strndup(
+			    session, a->data, a->size, &ckpt->block_checkpoint);
+		__wt_scr_free(session, &a);
+		WT_RET(ret);
 	}
 
 	/*
@@ -776,9 +789,13 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * it's not truly available until the new checkpoint locations have been
 	 * saved to the metadata.
 	 */
-	if (block->final_ckpt != NULL)
-		WT_RET(__wt_block_extlist_write(
-		    session, block, &ci->avail, &ci->ckpt_avail));
+	if (is_live) {
+		block->final_ckpt = ckpt;
+		ret = __wt_block_extlist_write(
+		    session, block, &ci->avail, &ci->ckpt_avail);
+		block->final_ckpt = NULL;
+		WT_RET(ret);
+	}
 
 	/*
 	 * Set the file size for the live system.
@@ -798,7 +815,7 @@ __ckpt_update(WT_SESSION_IMPL *session,
 	 * Currently, there's no API to roll-forward intermediate checkpoints,
 	 * if there ever is, this will need to be fixed.
 	 */
-	if (block->final_ckpt != NULL)
+	if (is_live)
 		ci->file_size = block->size;
 
 	/* Copy the COMPLETE checkpoint information into the checkpoint. */

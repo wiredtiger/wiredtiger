@@ -73,11 +73,11 @@ __bm_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session,
  *	Return information for the last known file checkpoint.
  */
 static int
-__bm_checkpoint_last(
-    WT_BM *bm, WT_SESSION_IMPL *session, char **metadatap, WT_ITEM *checkpoint)
+__bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session,
+    char **metadatap, char **checkpoint_listp, WT_ITEM *checkpoint)
 {
 	return (__wt_block_checkpoint_last(
-	    session, bm->block, metadatap, checkpoint));
+	    session, bm->block, metadatap, checkpoint_listp, checkpoint));
 }
 
 /*

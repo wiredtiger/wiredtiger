@@ -25,7 +25,7 @@ extern int __wt_block_checkpoint_start(WT_SESSION_IMPL *session, WT_BLOCK *block
 extern int __wt_block_checkpoint(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_checkpoint_resolve(WT_SESSION_IMPL *session, WT_BLOCK *block, bool failed) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_checkpoint_final(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t **file_sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **metadatap, WT_ITEM *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **metadatap, char **checkpoint_listp, WT_ITEM *checkpoint) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
