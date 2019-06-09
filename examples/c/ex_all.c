@@ -752,10 +752,9 @@ session_ops(WT_SESSION *session)
 	/*! [Compact a table] */
 
 #ifdef MIGHT_NOT_RUN
-	/*! [Import a table] */
-	error_check(session->import(
-	    session, "file:import", "/foreign/data/collection.wt", NULL));
-	/*! [Import a table] */
+	/*! [Import a file] */
+	error_check(session->import(session, "file:import", NULL));
+	/*! [Import a file] */
 #endif
 
 	/*! [Rebalance a table] */

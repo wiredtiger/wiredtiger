@@ -1450,9 +1450,9 @@ struct __wt_session {
 
 #if !defined(SWIG) && !defined(DOXYGEN)
 	/*!
-	 * Import a table.
+	 * Import a file.
 	 *
-	 * @snippet ex_all.c Import a table
+	 * @snippet ex_all.c Import a file
 	 *
 	 * @param session the session handle
 	 * @param name the URI of the object to import
