@@ -124,9 +124,6 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
 	 * Get the checkpoint information from the file's metadata as an array
 	 * of WT_CKPT structures.
 	 *
-	 * Clear durability information, everything from an imported file must
-	 * be durable.
-	 *
 	 * XXX
 	 * There's a problem here. If a file is imported from our future (leaf
 	 * pages with unstable entries that have write-generations ahead of the
@@ -146,15 +143,9 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
 	 * Update the file's metadata with the new checkpoint information.
 	 */
 	WT_ERR(__wt_meta_ckptlist_get(session, uri, false, &ckptbase));
-	WT_CKPT_FOREACH(ckptbase, ckpt) {
+	WT_CKPT_FOREACH(ckptbase, ckpt)
 		if (ckpt->name == NULL || (ckpt + 1)->name == NULL)
 			break;
-		ckpt->newest_durable_ts = WT_TS_NONE;
-		ckpt->oldest_start_ts = WT_TS_NONE;
-		ckpt->oldest_start_txn = WT_TXN_NONE;
-		ckpt->newest_stop_ts = WT_TS_MAX;
-		ckpt->newest_stop_txn = WT_TXN_MAX;
-	}
 	if (ckpt->name == NULL)
 		WT_ERR_MSG(session, EINVAL,
 		    "no checkpoint information available to import");
