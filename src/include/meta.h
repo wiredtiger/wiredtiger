@@ -87,7 +87,8 @@ struct __wt_ckpt {
 
 	uint64_t write_gen;		/* Write generation */
 
-	char	*metadata;		/* Checkpoint metadata */
+	char	*block_metadata;	/* Block-stored metadata */
+	char	*block_checkpoint;	/* Block-stored checkpoint */
 
 					/* Validity window */
 	wt_timestamp_t	newest_durable_ts;

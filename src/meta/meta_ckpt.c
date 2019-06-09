@@ -296,7 +296,7 @@ __wt_meta_block_metadata(
 	    "block_metadata_encrypted=%s,block_metadata=[%.*s]",
 	    (int)cval.len, cval.str, kencryptor == NULL ? "false" : "true",
 	    (int)metadata_len, metadata));
-	WT_ERR(__wt_strndup(session, b->data, b->size, &ckpt->metadata));
+	WT_ERR(__wt_strndup(session, b->data, b->size, &ckpt->block_metadata));
 
 err:
 	__wt_free(session, min_config);
@@ -676,7 +676,8 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 		return;
 
 	__wt_free(session, ckpt->name);
-	__wt_free(session, ckpt->metadata);
+	__wt_free(session, ckpt->block_metadata);
+	__wt_free(session, ckpt->block_checkpoint);
 	__wt_buf_free(session, &ckpt->addr);
 	__wt_buf_free(session, &ckpt->raw);
 	__wt_free(session, ckpt->bpriv);

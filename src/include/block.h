@@ -178,7 +178,8 @@ struct __wt_bm {
 	u_int (*block_header)(WT_BM *);
 	int (*checkpoint)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, WT_CKPT *, bool);
-	int (*checkpoint_last)(WT_BM *, WT_SESSION_IMPL *, char **, WT_ITEM *);
+	int (*checkpoint_last)
+	    (WT_BM *, WT_SESSION_IMPL *, char **, char **, WT_ITEM *);
 	int (*checkpoint_load)(WT_BM *, WT_SESSION_IMPL *,
 	    const uint8_t *, size_t, uint8_t *, size_t *, bool);
 	int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);
