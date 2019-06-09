@@ -202,22 +202,31 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
 	ckptbase->newest_stop_txn = WT_TXN_MAX;
 	F_SET(ckptbase, WT_CKPT_ADD);
 
-	btree->ckpt = ckptbase;
-	ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
-	root->page = NULL;
-	btree->ckpt = NULL;
+	/*
+	 * We may not have found any pages during salvage and there's no tree
+	 * to flush.
+	 */
+	if (root->page != NULL) {
+		btree->ckpt = ckptbase;
+		ret = __wt_evict(
+		    session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
+		root->page = NULL;
+		btree->ckpt = NULL;
+		WT_ERR(ret);
+	}
 
 	/*
-	 * If no checkpoint was created, well, it's probably bad news, but there
-	 * is nothing to do but clear any recorded checkpoints for the file.  If
-	 * a checkpoint was created, life is good, replace any existing list of
-	 * checkpoints with the single new one.
+	 * If no checkpoint was created, clear all recorded checkpoints for the
+	 * file. This is expected if we didn't find any leaf pages to salvage.
+	 *
+	 * If a checkpoint was created, life is good, replace any existing list
+	 * of checkpoints with the single new one.
 	 */
-	if (ret == 0 && ckptbase->raw.data != NULL)
+	if (ckptbase->raw.data == NULL)
+		WT_TRET(__wt_meta_checkpoint_clear(session, dhandle->name));
+	else
 		WT_ERR(__wt_meta_ckptlist_set(
 		    session, dhandle->name, ckptbase, NULL));
-	else
-		WT_ERR(__wt_meta_checkpoint_clear(session, dhandle->name));
 
 err:	__wt_meta_ckptlist_free(session, &ckptbase);
 	__wt_free(session, config);
@@ -392,10 +401,9 @@ __wt_salvage(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/*
 	 * Step 9:
-	 * Evict the newly created root page, creating a checkpoint.
+	 * Evict any newly created root page, creating a checkpoint.
 	 */
-	if (ss->root_ref.page != NULL)
-		WT_ERR(__slvg_checkpoint(session, &ss->root_ref));
+	WT_ERR(__slvg_checkpoint(session, &ss->root_ref));
 
 	/*
 	 * Step 10:
