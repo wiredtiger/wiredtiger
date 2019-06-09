@@ -30,7 +30,7 @@ wt="$top_builddir/wt"
 # Run test/format to create an object.
 format()
 {
-	rm -rf $rundir || exit 1
+	rm -rf $rundir
 
 	$top_builddir/test/format/t \
 	    -1q \
@@ -60,13 +60,12 @@ import()
 	$wt -C "$EXT" -h $rundir list -v file:wt | sed 1d > $mo
 
 	# Create a stub datbase and copy in the table.
-	rm -rf $foreign && mkdir $foreign || exit 1
-	$wt -C "$EXT" -h $foreign create file:xxx || exit 1
-	cp $rundir/wt $foreign/yyy || exit 1
+	rm -rf $foreign && mkdir $foreign
+	$wt -C "$EXT" -h $foreign create file:xxx
+	cp $rundir/wt $foreign/yyy
 
 	# Import the table.
 	$wt -C "$EXT" -h $foreign import file:yyy
-
 
 	# Dump the imported metadata.
 	echo; echo 'dumping the imported metadata'
@@ -76,44 +75,41 @@ import()
 
 compare_checkpoints()
 {
-	echo 'comparing the original and imported checkpoints'
 	sed -e 's/.*\(checkpoint=.*))\).*/\1/' < $mo > $co
 	sed -e 's/.*\(checkpoint=.*))\).*/\1/' < $mi > $ci
 	echo; echo 'original checkpoint'
 	cat $co
 	echo; echo 'imported checkpoint'
 	cat $ci
-	cmp $co $ci
+
+	echo; echo 'comparing the original and imported checkpoints'
+	cmp $co $ci && echo 'comparison succeeded'
 }
 
 verify()
 {
 	echo; echo 'verifying the imported file'
-	$wt -C "$EXT" -h $foreign verify file:yyy || exit 1
+	$wt -C "$EXT" -h $foreign verify file:yyy && echo 'verify succeeded'
 }
 
-# The checkpoints will differ in some ways, for example, the import clears the
-# durable timestamp/transaction information in the checkpoint. If verify fails,
-# you can repeatedly run the import and verify process using the -c option for
-# debugging.
-compare=0
+# If verify fails, you can repeatedly run the import, checkpoint comparison and
+# verify process using the -r option for debugging.
+readonly=0
 while :
 	do case "$1" in
-	-c)
-		compare=1
+	-r)
+		readonly=1
 		shift;;
 	*)
 		break;;
 	esac
 done
 
-if test $compare -eq 0; then
+if test $readonly -eq 0; then
 	rm -rf $dir && mkdir $dir
 	format
 fi
 import
-if test $compare -eq 1; then
-	compare_checkpoints
-fi
+compare_checkpoints
 verify
 exit 0
