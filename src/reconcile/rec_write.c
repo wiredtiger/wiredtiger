@@ -723,7 +723,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->update_modify_cbt.iface.value_format = btree->value_format;
 
 	/*
-	 * If we allocated the reconcilliation structure and there was an error,
+	 * If we allocated the reconciliation structure and there was an error,
 	 * clean up. If our caller passed in a structure, they own it.
 	 */
 err:	if (*(WT_RECONCILE **)reconcilep == NULL) {
