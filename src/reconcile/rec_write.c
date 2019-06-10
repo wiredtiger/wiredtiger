@@ -9,6 +9,7 @@
 #include "wt_internal.h"
 
 static void __rec_cleanup(WT_SESSION_IMPL *, WT_RECONCILE *);
+static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int  __rec_destroy_session(WT_SESSION_IMPL *);
 static int  __rec_init(WT_SESSION_IMPL *,
 		WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
@@ -513,6 +514,7 @@ __rec_init(WT_SESSION_IMPL *session,
     WT_REF *ref, uint32_t flags, WT_SALVAGE_COOKIE *salvage, void *reconcilep)
 {
 	WT_BTREE *btree;
+	WT_DECL_RET;
 	WT_PAGE *page;
 	WT_RECONCILE *r;
 	WT_TXN_GLOBAL *txn_global;
@@ -522,8 +524,6 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	if ((r = *(WT_RECONCILE **)reconcilep) == NULL) {
 		WT_RET(__wt_calloc_one(session, &r));
-
-		*(WT_RECONCILE **)reconcilep = r;
 		session->reconcile_cleanup = __rec_destroy_session;
 
 		/* Connect pointers/buffers. */
@@ -681,7 +681,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * Sanity check the size: 100 slots is the smallest dictionary we use.
 	 */
 	if (btree->dictionary != 0 && btree->dictionary > r->dictionary_slots)
-		WT_RET(__wt_rec_dictionary_init(session,
+		WT_ERR(__wt_rec_dictionary_init(session,
 		    r, btree->dictionary < 100 ? 100 : btree->dictionary));
 	__wt_rec_dictionary_reset(r);
 
@@ -722,7 +722,20 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->update_modify_cbt.ref = ref;
 	r->update_modify_cbt.iface.value_format = btree->value_format;
 
-	return (0);
+	/*
+	 * If we allocated the reconciliation structure and there was an error,
+	 * clean up. If our caller passed in a structure, they own it.
+	 */
+err:	if (*(WT_RECONCILE **)reconcilep == NULL) {
+		if (ret == 0)
+			*(WT_RECONCILE **)reconcilep = r;
+		else {
+			__rec_cleanup(session, r);
+			__rec_destroy(session, &r);
+		}
+	}
+
+	return (ret);
 }
 
 /*
@@ -2145,6 +2158,7 @@ int
 __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 {
 	WT_BTREE *btree;
+	WT_DECL_RET;
 	WT_PAGE *parent;
 	WT_RECONCILE *r;
 
@@ -2161,25 +2175,25 @@ __wt_bulk_wrapup(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
 		break;
 	case BTREE_COL_VAR:
 		if (cbulk->rle != 0)
-			WT_RET(__wt_bulk_insert_var(session, cbulk, false));
+			WT_ERR(__wt_bulk_insert_var(session, cbulk, false));
 		break;
 	case BTREE_ROW:
 		break;
 	}
 
-	WT_RET(__wt_rec_split_finish(session, r));
-	WT_RET(__rec_write_wrapup(session, r, r->page));
+	WT_ERR(__wt_rec_split_finish(session, r));
+	WT_ERR(__rec_write_wrapup(session, r, r->page));
 	__rec_write_page_status(session, r);
 
 	/* Mark the page's parent and the tree dirty. */
 	parent = r->ref->home;
-	WT_RET(__wt_page_modify_init(session, parent));
+	WT_ERR(__wt_page_modify_init(session, parent));
 	__wt_page_modify_set(session, parent);
 
-	__rec_cleanup(session, r);
+err:	__rec_cleanup(session, r);
 	__rec_destroy(session, &cbulk->reconcile);
 
-	return (0);
+	return (ret);
 }
 
 /*
