@@ -259,30 +259,30 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 			    "\t\t" "root    "
 			    ": %" PRIuMAX
 			    ", %" PRIu32
-			    ", %" PRIu32 "\n",
-			    (uintmax_t)ci.root_offset,
-			    ci.root_size, ci.root_checksum);
+			    ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.root_offset, ci.root_size,
+			    ci.root_checksum, ci.root_checksum);
 			printf(
 			    "\t\t" "alloc   "
 			    ": %" PRIuMAX
 			    ", %" PRIu32
-			    ", %" PRIu32 "\n",
-			    (uintmax_t)ci.alloc.offset,
-			    ci.alloc.size, ci.alloc.checksum);
+			    ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.alloc.offset, ci.alloc.size,
+			    ci.alloc.checksum, ci.alloc.checksum);
 			printf(
 			    "\t\t" "discard "
 			    ": %" PRIuMAX
 			    ", %" PRIu32
-			    ", %" PRIu32 "\n",
-			    (uintmax_t)ci.discard.offset,
-			    ci.discard.size, ci.discard.checksum);
+			    ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.discard.offset, ci.discard.size,
+			    ci.discard.checksum, ci.discard.checksum);
 			printf(
 			    "\t\t" "avail   "
 			    ": %" PRIuMAX
 			    ", %" PRIu32
-			    ", %" PRIu32 "\n",
-			    (uintmax_t)ci.avail.offset,
-			    ci.avail.size, ci.avail.checksum);
+			    ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.avail.offset, ci.avail.size,
+			    ci.avail.checksum, ci.avail.checksum);
 		} else {
 			/* Ignore the error and continue if damaged. */
 			(void)util_err(session, ret, "__wt_block_ckpt_decode");
