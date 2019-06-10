@@ -1399,7 +1399,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 		/* Check that keys are never returned out-of-order. */
 		/*
 		 * XXX
-		 * WT-3889
+		 * WT-3889, WT-3907
 		 * LSM has a bug that prevents cursor order checks from
 		 * working, skip the test for now.
 		 */

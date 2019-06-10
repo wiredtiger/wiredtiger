@@ -104,14 +104,8 @@ config_setup(void)
 			 *
 			 * Configuring truncation or timestamps results in LSM
 			 * cache problems, don't configure LSM if those set.
-			 *
-			 * XXX
-			 * Remove the timestamp test when WT-4067 resolved.
 			 */
 			if (g.type != ROW || g.c_in_memory)
-				break;
-			if (config_is_perm(
-			    "transaction_timestamps") && g.c_txn_timestamps)
 				break;
 			if (config_is_perm("truncate") && g.c_truncate)
 				break;
@@ -558,19 +552,6 @@ config_lsm_reset(void)
 	 */
 	if (!config_is_perm("truncate"))
 		config_single("truncate=off", 0);
-
-	/*
-	 * LSM doesn't currently play nicely with timestamps, don't choose the
-	 * pair unless forced to. If we turn off timestamps, make sure we turn
-	 * off prepare as well, it requires timestamps. Remove this code with
-	 * WT-4067.
-	 *
-	 */
-	if (!config_is_perm("prepare") &&
-	    !config_is_perm("transaction_timestamps")) {
-		config_single("prepare=off", 0);
-		config_single("transaction_timestamps=off", 0);
-	}
 }
 
 /*
