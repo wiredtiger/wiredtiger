@@ -1051,13 +1051,13 @@ tasks:
       - func: "compile wiredtiger"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/build_posix/test/format"
           script: |
             set -o errexit
             set -o verbose
             for i in $(seq 10)
             do
-              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../test/format/CONFIG.endian
+              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../../../test/format/CONFIG.endian
             done
             # Archive the WT_TEST directories which include the generated wt data files
             tar -zcvf WT_TEST.tgz WT_TEST*
@@ -1112,13 +1112,13 @@ tasks:
       - func: "compile wiredtiger"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix"
+          working_dir: "wiredtiger/build_posix/test/format"
           script: |
             set -o errexit
             set -o verbose
             for i in $(seq 10)
             do
-              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../test/format/CONFIG.endian
+              ./t -1 -h "WT_TEST.$i" -c $(pwd)/../../../test/format/CONFIG.endian
             done
             # Archive the WT_TEST directories which include the generated wt data files
             tar -zcvf WT_TEST.tgz WT_TEST*
