@@ -93,7 +93,7 @@ class test_las05(wttest.WiredTigerTestCase):
         valstr='abcdefghijklmnopqrstuvwxyz'
         loop_start = self.get_stat(stat.conn.cache_lookaside_score)
         for i in range(1, 9):
-            bigvalue2 = bytes(valstr[i]) * 50
+            bigvalue2 = valstr[i].encode() * 50
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
             entries_start = self.get_stat(stat.conn.cache_lookaside_entries)
             score_start = self.get_stat(stat.conn.cache_lookaside_score)
@@ -121,7 +121,7 @@ class test_las05(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(self.stable))
         for i in range(9, 11):
-            bigvalue2 = bytes(valstr[i]) * 50
+            bigvalue2 = valstr[i].encode() * 50
             self.pr("Update iteration with oldest: " + str(i) + " Value: " + str(bigvalue2))
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, nrows)
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
