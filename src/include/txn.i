@@ -396,6 +396,43 @@ __wt_txn_op_apply_prepare_state(
 }
 
 /*
+ * __wt_txn_op_delete_commit_apply_timestamps --
+ *	Apply the correct start and durable timestamps to any
+ *	updates in the page del update list.
+ */
+static inline void
+__wt_txn_op_delete_commit_apply_timestamps(
+    WT_SESSION_IMPL *session, WT_REF *ref)
+{
+	WT_TXN *txn;
+	WT_UPDATE **updp;
+	uint32_t previous_state;
+
+	txn = &session->txn;
+
+	/*
+	 * Lock the ref to ensure we don't race with eviction freeing the page
+	 * deleted update list or with a page instantiate.
+	 */
+	for (;; __wt_yield()) {
+		previous_state = ref->state;
+		WT_ASSERT(session, previous_state != WT_REF_READING);
+		if (previous_state != WT_REF_LOCKED && WT_REF_CAS_STATE(
+		    session, ref, previous_state, WT_REF_LOCKED))
+			break;
+	}
+
+	for (updp = ref->page_del->update_list;
+	    updp != NULL && *updp != NULL; ++updp) {
+		(*updp)->start_ts = txn->commit_timestamp;
+		(*updp)->durable_ts = txn->durable_timestamp;
+	}
+
+	/* Unlock the page by setting it back to it's previous state */
+	WT_REF_SET_STATE(ref, previous_state);
+}
+
+/*
  * __wt_txn_op_set_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
  *	structure doesn't have a populated update or ref field or in prepared
@@ -449,6 +486,10 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 			    &op->u.op_upd->durable_ts;
 			*timestamp = txn->durable_timestamp;
 		}
+
+		if (op->type == WT_TXN_OP_REF_DELETE)
+			__wt_txn_op_delete_commit_apply_timestamps(
+			    session, op->u.ref);
 	}
 }
 
@@ -464,9 +505,14 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 	txn = &session->txn;
 
-	if (F_ISSET(txn, WT_TXN_READONLY))
+	if (F_ISSET(txn, WT_TXN_READONLY)) {
+		if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
+			WT_RET_MSG(session, ENOTSUP,
+			    "Transactions with ignore_prepare=true"
+			    " cannot perform updates");
 		WT_RET_MSG(session, WT_ROLLBACK,
 		    "Attempt to update in a read-only transaction");
+	}
 
 	WT_RET(__txn_next_op(session, &op));
 	if (F_ISSET(session, WT_SESSION_LOGGING_INMEM)) {
