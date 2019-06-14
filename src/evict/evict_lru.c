@@ -1388,8 +1388,10 @@ __evict_walk_choose_dhandle(
 
 	conn = S2C(session);
 
+	WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
+
 	/* When there are lots of handles, just step through them. */
-	if (conn->dhandle_count > 10 * WT_HASH_ARRAY_SIZE) {
+	if (conn->dhandle_count > 2 * WT_HASH_ARRAY_SIZE) {
 		dhandle = *dhandle_p;
 		if (dhandle != NULL)
 			dhandle = TAILQ_NEXT(dhandle, q);
@@ -1401,13 +1403,11 @@ __evict_walk_choose_dhandle(
 
 	*dhandle_p = NULL;
 
-	WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
-
 	/*
 	 * If we don't have many dhandles, most hash buckets will be empty.
 	 * Just pick a random dhandle from the list in that case.
 	 */
-	if (conn->dhandle_count < WT_HASH_ARRAY_SIZE) {
+	if (conn->dhandle_count < WT_HASH_ARRAY_SIZE / 4) {
 		rnd_dh = __wt_random(&session->rnd) % conn->dhandle_count;
 		dhandle = TAILQ_FIRST(&conn->dhqh);
 		for (; rnd_dh > 0; rnd_dh--)
@@ -1419,9 +1419,9 @@ __evict_walk_choose_dhandle(
 	/*
 	 * Keep picking up a random bucket until we find one that is not empty.
 	 */
-	rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
-	while ((dh_bucket_count = conn->dh_bucket_count[rnd_bucket]) == 0)
-		rnd_bucket = (rnd_bucket + 1) % WT_HASH_ARRAY_SIZE;
+	do {
+		rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
+	} while ((dh_bucket_count = conn->dh_bucket_count[rnd_bucket]) == 0);
 
 	/* We can't pick up an empty bucket with a non zero bucket count. */
 	WT_ASSERT(session, !TAILQ_EMPTY(&conn->dhhash[rnd_bucket]));
@@ -1430,7 +1430,7 @@ __evict_walk_choose_dhandle(
 	rnd_dh = __wt_random(&session->rnd) % dh_bucket_count;
 	dhandle = TAILQ_FIRST(&conn->dhhash[rnd_bucket]);
 	for (; rnd_dh > 0; rnd_dh--)
-		dhandle = TAILQ_NEXT(dhandle, q);
+		dhandle = TAILQ_NEXT(dhandle, hashq);
 
 	*dhandle_p = dhandle;
 }
