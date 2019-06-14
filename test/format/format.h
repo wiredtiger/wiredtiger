@@ -285,6 +285,9 @@ extern GLOBAL g;
 /* Worker thread operations. */
 typedef enum { INSERT, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
 
+/* Worker read operations. */
+typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
+
 typedef struct {
 	thread_op op;				/* Operation */
 	uint64_t  keyno;			/* Row number */
@@ -371,6 +374,10 @@ void	 print_item(const char *, WT_ITEM *);
 void	 print_item_data(const char *, const uint8_t *, size_t);
 int	 read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 uint32_t rng(WT_RAND_STATE *);
+int	 snap_check(WT_CURSOR *, TINFO *);
+void	 snap_repeat(WT_CURSOR *, TINFO *);
+void	 snap_track(TINFO *, thread_op);
+void	 snap_ts_update(TINFO *, uint64_t, uint64_t);
 WT_THREAD_RET timestamp(void *);
 void	 track(const char *, uint64_t, TINFO *);
 void	 val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
@@ -391,50 +398,4 @@ void	 wts_salvage(void);
 void	 wts_stats(void);
 void	 wts_verify(const char *);
 
-/*
- * mmrand --
- *	Return a random value between a min/max pair, inclusive.
- */
-static inline uint32_t
-mmrand(WT_RAND_STATE *rnd, u_int min, u_int max)
-{
-	uint32_t v;
-	u_int range;
-
-	/*
-	 * Test runs with small row counts can easily pass a max of 0 (for
-	 * example, "g.rows / 20"). Avoid the problem.
-	 */
-	if (max <= min)
-		return (min);
-
-	v = rng(rnd);
-	range = (max - min) + 1;
-	v %= range;
-	v += min;
-	return (v);
-}
-
-static inline void
-random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
-{
-	uint64_t i, micro_seconds;
-
-	/*
-	 * We need a fast way to choose a sleep time. We want to sleep a short
-	 * period most of the time, but occasionally wait longer. Divide the
-	 * maximum period of time into 10 buckets (where bucket 0 doesn't sleep
-	 * at all), and roll dice, advancing to the next bucket 50% of the time.
-	 * That means we'll hit the maximum roughly every 1K calls.
-	 */
-	for (i = 0;;)
-		if (rng(rnd) & 0x1 || ++i > 9)
-			break;
-
-	if (i == 0)
-		__wt_yield();
-	else {
-		micro_seconds = (uint64_t)max_seconds * WT_MILLION;
-		__wt_sleep(0, i * (micro_seconds / 10));
-	}
-}
+#include "format.i"
