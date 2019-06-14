@@ -10,7 +10,7 @@ download_clang_format() {
 		echo "$0: unsupported environment"
 		exit 1
 	fi
-	tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz build/bin/clang-format
+	tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz build/bin/clang-format && rm dist/clang-format.tar.gz
 }
 
 # Find the top-level WiredTiger directory and move to there.
