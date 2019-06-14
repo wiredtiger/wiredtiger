@@ -1709,22 +1709,14 @@ __evict_push_candidate(WT_SESSION_IMPL *session,
  *	Calculate how many pages to queue for a given tree.
  */
 static uint32_t
-__evict_walk_target(WT_SESSION_IMPL *session, u_int max_entries)
+__evict_walk_target(WT_SESSION_IMPL *session)
 {
 	WT_CACHE *cache;
 	uint64_t btree_inuse, bytes_per_slot, cache_inuse;
 	uint32_t target_pages_clean, target_pages_dirty, target_pages;
-	uint32_t total_slots;
 
 	cache = S2C(session)->cache;
 	target_pages_clean = target_pages_dirty = 0;
-	total_slots = max_entries;
-
-	/*
-	 * The number of times we should fill the queue by the end of
-	 * considering all trees.
-	 */
-#define	QUEUE_FILLS_PER_PASS	10
 
 	/*
 	 * The minimum number of pages we should consider per tree.
@@ -1740,7 +1732,7 @@ __evict_walk_target(WT_SESSION_IMPL *session, u_int max_entries)
 	if (F_ISSET(cache, WT_CACHE_EVICT_CLEAN)) {
 		btree_inuse = __wt_btree_bytes_evictable(session);
 		cache_inuse = __wt_cache_bytes_inuse(cache);
-		bytes_per_slot = 1 + cache_inuse / total_slots;
+		bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
 		target_pages_clean = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
 	}
@@ -1748,7 +1740,7 @@ __evict_walk_target(WT_SESSION_IMPL *session, u_int max_entries)
 	if (F_ISSET(cache, WT_CACHE_EVICT_DIRTY)) {
 		btree_inuse = __wt_btree_dirty_leaf_inuse(session);
 		cache_inuse = __wt_cache_dirty_leaf_inuse(cache);
-		bytes_per_slot = 1 + cache_inuse / total_slots;
+		bytes_per_slot = 1 + cache_inuse / cache->evict_slots;
 		target_pages_dirty = (uint32_t)(
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
 	}
@@ -1760,8 +1752,7 @@ __evict_walk_target(WT_SESSION_IMPL *session, u_int max_entries)
 	 * small trees, so round to a whole number of slots (zero for small
 	 * trees) before multiplying.
 	 */
-	target_pages = WT_MAX(target_pages_clean, target_pages_dirty) *
-	    QUEUE_FILLS_PER_PASS;
+	target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
 
 	/*
 	 * Walk trees with a small fraction of the cache in case there are so
@@ -1826,8 +1817,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 	start = queue->evict_queue + *slotp;
 	remaining_slots = max_entries - *slotp;
 	if (btree->evict_walk_progress >= btree->evict_walk_target) {
-		btree->evict_walk_target =
-		    __evict_walk_target(session, max_entries);
+		btree->evict_walk_target = __evict_walk_target(session);
 		btree->evict_walk_progress = 0;
 	}
 	target_pages = btree->evict_walk_target - btree->evict_walk_progress;
