@@ -433,7 +433,7 @@ snap_ts_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
 		 * flag.
 		 */
 		start->timestamp = start->op == READ ? read_ts : commit_ts;
-		if (start->timestamp == WT_TS_NONE)
+		if (commit_ts == WT_TS_NONE)
 			start->repeatable = false;
 	}
 }
@@ -565,7 +565,8 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 
 /*
  * snap_check --
- *	Repeat any operations done under snapshot isolation.
+ *	Repeat any operations done under snapshot isolation, and figuring out
+ * if operations are also repeatable in the future.
  */
 static int
 snap_check(WT_CURSOR *cursor, TINFO *tinfo)
