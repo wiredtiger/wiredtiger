@@ -636,7 +636,7 @@ ops(void *arg)
 		if (!intxn &&
 		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			++tinfo->search;
-			snap_repeat(cursor, tinfo);
+			snap_repeat_single(cursor, tinfo);
 		}
 
 		/*
@@ -923,7 +923,7 @@ update_instead_of_chosen_op:
 		if (intxn && iso_config == ISOLATION_SNAPSHOT) {
 			__wt_yield();		/* Encourage races */
 
-			ret = snap_check(cursor, tinfo);
+			ret = snap_repeat_txn(cursor, tinfo);
 			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			if (ret == WT_ROLLBACK)
 				goto rollback;
@@ -964,7 +964,7 @@ rollback:		rollback_transaction(tinfo, session);
 		 */
 		if (intxn &&
 		    g.c_txn_timestamps && iso_config == ISOLATION_SNAPSHOT)
-			snap_ts_update(tinfo, read_ts, commit_ts);
+			snap_repeat_update(tinfo, read_ts, commit_ts);
 
 		intxn = false;
 	}

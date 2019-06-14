@@ -75,55 +75,6 @@ snap_track(TINFO *tinfo, thread_op op)
 }
 
 /*
- * snap_ts_clear --
- *	Clear snapshots at or before a specified timestamp.
- */
-static void
-snap_ts_clear(TINFO *tinfo, uint64_t ts)
-{
-	SNAP_OPS *snap;
-	int count;
-
-	/* Check from the first operation to the last. */
-	for (snap = tinfo->snap_list,
-	    count = WT_ELEMENTS(tinfo->snap_list); count > 0; --count, ++snap)
-		if (snap->repeatable && snap->timestamp <= ts)
-			snap->repeatable = false;
-}
-
-/*
- * snap_ts_update --
- *	Update the snapshot isolation operations with their timestamps.
- */
-void
-snap_ts_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
-{
-	SNAP_OPS *start, *stop;
-
-	/* Check from the first operation we saved to the last. */
-	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
-		/* Wrap at the end of the circular buffer. */
-		if (start >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-			start = tinfo->snap_list;
-		if (start == stop)
-			break;
-
-		/*
-		 * Repeat reads at the original transaction's read timestamp and
-		 * updates at the eventual commit timestamp. We repeated all of
-		 * the operations before resolving the transaction, setting the
-		 * "repeatable" flag when the operation could be repeated in the
-		 * future. However, if we then rolled back the transaction, we
-		 * are passed an invalid commit timestamp and have to clear that
-		 * flag.
-		 */
-		start->timestamp = start->op == READ ? read_ts : commit_ts;
-		if (commit_ts == WT_TS_NONE)
-			start->repeatable = false;
-	}
-}
-
-/*
  * snap_verify --
  *	Repeat a read and verify the contents.
  */
@@ -249,14 +200,165 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 }
 
 /*
- * snap_check --
- *	Repeat any operations done under snapshot isolation, and figuring out
- * if operations are also repeatable in the future.
+ * snap_ts_clear --
+ *	Clear snapshots at or before a specified timestamp.
+ */
+static void
+snap_ts_clear(TINFO *tinfo, uint64_t ts)
+{
+	SNAP_OPS *snap;
+	int count;
+
+	/* Check from the first operation to the last. */
+	for (snap = tinfo->snap_list,
+	    count = WT_ELEMENTS(tinfo->snap_list); count > 0; --count, ++snap)
+		if (snap->repeatable && snap->timestamp <= ts)
+			snap->repeatable = false;
+}
+
+/*
+ * snap_repeat_ok_match --
+ *	Compare two operations and see if they modified the same record.
+ */
+static bool
+snap_repeat_ok_match(SNAP_OPS *current, SNAP_OPS *a)
+{
+	/* Reads are never a problem, there's no modification. */
+	if (a->op == READ)
+		return (true);
+
+	/* Check for a matching single record modification. */
+	if (a->keyno == current->keyno)
+		return (false);
+
+	/* Truncates are slightly harder, make sure the ranges don't overlap. */
+	if (a->op == TRUNCATE) {
+		if (g.c_reverse &&
+		    (a->keyno == 0 || a->keyno >= current->keyno) &&
+		    (a->last == 0 || a->last <= current->keyno))
+			return (false);
+		if (!g.c_reverse &&
+		    (a->keyno == 0 || a->keyno <= current->keyno) &&
+		    (a->last == 0 || a->last >= current->keyno))
+			return (false);
+	}
+
+	return (true);
+}
+
+/*
+ * snap_repeat_ok_commit --
+ *	Return if an operation in the transaction can be repeated, where the
+ * transaction isn't yet committed (so all locks are in place), or has already
+ * committed successfully.
+ */
+static bool
+snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *stop)
+{
+	SNAP_OPS *p;
+
+	/*
+	 * Check for subsequent changes to the record and don't attempt to
+	 * repeat the read in that case.
+	 */
+	for (p = current;;) {
+		/*
+		 * Wrap at the end of the circular buffer; "stop" is the element
+		 * after the last element we want to test.
+		 */
+		if (++p >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+			p = tinfo->snap_list;
+		if (p == stop)
+			return (true);
+
+		if (!snap_repeat_ok_match(current, p))
+			return (false);
+	}
+	/* NOTREACHED */
+}
+
+/*
+ * snap_repeat_ok_rollback --
+ *	Return if an operation in the transaction can be repeated, after a
+ * transaction has rolled back.
+ */
+static bool
+snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *start)
+{
+	SNAP_OPS *p;
+
+	/* Ignore update operations, they can't be repeated after rollback. */
+	if (current->op != READ)
+		return (false);
+
+	/*
+	 * Check for previous changes to the record and don't attempt to repeat
+	 * the read in that case.
+	 */
+	for (p = current;;) {
+		/*
+		 * Wrap at the beginning of the circular buffer; "start" is the
+		 * last element we want to test.
+		 */
+		if (p == start)
+			return (true);
+		if (--p < tinfo->snap_list)
+			p = &tinfo->snap_list[
+			    WT_ELEMENTS(tinfo->snap_list) - 1];
+
+		if (!snap_repeat_ok_match(current, p))
+			return (false);
+
+	}
+	/* NOTREACHED */
+}
+
+/*
+ * snap_repeat_txn --
+ *	Repeat each operation done within a snapshot isolation transaction.
  */
 int
-snap_check(WT_CURSOR *cursor, TINFO *tinfo)
+snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
 {
-	SNAP_OPS *p, *start, *stop;
+	SNAP_OPS *current, *stop;
+
+	/* Check from the first operation we saved to the last. */
+	for (current = tinfo->snap_first, stop = tinfo->snap;; ++current) {
+		/* Wrap at the end of the circular buffer. */
+		if (current >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
+			current = tinfo->snap_list;
+		if (current == stop)
+			break;
+
+		/*
+		 * We don't test all of the records in a truncate range, only
+		 * the first because that matches the rest of the isolation
+		 * checks. If a truncate range was from the start of the table,
+		 * switch to the record at the end. This is done in the first
+		 * routine that considers if operations are repeatable, and the
+		 * rest of those functions depend on it already being done.
+		 */
+		if (current->op == TRUNCATE && current->keyno == 0) {
+			current->keyno = current->last;
+			testutil_assert(current->keyno != 0);
+		}
+
+		if (snap_repeat_ok_commit(tinfo, current, stop))
+			WT_RET(snap_verify(cursor, tinfo, current));
+	}
+
+	return (0);
+}
+
+/*
+ * snap_repeat_update --
+ *	Update the list of snapshot operations based on final transaction
+ * resolution.
+ */
+void
+snap_repeat_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
+{
+	SNAP_OPS *start, *stop;
 
 	/* Check from the first operation we saved to the last. */
 	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
@@ -267,61 +369,24 @@ snap_check(WT_CURSOR *cursor, TINFO *tinfo)
 			break;
 
 		/*
-		 * We don't test all of the records in a truncate range, only
-		 * the first because that matches the rest of the isolation
-		 * checks. If a truncate range was from the start of the table,
-		 * switch to the record at the end.
+		 * Repeat reads at the original transaction's read timestamp and
+		 * updates at the eventual commit timestamp.
 		 */
-		if (start->op == TRUNCATE && start->keyno == 0) {
-			start->keyno = start->last;
-			testutil_assert(start->keyno != 0);
-		}
+		start->timestamp = start->op == READ ? read_ts : commit_ts;
 
-		/*
-		 * Check for subsequent changes to this record. If we find a
-		 * read, don't treat it as a subsequent change, that way we
-		 * verify the results of the change as well as the results of
-		 * the read.
-		 */
-		for (p = start + 1;; ++p) {
-			/* Wrap at the end of the circular buffer. */
-			if (p >=
-			    &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-				p = tinfo->snap_list;
-			if (p == stop)
-				break;
-
-			if (p->op == READ)
-				continue;
-			if (p->keyno == start->keyno)
-				break;
-
-			if (p->op != TRUNCATE)
-				continue;
-			if (g.c_reverse &&
-			    (p->keyno == 0 || p->keyno >= start->keyno) &&
-			    (p->last == 0 || p->last <= start->keyno))
-				break;
-			if (!g.c_reverse &&
-			    (p->keyno == 0 || p->keyno <= start->keyno) &&
-			    (p->last == 0 || p->last >= start->keyno))
-				break;
-		}
-
-		start->repeatable = p == stop;
-		if (start->repeatable)
-			WT_RET(snap_verify(cursor, tinfo, start));
+		/* Set operation repeatability after transaction resolution. */
+		start->repeatable = commit_ts == WT_TS_NONE ?
+		    snap_repeat_ok_rollback(tinfo, start, tinfo->snap_first) :
+		    snap_repeat_ok_commit(tinfo, start, stop);
 	}
-
-	return (0);
 }
 
 /*
- * snap_repeat --
- *	Repeat an historic read.
+ * snap_repeat_single --
+ *	Repeat an historic operation.
  */
 void
-snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
+snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 {
 	SNAP_OPS *snap;
 	WT_DECL_RET;
