@@ -1387,19 +1387,27 @@ __evict_walk_choose_dhandle(
 	u_int dh_bucket_count, rnd_bucket, rnd_dh;
 
 	conn = S2C(session);
+
+	/* When there are lots of handles, just step through them. */
+	if (conn->dhandle_count > 10 * WT_HASH_ARRAY_SIZE) {
+		dhandle = *dhandle_p;
+		if (dhandle != NULL)
+			dhandle = TAILQ_NEXT(dhandle, q);
+		if (dhandle == NULL)
+			dhandle = TAILQ_FIRST(&conn->dhqh);
+		*dhandle_p = dhandle;
+		return;
+	}
+
 	*dhandle_p = NULL;
 
 	WT_ASSERT(session, __wt_rwlock_islocked(session, &conn->dhandle_lock));
 
-	/* Nothing to do if the dhandle list is empty. */
-	if (TAILQ_EMPTY(&conn->dhqh))
-		return;
-
 	/*
-	 * If we do not have a lot of dhandles, most hash buckets will be empty.
+	 * If we don't have many dhandles, most hash buckets will be empty.
 	 * Just pick a random dhandle from the list in that case.
 	 */
-	if (conn->dhandle_count < 10 * WT_HASH_ARRAY_SIZE) {
+	if (conn->dhandle_count < WT_HASH_ARRAY_SIZE) {
 		rnd_dh = __wt_random(&session->rnd) % conn->dhandle_count;
 		dhandle = TAILQ_FIRST(&conn->dhqh);
 		for (; rnd_dh > 0; rnd_dh--)
@@ -1411,12 +1419,9 @@ __evict_walk_choose_dhandle(
 	/*
 	 * Keep picking up a random bucket until we find one that is not empty.
 	 */
-	dh_bucket_count = 0;
-	rnd_bucket = 0;
-	while (dh_bucket_count == 0) {
-		rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
-		dh_bucket_count = conn->dh_bucket_count[rnd_bucket];
-	}
+	rnd_bucket = __wt_random(&session->rnd) % WT_HASH_ARRAY_SIZE;
+	while ((dh_bucket_count = conn->dh_bucket_count[rnd_bucket]) == 0)
+		rnd_bucket = (rnd_bucket + 1) % WT_HASH_ARRAY_SIZE;
 
 	/* We can't pick up an empty bucket with a non zero bucket count. */
 	WT_ASSERT(session, !TAILQ_EMPTY(&conn->dhhash[rnd_bucket]));
@@ -1825,8 +1830,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue,
 		    __evict_walk_target(session, max_entries);
 		btree->evict_walk_progress = 0;
 	}
-	target_pages = WT_MIN(btree->evict_walk_target / QUEUE_FILLS_PER_PASS,
-	    btree->evict_walk_target - btree->evict_walk_progress);
+	target_pages = btree->evict_walk_target - btree->evict_walk_progress;
 
 	if (target_pages > remaining_slots)
 		target_pages = remaining_slots;
