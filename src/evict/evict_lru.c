@@ -1487,10 +1487,6 @@ retry:	loop_count = 0;
 		    F_ISSET(conn, WT_CONN_RECONFIGURING))
 			break;
 
-		/* If we have seen enough pages in this walk, we're done. */
-		if (pages_seen_total > WT_EVICT_WALK_INCR * 100)
-			break;
-
 		/*
 		 * If we are not finding pages at all, we're done.
 		 * Every 100th iteration, check if we made progress.
