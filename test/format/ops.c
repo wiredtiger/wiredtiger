@@ -512,7 +512,7 @@ ops(void *arg)
 	uint64_t commit_ts, read_ts, reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
-	bool greater_than, intxn, next, positioned, prepared, readonly;
+	bool ckpt_handle, greater_than, intxn, next, positioned, prepared;
 
 	tinfo = arg;
 
@@ -520,7 +520,7 @@ ops(void *arg)
 	commit_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
 	read_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
 	iso_config = ISOLATION_RANDOM;	/* -Wconditional-uninitialized */
-	readonly = false;		/* -Wconditional-uninitialized */
+	ckpt_handle = false;		/* -Wconditional-uninitialized */
 
 	/* Initialize tracking of snapshot isolation transaction returns. */
 	tinfo->snap = tinfo->snap_first = tinfo->snap_list;
@@ -597,8 +597,7 @@ ops(void *arg)
 					continue;
 				testutil_check(ret);
 
-				/* Checkpoints are read-only. */
-				readonly = true;
+				ckpt_handle = true;
 			} else {
 				/*
 				 * Configure "append", in the case of column
@@ -611,8 +610,7 @@ ops(void *arg)
 					__wt_yield();
 				testutil_check(ret);
 
-				/* Updates supported. */
-				readonly = false;
+				ckpt_handle = false;
 			}
 		}
 
@@ -630,10 +628,10 @@ ops(void *arg)
 		}
 
 		/*
-		 * If not in a transaction and running in a timestamp world,
-		 * occasionally repeat a timestamped read.
+		 * If not in a transaction, have a data handle and running in a
+		 * timestamp world, occasionally repeat a timestamped read.
 		 */
-		if (!intxn &&
+		if (!intxn && !ckpt_handle &&
 		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1) {
 			++tinfo->search;
 			snap_repeat_single(cursor, tinfo);
@@ -652,7 +650,7 @@ ops(void *arg)
 
 		/* Select an operation. */
 		op = READ;
-		if (!readonly) {
+		if (!ckpt_handle) {
 			i = mmrand(&tinfo->rnd, 1, 100);
 			if (i < g.c_delete_pct && tinfo->ops > truncate_op) {
 				op = TRUNCATE;
@@ -696,7 +694,7 @@ ops(void *arg)
 		 * Optionally reserve a row. Reserving a row before a read isn't
 		 * all that sensible, but not unexpected, either.
 		 */
-		if (!readonly && intxn && mmrand(&tinfo->rnd, 0, 20) == 1) {
+		if (intxn && !ckpt_handle && mmrand(&tinfo->rnd, 0, 20) == 1) {
 			switch (g.type) {
 			case ROW:
 				ret = row_reserve(tinfo, cursor, positioned);
