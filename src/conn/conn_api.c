@@ -1047,45 +1047,13 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	const char *ckpt_cfg;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	ckpt_cfg = "use_timestamp=false";
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
-
-	/* The default session is used to access data handles during close. */
-	F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
+err:
 
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)
 		F_SET(conn, WT_CONN_LEAK_MEMORY);
-
-	/*
-	 * Clear any pending async operations and shut down the async worker
-	 * threads and system before closing LSM.
-	 */
-	WT_TRET(__wt_async_flush(session));
-	WT_TRET(__wt_async_destroy(session));
-
-	/*
-	 * Shut down server threads other than the eviction server, which is
-	 * needed later to close btree handles.  Some of these threads access
-	 * btree handles, so take care in ordering shutdown to make sure they
-	 * exit before files are closed.
-	 */
-	WT_TRET(__wt_lsm_manager_destroy(session));
-	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
-
-	/*
-	 * After the async and LSM threads have exited, we shouldn't opening
-	 * any more files.
-	 */
-	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
-	WT_FULL_BARRIER();
-
-	if (cval.val != 0) {
-		ckpt_cfg = "use_timestamp=true";
-		if (conn->txn_global.has_stable_timestamp)
-			F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
-	}
 
 	/*
 	 * Ramp the eviction dirty target down to encourage eviction threads to
@@ -1094,7 +1062,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	conn->cache->eviction_dirty_trigger = 1.0;
 	conn->cache->eviction_dirty_target = 0.1;
 
-err:	/*
+	/*
 	 * Rollback all running transactions.
 	 * We do this as a separate pass because an active transaction in one
 	 * session could cause trouble when closing a file, even if that
@@ -1125,6 +1093,9 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
+	/* Wait for in-flight operations to complete. */
+	WT_TRET(__wt_txn_activity_drain(session));
+
 	/*
 	 * Disable lookaside eviction: it doesn't help us shut down and can
 	 * lead to pages being marked dirty, causing spurious assertions to
@@ -1132,8 +1103,24 @@ err:	/*
 	 */
 	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
 
-	/* Wait for in-flight operations to complete. */
-	WT_TRET(__wt_txn_activity_drain(session));
+	/*
+	 * Clear any pending async operations and shut down the async worker
+	 * threads and system before closing LSM.
+	 */
+	WT_TRET(__wt_async_flush(session));
+	WT_TRET(__wt_async_destroy(session));
+
+	WT_TRET(__wt_lsm_manager_destroy(session));
+
+	/*
+	 * After the async and LSM threads have exited, we shouldn't opening
+	 * any more files.
+	 */
+	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+	WT_FULL_BARRIER();
+
+	/* The default session is used to access data handles during close. */
+	F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
 
 	/*
 	 * Perform a system-wide checkpoint so that all tables are consistent
@@ -1142,6 +1129,13 @@ err:	/*
 	 * shutting down all the subsystems.  We have shut down all user
 	 * sessions, but send in true for waiting for internal races.
 	 */
+	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+	ckpt_cfg = "use_timestamp=false";
+	if (cval.val != 0) {
+		ckpt_cfg = "use_timestamp=true";
+		if (conn->txn_global.has_stable_timestamp)
+			F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
+	}
 	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
 		s = NULL;
 		WT_TRET(__wt_open_internal_session(

@@ -80,6 +80,12 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	F_SET(conn, WT_CONN_CLOSING);
 	WT_FULL_BARRIER();
 
+	/*
+	 * Shut down server threads other than the eviction server, which is
+	 * needed later to close btree handles.  Some of these threads access
+	 * btree handles, so take care in ordering shutdown to make sure they
+	 * exit before files are closed.
+	 */
 	WT_TRET(__wt_capacity_server_destroy(session));
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
