@@ -63,7 +63,7 @@ def prototypes_extern():
 
     tmp_file = '__tmp'
     tfile = open(tmp_file, 'w')
-    for e in list(set(p)):
+    for e in sorted(list(set(p))):
         tfile.write(e)
     tfile.close()
     compare_srcfile(tmp_file, "../src/include/extern.h")
@@ -80,7 +80,7 @@ def prototypes_posix():
 
     tmp_file = '__tmp'
     tfile = open(tmp_file, 'w')
-    for e in list(set(p)):
+    for e in sorted(list(set(p))):
         tfile.write(e)
     tfile.close()
     compare_srcfile(tmp_file, "../src/include/extern_posix.h")
@@ -97,7 +97,7 @@ def prototypes_win():
 
     tmp_file = '__tmp'
     tfile = open(tmp_file, 'w')
-    for e in list(set(p)):
+    for e in sorted(list(set(p))):
         tfile.write(e)
     tfile.close()
     compare_srcfile(tmp_file, "../src/include/extern_win.h")
