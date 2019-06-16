@@ -6,10 +6,9 @@ from dist import compare_srcfile, source_files
 
 # Build function prototypes from a list of files.
 def prototypes(list, name):
-    func_re = re.compile(r'(^[A-Za-z_].*\n__wt_[\s\S]*?){', re.MULTILINE)
     s = open(name, 'r').read()
-    for p in func_re.finditer(s):
-        l = p.group(1).strip()
+    for p in re.findall(r'\n[A-Za-z_].*\n__wt_[^{]*', s):
+        l = p.strip()
 
         # Ignore statics in XXX.c files.
         if fnmatch.fnmatch(name, "*.c") and 'static' in l:
