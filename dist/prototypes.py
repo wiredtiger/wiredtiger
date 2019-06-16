@@ -41,6 +41,15 @@ def prototypes(list, name):
         # Add the trailing semi-colon.
         list.append(l + ';\n')
 
+# Write results and compare to the current file.
+def output(p, f):
+    tmp_file = '__tmp'
+    tfile = open(tmp_file, 'w')
+    for e in sorted(list(set(p))):
+        tfile.write(e)
+    tfile.close()
+    compare_srcfile(tmp_file, f)
+
 # Update generic function prototypes.
 def prototypes_extern():
     p = []
@@ -61,12 +70,7 @@ def prototypes_extern():
             continue
         prototypes(p, name)
 
-    tmp_file = '__tmp'
-    tfile = open(tmp_file, 'w')
-    for e in sorted(list(set(p))):
-        tfile.write(e)
-    tfile.close()
-    compare_srcfile(tmp_file, "../src/include/extern.h")
+    output(p, "../src/include/extern.h")
 
 # Update POSIX-specific function prototypes.
 def prototypes_posix():
@@ -78,12 +82,7 @@ def prototypes_posix():
             continue
         prototypes(p, name)
 
-    tmp_file = '__tmp'
-    tfile = open(tmp_file, 'w')
-    for e in sorted(list(set(p))):
-        tfile.write(e)
-    tfile.close()
-    compare_srcfile(tmp_file, "../src/include/extern_posix.h")
+    output(p, "../src/include/extern_posix.h")
 
 # Update Windows-specific function prototypes.
 def prototypes_win():
@@ -95,12 +94,7 @@ def prototypes_win():
             continue
         prototypes(p, name)
 
-    tmp_file = '__tmp'
-    tfile = open(tmp_file, 'w')
-    for e in sorted(list(set(p))):
-        tfile.write(e)
-    tfile.close()
-    compare_srcfile(tmp_file, "../src/include/extern_win.h")
+    output(p, "../src/include/extern_win.h")
 
 prototypes_extern()
 prototypes_posix()
