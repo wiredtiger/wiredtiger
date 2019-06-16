@@ -1057,7 +1057,30 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)
 		F_SET(conn, WT_CONN_LEAK_MEMORY);
+
+	/*
+	 * Clear any pending async operations and shut down the async worker
+	 * threads and system before closing LSM.
+	 */
+	WT_TRET(__wt_async_flush(session));
+	WT_TRET(__wt_async_destroy(session));
+
+	/*
+	 * Shut down server threads other than the eviction server, which is
+	 * needed later to close btree handles.  Some of these threads access
+	 * btree handles, so take care in ordering shutdown to make sure they
+	 * exit before files are closed.
+	 */
+	WT_TRET(__wt_lsm_manager_destroy(session));
 	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+
+	/*
+	 * After the async and LSM threads have exited, we shouldn't opening
+	 * any more files.
+	 */
+	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+	WT_FULL_BARRIER();
+
 	if (cval.val != 0) {
 		ckpt_cfg = "use_timestamp=true";
 		if (conn->txn_global.has_stable_timestamp)
@@ -1101,8 +1124,6 @@ err:	/*
 				    s->event_handler, wt_session, NULL));
 			WT_TRET(wt_session->close(wt_session, config));
 		}
-
-	WT_TRET(__wt_async_flush(session));
 
 	/*
 	 * Disable lookaside eviction: it doesn't help us shut down and can

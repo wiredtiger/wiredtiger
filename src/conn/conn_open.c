@@ -80,28 +80,6 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	F_SET(conn, WT_CONN_CLOSING);
 	WT_FULL_BARRIER();
 
-	/*
-	 * Clear any pending async operations and shut down the async worker
-	 * threads and system before closing LSM.
-	 */
-	WT_TRET(__wt_async_flush(session));
-	WT_TRET(__wt_async_destroy(session));
-
-	/*
-	 * Shut down server threads other than the eviction server, which is
-	 * needed later to close btree handles.  Some of these threads access
-	 * btree handles, so take care in ordering shutdown to make sure they
-	 * exit before files are closed.
-	 */
-	WT_TRET(__wt_lsm_manager_destroy(session));
-
-	/*
-	 * Once the async and LSM threads exit, we shouldn't be opening any
-	 * more files.
-	 */
-	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
-	WT_FULL_BARRIER();
-
 	WT_TRET(__wt_capacity_server_destroy(session));
 	WT_TRET(__wt_checkpoint_server_destroy(session));
 	WT_TRET(__wt_statlog_destroy(session, true));
