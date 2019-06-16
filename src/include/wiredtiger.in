@@ -2180,7 +2180,10 @@ struct __wt_connection {
 	/*!
 	 * Close a connection.
 	 *
-	 * Any open sessions will be closed.
+	 * Any open sessions will be closed. This will release the resources
+	 * associated with the session handle, including rolling back any
+	 * active transactions and closing any cursors that remain open in the
+	 * session.
 	 *
 	 * @snippet ex_all.c Close a connection
 	 *
