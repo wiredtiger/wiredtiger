@@ -1726,13 +1726,6 @@ __evict_walk_target(WT_SESSION_IMPL *session)
 		    (btree_inuse + bytes_per_slot / 2) / bytes_per_slot);
 	}
 
-	/*
-	 * Weight the number of target pages by the number of times we want to
-	 * fill the cache per pass through all the trees.  Note that we don't
-	 * build this into the calculation above because we don't want to favor
-	 * small trees, so round to a whole number of slots (zero for small
-	 * trees) before multiplying.
-	 */
 	target_pages = WT_MAX(target_pages_clean, target_pages_dirty);
 
 	/*
