@@ -879,37 +879,6 @@ struct __wt_ref {
 
 	WT_PAGE_DELETED	  *page_del;	/* Deleted page information */
 	WT_PAGE_LOOKASIDE *page_las;	/* Lookaside information */
-
-/* A macro wrapper allowing us to remember the callers code location */
-#define	WT_REF_CAS_STATE(session, ref, old_state, new_state)          \
-	__wt_ref_cas_state_int((session), (ref), (old_state), (new_state),\
-	__FILE__, __LINE__)
-#ifdef HAVE_DIAGNOSTIC
-	/* Capture history of ref state changes. */
-	struct __wt_ref_hist {
-		WT_SESSION_IMPL *session;
-		const char *name;
-		const char *file;
-		int line;
-		uint32_t state;
-	} hist[3];
-	uint64_t histoff;
-#define	WT_REF_SAVE_STATE(ref, s, f, l) do {				\
-	(ref)->hist[(ref)->histoff].session = session;			\
-	(ref)->hist[(ref)->histoff].name = session->name;		\
-	(ref)->hist[(ref)->histoff].file = (f);				\
-	(ref)->hist[(ref)->histoff].line = (l);				\
-	(ref)->hist[(ref)->histoff].state = s;				\
-	(ref)->histoff =						\
-	    ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist);		\
-} while (0)
-#define	WT_REF_SET_STATE(ref, s) do {					\
-	WT_REF_SAVE_STATE(ref, s, __FILE__, __LINE__);			\
-	WT_PUBLISH((ref)->state, s);					\
-} while (0)
-#else
-#define	WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
-#endif
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure

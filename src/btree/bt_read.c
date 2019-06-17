@@ -470,7 +470,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	default:
 		return (0);
 	}
-	if (!WT_REF_CAS_STATE(session, ref, previous_state, new_state))
+	if (!__wt_atomic_casv32(&ref->state, previous_state, new_state))
 		return (0);
 
 	final_state = WT_REF_MEM;

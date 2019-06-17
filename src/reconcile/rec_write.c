@@ -826,8 +826,7 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 	/*
 	 * Fake up a reference structure, and write the next root page.
 	 */
-	__wt_root_ref_init(session,
-	    &fake_ref, next, page->type == WT_PAGE_COL_INT);
+	__wt_root_ref_init(&fake_ref, next, page->type == WT_PAGE_COL_INT);
 	return (__wt_reconcile(session, &fake_ref, NULL, flags, NULL));
 
 err:	__wt_page_out(session, &next);
@@ -1800,8 +1799,8 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 * to see if the delete is visible to us.  Lock down the
 			 * structure.
 			 */
-			if (!WT_REF_CAS_STATE(
-			    session, ref, WT_REF_DELETED, WT_REF_LOCKED))
+			if (!__wt_atomic_casv32(
+			    &ref->state, WT_REF_DELETED, WT_REF_LOCKED))
 				break;
 			ret = __rec_child_deleted(session, r, ref, statep);
 			WT_PUBLISH(ref->state, WT_REF_DELETED);

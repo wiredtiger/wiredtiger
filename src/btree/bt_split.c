@@ -678,8 +678,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new,
 		    WT_SESSION_BTREE_SYNC(session)) &&
 		    next_ref->state == WT_REF_DELETED &&
 		    __wt_delete_page_skip(session, next_ref, true) &&
-		    WT_REF_CAS_STATE(
-		    session, next_ref, WT_REF_DELETED, WT_REF_SPLIT))) {
+		    __wt_atomic_casv32(
+		    &next_ref->state, WT_REF_DELETED, WT_REF_SPLIT))) {
 			WT_ERR(__wt_buf_grow(session, scr,
 			    (deleted_entries + 1) * sizeof(uint32_t)));
 			deleted_refs = scr->mem;
