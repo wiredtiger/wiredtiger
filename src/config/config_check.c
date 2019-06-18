@@ -135,13 +135,15 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
         while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
             if (WT_STRING_MATCH("min", ck.str, ck.len)) {
                 if (v.val < cv.val)
-                    WT_RET_MSG(session, EINVAL, "Value too small for key '%.*s' "
-                                                "the minimum is %.*s",
+                    WT_RET_MSG(session, EINVAL,
+                      "Value too small for key '%.*s' "
+                      "the minimum is %.*s",
                       (int)k.len, k.str, (int)cv.len, cv.str);
             } else if (WT_STRING_MATCH("max", ck.str, ck.len)) {
                 if (v.val > cv.val)
-                    WT_RET_MSG(session, EINVAL, "Value too large for key '%.*s' "
-                                                "the maximum is %.*s",
+                    WT_RET_MSG(session, EINVAL,
+                      "Value too large for key '%.*s' "
+                      "the maximum is %.*s",
                       (int)k.len, k.str, (int)cv.len, cv.str);
             } else if (WT_STRING_MATCH("choices", ck.str, ck.len)) {
                 if (v.len == 0)
@@ -165,12 +167,14 @@ config_check(WT_SESSION_IMPL *session, const WT_CONFIG_CHECK *checks, u_int chec
                 if (ret != 0 && ret != WT_NOTFOUND)
                     return (ret);
                 if (!found)
-                    WT_RET_MSG(session, EINVAL, "Value '%.*s' not a "
-                                                "permitted choice for key '%.*s'",
+                    WT_RET_MSG(session, EINVAL,
+                      "Value '%.*s' not a "
+                      "permitted choice for key '%.*s'",
                       (int)v.len, v.str, (int)k.len, k.str);
             } else
-                WT_RET_MSG(session, EINVAL, "unexpected configuration description "
-                                            "keyword %.*s",
+                WT_RET_MSG(session, EINVAL,
+                  "unexpected configuration description "
+                  "keyword %.*s",
                   (int)ck.len, ck.str);
         }
     }

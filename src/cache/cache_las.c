@@ -594,10 +594,13 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *
 
         __wt_verbose(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
           "Page reconciliation triggered lookaside write "
-          "file ID %" PRIu32 ", page ID %" PRIu64 ". "
-          "Max txn ID %" PRIu64 ", unstable timestamp %s,"
+          "file ID %" PRIu32 ", page ID %" PRIu64
+          ". "
+          "Max txn ID %" PRIu64
+          ", unstable timestamp %s,"
           " unstable durable timestamp %s, %s. "
-          "Entries now in lookaside file: %" PRId64 ", "
+          "Entries now in lookaside file: %" PRId64
+          ", "
           "cache dirty: %2.3f%% , "
           "cache use: %2.3f%%",
           btree_id, multi->page_las.las_pageid, multi->page_las.max_txn,
@@ -763,7 +766,8 @@ __wt_las_insert_block(
     WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
     max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
     if (max_las_size != 0 && (uint64_t)las_size > max_las_size)
-        WT_PANIC_MSG(session, WT_PANIC, "WiredTigerLAS: file size of %" PRIu64 " exceeds maximum "
+        WT_PANIC_MSG(session, WT_PANIC, "WiredTigerLAS: file size of %" PRIu64
+                                        " exceeds maximum "
                                         "size %" PRIu64,
           (uint64_t)las_size, max_las_size);
 

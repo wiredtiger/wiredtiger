@@ -33,7 +33,8 @@ __cell_check_value_validity(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, u
         WT_ASSERT(session, stop_txn != WT_TXN_NONE);
     }
     if (start_txn > stop_txn) {
-        __wt_errx(session, "a start transaction ID %" PRIu64 " newer than its stop "
+        __wt_errx(session, "a start transaction ID %" PRIu64
+                           " newer than its stop "
                            "transaction ID %" PRIu64,
           start_txn, stop_txn);
         WT_ASSERT(session, start_txn <= stop_txn);
@@ -111,8 +112,9 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
         WT_ASSERT(session, newest_stop_ts != WT_TS_NONE);
     }
     if (oldest_start_ts > newest_stop_ts) {
-        __wt_errx(session, "an oldest start timestamp %s newer than its newest "
-                           "stop timestamp %s",
+        __wt_errx(session,
+          "an oldest start timestamp %s newer than its newest "
+          "stop timestamp %s",
           __wt_timestamp_to_string(oldest_start_ts, ts_string[0]),
           __wt_timestamp_to_string(newest_stop_ts, ts_string[1]));
         WT_ASSERT(session, oldest_start_ts <= newest_stop_ts);
@@ -122,7 +124,8 @@ __wt_check_addr_validity(WT_SESSION_IMPL *session, wt_timestamp_t oldest_start_t
         WT_ASSERT(session, newest_stop_txn != WT_TXN_NONE);
     }
     if (oldest_start_txn > newest_stop_txn) {
-        __wt_errx(session, "an oldest start transaction %" PRIu64 " newer than its "
+        __wt_errx(session, "an oldest start transaction %" PRIu64
+                           " newer than its "
                            "newest stop transaction %" PRIu64,
           oldest_start_txn, newest_stop_txn);
         WT_ASSERT(session, oldest_start_txn <= newest_stop_txn);

@@ -47,8 +47,9 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
         /* Checkpoints are incompatible with in-memory configuration */
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
-            WT_RET_MSG(session, EINVAL, "checkpoint configuration incompatible with "
-                                        "in-memory configuration");
+            WT_RET_MSG(session, EINVAL,
+              "checkpoint configuration incompatible with "
+              "in-memory configuration");
 
         __wt_log_written_reset(session);
 

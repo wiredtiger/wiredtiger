@@ -399,8 +399,9 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
     WT_ERR(__encryptor_confchk(session, cval, &nenc));
     if (nenc == NULL) {
         if (keyid->len != 0)
-            WT_ERR_MSG(session, EINVAL, "encryption.keyid "
-                                        "requires encryption.name to be set");
+            WT_ERR_MSG(session, EINVAL,
+              "encryption.keyid "
+              "requires encryption.name to be set");
         goto out;
     }
 
@@ -410,8 +411,9 @@ __wt_encryptor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_
      * configured on the database as well.
      */
     if (conn->kencryptor == NULL && kencryptorp != &conn->kencryptor)
-        WT_ERR_MSG(session, EINVAL, "table encryption "
-                                    "requires connection encryption to be set");
+        WT_ERR_MSG(session, EINVAL,
+          "table encryption "
+          "requires connection encryption to be set");
     hash = __wt_hash_city64(keyid->str, keyid->len);
     bucket = hash % WT_HASH_ARRAY_SIZE;
     TAILQ_FOREACH (kenc, &nenc->keyedhashqh[bucket], q)
@@ -1296,11 +1298,12 @@ __conn_config_readonly(const char *cfg[])
      * whose default conflicts.  Other settings at odds will return
      * an error and will be checked when those settings are processed.
      */
-    readonly = "checkpoint=(wait=0),"
-               "config_base=false,"
-               "create=false,"
-               "log=(archive=false,prealloc=false),"
-               "lsm_manager=(merge=false),";
+    readonly =
+      "checkpoint=(wait=0),"
+      "config_base=false,"
+      "create=false,"
+      "log=(archive=false,prealloc=false),"
+      "lsm_manager=(merge=false),";
     __conn_config_append(cfg, readonly);
 }
 
@@ -1324,8 +1327,9 @@ __conn_config_check_version(WT_SESSION_IMPL *session, const char *config)
 
     if (vmajor.val > WIREDTIGER_VERSION_MAJOR ||
       (vmajor.val == WIREDTIGER_VERSION_MAJOR && vminor.val > WIREDTIGER_VERSION_MINOR))
-        WT_RET_MSG(session, ENOTSUP, "WiredTiger configuration is from an incompatible release "
-                                     "of the WiredTiger engine");
+        WT_RET_MSG(session, ENOTSUP,
+          "WiredTiger configuration is from an incompatible release "
+          "of the WiredTiger engine");
 
     return (0);
 }
@@ -1501,8 +1505,9 @@ __conn_env_var(WT_SESSION_IMPL *session, const char *cfg[], const char *name, co
 
     WT_ERR(__wt_config_gets(session, cfg, "use_environment_priv", &cval));
     if (cval.val == 0)
-        WT_ERR_MSG(session, WT_ERROR, "privileged process has %s environment variable set, "
-                                      "without having \"use_environment_priv\" configured",
+        WT_ERR_MSG(session, WT_ERROR,
+          "privileged process has %s environment variable set, "
+          "without having \"use_environment_priv\" configured",
           name);
     return (0);
 
@@ -1614,8 +1619,9 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
     if (match)
-        WT_ERR_MSG(session, EBUSY, "WiredTiger database is already being managed by another "
-                                   "thread in this process");
+        WT_ERR_MSG(session, EBUSY,
+          "WiredTiger database is already being managed by another "
+          "thread in this process");
 
     /*
      * !!!
@@ -1676,8 +1682,9 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
          * locking past the end-of-file.
          */
         if (__wt_file_lock(session, conn->lock_fh, true) != 0)
-            WT_ERR_MSG(session, EBUSY, "WiredTiger database is already being managed by "
-                                       "another process");
+            WT_ERR_MSG(session, EBUSY,
+              "WiredTiger database is already being managed by "
+              "another process");
 
 /*
  * If the size of the lock file is non-zero, we created it (or
@@ -1718,8 +1725,9 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
          * just a test.
          */
         if (__wt_file_lock(session, fh, true) != 0) {
-            WT_ERR_MSG(session, EBUSY, "WiredTiger database is already being managed by "
-                                       "another process");
+            WT_ERR_MSG(session, EBUSY,
+              "WiredTiger database is already being managed by "
+              "another process");
         }
         WT_ERR(__wt_file_lock(session, fh, false));
     }
@@ -1737,8 +1745,9 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (conn->is_new) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_ERR_MSG(session, EINVAL, "Creating a new database is incompatible with "
-                                        "read-only configuration");
+            WT_ERR_MSG(session, EINVAL,
+              "Creating a new database is incompatible with "
+              "read-only configuration");
         WT_ERR(__wt_snprintf_len_set(
           buf, sizeof(buf), &len, "%s\n%s\n", WT_WIREDTIGER, WIREDTIGER_VERSION_STRING));
         WT_ERR(__wt_write(session, fh, (wt_off_t)0, len, buf));
@@ -1753,8 +1762,9 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
          */
         WT_ERR(__wt_config_gets(session, cfg, "exclusive", &cval));
         if (cval.val != 0)
-            WT_ERR_MSG(session, EEXIST, "WiredTiger database already exists and exclusive "
-                                        "option configured");
+            WT_ERR_MSG(session, EEXIST,
+              "WiredTiger database already exists and exclusive "
+              "option configured");
     }
 
 err: /*
@@ -2075,18 +2085,19 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
      * to be stripped out from the base configuration file; do that now, and
      * merge the rest to be written.
      */
-    WT_ERR(__wt_config_merge(session, cfg + 1, "compatibility=(release=),"
-                                               "config_base=,"
-                                               "create=,"
-                                               "encryption=(secretkey=),"
-                                               "error_prefix=,"
-                                               "exclusive=,"
-                                               "in_memory=,"
-                                               "log=(recover=),"
-                                               "readonly=,"
-                                               "timing_stress_for_test=,"
-                                               "use_environment_priv=,"
-                                               "verbose=,",
+    WT_ERR(__wt_config_merge(session, cfg + 1,
+      "compatibility=(release=),"
+      "config_base=,"
+      "create=,"
+      "encryption=(secretkey=),"
+      "error_prefix=,"
+      "exclusive=,"
+      "in_memory=,"
+      "log=(recover=),"
+      "readonly=,"
+      "timing_stress_for_test=,"
+      "use_environment_priv=,"
+      "verbose=,",
       &base_config));
     __wt_config_init(session, &parser, base_config);
     while ((ret = __wt_config_next(&parser, &k, &v)) == 0) {
@@ -2135,8 +2146,9 @@ __conn_set_file_system(WT_CONNECTION *wt_conn, WT_FILE_SYSTEM *file_system, cons
      * set and we've already configured the default file system.
      */
     if (conn->file_system != NULL)
-        WT_ERR_MSG(session, EPERM, "filesystem already configured; custom filesystems should "
-                                   "enable \"early_load\" configuration");
+        WT_ERR_MSG(session, EPERM,
+          "filesystem already configured; custom filesystems should "
+          "enable \"early_load\" configuration");
 
     conn->file_system = file_system;
 
@@ -2589,8 +2601,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_ERR_MSG(session, EINVAL, "Readonly configuration incompatible with "
-                                        "salvage.");
+            WT_ERR_MSG(session, EINVAL,
+              "Readonly configuration incompatible with "
+              "salvage.");
         F_SET(conn, WT_CONN_SALVAGE);
     }
 

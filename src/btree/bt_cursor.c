@@ -120,7 +120,8 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
     if (btree->type == BTREE_COL_FIX) {
         /* Fixed-size column-stores take a single byte. */
         if (kv->size != 1)
-            WT_RET_MSG(session, EINVAL, "item size of %" WT_SIZET_FMT " does not match "
+            WT_RET_MSG(session, EINVAL, "item size of %" WT_SIZET_FMT
+                                        " does not match "
                                         "fixed-length file requirement of 1 byte",
               kv->size);
         return (0);
@@ -132,7 +133,8 @@ __cursor_size_chk(WT_SESSION_IMPL *session, WT_ITEM *kv)
 
     /* Check what we are willing to store in the tree. */
     if (kv->size > WT_BTREE_MAX_OBJECT_SIZE)
-        WT_RET_MSG(session, EINVAL, "item size of %" WT_SIZET_FMT " exceeds the maximum "
+        WT_RET_MSG(session, EINVAL, "item size of %" WT_SIZET_FMT
+                                    " exceeds the maximum "
                                     "supported WiredTiger size of %" PRIu32,
           kv->size, WT_BTREE_MAX_OBJECT_SIZE);
 

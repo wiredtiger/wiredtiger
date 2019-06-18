@@ -205,8 +205,9 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
     exclusive_refreshed = (bool)cv.val;
 
     if (!exclusive_refreshed && !WT_PREFIX_MATCH(uri, "table:"))
-        WT_RET_MSG(session, EINVAL, "option \"exclusive_refreshed\" "
-                                    "is applicable only on simple tables");
+        WT_RET_MSG(session, EINVAL,
+          "option \"exclusive_refreshed\" "
+          "is applicable only on simple tables");
 
     /*
      * The alter flag is used so LSM can apply some special logic, the

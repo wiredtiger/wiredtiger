@@ -375,7 +375,8 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
 
     /* Check each chunk against the total file size. */
     if (offset + size > block->size)
-        WT_RET_MSG(session, WT_ERROR, "fragment %" PRIuMAX "-%" PRIuMAX " references "
+        WT_RET_MSG(session, WT_ERROR, "fragment %" PRIuMAX "-%" PRIuMAX
+                                      " references "
                                       "non-existent file blocks",
           (uintmax_t)offset, (uintmax_t)(offset + size));
 
@@ -386,7 +387,8 @@ __verify_filefrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *typ
     if (nodup)
         for (f = frag, i = 0; i < frags; ++f, ++i)
             if (__bit_test(block->fragfile, f))
-                WT_RET_MSG(session, WT_ERROR, "file fragment at %" PRIuMAX " referenced "
+                WT_RET_MSG(session, WT_ERROR, "file fragment at %" PRIuMAX
+                                              " referenced "
                                               "multiple times",
                   (uintmax_t)offset);
 
@@ -473,7 +475,8 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
      * never reference a block outside of the checkpoint's stored size.
      */
     if (offset + size > block->verify_size)
-        WT_RET_MSG(session, WT_ERROR, "fragment %" PRIuMAX "-%" PRIuMAX " references "
+        WT_RET_MSG(session, WT_ERROR, "fragment %" PRIuMAX "-%" PRIuMAX
+                                      " references "
                                       "file blocks outside the checkpoint",
           (uintmax_t)offset, (uintmax_t)(offset + size));
 
@@ -483,7 +486,8 @@ __verify_ckptfrag_add(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t offset
     /* It is illegal to reference a particular chunk more than once. */
     for (f = frag, i = 0; i < frags; ++f, ++i)
         if (!__bit_test(block->fragckpt, f))
-            WT_RET_MSG(session, WT_ERROR, "fragment at %" PRIuMAX " referenced multiple "
+            WT_RET_MSG(session, WT_ERROR, "fragment at %" PRIuMAX
+                                          " referenced multiple "
                                           "times in a single checkpoint or found in the "
                                           "checkpoint but not listed in the checkpoint's "
                                           "allocation list",

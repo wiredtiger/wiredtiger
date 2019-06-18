@@ -8,28 +8,29 @@
 
 #include "wt_internal.h"
 
-#define WT_WINCALL_RETRY(call, ret)                                                       \
-    do {                                                                                  \
-        int __retry;                                                                      \
-        for (__retry = 0; __retry < WT_RETRY_MAX; ++__retry) {                            \
-            ret = 0;                                                                      \
-            if ((call) == FALSE) {                                                        \
-                windows_error = __wt_getlasterror();                                      \
-                ret = __wt_map_windows_error(windows_error);                              \
-                if (windows_error == ERROR_ACCESS_DENIED) {                               \
-                    if (__retry == 0)                                                     \
-                        __wt_errx(session, "Access denied to a file owned by WiredTiger." \
-                                           " It will attempt a few more times. You "      \
-                                           "should confirm"                               \
-                                           " no other processes, such as virus "          \
-                                           "scanners, are"                                \
-                                           " accessing the WiredTiger files.");           \
-                    __wt_sleep(0L, 50000L);                                               \
-                    continue;                                                             \
-                }                                                                         \
-            }                                                                             \
-            break;                                                                        \
-        }                                                                                 \
+#define WT_WINCALL_RETRY(call, ret)                                      \
+    do {                                                                 \
+        int __retry;                                                     \
+        for (__retry = 0; __retry < WT_RETRY_MAX; ++__retry) {           \
+            ret = 0;                                                     \
+            if ((call) == FALSE) {                                       \
+                windows_error = __wt_getlasterror();                     \
+                ret = __wt_map_windows_error(windows_error);             \
+                if (windows_error == ERROR_ACCESS_DENIED) {              \
+                    if (__retry == 0)                                    \
+                        __wt_errx(session,                               \
+                          "Access denied to a file owned by WiredTiger." \
+                          " It will attempt a few more times. You "      \
+                          "should confirm"                               \
+                          " no other processes, such as virus "          \
+                          "scanners, are"                                \
+                          " accessing the WiredTiger files.");           \
+                    __wt_sleep(0L, 50000L);                              \
+                    continue;                                            \
+                }                                                        \
+            }                                                            \
+            break;                                                       \
+        }                                                                \
     } while (0)
 
 /*
@@ -285,8 +286,9 @@ __win_file_read(
         if (!ReadFile(win_fh->filehandle, addr, chunk, &nr, &overlapped)) {
             windows_error = __wt_getlasterror();
             ret = __wt_map_windows_error(windows_error);
-            __wt_err(session, ret, "%s: handle-read: ReadFile: failed to read %lu "
-                                   "bytes at offset %" PRIuMAX ": %s",
+            __wt_err(session, ret,
+              "%s: handle-read: ReadFile: failed to read %lu "
+              "bytes at offset %" PRIuMAX ": %s",
               file_handle->name, chunk, (uintmax_t)offset,
               __wt_formatmessage(session, windows_error));
             return (ret);
@@ -433,8 +435,9 @@ __win_file_write(
         if (!WriteFile(win_fh->filehandle, addr, chunk, &nw, &overlapped)) {
             windows_error = __wt_getlasterror();
             ret = __wt_map_windows_error(windows_error);
-            __wt_err(session, ret, "%s: handle-write: WriteFile: failed to write %lu "
-                                   "bytes at offset %" PRIuMAX ": %s",
+            __wt_err(session, ret,
+              "%s: handle-write: WriteFile: failed to write %lu "
+              "bytes at offset %" PRIuMAX ": %s",
               file_handle->name, chunk, (uintmax_t)offset,
               __wt_formatmessage(session, windows_error));
             return (ret);

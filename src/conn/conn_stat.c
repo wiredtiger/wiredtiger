@@ -170,9 +170,10 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
              * objects, even though it hasn't been converted.
              */
             if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
-                WT_ERR_MSG(session, EINVAL, "statistics_log sources configuration only "
-                                            "supports objects of type \"file\" or "
-                                            "\"lsm\"");
+                WT_ERR_MSG(session, EINVAL,
+                  "statistics_log sources configuration only "
+                  "supports objects of type \"file\" or "
+                  "\"lsm\"");
             WT_ERR(__wt_strndup(session, k.str, k.len, &sources[cnt]));
         }
         WT_ERR_NOTFOUND_OK(ret);

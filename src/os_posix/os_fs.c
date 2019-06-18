@@ -85,8 +85,9 @@ __posix_sync(WT_SESSION_IMPL *session, int fd, const char *name, const char *fun
          * doesn't support it and fallback to fdatasync or fsync.
          */
         ff_status = FF_IGNORE;
-        __wt_err(session, ret, "fcntl(F_FULLFSYNC) failed, falling back to fdatasync "
-                               "or fsync");
+        __wt_err(session, ret,
+          "fcntl(F_FULLFSYNC) failed, falling back to fdatasync "
+          "or fsync");
         break;
     case FF_IGNORE:
         break;

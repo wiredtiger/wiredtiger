@@ -175,8 +175,9 @@ __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *valu
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_METADATA, "Insert: key: %s, value: %s, tracking: %s, %s"
-                                            "turtle",
+    __wt_verbose(session, WT_VERB_METADATA,
+      "Insert: key: %s, value: %s, tracking: %s, %s"
+      "turtle",
       key, value, WT_META_TRACKING(session) ? "true" : "false",
       __metadata_turtle(key) ? "" : "not ");
 
@@ -204,8 +205,9 @@ __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *valu
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_METADATA, "Update: key: %s, value: %s, tracking: %s, %s"
-                                            "turtle",
+    __wt_verbose(session, WT_VERB_METADATA,
+      "Update: key: %s, value: %s, tracking: %s, %s"
+      "turtle",
       key, value, WT_META_TRACKING(session) ? "true" : "false",
       __metadata_turtle(key) ? "" : "not ");
 
@@ -239,8 +241,9 @@ __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
     WT_CURSOR *cursor;
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_METADATA, "Remove: key: %s, tracking: %s, %s"
-                                            "turtle",
+    __wt_verbose(session, WT_VERB_METADATA,
+      "Remove: key: %s, tracking: %s, %s"
+      "turtle",
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
 
     if (__metadata_turtle(key))
@@ -282,8 +285,9 @@ __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char **valuep)
 
     *valuep = NULL;
 
-    __wt_verbose(session, WT_VERB_METADATA, "Search: key: %s, tracking: %s, %s"
-                                            "turtle",
+    __wt_verbose(session, WT_VERB_METADATA,
+      "Search: key: %s, tracking: %s, %s"
+      "turtle",
       key, WT_META_TRACKING(session) ? "true" : "false", __metadata_turtle(key) ? "" : "not ");
 
     if (__metadata_turtle(key)) {

@@ -451,8 +451,9 @@ __backup_uri(WT_SESSION_IMPL *session, const char *cfg[], bool is_dup, bool *fou
              * archiving is already temporarily suspended.
              */
             if (!is_dup && FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ARCHIVE))
-                WT_ERR_MSG(session, EINVAL, "incremental backup not possible when "
-                                            "automatic log archival configured");
+                WT_ERR_MSG(session, EINVAL,
+                  "incremental backup not possible when "
+                  "automatic log archival configured");
             *log_only = !target_list;
             WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
         } else {

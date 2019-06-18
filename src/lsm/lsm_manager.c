@@ -425,7 +425,8 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
                 WT_ERR(__wt_lsm_manager_push_entry(session, WT_LSM_WORK_BLOOM, 0, lsm_tree));
                 __wt_verbose(session, WT_VERB_LSM_MANAGER,
-                  "MGR %s: queue %" PRIu32 " mod %d "
+                  "MGR %s: queue %" PRIu32
+                  " mod %d "
                   "nchunks %" PRIu32 " flags %#" PRIx32 " aggressive %" PRIu32 " idlems %" PRIu64
                   " fillms %" PRIu64,
                   lsm_tree->name, lsm_tree->queue_ref, lsm_tree->modified, lsm_tree->nchunks,

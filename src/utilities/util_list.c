@@ -239,31 +239,37 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
         if (ckpt->raw.data == NULL)
             continue;
         if ((ret = __wt_block_ckpt_decode(session, allocsize, ckpt->raw.data, &ci)) == 0) {
-            printf("\t\t"
-                   "file-size: ");
+            printf(
+              "\t\t"
+              "file-size: ");
             list_print_size((uint64_t)ci.file_size);
             printf(", checkpoint-size: ");
             list_print_size(ci.ckpt_size);
             printf("\n\n");
 
-            printf("\t\t"
-                   "          offset, size, checksum\n");
-            printf("\t\t"
-                   "root    "
-                   ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+            printf(
+              "\t\t"
+              "          offset, size, checksum\n");
+            printf(
+              "\t\t"
+              "root    "
+              ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
               (uintmax_t)ci.root_offset, ci.root_size, ci.root_checksum, ci.root_checksum);
-            printf("\t\t"
-                   "alloc   "
-                   ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+            printf(
+              "\t\t"
+              "alloc   "
+              ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
               (uintmax_t)ci.alloc.offset, ci.alloc.size, ci.alloc.checksum, ci.alloc.checksum);
-            printf("\t\t"
-                   "discard "
-                   ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+            printf(
+              "\t\t"
+              "discard "
+              ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
               (uintmax_t)ci.discard.offset, ci.discard.size, ci.discard.checksum,
               ci.discard.checksum);
-            printf("\t\t"
-                   "avail   "
-                   ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+            printf(
+              "\t\t"
+              "avail   "
+              ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
               (uintmax_t)ci.avail.offset, ci.avail.size, ci.avail.checksum, ci.avail.checksum);
         } else {
             /* Ignore the error and continue if damaged. */
@@ -278,8 +284,9 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "list [-cv] [uri]\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "list [-cv] [uri]\n",
       progname, usage_prefix);
     return (1);
 }

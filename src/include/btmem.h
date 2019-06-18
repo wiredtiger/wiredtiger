@@ -231,7 +231,8 @@ struct __wt_ovfl_reuse {
 #endif
 #define WT_LAS_CONFIG                                                             \
     "key_format=" WT_UNCHECKED_STRING(QIQu) ",value_format=" WT_UNCHECKED_STRING( \
-      QQQBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR ",leaf_value_max=64MB" \
+      QQQBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                        \
+              ",leaf_value_max=64MB"                                              \
               ",prefix_compression=true"
 
 /*

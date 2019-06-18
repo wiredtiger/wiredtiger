@@ -410,8 +410,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         WT_RET(__wt_struct_check(session, cval.str, cval.len, &fixed, &bitcnt));
         if (fixed) {
             if (bitcnt == 0 || bitcnt > 8)
-                WT_RET_MSG(session, EINVAL, "fixed-width field sizes must be greater "
-                                            "than 0 and less than or equal to 8");
+                WT_RET_MSG(session, EINVAL,
+                  "fixed-width field sizes must be greater "
+                  "than 0 and less than or equal to 8");
             btree->bitcnt = (uint8_t)bitcnt;
             btree->type = BTREE_COL_FIX;
         }
@@ -429,8 +430,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     WT_RET(__wt_config_gets(session, cfg, "ignore_in_memory_cache_size", &cval));
     if (cval.val) {
         if (!F_ISSET(conn, WT_CONN_IN_MEMORY))
-            WT_RET_MSG(session, EINVAL, "ignore_in_memory_cache_size setting is only valid "
-                                        "with databases configured to run in-memory");
+            WT_RET_MSG(session, EINVAL,
+              "ignore_in_memory_cache_size setting is only valid "
+              "with databases configured to run in-memory");
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
     } else
         F_CLR(btree, WT_BTREE_IGNORE_CACHE);
@@ -643,12 +645,14 @@ __wt_btree_tree_open(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
      */
     if (ret != 0 && WT_IS_METADATA(session->dhandle)) {
         __wt_err(session, ret, "WiredTiger has failed to open its metadata");
-        __wt_err(session, ret, "This may be due to the database"
-                               " files being encrypted, being from an older"
-                               " version or due to corruption on disk");
-        __wt_err(session, ret, "You should confirm that you have"
-                               " opened the database with the correct options including"
-                               " all encryption and compression options");
+        __wt_err(session, ret,
+          "This may be due to the database"
+          " files being encrypted, being from an older"
+          " version or due to corruption on disk");
+        __wt_err(session, ret,
+          "You should confirm that you have"
+          " opened the database with the correct options including"
+          " all encryption and compression options");
     }
     WT_ERR(ret);
 
@@ -868,8 +872,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     WT_RET(__wt_direct_io_size_check(session, cfg, "leaf_page_max", &btree->maxleafpage));
     if (btree->maxintlpage < btree->allocsize || btree->maxintlpage % btree->allocsize != 0 ||
       btree->maxleafpage < btree->allocsize || btree->maxleafpage % btree->allocsize != 0)
-        WT_RET_MSG(session, EINVAL, "page sizes must be a multiple of the page allocation "
-                                    "size (%" PRIu32 "B)",
+        WT_RET_MSG(session, EINVAL,
+          "page sizes must be a multiple of the page allocation "
+          "size (%" PRIu32 "B)",
           btree->allocsize);
 
     /*
@@ -883,8 +888,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     if (btree->maxmempage_image == 0)
         btree->maxmempage_image = 4 * max;
     else if (btree->maxmempage_image < max)
-        WT_RET_MSG(session, EINVAL, "in-memory page image size must be larger than the maximum "
-                                    "page size (%" PRIu32 "B < %" PRIu32 "B)",
+        WT_RET_MSG(session, EINVAL,
+          "in-memory page image size must be larger than the maximum "
+          "page size (%" PRIu32 "B < %" PRIu32 "B)",
           btree->maxmempage_image, max);
 
     /*
@@ -922,8 +928,9 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
     WT_RET(__wt_config_gets(session, cfg, "split_pct", &cval));
     if (cval.val < WT_BTREE_MIN_SPLIT_PCT) {
         btree->split_pct = WT_BTREE_MIN_SPLIT_PCT;
-        WT_RET(__wt_msg(session, "Re-setting split_pct for %s to the minimum allowed of "
-                                 "%d%%.",
+        WT_RET(__wt_msg(session,
+          "Re-setting split_pct for %s to the minimum allowed of "
+          "%d%%.",
           session->dhandle->name, WT_BTREE_MIN_SPLIT_PCT));
     } else
         btree->split_pct = (int)cval.val;

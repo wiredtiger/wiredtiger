@@ -445,7 +445,8 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
         if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) && current_id - oldest_id > 10000 &&
           oldest_session != NULL) {
             __wt_verbose(session, WT_VERB_TRANSACTION,
-              "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s]"
+              "old snapshot %" PRIu64 " pinned in session %" PRIu32
+              " [%s]"
               " with snap_min %" PRIu64,
               oldest_id, oldest_session->id, oldest_session->lastop, oldest_session->txn.snap_min);
         }
@@ -645,20 +646,24 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
      */
     if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       txn->mod_count != 0)
-        WT_RET_MSG(session, EINVAL, "commit_timestamp required and "
-                                    "none set on this transaction");
+        WT_RET_MSG(session, EINVAL,
+          "commit_timestamp required and "
+          "none set on this transaction");
     if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       txn->mod_count != 0)
-        WT_RET_MSG(session, EINVAL, "no commit_timestamp required and "
-                                    "timestamp set on this transaction");
+        WT_RET_MSG(session, EINVAL,
+          "no commit_timestamp required and "
+          "timestamp set on this transaction");
     if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
       txn->mod_count != 0)
-        WT_RET_MSG(session, EINVAL, "durable_timestamp required and "
-                                    "none set on this transaction");
+        WT_RET_MSG(session, EINVAL,
+          "durable_timestamp required and "
+          "none set on this transaction");
     if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
       txn->mod_count != 0)
-        WT_RET_MSG(session, EINVAL, "no durable_timestamp required and "
-                                    "durable timestamp set on this transaction");
+        WT_RET_MSG(session, EINVAL,
+          "no durable_timestamp required and "
+          "durable timestamp set on this transaction");
 
     /*
      * If we're not doing any key consistency checking, we're done.
@@ -788,22 +793,26 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-            WT_ERR_MSG(session, EINVAL, "commit_timestamp is required for a prepared "
-                                        "transaction");
+            WT_ERR_MSG(session, EINVAL,
+              "commit_timestamp is required for a prepared "
+              "transaction");
 
         if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-            WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared "
-                                        "transaction");
+            WT_ERR_MSG(session, EINVAL,
+              "durable_timestamp is required for a prepared "
+              "transaction");
 
         WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
     } else {
         if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-            WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared "
-                                        "transaction");
+            WT_ERR_MSG(session, EINVAL,
+              "prepare timestamp is set for non-prepared "
+              "transaction");
 
         if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-            WT_ERR_MSG(session, EINVAL, "durable_timestamp should not be specified for "
-                                        "non-prepared transaction");
+            WT_ERR_MSG(session, EINVAL,
+              "durable_timestamp should not be specified for "
+              "non-prepared transaction");
     }
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1501,17 +1510,19 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
         iso_tag = "WT_ISO_SNAPSHOT";
         break;
     }
-    WT_RET(__wt_msg(session, "mod count: %u"
-                             ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", commit_timestamp: %s"
-                             ", durable_timestamp: %s"
-                             ", first_commit_timestamp: %s"
-                             ", read_timestamp: %s"
-                             ", flags: 0x%08" PRIx32 ", isolation: %s",
-      txn->mod_count, txn->snap_min, txn->snap_max,
-      __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
-      __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
-      __wt_timestamp_to_string(txn->read_timestamp, ts_string[3]), txn->flags, iso_tag));
+    WT_RET(
+      __wt_msg(session,
+        "mod count: %u"
+        ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", commit_timestamp: %s"
+        ", durable_timestamp: %s"
+        ", first_commit_timestamp: %s"
+        ", read_timestamp: %s"
+        ", flags: 0x%08" PRIx32 ", isolation: %s",
+        txn->mod_count, txn->snap_min, txn->snap_max,
+        __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
+        __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
+        __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
+        __wt_timestamp_to_string(txn->read_timestamp, ts_string[3]), txn->flags, iso_tag));
     return (0);
 }
 

@@ -143,8 +143,9 @@ __checkpoint_apply_all(
         }
 
         if (v.len != 0)
-            WT_ERR_MSG(session, EINVAL, "invalid checkpoint target %.*s: URIs may require "
-                                        "quoting",
+            WT_ERR_MSG(session, EINVAL,
+              "invalid checkpoint target %.*s: URIs may require "
+              "quoting",
               (int)cval.len, (char *)cval.str);
 
         /* Some objects don't support named checkpoints. */
@@ -1251,9 +1252,10 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
                 F_CLR(ckpt, WT_CKPT_DELETE);
                 continue;
             }
-            WT_RET_MSG(session, EBUSY, "checkpoint %s blocked by hot backup: it would"
-                                       "delete an existing checkpoint, and checkpoints "
-                                       "cannot be deleted during a hot backup",
+            WT_RET_MSG(session, EBUSY,
+              "checkpoint %s blocked by hot backup: it would"
+              "delete an existing checkpoint, and checkpoints "
+              "cannot be deleted during a hot backup",
               ckpt->name);
         }
     /*
@@ -1379,8 +1381,9 @@ __checkpoint_lock_dirty_tree(
                 else if (WT_STRING_MATCH("to", k.str, k.len))
                     __drop_to(ckptbase, v.str, v.len);
                 else
-                    WT_ERR_MSG(session, EINVAL, "unexpected value for checkpoint "
-                                                "key: %.*s",
+                    WT_ERR_MSG(session, EINVAL,
+                      "unexpected value for checkpoint "
+                      "key: %.*s",
                       (int)k.len, k.str);
             }
             WT_ERR_NOTFOUND_OK(ret);

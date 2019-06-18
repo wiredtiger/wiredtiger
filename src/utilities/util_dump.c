@@ -545,9 +545,10 @@ static int
 dump_suffix(WT_SESSION *session, bool json)
 {
     if (json) {
-        if (fprintf(fp, "        },\n"
-                        "        {\n"
-                        "            \"data\" : [") < 0)
+        if (fprintf(fp,
+              "        },\n"
+              "        {\n"
+              "            \"data\" : [") < 0)
             return (util_err(session, EIO, NULL));
     } else {
         if (fprintf(fp, "Data\n") < 0)
@@ -606,14 +607,16 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, b
 
     if (json) {
         if (toplevel)
-            ret = fprintf(fp, "    \"%s\" : [\n        {\n            "
-                              "\"config\" : \"%s\",\n",
+            ret = fprintf(fp,
+              "    \"%s\" : [\n        {\n            "
+              "\"config\" : \"%s\",\n",
               key, jsonconfig);
         else
-            ret = fprintf(fp, "                {\n"
-                              "                    \"uri\" : \"%s\",\n"
-                              "                    \"config\" : \"%s\"\n"
-                              "                }",
+            ret = fprintf(fp,
+              "                {\n"
+              "                    \"uri\" : \"%s\",\n"
+              "                    \"config\" : \"%s\"\n"
+              "                }",
               key, jsonconfig);
     } else
         ret = fprintf(fp, "%s\n%s\n", key, cfg);
@@ -626,8 +629,9 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, b
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
       progname, usage_prefix);
     return (1);
 }

@@ -488,8 +488,9 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     if (F_ISSET(txn, WT_TXN_READONLY)) {
         if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
-            WT_RET_MSG(session, ENOTSUP, "Transactions with ignore_prepare=true"
-                                         " cannot perform updates");
+            WT_RET_MSG(session, ENOTSUP,
+              "Transactions with ignore_prepare=true"
+              " cannot perform updates");
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
     }
 
@@ -1063,12 +1064,14 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
      */
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
       !F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
-        WT_RET_MSG(session, EINVAL, "read_timestamp required and "
-                                    "none set on this transaction");
+        WT_RET_MSG(session, EINVAL,
+          "read_timestamp required and "
+          "none set on this transaction");
     if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
       F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
-        WT_RET_MSG(session, EINVAL, "no read_timestamp required and "
-                                    "timestamp set on this transaction");
+        WT_RET_MSG(session, EINVAL,
+          "no read_timestamp required and "
+          "timestamp set on this transaction");
     return (0);
 }
 

@@ -50,8 +50,9 @@ util_downgrade(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "downgrade -V release\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "downgrade -V release\n",
       progname, usage_prefix);
     return (1);
 }

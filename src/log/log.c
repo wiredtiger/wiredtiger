@@ -945,9 +945,10 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
      * We cannot read future log file formats.
      */
     if (desc->version > WT_LOG_VERSION)
-        WT_ERR_MSG(session, WT_ERROR, "unsupported WiredTiger file version: this build"
-                                      " only supports versions up to %d,"
-                                      " and the file is version %" PRIu16,
+        WT_ERR_MSG(session, WT_ERROR,
+          "unsupported WiredTiger file version: this build"
+          " only supports versions up to %d,"
+          " and the file is version %" PRIu16,
           WT_LOG_VERSION, desc->version);
 
     /*
@@ -955,17 +956,19 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp, WT_LSN *ls
      * larger than the required maximum.
      */
     if (conn->req_max_major != WT_CONN_COMPAT_NONE && desc->version > conn->log_req_max)
-        WT_ERR_MSG(session, WT_ERROR,
-          WT_COMPAT_MSG_PREFIX "unsupported WiredTiger file version: this build"
-                               " requires a maximum version of %" PRIu16 ","
-                               " and the file is version %" PRIu16,
+        WT_ERR_MSG(session, WT_ERROR, WT_COMPAT_MSG_PREFIX
+          "unsupported WiredTiger file version: this build"
+          " requires a maximum version of %" PRIu16
+          ","
+          " and the file is version %" PRIu16,
           conn->log_req_max, desc->version);
 
     if (conn->req_min_major != WT_CONN_COMPAT_NONE && desc->version < conn->log_req_min)
-        WT_ERR_MSG(session, WT_ERROR,
-          WT_COMPAT_MSG_PREFIX "unsupported WiredTiger file version: this build"
-                               " requires a minimum version of %" PRIu16 ","
-                               " and the file is version %" PRIu16,
+        WT_ERR_MSG(session, WT_ERROR, WT_COMPAT_MSG_PREFIX
+          "unsupported WiredTiger file version: this build"
+          " requires a minimum version of %" PRIu16
+          ","
+          " and the file is version %" PRIu16,
           conn->log_req_min, desc->version);
 
     /*
@@ -2285,8 +2288,9 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
              */
             if (LF_ISSET(WT_LOGSCAN_RECOVER) && version == WT_LOG_VERSION_SYSTEM &&
               WT_IS_ZERO_LSN(&prev_lsn)) {
-                __wt_verbose(session, WT_VERB_LOG, "log_scan: Stopping, no system "
-                                                   "record detected in %s.",
+                __wt_verbose(session, WT_VERB_LOG,
+                  "log_scan: Stopping, no system "
+                  "record detected in %s.",
                   log_fh->name);
                 break;
             }
@@ -2489,12 +2493,14 @@ err:
      */
     if (ret != 0 && firstrecord && LF_ISSET(WT_LOGSCAN_RECOVER)) {
         __wt_err(session, ret, "WiredTiger is unable to read the recovery log.");
-        __wt_err(session, ret, "This may be due to the log"
-                               " files being encrypted, being from an older"
-                               " version or due to corruption on disk");
-        __wt_err(session, ret, "You should confirm that you have"
-                               " opened the database with the correct options including"
-                               " all encryption and compression options");
+        __wt_err(session, ret,
+          "This may be due to the log"
+          " files being encrypted, being from an older"
+          " version or due to corruption on disk");
+        __wt_err(session, ret,
+          "You should confirm that you have"
+          " opened the database with the correct options including"
+          " all encryption and compression options");
     }
 
     WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
@@ -2672,7 +2678,8 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
     conn = S2C(session);
     log = conn->log;
     if (record->size > UINT32_MAX)
-        WT_RET_MSG(session, EFBIG, "Log record size of %" WT_SIZET_FMT " exceeds the maximum "
+        WT_RET_MSG(session, EFBIG, "Log record size of %" WT_SIZET_FMT
+                                   " exceeds the maximum "
                                    "supported size of %" PRIu32,
           record->size, UINT32_MAX);
     WT_INIT_LSN(&lsn);

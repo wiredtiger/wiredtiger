@@ -327,8 +327,9 @@ __wt_huffman_open(
      * input).  Validate the symbols are within range.
      */
     if (numbytes != 1 && numbytes != 2)
-        WT_ERR_MSG(session, EINVAL, "illegal number of symbol bytes specified for a huffman "
-                                    "table");
+        WT_ERR_MSG(session, EINVAL,
+          "illegal number of symbol bytes specified for a huffman "
+          "table");
 
     if (symcnt == 0)
         WT_ERR_MSG(session, EINVAL, "illegal number of symbols specified for a huffman table");
@@ -343,11 +344,13 @@ __wt_huffman_open(
     __wt_qsort(sym, symcnt, sizeof(INDEXED_SYMBOL), indexed_symbol_compare);
     for (i = 0; i < symcnt; ++i) {
         if (i > 0 && sym[i].symbol == sym[i - 1].symbol)
-            WT_ERR_MSG(session, EINVAL, "duplicate symbol %" PRIu32 " (%#" PRIx32 ") "
+            WT_ERR_MSG(session, EINVAL, "duplicate symbol %" PRIu32 " (%#" PRIx32
+                                        ") "
                                         "specified in a huffman table",
               sym[i].symbol, sym[i].symbol);
         if (sym[i].symbol > huffman->numSymbols)
-            WT_ERR_MSG(session, EINVAL, "out-of-range symbol %" PRIu32 " (%#" PRIx32 ") "
+            WT_ERR_MSG(session, EINVAL, "out-of-range symbol %" PRIu32 " (%#" PRIx32
+                                        ") "
                                         "specified in a huffman table",
               sym[i].symbol, sym[i].symbol);
     }
@@ -487,8 +490,9 @@ __wt_huffman_open(
             printf("\t%" PRIu16 "->%" PRIu16 ". %" PRIu32 " * %" PRIu8 "\n", i, symbol,
               indexed_freqs[i].frequency, huffman->codes[symbol].length);
         }
-        printf("weighted length of all codes (the smaller the better): "
-               "%" PRIu32 "\n",
+        printf(
+          "weighted length of all codes (the smaller the better): "
+          "%" PRIu32 "\n",
           weighted_length);
     }
 #endif
@@ -548,7 +552,8 @@ __wt_print_huffman_code(void *huffman_arg, uint16_t symbol)
             printf("symbol %" PRIu16 " not defined -- 0 frequency\n", symbol);
         else
             /* should print code as binary */
-            printf("%" PRIu16 " -> code pattern "
+            printf("%" PRIu16
+                   " -> code pattern "
                    "%" PRIx16 ", length %" PRIu8 "\n",
               symbol, code.pattern, code.length);
     }

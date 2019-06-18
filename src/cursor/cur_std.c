@@ -116,8 +116,9 @@ __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
     if (cursor->value_format != NULL && strlen(cursor->value_format) != 0) {
         session = (WT_SESSION_IMPL *)cursor->session;
-        WT_RET_MSG(session, ENOTSUP, "WT_CURSOR.modify only supported for 'S' and 'u' value "
-                                     "formats");
+        WT_RET_MSG(session, ENOTSUP,
+          "WT_CURSOR.modify only supported for 'S' and 'u' value "
+          "formats");
     }
     return (__wt_cursor_notsup(cursor));
 }

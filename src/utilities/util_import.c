@@ -11,8 +11,9 @@
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "import uri\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "import uri\n",
       progname, usage_prefix);
     return (1);
 }

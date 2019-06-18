@@ -217,15 +217,17 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
      */
     if (reconfig && ((enabled && !FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) ||
                       (!enabled && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))))
-        WT_RET_MSG(session, EINVAL, "log manager reconfigure: enabled mismatch with existing "
-                                    "setting");
+        WT_RET_MSG(session, EINVAL,
+          "log manager reconfigure: enabled mismatch with existing "
+          "setting");
 
     /* Logging is incompatible with in-memory */
     if (enabled) {
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
-            WT_RET_MSG(session, EINVAL, "In-memory configuration incompatible with "
-                                        "log=(enabled=true)");
+            WT_RET_MSG(session, EINVAL,
+              "In-memory configuration incompatible with "
+              "log=(enabled=true)");
     }
 
     *runp = enabled;
@@ -302,8 +304,9 @@ __logmgr_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     WT_RET(__wt_config_gets(session, cfg, "log.zero_fill", &cval));
     if (cval.val != 0) {
         if (F_ISSET(conn, WT_CONN_READONLY))
-            WT_RET_MSG(session, EINVAL, "Read-only configuration incompatible with "
-                                        "zero-filling log files");
+            WT_RET_MSG(session, EINVAL,
+              "Read-only configuration incompatible with "
+              "zero-filling log files");
         FLD_SET(conn->log_flags, WT_CONN_LOG_ZERO_FILL);
     }
 
@@ -959,8 +962,9 @@ __log_server(void *arg)
                     __wt_writeunlock(session, &log->log_archive_lock);
                     WT_ERR(ret);
                 } else
-                    __wt_verbose(session, WT_VERB_LOG, "%s", "log_archive: Blocked due to open "
-                                                             "log cursor holding archive lock");
+                    __wt_verbose(session, WT_VERB_LOG, "%s",
+                      "log_archive: Blocked due to open "
+                      "log cursor holding archive lock");
             }
             time_start = __wt_clock(session);
         }

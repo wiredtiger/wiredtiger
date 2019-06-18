@@ -277,8 +277,9 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
         }
 
     if (session->nhazard != 0)
-        __wt_errx(session, "session %p: close hazard pointer table: count didn't "
-                           "match entries",
+        __wt_errx(session,
+          "session %p: close hazard pointer table: count didn't "
+          "match entries",
           (void *)session);
 }
 
@@ -407,8 +408,9 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
             break;
         __wt_sleep(0, 10000);
     }
-    __wt_errx(session, "hazard pointer reference to discarded object: "
-                       "(%p: session %p name %s: %s, line %d)",
+    __wt_errx(session,
+      "hazard pointer reference to discarded object: "
+      "(%p: session %p name %s: %s, line %d)",
       (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
     return (false);
 }

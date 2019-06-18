@@ -604,8 +604,9 @@ err:
         break;
     case WT_ERR_IGNORE:
         if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret, "ignoring not-fatal error during root page split "
-                                   "to deepen the tree");
+            __wt_err(session, ret,
+              "ignoring not-fatal error during root page split "
+              "to deepen the tree");
             ret = 0;
         }
         break;
@@ -904,8 +905,9 @@ err:
         break;
     case WT_ERR_IGNORE:
         if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret, "ignoring not-fatal error during parent page "
-                                   "split");
+            __wt_err(session, ret,
+              "ignoring not-fatal error during parent page "
+              "split");
             ret = 0;
         }
         break;
@@ -1157,8 +1159,9 @@ err:
         break;
     case WT_ERR_IGNORE:
         if (ret != 0 && ret != WT_PANIC) {
-            __wt_err(session, ret, "ignoring not-fatal error during internal page "
-                                   "split");
+            __wt_err(session, ret,
+              "ignoring not-fatal error during internal page "
+              "split");
             ret = 0;
         }
         break;

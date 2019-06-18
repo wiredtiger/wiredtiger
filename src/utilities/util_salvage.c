@@ -56,8 +56,9 @@ util_salvage(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "salvage [-F] uri\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "salvage [-F] uri\n",
       progname, usage_prefix);
     return (1);
 }

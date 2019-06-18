@@ -630,8 +630,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
         WT_ERR_NOTFOUND_OK(ret);
         if ((ret = __wt_config_subgets(session, &cval, "fast", &sval)) == 0 && sval.val != 0) {
             if (F_ISSET(cst, WT_STAT_TYPE_ALL))
-                WT_ERR_MSG(session, EINVAL, "Only one of all, fast, none "
-                                            "configuration values should be specified");
+                WT_ERR_MSG(session, EINVAL,
+                  "Only one of all, fast, none "
+                  "configuration values should be specified");
             F_SET(cst, WT_STAT_TYPE_FAST);
         }
         WT_ERR_NOTFOUND_OK(ret);
@@ -659,15 +660,17 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
 
         if ((ret = __wt_config_subgets(session, &cval, "size", &sval)) == 0 && sval.val != 0) {
             if (F_ISSET(cst, WT_STAT_TYPE_FAST | WT_STAT_TYPE_ALL))
-                WT_ERR_MSG(session, EINVAL, "Only one of all, fast, none "
-                                            "configuration values should be specified");
+                WT_ERR_MSG(session, EINVAL,
+                  "Only one of all, fast, none "
+                  "configuration values should be specified");
             F_SET(cst, WT_STAT_TYPE_SIZE);
         }
         WT_ERR_NOTFOUND_OK(ret);
         if ((ret = __wt_config_subgets(session, &cval, "clear", &sval)) == 0 && sval.val != 0) {
             if (F_ISSET(cst, WT_STAT_TYPE_SIZE))
-                WT_ERR_MSG(session, EINVAL, "clear is incompatible with size "
-                                            "statistics");
+                WT_ERR_MSG(session, EINVAL,
+                  "clear is incompatible with size "
+                  "statistics");
             F_SET(cst, WT_STAT_CLEAR);
         }
         WT_ERR_NOTFOUND_OK(ret);
@@ -723,8 +726,9 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
 
     if (0) {
     config_err:
-        WT_ERR_MSG(session, EINVAL, "cursor's statistics configuration doesn't match the "
-                                    "database statistics configuration");
+        WT_ERR_MSG(session, EINVAL,
+          "cursor's statistics configuration doesn't match the "
+          "database statistics configuration");
     }
 
     if (0) {

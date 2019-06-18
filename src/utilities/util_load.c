@@ -61,9 +61,9 @@ util_load(WT_SESSION *session, int argc, char *argv[])
 
     /* -a and -o are mutually exclusive. */
     if (append && no_overwrite)
-        return (
-          util_err(session, EINVAL, "the -a (append) and -n (no-overwrite) flags are mutually "
-                                    "exclusive"));
+        return (util_err(session, EINVAL,
+          "the -a (append) and -n (no-overwrite) flags are mutually "
+          "exclusive"));
 
     /* The remaining arguments are configuration uri/string pairs. */
     if (argc != 0) {
@@ -133,8 +133,9 @@ load_dump(WT_SESSION *session)
      * key is a record number).
      */
     if (append && !WT_STREQ(cursor->key_format, "r")) {
-        fprintf(stderr, "%s: %s: -a option illegal unless the primary key is a "
-                        "record number\n",
+        fprintf(stderr,
+          "%s: %s: -a option illegal unless the primary key is a "
+          "record number\n",
           progname, uri);
         ret = 1;
     } else
@@ -396,8 +397,9 @@ config_update(WT_SESSION *session, char **list)
      */
     for (configp = cmdconfig; configp != NULL && *configp != NULL; configp += 2)
         if (strstr(configp[1], "key_format=") || strstr(configp[1], "value_format="))
-            return (util_err(session, 0, "an object's key or value format may not be "
-                                         "modified"));
+            return (util_err(session, 0,
+              "an object's key or value format may not be "
+              "modified"));
 
     /*
      * If there were command-line configuration pairs, walk the list of
@@ -411,14 +413,16 @@ config_update(WT_SESSION *session, char **list)
                 ++found;
         switch (found) {
         case 0:
-            return (util_err(session, 0, "the command line object name %s was not matched "
-                                         "by any loaded object name",
+            return (util_err(session, 0,
+              "the command line object name %s was not matched "
+              "by any loaded object name",
               *configp));
         case 1:
             break;
         default:
-            return (util_err(session, 0, "the command line object name %s was not unique, "
-                                         "matching more than a single loaded object name",
+            return (util_err(session, 0,
+              "the command line object name %s was not unique, "
+              "matching more than a single loaded object name",
               *configp));
         }
     }
@@ -569,8 +573,9 @@ err:
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "load [-as] [-f input-file] [-r name] [object configuration ...]\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "load [-as] [-f input-file] [-r name] [object configuration ...]\n",
       progname, usage_prefix);
     return (1);
 }

@@ -108,8 +108,9 @@ __wt_schema_colcheck(WT_SESSION_IMPL *session, const char *key_format, const cha
     WT_RET_TEST(ret != WT_NOTFOUND, ret);
 
     if (ncols != 0 && ncols != kcols + vcols)
-        WT_RET_MSG(session, EINVAL, "Number of columns in '%.*s' "
-                                    "does not match key format '%s' plus value format '%s'",
+        WT_RET_MSG(session, EINVAL,
+          "Number of columns in '%.*s' "
+          "does not match key format '%s' plus value format '%s'",
           (int)colconf->len, colconf->str, key_format, value_format);
 
     if (kcolsp != NULL)
@@ -146,8 +147,9 @@ __wt_table_check(WT_SESSION_IMPL *session, WT_TABLE *table)
     coltype = 0;
     while ((ret = __wt_config_next(&conf, &k, &v)) == 0) {
         if (__find_next_col(session, table, &k, &cg, &col, &coltype) != 0)
-            WT_RET_MSG(session, EINVAL, "Column '%.*s' in '%s' does not appear in a "
-                                        "column group",
+            WT_RET_MSG(session, EINVAL,
+              "Column '%.*s' in '%s' does not appear in a "
+              "column group",
               (int)k.len, k.str, table->iface.name);
         /*
          * Column groups can't store key columns in their value:
@@ -338,8 +340,9 @@ __wt_struct_reformat(WT_SESSION_IMPL *session, WT_TABLE *table, const char *colu
 
         if ((ret = __find_column_format(session, table, &k, value_only, &pv)) != 0) {
             if (value_only && ret == EINVAL)
-                WT_RET_MSG(session, EINVAL, "A column group cannot store key column "
-                                            "'%.*s' in its value",
+                WT_RET_MSG(session, EINVAL,
+                  "A column group cannot store key column "
+                  "'%.*s' in its value",
                   (int)k.len, k.str);
             WT_RET_MSG(session, EINVAL, "Column '%.*s' not found", (int)k.len, k.str);
         }

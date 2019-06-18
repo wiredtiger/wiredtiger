@@ -158,8 +158,9 @@ __wt_txn_named_snapshot_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (!F_ISSET(txn, WT_TXN_RUNNING)) {
         if (include_updates)
-            WT_RET_MSG(session, EINVAL, "A transaction must be "
-                                        "running to include updates in a named snapshot");
+            WT_RET_MSG(session, EINVAL,
+              "A transaction must be "
+              "running to include updates in a named snapshot");
 
         WT_RET(__wt_txn_begin(session, txn_cfg));
         started_txn = true;
@@ -349,11 +350,13 @@ __wt_txn_named_snapshot_config(
         WT_RET(__wt_name_check(session, cval.str, cval.len));
 
         if (F_ISSET(txn, WT_TXN_RUNNING) && txn->isolation != WT_ISO_SNAPSHOT)
-            WT_RET_MSG(session, EINVAL, "Can't create a named snapshot from a running "
-                                        "transaction that isn't snapshot isolation");
+            WT_RET_MSG(session, EINVAL,
+              "Can't create a named snapshot from a running "
+              "transaction that isn't snapshot isolation");
         else if (F_ISSET(txn, WT_TXN_RUNNING) && txn->mod_count != 0)
-            WT_RET_MSG(session, EINVAL, "Can't create a named snapshot from a running "
-                                        "transaction that has made updates");
+            WT_RET_MSG(session, EINVAL,
+              "Can't create a named snapshot from a running "
+              "transaction that has made updates");
         *has_create = true;
     }
 
@@ -367,18 +370,21 @@ __wt_txn_named_snapshot_config(
     if (all_config.val != 0 || names_config.len != 0 || before_config.len != 0 ||
       to_config.len != 0) {
         if (before_config.len != 0 && to_config.len != 0)
-            WT_RET_MSG(session, EINVAL, "Illegal configuration; named snapshot drop can't "
-                                        "specify both before and to options");
+            WT_RET_MSG(session, EINVAL,
+              "Illegal configuration; named snapshot drop can't "
+              "specify both before and to options");
         if (all_config.val != 0 &&
           (names_config.len != 0 || to_config.len != 0 || before_config.len != 0))
-            WT_RET_MSG(session, EINVAL, "Illegal configuration; named snapshot drop can't "
-                                        "specify all and any other options");
+            WT_RET_MSG(session, EINVAL,
+              "Illegal configuration; named snapshot drop can't "
+              "specify all and any other options");
         *has_drops = true;
     }
 
     if (!*has_create && !*has_drops)
-        WT_RET_MSG(session, EINVAL, "WT_SESSION::snapshot API called without any drop or "
-                                    "name option");
+        WT_RET_MSG(session, EINVAL,
+          "WT_SESSION::snapshot API called without any drop or "
+          "name option");
 
     return (0);
 }

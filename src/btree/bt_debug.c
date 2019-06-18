@@ -570,9 +570,10 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
     session = ds->session;
 
     if (WT_PAGE_IS_INTERNAL(ref->page)) {
-        WT_RET(ds->f(ds, "%*s"
-                         "I"
-                         "%d %s\n",
+        WT_RET(ds->f(ds,
+          "%*s"
+          "I"
+          "%d %s\n",
           level * 3, " ", level, __debug_tree_shape_info(ref, buf, sizeof(buf))));
         WT_INTL_FOREACH_BEGIN (session, ref->page, walk) {
             if (walk->state == WT_REF_MEM)
@@ -580,9 +581,10 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
         }
         WT_INTL_FOREACH_END;
     } else
-        WT_RET(ds->f(ds, "%*s"
-                         "L"
-                         " %s\n",
+        WT_RET(ds->f(ds,
+          "%*s"
+          "L"
+          " %s\n",
           level * 3, " ", __debug_tree_shape_info(ref, buf, sizeof(buf))));
     return (0);
 }
@@ -821,8 +823,9 @@ __debug_page_metadata(WT_DBG *ds, WT_REF *ref)
     }
 
     WT_RET(ds->f(ds, ": %s\n", __wt_page_type_string(page->type)));
-    WT_RET(ds->f(ds, "\t"
-                     "disk %p",
+    WT_RET(ds->f(ds,
+      "\t"
+      "disk %p",
       (void *)page->dsk));
     if (page->dsk != NULL)
         WT_RET(ds->f(ds, ", dsk_mem_size %" PRIu32, page->dsk->mem_size));
@@ -1171,11 +1174,13 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         }
 
         if (upd->txnid == WT_TXN_ABORTED)
-            WT_RET(ds->f(ds, "\t"
-                             "txn id aborted"));
+            WT_RET(ds->f(ds,
+              "\t"
+              "txn id aborted"));
         else
-            WT_RET(ds->f(ds, "\t"
-                             "txn id %" PRIu64,
+            WT_RET(ds->f(ds,
+              "\t"
+              "txn id %" PRIu64,
               upd->txnid));
 
         WT_RET(ds->f(ds, ", start_ts %s", __wt_timestamp_to_string(upd->start_ts, ts_string)));
@@ -1247,8 +1252,9 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     }
 
     __wt_ref_info(session, ref, &addr, &addr_size, NULL);
-    return (ds->f(ds, "\t"
-                      "%p %s %s\n",
+    return (ds->f(ds,
+      "\t"
+      "%p %s %s\n",
       (void *)ref, state, __wt_addr_string(session, addr, addr_size, ds->t1)));
 }
 

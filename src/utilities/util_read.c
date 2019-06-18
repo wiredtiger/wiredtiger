@@ -51,15 +51,17 @@ util_read(WT_SESSION *session, int argc, char *argv[])
      * record number, and the value format is a single string.
      */
     if (!WT_STREQ(cursor->key_format, "r") && !WT_STREQ(cursor->key_format, "S")) {
-        fprintf(stderr, "%s: read command only possible when the key format is "
-                        "a record number or string\n",
+        fprintf(stderr,
+          "%s: read command only possible when the key format is "
+          "a record number or string\n",
           progname);
         return (1);
     }
     rkey = WT_STREQ(cursor->key_format, "r");
     if (!WT_STREQ(cursor->value_format, "S")) {
-        fprintf(stderr, "%s: read command only possible when the value format is "
-                        "a string\n",
+        fprintf(stderr,
+          "%s: read command only possible when the value format is "
+          "a string\n",
           progname);
         return (1);
     }
@@ -98,8 +100,9 @@ util_read(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "read uri key ...\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "read uri key ...\n",
       progname, usage_prefix);
     return (1);
 }

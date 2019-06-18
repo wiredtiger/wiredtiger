@@ -583,8 +583,9 @@ __lsm_bloom_create(
     WT_CLEAR(key);
     WT_ERR_NOTFOUND_OK(__wt_bloom_get(bloom, &key));
 
-    __wt_verbose(session, WT_VERB_LSM, "LSM worker created bloom filter %s. "
-                                       "Expected %" PRIu64 " items, got %" PRIu64,
+    __wt_verbose(session, WT_VERB_LSM,
+      "LSM worker created bloom filter %s. "
+      "Expected %" PRIu64 " items, got %" PRIu64,
       chunk->bloom_uri, chunk->count, insert_count);
 
     /* Ensure the bloom filter is in the metadata. */

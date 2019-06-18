@@ -58,8 +58,9 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     WT_ERR(__wt_config_getones(session, metadata, "block_metadata_encrypted", &v));
     WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
     if ((kencryptor == NULL && v.val != 0) || (kencryptor != NULL && v.val == 0))
-        WT_ERR_MSG(session, EINVAL, "%s: loaded object's encryption configuration doesn't "
-                                    "match the database's encryption configuration",
+        WT_ERR_MSG(session, EINVAL,
+          "%s: loaded object's encryption configuration doesn't "
+          "match the database's encryption configuration",
           filename);
     /*
      * The metadata was quoted to avoid configuration string characters

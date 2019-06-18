@@ -118,8 +118,9 @@ err:
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "backup [-t uri] directory\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "backup [-t uri] directory\n",
       progname, usage_prefix);
     return (1);
 }

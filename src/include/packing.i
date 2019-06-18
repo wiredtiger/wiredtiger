@@ -157,16 +157,18 @@ next:
         return (0);
     case 's':
         if (pv->size < 1)
-            WT_RET_MSG(pack->session, EINVAL, "Fixed length strings must be at least 1 byte "
-                                              "in format '%.*s'",
+            WT_RET_MSG(pack->session, EINVAL,
+              "Fixed length strings must be at least 1 byte "
+              "in format '%.*s'",
               (int)(pack->end - pack->orig), pack->orig);
         return (0);
     case 'x':
         return (0);
     case 't':
         if (pv->size < 1 || pv->size > 8)
-            WT_RET_MSG(pack->session, EINVAL, "Bitfield sizes must be between 1 and 8 bits "
-                                              "in format '%.*s'",
+            WT_RET_MSG(pack->session, EINVAL,
+              "Bitfield sizes must be between 1 and 8 bits "
+              "in format '%.*s'",
               (int)(pack->end - pack->orig), pack->orig);
         return (0);
     case 'u':

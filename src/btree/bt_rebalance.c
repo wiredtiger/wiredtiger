@@ -135,7 +135,8 @@ __rebalance_internal(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
      * there could be more pages than that in a tree.
      */
     if (rs->leaf_next > UINT32_MAX)
-        WT_RET_MSG(session, ENOTSUP, "too many leaf pages to rebalance, %" WT_SIZET_FMT " pages "
+        WT_RET_MSG(session, ENOTSUP, "too many leaf pages to rebalance, %" WT_SIZET_FMT
+                                     " pages "
                                      "exceeds the maximum of %" PRIu32,
           rs->leaf_next, UINT32_MAX);
     leaf_next = (uint32_t)rs->leaf_next;

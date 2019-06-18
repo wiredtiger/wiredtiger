@@ -135,8 +135,9 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
 
         name = sep + 1;
         if (WT_PREFIX_MATCH(name, "WiredTiger"))
-            WT_RET_MSG(session, EINVAL, "%s: the \"WiredTiger\" name space may not be "
-                                        "used by applications",
+            WT_RET_MSG(session, EINVAL,
+              "%s: the \"WiredTiger\" name space may not be "
+              "used by applications",
               name);
     }
 
@@ -146,8 +147,9 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
      * names and we're not going to do the testing.
      */
     if (strpbrk(name, "{},:[]\\\"'") != NULL)
-        WT_RET_MSG(session, EINVAL, "%s: WiredTiger objects should not include grouping "
-                                    "characters in their names",
+        WT_RET_MSG(session, EINVAL,
+          "%s: WiredTiger objects should not include grouping "
+          "characters in their names",
           name);
 
     return (0);

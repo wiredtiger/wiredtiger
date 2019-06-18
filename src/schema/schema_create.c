@@ -37,9 +37,10 @@ __wt_direct_io_size_check(
     if (FLD_ISSET(conn->direct_io, WT_DIRECT_IO_CHECKPOINT | WT_DIRECT_IO_DATA)) {
         align = (int64_t)conn->buffer_alignment;
         if (align != 0 && (cval.val < align || cval.val % align != 0))
-            WT_RET_MSG(session, EINVAL, "when direct I/O is configured, the %s size must "
-                                        "be at least as large as the buffer alignment as "
-                                        "well as a multiple of the buffer alignment",
+            WT_RET_MSG(session, EINVAL,
+              "when direct I/O is configured, the %s size must "
+              "be at least as large as the buffer alignment as "
+              "well as a multiple of the buffer alignment",
               config_name);
     }
     *allocsizep = (uint32_t)cval.val;
@@ -367,8 +368,9 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     WT_PREFIX_SKIP_REQUIRED(session, tablename, "index:");
     idxname = strchr(tablename, ':');
     if (idxname == NULL)
-        WT_RET_MSG(session, EINVAL, "Invalid index name, "
-                                    "should be <table name>:<index name>: %s",
+        WT_RET_MSG(session, EINVAL,
+          "Invalid index name, "
+          "should be <table name>:<index name>: %s",
           name);
 
     /*
@@ -463,8 +465,9 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
          */
         if (__wt_config_subgetraw(session, &icols, &ckey, &cval) == 0) {
             if (have_extractor)
-                WT_ERR_MSG(session, EINVAL, "an index with a custom extractor may not "
-                                            "include primary key columns");
+                WT_ERR_MSG(session, EINVAL,
+                  "an index with a custom extractor may not "
+                  "include primary key columns");
             continue;
         }
         WT_ERR(__wt_buf_catfmt(session, &extra_cols, "%.*s,", (int)ckey.len, ckey.str));
@@ -489,8 +492,9 @@ __create_index(WT_SESSION_IMPL *session, const char *name, bool exclusive, const
     /* Check for a record number index key, which makes no sense. */
     WT_ERR(__wt_config_getones(session, fmt.data, "key_format", &cval));
     if (cval.len == 1 && cval.str[0] == 'r')
-        WT_ERR_MSG(session, EINVAL, "column-store index may not use the record number as its "
-                                    "index key");
+        WT_ERR_MSG(session, EINVAL,
+          "column-store index may not use the record number as its "
+          "index key");
 
     WT_ERR(__wt_buf_catfmt(session, &fmt, ",index_key_columns=%u", npublic_cols));
 
@@ -618,8 +622,9 @@ __create_data_source(
      */
     if (__wt_config_getones_none(session, config, "collator", &cval) != WT_NOTFOUND &&
       cval.len != 0)
-        WT_RET_MSG(session, EINVAL, "WT_DATA_SOURCE objects do not support WT_COLLATOR "
-                                    "ordering");
+        WT_RET_MSG(session, EINVAL,
+          "WT_DATA_SOURCE objects do not support WT_COLLATOR "
+          "ordering");
 
     return (dsrc->create(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg));
 }

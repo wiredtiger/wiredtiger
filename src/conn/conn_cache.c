@@ -35,8 +35,9 @@ __cache_config_abs_to_pct(
          * not allow an absolute size setting.
          */
         if (shared)
-            WT_RET_MSG(session, EINVAL, "Shared cache configuration requires a percentage "
-                                        "value for %s",
+            WT_RET_MSG(session, EINVAL,
+              "Shared cache configuration requires a percentage "
+              "value for %s",
               param_name);
         /* An absolute value can't exceed the cache size. */
         if (input > conn->cache_size)
@@ -132,8 +133,9 @@ __cache_config_local(WT_SESSION_IMPL *session, bool shared, const char *cfg[])
     evict_threads_min = (uint32_t)cval.val;
 
     if (evict_threads_min > evict_threads_max)
-        WT_RET_MSG(session, EINVAL, "eviction=(threads_min) cannot be greater than "
-                                    "eviction=(threads_max)");
+        WT_RET_MSG(session, EINVAL,
+          "eviction=(threads_min) cannot be greater than "
+          "eviction=(threads_max)");
     conn->evict_threads_max = evict_threads_max;
     conn->evict_threads_min = evict_threads_min;
 
@@ -350,11 +352,13 @@ __wt_cache_destroy(WT_SESSION_IMPL *session)
 
     /* The cache should be empty at this point.  Complain if not. */
     if (cache->pages_inmem != cache->pages_evicted)
-        __wt_errx(session, "cache server: exiting with %" PRIu64 " pages in "
+        __wt_errx(session, "cache server: exiting with %" PRIu64
+                           " pages in "
                            "memory and %" PRIu64 " pages evicted",
           cache->pages_inmem, cache->pages_evicted);
     if (cache->bytes_image != 0)
-        __wt_errx(session, "cache server: exiting with %" PRIu64 " image bytes in "
+        __wt_errx(session, "cache server: exiting with %" PRIu64
+                           " image bytes in "
                            "memory",
           cache->bytes_image);
     if (cache->bytes_inmem != 0)

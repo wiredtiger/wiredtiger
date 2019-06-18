@@ -43,8 +43,9 @@ util_compact(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-    (void)fprintf(stderr, "usage: %s %s "
-                          "compact uri\n",
+    (void)fprintf(stderr,
+      "usage: %s %s "
+      "compact uri\n",
       progname, usage_prefix);
     return (1);
 }
