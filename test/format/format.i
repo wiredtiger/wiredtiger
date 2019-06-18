@@ -109,3 +109,18 @@ random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
 		__wt_sleep(0, i * (micro_seconds / 10));
 	}
 }
+
+static inline void
+wiredtiger_begin_transaction(WT_SESSION *session, const char *config)
+{
+	WT_DECL_RET;
+
+	/*
+	 * Keep trying to start a new transaction if it's timing out.
+	 * There are no resources pinned, it should succeed eventually.
+	 */
+	while ((ret =
+	    session->begin_transaction(session, config)) == WT_CACHE_FULL)
+		__wt_yield();
+	testutil_check(ret);
+}

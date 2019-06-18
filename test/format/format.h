@@ -292,7 +292,7 @@ typedef struct {
 	thread_op op;				/* Operation */
 	uint64_t  keyno;			/* Row number */
 
-	uint64_t  timestamp;			/* Read/commit timestamp */
+	uint64_t  ts;				/* Read/commit timestamp */
 	bool	  repeatable;			/* Operation can be repeated */
 
 	uint64_t  last;			/* Inclusive end of a truncate range */
@@ -324,6 +324,9 @@ typedef struct {
 	uint64_t truncate;
 	uint64_t update;
 
+	WT_SESSION *session;			/* WiredTiger session */
+	WT_CURSOR  *cursor;			/* WiredTiger cursor */
+
 	uint64_t keyno;				/* key */
 	WT_ITEM	 *key, _key;			/* key, value */
 	WT_ITEM	 *value, _value;
@@ -331,6 +334,9 @@ typedef struct {
 	uint64_t last;				/* truncate range */
 	WT_ITEM	 *lastkey, _lastkey;
 
+	bool repeatable_reads;			/* if read ops repeatable */
+	uint64_t read_ts;			/* read timestamp */
+	uint64_t commit_ts;			/* commit timestamp */
 	SNAP_OPS *snap, *snap_first, snap_list[256];
 
 	WT_ITEM  *tbuf, _tbuf;			/* temporary buffer */
@@ -340,6 +346,7 @@ typedef struct {
 #define	TINFO_JOINED	3			/* Resolved */
 	volatile int state;			/* state */
 } TINFO;
+extern TINFO **tinfo_list;
 
 #ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);
@@ -376,7 +383,7 @@ int	 read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 uint32_t rng(WT_RAND_STATE *);
 void	 snap_repeat_single(WT_CURSOR *, TINFO *);
 int	 snap_repeat_txn(WT_CURSOR *, TINFO *);
-void	 snap_repeat_update(TINFO *, uint64_t, uint64_t);
+void	 snap_repeat_update(TINFO *, bool);
 void	 snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
 void	 track(const char *, uint64_t, TINFO *);

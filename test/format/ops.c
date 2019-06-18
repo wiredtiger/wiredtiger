@@ -79,6 +79,8 @@ set_alarm(void)
 #endif
 }
 
+TINFO **tinfo_list;
+
 /*
  * wts_ops --
  *	Perform a number of operations in a set of threads.
@@ -86,7 +88,7 @@ set_alarm(void)
 void
 wts_ops(bool lastrun)
 {
-	TINFO **tinfo_list, *tinfo, total;
+	TINFO *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	wt_thread_t alter_tid, backup_tid, checkpoint_tid, compact_tid, lrt_tid;
@@ -153,7 +155,7 @@ wts_ops(bool lastrun)
 	 * Create the per-thread structures and start the worker threads.
 	 * Allocate the thread structures separately to minimize false sharing.
 	 */
-	tinfo_list = dcalloc((size_t)g.c_threads, sizeof(TINFO *));
+	tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
 	for (i = 0; i < g.c_threads; ++i) {
 		tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
 
@@ -301,79 +303,119 @@ wts_ops(bool lastrun)
 }
 
 /*
+ * begin_transaction_ts --
+ *	Begin a timestamped transaction.
+ */
+static void
+begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
+{
+	TINFO **tlp;
+	WT_DECL_RET;
+	WT_SESSION *session;
+	uint64_t ts;
+	const char *config;
+	char buf[64];
+
+	session = tinfo->session;
+
+	config = "isolation=snapshot";
+	*iso_configp = ISOLATION_SNAPSHOT;
+
+	/*
+	 * Transaction reads are normally repeatable, but WiredTiger timestamps
+	 * allow rewriting commits, that is, applications can specify at commit
+	 * time the timestamp at which the commit happens. If that happens, our
+	 * read might no longer be repeatable. Test in both modes: pick a read
+	 * timestamp we know is repeatable (because it's at least as old as the
+	 * oldest resolved commit timestamp in any thread), and pick a current
+	 * timestamp, 50% of the time.
+	 */
+	ts = 0;
+	if (mmrand(&tinfo->rnd, 1, 2) == 1)
+		for (ts = UINT64_MAX, tlp = tinfo_list; *tlp != NULL; ++tlp)
+			ts = WT_MIN(ts, (*tlp)->commit_ts);
+	if (ts != 0) {
+		wiredtiger_begin_transaction(session, config);
+
+		/*
+		 * If the timestamp has aged out of the system, we'll get EINVAL
+		 * when we try and set it. That kills the transaction, we have
+		 * to restart.
+		 */
+		testutil_check(__wt_snprintf(
+		    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
+		ret = session->timestamp_transaction(session, buf);
+		if (ret == 0) {
+			tinfo->read_ts = ts;
+			tinfo->repeatable_reads = true;
+			return;
+		}
+		if (ret != EINVAL)
+			testutil_check(ret);
+
+		testutil_check(session->rollback_transaction(session, NULL));
+	}
+
+	wiredtiger_begin_transaction(session, config);
+
+	/*
+	 * Otherwise, pick a current timestamp.
+	 *
+	 * Prepare returns an error if the prepare timestamp is less
+	 * than any active read timestamp, single-thread transaction
+	 * prepare and begin.
+	 *
+	 * Lock out the oldest timestamp update.
+	 */
+	testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
+
+	ts = __wt_atomic_addv64(&g.timestamp, 1);
+	testutil_check(__wt_snprintf(
+	    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
+	testutil_check(session->timestamp_transaction(session, buf));
+
+	testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+
+	tinfo->read_ts = ts;
+	tinfo->repeatable_reads = false;
+}
+
+/*
  * begin_transaction --
  *	Choose an isolation configuration and begin a transaction.
  */
 static void
-begin_transaction(TINFO *tinfo,
-    WT_SESSION *session, uint64_t *read_tsp, u_int *iso_configp)
+begin_transaction(TINFO *tinfo, u_int *iso_configp)
 {
-	WT_DECL_RET;
-	uint64_t ts;
+	WT_SESSION *session;
 	u_int v;
-	char buf[64];
 	const char *config;
 
-	if (g.c_txn_timestamps) {
-		*iso_configp = ISOLATION_SNAPSHOT;
+	session = tinfo->session;
 
-		/*
-		 * Keep trying to start a new transaction if it's timing out.
-		 * There are no resources pinned, it should succeed eventually.
-		 */
-		while ((ret = session->begin_transaction(
-		    session, "isolation=snapshot")) == WT_CACHE_FULL)
-			__wt_yield();
-		testutil_check(ret);
-
-		/*
-		 * Prepare returns an error if the prepare timestamp is less
-		 * than any active read timestamp, single-thread transaction
-		 * prepare and begin.
-		 *
-		 * Lock out the oldest timestamp update.
-		 */
-		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
-
-		ts = __wt_atomic_addv64(&g.timestamp, 1);
-		testutil_check(__wt_snprintf(
-		    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
-		testutil_check(session->timestamp_transaction(session, buf));
-
-		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
-
-		*read_tsp = ts;
-	} else {
-		if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
-			v = mmrand(&tinfo->rnd, 1, 3);
-		switch (v) {
-		case 1:
-			v = ISOLATION_READ_UNCOMMITTED;
-			config = "isolation=read-uncommitted";
-			break;
-		case 2:
-			v = ISOLATION_READ_COMMITTED;
-			config = "isolation=read-committed";
-			break;
-		case 3:
-		default:
-			v = ISOLATION_SNAPSHOT;
-			config = "isolation=snapshot";
-			break;
-		}
-		*iso_configp = v;
-
-		/*
-		 * Keep trying to start a new transaction if it's timing out.
-		 * There are no resources pinned, it should succeed eventually.
-		 */
-		while ((ret = session->begin_transaction(
-		    session, config)) == WT_CACHE_FULL)
-			__wt_yield();
-		testutil_check(ret);
-
-		*read_tsp = WT_TS_NONE;
+	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
+		v = mmrand(&tinfo->rnd, 1, 3);
+	switch (v) {
+	case 1:
+		v = ISOLATION_READ_UNCOMMITTED;
+		config = "isolation=read-uncommitted";
+		break;
+	case 2:
+		v = ISOLATION_READ_COMMITTED;
+		config = "isolation=read-committed";
+		break;
+	case 3:
+	default:
+		v = ISOLATION_SNAPSHOT;
+		config = "isolation=snapshot";
+		break;
 	}
+	*iso_configp = v;
+
+	wiredtiger_begin_transaction(session, config);
+
+	tinfo->read_ts = WT_TS_NONE;
+	tinfo->repeatable_reads = false;
 }
 
 /*
@@ -381,14 +423,10 @@ begin_transaction(TINFO *tinfo,
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo,
-    WT_SESSION *session, bool prepared, uint64_t *commit_tsp)
+commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 {
 	uint64_t ts;
 	char buf[64];
-
-	if (commit_tsp != NULL)
-		*commit_tsp = WT_TS_NONE;
 
 	++tinfo->commit;
 
@@ -409,11 +447,12 @@ commit_transaction(TINFO *tinfo,
 		}
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
-
-		if (commit_tsp != NULL)
-			*commit_tsp = ts;
 	}
 	testutil_check(session->commit_transaction(session, NULL));
+
+	/* Remember our oldest commit timestamp. */
+	if (g.c_txn_timestamps)
+		tinfo->commit_ts = ts;
 }
 
 /*
@@ -421,8 +460,12 @@ commit_transaction(TINFO *tinfo,
  *     Rollback a transaction.
  */
 static void
-rollback_transaction(TINFO *tinfo, WT_SESSION *session)
+rollback_transaction(TINFO *tinfo)
 {
+	WT_SESSION *session;
+
+	session = tinfo->session;
+
 	++tinfo->rollback;
 
 	testutil_check(session->rollback_transaction(session, NULL));
@@ -433,11 +476,14 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
  *     Prepare a transaction if timestamps are in use.
  */
 static int
-prepare_transaction(TINFO *tinfo, WT_SESSION *session)
+prepare_transaction(TINFO *tinfo)
 {
 	WT_DECL_RET;
+	WT_SESSION *session;
 	uint64_t ts;
 	char buf[64];
+
+	session = tinfo->session;
 
 	++tinfo->prepare;
 
@@ -497,6 +543,76 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 } while (0)
 
 /*
+ * ops_open_session --
+ *	Create a new session/cursor pair for the thread.
+ */
+static void
+ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
+{
+	WT_CONNECTION *conn;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_SESSION *session;
+
+	conn = g.wts_conn;
+
+	/* Close any open session/cursor. */
+	if ((session = tinfo->session) != NULL)
+		testutil_check(session->close(session, NULL));
+
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+	/*
+	 * 10% of the time, perform some read-only operations from a checkpoint.
+	 *
+	 * Skip if single-threaded and checking against a Berkeley DB database,
+	 * that won't work because the Berkeley DB database won't match the
+	 * checkpoint.
+	 *
+	 * Skip if we are using data-sources or LSM, they don't support reading
+	 * from checkpoints.
+	 */
+	cursor = NULL;
+	if (!SINGLETHREADED &&
+	    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
+	    mmrand(&tinfo->rnd, 1, 10) == 1) {
+		/*
+		 * WT_SESSION.open_cursor can return EBUSY if concurrent with a
+		 * metadata operation, retry.
+		 */
+		while ((ret = session->open_cursor(session, g.uri, NULL,
+		    "checkpoint=WiredTigerCheckpoint", &cursor)) == EBUSY)
+			__wt_yield();
+
+		/*
+		 * If the checkpoint hasn't been created yet, ignore the error.
+		 */
+		if (ret != ENOENT) {
+			testutil_check(ret);
+			*ckpt_handlep = true;
+		}
+	}
+	if (cursor == NULL) {
+		/*
+		 * Configure "append", in the case of column stores, we append
+		 * when inserting new rows.
+		 *
+		 * WT_SESSION.open_cursor can return EBUSY if concurrent with a
+		 * metadata operation, retry.
+		 */
+		while ((ret = session->open_cursor(session,
+		    g.uri, NULL, "append", &cursor)) == EBUSY)
+			__wt_yield();
+
+		testutil_check(ret);
+		*ckpt_handlep = false;
+	}
+
+	tinfo->session = session;
+	tinfo->cursor = cursor;
+}
+
+/*
  * ops --
  *     Per-thread operations.
  */
@@ -504,21 +620,17 @@ static WT_THREAD_RET
 ops(void *arg)
 {
 	TINFO *tinfo;
-	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION *session;
 	thread_op op;
-	uint64_t commit_ts, read_ts, reset_op, session_op, truncate_op;
+	uint64_t reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
 	bool ckpt_handle, greater_than, intxn, next, positioned, prepared;
 
 	tinfo = arg;
 
-	conn = g.wts_conn;
-	commit_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
-	read_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
 	iso_config = ISOLATION_RANDOM;	/* -Wconditional-uninitialized */
 	ckpt_handle = false;		/* -Wconditional-uninitialized */
 
@@ -554,64 +666,17 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session, false, NULL);
+				commit_transaction(tinfo, session, false);
 				intxn = false;
 			}
 
-			if (session != NULL)
-				testutil_check(session->close(session, NULL));
-			testutil_check(
-			    conn->open_session(conn, NULL, NULL, &session));
+			ops_open_session(tinfo, &ckpt_handle);
 
 			/* Pick the next session/cursor close/open. */
 			session_op += mmrand(&tinfo->rnd, 100, 5000);
 
-			/*
-			 * 10% of the time, perform some read-only operations
-			 * from a checkpoint.
-			 *
-			 * Skip if single-threaded and doing checks against a
-			 * Berkeley DB database, that won't work because the
-			 * Berkeley DB database won't match the checkpoint.
-			 *
-			 * Skip if we are using data-sources or LSM, they don't
-			 * support reading from checkpoints.
-			 */
-			if (!SINGLETHREADED &&
-			    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
-			    mmrand(&tinfo->rnd, 1, 10) == 1) {
-				/*
-				 * open_cursor can return EBUSY if concurrent
-				 * with a metadata operation, retry.
-				 */
-				while ((ret = session->open_cursor(session,
-				    g.uri, NULL,
-				    "checkpoint=WiredTigerCheckpoint",
-				    &cursor)) == EBUSY)
-					__wt_yield();
-				/*
-				 * If the checkpoint hasn't been created yet,
-				 * ignore the error.
-				 */
-				if (ret == ENOENT)
-					continue;
-				testutil_check(ret);
-
-				ckpt_handle = true;
-			} else {
-				/*
-				 * Configure "append", in the case of column
-				 * stores, we append when inserting new rows.
-				 * open_cursor can return EBUSY if concurrent
-				 * with a metadata operation, retry.
-				 */
-				while ((ret = session->open_cursor(session,
-				    g.uri, NULL, "append", &cursor)) == EBUSY)
-					__wt_yield();
-				testutil_check(ret);
-
-				ckpt_handle = false;
-			}
+			session = tinfo->session;
+			cursor = tinfo->cursor;
 		}
 
 		/*
@@ -629,10 +694,10 @@ ops(void *arg)
 
 		/*
 		 * If not in a transaction, have a data handle and running in a
-		 * timestamp world, occasionally repeat a timestamped read.
+		 * timestamp world, occasionally repeat a timestamped operation.
 		 */
 		if (!intxn && !ckpt_handle &&
-		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1) {
+		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 15) == 1) {
 			++tinfo->search;
 			snap_repeat_single(cursor, tinfo);
 		}
@@ -641,11 +706,15 @@ ops(void *arg)
 		 * If not in a transaction, choose an isolation level and start
 		 * a transaction some percentage of the time.
 		 */
-		if (!intxn && mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq) {
+		if (!intxn && (g.c_txn_timestamps ||
+		    mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq)) {
 			tinfo->snap_first = tinfo->snap;
-			begin_transaction(
-			    tinfo, session, &read_ts, &iso_config);
 			intxn = true;
+
+			if (g.c_txn_timestamps)
+				begin_transaction_ts(tinfo, &iso_config);
+			else
+				begin_transaction(tinfo, &iso_config);
 		}
 
 		/* Select an operation. */
@@ -933,7 +1002,7 @@ update_instead_of_chosen_op:
 		 */
 		prepared = false;
 		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
-			ret = prepare_transaction(tinfo, session);
+			ret = prepare_transaction(tinfo);
 			if (ret != 0)
 				WRITE_OP_FAILED(false);
 
@@ -947,22 +1016,18 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
-			commit_transaction(
-			    tinfo, session, prepared, &commit_ts);
+			commit_transaction(tinfo, session, prepared);
+
+			if (intxn && g.c_txn_timestamps)
+				snap_repeat_update(tinfo, true);
 			break;
 		case 5:						/* 10% */
-rollback:		rollback_transaction(tinfo, session);
-			commit_ts = WT_TS_NONE;
+rollback:		rollback_transaction(tinfo);
+
+			if (intxn && g.c_txn_timestamps)
+				snap_repeat_update(tinfo, false);
 			break;
 		}
-
-		/*
-		 * Update any snapshot isolation operations with the timestamp
-		 * we can use to repeat them.
-		 */
-		if (intxn &&
-		    g.c_txn_timestamps && iso_config == ISOLATION_SNAPSHOT)
-			snap_repeat_update(tinfo, read_ts, commit_ts);
 
 		intxn = false;
 	}

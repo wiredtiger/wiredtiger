@@ -41,7 +41,7 @@ snap_track(TINFO *tinfo, thread_op op)
 	snap = tinfo->snap;
 	snap->op = op;
 	snap->keyno = tinfo->keyno;
-	snap->timestamp = WT_TS_NONE;
+	snap->ts = WT_TS_NONE;
 	snap->repeatable = false;
 	snap->last = op == TRUNCATE ? tinfo->last : 0;
 
@@ -212,7 +212,7 @@ snap_ts_clear(TINFO *tinfo, uint64_t ts)
 	/* Check from the first operation to the last. */
 	for (snap = tinfo->snap_list,
 	    count = WT_ELEMENTS(tinfo->snap_list); count > 0; --count, ++snap)
-		if (snap->repeatable && snap->timestamp <= ts)
+		if (snap->repeatable && snap->ts <= ts)
 			snap->repeatable = false;
 }
 
@@ -356,7 +356,7 @@ snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
  * resolution.
  */
 void
-snap_repeat_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
+snap_repeat_update(TINFO *tinfo, bool committed)
 {
 	SNAP_OPS *start, *stop;
 
@@ -369,15 +369,28 @@ snap_repeat_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
 			break;
 
 		/*
-		 * Repeat reads at the original transaction's read timestamp and
-		 * updates at the eventual commit timestamp.
+		 * First, reads may simply not be repeatable because the read
+		 * timestamp chosen wasn't older than all concurrently running
+		 * uncommitted updates.
 		 */
-		start->timestamp = start->op == READ ? read_ts : commit_ts;
+		if (!tinfo->repeatable_reads && start->op == READ)
+			continue;
 
-		/* Set operation repeatability after transaction resolution. */
-		start->repeatable = commit_ts == WT_TS_NONE ?
-		    snap_repeat_ok_rollback(tinfo, start, tinfo->snap_first) :
-		    snap_repeat_ok_commit(tinfo, start, stop);
+		/*
+		 * Second, check based on the transaction resolution (the rules
+		 * are different if the transaction committed or rolled back).
+		 */
+		start->repeatable = committed ?
+		    snap_repeat_ok_commit(tinfo, start, stop) :
+		    snap_repeat_ok_rollback(tinfo, start, tinfo->snap_first);
+
+		/*
+		 * Repeat reads at the transaction's read timestamp and updates
+		 * at the commit timestamp.
+		 */
+		if (start->repeatable)
+			start->ts = start->op == READ ?
+			    tinfo->read_ts : tinfo->commit_ts;
 	}
 }
 
@@ -427,11 +440,11 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 	testutil_check(ret);
 
 	/*
-	 * If the timestamp we're using has aged out of the system, we'll get
-	 * EINVAL when we try and set it.
+	 * If the timestamp has aged out of the system, we'll get EINVAL when we
+	 * try and set it.
 	 */
 	testutil_check(__wt_snprintf(
-	    buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->timestamp));
+	    buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->ts));
 
 	ret = session->timestamp_transaction(session, buf);
 	if (ret == 0) {
@@ -440,7 +453,7 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 		if (ret != 0 && ret != WT_ROLLBACK)
 			testutil_check(ret);
 	} else if (ret == EINVAL)
-		snap_ts_clear(tinfo, snap->timestamp);
+		snap_ts_clear(tinfo, snap->ts);
 	else
 		testutil_check(ret);
 
