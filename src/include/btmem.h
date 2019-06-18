@@ -916,8 +916,8 @@ struct __wt_ref {
 	(ref)->hist[(ref)->histoff].session = session;			\
 	(ref)->hist[(ref)->histoff].name = session->name;		\
 	(ref)->hist[(ref)->histoff].file = (f);				\
-	(ref)->hist[(ref)->histoff].line = (l);				\
-	(ref)->hist[(ref)->histoff].state = s;				\
+	(ref)->hist[(ref)->histoff].line = (uint16_t)(l);		\
+	(ref)->hist[(ref)->histoff].state = (uint16_t)(s);		\
 	(ref)->histoff =						\
 	    ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist);		\
 } while (0)
