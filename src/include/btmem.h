@@ -901,7 +901,7 @@ struct __wt_ref {
 #define	WT_REF_CAS_STATE(session, ref, old_state, new_state)          \
 	__wt_ref_cas_state_int((session), (ref), (old_state), (new_state),\
 	__FILE__, __LINE__)
-#define	WT_REF_SAVE_STATE_MAX	12
+#define	WT_REF_SAVE_STATE_MAX	3
 #ifdef HAVE_DIAGNOSTIC
 	/* Capture history of ref state changes. */
 	struct __wt_ref_hist {
