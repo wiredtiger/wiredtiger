@@ -127,21 +127,21 @@
  *	Variable-length, on-page cell header.
  */
 struct __wt_cell {
-	/*
-	 * Maximum of 62 bytes:
-	 *  1: cell descriptor byte
-	 *  1: prefix compression count
-	 *  1: secondary descriptor byte
-	 * 27: 3 timestamps		(uint64_t encoding, max 9 bytes)
-	 * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
-	 *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
-	 *  5: data length		(uint32_t encoding, max 5 bytes)
-	 *
-	 * This calculation is extremely pessimistic: the prefix compression
-	 * count and 64V value overlap, and the validity window, 64V value
-	 * and data length are all optional in some cases.
-	 */
-	uint8_t __chunk[1 + 1 + 1 + 6 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
+    /*
+     * Maximum of 62 bytes:
+     *  1: cell descriptor byte
+     *  1: prefix compression count
+     *  1: secondary descriptor byte
+     * 27: 3 timestamps		(uint64_t encoding, max 9 bytes)
+     * 18: 2 transaction IDs	(uint64_t encoding, max 9 bytes)
+     *  9: associated 64-bit value	(uint64_t encoding, max 9 bytes)
+     *  5: data length		(uint32_t encoding, max 5 bytes)
+     *
+     * This calculation is extremely pessimistic: the prefix compression
+     * count and 64V value overlap, and the validity window, 64V value
+     * and data length are all optional in some cases.
+     */
+    uint8_t __chunk[1 + 1 + 1 + 6 * WT_INTPACK64_MAXSIZE + WT_INTPACK32_MAXSIZE];
 };
 
 /*
@@ -149,36 +149,36 @@ struct __wt_cell {
  *	Unpacked cell.
  */
 struct __wt_cell_unpack {
-	WT_CELL *cell; /* Cell's disk image address */
+    WT_CELL *cell; /* Cell's disk image address */
 
-	uint64_t v; /* RLE count or recno */
+    uint64_t v; /* RLE count or recno */
 
-	wt_timestamp_t start_ts; /* Value validity window */
-	uint64_t start_txn;
-	wt_timestamp_t stop_ts;
-	uint64_t stop_txn;
+    wt_timestamp_t start_ts; /* Value validity window */
+    uint64_t start_txn;
+    wt_timestamp_t stop_ts;
+    uint64_t stop_txn;
 
-	/* Address validity window */
-	wt_timestamp_t newest_durable_ts;
-	wt_timestamp_t oldest_start_ts;
-	uint64_t oldest_start_txn;
-	wt_timestamp_t newest_stop_ts;
-	uint64_t newest_stop_txn;
+    /* Address validity window */
+    wt_timestamp_t newest_durable_ts;
+    wt_timestamp_t oldest_start_ts;
+    uint64_t oldest_start_txn;
+    wt_timestamp_t newest_stop_ts;
+    uint64_t newest_stop_txn;
 
-	/*
-	 * !!!
-	 * The size and __len fields are reasonably type size_t; don't change
-	 * the type, performance drops significantly if they're type size_t.
-	 */
-	const void *data; /* Data */
-	uint32_t size;    /* Data size */
+    /*
+     * !!!
+     * The size and __len fields are reasonably type size_t; don't change
+     * the type, performance drops significantly if they're type size_t.
+     */
+    const void *data; /* Data */
+    uint32_t size;    /* Data size */
 
-	uint32_t __len; /* Cell + data length (usually) */
+    uint32_t __len; /* Cell + data length (usually) */
 
-	uint8_t prefix; /* Cell prefix length */
+    uint8_t prefix; /* Cell prefix length */
 
-	uint8_t raw;  /* Raw cell type (include "shorts") */
-	uint8_t type; /* Cell type */
+    uint8_t raw;  /* Raw cell type (include "shorts") */
+    uint8_t type; /* Cell type */
 
-	uint8_t ovfl; /* boolean: cell is an overflow */
+    uint8_t ovfl; /* boolean: cell is an overflow */
 };

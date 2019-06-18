@@ -10,9 +10,9 @@
  * A list of configuration strings.
  */
 typedef struct {
-	char **list;   /* array of alternating (uri, config) values */
-	int entry;     /* next entry available in list */
-	int max_entry; /* how many allocated in list */
+    char **list;   /* array of alternating (uri, config) values */
+    int entry;     /* next entry available in list */
+    int max_entry; /* how many allocated in list */
 } CONFIG_LIST;
 
 int config_exec(WT_SESSION *, char **);

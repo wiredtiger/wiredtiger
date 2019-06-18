@@ -7,41 +7,41 @@
  */
 
 struct __wt_config {
-	WT_SESSION_IMPL *session;
-	const char *orig;
-	const char *end;
-	const char *cur;
+    WT_SESSION_IMPL *session;
+    const char *orig;
+    const char *end;
+    const char *cur;
 
-	int depth, top;
-	const int8_t *go;
+    int depth, top;
+    const int8_t *go;
 };
 
 struct __wt_config_check {
-	const char *name;
-	const char *type;
-	int (*checkf)(WT_SESSION_IMPL *, WT_CONFIG_ITEM *);
-	const char *checks;
-	const WT_CONFIG_CHECK *subconfigs;
-	u_int subconfigs_entries;
+    const char *name;
+    const char *type;
+    int (*checkf)(WT_SESSION_IMPL *, WT_CONFIG_ITEM *);
+    const char *checks;
+    const WT_CONFIG_CHECK *subconfigs;
+    u_int subconfigs_entries;
 };
 
 #define WT_CONFIG_REF(session, n) (S2C(session)->config_entries[WT_CONFIG_ENTRY_##n])
 struct __wt_config_entry {
-	const char *method; /* method name */
+    const char *method; /* method name */
 
 #define WT_CONFIG_BASE(session, n) (WT_CONFIG_REF(session, n)->base)
-	const char *base; /* configuration base */
+    const char *base; /* configuration base */
 
-	const WT_CONFIG_CHECK *checks; /* check array */
-	u_int checks_entries;
+    const WT_CONFIG_CHECK *checks; /* check array */
+    u_int checks_entries;
 };
 
 struct __wt_config_parser_impl {
-	WT_CONFIG_PARSER iface;
+    WT_CONFIG_PARSER iface;
 
-	WT_SESSION_IMPL *session;
-	WT_CONFIG config;
-	WT_CONFIG_ITEM config_item;
+    WT_SESSION_IMPL *session;
+    WT_CONFIG config;
+    WT_CONFIG_ITEM config_item;
 };
 
 #define WT_CONFIG_ITEM_STATIC_INIT(n) static const WT_CONFIG_ITEM n = {"", 0, 0, WT_CONFIG_ITEM_NUM}

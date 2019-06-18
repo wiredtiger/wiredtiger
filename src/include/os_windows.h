@@ -13,8 +13,8 @@
 typedef CONDITION_VARIABLE wt_cond_t;
 typedef CRITICAL_SECTION wt_mutex_t;
 typedef struct {
-	bool created;
-	HANDLE id;
+    bool created;
+    HANDLE id;
 } wt_thread_t;
 
 /*
@@ -32,8 +32,8 @@ typedef struct {
 #if _MSC_VER < 1900
 /* Timespec is a POSIX structure not defined in Windows */
 struct timespec {
-	time_t tv_sec; /* seconds */
-	long tv_nsec;  /* nanoseconds */
+    time_t tv_sec; /* seconds */
+    long tv_nsec;  /* nanoseconds */
 };
 #endif
 

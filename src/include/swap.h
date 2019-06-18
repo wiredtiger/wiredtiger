@@ -12,7 +12,7 @@
 #define __wt_bswap32(v) _byteswap_ulong(v)
 #define __wt_bswap64(v) _byteswap_uint64(v)
 #elif defined(__clang__) && defined(__clang_major__) && defined(__clang_minor__) && \
-    (__clang_major__ >= 3) && (__clang_minor__ >= 1)
+  (__clang_major__ >= 3) && (__clang_minor__ >= 1)
 #if __has_builtin(__builtin_bswap16)
 #define __wt_bswap16(v) __builtin_bswap16(v)
 #endif
@@ -45,12 +45,12 @@
 static inline uint64_t
 __wt_bswap64(uint64_t v)
 {
-	return (
-	    /* NOLINTNEXTLINE(misc-redundant-expression) */
-	    ((v << 56) & 0xff00000000000000UL) | ((v << 40) & 0x00ff000000000000UL) |
-	    ((v << 24) & 0x0000ff0000000000UL) | ((v << 8) & 0x000000ff00000000UL) |
-	    ((v >> 8) & 0x00000000ff000000UL) | ((v >> 24) & 0x0000000000ff0000UL) |
-	    ((v >> 40) & 0x000000000000ff00UL) | ((v >> 56) & 0x00000000000000ffUL));
+    return (
+      /* NOLINTNEXTLINE(misc-redundant-expression) */
+      ((v << 56) & 0xff00000000000000UL) | ((v << 40) & 0x00ff000000000000UL) |
+      ((v << 24) & 0x0000ff0000000000UL) | ((v << 8) & 0x000000ff00000000UL) |
+      ((v >> 8) & 0x00000000ff000000UL) | ((v >> 24) & 0x0000000000ff0000UL) |
+      ((v >> 40) & 0x000000000000ff00UL) | ((v >> 56) & 0x00000000000000ffUL));
 }
 #endif
 
@@ -62,8 +62,8 @@ __wt_bswap64(uint64_t v)
 static inline uint32_t
 __wt_bswap32(uint32_t v)
 {
-	return (((v << 24) & 0xff000000) | ((v << 8) & 0x00ff0000) | ((v >> 8) & 0x0000ff00) |
-	    ((v >> 24) & 0x000000ff));
+    return (((v << 24) & 0xff000000) | ((v << 8) & 0x00ff0000) | ((v >> 8) & 0x0000ff00) |
+      ((v >> 24) & 0x000000ff));
 }
 #endif
 
@@ -75,6 +75,6 @@ __wt_bswap32(uint32_t v)
 static inline uint16_t
 __wt_bswap16(uint16_t v)
 {
-	return (((v << 8) & 0xff00) | ((v >> 8) & 0x00ff));
+    return (((v << 8) & 0xff00) | ((v >> 8) & 0x00ff));
 }
 #endif

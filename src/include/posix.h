@@ -26,8 +26,8 @@
 typedef pthread_cond_t wt_cond_t;
 typedef pthread_mutex_t wt_mutex_t;
 typedef struct {
-	bool created;
-	pthread_t id;
+    bool created;
+    pthread_t id;
 } wt_thread_t;
 
 /*

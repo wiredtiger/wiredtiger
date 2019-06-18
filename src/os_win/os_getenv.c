@@ -15,23 +15,23 @@
 int
 __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
 {
-	WT_DECL_RET;
-	DWORD size, windows_error;
+    WT_DECL_RET;
+    DWORD size, windows_error;
 
-	*envp = NULL;
+    *envp = NULL;
 
-	if ((size = GetEnvironmentVariableA(variable, NULL, 0)) <= 1)
-		return (0);
+    if ((size = GetEnvironmentVariableA(variable, NULL, 0)) <= 1)
+        return (0);
 
-	WT_RET(__wt_malloc(session, (size_t)size, envp));
+    WT_RET(__wt_malloc(session, (size_t)size, envp));
 
-	/* We expect the number of bytes not including nul terminator. */
-	if (GetEnvironmentVariableA(variable, *envp, size) == size - 1)
-		return (0);
+    /* We expect the number of bytes not including nul terminator. */
+    if (GetEnvironmentVariableA(variable, *envp, size) == size - 1)
+        return (0);
 
-	windows_error = __wt_getlasterror();
-	ret = __wt_map_windows_error(windows_error);
-	__wt_err(session, ret, "GetEnvironmentVariableA: %s: %s", variable,
-	    __wt_formatmessage(session, windows_error));
-	return (ret);
+    windows_error = __wt_getlasterror();
+    ret = __wt_map_windows_error(windows_error);
+    __wt_err(session, ret, "GetEnvironmentVariableA: %s: %s", variable,
+      __wt_formatmessage(session, windows_error));
+    return (ret);
 }

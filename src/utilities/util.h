@@ -9,8 +9,8 @@
 #include <wt_internal.h>
 
 typedef struct {
-	void *mem;      /* Managed memory chunk */
-	size_t memsize; /* Managed memory size */
+    void *mem;      /* Managed memory chunk */
+    size_t memsize; /* Managed memory size */
 } ULINE;
 
 extern const char *home;         /* Home directory */
@@ -36,7 +36,7 @@ int util_downgrade(WT_SESSION *, int, char *[]);
 int util_drop(WT_SESSION *, int, char *[]);
 int util_dump(WT_SESSION *, int, char *[]);
 int util_err(WT_SESSION *, int, const char *, ...)
-    WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 3, 4)));
+  WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 3, 4)));
 int util_flush(WT_SESSION *, const char *);
 int util_import(WT_SESSION *, int, char *[]);
 int util_list(WT_SESSION *, int, char *[]);

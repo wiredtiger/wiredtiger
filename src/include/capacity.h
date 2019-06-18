@@ -7,10 +7,10 @@
  */
 
 typedef enum {
-	WT_THROTTLE_CKPT,  /* Checkpoint throttle */
-	WT_THROTTLE_EVICT, /* Eviction throttle */
-	WT_THROTTLE_LOG,   /* Logging throttle */
-	WT_THROTTLE_READ   /* Read throttle */
+    WT_THROTTLE_CKPT,  /* Checkpoint throttle */
+    WT_THROTTLE_EVICT, /* Eviction throttle */
+    WT_THROTTLE_LOG,   /* Logging throttle */
+    WT_THROTTLE_READ   /* Read throttle */
 } WT_THROTTLE_TYPE;
 
 #define WT_THROTTLE_MIN WT_MEGABYTE /* Config minimum size */
@@ -48,27 +48,27 @@ typedef enum {
 #define WT_CAP_READ 55
 
 struct __wt_capacity {
-	uint64_t ckpt;      /* Bytes/sec checkpoint capacity */
-	uint64_t evict;     /* Bytes/sec eviction capacity */
-	uint64_t log;       /* Bytes/sec logging capacity */
-	uint64_t read;      /* Bytes/sec read capacity */
-	uint64_t total;     /* Bytes/sec total capacity */
-	uint64_t threshold; /* Capacity size period */
+    uint64_t ckpt;      /* Bytes/sec checkpoint capacity */
+    uint64_t evict;     /* Bytes/sec eviction capacity */
+    uint64_t log;       /* Bytes/sec logging capacity */
+    uint64_t read;      /* Bytes/sec read capacity */
+    uint64_t total;     /* Bytes/sec total capacity */
+    uint64_t threshold; /* Capacity size period */
 
-	volatile uint64_t written; /* Written this period */
-	volatile bool signalled;   /* Capacity signalled */
+    volatile uint64_t written; /* Written this period */
+    volatile bool signalled;   /* Capacity signalled */
 
-	/*
-	 * A reservation is a point in time when a read or write for a subsystem
-	 * can be scheduled, so as not to overrun the given capacity.  These
-	 * values hold the next available reservation, in nanoseconds since
-	 * the epoch. Getting a reservation with a future time implies sleeping
-	 * until that time; getting a reservation with a past time implies that
-	 * the operation can be done immediately.
-	 */
-	uint64_t reservation_ckpt;  /* Atomic: next checkpoint write */
-	uint64_t reservation_evict; /* Atomic: next eviction write */
-	uint64_t reservation_log;   /* Atomic: next logging write */
-	uint64_t reservation_read;  /* Atomic: next read */
-	uint64_t reservation_total; /* Atomic: next operation of any kind */
+    /*
+     * A reservation is a point in time when a read or write for a subsystem
+     * can be scheduled, so as not to overrun the given capacity.  These
+     * values hold the next available reservation, in nanoseconds since
+     * the epoch. Getting a reservation with a future time implies sleeping
+     * until that time; getting a reservation with a past time implies that
+     * the operation can be done immediately.
+     */
+    uint64_t reservation_ckpt;  /* Atomic: next checkpoint write */
+    uint64_t reservation_evict; /* Atomic: next eviction write */
+    uint64_t reservation_log;   /* Atomic: next logging write */
+    uint64_t reservation_read;  /* Atomic: next read */
+    uint64_t reservation_total; /* Atomic: next operation of any kind */
 };

@@ -70,35 +70,36 @@
  *	A btree handle.
  */
 struct __wt_btree {
-	WT_DATA_HANDLE *dhandle;
+    WT_DATA_HANDLE *dhandle;
 
-	WT_CKPT *ckpt; /* Checkpoint information */
+    WT_CKPT *ckpt; /* Checkpoint information */
 
-	enum { BTREE_COL_FIX = 1,  /* Fixed-length column store */
-		BTREE_COL_VAR = 2, /* Variable-length column store */
-		BTREE_ROW = 3      /* Row-store */
-	} type;                    /* Type */
+    enum {
+        BTREE_COL_FIX = 1, /* Fixed-length column store */
+        BTREE_COL_VAR = 2, /* Variable-length column store */
+        BTREE_ROW = 3      /* Row-store */
+    } type;                /* Type */
 
-	const char *key_format;   /* Key format */
-	const char *value_format; /* Value format */
-	uint8_t bitcnt;           /* Fixed-length field size in bits */
+    const char *key_format;   /* Key format */
+    const char *value_format; /* Value format */
+    uint8_t bitcnt;           /* Fixed-length field size in bits */
 
-	WT_COLLATOR *collator; /* Row-store comparator */
-	int collator_owned;    /* The collator needs to be freed */
+    WT_COLLATOR *collator; /* Row-store comparator */
+    int collator_owned;    /* The collator needs to be freed */
 
-	uint32_t id; /* File ID, for logging */
+    uint32_t id; /* File ID, for logging */
 
-	uint32_t key_gap; /* Row-store prefix key gap */
+    uint32_t key_gap; /* Row-store prefix key gap */
 
-	uint32_t allocsize;        /* Allocation size */
-	uint32_t maxintlpage;      /* Internal page max size */
-	uint32_t maxintlkey;       /* Internal page max key size */
-	uint32_t maxleafpage;      /* Leaf page max size */
-	uint32_t maxleafkey;       /* Leaf page max key size */
-	uint32_t maxleafvalue;     /* Leaf page max value size */
-	uint64_t maxmempage;       /* In-memory page max size */
-	uint32_t maxmempage_image; /* In-memory page image max size */
-	uint64_t splitmempage;     /* In-memory split trigger size */
+    uint32_t allocsize;        /* Allocation size */
+    uint32_t maxintlpage;      /* Internal page max size */
+    uint32_t maxintlkey;       /* Internal page max key size */
+    uint32_t maxleafpage;      /* Leaf page max size */
+    uint32_t maxleafkey;       /* Leaf page max key size */
+    uint32_t maxleafvalue;     /* Leaf page max value size */
+    uint64_t maxmempage;       /* In-memory page max size */
+    uint32_t maxmempage_image; /* In-memory page image max size */
+    uint64_t splitmempage;     /* In-memory split trigger size */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_ASSERT_COMMIT_TS_ALWAYS 0x01u
@@ -109,73 +110,74 @@ struct __wt_btree {
 #define WT_ASSERT_DURABLE_TS_NEVER 0x20u
 #define WT_ASSERT_READ_TS_ALWAYS 0x40u
 #define WT_ASSERT_READ_TS_NEVER 0x80u
-	/* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t assert_flags; /* Debugging assertion information */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t assert_flags; /* Debugging assertion information */
 
-	void *huffman_key;   /* Key huffman encoding */
-	void *huffman_value; /* Value huffman encoding */
+    void *huffman_key;   /* Key huffman encoding */
+    void *huffman_value; /* Value huffman encoding */
 
-	enum { CKSUM_ON = 1,           /* On */
-		CKSUM_OFF = 2,         /* Off */
-		CKSUM_UNCOMPRESSED = 3 /* Uncompressed blocks only */
-	} checksum;                    /* Checksum configuration */
+    enum {
+        CKSUM_ON = 1,          /* On */
+        CKSUM_OFF = 2,         /* Off */
+        CKSUM_UNCOMPRESSED = 3 /* Uncompressed blocks only */
+    } checksum;                /* Checksum configuration */
 
-	/*
-	 * Reconciliation...
-	 */
-	u_int dictionary;             /* Dictionary slots */
-	bool internal_key_truncate;   /* Internal key truncate */
-	bool prefix_compression;      /* Prefix compression */
-	u_int prefix_compression_min; /* Prefix compression min */
+    /*
+     * Reconciliation...
+     */
+    u_int dictionary;             /* Dictionary slots */
+    bool internal_key_truncate;   /* Internal key truncate */
+    bool prefix_compression;      /* Prefix compression */
+    u_int prefix_compression_min; /* Prefix compression min */
 
 #define WT_SPLIT_DEEPEN_MIN_CHILD_DEF 10000
-	u_int split_deepen_min_child; /* Minimum entries to deepen tree */
+    u_int split_deepen_min_child; /* Minimum entries to deepen tree */
 #define WT_SPLIT_DEEPEN_PER_CHILD_DEF 100
-	u_int split_deepen_per_child; /* Entries per child when deepened */
-	int split_pct;                /* Split page percent */
+    u_int split_deepen_per_child; /* Entries per child when deepened */
+    int split_pct;                /* Split page percent */
 
-	WT_COMPRESSOR *compressor;    /* Page compressor */
-	                              /*
-	                               * When doing compression, the pre-compression in-memory byte size is
-	                               * optionally adjusted based on previous compression results.
-	                               * It's an 8B value because it's updated without a lock.
-	                               */
-	bool leafpage_compadjust;     /* Run-time compression adjustment */
-	uint64_t maxleafpage_precomp; /* Leaf page pre-compression size */
-	bool intlpage_compadjust;     /* Run-time compression adjustment */
-	uint64_t maxintlpage_precomp; /* Internal page pre-compression size */
+    WT_COMPRESSOR *compressor;    /* Page compressor */
+                                  /*
+                                   * When doing compression, the pre-compression in-memory byte size is
+                                   * optionally adjusted based on previous compression results.
+                                   * It's an 8B value because it's updated without a lock.
+                                   */
+    bool leafpage_compadjust;     /* Run-time compression adjustment */
+    uint64_t maxleafpage_precomp; /* Leaf page pre-compression size */
+    bool intlpage_compadjust;     /* Run-time compression adjustment */
+    uint64_t maxintlpage_precomp; /* Internal page pre-compression size */
 
-	WT_KEYED_ENCRYPTOR *kencryptor; /* Page encryptor */
+    WT_KEYED_ENCRYPTOR *kencryptor; /* Page encryptor */
 
-	WT_RWLOCK ovfl_lock; /* Overflow lock */
+    WT_RWLOCK ovfl_lock; /* Overflow lock */
 
-	int maximum_depth;        /* Maximum tree depth during search */
-	u_int rec_multiblock_max; /* Maximum blocks written for a page */
+    int maximum_depth;        /* Maximum tree depth during search */
+    u_int rec_multiblock_max; /* Maximum blocks written for a page */
 
-	uint64_t last_recno; /* Column-store last record number */
+    uint64_t last_recno; /* Column-store last record number */
 
-	WT_REF root;      /* Root page reference */
-	bool modified;    /* If the tree ever modified */
-	uint8_t original; /* Newly created: bulk-load possible
-	                     (want a bool but needs atomic cas) */
+    WT_REF root;      /* Root page reference */
+    bool modified;    /* If the tree ever modified */
+    uint8_t original; /* Newly created: bulk-load possible
+                         (want a bool but needs atomic cas) */
 
-	bool lookaside_entries; /* Has entries in the lookaside table */
-	bool lsm_primary;       /* Handle is/was the LSM primary */
+    bool lookaside_entries; /* Has entries in the lookaside table */
+    bool lsm_primary;       /* Handle is/was the LSM primary */
 
-	WT_BM *bm;          /* Block manager reference */
-	u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
+    WT_BM *bm;          /* Block manager reference */
+    u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
 
-	uint64_t write_gen;   /* Write generation */
-	uint64_t rec_max_txn; /* Maximum txn seen (clean trees) */
-	wt_timestamp_t rec_max_timestamp;
+    uint64_t write_gen;   /* Write generation */
+    uint64_t rec_max_txn; /* Maximum txn seen (clean trees) */
+    wt_timestamp_t rec_max_timestamp;
 
-	uint64_t checkpoint_gen;       /* Checkpoint generation */
-	WT_SESSION_IMPL *sync_session; /* Syncing session */
-	volatile enum {
-		WT_BTREE_SYNC_OFF,
-		WT_BTREE_SYNC_WAIT,
-		WT_BTREE_SYNC_RUNNING
-	} syncing; /* Sync status */
+    uint64_t checkpoint_gen;       /* Checkpoint generation */
+    WT_SESSION_IMPL *sync_session; /* Syncing session */
+    volatile enum {
+        WT_BTREE_SYNC_OFF,
+        WT_BTREE_SYNC_WAIT,
+        WT_BTREE_SYNC_RUNNING
+    } syncing; /* Sync status */
 
 /*
  * Helper macros:
@@ -190,25 +192,25 @@ struct __wt_btree {
 #define WT_BTREE_SYNCING(btree) ((btree)->syncing != WT_BTREE_SYNC_OFF)
 #define WT_SESSION_BTREE_SYNC(session) (S2BT(session)->sync_session == (session))
 #define WT_SESSION_BTREE_SYNC_SAFE(session, btree) \
-	((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
+    ((btree)->syncing != WT_BTREE_SYNC_RUNNING || (btree)->sync_session == (session))
 
-	uint64_t bytes_inmem;       /* Cache bytes in memory. */
-	uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
-	uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
-	uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
+    uint64_t bytes_inmem;       /* Cache bytes in memory. */
+    uint64_t bytes_dirty_intl;  /* Bytes in dirty internal pages. */
+    uint64_t bytes_dirty_leaf;  /* Bytes in dirty leaf pages. */
+    uint64_t bytes_dirty_total; /* Bytes ever dirtied in cache. */
 
-	/*
-	 * The maximum bytes allowed to be used for the table on disk.  This is
-	 * currently only used for the lookaside table.
-	 */
-	uint64_t file_max;
+    /*
+     * The maximum bytes allowed to be used for the table on disk.  This is
+     * currently only used for the lookaside table.
+     */
+    uint64_t file_max;
 
-	/*
-	 * We flush pages from the tree (in order to make checkpoint faster),
-	 * without a high-level lock.  To avoid multiple threads flushing at
-	 * the same time, lock the tree.
-	 */
-	WT_SPINLOCK flush_lock; /* Lock to flush the tree's pages */
+    /*
+     * We flush pages from the tree (in order to make checkpoint faster),
+     * without a high-level lock.  To avoid multiple threads flushing at
+     * the same time, lock the tree.
+     */
+    WT_SPINLOCK flush_lock; /* Lock to flush the tree's pages */
 
 /*
  * All of the following fields live at the end of the structure so it's
@@ -216,26 +218,26 @@ struct __wt_btree {
  */
 #define WT_BTREE_CLEAR_SIZE (offsetof(WT_BTREE, evict_ref))
 
-	/*
-	 * Eviction information is maintained in the btree handle, but owned by
-	 * eviction, not the btree code.
-	 */
-	WT_REF *evict_ref;            /* Eviction thread's location */
-	uint64_t evict_priority;      /* Relative priority of cached pages */
-	uint32_t evict_walk_progress; /* Eviction walk progress */
-	uint32_t evict_walk_target;   /* Eviction walk target */
-	u_int evict_walk_period;      /* Skip this many LRU walks */
-	u_int evict_walk_saved;       /* Saved walk skips for checkpoints */
-	u_int evict_walk_skips;       /* Number of walks skipped */
-	int32_t evict_disabled;       /* Eviction disabled count */
-	bool evict_disabled_open;     /* Eviction disabled on open */
-	volatile uint32_t evict_busy; /* Count of threads in eviction */
-	enum {                        /* Start position for eviction walk */
-		WT_EVICT_WALK_NEXT,
-		WT_EVICT_WALK_PREV,
-		WT_EVICT_WALK_RAND_NEXT,
-		WT_EVICT_WALK_RAND_PREV
-	} evict_start_type;
+    /*
+     * Eviction information is maintained in the btree handle, but owned by
+     * eviction, not the btree code.
+     */
+    WT_REF *evict_ref;            /* Eviction thread's location */
+    uint64_t evict_priority;      /* Relative priority of cached pages */
+    uint32_t evict_walk_progress; /* Eviction walk progress */
+    uint32_t evict_walk_target;   /* Eviction walk target */
+    u_int evict_walk_period;      /* Skip this many LRU walks */
+    u_int evict_walk_saved;       /* Saved walk skips for checkpoints */
+    u_int evict_walk_skips;       /* Number of walks skipped */
+    int32_t evict_disabled;       /* Eviction disabled count */
+    bool evict_disabled_open;     /* Eviction disabled on open */
+    volatile uint32_t evict_busy; /* Count of threads in eviction */
+    enum {                        /* Start position for eviction walk */
+        WT_EVICT_WALK_NEXT,
+        WT_EVICT_WALK_PREV,
+        WT_EVICT_WALK_RAND_NEXT,
+        WT_EVICT_WALK_RAND_PREV
+    } evict_start_type;
 
 /*
  * Flag values up to 0xff are reserved for WT_DHANDLE_XXX. We don't
@@ -256,22 +258,22 @@ struct __wt_btree {
 #define WT_BTREE_SKIP_CKPT 0x080000u     /* Handle skipped checkpoint */
 #define WT_BTREE_UPGRADE 0x100000u       /* Handle is for upgrade */
 #define WT_BTREE_VERIFY 0x200000u        /* Handle is for verify */
-	uint32_t flags;
+    uint32_t flags;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
-#define WT_BTREE_SPECIAL_FLAGS                                                    \
-	(WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_REBALANCE | WT_BTREE_SALVAGE | \
-	    WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
+#define WT_BTREE_SPECIAL_FLAGS                                                                   \
+    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_REBALANCE | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | \
+      WT_BTREE_VERIFY)
 
 /*
  * WT_SALVAGE_COOKIE --
  *	Encapsulation of salvage information for reconciliation.
  */
 struct __wt_salvage_cookie {
-	uint64_t missing; /* Initial items to create */
-	uint64_t skip;    /* Initial items to skip */
-	uint64_t take;    /* Items to take */
+    uint64_t missing; /* Initial items to create */
+    uint64_t skip;    /* Initial items to skip */
+    uint64_t take;    /* Items to take */
 
-	bool done; /* Ignore the rest */
+    bool done; /* Ignore the rest */
 };

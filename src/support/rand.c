@@ -52,11 +52,11 @@
 void
 __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	WT_RAND_STATE rnd;
+    WT_RAND_STATE rnd;
 
-	M_W(rnd) = 521288629;
-	M_Z(rnd) = 362436069;
-	*rnd_state = rnd;
+    M_W(rnd) = 521288629;
+    M_Z(rnd) = 362436069;
+    *rnd_state = rnd;
 }
 
 /*
@@ -68,16 +68,16 @@ __wt_random_init(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visib
  */
 void
 __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	struct timespec ts;
-	WT_RAND_STATE rnd;
+    struct timespec ts;
+    WT_RAND_STATE rnd;
 
-	__wt_epoch(session, &ts);
-	M_W(rnd) = (uint32_t)(ts.tv_nsec + 521288629);
-	M_Z(rnd) = (uint32_t)(ts.tv_nsec + 362436069);
+    __wt_epoch(session, &ts);
+    M_W(rnd) = (uint32_t)(ts.tv_nsec + 521288629);
+    M_Z(rnd) = (uint32_t)(ts.tv_nsec + 362436069);
 
-	*rnd_state = rnd;
+    *rnd_state = rnd;
 }
 
 /*
@@ -87,33 +87,33 @@ __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_stat
 uint32_t
 __wt_random(WT_RAND_STATE volatile *rnd_state) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	WT_RAND_STATE rnd;
-	uint32_t w, z;
+    WT_RAND_STATE rnd;
+    uint32_t w, z;
 
-	/*
-	 * Take a copy of the random state so we can ensure that the
-	 * calculation operates on the state consistently regardless of
-	 * concurrent calls with the same random state.
-	 */
-	rnd = *rnd_state;
-	w = M_W(rnd);
-	z = M_Z(rnd);
+    /*
+     * Take a copy of the random state so we can ensure that the
+     * calculation operates on the state consistently regardless of
+     * concurrent calls with the same random state.
+     */
+    rnd = *rnd_state;
+    w = M_W(rnd);
+    z = M_Z(rnd);
 
-	/*
-	 * Check if the value goes to 0 (from which we won't recover), and reset
-	 * to the initial state. This has additional benefits if a caller fails
-	 * to initialize the state, or initializes with a seed that results in a
-	 * short period.
-	 */
-	if (z == 0 || w == 0) {
-		__wt_random_init(&rnd);
-		w = M_W(rnd);
-		z = M_Z(rnd);
-	}
+    /*
+     * Check if the value goes to 0 (from which we won't recover), and reset
+     * to the initial state. This has additional benefits if a caller fails
+     * to initialize the state, or initializes with a seed that results in a
+     * short period.
+     */
+    if (z == 0 || w == 0) {
+        __wt_random_init(&rnd);
+        w = M_W(rnd);
+        z = M_Z(rnd);
+    }
 
-	M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
-	M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
-	*rnd_state = rnd;
+    M_Z(rnd) = z = 36969 * (z & 65535) + (z >> 16);
+    M_W(rnd) = w = 18000 * (w & 65535) + (w >> 16);
+    *rnd_state = rnd;
 
-	return ((z << 16) + (w & 65535));
+    return ((z << 16) + (w & 65535));
 }

@@ -15,7 +15,7 @@
 bool
 __wt_absolute_path(const char *path)
 {
-	return (path[0] == '/');
+    return (path[0] == '/');
 }
 
 /*
@@ -25,5 +25,5 @@ __wt_absolute_path(const char *path)
 const char *
 __wt_path_separator(void)
 {
-	return ("/");
+    return ("/");
 }

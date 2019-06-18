@@ -15,7 +15,7 @@
 static int
 __stdio_close(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 {
-	WT_RET_MSG(session, ENOTSUP, "%s: close", fs->name);
+    WT_RET_MSG(session, ENOTSUP, "%s: close", fs->name);
 }
 
 /*
@@ -25,9 +25,9 @@ __stdio_close(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 static int
 __stdio_flush(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 {
-	if (fflush(fs->fp) == 0)
-		return (0);
-	WT_RET_MSG(session, __wt_errno(), "%s: flush", fs->name);
+    if (fflush(fs->fp) == 0)
+        return (0);
+    WT_RET_MSG(session, __wt_errno(), "%s: flush", fs->name);
 }
 
 /*
@@ -37,8 +37,8 @@ __stdio_flush(WT_SESSION_IMPL *session, WT_FSTREAM *fs)
 static int
 __stdio_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fs, WT_ITEM *buf)
 {
-	WT_UNUSED(buf);
-	WT_RET_MSG(session, ENOTSUP, "%s: getline", fs->name);
+    WT_UNUSED(buf);
+    WT_RET_MSG(session, ENOTSUP, "%s: getline", fs->name);
 }
 
 /*
@@ -48,9 +48,9 @@ __stdio_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fs, WT_ITEM *buf)
 static int
 __stdio_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_list ap)
 {
-	if (vfprintf(fs->fp, fmt, ap) >= 0)
-		return (0);
-	WT_RET_MSG(session, EIO, "%s: printf", fs->name);
+    if (vfprintf(fs->fp, fmt, ap) >= 0)
+        return (0);
+    WT_RET_MSG(session, EIO, "%s: printf", fs->name);
 }
 
 /*
@@ -60,13 +60,13 @@ __stdio_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_lis
 static void
 __stdio_init(WT_FSTREAM *fs, const char *name, FILE *fp)
 {
-	fs->name = name;
-	fs->fp = fp;
+    fs->name = name;
+    fs->fp = fp;
 
-	fs->close = __stdio_close;
-	fs->fstr_flush = __stdio_flush;
-	fs->fstr_getline = __stdio_getline;
-	fs->fstr_printf = __stdio_printf;
+    fs->close = __stdio_close;
+    fs->fstr_flush = __stdio_flush;
+    fs->fstr_getline = __stdio_getline;
+    fs->fstr_printf = __stdio_printf;
 }
 
 /*
@@ -76,6 +76,6 @@ __stdio_init(WT_FSTREAM *fs, const char *name, FILE *fp)
 void
 __wt_os_stdio(WT_SESSION_IMPL *session)
 {
-	__stdio_init(WT_STDERR(session), "stderr", stderr);
-	__stdio_init(WT_STDOUT(session), "stdout", stdout);
+    __stdio_init(WT_STDERR(session), "stderr", stderr);
+    __stdio_init(WT_STDOUT(session), "stdout", stdout);
 }

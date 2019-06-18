@@ -29,16 +29,16 @@
  *	A log sequence number, representing a position in the transaction log.
  */
 union __wt_lsn {
-	struct {
+    struct {
 #ifdef WORDS_BIGENDIAN
-		uint32_t file;
-		uint32_t offset;
+        uint32_t file;
+        uint32_t offset;
 #else
-		uint32_t offset;
-		uint32_t file;
+        uint32_t offset;
+        uint32_t file;
 #endif
-	} l;
-	uint64_t file_offset;
+    } l;
+    uint64_t file_offset;
 };
 
 #define WT_LOG_FILENAME "WiredTigerLog"     /* Log file name */
@@ -67,9 +67,8 @@ union __wt_lsn {
  * Original tested INT32_MAX.  But if we read one from an older
  * release we may see UINT32_MAX.
  */
-#define WT_IS_MAX_LSN(lsn)              \
-	((lsn)->l.file == UINT32_MAX && \
-	    ((lsn)->l.offset == INT32_MAX || (lsn)->l.offset == UINT32_MAX))
+#define WT_IS_MAX_LSN(lsn) \
+    ((lsn)->l.file == UINT32_MAX && ((lsn)->l.offset == INT32_MAX || (lsn)->l.offset == UINT32_MAX))
 /*
  * Test for zero LSN.
  */
@@ -79,8 +78,7 @@ union __wt_lsn {
  * Macro to print an LSN.
  */
 #define WT_LSN_MSG(lsn, msg) \
-	__wt_msg(            \
-	    session, "%s LSN: [%" PRIu32 "][%" PRIu32 "]", (msg), (lsn)->l.file, (lsn)->l.offset)
+    __wt_msg(session, "%s LSN: [%" PRIu32 "][%" PRIu32 "]", (msg), (lsn)->l.file, (lsn)->l.offset)
 
 /*
  * Both of the macros below need to change if the content of __wt_lsn
@@ -168,40 +166,39 @@ union __wt_lsn {
 #define WT_LOG_SLOT_FLAGS(state) ((state)&WT_LOG_SLOT_MASK_ON)
 #define WT_LOG_SLOT_JOINED(state) (((state)&WT_LOG_SLOT_MASK_OFF) >> 32)
 #define WT_LOG_SLOT_JOINED_BUFFERED(state) \
-	(WT_LOG_SLOT_JOINED(state) & (WT_LOG_SLOT_UNBUFFERED - 1))
+    (WT_LOG_SLOT_JOINED(state) & (WT_LOG_SLOT_UNBUFFERED - 1))
 #define WT_LOG_SLOT_JOIN_REL(j, r, s) (((j) << 32) + (r) + (s))
 #define WT_LOG_SLOT_RELEASED(state) ((int64_t)(int32_t)(state))
 #define WT_LOG_SLOT_RELEASED_BUFFERED(state) \
-	((int64_t)((int32_t)WT_LOG_SLOT_RELEASED(state) & (WT_LOG_SLOT_UNBUFFERED - 1)))
+    ((int64_t)((int32_t)WT_LOG_SLOT_RELEASED(state) & (WT_LOG_SLOT_UNBUFFERED - 1)))
 
 /* Slot is in use */
 #define WT_LOG_SLOT_ACTIVE(state) (WT_LOG_SLOT_JOINED(state) != WT_LOG_SLOT_JOIN_MASK)
 /* Slot is in use, but closed to new joins */
-#define WT_LOG_SLOT_CLOSED(state)                                        \
-	(WT_LOG_SLOT_ACTIVE(state) &&                                    \
-	    (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) && \
-	        !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
+#define WT_LOG_SLOT_CLOSED(state)                                                              \
+    (WT_LOG_SLOT_ACTIVE(state) && (FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) && \
+                                    !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_RESERVED)))
 /* Slot is in use, all data copied into buffer */
 #define WT_LOG_SLOT_INPROGRESS(state) (WT_LOG_SLOT_RELEASED(state) != WT_LOG_SLOT_JOINED(state))
 #define WT_LOG_SLOT_DONE(state) (WT_LOG_SLOT_CLOSED(state) && !WT_LOG_SLOT_INPROGRESS(state))
 /* Slot is in use, more threads may join this slot */
-#define WT_LOG_SLOT_OPEN(state)                                               \
-	(WT_LOG_SLOT_ACTIVE(state) && !WT_LOG_SLOT_UNBUFFERED_ISSET(state) && \
-	    !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) &&      \
-	    WT_LOG_SLOT_JOINED(state) < WT_LOG_SLOT_BUF_MAX)
+#define WT_LOG_SLOT_OPEN(state)                                           \
+    (WT_LOG_SLOT_ACTIVE(state) && !WT_LOG_SLOT_UNBUFFERED_ISSET(state) && \
+      !FLD_LOG_SLOT_ISSET((uint64_t)(state), WT_LOG_SLOT_CLOSE) &&        \
+      WT_LOG_SLOT_JOINED(state) < WT_LOG_SLOT_BUF_MAX)
 
 struct __wt_logslot {
-	WT_CACHE_LINE_PAD_BEGIN
-	volatile int64_t slot_state; /* Slot state */
-	int64_t slot_unbuffered;     /* Unbuffered data in this slot */
-	int slot_error;              /* Error value */
-	wt_off_t slot_start_offset;  /* Starting file offset */
-	wt_off_t slot_last_offset;   /* Last record offset */
-	WT_LSN slot_release_lsn;     /* Slot release LSN */
-	WT_LSN slot_start_lsn;       /* Slot starting LSN */
-	WT_LSN slot_end_lsn;         /* Slot ending LSN */
-	WT_FH *slot_fh;              /* File handle for this group */
-	WT_ITEM slot_buf;            /* Buffer for grouped writes */
+    WT_CACHE_LINE_PAD_BEGIN
+    volatile int64_t slot_state; /* Slot state */
+    int64_t slot_unbuffered;     /* Unbuffered data in this slot */
+    int slot_error;              /* Error value */
+    wt_off_t slot_start_offset;  /* Starting file offset */
+    wt_off_t slot_last_offset;   /* Last record offset */
+    WT_LSN slot_release_lsn;     /* Slot release LSN */
+    WT_LSN slot_start_lsn;       /* Slot starting LSN */
+    WT_LSN slot_end_lsn;         /* Slot ending LSN */
+    WT_FH *slot_fh;              /* File handle for this group */
+    WT_ITEM slot_buf;            /* Buffer for grouped writes */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_SLOT_CLOSEFH 0x01u    /* Close old fh on release */
@@ -209,83 +206,83 @@ struct __wt_logslot {
 #define WT_SLOT_SYNC 0x04u       /* Needs sync on release */
 #define WT_SLOT_SYNC_DIR 0x08u   /* Directory sync on release */
 #define WT_SLOT_SYNC_DIRTY 0x10u /* Sync system buffers on release */
-	                         /* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t flags;
-	WT_CACHE_LINE_PAD_END
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
+    WT_CACHE_LINE_PAD_END
 };
 
 #define WT_SLOT_INIT_FLAGS 0
 
 #define WT_SLOT_SYNC_FLAGS (WT_SLOT_SYNC | WT_SLOT_SYNC_DIR | WT_SLOT_SYNC_DIRTY)
 
-#define WT_WITH_SLOT_LOCK(session, log, op)                                                    \
-	do {                                                                                   \
-		WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));                 \
-		WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
-	} while (0)
+#define WT_WITH_SLOT_LOCK(session, log, op)                                            \
+    do {                                                                               \
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));                 \
+        WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
+    } while (0)
 
 struct __wt_myslot {
-	WT_LOGSLOT *slot;    /* Slot I'm using */
-	wt_off_t end_offset; /* My end offset in buffer */
-	wt_off_t offset;     /* Slot buffer offset */
+    WT_LOGSLOT *slot;    /* Slot I'm using */
+    wt_off_t end_offset; /* My end offset in buffer */
+    wt_off_t offset;     /* Slot buffer offset */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_MYSLOT_CLOSE 0x1u         /* This thread is closing the slot */
 #define WT_MYSLOT_NEEDS_RELEASE 0x2u /* This thread is releasing the slot */
 #define WT_MYSLOT_UNBUFFERED 0x4u    /* Write directly */
-	                             /* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t flags;
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };
 
 #define WT_LOG_END_HEADER log->allocsize
 
 struct __wt_log {
-	uint32_t allocsize;    /* Allocation alignment size */
-	uint32_t first_record; /* Offset of first record in file */
-	wt_off_t log_written;  /* Amount of log written this period */
-	                       /*
-	                        * Log file information
-	                        */
-	uint32_t fileid;       /* Current log file number */
-	uint32_t prep_fileid;  /* Pre-allocated file number */
-	uint32_t tmp_fileid;   /* Temporary file number */
-	uint32_t prep_missed;  /* Pre-allocated file misses */
-	WT_FH *log_fh;         /* Logging file handle */
-	WT_FH *log_dir_fh;     /* Log directory file handle */
-	WT_FH *log_close_fh;   /* Logging file handle to close */
-	WT_LSN log_close_lsn;  /* LSN needed to close */
+    uint32_t allocsize;    /* Allocation alignment size */
+    uint32_t first_record; /* Offset of first record in file */
+    wt_off_t log_written;  /* Amount of log written this period */
+                           /*
+                            * Log file information
+                            */
+    uint32_t fileid;       /* Current log file number */
+    uint32_t prep_fileid;  /* Pre-allocated file number */
+    uint32_t tmp_fileid;   /* Temporary file number */
+    uint32_t prep_missed;  /* Pre-allocated file misses */
+    WT_FH *log_fh;         /* Logging file handle */
+    WT_FH *log_dir_fh;     /* Log directory file handle */
+    WT_FH *log_close_fh;   /* Logging file handle to close */
+    WT_LSN log_close_lsn;  /* LSN needed to close */
 
-	uint16_t log_version; /* Version of log file */
+    uint16_t log_version; /* Version of log file */
 
-	/*
-	 * System LSNs
-	 */
-	WT_LSN alloc_lsn;       /* Next LSN for allocation */
-	WT_LSN bg_sync_lsn;     /* Latest background sync LSN */
-	WT_LSN ckpt_lsn;        /* Last checkpoint LSN */
-	WT_LSN dirty_lsn;       /* LSN of last non-synced write */
-	WT_LSN first_lsn;       /* First LSN */
-	WT_LSN sync_dir_lsn;    /* LSN of the last directory sync */
-	WT_LSN sync_lsn;        /* LSN of the last sync */
-	WT_LSN trunc_lsn;       /* End LSN for recovery truncation */
-	WT_LSN write_lsn;       /* End of last LSN written */
-	WT_LSN write_start_lsn; /* Beginning of last LSN written */
+    /*
+     * System LSNs
+     */
+    WT_LSN alloc_lsn;       /* Next LSN for allocation */
+    WT_LSN bg_sync_lsn;     /* Latest background sync LSN */
+    WT_LSN ckpt_lsn;        /* Last checkpoint LSN */
+    WT_LSN dirty_lsn;       /* LSN of last non-synced write */
+    WT_LSN first_lsn;       /* First LSN */
+    WT_LSN sync_dir_lsn;    /* LSN of the last directory sync */
+    WT_LSN sync_lsn;        /* LSN of the last sync */
+    WT_LSN trunc_lsn;       /* End LSN for recovery truncation */
+    WT_LSN write_lsn;       /* End of last LSN written */
+    WT_LSN write_start_lsn; /* Beginning of last LSN written */
 
-	/*
-	 * Synchronization resources
-	 */
-	WT_SPINLOCK log_lock;          /* Locked: Logging fields */
-	WT_SPINLOCK log_fs_lock;       /* Locked: tmp, prep and log files */
-	WT_SPINLOCK log_slot_lock;     /* Locked: Consolidation array */
-	WT_SPINLOCK log_sync_lock;     /* Locked: Single-thread fsync */
-	WT_SPINLOCK log_writelsn_lock; /* Locked: write LSN */
+    /*
+     * Synchronization resources
+     */
+    WT_SPINLOCK log_lock;          /* Locked: Logging fields */
+    WT_SPINLOCK log_fs_lock;       /* Locked: tmp, prep and log files */
+    WT_SPINLOCK log_slot_lock;     /* Locked: Consolidation array */
+    WT_SPINLOCK log_sync_lock;     /* Locked: Single-thread fsync */
+    WT_SPINLOCK log_writelsn_lock; /* Locked: write LSN */
 
-	WT_RWLOCK log_archive_lock; /* Archive and log cursors */
+    WT_RWLOCK log_archive_lock; /* Archive and log cursors */
 
-	/* Notify any waiting threads when sync_lsn is updated. */
-	WT_CONDVAR *log_sync_cond;
-	/* Notify any waiting threads when write_lsn is updated. */
-	WT_CONDVAR *log_write_cond;
+    /* Notify any waiting threads when sync_lsn is updated. */
+    WT_CONDVAR *log_sync_cond;
+    /* Notify any waiting threads when write_lsn is updated. */
+    WT_CONDVAR *log_write_cond;
 
 /*
  * Consolidation array information
@@ -297,25 +294,25 @@ struct __wt_log {
  * gcc doesn't support that for arrays.
  */
 #define WT_SLOT_POOL 128
-	WT_LOGSLOT *active_slot;            /* Active slot */
-	WT_LOGSLOT slot_pool[WT_SLOT_POOL]; /* Pool of all slots */
-	int32_t pool_index;                 /* Index into slot pool */
-	size_t slot_buf_size;               /* Buffer size for slots */
+    WT_LOGSLOT *active_slot;            /* Active slot */
+    WT_LOGSLOT slot_pool[WT_SLOT_POOL]; /* Pool of all slots */
+    int32_t pool_index;                 /* Index into slot pool */
+    size_t slot_buf_size;               /* Buffer size for slots */
 #ifdef HAVE_DIAGNOSTIC
-	uint64_t write_calls; /* Calls to log_write */
+    uint64_t write_calls; /* Calls to log_write */
 #endif
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_LOG_FORCE_NEWFILE 0x1u   /* Force switch to new log file */
 #define WT_LOG_OPENED 0x2u          /* Log subsystem successfully open */
 #define WT_LOG_TRUNCATE_NOTSUP 0x4u /* File system truncate not supported */
-	                            /* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t flags;
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };
 
 struct __wt_log_record {
-	uint32_t len;      /* 00-03: Record length including hdr */
-	uint32_t checksum; /* 04-07: Checksum of the record */
+    uint32_t len;      /* 00-03: Record length including hdr */
+    uint32_t checksum; /* 04-07: Checksum of the record */
 
 /*
  * No automatic generation: flag values cannot change, they're written
@@ -328,10 +325,10 @@ struct __wt_log_record {
 #define WT_LOG_RECORD_COMPRESSED 0x01u /* Compressed except hdr */
 #define WT_LOG_RECORD_ENCRYPTED 0x02u  /* Encrypted except hdr */
 #define WT_LOG_RECORD_ALL_FLAGS (WT_LOG_RECORD_COMPRESSED | WT_LOG_RECORD_ENCRYPTED)
-	uint16_t flags;    /* 08-09: Flags */
-	uint8_t unused[2]; /* 10-11: Padding */
-	uint32_t mem_len;  /* 12-15: Uncompressed len if needed */
-	uint8_t record[0]; /* Beginning of actual data */
+    uint16_t flags;    /* 08-09: Flags */
+    uint8_t unused[2]; /* 10-11: Padding */
+    uint32_t mem_len;  /* 12-15: Uncompressed len if needed */
+    uint8_t record[0]; /* Beginning of actual data */
 };
 
 /*
@@ -343,12 +340,12 @@ static inline void
 __wt_log_record_byteswap(WT_LOG_RECORD *record)
 {
 #ifdef WORDS_BIGENDIAN
-	record->len = __wt_bswap32(record->len);
-	record->checksum = __wt_bswap32(record->checksum);
-	record->flags = __wt_bswap16(record->flags);
-	record->mem_len = __wt_bswap32(record->mem_len);
+    record->len = __wt_bswap32(record->len);
+    record->checksum = __wt_bswap32(record->checksum);
+    record->flags = __wt_bswap16(record->flags);
+    record->mem_len = __wt_bswap32(record->mem_len);
 #else
-	WT_UNUSED(record);
+    WT_UNUSED(record);
 #endif
 }
 
@@ -358,16 +355,16 @@ __wt_log_record_byteswap(WT_LOG_RECORD *record)
  */
 struct __wt_log_desc {
 #define WT_LOG_MAGIC 0x101064u
-	uint32_t log_magic; /* 00-03: Magic number */
-                            /*
-                             * NOTE: We bumped the log version from 2 to 3 to make it convenient for
-                             * MongoDB to detect users accidentally running old binaries on a newer
-                             * release. There are no actual log file format changes with version 2 and 3.
-                             */
+    uint32_t log_magic; /* 00-03: Magic number */
+                        /*
+                         * NOTE: We bumped the log version from 2 to 3 to make it convenient for
+                         * MongoDB to detect users accidentally running old binaries on a newer
+                         * release. There are no actual log file format changes with version 2 and 3.
+                         */
 #define WT_LOG_VERSION 3
-	uint16_t version;  /* 04-05: Log version */
-	uint16_t unused;   /* 06-07: Unused */
-	uint64_t log_size; /* 08-15: Log file size */
+    uint16_t version;  /* 04-05: Log version */
+    uint16_t unused;   /* 06-07: Unused */
+    uint64_t log_size; /* 08-15: Log file size */
 };
 /*
  * This is the log version that introduced the system record.
@@ -391,23 +388,23 @@ static inline void
 __wt_log_desc_byteswap(WT_LOG_DESC *desc)
 {
 #ifdef WORDS_BIGENDIAN
-	desc->log_magic = __wt_bswap32(desc->log_magic);
-	desc->version = __wt_bswap16(desc->version);
-	desc->unused = __wt_bswap16(desc->unused);
-	desc->log_size = __wt_bswap64(desc->log_size);
+    desc->log_magic = __wt_bswap32(desc->log_magic);
+    desc->version = __wt_bswap16(desc->version);
+    desc->unused = __wt_bswap16(desc->unused);
+    desc->log_size = __wt_bswap64(desc->log_size);
 #else
-	WT_UNUSED(desc);
+    WT_UNUSED(desc);
 #endif
 }
 
 /* Cookie passed through the transaction printlog routines. */
 struct __wt_txn_printlog_args {
-	WT_FSTREAM *fs;
+    WT_FSTREAM *fs;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TXN_PRINTLOG_HEX 0x1u /* Add hex output */
-	                         /* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t flags;
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };
 
 /*
@@ -415,8 +412,8 @@ struct __wt_txn_printlog_args {
  *	A descriptor for a log record type.
  */
 struct __wt_log_rec_desc {
-	const char *fmt;
-	int (*print)(WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end);
+    const char *fmt;
+    int (*print)(WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end);
 };
 
 /*
@@ -424,6 +421,6 @@ struct __wt_log_rec_desc {
  *	A descriptor for a log operation type.
  */
 struct __wt_log_op_desc {
-	const char *fmt;
-	int (*print)(WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end);
+    const char *fmt;
+    int (*print)(WT_SESSION_IMPL *session, uint8_t **pp, uint8_t *end);
 };

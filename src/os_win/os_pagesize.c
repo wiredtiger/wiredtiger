@@ -15,9 +15,9 @@
 int
 __wt_get_vm_pagesize(void)
 {
-	SYSTEM_INFO system_info;
+    SYSTEM_INFO system_info;
 
-	GetSystemInfo(&system_info);
+    GetSystemInfo(&system_info);
 
-	return (system_info.dwPageSize);
+    return (system_info.dwPageSize);
 }

@@ -48,12 +48,11 @@
  * WT_WITH_TURTLE_LOCK --
  *	Acquire the turtle file lock, perform an operation, drop the lock.
  */
-#define WT_WITH_TURTLE_LOCK(session, op)                                                \
-	do {                                                                            \
-		WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_TURTLE));        \
-		WT_WITH_LOCK_WAIT(                                                      \
-		    session, &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op); \
-	} while (0)
+#define WT_WITH_TURTLE_LOCK(session, op)                                                      \
+    do {                                                                                      \
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_TURTLE));                      \
+        WT_WITH_LOCK_WAIT(session, &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op); \
+    } while (0)
 
 /*
  * WT_CKPT --
@@ -64,49 +63,49 @@
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
 
 struct __wt_ckpt {
-	char *name; /* Name or NULL */
+    char *name; /* Name or NULL */
 
-	/*
-	 * Each internal checkpoint name is appended with a generation
-	 * to make it a unique name.  We're solving two problems: when
-	 * two checkpoints are taken quickly, the timer may not be
-	 * unique and/or we can even see time travel on the second
-	 * checkpoint if we snapshot the time in-between nanoseconds
-	 * rolling over.  Second, if we reset the generational counter
-	 * when new checkpoints arrive, we could logically re-create
-	 * specific checkpoints, racing with cursors open on those
-	 * checkpoints.  I can't think of any way to return incorrect
-	 * results by racing with those cursors, but it's simpler not
-	 * to worry about it.
-	 */
-	int64_t order; /* Checkpoint order */
+    /*
+     * Each internal checkpoint name is appended with a generation
+     * to make it a unique name.  We're solving two problems: when
+     * two checkpoints are taken quickly, the timer may not be
+     * unique and/or we can even see time travel on the second
+     * checkpoint if we snapshot the time in-between nanoseconds
+     * rolling over.  Second, if we reset the generational counter
+     * when new checkpoints arrive, we could logically re-create
+     * specific checkpoints, racing with cursors open on those
+     * checkpoints.  I can't think of any way to return incorrect
+     * results by racing with those cursors, but it's simpler not
+     * to worry about it.
+     */
+    int64_t order; /* Checkpoint order */
 
-	uint64_t sec; /* Wall clock time */
+    uint64_t sec; /* Wall clock time */
 
-	uint64_t size; /* Checkpoint size */
+    uint64_t size; /* Checkpoint size */
 
-	uint64_t write_gen; /* Write generation */
+    uint64_t write_gen; /* Write generation */
 
-	char *block_metadata;   /* Block-stored metadata */
-	char *block_checkpoint; /* Block-stored checkpoint */
+    char *block_metadata;   /* Block-stored metadata */
+    char *block_checkpoint; /* Block-stored checkpoint */
 
-	/* Validity window */
-	wt_timestamp_t newest_durable_ts;
-	wt_timestamp_t oldest_start_ts;
-	uint64_t oldest_start_txn;
-	wt_timestamp_t newest_stop_ts;
-	uint64_t newest_stop_txn;
+    /* Validity window */
+    wt_timestamp_t newest_durable_ts;
+    wt_timestamp_t oldest_start_ts;
+    uint64_t oldest_start_txn;
+    wt_timestamp_t newest_stop_ts;
+    uint64_t newest_stop_txn;
 
-	WT_ITEM addr; /* Checkpoint cookie string */
-	WT_ITEM raw;  /* Checkpoint cookie raw */
+    WT_ITEM addr; /* Checkpoint cookie string */
+    WT_ITEM raw;  /* Checkpoint cookie raw */
 
-	void *bpriv; /* Block manager private */
+    void *bpriv; /* Block manager private */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CKPT_ADD 0x1u    /* Checkpoint to be added */
 #define WT_CKPT_DELETE 0x2u /* Checkpoint to be deleted */
 #define WT_CKPT_FAKE 0x4u   /* Checkpoint is a fake */
 #define WT_CKPT_UPDATE 0x8u /* Checkpoint requires update */
-	                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-	uint32_t flags;
+                            /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 };

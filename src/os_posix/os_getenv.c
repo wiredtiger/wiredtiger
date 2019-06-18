@@ -14,14 +14,14 @@
  */
 int
 __wt_getenv(WT_SESSION_IMPL *session, const char *variable, const char **envp)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	const char *temp;
+    const char *temp;
 
-	*envp = NULL;
+    *envp = NULL;
 
-	if (((temp = getenv(variable)) != NULL) && strlen(temp) > 0)
-		return (__wt_strdup(session, temp, envp));
+    if (((temp = getenv(variable)) != NULL) && strlen(temp) > 0)
+        return (__wt_strdup(session, temp, envp));
 
-	return (0);
+    return (0);
 }

@@ -12,11 +12,11 @@
  * Per session handle cached block manager information.
  */
 typedef struct {
-	WT_EXT *ext_cache;   /* List of WT_EXT handles */
-	u_int ext_cache_cnt; /* Count */
+    WT_EXT *ext_cache;   /* List of WT_EXT handles */
+    u_int ext_cache_cnt; /* Count */
 
-	WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
-	u_int sz_cache_cnt; /* Count */
+    WT_SIZE *sz_cache;  /* List of WT_SIZE handles */
+    u_int sz_cache_cnt; /* Count */
 } WT_BLOCK_MGR_SESSION;
 
 /*
@@ -26,16 +26,16 @@ typedef struct {
 static int
 __block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
 {
-	WT_EXT *ext;
+    WT_EXT *ext;
 
-	size_t skipdepth;
+    size_t skipdepth;
 
-	skipdepth = __wt_skip_choose_depth(session);
-	WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + skipdepth * 2 * sizeof(WT_EXT *), &ext));
-	ext->depth = (uint8_t)skipdepth;
-	(*extp) = ext;
+    skipdepth = __wt_skip_choose_depth(session);
+    WT_RET(__wt_calloc(session, 1, sizeof(WT_EXT) + skipdepth * 2 * sizeof(WT_EXT *), &ext));
+    ext->depth = (uint8_t)skipdepth;
+    (*extp) = ext;
 
-	return (0);
+    return (0);
 }
 
 /*
@@ -45,33 +45,33 @@ __block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
 int
 __wt_block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
 {
-	WT_BLOCK_MGR_SESSION *bms;
-	WT_EXT *ext;
-	u_int i;
+    WT_BLOCK_MGR_SESSION *bms;
+    WT_EXT *ext;
+    u_int i;
 
-	bms = session->block_manager;
+    bms = session->block_manager;
 
-	/* Return a WT_EXT structure for use from a cached list. */
-	if (bms != NULL && bms->ext_cache != NULL) {
-		ext = bms->ext_cache;
-		bms->ext_cache = ext->next[0];
+    /* Return a WT_EXT structure for use from a cached list. */
+    if (bms != NULL && bms->ext_cache != NULL) {
+        ext = bms->ext_cache;
+        bms->ext_cache = ext->next[0];
 
-		/* Clear any left-over references. */
-		for (i = 0; i < ext->depth; ++i)
-			ext->next[i] = ext->next[i + ext->depth] = NULL;
+        /* Clear any left-over references. */
+        for (i = 0; i < ext->depth; ++i)
+            ext->next[i] = ext->next[i + ext->depth] = NULL;
 
-		/*
-		 * The count is advisory to minimize our exposure to bugs, but
-		 * don't let it go negative.
-		 */
-		if (bms->ext_cache_cnt > 0)
-			--bms->ext_cache_cnt;
+        /*
+         * The count is advisory to minimize our exposure to bugs, but
+         * don't let it go negative.
+         */
+        if (bms->ext_cache_cnt > 0)
+            --bms->ext_cache_cnt;
 
-		*extp = ext;
-		return (0);
-	}
+        *extp = ext;
+        return (0);
+    }
 
-	return (__block_ext_alloc(session, extp));
+    return (__block_ext_alloc(session, extp));
 }
 
 /*
@@ -81,18 +81,18 @@ __wt_block_ext_alloc(WT_SESSION_IMPL *session, WT_EXT **extp)
 static int
 __block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
 {
-	WT_BLOCK_MGR_SESSION *bms;
-	WT_EXT *ext;
+    WT_BLOCK_MGR_SESSION *bms;
+    WT_EXT *ext;
 
-	bms = session->block_manager;
+    bms = session->block_manager;
 
-	for (; bms->ext_cache_cnt < max; ++bms->ext_cache_cnt) {
-		WT_RET(__block_ext_alloc(session, &ext));
+    for (; bms->ext_cache_cnt < max; ++bms->ext_cache_cnt) {
+        WT_RET(__block_ext_alloc(session, &ext));
 
-		ext->next[0] = bms->ext_cache;
-		bms->ext_cache = ext;
-	}
-	return (0);
+        ext->next[0] = bms->ext_cache;
+        bms->ext_cache = ext;
+    }
+    return (0);
 }
 
 /*
@@ -102,16 +102,16 @@ __block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
 void
 __wt_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext)
 {
-	WT_BLOCK_MGR_SESSION *bms;
+    WT_BLOCK_MGR_SESSION *bms;
 
-	if ((bms = session->block_manager) == NULL)
-		__wt_free(session, ext);
-	else {
-		ext->next[0] = bms->ext_cache;
-		bms->ext_cache = ext;
+    if ((bms = session->block_manager) == NULL)
+        __wt_free(session, ext);
+    else {
+        ext->next[0] = bms->ext_cache;
+        bms->ext_cache = ext;
 
-		++bms->ext_cache_cnt;
-	}
+        ++bms->ext_cache_cnt;
+    }
 }
 
 /*
@@ -121,28 +121,27 @@ __wt_block_ext_free(WT_SESSION_IMPL *session, WT_EXT *ext)
 static int
 __block_ext_discard(WT_SESSION_IMPL *session, u_int max)
 {
-	WT_BLOCK_MGR_SESSION *bms;
-	WT_EXT *ext, *next;
+    WT_BLOCK_MGR_SESSION *bms;
+    WT_EXT *ext, *next;
 
-	bms = session->block_manager;
-	if (max != 0 && bms->ext_cache_cnt <= max)
-		return (0);
+    bms = session->block_manager;
+    if (max != 0 && bms->ext_cache_cnt <= max)
+        return (0);
 
-	for (ext = bms->ext_cache; ext != NULL;) {
-		next = ext->next[0];
-		__wt_free(session, ext);
-		ext = next;
+    for (ext = bms->ext_cache; ext != NULL;) {
+        next = ext->next[0];
+        __wt_free(session, ext);
+        ext = next;
 
-		--bms->ext_cache_cnt;
-		if (max != 0 && bms->ext_cache_cnt <= max)
-			break;
-	}
-	bms->ext_cache = ext;
+        --bms->ext_cache_cnt;
+        if (max != 0 && bms->ext_cache_cnt <= max)
+            break;
+    }
+    bms->ext_cache = ext;
 
-	if (max == 0 && bms->ext_cache_cnt != 0)
-		WT_RET_MSG(
-		    session, WT_ERROR, "incorrect count in session handle's block manager cache");
-	return (0);
+    if (max == 0 && bms->ext_cache_cnt != 0)
+        WT_RET_MSG(session, WT_ERROR, "incorrect count in session handle's block manager cache");
+    return (0);
 }
 
 /*
@@ -152,7 +151,7 @@ __block_ext_discard(WT_SESSION_IMPL *session, u_int max)
 static int
 __block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
 {
-	return (__wt_calloc_one(session, szp));
+    return (__wt_calloc_one(session, szp));
 }
 
 /*
@@ -162,25 +161,25 @@ __block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
 int
 __wt_block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
 {
-	WT_BLOCK_MGR_SESSION *bms;
+    WT_BLOCK_MGR_SESSION *bms;
 
-	bms = session->block_manager;
+    bms = session->block_manager;
 
-	/* Return a WT_SIZE structure for use from a cached list. */
-	if (bms != NULL && bms->sz_cache != NULL) {
-		(*szp) = bms->sz_cache;
-		bms->sz_cache = bms->sz_cache->next[0];
+    /* Return a WT_SIZE structure for use from a cached list. */
+    if (bms != NULL && bms->sz_cache != NULL) {
+        (*szp) = bms->sz_cache;
+        bms->sz_cache = bms->sz_cache->next[0];
 
-		/*
-		 * The count is advisory to minimize our exposure to bugs, but
-		 * don't let it go negative.
-		 */
-		if (bms->sz_cache_cnt > 0)
-			--bms->sz_cache_cnt;
-		return (0);
-	}
+        /*
+         * The count is advisory to minimize our exposure to bugs, but
+         * don't let it go negative.
+         */
+        if (bms->sz_cache_cnt > 0)
+            --bms->sz_cache_cnt;
+        return (0);
+    }
 
-	return (__block_size_alloc(session, szp));
+    return (__block_size_alloc(session, szp));
 }
 
 /*
@@ -190,18 +189,18 @@ __wt_block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
 static int
 __block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
 {
-	WT_BLOCK_MGR_SESSION *bms;
-	WT_SIZE *sz;
+    WT_BLOCK_MGR_SESSION *bms;
+    WT_SIZE *sz;
 
-	bms = session->block_manager;
+    bms = session->block_manager;
 
-	for (; bms->sz_cache_cnt < max; ++bms->sz_cache_cnt) {
-		WT_RET(__block_size_alloc(session, &sz));
+    for (; bms->sz_cache_cnt < max; ++bms->sz_cache_cnt) {
+        WT_RET(__block_size_alloc(session, &sz));
 
-		sz->next[0] = bms->sz_cache;
-		bms->sz_cache = sz;
-	}
-	return (0);
+        sz->next[0] = bms->sz_cache;
+        bms->sz_cache = sz;
+    }
+    return (0);
 }
 
 /*
@@ -211,16 +210,16 @@ __block_size_prealloc(WT_SESSION_IMPL *session, u_int max)
 void
 __wt_block_size_free(WT_SESSION_IMPL *session, WT_SIZE *sz)
 {
-	WT_BLOCK_MGR_SESSION *bms;
+    WT_BLOCK_MGR_SESSION *bms;
 
-	if ((bms = session->block_manager) == NULL)
-		__wt_free(session, sz);
-	else {
-		sz->next[0] = bms->sz_cache;
-		bms->sz_cache = sz;
+    if ((bms = session->block_manager) == NULL)
+        __wt_free(session, sz);
+    else {
+        sz->next[0] = bms->sz_cache;
+        bms->sz_cache = sz;
 
-		++bms->sz_cache_cnt;
-	}
+        ++bms->sz_cache_cnt;
+    }
 }
 
 /*
@@ -230,28 +229,27 @@ __wt_block_size_free(WT_SESSION_IMPL *session, WT_SIZE *sz)
 static int
 __block_size_discard(WT_SESSION_IMPL *session, u_int max)
 {
-	WT_BLOCK_MGR_SESSION *bms;
-	WT_SIZE *sz, *nsz;
+    WT_BLOCK_MGR_SESSION *bms;
+    WT_SIZE *sz, *nsz;
 
-	bms = session->block_manager;
-	if (max != 0 && bms->sz_cache_cnt <= max)
-		return (0);
+    bms = session->block_manager;
+    if (max != 0 && bms->sz_cache_cnt <= max)
+        return (0);
 
-	for (sz = bms->sz_cache; sz != NULL;) {
-		nsz = sz->next[0];
-		__wt_free(session, sz);
-		sz = nsz;
+    for (sz = bms->sz_cache; sz != NULL;) {
+        nsz = sz->next[0];
+        __wt_free(session, sz);
+        sz = nsz;
 
-		--bms->sz_cache_cnt;
-		if (max != 0 && bms->sz_cache_cnt <= max)
-			break;
-	}
-	bms->sz_cache = sz;
+        --bms->sz_cache_cnt;
+        if (max != 0 && bms->sz_cache_cnt <= max)
+            break;
+    }
+    bms->sz_cache = sz;
 
-	if (max == 0 && bms->sz_cache_cnt != 0)
-		WT_RET_MSG(
-		    session, WT_ERROR, "incorrect count in session handle's block manager cache");
-	return (0);
+    if (max == 0 && bms->sz_cache_cnt != 0)
+        WT_RET_MSG(session, WT_ERROR, "incorrect count in session handle's block manager cache");
+    return (0);
 }
 
 /*
@@ -261,17 +259,17 @@ __block_size_discard(WT_SESSION_IMPL *session, u_int max)
 static int
 __block_manager_session_cleanup(WT_SESSION_IMPL *session)
 {
-	WT_DECL_RET;
+    WT_DECL_RET;
 
-	if (session->block_manager == NULL)
-		return (0);
+    if (session->block_manager == NULL)
+        return (0);
 
-	WT_TRET(__block_ext_discard(session, 0));
-	WT_TRET(__block_size_discard(session, 0));
+    WT_TRET(__block_ext_discard(session, 0));
+    WT_TRET(__block_size_discard(session, 0));
 
-	__wt_free(session, session->block_manager);
+    __wt_free(session, session->block_manager);
 
-	return (ret);
+    return (ret);
 }
 
 /*
@@ -281,14 +279,13 @@ __block_manager_session_cleanup(WT_SESSION_IMPL *session)
 int
 __wt_block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
 {
-	if (session->block_manager == NULL) {
-		WT_RET(
-		    __wt_calloc(session, 1, sizeof(WT_BLOCK_MGR_SESSION), &session->block_manager));
-		session->block_manager_cleanup = __block_manager_session_cleanup;
-	}
-	WT_RET(__block_ext_prealloc(session, max));
-	WT_RET(__block_size_prealloc(session, max));
-	return (0);
+    if (session->block_manager == NULL) {
+        WT_RET(__wt_calloc(session, 1, sizeof(WT_BLOCK_MGR_SESSION), &session->block_manager));
+        session->block_manager_cleanup = __block_manager_session_cleanup;
+    }
+    WT_RET(__block_ext_prealloc(session, max));
+    WT_RET(__block_size_prealloc(session, max));
+    return (0);
 }
 
 /*
@@ -298,7 +295,7 @@ __wt_block_ext_prealloc(WT_SESSION_IMPL *session, u_int max)
 int
 __wt_block_ext_discard(WT_SESSION_IMPL *session, u_int max)
 {
-	WT_RET(__block_ext_discard(session, max));
-	WT_RET(__block_size_discard(session, max));
-	return (0);
+    WT_RET(__block_ext_discard(session, max));
+    WT_RET(__block_size_discard(session, max));
+    return (0);
 }

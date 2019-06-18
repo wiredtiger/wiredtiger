@@ -16,5 +16,5 @@
 bool
 __wt_has_priv(void)
 {
-	return (getuid() != geteuid() || getgid() != getegid());
+    return (getuid() != geteuid() || getgid() != getegid());
 }

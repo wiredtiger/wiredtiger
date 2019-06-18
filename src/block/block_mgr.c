@@ -17,8 +17,8 @@ static void __bm_method_set(WT_BM *, bool);
 static int
 __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	WT_RET_MSG(session, ENOTSUP, "%s: write operation on read-only checkpoint handle",
-	    bm->block->name);
+    WT_RET_MSG(
+      session, ENOTSUP, "%s: write operation on read-only checkpoint handle", bm->block->name);
 }
 
 /*
@@ -28,7 +28,7 @@ __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	return (__wt_block_addr_invalid(session, bm->block, addr, addr_size, bm->is_live));
+    return (__wt_block_addr_invalid(session, bm->block, addr, addr_size, bm->is_live));
 }
 
 /*
@@ -37,9 +37,9 @@ __bm_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size
  */
 static int
 __bm_addr_string(
-    WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
-	return (__wt_block_addr_string(session, bm->block, buf, addr, addr_size));
+    return (__wt_block_addr_string(session, bm->block, buf, addr, addr_size));
 }
 
 /*
@@ -49,7 +49,7 @@ __bm_addr_string(
 static u_int
 __bm_block_header(WT_BM *bm)
 {
-	return (__wt_block_header(bm->block));
+    return (__wt_block_header(bm->block));
 }
 
 /*
@@ -58,9 +58,9 @@ __bm_block_header(WT_BM *bm)
  */
 static int
 __bm_checkpoint(
-    WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-	return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
+    return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
 }
 
 /*
@@ -69,10 +69,10 @@ __bm_checkpoint(
  */
 static int
 __bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session, char **metadatap, char **checkpoint_listp,
-    WT_ITEM *checkpoint)
+  WT_ITEM *checkpoint)
 {
-	return (__wt_block_checkpoint_last(
-	    session, bm->block, metadatap, checkpoint_listp, checkpoint));
+    return (
+      __wt_block_checkpoint_last(session, bm->block, metadatap, checkpoint_listp, checkpoint));
 }
 
 /*
@@ -81,13 +81,13 @@ __bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session, char **metadatap, char
  */
 static int
 __bm_checkpoint_readonly(
-    WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+  WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-	WT_UNUSED(buf);
-	WT_UNUSED(ckptbase);
-	WT_UNUSED(data_checksum);
+    WT_UNUSED(buf);
+    WT_UNUSED(ckptbase);
+    WT_UNUSED(data_checksum);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -96,31 +96,30 @@ __bm_checkpoint_readonly(
  */
 static int
 __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
-    uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
+  uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
-	/* If not opening a checkpoint, we're opening the live system. */
-	bm->is_live = !checkpoint;
-	WT_RET(__wt_block_checkpoint_load(
-	    session, bm->block, addr, addr_size, root_addr, root_addr_sizep, checkpoint));
+    /* If not opening a checkpoint, we're opening the live system. */
+    bm->is_live = !checkpoint;
+    WT_RET(__wt_block_checkpoint_load(
+      session, bm->block, addr, addr_size, root_addr, root_addr_sizep, checkpoint));
 
-	if (checkpoint) {
-		/*
-		 * Read-only objects are optionally mapped into memory instead
-		 * of being read into cache buffers.
-		 */
-		WT_RET(
-		    __wt_block_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
+    if (checkpoint) {
+        /*
+         * Read-only objects are optionally mapped into memory instead
+         * of being read into cache buffers.
+         */
+        WT_RET(__wt_block_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
-		/*
-		 * If this handle is for a checkpoint, that is, read-only, there
-		 * isn't a lot you can do with it.  Although the btree layer
-		 * prevents attempts to write a checkpoint reference, paranoia
-		 * is healthy.
-		 */
-		__bm_method_set(bm, true);
-	}
+        /*
+         * If this handle is for a checkpoint, that is, read-only, there
+         * isn't a lot you can do with it.  Although the btree layer
+         * prevents attempts to write a checkpoint reference, paranoia
+         * is healthy.
+         */
+        __bm_method_set(bm, true);
+    }
 
-	return (0);
+    return (0);
 }
 
 /*
@@ -130,7 +129,7 @@ __bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, s
 static int
 __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-	return (__wt_block_checkpoint_resolve(session, bm->block, failed));
+    return (__wt_block_checkpoint_resolve(session, bm->block, failed));
 }
 
 /*
@@ -140,9 +139,9 @@ __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 static int
 __bm_checkpoint_resolve_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
-	WT_UNUSED(failed);
+    WT_UNUSED(failed);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -152,7 +151,7 @@ __bm_checkpoint_resolve_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool faile
 static int
 __bm_checkpoint_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__wt_block_checkpoint_start(session, bm->block));
+    return (__wt_block_checkpoint_start(session, bm->block));
 }
 
 /*
@@ -162,7 +161,7 @@ __bm_checkpoint_start(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_checkpoint_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -172,17 +171,16 @@ __bm_checkpoint_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	WT_DECL_RET;
+    WT_DECL_RET;
 
-	/* Unmap any mapped segment. */
-	if (bm->map != NULL)
-		WT_TRET(
-		    __wt_block_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
+    /* Unmap any mapped segment. */
+    if (bm->map != NULL)
+        WT_TRET(__wt_block_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
 
-	/* Unload the checkpoint. */
-	WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
+    /* Unload the checkpoint. */
+    WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
 
-	return (ret);
+    return (ret);
 }
 
 /*
@@ -192,15 +190,15 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	WT_DECL_RET;
+    WT_DECL_RET;
 
-	if (bm == NULL) /* Safety check */
-		return (0);
+    if (bm == NULL) /* Safety check */
+        return (0);
 
-	ret = __wt_block_close(session, bm->block);
+    ret = __wt_block_close(session, bm->block);
 
-	__wt_overwrite_and_free(session, bm);
-	return (ret);
+    __wt_overwrite_and_free(session, bm);
+    return (ret);
 }
 
 /*
@@ -210,7 +208,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_compact_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__wt_block_compact_end(session, bm->block));
+    return (__wt_block_compact_end(session, bm->block));
 }
 
 /*
@@ -220,7 +218,7 @@ __bm_compact_end(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_compact_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -229,9 +227,9 @@ __bm_compact_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  */
 static int
 __bm_compact_page_skip(
-    WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
-	return (__wt_block_compact_page_skip(session, bm->block, addr, addr_size, skipp));
+    return (__wt_block_compact_page_skip(session, bm->block, addr, addr_size, skipp));
 }
 
 /*
@@ -240,13 +238,13 @@ __bm_compact_page_skip(
  */
 static int
 __bm_compact_page_skip_readonly(
-    WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
+  WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
-	WT_UNUSED(addr);
-	WT_UNUSED(addr_size);
-	WT_UNUSED(skipp);
+    WT_UNUSED(addr);
+    WT_UNUSED(addr_size);
+    WT_UNUSED(skipp);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -256,7 +254,7 @@ __bm_compact_page_skip_readonly(
 static int
 __bm_compact_skip(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 {
-	return (__wt_block_compact_skip(session, bm->block, skipp));
+    return (__wt_block_compact_skip(session, bm->block, skipp));
 }
 
 /*
@@ -266,9 +264,9 @@ __bm_compact_skip(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 static int
 __bm_compact_skip_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 {
-	WT_UNUSED(skipp);
+    WT_UNUSED(skipp);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -278,7 +276,7 @@ __bm_compact_skip_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool *skipp)
 static int
 __bm_compact_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__wt_block_compact_start(session, bm->block));
+    return (__wt_block_compact_start(session, bm->block));
 }
 
 /*
@@ -288,7 +286,7 @@ __bm_compact_start(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_compact_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -298,7 +296,7 @@ __bm_compact_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	return (__wt_block_free(session, bm->block, addr, addr_size));
+    return (__wt_block_free(session, bm->block, addr, addr_size));
 }
 
 /*
@@ -308,10 +306,10 @@ __bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_
 static int
 __bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	WT_UNUSED(addr);
-	WT_UNUSED(addr_size);
+    WT_UNUSED(addr);
+    WT_UNUSED(addr_size);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -321,9 +319,9 @@ __bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, siz
 static bool
 __bm_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	WT_UNUSED(session);
+    WT_UNUSED(session);
 
-	return (bm->map == NULL ? false : true);
+    return (bm->map == NULL ? false : true);
 }
 
 /*
@@ -333,10 +331,10 @@ __bm_is_mapped(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 {
-	WT_FILE_HANDLE *handle;
+    WT_FILE_HANDLE *handle;
 
-	handle = bm->block->fh->handle;
-	return (handle->fh_map_discard(handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
+    handle = bm->block->fh->handle;
+    return (handle->fh_map_discard(handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
 }
 
 /*
@@ -346,7 +344,7 @@ __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 static int
 __bm_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__wt_block_salvage_end(session, bm->block));
+    return (__wt_block_salvage_end(session, bm->block));
 }
 
 /*
@@ -356,7 +354,7 @@ __bm_salvage_end(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_salvage_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -365,13 +363,13 @@ __bm_salvage_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  */
 static int
 __bm_salvage_next_readonly(
-    WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
+  WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
-	WT_UNUSED(addr);
-	WT_UNUSED(addr_sizep);
-	WT_UNUSED(eofp);
+    WT_UNUSED(addr);
+    WT_UNUSED(addr_sizep);
+    WT_UNUSED(eofp);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -380,9 +378,9 @@ __bm_salvage_next_readonly(
  */
 static int
 __bm_salvage_next(
-    WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
+  WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
-	return (__wt_block_salvage_next(session, bm->block, addr, addr_sizep, eofp));
+    return (__wt_block_salvage_next(session, bm->block, addr, addr_sizep, eofp));
 }
 
 /*
@@ -392,7 +390,7 @@ __bm_salvage_next(
 static int
 __bm_salvage_start(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__wt_block_salvage_start(session, bm->block));
+    return (__wt_block_salvage_start(session, bm->block));
 }
 
 /*
@@ -402,7 +400,7 @@ __bm_salvage_start(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_salvage_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -412,7 +410,7 @@ __bm_salvage_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_salvage_valid(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
 {
-	return (__wt_block_salvage_valid(session, bm->block, addr, addr_size, valid));
+    return (__wt_block_salvage_valid(session, bm->block, addr, addr_size, valid));
 }
 
 /*
@@ -421,13 +419,13 @@ __bm_salvage_valid(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t ad
  */
 static int
 __bm_salvage_valid_readonly(
-    WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
+  WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
 {
-	WT_UNUSED(addr);
-	WT_UNUSED(addr_size);
-	WT_UNUSED(valid);
+    WT_UNUSED(addr);
+    WT_UNUSED(addr_size);
+    WT_UNUSED(valid);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -437,8 +435,8 @@ __bm_salvage_valid_readonly(
 static int
 __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 {
-	__wt_block_stat(session, bm->block, stats);
-	return (0);
+    __wt_block_stat(session, bm->block, stats);
+    return (0);
 }
 
 /*
@@ -448,7 +446,7 @@ __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 static int
 __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 {
-	return (__wt_fsync(session, bm->block->fh, block));
+    return (__wt_fsync(session, bm->block->fh, block));
 }
 
 /*
@@ -458,9 +456,9 @@ __bm_sync(WT_BM *bm, WT_SESSION_IMPL *session, bool block)
 static int
 __bm_sync_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool async)
 {
-	WT_UNUSED(async);
+    WT_UNUSED(async);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -470,7 +468,7 @@ __bm_sync_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool async)
 static int
 __bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	return (__wt_block_verify_addr(session, bm->block, addr, addr_size));
+    return (__wt_block_verify_addr(session, bm->block, addr, addr_size));
 }
 
 /*
@@ -480,7 +478,7 @@ __bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_
 static int
 __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	return (__wt_block_verify_end(session, bm->block));
+    return (__wt_block_verify_end(session, bm->block));
 }
 
 /*
@@ -490,7 +488,7 @@ __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
 static int
 __bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 {
-	return (__wt_block_verify_start(session, bm->block, ckptbase, cfg));
+    return (__wt_block_verify_start(session, bm->block, ckptbase, cfg));
 }
 
 /*
@@ -499,12 +497,12 @@ __bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const 
  */
 static int
 __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
-    bool data_checksum, bool checkpoint_io)
+  bool data_checksum, bool checkpoint_io)
 {
-	__wt_capacity_throttle(
-	    session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
-	return (__wt_block_write(
-	    session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
+    __wt_capacity_throttle(
+      session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
+    return (
+      __wt_block_write(session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
 }
 
 /*
@@ -514,15 +512,15 @@ __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, siz
  */
 static int
 __bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr,
-    size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+  size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
-	WT_UNUSED(buf);
-	WT_UNUSED(addr);
-	WT_UNUSED(addr_sizep);
-	WT_UNUSED(data_checksum);
-	WT_UNUSED(checkpoint_io);
+    WT_UNUSED(buf);
+    WT_UNUSED(addr);
+    WT_UNUSED(addr_sizep);
+    WT_UNUSED(data_checksum);
+    WT_UNUSED(checkpoint_io);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -532,7 +530,7 @@ __bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *
 static int
 __bm_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 {
-	return (__wt_block_write_size(session, bm->block, sizep));
+    return (__wt_block_write_size(session, bm->block, sizep));
 }
 
 /*
@@ -542,9 +540,9 @@ __bm_write_size(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 static int
 __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 {
-	WT_UNUSED(sizep);
+    WT_UNUSED(sizep);
 
-	return (__bm_readonly(bm, session));
+    return (__bm_readonly(bm, session));
 }
 
 /*
@@ -554,56 +552,56 @@ __bm_write_size_readonly(WT_BM *bm, WT_SESSION_IMPL *session, size_t *sizep)
 static void
 __bm_method_set(WT_BM *bm, bool readonly)
 {
-	bm->addr_invalid = __bm_addr_invalid;
-	bm->addr_string = __bm_addr_string;
-	bm->block_header = __bm_block_header;
-	bm->checkpoint = __bm_checkpoint;
-	bm->checkpoint_last = __bm_checkpoint_last;
-	bm->checkpoint_load = __bm_checkpoint_load;
-	bm->checkpoint_resolve = __bm_checkpoint_resolve;
-	bm->checkpoint_start = __bm_checkpoint_start;
-	bm->checkpoint_unload = __bm_checkpoint_unload;
-	bm->close = __bm_close;
-	bm->compact_end = __bm_compact_end;
-	bm->compact_page_skip = __bm_compact_page_skip;
-	bm->compact_skip = __bm_compact_skip;
-	bm->compact_start = __bm_compact_start;
-	bm->corrupt = __wt_bm_corrupt;
-	bm->free = __bm_free;
-	bm->is_mapped = __bm_is_mapped;
-	bm->map_discard = __bm_map_discard;
-	bm->preload = __wt_bm_preload;
-	bm->read = __wt_bm_read;
-	bm->salvage_end = __bm_salvage_end;
-	bm->salvage_next = __bm_salvage_next;
-	bm->salvage_start = __bm_salvage_start;
-	bm->salvage_valid = __bm_salvage_valid;
-	bm->size = __wt_block_manager_size;
-	bm->stat = __bm_stat;
-	bm->sync = __bm_sync;
-	bm->verify_addr = __bm_verify_addr;
-	bm->verify_end = __bm_verify_end;
-	bm->verify_start = __bm_verify_start;
-	bm->write = __bm_write;
-	bm->write_size = __bm_write_size;
+    bm->addr_invalid = __bm_addr_invalid;
+    bm->addr_string = __bm_addr_string;
+    bm->block_header = __bm_block_header;
+    bm->checkpoint = __bm_checkpoint;
+    bm->checkpoint_last = __bm_checkpoint_last;
+    bm->checkpoint_load = __bm_checkpoint_load;
+    bm->checkpoint_resolve = __bm_checkpoint_resolve;
+    bm->checkpoint_start = __bm_checkpoint_start;
+    bm->checkpoint_unload = __bm_checkpoint_unload;
+    bm->close = __bm_close;
+    bm->compact_end = __bm_compact_end;
+    bm->compact_page_skip = __bm_compact_page_skip;
+    bm->compact_skip = __bm_compact_skip;
+    bm->compact_start = __bm_compact_start;
+    bm->corrupt = __wt_bm_corrupt;
+    bm->free = __bm_free;
+    bm->is_mapped = __bm_is_mapped;
+    bm->map_discard = __bm_map_discard;
+    bm->preload = __wt_bm_preload;
+    bm->read = __wt_bm_read;
+    bm->salvage_end = __bm_salvage_end;
+    bm->salvage_next = __bm_salvage_next;
+    bm->salvage_start = __bm_salvage_start;
+    bm->salvage_valid = __bm_salvage_valid;
+    bm->size = __wt_block_manager_size;
+    bm->stat = __bm_stat;
+    bm->sync = __bm_sync;
+    bm->verify_addr = __bm_verify_addr;
+    bm->verify_end = __bm_verify_end;
+    bm->verify_start = __bm_verify_start;
+    bm->write = __bm_write;
+    bm->write_size = __bm_write_size;
 
-	if (readonly) {
-		bm->checkpoint = __bm_checkpoint_readonly;
-		bm->checkpoint_resolve = __bm_checkpoint_resolve_readonly;
-		bm->checkpoint_start = __bm_checkpoint_start_readonly;
-		bm->compact_end = __bm_compact_end_readonly;
-		bm->compact_page_skip = __bm_compact_page_skip_readonly;
-		bm->compact_skip = __bm_compact_skip_readonly;
-		bm->compact_start = __bm_compact_start_readonly;
-		bm->free = __bm_free_readonly;
-		bm->salvage_end = __bm_salvage_end_readonly;
-		bm->salvage_next = __bm_salvage_next_readonly;
-		bm->salvage_start = __bm_salvage_start_readonly;
-		bm->salvage_valid = __bm_salvage_valid_readonly;
-		bm->sync = __bm_sync_readonly;
-		bm->write = __bm_write_readonly;
-		bm->write_size = __bm_write_size_readonly;
-	}
+    if (readonly) {
+        bm->checkpoint = __bm_checkpoint_readonly;
+        bm->checkpoint_resolve = __bm_checkpoint_resolve_readonly;
+        bm->checkpoint_start = __bm_checkpoint_start_readonly;
+        bm->compact_end = __bm_compact_end_readonly;
+        bm->compact_page_skip = __bm_compact_page_skip_readonly;
+        bm->compact_skip = __bm_compact_skip_readonly;
+        bm->compact_start = __bm_compact_start_readonly;
+        bm->free = __bm_free_readonly;
+        bm->salvage_end = __bm_salvage_end_readonly;
+        bm->salvage_next = __bm_salvage_next_readonly;
+        bm->salvage_start = __bm_salvage_start_readonly;
+        bm->salvage_valid = __bm_salvage_valid_readonly;
+        bm->sync = __bm_sync_readonly;
+        bm->write = __bm_write_readonly;
+        bm->write_size = __bm_write_size_readonly;
+    }
 }
 
 /*
@@ -612,25 +610,25 @@ __bm_method_set(WT_BM *bm, bool readonly)
  */
 int
 __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-    bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
+  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
 {
-	WT_BM *bm;
-	WT_DECL_RET;
+    WT_BM *bm;
+    WT_DECL_RET;
 
-	*bmp = NULL;
+    *bmp = NULL;
 
-	WT_RET(__wt_calloc_one(session, &bm));
-	__bm_method_set(bm, false);
+    WT_RET(__wt_calloc_one(session, &bm));
+    __bm_method_set(bm, false);
 
-	WT_ERR(__wt_block_open(
-	    session, filename, cfg, forced_salvage, readonly, allocsize, &bm->block));
+    WT_ERR(
+      __wt_block_open(session, filename, cfg, forced_salvage, readonly, allocsize, &bm->block));
 
-	*bmp = bm;
-	return (0);
+    *bmp = bm;
+    return (0);
 
 err:
-	WT_TRET(bm->close(bm, session));
-	return (ret);
+    WT_TRET(bm->close(bm, session));
+    return (ret);
 }
 
 /*
@@ -640,8 +638,8 @@ err:
 int
 __wt_block_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-	/* Switch the handle into read-only mode. */
-	__bm_method_set(S2BT(session)->bm, true);
+    /* Switch the handle into read-only mode. */
+    __bm_method_set(S2BT(session)->bm, true);
 
-	return (__wt_panic(session));
+    return (__wt_panic(session));
 }

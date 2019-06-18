@@ -15,12 +15,12 @@
 void
 __wt_stream_set_line_buffer(FILE *fp) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	/*
-	 * This function exists because MSVC doesn't support buffer sizes of 0
-	 * to the setvbuf call. To avoid re-introducing the bug, we have helper
-	 * functions and disallow calling setvbuf directly in WiredTiger code.
-	 */
-	(void)setvbuf(fp, NULL, _IOLBF, 1024);
+    /*
+     * This function exists because MSVC doesn't support buffer sizes of 0
+     * to the setvbuf call. To avoid re-introducing the bug, we have helper
+     * functions and disallow calling setvbuf directly in WiredTiger code.
+     */
+    (void)setvbuf(fp, NULL, _IOLBF, 1024);
 }
 
 /*
@@ -30,5 +30,5 @@ __wt_stream_set_line_buffer(FILE *fp) WT_GCC_FUNC_ATTRIBUTE((visibility("default
 void
 __wt_stream_set_no_buffer(FILE *fp) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	(void)setvbuf(fp, NULL, _IONBF, 0);
+    (void)setvbuf(fp, NULL, _IONBF, 0);
 }

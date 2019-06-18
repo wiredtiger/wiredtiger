@@ -32,51 +32,50 @@
 int
 __wt_config_collapse(WT_SESSION_IMPL *session, const char **cfg, char **config_ret)
 {
-	WT_CONFIG cparser;
-	WT_CONFIG_ITEM k, v;
-	WT_DECL_ITEM(tmp);
-	WT_DECL_RET;
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
 
-	*config_ret = NULL;
+    *config_ret = NULL;
 
-	WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-	__wt_config_init(session, &cparser, cfg[0]);
-	while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
-		if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-			WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
-		WT_ERR(__wt_config_get(session, cfg, &k, &v));
-		/* Include the quotes around string keys/values. */
-		if (k.type == WT_CONFIG_ITEM_STRING) {
-			--k.str;
-			k.len += 2;
-		}
-		if (v.type == WT_CONFIG_ITEM_STRING) {
-			--v.str;
-			v.len += 2;
-		}
-		WT_ERR(__wt_buf_catfmt(
-		    session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
-	}
+    __wt_config_init(session, &cparser, cfg[0]);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
+        WT_ERR(__wt_config_get(session, cfg, &k, &v));
+        /* Include the quotes around string keys/values. */
+        if (k.type == WT_CONFIG_ITEM_STRING) {
+            --k.str;
+            k.len += 2;
+        }
+        if (v.type == WT_CONFIG_ITEM_STRING) {
+            --v.str;
+            v.len += 2;
+        }
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+    }
 
-	/* We loop until error, and the expected error is WT_NOTFOUND. */
-	if (ret != WT_NOTFOUND)
-		goto err;
+    /* We loop until error, and the expected error is WT_NOTFOUND. */
+    if (ret != WT_NOTFOUND)
+        goto err;
 
-	/*
-	 * If the caller passes us no valid configuration strings, we get here
-	 * with no bytes to copy -- that's OK, the underlying string copy can
-	 * handle empty strings.
-	 *
-	 * Strip any trailing comma.
-	 */
-	if (tmp->size != 0)
-		--tmp->size;
-	ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
+    /*
+     * If the caller passes us no valid configuration strings, we get here
+     * with no bytes to copy -- that's OK, the underlying string copy can
+     * handle empty strings.
+     *
+     * Strip any trailing comma.
+     */
+    if (tmp->size != 0)
+        --tmp->size;
+    ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
 
 err:
-	__wt_scr_free(session, &tmp);
-	return (ret);
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -90,85 +89,83 @@ err:
  */
 int
 __wt_config_discard_defaults(
-    WT_SESSION_IMPL *session, const char **cfg, const char *config, char **config_ret)
+  WT_SESSION_IMPL *session, const char **cfg, const char *config, char **config_ret)
 {
-	WT_CONFIG cparser;
-	WT_CONFIG_ITEM k, v, vtmp;
-	WT_DECL_ITEM(tmp);
-	WT_DECL_RET;
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v, vtmp;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
 
-	*config_ret = NULL;
+    *config_ret = NULL;
 
-	WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-	/*
-	 * Walk the configuration string, search the default configuration for
-	 * each entry, and discard any matches.
-	 */
-	__wt_config_init(session, &cparser, config);
-	while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
-		if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-			WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
+    /*
+     * Walk the configuration string, search the default configuration for
+     * each entry, and discard any matches.
+     */
+    __wt_config_init(session, &cparser, config);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
 
-		/*
-		 * Get the default value. There isn't a default value in some
-		 * cases, so not finding one isn't an error.
-		 */
-		if ((ret = __wt_config_get(session, cfg, &k, &vtmp)) == WT_NOTFOUND)
-			goto keep;
-		WT_ERR(ret);
+        /*
+         * Get the default value. There isn't a default value in some
+         * cases, so not finding one isn't an error.
+         */
+        if ((ret = __wt_config_get(session, cfg, &k, &vtmp)) == WT_NOTFOUND)
+            goto keep;
+        WT_ERR(ret);
 
-		/*
-		 * Skip exact matches and simple things we can catch like "none"
-		 * and an empty string, "true" and 1, "false" and 0.
-		 */
-		if (v.type == WT_CONFIG_ITEM_STRUCT && vtmp.type == WT_CONFIG_ITEM_STRUCT &&
-		    v.len == vtmp.len && memcmp(v.str, vtmp.str, v.len) == 0)
-			continue;
-		if ((v.type == WT_CONFIG_ITEM_BOOL || v.type == WT_CONFIG_ITEM_NUM) &&
-		    (vtmp.type == WT_CONFIG_ITEM_BOOL || vtmp.type == WT_CONFIG_ITEM_NUM) &&
-		    v.val == vtmp.val)
-			continue;
-		if ((v.type == WT_CONFIG_ITEM_ID || v.type == WT_CONFIG_ITEM_STRING) &&
-		    (vtmp.type == WT_CONFIG_ITEM_ID || vtmp.type == WT_CONFIG_ITEM_STRING) &&
-		    v.len == vtmp.len && memcmp(v.str, vtmp.str, v.len) == 0)
-			continue;
-		if (vtmp.len == 0 && v.len == strlen("none") &&
-		    WT_STRING_MATCH("none", v.str, v.len))
-			continue;
+        /*
+         * Skip exact matches and simple things we can catch like "none"
+         * and an empty string, "true" and 1, "false" and 0.
+         */
+        if (v.type == WT_CONFIG_ITEM_STRUCT && vtmp.type == WT_CONFIG_ITEM_STRUCT &&
+          v.len == vtmp.len && memcmp(v.str, vtmp.str, v.len) == 0)
+            continue;
+        if ((v.type == WT_CONFIG_ITEM_BOOL || v.type == WT_CONFIG_ITEM_NUM) &&
+          (vtmp.type == WT_CONFIG_ITEM_BOOL || vtmp.type == WT_CONFIG_ITEM_NUM) &&
+          v.val == vtmp.val)
+            continue;
+        if ((v.type == WT_CONFIG_ITEM_ID || v.type == WT_CONFIG_ITEM_STRING) &&
+          (vtmp.type == WT_CONFIG_ITEM_ID || vtmp.type == WT_CONFIG_ITEM_STRING) &&
+          v.len == vtmp.len && memcmp(v.str, vtmp.str, v.len) == 0)
+            continue;
+        if (vtmp.len == 0 && v.len == strlen("none") && WT_STRING_MATCH("none", v.str, v.len))
+            continue;
 
-	/* Include the quotes around string keys/values. */
-	keep:
-		if (k.type == WT_CONFIG_ITEM_STRING) {
-			--k.str;
-			k.len += 2;
-		}
-		if (v.type == WT_CONFIG_ITEM_STRING) {
-			--v.str;
-			v.len += 2;
-		}
-		WT_ERR(__wt_buf_catfmt(
-		    session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
-	}
+    /* Include the quotes around string keys/values. */
+    keep:
+        if (k.type == WT_CONFIG_ITEM_STRING) {
+            --k.str;
+            k.len += 2;
+        }
+        if (v.type == WT_CONFIG_ITEM_STRING) {
+            --v.str;
+            v.len += 2;
+        }
+        WT_ERR(__wt_buf_catfmt(session, tmp, "%.*s=%.*s,", (int)k.len, k.str, (int)v.len, v.str));
+    }
 
-	/* We loop until error, and the expected error is WT_NOTFOUND. */
-	if (ret != WT_NOTFOUND)
-		goto err;
+    /* We loop until error, and the expected error is WT_NOTFOUND. */
+    if (ret != WT_NOTFOUND)
+        goto err;
 
-	/*
-	 * If the caller passes us only default configuration strings, we get
-	 * here with no bytes to copy -- that's OK, the underlying string copy
-	 * can handle empty strings.
-	 *
-	 * Strip any trailing comma.
-	 */
-	if (tmp->size != 0)
-		--tmp->size;
-	ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
+    /*
+     * If the caller passes us only default configuration strings, we get
+     * here with no bytes to copy -- that's OK, the underlying string copy
+     * can handle empty strings.
+     *
+     * Strip any trailing comma.
+     */
+    if (tmp->size != 0)
+        --tmp->size;
+    ret = __wt_strndup(session, tmp->data, tmp->size, config_ret);
 
 err:
-	__wt_scr_free(session, &tmp);
-	return (ret);
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -184,19 +181,19 @@ err:
  * the qsort stable.
  */
 typedef struct {
-	char *k, *v; /* key, value */
-	size_t gen;  /* generation */
-	bool strip;  /* remove the value */
+    char *k, *v; /* key, value */
+    size_t gen;  /* generation */
+    bool strip;  /* remove the value */
 } WT_CONFIG_MERGE_ENTRY;
 
 /*
  * The array of configuration entries.
  */
 typedef struct {
-	size_t entries_allocated; /* allocated */
-	size_t entries_next;      /* next slot */
+    size_t entries_allocated; /* allocated */
+    size_t entries_next;      /* next slot */
 
-	WT_CONFIG_MERGE_ENTRY *entries; /* array of entries */
+    WT_CONFIG_MERGE_ENTRY *entries; /* array of entries */
 } WT_CONFIG_MERGE;
 
 /*
@@ -205,86 +202,86 @@ typedef struct {
  */
 static int
 __config_merge_scan(
-    WT_SESSION_IMPL *session, const char *key, const char *value, bool strip, WT_CONFIG_MERGE *cp)
+  WT_SESSION_IMPL *session, const char *key, const char *value, bool strip, WT_CONFIG_MERGE *cp)
 {
-	WT_CONFIG cparser;
-	WT_CONFIG_ITEM k, v;
-	WT_DECL_ITEM(kb);
-	WT_DECL_ITEM(vb);
-	WT_DECL_RET;
-	size_t len;
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM k, v;
+    WT_DECL_ITEM(kb);
+    WT_DECL_ITEM(vb);
+    WT_DECL_RET;
+    size_t len;
 
-	WT_ERR(__wt_scr_alloc(session, 0, &kb));
-	WT_ERR(__wt_scr_alloc(session, 0, &vb));
+    WT_ERR(__wt_scr_alloc(session, 0, &kb));
+    WT_ERR(__wt_scr_alloc(session, 0, &vb));
 
-	__wt_config_init(session, &cparser, value);
-	while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
-		if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
-			WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
+    __wt_config_init(session, &cparser, value);
+    while ((ret = __wt_config_next(&cparser, &k, &v)) == 0) {
+        if (k.type != WT_CONFIG_ITEM_STRING && k.type != WT_CONFIG_ITEM_ID)
+            WT_ERR_MSG(session, EINVAL, "Invalid configuration key found: '%s'", k.str);
 
-		/* Include the quotes around string keys/values. */
-		if (k.type == WT_CONFIG_ITEM_STRING) {
-			--k.str;
-			k.len += 2;
-		}
-		if (v.type == WT_CONFIG_ITEM_STRING) {
-			--v.str;
-			v.len += 2;
-		}
+        /* Include the quotes around string keys/values. */
+        if (k.type == WT_CONFIG_ITEM_STRING) {
+            --k.str;
+            k.len += 2;
+        }
+        if (v.type == WT_CONFIG_ITEM_STRING) {
+            --v.str;
+            v.len += 2;
+        }
 
-		/*
-		 * !!!
-		 * We're using a JSON quote character to separate the names we
-		 * create for nested structures. That's not completely safe as
-		 * it's possible to quote characters in JSON such that a quote
-		 * character appears as a literal character in a key name. In
-		 * a few cases, applications can create their own key namespace
-		 * (for example, shared library extension names), and therefore
-		 * it's possible for an application to confuse us. Error if we
-		 * we ever see a key with a magic character.
-		 */
-		for (len = 0; len < k.len; ++len)
-			if (k.str[len] == SEPC)
-				WT_ERR_MSG(session, EINVAL, "key %.*s contains a '%c' separator "
-				                            "character",
-				    (int)k.len, (char *)k.str, SEPC);
+        /*
+         * !!!
+         * We're using a JSON quote character to separate the names we
+         * create for nested structures. That's not completely safe as
+         * it's possible to quote characters in JSON such that a quote
+         * character appears as a literal character in a key name. In
+         * a few cases, applications can create their own key namespace
+         * (for example, shared library extension names), and therefore
+         * it's possible for an application to confuse us. Error if we
+         * we ever see a key with a magic character.
+         */
+        for (len = 0; len < k.len; ++len)
+            if (k.str[len] == SEPC)
+                WT_ERR_MSG(session, EINVAL, "key %.*s contains a '%c' separator "
+                                            "character",
+                  (int)k.len, (char *)k.str, SEPC);
 
-		/* Build the key/value strings. */
-		WT_ERR(__wt_buf_fmt(session, kb, "%s%s%.*s", key == NULL ? "" : key,
-		    key == NULL ? "" : SEP, (int)k.len, k.str));
-		WT_ERR(__wt_buf_fmt(session, vb, "%.*s", (int)v.len, v.str));
+        /* Build the key/value strings. */
+        WT_ERR(__wt_buf_fmt(session, kb, "%s%s%.*s", key == NULL ? "" : key, key == NULL ? "" : SEP,
+          (int)k.len, k.str));
+        WT_ERR(__wt_buf_fmt(session, vb, "%.*s", (int)v.len, v.str));
 
-		/*
-		 * If the value is a structure, recursively parse it.
-		 *
-		 * !!!
-		 * Don't merge unless the structure has field names. WiredTiger
-		 * stores checkpoint LSNs in the metadata file using nested
-		 * structures without field names: "checkpoint_lsn=(1,0)", not
-		 * "checkpoint_lsn=(file=1,offset=0)". The value type is still
-		 * WT_CONFIG_ITEM_STRUCT, so we check for a field name in the
-		 * value.
-		 */
-		if (v.type == WT_CONFIG_ITEM_STRUCT && strchr(vb->data, '=') != NULL) {
-			WT_ERR(__config_merge_scan(session, kb->data, vb->data, strip, cp));
-			continue;
-		}
+        /*
+         * If the value is a structure, recursively parse it.
+         *
+         * !!!
+         * Don't merge unless the structure has field names. WiredTiger
+         * stores checkpoint LSNs in the metadata file using nested
+         * structures without field names: "checkpoint_lsn=(1,0)", not
+         * "checkpoint_lsn=(file=1,offset=0)". The value type is still
+         * WT_CONFIG_ITEM_STRUCT, so we check for a field name in the
+         * value.
+         */
+        if (v.type == WT_CONFIG_ITEM_STRUCT && strchr(vb->data, '=') != NULL) {
+            WT_ERR(__config_merge_scan(session, kb->data, vb->data, strip, cp));
+            continue;
+        }
 
-		/* Insert the value into the array. */
-		WT_ERR(__wt_realloc_def(
-		    session, &cp->entries_allocated, cp->entries_next + 1, &cp->entries));
-		WT_ERR(__wt_strndup(session, kb->data, kb->size, &cp->entries[cp->entries_next].k));
-		WT_ERR(__wt_strndup(session, vb->data, vb->size, &cp->entries[cp->entries_next].v));
-		cp->entries[cp->entries_next].gen = cp->entries_next;
-		cp->entries[cp->entries_next].strip = strip;
-		++cp->entries_next;
-	}
-	WT_ERR_NOTFOUND_OK(ret);
+        /* Insert the value into the array. */
+        WT_ERR(
+          __wt_realloc_def(session, &cp->entries_allocated, cp->entries_next + 1, &cp->entries));
+        WT_ERR(__wt_strndup(session, kb->data, kb->size, &cp->entries[cp->entries_next].k));
+        WT_ERR(__wt_strndup(session, vb->data, vb->size, &cp->entries[cp->entries_next].v));
+        cp->entries[cp->entries_next].gen = cp->entries_next;
+        cp->entries[cp->entries_next].strip = strip;
+        ++cp->entries_next;
+    }
+    WT_ERR_NOTFOUND_OK(ret);
 
 err:
-	__wt_scr_free(session, &kb);
-	__wt_scr_free(session, &vb);
-	return (ret);
+    __wt_scr_free(session, &kb);
+    __wt_scr_free(session, &vb);
+    return (ret);
 }
 
 /*
@@ -294,8 +291,8 @@ err:
 static void
 __strip_comma(WT_ITEM *buf)
 {
-	if (buf->size != 0 && ((char *)buf->data)[buf->size - 1] == ',')
-		--buf->size;
+    if (buf->size != 0 && ((char *)buf->data)[buf->size - 1] == ',')
+        --buf->size;
 }
 
 /*
@@ -304,82 +301,79 @@ __strip_comma(WT_ITEM *buf)
  */
 static int
 __config_merge_format_next(WT_SESSION_IMPL *session, const char *prefix, size_t plen, size_t *enp,
-    WT_CONFIG_MERGE *cp, WT_ITEM *build)
+  WT_CONFIG_MERGE *cp, WT_ITEM *build)
 {
-	WT_CONFIG_MERGE_ENTRY *ep;
-	size_t len1, len2, next, saved_len;
-	const char *p;
+    WT_CONFIG_MERGE_ENTRY *ep;
+    size_t len1, len2, next, saved_len;
+    const char *p;
 
-	for (; *enp < cp->entries_next; ++*enp) {
-		ep = &cp->entries[*enp];
-		len1 = strlen(ep->k);
+    for (; *enp < cp->entries_next; ++*enp) {
+        ep = &cp->entries[*enp];
+        len1 = strlen(ep->k);
 
-		/*
-		 * The entries are in sorted order, take the last entry for any
-		 * key.
-		 */
-		if (*enp < (cp->entries_next - 1)) {
-			len2 = strlen((ep + 1)->k);
+        /*
+         * The entries are in sorted order, take the last entry for any
+         * key.
+         */
+        if (*enp < (cp->entries_next - 1)) {
+            len2 = strlen((ep + 1)->k);
 
-			/* Choose the last of identical keys. */
-			if (len1 == len2 && memcmp(ep->k, (ep + 1)->k, len1) == 0)
-				continue;
+            /* Choose the last of identical keys. */
+            if (len1 == len2 && memcmp(ep->k, (ep + 1)->k, len1) == 0)
+                continue;
 
-			/*
-			 * The test is complicated by matching empty entries
-			 * "foo=" against nested structures "foo,bar=", where
-			 * the latter is a replacement for the former.
-			 */
-			if (len2 > len1 && (ep + 1)->k[len1] == SEPC &&
-			    memcmp(ep->k, (ep + 1)->k, len1) == 0)
-				continue;
-		}
+            /*
+             * The test is complicated by matching empty entries
+             * "foo=" against nested structures "foo,bar=", where
+             * the latter is a replacement for the former.
+             */
+            if (len2 > len1 && (ep + 1)->k[len1] == SEPC && memcmp(ep->k, (ep + 1)->k, len1) == 0)
+                continue;
+        }
 
-		/*
-		 * If we're skipping a prefix and this entry doesn't match it,
-		 * back off one entry and pop up a level.
-		 */
-		if (plen != 0 && (plen > len1 || memcmp(ep->k, prefix, plen) != 0)) {
-			--*enp;
-			break;
-		}
+        /*
+         * If we're skipping a prefix and this entry doesn't match it,
+         * back off one entry and pop up a level.
+         */
+        if (plen != 0 && (plen > len1 || memcmp(ep->k, prefix, plen) != 0)) {
+            --*enp;
+            break;
+        }
 
-		/*
-		 * If the entry introduces a new level, recurse through that
-		 * new level.
-		 */
-		if ((p = strchr(ep->k + plen, SEPC)) != NULL) {
-			/* Save the start location of the new level. */
-			saved_len = build->size;
+        /*
+         * If the entry introduces a new level, recurse through that
+         * new level.
+         */
+        if ((p = strchr(ep->k + plen, SEPC)) != NULL) {
+            /* Save the start location of the new level. */
+            saved_len = build->size;
 
-			next = WT_PTRDIFF(p, ep->k);
-			WT_RET(__wt_buf_catfmt(
-			    session, build, "%.*s=(", (int)(next - plen), ep->k + plen));
-			WT_RET(
-			    __config_merge_format_next(session, ep->k, next + 1, enp, cp, build));
-			__strip_comma(build);
-			WT_RET(__wt_buf_catfmt(session, build, "),"));
+            next = WT_PTRDIFF(p, ep->k);
+            WT_RET(__wt_buf_catfmt(session, build, "%.*s=(", (int)(next - plen), ep->k + plen));
+            WT_RET(__config_merge_format_next(session, ep->k, next + 1, enp, cp, build));
+            __strip_comma(build);
+            WT_RET(__wt_buf_catfmt(session, build, "),"));
 
-			/*
-			 * It's possible the level contained nothing, check and
-			 * discard empty levels.
-			 */
-			p = build->data;
-			if (p[build->size - 3] == '(')
-				build->size = saved_len;
+            /*
+             * It's possible the level contained nothing, check and
+             * discard empty levels.
+             */
+            p = build->data;
+            if (p[build->size - 3] == '(')
+                build->size = saved_len;
 
-			continue;
-		}
+            continue;
+        }
 
-		/* Discard flagged entries. */
-		if (ep->strip)
-			continue;
+        /* Discard flagged entries. */
+        if (ep->strip)
+            continue;
 
-		/* Append the entry to the buffer. */
-		WT_RET(__wt_buf_catfmt(session, build, "%s=%s,", ep->k + plen, ep->v));
-	}
+        /* Append the entry to the buffer. */
+        WT_RET(__wt_buf_catfmt(session, build, "%s=%s,", ep->k + plen, ep->v));
+    }
 
-	return (0);
+    return (0);
 }
 
 /*
@@ -389,22 +383,22 @@ __config_merge_format_next(WT_SESSION_IMPL *session, const char *prefix, size_t 
 static int
 __config_merge_format(WT_SESSION_IMPL *session, WT_CONFIG_MERGE *cp, const char **config_ret)
 {
-	WT_DECL_ITEM(build);
-	WT_DECL_RET;
-	size_t entries;
+    WT_DECL_ITEM(build);
+    WT_DECL_RET;
+    size_t entries;
 
-	WT_RET(__wt_scr_alloc(session, 4 * 1024, &build));
+    WT_RET(__wt_scr_alloc(session, 4 * 1024, &build));
 
-	entries = 0;
-	WT_ERR(__config_merge_format_next(session, "", 0, &entries, cp, build));
+    entries = 0;
+    WT_ERR(__config_merge_format_next(session, "", 0, &entries, cp, build));
 
-	__strip_comma(build);
+    __strip_comma(build);
 
-	ret = __wt_strndup(session, build->data, build->size, config_ret);
+    ret = __wt_strndup(session, build->data, build->size, config_ret);
 
 err:
-	__wt_scr_free(session, &build);
-	return (ret);
+    __wt_scr_free(session, &build);
+    return (ret);
 }
 
 /*
@@ -414,15 +408,15 @@ err:
 static int WT_CDECL
 __config_merge_cmp(const void *a, const void *b)
 {
-	WT_CONFIG_MERGE_ENTRY *ae, *be;
-	int cmp;
+    WT_CONFIG_MERGE_ENTRY *ae, *be;
+    int cmp;
 
-	ae = (WT_CONFIG_MERGE_ENTRY *)a;
-	be = (WT_CONFIG_MERGE_ENTRY *)b;
+    ae = (WT_CONFIG_MERGE_ENTRY *)a;
+    be = (WT_CONFIG_MERGE_ENTRY *)b;
 
-	if ((cmp = strcmp(ae->k, be->k)) != 0)
-		return (cmp);
-	return (ae->gen > be->gen ? 1 : -1);
+    if ((cmp = strcmp(ae->k, be->k)) != 0)
+        return (cmp);
+    return (ae->gen > be->gen ? 1 : -1);
 }
 
 /*
@@ -446,42 +440,42 @@ __config_merge_cmp(const void *a, const void *b)
  */
 int
 __wt_config_merge(WT_SESSION_IMPL *session, const char **cfg, const char *cfg_strip,
-    const char **config_ret) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+  const char **config_ret) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	WT_CONFIG_MERGE merge;
-	WT_DECL_RET;
-	size_t i;
+    WT_CONFIG_MERGE merge;
+    WT_DECL_RET;
+    size_t i;
 
-	/* Start out with a reasonable number of entries. */
-	WT_CLEAR(merge);
+    /* Start out with a reasonable number of entries. */
+    WT_CLEAR(merge);
 
-	WT_RET(__wt_realloc_def(session, &merge.entries_allocated, 100, &merge.entries));
+    WT_RET(__wt_realloc_def(session, &merge.entries_allocated, 100, &merge.entries));
 
-	/*
-	 * Scan the configuration strings, entering them into the array. The
-	 * list of configuration values to be removed must be scanned last
-	 * so their generation numbers are the highest.
-	 */
-	for (; *cfg != NULL; ++cfg)
-		WT_ERR(__config_merge_scan(session, NULL, *cfg, false, &merge));
-	if (cfg_strip != NULL)
-		WT_ERR(__config_merge_scan(session, NULL, cfg_strip, true, &merge));
+    /*
+     * Scan the configuration strings, entering them into the array. The
+     * list of configuration values to be removed must be scanned last
+     * so their generation numbers are the highest.
+     */
+    for (; *cfg != NULL; ++cfg)
+        WT_ERR(__config_merge_scan(session, NULL, *cfg, false, &merge));
+    if (cfg_strip != NULL)
+        WT_ERR(__config_merge_scan(session, NULL, cfg_strip, true, &merge));
 
-	/*
-	 * Sort the array by key and, in the case of identical keys, by
-	 * generation.
-	 */
-	__wt_qsort(
-	    merge.entries, merge.entries_next, sizeof(WT_CONFIG_MERGE_ENTRY), __config_merge_cmp);
+    /*
+     * Sort the array by key and, in the case of identical keys, by
+     * generation.
+     */
+    __wt_qsort(
+      merge.entries, merge.entries_next, sizeof(WT_CONFIG_MERGE_ENTRY), __config_merge_cmp);
 
-	/* Convert the array of entries into a string. */
-	ret = __config_merge_format(session, &merge, config_ret);
+    /* Convert the array of entries into a string. */
+    ret = __config_merge_format(session, &merge, config_ret);
 
 err:
-	for (i = 0; i < merge.entries_next; ++i) {
-		__wt_free(session, merge.entries[i].k);
-		__wt_free(session, merge.entries[i].v);
-	}
-	__wt_free(session, merge.entries);
-	return (ret);
+    for (i = 0; i < merge.entries_next; ++i) {
+        __wt_free(session, merge.entries[i].k);
+        __wt_free(session, merge.entries[i].v);
+    }
+    __wt_free(session, merge.entries);
+    return (ret);
 }

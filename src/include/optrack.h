@@ -16,11 +16,11 @@
  *     identifier is a boolean: 1 if the session is internal, 0 otherwise.
  */
 struct __wt_optrack_header {
-	uint32_t optrack_version;
-	uint32_t optrack_session_internal;
-	uint32_t optrack_tsc_nsec_ratio;
-	uint32_t padding;
-	uint64_t optrack_seconds_epoch;
+    uint32_t optrack_version;
+    uint32_t optrack_session_internal;
+    uint32_t optrack_tsc_nsec_ratio;
+    uint32_t padding;
+    uint64_t optrack_seconds_epoch;
 };
 
 /*
@@ -44,25 +44,25 @@ struct __wt_optrack_header {
  * from it.
  */
 struct __wt_optrack_record {
-	uint64_t op_timestamp; /* timestamp */
-	uint16_t op_id;        /* function ID */
-	uint16_t op_type;      /* start/stop */
-	uint8_t padding[4];
+    uint64_t op_timestamp; /* timestamp */
+    uint16_t op_id;        /* function ID */
+    uint16_t op_type;      /* start/stop */
+    uint8_t padding[4];
 };
 
-#define WT_TRACK_OP(s, optype)                                                        \
-	do {                                                                          \
-		WT_OPTRACK_RECORD *__tr;                                              \
-		__tr = &((s)->optrack_buf[(s)->optrackbuf_ptr % WT_OPTRACK_MAXRECS]); \
-		__tr->op_timestamp = __wt_clock(s);                                   \
-		__tr->op_id = __func_id;                                              \
-		__tr->op_type = optype;                                               \
-                                                                                      \
-		if (++(s)->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {                    \
-			__wt_optrack_flush_buffer(s);                                 \
-			(s)->optrackbuf_ptr = 0;                                      \
-		}                                                                     \
-	} while (0)
+#define WT_TRACK_OP(s, optype)                                                \
+    do {                                                                      \
+        WT_OPTRACK_RECORD *__tr;                                              \
+        __tr = &((s)->optrack_buf[(s)->optrackbuf_ptr % WT_OPTRACK_MAXRECS]); \
+        __tr->op_timestamp = __wt_clock(s);                                   \
+        __tr->op_id = __func_id;                                              \
+        __tr->op_type = optype;                                               \
+                                                                              \
+        if (++(s)->optrackbuf_ptr == WT_OPTRACK_MAXRECS) {                    \
+            __wt_optrack_flush_buffer(s);                                     \
+            (s)->optrackbuf_ptr = 0;                                          \
+        }                                                                     \
+    } while (0)
 
 /*
  * We do not synchronize access to optrack buffer pointer under the assumption
@@ -75,13 +75,13 @@ struct __wt_optrack_record {
  * threads and it is also used in error paths during failed open calls.
  */
 #define WT_TRACK_OP_DECL static uint16_t __func_id = 0
-#define WT_TRACK_OP_INIT(s)                                                  \
-	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {              \
-		if (__func_id == 0)                                          \
-			__wt_optrack_record_funcid(s, __func__, &__func_id); \
-		WT_TRACK_OP(s, 0);                                           \
-	}
+#define WT_TRACK_OP_INIT(s)                                      \
+    if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) {      \
+        if (__func_id == 0)                                      \
+            __wt_optrack_record_funcid(s, __func__, &__func_id); \
+        WT_TRACK_OP(s, 0);                                       \
+    }
 
-#define WT_TRACK_OP_END(s)                                    \
-	if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) \
-		WT_TRACK_OP(s, 1);
+#define WT_TRACK_OP_END(s)                                \
+    if (F_ISSET(S2C(s), WT_CONN_OPTRACK) && (s)->id != 0) \
+        WT_TRACK_OP(s, 1);

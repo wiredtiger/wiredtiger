@@ -15,5 +15,5 @@
 int
 __wt_get_vm_pagesize(void)
 {
-	return (getpagesize());
+    return (getpagesize());
 }

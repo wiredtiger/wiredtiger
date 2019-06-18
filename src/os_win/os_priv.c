@@ -16,5 +16,5 @@
 bool
 __wt_has_priv(void)
 {
-	return (0);
+    return (0);
 }

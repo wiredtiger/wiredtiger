@@ -12,47 +12,47 @@
 /* Lint-specific attributes. */
 #define WT_PACKED_STRUCT_BEGIN(name) struct name {
 #define WT_PACKED_STRUCT_END \
-	}                    \
-	;
+    }                        \
+    ;
 
 #define WT_GCC_FUNC_ATTRIBUTE(x)
 #define WT_GCC_FUNC_DECL_ATTRIBUTE(x)
 
-#define WT_ATOMIC_FUNC(name, ret, type)                                         \
-	static inline ret __wt_atomic_add##name(type *vp, type v)               \
-	{                                                                       \
-		*vp += v;                                                       \
-		return (*vp);                                                   \
-	}                                                                       \
-	static inline ret __wt_atomic_fetch_add##name(type *vp, type v)         \
-	{                                                                       \
-		type orig;                                                      \
-                                                                                \
-		orig = *vp;                                                     \
-		*vp += v;                                                       \
-		return (orig);                                                  \
-	}                                                                       \
-	static inline ret __wt_atomic_store##name(type *vp, type v)             \
-	{                                                                       \
-		type orig;                                                      \
-                                                                                \
-		orig = *vp;                                                     \
-		*vp = v;                                                        \
-		return (orig);                                                  \
-	}                                                                       \
-	static inline ret __wt_atomic_sub##name(type *vp, type v)               \
-	{                                                                       \
-		*vp -= v;                                                       \
-		return (*vp);                                                   \
-	}                                                                       \
-	static inline bool __wt_atomic_cas##name(type *vp, type orig, type new) \
-	{                                                                       \
-		if (*vp == orig) {                                              \
-			*vp = new;                                              \
-			return (true);                                          \
-		}                                                               \
-		return (false);                                                 \
-	}
+#define WT_ATOMIC_FUNC(name, ret, type)                                     \
+    static inline ret __wt_atomic_add##name(type *vp, type v)               \
+    {                                                                       \
+        *vp += v;                                                           \
+        return (*vp);                                                       \
+    }                                                                       \
+    static inline ret __wt_atomic_fetch_add##name(type *vp, type v)         \
+    {                                                                       \
+        type orig;                                                          \
+                                                                            \
+        orig = *vp;                                                         \
+        *vp += v;                                                           \
+        return (orig);                                                      \
+    }                                                                       \
+    static inline ret __wt_atomic_store##name(type *vp, type v)             \
+    {                                                                       \
+        type orig;                                                          \
+                                                                            \
+        orig = *vp;                                                         \
+        *vp = v;                                                            \
+        return (orig);                                                      \
+    }                                                                       \
+    static inline ret __wt_atomic_sub##name(type *vp, type v)               \
+    {                                                                       \
+        *vp -= v;                                                           \
+        return (*vp);                                                       \
+    }                                                                       \
+    static inline bool __wt_atomic_cas##name(type *vp, type orig, type new) \
+    {                                                                       \
+        if (*vp == orig) {                                                  \
+            *vp = new;                                                      \
+            return (true);                                                  \
+        }                                                                   \
+        return (false);                                                     \
+    }
 
 WT_ATOMIC_FUNC(8, uint8_t, uint8_t)
 WT_ATOMIC_FUNC(16, uint16_t, uint16_t)
@@ -73,11 +73,11 @@ WT_ATOMIC_FUNC(size, size_t, size_t)
 static inline bool
 __wt_atomic_cas_ptr(void *vp, void *orig, void *new)
 {
-	if (*(void **)vp == orig) {
-		*(void **)vp = new;
-		return (true);
-	}
-	return (false);
+    if (*(void **)vp == orig) {
+        *(void **)vp = new;
+        return (true);
+    }
+    return (false);
 }
 
 static inline void
