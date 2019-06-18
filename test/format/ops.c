@@ -430,6 +430,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 
 	++tinfo->commit;
 
+	ts = 0;				/* -Wconditional-uninitialized */
 	if (g.c_txn_timestamps) {
 		/* Lock out the oldest timestamp update. */
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
@@ -451,8 +452,7 @@ commit_transaction(TINFO *tinfo, WT_SESSION *session, bool prepared)
 	testutil_check(session->commit_transaction(session, NULL));
 
 	/* Remember our oldest commit timestamp. */
-	if (g.c_txn_timestamps)
-		tinfo->commit_ts = ts;
+	tinfo->commit_ts = ts;
 }
 
 /*
