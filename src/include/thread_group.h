@@ -6,7 +6,7 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_THREAD_PAUSE		10	/* Thread pause timeout in seconds */
+#define WT_THREAD_PAUSE 10 /* Thread pause timeout in seconds */
 
 /*
  * WT_THREAD --
@@ -17,24 +17,24 @@ struct __wt_thread {
 	u_int id;
 	wt_thread_t tid;
 
-	/*
-	 * WT_THREAD and thread-group function flags, merged because
-	 * WT_THREAD_PANIC_FAIL appears in both groups.
-	 */
+/*
+ * WT_THREAD and thread-group function flags, merged because
+ * WT_THREAD_PANIC_FAIL appears in both groups.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_THREAD_ACTIVE	0x01u	/* thread is active or paused */
-#define	WT_THREAD_CAN_WAIT	0x02u	/* WT_SESSION_CAN_WAIT */
-#define	WT_THREAD_LOOKASIDE	0x04u	/* open lookaside cursor */
-#define	WT_THREAD_PANIC_FAIL	0x08u	/* panic if the thread fails */
-#define	WT_THREAD_RUN		0x10u	/* thread is running */
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_THREAD_ACTIVE 0x01u     /* thread is active or paused */
+#define WT_THREAD_CAN_WAIT 0x02u   /* WT_SESSION_CAN_WAIT */
+#define WT_THREAD_LOOKASIDE 0x04u  /* open lookaside cursor */
+#define WT_THREAD_PANIC_FAIL 0x08u /* panic if the thread fails */
+#define WT_THREAD_RUN 0x10u        /* thread is running */
+	                           /* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 
 	/*
 	 * Condition signalled when a thread becomes active.  Paused
 	 * threads wait on this condition.
 	 */
-	WT_CONDVAR      *pause_cond;
+	WT_CONDVAR *pause_cond;
 
 	/* The check function used by all threads. */
 	bool (*chk_func)(WT_SESSION_IMPL *session);
@@ -49,21 +49,21 @@ struct __wt_thread {
  *	Encapsulation of a group of utility threads.
  */
 struct __wt_thread_group {
-	uint32_t	 alloc;		/* Size of allocated group */
-	uint32_t	 max;		/* Max threads in group */
-	uint32_t	 min;		/* Min threads in group */
-	uint32_t	 current_threads;/* Number of active threads */
+	uint32_t alloc;           /* Size of allocated group */
+	uint32_t max;             /* Max threads in group */
+	uint32_t min;             /* Min threads in group */
+	uint32_t current_threads; /* Number of active threads */
 
-	const char	*name;		/* Name */
+	const char *name; /* Name */
 
-	WT_RWLOCK	lock;		/* Protects group changes */
+	WT_RWLOCK lock; /* Protects group changes */
 
 	/*
 	 * Condition signalled when wanting to wake up threads that are
 	 * part of the group - for example when shutting down. This condition
 	 * can also be used by group owners to ensure state changes are noticed.
 	 */
-	WT_CONDVAR      *wait_cond;
+	WT_CONDVAR *wait_cond;
 
 	/*
 	 * The threads need to be held in an array of arrays, not an array of

@@ -73,16 +73,14 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 		goto err;
 	}
 
-	if ((ret =
-	    session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
-		fprintf(stderr, "%s: cursor open(%s) failed: %s\n",
-		    progname, uri, session->strerror(session, ret));
+	if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
+		fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
+		    session->strerror(session, ret));
 		goto err;
 	}
 
 	/* List the statistics. */
-	while (
-	    (ret = cursor->next(cursor)) == 0 &&
+	while ((ret = cursor->next(cursor)) == 0 &&
 	    (ret = cursor->get_value(cursor, &desc, &pval, NULL)) == 0)
 		if (printf("%s=%s\n", desc, pval) < 0) {
 			(void)util_err(session, errno, "printf");
@@ -92,13 +90,14 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
 		ret = 0;
 
 	if (ret != 0) {
-		fprintf(stderr, "%s: cursor get(%s) failed: %s\n",
-		    progname, objname, session->strerror(session, ret));
+		fprintf(stderr, "%s: cursor get(%s) failed: %s\n", progname, objname,
+		    session->strerror(session, ret));
 		goto err;
 	}
 
 	if (0) {
-err:		ret = 1;
+	err:
+		ret = 1;
 	}
 	if (objname_free)
 		free(objname);
@@ -110,9 +109,8 @@ err:		ret = 1;
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "stat [-f] [uri]\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "stat [-f] [uri]\n",
 	    progname, usage_prefix);
 	return (1);
 }

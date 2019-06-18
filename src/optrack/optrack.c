@@ -13,8 +13,7 @@
  *	Allocate and record optrack function ID.
  */
 void
-__wt_optrack_record_funcid(
-    WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp)
+__wt_optrack_record_funcid(WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp)
 {
 	static uint16_t optrack_uid = 0; /* Unique for the process lifetime. */
 	WT_CONNECTION_IMPL *conn;
@@ -33,16 +32,14 @@ __wt_optrack_record_funcid(
 	if (*func_idp == 0) {
 		*func_idp = ++optrack_uid;
 
-		WT_ERR(__wt_buf_fmt(
-		    session, tmp, "%" PRIu16 " %s\n", *func_idp, func));
+		WT_ERR(__wt_buf_fmt(session, tmp, "%" PRIu16 " %s\n", *func_idp, func));
 		WT_ERR(__wt_filesize(session, conn->optrack_map_fh, &fsize));
-		WT_ERR(__wt_write(session,
-		    conn->optrack_map_fh, fsize, tmp->size, tmp->data));
+		WT_ERR(__wt_write(session, conn->optrack_map_fh, fsize, tmp->size, tmp->data));
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret,
-		    "operation tracking initialization failure");
+	err:
+		WT_PANIC_MSG(session, ret, "operation tracking initialization failure");
 	}
 
 	if (locked)
@@ -61,8 +58,8 @@ __optrack_open_file(WT_SESSION_IMPL *session)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	WT_OPTRACK_HEADER optrack_header = { WT_OPTRACK_VERSION, 0,
-			     (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND, 0,0};
+	WT_OPTRACK_HEADER optrack_header = {
+	    WT_OPTRACK_VERSION, 0, (uint32_t)WT_TSC_DEFAULT_RATIO * WT_THOUSAND, 0, 0};
 
 	conn = S2C(session);
 
@@ -70,10 +67,9 @@ __optrack_open_file(WT_SESSION_IMPL *session)
 		WT_RET_MSG(session, WT_ERROR, "WT_CONN_OPTRACK not set");
 
 	WT_RET(__wt_scr_alloc(session, 0, &buf));
-	WT_ERR(__wt_filename_construct(session, conn->optrack_path,
-	    "optrack", conn->optrack_pid, session->id, buf));
-	WT_ERR(__wt_open(session,
-	    (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
+	WT_ERR(__wt_filename_construct(
+	    session, conn->optrack_path, "optrack", conn->optrack_pid, session->id, buf));
+	WT_ERR(__wt_open(session, (const char *)buf->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE, &session->optrack_fh));
 
 	/* Indicate whether this is an internal session */
@@ -85,21 +81,21 @@ __optrack_open_file(WT_SESSION_IMPL *session)
 	 * thousand, so we can use a fixed width integer.
 	 */
 	optrack_header.optrack_tsc_nsec_ratio =
-		(uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
+	    (uint32_t)(__wt_process.tsc_nsec_ratio * WT_THOUSAND);
 
 	/* Record the time in seconds since the Epoch. */
 	__wt_epoch(session, &ts);
 	optrack_header.optrack_seconds_epoch = (uint64_t)ts.tv_sec;
 
 	/* Write the header into the operation-tracking file. */
-	WT_ERR(session->optrack_fh->handle->fh_write(
-	    session->optrack_fh->handle, (WT_SESSION *)session,
-	    0, sizeof(WT_OPTRACK_HEADER), &optrack_header));
+	WT_ERR(session->optrack_fh->handle->fh_write(session->optrack_fh->handle,
+	    (WT_SESSION *)session, 0, sizeof(WT_OPTRACK_HEADER), &optrack_header));
 
 	session->optrack_offset = sizeof(WT_OPTRACK_HEADER);
 
 	if (0) {
-err:		WT_TRET(__wt_close(session, &session->optrack_fh));
+	err:
+		WT_TRET(__wt_close(session, &session->optrack_fh));
 	}
 	__wt_scr_free(session, &buf);
 
@@ -121,9 +117,8 @@ __wt_optrack_flush_buffer(WT_SESSION_IMPL *s)
 	 * a bit of additional code (including atomic operations), and this
 	 * work should be as light-weight as possible.
 	 */
-	if (s->optrack_fh->handle->fh_write(s->optrack_fh->handle,
-	    (WT_SESSION *)s, (wt_off_t)s->optrack_offset,
-	    s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD), s->optrack_buf) == 0)
-		s->optrack_offset +=
-		    s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD);
+	if (s->optrack_fh->handle->fh_write(s->optrack_fh->handle, (WT_SESSION *)s,
+	        (wt_off_t)s->optrack_offset, s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD),
+	        s->optrack_buf) == 0)
+		s->optrack_offset += s->optrackbuf_ptr * sizeof(WT_OPTRACK_RECORD);
 }

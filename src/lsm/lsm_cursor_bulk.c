@@ -40,9 +40,8 @@ __clsm_close_bulk(WT_CURSOR *cursor)
 	 * LSM merges choose reasonable sets of chunks.
 	 */
 	avg_chunks = (lsm_tree->merge_min + lsm_tree->merge_max) / 2;
-	for (total_chunks = chunk->size / lsm_tree->chunk_size;
-	    total_chunks > 1;
-	    total_chunks /= avg_chunks)
+	for (total_chunks = chunk->size / lsm_tree->chunk_size; total_chunks > 1;
+	     total_chunks /= avg_chunks)
 		++chunk->generation;
 
 	WT_RET(__wt_lsm_meta_write(session, lsm_tree, NULL));
@@ -113,8 +112,7 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 	 * switch inline, since switch needs a schema lock and online index
 	 * creation opens a bulk cursor while holding the schema lock.
 	 */
-	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __wt_lsm_tree_switch(session, lsm_tree));
+	WT_WITH_SCHEMA_LOCK(session, ret = __wt_lsm_tree_switch(session, lsm_tree));
 	WT_RET(ret);
 
 	/*
@@ -123,8 +121,7 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 	 * for a bloom filter - it makes cleanup simpler. Cleaned up by
 	 * cursor close on error.
 	 */
-	WT_RET(
-	    __wt_realloc_def(session, &clsm->chunks_alloc, 1, &clsm->chunks));
+	WT_RET(__wt_realloc_def(session, &clsm->chunks_alloc, 1, &clsm->chunks));
 	WT_RET(__wt_calloc_one(session, &clsm->chunks[0]));
 	clsm->chunks_count = clsm->nchunks = 1;
 
@@ -135,8 +132,7 @@ __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 	 * Pass through the application config to ensure the tree is open
 	 * for bulk access.
 	 */
-	WT_RET(__wt_open_cursor(session,
-	    lsm_tree->chunk[0]->uri, &clsm->iface, cfg, &bulk_cursor));
+	WT_RET(__wt_open_cursor(session, lsm_tree->chunk[0]->uri, &clsm->iface, cfg, &bulk_cursor));
 	clsm->chunks[0]->cursor = bulk_cursor;
 	/* LSM cursors are always raw */
 	F_SET(bulk_cursor, WT_CURSTD_RAW);

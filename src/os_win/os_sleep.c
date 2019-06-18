@@ -30,7 +30,6 @@ __wt_sleep(uint64_t seconds, uint64_t micro_seconds)
 	 */
 	if (seconds == 0 && micro_seconds < WT_THOUSAND)
 		micro_seconds = WT_THOUSAND;
-	dwMilliseconds = (DWORD)
-	    (seconds * WT_THOUSAND + micro_seconds / WT_THOUSAND);
+	dwMilliseconds = (DWORD)(seconds * WT_THOUSAND + micro_seconds / WT_THOUSAND);
 	Sleep(dwMilliseconds);
 }

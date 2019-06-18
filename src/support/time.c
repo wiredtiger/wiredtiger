@@ -25,8 +25,8 @@ __time_check_monotonic(WT_SESSION_IMPL *session, struct timespec *tsp)
 		return;
 
 	if (tsp->tv_sec < session->last_epoch.tv_sec ||
-	     (tsp->tv_sec == session->last_epoch.tv_sec &&
-	     tsp->tv_nsec < session->last_epoch.tv_nsec)) {
+	    (tsp->tv_sec == session->last_epoch.tv_sec &&
+	        tsp->tv_nsec < session->last_epoch.tv_nsec)) {
 		WT_STAT_CONN_INCR(session, time_travel);
 		*tsp = session->last_epoch;
 	} else

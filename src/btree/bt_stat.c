@@ -8,12 +8,11 @@
 
 #include "wt_internal.h"
 
-static int  __stat_tree_walk(WT_SESSION_IMPL *);
-static int  __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
+static int __stat_tree_walk(WT_SESSION_IMPL *);
+static int __stat_page(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_col_var(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 static void __stat_page_row_int(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
-static void
-	__stat_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
+static void __stat_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *, WT_DSRC_STATS **);
 
 /*
  * __wt_btree_stat_init --
@@ -39,21 +38,17 @@ __wt_btree_stat_init(WT_SESSION_IMPL *session, WT_CURSOR_STAT *cst)
 	WT_STAT_SET(session, stats, btree_maxleafkey, btree->maxleafkey);
 	WT_STAT_SET(session, stats, btree_maxleafpage, btree->maxleafpage);
 	WT_STAT_SET(session, stats, btree_maxleafvalue, btree->maxleafvalue);
-	WT_STAT_SET(session,
-	    stats, rec_multiblock_max, btree->rec_multiblock_max);
+	WT_STAT_SET(session, stats, rec_multiblock_max, btree->rec_multiblock_max);
 
-	WT_STAT_SET(session, stats, cache_bytes_dirty,
-	    __wt_btree_dirty_inuse(session));
+	WT_STAT_SET(session, stats, cache_bytes_dirty, __wt_btree_dirty_inuse(session));
 	WT_STAT_SET(session, stats, cache_bytes_dirty_total,
-	    __wt_cache_bytes_plus_overhead(
-	    S2C(session)->cache, btree->bytes_dirty_total));
-	WT_STAT_SET(session, stats, cache_bytes_inuse,
-	    __wt_btree_bytes_inuse(session));
+	    __wt_cache_bytes_plus_overhead(S2C(session)->cache, btree->bytes_dirty_total));
+	WT_STAT_SET(session, stats, cache_bytes_inuse, __wt_btree_bytes_inuse(session));
 
-	WT_STAT_SET(session, stats,
-	    compress_precomp_leaf_max_page_size, btree->maxleafpage_precomp);
-	WT_STAT_SET(session, stats,
-	    compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
+	WT_STAT_SET(
+	    session, stats, compress_precomp_leaf_max_page_size, btree->maxleafpage_precomp);
+	WT_STAT_SET(
+	    session, stats, compress_precomp_intl_max_page_size, btree->maxintlpage_precomp);
 
 	if (F_ISSET(cst, WT_STAT_TYPE_CACHE_WALK))
 		__wt_curstat_cache_walk(session);
@@ -93,10 +88,8 @@ __stat_tree_walk(WT_SESSION_IMPL *session)
 	WT_STAT_SET(session, stats, btree_row_leaf, 0);
 
 	next_walk = NULL;
-	while ((ret = __wt_tree_walk(
-	    session, &next_walk, 0)) == 0 && next_walk != NULL) {
-		WT_WITH_PAGE_INDEX(session,
-		    ret = __stat_page(session, next_walk->page, stats));
+	while ((ret = __wt_tree_walk(session, &next_walk, 0)) == 0 && next_walk != NULL) {
+		WT_WITH_PAGE_INDEX(session, ret = __stat_page(session, next_walk->page, stats));
 		WT_RET(ret);
 	}
 	return (ret == WT_NOTFOUND ? 0 : ret);
@@ -130,7 +123,7 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 	case WT_PAGE_ROW_LEAF:
 		__stat_page_row_leaf(session, page, stats);
 		break;
-	WT_ILLEGAL_VALUE(session, page->type);
+		WT_ILLEGAL_VALUE(session, page->type);
 	}
 	return (0);
 }
@@ -140,8 +133,7 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
  *	Stat a WT_PAGE_COL_VAR page.
  */
 static void
-__stat_page_col_var(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
+__stat_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_CELL *cell;
 	WT_CELL_UNPACK *unpack, _unpack;
@@ -164,7 +156,7 @@ __stat_page_col_var(
 	 * our best, and simply count every overflow item (or RLE set of items)
 	 * we see.
 	 */
-	WT_COL_FOREACH(page, cip, i) {
+	WT_COL_FOREACH (page, cip, i) {
 		cell = WT_COL_PTR(page, cip);
 		__wt_cell_unpack(session, page, cell, unpack);
 		if (unpack->type == WT_CELL_DEL) {
@@ -182,7 +174,7 @@ __stat_page_col_var(
 		 * Walk the insert list, checking for changes.  For each insert
 		 * we find, correct the original count based on its state.
 		 */
-		WT_SKIP_FOREACH(ins, WT_COL_UPDATE(page, cip)) {
+		WT_SKIP_FOREACH (ins, WT_COL_UPDATE(page, cip)) {
 			switch (ins->upd->type) {
 			case WT_UPDATE_MODIFY:
 			case WT_UPDATE_STANDARD:
@@ -204,7 +196,7 @@ __stat_page_col_var(
 	}
 
 	/* Walk any append list. */
-	WT_SKIP_FOREACH(ins, WT_COL_APPEND(page))
+	WT_SKIP_FOREACH (ins, WT_COL_APPEND(page))
 		switch (ins->upd->type) {
 		case WT_UPDATE_MODIFY:
 		case WT_UPDATE_STANDARD:
@@ -228,8 +220,7 @@ __stat_page_col_var(
  *	Stat a WT_PAGE_ROW_INT page.
  */
 static void
-__stat_page_row_int(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
+__stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_BTREE *btree;
 	WT_CELL_UNPACK unpack;
@@ -246,10 +237,11 @@ __stat_page_row_int(
 	 * a reference to the original cell.
 	 */
 	if (page->dsk != NULL)
-		WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+		WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
 			if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
 				++ovfl_cnt;
-		} WT_CELL_FOREACH_END;
+		}
+	WT_CELL_FOREACH_END;
 
 	WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
 }
@@ -259,8 +251,7 @@ __stat_page_row_int(
  *	Stat a WT_PAGE_ROW_LEAF page.
  */
 static void
-__stat_page_row_leaf(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
+__stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 {
 	WT_BTREE *btree;
 	WT_CELL_UNPACK unpack;
@@ -279,30 +270,27 @@ __stat_page_row_leaf(
 	 * Walk any K/V pairs inserted into the page before the first from-disk
 	 * key on the page.
 	 */
-	WT_SKIP_FOREACH(ins, WT_ROW_INSERT_SMALLEST(page))
-		if (ins->upd->type != WT_UPDATE_RESERVE &&
-		    ins->upd->type != WT_UPDATE_TOMBSTONE)
+	WT_SKIP_FOREACH (ins, WT_ROW_INSERT_SMALLEST(page))
+		if (ins->upd->type != WT_UPDATE_RESERVE && ins->upd->type != WT_UPDATE_TOMBSTONE)
 			++entry_cnt;
 
 	/*
 	 * Walk the page's K/V pairs. Count overflow values, where an overflow
 	 * item is any on-disk overflow item that hasn't been updated.
 	 */
-	WT_ROW_FOREACH(page, rip, i) {
+	WT_ROW_FOREACH (page, rip, i) {
 		upd = WT_ROW_UPDATE(page, rip);
 		if (upd == NULL ||
-		    (upd->type != WT_UPDATE_RESERVE &&
-		    upd->type != WT_UPDATE_TOMBSTONE))
+		    (upd->type != WT_UPDATE_RESERVE && upd->type != WT_UPDATE_TOMBSTONE))
 			++entry_cnt;
 		if (upd == NULL) {
-			__wt_row_leaf_value_cell(
-			    session, page, rip, NULL, &unpack);
+			__wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
 			if (unpack.type == WT_CELL_VALUE_OVFL)
 				++ovfl_cnt;
 		}
 
 		/* Walk K/V pairs inserted after the on-page K/V pair. */
-		WT_SKIP_FOREACH(ins, WT_ROW_INSERT(page, rip))
+		WT_SKIP_FOREACH (ins, WT_ROW_INSERT(page, rip))
 			if (ins->upd->type != WT_UPDATE_RESERVE &&
 			    ins->upd->type != WT_UPDATE_TOMBSTONE)
 				++entry_cnt;
@@ -319,11 +307,11 @@ __stat_page_row_leaf(
 	 */
 	if (page->dsk != NULL) {
 		key = false;
-		WT_CELL_FOREACH_BEGIN(session, btree, page->dsk, unpack) {
+		WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
 			switch (__wt_cell_type(unpack.cell)) {
 			case WT_CELL_KEY_OVFL:
 				++ovfl_cnt;
-				/* FALLTHROUGH */
+			/* FALLTHROUGH */
 			case WT_CELL_KEY:
 				if (key)
 					++empty_values;
@@ -333,7 +321,8 @@ __stat_page_row_leaf(
 				key = false;
 				break;
 			}
-		} WT_CELL_FOREACH_END;
+		}
+		WT_CELL_FOREACH_END;
 		if (key)
 			++empty_values;
 	}

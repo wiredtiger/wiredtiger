@@ -31,10 +31,10 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	ins = NULL;
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
 		if (*insp != NULL && recno >= WT_INSERT_RECNO(*insp)) {
-			ins = *insp;	/* GTE: keep going at this level */
+			ins = *insp; /* GTE: keep going at this level */
 			insp = &(*insp)->next[i];
 		} else {
-			--i;		/* LT: drop down a level */
+			--i; /* LT: drop down a level */
 			--insp;
 		}
 
@@ -80,10 +80,10 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
 		if (*insp != NULL && recno > WT_INSERT_RECNO(*insp)) {
-			ins = *insp;	/* GT: keep going at this level */
+			ins = *insp; /* GT: keep going at this level */
 			insp = &(*insp)->next[i];
-		} else  {
-			--i;		/* LTE: drop down a level */
+		} else {
+			--i; /* LTE: drop down a level */
 			--insp;
 		}
 
@@ -115,7 +115,7 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 * The insert list is a skip list: start at the highest skip level, then
 	 * go as far as possible at each level before stepping down to the next.
 	 */
-	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; ) {
+	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
 		if (*insp == NULL) {
 			--i;
 			--insp;
@@ -125,11 +125,11 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 		ins_recno = WT_INSERT_RECNO(*insp);
 		cmp = (recno == ins_recno) ? 0 : (recno < ins_recno) ? -1 : 1;
 
-		if (cmp == 0)			/* Exact match: return */
+		if (cmp == 0) /* Exact match: return */
 			return (*insp);
-		if (cmp > 0)			/* Keep going at this level */
+		if (cmp > 0) /* Keep going at this level */
 			insp = &(*insp)->next[i];
-		else {				/* Drop down a level */
+		else { /* Drop down a level */
 			--i;
 			--insp;
 		}
@@ -143,8 +143,8 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
  *	Search a column-store insert list, creating a skiplist stack as we go.
  */
 static inline WT_INSERT *
-__col_insert_search(WT_INSERT_HEAD *ins_head,
-    WT_INSERT ***ins_stack, WT_INSERT **next_stack, uint64_t recno)
+__col_insert_search(
+    WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **next_stack, uint64_t recno)
 {
 	WT_INSERT **insp, *ret_ins;
 	uint64_t ins_recno;
@@ -157,9 +157,9 @@ __col_insert_search(WT_INSERT_HEAD *ins_head,
 	/* Fast path appends. */
 	if (recno >= WT_INSERT_RECNO(ret_ins)) {
 		for (i = 0; i < WT_SKIP_MAXDEPTH; i++) {
-			ins_stack[i] = (i == 0) ? &ret_ins->next[0] :
-			    (ins_head->tail[i] != NULL) ?
-			    &ins_head->tail[i]->next[i] : &ins_head->head[i];
+			ins_stack[i] = (i == 0) ? &ret_ins->next[0] : (ins_head->tail[i] != NULL) ?
+			                          &ins_head->tail[i]->next[i] :
+			                          &ins_head->head[i];
 			next_stack[i] = NULL;
 		}
 		return (ret_ins);
@@ -169,7 +169,7 @@ __col_insert_search(WT_INSERT_HEAD *ins_head,
 	 * The insert list is a skip list: start at the highest skip level, then
 	 * go as far as possible at each level before stepping down to the next.
 	 */
-	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; ) {
+	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
 		if ((ret_ins = *insp) == NULL) {
 			next_stack[i] = NULL;
 			ins_stack[i--] = insp--;
@@ -189,14 +189,14 @@ __col_insert_search(WT_INSERT_HEAD *ins_head,
 		ins_recno = WT_INSERT_RECNO(ret_ins);
 		cmp = (recno == ins_recno) ? 0 : (recno < ins_recno) ? -1 : 1;
 
-		if (cmp > 0)			/* Keep going at this level */
+		if (cmp > 0) /* Keep going at this level */
 			insp = &ret_ins->next[i];
-		else if (cmp == 0)		/* Exact match: return */
+		else if (cmp == 0) /* Exact match: return */
 			for (; i >= 0; i--) {
 				next_stack[i] = ret_ins->next[i];
 				ins_stack[i] = &ret_ins->next[i];
 			}
-		else {				/* Drop down a level */
+		else { /* Drop down a level */
 			next_stack[i] = ret_ins;
 			ins_stack[i--] = insp--;
 		}
@@ -222,12 +222,10 @@ __col_var_last_recno(WT_REF *ref)
 	 * explicitly, if they care.
 	 */
 	if (!WT_COL_VAR_REPEAT_SET(page))
-		return (page->entries == 0 ? 0 :
-		    ref->ref_recno + (page->entries - 1));
+		return (page->entries == 0 ? 0 : ref->ref_recno + (page->entries - 1));
 
 	repeat = &page->pg_var_repeats[page->pg_var_nrepeats - 1];
-	return ((repeat->recno + repeat->rle) - 1 +
-	    (page->entries - (repeat->indx + 1)));
+	return ((repeat->recno + repeat->rle) - 1 + (page->entries - (repeat->indx + 1)));
 }
 
 /*
@@ -272,14 +270,12 @@ __col_var_search(WT_REF *ref, uint64_t recno, uint64_t *start_recnop)
 	 * slot for this record number, because we know any intervening records
 	 * have repeat counts of 1.
 	 */
-	for (base = 0,
-	    limit = WT_COL_VAR_REPEAT_SET(page) ? page->pg_var_nrepeats : 0;
-	    limit != 0; limit >>= 1) {
+	for (base = 0, limit = WT_COL_VAR_REPEAT_SET(page) ? page->pg_var_nrepeats : 0; limit != 0;
+	     limit >>= 1) {
 		indx = base + (limit >> 1);
 
 		repeat = page->pg_var_repeats + indx;
-		if (recno >= repeat->recno &&
-		    recno < repeat->recno + repeat->rle) {
+		if (recno >= repeat->recno && recno < repeat->recno + repeat->rle) {
 			if (start_recnop != NULL)
 				*start_recnop = repeat->recno;
 			return (page->pg_var + repeat->indx);
@@ -312,8 +308,7 @@ __col_var_search(WT_REF *ref, uint64_t recno, uint64_t *start_recnop)
 	 * It's split into two parts because the simpler test will overflow if
 	 * searching for large record numbers.
 	 */
-	if (recno >= start_recno &&
-	    recno - start_recno >= page->entries - start_indx)
+	if (recno >= start_recno && recno - start_recno >= page->entries - start_indx)
 		return (NULL);
 
 	return (page->pg_var + start_indx + (uint32_t)(recno - start_recno));

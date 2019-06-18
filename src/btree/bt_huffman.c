@@ -26,115 +26,114 @@ struct __wt_huffman_table {
 	uint32_t frequency;
 };
 static const struct __wt_huffman_table __wt_huffman_nytenglish[] = {
-	/* nul */	{ 0x00,       0 },	/* For an escape character. */
-	/*  ht */	{ 0x09, 5263779 },
-	/*  sp */	{ 0x20, 8000000 },
-	/*  !  */	{ 0x21,    2178 },
-	/*  "  */	{ 0x22,  284671 },
-	/*  #  */	{ 0x23,      10 },
-	/*  $  */	{ 0x24,   51572 },
-	/*  %  */	{ 0x25,    1993 },
-	/*  &  */	{ 0x26,    6523 },
-	/*  '  */	{ 0x27,  204497 },
-	/*  (  */	{ 0x28,   53398 },
-	/*  )  */	{ 0x29,   53735 },
-	/*  *  */	{ 0x2a,   20716 },
-	/*  +  */	{ 0x2b,     309 },
-	/*  ,  */	{ 0x2c,  984969 },
-	/*  -  */	{ 0x2d,  252302 },
-	/*  .  */	{ 0x2e,  946136 },
-	/*  /  */	{ 0x2f,    8161 },
-	/*  0  */	{ 0x30,  546233 },
-	/*  1  */	{ 0x31,  460946 },
-	/*  2  */	{ 0x32,  333499 },
-	/*  3  */	{ 0x33,  187606 },
-	/*  4  */	{ 0x34,  192528 },
-	/*  5  */	{ 0x35,  374413 },
-	/*  6  */	{ 0x36,  153865 },
-	/*  7  */	{ 0x37,  120094 },
-	/*  8  */	{ 0x38,  182627 },
-	/*  9  */	{ 0x39,  282364 },
-	/*  :  */	{ 0x3a,   54036 },
-	/*  ;  */	{ 0x3b,   36727 },
-	/*  <  */	{ 0x3c,      82 },
-	/*  =  */	{ 0x3d,      22 },
-	/*  >  */	{ 0x3e,      83 },
-	/*  ?  */	{ 0x3f,   12357 },
-	/*  @  */	{ 0x40,       1 },
-	/*  A  */	{ 0x41,  280937 },
-	/*  B  */	{ 0x42,  169474 },
-	/*  C  */	{ 0x43,  229363 },
-	/*  D  */	{ 0x44,  129632 },
-	/*  E  */	{ 0x45,  138443 },
-	/*  F  */	{ 0x46,  100751 },
-	/*  G  */	{ 0x47,   93212 },
-	/*  H  */	{ 0x48,  123632 },
-	/*  I  */	{ 0x49,  223312 },
-	/*  J  */	{ 0x4a,   78706 },
-	/*  K  */	{ 0x4b,   46580 },
-	/*  L  */	{ 0x4c,  106984 },
-	/*  M  */	{ 0x4d,  259474 },
-	/*  N  */	{ 0x4e,  205409 },
-	/*  O  */	{ 0x4f,  105700 },
-	/*  P  */	{ 0x50,  144239 },
-	/*  Q  */	{ 0x51,   11659 },
-	/*  R  */	{ 0x52,  146448 },
-	/*  S  */	{ 0x53,  304971 },
-	/*  T  */	{ 0x54,  325462 },
-	/*  U  */	{ 0x55,   57488 },
-	/*  V  */	{ 0x56,   31053 },
-	/*  W  */	{ 0x57,  107195 },
-	/*  X  */	{ 0x58,    7578 },
-	/*  Y  */	{ 0x59,   94297 },
-	/*  Z  */	{ 0x5a,    5610 },
-	/*  [  */	{ 0x5b,       1 },
-	/*  \  */	{ 0x5c,       1 },
-	/*  ]  */	{ 0x5d,       1 },
-	/*  ^  */	{ 0x5e,       1 },
-	/*  _  */	{ 0x5f,       1 },
-	/*  `  */	{ 0x60,       1 },
-	/*  a  */	{ 0x61, 5263779 },
-	/*  b  */	{ 0x62,  866156 },
-	/*  c  */	{ 0x63, 1960412 },
-	/*  d  */	{ 0x64, 2369820 },
-	/*  e  */	{ 0x65, 7741842 },
-	/*  f  */	{ 0x66, 1296925 },
-	/*  g  */	{ 0x67, 1206747 },
-	/*  h  */	{ 0x68, 2955858 },
-	/*  i  */	{ 0x69, 4527332 },
-	/*  j  */	{ 0x6a,   65856 },
-	/*  k  */	{ 0x6b,  460788 },
-	/*  l  */	{ 0x6c, 2553152 },
-	/*  m  */	{ 0x6d, 1467376 },
-	/*  n  */	{ 0x6e, 4535545 },
-	/*  o  */	{ 0x6f, 4729266 },
-	/*  p  */	{ 0x70, 1255579 },
-	/*  q  */	{ 0x71,   54221 },
-	/*  r  */	{ 0x72, 4137949 },
-	/*  s  */	{ 0x73, 4186210 },
-	/*  t  */	{ 0x74, 5507692 },
-	/*  u  */	{ 0x75, 1613323 },
-	/*  v  */	{ 0x76,  653370 },
-	/*  w  */	{ 0x77, 1015656 },
-	/*  x  */	{ 0x78,  123577 },
-	/*  y  */	{ 0x79, 1062040 },
-	/*  z  */	{ 0x7a,   66423 },
-	/*  {  */	{ 0x7b,       1 },
-	/*  |  */	{ 0x7c,       1 },
-	/*  }  */	{ 0x7d,       1 },
-	/*  ~  */	{ 0x7e,       1 }
-};
+    /* nul */ {0x00, 0}, /* For an escape character. */
+    /*  ht */ {0x09, 5263779},
+    /*  sp */ {0x20, 8000000},
+    /*  !  */ {0x21, 2178},
+    /*  "  */ {0x22, 284671},
+    /*  #  */ {0x23, 10},
+    /*  $  */ {0x24, 51572},
+    /*  %  */ {0x25, 1993},
+    /*  &  */ {0x26, 6523},
+    /*  '  */ {0x27, 204497},
+    /*  (  */ {0x28, 53398},
+    /*  )  */ {0x29, 53735},
+    /*  *  */ {0x2a, 20716},
+    /*  +  */ {0x2b, 309},
+    /*  ,  */ {0x2c, 984969},
+    /*  -  */ {0x2d, 252302},
+    /*  .  */ {0x2e, 946136},
+    /*  /  */ {0x2f, 8161},
+    /*  0  */ {0x30, 546233},
+    /*  1  */ {0x31, 460946},
+    /*  2  */ {0x32, 333499},
+    /*  3  */ {0x33, 187606},
+    /*  4  */ {0x34, 192528},
+    /*  5  */ {0x35, 374413},
+    /*  6  */ {0x36, 153865},
+    /*  7  */ {0x37, 120094},
+    /*  8  */ {0x38, 182627},
+    /*  9  */ {0x39, 282364},
+    /*  :  */ {0x3a, 54036},
+    /*  ;  */ {0x3b, 36727},
+    /*  <  */ {0x3c, 82},
+    /*  =  */ {0x3d, 22},
+    /*  >  */ {0x3e, 83},
+    /*  ?  */ {0x3f, 12357},
+    /*  @  */ {0x40, 1},
+    /*  A  */ {0x41, 280937},
+    /*  B  */ {0x42, 169474},
+    /*  C  */ {0x43, 229363},
+    /*  D  */ {0x44, 129632},
+    /*  E  */ {0x45, 138443},
+    /*  F  */ {0x46, 100751},
+    /*  G  */ {0x47, 93212},
+    /*  H  */ {0x48, 123632},
+    /*  I  */ {0x49, 223312},
+    /*  J  */ {0x4a, 78706},
+    /*  K  */ {0x4b, 46580},
+    /*  L  */ {0x4c, 106984},
+    /*  M  */ {0x4d, 259474},
+    /*  N  */ {0x4e, 205409},
+    /*  O  */ {0x4f, 105700},
+    /*  P  */ {0x50, 144239},
+    /*  Q  */ {0x51, 11659},
+    /*  R  */ {0x52, 146448},
+    /*  S  */ {0x53, 304971},
+    /*  T  */ {0x54, 325462},
+    /*  U  */ {0x55, 57488},
+    /*  V  */ {0x56, 31053},
+    /*  W  */ {0x57, 107195},
+    /*  X  */ {0x58, 7578},
+    /*  Y  */ {0x59, 94297},
+    /*  Z  */ {0x5a, 5610},
+    /*  [  */ {0x5b, 1},
+    /*  \  */ {0x5c, 1},
+    /*  ]  */ {0x5d, 1},
+    /*  ^  */ {0x5e, 1},
+    /*  _  */ {0x5f, 1},
+    /*  `  */ {0x60, 1},
+    /*  a  */ {0x61, 5263779},
+    /*  b  */ {0x62, 866156},
+    /*  c  */ {0x63, 1960412},
+    /*  d  */ {0x64, 2369820},
+    /*  e  */ {0x65, 7741842},
+    /*  f  */ {0x66, 1296925},
+    /*  g  */ {0x67, 1206747},
+    /*  h  */ {0x68, 2955858},
+    /*  i  */ {0x69, 4527332},
+    /*  j  */ {0x6a, 65856},
+    /*  k  */ {0x6b, 460788},
+    /*  l  */ {0x6c, 2553152},
+    /*  m  */ {0x6d, 1467376},
+    /*  n  */ {0x6e, 4535545},
+    /*  o  */ {0x6f, 4729266},
+    /*  p  */ {0x70, 1255579},
+    /*  q  */ {0x71, 54221},
+    /*  r  */ {0x72, 4137949},
+    /*  s  */ {0x73, 4186210},
+    /*  t  */ {0x74, 5507692},
+    /*  u  */ {0x75, 1613323},
+    /*  v  */ {0x76, 653370},
+    /*  w  */ {0x77, 1015656},
+    /*  x  */ {0x78, 123577},
+    /*  y  */ {0x79, 1062040},
+    /*  z  */ {0x7a, 66423},
+    /*  {  */ {0x7b, 1},
+    /*  |  */ {0x7c, 1},
+    /*  }  */ {0x7d, 1},
+    /*  ~  */ {0x7e, 1}};
 
-static int __wt_huffman_read(WT_SESSION_IMPL *,
-    WT_CONFIG_ITEM *, struct __wt_huffman_table **, u_int *, u_int *);
+static int __wt_huffman_read(
+    WT_SESSION_IMPL *, WT_CONFIG_ITEM *, struct __wt_huffman_table **, u_int *, u_int *);
 
 /*
  * __huffman_confchk_file --
  *	Check for a Huffman configuration file and return the file name.
  */
 static int
-__huffman_confchk_file(WT_SESSION_IMPL *session,
-    WT_CONFIG_ITEM *v, bool *is_utf8p, WT_FSTREAM **fsp)
+__huffman_confchk_file(
+    WT_SESSION_IMPL *session, WT_CONFIG_ITEM *v, bool *is_utf8p, WT_FSTREAM **fsp)
 {
 	WT_DECL_RET;
 	WT_FSTREAM *fs;
@@ -152,13 +151,12 @@ __huffman_confchk_file(WT_SESSION_IMPL *session,
 	} else if (WT_PREFIX_MATCH(v->str, "utf16"))
 		len = strlen("utf16");
 	if (len == 0 || len >= v->len)
-		WT_RET_MSG(session, EINVAL,
-		    "illegal Huffman configuration: %.*s", (int)v->len, v->str);
+		WT_RET_MSG(
+		    session, EINVAL, "illegal Huffman configuration: %.*s", (int)v->len, v->str);
 
 	/* Check the file exists. */
 	WT_RET(__wt_strndup(session, v->str + len, v->len - len, &fname));
-	WT_ERR(__wt_fopen(
-	    session, fname, WT_FS_OPEN_FIXED, WT_STREAM_READ, &fs));
+	WT_ERR(__wt_fopen(session, fname, WT_FS_OPEN_FIXED, WT_STREAM_READ, &fs));
 
 	/* Optionally return the file handle. */
 	if (fsp == NULL)
@@ -166,7 +164,8 @@ __huffman_confchk_file(WT_SESSION_IMPL *session,
 	else
 		*fsp = fs;
 
-err:	__wt_free(session, fname);
+err:
+	__wt_free(session, fname);
 
 	return (ret);
 }
@@ -209,17 +208,16 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 
 	WT_RET(__wt_config_gets_none(session, cfg, "huffman_key", &key_conf));
 	WT_RET(__huffman_confchk(session, &key_conf));
-	WT_RET(
-	    __wt_config_gets_none(session, cfg, "huffman_value", &value_conf));
+	WT_RET(__wt_config_gets_none(session, cfg, "huffman_value", &value_conf));
 	WT_RET(__huffman_confchk(session, &value_conf));
 	if (key_conf.len == 0 && value_conf.len == 0)
 		return (0);
 
-	switch (btree->type) {		/* Check file type compatibility. */
+	switch (btree->type) { /* Check file type compatibility. */
 	case BTREE_COL_FIX:
-		WT_RET_MSG(session, EINVAL,
-		    "fixed-size column-store files may not be Huffman encoded");
-		/* NOTREACHED */
+		WT_RET_MSG(
+		    session, EINVAL, "fixed-size column-store files may not be Huffman encoded");
+	/* NOTREACHED */
 	case BTREE_COL_VAR:
 		if (key_conf.len != 0)
 			WT_RET_MSG(session, EINVAL,
@@ -233,26 +231,21 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 	if (key_conf.len == 0) {
 		;
 	} else if (strncmp(key_conf.str, "english", key_conf.len) == 0) {
-		struct __wt_huffman_table
-		    copy[WT_ELEMENTS(__wt_huffman_nytenglish)];
+		struct __wt_huffman_table copy[WT_ELEMENTS(__wt_huffman_nytenglish)];
 
-		memcpy(copy,
-		    __wt_huffman_nytenglish, sizeof(__wt_huffman_nytenglish));
+		memcpy(copy, __wt_huffman_nytenglish, sizeof(__wt_huffman_nytenglish));
 		WT_RET(__wt_huffman_open(
-		    session, copy, WT_ELEMENTS(__wt_huffman_nytenglish),
-		    1, &btree->huffman_key));
+		    session, copy, WT_ELEMENTS(__wt_huffman_nytenglish), 1, &btree->huffman_key));
 
 		/* Check for a shared key/value table. */
-		if (value_conf.len != 0 && strncmp(
-		    value_conf.str, "english", value_conf.len) == 0) {
+		if (value_conf.len != 0 &&
+		    strncmp(value_conf.str, "english", value_conf.len) == 0) {
 			btree->huffman_value = btree->huffman_key;
 			return (0);
 		}
 	} else {
-		WT_RET(__wt_huffman_read(
-		    session, &key_conf, &table, &entries, &numbytes));
-		ret = __wt_huffman_open(
-		    session, table, entries, numbytes, &btree->huffman_key);
+		WT_RET(__wt_huffman_read(session, &key_conf, &table, &entries, &numbytes));
+		ret = __wt_huffman_open(session, table, entries, numbytes, &btree->huffman_key);
 		__wt_free(session, table);
 		if (ret != 0)
 			return (ret);
@@ -268,19 +261,14 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 	if (value_conf.len == 0) {
 		;
 	} else if (strncmp(value_conf.str, "english", value_conf.len) == 0) {
-		struct __wt_huffman_table
-		    copy[WT_ELEMENTS(__wt_huffman_nytenglish)];
+		struct __wt_huffman_table copy[WT_ELEMENTS(__wt_huffman_nytenglish)];
 
-		memcpy(copy,
-		    __wt_huffman_nytenglish, sizeof(__wt_huffman_nytenglish));
+		memcpy(copy, __wt_huffman_nytenglish, sizeof(__wt_huffman_nytenglish));
 		WT_RET(__wt_huffman_open(
-		    session, copy, WT_ELEMENTS(__wt_huffman_nytenglish),
-		    1, &btree->huffman_value));
+		    session, copy, WT_ELEMENTS(__wt_huffman_nytenglish), 1, &btree->huffman_value));
 	} else {
-		WT_RET(__wt_huffman_read(
-		    session, &value_conf, &table, &entries, &numbytes));
-		ret = __wt_huffman_open(
-		    session, table, entries, numbytes, &btree->huffman_value);
+		WT_RET(__wt_huffman_read(session, &value_conf, &table, &entries, &numbytes));
+		ret = __wt_huffman_open(session, table, entries, numbytes, &btree->huffman_value);
 		__wt_free(session, table);
 		if (ret != 0)
 			return (ret);
@@ -294,8 +282,8 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
  *	Read a Huffman table from a file.
  */
 static int
-__wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip,
-    struct __wt_huffman_table **tablep, u_int *entriesp, u_int *numbytesp)
+__wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip, struct __wt_huffman_table **tablep,
+    u_int *entriesp, u_int *numbytesp)
 {
 	struct __wt_huffman_table *table, *tp;
 	WT_DECL_ITEM(tmp);
@@ -337,8 +325,7 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip,
 		if (tmp->size == 0)
 			break;
 		/* NOLINTNEXTLINE(cert-err34-c) */
-		n = sscanf(
-		    tmp->data, "%" SCNi64 " %" SCNi64, &symbol, &frequency);
+		n = sscanf(tmp->data, "%" SCNi64 " %" SCNi64, &symbol, &frequency);
 		/*
 		 * Entries is 0-based, that is, there are (entries +1) possible
 		 * values that can be configured. The line number is 1-based, so
@@ -346,9 +333,8 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip,
 		 * in the error as the maximum possible number of entries.
 		 */
 		if (lineno > entries + 1)
-			WT_ERR_MSG(session, EINVAL,
-			    "Huffman table file %.*s is corrupted, "
-			    "more than %" PRIu32 " entries",
+			WT_ERR_MSG(session, EINVAL, "Huffman table file %.*s is corrupted, "
+			                            "more than %" PRIu32 " entries",
 			    (int)ip->len, ip->str, entries + 1);
 		if (n != 2)
 			WT_ERR_MSG(session, EINVAL,
@@ -356,18 +342,15 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip,
 			    "expected two unsigned integral values",
 			    lineno, (int)ip->len, ip->str);
 		if (symbol < 0 || symbol > entries)
-			WT_ERR_MSG(session, EINVAL,
-			    "line %u of Huffman file %.*s is corrupted; "
-			    "symbol %" PRId64 " not in range, maximum "
-			    "value is %u",
+			WT_ERR_MSG(session, EINVAL, "line %u of Huffman file %.*s is corrupted; "
+			                            "symbol %" PRId64 " not in range, maximum "
+			                            "value is %u",
 			    lineno, (int)ip->len, ip->str, symbol, entries);
 		if (frequency < 0 || frequency > UINT32_MAX)
-			WT_ERR_MSG(session, EINVAL,
-			    "line %u of Huffman file %.*s is corrupted; "
-			    "frequency %" PRId64 " not in range, maximum "
-			    "value is %" PRIu32,
-			    lineno, (int)ip->len, ip->str, frequency,
-			    (uint32_t)UINT32_MAX);
+			WT_ERR_MSG(session, EINVAL, "line %u of Huffman file %.*s is corrupted; "
+			                            "frequency %" PRId64 " not in range, maximum "
+			                            "value is %" PRIu32,
+			    lineno, (int)ip->len, ip->str, frequency, (uint32_t)UINT32_MAX);
 
 		tp->symbol = (uint32_t)symbol;
 		tp->frequency = (uint32_t)frequency;
@@ -377,7 +360,8 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip,
 	*tablep = table;
 
 	if (0) {
-err:		__wt_free(session, table);
+	err:
+		__wt_free(session, table);
 	}
 	(void)__wt_fclose(session, &fs);
 

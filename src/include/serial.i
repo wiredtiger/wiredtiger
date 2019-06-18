@@ -25,8 +25,7 @@ __page_write_gen_wrapped_check(WT_PAGE *page)
 	 * there cannot be a million threads that have done the test but not yet
 	 * completed their modification.
 	 */
-	return (page->modify->write_gen >
-	    UINT32_MAX - WT_MILLION ? WT_RESTART : 0);
+	return (page->modify->write_gen > UINT32_MAX - WT_MILLION ? WT_RESTART : 0);
 }
 
 /*
@@ -34,8 +33,8 @@ __page_write_gen_wrapped_check(WT_PAGE *page)
  *	Worker function to add a WT_INSERT entry to the middle of a skiplist.
  */
 static inline int
-__insert_simple_func(WT_SESSION_IMPL *session,
-    WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
+__insert_simple_func(
+    WT_SESSION_IMPL *session, WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
 {
 	u_int i;
 
@@ -68,8 +67,8 @@ __insert_simple_func(WT_SESSION_IMPL *session,
  *	Worker function to add a WT_INSERT entry to a skiplist.
  */
 static inline int
-__insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
-    WT_INSERT ***ins_stack, WT_INSERT *new_ins, u_int skipdepth)
+__insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
+    WT_INSERT *new_ins, u_int skipdepth)
 {
 	u_int i;
 
@@ -95,8 +94,7 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
 		if (old_ins != new_ins->next[i] ||
 		    !__wt_atomic_cas_ptr(ins_stack[i], old_ins, new_ins))
 			return (i == 0 ? WT_RESTART : 0);
-		if (ins_head->tail[i] == NULL ||
-		    ins_stack[i] == &ins_head->tail[i]->next[i])
+		if (ins_head->tail[i] == NULL || ins_stack[i] == &ins_head->tail[i]->next[i])
 			ins_head->tail[i] = new_ins;
 	}
 
@@ -109,9 +107,8 @@ __insert_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
  * WT_INSERT entry to a skiplist.
  */
 static inline int
-__col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
-    WT_INSERT ***ins_stack, WT_INSERT *new_ins, uint64_t *recnop,
-    u_int skipdepth)
+__col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack,
+    WT_INSERT *new_ins, uint64_t *recnop, u_int skipdepth)
 {
 	WT_BTREE *btree;
 	uint64_t recno;
@@ -126,15 +123,14 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
 	if ((recno = WT_INSERT_RECNO(new_ins)) == WT_RECNO_OOB) {
 		recno = WT_INSERT_RECNO(new_ins) = btree->last_recno + 1;
 		WT_ASSERT(session, WT_SKIP_LAST(ins_head) == NULL ||
-		    recno > WT_INSERT_RECNO(WT_SKIP_LAST(ins_head)));
+		        recno > WT_INSERT_RECNO(WT_SKIP_LAST(ins_head)));
 		for (i = 0; i < skipdepth; i++)
-			ins_stack[i] = ins_head->tail[i] == NULL ?
-			    &ins_head->head[i] : &ins_head->tail[i]->next[i];
+			ins_stack[i] = ins_head->tail[i] == NULL ? &ins_head->head[i] :
+			                                           &ins_head->tail[i]->next[i];
 	}
 
 	/* Confirm position and insert the new WT_INSERT item. */
-	WT_RET(__insert_serial_func(
-	    session, ins_head, ins_stack, new_ins, skipdepth));
+	WT_RET(__insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth));
 
 	/*
 	 * Set the calling cursor's record number.
@@ -152,9 +148,9 @@ __col_append_serial_func(WT_SESSION_IMPL *session, WT_INSERT_HEAD *ins_head,
  *	Append a new column-store entry.
  */
 static inline int
-__wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-    WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp,
-    size_t new_ins_size, uint64_t *recnop, u_int skipdepth, bool exclusive)
+__wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
+    WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size, uint64_t *recnop,
+    u_int skipdepth, bool exclusive)
 {
 	WT_DECL_RET;
 	WT_INSERT *new_ins;
@@ -172,8 +168,7 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 */
 	if (!exclusive)
 		WT_PAGE_LOCK(session, page);
-	ret = __col_append_serial_func(
-	    session, ins_head, ins_stack, new_ins, recnop, skipdepth);
+	ret = __col_append_serial_func(session, ins_head, ins_stack, new_ins, recnop, skipdepth);
 	if (!exclusive)
 		WT_PAGE_UNLOCK(session, page);
 
@@ -202,9 +197,9 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
  *	Insert a row or column-store entry.
  */
 static inline int
-__wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-    WT_INSERT_HEAD *ins_head, WT_INSERT ***ins_stack, WT_INSERT **new_insp,
-    size_t new_ins_size, u_int skipdepth, bool exclusive)
+__wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT_HEAD *ins_head,
+    WT_INSERT ***ins_stack, WT_INSERT **new_insp, size_t new_ins_size, u_int skipdepth,
+    bool exclusive)
 {
 	WT_DECL_RET;
 	WT_INSERT *new_ins;
@@ -224,13 +219,11 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 			simple = false;
 
 	if (simple)
-		ret = __insert_simple_func(
-		    session, ins_stack, new_ins, skipdepth);
+		ret = __insert_simple_func(session, ins_stack, new_ins, skipdepth);
 	else {
 		if (!exclusive)
 			WT_PAGE_LOCK(session, page);
-		ret = __insert_serial_func(
-		    session, ins_head, ins_stack, new_ins, skipdepth);
+		ret = __insert_serial_func(session, ins_head, ins_stack, new_ins, skipdepth);
 		if (!exclusive)
 			WT_PAGE_UNLOCK(session, page);
 	}
@@ -260,8 +253,8 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
  *	Update a row or column-store entry.
  */
 static inline int
-__wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
-    WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
+__wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **srch_upd, WT_UPDATE **updp,
+    size_t upd_size, bool exclusive)
 {
 	WT_DECL_RET;
 	WT_UPDATE *obsolete, *upd;
@@ -285,8 +278,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * after our search, we raced.  Check if our update is still permitted.
 	 */
 	while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-		if ((ret = __wt_txn_update_check(
-		    session, upd->next = *srch_upd)) != 0) {
+		if ((ret = __wt_txn_update_check(session, upd->next = *srch_upd)) != 0) {
 			/* Free unused memory on error. */
 			__wt_free(session, upd);
 			return (ret);
@@ -319,8 +311,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 			/* Try to move the oldest ID forward and re-check. */
 			WT_RET(__wt_txn_update_oldest(session, 0));
 
-			if (!__wt_txn_visible_all(
-			    session, txn, obsolete_timestamp))
+			if (!__wt_txn_visible_all(session, txn, obsolete_timestamp))
 				return (0);
 		}
 

@@ -191,15 +191,13 @@ __wt_cursor_set_notsup(WT_CURSOR *cursor)
  *	Standard error message for key/values not set.
  */
 int
-__wt_cursor_kv_not_set(WT_CURSOR *cursor, bool key)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_cursor_kv_not_set(WT_CURSOR *cursor, bool key) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	WT_SESSION_IMPL *session;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 
-	WT_RET_MSG(session,
-	    cursor->saved_err == 0 ? EINVAL : cursor->saved_err,
+	WT_RET_MSG(session, cursor->saved_err == 0 ? EINVAL : cursor->saved_err,
 	    "requires %s be set", key ? "key" : "value");
 }
 
@@ -330,8 +328,7 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 		if (LF_ISSET(WT_CURSTD_RAW)) {
 			key = va_arg(ap, WT_ITEM *);
 			key->data = cursor->raw_recno_buf;
-			WT_ERR(__wt_struct_size(
-			    session, &size, "q", cursor->recno));
+			WT_ERR(__wt_struct_size(session, &size, "q", cursor->recno));
 			key->size = size;
 			ret = __wt_struct_pack(session, cursor->raw_recno_buf,
 			    sizeof(cursor->raw_recno_buf), "q", cursor->recno);
@@ -347,11 +344,12 @@ __wt_cursor_get_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 		} else if (WT_STREQ(fmt, "S"))
 			*va_arg(ap, const char **) = cursor->key.data;
 		else
-			ret = __wt_struct_unpackv(session,
-			    cursor->key.data, cursor->key.size, fmt, ap);
+			ret = __wt_struct_unpackv(
+			    session, cursor->key.data, cursor->key.size, fmt, ap);
 	}
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -383,20 +381,18 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 	if (WT_CURSOR_RECNO(cursor)) {
 		if (LF_ISSET(WT_CURSTD_RAW)) {
 			item = va_arg(ap, WT_ITEM *);
-			WT_ERR(__wt_struct_unpack(session,
-			    item->data, item->size, "q", &cursor->recno));
+			WT_ERR(__wt_struct_unpack(
+			    session, item->data, item->size, "q", &cursor->recno));
 		} else
 			cursor->recno = va_arg(ap, uint64_t);
 		if (cursor->recno == WT_RECNO_OOB)
-			WT_ERR_MSG(session, EINVAL,
-			    "%d is an invalid record number", WT_RECNO_OOB);
+			WT_ERR_MSG(session, EINVAL, "%d is an invalid record number", WT_RECNO_OOB);
 		buf->data = &cursor->recno;
 		sz = sizeof(cursor->recno);
 	} else {
 		/* Fast path some common cases and special case WT_ITEMs. */
 		fmt = cursor->key_format;
-		if (LF_ISSET(WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON) ||
-		    WT_STREQ(fmt, "u")) {
+		if (LF_ISSET(WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON) || WT_STREQ(fmt, "u")) {
 			item = va_arg(ap, WT_ITEM *);
 			sz = item->size;
 			buf->data = item->data;
@@ -406,26 +402,24 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
 			buf->data = (void *)str;
 		} else {
 			va_copy(ap_copy, ap);
-			ret = __wt_struct_sizev(
-			    session, &sz, cursor->key_format, ap_copy);
+			ret = __wt_struct_sizev(session, &sz, cursor->key_format, ap_copy);
 			va_end(ap_copy);
 			WT_ERR(ret);
 
 			WT_ERR(__wt_buf_initsize(session, buf, sz));
-			WT_ERR(__wt_struct_packv(
-			    session, buf->mem, sz, cursor->key_format, ap));
+			WT_ERR(__wt_struct_packv(session, buf->mem, sz, cursor->key_format, ap));
 		}
 	}
 	if (sz == 0)
 		WT_ERR_MSG(session, EINVAL, "Empty keys not permitted");
 	else if ((uint32_t)sz != sz)
-		WT_ERR_MSG(session, EINVAL,
-		    "Key size (%" PRIu64 ") out of range", (uint64_t)sz);
+		WT_ERR_MSG(session, EINVAL, "Key size (%" PRIu64 ") out of range", (uint64_t)sz);
 	cursor->saved_err = 0;
 	buf->size = sz;
 	F_SET(cursor, WT_CURSTD_KEY_EXT);
 	if (0) {
-err:		cursor->saved_err = ret;
+	err:
+		cursor->saved_err = ret;
 	}
 
 	/*
@@ -483,14 +477,13 @@ __wt_cursor_get_valuev(WT_CURSOR *cursor, va_list ap)
 		value->size = cursor->value.size;
 	} else if (WT_STREQ(fmt, "S"))
 		*va_arg(ap, const char **) = cursor->value.data;
-	else if (WT_STREQ(fmt, "t") ||
-	    (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t")))
+	else if (WT_STREQ(fmt, "t") || (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t")))
 		*va_arg(ap, uint8_t *) = *(uint8_t *)cursor->value.data;
 	else
-		ret = __wt_struct_unpackv(session,
-		    cursor->value.data, cursor->value.size, fmt, ap);
+		ret = __wt_struct_unpackv(session, cursor->value.data, cursor->value.size, fmt, ap);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -535,8 +528,7 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
 
 	/* Fast path some common cases. */
 	fmt = cursor->value_format;
-	if (F_ISSET(cursor, WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON) ||
-	    WT_STREQ(fmt, "u")) {
+	if (F_ISSET(cursor, WT_CURSOR_RAW_OK | WT_CURSTD_DUMP_JSON) || WT_STREQ(fmt, "u")) {
 		item = va_arg(ap, WT_ITEM *);
 		sz = item->size;
 		buf->data = item->data;
@@ -544,26 +536,24 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
 		str = va_arg(ap, const char *);
 		sz = strlen(str) + 1;
 		buf->data = str;
-	} else if (WT_STREQ(fmt, "t") ||
-	    (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t"))) {
+	} else if (WT_STREQ(fmt, "t") || (__wt_isdigit((u_char)fmt[0]) && WT_STREQ(fmt + 1, "t"))) {
 		sz = 1;
 		WT_ERR(__wt_buf_initsize(session, buf, sz));
 		*(uint8_t *)buf->mem = (uint8_t)va_arg(ap, int);
 	} else {
 		va_copy(ap_copy, ap);
-		ret = __wt_struct_sizev(session,
-		    &sz, cursor->value_format, ap_copy);
+		ret = __wt_struct_sizev(session, &sz, cursor->value_format, ap_copy);
 		va_end(ap_copy);
 		WT_ERR(ret);
 		WT_ERR(__wt_buf_initsize(session, buf, sz));
-		WT_ERR(__wt_struct_packv(session, buf->mem, sz,
-		    cursor->value_format, ap));
+		WT_ERR(__wt_struct_packv(session, buf->mem, sz, cursor->value_format, ap));
 	}
 	F_SET(cursor, WT_CURSTD_VALUE_EXT);
 	buf->size = sz;
 
 	if (0) {
-err:		cursor->saved_err = ret;
+	err:
+		cursor->saved_err = ret;
 	}
 
 	/*
@@ -593,8 +583,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 	uint64_t bucket;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
-	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) &&
-	    dhandle != NULL);
+	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED) && dhandle != NULL);
 
 	WT_TRET(cursor->reset(cursor));
 
@@ -613,8 +602,7 @@ __wt_cursor_cache(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
 
 	/* Move the cursor from the open list to the caching hash table. */
 	if (cursor->uri_hash == 0)
-		cursor->uri_hash = __wt_hash_city64(
-		    cursor->uri, strlen(cursor->uri));
+		cursor->uri_hash = __wt_hash_city64(cursor->uri, strlen(cursor->uri));
 	bucket = cursor->uri_hash % WT_HASH_ARRAY_SIZE;
 	TAILQ_REMOVE(&session->cursors, cursor, q);
 	TAILQ_INSERT_HEAD(&session->cursor_cache[bucket], cursor, q);
@@ -660,14 +648,12 @@ __wt_cursor_reopen(WT_CURSOR *cursor, WT_DATA_HANDLE *dhandle)
  * operations.
  */
 int
-__wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
-    bool *released)
+__wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *released)
 {
 	WT_DECL_RET;
 
 	*released = false;
-	if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) ||
-	    !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
+	if (!F_ISSET(cursor, WT_CURSTD_CACHEABLE) || !F_ISSET(session, WT_SESSION_CACHE_CURSORS))
 		return (0);
 
 	WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_BULK | WT_CURSTD_CACHED));
@@ -677,8 +663,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	 * be easier to clean up if the cursor is not already cached.
 	 */
 	if (--session->cursor_sweep_countdown == 0) {
-		session->cursor_sweep_countdown =
-		    WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
+		session->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 		WT_RET(__wt_session_cursor_cache_sweep(session));
 	}
 
@@ -689,13 +674,14 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	*released = true;
 
 	if (0) {
-		/*
-		 * If caching fails, we must restore the state of the
-		 * cursor back to open so that the close works from
-		 * a known state. The reopen may also fail, but that
-		 * doesn't matter at this point.
-		 */
-err:		WT_TRET(cursor->reopen(cursor, false));
+	/*
+	 * If caching fails, we must restore the state of the
+	 * cursor back to open so that the close works from
+	 * a known state. The reopen may also fail, but that
+	 * doesn't matter at this point.
+	 */
+	err:
+		WT_TRET(cursor->reopen(cursor, false));
 		WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
 	}
 
@@ -707,8 +693,8 @@ err:		WT_TRET(cursor->reopen(cursor, false));
  *	Open a matching cursor from the cache.
  */
 int
-__wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
-    WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
+__wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup,
+    const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cursor;
@@ -726,8 +712,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	    (cfg[2] != NULL || cfg[1][0] != '\0'));
 
 	/* Fast path overwrite configuration */
-	if (have_config && cfg[2] == NULL &&
-	    strcmp(cfg[1], "overwrite=false") == 0) {
+	if (have_config && cfg[2] == NULL && strcmp(cfg[1], "overwrite=false") == 0) {
 		have_config = false;
 		overwrite_flag = 0;
 	} else
@@ -748,19 +733,16 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 		if (cval.len != 0)
 			return (WT_NOTFOUND);
 
-		WT_RET(__wt_config_gets_def(
-		    session, cfg, "next_random", 0, &cval));
+		WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
 		if (cval.val != 0)
 			return (WT_NOTFOUND);
 
-		WT_RET(__wt_config_gets_def(
-		    session, cfg, "readonly", 0, &cval));
+		WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
 		if (cval.val)
 			return (WT_NOTFOUND);
 
 		/* Checkpoints are readonly, we won't cache them. */
-		WT_RET(__wt_config_gets_def(
-		    session, cfg, "checkpoint", 0, &cval));
+		WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
 		if (cval.val)
 			return (WT_NOTFOUND);
 	}
@@ -783,9 +765,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 	 * cursor that matches uri and configuration, use it.
 	 */
 	bucket = hash_value % WT_HASH_ARRAY_SIZE;
-	TAILQ_FOREACH(cursor, &session->cursor_cache[bucket], q) {
-		if (cursor->uri_hash == hash_value &&
-		    strcmp(cursor->uri, uri) == 0) {
+	TAILQ_FOREACH (cursor, &session->cursor_cache[bucket], q) {
+		if (cursor->uri_hash == hash_value && strcmp(cursor->uri, uri) == 0) {
 			if ((ret = cursor->reopen(cursor, false)) != 0) {
 				F_CLR(cursor, WT_CURSTD_CACHEABLE);
 				session->dhandle = NULL;
@@ -799,8 +780,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 			 * cursor other than flag values, so fix
 			 * them up according to the given configuration.
 			 */
-			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW |
-			    WT_CURSTD_OVERWRITE);
+			F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
 			F_SET(cursor, overwrite_flag);
 			/*
 			 * If this is a btree cursor, clear its read_once flag.
@@ -818,29 +798,26 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri,
 				 * column stores.
 				 */
 				if (WT_CURSOR_RECNO(cursor)) {
-					WT_RET(__wt_config_gets_def(
-					    session, cfg, "append", 0, &cval));
+					WT_RET(
+					    __wt_config_gets_def(session, cfg, "append", 0, &cval));
 					if (cval.val != 0)
 						F_SET(cursor, WT_CURSTD_APPEND);
 				}
 
-				WT_RET(__wt_config_gets_def(
-				    session, cfg, "overwrite", 1, &cval));
+				WT_RET(__wt_config_gets_def(session, cfg, "overwrite", 1, &cval));
 				if (cval.val == 0)
 					F_CLR(cursor, WT_CURSTD_OVERWRITE);
 
-				WT_RET(__wt_config_gets_def(
-				    session, cfg, "raw", 0, &cval));
+				WT_RET(__wt_config_gets_def(session, cfg, "raw", 0, &cval));
 				if (cval.val != 0)
 					F_SET(cursor, WT_CURSTD_RAW);
 
 				if (cbt) {
-					WT_RET(__wt_config_gets_def(session,
-					    cfg, "read_once", 0, &cval));
+					WT_RET(__wt_config_gets_def(
+					    session, cfg, "read_once", 0, &cval));
 					if (cval.val != 0)
 						F_SET(cbt, WT_CBT_READ_ONCE);
 				}
-
 			}
 
 			WT_STAT_CONN_INCR(session, cursor_reopen);
@@ -894,7 +871,8 @@ __wt_cursor_equals(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 	WT_ERR(cursor->compare(cursor, other, &cmp));
 	*equalp = (cmp == 0) ? 1 : 0;
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -911,16 +889,14 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 
 	/* Check for a rational modify vector count. */
 	if (nentries <= 0)
-		WT_ERR_MSG(session, EINVAL,
-		    "Illegal modify vector with %d entries", nentries);
+		WT_ERR_MSG(session, EINVAL, "Illegal modify vector with %d entries", nentries);
 
 	/*
 	 * The underlying btree code cannot support WT_CURSOR.modify within
 	 * a read-uncommitted transaction. Disallow it here for consistency.
 	 */
 	if (session->txn.isolation == WT_ISO_READ_UNCOMMITTED)
-		WT_ERR_MSG(session, ENOTSUP,
-		    "not supported in read-uncommitted transactions");
+		WT_ERR_MSG(session, ENOTSUP, "not supported in read-uncommitted transactions");
 
 	WT_ERR(__cursor_checkkey(cursor));
 
@@ -931,7 +907,8 @@ __cursor_modify(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 	/* We know both key and value are set, "overwrite" doesn't matter. */
 	ret = cursor->update(cursor);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -955,8 +932,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 	 * Only relevant to column stores.
 	 */
 	if (WT_CURSOR_RECNO(cursor)) {
-		if ((ret = __wt_config_getones(
-		    session, config, "append", &cval)) == 0) {
+		if ((ret = __wt_config_getones(session, config, "append", &cval)) == 0) {
 			if (cval.val)
 				F_SET(cursor, WT_CURSTD_APPEND);
 			else
@@ -968,8 +944,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 	/*
 	 * overwrite
 	 */
-	if ((ret = __wt_config_getones(
-	    session, config, "overwrite", &cval)) == 0) {
+	if ((ret = __wt_config_getones(session, config, "overwrite", &cval)) == 0) {
 		if (cval.val)
 			F_SET(cursor, WT_CURSTD_OVERWRITE);
 		else
@@ -977,7 +952,8 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 	} else
 		WT_ERR_NOTFOUND_OK(ret);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -1029,8 +1005,8 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
  *	Default cursor initialization.
  */
 int
-__wt_cursor_init(WT_CURSOR *cursor,
-    const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+__wt_cursor_init(
+    WT_CURSOR *cursor, const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONFIG_ITEM cval;
 	WT_CURSOR *cdump;
@@ -1059,13 +1035,11 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	 */
 	readonly = F_ISSET(S2C(session), WT_CONN_READONLY);
 	if (!readonly) {
-		WT_RET(
-		    __wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
+		WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
 		readonly = cval.len != 0;
 	}
 	if (!readonly) {
-		WT_RET(
-		    __wt_config_gets_def(session, cfg, "readonly", 0, &cval));
+		WT_RET(__wt_config_gets_def(session, cfg, "readonly", 0, &cval));
 		readonly = cval.val != 0;
 	}
 	if (readonly) {
@@ -1087,11 +1061,10 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	 */
 	WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
 	if (cval.len != 0 && owner == NULL) {
-		F_SET(cursor,
-		    WT_STRING_MATCH("json", cval.str, cval.len) ?
-		    WT_CURSTD_DUMP_JSON :
-		    (WT_STRING_MATCH("print", cval.str, cval.len) ?
-		    WT_CURSTD_DUMP_PRINT : WT_CURSTD_DUMP_HEX));
+		F_SET(cursor, WT_STRING_MATCH("json", cval.str, cval.len) ?
+		        WT_CURSTD_DUMP_JSON :
+		        (WT_STRING_MATCH("print", cval.str, cval.len) ? WT_CURSTD_DUMP_PRINT :
+		                                                        WT_CURSTD_DUMP_HEX));
 		/*
 		 * Dump cursors should not have owners: only the
 		 * top-level cursor should be wrapped in a dump cursor.
@@ -1118,8 +1091,7 @@ __wt_cursor_init(WT_CURSOR *cursor,
 	 * WT_CURSOR.modify supported on 'S' and 'u' value formats, but may have
 	 * been already initialized (file cursors have a faster implementation).
 	 */
-	if ((WT_STREQ(cursor->value_format, "S") ||
-	    WT_STREQ(cursor->value_format, "u")) &&
+	if ((WT_STREQ(cursor->value_format, "S") || WT_STREQ(cursor->value_format, "u")) &&
 	    cursor->modify == __wt_cursor_modify_notsup)
 		cursor->modify = __cursor_modify;
 

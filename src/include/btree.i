@@ -23,8 +23,7 @@ __wt_ref_is_root(WT_REF *ref)
 static inline bool
 __wt_page_is_empty(WT_PAGE *page)
 {
-	return (page->modify != NULL &&
-	    page->modify->rec_result == WT_PM_REC_EMPTY);
+	return (page->modify != NULL && page->modify->rec_result == WT_PM_REC_EMPTY);
 }
 
 /*
@@ -34,8 +33,8 @@ __wt_page_is_empty(WT_PAGE *page)
 static inline bool
 __wt_page_evict_clean(WT_PAGE *page)
 {
-	return (page->modify == NULL || (page->modify->write_gen == 0 &&
-	    page->modify->rec_result == 0));
+	return (page->modify == NULL ||
+	    (page->modify->write_gen == 0 && page->modify->rec_result == 0));
 }
 
 /*
@@ -53,8 +52,7 @@ __wt_page_is_modified(WT_PAGE *page)
  *	Helper function to free a block from the current tree.
  */
 static inline int
-__wt_btree_block_free(
-    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;
@@ -101,8 +99,8 @@ __wt_btree_bytes_evictable(WT_SESSION_IMPL *session)
 	bytes_inmem = btree->bytes_inmem;
 	bytes_root = root_page == NULL ? 0 : root_page->memory_footprint;
 
-	return (bytes_inmem <= bytes_root ? 0 :
-	    __wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_root));
+	return (bytes_inmem <= bytes_root ? 0 : __wt_cache_bytes_plus_overhead(
+	                                            cache, bytes_inmem - bytes_root));
 }
 
 /*
@@ -118,8 +116,8 @@ __wt_btree_dirty_inuse(WT_SESSION_IMPL *session)
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
 
-	return (__wt_cache_bytes_plus_overhead(cache,
-	    btree->bytes_dirty_intl + btree->bytes_dirty_leaf));
+	return (__wt_cache_bytes_plus_overhead(
+	    cache, btree->bytes_dirty_intl + btree->bytes_dirty_leaf));
 }
 
 /*
@@ -175,8 +173,7 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
  *	Decrement a size_t cache value and check for underflow.
  */
 static inline void
-__wt_cache_decr_check_size(
-    WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld)
+__wt_cache_decr_check_size(WT_SESSION_IMPL *session, size_t *vp, size_t v, const char *fld)
 {
 	if (v == 0 || __wt_atomic_subsize(vp, v) < WT_EXABYTE)
 		return;
@@ -186,8 +183,7 @@ __wt_cache_decr_check_size(
 	 * to proceed - the consequence is we use more cache than configured.
 	 */
 	*vp = 0;
-	__wt_errx(session,
-	    "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
+	__wt_errx(session, "%s went negative with decrement of %" WT_SIZET_FMT, fld, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
@@ -199,8 +195,7 @@ __wt_cache_decr_check_size(
  *	Decrement a uint64_t cache value and check for underflow.
  */
 static inline void
-__wt_cache_decr_check_uint64(
-    WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
+__wt_cache_decr_check_uint64(WT_SESSION_IMPL *session, uint64_t *vp, uint64_t v, const char *fld)
 {
 	uint64_t orig = *vp;
 
@@ -212,9 +207,8 @@ __wt_cache_decr_check_uint64(
 	 * to proceed - the consequence is we use more cache than configured.
 	 */
 	*vp = 0;
-	__wt_errx(session,
-	    "%s was %" PRIu64 ", went negative with decrement of %" PRIu64, fld,
-	    orig, v);
+	__wt_errx(
+	    session, "%s was %" PRIu64 ", went negative with decrement of %" PRIu64, fld, orig, v);
 
 #ifdef HAVE_DIAGNOSTIC
 	__wt_abort(session);
@@ -226,8 +220,7 @@ __wt_cache_decr_check_uint64(
  *	Decrement the page's dirty byte count, guarding from underflow.
  */
 static inline void
-__wt_cache_page_byte_dirty_decr(
-    WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
+__wt_cache_page_byte_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 {
 	WT_BTREE *btree;
 	WT_CACHE *cache;
@@ -236,7 +229,7 @@ __wt_cache_page_byte_dirty_decr(
 
 	btree = S2BT(session);
 	cache = S2C(session)->cache;
-	decr = 0;			/* [-Wconditional-uninitialized] */
+	decr = 0; /* [-Wconditional-uninitialized] */
 
 	/*
 	 * We don't have exclusive access and there are ways of decrementing the
@@ -262,8 +255,7 @@ __wt_cache_page_byte_dirty_decr(
 		 */
 		WT_ORDERED_READ(orig, page->modify->bytes_dirty);
 		decr = WT_MIN(size, orig);
-		if (__wt_atomic_cassize(
-		    &page->modify->bytes_dirty, orig, orig - decr))
+		if (__wt_atomic_cassize(&page->modify->bytes_dirty, orig, orig - decr))
 			break;
 	}
 
@@ -271,15 +263,15 @@ __wt_cache_page_byte_dirty_decr(
 		return;
 
 	if (WT_PAGE_IS_INTERNAL(page)) {
-		__wt_cache_decr_check_uint64(session, &btree->bytes_dirty_intl,
-		    decr, "WT_BTREE.bytes_dirty_intl");
-		__wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl,
-		    decr, "WT_CACHE.bytes_dirty_intl");
+		__wt_cache_decr_check_uint64(
+		    session, &btree->bytes_dirty_intl, decr, "WT_BTREE.bytes_dirty_intl");
+		__wt_cache_decr_check_uint64(
+		    session, &cache->bytes_dirty_intl, decr, "WT_CACHE.bytes_dirty_intl");
 	} else if (!btree->lsm_primary) {
-		__wt_cache_decr_check_uint64(session, &btree->bytes_dirty_leaf,
-		    decr, "WT_BTREE.bytes_dirty_leaf");
-		__wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf,
-		    decr, "WT_CACHE.bytes_dirty_leaf");
+		__wt_cache_decr_check_uint64(
+		    session, &btree->bytes_dirty_leaf, decr, "WT_BTREE.bytes_dirty_leaf");
+		__wt_cache_decr_check_uint64(
+		    session, &cache->bytes_dirty_leaf, decr, "WT_CACHE.bytes_dirty_leaf");
 	}
 }
 
@@ -298,16 +290,15 @@ __wt_cache_page_inmem_decr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
 
 	__wt_cache_decr_check_uint64(
 	    session, &S2BT(session)->bytes_inmem, size, "WT_BTREE.bytes_inmem");
-	__wt_cache_decr_check_uint64(
-	    session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
+	__wt_cache_decr_check_uint64(session, &cache->bytes_inmem, size, "WT_CACHE.bytes_inmem");
 	__wt_cache_decr_check_size(
 	    session, &page->memory_footprint, size, "WT_PAGE.memory_footprint");
 	if (__wt_page_is_modified(page))
 		__wt_cache_page_byte_dirty_decr(session, page, size);
 	/* Track internal size in cache. */
 	if (WT_PAGE_IS_INTERNAL(page))
-		__wt_cache_decr_check_uint64(session,
-		    &cache->bytes_internal, size, "WT_CACHE.bytes_internal");
+		__wt_cache_decr_check_uint64(
+		    session, &cache->bytes_internal, size, "WT_CACHE.bytes_internal");
 }
 
 /*
@@ -360,16 +351,15 @@ __wt_cache_dirty_decr(WT_SESSION_IMPL *session, WT_PAGE *page)
 	cache = S2C(session)->cache;
 
 	if (WT_PAGE_IS_INTERNAL(page))
-		__wt_cache_decr_check_uint64(session,
-		    &cache->pages_dirty_intl, 1, "dirty internal page count");
+		__wt_cache_decr_check_uint64(
+		    session, &cache->pages_dirty_intl, 1, "dirty internal page count");
 	else
-		__wt_cache_decr_check_uint64(session,
-		    &cache->pages_dirty_leaf, 1, "dirty leaf page count");
+		__wt_cache_decr_check_uint64(
+		    session, &cache->pages_dirty_leaf, 1, "dirty leaf page count");
 
 	modify = page->modify;
 	if (modify != NULL && modify->bytes_dirty != 0)
-		__wt_cache_page_byte_dirty_decr(
-		    session, page, modify->bytes_dirty);
+		__wt_cache_page_byte_dirty_decr(session, page, modify->bytes_dirty);
 }
 
 /*
@@ -383,8 +373,7 @@ __wt_cache_page_image_decr(WT_SESSION_IMPL *session, uint32_t size)
 
 	cache = S2C(session)->cache;
 
-	__wt_cache_decr_check_uint64(
-	    session, &cache->bytes_image, size, "WT_CACHE.image_inmem");
+	__wt_cache_decr_check_uint64(session, &cache->bytes_image, size, "WT_CACHE.image_inmem");
 }
 
 /*
@@ -416,32 +405,27 @@ __wt_cache_page_evict(WT_SESSION_IMPL *session, WT_PAGE *page)
 	modify = page->modify;
 
 	/* Update the bytes in-memory to reflect the eviction. */
-	__wt_cache_decr_check_uint64(session, &btree->bytes_inmem,
-	    page->memory_footprint, "WT_BTREE.bytes_inmem");
-	__wt_cache_decr_check_uint64(session, &cache->bytes_inmem,
-	    page->memory_footprint, "WT_CACHE.bytes_inmem");
+	__wt_cache_decr_check_uint64(
+	    session, &btree->bytes_inmem, page->memory_footprint, "WT_BTREE.bytes_inmem");
+	__wt_cache_decr_check_uint64(
+	    session, &cache->bytes_inmem, page->memory_footprint, "WT_CACHE.bytes_inmem");
 
 	/* Update the bytes_internal value to reflect the eviction */
 	if (WT_PAGE_IS_INTERNAL(page))
-		__wt_cache_decr_check_uint64(session,
-		    &cache->bytes_internal,
+		__wt_cache_decr_check_uint64(session, &cache->bytes_internal,
 		    page->memory_footprint, "WT_CACHE.bytes_internal");
 
 	/* Update the cache's dirty-byte count. */
 	if (modify != NULL && modify->bytes_dirty != 0) {
 		if (WT_PAGE_IS_INTERNAL(page)) {
-			__wt_cache_decr_check_uint64(session,
-			    &btree->bytes_dirty_intl,
+			__wt_cache_decr_check_uint64(session, &btree->bytes_dirty_intl,
 			    modify->bytes_dirty, "WT_BTREE.bytes_dirty_intl");
-			__wt_cache_decr_check_uint64(session,
-			    &cache->bytes_dirty_intl,
+			__wt_cache_decr_check_uint64(session, &cache->bytes_dirty_intl,
 			    modify->bytes_dirty, "WT_CACHE.bytes_dirty_intl");
 		} else if (!btree->lsm_primary) {
-			__wt_cache_decr_check_uint64(session,
-			    &btree->bytes_dirty_leaf,
+			__wt_cache_decr_check_uint64(session, &btree->bytes_dirty_leaf,
 			    modify->bytes_dirty, "WT_BTREE.bytes_dirty_leaf");
-			__wt_cache_decr_check_uint64(session,
-			    &cache->bytes_dirty_leaf,
+			__wt_cache_decr_check_uint64(session, &cache->bytes_dirty_leaf,
 			    modify->bytes_dirty, "WT_CACHE.bytes_dirty_leaf");
 		}
 	}
@@ -480,8 +464,7 @@ __wt_update_list_memsize(WT_UPDATE *upd)
 static inline int
 __wt_page_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-	return (page->modify == NULL ?
-	    __wt_page_modify_alloc(session, page) : 0);
+	return (page->modify == NULL ? __wt_page_modify_alloc(session, page) : 0);
 }
 
 /*
@@ -606,8 +589,7 @@ __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Mark the parent page, and optionally the tree, dirty.
  */
 static inline int
-__wt_page_parent_modify_set(
-    WT_SESSION_IMPL *session, WT_REF *ref, bool page_only)
+__wt_page_parent_modify_set(WT_SESSION_IMPL *session, WT_REF *ref, bool page_only)
 {
 	WT_PAGE *parent;
 
@@ -642,8 +624,7 @@ __wt_off_page(WT_PAGE *page, const void *p)
 	 * There may be no underlying page, in which case the reference is
 	 * off-page by definition.
 	 */
-	return (page->dsk == NULL ||
-	    p < (void *)page->dsk ||
+	return (page->dsk == NULL || p < (void *)page->dsk ||
 	    p >= (void *)((uint8_t *)page->dsk + page->dsk->mem_size));
 }
 
@@ -674,37 +655,36 @@ __wt_ref_key(WT_PAGE *page, WT_REF *ref, void *keyp, size_t *sizep)
 {
 	uintptr_t v;
 
-	/*
-	 * An internal page key is in one of two places: if we instantiated the
-	 * key (for example, when reading the page), WT_REF.ref_ikey references
-	 * a WT_IKEY structure, otherwise WT_REF.ref_ikey references an on-page
-	 * key offset/length pair.
-	 *
-	 * Now the magic: allocated memory must be aligned to store any standard
-	 * type, and we expect some standard type to require at least quad-byte
-	 * alignment, so allocated memory should have some clear low-order bits.
-	 * On-page objects consist of an offset/length pair: the maximum page
-	 * size currently fits into 29 bits, so we use the low-order bits of the
-	 * pointer to mark the other bits of the pointer as encoding the key's
-	 * location and length.  This breaks if allocated memory isn't aligned,
-	 * of course.
-	 *
-	 * In this specific case, we use bit 0x01 to mark an on-page key, else
-	 * it's a WT_IKEY reference.  The bit pattern for internal row-store
-	 * on-page keys is:
-	 *	32 bits		key length
-	 *	31 bits		page offset of the key's bytes,
-	 *	 1 bits		flags
-	 */
-#define	WT_IK_FLAG			0x01
-#define	WT_IK_ENCODE_KEY_LEN(v)		((uintptr_t)(v) << 32)
-#define	WT_IK_DECODE_KEY_LEN(v)		((v) >> 32)
-#define	WT_IK_ENCODE_KEY_OFFSET(v)	((uintptr_t)(v) << 1)
-#define	WT_IK_DECODE_KEY_OFFSET(v)	(((v) & 0xFFFFFFFF) >> 1)
+/*
+ * An internal page key is in one of two places: if we instantiated the
+ * key (for example, when reading the page), WT_REF.ref_ikey references
+ * a WT_IKEY structure, otherwise WT_REF.ref_ikey references an on-page
+ * key offset/length pair.
+ *
+ * Now the magic: allocated memory must be aligned to store any standard
+ * type, and we expect some standard type to require at least quad-byte
+ * alignment, so allocated memory should have some clear low-order bits.
+ * On-page objects consist of an offset/length pair: the maximum page
+ * size currently fits into 29 bits, so we use the low-order bits of the
+ * pointer to mark the other bits of the pointer as encoding the key's
+ * location and length.  This breaks if allocated memory isn't aligned,
+ * of course.
+ *
+ * In this specific case, we use bit 0x01 to mark an on-page key, else
+ * it's a WT_IKEY reference.  The bit pattern for internal row-store
+ * on-page keys is:
+ *	32 bits		key length
+ *	31 bits		page offset of the key's bytes,
+ *	 1 bits		flags
+ */
+#define WT_IK_FLAG 0x01
+#define WT_IK_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
+#define WT_IK_DECODE_KEY_LEN(v) ((v) >> 32)
+#define WT_IK_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 1)
+#define WT_IK_DECODE_KEY_OFFSET(v) (((v)&0xFFFFFFFF) >> 1)
 	v = (uintptr_t)ref->ref_ikey;
 	if (v & WT_IK_FLAG) {
-		*(void **)keyp =
-		    WT_PAGE_REF_OFFSET(page, WT_IK_DECODE_KEY_OFFSET(v));
+		*(void **)keyp = WT_PAGE_REF_OFFSET(page, WT_IK_DECODE_KEY_OFFSET(v));
 		*sizep = WT_IK_DECODE_KEY_LEN(v);
 	} else {
 		*(void **)keyp = WT_IKEY_DATA(ref->ref_ikey);
@@ -725,8 +705,7 @@ __wt_ref_key_onpage_set(WT_PAGE *page, WT_REF *ref, WT_CELL_UNPACK *unpack)
 	 * See the comment in __wt_ref_key for an explanation of the magic.
 	 */
 	v = WT_IK_ENCODE_KEY_LEN(unpack->size) |
-	    WT_IK_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) |
-	    WT_IK_FLAG;
+	    WT_IK_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) | WT_IK_FLAG;
 	ref->ref_ikey = (void *)v;
 }
 
@@ -769,96 +748,95 @@ __wt_ref_key_clear(WT_REF *ref)
  * isn't cheaply available.
  */
 static inline bool
-__wt_row_leaf_key_info(WT_PAGE *page, void *copy,
-    WT_IKEY **ikeyp, WT_CELL **cellp, void *datap, size_t *sizep)
+__wt_row_leaf_key_info(
+    WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cellp, void *datap, size_t *sizep)
 {
 	WT_IKEY *ikey;
 	uintptr_t v;
 
 	v = (uintptr_t)copy;
 
-	/*
-	 * A row-store leaf page key is in one of two places: if instantiated,
-	 * the WT_ROW pointer references a WT_IKEY structure, otherwise, it
-	 * references an on-page offset.  Further, on-page keys are in one of
-	 * two states: if the key is a simple key (not an overflow key, prefix
-	 * compressed or Huffman encoded, all of which are likely), the key's
-	 * offset/size is encoded in the pointer.  Otherwise, the offset is to
-	 * the key's on-page cell.
-	 *
-	 * Now the magic: allocated memory must be aligned to store any standard
-	 * type, and we expect some standard type to require at least quad-byte
-	 * alignment, so allocated memory should have some clear low-order bits.
-	 * On-page objects consist of an offset/length pair: the maximum page
-	 * size currently fits into 29 bits, so we use the low-order bits of the
-	 * pointer to mark the other bits of the pointer as encoding the key's
-	 * location and length.  This breaks if allocated memory isn't aligned,
-	 * of course.
-	 *
-	 * In this specific case, we use bit 0x01 to mark an on-page cell, bit
-	 * 0x02 to mark an on-page key, 0x03 to mark an on-page key/value pair,
-	 * otherwise it's a WT_IKEY reference. The bit pattern for on-page cells
-	 * is:
-	 *	29 bits		page offset of the key's cell,
-	 *	 2 bits		flags
-	 *
-	 * The bit pattern for on-page keys is:
-	 *	32 bits		key length,
-	 *	29 bits		page offset of the key's bytes,
-	 *	 2 bits		flags
-	 *
-	 * But, while that allows us to skip decoding simple key cells, we also
-	 * want to skip decoding the value cell in the case where the value cell
-	 * is also simple/short.  We use bit 0x03 to mark an encoded on-page key
-	 * and value pair.  The bit pattern for on-page key/value pairs is:
-	 *	 9 bits		key length,
-	 *	13 bits		value length,
-	 *	20 bits		page offset of the key's bytes,
-	 *	20 bits		page offset of the value's bytes,
-	 *	 2 bits		flags
-	 *
-	 * These bit patterns are in-memory only, of course, so can be modified
-	 * (we could even tune for specific workloads).  Generally, the fields
-	 * are larger than the anticipated values being stored (512B keys, 8KB
-	 * values, 1MB pages), hopefully that won't be necessary.
-	 *
-	 * This function returns a list of things about the key (instantiation
-	 * reference, cell reference and key/length pair).  Our callers know
-	 * the order in which we look things up and the information returned;
-	 * for example, the cell will never be returned if we are working with
-	 * an on-page key.
-	 */
-#define	WT_CELL_FLAG			0x01
-#define	WT_CELL_ENCODE_OFFSET(v)	((uintptr_t)(v) << 2)
-#define	WT_CELL_DECODE_OFFSET(v)	(((v) & 0xFFFFFFFF) >> 2)
+/*
+ * A row-store leaf page key is in one of two places: if instantiated,
+ * the WT_ROW pointer references a WT_IKEY structure, otherwise, it
+ * references an on-page offset.  Further, on-page keys are in one of
+ * two states: if the key is a simple key (not an overflow key, prefix
+ * compressed or Huffman encoded, all of which are likely), the key's
+ * offset/size is encoded in the pointer.  Otherwise, the offset is to
+ * the key's on-page cell.
+ *
+ * Now the magic: allocated memory must be aligned to store any standard
+ * type, and we expect some standard type to require at least quad-byte
+ * alignment, so allocated memory should have some clear low-order bits.
+ * On-page objects consist of an offset/length pair: the maximum page
+ * size currently fits into 29 bits, so we use the low-order bits of the
+ * pointer to mark the other bits of the pointer as encoding the key's
+ * location and length.  This breaks if allocated memory isn't aligned,
+ * of course.
+ *
+ * In this specific case, we use bit 0x01 to mark an on-page cell, bit
+ * 0x02 to mark an on-page key, 0x03 to mark an on-page key/value pair,
+ * otherwise it's a WT_IKEY reference. The bit pattern for on-page cells
+ * is:
+ *	29 bits		page offset of the key's cell,
+ *	 2 bits		flags
+ *
+ * The bit pattern for on-page keys is:
+ *	32 bits		key length,
+ *	29 bits		page offset of the key's bytes,
+ *	 2 bits		flags
+ *
+ * But, while that allows us to skip decoding simple key cells, we also
+ * want to skip decoding the value cell in the case where the value cell
+ * is also simple/short.  We use bit 0x03 to mark an encoded on-page key
+ * and value pair.  The bit pattern for on-page key/value pairs is:
+ *	 9 bits		key length,
+ *	13 bits		value length,
+ *	20 bits		page offset of the key's bytes,
+ *	20 bits		page offset of the value's bytes,
+ *	 2 bits		flags
+ *
+ * These bit patterns are in-memory only, of course, so can be modified
+ * (we could even tune for specific workloads).  Generally, the fields
+ * are larger than the anticipated values being stored (512B keys, 8KB
+ * values, 1MB pages), hopefully that won't be necessary.
+ *
+ * This function returns a list of things about the key (instantiation
+ * reference, cell reference and key/length pair).  Our callers know
+ * the order in which we look things up and the information returned;
+ * for example, the cell will never be returned if we are working with
+ * an on-page key.
+ */
+#define WT_CELL_FLAG 0x01
+#define WT_CELL_ENCODE_OFFSET(v) ((uintptr_t)(v) << 2)
+#define WT_CELL_DECODE_OFFSET(v) (((v)&0xFFFFFFFF) >> 2)
 
-#define	WT_K_FLAG			0x02
-#define	WT_K_ENCODE_KEY_LEN(v)		((uintptr_t)(v) << 32)
-#define	WT_K_DECODE_KEY_LEN(v)		((v) >> 32)
-#define	WT_K_ENCODE_KEY_OFFSET(v)	((uintptr_t)(v) << 2)
-#define	WT_K_DECODE_KEY_OFFSET(v)	(((v) & 0xFFFFFFFF) >> 2)
+#define WT_K_FLAG 0x02
+#define WT_K_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 32)
+#define WT_K_DECODE_KEY_LEN(v) ((v) >> 32)
+#define WT_K_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 2)
+#define WT_K_DECODE_KEY_OFFSET(v) (((v)&0xFFFFFFFF) >> 2)
 
-#define	WT_KV_FLAG			0x03
-#define	WT_KV_ENCODE_KEY_LEN(v)		((uintptr_t)(v) << 55)
-#define	WT_KV_DECODE_KEY_LEN(v)		((v) >> 55)
-#define	WT_KV_MAX_KEY_LEN		(0x200 - 1)
-#define	WT_KV_ENCODE_VALUE_LEN(v)	((uintptr_t)(v) << 42)
-#define	WT_KV_DECODE_VALUE_LEN(v)	(((v) & 0x007FFC0000000000) >> 42)
-#define	WT_KV_MAX_VALUE_LEN		(0x2000 - 1)
-#define	WT_KV_ENCODE_KEY_OFFSET(v)	((uintptr_t)(v) << 22)
-#define	WT_KV_DECODE_KEY_OFFSET(v)	(((v) & 0x000003FFFFC00000) >> 22)
-#define	WT_KV_MAX_KEY_OFFSET		(0x100000 - 1)
-#define	WT_KV_ENCODE_VALUE_OFFSET(v)	((uintptr_t)(v) << 2)
-#define	WT_KV_DECODE_VALUE_OFFSET(v)	(((v) & 0x00000000003FFFFC) >> 2)
-#define	WT_KV_MAX_VALUE_OFFSET		(0x100000 - 1)
+#define WT_KV_FLAG 0x03
+#define WT_KV_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 55)
+#define WT_KV_DECODE_KEY_LEN(v) ((v) >> 55)
+#define WT_KV_MAX_KEY_LEN (0x200 - 1)
+#define WT_KV_ENCODE_VALUE_LEN(v) ((uintptr_t)(v) << 42)
+#define WT_KV_DECODE_VALUE_LEN(v) (((v)&0x007FFC0000000000) >> 42)
+#define WT_KV_MAX_VALUE_LEN (0x2000 - 1)
+#define WT_KV_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 22)
+#define WT_KV_DECODE_KEY_OFFSET(v) (((v)&0x000003FFFFC00000) >> 22)
+#define WT_KV_MAX_KEY_OFFSET (0x100000 - 1)
+#define WT_KV_ENCODE_VALUE_OFFSET(v) ((uintptr_t)(v) << 2)
+#define WT_KV_DECODE_VALUE_OFFSET(v) (((v)&0x00000000003FFFFC) >> 2)
+#define WT_KV_MAX_VALUE_OFFSET (0x100000 - 1)
 	switch (v & 0x03) {
 	case WT_CELL_FLAG:
 		/* On-page cell: no instantiated key. */
 		if (ikeyp != NULL)
 			*ikeyp = NULL;
 		if (cellp != NULL)
-			*cellp =
-			    WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+			*cellp = WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
 		if (datap != NULL) {
 			*(void **)datap = NULL;
 			*sizep = 0;
@@ -871,8 +849,7 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy,
 		if (ikeyp != NULL)
 			*ikeyp = NULL;
 		if (datap != NULL) {
-			*(void **)datap =
-			    WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_OFFSET(v));
+			*(void **)datap = WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_OFFSET(v));
 			*sizep = WT_K_DECODE_KEY_LEN(v);
 			return (true);
 		}
@@ -884,13 +861,11 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy,
 		if (ikeyp != NULL)
 			*ikeyp = NULL;
 		if (datap != NULL) {
-			*(void **)datap = WT_PAGE_REF_OFFSET(
-			    page, WT_KV_DECODE_KEY_OFFSET(v));
+			*(void **)datap = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_OFFSET(v));
 			*sizep = WT_KV_DECODE_KEY_LEN(v);
 			return (true);
 		}
 		return (false);
-
 	}
 
 	/* Instantiated key. */
@@ -920,8 +895,7 @@ __wt_row_leaf_key_set_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL *cell)
 	 * See the comment in __wt_row_leaf_key_info for an explanation of the
 	 * magic.
 	 */
-	v = WT_CELL_ENCODE_OFFSET(WT_PAGE_DISK_OFFSET(page, cell)) |
-	    WT_CELL_FLAG;
+	v = WT_CELL_ENCODE_OFFSET(WT_PAGE_DISK_OFFSET(page, cell)) | WT_CELL_FLAG;
 	WT_ASSERT(NULL, WT_ROW_SLOT(page, rip) < page->entries);
 	WT_ROW_KEY_SET(rip, v);
 }
@@ -940,8 +914,7 @@ __wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
 	 * magic.
 	 */
 	v = WT_K_ENCODE_KEY_LEN(unpack->size) |
-	    WT_K_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) |
-	    WT_K_FLAG;
+	    WT_K_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) | WT_K_FLAG;
 	WT_ASSERT(NULL, WT_ROW_SLOT(page, rip) < page->entries);
 	WT_ROW_KEY_SET(rip, v);
 }
@@ -961,26 +934,25 @@ __wt_row_leaf_value_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
 	 * See the comment in __wt_row_leaf_key_info for an explanation of the
 	 * magic.
 	 */
-	if (!(v & WT_K_FLAG))			/* Already an encoded key */
+	if (!(v & WT_K_FLAG)) /* Already an encoded key */
 		return;
 
-	key_len = WT_K_DECODE_KEY_LEN(v);	/* Key length */
+	key_len = WT_K_DECODE_KEY_LEN(v); /* Key length */
 	if (key_len > WT_KV_MAX_KEY_LEN)
 		return;
-	if (unpack->size > WT_KV_MAX_VALUE_LEN)	/* Value length */
+	if (unpack->size > WT_KV_MAX_VALUE_LEN) /* Value length */
 		return;
 
-	key_offset = WT_K_DECODE_KEY_OFFSET(v);	/* Page offsets */
+	key_offset = WT_K_DECODE_KEY_OFFSET(v); /* Page offsets */
 	if (key_offset > WT_KV_MAX_KEY_OFFSET)
 		return;
 	value_offset = WT_PAGE_DISK_OFFSET(page, unpack->data);
 	if (value_offset > WT_KV_MAX_VALUE_OFFSET)
 		return;
 
-	v = WT_KV_ENCODE_KEY_LEN(key_len) |
-	    WT_KV_ENCODE_VALUE_LEN(unpack->size) |
-	    WT_KV_ENCODE_KEY_OFFSET(key_offset) |
-	    WT_KV_ENCODE_VALUE_OFFSET(value_offset) | WT_KV_FLAG;
+	v = WT_KV_ENCODE_KEY_LEN(key_len) | WT_KV_ENCODE_VALUE_LEN(unpack->size) |
+	    WT_KV_ENCODE_KEY_OFFSET(key_offset) | WT_KV_ENCODE_VALUE_OFFSET(value_offset) |
+	    WT_KV_FLAG;
 	WT_ASSERT(NULL, WT_ROW_SLOT(page, rip) < page->entries);
 	WT_ROW_KEY_SET(rip, v);
 }
@@ -991,8 +963,8 @@ __wt_row_leaf_value_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
  * possible.
  */
 static inline int
-__wt_row_leaf_key(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_ROW *rip, WT_ITEM *key, bool instantiate)
+__wt_row_leaf_key(
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_ITEM *key, bool instantiate)
 {
 	void *copy;
 
@@ -1008,8 +980,7 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
 	 * and instantiated keys (which start out rare, but become more common
 	 * as a leaf page is searched, instantiating prefix-compressed keys).
 	 */
-	if (__wt_row_leaf_key_info(
-	    page, copy, NULL, NULL, &key->data, &key->size))
+	if (__wt_row_leaf_key_info(page, copy, NULL, NULL, &key->data, &key->size))
 		return (0);
 
 	/*
@@ -1025,8 +996,8 @@ __wt_row_leaf_key(WT_SESSION_IMPL *session,
  *	Return the unpacked value for a row-store leaf page key.
  */
 static inline void
-__wt_row_leaf_value_cell(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_CELL_UNPACK *vpack)
+__wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
+    WT_CELL_UNPACK *kpack, WT_CELL_UNPACK *vpack)
 {
 	WT_CELL *kcell, *vcell;
 	WT_CELL_UNPACK unpack;
@@ -1035,8 +1006,7 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session,
 
 	/* If we already have an unpacked key cell, use it. */
 	if (kpack != NULL)
-		vcell = (WT_CELL *)
-		    ((uint8_t *)kpack->cell + __wt_cell_total_len(kpack));
+		vcell = (WT_CELL *)((uint8_t *)kpack->cell + __wt_cell_total_len(kpack));
 	else {
 		/*
 		 * The row-store key can change underfoot; explicitly take a
@@ -1051,18 +1021,15 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session,
 		 * or on-page cell, both of which require an unpack of the key's
 		 * cell to find the value cell that follows.
 		 */
-		if (__wt_row_leaf_key_info(
-		    page, copy, NULL, &kcell, &key, &size) && kcell == NULL)
+		if (__wt_row_leaf_key_info(page, copy, NULL, &kcell, &key, &size) && kcell == NULL)
 			vcell = (WT_CELL *)((uint8_t *)key + size);
 		else {
 			__wt_cell_unpack(session, page, kcell, &unpack);
-			vcell = (WT_CELL *)((uint8_t *)
-			    unpack.cell + __wt_cell_total_len(&unpack));
+			vcell = (WT_CELL *)((uint8_t *)unpack.cell + __wt_cell_total_len(&unpack));
 		}
 	}
 
-	__wt_cell_unpack(session,
-	    page, __wt_cell_leaf_value_parse(page, vcell), vpack);
+	__wt_cell_unpack(session, page, __wt_cell_leaf_value_parse(page, vcell), vpack);
 }
 
 /*
@@ -1082,8 +1049,7 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 	 * magic.
 	 */
 	if ((v & 0x03) == WT_KV_FLAG) {
-		value->data =
-		    WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
+		value->data = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_VALUE_OFFSET(v));
 		value->size = WT_KV_DECODE_VALUE_LEN(v);
 		return (true);
 	}
@@ -1095,8 +1061,8 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
  *	Return the addr/size and type triplet for a reference.
  */
 static inline void
-__wt_ref_info(WT_SESSION_IMPL *session,
-    WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
+__wt_ref_info(
+    WT_SESSION_IMPL *session, WT_REF *ref, const uint8_t **addrp, size_t *sizep, u_int *typep)
 {
 	WT_ADDR *addr;
 	WT_CELL_UNPACK *unpack, _unpack;
@@ -1181,13 +1147,10 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 	if (page_del->txnid == WT_TXN_ABORTED)
 		return (false);
 	WT_ORDERED_READ(prepare_state, page_del->prepare_state);
-	if (prepare_state == WT_PREPARE_INPROGRESS ||
-	    prepare_state == WT_PREPARE_LOCKED)
+	if (prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED)
 		return (true);
-	return (visible_all ?
-	    !__wt_txn_visible_all(session,
-	    page_del->txnid, page_del->timestamp) :
-	    !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
+	return (visible_all ? !__wt_txn_visible_all(session, page_del->txnid, page_del->timestamp) :
+	                      !__wt_txn_visible(session, page_del->txnid, page_del->timestamp));
 }
 
 /*
@@ -1205,8 +1168,7 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 	if (!page_las->skew_newest || page_las->has_prepares)
 		return (true);
-	if (__wt_txn_visible_all(session, page_las->max_txn,
-	    page_las->max_timestamp))
+	if (__wt_txn_visible_all(session, page_las->max_txn, page_las->max_timestamp))
 		return (false);
 
 	return (true);
@@ -1289,22 +1251,19 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * items and the skiplist does not fit within a single disk page.
 	 */
 	ins_head = page->type == WT_PAGE_ROW_LEAF ?
-	    (page->entries == 0 ?
-	    WT_ROW_INSERT_SMALLEST(page) :
-	    WT_ROW_INSERT_SLOT(page, page->entries - 1)) :
+	    (page->entries == 0 ? WT_ROW_INSERT_SMALLEST(page) :
+	                          WT_ROW_INSERT_SLOT(page, page->entries - 1)) :
 	    WT_COL_APPEND(page);
 	if (ins_head == NULL)
 		return (false);
 
-	/*
-	 * In the extreme case, where the page is much larger than the maximum
-	 * size, split as soon as there are 5 items on the page.
-	 */
-#define	WT_MAX_SPLIT_COUNT	5
+/*
+ * In the extreme case, where the page is much larger than the maximum
+ * size, split as soon as there are 5 items on the page.
+ */
+#define WT_MAX_SPLIT_COUNT 5
 	if (page->memory_footprint > (size_t)btree->maxleafpage * 2) {
-		for (count = 0, ins = ins_head->head[0];
-		    ins != NULL;
-		    ins = ins->next[0]) {
+		for (count = 0, ins = ins_head->head[0]; ins != NULL; ins = ins->next[0]) {
 			if (++count < WT_MAX_SPLIT_COUNT)
 				continue;
 
@@ -1316,24 +1275,22 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
 		return (false);
 	}
 
-	/*
-	 * Rather than scanning the whole list, walk a higher level, which
-	 * gives a sample of the items -- at level 0 we have all the items, at
-	 * level 1 we have 1/4 and at level 2 we have 1/16th.  If we see more
-	 * than 30 items and more data than would fit in a disk page, split.
-	 */
-#define	WT_MIN_SPLIT_DEPTH	2
-#define	WT_MIN_SPLIT_COUNT	30
-#define	WT_MIN_SPLIT_MULTIPLIER 16      /* At level 2, we see 1/16th entries */
+/*
+ * Rather than scanning the whole list, walk a higher level, which
+ * gives a sample of the items -- at level 0 we have all the items, at
+ * level 1 we have 1/4 and at level 2 we have 1/16th.  If we see more
+ * than 30 items and more data than would fit in a disk page, split.
+ */
+#define WT_MIN_SPLIT_DEPTH 2
+#define WT_MIN_SPLIT_COUNT 30
+#define WT_MIN_SPLIT_MULTIPLIER 16 /* At level 2, we see 1/16th entries */
 
-	for (count = 0, size = 0, ins = ins_head->head[WT_MIN_SPLIT_DEPTH];
-	    ins != NULL;
-	    ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
+	for (count = 0, size = 0, ins = ins_head->head[WT_MIN_SPLIT_DEPTH]; ins != NULL;
+	     ins = ins->next[WT_MIN_SPLIT_DEPTH]) {
 		count += WT_MIN_SPLIT_MULTIPLIER;
 		size += WT_MIN_SPLIT_MULTIPLIER *
 		    (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
-		if (count > WT_MIN_SPLIT_COUNT &&
-		    size > (size_t)btree->maxleafpage) {
+		if (count > WT_MIN_SPLIT_COUNT && size > (size_t)btree->maxleafpage) {
 			WT_STAT_CONN_INCR(session, cache_inmem_splittable);
 			WT_STAT_DATA_INCR(session, cache_inmem_splittable);
 			return (true);
@@ -1359,8 +1316,7 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * If the page hasn't been through one round of update/restore, give it
 	 * a try.
 	 */
-	if ((mod = page->modify) == NULL ||
-	    !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
+	if ((mod = page->modify) == NULL || !FLD_ISSET(mod->restore_state, WT_PAGE_RS_RESTORED))
 		return (true);
 
 	/*
@@ -1459,8 +1415,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * locked exclusive (e.g., when the whole tree is being evicted).  In
 	 * that case, no readers can be looking at an old index.
 	 */
-	if (WT_PAGE_IS_INTERNAL(page) &&
-	    !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
+	if (WT_PAGE_IS_INTERNAL(page) && !F_ISSET(session->dhandle, WT_DHANDLE_EXCLUSIVE) &&
 	    __wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen))
 		return (false);
 
@@ -1468,8 +1423,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 	 * If the page is clean but has modifications that appear too new to
 	 * evict, skip it.
 	 */
-	if (!modified && !__wt_txn_visible_all(session,
-	    mod->rec_max_txn, mod->rec_max_timestamp))
+	if (!modified && !__wt_txn_visible_all(session, mod->rec_max_txn, mod->rec_max_timestamp))
 		return (false);
 
 	return (true);
@@ -1517,18 +1471,15 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * checkpointed, and no other thread can help with that.
 	 */
 	page = ref->page;
-	if (WT_READGEN_EVICT_SOON(page->read_gen) &&
-	    btree->evict_disabled == 0 &&
+	if (WT_READGEN_EVICT_SOON(page->read_gen) && btree->evict_disabled == 0 &&
 	    __wt_page_can_evict(session, ref, &inmem_split)) {
 		if (!__wt_page_evict_clean(page) &&
-		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
-		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
+		    (LF_ISSET(WT_READ_NO_SPLIT) ||
+		        (!inmem_split && F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
 			if (!WT_SESSION_BTREE_SYNC(session))
-				WT_IGNORE_RET(
-				    __wt_page_evict_urgent(session, ref));
+				WT_IGNORE_RET(__wt_page_evict_urgent(session, ref));
 		} else {
-			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref,
-			    flags));
+			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
 			return (0);
 		}
 	}
@@ -1545,8 +1496,7 @@ __wt_skip_choose_depth(WT_SESSION_IMPL *session)
 {
 	u_int d;
 
-	for (d = 1; d < WT_SKIP_MAXDEPTH &&
-	    __wt_random(&session->rnd) < WT_SKIP_PROBABILITY; d++)
+	for (d = 1; d < WT_SKIP_MAXDEPTH && __wt_random(&session->rnd) < WT_SKIP_PROBABILITY; d++)
 		;
 	return (d);
 }
@@ -1578,11 +1528,11 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 
 	/* Check for a tree with a single leaf page. */
 	WT_INTL_INDEX_GET(session, root, pindex);
-	if (pindex->entries != 1)		/* > 1 child page, switch */
+	if (pindex->entries != 1) /* > 1 child page, switch */
 		return (true);
 
 	first = pindex->index[0];
-	if (first->state != WT_REF_MEM)		/* no child page, ignore */
+	if (first->state != WT_REF_MEM) /* no child page, ignore */
 		return (false);
 
 	/*
@@ -1591,7 +1541,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
 	 * cannot disappear.
 	 */
 	child = first->page;
-	if (child->type != WT_PAGE_ROW_LEAF)	/* not a single leaf page */
+	if (child->type != WT_PAGE_ROW_LEAF) /* not a single leaf page */
 		return (true);
 
 	return (child->memory_footprint > maxsize);
@@ -1602,8 +1552,7 @@ __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t maxsize)
  *	Return if we raced with an internal page split when descending the tree.
  */
 static inline bool
-__wt_split_descent_race(
-    WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *saved_pindex)
+__wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX *saved_pindex)
 {
 	WT_PAGE_INDEX *pindex;
 
@@ -1685,10 +1634,10 @@ __wt_split_descent_race(
  * coupling up/down the tree.
  */
 static inline int
-__wt_page_swap_func(
-    WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
+__wt_page_swap_func(WT_SESSION_IMPL *session, WT_REF *held, WT_REF *want, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
-    , const char *func, int line
+    ,
+    const char *func, int line
 #endif
     )
 {
@@ -1711,7 +1660,8 @@ __wt_page_swap_func(
 	/* Get the wanted page. */
 	ret = __wt_page_in_func(session, want, flags
 #ifdef HAVE_DIAGNOSTIC
-	    , func, line
+	    ,
+	    func, line
 #endif
 	    );
 
@@ -1745,11 +1695,9 @@ __wt_page_swap_func(
 	 * page not having been released, and that's not the case.
 	 */
 	if (LF_ISSET(WT_READ_NOTFOUND_OK) && ret == WT_NOTFOUND)
-		WT_RET_MSG(session,
-		    EINVAL, "page-release WT_NOTFOUND error mapped to EINVAL");
+		WT_RET_MSG(session, EINVAL, "page-release WT_NOTFOUND error mapped to EINVAL");
 	if (LF_ISSET(WT_READ_RESTART_OK) && ret == WT_RESTART)
-		WT_RET_MSG(session,
-		    EINVAL, "page-release WT_RESTART error mapped to EINVAL");
+		WT_RET_MSG(session, EINVAL, "page-release WT_RESTART error mapped to EINVAL");
 
 	return (ret);
 }

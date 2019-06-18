@@ -56,7 +56,7 @@
 uint32_t
 __wt_nlpo2_round(uint32_t v)
 {
-	v--;				/* If v is a power-of-two, return it. */
+	v--; /* If v is a power-of-two, return it. */
 	v |= v >> 1;
 	v |= v >> 2;
 	v |= v >> 4;

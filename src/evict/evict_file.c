@@ -29,8 +29,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	 * We need exclusive access to the file, we're about to discard the root
 	 * page. Assert eviction has been locked out.
 	 */
-	WT_ASSERT(session,
-	    btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
+	WT_ASSERT(session, btree->evict_disabled > 0 || !F_ISSET(dhandle, WT_DHANDLE_OPEN));
 
 	/*
 	 * We do discard objects without pages in memory. If that's the case,
@@ -40,13 +39,11 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		return (0);
 
 	/* Make sure the oldest transaction ID is up-to-date. */
-	WT_RET(__wt_txn_update_oldest(
-	    session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
+	WT_RET(__wt_txn_update_oldest(session, WT_TXN_OLDEST_STRICT | WT_TXN_OLDEST_WAIT));
 
 	/* Walk the tree, discarding pages. */
 	walk_flags =
-	    WT_READ_CACHE | WT_READ_NO_EVICT |
-	    (syncop == WT_SYNC_CLOSE ? WT_READ_LOOKASIDE : 0);
+	    WT_READ_CACHE | WT_READ_NO_EVICT | (syncop == WT_SYNC_CLOSE ? WT_READ_LOOKASIDE : 0);
 	next_ref = NULL;
 	WT_ERR(__wt_tree_walk(session, &next_ref, walk_flags));
 	while ((ref = next_ref) != NULL) {
@@ -73,8 +70,8 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * error, retrying later.
 		 */
 		if (syncop == WT_SYNC_CLOSE && __wt_page_is_modified(page))
-			WT_ERR(__wt_reconcile(session, ref, NULL,
-			    WT_REC_EVICT | WT_REC_VISIBLE_ALL, NULL));
+			WT_ERR(__wt_reconcile(
+			    session, ref, NULL, WT_REC_EVICT | WT_REC_VISIBLE_ALL, NULL));
 
 		/*
 		 * We can't evict the page just returned to us (it marks our
@@ -95,17 +92,15 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 * Ensure the ref state is restored to the previous
 			 * value if eviction fails.
 			 */
-			WT_ERR(__wt_evict(session, ref, ref->state,
-			    WT_EVICT_CALL_CLOSING));
+			WT_ERR(__wt_evict(session, ref, ref->state, WT_EVICT_CALL_CLOSING));
 			break;
 		case WT_SYNC_DISCARD:
 			/*
 			 * Discard the page regardless of whether it is dirty.
 			 */
-			WT_ASSERT(session,
-			    F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-			    F_ISSET(S2C(session), WT_CONN_CLOSING) ||
-			    __wt_page_can_evict(session, ref, NULL));
+			WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+			        F_ISSET(S2C(session), WT_CONN_CLOSING) ||
+			        __wt_page_can_evict(session, ref, NULL));
 			__wt_ref_out(session, ref);
 			break;
 		case WT_SYNC_CHECKPOINT:
@@ -116,10 +111,9 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	}
 
 	if (0) {
-err:		/* On error, clear any left-over tree walk. */
+	err: /* On error, clear any left-over tree walk. */
 		if (next_ref != NULL)
-			WT_TRET(__wt_page_release(
-			    session, next_ref, walk_flags));
+			WT_TRET(__wt_page_release(session, next_ref, walk_flags));
 	}
 
 	return (ret);

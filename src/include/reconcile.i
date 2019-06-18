@@ -6,11 +6,10 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_CROSSING_MIN_BND(r, next_len)				\
-	((r)->cur_ptr->min_offset == 0 &&				\
-	    (next_len) > (r)->min_space_avail)
-#define	WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
-#define	WT_CHECK_CROSSING_BND(r, next_len)				\
+#define WT_CROSSING_MIN_BND(r, next_len) \
+	((r)->cur_ptr->min_offset == 0 && (next_len) > (r)->min_space_avail)
+#define WT_CROSSING_SPLIT_BND(r, next_len) ((next_len) > (r)->space_avail)
+#define WT_CHECK_CROSSING_BND(r, next_len) \
 	(WT_CROSSING_MIN_BND(r, next_len) || WT_CROSSING_SPLIT_BND(r, next_len))
 
 /*
@@ -48,8 +47,8 @@ __wt_rec_need_split(WT_RECONCILE *r, size_t len)
  */
 static inline void
 __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *newest_durable_ts,
-    wt_timestamp_t *oldest_start_tsp, uint64_t *oldest_start_txnp,
-    wt_timestamp_t *newest_stop_tsp, uint64_t *newest_stop_txnp)
+    wt_timestamp_t *oldest_start_tsp, uint64_t *oldest_start_txnp, wt_timestamp_t *newest_stop_tsp,
+    uint64_t *newest_stop_txnp)
 {
 	/*
 	 * If the page format supports address timestamps (and not fixed-length
@@ -78,19 +77,14 @@ __wt_rec_addr_ts_init(WT_RECONCILE *r, wt_timestamp_t *newest_durable_ts,
  */
 static inline void
 __wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t newest_durable_ts,
-    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn,
-    wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn)
+    wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts,
+    uint64_t newest_stop_txn)
 {
-	r->cur_ptr->newest_durable_ts =
-	    WT_MAX(newest_durable_ts, r->cur_ptr->newest_durable_ts);
-	r->cur_ptr->oldest_start_ts =
-	    WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
-	r->cur_ptr->oldest_start_txn =
-	    WT_MIN(oldest_start_txn, r->cur_ptr->oldest_start_txn);
-	r->cur_ptr->newest_stop_ts =
-	    WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
-	r->cur_ptr->newest_stop_txn =
-	    WT_MAX(newest_stop_txn, r->cur_ptr->newest_stop_txn);
+	r->cur_ptr->newest_durable_ts = WT_MAX(newest_durable_ts, r->cur_ptr->newest_durable_ts);
+	r->cur_ptr->oldest_start_ts = WT_MIN(oldest_start_ts, r->cur_ptr->oldest_start_ts);
+	r->cur_ptr->oldest_start_txn = WT_MIN(oldest_start_txn, r->cur_ptr->oldest_start_txn);
+	r->cur_ptr->newest_stop_ts = WT_MAX(newest_stop_ts, r->cur_ptr->newest_stop_ts);
+	r->cur_ptr->newest_stop_txn = WT_MAX(newest_stop_txn, r->cur_ptr->newest_stop_txn);
 }
 
 /*
@@ -98,16 +92,15 @@ __wt_rec_addr_ts_update(WT_RECONCILE *r, wt_timestamp_t newest_durable_ts,
  *	Update the memory tracking structure for a set of new entries.
  */
 static inline void
-__wt_rec_incr(
-    WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
+__wt_rec_incr(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size)
 {
 	/*
 	 * The buffer code is fragile and prone to off-by-one errors -- check
 	 * for overflow in diagnostic mode.
 	 */
 	WT_ASSERT(session, r->space_avail >= size);
-	WT_ASSERT(session, WT_BLOCK_FITS(r->first_free, size,
-	    r->cur_ptr->image.mem, r->cur_ptr->image.memsize));
+	WT_ASSERT(session,
+	    WT_BLOCK_FITS(r->first_free, size, r->cur_ptr->image.mem, r->cur_ptr->image.memsize));
 
 	r->entries += v;
 	r->space_avail -= size;
@@ -143,8 +136,7 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
 	 * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do
 	 * the copy in-line.
 	 */
-	for (p = r->first_free,
-	    t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
+	for (p = r->first_free, t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
 		*p++ = *t++;
 
 	/* The data can be quite large -- call memcpy. */
@@ -161,8 +153,8 @@ __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv)
  *	on the page.
  */
 static inline void
-__wt_rec_cell_build_addr(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_ADDR *addr, bool proxy_cell, uint64_t recno)
+__wt_rec_cell_build_addr(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *addr, bool proxy_cell, uint64_t recno)
 {
 	WT_REC_KV *val;
 	u_int cell_type;
@@ -206,9 +198,8 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session,
 	 */
 	val->buf.data = addr->addr;
 	val->buf.size = addr->size;
-	val->cell_len = __wt_cell_pack_addr(
-	    session, &val->cell, cell_type, recno, addr->newest_durable_ts,
-	    addr->oldest_start_ts, addr->oldest_start_txn,
+	val->cell_len = __wt_cell_pack_addr(session, &val->cell, cell_type, recno,
+	    addr->newest_durable_ts, addr->oldest_start_ts, addr->oldest_start_txn,
 	    addr->newest_stop_ts, addr->newest_stop_txn, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 }
@@ -219,10 +210,9 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session,
  *	be stored on the page.
  */
 static inline int
-__wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    const void *data, size_t size,
-    wt_timestamp_t start_ts, uint64_t start_txn,
-    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
+__wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size,
+    wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn,
+    uint64_t rle)
 {
 	WT_BTREE *btree;
 	WT_REC_KV *val;
@@ -242,21 +232,19 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	if (size != 0) {
 		/* Optionally compress the data using the Huffman engine. */
 		if (btree->huffman_value != NULL)
-			WT_RET(__wt_huffman_encode(
-			    session, btree->huffman_value,
-			    val->buf.data, (uint32_t)val->buf.size, &val->buf));
+			WT_RET(__wt_huffman_encode(session, btree->huffman_value, val->buf.data,
+			    (uint32_t)val->buf.size, &val->buf));
 
 		/* Create an overflow object if the data won't fit. */
 		if (val->buf.size > btree->maxleafvalue) {
 			WT_STAT_DATA_INCR(session, rec_overflow_value);
 
-			return (__wt_rec_cell_build_ovfl(session, r, val,
-			    WT_CELL_VALUE_OVFL,
+			return (__wt_rec_cell_build_ovfl(session, r, val, WT_CELL_VALUE_OVFL,
 			    start_ts, start_txn, stop_ts, stop_txn, rle));
 		}
 	}
-	val->cell_len = __wt_cell_pack_value(session, &val->cell,
-	    start_ts, start_txn, stop_ts, stop_txn, rle, val->buf.size);
+	val->cell_len = __wt_cell_pack_value(
+	    session, &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle, val->buf.size);
 	val->len = val->cell_len + val->buf.size;
 
 	return (0);
@@ -267,9 +255,8 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
  *	Check for a dictionary match.
  */
 static inline int
-__wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    wt_timestamp_t start_ts, uint64_t start_txn,
-    wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
+__wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r, wt_timestamp_t start_ts,
+    uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle, WT_REC_KV *val)
 {
 	WT_REC_DICTIONARY *dp;
 	uint64_t offset;
@@ -309,11 +296,10 @@ __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 		 * matching cell, NOT the byte offset from the beginning of the
 		 * page.
 		 */
-		offset = (uint64_t)WT_PTRDIFF(r->first_free,
-		    (uint8_t *)r->cur_ptr->image.mem + dp->offset);
-		val->len = val->cell_len = __wt_cell_pack_copy(session,
-		    &val->cell,
-		    start_ts, start_txn, stop_ts, stop_txn, rle, offset);
+		offset = (uint64_t)WT_PTRDIFF(
+		    r->first_free, (uint8_t *)r->cur_ptr->image.mem + dp->offset);
+		val->len = val->cell_len = __wt_cell_pack_copy(
+		    session, &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle, offset);
 		val->buf.data = NULL;
 		val->buf.size = 0;
 	}

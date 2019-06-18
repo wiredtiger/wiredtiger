@@ -97,8 +97,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 	 * check.
 	 */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (pause_cnt = 0,
-	    s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
+	for (pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
 		if (!s->active)
 			continue;
 
@@ -158,8 +157,8 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
 	 * check.
 	 */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (oldest = conn->generations[which] + 1,
-	    s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
+	for (oldest = conn->generations[which] + 1, s = conn->sessions, i = 0; i < session_cnt;
+	     ++s, ++i) {
 		if (!s->active)
 			continue;
 
@@ -279,8 +278,7 @@ __stash_discard(WT_SESSION_IMPL *session, int which)
 	/* Get the resource's oldest generation. */
 	oldest = __gen_oldest(session, which);
 
-	for (i = 0,
-	    stash = session_stash->list; i < session_stash->cnt; ++i, ++stash) {
+	for (i = 0, stash = session_stash->list; i < session_stash->cnt; ++i, ++stash) {
 		if (stash->p == NULL)
 			continue;
 		/*
@@ -306,8 +304,7 @@ __stash_discard(WT_SESSION_IMPL *session, int which)
 	 */
 	if (i > 100 || i == session_stash->cnt)
 		if ((session_stash->cnt -= i) > 0)
-			memmove(session_stash->list, stash,
-			    session_stash->cnt * sizeof(*stash));
+			memmove(session_stash->list, stash, session_stash->cnt * sizeof(*stash));
 }
 
 /*
@@ -332,8 +329,7 @@ __wt_stash_discard(WT_SESSION_IMPL *session)
  *	Add a new entry into a session stash list.
  */
 int
-__wt_stash_add(WT_SESSION_IMPL *session,
-    int which, uint64_t generation, void *p, size_t len)
+__wt_stash_add(WT_SESSION_IMPL *session, int which, uint64_t generation, void *p, size_t len)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_SESSION_STASH *session_stash;
@@ -343,8 +339,8 @@ __wt_stash_add(WT_SESSION_IMPL *session,
 	session_stash = &session->stash[which];
 
 	/* Grow the list as necessary. */
-	WT_RET(__wt_realloc_def(session, &session_stash->alloc,
-	    session_stash->cnt + 1, &session_stash->list));
+	WT_RET(__wt_realloc_def(
+	    session, &session_stash->alloc, session_stash->cnt + 1, &session_stash->list));
 
 	/*
 	 * If no caller stashes memory with a lower generation than a previously
@@ -389,8 +385,7 @@ __wt_stash_discard_all(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *session)
 	for (which = 0; which < WT_GENERATIONS; ++which) {
 		session_stash = &session->stash[which];
 
-		for (i = 0, stash = session_stash->list;
-		    i < session_stash->cnt; ++i, ++stash)
+		for (i = 0, stash = session_stash->list; i < session_stash->cnt; ++i, ++stash)
 			__wt_free(session_safe, stash->p);
 
 		__wt_free(session_safe, session_stash->list);

@@ -6,8 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
-#ifndef	__WIREDTIGER_EXT_H_
-#define	__WIREDTIGER_EXT_H_
+#ifndef __WIREDTIGER_EXT_H_
+#define __WIREDTIGER_EXT_H_
 
 #include <wiredtiger.h>
 
@@ -26,17 +26,17 @@ extern "C" {
  * Read-committed isolation level, returned by
  * WT_EXTENSION_API::transaction_isolation_level.
  */
-#define	WT_TXN_ISO_READ_COMMITTED       1
+#define WT_TXN_ISO_READ_COMMITTED 1
 /*!
  * Read-uncommitted isolation level, returned by
  * WT_EXTENSION_API::transaction_isolation_level.
  */
-#define	WT_TXN_ISO_READ_UNCOMMITTED     2
+#define WT_TXN_ISO_READ_UNCOMMITTED 2
 /*!
  * Snapshot isolation level, returned by
  * WT_EXTENSION_API::transaction_isolation_level.
  */
-#define	WT_TXN_ISO_SNAPSHOT             3
+#define WT_TXN_ISO_SNAPSHOT 3
 
 typedef struct __wt_txn_notify WT_TXN_NOTIFY;
 /*!
@@ -54,8 +54,7 @@ struct __wt_txn_notify {
 	 * @param committed an integer value which is non-zero if the
 	 * transaction is being committed.
 	 */
-	int (*notify)(WT_TXN_NOTIFY *notify, WT_SESSION *session,
-	    uint64_t txnid, int committed);
+	int (*notify)(WT_TXN_NOTIFY *notify, WT_SESSION *session, uint64_t txnid, int committed);
 };
 
 /*!
@@ -89,7 +88,7 @@ struct __wt_extension_api {
 	/*
 	 * Private fields.
 	 */
-	WT_CONNECTION *conn;		/* Enclosing connection */
+	WT_CONNECTION *conn; /* Enclosing connection */
 #endif
 	/*!
 	 * Insert an error message into the WiredTiger error stream.
@@ -101,8 +100,7 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION_API err_printf
 	 */
-	int (*err_printf)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *fmt, ...);
+	int (*err_printf)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *fmt, ...);
 
 	/*!
 	 * Insert a message into the WiredTiger message stream.
@@ -114,8 +112,7 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION_API msg_printf
 	 */
-	int (*msg_printf)(
-	    WT_EXTENSION_API *, WT_SESSION *session, const char *fmt, ...);
+	int (*msg_printf)(WT_EXTENSION_API *, WT_SESSION *session, const char *fmt, ...);
 
 	/*!
 	 * Return information about an error as a string.
@@ -127,8 +124,7 @@ struct __wt_extension_api {
 	 * @param error a return value from a WiredTiger function
 	 * @returns a string representation of the error
 	 */
-	const char *(*strerror)(
-	    WT_EXTENSION_API *, WT_SESSION *session, int error);
+	const char *(*strerror)(WT_EXTENSION_API *, WT_SESSION *session, int error);
 
 	/*!
 	 * Map a Windows system error code to a POSIX 1003.1/ANSI C error.
@@ -140,8 +136,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION_API map_windows_error
 	 */
-	int (*map_windows_error)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, uint32_t windows_error);
+	int (*map_windows_error)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, uint32_t windows_error);
 
 	/*!
 	 * Allocate short-term use scratch memory.
@@ -153,8 +149,7 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION_API scr_alloc
 	 */
-	void *(*scr_alloc)(
-	    WT_EXTENSION_API *wt_api, WT_SESSION *session, size_t bytes);
+	void *(*scr_alloc)(WT_EXTENSION_API *wt_api, WT_SESSION *session, size_t bytes);
 
 	/*!
 	 * Free short-term use scratch memory.
@@ -181,9 +176,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION collator config
 	 */
-	int (*collator_config)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    const char *uri, WT_CONFIG_ARG *config,
-	    WT_COLLATOR **collatorp, int *ownp);
+	int (*collator_config)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *uri,
+	    WT_CONFIG_ARG *config, WT_COLLATOR **collatorp, int *ownp);
 
 	/*!
 	 * The extension collator method.
@@ -200,8 +194,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION collate
 	 */
-	int (*collate)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    WT_COLLATOR *collator, WT_ITEM *first, WT_ITEM *second, int *cmp);
+	int (*collate)(WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_COLLATOR *collator,
+	    WT_ITEM *first, WT_ITEM *second, int *cmp);
 
 	/*!
 	 * Return the value of a configuration key.
@@ -215,8 +209,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION config_get
 	 */
-	int (*config_get)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    WT_CONFIG_ARG *config, const char *key, WT_CONFIG_ITEM *value);
+	int (*config_get)(WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_CONFIG_ARG *config,
+	    const char *key, WT_CONFIG_ITEM *value);
 
 	/*!
 	 * Return the value of a configuration key from a string.
@@ -230,21 +224,20 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION config_get
 	 */
-	int (*config_get_string)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    const char *config, const char *key, WT_CONFIG_ITEM *value);
+	int (*config_get_string)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *config,
+	    const char *key, WT_CONFIG_ITEM *value);
 
 	/*!
 	 * @copydoc wiredtiger_config_parser_open
 	 */
-	int (*config_parser_open)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    const char *config, size_t len, WT_CONFIG_PARSER **config_parserp);
+	int (*config_parser_open)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *config,
+	    size_t len, WT_CONFIG_PARSER **config_parserp);
 
 	/*!
 	 * @copydoc wiredtiger_config_parser_open
 	 */
-	int (*config_parser_open_arg)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, WT_CONFIG_ARG *config,
-	    WT_CONFIG_PARSER **config_parserp);
+	int (*config_parser_open_arg)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
+	    WT_CONFIG_ARG *config, WT_CONFIG_PARSER **config_parserp);
 
 	/*!
 	 * Insert a row into the metadata if it does not already exist.
@@ -257,8 +250,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION metadata insert
 	 */
-	int (*metadata_insert)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *key, const char *value);
+	int (*metadata_insert)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *key, const char *value);
 
 	/*!
 	 * Remove a row from the metadata.
@@ -270,8 +263,7 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION metadata remove
 	 */
-	int (*metadata_remove)(
-	    WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *key);
+	int (*metadata_remove)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *key);
 
 	/*!
 	 * Return a row from the metadata.
@@ -284,8 +276,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION metadata search
 	 */
-	int (*metadata_search)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *key, char **valuep);
+	int (*metadata_search)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *key, char **valuep);
 
 	/*!
 	 * Update a row in the metadata by either inserting a new record or
@@ -299,8 +291,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION metadata update
 	 */
-	int (*metadata_update)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *key, const char *value);
+	int (*metadata_update)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *key, const char *value);
 
 	/*!
 	 * Pack a structure into a buffer. Deprecated in favor of stream
@@ -314,8 +306,8 @@ struct __wt_extension_api {
 	 * @param format the data format, see @ref packing
 	 * @errors
 	 */
-	int (*struct_pack)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    void *buffer, size_t size, const char *format, ...);
+	int (*struct_pack)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void *buffer, size_t size,
+	    const char *format, ...);
 
 	/*!
 	 * Calculate the size required to pack a structure. Deprecated in
@@ -328,8 +320,8 @@ struct __wt_extension_api {
 	 * @param format the data format, see @ref packing
 	 * @errors
 	 */
-	int (*struct_size)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    size_t *sizep, const char *format, ...);
+	int (*struct_size)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, size_t *sizep, const char *format, ...);
 
 	/*!
 	 * Unpack a structure from a buffer. Deprecated in favor of stream
@@ -343,8 +335,8 @@ struct __wt_extension_api {
 	 * @param format the data format, see @ref packing
 	 * @errors
 	 */
-	int (*struct_unpack)(WT_EXTENSION_API *wt_api, WT_SESSION *session,
-	    const void *buffer, size_t size, const char *format, ...);
+	int (*struct_unpack)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const void *buffer,
+	    size_t size, const char *format, ...);
 
 	/*
 	 * Streaming pack/unpack API.
@@ -360,8 +352,7 @@ struct __wt_extension_api {
 	 * @param[out] psp the new packing stream handle
 	 * @errors
 	 */
-	int (*pack_start)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *format,
+	int (*pack_start)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *format,
 	    void *buffer, size_t size, WT_PACK_STREAM **psp);
 
 	/*!
@@ -375,8 +366,7 @@ struct __wt_extension_api {
 	 * @param[out] psp the new packing stream handle
 	 * @errors
 	 */
-	int (*unpack_start)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, const char *format,
+	int (*unpack_start)(WT_EXTENSION_API *wt_api, WT_SESSION *session, const char *format,
 	    const void *buffer, size_t size, WT_PACK_STREAM **psp);
 
 	/*!
@@ -387,8 +377,7 @@ struct __wt_extension_api {
 	 * stream
 	 * @errors
 	 */
-	int (*pack_close)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, size_t *usedp);
+	int (*pack_close)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, size_t *usedp);
 
 	/*!
 	 * Pack an item into a packing stream.
@@ -397,8 +386,7 @@ struct __wt_extension_api {
 	 * @param item an item to pack
 	 * @errors
 	 */
-	int (*pack_item)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, WT_ITEM *item);
+	int (*pack_item)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, WT_ITEM *item);
 
 	/*!
 	 * Pack a signed integer into a packing stream.
@@ -407,8 +395,7 @@ struct __wt_extension_api {
 	 * @param i a signed integer to pack
 	 * @errors
 	 */
-	int (*pack_int)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, int64_t i);
+	int (*pack_int)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, int64_t i);
 
 	/*!
 	 * Pack a string into a packing stream.
@@ -417,8 +404,7 @@ struct __wt_extension_api {
 	 * @param s a string to pack
 	 * @errors
 	 */
-	int (*pack_str)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, const char *s);
+	int (*pack_str)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, const char *s);
 
 	/*!
 	 * Pack an unsigned integer into a packing stream.
@@ -427,8 +413,7 @@ struct __wt_extension_api {
 	 * @param u an unsigned integer to pack
 	 * @errors
 	 */
-	int (*pack_uint)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, uint64_t u);
+	int (*pack_uint)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, uint64_t u);
 
 	/*!
 	 * Unpack an item from a packing stream.
@@ -437,8 +422,7 @@ struct __wt_extension_api {
 	 * @param item an item to unpack
 	 * @errors
 	 */
-	int (*unpack_item)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, WT_ITEM *item);
+	int (*unpack_item)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, WT_ITEM *item);
 
 	/*!
 	 * Unpack a signed integer from a packing stream.
@@ -447,8 +431,7 @@ struct __wt_extension_api {
 	 * @param[out] ip the unpacked signed integer
 	 * @errors
 	 */
-	int (*unpack_int)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, int64_t *ip);
+	int (*unpack_int)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, int64_t *ip);
 
 	/*!
 	 * Unpack a string from a packing stream.
@@ -457,8 +440,7 @@ struct __wt_extension_api {
 	 * @param[out] sp the unpacked string
 	 * @errors
 	 */
-	int (*unpack_str)(WT_EXTENSION_API *wt_api,
-	    WT_PACK_STREAM *ps, const char **sp);
+	int (*unpack_str)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, const char **sp);
 
 	/*!
 	 * Unpack an unsigned integer from a packing stream.
@@ -467,8 +449,7 @@ struct __wt_extension_api {
 	 * @param[out] up the unpacked unsigned integer
 	 * @errors
 	 */
-	int (*unpack_uint)(WT_EXTENSION_API *wt_api,
-	     WT_PACK_STREAM *ps, uint64_t *up);
+	int (*unpack_uint)(WT_EXTENSION_API *wt_api, WT_PACK_STREAM *ps, uint64_t *up);
 
 	/*!
 	 * Return the current transaction ID.
@@ -479,8 +460,7 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION transaction ID
 	 */
-	uint64_t (*transaction_id)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session);
+	uint64_t (*transaction_id)(WT_EXTENSION_API *wt_api, WT_SESSION *session);
 
 	/*!
 	 * Return the current transaction's isolation level; returns one of
@@ -493,8 +473,7 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION transaction isolation level
 	 */
-	int (*transaction_isolation_level)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session);
+	int (*transaction_isolation_level)(WT_EXTENSION_API *wt_api, WT_SESSION *session);
 
 	/*!
 	 * Request notification of transaction resolution by specifying a
@@ -510,8 +489,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION transaction notify
 	 */
-	int (*transaction_notify)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, WT_TXN_NOTIFY *notify);
+	int (*transaction_notify)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_TXN_NOTIFY *notify);
 
 	/*!
 	 * Return the oldest transaction ID not yet visible to a running
@@ -537,8 +516,8 @@ struct __wt_extension_api {
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION transaction visible
 	 */
-	int (*transaction_visible)(WT_EXTENSION_API *wt_api,
-	    WT_SESSION *session, uint64_t transaction_id);
+	int (*transaction_visible)(
+	    WT_EXTENSION_API *wt_api, WT_SESSION *session, uint64_t transaction_id);
 
 	/*!
 	 * @copydoc wiredtiger_version

@@ -13,8 +13,8 @@
  *	Create a new thread of control.
  */
 int
-__wt_thread_create(WT_SESSION_IMPL *session,
-    wt_thread_t *tidret, WT_THREAD_CALLBACK(*func)(void *), void *arg)
+__wt_thread_create(
+    WT_SESSION_IMPL *session, wt_thread_t *tidret, WT_THREAD_CALLBACK (*func)(void *), void *arg)
 {
 	/*
 	 * Creating a thread isn't a memory barrier, but WiredTiger commonly
@@ -55,8 +55,7 @@ __wt_thread_join(WT_SESSION_IMPL *session, wt_thread_t *tid)
 	 */
 	WT_FULL_BARRIER();
 
-	if ((windows_error =
-	    WaitForSingleObject(tid->id, INFINITE)) != WAIT_OBJECT_0) {
+	if ((windows_error = WaitForSingleObject(tid->id, INFINITE)) != WAIT_OBJECT_0) {
 		if (windows_error == WAIT_FAILED)
 			windows_error = __wt_getlasterror();
 		__wt_err(session, __wt_map_windows_error(windows_error),
@@ -95,9 +94,8 @@ __wt_thread_id(uintmax_t *id)
 int
 __wt_thread_str(char *buf, size_t buflen)
 {
-	return (__wt_snprintf(buf, buflen,
-	    "%" PRIu64 ":%" PRIu64,
-	    (uint64_t)GetCurrentProcessId(), (uint64_t)GetCurrentThreadId));
+	return (__wt_snprintf(buf, buflen, "%" PRIu64 ":%" PRIu64, (uint64_t)GetCurrentProcessId(),
+	    (uint64_t)GetCurrentThreadId));
 }
 
 /*

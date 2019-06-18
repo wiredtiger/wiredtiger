@@ -15,8 +15,7 @@ static int __desc_read(WT_SESSION_IMPL *, uint32_t allocsize, WT_BLOCK *);
  *	Drop a file.
  */
 int
-__wt_block_manager_drop(
-    WT_SESSION_IMPL *session, const char *filename, bool durable)
+__wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filename, bool durable)
 {
 	return (__wt_remove_if_exists(session, filename, durable));
 }
@@ -26,8 +25,7 @@ __wt_block_manager_drop(
  *	Create a file.
  */
 int
-__wt_block_manager_create(
-    WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize)
+__wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32_t allocsize)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -44,23 +42,19 @@ __wt_block_manager_create(
 	 * in our space. Move any existing files out of the way and complain.
 	 */
 	for (;;) {
-		if ((ret = __wt_open(session, filename,
-		    WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_CREATE |
-		    WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
+		if ((ret = __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
+		         WT_FS_OPEN_CREATE | WT_FS_OPEN_DURABLE | WT_FS_OPEN_EXCLUSIVE, &fh)) == 0)
 			break;
 		WT_ERR_TEST(ret != EEXIST, ret);
 
 		if (tmp == NULL)
 			WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 		for (suffix = 1;; ++suffix) {
-			WT_ERR(__wt_buf_fmt(
-			    session, tmp, "%s.%d", filename, suffix));
+			WT_ERR(__wt_buf_fmt(session, tmp, "%s.%d", filename, suffix));
 			WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
 			if (!exists) {
-				WT_ERR(__wt_fs_rename(
-				    session, filename, tmp->data, false));
-				WT_ERR(__wt_msg(session,
-				    "unexpected file %s found, renamed to %s",
+				WT_ERR(__wt_fs_rename(session, filename, tmp->data, false));
+				WT_ERR(__wt_msg(session, "unexpected file %s found, renamed to %s",
 				    filename, (const char *)tmp->data));
 				break;
 			}
@@ -83,7 +77,8 @@ __wt_block_manager_create(
 	if (ret != 0)
 		WT_TRET(__wt_fs_remove(session, filename, false));
 
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 
 	return (ret);
 }
@@ -139,8 +134,7 @@ __wt_block_configure_first_fit(WT_BLOCK *block, bool on)
  *	Open a block handle.
  */
 int
-__wt_block_open(WT_SESSION_IMPL *session,
-    const char *filename, const char *cfg[],
+__wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
     bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
 {
 	WT_BLOCK *block;
@@ -158,7 +152,7 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	hash = __wt_hash_city64(filename, strlen(filename));
 	bucket = hash % WT_HASH_ARRAY_SIZE;
 	__wt_spin_lock(session, &conn->block_lock);
-	TAILQ_FOREACH(block, &conn->blockhash[bucket], hashq) {
+	TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
 		if (strcmp(filename, block->name) == 0) {
 			++block->ref;
 			*blockp = block;
@@ -212,8 +206,7 @@ __wt_block_open(WT_SESSION_IMPL *session,
 		LF_SET(WT_FS_OPEN_DIRECTIO);
 	if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
 		LF_SET(WT_FS_OPEN_DIRECTIO);
-	WT_ERR(__wt_open(
-	    session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
+	WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
 
 	/* Set the file's size. */
 	WT_ERR(__wt_filesize(session, block->fh, &block->size));
@@ -234,7 +227,8 @@ __wt_block_open(WT_SESSION_IMPL *session,
 	__wt_spin_unlock(session, &conn->block_lock);
 	return (0);
 
-err:	if (block != NULL)
+err:
+	if (block != NULL)
 		WT_TRET(__block_destroy(session, block));
 	__wt_spin_unlock(session, &conn->block_lock);
 	return (ret);
@@ -250,17 +244,16 @@ __wt_block_close(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 
-	if (block == NULL)				/* Safety check */
+	if (block == NULL) /* Safety check */
 		return (0);
 
 	conn = S2C(session);
 
-	__wt_verbose(session, WT_VERB_BLOCK,
-	    "close: %s", block->name == NULL ? "" : block->name);
+	__wt_verbose(session, WT_VERB_BLOCK, "close: %s", block->name == NULL ? "" : block->name);
 
 	__wt_spin_lock(session, &conn->block_lock);
 
-			/* Reference count is initialized to 1. */
+	/* Reference count is initialized to 1. */
 	if (block->ref == 0 || --block->ref == 0)
 		ret = __block_destroy(session, block);
 
@@ -329,8 +322,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
 	/* Read the first allocation-sized block and verify the file format. */
-	WT_ERR(__wt_read(session,
-	    block->fh, (wt_off_t)0, (size_t)allocsize, buf->mem));
+	WT_ERR(__wt_read(session, block->fh, (wt_off_t)0, (size_t)allocsize, buf->mem));
 
 	/*
 	 * Handle little- and big-endian objects. Objects are written in little-
@@ -355,27 +347,24 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	 * may have entered the wrong file name, and is now frantically pounding
 	 * their interrupt key.
 	 */
-	if (desc->magic != WT_BLOCK_MAGIC ||
-	    desc->checksum != checksum_calculate)
-		WT_ERR_MSG(session, WT_ERROR,
-		    "%s does not appear to be a WiredTiger file", block->name);
+	if (desc->magic != WT_BLOCK_MAGIC || desc->checksum != checksum_calculate)
+		WT_ERR_MSG(
+		    session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
 
 	if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||
-	    (desc->majorv == WT_BLOCK_MAJOR_VERSION &&
-	    desc->minorv > WT_BLOCK_MINOR_VERSION))
+	    (desc->majorv == WT_BLOCK_MAJOR_VERSION && desc->minorv > WT_BLOCK_MINOR_VERSION))
 		WT_ERR_MSG(session, WT_ERROR,
 		    "unsupported WiredTiger file version: this build only "
 		    "supports major/minor versions up to %d/%d, and the file "
 		    "is version %" PRIu16 "/%" PRIu16,
-		    WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION,
-		    desc->majorv, desc->minorv);
+		    WT_BLOCK_MAJOR_VERSION, WT_BLOCK_MINOR_VERSION, desc->majorv, desc->minorv);
 
 	__wt_verbose(session, WT_VERB_BLOCK,
-	    "%s: magic %" PRIu32
-	    ", major/minor: %" PRIu32 "/%" PRIu32,
-	    block->name, desc->magic, desc->majorv, desc->minorv);
+	    "%s: magic %" PRIu32 ", major/minor: %" PRIu32 "/%" PRIu32, block->name, desc->magic,
+	    desc->majorv, desc->minorv);
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -391,13 +380,11 @@ __wt_block_stat(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_DSRC_STATS *stats)
 	 * but it's an 8B statistics read, there's no need.
 	 */
 	WT_STAT_WRITE(session, stats, allocation_size, block->allocsize);
-	WT_STAT_WRITE(session,
-	    stats, block_checkpoint_size, (int64_t)block->live.ckpt_size);
+	WT_STAT_WRITE(session, stats, block_checkpoint_size, (int64_t)block->live.ckpt_size);
 	WT_STAT_WRITE(session, stats, block_magic, WT_BLOCK_MAGIC);
 	WT_STAT_WRITE(session, stats, block_major, WT_BLOCK_MAJOR_VERSION);
 	WT_STAT_WRITE(session, stats, block_minor, WT_BLOCK_MINOR_VERSION);
-	WT_STAT_WRITE(session,
-	    stats, block_reuse_bytes, (int64_t)block->live.avail.bytes);
+	WT_STAT_WRITE(session, stats, block_reuse_bytes, (int64_t)block->live.avail.bytes);
 	WT_STAT_WRITE(session, stats, block_size, block->size);
 }
 
@@ -419,8 +406,7 @@ __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
  *	Return the size of a named file.
  */
 int
-__wt_block_manager_named_size(
-    WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
+__wt_block_manager_named_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 {
 	return (__wt_fs_size(session, name, sizep));
 }

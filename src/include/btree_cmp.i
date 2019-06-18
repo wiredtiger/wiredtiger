@@ -15,9 +15,9 @@
 #if defined(HAVE_ARM_NEON_INTRIN_H)
 #include <arm_neon.h>
 #endif
-						/* 16B alignment */
-#define	WT_ALIGNED_16(p)	(((uintptr_t)(p) & 0x0f) == 0)
-#define	WT_VECTOR_SIZE		16		/* chunk size */
+/* 16B alignment */
+#define WT_ALIGNED_16(p) (((uintptr_t)(p)&0x0f) == 0)
+#define WT_VECTOR_SIZE 16 /* chunk size */
 
 /*
  * __wt_lex_compare --
@@ -53,9 +53,8 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 		remain = len % WT_VECTOR_SIZE;
 		len -= remain;
 		if (WT_ALIGNED_16(userp) && WT_ALIGNED_16(treep))
-			for (; len > 0;
-			    len -= WT_VECTOR_SIZE,
-			    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+			for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE,
+			     treep += WT_VECTOR_SIZE) {
 				u = _mm_load_si128((const __m128i *)userp);
 				t = _mm_load_si128((const __m128i *)treep);
 				res_eq = _mm_cmpeq_epi8(u, t);
@@ -63,9 +62,8 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 					break;
 			}
 		else
-			for (; len > 0;
-			    len -= WT_VECTOR_SIZE,
-			    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+			for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE,
+			     treep += WT_VECTOR_SIZE) {
 				u = _mm_loadu_si128((const __m128i *)userp);
 				t = _mm_loadu_si128((const __m128i *)treep);
 				res_eq = _mm_cmpeq_epi8(u, t);
@@ -82,8 +80,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 		remain = len % WT_VECTOR_SIZE;
 		len -= remain;
 		for (; len > 0;
-		    len -= WT_VECTOR_SIZE,
-		    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
+		     len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
 			u = vld1q_u8(userp);
 			t = vld1q_u8(treep);
 			res_eq = vceqq_u8(u, t);
@@ -111,15 +108,14 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
  * function when configured.
  */
 static inline int
-__wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp)
+__wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
+    const WT_ITEM *tree_item, int *cmpp)
 {
 	if (collator == NULL) {
 		*cmpp = __wt_lex_compare(user_item, tree_item);
 		return (0);
 	}
-	return (collator->compare(
-	    collator, &session->iface, user_item, tree_item, cmpp));
+	return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
 }
 
 /*
@@ -135,8 +131,7 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
  * the application is looking at when we call its comparison function.
  */
 static inline int
-__wt_lex_compare_skip(
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
+__wt_lex_compare_skip(const WT_ITEM *user_item, const WT_ITEM *tree_item, size_t *matchp)
 {
 	size_t len, usz, tsz;
 	const uint8_t *userp, *treep;
@@ -157,10 +152,8 @@ __wt_lex_compare_skip(
 		remain = len % WT_VECTOR_SIZE;
 		len -= remain;
 		if (WT_ALIGNED_16(userp) && WT_ALIGNED_16(treep))
-			for (; len > 0;
-			    len -= WT_VECTOR_SIZE,
-			    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE,
-			    *matchp += WT_VECTOR_SIZE) {
+			for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE,
+			     treep += WT_VECTOR_SIZE, *matchp += WT_VECTOR_SIZE) {
 				u = _mm_load_si128((const __m128i *)userp);
 				t = _mm_load_si128((const __m128i *)treep);
 				res_eq = _mm_cmpeq_epi8(u, t);
@@ -168,10 +161,8 @@ __wt_lex_compare_skip(
 					break;
 			}
 		else
-			for (; len > 0;
-			    len -= WT_VECTOR_SIZE,
-			    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE,
-			    *matchp += WT_VECTOR_SIZE) {
+			for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE,
+			     treep += WT_VECTOR_SIZE, *matchp += WT_VECTOR_SIZE) {
 				u = _mm_loadu_si128((const __m128i *)userp);
 				t = _mm_loadu_si128((const __m128i *)treep);
 				res_eq = _mm_cmpeq_epi8(u, t);
@@ -188,16 +179,14 @@ __wt_lex_compare_skip(
 		remain = len % WT_VECTOR_SIZE;
 		len -= remain;
 		if (WT_ALIGNED_16(userp) && WT_ALIGNED_16(treep))
-		for (; len > 0;
-		    len -= WT_VECTOR_SIZE,
-		    userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE,
-			*matchp += WT_VECTOR_SIZE) {
-			u = vld1q_u8(userp);
-			t = vld1q_u8(treep);
-			res_eq = vceqq_u8(u, t);
-			if (vminvq_u8(res_eq) != 255)
-				break;
-		}
+			for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE,
+			     treep += WT_VECTOR_SIZE, *matchp += WT_VECTOR_SIZE) {
+				u = vld1q_u8(userp);
+				t = vld1q_u8(treep);
+				res_eq = vceqq_u8(u, t);
+				if (vminvq_u8(res_eq) != 255)
+					break;
+			}
 		len += remain;
 	}
 #endif
@@ -219,16 +208,14 @@ __wt_lex_compare_skip(
  * function when configured.
  */
 static inline int
-__wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator,
-    const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp,
-    size_t *matchp)
+__wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
+    const WT_ITEM *tree_item, int *cmpp, size_t *matchp)
 {
 	if (collator == NULL) {
 		*cmpp = __wt_lex_compare_skip(user_item, tree_item, matchp);
 		return (0);
 	}
-	return (collator->compare(
-	    collator, &session->iface, user_item, tree_item, cmpp));
+	return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
 }
 
 /*
@@ -256,70 +243,70 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
 	userp = user_item->data;
 	treep = tree_item->data;
 
-	/*
-	 * The maximum packed uint64_t is 9B, catch row-store objects using
-	 * packed record numbers as keys.
-	 *
-	 * Don't use a #define to compress this case statement: gcc7 complains
-	 * about implicit fallthrough and doesn't support explicit fallthrough
-	 * comments in macros.
-	 */
-#define	WT_COMPARE_SHORT_MAXLEN 9
+/*
+ * The maximum packed uint64_t is 9B, catch row-store objects using
+ * packed record numbers as keys.
+ *
+ * Don't use a #define to compress this case statement: gcc7 complains
+ * about implicit fallthrough and doesn't support explicit fallthrough
+ * comments in macros.
+ */
+#define WT_COMPARE_SHORT_MAXLEN 9
 	switch (len) {
 	case 9:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 8:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 7:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 6:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 5:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 4:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 3:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 2:
 		if (*userp != *treep)
 			break;
 		++userp;
 		++treep;
-		/* FALLTHROUGH */
+	/* FALLTHROUGH */
 	case 1:
 		if (*userp != *treep)
 			break;
 
 		/* Contents are equal up to the smallest length. */
-		return ((usz == tsz) ?  0 : (usz < tsz) ? -1 : 1);
+		return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
 	}
 	return (*userp < *treep ? -1 : 1);
 }

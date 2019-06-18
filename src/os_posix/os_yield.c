@@ -13,8 +13,7 @@
  *	Yield the thread of control.
  */
 void
-__wt_yield(void)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_yield(void) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	/*
 	 * Yielding the processor isn't documented as a memory barrier, and it's

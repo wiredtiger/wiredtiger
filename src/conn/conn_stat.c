@@ -79,13 +79,10 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
 	__wt_txn_stats_update(session);
 
 	WT_STAT_SET(session, stats, file_open, conn->open_file_count);
-	WT_STAT_SET(session,
-	    stats, cursor_open_count, conn->open_cursor_count);
+	WT_STAT_SET(session, stats, cursor_open_count, conn->open_cursor_count);
 	WT_STAT_SET(session, stats, dh_conn_handle_count, conn->dhandle_count);
-	WT_STAT_SET(session,
-	    stats, rec_split_stashed_objects, conn->stashed_objects);
-	WT_STAT_SET(session,
-	    stats, rec_split_stashed_bytes, conn->stashed_bytes);
+	WT_STAT_SET(session, stats, rec_split_stashed_objects, conn->stashed_objects);
+	WT_STAT_SET(session, stats, rec_split_stashed_bytes, conn->stashed_bytes);
 }
 
 /*
@@ -136,8 +133,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	if (cval.val != 0 && WT_STAT_ENABLED(session))
 		FLD_SET(conn->stat_flags, WT_STAT_JSON);
 
-	WT_RET(__wt_config_gets(
-	    session, cfg, "statistics_log.on_close", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "statistics_log.on_close", &cval));
 	if (cval.val != 0)
 		FLD_SET(conn->stat_flags, WT_STAT_ON_CLOSE);
 
@@ -154,8 +150,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	 */
 	WT_RET(__wt_config_gets(session, cfg, "statistics_log.path", &cval));
 	WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-	WT_ERR(__wt_buf_fmt(session,
-	    tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
+	WT_ERR(__wt_buf_fmt(session, tmp, "%.*s/%s", (int)cval.len, cval.str, WT_STATLOG_FILENAME));
 	WT_ERR(__wt_filename(session, tmp->data, &conn->stat_path));
 
 	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.sources", &cval));
@@ -166,8 +161,7 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 	if (cnt != 0) {
 		WT_ERR(__wt_calloc_def(session, cnt + 1, &sources));
 		__wt_config_subinit(session, &objectconf, &cval);
-		for (cnt = 0;
-		    (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
+		for (cnt = 0; (ret = __wt_config_next(&objectconf, &k, &v)) == 0; ++cnt) {
 			/*
 			 * XXX
 			 * Only allow "file:" and "lsm:" for now: "file:" works
@@ -175,14 +169,12 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 			 * works because we can easily walk the list of open LSM
 			 * objects, even though it hasn't been converted.
 			 */
-			if (!WT_PREFIX_MATCH(k.str, "file:") &&
-			    !WT_PREFIX_MATCH(k.str, "lsm:"))
+			if (!WT_PREFIX_MATCH(k.str, "file:") && !WT_PREFIX_MATCH(k.str, "lsm:"))
 				WT_ERR_MSG(session, EINVAL,
 				    "statistics_log sources configuration only "
 				    "supports objects of type \"file\" or "
 				    "\"lsm\"");
-			WT_ERR(
-			    __wt_strndup(session, k.str, k.len, &sources[cnt]));
+			WT_ERR(__wt_strndup(session, k.str, k.len, &sources[cnt]));
 		}
 		WT_ERR_NOTFOUND_OK(ret);
 
@@ -190,35 +182,33 @@ __statlog_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 		sources = NULL;
 	}
 
-	/*
-	 * When using JSON format, use the same timestamp format as MongoDB by
-	 * default. This requires caution: the user might have set the timestamp
-	 * in a previous reconfigure call and we don't want to override that, so
-	 * compare the retrieved value with the default value to decide if we
-	 * should use the JSON default.
-	 *
-	 * (This still implies if the user explicitly sets the timestamp to the
-	 * default value, then sets the JSON flag in a separate reconfigure
-	 * call, or vice-versa, we will incorrectly switch to the JSON default
-	 * timestamp. But there's no way to detect that, and this is all a low
-	 * probability path.)
-	 *
-	 * !!!
-	 * Don't rewrite in the compressed "%FT%T.000Z" form, MSVC13 segfaults.
-	 */
-#define	WT_TIMESTAMP_DEFAULT		"%b %d %H:%M:%S"
-#define	WT_TIMESTAMP_JSON_DEFAULT	"%Y-%m-%dT%H:%M:%S.000Z"
-	WT_ERR(__wt_config_gets(
-	    session, cfg, "statistics_log.timestamp", &cval));
+/*
+ * When using JSON format, use the same timestamp format as MongoDB by
+ * default. This requires caution: the user might have set the timestamp
+ * in a previous reconfigure call and we don't want to override that, so
+ * compare the retrieved value with the default value to decide if we
+ * should use the JSON default.
+ *
+ * (This still implies if the user explicitly sets the timestamp to the
+ * default value, then sets the JSON flag in a separate reconfigure
+ * call, or vice-versa, we will incorrectly switch to the JSON default
+ * timestamp. But there's no way to detect that, and this is all a low
+ * probability path.)
+ *
+ * !!!
+ * Don't rewrite in the compressed "%FT%T.000Z" form, MSVC13 segfaults.
+ */
+#define WT_TIMESTAMP_DEFAULT "%b %d %H:%M:%S"
+#define WT_TIMESTAMP_JSON_DEFAULT "%Y-%m-%dT%H:%M:%S.000Z"
+	WT_ERR(__wt_config_gets(session, cfg, "statistics_log.timestamp", &cval));
 	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON) &&
 	    WT_STRING_MATCH(WT_TIMESTAMP_DEFAULT, cval.str, cval.len))
-		WT_ERR(__wt_strdup(
-		    session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
+		WT_ERR(__wt_strdup(session, WT_TIMESTAMP_JSON_DEFAULT, &conn->stat_format));
 	else
-		WT_ERR(__wt_strndup(
-		    session, cval.str, cval.len, &conn->stat_format));
+		WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->stat_format));
 
-err:	__stat_sources_free(session, &sources);
+err:
+	__stat_sources_free(session, &sources);
 	__wt_scr_free(session, &tmp);
 
 	return (ret);
@@ -251,8 +241,7 @@ __statlog_print_header(WT_SESSION_IMPL *session)
 	 * performed by the single threaded stat server.
 	 */
 	conn->stat_json_tables = false;
-	WT_RET(__wt_fprintf(session, conn->stat_fs,
-	    "{\"version\":\"%s\",\"localTime\":\"%s\"",
+	WT_RET(__wt_fprintf(session, conn->stat_fs, "{\"version\":\"%s\",\"localTime\":\"%s\"",
 	    WIREDTIGER_VERSION_STRING, conn->stat_stamp));
 	return (0);
 }
@@ -264,8 +253,7 @@ __statlog_print_header(WT_SESSION_IMPL *session)
  *	then print the name of the table.
  */
 static int
-__statlog_print_table_name(
-    WT_SESSION_IMPL *session, const char *name, bool conn_stats)
+__statlog_print_table_name(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 {
 	WT_CONNECTION_IMPL *conn;
 
@@ -278,8 +266,7 @@ __statlog_print_table_name(
 	 * If printing the connection stats, write that header and we are done.
 	 */
 	if (conn_stats) {
-		WT_RET(__wt_fprintf(
-		    session, conn->stat_fs, ",\"wiredTiger\":{"));
+		WT_RET(__wt_fprintf(session, conn->stat_fs, ",\"wiredTiger\":{"));
 		return (0);
 	}
 
@@ -289,11 +276,10 @@ __statlog_print_table_name(
 	 * a subsequent table.
 	 */
 	if (conn->stat_json_tables)
-		WT_RET(__wt_fprintf(session, conn->stat_fs,","));
-	else  {
+		WT_RET(__wt_fprintf(session, conn->stat_fs, ","));
+	else {
 		conn->stat_json_tables = true;
-		WT_RET(__wt_fprintf(session,
-		    conn->stat_fs,",\"wiredTigerTables\":{"));
+		WT_RET(__wt_fprintf(session, conn->stat_fs, ",\"wiredTigerTables\":{"));
 	}
 	WT_RET(__wt_fprintf(session, conn->stat_fs, "\"%s\":{", name));
 	return (0);
@@ -336,8 +322,7 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 	size_t prefixlen;
 	int64_t val;
 	const char *desc, *endprefix, *valstr, *uri;
-	const char *cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
+	const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 	bool first, groupfirst;
 
 	conn = S2C(session);
@@ -374,31 +359,27 @@ __statlog_dump(WT_SESSION_IMPL *session, const char *name, bool conn_stats)
 			endprefix = strchr(desc, ':');
 			prefixlen = WT_PTRDIFF(endprefix, desc);
 			WT_ASSERT(session, endprefix != NULL);
-			if (first ||
-			    tmp->size != prefixlen ||
+			if (first || tmp->size != prefixlen ||
 			    strncmp(desc, tmp->data, tmp->size) != 0) {
-				WT_ERR(__wt_buf_set(
-				    session, tmp, desc, prefixlen));
-				WT_ERR(__wt_fprintf(session, conn->stat_fs,
-				    "%s\"%.*s\":{", first ? "" : "},",
-				    (int)prefixlen, desc));
+				WT_ERR(__wt_buf_set(session, tmp, desc, prefixlen));
+				WT_ERR(__wt_fprintf(session, conn->stat_fs, "%s\"%.*s\":{",
+				    first ? "" : "},", (int)prefixlen, desc));
 				first = false;
 				groupfirst = true;
 			}
-			WT_ERR(__wt_fprintf(session, conn->stat_fs,
-			    "%s\"%s\":%" PRId64,
+			WT_ERR(__wt_fprintf(session, conn->stat_fs, "%s\"%s\":%" PRId64,
 			    groupfirst ? "" : ",", endprefix + 2, val));
 			groupfirst = false;
 		} else
-			WT_ERR(__wt_fprintf(session, conn->stat_fs,
-			    "%s %" PRId64 " %s %s\n",
+			WT_ERR(__wt_fprintf(session, conn->stat_fs, "%s %" PRId64 " %s %s\n",
 			    conn->stat_stamp, val, name, desc));
 	}
 	WT_ERR_NOTFOUND_OK(ret);
 	if (FLD_ISSET(conn->stat_flags, WT_STAT_JSON))
 		WT_ERR(__wt_fprintf(session, conn->stat_fs, "}}"));
 
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	if (cursor != NULL)
 		WT_TRET(cursor->close(cursor));
 	return (ret);
@@ -422,8 +403,8 @@ __statlog_apply(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Check for a match on the set of sources. */
 	for (p = S2C(session)->stat_sources; *p != NULL; ++p)
 		if (WT_PREFIX_MATCH(dhandle->name, *p)) {
-			WT_WITHOUT_DHANDLE(session, ret =
-			    __statlog_dump(session, dhandle->name, false));
+			WT_WITHOUT_DHANDLE(
+			    session, ret = __statlog_dump(session, dhandle->name, false));
 			return (ret);
 		}
 	return (0);
@@ -439,7 +420,7 @@ __statlog_apply(WT_SESSION_IMPL *session, const char *cfg[])
 static int
 __statlog_lsm_apply(WT_SESSION_IMPL *session)
 {
-#define	WT_LSM_TREE_LIST_SLOTS	100
+#define WT_LSM_TREE_LIST_SLOTS 100
 	WT_LSM_TREE *lsm_tree, *list[WT_LSM_TREE_LIST_SLOTS];
 	WT_DECL_RET;
 	int cnt;
@@ -464,13 +445,13 @@ __statlog_lsm_apply(WT_SESSION_IMPL *session)
 	 */
 	__wt_spin_lock(session, &S2C(session)->schema_lock);
 	locked = true;
-	TAILQ_FOREACH(lsm_tree, &S2C(session)->lsmqh, q) {
+	TAILQ_FOREACH (lsm_tree, &S2C(session)->lsmqh, q) {
 		if (cnt == WT_LSM_TREE_LIST_SLOTS)
 			break;
 		for (p = S2C(session)->stat_sources; *p != NULL; ++p)
 			if (WT_PREFIX_MATCH(lsm_tree->name, *p)) {
-				WT_ERR(__wt_lsm_tree_get(session,
-				    lsm_tree->name, false, &list[cnt++]));
+				WT_ERR(__wt_lsm_tree_get(
+				    session, lsm_tree->name, false, &list[cnt++]));
 				break;
 			}
 	}
@@ -483,7 +464,8 @@ __statlog_lsm_apply(WT_SESSION_IMPL *session)
 		__wt_lsm_tree_release(session, list[cnt]);
 	}
 
-err:	if (locked)
+err:
+	if (locked)
 		__wt_spin_unlock(session, &S2C(session)->schema_lock);
 	/* Release any LSM trees on error. */
 	while (cnt > 0) {
@@ -515,12 +497,10 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 		WT_RET_MSG(session, ENOMEM, "strftime path conversion");
 
 	/* If the path has changed, cycle the log file. */
-	if (conn->stat_fs == NULL ||
-	    path == NULL || strcmp(tmp->mem, path->mem) != 0) {
+	if (conn->stat_fs == NULL || path == NULL || strcmp(tmp->mem, path->mem) != 0) {
 		WT_RET(__wt_fclose(session, &conn->stat_fs));
-		WT_RET(__wt_fopen(session, tmp->mem,
-		    WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED, WT_STREAM_APPEND,
-		    &conn->stat_fs));
+		WT_RET(__wt_fopen(session, tmp->mem, WT_FS_OPEN_CREATE | WT_FS_OPEN_FIXED,
+		    WT_STREAM_APPEND, &conn->stat_fs));
 
 		if (path != NULL)
 			WT_RET(__wt_buf_setstr(session, path, tmp->mem));
@@ -540,8 +520,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 	 * any that match the list of object sources.
 	 */
 	if (conn->stat_sources != NULL)
-		WT_RET(__wt_conn_btree_apply(
-		    session, NULL, __statlog_apply, NULL, NULL));
+		WT_RET(__wt_conn_btree_apply(session, NULL, __statlog_apply, NULL, NULL));
 
 	/*
 	 * Walk the list of open LSM trees, dumping any that match the
@@ -577,14 +556,14 @@ __statlog_on_close(WT_SESSION_IMPL *session)
 		return (0);
 
 	if (F_ISSET(conn, WT_CONN_SERVER_STATISTICS))
-		WT_RET_MSG(session, EINVAL,
-		    "Attempt to log statistics while a server is running");
+		WT_RET_MSG(session, EINVAL, "Attempt to log statistics while a server is running");
 
 	WT_RET(__wt_scr_alloc(session, strlen(conn->stat_path) + 128, &tmp));
 	WT_ERR(__wt_buf_setstr(session, tmp, ""));
 	WT_ERR(__statlog_log_one(session, NULL, tmp));
 
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -630,8 +609,8 @@ __statlog_server(void *arg)
 
 	for (;;) {
 		/* Wait until the next event. */
-		__wt_cond_wait(session, conn->stat_cond,
-		    conn->stat_usecs, __statlog_server_run_chk);
+		__wt_cond_wait(
+		    session, conn->stat_cond, conn->stat_usecs, __statlog_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__statlog_server_run_chk(session))
@@ -642,7 +621,8 @@ __statlog_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "statistics log server error");
+	err:
+		WT_PANIC_MSG(session, ret, "statistics log server error");
 	}
 	__wt_buf_free(session, &path);
 	__wt_buf_free(session, &tmp);
@@ -665,12 +645,10 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	F_SET(conn, WT_CONN_SERVER_STATISTICS);
 
 	/* The statistics log server gets its own session. */
-	WT_RET(__wt_open_internal_session(
-	    conn, "statlog-server", true, 0, &conn->stat_session));
+	WT_RET(__wt_open_internal_session(conn, "statlog-server", true, 0, &conn->stat_session));
 	session = conn->stat_session;
 
-	WT_RET(__wt_cond_alloc(
-	    session, "statistics log server", &conn->stat_cond));
+	WT_RET(__wt_cond_alloc(session, "statistics log server", &conn->stat_cond));
 
 	/*
 	 * Start the thread.
@@ -682,8 +660,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
 	 * have more than one thread, I just didn't feel like writing the code
 	 * to figure out the scheduling.
 	 */
-	WT_RET(__wt_thread_create(
-	    session, &conn->stat_tid, __statlog_server, session));
+	WT_RET(__wt_thread_create(session, &conn->stat_tid, __statlog_server, session));
 	conn->stat_tid_set = true;
 
 	return (0);

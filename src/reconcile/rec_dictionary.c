@@ -23,7 +23,7 @@ __rec_dictionary_skip_search(WT_REC_DICTIONARY **head, uint64_t hash)
 	 * level before stepping down to the next.
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, e = &head[i]; i >= 0;) {
-		if (*e == NULL) {		/* Empty levels */
+		if (*e == NULL) { /* Empty levels */
 			--i;
 			--e;
 			continue;
@@ -33,12 +33,12 @@ __rec_dictionary_skip_search(WT_REC_DICTIONARY **head, uint64_t hash)
 		 * Return any exact matches: we don't care in what search level
 		 * we found a match.
 		 */
-		if ((*e)->hash == hash)		/* Exact match */
+		if ((*e)->hash == hash) /* Exact match */
 			return (*e);
-		if ((*e)->hash > hash) {	/* Drop down a level */
+		if ((*e)->hash > hash) { /* Drop down a level */
 			--i;
 			--e;
-		} else				/* Keep going at this level */
+		} else /* Keep going at this level */
 			e = &(*e)->next[i];
 	}
 	return (NULL);
@@ -61,9 +61,9 @@ __rec_dictionary_skip_search_stack(
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, e = &head[i]; i >= 0;)
 		if (*e == NULL || (*e)->hash > hash)
-			stack[i--] = e--;	/* Drop down a level */
+			stack[i--] = e--; /* Drop down a level */
 		else
-			e = &(*e)->next[i];	/* Keep going at this level */
+			e = &(*e)->next[i]; /* Keep going at this level */
 }
 
 /*
@@ -71,8 +71,7 @@ __rec_dictionary_skip_search_stack(
  *	Insert an entry into the dictionary skip-list.
  */
 static void
-__rec_dictionary_skip_insert(
-    WT_REC_DICTIONARY **head, WT_REC_DICTIONARY *e, uint64_t hash)
+__rec_dictionary_skip_insert(WT_REC_DICTIONARY **head, WT_REC_DICTIONARY *e, uint64_t hash)
 {
 	WT_REC_DICTIONARY **stack[WT_SKIP_MAXDEPTH];
 	u_int i;
@@ -98,12 +97,13 @@ __wt_rec_dictionary_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, u_int slots)
 	__wt_rec_dictionary_free(session, r);
 
 	r->dictionary_slots = slots;
-	WT_RET(__wt_calloc(session,
-	    r->dictionary_slots, sizeof(WT_REC_DICTIONARY *), &r->dictionary));
+	WT_RET(
+	    __wt_calloc(session, r->dictionary_slots, sizeof(WT_REC_DICTIONARY *), &r->dictionary));
 	for (i = 0; i < r->dictionary_slots; ++i) {
 		depth = __wt_skip_choose_depth(session);
-		WT_RET(__wt_calloc(session, 1, sizeof(WT_REC_DICTIONARY) +
-		    depth * sizeof(WT_REC_DICTIONARY *), &r->dictionary[i]));
+		WT_RET(__wt_calloc(session, 1,
+		    sizeof(WT_REC_DICTIONARY) + depth * sizeof(WT_REC_DICTIONARY *),
+		    &r->dictionary[i]));
 		r->dictionary[i]->depth = depth;
 	}
 	return (0);
@@ -150,8 +150,8 @@ __wt_rec_dictionary_reset(WT_RECONCILE *r)
  *	Check the dictionary for a matching value on this page.
  */
 int
-__wt_rec_dictionary_lookup(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_REC_KV *val, WT_REC_DICTIONARY **dpp)
+__wt_rec_dictionary_lookup(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *val, WT_REC_DICTIONARY **dpp)
 {
 	WT_REC_DICTIONARY *dp, *next;
 	uint64_t hash;
@@ -162,10 +162,10 @@ __wt_rec_dictionary_lookup(WT_SESSION_IMPL *session,
 	/* Search the dictionary, and return any match we find. */
 	hash = __wt_hash_fnv64(val->buf.data, val->buf.size);
 	for (dp = __rec_dictionary_skip_search(r->dictionary_head, hash);
-	    dp != NULL && dp->hash == hash; dp = dp->next[0]) {
+	     dp != NULL && dp->hash == hash; dp = dp->next[0]) {
 		WT_RET(__wt_cell_pack_value_match(
-		    (WT_CELL *)((uint8_t *)r->cur_ptr->image.mem + dp->offset),
-		    &val->cell, val->buf.data, &match));
+		    (WT_CELL *)((uint8_t *)r->cur_ptr->image.mem + dp->offset), &val->cell,
+		    val->buf.data, &match));
 		if (match) {
 			WT_STAT_DATA_INCR(session, rec_dictionary);
 			*dpp = dp;
@@ -191,7 +191,7 @@ __wt_rec_dictionary_lookup(WT_SESSION_IMPL *session,
 	 * know where on the page it will be written).
 	 */
 	next = r->dictionary[r->dictionary_next++];
-	next->offset = 0;		/* Not necessary, just cautious. */
+	next->offset = 0; /* Not necessary, just cautious. */
 	next->hash = hash;
 	__rec_dictionary_skip_insert(r->dictionary_head, next, hash);
 	*dpp = next;

@@ -31,15 +31,15 @@
  * For more details about why this works, see
  * http://scaryreasoner.wordpress.com/2009/02/28/
  */
-#define	WT_STATIC_ASSERT(cond)	(void)sizeof(char[1 - 2 * !(cond)])
+#define WT_STATIC_ASSERT(cond) (void)sizeof(char[1 - 2 * !(cond)])
 
-#define	WT_SIZE_CHECK(type, e)	do {					\
-	char __check_##type[1 - 2 * !(sizeof(type) == (e))];		\
-	(void)__check_##type;						\
-} while (0)
+#define WT_SIZE_CHECK(type, e)                                       \
+	do {                                                         \
+		char __check_##type[1 - 2 * !(sizeof(type) == (e))]; \
+		(void)__check_##type;                                \
+	} while (0)
 
-#define	WT_ALIGN_CHECK(type, a)						\
-	WT_STATIC_ASSERT(WT_ALIGN(sizeof(type), (a)) == sizeof(type))
+#define WT_ALIGN_CHECK(type, a) WT_STATIC_ASSERT(WT_ALIGN(sizeof(type), (a)) == sizeof(type))
 
 /*
  * __wt_verify_build --
@@ -62,11 +62,10 @@ __wt_verify_build(void)
 	WT_SIZE_CHECK(WT_UPDATE, WT_ALIGN(WT_UPDATE_SIZE, 8));
 	WT_STATIC_ASSERT(offsetof(WT_UPDATE, data) == WT_UPDATE_SIZE);
 
-	/* Check specific structures were padded. */
-#define	WT_PADDING_CHECK(s)						\
-	WT_STATIC_ASSERT(						\
-	    sizeof(s) > WT_CACHE_LINE_ALIGNMENT ||			\
-	    sizeof(s) % WT_CACHE_LINE_ALIGNMENT == 0)
+/* Check specific structures were padded. */
+#define WT_PADDING_CHECK(s) \
+	WT_STATIC_ASSERT(   \
+	    sizeof(s) > WT_CACHE_LINE_ALIGNMENT || sizeof(s) % WT_CACHE_LINE_ALIGNMENT == 0)
 	WT_PADDING_CHECK(WT_LOGSLOT);
 	WT_PADDING_CHECK(WT_TXN_STATE);
 

@@ -13,8 +13,7 @@
  *	Read an overflow item from the disk.
  */
 static int
-__ovfl_read(WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_size, WT_ITEM *store)
+__ovfl_read(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_ITEM *store)
 {
 	WT_BTREE *btree;
 	const WT_PAGE_HEADER *dsk;
@@ -44,8 +43,8 @@ __ovfl_read(WT_SESSION_IMPL *session,
  *	Bring an overflow item into memory.
  */
 int
-__wt_ovfl_read(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store, bool *decoded)
+__wt_ovfl_read(
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, WT_ITEM *store, bool *decoded)
 {
 	WT_DECL_RET;
 	WT_OVFL_TRACK *track;
@@ -58,8 +57,7 @@ __wt_ovfl_read(WT_SESSION_IMPL *session,
 	 * to search, we don't care about WT_CELL_VALUE_OVFL_RM cells.
 	 */
 	if (page == NULL)
-		return (
-		    __ovfl_read(session, unpack->data, unpack->size, store));
+		return (__ovfl_read(session, unpack->data, unpack->size, store));
 
 	/*
 	 * WT_CELL_VALUE_OVFL_RM cells: If reconciliation deleted an overflow
@@ -98,8 +96,7 @@ __wt_ovfl_discard_remove(WT_SESSION_IMPL *session, WT_PAGE *page)
 	WT_OVFL_TRACK *track;
 	uint32_t i;
 
-	if (page->modify != NULL &&
-	    (track = page->modify->ovfl_track) != NULL) {
+	if (page->modify != NULL && (track = page->modify->ovfl_track) != NULL) {
 		for (i = 0; i < track->remove_next; ++i)
 			__wt_free(session, track->remove[i].data);
 		__wt_free(session, page->modify->ovfl_track->remove);
@@ -129,15 +126,15 @@ __ovfl_cache(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack)
 	track = page->modify->ovfl_track;
 
 	/* Copy the overflow item into place. */
-	WT_ERR(__wt_realloc_def(session,
-	    &track->remove_allocated, track->remove_next + 1, &track->remove));
+	WT_ERR(__wt_realloc_def(
+	    session, &track->remove_allocated, track->remove_next + 1, &track->remove));
 	track->remove[track->remove_next].cell = unpack->cell;
-	WT_ERR(__wt_memdup(session,
-	    tmp->data, tmp->size, &track->remove[track->remove_next].data));
+	WT_ERR(__wt_memdup(session, tmp->data, tmp->size, &track->remove[track->remove_next].data));
 	track->remove[track->remove_next].size = tmp->size;
 	++track->remove_next;
 
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -146,8 +143,7 @@ err:	__wt_scr_free(session, &tmp);
  *	Remove an overflow value.
  */
 int
-__wt_ovfl_remove(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_CELL_UNPACK *unpack, bool evicting)
+__wt_ovfl_remove(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL_UNPACK *unpack, bool evicting)
 {
 	/*
 	 * This function solves two problems in reconciliation.
@@ -234,14 +230,13 @@ __wt_ovfl_discard(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
 
 	switch (unpack->raw) {
 	case WT_CELL_KEY_OVFL:
-		__wt_cell_type_reset(session,
-		    unpack->cell, WT_CELL_KEY_OVFL, WT_CELL_KEY_OVFL_RM);
+		__wt_cell_type_reset(session, unpack->cell, WT_CELL_KEY_OVFL, WT_CELL_KEY_OVFL_RM);
 		break;
 	case WT_CELL_VALUE_OVFL:
-		__wt_cell_type_reset(session,
-		    unpack->cell, WT_CELL_VALUE_OVFL, WT_CELL_VALUE_OVFL_RM);
+		__wt_cell_type_reset(
+		    session, unpack->cell, WT_CELL_VALUE_OVFL, WT_CELL_VALUE_OVFL_RM);
 		break;
-	WT_ILLEGAL_VALUE(session, unpack->raw);
+		WT_ILLEGAL_VALUE(session, unpack->raw);
 	}
 
 	__wt_writeunlock(session, &btree->ovfl_lock);

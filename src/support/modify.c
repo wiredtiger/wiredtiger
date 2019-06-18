@@ -13,8 +13,7 @@
  *	Pack a modify structure into a buffer.
  */
 int
-__wt_modify_pack(WT_SESSION_IMPL *session,
-    WT_ITEM **modifyp, WT_MODIFY *entries, int nentries)
+__wt_modify_pack(WT_SESSION_IMPL *session, WT_ITEM **modifyp, WT_MODIFY *entries, int nentries)
 {
 	WT_ITEM *modify;
 	size_t len, *p;
@@ -26,16 +25,15 @@ __wt_modify_pack(WT_SESSION_IMPL *session,
 	 * by the modify structure offsets written in order, followed by the
 	 * data (data at the end to minimize unaligned reads/writes).
 	 */
-	len = sizeof(size_t);                           /* nentries */
+	len = sizeof(size_t); /* nentries */
 	for (i = 0; i < nentries; ++i) {
-		len += 3 * sizeof(size_t);              /* WT_MODIFY fields */
-		len += entries[i].data.size;            /* data */
+		len += 3 * sizeof(size_t);   /* WT_MODIFY fields */
+		len += entries[i].data.size; /* data */
 	}
 
 	WT_RET(__wt_scr_alloc(session, len, &modify));
 
-	data = (uint8_t *)modify->mem +
-	    sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
+	data = (uint8_t *)modify->mem + sizeof(size_t) + ((size_t)nentries * 3 * sizeof(size_t));
 	p = modify->mem;
 	*p++ = (size_t)nentries;
 	for (i = 0; i < nentries; ++i) {
@@ -56,8 +54,8 @@ __wt_modify_pack(WT_SESSION_IMPL *session,
  *	Apply a single modify structure change to the buffer.
  */
 static int
-__modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
-    size_t data_size, size_t offset, size_t size, const uint8_t *data)
+__modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor, size_t data_size, size_t offset,
+    size_t size, const uint8_t *data)
 {
 	WT_ITEM *value;
 	size_t len;
@@ -81,8 +79,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	 * that.
 	 */
 	len = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
-	WT_RET(__wt_buf_grow(session, value,
-	    len + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
+	WT_RET(__wt_buf_grow(
+	    session, value, len + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
 
 	/*
 	 * Fast-path the expected case, where we're overwriting a set of bytes
@@ -106,8 +104,8 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	 */
 	if (value->size <= offset) {
 		if (value->size < offset)
-			memset((uint8_t *)value->data + value->size,
-			    sformat ? ' ' : 0, offset - value->size);
+			memset((uint8_t *)value->data + value->size, sformat ? ' ' : 0,
+			    offset - value->size);
 		memmove((uint8_t *)value->data + offset, data, data_size);
 		value->size = offset + data_size;
 
@@ -125,7 +123,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 	if (value->size < offset + size)
 		size = value->size - offset;
 
-	if (data_size == size) {			/* Overwrite */
+	if (data_size == size) { /* Overwrite */
 		/* Copy in the new data. */
 		memmove((uint8_t *)value->data + offset, data, data_size);
 
@@ -135,16 +133,16 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 * the new data.
 		 */
 		value->size = offset + data_size;
-	} else {					/* Shrink or grow */
+	} else { /* Shrink or grow */
 		/* Move trailing data forward/backward to its new location. */
 		from = (uint8_t *)value->data + (offset + size);
 		WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
-		    from + (value->size - (offset + size)) <=
-		    (uint8_t *)value->mem + value->memsize);
+		        from + (value->size - (offset + size)) <=
+		            (uint8_t *)value->mem + value->memsize);
 		to = (uint8_t *)value->data + (offset + data_size);
 		WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
-		    to + (value->size - (offset + size)) <=
-		    (uint8_t *)value->mem + value->memsize);
+		        to + (value->size - (offset + size)) <=
+		            (uint8_t *)value->mem + value->memsize);
 		memmove(to, from, value->size - (offset + size));
 
 		/* Copy in the new data. */
@@ -162,7 +160,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
 		 *
 		 * because the branches are identical.
 		 */
-		 value->size += (data_size - size);
+		value->size += (data_size - size);
 	}
 
 	/* Restore the trailing nul. */
@@ -178,8 +176,7 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
  * interface.
  */
 int
-__wt_modify_apply_api(WT_SESSION_IMPL *session,
-    WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+__wt_modify_apply_api(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	size_t modified;
@@ -187,8 +184,8 @@ __wt_modify_apply_api(WT_SESSION_IMPL *session,
 
 	for (modified = 0, i = 0; i < nentries; ++i) {
 		modified += entries[i].size;
-		WT_RET(__modify_apply_one(session, cursor, entries[i].data.size,
-		    entries[i].offset, entries[i].size, entries[i].data.data));
+		WT_RET(__modify_apply_one(session, cursor, entries[i].data.size, entries[i].offset,
+		    entries[i].size, entries[i].data.data));
 	}
 	/*
 	 * This API is used by some external test functions with a NULL
@@ -197,14 +194,10 @@ __wt_modify_apply_api(WT_SESSION_IMPL *session,
 	if (session != NULL) {
 		WT_STAT_CONN_INCR(session, cursor_modify);
 		WT_STAT_DATA_INCR(session, cursor_modify);
-		WT_STAT_CONN_INCRV(session,
-		    cursor_modify_bytes, cursor->value.size);
-		WT_STAT_DATA_INCRV(session,
-		    cursor_modify_bytes, cursor->value.size);
-		WT_STAT_CONN_INCRV(session,
-		    cursor_modify_bytes_touch, modified);
-		WT_STAT_DATA_INCRV(session,
-		    cursor_modify_bytes_touch, modified);
+		WT_STAT_CONN_INCRV(session, cursor_modify_bytes, cursor->value.size);
+		WT_STAT_DATA_INCRV(session, cursor_modify_bytes, cursor->value.size);
+		WT_STAT_CONN_INCRV(session, cursor_modify_bytes_touch, modified);
+		WT_STAT_DATA_INCRV(session, cursor_modify_bytes_touch, modified);
 	}
 
 	return (0);
@@ -215,8 +208,7 @@ __wt_modify_apply_api(WT_SESSION_IMPL *session,
  *	Apply a single set of WT_MODIFY changes to a buffer.
  */
 int
-__wt_modify_apply(
-    WT_SESSION_IMPL *session, WT_CURSOR *cursor, const void *modify)
+__wt_modify_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const void *modify)
 {
 	size_t data_size, nentries, offset, size;
 	const size_t *p;
@@ -229,16 +221,14 @@ __wt_modify_apply(
 	 */
 	p = modify;
 	memcpy(&nentries, p++, sizeof(size_t));
-	data = (uint8_t *)modify +
-	    sizeof(size_t) + (nentries * 3 * sizeof(size_t));
+	data = (uint8_t *)modify + sizeof(size_t) + (nentries * 3 * sizeof(size_t));
 
 	/* Step through the list of entries, applying them in order. */
 	for (; nentries-- > 0; data += data_size) {
 		memcpy(&data_size, p++, sizeof(size_t));
 		memcpy(&offset, p++, sizeof(size_t));
 		memcpy(&size, p++, sizeof(size_t));
-		WT_RET(__modify_apply_one(
-		    session, cursor, data_size, offset, size, data));
+		WT_RET(__modify_apply_one(session, cursor, data_size, offset, size, data));
 	}
 
 	return (0);

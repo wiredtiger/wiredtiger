@@ -28,15 +28,14 @@ __config_parser_close(WT_CONFIG_PARSER *wt_config_parser)
  *      WT_CONFIG_PARSER->search method.
  */
 static int
-__config_parser_get(WT_CONFIG_PARSER *wt_config_parser,
-     const char *key, WT_CONFIG_ITEM *cval)
+__config_parser_get(WT_CONFIG_PARSER *wt_config_parser, const char *key, WT_CONFIG_ITEM *cval)
 {
 	WT_CONFIG_PARSER_IMPL *config_parser;
 
 	config_parser = (WT_CONFIG_PARSER_IMPL *)wt_config_parser;
 
-	return (__wt_config_subgets(config_parser->session,
-	    &config_parser->config_item, key, cval));
+	return (
+	    __wt_config_subgets(config_parser->session, &config_parser->config_item, key, cval));
 }
 
 /*
@@ -44,8 +43,7 @@ __config_parser_get(WT_CONFIG_PARSER *wt_config_parser,
  *	WT_CONFIG_PARSER->next method.
  */
 static int
-__config_parser_next(WT_CONFIG_PARSER *wt_config_parser,
-     WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *cval)
+__config_parser_next(WT_CONFIG_PARSER *wt_config_parser, WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *cval)
 {
 	WT_CONFIG_PARSER_IMPL *config_parser;
 
@@ -59,16 +57,12 @@ __config_parser_next(WT_CONFIG_PARSER *wt_config_parser,
  *	Create a configuration parser.
  */
 int
-wiredtiger_config_parser_open(WT_SESSION *wt_session,
-    const char *config, size_t len, WT_CONFIG_PARSER **config_parserp)
+wiredtiger_config_parser_open(
+    WT_SESSION *wt_session, const char *config, size_t len, WT_CONFIG_PARSER **config_parserp)
 {
 	static const WT_CONFIG_PARSER stds = {
-		__config_parser_close,
-		__config_parser_next,
-		__config_parser_get
-	};
-	WT_CONFIG_ITEM config_item =
-	    { config, len, 0, WT_CONFIG_ITEM_STRING };
+	    __config_parser_close, __config_parser_next, __config_parser_get};
+	WT_CONFIG_ITEM config_item = {config, len, 0, WT_CONFIG_ITEM_STRING};
 	WT_CONFIG_PARSER_IMPL *config_parser;
 	WT_SESSION_IMPL *session;
 
@@ -96,8 +90,8 @@ wiredtiger_config_parser_open(WT_SESSION *wt_session,
  *	Validate a configuration string.
  */
 int
-wiredtiger_config_validate(WT_SESSION *wt_session,
-    WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
+wiredtiger_config_validate(
+    WT_SESSION *wt_session, WT_EVENT_HANDLER *event_handler, const char *name, const char *config)
 {
 	const WT_CONFIG_ENTRY *ep, **epp;
 	WT_CONNECTION_IMPL *conn, dummy_conn;
@@ -109,9 +103,8 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 	 * It's a logic error to specify both a session and an event handler.
 	 */
 	if (session != NULL && event_handler != NULL)
-		WT_RET_MSG(session, EINVAL,
-		    "wiredtiger_config_validate event handler ignored when "
-		    "a session also specified");
+		WT_RET_MSG(session, EINVAL, "wiredtiger_config_validate event handler ignored when "
+		                            "a session also specified");
 
 	/*
 	 * If we're not given a session, but we do have an event handler, build
@@ -143,17 +136,14 @@ wiredtiger_config_validate(WT_SESSION *wt_session,
 		ep = __wt_conn_config_match(name);
 	else {
 		ep = NULL;
-		for (epp = conn->config_entries;
-		    *epp != NULL && (*epp)->method != NULL; ++epp)
+		for (epp = conn->config_entries; *epp != NULL && (*epp)->method != NULL; ++epp)
 			if (strcmp((*epp)->method, name) == 0) {
 				ep = *epp;
 				break;
 			}
 	}
 	if (ep == NULL)
-		WT_RET_MSG(session, EINVAL,
-		    "unknown or unsupported configuration API: %s",
-		    name);
+		WT_RET_MSG(session, EINVAL, "unknown or unsupported configuration API: %s", name);
 
 	return (__wt_config_check(session, ep, config, 0));
 }
@@ -175,8 +165,7 @@ __conn_foc_add(WT_SESSION_IMPL *session, const void *p)
 	 *
 	 * All callers of this function currently ignore errors.
 	 */
-	if (__wt_realloc_def(
-	    session, &conn->foc_size, conn->foc_cnt + 1, &conn->foc) == 0)
+	if (__wt_realloc_def(session, &conn->foc_size, conn->foc_cnt + 1, &conn->foc) == 0)
 		conn->foc[conn->foc_cnt++] = (void *)p;
 }
 
@@ -206,8 +195,7 @@ __wt_conn_foc_discard(WT_SESSION_IMPL *session)
  *	WT_CONNECTION.configure_method.
  */
 int
-__wt_configure_method(WT_SESSION_IMPL *session,
-    const char *method, const char *uri,
+__wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *uri,
     const char *config, const char *type, const char *check)
 {
 	WT_CONFIG_CHECK *checks, *newcheck;
@@ -243,23 +231,20 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 		WT_RET_MSG(session, EINVAL, "no configuration specified");
 	if (type == NULL)
 		WT_RET_MSG(session, EINVAL, "no configuration type specified");
-	if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 &&
-	    strcmp(type, "list") != 0 && strcmp(type, "string") != 0)
-		WT_RET_MSG(session, EINVAL,
-		    "type must be one of \"boolean\", \"int\", \"list\" or "
-		    "\"string\"");
+	if (strcmp(type, "boolean") != 0 && strcmp(type, "int") != 0 && strcmp(type, "list") != 0 &&
+	    strcmp(type, "string") != 0)
+		WT_RET_MSG(session, EINVAL, "type must be one of \"boolean\", \"int\", \"list\" or "
+		                            "\"string\"");
 
 	/*
 	 * Translate the method name to our configuration names, then find a
 	 * match.
 	 */
-	for (epp = conn->config_entries;
-	    *epp != NULL && (*epp)->method != NULL; ++epp)
+	for (epp = conn->config_entries; *epp != NULL && (*epp)->method != NULL; ++epp)
 		if (strcmp((*epp)->method, method) == 0)
 			break;
 	if (*epp == NULL || (*epp)->method == NULL)
-		WT_RET_MSG(session,
-		    WT_NOTFOUND, "no method matching %s found", method);
+		WT_RET_MSG(session, WT_NOTFOUND, "no method matching %s found", method);
 
 	/*
 	 * Technically possible for threads to race, lock the connection while
@@ -350,7 +335,8 @@ __wt_configure_method(WT_SESSION_IMPL *session,
 	WT_PUBLISH(*epp, entry);
 
 	if (0) {
-err:		if (entry != NULL) {
+	err:
+		if (entry != NULL) {
 			__wt_free(session, entry->base);
 			__wt_free(session, entry);
 		}

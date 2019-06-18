@@ -14,14 +14,12 @@
  *	convert it to a printable string.
  */
 static int
-__raw_to_dump(
-    WT_SESSION_IMPL *session, WT_ITEM *from, WT_ITEM *to, bool hexonly)
+__raw_to_dump(WT_SESSION_IMPL *session, WT_ITEM *from, WT_ITEM *to, bool hexonly)
 {
 	if (hexonly)
 		WT_RET(__wt_raw_to_hex(session, from->data, from->size, to));
 	else
-		WT_RET(
-		    __wt_raw_to_esc_hex(session, from->data, from->size, to));
+		WT_RET(__wt_raw_to_esc_hex(session, from->data, from->size, to));
 
 	return (0);
 }
@@ -32,8 +30,7 @@ __raw_to_dump(
  *	convert it to a raw value.
  */
 static int
-__dump_to_raw(
-    WT_SESSION_IMPL *session, const char *src_arg, WT_ITEM *item, bool hexonly)
+__dump_to_raw(WT_SESSION_IMPL *session, const char *src_arg, WT_ITEM *item, bool hexonly)
 {
 	if (hexonly)
 		WT_RET(__wt_hex_to_raw(session, src_arg, item));
@@ -85,20 +82,17 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
 			else
 				fmt = cursor->key_format;
 		}
-		ret = __wt_json_alloc_unpack(
-		    session, buffer, size, fmt, json, true, ap);
+		ret = __wt_json_alloc_unpack(session, buffer, size, fmt, json, true, ap);
 	} else {
-		if (WT_CURSOR_RECNO(cursor) &&
-		    !F_ISSET(cursor, WT_CURSTD_RAW)) {
+		if (WT_CURSOR_RECNO(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
 			WT_ERR(child->get_key(child, &recno));
 
-			WT_ERR(__wt_buf_fmt(session, &cursor->key, "%"
-			    PRIu64, recno));
+			WT_ERR(__wt_buf_fmt(session, &cursor->key, "%" PRIu64, recno));
 		} else {
 			WT_ERR(child->get_key(child, &item));
 
-			WT_ERR(__raw_to_dump(session, &item, &cursor->key,
-			    F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
+			WT_ERR(__raw_to_dump(
+			    session, &item, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 		}
 
 		if (F_ISSET(cursor, WT_CURSTD_RAW)) {
@@ -109,7 +103,8 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
 			*va_arg(ap, const char **) = cursor->key.data;
 	}
 
-err:	va_end(ap);
+err:
+	va_end(ap);
 	API_END_RET(session, ret);
 }
 
@@ -136,7 +131,8 @@ str2recno(WT_SESSION_IMPL *session, const char *p, uint64_t *recnop)
 	if (recno == ULLONG_MAX && errno == ERANGE)
 		WT_RET_MSG(session, ERANGE, "%s: invalid record number", p);
 	if (endptr[0] != '\0')
-format:		WT_RET_MSG(session, EINVAL, "%s: invalid record number", p);
+	format:
+	WT_RET_MSG(session, EINVAL, "%s: invalid record number", p);
 
 	*recnop = recno;
 	return (0);
@@ -173,28 +169,27 @@ __curdump_set_key(WT_CURSOR *cursor, ...)
 	json = F_ISSET(cursor, WT_CURSTD_DUMP_JSON);
 	if (json)
 		WT_ERR(__wt_json_to_item(session, p, cursor->key_format,
-		    (WT_CURSOR_JSON *)cursor->json_private, true,
-		    &cursor->key));
+		    (WT_CURSOR_JSON *)cursor->json_private, true, &cursor->key));
 
 	if (WT_CURSOR_RECNO(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
 		if (json) {
 			up = (const uint8_t *)cursor->key.data;
-			WT_ERR(__wt_vunpack_uint(&up, cursor->key.size,
-			    &recno));
+			WT_ERR(__wt_vunpack_uint(&up, cursor->key.size, &recno));
 		} else
 			WT_ERR(str2recno(session, p, &recno));
 
 		child->set_key(child, recno);
 	} else {
 		if (!json)
-			WT_ERR(__dump_to_raw(session, p, &cursor->key,
-			    F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
+			WT_ERR(__dump_to_raw(
+			    session, p, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 
 		child->set_key(child, &cursor->key);
 	}
 
 	if (0) {
-err:		cursor->saved_err = ret;
+	err:
+		cursor->saved_err = ret;
 		F_CLR(cursor, WT_CURSTD_KEY_SET);
 	}
 	API_END(session, ret);
@@ -226,15 +221,13 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
 		json = (WT_CURSOR_JSON *)cursor->json_private;
 		WT_ASSERT(session, json != NULL);
 		WT_ERR(__wt_cursor_get_raw_value(child, &item));
-		fmt = F_ISSET(cursor, WT_CURSTD_RAW) ?
-		    "u" : cursor->value_format;
-		ret = __wt_json_alloc_unpack(
-		    session, item.data, item.size, fmt, json, false, ap);
+		fmt = F_ISSET(cursor, WT_CURSTD_RAW) ? "u" : cursor->value_format;
+		ret = __wt_json_alloc_unpack(session, item.data, item.size, fmt, json, false, ap);
 	} else {
 		WT_ERR(child->get_value(child, &item));
 
-		WT_ERR(__raw_to_dump(session, &item, &cursor->value,
-		    F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
+		WT_ERR(__raw_to_dump(
+		    session, &item, &cursor->value, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 
 		if (F_ISSET(cursor, WT_CURSTD_RAW)) {
 			itemp = va_arg(ap, WT_ITEM *);
@@ -244,7 +237,8 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
 			*va_arg(ap, const char **) = cursor->value.data;
 	}
 
-err:	va_end(ap);
+err:
+	va_end(ap);
 	API_END_RET(session, ret);
 }
 
@@ -275,31 +269,30 @@ __curdump_set_value(WT_CURSOR *cursor, ...)
 
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
 		WT_ERR(__wt_json_to_item(session, p, cursor->value_format,
-		    (WT_CURSOR_JSON *)cursor->json_private, false,
-		    &cursor->value));
+		    (WT_CURSOR_JSON *)cursor->json_private, false, &cursor->value));
 	else
-		WT_ERR(__dump_to_raw(session, p, &cursor->value,
-		    F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
+		WT_ERR(
+		    __dump_to_raw(session, p, &cursor->value, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 
 	child->set_value(child, &cursor->value);
 
 	if (0) {
-err:		cursor->saved_err = ret;
+	err:
+		cursor->saved_err = ret;
 		F_CLR(cursor, WT_CURSTD_VALUE_SET);
 	}
 	API_END(session, ret);
 }
 
 /* Pass through a call to the underlying cursor. */
-#define	WT_CURDUMP_PASS(op)						\
-static int								\
-__curdump_##op(WT_CURSOR *cursor)					\
-{									\
-	WT_CURSOR *child;						\
-									\
-	child = ((WT_CURSOR_DUMP *)cursor)->child;			\
-	return (child->op(child));					\
-}
+#define WT_CURDUMP_PASS(op)                                \
+	static int __curdump_##op(WT_CURSOR *cursor)       \
+	{                                                  \
+		WT_CURSOR *child;                          \
+                                                           \
+		child = ((WT_CURSOR_DUMP *)cursor)->child; \
+		return (child->op(child));                 \
+	}
 
 WT_CURDUMP_PASS(next)
 WT_CURDUMP_PASS(prev)
@@ -357,27 +350,26 @@ err:
 int
 __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
-	WT_CURSOR_STATIC_INIT(iface,
-	    __curdump_get_key,			/* get-key */
-	    __curdump_get_value,		/* get-value */
-	    __curdump_set_key,			/* set-key */
-	    __curdump_set_value,		/* set-value */
-	    __wt_cursor_compare_notsup,		/* compare */
-	    __wt_cursor_equals_notsup,		/* equals */
-	    __curdump_next,			/* next */
-	    __curdump_prev,			/* prev */
-	    __curdump_reset,			/* reset */
-	    __curdump_search,			/* search */
-	    __curdump_search_near,		/* search-near */
-	    __curdump_insert,			/* insert */
-	    __wt_cursor_modify_notsup,		/* modify */
-	    __curdump_update,			/* update */
-	    __curdump_remove,			/* remove */
-	    __wt_cursor_notsup,			/* reserve */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
-	    __wt_cursor_notsup,			/* cache */
-	    __wt_cursor_reopen_notsup,		/* reopen */
-	    __curdump_close);			/* close */
+	WT_CURSOR_STATIC_INIT(iface, __curdump_get_key, /* get-key */
+	    __curdump_get_value,                        /* get-value */
+	    __curdump_set_key,                          /* set-key */
+	    __curdump_set_value,                        /* set-value */
+	    __wt_cursor_compare_notsup,                 /* compare */
+	    __wt_cursor_equals_notsup,                  /* equals */
+	    __curdump_next,                             /* next */
+	    __curdump_prev,                             /* prev */
+	    __curdump_reset,                            /* reset */
+	    __curdump_search,                           /* search */
+	    __curdump_search_near,                      /* search-near */
+	    __curdump_insert,                           /* insert */
+	    __wt_cursor_modify_notsup,                  /* modify */
+	    __curdump_update,                           /* update */
+	    __curdump_remove,                           /* remove */
+	    __wt_cursor_notsup,                         /* reserve */
+	    __wt_cursor_reconfigure_notsup,             /* reconfigure */
+	    __wt_cursor_notsup,                         /* cache */
+	    __wt_cursor_reopen_notsup,                  /* reopen */
+	    __curdump_close);                           /* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_DUMP *cdump;
 	WT_CURSOR_JSON *json;
@@ -399,8 +391,8 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
 	cdump->child = child;
 
 	/* Copy the dump flags from the child cursor. */
-	F_SET(cursor, F_MASK(child,
-	    WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_PRINT));
+	F_SET(
+	    cursor, F_MASK(child, WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_JSON | WT_CURSTD_DUMP_PRINT));
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON)) {
 		WT_ERR(__wt_calloc_one(session, &json));
 		cursor->json_private = child->json_private = json;
@@ -411,7 +403,8 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
 	WT_ERR(__wt_cursor_init(cursor, NULL, owner, cfg, cursorp));
 
 	if (0) {
-err:		WT_TRET(__curdump_close(cursor));
+	err:
+		WT_TRET(__curdump_close(cursor));
 		*cursorp = NULL;
 	}
 	return (ret);

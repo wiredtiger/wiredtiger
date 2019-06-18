@@ -36,23 +36,19 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 	 * size also require logging be enabled.
 	 */
 	if (conn->ckpt_usecs != 0 ||
-	    (conn->ckpt_logsize != 0 &&
-	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))) {
+	    (conn->ckpt_logsize != 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))) {
 		/*
 		 * If checkpointing based on log data, use a minimum of the
 		 * log file size.  The logging subsystem has already been
 		 * initialized.
 		 */
-		if (conn->ckpt_logsize != 0 &&
-		    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-			conn->ckpt_logsize = WT_MAX(
-			    conn->ckpt_logsize, conn->log_file_max);
+		if (conn->ckpt_logsize != 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
+			conn->ckpt_logsize = WT_MAX(conn->ckpt_logsize, conn->log_file_max);
 		/* Checkpoints are incompatible with in-memory configuration */
 		WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
 		if (cval.val != 0)
-			WT_RET_MSG(session, EINVAL,
-			    "checkpoint configuration incompatible with "
-			    "in-memory configuration");
+			WT_RET_MSG(session, EINVAL, "checkpoint configuration incompatible with "
+			                            "in-memory configuration");
 
 		__wt_log_written_reset(session);
 
@@ -95,8 +91,7 @@ __ckpt_server(void *arg)
 		 * NOTE: If the user only configured logsize, then usecs
 		 * will be 0 and this wait won't return until signalled.
 		 */
-		__wt_cond_wait(session,
-		    conn->ckpt_cond, conn->ckpt_usecs, __ckpt_server_run_chk);
+		__wt_cond_wait(session, conn->ckpt_cond, conn->ckpt_usecs, __ckpt_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__ckpt_server_run_chk(session))
@@ -109,8 +104,7 @@ __ckpt_server(void *arg)
 		 * Reset the log file size counters if the checkpoint wasn't
 		 * skipped.
 		 */
-		if (checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) &&
-		    conn->ckpt_logsize) {
+		if (checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT) && conn->ckpt_logsize) {
 			__wt_log_written_reset(session);
 			conn->ckpt_signalled = false;
 
@@ -126,7 +120,8 @@ __ckpt_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "checkpoint server error");
+	err:
+		WT_PANIC_MSG(session, ret, "checkpoint server error");
 	}
 	return (WT_THREAD_RET_VALUE);
 }
@@ -154,8 +149,8 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	 * operations for the block manager.
 	 */
 	session_flags = WT_SESSION_CAN_WAIT;
-	WT_RET(__wt_open_internal_session(conn,
-	    "checkpoint-server", true, session_flags, &conn->ckpt_session));
+	WT_RET(__wt_open_internal_session(
+	    conn, "checkpoint-server", true, session_flags, &conn->ckpt_session));
 	session = conn->ckpt_session;
 
 	WT_RET(__wt_cond_alloc(session, "checkpoint server", &conn->ckpt_cond));
@@ -163,8 +158,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
 	/*
 	 * Start the thread.
 	 */
-	WT_RET(__wt_thread_create(
-	    session, &conn->ckpt_tid, __ckpt_server, session));
+	WT_RET(__wt_thread_create(session, &conn->ckpt_tid, __ckpt_server, session));
 	conn->ckpt_tid_set = true;
 
 	return (0);

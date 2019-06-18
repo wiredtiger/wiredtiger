@@ -22,10 +22,10 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 	ofile = NULL;
 	while ((ch = __wt_getopt(progname, argc, argv, "f:x")) != EOF)
 		switch (ch) {
-		case 'f':			/* output file */
+		case 'f': /* output file */
 			ofile = __wt_optarg;
 			break;
-		case 'x':			/* hex output */
+		case 'x': /* hex output */
 			LF_SET(WT_TXN_PRINTLOG_HEX);
 			break;
 		case '?':
@@ -47,9 +47,8 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "printlog [-x] [-f output-file]\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "printlog [-x] [-f output-file]\n",
 	    progname, usage_prefix);
 	return (1);
 }

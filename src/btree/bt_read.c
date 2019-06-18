@@ -13,8 +13,8 @@
  *	Update a column-store page entry based on a lookaside table update list.
  */
 static int
-__col_instantiate(WT_SESSION_IMPL *session,
-    uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
+__col_instantiate(
+    WT_SESSION_IMPL *session, uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
 {
 	WT_PAGE *page;
 	WT_UPDATE *upd;
@@ -32,8 +32,7 @@ __col_instantiate(WT_SESSION_IMPL *session,
 
 	/* Search the page and add updates. */
 	WT_RET(__wt_col_search(session, recno, ref, cbt, true));
-	WT_RET(__wt_col_modify(
-	    session, cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
+	WT_RET(__wt_col_modify(session, cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
 	return (0);
 }
 
@@ -42,8 +41,8 @@ __col_instantiate(WT_SESSION_IMPL *session,
  *	Update a row-store page entry based on a lookaside table update list.
  */
 static int
-__row_instantiate(WT_SESSION_IMPL *session,
-    WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
+__row_instantiate(
+    WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
 {
 	WT_PAGE *page;
 	WT_UPDATE *upd;
@@ -61,8 +60,7 @@ __row_instantiate(WT_SESSION_IMPL *session,
 
 	/* Search the page and add updates. */
 	WT_RET(__wt_row_search(session, key, ref, cbt, true, true));
-	WT_RET(__wt_row_modify(
-	    session, cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
+	WT_RET(__wt_row_modify(session, cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
 	return (0);
 }
 
@@ -77,8 +75,7 @@ __las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
 	WT_CACHE *cache;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 
-	if (!WT_VERBOSE_ISSET(session,
-	    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
+	if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
 		return;
 
 	cache = S2C(session)->cache;
@@ -90,17 +87,15 @@ __las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
 	 * track the generation of the last checkpoint for which the message
 	 * was printed and check against the current checkpoint generation.
 	 */
-	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) ||
-	    ckpt_gen_current > ckpt_gen_last) {
+	if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) || ckpt_gen_current > ckpt_gen_last) {
 		/*
 		 * Attempt to atomically replace the last checkpoint generation
 		 * for which this message was printed. If the atomic swap fails
 		 * we have raced and the winning thread will print the message.
 		 */
-		if (__wt_atomic_casv64(&cache->las_verb_gen_read,
-			ckpt_gen_last, ckpt_gen_current)) {
-			__wt_verbose(session,
-			    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
+		if (__wt_atomic_casv64(
+		        &cache->las_verb_gen_read, ckpt_gen_last, ckpt_gen_current)) {
+			__wt_verbose(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 			    "Read from lookaside file triggered for "
 			    "file ID %" PRIu32 ", page ID %" PRIu64,
 			    S2BT(session)->id, las_pageid);
@@ -138,7 +133,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	total_incr = 0;
 	current_recno = recno = WT_RECNO_OOB;
 	las_pageid = ref->page_las->las_pageid;
-	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	session_flags = 0; /* [-Werror=maybe-uninitialized] */
 	WT_CLEAR(las_key);
 
 	cache = S2C(session)->cache;
@@ -167,11 +162,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	__wt_readlock(session, &cache->las_sweepwalk_lock);
 	WT_PUBLISH(cache->las_reader, false);
 	locked = true;
-	for (ret = __wt_las_cursor_position(cursor, las_pageid);
-	    ret == 0;
-	    ret = cursor->next(cursor)) {
-		WT_ERR(cursor->get_key(cursor,
-		    &las_pageid, &las_id, &las_counter, &las_key));
+	for (ret = __wt_las_cursor_position(cursor, las_pageid); ret == 0;
+	     ret = cursor->next(cursor)) {
+		WT_ERR(cursor->get_key(cursor, &las_pageid, &las_id, &las_counter, &las_key));
 
 		/*
 		 * Confirm the search using the unique prefix; if not a match,
@@ -181,11 +174,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			break;
 
 		/* Allocate the WT_UPDATE structure. */
-		WT_ERR(cursor->get_value(
-		    cursor, &las_txnid, &las_timestamp,
-		    &durable_timestamp, &prepare_state, &upd_type, &las_value));
-		WT_ERR(__wt_update_alloc(
-		    session, &las_value, &upd, &incr, upd_type));
+		WT_ERR(cursor->get_value(cursor, &las_txnid, &las_timestamp, &durable_timestamp,
+		    &prepare_state, &upd_type, &las_value));
+		WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		upd->txnid = las_txnid;
 		upd->durable_ts = durable_timestamp;
@@ -202,27 +193,25 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			WT_ASSERT(session, current_recno < recno);
 
 			if (first_upd != NULL) {
-				WT_ERR(__col_instantiate(session,
-				    current_recno, ref, &cbt, first_upd));
+				WT_ERR(__col_instantiate(
+				    session, current_recno, ref, &cbt, first_upd));
 				first_upd = NULL;
 			}
 			current_recno = recno;
 			break;
 		case WT_PAGE_ROW_LEAF:
 			if (current_key->size == las_key.size &&
-			    memcmp(current_key->data,
-			    las_key.data, las_key.size) == 0)
+			    memcmp(current_key->data, las_key.data, las_key.size) == 0)
 				break;
 
 			if (first_upd != NULL) {
-				WT_ERR(__row_instantiate(session,
-				    current_key, ref, &cbt, first_upd));
+				WT_ERR(
+				    __row_instantiate(session, current_key, ref, &cbt, first_upd));
 				first_upd = NULL;
 			}
-			WT_ERR(__wt_buf_set(session,
-			    current_key, las_key.data, las_key.size));
+			WT_ERR(__wt_buf_set(session, current_key, las_key.data, las_key.size));
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, page->type);
+			WT_ILLEGAL_VALUE_ERR(session, page->type);
 		}
 
 		/* Append the latest update to the list. */
@@ -243,16 +232,14 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
-			WT_ERR(__col_instantiate(session,
-			    current_recno, ref, &cbt, first_upd));
+			WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, first_upd));
 			first_upd = NULL;
 			break;
 		case WT_PAGE_ROW_LEAF:
-			WT_ERR(__row_instantiate(session,
-			    current_key, ref, &cbt, first_upd));
+			WT_ERR(__row_instantiate(session, current_key, ref, &cbt, first_upd));
 			first_upd = NULL;
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, page->type);
+			WT_ILLEGAL_VALUE_ERR(session, page->type);
 		}
 
 	/* Discard the cursor. */
@@ -279,14 +266,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
-		if (ref->page_las->skew_newest &&
-		    !ref->page_las->has_prepares &&
+		if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
 		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
-		    ref->page_las->unstable_durable_timestamp)) {
+		        ref->page_las->unstable_durable_timestamp)) {
 			page->modify->rec_max_txn = ref->page_las->max_txn;
-			page->modify->rec_max_timestamp =
-			    ref->page_las->max_timestamp;
+			page->modify->rec_max_timestamp = ref->page_las->max_timestamp;
 			__wt_page_modify_clear(session, page);
 		}
 	}
@@ -298,7 +283,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	ref->page_las->eviction_to_lookaside = false;
 	ref->page_las->resolved = true;
 
-err:	if (locked)
+err:
+	if (locked)
 		__wt_readunlock(session, &cache->las_sweepwalk_lock);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 	WT_TRET(__wt_btcur_close(&cbt, true));
@@ -394,8 +380,8 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
  *	page access.
  */
 static inline int
-__page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
-    uint32_t previous_state, uint32_t *final_statep)
+__page_read_lookaside(
+    WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint32_t *final_statep)
 {
 	/*
 	 * Reading a lookaside ref for the first time, and not requiring the
@@ -404,8 +390,7 @@ __page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
 	 */
 	if (__wt_las_page_skip_locked(session, ref)) {
 		if (previous_state == WT_REF_LOOKASIDE) {
-			WT_STAT_CONN_INCR(
-			    session, cache_read_lookaside_skipped);
+			WT_STAT_CONN_INCR(session, cache_read_lookaside_skipped);
 			ref->page_las->eviction_to_lookaside = true;
 		}
 		*final_statep = WT_REF_LIMBO;
@@ -416,8 +401,7 @@ __page_read_lookaside(WT_SESSION_IMPL *session, WT_REF *ref,
 	if (previous_state == WT_REF_LIMBO) {
 		WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
 		if (WT_SESSION_IS_CHECKPOINT(session))
-			WT_STAT_CONN_INCR(session,
-			    cache_read_lookaside_delay_checkpoint);
+			WT_STAT_CONN_INCR(session, cache_read_lookaside_delay_checkpoint);
 	}
 
 	WT_RET(__las_page_instantiate(session, ref));
@@ -519,23 +503,18 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * a page with eviction disabled (e.g., a metadata page), then evicting
 	 * that page and deciding that is a sign that eviction is unstuck.
 	 */
-	page_flags =
-	    WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
+	page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
 	if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 		FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-	WT_ERR(__wt_page_inmem(
-	    session, ref, tmp.data, page_flags, true, &notused));
+	WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, true, &notused));
 	tmp.mem = NULL;
 
 	/*
 	 * The WT_REF lookaside state should match the page-header state of
 	 * any page we read.
 	 */
-	WT_ASSERT(session,
-	    (previous_state != WT_REF_LIMBO &&
-	    previous_state != WT_REF_LOOKASIDE) ||
-	    ref->page->dsk == NULL ||
-	    F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
+	WT_ASSERT(session, (previous_state != WT_REF_LIMBO && previous_state != WT_REF_LOOKASIDE) ||
+	        ref->page->dsk == NULL || F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
 
 skip_read:
 	switch (previous_state) {
@@ -554,8 +533,7 @@ skip_read:
 		break;
 	case WT_REF_LIMBO:
 	case WT_REF_LOOKASIDE:
-		WT_ERR(__page_read_lookaside(
-		    session, ref, previous_state, &final_state));
+		WT_ERR(__page_read_lookaside(session, ref, previous_state, &final_state));
 		break;
 	}
 
@@ -573,17 +551,16 @@ skip_read:
 	 */
 	if (final_state == WT_REF_MEM && ref->page_las != NULL &&
 	    (!ref->page_las->skew_newest || ref->page_las->has_prepares))
-		WT_ERR(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid));
+		WT_ERR(__wt_las_remove_block(session, ref->page_las->las_pageid));
 
 	WT_REF_SET_STATE(ref, final_state);
 	return (ret);
 
-err:	/*
-	 * If the function building an in-memory version of the page failed,
-	 * it discarded the page, but not the disk image.  Discard the page
-	 * and separately discard the disk image in all cases.
-	 */
+err: /*
+      * If the function building an in-memory version of the page failed,
+      * it discarded the page, but not the disk image.  Discard the page
+      * and separately discard the disk image in all cases.
+      */
 	if (ref->page != NULL && previous_state != WT_REF_LIMBO)
 		__wt_ref_out(session, ref);
 	WT_REF_SET_STATE(ref, previous_state);
@@ -601,7 +578,8 @@ err:	/*
 int
 __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 #ifdef HAVE_DIAGNOSTIC
-    , const char *func, int line
+    ,
+    const char *func, int line
 #endif
     )
 {
@@ -619,11 +597,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 		LF_SET(WT_READ_IGNORE_CACHE_SIZE);
 
 	/* Sanity check flag combinations. */
-	WT_ASSERT(session, !LF_ISSET(
-	    WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
-	    LF_ISSET(WT_READ_CACHE));
-	WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) ||
-	    !LF_ISSET(WT_READ_DELETED_SKIP));
+	WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
+	        LF_ISSET(WT_READ_CACHE));
+	WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
 	/*
 	 * Ignore reads of pages already known to be in cache, otherwise the
@@ -634,8 +610,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 		WT_STAT_DATA_INCR(session, cache_pages_requested);
 	}
 
-	for (did_read = wont_need = stalled = false,
-	    force_attempts = 0, sleep_usecs = yield_cnt = 0;;) {
+	for (did_read = wont_need = stalled = false, force_attempts = 0,
+	    sleep_usecs = yield_cnt = 0;
+	     ;) {
 		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
 			if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
@@ -664,16 +641,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (LF_ISSET(WT_READ_CACHE))
 				return (WT_NOTFOUND);
 
-read:			/*
-			 * The page isn't in memory, read it. If this thread
-			 * respects the cache size, check for space in the
-			 * cache.
-			 */
+		read: /*
+		       * The page isn't in memory, read it. If this thread
+		       * respects the cache size, check for space in the
+		       * cache.
+		       */
 			if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
 				WT_RET(__wt_cache_eviction_check(
-				    session, true,
-				    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
-				    NULL));
+				    session, true, !F_ISSET(&session->txn, WT_TXN_HAS_ID), NULL));
 			WT_RET(__page_read(session, ref, flags));
 
 			/*
@@ -725,13 +700,12 @@ read:			/*
 			if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
 				goto skip_evict;
 
-			/*
-			 * The expected reason we can't get a hazard pointer is
-			 * because the page is being evicted, yield, try again.
-			 */
+/*
+ * The expected reason we can't get a hazard pointer is
+ * because the page is being evicted, yield, try again.
+ */
 #ifdef HAVE_DIAGNOSTIC
-			WT_RET(
-			    __wt_hazard_set(session, ref, &busy, func, line));
+			WT_RET(__wt_hazard_set(session, ref, &busy, func, line));
 #else
 			WT_RET(__wt_hazard_set(session, ref, &busy));
 #endif
@@ -745,22 +719,20 @@ read:			/*
 			 * we can use the locked version.
 			 */
 			if (current_state == WT_REF_LIMBO &&
-			    ((!LF_ISSET(WT_READ_CACHE) ||
-			    LF_ISSET(WT_READ_LOOKASIDE)) &&
-			    !__wt_las_page_skip_locked(session, ref))) {
+			    ((!LF_ISSET(WT_READ_CACHE) || LF_ISSET(WT_READ_LOOKASIDE)) &&
+			        !__wt_las_page_skip_locked(session, ref))) {
 				WT_RET(__wt_hazard_clear(session, ref));
 				goto read;
 			}
-			if (current_state == WT_REF_LIMBO &&
-			    LF_ISSET(WT_READ_CACHE) &&
+			if (current_state == WT_REF_LIMBO && LF_ISSET(WT_READ_CACHE) &&
 			    LF_ISSET(WT_READ_LOOKASIDE))
 				__wt_tree_modify_set(session);
 
 			/*
 			 * Check if the page requires forced eviction.
 			 */
-			if (did_read || LF_ISSET(WT_READ_NO_SPLIT) ||
-			    btree->evict_disabled > 0 || btree->lsm_primary)
+			if (did_read || LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0 ||
+			    btree->lsm_primary)
 				goto skip_evict;
 
 			/*
@@ -775,15 +747,13 @@ read:			/*
 			/*
 			 * Forcibly evict pages that are too big.
 			 */
-			if (force_attempts < 10 &&
-			    __evict_force_check(session, ref)) {
+			if (force_attempts < 10 && __evict_force_check(session, ref)) {
 				++force_attempts;
 				ret = __wt_page_release_evict(session, ref, 0);
 				/* If forced eviction fails, stall. */
 				if (ret == EBUSY) {
 					WT_NOT_READ(ret, 0);
-					WT_STAT_CONN_INCR(session,
-					    page_forcible_evict_blocked);
+					WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
 					stalled = true;
 					break;
 				}
@@ -799,17 +769,17 @@ read:			/*
 				continue;
 			}
 
-skip_evict:		/*
-			 * If we read the page and are configured to not trash
-			 * the cache, and no other thread has already used the
-			 * page, set the read generation so the page is evicted
-			 * soon.
-			 *
-			 * Otherwise, if we read the page, or, if configured to
-			 * update the page's read generation and the page isn't
-			 * already flagged for forced eviction, update the page
-			 * read generation.
-			 */
+		skip_evict: /*
+		             * If we read the page and are configured to not trash
+		             * the cache, and no other thread has already used the
+		             * page, set the read generation so the page is evicted
+		             * soon.
+		             *
+		             * Otherwise, if we read the page, or, if configured to
+		             * update the page's read generation and the page isn't
+		             * already flagged for forced eviction, update the page
+		             * read generation.
+		             */
 			page = ref->page;
 			if (page->read_gen == WT_READGEN_NOTSET) {
 				if (wont_need)
@@ -834,9 +804,10 @@ skip_evict:		/*
 			 * start a transaction.
 			 */
 			return (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
-			    !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?
-			    0 : __wt_txn_autocommit_check(session));
-		WT_ILLEGAL_VALUE(session, current_state);
+			            !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?
+			        0 :
+			        __wt_txn_autocommit_check(session));
+			WT_ILLEGAL_VALUE(session, current_state);
 		}
 
 		/*
@@ -860,9 +831,7 @@ skip_evict:		/*
 		 */
 		if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
 			WT_RET(__wt_cache_eviction_check(
-			    session, true,
-			    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
-			    &cache_work));
+			    session, true, !F_ISSET(&session->txn, WT_TXN_HAS_ID), &cache_work));
 			if (cache_work)
 				continue;
 		}

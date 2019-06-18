@@ -33,9 +33,8 @@ __wt_log_system_record(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
 	memset((uint8_t *)logrec_buf->mem, 0, log->allocsize);
 
 	WT_ERR(__wt_struct_size(session, &recsize, fmt, rectype));
-	WT_ERR(__wt_struct_pack(session,
-	    (uint8_t *)logrec_buf->data + logrec_buf->size, recsize, fmt,
-	    rectype));
+	WT_ERR(__wt_struct_pack(
+	    session, (uint8_t *)logrec_buf->data + logrec_buf->size, recsize, fmt, rectype));
 	logrec_buf->size += recsize;
 	WT_ERR(__wt_logop_prev_lsn_pack(session, logrec_buf, lsn));
 	WT_ASSERT(session, logrec_buf->size <= log->allocsize);
@@ -67,7 +66,8 @@ __wt_log_system_record(WT_SESSION_IMPL *session, WT_FH *log_fh, WT_LSN *lsn)
 	 */
 	tmp.slot_fh = log_fh;
 	WT_ERR(__wt_log_fill(session, &myslot, true, logrec_buf, NULL));
-err:	__wt_logrec_free(session, &logrec_buf);
+err:
+	__wt_logrec_free(session, &logrec_buf);
 	return (ret);
 }
 
@@ -76,14 +76,13 @@ err:	__wt_logrec_free(session, &logrec_buf);
  *	Process a system log record for the previous LSN in recovery.
  */
 int
-__wt_log_recover_system(WT_SESSION_IMPL *session,
-    const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
+__wt_log_recover_system(
+    WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end, WT_LSN *lsnp)
 {
 	WT_DECL_RET;
 
 	if ((ret = __wt_logop_prev_lsn_unpack(session, pp, end, lsnp)) != 0)
-		WT_RET_MSG(session, ret,
-		    "log_recover_prevlsn: unpack failure");
+		WT_RET_MSG(session, ret, "log_recover_prevlsn: unpack failure");
 
 	return (0);
 }
@@ -115,23 +114,22 @@ __wt_verbose_dump_log(WT_SESSION_IMPL *session)
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_DOWNGRADED) ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "Zero fill files: %s",
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ZERO_FILL) ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "Pre-allocate files: %s",
-	    conn->log_prealloc > 0 ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "Pre-allocate files: %s", conn->log_prealloc > 0 ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "Logging directory: %s", conn->log_path));
-	WT_RET(__wt_msg(session, "Logging maximum file size: %" PRId64,
-	    (int64_t)conn->log_file_max));
-	WT_RET(__wt_msg(session, "Log sync setting: %s",
-	    !FLD_ISSET(conn->txn_logsync, WT_LOG_SYNC_ENABLED) ? "none" :
-	    FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC) ? "dsync" :
-	    FLD_ISSET(conn->txn_logsync, WT_LOG_FLUSH) ? "write to OS" :
-	    FLD_ISSET(conn->txn_logsync, WT_LOG_FSYNC) ?
-	    "fsync to disk": "unknown sync setting"));
-	WT_RET(__wt_msg(session, "Log record allocation alignment: %" PRIu32,
-	    log->allocsize));
-	WT_RET(__wt_msg(session, "Current log file number: %" PRIu32,
-	    log->fileid));
-	WT_RET(__wt_msg(session, "Current log version number: %" PRIu16,
-	    log->log_version));
+	WT_RET(
+	    __wt_msg(session, "Logging maximum file size: %" PRId64, (int64_t)conn->log_file_max));
+	WT_RET(__wt_msg(
+	    session, "Log sync setting: %s", !FLD_ISSET(conn->txn_logsync, WT_LOG_SYNC_ENABLED) ?
+	        "none" :
+	        FLD_ISSET(conn->txn_logsync, WT_LOG_DSYNC) ?
+	        "dsync" :
+	        FLD_ISSET(conn->txn_logsync, WT_LOG_FLUSH) ?
+	        "write to OS" :
+	        FLD_ISSET(conn->txn_logsync, WT_LOG_FSYNC) ? "fsync to disk" :
+	                                                     "unknown sync setting"));
+	WT_RET(__wt_msg(session, "Log record allocation alignment: %" PRIu32, log->allocsize));
+	WT_RET(__wt_msg(session, "Current log file number: %" PRIu32, log->fileid));
+	WT_RET(__wt_msg(session, "Current log version number: %" PRIu16, log->log_version));
 	WT_RET(WT_LSN_MSG(&log->alloc_lsn, "Next allocation"));
 	WT_RET(WT_LSN_MSG(&log->bg_sync_lsn, "Last background sync"));
 	WT_RET(WT_LSN_MSG(&log->ckpt_lsn, "Last checkpoint"));

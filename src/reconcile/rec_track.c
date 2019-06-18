@@ -12,8 +12,7 @@
  * Estimated memory cost for a structure on the overflow lists, the size of
  * the structure plus two pointers (assume the average skip list depth is 2).
  */
-#define	WT_OVFL_SIZE(p, s)						\
-	(sizeof(s) + 2 * sizeof(void *) + (p)->addr_size + (p)->value_size)
+#define WT_OVFL_SIZE(p, s) (sizeof(s) + 2 * sizeof(void *) + (p)->addr_size + (p)->value_size)
 
 /*
  * __wt_ovfl_track_init --
@@ -30,8 +29,7 @@ __wt_ovfl_track_init(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Dump information about a discard overflow record.
  */
 static int
-__ovfl_discard_verbose(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, const char *tag)
+__ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, const char *tag)
 {
 	WT_CELL_UNPACK *unpack, _unpack;
 	WT_DECL_ITEM(tmp);
@@ -41,11 +39,8 @@ __ovfl_discard_verbose(
 	unpack = &_unpack;
 	__wt_cell_unpack(session, page, cell, unpack);
 
-	__wt_verbose(session, WT_VERB_OVERFLOW,
-	    "discard: %s%s%p %s",
-	    tag == NULL ? "" : tag,
-	    tag == NULL ? "" : ": ",
-	    (void *)page,
+	__wt_verbose(session, WT_VERB_OVERFLOW, "discard: %s%s%p %s", tag == NULL ? "" : tag,
+	    tag == NULL ? "" : ": ", (void *)page,
 	    __wt_addr_string(session, unpack->data, unpack->size, tmp));
 
 	__wt_scr_free(session, &tmp);
@@ -86,11 +81,9 @@ __ovfl_discard_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 	uint32_t i;
 
 	track = page->modify->ovfl_track;
-	for (i = 0, cellp = track->discard;
-	    i < track->discard_entries; ++i, ++cellp) {
+	for (i = 0, cellp = track->discard; i < track->discard_entries; ++i, ++cellp) {
 		if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-			WT_RET(__ovfl_discard_verbose(
-			    session, page, *cellp, "free"));
+			WT_RET(__ovfl_discard_verbose(session, page, *cellp, "free"));
 
 		/* Discard each cell's overflow item. */
 		WT_RET(__wt_ovfl_discard(session, page, *cellp));
@@ -131,8 +124,8 @@ __wt_ovfl_discard_add(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell)
 		WT_RET(__wt_ovfl_track_init(session, page));
 
 	track = page->modify->ovfl_track;
-	WT_RET(__wt_realloc_def(session, &track->discard_allocated,
-	    track->discard_entries + 1, &track->discard));
+	WT_RET(__wt_realloc_def(
+	    session, &track->discard_allocated, track->discard_entries + 1, &track->discard));
 	track->discard[track->discard_entries++] = cell;
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
@@ -164,26 +157,20 @@ __wt_ovfl_discard_free(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Dump information about a reuse overflow record.
  */
 static int
-__ovfl_reuse_verbose(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_OVFL_REUSE *reuse, const char *tag)
+__ovfl_reuse_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_OVFL_REUSE *reuse, const char *tag)
 {
 	WT_DECL_ITEM(tmp);
 
 	WT_RET(__wt_scr_alloc(session, 64, &tmp));
 
-	__wt_verbose(session, WT_VERB_OVERFLOW,
-	    "reuse: %s%s%p %s (%s%s%s) {%.*s}",
-	    tag == NULL ? "" : tag,
-	    tag == NULL ? "" : ": ",
-	    (void *)page,
-	    __wt_addr_string(
-		session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size, tmp),
+	__wt_verbose(session, WT_VERB_OVERFLOW, "reuse: %s%s%p %s (%s%s%s) {%.*s}",
+	    tag == NULL ? "" : tag, tag == NULL ? "" : ": ", (void *)page,
+	    __wt_addr_string(session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size, tmp),
 	    F_ISSET(reuse, WT_OVFL_REUSE_INUSE) ? "inuse" : "",
-	    F_ISSET(reuse, WT_OVFL_REUSE_INUSE) &&
-	    F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? ", " : "",
+	    F_ISSET(reuse, WT_OVFL_REUSE_INUSE) && F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? ", " :
+	                                                                                      "",
 	    F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? "just-added" : "",
-	    (int)WT_MIN(reuse->value_size, 40),
-	    (char *)WT_OVFL_REUSE_VALUE(reuse));
+	    (int)WT_MIN(reuse->value_size, 40), (char *)WT_OVFL_REUSE_VALUE(reuse));
 
 	__wt_scr_free(session, &tmp);
 	return (0);
@@ -213,8 +200,7 @@ __ovfl_reuse_dump(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Return the first, not in-use, matching value in the overflow reuse list.
  */
 static WT_OVFL_REUSE *
-__ovfl_reuse_skip_search(
-    WT_OVFL_REUSE **head, const void *value, size_t value_size)
+__ovfl_reuse_skip_search(WT_OVFL_REUSE **head, const void *value, size_t value_size)
 {
 	WT_OVFL_REUSE **e, *next;
 	size_t len;
@@ -225,7 +211,7 @@ __ovfl_reuse_skip_search(
 	 * level before stepping down to the next.
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, e = &head[i]; i >= 0;) {
-		if (*e == NULL) {		/* Empty levels */
+		if (*e == NULL) { /* Empty levels */
 			--i;
 			--e;
 			continue;
@@ -243,15 +229,13 @@ __ovfl_reuse_skip_search(
 		cmp = memcmp(WT_OVFL_REUSE_VALUE(*e), value, len);
 		if (cmp == 0 && (*e)->value_size == value_size) {
 			if (i == 0)
-				return (F_ISSET(*e,
-				    WT_OVFL_REUSE_INUSE) ? NULL : *e);
-			if ((next = (*e)->next[i]) == NULL ||
-			    !F_ISSET(next, WT_OVFL_REUSE_INUSE) ||
-			    next->value_size != len || memcmp(
-			    WT_OVFL_REUSE_VALUE(next), value, len) != 0) {
-				--i;		/* Drop down a level */
+				return (F_ISSET(*e, WT_OVFL_REUSE_INUSE) ? NULL : *e);
+			if ((next = (*e)->next[i]) == NULL || !F_ISSET(next, WT_OVFL_REUSE_INUSE) ||
+			    next->value_size != len ||
+			    memcmp(WT_OVFL_REUSE_VALUE(next), value, len) != 0) {
+				--i; /* Drop down a level */
 				--e;
-			} else			/* Keep going at this level */
+			} else /* Keep going at this level */
 				e = &(*e)->next[i];
 			continue;
 		}
@@ -263,9 +247,9 @@ __ovfl_reuse_skip_search(
 		 * this level.
 		 */
 		if (cmp > 0 || (cmp == 0 && (*e)->value_size > value_size)) {
-			--i;			/* Drop down a level */
+			--i; /* Drop down a level */
 			--e;
-		} else				/* Keep going at this level */
+		} else /* Keep going at this level */
 			e = &(*e)->next[i];
 	}
 	return (NULL);
@@ -276,8 +260,8 @@ __ovfl_reuse_skip_search(
  *	 Search an overflow reuse skiplist, returning an insert/remove stack.
  */
 static void
-__ovfl_reuse_skip_search_stack(WT_OVFL_REUSE **head,
-    WT_OVFL_REUSE ***stack, const void *value, size_t value_size)
+__ovfl_reuse_skip_search_stack(
+    WT_OVFL_REUSE **head, WT_OVFL_REUSE ***stack, const void *value, size_t value_size)
 {
 	WT_OVFL_REUSE **e;
 	size_t len;
@@ -288,7 +272,7 @@ __ovfl_reuse_skip_search_stack(WT_OVFL_REUSE **head,
 	 * level before stepping down to the next.
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, e = &head[i]; i >= 0;) {
-		if (*e == NULL) {		/* Empty levels */
+		if (*e == NULL) { /* Empty levels */
 			stack[i--] = e--;
 			continue;
 		}
@@ -302,9 +286,9 @@ __ovfl_reuse_skip_search_stack(WT_OVFL_REUSE **head,
 		len = WT_MIN((*e)->value_size, value_size);
 		cmp = memcmp(WT_OVFL_REUSE_VALUE(*e), value, len);
 		if (cmp > 0 || (cmp == 0 && (*e)->value_size > value_size))
-			stack[i--] = e--;	/* Drop down a level */
+			stack[i--] = e--; /* Drop down a level */
 		else
-			e = &(*e)->next[i];	/* Keep going at this level */
+			e = &(*e)->next[i]; /* Keep going at this level */
 	}
 }
 
@@ -353,8 +337,7 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 	decr = 0;
 	for (e = &head[0]; (reuse = *e) != NULL;) {
 		if (F_ISSET(reuse, WT_OVFL_REUSE_INUSE)) {
-			F_CLR(reuse,
-			    WT_OVFL_REUSE_INUSE | WT_OVFL_REUSE_JUST_ADDED);
+			F_CLR(reuse, WT_OVFL_REUSE_INUSE | WT_OVFL_REUSE_JUST_ADDED);
 			e = &reuse->next[0];
 			continue;
 		}
@@ -363,11 +346,9 @@ __ovfl_reuse_wrapup(WT_SESSION_IMPL *session, WT_PAGE *page)
 		WT_ASSERT(session, !F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED));
 
 		if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-			WT_RET(
-			    __ovfl_reuse_verbose(session, page, reuse, "free"));
+			WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
-		WT_RET(bm->free(
-		    bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
+		WT_RET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
 		decr += WT_OVFL_SIZE(reuse, WT_OVFL_REUSE);
 		__wt_free(session, reuse);
 	}
@@ -423,11 +404,9 @@ __ovfl_reuse_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
 		*e = reuse->next[0];
 
 		if (WT_VERBOSE_ISSET(session, WT_VERB_OVERFLOW))
-			WT_RET(
-			    __ovfl_reuse_verbose(session, page, reuse, "free"));
+			WT_RET(__ovfl_reuse_verbose(session, page, reuse, "free"));
 
-		WT_TRET(bm->free(
-		    bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
+		WT_TRET(bm->free(bm, session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size));
 		decr += WT_OVFL_SIZE(reuse, WT_OVFL_REUSE);
 		__wt_free(session, reuse);
 	}
@@ -442,8 +421,7 @@ __ovfl_reuse_wrapup_err(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Search the page's list of overflow records for a match.
  */
 int
-__wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page,
-    uint8_t **addrp, size_t *addr_sizep,
+__wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page, uint8_t **addrp, size_t *addr_sizep,
     const void *value, size_t value_size)
 {
 	WT_OVFL_REUSE **head, *reuse;
@@ -478,8 +456,7 @@ __wt_ovfl_reuse_search(WT_SESSION_IMPL *session, WT_PAGE *page,
  * reuse.
  */
 int
-__wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page,
-    const uint8_t *addr, size_t addr_size,
+__wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page, const uint8_t *addr, size_t addr_size,
     const void *value, size_t value_size)
 {
 	WT_OVFL_REUSE **head, *reuse, **stack[WT_SKIP_MAXDEPTH];
@@ -505,11 +482,9 @@ __wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page,
 	 * the structure (which can't be more than about 100B), and address
 	 * cookies are limited to 255B.
 	 */
-	size = sizeof(WT_OVFL_REUSE) +
-	    skipdepth * sizeof(WT_OVFL_REUSE *) + addr_size + value_size;
+	size = sizeof(WT_OVFL_REUSE) + skipdepth * sizeof(WT_OVFL_REUSE *) + addr_size + value_size;
 	WT_RET(__wt_calloc(session, 1, size, &reuse));
-	p = (uint8_t *)reuse +
-	    sizeof(WT_OVFL_REUSE) + skipdepth * sizeof(WT_OVFL_REUSE *);
+	p = (uint8_t *)reuse + sizeof(WT_OVFL_REUSE) + skipdepth * sizeof(WT_OVFL_REUSE *);
 	reuse->addr_offset = (uint8_t)WT_PTRDIFF(p, reuse);
 	reuse->addr_size = (uint8_t)addr_size;
 	memcpy(p, addr, addr_size);
@@ -519,8 +494,7 @@ __wt_ovfl_reuse_add(WT_SESSION_IMPL *session, WT_PAGE *page,
 	memcpy(p, value, value_size);
 	F_SET(reuse, WT_OVFL_REUSE_INUSE | WT_OVFL_REUSE_JUST_ADDED);
 
-	__wt_cache_page_inmem_incr(
-	    session, page, WT_OVFL_SIZE(reuse, WT_OVFL_REUSE));
+	__wt_cache_page_inmem_incr(session, page, WT_OVFL_SIZE(reuse, WT_OVFL_REUSE));
 
 	/* Insert the new entry into the skiplist. */
 	__ovfl_reuse_skip_search_stack(head, stack, value, value_size);
@@ -550,8 +524,7 @@ __wt_ovfl_reuse_free(WT_SESSION_IMPL *session, WT_PAGE *page)
 	if (mod == NULL || mod->ovfl_track == NULL)
 		return;
 
-	for (reuse = mod->ovfl_track->ovfl_reuse[0];
-	    reuse != NULL; reuse = next) {
+	for (reuse = mod->ovfl_track->ovfl_reuse[0]; reuse != NULL; reuse = next) {
 		next = reuse->next[0];
 		__wt_free(session, reuse);
 	}

@@ -23,14 +23,14 @@ __wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
 
 #ifdef HAVE_PTHREAD_COND_MONOTONIC
 	{
-	pthread_condattr_t condattr;
+		pthread_condattr_t condattr;
 
-	WT_ERR(pthread_condattr_init(&condattr));
-	ret = pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC);
-	if (ret == 0)
-		ret = pthread_cond_init(&cond->cond, &condattr);
-	WT_TRET(pthread_condattr_destroy(&condattr));
-	WT_ERR(ret);
+		WT_ERR(pthread_condattr_init(&condattr));
+		ret = pthread_condattr_setclock(&condattr, CLOCK_MONOTONIC);
+		if (ret == 0)
+			ret = pthread_cond_init(&cond->cond, &condattr);
+		WT_TRET(pthread_condattr_destroy(&condattr));
+		WT_ERR(ret);
 	}
 #else
 	WT_ERR(pthread_cond_init(&cond->cond, NULL));
@@ -42,7 +42,8 @@ __wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
 	*condp = cond;
 	return (0);
 
-err:	__wt_free(session, cond);
+err:
+	__wt_free(session, cond);
 	return (ret);
 }
 
@@ -52,8 +53,8 @@ err:	__wt_free(session, cond);
  * out period expires, let the caller know.
  */
 void
-__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
-    uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
+__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs,
+    bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
 {
 	struct timespec ts;
 	WT_DECL_RET;
@@ -95,19 +96,19 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 		goto skipping;
 
 	if (usecs > 0) {
-		/*
-		 * Get the current time as the basis for calculating when the
-		 * wait should end.  Prefer a monotonic clock source to avoid
-		 * unexpectedly long sleeps when the system clock is adjusted.
-		 *
-		 * Failing that, query the time directly and don't attempt to
-		 * correct for the clock moving backwards, which would result
-		 * in a sleep that is too long by however much the clock is
-		 * updated.  This isn't as good as a monotonic clock source but
-		 * makes the window of vulnerability smaller (i.e., the
-		 * calculated time is only incorrect if the system clock
-		 * changes in between us querying it and waiting).
-		 */
+/*
+ * Get the current time as the basis for calculating when the
+ * wait should end.  Prefer a monotonic clock source to avoid
+ * unexpectedly long sleeps when the system clock is adjusted.
+ *
+ * Failing that, query the time directly and don't attempt to
+ * correct for the clock moving backwards, which would result
+ * in a sleep that is too long by however much the clock is
+ * updated.  This isn't as good as a monotonic clock source but
+ * makes the window of vulnerability smaller (i.e., the
+ * calculated time is only incorrect if the system clock
+ * changes in between us querying it and waiting).
+ */
 #ifdef HAVE_PTHREAD_COND_MONOTONIC
 		WT_SYSCALL_RETRY(clock_gettime(CLOCK_MONOTONIC, &ts), ret);
 		if (ret != 0)
@@ -115,10 +116,8 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 #else
 		__wt_epoch_raw(session, &ts);
 #endif
-		ts.tv_sec += (time_t)
-		    (((uint64_t)ts.tv_nsec + WT_THOUSAND * usecs) / WT_BILLION);
-		ts.tv_nsec = (long)
-		    (((uint64_t)ts.tv_nsec + WT_THOUSAND * usecs) % WT_BILLION);
+		ts.tv_sec += (time_t)(((uint64_t)ts.tv_nsec + WT_THOUSAND * usecs) / WT_BILLION);
+		ts.tv_nsec = (long)(((uint64_t)ts.tv_nsec + WT_THOUSAND * usecs) % WT_BILLION);
 		ret = pthread_cond_timedwait(&cond->cond, &cond->mtx, &ts);
 	} else
 		ret = pthread_cond_wait(&cond->cond, &cond->mtx);
@@ -132,11 +131,13 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	    ret == ETIME ||
 #endif
 	    ret == ETIMEDOUT) {
-skipping:	*signalled = false;
+	skipping:
+		*signalled = false;
 		ret = 0;
 	}
 
-err:	(void)__wt_atomic_subi32(&cond->waiters, 1);
+err:
+	(void)__wt_atomic_subi32(&cond->waiters, 1);
 
 	if (locked)
 		WT_TRET(pthread_mutex_unlock(&cond->mtx));
@@ -201,12 +202,10 @@ __wt_cond_destroy(WT_SESSION_IMPL *session, WT_CONDVAR **condp)
 		return;
 
 	if ((ret = pthread_cond_destroy(&cond->cond)) != 0)
-		WT_PANIC_MSG(
-		    session, ret, "pthread_cond_destroy: %s", cond->name);
+		WT_PANIC_MSG(session, ret, "pthread_cond_destroy: %s", cond->name);
 
 	if ((ret = pthread_mutex_destroy(&cond->mtx)) != 0)
-		WT_PANIC_MSG(
-		    session, ret, "pthread_mutex_destroy: %s", cond->name);
+		WT_PANIC_MSG(session, ret, "pthread_mutex_destroy: %s", cond->name);
 
 	__wt_free(session, *condp);
 }

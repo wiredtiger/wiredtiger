@@ -17,8 +17,7 @@ static void __bm_method_set(WT_BM *, bool);
 static int
 __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
 {
-	WT_RET_MSG(session, ENOTSUP,
-	    "%s: write operation on read-only checkpoint handle",
+	WT_RET_MSG(session, ENOTSUP, "%s: write operation on read-only checkpoint handle",
 	    bm->block->name);
 }
 
@@ -27,11 +26,9 @@ __bm_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  *	Return an error code if an address cookie is invalid.
  */
 static int
-__bm_addr_invalid(WT_BM *bm,
-    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_addr_invalid(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
-	return (__wt_block_addr_invalid(
-	    session, bm->block, addr, addr_size, bm->is_live));
+	return (__wt_block_addr_invalid(session, bm->block, addr, addr_size, bm->is_live));
 }
 
 /*
@@ -39,11 +36,10 @@ __bm_addr_invalid(WT_BM *bm,
  *	Return a printable string representation of an address cookie.
  */
 static int
-__bm_addr_string(WT_BM *bm, WT_SESSION_IMPL *session,
-    WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+__bm_addr_string(
+    WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
-	return (
-	    __wt_block_addr_string(session, bm->block, buf, addr, addr_size));
+	return (__wt_block_addr_string(session, bm->block, buf, addr, addr_size));
 }
 
 /*
@@ -61,11 +57,10 @@ __bm_block_header(WT_BM *bm)
  *	Write a buffer into a block, creating a checkpoint.
  */
 static int
-__bm_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session,
-    WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+__bm_checkpoint(
+    WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
-	return (__wt_block_checkpoint(
-	    session, bm->block, buf, ckptbase, data_checksum));
+	return (__wt_block_checkpoint(session, bm->block, buf, ckptbase, data_checksum));
 }
 
 /*
@@ -73,8 +68,8 @@ __bm_checkpoint(WT_BM *bm, WT_SESSION_IMPL *session,
  *	Return information for the last known file checkpoint.
  */
 static int
-__bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session,
-    char **metadatap, char **checkpoint_listp, WT_ITEM *checkpoint)
+__bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session, char **metadatap, char **checkpoint_listp,
+    WT_ITEM *checkpoint)
 {
 	return (__wt_block_checkpoint_last(
 	    session, bm->block, metadatap, checkpoint_listp, checkpoint));
@@ -85,8 +80,8 @@ __bm_checkpoint_last(WT_BM *bm, WT_SESSION_IMPL *session,
  *	Write a buffer into a block, creating a checkpoint; readonly version.
  */
 static int
-__bm_checkpoint_readonly(WT_BM *bm, WT_SESSION_IMPL *session,
-    WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
+__bm_checkpoint_readonly(
+    WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckptbase, bool data_checksum)
 {
 	WT_UNUSED(buf);
 	WT_UNUSED(ckptbase);
@@ -100,22 +95,21 @@ __bm_checkpoint_readonly(WT_BM *bm, WT_SESSION_IMPL *session,
  *	Load a checkpoint.
  */
 static int
-__bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_size,
+__bm_checkpoint_load(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
     uint8_t *root_addr, size_t *root_addr_sizep, bool checkpoint)
 {
 	/* If not opening a checkpoint, we're opening the live system. */
 	bm->is_live = !checkpoint;
-	WT_RET(__wt_block_checkpoint_load(session, bm->block,
-	    addr, addr_size, root_addr, root_addr_sizep, checkpoint));
+	WT_RET(__wt_block_checkpoint_load(
+	    session, bm->block, addr, addr_size, root_addr, root_addr_sizep, checkpoint));
 
 	if (checkpoint) {
 		/*
 		 * Read-only objects are optionally mapped into memory instead
 		 * of being read into cache buffers.
 		 */
-		WT_RET(__wt_block_map(session,
-		    bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
+		WT_RET(
+		    __wt_block_map(session, bm->block, &bm->map, &bm->maplen, &bm->mapped_cookie));
 
 		/*
 		 * If this handle is for a checkpoint, that is, read-only, there
@@ -144,8 +138,7 @@ __bm_checkpoint_resolve(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
  *	Resolve the checkpoint; readonly version.
  */
 static int
-__bm_checkpoint_resolve_readonly(
-    WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
+__bm_checkpoint_resolve_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool failed)
 {
 	WT_UNUSED(failed);
 
@@ -183,8 +176,8 @@ __bm_checkpoint_unload(WT_BM *bm, WT_SESSION_IMPL *session)
 
 	/* Unmap any mapped segment. */
 	if (bm->map != NULL)
-		WT_TRET(__wt_block_unmap(session,
-		    bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
+		WT_TRET(
+		    __wt_block_unmap(session, bm->block, bm->map, bm->maplen, &bm->mapped_cookie));
 
 	/* Unload the checkpoint. */
 	WT_TRET(__wt_block_checkpoint_unload(session, bm->block, !bm->is_live));
@@ -201,7 +194,7 @@ __bm_close(WT_BM *bm, WT_SESSION_IMPL *session)
 {
 	WT_DECL_RET;
 
-	if (bm == NULL)				/* Safety check */
+	if (bm == NULL) /* Safety check */
 		return (0);
 
 	ret = __wt_block_close(session, bm->block);
@@ -235,11 +228,10 @@ __bm_compact_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  *	Return if a page is useful for compaction.
  */
 static int
-__bm_compact_page_skip(WT_BM *bm, WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_size, bool *skipp)
+__bm_compact_page_skip(
+    WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
-	return (__wt_block_compact_page_skip(
-	    session, bm->block, addr, addr_size, skipp));
+	return (__wt_block_compact_page_skip(session, bm->block, addr, addr_size, skipp));
 }
 
 /*
@@ -247,8 +239,8 @@ __bm_compact_page_skip(WT_BM *bm, WT_SESSION_IMPL *session,
  *	Return if a page is useful for compaction; readonly version.
  */
 static int
-__bm_compact_page_skip_readonly(WT_BM *bm, WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_size, bool *skipp)
+__bm_compact_page_skip_readonly(
+    WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
 {
 	WT_UNUSED(addr);
 	WT_UNUSED(addr_size);
@@ -304,8 +296,7 @@ __bm_compact_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  *	Free a block of space to the underlying file.
  */
 static int
-__bm_free(WT_BM *bm,
-    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_free(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
 	return (__wt_block_free(session, bm->block, addr, addr_size));
 }
@@ -315,8 +306,7 @@ __bm_free(WT_BM *bm,
  *	Free a block of space to the underlying file; readonly version.
  */
 static int
-__bm_free_readonly(WT_BM *bm,
-    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_free_readonly(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
 	WT_UNUSED(addr);
 	WT_UNUSED(addr_size);
@@ -346,8 +336,7 @@ __bm_map_discard(WT_BM *bm, WT_SESSION_IMPL *session, void *map, size_t len)
 	WT_FILE_HANDLE *handle;
 
 	handle = bm->block->fh->handle;
-	return (handle->fh_map_discard(
-	    handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
+	return (handle->fh_map_discard(handle, (WT_SESSION *)session, map, len, bm->mapped_cookie));
 }
 
 /*
@@ -375,8 +364,8 @@ __bm_salvage_end_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  *	Return the next block from the file; readonly version.
  */
 static int
-__bm_salvage_next_readonly(WT_BM *bm,
-    WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
+__bm_salvage_next_readonly(
+    WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
 	WT_UNUSED(addr);
 	WT_UNUSED(addr_sizep);
@@ -390,11 +379,10 @@ __bm_salvage_next_readonly(WT_BM *bm,
  *	Return the next block from the file.
  */
 static int
-__bm_salvage_next(WT_BM *bm,
-    WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
+__bm_salvage_next(
+    WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
-	return (__wt_block_salvage_next(
-	    session, bm->block, addr, addr_sizep, eofp));
+	return (__wt_block_salvage_next(session, bm->block, addr, addr_sizep, eofp));
 }
 
 /*
@@ -422,11 +410,9 @@ __bm_salvage_start_readonly(WT_BM *bm, WT_SESSION_IMPL *session)
  *	Inform salvage a block is valid.
  */
 static int
-__bm_salvage_valid(WT_BM *bm,
-    WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
+__bm_salvage_valid(WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
 {
-	return (__wt_block_salvage_valid(
-	    session, bm->block, addr, addr_size, valid));
+	return (__wt_block_salvage_valid(session, bm->block, addr, addr_size, valid));
 }
 
 /*
@@ -434,8 +420,8 @@ __bm_salvage_valid(WT_BM *bm,
  *	Inform salvage a block is valid; readonly version.
  */
 static int
-__bm_salvage_valid_readonly(WT_BM *bm,
-    WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
+__bm_salvage_valid_readonly(
+    WT_BM *bm, WT_SESSION_IMPL *session, uint8_t *addr, size_t addr_size, bool valid)
 {
 	WT_UNUSED(addr);
 	WT_UNUSED(addr_size);
@@ -482,8 +468,7 @@ __bm_sync_readonly(WT_BM *bm, WT_SESSION_IMPL *session, bool async)
  *	Verify an address.
  */
 static int
-__bm_verify_addr(WT_BM *bm,
-    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+__bm_verify_addr(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
 {
 	return (__wt_block_verify_addr(session, bm->block, addr, addr_size));
 }
@@ -503,8 +488,7 @@ __bm_verify_end(WT_BM *bm, WT_SESSION_IMPL *session)
  *	Start a block manager verify.
  */
 static int
-__bm_verify_start(WT_BM *bm,
-    WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
+__bm_verify_start(WT_BM *bm, WT_SESSION_IMPL *session, WT_CKPT *ckptbase, const char *cfg[])
 {
 	return (__wt_block_verify_start(session, bm->block, ckptbase, cfg));
 }
@@ -514,13 +498,13 @@ __bm_verify_start(WT_BM *bm,
  *	Write a buffer into a block, returning the block's address cookie.
  */
 static int
-__bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
-    uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+__bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *addr_sizep,
+    bool data_checksum, bool checkpoint_io)
 {
-	__wt_capacity_throttle(session, buf->size,
-	     checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
-	return (__wt_block_write(session,
-	    bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
+	__wt_capacity_throttle(
+	    session, buf->size, checkpoint_io ? WT_THROTTLE_CKPT : WT_THROTTLE_EVICT);
+	return (__wt_block_write(
+	    session, bm->block, buf, addr, addr_sizep, data_checksum, checkpoint_io));
 }
 
 /*
@@ -529,8 +513,8 @@ __bm_write(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
  * readonly version.
  */
 static int
-__bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf,
-    uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+__bm_write_readonly(WT_BM *bm, WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr,
+    size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
 	WT_UNUSED(buf);
 	WT_UNUSED(addr);
@@ -627,8 +611,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
  *	Open a file.
  */
 int
-__wt_block_manager_open(WT_SESSION_IMPL *session,
-    const char *filename, const char *cfg[],
+__wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
     bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
 {
 	WT_BM *bm;
@@ -639,13 +622,14 @@ __wt_block_manager_open(WT_SESSION_IMPL *session,
 	WT_RET(__wt_calloc_one(session, &bm));
 	__bm_method_set(bm, false);
 
-	WT_ERR(__wt_block_open(session, filename, cfg,
-	    forced_salvage, readonly, allocsize, &bm->block));
+	WT_ERR(__wt_block_open(
+	    session, filename, cfg, forced_salvage, readonly, allocsize, &bm->block));
 
 	*bmp = bm;
 	return (0);
 
-err:	WT_TRET(bm->close(bm, session));
+err:
+	WT_TRET(bm->close(bm, session));
 	return (ret);
 }
 
@@ -654,8 +638,7 @@ err:	WT_TRET(bm->close(bm, session));
  * 	Report an error, then panic the handle and the system.
  */
 int
-__wt_block_panic(WT_SESSION_IMPL *session)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_block_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	/* Switch the handle into read-only mode. */
 	__bm_method_set(S2BT(session)->bm, true);

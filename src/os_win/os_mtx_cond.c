@@ -37,8 +37,8 @@ __wt_cond_alloc(WT_SESSION_IMPL *session, const char *name, WT_CONDVAR **condp)
  * out period expires, let the caller know.
  */
 void
-__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
-    uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
+__wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs,
+    bool (*run_func)(WT_SESSION_IMPL *), bool *signalled)
 {
 	BOOL sleepret;
 	DWORD milliseconds, windows_error;
@@ -94,11 +94,9 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 		if (milliseconds == 0)
 			milliseconds = 1;
 
-		sleepret = SleepConditionVariableCS(
-		    &cond->cond, &cond->mtx, milliseconds);
+		sleepret = SleepConditionVariableCS(&cond->cond, &cond->mtx, milliseconds);
 	} else
-		sleepret = SleepConditionVariableCS(
-		    &cond->cond, &cond->mtx, INFINITE);
+		sleepret = SleepConditionVariableCS(&cond->cond, &cond->mtx, INFINITE);
 
 	/*
 	 * SleepConditionVariableCS returns non-zero on success, 0 on timeout
@@ -107,7 +105,8 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond,
 	if (sleepret == 0) {
 		windows_error = __wt_getlasterror();
 		if (windows_error == ERROR_TIMEOUT) {
-skipping:		*signalled = false;
+		skipping:
+			*signalled = false;
 			sleepret = 1;
 		}
 	}
@@ -120,12 +119,10 @@ skipping:		*signalled = false;
 	if (sleepret != 0)
 		return;
 
-	__wt_err(session,
-	    __wt_map_windows_error(windows_error),
-	    "SleepConditionVariableCS: %s: %s",
+	__wt_err(session, __wt_map_windows_error(windows_error), "SleepConditionVariableCS: %s: %s",
 	    cond->name, __wt_formatmessage(session, windows_error));
-	WT_PANIC_MSG(session, __wt_map_windows_error(windows_error),
-	    "SleepConditionVariableCS: %s", cond->name);
+	WT_PANIC_MSG(session, __wt_map_windows_error(windows_error), "SleepConditionVariableCS: %s",
+	    cond->name);
 }
 
 /*

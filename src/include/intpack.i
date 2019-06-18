@@ -31,51 +31,51 @@
  * [11 11xxxx] | free | N/A                    | N/A
  */
 
-#define	NEG_MULTI_MARKER (uint8_t)0x10
-#define	NEG_2BYTE_MARKER (uint8_t)0x20
-#define	NEG_1BYTE_MARKER (uint8_t)0x40
-#define	POS_1BYTE_MARKER (uint8_t)0x80
-#define	POS_2BYTE_MARKER (uint8_t)0xc0
-#define	POS_MULTI_MARKER (uint8_t)0xe0
+#define NEG_MULTI_MARKER (uint8_t)0x10
+#define NEG_2BYTE_MARKER (uint8_t)0x20
+#define NEG_1BYTE_MARKER (uint8_t)0x40
+#define POS_1BYTE_MARKER (uint8_t)0x80
+#define POS_2BYTE_MARKER (uint8_t)0xc0
+#define POS_MULTI_MARKER (uint8_t)0xe0
 
-#define	NEG_1BYTE_MIN (-(1 << 6))
-#define	NEG_2BYTE_MIN (-(1 << 13) + NEG_1BYTE_MIN)
-#define	POS_1BYTE_MAX ((1 << 6) - 1)
-#define	POS_2BYTE_MAX ((1 << 13) + POS_1BYTE_MAX)
+#define NEG_1BYTE_MIN (-(1 << 6))
+#define NEG_2BYTE_MIN (-(1 << 13) + NEG_1BYTE_MIN)
+#define POS_1BYTE_MAX ((1 << 6) - 1)
+#define POS_2BYTE_MAX ((1 << 13) + POS_1BYTE_MAX)
 
 /* Extract bits <start> to <end> from a value (counting from LSB == 0). */
-#define	GET_BITS(x, start, end)                                         \
-	(((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
+#define GET_BITS(x, start, end) (((uint64_t)(x) & ((1U << (start)) - 1U)) >> (end))
 
 /*
  * Size checks: return ENOMEM if not enough room when writing, EINVAL if the
  * length is wrong when reading (presumably the value is corrupted).
  */
-#define	WT_SIZE_CHECK_PACK(l, maxl)					\
-	WT_RET_TEST((maxl) != 0 && (size_t)(l) > (maxl), ENOMEM)
-#define	WT_SIZE_CHECK_UNPACK(l, maxl)					\
-	WT_RET_TEST((maxl) != 0 && (size_t)(l) > (maxl), EINVAL)
+#define WT_SIZE_CHECK_PACK(l, maxl) WT_RET_TEST((maxl) != 0 && (size_t)(l) > (maxl), ENOMEM)
+#define WT_SIZE_CHECK_UNPACK(l, maxl) WT_RET_TEST((maxl) != 0 && (size_t)(l) > (maxl), EINVAL)
 
 /* Count the leading zero bytes. */
 #if defined(__GNUC__)
-#define	WT_LEADING_ZEROS(x, i)						\
-	((i) = ((x) == 0) ? (int)sizeof(x) : __builtin_clzll(x) >> 3)
+#define WT_LEADING_ZEROS(x, i) ((i) = ((x) == 0) ? (int)sizeof(x) : __builtin_clzll(x) >> 3)
 #elif defined(_MSC_VER)
-#define	WT_LEADING_ZEROS(x, i)	do {					\
-	if ((x) == 0) (i) = (int)sizeof(x);				\
-	else  { 							\
-		unsigned long __index;					\
-		_BitScanReverse64(&__index, x);				\
-		__index = 63 ^ __index;					\
-		(i) = (int)(__index >> 3); }				\
+#define WT_LEADING_ZEROS(x, i)                          \
+	do {                                            \
+		if ((x) == 0)                           \
+			(i) = (int)sizeof(x);           \
+		else {                                  \
+			unsigned long __index;          \
+			_BitScanReverse64(&__index, x); \
+			__index = 63 ^ __index;         \
+			(i) = (int)(__index >> 3);      \
+		}                                       \
 	} while (0)
 #else
-#define	WT_LEADING_ZEROS(x, i) do {					\
-	uint64_t __x = (x);						\
-	uint64_t __m = (uint64_t)0xff << 56;				\
-	for ((i) = 0; !(__x & __m) && (i) != 8; (i)++)			\
-		__m >>= 8;						\
-} while (0)
+#define WT_LEADING_ZEROS(x, i)                                 \
+	do {                                                   \
+		uint64_t __x = (x);                            \
+		uint64_t __m = (uint64_t)0xff << 56;           \
+		for ((i) = 0; !(__x & __m) && (i) != 8; (i)++) \
+			__m >>= 8;                             \
+	} while (0)
 #endif
 
 /*

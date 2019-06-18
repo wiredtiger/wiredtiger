@@ -49,8 +49,8 @@ __wt_block_salvage_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 	 * Start with the entire file on the allocation list, we'll "free"
 	 * any blocks we don't want as we process the file.
 	 */
-	WT_RET(__wt_block_insert_ext(
-	    session, block, &block->live.alloc, allocsize, len - allocsize));
+	WT_RET(
+	    __wt_block_insert_ext(session, block, &block->live.alloc, allocsize, len - allocsize));
 
 	/* Salvage performs a checkpoint but doesn't start or resolve it. */
 	WT_ASSERT(session, block->ckpt_state == WT_CKPT_NONE);
@@ -81,13 +81,13 @@ __wt_block_salvage_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
 bool
 __wt_block_offset_invalid(WT_BLOCK *block, wt_off_t offset, uint32_t size)
 {
-	if (size == 0)				/* < minimum page size */
+	if (size == 0) /* < minimum page size */
 		return (true);
-	if (size % block->allocsize != 0)	/* not allocation-size units */
+	if (size % block->allocsize != 0) /* not allocation-size units */
 		return (true);
-	if (size > WT_BTREE_PAGE_SIZE_MAX)	/* > maximum page size */
+	if (size > WT_BTREE_PAGE_SIZE_MAX) /* > maximum page size */
 		return (true);
-						/* past end-of-file */
+	/* past end-of-file */
 	if (offset + (wt_off_t)size > block->size)
 		return (true);
 	return (false);
@@ -98,8 +98,8 @@ __wt_block_offset_invalid(WT_BLOCK *block, wt_off_t offset, uint32_t size)
  *	Return the address for the next potential block from the file.
  */
 int
-__wt_block_salvage_next(WT_SESSION_IMPL *session,
-    WT_BLOCK *block, uint8_t *addr, size_t *addr_sizep, bool *eofp)
+__wt_block_salvage_next(
+    WT_SESSION_IMPL *session, WT_BLOCK *block, uint8_t *addr, size_t *addr_sizep, bool *eofp)
 {
 	WT_BLOCK_HEADER *blk;
 	WT_DECL_ITEM(tmp);
@@ -118,7 +118,7 @@ __wt_block_salvage_next(WT_SESSION_IMPL *session,
 	/* Read through the file, looking for pages. */
 	for (max = block->size;;) {
 		offset = block->slvg_off;
-		if (offset >= max) {			/* Check eof. */
+		if (offset >= max) { /* Check eof. */
 			*eofp = 1;
 			goto done;
 		}
@@ -128,8 +128,7 @@ __wt_block_salvage_next(WT_SESSION_IMPL *session,
 		 * and get a page length from it.  Move to the next allocation
 		 * sized boundary, we'll never consider this one again.
 		 */
-		WT_ERR(__wt_read(
-		    session, fh, offset, (size_t)allocsize, tmp->mem));
+		WT_ERR(__wt_read(session, fh, offset, (size_t)allocsize, tmp->mem));
 		blk = WT_BLOCK_HEADER_REF(tmp->mem);
 		__wt_block_header_byteswap(blk);
 		size = blk->disk_size;
@@ -142,16 +141,13 @@ __wt_block_salvage_next(WT_SESSION_IMPL *session,
 		 * otherwise, move past it.
 		 */
 		if (!__wt_block_offset_invalid(block, offset, size) &&
-		    __wt_block_read_off(
-		    session, block, tmp, offset, size, checksum) == 0)
+		    __wt_block_read_off(session, block, tmp, offset, size, checksum) == 0)
 			break;
 
 		/* Free the allocation-size block. */
 		__wt_verbose(session, WT_VERB_SALVAGE,
-		    "skipping %" PRIu32 "B at file offset %" PRIuMAX,
-		    allocsize, (uintmax_t)offset);
-		WT_ERR(__wt_block_off_free(
-		    session, block, offset, (wt_off_t)allocsize));
+		    "skipping %" PRIu32 "B at file offset %" PRIuMAX, allocsize, (uintmax_t)offset);
+		WT_ERR(__wt_block_off_free(session, block, offset, (wt_off_t)allocsize));
 		block->slvg_off += allocsize;
 	}
 
@@ -161,7 +157,8 @@ __wt_block_salvage_next(WT_SESSION_IMPL *session,
 	*addr_sizep = WT_PTRDIFF(endp, addr);
 
 done:
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -170,8 +167,8 @@ err:	__wt_scr_free(session, &tmp);
  *	Let salvage know if a block is valid.
  */
 int
-__wt_block_salvage_valid(WT_SESSION_IMPL *session,
-    WT_BLOCK *block, uint8_t *addr, size_t addr_size, bool valid)
+__wt_block_salvage_valid(
+    WT_SESSION_IMPL *session, WT_BLOCK *block, uint8_t *addr, size_t addr_size, bool valid)
 {
 	wt_off_t offset;
 	uint32_t size, checksum;
@@ -183,13 +180,11 @@ __wt_block_salvage_valid(WT_SESSION_IMPL *session,
 	 * If the upper layer took the block, move past it; if the upper layer
 	 * rejected the block, move past an allocation size chunk and free it.
 	 */
-	WT_RET(
-	    __wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
+	WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
 	if (valid)
 		block->slvg_off = offset + size;
 	else {
-		WT_RET(__wt_block_off_free(
-		    session, block, offset, (wt_off_t)block->allocsize));
+		WT_RET(__wt_block_off_free(session, block, offset, (wt_off_t)block->allocsize));
 		block->slvg_off = offset + block->allocsize;
 	}
 

@@ -32,10 +32,9 @@ util_alter(WT_SESSION *session, int argc, char *argv[])
 		return (usage());
 
 	for (configp = argv; *configp != NULL; configp += 2)
-		if ((ret = session->alter(
-		    session, configp[0], configp[1])) != 0) {
-			(void)util_err(session, ret,
-			    "session.alter: %s, %s", configp[0], configp[1]);
+		if ((ret = session->alter(session, configp[0], configp[1])) != 0) {
+			(void)util_err(
+			    session, ret, "session.alter: %s, %s", configp[0], configp[1]);
 			return (1);
 		}
 	return (0);
@@ -44,9 +43,8 @@ util_alter(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "alter uri configuration ...\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "alter uri configuration ...\n",
 	    progname, usage_prefix);
 	return (1);
 }

@@ -35,8 +35,7 @@ __cursor_novalue(WT_CURSOR *cursor)
 static inline int
 __cursor_checkkey(WT_CURSOR *cursor)
 {
-	return (F_ISSET(cursor, WT_CURSTD_KEY_SET) ?
-	    0 : __wt_cursor_kv_not_set(cursor, true));
+	return (F_ISSET(cursor, WT_CURSTD_KEY_SET) ? 0 : __wt_cursor_kv_not_set(cursor, true));
 }
 
 /*
@@ -46,8 +45,7 @@ __cursor_checkkey(WT_CURSOR *cursor)
 static inline int
 __cursor_checkvalue(WT_CURSOR *cursor)
 {
-	return (F_ISSET(cursor, WT_CURSTD_VALUE_SET) ?
-	    0 : __wt_cursor_kv_not_set(cursor, false));
+	return (F_ISSET(cursor, WT_CURSTD_VALUE_SET) ? 0 : __wt_cursor_kv_not_set(cursor, false));
 }
 
 /*
@@ -59,8 +57,8 @@ __cursor_localkey(WT_CURSOR *cursor)
 {
 	if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
 		if (!WT_DATA_IN_ITEM(&cursor->key))
-			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session,
-			    &cursor->key, cursor->key.data, cursor->key.size));
+			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->key,
+			    cursor->key.data, cursor->key.size));
 		F_CLR(cursor, WT_CURSTD_KEY_INT);
 		F_SET(cursor, WT_CURSTD_KEY_EXT);
 	}
@@ -76,8 +74,7 @@ __cursor_localvalue(WT_CURSOR *cursor)
 {
 	if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
 		if (!WT_DATA_IN_ITEM(&cursor->value))
-			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session,
-			    &cursor->value,
+			WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->value,
 			    cursor->value.data, cursor->value.size));
 		F_CLR(cursor, WT_CURSTD_VALUE_INT);
 		F_SET(cursor, WT_CURSTD_VALUE_EXT);
@@ -233,15 +230,14 @@ __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
 	WT_RET(__cursor_checkvalue(cursor));
 
 	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
-		WT_RET(__wt_schema_project_merge(session,
-		    cindex->cg_cursors, cindex->value_plan,
+		WT_RET(__wt_schema_project_merge(session, cindex->cg_cursors, cindex->value_plan,
 		    cursor->value_format, &cursor->value));
 		item = va_arg(ap, WT_ITEM *);
 		item->data = cursor->value.data;
 		item->size = cursor->value.size;
 	} else
-		WT_RET(__wt_schema_project_out(session,
-		    cindex->cg_cursors, cindex->value_plan, ap));
+		WT_RET(
+		    __wt_schema_project_out(session, cindex->cg_cursors, cindex->value_plan, ap));
 	return (0);
 }
 
@@ -263,15 +259,13 @@ __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
 	WT_RET(__cursor_checkvalue(primary));
 
 	if (F_ISSET(cursor, WT_CURSOR_RAW_OK)) {
-		WT_RET(__wt_schema_project_merge(session,
-		    ctable->cg_cursors, ctable->plan,
+		WT_RET(__wt_schema_project_merge(session, ctable->cg_cursors, ctable->plan,
 		    cursor->value_format, &cursor->value));
 		item = va_arg(ap, WT_ITEM *);
 		item->data = cursor->value.data;
 		item->size = cursor->value.size;
 	} else
-		WT_RET(__wt_schema_project_out(session,
-		    ctable->cg_cursors, ctable->plan, ap));
+		WT_RET(__wt_schema_project_out(session, ctable->cg_cursors, ctable->plan, ap));
 	return (0);
 }
 
@@ -287,8 +281,7 @@ __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session)
 	dhandle = session->dhandle;
 
 	/* If we open a handle with a time of death set, clear it. */
-	if (__wt_atomic_addi32(&dhandle->session_inuse, 1) == 1 &&
-	    dhandle->timeofdeath != 0)
+	if (__wt_atomic_addi32(&dhandle->session_inuse, 1) == 1 && dhandle->timeofdeath != 0)
 		dhandle->timeofdeath = 0;
 }
 
@@ -305,8 +298,7 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
 
 	/* If we close a handle with a time of death set, clear it. */
 	WT_ASSERT(session, dhandle->session_inuse > 0);
-	if (__wt_atomic_subi32(&dhandle->session_inuse, 1) == 0 &&
-	    dhandle->timeofdeath != 0)
+	if (__wt_atomic_subi32(&dhandle->session_inuse, 1) == 0 && dhandle->timeofdeath != 0)
 		dhandle->timeofdeath = 0;
 }
 
@@ -315,8 +307,7 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
  *      Return a page referenced key/value pair to the application.
  */
 static inline int
-__cursor_kv_return(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__cursor_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
 	WT_RET(__wt_key_return(session, cbt));
 	WT_RET(__wt_value_return(session, cbt, upd));
@@ -405,8 +396,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	 *
 	 * First, check for an immediately available key.
 	 */
-	if (__wt_row_leaf_key_info(
-	    page, copy, NULL, &cell, &kb->data, &kb->size))
+	if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &kb->data, &kb->size))
 		goto value;
 
 	/* Huffman encoded keys are a slow path in all cases. */
@@ -426,8 +416,7 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 	kpack = &_kpack;
 	memset(kpack, 0, sizeof(*kpack));
 	__wt_cell_unpack(session, page, cell, kpack);
-	if (kpack->type == WT_CELL_KEY &&
-	    cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
+	if (kpack->type == WT_CELL_KEY && cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
 		WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
 
 		/*
@@ -439,18 +428,17 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
 		 * need, truncate the item's data length to the prefix bytes.
 		 */
 		cbt->row_key->size = kpack->prefix;
-		WT_RET(__wt_buf_grow(
-		    session, cbt->row_key, cbt->row_key->size + kpack->size));
-		memcpy((uint8_t *)cbt->row_key->data + cbt->row_key->size,
-		    kpack->data, kpack->size);
+		WT_RET(__wt_buf_grow(session, cbt->row_key, cbt->row_key->size + kpack->size));
+		memcpy(
+		    (uint8_t *)cbt->row_key->data + cbt->row_key->size, kpack->data, kpack->size);
 		cbt->row_key->size += kpack->size;
 	} else {
-		/*
-		 * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we
-		 * already did __wt_row_leaf_key's fast-path checks inline.
-		 */
-slow:		WT_RET(__wt_row_leaf_key_work(
-		    session, page, rip, cbt->row_key, false));
+	/*
+	 * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we
+	 * already did __wt_row_leaf_key's fast-path checks inline.
+	 */
+	slow:
+		WT_RET(__wt_row_leaf_key_work(session, page, rip, cbt->row_key, false));
 	}
 	kb->data = cbt->row_key->data;
 	kb->size = cbt->row_key->size;

@@ -30,11 +30,10 @@ util_backup(WT_SESSION *session, int argc, char *argv[])
 		case 't':
 			if (!target) {
 				WT_ERR(__wt_scr_alloc(session_impl, 0, &tmp));
-				WT_ERR(__wt_buf_fmt(
-				    session_impl, tmp, "%s", "target=("));
+				WT_ERR(__wt_buf_fmt(session_impl, tmp, "%s", "target=("));
 			}
-			WT_ERR(__wt_buf_catfmt(session_impl, tmp,
-			    "%s\"%s\"", target ? "," : "", __wt_optarg));
+			WT_ERR(__wt_buf_catfmt(
+			    session_impl, tmp, "%s\"%s\"", target ? "," : "", __wt_optarg));
 			target = true;
 			break;
 		case '?':
@@ -54,29 +53,28 @@ util_backup(WT_SESSION *session, int argc, char *argv[])
 	if (target)
 		WT_ERR(__wt_buf_catfmt(session_impl, tmp, "%s", ")"));
 
-	if ((ret = session->open_cursor(session, "backup:",
-	    NULL, target ? (char *)tmp->data : NULL, &cursor)) != 0) {
-		fprintf(stderr, "%s: cursor open(backup:) failed: %s\n",
-		    progname, session->strerror(session, ret));
+	if ((ret = session->open_cursor(
+	         session, "backup:", NULL, target ? (char *)tmp->data : NULL, &cursor)) != 0) {
+		fprintf(stderr, "%s: cursor open(backup:) failed: %s\n", progname,
+		    session->strerror(session, ret));
 		goto err;
 	}
 
 	/* Copy the files. */
-	while (
-	    (ret = cursor->next(cursor)) == 0 &&
-	    (ret = cursor->get_key(cursor, &name)) == 0)
+	while ((ret = cursor->next(cursor)) == 0 && (ret = cursor->get_key(cursor, &name)) == 0)
 		if ((ret = copy(session, directory, name)) != 0)
 			goto err;
 	if (ret == WT_NOTFOUND)
 		ret = 0;
 
 	if (ret != 0) {
-		fprintf(stderr, "%s: cursor next(backup:) failed: %s\n",
-		    progname, session->strerror(session, ret));
+		fprintf(stderr, "%s: cursor next(backup:) failed: %s\n", progname,
+		    session->strerror(session, ret));
 		goto err;
 	}
 
-err:	__wt_scr_free(session_impl, &tmp);
+err:
+	__wt_scr_free(session_impl, &tmp);
 	return (ret);
 }
 
@@ -110,19 +108,19 @@ copy(WT_SESSION *session, const char *directory, const char *name)
 	 * file on disk requires care, and WiredTiger knows how to do it.
 	 */
 	if ((ret = __wt_copy_and_sync(session, name, to)) != 0)
-		fprintf(stderr, "%s/%s to %s: backup copy: %s\n",
-		    home, name, to, session->strerror(session, ret));
+		fprintf(stderr, "%s/%s to %s: backup copy: %s\n", home, name, to,
+		    session->strerror(session, ret));
 
-err:	free(to);
+err:
+	free(to);
 	return (ret);
 }
 
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "backup [-t uri] directory\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "backup [-t uri] directory\n",
 	    progname, usage_prefix);
 	return (1);
 }

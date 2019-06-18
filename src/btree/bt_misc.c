@@ -13,8 +13,7 @@
  *	Return a string representing the page type.
  */
 const char *
-__wt_page_type_string(u_int type)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	switch (type) {
 	case WT_PAGE_INVALID:
@@ -112,8 +111,7 @@ __wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
  * address.
  */
 const char *
-__wt_addr_string(WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_size, WT_ITEM *buf)
+__wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_ITEM *buf)
 {
 	WT_BM *bm;
 	WT_BTREE *btree;

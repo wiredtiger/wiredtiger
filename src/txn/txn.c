@@ -41,10 +41,9 @@ static void
 __snapsort_impl(uint64_t *array, uint32_t f, uint32_t l)
 {
 	while (f + 16 < l) {
-		uint64_t v1 = array[f], v2 = array[l], v3 = array[(f + l)/2];
-		uint64_t median = v1 < v2 ?
-		    (v3 < v1 ? v1 : WT_MIN(v2, v3)) :
-		    (v3 < v2 ? v2 : WT_MIN(v1, v3));
+		uint64_t v1 = array[f], v2 = array[l], v3 = array[(f + l) / 2];
+		uint64_t median =
+		    v1 < v2 ? (v3 < v1 ? v1 : WT_MIN(v2, v3)) : (v3 < v2 ? v2 : WT_MIN(v1, v3));
 		uint32_t m = __snapsort_partition(array, f, l, median);
 		__snapsort_impl(array, f, m);
 		f = m + 1;
@@ -79,8 +78,7 @@ __txn_remove_from_global_table(WT_SESSION_IMPL *session)
 	txn_state = WT_SESSION_TXN_STATE(session);
 
 	WT_ASSERT(session, !WT_TXNID_LT(txn->id, txn_global->last_running));
-	WT_ASSERT(session,
-	    txn->id != WT_TXN_NONE && txn_state->id != WT_TXN_NONE);
+	WT_ASSERT(session, txn->id != WT_TXN_NONE && txn_state->id != WT_TXN_NONE);
 #else
 	WT_TXN_STATE *txn_state;
 
@@ -105,8 +103,8 @@ __txn_sort_snapshot(WT_SESSION_IMPL *session, uint32_t n, uint64_t snap_max)
 
 	txn->snapshot_count = n;
 	txn->snap_max = snap_max;
-	txn->snap_min = (n > 0 && WT_TXNID_LE(txn->snapshot[0], snap_max)) ?
-	    txn->snapshot[0] : snap_max;
+	txn->snap_min =
+	    (n > 0 && WT_TXNID_LE(txn->snapshot[0], snap_max)) ? txn->snapshot[0] : snap_max;
 	F_SET(txn, WT_TXN_HAS_SNAPSHOT);
 	WT_ASSERT(session, n == 0 || txn->snap_min != WT_TXN_NONE);
 }
@@ -126,10 +124,9 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 	txn_global = &S2C(session)->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
 
-	WT_ASSERT(session,
-	    txn_state->pinned_id == WT_TXN_NONE ||
-	    session->txn.isolation == WT_ISO_READ_UNCOMMITTED ||
-	    !__wt_txn_visible_all(session, txn_state->pinned_id, WT_TS_NONE));
+	WT_ASSERT(session, txn_state->pinned_id == WT_TXN_NONE ||
+	        session->txn.isolation == WT_ISO_READ_UNCOMMITTED ||
+	        !__wt_txn_visible_all(session, txn_state->pinned_id, WT_TS_NONE));
 
 	txn_state->metadata_pinned = txn_state->pinned_id = WT_TXN_NONE;
 	F_CLR(txn, WT_TXN_HAS_SNAPSHOT);
@@ -214,10 +211,8 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 		 *    this case, we ignore this transaction because it would
 		 *    not be visible to the current snapshot.
 		 */
-		while (s != txn_state &&
-		    (id = s->id) != WT_TXN_NONE &&
-		    WT_TXNID_LE(prev_oldest_id, id) &&
-		    WT_TXNID_LT(id, current_id)) {
+		while (s != txn_state && (id = s->id) != WT_TXN_NONE &&
+		    WT_TXNID_LE(prev_oldest_id, id) && WT_TXNID_LT(id, current_id)) {
 			/*
 			 * If the transaction is still allocating its ID, then
 			 * we spin here until it gets its valid ID.
@@ -252,7 +247,8 @@ __wt_txn_get_snapshot(WT_SESSION_IMPL *session)
 	WT_ASSERT(session, prev_oldest_id == txn_global->oldest_id);
 	txn_state->pinned_id = pinned_id;
 
-done:	__wt_readunlock(session, &txn_global->rwlock);
+done:
+	__wt_readunlock(session, &txn_global->rwlock);
 	__txn_sort_snapshot(session, n, current_id);
 }
 
@@ -261,9 +257,8 @@ done:	__wt_readunlock(session, &txn_global->rwlock);
  *	Sweep the running transactions to calculate the oldest ID required.
  */
 static void
-__txn_oldest_scan(WT_SESSION_IMPL *session,
-    uint64_t *oldest_idp, uint64_t *last_runningp, uint64_t *metadata_pinnedp,
-    WT_SESSION_IMPL **oldest_sessionp)
+__txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last_runningp,
+    uint64_t *metadata_pinnedp, WT_SESSION_IMPL **oldest_sessionp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_SESSION_IMPL *oldest_session;
@@ -286,8 +281,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	for (i = 0, s = txn_global->states; i < session_cnt; i++, s++) {
 		/* Update the last running transaction ID. */
-		while ((id = s->id) != WT_TXN_NONE &&
-		    WT_TXNID_LE(prev_oldest_id, id) &&
+		while ((id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
 		    WT_TXNID_LT(id, last_running)) {
 			/*
 			 * If the transaction is still allocating its ID, then
@@ -313,8 +307,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 		}
 
 		/* Update the metadata pinned ID. */
-		if ((id = s->metadata_pinned) != WT_TXN_NONE &&
-		    WT_TXNID_LT(id, metadata_pinned))
+		if ((id = s->metadata_pinned) != WT_TXN_NONE && WT_TXNID_LT(id, metadata_pinned))
 			metadata_pinned = id;
 
 		/*
@@ -325,8 +318,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 		 * table.  See the comment in __wt_txn_cursor_op for more
 		 * details.
 		 */
-		if ((id = s->pinned_id) != WT_TXN_NONE &&
-		    WT_TXNID_LT(id, oldest_id)) {
+		if ((id = s->pinned_id) != WT_TXN_NONE && WT_TXNID_LT(id, oldest_id)) {
 			oldest_id = id;
 			oldest_session = &conn->sessions[i];
 		}
@@ -336,8 +328,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session,
 		oldest_id = last_running;
 
 	/* The oldest ID can't move past any named snapshots. */
-	if ((id = txn_global->nsnap_oldest_id) != WT_TXN_NONE &&
-	    WT_TXNID_LT(id, oldest_id))
+	if ((id = txn_global->nsnap_oldest_id) != WT_TXN_NONE && WT_TXNID_LT(id, oldest_id))
 		oldest_id = id;
 
 	/* The metadata pinned ID can't move past the oldest ID. */
@@ -383,19 +374,16 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	 * For pure read-only workloads, or if the update isn't forced and the
 	 * oldest ID isn't too far behind, avoid scanning.
 	 */
-	if ((prev_oldest_id == current_id &&
-	    prev_metadata_pinned == current_id) ||
+	if ((prev_oldest_id == current_id && prev_metadata_pinned == current_id) ||
 	    (!strict && WT_TXNID_LT(current_id, prev_oldest_id + 100)))
 		return (0);
 
 	/* First do a read-only scan. */
 	if (wait)
 		__wt_readlock(session, &txn_global->rwlock);
-	else if ((ret =
-	    __wt_try_readlock(session, &txn_global->rwlock)) != 0)
+	else if ((ret = __wt_try_readlock(session, &txn_global->rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
-	__txn_oldest_scan(session,
-	    &oldest_id, &last_running, &metadata_pinned, &oldest_session);
+	__txn_oldest_scan(session, &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 	__wt_readunlock(session, &txn_global->rwlock);
 
 	/*
@@ -403,17 +391,16 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	 * non-forced updates), give up.
 	 */
 	if ((oldest_id == prev_oldest_id ||
-	    (!strict && WT_TXNID_LT(oldest_id, prev_oldest_id + 100))) &&
+	        (!strict && WT_TXNID_LT(oldest_id, prev_oldest_id + 100))) &&
 	    ((last_running == prev_last_running) ||
-	    (!strict && WT_TXNID_LT(last_running, prev_last_running + 100))) &&
+	        (!strict && WT_TXNID_LT(last_running, prev_last_running + 100))) &&
 	    metadata_pinned == prev_metadata_pinned)
 		return (0);
 
 	/* It looks like an update is necessary, wait for exclusive access. */
 	if (wait)
 		__wt_writelock(session, &txn_global->rwlock);
-	else if ((ret =
-	    __wt_try_writelock(session, &txn_global->rwlock)) != 0)
+	else if ((ret = __wt_try_writelock(session, &txn_global->rwlock)) != 0)
 		return (ret == EBUSY ? 0 : ret);
 
 	/*
@@ -431,21 +418,19 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 	 * sure that there isn't a thread that has got a snapshot locally but
 	 * not yet published its snap_min.
 	 */
-	__txn_oldest_scan(session,
-	    &oldest_id, &last_running, &metadata_pinned, &oldest_session);
+	__txn_oldest_scan(session, &oldest_id, &last_running, &metadata_pinned, &oldest_session);
 
 #ifdef HAVE_DIAGNOSTIC
 	{
-	/*
-	 * Make sure the ID doesn't move past any named snapshots.
-	 *
-	 * Don't include the read/assignment in the assert statement.  Coverity
-	 * complains if there are assignments only done in diagnostic builds,
-	 * and when the read is from a volatile.
-	 */
-	uint64_t id = txn_global->nsnap_oldest_id;
-	WT_ASSERT(session,
-	    id == WT_TXN_NONE || !WT_TXNID_LT(id, oldest_id));
+		/*
+		 * Make sure the ID doesn't move past any named snapshots.
+		 *
+		 * Don't include the read/assignment in the assert statement.  Coverity
+		 * complains if there are assignments only done in diagnostic builds,
+		 * and when the read is from a volatile.
+		 */
+		uint64_t id = txn_global->nsnap_oldest_id;
+		WT_ASSERT(session, id == WT_TXN_NONE || !WT_TXNID_LT(id, oldest_id));
 	}
 #endif
 	/* Update the public IDs. */
@@ -461,16 +446,15 @@ __wt_txn_update_oldest(WT_SESSION_IMPL *session, uint32_t flags)
 		if (WT_VERBOSE_ISSET(session, WT_VERB_TRANSACTION) &&
 		    current_id - oldest_id > 10000 && oldest_session != NULL) {
 			__wt_verbose(session, WT_VERB_TRANSACTION,
-			    "old snapshot %" PRIu64
-			    " pinned in session %" PRIu32 " [%s]"
+			    "old snapshot %" PRIu64 " pinned in session %" PRIu32 " [%s]"
 			    " with snap_min %" PRIu64,
-			    oldest_id, oldest_session->id,
-			    oldest_session->lastop,
+			    oldest_id, oldest_session->id, oldest_session->lastop,
 			    oldest_session->txn.snap_min);
 		}
 	}
 
-done:	__wt_writeunlock(session, &txn_global->rwlock);
+done:
+	__wt_writeunlock(session, &txn_global->rwlock);
 	return (ret);
 }
 
@@ -489,11 +473,10 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_config_gets_def(session, cfg, "isolation", 0, &cval));
 	if (cval.len != 0)
-		txn->isolation =
-		    WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
+		txn->isolation = WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
 		    WT_ISO_SNAPSHOT :
-		    WT_STRING_MATCH("read-committed", cval.str, cval.len) ?
-		    WT_ISO_READ_COMMITTED : WT_ISO_READ_UNCOMMITTED;
+		    WT_STRING_MATCH("read-committed", cval.str, cval.len) ? WT_ISO_READ_COMMITTED :
+		                                                            WT_ISO_READ_UNCOMMITTED;
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -502,8 +485,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * We want to distinguish between inheriting implicitly and explicitly.
 	 */
 	F_CLR(txn, WT_TXN_SYNC_SET);
-	WT_RET(__wt_config_gets_def(
-	    session, cfg, "sync", (int)UINT_MAX, &cval));
+	WT_RET(__wt_config_gets_def(session, cfg, "sync", (int)UINT_MAX, &cval));
 	if (cval.val == 0 || cval.val == 1)
 		/*
 		 * This is an explicit setting of sync.  Set the flag so
@@ -529,8 +511,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Check if prepared updates should be ignored during reads. */
 	WT_RET(__wt_config_gets_def(session, cfg, "ignore_prepare", 0, &cval));
-	if (cval.len > 0 &&
-	    WT_STRING_MATCH("force", cval.str, cval.len))
+	if (cval.len > 0 && WT_STRING_MATCH("force", cval.str, cval.len))
 		F_SET(txn, WT_TXN_IGNORE_PREPARE);
 	else if (cval.val)
 		F_SET(txn, WT_TXN_IGNORE_PREPARE | WT_TXN_READONLY);
@@ -539,21 +520,18 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 	 * Check if the prepare timestamp and the commit timestamp of a
 	 * prepared transaction need to be rounded up.
 	 */
-	WT_RET(__wt_config_gets_def(
-	    session, cfg, "roundup_timestamps.prepared", 0, &cval));
+	WT_RET(__wt_config_gets_def(session, cfg, "roundup_timestamps.prepared", 0, &cval));
 	if (cval.val)
 		F_SET(txn, WT_TXN_TS_ROUND_PREPARED);
 
 	/* Check if read timestamp needs to be rounded up. */
-	WT_RET(__wt_config_gets_def(
-	    session, cfg, "roundup_timestamps.read", 0, &cval));
+	WT_RET(__wt_config_gets_def(session, cfg, "roundup_timestamps.read", 0, &cval));
 	if (cval.val)
 		F_SET(txn, WT_TXN_TS_ROUND_READ);
 
 	WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
 	if (cval.len != 0) {
-		WT_RET(__wt_txn_parse_timestamp(
-		    session, "read", &read_ts, &cval));
+		WT_RET(__wt_txn_parse_timestamp(session, "read", &read_ts, &cval));
 		WT_RET(__wt_txn_set_read_timestamp(session, read_ts));
 	}
 
@@ -579,7 +557,8 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
 		    WT_STRING_MATCH("snapshot", cval.str, cval.len) ?
 		    WT_ISO_SNAPSHOT :
 		    WT_STRING_MATCH("read-uncommitted", cval.str, cval.len) ?
-		    WT_ISO_READ_UNCOMMITTED : WT_ISO_READ_COMMITTED;
+		    WT_ISO_READ_UNCOMMITTED :
+		    WT_ISO_READ_COMMITTED;
 	}
 	WT_RET_NOTFOUND_OK(ret);
 
@@ -604,8 +583,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
 	/* Clear the transaction's ID from the global table. */
 	if (WT_SESSION_IS_CHECKPOINT(session)) {
-		WT_ASSERT(session,
-		    WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
+		WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
 		txn->id = txn_global->checkpoint_state.id = WT_TXN_NONE;
 
 		/*
@@ -661,8 +639,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 	WT_UPDATE *upd;
 	wt_timestamp_t op_timestamp;
 	u_int i;
-	const char *open_cursor_cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
+	const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 	bool op_zero_ts, upd_zero_ts;
 
 	txn = &session->txn;
@@ -670,26 +647,22 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 	/*
 	 * Debugging checks on timestamps, if user requested them.
 	 */
-	if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) &&
-	    !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+	if (F_ISSET(txn, WT_TXN_TS_COMMIT_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    txn->mod_count != 0)
 		WT_RET_MSG(session, EINVAL, "commit_timestamp required and "
-		    "none set on this transaction");
-	if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) &&
-	    F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+		                            "none set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_COMMIT_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
 	    txn->mod_count != 0)
 		WT_RET_MSG(session, EINVAL, "no commit_timestamp required and "
-		    "timestamp set on this transaction");
-	if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) &&
-	    !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
+		                            "timestamp set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_DURABLE_ALWAYS) && !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
 	    txn->mod_count != 0)
 		WT_RET_MSG(session, EINVAL, "durable_timestamp required and "
-		    "none set on this transaction");
-	if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) &&
-	    F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
+		                            "none set on this transaction");
+	if (F_ISSET(txn, WT_TXN_TS_DURABLE_NEVER) && F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) &&
 	    txn->mod_count != 0)
 		WT_RET_MSG(session, EINVAL, "no durable_timestamp required and "
-		    "durable timestamp set on this transaction");
+		                            "durable timestamp set on this transaction");
 
 	/*
 	 * If we're not doing any key consistency checking, we're done.
@@ -702,31 +675,28 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-		if (op->type == WT_TXN_OP_BASIC_COL ||
-		    op->type == WT_TXN_OP_BASIC_ROW) {
+		if (op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_BASIC_ROW) {
 			/*
 			 * Search for prepared updates, so that they will be
 			 * restored, if moved to lookaside.
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
-				WT_RET(__wt_open_cursor(session,
-				    op->btree->dhandle->name, NULL,
+				WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL,
 				    open_cursor_cfg, &cursor));
 				F_CLR(txn, WT_TXN_PREPARE);
 				if (op->type == WT_TXN_OP_BASIC_ROW)
-					__wt_cursor_set_raw_key(
-					    cursor, &op->u.op_row.key);
+					__wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
 				else
-					((WT_CURSOR_BTREE*)cursor)->iface.recno
-					    = op->u.op_col.recno;
+					((WT_CURSOR_BTREE *)cursor)->iface.recno =
+					    op->u.op_col.recno;
 				F_SET(txn, WT_TXN_PREPARE);
-				WT_WITH_BTREE(session, op->btree,
-				    ret = __wt_btcur_search_uncommitted(
-				    (WT_CURSOR_BTREE *)cursor, &upd));
-					WT_TRET(cursor->close(cursor));
+				WT_WITH_BTREE(
+				    session, op->btree, ret = __wt_btcur_search_uncommitted(
+				                            (WT_CURSOR_BTREE *)cursor, &upd));
+				WT_TRET(cursor->close(cursor));
 				if (ret != 0)
-					WT_RET_MSG(session, EINVAL,
-					    "prepared update restore failed");
+					WT_RET_MSG(
+					    session, EINVAL, "prepared update restore failed");
 				op->u.op_upd = upd;
 			} else
 				upd = op->u.op_upd->next;
@@ -734,8 +704,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 			 * Skip over any aborted update structures or ones
 			 * from our own transaction.
 			 */
-			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
-			    upd->txnid == txn->id))
+			while (
+			    upd != NULL && (upd->txnid == WT_TXN_ABORTED || upd->txnid == txn->id))
 				upd = upd->next;
 
 			/*
@@ -756,8 +726,8 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 			op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
 			upd_zero_ts = upd->start_ts == WT_TS_NONE;
 			if (op_zero_ts != upd_zero_ts)
-				WT_RET_MSG(session, EINVAL,
-				    "per-key timestamps used inconsistently");
+				WT_RET_MSG(
+				    session, EINVAL, "per-key timestamps used inconsistently");
 			/*
 			 * If we aren't using timestamps for this transaction
 			 * then we are done checking. Don't check the timestamp
@@ -773,14 +743,11 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 			 */
 			if (op_timestamp == WT_TS_NONE)
 				op_timestamp = txn->commit_timestamp;
-			if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) &&
-				op_timestamp < upd->start_ts)
-				WT_RET_MSG(session, EINVAL,
-				    "out of order commit timestamps");
+			if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) && op_timestamp < upd->start_ts)
+				WT_RET_MSG(session, EINVAL, "out of order commit timestamps");
 			if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) &&
 			    txn->durable_timestamp < upd->durable_ts)
-				WT_RET_MSG(session, EINVAL,
-				    "out of order durable timestamps");
+				WT_RET_MSG(session, EINVAL, "out of order durable timestamps");
 		}
 	return (0);
 }
@@ -808,13 +775,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn = &session->txn;
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
-	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
+	prev_commit_timestamp = 0; /* -Wconditional-uninitialized */
 	locked = false;
 	resolved_update_count = visited_update_count = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
-	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
-	    txn->mod_count == 0);
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
 	readonly = txn->mod_count == 0;
 
@@ -832,32 +798,26 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	if (prepare) {
 		if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-			WT_ERR_MSG(session, EINVAL,
-			    "commit_timestamp is required for a prepared "
-			    "transaction");
+			WT_ERR_MSG(session, EINVAL, "commit_timestamp is required for a prepared "
+			                            "transaction");
 
 		if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-			WT_ERR_MSG(session, EINVAL,
-			    "durable_timestamp is required for a prepared "
-			    "transaction");
+			WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared "
+			                            "transaction");
 
-		WT_ASSERT(session,
-		   txn->prepare_timestamp <= txn->commit_timestamp);
+		WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
 	} else {
 		if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-			WT_ERR_MSG(session, EINVAL,
-			    "prepare timestamp is set for non-prepared "
-			    "transaction");
+			WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared "
+			                            "transaction");
 
 		if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-			WT_ERR_MSG(session, EINVAL,
-			    "durable_timestamp should not be specified for "
-			    "non-prepared transaction");
+			WT_ERR_MSG(session, EINVAL, "durable_timestamp should not be specified for "
+			                            "non-prepared transaction");
 	}
 
 	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-		WT_ASSERT(session,
-		    txn->commit_timestamp <= txn->durable_timestamp);
+		WT_ASSERT(session, txn->commit_timestamp <= txn->durable_timestamp);
 
 	WT_ERR(__txn_commit_timestamps_assert(session));
 
@@ -889,8 +849,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		 * Flag that as an error.
 		 */
 		if (F_ISSET(txn, WT_TXN_SYNC_SET))
-			WT_ERR_MSG(session, EINVAL,
-			    "Sync already set during begin_transaction");
+			WT_ERR_MSG(session, EINVAL, "Sync already set during begin_transaction");
 		if (WT_STRING_MATCH("background", cval.str, cval.len))
 			txn->txn_logsync = WT_LOG_BACKGROUND;
 		else if (WT_STRING_MATCH("off", cval.str, cval.len))
@@ -903,8 +862,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Commit notification. */
 	if (txn->notify != NULL)
-		WT_ERR(txn->notify->notify(txn->notify,
-		    (WT_SESSION *)session, txn->id, 1));
+		WT_ERR(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 1));
 
 	/*
 	 * We are about to release the snapshot: copy values into any
@@ -919,8 +877,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* If we are logging, write a commit log record. */
-	if (txn->logrec != NULL &&
-	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
+	if (txn->logrec != NULL && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 	    !F_ISSET(session, WT_SESSION_NO_LOGGING)) {
 		/*
 		 * We are about to block on I/O writing the log.
@@ -988,8 +945,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 */
 				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
 					WT_ERR(__wt_txn_resolve_prepared_op(
-					    session, op, true,
-					    &resolved_update_count));
+					    session, op, true, &resolved_update_count));
 				/*
 				 * We should resolve at least one or more
 				 * updates each time we call
@@ -997,9 +953,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 * resolved update count should never be less
 				 * than visited update count.
 				 */
-				WT_ASSERT(session,
-				    resolved_update_count >=
-				    visited_update_count);
+				WT_ASSERT(session, resolved_update_count >= visited_update_count);
 			}
 
 			break;
@@ -1015,8 +969,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_txn_op_free(session, op);
 	}
 	WT_ASSERT(session, resolved_update_count == visited_update_count);
-	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
-	    resolved_update_count);
+	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved, resolved_update_count);
 
 	txn->mod_count = 0;
 
@@ -1043,8 +996,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
 		prev_commit_timestamp = txn_global->commit_timestamp;
-		update_timestamp =
-		    txn->commit_timestamp > prev_commit_timestamp;
+		update_timestamp = txn->commit_timestamp > prev_commit_timestamp;
 	}
 
 	/*
@@ -1053,8 +1005,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	if (update_timestamp)
 		while (txn->commit_timestamp > prev_commit_timestamp) {
-			if (__wt_atomic_cas64(&txn_global->commit_timestamp,
-			    prev_commit_timestamp, txn->commit_timestamp)) {
+			if (__wt_atomic_cas64(&txn_global->commit_timestamp, prev_commit_timestamp,
+			        txn->commit_timestamp)) {
 				txn_global->has_commit_timestamp = true;
 				break;
 			}
@@ -1070,12 +1022,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		(void)__wt_cache_eviction_check(session, false, false, NULL);
 	return (0);
 
-err:	/*
-	 * If anything went wrong, roll back.
-	 *
-	 * !!!
-	 * Nothing can fail after this point.
-	 */
+err: /*
+      * If anything went wrong, roll back.
+      *
+      * !!!
+      * Nothing can fail after this point.
+      */
 	if (locked)
 		__wt_readunlock(session, &txn_global->visibility_rwlock);
 	WT_TRET(__wt_txn_rollback(session, cfg));
@@ -1125,7 +1077,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
-		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
+		        !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
 		/* Metadata updates should never be prepared. */
 		WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
@@ -1168,8 +1120,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 				F_SET(op, WT_TXN_OP_KEY_REPEATED);
 			break;
 		case WT_TXN_OP_REF_DELETE:
-			__wt_txn_op_apply_prepare_state(
-			    session, op->u.ref, false);
+			__wt_txn_op_apply_prepare_state(session, op->u.ref, false);
 			break;
 		case WT_TXN_OP_TRUNCATE_COL:
 		case WT_TXN_OP_TRUNCATE_ROW:
@@ -1217,14 +1168,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Rollback notification. */
 	if (txn->notify != NULL)
-		WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session,
-		    txn->id, 0));
+		WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
 
 	/* Rollback updates. */
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
-		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
+		        !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
 
 		/* Metadata updates should never be rolled back. */
 		WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
@@ -1254,8 +1204,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 				 */
 				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
 					WT_RET(__wt_txn_resolve_prepared_op(
-					    session, op, false,
-					    &resolved_update_count));
+					    session, op, false, &resolved_update_count));
 				/*
 				 * We should resolve at least one or more
 				 * updates each time we call
@@ -1263,12 +1212,10 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 				 * resolved update count should never be less
 				 * than visited update count.
 				 */
-				WT_ASSERT(session,
-				    resolved_update_count >=
-				    visited_update_count);
+				WT_ASSERT(session, resolved_update_count >= visited_update_count);
 			} else {
-				WT_ASSERT(session, upd->txnid == txn->id ||
-				    upd->txnid == WT_TXN_ABORTED);
+				WT_ASSERT(
+				    session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
 				upd->txnid = WT_TXN_ABORTED;
 			}
 			break;
@@ -1289,8 +1236,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 		__wt_txn_op_free(session, op);
 	}
 	WT_ASSERT(session, resolved_update_count == visited_update_count);
-	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
-	    resolved_update_count);
+	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved, resolved_update_count);
 
 	txn->mod_count = 0;
 
@@ -1329,8 +1275,7 @@ __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
 	txn = &session_ret->txn;
 	txn->id = WT_TXN_NONE;
 
-	WT_RET(__wt_calloc_def(session,
-	    S2C(session_ret)->session_size, &txn->snapshot));
+	WT_RET(__wt_calloc_def(session, S2C(session_ret)->session_size, &txn->snapshot));
 
 #ifdef HAVE_DIAGNOSTIC
 	if (S2C(session_ret)->txn_global.states != NULL) {
@@ -1372,57 +1317,41 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
 	snapshot_pinned = txn_global->nsnap_oldest_id;
 
-	WT_STAT_SET(session, stats, txn_pinned_range,
-	    txn_global->current - txn_global->oldest_id);
+	WT_STAT_SET(session, stats, txn_pinned_range, txn_global->current - txn_global->oldest_id);
 
 	checkpoint_timestamp = txn_global->checkpoint_timestamp;
 	commit_timestamp = txn_global->commit_timestamp;
 	pinned_timestamp = txn_global->pinned_timestamp;
-	if (checkpoint_timestamp != WT_TS_NONE &&
-	    checkpoint_timestamp < pinned_timestamp)
+	if (checkpoint_timestamp != WT_TS_NONE && checkpoint_timestamp < pinned_timestamp)
 		pinned_timestamp = checkpoint_timestamp;
-	WT_STAT_SET(session, stats, txn_pinned_timestamp,
-	    commit_timestamp - pinned_timestamp);
+	WT_STAT_SET(session, stats, txn_pinned_timestamp, commit_timestamp - pinned_timestamp);
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_checkpoint,
 	    commit_timestamp - checkpoint_timestamp);
 	WT_STAT_SET(session, stats, txn_pinned_timestamp_oldest,
 	    commit_timestamp - txn_global->oldest_timestamp);
 
-	if (__wt_txn_get_pinned_timestamp(
-	    session, &oldest_active_read_timestamp, 0) == 0) {
-		WT_STAT_SET(session, stats,
-		    txn_timestamp_oldest_active_read,
-		    oldest_active_read_timestamp);
-		WT_STAT_SET(session, stats,
-		    txn_pinned_timestamp_reader,
+	if (__wt_txn_get_pinned_timestamp(session, &oldest_active_read_timestamp, 0) == 0) {
+		WT_STAT_SET(
+		    session, stats, txn_timestamp_oldest_active_read, oldest_active_read_timestamp);
+		WT_STAT_SET(session, stats, txn_pinned_timestamp_reader,
 		    commit_timestamp - oldest_active_read_timestamp);
 	} else {
-		WT_STAT_SET(session,
-		    stats, txn_timestamp_oldest_active_read, 0);
-		WT_STAT_SET(session,
-		    stats, txn_pinned_timestamp_reader, 0);
+		WT_STAT_SET(session, stats, txn_timestamp_oldest_active_read, 0);
+		WT_STAT_SET(session, stats, txn_pinned_timestamp_reader, 0);
 	}
 
 	WT_STAT_SET(session, stats, txn_pinned_snapshot_range,
-	    snapshot_pinned == WT_TXN_NONE ?
-	    0 : txn_global->current - snapshot_pinned);
+	    snapshot_pinned == WT_TXN_NONE ? 0 : txn_global->current - snapshot_pinned);
 
 	WT_STAT_SET(session, stats, txn_pinned_checkpoint_range,
-	    checkpoint_pinned == WT_TXN_NONE ?
-	    0 : txn_global->current - checkpoint_pinned);
+	    checkpoint_pinned == WT_TXN_NONE ? 0 : txn_global->current - checkpoint_pinned);
 
-	WT_STAT_SET(
-	    session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
-	WT_STAT_SET(
-	    session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
-	WT_STAT_SET(
-	    session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
-	WT_STAT_SET(
-	    session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
-	WT_STAT_SET(session,
-	    stats, txn_commit_queue_len, txn_global->commit_timestampq_len);
-	WT_STAT_SET(session,
-	    stats, txn_read_queue_len, txn_global->read_timestampq_len);
+	WT_STAT_SET(session, stats, txn_checkpoint_time_max, conn->ckpt_time_max);
+	WT_STAT_SET(session, stats, txn_checkpoint_time_min, conn->ckpt_time_min);
+	WT_STAT_SET(session, stats, txn_checkpoint_time_recent, conn->ckpt_time_recent);
+	WT_STAT_SET(session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
+	WT_STAT_SET(session, stats, txn_commit_queue_len, txn_global->commit_timestampq_len);
+	WT_STAT_SET(session, stats, txn_read_queue_len, txn_global->read_timestampq_len);
 }
 
 /*
@@ -1469,28 +1398,24 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 	conn = S2C(session);
 
 	txn_global = &conn->txn_global;
-	txn_global->current = txn_global->last_running =
-	    txn_global->metadata_pinned = txn_global->oldest_id = WT_TXN_FIRST;
+	txn_global->current = txn_global->last_running = txn_global->metadata_pinned =
+	    txn_global->oldest_id = WT_TXN_FIRST;
 
-	WT_RET(__wt_spin_init(
-	    session, &txn_global->id_lock, "transaction id lock"));
+	WT_RET(__wt_spin_init(session, &txn_global->id_lock, "transaction id lock"));
 	WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
 	WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
 
-	WT_RWLOCK_INIT_TRACKED(session,
-	    &txn_global->commit_timestamp_rwlock, commit_timestamp);
+	WT_RWLOCK_INIT_TRACKED(session, &txn_global->commit_timestamp_rwlock, commit_timestamp);
 	TAILQ_INIT(&txn_global->commit_timestamph);
 
-	WT_RWLOCK_INIT_TRACKED(session,
-	    &txn_global->read_timestamp_rwlock, read_timestamp);
+	WT_RWLOCK_INIT_TRACKED(session, &txn_global->read_timestamp_rwlock, read_timestamp);
 	TAILQ_INIT(&txn_global->read_timestamph);
 
 	WT_RET(__wt_rwlock_init(session, &txn_global->nsnap_rwlock));
 	txn_global->nsnap_oldest_id = WT_TXN_NONE;
 	TAILQ_INIT(&txn_global->nsnaph);
 
-	WT_RET(__wt_calloc_def(
-	    session, conn->session_size, &txn_global->states));
+	WT_RET(__wt_calloc_def(session, conn->session_size, &txn_global->states));
 
 	for (i = 0, s = txn_global->states; i < conn->session_size; i++, s++)
 		s->id = s->metadata_pinned = s->pinned_id = WT_TXN_NONE;
@@ -1591,25 +1516,18 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 		iso_tag = "WT_ISO_SNAPSHOT";
 		break;
 	}
-	WT_RET(__wt_msg(session,
-	    "mod count: %u"
-	    ", snap min: %" PRIu64
-	    ", snap max: %" PRIu64
-	    ", commit_timestamp: %s"
-	    ", durable_timestamp: %s"
-	    ", first_commit_timestamp: %s"
-	    ", read_timestamp: %s"
-	    ", flags: 0x%08" PRIx32
-	    ", isolation: %s",
-	    txn->mod_count,
-	    txn->snap_min,
-	    txn->snap_max,
-	    __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
-	    __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
-	    __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
-	    __wt_timestamp_to_string(txn->read_timestamp, ts_string[3]),
-	    txn->flags,
-	    iso_tag));
+	WT_RET(
+	    __wt_msg(session, "mod count: %u"
+	                      ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", commit_timestamp: %s"
+	                      ", durable_timestamp: %s"
+	                      ", first_commit_timestamp: %s"
+	                      ", read_timestamp: %s"
+	                      ", flags: 0x%08" PRIx32 ", isolation: %s",
+	        txn->mod_count, txn->snap_min, txn->snap_max,
+	        __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
+	        __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
+	        __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
+	        __wt_timestamp_to_string(txn->read_timestamp, ts_string[3]), txn->flags, iso_tag));
 	return (0);
 }
 
@@ -1635,10 +1553,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	WT_RET(__wt_msg(session, "transaction state dump"));
 
 	WT_RET(__wt_msg(session, "current ID: %" PRIu64, txn_global->current));
-	WT_RET(__wt_msg(session,
-	    "last running ID: %" PRIu64, txn_global->last_running));
-	WT_RET(__wt_msg(session,
-	    "metadata_pinned ID: %" PRIu64, txn_global->metadata_pinned));
+	WT_RET(__wt_msg(session, "last running ID: %" PRIu64, txn_global->last_running));
+	WT_RET(__wt_msg(session, "metadata_pinned ID: %" PRIu64, txn_global->metadata_pinned));
 	WT_RET(__wt_msg(session, "oldest ID: %" PRIu64, txn_global->oldest_id));
 
 	WT_RET(__wt_msg(session, "commit timestamp: %s",
@@ -1649,30 +1565,29 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	    __wt_timestamp_to_string(txn_global->pinned_timestamp, ts_string)));
 	WT_RET(__wt_msg(session, "stable timestamp: %s",
 	    __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string)));
-	WT_RET(__wt_msg(session, "has_commit_timestamp: %s",
-	    txn_global->has_commit_timestamp ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
-	    txn_global->has_oldest_timestamp ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "has_pinned_timestamp: %s",
-	    txn_global->has_pinned_timestamp ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
-	    txn_global->has_stable_timestamp ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
-	    txn_global->oldest_is_pinned ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "stable_is_pinned: %s",
-	    txn_global->stable_is_pinned ? "yes" : "no"));
+	WT_RET(__wt_msg(
+	    session, "has_commit_timestamp: %s", txn_global->has_commit_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(
+	    session, "has_oldest_timestamp: %s", txn_global->has_oldest_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(
+	    session, "has_pinned_timestamp: %s", txn_global->has_pinned_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(
+	    session, "has_stable_timestamp: %s", txn_global->has_stable_timestamp ? "yes" : "no"));
+	WT_RET(
+	    __wt_msg(session, "oldest_is_pinned: %s", txn_global->oldest_is_pinned ? "yes" : "no"));
+	WT_RET(
+	    __wt_msg(session, "stable_is_pinned: %s", txn_global->stable_is_pinned ? "yes" : "no"));
 
-	WT_RET(__wt_msg(session, "checkpoint running: %s",
-	    txn_global->checkpoint_running ? "yes" : "no"));
-	WT_RET(__wt_msg(session, "checkpoint generation: %" PRIu64,
-	    __wt_gen(session, WT_GEN_CHECKPOINT)));
-	WT_RET(__wt_msg(session, "checkpoint pinned ID: %" PRIu64,
-	    txn_global->checkpoint_state.pinned_id));
-	WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64,
-	    txn_global->checkpoint_state.id));
+	WT_RET(__wt_msg(
+	    session, "checkpoint running: %s", txn_global->checkpoint_running ? "yes" : "no"));
+	WT_RET(__wt_msg(
+	    session, "checkpoint generation: %" PRIu64, __wt_gen(session, WT_GEN_CHECKPOINT)));
+	WT_RET(__wt_msg(
+	    session, "checkpoint pinned ID: %" PRIu64, txn_global->checkpoint_state.pinned_id));
+	WT_RET(__wt_msg(session, "checkpoint txn ID: %" PRIu64, txn_global->checkpoint_state.id));
 
-	WT_RET(__wt_msg(session,
-	    "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
+	WT_RET(
+	    __wt_msg(session, "oldest named snapshot ID: %" PRIu64, txn_global->nsnap_oldest_id));
 
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
 	WT_RET(__wt_msg(session, "session count: %" PRIu32, session_cnt));
@@ -1689,14 +1604,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 		if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
 			continue;
 		sess = &conn->sessions[i];
-		WT_RET(__wt_msg(session,
-		    "ID: %" PRIu64
-		    ", pinned ID: %" PRIu64
-		    ", metadata pinned ID: %" PRIu64
-		    ", name: %s",
+		WT_RET(__wt_msg(session, "ID: %" PRIu64 ", pinned ID: %" PRIu64
+		                         ", metadata pinned ID: %" PRIu64 ", name: %s",
 		    id, s->pinned_id, s->metadata_pinned,
-		    sess->name == NULL ?
-		    "EMPTY" : sess->name));
+		    sess->name == NULL ? "EMPTY" : sess->name));
 		WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn));
 	}
 

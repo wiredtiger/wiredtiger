@@ -13,8 +13,7 @@
  *	Handle pages with leaf pages in the WT_REF_DELETED state.
  */
 static int
-__rec_child_deleted(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_REF *ref, WT_CHILD_STATE *statep)
+__rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_CHILD_STATE *statep)
 {
 	WT_PAGE_DELETED *page_del;
 
@@ -38,8 +37,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
 	 */
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR) && page_del != NULL &&
 	    __wt_page_del_active(session, ref, false))
-		WT_PANIC_RET(session, EINVAL,
-		    "reconciliation illegally skipped an update");
+		WT_PANIC_RET(session, EINVAL, "reconciliation illegally skipped an update");
 
 	/*
 	 * Deal with any underlying disk blocks.
@@ -125,8 +123,8 @@ __rec_child_deleted(WT_SESSION_IMPL *session,
  *	Return if the internal page's child references any modifications.
  */
 int
-__wt_rec_child_modify(WT_SESSION_IMPL *session,
-    WT_RECONCILE *r, WT_REF *ref, bool *hazardp, WT_CHILD_STATE *statep)
+__wt_rec_child_modify(
+    WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, bool *hazardp, WT_CHILD_STATE *statep)
 {
 	WT_DECL_RET;
 	WT_PAGE_MODIFY *mod;
@@ -165,8 +163,7 @@ __wt_rec_child_modify(WT_SESSION_IMPL *session,
 			 * to see if the delete is visible to us.  Lock down the
 			 * structure.
 			 */
-			if (!WT_REF_CAS_STATE(
-			    session, ref, WT_REF_DELETED, WT_REF_LOCKED))
+			if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
 				break;
 			ret = __rec_child_deleted(session, r, ref, statep);
 			WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -198,7 +195,7 @@ __wt_rec_child_modify(WT_SESSION_IMPL *session,
 
 		case WT_REF_LIMBO:
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-			/* FALLTHROUGH */
+		/* FALLTHROUGH */
 		case WT_REF_LOOKASIDE:
 			/*
 			 * On disk or in cache with lookaside updates.
@@ -207,8 +204,7 @@ __wt_rec_child_modify(WT_SESSION_IMPL *session,
 			 * child pages in an evicted page's subtree fails the
 			 * eviction attempt.
 			 */
-			if (F_ISSET(r, WT_REC_EVICT) &&
-			    __wt_page_las_active(session, ref)) {
+			if (F_ISSET(r, WT_REC_EVICT) && __wt_page_las_active(session, ref)) {
 				WT_ASSERT(session, false);
 				return (__wt_set_return(session, EBUSY));
 			}
@@ -250,8 +246,7 @@ __wt_rec_child_modify(WT_SESSION_IMPL *session,
 			 * WT_NOTFOUND to us. In that case, loop and look again.
 			 */
 			ret = __wt_page_in(session, ref,
-			    WT_READ_CACHE | WT_READ_NO_EVICT |
-			    WT_READ_NO_GEN | WT_READ_NO_WAIT);
+			    WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_GEN | WT_READ_NO_WAIT);
 			if (ret == WT_NOTFOUND) {
 				ret = 0;
 				break;
@@ -289,7 +284,7 @@ __wt_rec_child_modify(WT_SESSION_IMPL *session,
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
 			return (__wt_set_return(session, EBUSY));
 
-		WT_ILLEGAL_VALUE(session, r->tested_ref_state);
+			WT_ILLEGAL_VALUE(session, r->tested_ref_state);
 		}
 		WT_STAT_CONN_INCR(session, child_modify_blocked_page);
 	}
@@ -324,6 +319,7 @@ in_memory:
 		WT_CHILD_RELEASE(session, *hazardp, ref);
 	}
 
-done:	WT_DIAGNOSTIC_YIELD;
+done:
+	WT_DIAGNOSTIC_YIELD;
 	return (ret);
 }

@@ -10,7 +10,7 @@
 #include "util.h"
 #include "util_dump.h"
 
-#define	STRING_MATCH_CONFIG(s, item)					\
+#define STRING_MATCH_CONFIG(s, item) \
 	(strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
 static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool);
@@ -21,10 +21,8 @@ static int dump_json_table_end(WT_SESSION *);
 static int dump_prefix(WT_SESSION *, bool, bool);
 static int dump_record(WT_CURSOR *, bool, bool);
 static int dump_suffix(WT_SESSION *, bool);
-static int dump_table_config(
-    WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char *, bool);
-static int dump_table_parts_config(
-    WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
+static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char *, bool);
+static int dump_table_parts_config(WT_SESSION *, WT_CURSOR *, const char *, const char *, bool);
 static int dup_json_string(const char *, char **);
 static int print_config(WT_SESSION *, const char *, const char *, bool, bool);
 static int usage(void);
@@ -77,9 +75,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
 	/* -j and -x are incompatible. */
 	if (hex && json) {
-		fprintf(stderr,
-		    "%s: the -j and -x dump options are incompatible\n",
-		    progname);
+		fprintf(stderr, "%s: the -j and -x dump options are incompatible\n", progname);
 		return (usage());
 	}
 
@@ -89,9 +85,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 	else if ((fp = fopen(ofile, "w")) == NULL)
 		return (util_err(session, errno, "%s: open", ofile));
 
-	if (json &&
-	    (dump_json_begin(session) != 0 ||
-	    dump_prefix(session, hex, json) != 0))
+	if (json && (dump_json_begin(session) != 0 || dump_prefix(session, hex, json) != 0))
 		goto err;
 
 	WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
@@ -108,14 +102,13 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 
 		WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
 		if (checkpoint != NULL)
-			WT_ERR(__wt_buf_catfmt(
-			    session_impl, tmp, "checkpoint=%s,", checkpoint));
-		WT_ERR(__wt_buf_catfmt(session_impl, tmp,
-		    "dump=%s", json ? "json" : (hex ? "hex" : "print")));
-		if ((ret = session->open_cursor(
-		    session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
-			fprintf(stderr, "%s: cursor open(%s) failed: %s\n",
-			    progname, uri, session->strerror(session, ret));
+			WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
+		WT_ERR(__wt_buf_catfmt(
+		    session_impl, tmp, "dump=%s", json ? "json" : (hex ? "hex" : "print")));
+		if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) !=
+		    0) {
+			fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
+			    session->strerror(session, ret));
 			goto err;
 		}
 
@@ -144,7 +137,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
 		goto err;
 
 	if (0) {
-err:		ret = 1;
+	err:
+		ret = 1;
 	}
 
 	if (cursor != NULL && (ret = cursor->close(cursor)) != 0)
@@ -164,18 +158,16 @@ err:		ret = 1;
  *	Dump the config for the uri.
  */
 static int
-dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool hex,
-    bool json)
+dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool hex, bool json)
 {
 	WT_CURSOR *mcursor;
 	WT_DECL_RET;
 	int tret;
 
 	/* Open a metadata cursor. */
-	if ((ret = session->open_cursor(
-	    session, "metadata:create", NULL, NULL, &mcursor)) != 0) {
-		fprintf(stderr, "%s: %s: session.open_cursor: %s\n", progname,
-		    "metadata:create", session->strerror(session, ret));
+	if ((ret = session->open_cursor(session, "metadata:create", NULL, NULL, &mcursor)) != 0) {
+		fprintf(stderr, "%s: %s: session.open_cursor: %s\n", progname, "metadata:create",
+		    session->strerror(session, ret));
 		return (1);
 	}
 	/*
@@ -186,8 +178,7 @@ dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool hex,
 	mcursor->set_key(mcursor, uri);
 	if ((ret = mcursor->search(mcursor)) == 0) {
 		if ((!json && dump_prefix(session, hex, json) != 0) ||
-		    dump_table_config(session, mcursor, cursor,
-		    uri, json) != 0 ||
+		    dump_table_config(session, mcursor, cursor, uri, json) != 0 ||
 		    dump_suffix(session, json) != 0)
 			ret = 1;
 	} else if (ret == WT_NOTFOUND)
@@ -257,9 +248,8 @@ dump_json_table_end(WT_SESSION *session)
  *	Add a formatted config string to an output buffer.
  */
 static int
-dump_add_config(WT_SESSION *session, char **bufp, size_t *leftp,
-    const char *fmt, ...)
-	WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
+dump_add_config(WT_SESSION *session, char **bufp, size_t *leftp, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
 {
 	WT_DECL_RET;
 	size_t n;
@@ -280,8 +270,7 @@ dump_add_config(WT_SESSION *session, char **bufp, size_t *leftp,
  *	Create a new config containing projection information.
  */
 static int
-dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
-    char **newconfigp)
+dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor, char **newconfigp)
 {
 	WT_CONFIG_ITEM key, value;
 	WT_CONFIG_PARSER *parser;
@@ -292,16 +281,14 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 	const char *keyformat, *p;
 	char *newconfig;
 
-	len = strlen(config) + strlen(cursor->value_format) +
-	    strlen(cursor->uri) + 20;
+	len = strlen(config) + strlen(cursor->value_format) + strlen(cursor->uri) + 20;
 	if ((newconfig = malloc(len)) == NULL)
 		return util_err(session, errno, NULL);
 	*newconfigp = newconfig;
 	wt_api = session->connection->get_extension_api(session->connection);
-	if ((ret = wt_api->config_parser_open(wt_api, session, config,
-	    strlen(config), &parser)) != 0)
-		return (util_err(
-		    session, ret, "WT_EXTENSION_API.config_parser_open"));
+	if ((ret = wt_api->config_parser_open(wt_api, session, config, strlen(config), &parser)) !=
+	    0)
+		return (util_err(session, ret, "WT_EXTENSION_API.config_parser_open"));
 	keyformat = cursor->key_format;
 	for (nkeys = 0; *keyformat; keyformat++)
 		if (!__wt_isdigit((u_char)*keyformat))
@@ -312,11 +299,10 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 	 * projection.
 	 */
 	while ((ret = parser->next(parser, &key, &value)) == 0) {
-		WT_RET(dump_add_config(session, &newconfig, &len,
-		    "%.*s=", (int)key.len, key.str));
+		WT_RET(dump_add_config(session, &newconfig, &len, "%.*s=", (int)key.len, key.str));
 		if (STRING_MATCH_CONFIG("value_format", key))
-			WT_RET(dump_add_config(session, &newconfig, &len,
-			    "%s", cursor->value_format));
+			WT_RET(
+			    dump_add_config(session, &newconfig, &len, "%s", cursor->value_format));
 		else if (STRING_MATCH_CONFIG("columns", key)) {
 			/* copy names of keys */
 			p = value.str;
@@ -327,8 +313,8 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 				p++;
 				vallen--;
 			}
-			WT_RET(dump_add_config(session, &newconfig, &len,
-			    "%.*s", (int)(p - value.str), value.str));
+			WT_RET(dump_add_config(
+			    session, &newconfig, &len, "%.*s", (int)(p - value.str), value.str));
 
 			/* copy names of projected values */
 			p = strchr(cursor->uri, '(');
@@ -336,25 +322,22 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
 			assert(p[strlen(p) - 1] == ')');
 			p++;
 			if (*p != ')')
-				WT_RET(dump_add_config(session, &newconfig,
-				    &len, "%s", ","));
-			WT_RET(dump_add_config(session, &newconfig, &len,
-			    "%.*s),", (int)(strlen(p) - 1), p));
-		} else if (value.type == WT_CONFIG_ITEM_STRING &&
-		    value.len != 0)
-			WT_RET(dump_add_config(session, &newconfig, &len,
-			    "\"%.*s\",", (int)value.len, value.str));
+				WT_RET(dump_add_config(session, &newconfig, &len, "%s", ","));
+			WT_RET(dump_add_config(
+			    session, &newconfig, &len, "%.*s),", (int)(strlen(p) - 1), p));
+		} else if (value.type == WT_CONFIG_ITEM_STRING && value.len != 0)
+			WT_RET(dump_add_config(
+			    session, &newconfig, &len, "\"%.*s\",", (int)value.len, value.str));
 		else
-			WT_RET(dump_add_config(session, &newconfig, &len,
-			    "%.*s,", (int)value.len, value.str));
+			WT_RET(dump_add_config(
+			    session, &newconfig, &len, "%.*s,", (int)value.len, value.str));
 	}
 	if (ret != WT_NOTFOUND)
 		return (util_err(session, ret, "WT_CONFIG_PARSER.next"));
 
 	assert(len > 0);
 	if ((ret = parser->close(parser)) != 0)
-		return (util_err(
-		    session, ret, "WT_CONFIG_PARSER.close"));
+		return (util_err(session, ret, "WT_CONFIG_PARSER.close"));
 
 	return (0);
 }
@@ -365,8 +348,7 @@ dump_projection(WT_SESSION *session, const char *config, WT_CURSOR *cursor,
  */
 static int
 dump_table_config(
-    WT_SESSION *session, WT_CURSOR *mcursor, WT_CURSOR *cursor,
-    const char *uri, bool json)
+    WT_SESSION *session, WT_CURSOR *mcursor, WT_CURSOR *cursor, const char *uri, bool json)
 {
 	WT_DECL_RET;
 	const char *name, *v;
@@ -396,12 +378,11 @@ dump_table_config(
 	}
 	WT_ERR(print_config(session, uri, v, json, true));
 
-	WT_ERR(dump_table_parts_config(
-	    session, mcursor, name, "colgroup:", json));
-	WT_ERR(dump_table_parts_config(
-	    session, mcursor, name, "index:", json));
+	WT_ERR(dump_table_parts_config(session, mcursor, name, "colgroup:", json));
+	WT_ERR(dump_table_parts_config(session, mcursor, name, "index:", json));
 
-err:	free(proj_config);
+err:
+	free(proj_config);
 	return (ret);
 }
 
@@ -410,8 +391,8 @@ err:	free(proj_config);
  *	Dump the column groups or indices parts with a table.
  */
 static int
-dump_table_parts_config(WT_SESSION *session, WT_CURSOR *cursor,
-    const char *name, const char *entry, bool json)
+dump_table_parts_config(
+    WT_SESSION *session, WT_CURSOR *cursor, const char *name, const char *entry, bool json)
 {
 	WT_DECL_RET;
 	size_t len;
@@ -467,12 +448,12 @@ dump_table_parts_config(WT_SESSION *session, WT_CURSOR *cursor,
 	if (exact > 0)
 		goto match;
 	while (exact != 0 && (ret = cursor->next(cursor)) == 0) {
-match:		if ((ret = cursor->get_key(cursor, &key)) != 0)
+	match:
+		if ((ret = cursor->get_key(cursor, &key)) != 0)
 			return (util_cerr(cursor, "get_key", ret));
 
 		/* Check if we've finished the list of entries. */
-		if (!WT_PREFIX_MATCH(key, entry) ||
-		    !WT_PREFIX_MATCH(key + strlen(entry), name))
+		if (!WT_PREFIX_MATCH(key, entry) || !WT_PREFIX_MATCH(key + strlen(entry), name))
 			break;
 
 		if ((ret = cursor->get_value(cursor, &v)) != 0)
@@ -489,8 +470,7 @@ match:		if ((ret = cursor->get_key(cursor, &key)) != 0)
 			return (util_err(session, EIO, NULL));
 		multiple = true;
 	}
-	if (json && fprintf(fp, "%s]%s\n",
-	    (multiple ? "\n            " : ""), sep) < 0)
+	if (json && fprintf(fp, "%s]%s\n", (multiple ? "\n            " : ""), sep) < 0)
 		return (util_err(session, EIO, NULL));
 
 	if (ret == 0 || ret == WT_NOTFOUND)
@@ -509,17 +489,15 @@ dump_prefix(WT_SESSION *session, bool hex, bool json)
 
 	(void)wiredtiger_version(&vmajor, &vminor, &vpatch);
 
-	if (json && fprintf(fp,
-	    "    \"%s\" : \"%d (%d.%d.%d)\",\n",
-	    DUMP_JSON_VERSION_MARKER, DUMP_JSON_CURRENT_VERSION,
-	    vmajor, vminor, vpatch) < 0)
+	if (json &&
+	    fprintf(fp, "    \"%s\" : \"%d (%d.%d.%d)\",\n", DUMP_JSON_VERSION_MARKER,
+	        DUMP_JSON_CURRENT_VERSION, vmajor, vminor, vpatch) < 0)
 		return (util_err(session, EIO, NULL));
 
-	if (!json && (fprintf(fp,
-	    "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n",
-	    vmajor, vminor, vpatch) < 0 ||
-	    fprintf(fp, "Format=%s\n", hex ? "hex" : "print") < 0 ||
-	    fprintf(fp, "Header\n") < 0))
+	if (!json && (fprintf(fp, "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n", vmajor, vminor,
+	                  vpatch) < 0 ||
+	                 fprintf(fp, "Format=%s\n", hex ? "hex" : "print") < 0 ||
+	                 fprintf(fp, "Header\n") < 0))
 		return (util_err(session, EIO, NULL));
 
 	return (0);
@@ -550,21 +528,19 @@ dump_record(WT_CURSOR *cursor, bool reverse, bool json)
 		infix = "\n";
 		suffix = "\n";
 	}
-	while ((ret =
-	    (reverse ? cursor->prev(cursor) : cursor->next(cursor))) == 0) {
+	while ((ret = (reverse ? cursor->prev(cursor) : cursor->next(cursor))) == 0) {
 		if ((ret = cursor->get_key(cursor, &key)) != 0)
 			return (util_cerr(cursor, "get_key", ret));
 		if ((ret = cursor->get_value(cursor, &value)) != 0)
 			return (util_cerr(cursor, "get_value", ret));
-		if (fprintf(fp, "%s%s%s%s%s%s", json && once ? "," : "",
-		    prefix, key, infix, value, suffix) < 0)
+		if (fprintf(fp, "%s%s%s%s%s%s", json && once ? "," : "", prefix, key, infix, value,
+		        suffix) < 0)
 			return (util_err(session, EIO, NULL));
 		once = true;
 	}
 	if (json && once && fprintf(fp, "\n") < 0)
 		return (util_err(session, EIO, NULL));
-	return (ret == WT_NOTFOUND ? 0 :
-	    util_cerr(cursor, (reverse ? "prev" : "next"), ret));
+	return (ret == WT_NOTFOUND ? 0 : util_cerr(cursor, (reverse ? "prev" : "next"), ret));
 }
 
 /*
@@ -575,10 +551,9 @@ static int
 dump_suffix(WT_SESSION *session, bool json)
 {
 	if (json) {
-		if (fprintf(fp,
-		    "        },\n"
-		    "        {\n"
-		    "            \"data\" : [") < 0)
+		if (fprintf(fp, "        },\n"
+		                "        {\n"
+		                "            \"data\" : [") < 0)
 			return (util_err(session, EIO, NULL));
 	} else {
 		if (fprintf(fp, "Data\n") < 0)
@@ -608,8 +583,7 @@ dup_json_string(const char *str, char **result)
 	*result = q;
 	left = nchars;
 	for (p = str; *p; p++, nchars++) {
-		nchars = __wt_json_unpack_char((u_char)*p, (u_char *)q, left,
-		    false);
+		nchars = __wt_json_unpack_char((u_char)*p, (u_char *)q, left, false);
 		left -= nchars;
 		q += nchars;
 	}
@@ -622,8 +596,7 @@ dup_json_string(const char *str, char **result)
  *	Output a key/value URI pair by combining v1 and v2.
  */
 static int
-print_config(WT_SESSION *session, const char *key, const char *cfg, bool json,
-    bool toplevel)
+print_config(WT_SESSION *session, const char *key, const char *cfg, bool json, bool toplevel)
 {
 	WT_DECL_RET;
 	char *jsonconfig;
@@ -639,15 +612,15 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json,
 
 	if (json) {
 		if (toplevel)
-			ret = fprintf(fp,
-			    "    \"%s\" : [\n        {\n            "
-			    "\"config\" : \"%s\",\n", key, jsonconfig);
+			ret = fprintf(fp, "    \"%s\" : [\n        {\n            "
+			                  "\"config\" : \"%s\",\n",
+			    key, jsonconfig);
 		else
-			ret = fprintf(fp,
-			    "                {\n"
-			    "                    \"uri\" : \"%s\",\n"
-			    "                    \"config\" : \"%s\"\n"
-			    "                }", key, jsonconfig);
+			ret = fprintf(fp, "                {\n"
+			                  "                    \"uri\" : \"%s\",\n"
+			                  "                    \"config\" : \"%s\"\n"
+			                  "                }",
+			    key, jsonconfig);
 	} else
 		ret = fprintf(fp, "%s\n%s\n", key, cfg);
 	free(jsonconfig);
@@ -659,9 +632,8 @@ print_config(WT_SESSION *session, const char *key, const char *cfg, bool json,
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "dump [-jrx] [-c checkpoint] [-f output-file] uri\n",
 	    progname, usage_prefix);
 	return (1);
 }

@@ -6,28 +6,28 @@
  * See the file LICENSE for redistribution information.
  */
 
-#define	WT_TXN_NONE	0			/* Beginning of time */
-#define	WT_TXN_FIRST	1			/* First transaction to run */
-#define	WT_TXN_MAX	(UINT64_MAX - 10)	/* End of time */
-#define	WT_TXN_ABORTED	UINT64_MAX		/* Update rolled back */
+#define WT_TXN_NONE 0                /* Beginning of time */
+#define WT_TXN_FIRST 1               /* First transaction to run */
+#define WT_TXN_MAX (UINT64_MAX - 10) /* End of time */
+#define WT_TXN_ABORTED UINT64_MAX    /* Update rolled back */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_LOG_CKPT_CLEANUP	0x01u
-#define	WT_TXN_LOG_CKPT_PREPARE	0x02u
-#define	WT_TXN_LOG_CKPT_START	0x04u
-#define	WT_TXN_LOG_CKPT_STOP	0x08u
-#define	WT_TXN_LOG_CKPT_SYNC	0x10u
+#define WT_TXN_LOG_CKPT_CLEANUP 0x01u
+#define WT_TXN_LOG_CKPT_PREPARE 0x02u
+#define WT_TXN_LOG_CKPT_START 0x04u
+#define WT_TXN_LOG_CKPT_STOP 0x08u
+#define WT_TXN_LOG_CKPT_SYNC 0x10u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_OLDEST_STRICT	0x1u
-#define	WT_TXN_OLDEST_WAIT	0x2u
+#define WT_TXN_OLDEST_STRICT 0x1u
+#define WT_TXN_OLDEST_WAIT 0x2u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_TS_ALREADY_LOCKED	0x1u
-#define	WT_TXN_TS_INCLUDE_CKPT		0x2u
-#define	WT_TXN_TS_INCLUDE_OLDEST	0x4u
+#define WT_TXN_TS_ALREADY_LOCKED 0x1u
+#define WT_TXN_TS_INCLUDE_CKPT 0x2u
+#define WT_TXN_TS_INCLUDE_OLDEST 0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -37,19 +37,16 @@
  * transaction), WT_TXN_NONE is smaller than any possible ID (visible to all
  * running transactions).
  */
-#define	WT_TXNID_LE(t1, t2)						\
-	((t1) <= (t2))
+#define WT_TXNID_LE(t1, t2) ((t1) <= (t2))
 
-#define	WT_TXNID_LT(t1, t2)						\
-	((t1) < (t2))
+#define WT_TXNID_LT(t1, t2) ((t1) < (t2))
 
-#define	WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
+#define WT_SESSION_TXN_STATE(s) (&S2C(s)->txn_global.states[(s)->id])
 
-#define	WT_SESSION_IS_CHECKPOINT(s)					\
-	((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
+#define WT_SESSION_IS_CHECKPOINT(s) ((s)->id != 0 && (s)->id == S2C(s)->txn_global.checkpoint_id)
 
-#define	WT_TS_NONE	0		/* Beginning of time */
-#define	WT_TS_MAX	UINT64_MAX	/* End of time */
+#define WT_TS_NONE 0         /* Beginning of time */
+#define WT_TS_MAX UINT64_MAX /* End of time */
 
 /*
  * We format timestamps in a couple of ways, declare appropriate sized buffers.
@@ -58,8 +55,8 @@
  * 2x the maximum digits from a 4B unsigned integer + 3. Both sizes include a
  * trailing nul byte as well.
  */
-#define	WT_TS_HEX_STRING_SIZE	(2 * sizeof(wt_timestamp_t) + 1)
-#define	WT_TS_INT_STRING_SIZE	(2 * 10 + 3 + 1)
+#define WT_TS_HEX_STRING_SIZE (2 * sizeof(wt_timestamp_t) + 1)
+#define WT_TS_INT_STRING_SIZE (2 * 10 + 3 + 1)
 
 /*
  * Perform an operation at the specified isolation level.
@@ -69,26 +66,27 @@
  * snap_min forwards (or updates we need could be freed while this operation is
  * in progress).  Check for those cases: the bugs they cause are hard to debug.
  */
-#define	WT_WITH_TXN_ISOLATION(s, iso, op) do {				\
-	WT_TXN_ISOLATION saved_iso = (s)->isolation;		        \
-	WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;		\
-	WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(s);		\
-	WT_TXN_STATE saved_state = *txn_state;				\
-	(s)->txn.forced_iso++;						\
-	(s)->isolation = (s)->txn.isolation = (iso);			\
-	op;								\
-	(s)->isolation = saved_iso;					\
-	(s)->txn.isolation = saved_txn_iso;				\
-	WT_ASSERT((s), (s)->txn.forced_iso > 0);                        \
-	(s)->txn.forced_iso--;						\
-	WT_ASSERT((s), txn_state->id == saved_state.id &&		\
-	    (txn_state->metadata_pinned == saved_state.metadata_pinned ||\
-	    saved_state.metadata_pinned == WT_TXN_NONE) &&		\
-	    (txn_state->pinned_id == saved_state.pinned_id ||		\
-	    saved_state.pinned_id == WT_TXN_NONE));			\
-	txn_state->metadata_pinned = saved_state.metadata_pinned;	\
-	txn_state->pinned_id = saved_state.pinned_id;			\
-} while (0)
+#define WT_WITH_TXN_ISOLATION(s, iso, op)                                             \
+	do {                                                                          \
+		WT_TXN_ISOLATION saved_iso = (s)->isolation;                          \
+		WT_TXN_ISOLATION saved_txn_iso = (s)->txn.isolation;                  \
+		WT_TXN_STATE *txn_state = WT_SESSION_TXN_STATE(s);                    \
+		WT_TXN_STATE saved_state = *txn_state;                                \
+		(s)->txn.forced_iso++;                                                \
+		(s)->isolation = (s)->txn.isolation = (iso);                          \
+		op;                                                                   \
+		(s)->isolation = saved_iso;                                           \
+		(s)->txn.isolation = saved_txn_iso;                                   \
+		WT_ASSERT((s), (s)->txn.forced_iso > 0);                              \
+		(s)->txn.forced_iso--;                                                \
+		WT_ASSERT((s), txn_state->id == saved_state.id &&                     \
+		        (txn_state->metadata_pinned == saved_state.metadata_pinned || \
+		                   saved_state.metadata_pinned == WT_TXN_NONE) &&     \
+		        (txn_state->pinned_id == saved_state.pinned_id ||             \
+		                   saved_state.pinned_id == WT_TXN_NONE));            \
+		txn_state->metadata_pinned = saved_state.metadata_pinned;             \
+		txn_state->pinned_id = saved_state.pinned_id;                         \
+	} while (0)
 
 struct __wt_named_snapshot {
 	const char *name;
@@ -111,7 +109,7 @@ struct __wt_txn_state {
 };
 
 struct __wt_txn_global {
-	volatile uint64_t current;	/* Current transaction ID. */
+	volatile uint64_t current; /* Current transaction ID. */
 
 	/* The oldest running transaction ID (may race). */
 	volatile uint64_t last_running;
@@ -165,21 +163,21 @@ struct __wt_txn_global {
 	 * the metadata; and (b) once checkpoint has finished reading a table,
 	 * it won't revisit it.
 	 */
-	volatile bool	  checkpoint_running;	/* Checkpoint running */
-	volatile uint32_t checkpoint_id;	/* Checkpoint's session ID */
-	WT_TXN_STATE	  checkpoint_state;	/* Checkpoint's txn state */
-	wt_timestamp_t	  checkpoint_timestamp;	/* Checkpoint's timestamp */
+	volatile bool checkpoint_running;    /* Checkpoint running */
+	volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
+	WT_TXN_STATE checkpoint_state;       /* Checkpoint's txn state */
+	wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
 
-	volatile uint64_t debug_ops;		/* Debug mode op counter */
-	uint64_t	  debug_rollback;	/* Debug mode rollback */
-	volatile uint64_t metadata_pinned;	/* Oldest ID for metadata */
+	volatile uint64_t debug_ops;       /* Debug mode op counter */
+	uint64_t debug_rollback;           /* Debug mode rollback */
+	volatile uint64_t metadata_pinned; /* Oldest ID for metadata */
 
 	/* Named snapshot state. */
 	WT_RWLOCK nsnap_rwlock;
 	volatile uint64_t nsnap_oldest_id;
 	TAILQ_HEAD(__wt_nsnap_qh, __wt_named_snapshot) nsnaph;
 
-	WT_TXN_STATE *states;		/* Per-session transaction states */
+	WT_TXN_STATE *states; /* Per-session transaction states */
 };
 
 typedef enum __wt_txn_isolation {
@@ -196,16 +194,14 @@ typedef enum __wt_txn_isolation {
  */
 struct __wt_txn_op {
 	WT_BTREE *btree;
-	enum {
-		WT_TXN_OP_NONE=0,
+	enum { WT_TXN_OP_NONE = 0,
 		WT_TXN_OP_BASIC_COL,
 		WT_TXN_OP_BASIC_ROW,
 		WT_TXN_OP_INMEM_COL,
 		WT_TXN_OP_INMEM_ROW,
 		WT_TXN_OP_REF_DELETE,
 		WT_TXN_OP_TRUNCATE_COL,
-		WT_TXN_OP_TRUNCATE_ROW
-	} type;
+		WT_TXN_OP_TRUNCATE_ROW } type;
 	union {
 		/* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
 		struct {
@@ -223,7 +219,7 @@ struct __wt_txn_op {
  * just chose op_row upd
  */
 #undef op_upd
-#define	op_upd	op_row.upd
+#define op_upd op_row.upd
 
 		/* WT_TXN_OP_REF_DELETE */
 		WT_REF *ref;
@@ -234,18 +230,16 @@ struct __wt_txn_op {
 		/* WT_TXN_OP_TRUNCATE_ROW */
 		struct {
 			WT_ITEM start, stop;
-			enum {
-				WT_TXN_TRUNC_ALL,
+			enum { WT_TXN_TRUNC_ALL,
 				WT_TXN_TRUNC_BOTH,
 				WT_TXN_TRUNC_START,
-				WT_TXN_TRUNC_STOP
-			} mode;
+				WT_TXN_TRUNC_STOP } mode;
 		} truncate_row;
 	} u;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_OP_KEY_REPEATED	0x1u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_TXN_OP_KEY_REPEATED 0x1u
+	/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };
 
@@ -258,7 +252,7 @@ struct __wt_txn {
 
 	WT_TXN_ISOLATION isolation;
 
-	uint32_t forced_iso;	/* Isolation is currently forced. */
+	uint32_t forced_iso; /* Isolation is currently forced. */
 
 	/*
 	 * Snapshot data:
@@ -269,7 +263,7 @@ struct __wt_txn {
 	uint64_t snap_min, snap_max;
 	uint64_t *snapshot;
 	uint32_t snapshot_count;
-	uint32_t txn_logsync;	/* Log sync configuration */
+	uint32_t txn_logsync; /* Log sync configuration */
 
 	/*
 	 * Timestamp copied into updates created by this transaction.
@@ -303,54 +297,54 @@ struct __wt_txn {
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
 	TAILQ_ENTRY(__wt_txn) read_timestampq;
-	bool clear_commit_q;	/* Set if need to clear from the commit queue */
-	bool clear_read_q;	/* Set if need to clear from the read queue */
+	bool clear_commit_q; /* Set if need to clear from the commit queue */
+	bool clear_read_q;   /* Set if need to clear from the read queue */
 
 	/* Array of modifications by this transaction. */
-	WT_TXN_OP      *mod;
-	size_t		mod_alloc;
-	u_int		mod_count;
+	WT_TXN_OP *mod;
+	size_t mod_alloc;
+	u_int mod_count;
 
 	/* Scratch buffer for in-memory log records. */
-	WT_ITEM	       *logrec;
+	WT_ITEM *logrec;
 
 	/* Requested notification when transactions are resolved. */
 	WT_TXN_NOTIFY *notify;
 
 	/* Checkpoint status. */
-	WT_LSN		ckpt_lsn;
-	uint32_t	ckpt_nsnapshot;
-	WT_ITEM		*ckpt_snapshot;
-	bool		full_ckpt;
+	WT_LSN ckpt_lsn;
+	uint32_t ckpt_nsnapshot;
+	WT_ITEM *ckpt_snapshot;
+	bool full_ckpt;
 
-	const char *rollback_reason;		/* If rollback, the reason */
+	const char *rollback_reason; /* If rollback, the reason */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_TXN_AUTOCOMMIT	0x0000001u
-#define	WT_TXN_ERROR		0x0000002u
-#define	WT_TXN_HAS_ID		0x0000004u
-#define	WT_TXN_HAS_SNAPSHOT	0x0000008u
-#define	WT_TXN_HAS_TS_COMMIT	0x0000010u
-#define	WT_TXN_HAS_TS_DURABLE	0x0000020u
-#define	WT_TXN_HAS_TS_PREPARE	0x0000040u
-#define	WT_TXN_HAS_TS_READ	0x0000080u
-#define	WT_TXN_IGNORE_PREPARE	0x0000100u
-#define	WT_TXN_NAMED_SNAPSHOT	0x0000200u
-#define	WT_TXN_PREPARE		0x0000400u
-#define	WT_TXN_PUBLIC_TS_COMMIT	0x0000800u
-#define	WT_TXN_PUBLIC_TS_READ	0x0001000u
-#define	WT_TXN_READONLY		0x0002000u
-#define	WT_TXN_RUNNING		0x0004000u
-#define	WT_TXN_SYNC_SET		0x0008000u
-#define	WT_TXN_TS_COMMIT_ALWAYS	0x0010000u
-#define	WT_TXN_TS_COMMIT_KEYS	0x0020000u
-#define	WT_TXN_TS_COMMIT_NEVER	0x0040000u
-#define	WT_TXN_TS_DURABLE_ALWAYS	0x0080000u
-#define	WT_TXN_TS_DURABLE_KEYS	0x0100000u
-#define	WT_TXN_TS_DURABLE_NEVER	0x0200000u
-#define	WT_TXN_TS_ROUND_PREPARED	0x0400000u
-#define	WT_TXN_TS_ROUND_READ	0x0800000u
-#define	WT_TXN_UPDATE	        0x1000000u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_TXN_AUTOCOMMIT 0x0000001u
+#define WT_TXN_ERROR 0x0000002u
+#define WT_TXN_HAS_ID 0x0000004u
+#define WT_TXN_HAS_SNAPSHOT 0x0000008u
+#define WT_TXN_HAS_TS_COMMIT 0x0000010u
+#define WT_TXN_HAS_TS_DURABLE 0x0000020u
+#define WT_TXN_HAS_TS_PREPARE 0x0000040u
+#define WT_TXN_HAS_TS_READ 0x0000080u
+#define WT_TXN_IGNORE_PREPARE 0x0000100u
+#define WT_TXN_NAMED_SNAPSHOT 0x0000200u
+#define WT_TXN_PREPARE 0x0000400u
+#define WT_TXN_PUBLIC_TS_COMMIT 0x0000800u
+#define WT_TXN_PUBLIC_TS_READ 0x0001000u
+#define WT_TXN_READONLY 0x0002000u
+#define WT_TXN_RUNNING 0x0004000u
+#define WT_TXN_SYNC_SET 0x0008000u
+#define WT_TXN_TS_COMMIT_ALWAYS 0x0010000u
+#define WT_TXN_TS_COMMIT_KEYS 0x0020000u
+#define WT_TXN_TS_COMMIT_NEVER 0x0040000u
+#define WT_TXN_TS_DURABLE_ALWAYS 0x0080000u
+#define WT_TXN_TS_DURABLE_KEYS 0x0100000u
+#define WT_TXN_TS_DURABLE_NEVER 0x0200000u
+#define WT_TXN_TS_ROUND_PREPARED 0x0400000u
+#define WT_TXN_TS_ROUND_READ 0x0800000u
+#define WT_TXN_UPDATE 0x1000000u
+	/* AUTOMATIC FLAG VALUE GENERATION STOP */
 	uint32_t flags;
 };

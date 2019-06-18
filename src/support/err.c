@@ -13,8 +13,8 @@
  *	Default WT_EVENT_HANDLER->handle_error implementation: send to stderr.
  */
 static int
-__handle_error_default(WT_EVENT_HANDLER *handler,
-    WT_SESSION *wt_session, int error, const char *errmsg)
+__handle_error_default(
+    WT_EVENT_HANDLER *handler, WT_SESSION *wt_session, int error, const char *errmsg)
 {
 	WT_SESSION_IMPL *session;
 
@@ -33,8 +33,7 @@ __handle_error_default(WT_EVENT_HANDLER *handler,
  *	Default WT_EVENT_HANDLER->handle_message implementation: send to stdout.
  */
 static int
-__handle_message_default(WT_EVENT_HANDLER *handler,
-    WT_SESSION *wt_session, const char *message)
+__handle_message_default(WT_EVENT_HANDLER *handler, WT_SESSION *wt_session, const char *message)
 {
 	WT_SESSION_IMPL *session;
 
@@ -51,8 +50,8 @@ __handle_message_default(WT_EVENT_HANDLER *handler,
  *	Default WT_EVENT_HANDLER->handle_progress implementation: ignore.
  */
 static int
-__handle_progress_default(WT_EVENT_HANDLER *handler,
-    WT_SESSION *wt_session, const char *operation, uint64_t progress)
+__handle_progress_default(
+    WT_EVENT_HANDLER *handler, WT_SESSION *wt_session, const char *operation, uint64_t progress)
 {
 	WT_UNUSED(handler);
 	WT_UNUSED(wt_session);
@@ -67,8 +66,7 @@ __handle_progress_default(WT_EVENT_HANDLER *handler,
  *	Default WT_EVENT_HANDLER->handle_close implementation: ignore.
  */
 static int
-__handle_close_default(WT_EVENT_HANDLER *handler,
-    WT_SESSION *wt_session, WT_CURSOR *cursor)
+__handle_close_default(WT_EVENT_HANDLER *handler, WT_SESSION *wt_session, WT_CURSOR *cursor)
 {
 	WT_UNUSED(handler);
 	WT_UNUSED(wt_session);
@@ -77,20 +75,15 @@ __handle_close_default(WT_EVENT_HANDLER *handler,
 	return (0);
 }
 
-static WT_EVENT_HANDLER __event_handler_default = {
-	__handle_error_default,
-	__handle_message_default,
-	__handle_progress_default,
-	__handle_close_default
-};
+static WT_EVENT_HANDLER __event_handler_default = {__handle_error_default, __handle_message_default,
+    __handle_progress_default, __handle_close_default};
 
 /*
  * __handler_failure --
  *	Report the failure of an application-configured event handler.
  */
 static void
-__handler_failure(WT_SESSION_IMPL *session,
-    int error, const char *which, bool error_handler_failed)
+__handler_failure(WT_SESSION_IMPL *session, int error, const char *which, bool error_handler_failed)
 {
 	WT_EVENT_HANDLER *handler;
 	WT_SESSION *wt_session;
@@ -102,9 +95,8 @@ __handler_failure(WT_SESSION_IMPL *session,
 	 */
 	char s[256];
 
-	if (__wt_snprintf(s, sizeof(s),
-	    "application %s event handler failed: %s",
-	    which, __wt_strerror(session, error, NULL, 0)) != 0)
+	if (__wt_snprintf(s, sizeof(s), "application %s event handler failed: %s", which,
+	        __wt_strerror(session, error, NULL, 0)) != 0)
 		return;
 
 	/*
@@ -114,8 +106,7 @@ __handler_failure(WT_SESSION_IMPL *session,
 	 */
 	wt_session = (WT_SESSION *)session;
 	handler = session->event_handler;
-	if (!error_handler_failed &&
-	    handler->handle_error != __handle_error_default &&
+	if (!error_handler_failed && handler->handle_error != __handle_error_default &&
 	    handler->handle_error(handler, wt_session, error, s) == 0)
 		return;
 
@@ -151,31 +142,32 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
 	session->event_handler = handler;
 }
 
-#define	WT_ERROR_APPEND(p, remain, ...) do {				\
-	size_t __len;							\
-	WT_ERR(__wt_snprintf_len_set(p, remain, &__len, __VA_ARGS__));	\
-	if (__len > remain)						\
-		__len = remain;						\
-	p += __len;							\
-	remain -= __len;						\
-} while (0)
-#define	WT_ERROR_APPEND_AP(p, remain, ...) do {				\
-	size_t __len;							\
-	WT_ERR(__wt_vsnprintf_len_set(p, remain, &__len, __VA_ARGS__));	\
-	if (__len > remain)						\
-		__len = remain;						\
-	p += __len;							\
-	remain -= __len;						\
-} while (0)
+#define WT_ERROR_APPEND(p, remain, ...)                                        \
+	do {                                                                   \
+		size_t __len;                                                  \
+		WT_ERR(__wt_snprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
+		if (__len > remain)                                            \
+			__len = remain;                                        \
+		p += __len;                                                    \
+		remain -= __len;                                               \
+	} while (0)
+#define WT_ERROR_APPEND_AP(p, remain, ...)                                      \
+	do {                                                                    \
+		size_t __len;                                                   \
+		WT_ERR(__wt_vsnprintf_len_set(p, remain, &__len, __VA_ARGS__)); \
+		if (__len > remain)                                             \
+			__len = remain;                                         \
+		p += __len;                                                     \
+		remain -= __len;                                                \
+	} while (0)
 
 /*
  * __eventv --
  * 	Report a message to an event handler.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
-    const char *func, int line, const char *fmt, va_list ap)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, int line,
+    const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	struct timespec ts;
 	WT_DECL_RET;
@@ -218,9 +210,8 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
 	 */
 	__wt_epoch(session, &ts);
 	WT_ERR(__wt_thread_str(tid, sizeof(tid)));
-	WT_ERROR_APPEND(p, remain,
-	    "[%" PRIuMAX ":%" PRIuMAX "][%s]",
-	    (uintmax_t)ts.tv_sec, (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
+	WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
+	    (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
 
 	if ((prefix = S2C(session)->error_prefix) != NULL)
 		WT_ERROR_APPEND(p, remain, ", %s", prefix);
@@ -286,16 +277,13 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error,
 	 * call.
 	 */
 	if (ret == 0 && remain == 0)
-		__wt_err(session, ENOMEM,
-		    "error or message truncated: internal WiredTiger buffer "
-		    "too small");
+		__wt_err(session, ENOMEM, "error or message truncated: internal WiredTiger buffer "
+		                          "too small");
 
 	if (ret != 0) {
-err:		if (fprintf(stderr,
-		    "WiredTiger Error%s%s: ",
-		    error == 0 ? "" : ": ",
-		    error == 0 ? "" :
-		    __wt_strerror(session, error, NULL, 0)) < 0)
+	err:
+		if (fprintf(stderr, "WiredTiger Error%s%s: ", error == 0 ? "" : ": ",
+		        error == 0 ? "" : __wt_strerror(session, error, NULL, 0)) < 0)
 			WT_TRET(EIO);
 		if (vfprintf(stderr, fmt, ap) < 0)
 			WT_TRET(EIO);
@@ -313,11 +301,9 @@ err:		if (fprintf(stderr,
  * 	Report an error.
  */
 void
-__wt_err_func(WT_SESSION_IMPL *session,
-    int error, const char *func, int line, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 5, 6)))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
+        WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	va_list ap;
 
@@ -335,11 +321,9 @@ __wt_err_func(WT_SESSION_IMPL *session,
  * 	Report an error with no error code.
  */
 void
-__wt_errx_func(WT_SESSION_IMPL *session,
-    const char *func, int line, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
+        WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	va_list ap;
 
@@ -357,11 +341,9 @@ __wt_errx_func(WT_SESSION_IMPL *session,
  * 	Conditionally log the source of an error code and return the error.
  */
 int
-__wt_set_return_func(
-    WT_SESSION_IMPL *session, const char* func, int line, int err)
+__wt_set_return_func(WT_SESSION_IMPL *session, const char *func, int line, int err)
 {
-	__wt_verbose(session,
-	    WT_VERB_ERROR_RETURNS, "%s: %d Error: %d", func, line, err);
+	__wt_verbose(session, WT_VERB_ERROR_RETURNS, "%s: %d Error: %d", func, line, err);
 	return (err);
 }
 
@@ -370,9 +352,8 @@ __wt_set_return_func(
  *	Extension API call to print to the error stream.
  */
 int
-__wt_ext_err_printf(
-    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+__wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4)))
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -393,8 +374,7 @@ __wt_ext_err_printf(
  */
 void
 __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3))) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	va_list ap;
 
@@ -408,9 +388,8 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
  * 	Informational message.
  */
 int
-__wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 2, 3)))
+__wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((cold))
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 2, 3)))
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
@@ -435,9 +414,8 @@ __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...)
  *	Extension API call to print to the message stream.
  */
 int
-__wt_ext_msg_printf(
-    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+__wt_ext_msg_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4)))
 {
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
@@ -468,8 +446,7 @@ const char *
 __wt_ext_strerror(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, int error)
 {
 	if (wt_session == NULL)
-		wt_session = (WT_SESSION *)
-		    ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
+		wt_session = (WT_SESSION *)((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
 	return (wt_session->strerror(wt_session, error));
 }
@@ -488,8 +465,8 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
 	wt_session = (WT_SESSION *)session;
 	handler = session->event_handler;
 	if (handler != NULL && handler->handle_progress != NULL)
-		if ((ret = handler->handle_progress(handler,
-		    wt_session, s == NULL ? session->name : s, v)) != 0)
+		if ((ret = handler->handle_progress(
+		         handler, wt_session, s == NULL ? session->name : s, v)) != 0)
 			__handler_failure(session, ret, "progress", false);
 	return (0);
 }
@@ -499,8 +476,7 @@ __wt_progress(WT_SESSION_IMPL *session, const char *s, uint64_t v)
  *	A standard error message when we panic.
  */
 int
-__wt_panic(WT_SESSION_IMPL *session)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_panic(WT_SESSION_IMPL *session) WT_GCC_FUNC_ATTRIBUTE((cold))
     WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	/*
@@ -519,13 +495,13 @@ __wt_panic(WT_SESSION_IMPL *session)
 	 */
 	__wt_err(session, WT_PANIC, "the process must exit and restart");
 
-	/*
-	 * Confusing #ifdef structure because gcc/clang knows the abort call
-	 * won't return, and Visual Studio doesn't.
-	 */
+/*
+ * Confusing #ifdef structure because gcc/clang knows the abort call
+ * won't return, and Visual Studio doesn't.
+ */
 #if defined(HAVE_DIAGNOSTIC)
-	__wt_abort(session);			/* Drop core if testing. */
-	/* NOTREACHED */
+	__wt_abort(session); /* Drop core if testing. */
+                             /* NOTREACHED */
 #endif
 #if !defined(HAVE_DIAGNOSTIC) || defined(_WIN32)
 	/*
@@ -551,13 +527,10 @@ __wt_panic(WT_SESSION_IMPL *session)
  *	A standard error message when we detect an illegal value.
  */
 int
-__wt_illegal_value_func(
-    WT_SESSION_IMPL *session, uintmax_t v, const char *func, int line)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+__wt_illegal_value_func(WT_SESSION_IMPL *session, uintmax_t v, const char *func, int line)
+    WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
-	__wt_err_func(session, EINVAL,
-	    func, line, "%s: 0x%" PRIxMAX,
+	__wt_err_func(session, EINVAL, func, line, "%s: 0x%" PRIxMAX,
 	    "encountered an illegal file format or internal value", v);
 	return (__wt_panic(session));
 }
@@ -568,12 +541,10 @@ __wt_illegal_value_func(
  * for in-memory configurations.
  */
 int
-__wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-		WT_RET_MSG(session, ENOTSUP,
-		    "%s%snot supported for in-memory configurations",
+		WT_RET_MSG(session, ENOTSUP, "%s%snot supported for in-memory configurations",
 		    tag == NULL ? "" : tag, tag == NULL ? "" : ": ");
 	return (0);
 }
@@ -584,8 +555,7 @@ __wt_inmem_unsupported_op(WT_SESSION_IMPL *session, const char *tag)
  * particular operation.
  */
 int
-__wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
 	WT_RET_MSG(session, ENOTSUP, "unsupported object operation: %s", uri);
 }
@@ -596,17 +566,12 @@ __wt_object_unsupported(WT_SESSION_IMPL *session, const char *uri)
  * object type.
  */
 int
-__wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri)
-    WT_GCC_FUNC_ATTRIBUTE((cold))
+__wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-	if (WT_PREFIX_MATCH(uri, "backup:") ||
-	    WT_PREFIX_MATCH(uri, "colgroup:") ||
-	    WT_PREFIX_MATCH(uri, "config:") ||
-	    WT_PREFIX_MATCH(uri, "file:") ||
-	    WT_PREFIX_MATCH(uri, "index:") ||
-	    WT_PREFIX_MATCH(uri, "log:") ||
-	    WT_PREFIX_MATCH(uri, "lsm:") ||
-	    WT_PREFIX_MATCH(uri, "statistics:") ||
+	if (WT_PREFIX_MATCH(uri, "backup:") || WT_PREFIX_MATCH(uri, "colgroup:") ||
+	    WT_PREFIX_MATCH(uri, "config:") || WT_PREFIX_MATCH(uri, "file:") ||
+	    WT_PREFIX_MATCH(uri, "index:") || WT_PREFIX_MATCH(uri, "log:") ||
+	    WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "statistics:") ||
 	    WT_PREFIX_MATCH(uri, "table:"))
 		return (__wt_object_unsupported(session, uri));
 
@@ -618,10 +583,8 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri)
  *	Print a standard error message when given an unexpected object type.
  */
 int
-__wt_unexpected_object_type(
-    WT_SESSION_IMPL *session, const char *uri, const char *expect)
+__wt_unexpected_object_type(WT_SESSION_IMPL *session, const char *uri, const char *expect)
     WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-	WT_RET_MSG(session,
-	    EINVAL, "uri %s doesn't match expected \"%s\"", uri, expect);
+	WT_RET_MSG(session, EINVAL, "uri %s doesn't match expected \"%s\"", uri, expect);
 }

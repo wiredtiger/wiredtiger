@@ -27,8 +27,7 @@ __wt_lsm_manager_config(WT_SESSION_IMPL *session, const char **cfg)
 	WT_RET(__wt_config_gets(session, cfg, "lsm_manager.merge", &cval));
 	if (cval.val)
 		F_SET(conn, WT_CONN_LSM_MERGE);
-	WT_RET(__wt_config_gets(
-	    session, cfg, "lsm_manager.worker_thread_max", &cval));
+	WT_RET(__wt_config_gets(session, cfg, "lsm_manager.worker_thread_max", &cval));
 	if (cval.val)
 		conn->lsm_manager.lsm_workers_max = (uint32_t)cval.val;
 	return (0);
@@ -56,10 +55,8 @@ __lsm_general_worker_start(WT_SESSION_IMPL *session)
 	 */
 	WT_ASSERT(session, manager->lsm_workers > 0);
 	WT_ASSERT(session, manager->lsm_workers < manager->lsm_workers_max);
-	for (; manager->lsm_workers < manager->lsm_workers_max;
-	    manager->lsm_workers++) {
-		worker_args =
-		    &manager->lsm_worker_cookies[manager->lsm_workers];
+	for (; manager->lsm_workers < manager->lsm_workers_max; manager->lsm_workers++) {
+		worker_args = &manager->lsm_worker_cookies[manager->lsm_workers];
 		worker_args->work_cond = manager->work_cond;
 		worker_args->id = manager->lsm_workers;
 		/*
@@ -69,8 +66,7 @@ __lsm_general_worker_start(WT_SESSION_IMPL *session)
 		 * throttling stalls.
 		 */
 		if (manager->lsm_workers == 1)
-			worker_args->type =
-			    WT_LSM_WORK_DROP | WT_LSM_WORK_SWITCH;
+			worker_args->type = WT_LSM_WORK_DROP | WT_LSM_WORK_SWITCH;
 		else {
 			worker_args->type = WT_LSM_WORK_GENERAL_OPS;
 			/*
@@ -120,10 +116,8 @@ __lsm_stop_workers(WT_SESSION_IMPL *session)
 	 * front of the worker array.
 	 */
 	WT_ASSERT(session, manager->lsm_workers > manager->lsm_workers_max);
-	for (; manager->lsm_workers > manager->lsm_workers_max;
-	    manager->lsm_workers--) {
-		worker_args =
-		    &manager->lsm_worker_cookies[manager->lsm_workers - 1];
+	for (; manager->lsm_workers > manager->lsm_workers_max; manager->lsm_workers--) {
+		worker_args = &manager->lsm_worker_cookies[manager->lsm_workers - 1];
 		WT_ASSERT(session, worker_args->tid_set);
 
 		WT_RET(__wt_lsm_worker_stop(session, worker_args));
@@ -208,8 +202,7 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 	 * If readonly or the manager is running, or we've already failed,
 	 * there's no work to do.
 	 */
-	if (F_ISSET(conn, WT_CONN_READONLY) ||
-	    manager->lsm_workers != 0 ||
+	if (F_ISSET(conn, WT_CONN_READONLY) || manager->lsm_workers != 0 ||
 	    F_ISSET(manager, WT_LSM_MANAGER_SHUTDOWN))
 		return (0);
 
@@ -228,8 +221,7 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 	 * updates in cache unnecessarily.
 	 */
 	for (i = 0; i < WT_LSM_MAX_WORKERS; i++) {
-		WT_ERR(__wt_open_internal_session(
-		    conn, "lsm-worker", false, 0, &worker_session));
+		WT_ERR(__wt_open_internal_session(conn, "lsm-worker", false, 0, &worker_session));
 		worker_session->isolation = WT_ISO_READ_UNCOMMITTED;
 		manager->lsm_worker_cookies[i].session = worker_session;
 	}
@@ -241,12 +233,9 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 	    __lsm_worker_manager, &manager->lsm_worker_cookies[0]));
 
 	if (0) {
-err:		for (i = 0;
-		    (worker_session =
-		    manager->lsm_worker_cookies[i].session) != NULL;
-		    i++)
-			WT_TRET((&worker_session->iface)->close(
-			    &worker_session->iface, NULL));
+	err:
+		for (i = 0; (worker_session = manager->lsm_worker_cookies[i].session) != NULL; i++)
+			WT_TRET((&worker_session->iface)->close(&worker_session->iface, NULL));
 
 		/* Make the failure permanent, we won't try again. */
 		F_SET(manager, WT_LSM_MANAGER_SHUTDOWN);
@@ -265,8 +254,7 @@ err:		for (i = 0;
  *	Release an LSM tree work unit.
  */
 void
-__wt_lsm_manager_free_work_unit(
-    WT_SESSION_IMPL *session, WT_LSM_WORK_UNIT *entry)
+__wt_lsm_manager_free_work_unit(WT_SESSION_IMPL *session, WT_LSM_WORK_UNIT *entry)
 {
 	if (entry != NULL) {
 		WT_ASSERT(session, entry->lsm_tree->queue_ref > 0);
@@ -298,8 +286,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	/* Clear the LSM server flag. */
 	F_CLR(conn, WT_CONN_SERVER_LSM);
 
-	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY) ||
-	    manager->lsm_workers == 0);
+	WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY) || manager->lsm_workers == 0);
 	if (manager->lsm_workers > 0) {
 		/* Wait for the main LSM manager thread to finish. */
 		while (!F_ISSET(manager, WT_LSM_MANAGER_SHUTDOWN)) {
@@ -310,8 +297,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 		/* Clean up open LSM handles. */
 		ret = __wt_lsm_tree_close_all(session);
 
-		WT_TRET(__wt_thread_join(
-		    session, &manager->lsm_worker_cookies[0].tid));
+		WT_TRET(__wt_thread_join(session, &manager->lsm_worker_cookies[0].tid));
 
 		/* Release memory from any operations left on the queue. */
 		while ((current = TAILQ_FIRST(&manager->switchqh)) != NULL) {
@@ -332,8 +318,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 
 		/* Close all LSM worker sessions. */
 		for (i = 0; i < WT_LSM_MAX_WORKERS; i++) {
-			wt_session =
-			    &manager->lsm_worker_cookies[i].session->iface;
+			wt_session = &manager->lsm_worker_cookies[i].session->iface;
 			WT_TRET(wt_session->close(wt_session, NULL));
 		}
 	}
@@ -367,8 +352,7 @@ __lsm_manager_worker_shutdown(WT_SESSION_IMPL *session)
 	 */
 	for (i = 1; i < manager->lsm_workers; i++) {
 		WT_ASSERT(session, manager->lsm_worker_cookies[i].tid_set);
-		WT_TRET(__wt_lsm_worker_stop(
-		    session, &manager->lsm_worker_cookies[i]));
+		WT_TRET(__wt_lsm_worker_stop(session, &manager->lsm_worker_cookies[i]));
 	}
 	return (ret);
 }
@@ -397,7 +381,7 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 		__wt_readlock(session, &conn->dhandle_lock);
 		F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
 		dhandle_locked = true;
-		TAILQ_FOREACH(lsm_tree, &conn->lsmqh, q) {
+		TAILQ_FOREACH (lsm_tree, &conn->lsmqh, q) {
 			if (!lsm_tree->active)
 				continue;
 			__wt_epoch(session, &now);
@@ -411,8 +395,7 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				lsm_tree->mgr_work_count = lsm_tree->work_count;
 				lsm_tree->last_active = now;
 			} else
-				idlems =
-				    WT_TIMEDIFF_MS(now, lsm_tree->last_active);
+				idlems = WT_TIMEDIFF_MS(now, lsm_tree->last_active);
 			fillms = 3 * lsm_tree->chunk_fill_ms;
 			if (fillms == 0)
 				fillms = 10000;
@@ -432,15 +415,11 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 			 * more.
 			 */
 			if (lsm_tree->queue_ref >= LSM_TREE_MAX_QUEUE)
-				WT_STAT_CONN_INCR(session,
-				    lsm_work_queue_max);
-			else if ((!lsm_tree->modified &&
-			    lsm_tree->nchunks > 1) ||
-			    (lsm_tree->queue_ref == 0 &&
-			    lsm_tree->nchunks > 1) ||
-			    (lsm_tree->merge_aggressiveness >
-			    WT_LSM_AGGRESSIVE_THRESHOLD &&
-			     !F_ISSET(lsm_tree, WT_LSM_TREE_COMPACTING)) ||
+				WT_STAT_CONN_INCR(session, lsm_work_queue_max);
+			else if ((!lsm_tree->modified && lsm_tree->nchunks > 1) ||
+			    (lsm_tree->queue_ref == 0 && lsm_tree->nchunks > 1) ||
+			    (lsm_tree->merge_aggressiveness > WT_LSM_AGGRESSIVE_THRESHOLD &&
+			             !F_ISSET(lsm_tree, WT_LSM_TREE_COMPACTING)) ||
 			    idlems > fillms) {
 				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_SWITCH, 0, lsm_tree));
@@ -450,18 +429,13 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 				    session, WT_LSM_WORK_FLUSH, 0, lsm_tree));
 				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_BLOOM, 0, lsm_tree));
-				__wt_verbose(session,
-				    WT_VERB_LSM_MANAGER,
+				__wt_verbose(session, WT_VERB_LSM_MANAGER,
 				    "MGR %s: queue %" PRIu32 " mod %d "
-				    "nchunks %" PRIu32
-				    " flags %#" PRIx32 " aggressive %" PRIu32
-				    " idlems %" PRIu64
-				    " fillms %" PRIu64,
-				    lsm_tree->name, lsm_tree->queue_ref,
-				    lsm_tree->modified, lsm_tree->nchunks,
-				    lsm_tree->flags,
-				    lsm_tree->merge_aggressiveness,
-				    idlems, fillms);
+				    "nchunks %" PRIu32 " flags %#" PRIx32 " aggressive %" PRIu32
+				    " idlems %" PRIu64 " fillms %" PRIu64,
+				    lsm_tree->name, lsm_tree->queue_ref, lsm_tree->modified,
+				    lsm_tree->nchunks, lsm_tree->flags,
+				    lsm_tree->merge_aggressiveness, idlems, fillms);
 				WT_ERR(__wt_lsm_manager_push_entry(
 				    session, WT_LSM_WORK_MERGE, 0, lsm_tree));
 			}
@@ -471,7 +445,8 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
 		dhandle_locked = false;
 	}
 
-err:	if (dhandle_locked) {
+err:
+	if (dhandle_locked) {
 		__wt_readunlock(session, &conn->dhandle_lock);
 		F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
 	}
@@ -500,7 +475,8 @@ __lsm_worker_manager(void *arg)
 	WT_ERR(__lsm_manager_worker_shutdown(session));
 
 	if (ret != 0) {
-err:		WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
+	err:
+		WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
 	}
 
 	/* Connection close waits on us to shutdown, let it know we're done. */
@@ -528,7 +504,8 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 
 	/* Clear out the tree from the switch queue */
 	__wt_spin_lock(session, &manager->switch_lock);
-	TAILQ_FOREACH_SAFE(current, &manager->switchqh, q, tmp) {
+	TAILQ_FOREACH_SAFE(current, &manager->switchqh, q, tmp)
+	{
 		if (current->lsm_tree != lsm_tree)
 			continue;
 		++removed;
@@ -538,7 +515,8 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	__wt_spin_unlock(session, &manager->switch_lock);
 	/* Clear out the tree from the application queue */
 	__wt_spin_lock(session, &manager->app_lock);
-	TAILQ_FOREACH_SAFE(current, &manager->appqh, q, tmp) {
+	TAILQ_FOREACH_SAFE(current, &manager->appqh, q, tmp)
+	{
 		if (current->lsm_tree != lsm_tree)
 			continue;
 		++removed;
@@ -548,7 +526,8 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
 	__wt_spin_unlock(session, &manager->app_lock);
 	/* Clear out the tree from the manager queue */
 	__wt_spin_lock(session, &manager->manager_lock);
-	TAILQ_FOREACH_SAFE(current, &manager->managerqh, q, tmp) {
+	TAILQ_FOREACH_SAFE(current, &manager->managerqh, q, tmp)
+	{
 		if (current->lsm_tree != lsm_tree)
 			continue;
 		++removed;
@@ -564,19 +543,20 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
  * have session, entry and type available to use.  If the queue is empty
  * we may return from the macro.
  */
-#define	LSM_POP_ENTRY(qh, qlock, qlen) do {				\
-	if (TAILQ_EMPTY(qh))						\
-		return (0);						\
-	__wt_spin_lock(session, qlock);					\
-	TAILQ_FOREACH(entry, (qh), q) {					\
-		if (FLD_ISSET(type, entry->type)) {			\
-			TAILQ_REMOVE(qh, entry, q);			\
-			WT_STAT_CONN_DECR(session, qlen);		\
-			break;						\
-		}							\
-	}								\
-	__wt_spin_unlock(session, (qlock));				\
-} while (0)
+#define LSM_POP_ENTRY(qh, qlock, qlen)                            \
+	do {                                                      \
+		if (TAILQ_EMPTY(qh))                              \
+			return (0);                               \
+		__wt_spin_lock(session, qlock);                   \
+		TAILQ_FOREACH (entry, (qh), q) {                  \
+			if (FLD_ISSET(type, entry->type)) {       \
+				TAILQ_REMOVE(qh, entry, q);       \
+				WT_STAT_CONN_DECR(session, qlen); \
+				break;                            \
+			}                                         \
+		}                                                 \
+		__wt_spin_unlock(session, (qlock));               \
+	} while (0)
 
 /*
  * __wt_lsm_manager_pop_entry --
@@ -584,8 +564,7 @@ __wt_lsm_manager_clear_tree(WT_SESSION_IMPL *session, WT_LSM_TREE *lsm_tree)
  *	unit type.
  */
 int
-__wt_lsm_manager_pop_entry(
-    WT_SESSION_IMPL *session, uint32_t type, WT_LSM_WORK_UNIT **entryp)
+__wt_lsm_manager_pop_entry(WT_SESSION_IMPL *session, uint32_t type, WT_LSM_WORK_UNIT **entryp)
 {
 	WT_LSM_MANAGER *manager;
 	WT_LSM_WORK_UNIT *entry;
@@ -598,14 +577,11 @@ __wt_lsm_manager_pop_entry(
 	 * Pop the entry off the correct queue based on our work type.
 	 */
 	if (type == WT_LSM_WORK_SWITCH)
-		LSM_POP_ENTRY(&manager->switchqh,
-		    &manager->switch_lock, lsm_work_queue_switch);
+		LSM_POP_ENTRY(&manager->switchqh, &manager->switch_lock, lsm_work_queue_switch);
 	else if (type == WT_LSM_WORK_MERGE)
-		LSM_POP_ENTRY(&manager->managerqh,
-		    &manager->manager_lock, lsm_work_queue_manager);
+		LSM_POP_ENTRY(&manager->managerqh, &manager->manager_lock, lsm_work_queue_manager);
 	else
-		LSM_POP_ENTRY(&manager->appqh,
-		    &manager->app_lock, lsm_work_queue_app);
+		LSM_POP_ENTRY(&manager->appqh, &manager->app_lock, lsm_work_queue_app);
 	if (entry != NULL)
 		WT_STAT_CONN_INCR(session, lsm_work_units_done);
 	*entryp = entry;
@@ -617,20 +593,21 @@ __wt_lsm_manager_pop_entry(
  * called from __wt_lsm_manager_push_entry and we have session and entry
  * available for use.
  */
-#define	LSM_PUSH_ENTRY(qh, qlock, qlen) do {				\
-	__wt_spin_lock(session, qlock);					\
-	TAILQ_INSERT_TAIL((qh), entry, q);				\
-	WT_STAT_CONN_INCR(session, qlen);				\
-	__wt_spin_unlock(session, qlock);				\
-} while (0)
+#define LSM_PUSH_ENTRY(qh, qlock, qlen)            \
+	do {                                       \
+		__wt_spin_lock(session, qlock);    \
+		TAILQ_INSERT_TAIL((qh), entry, q); \
+		WT_STAT_CONN_INCR(session, qlen);  \
+		__wt_spin_unlock(session, qlock);  \
+	} while (0)
 
 /*
  * __wt_lsm_manager_push_entry --
  *	Add an entry to the end of the switch queue.
  */
 int
-__wt_lsm_manager_push_entry(WT_SESSION_IMPL *session,
-    uint32_t type, uint32_t flags, WT_LSM_TREE *lsm_tree)
+__wt_lsm_manager_push_entry(
+    WT_SESSION_IMPL *session, uint32_t type, uint32_t flags, WT_LSM_TREE *lsm_tree)
 {
 	WT_LSM_MANAGER *manager;
 	WT_LSM_WORK_UNIT *entry;
@@ -676,14 +653,11 @@ __wt_lsm_manager_push_entry(WT_SESSION_IMPL *session,
 	WT_STAT_CONN_INCR(session, lsm_work_units_created);
 
 	if (type == WT_LSM_WORK_SWITCH)
-		LSM_PUSH_ENTRY(&manager->switchqh,
-		    &manager->switch_lock, lsm_work_queue_switch);
+		LSM_PUSH_ENTRY(&manager->switchqh, &manager->switch_lock, lsm_work_queue_switch);
 	else if (type == WT_LSM_WORK_MERGE)
-		LSM_PUSH_ENTRY(&manager->managerqh,
-		    &manager->manager_lock, lsm_work_queue_manager);
+		LSM_PUSH_ENTRY(&manager->managerqh, &manager->manager_lock, lsm_work_queue_manager);
 	else
-		LSM_PUSH_ENTRY(&manager->appqh,
-		    &manager->app_lock, lsm_work_queue_app);
+		LSM_PUSH_ENTRY(&manager->appqh, &manager->app_lock, lsm_work_queue_app);
 
 	__wt_cond_signal(session, manager->work_cond);
 	return (0);

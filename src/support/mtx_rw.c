@@ -159,8 +159,7 @@ __wt_try_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 static bool
 __read_blocked(WT_SESSION_IMPL *session)
 {
-	return (session->current_rwticket !=
-	    session->current_rwlock->u.s.current);
+	return (session->current_rwticket != session->current_rwlock->u.s.current);
 }
 
 /*
@@ -178,9 +177,9 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	int pause_cnt;
 	bool set_stats;
 
-	session_stats = NULL;		/* -Wconditional-uninitialized */
-	stats = NULL;			/* -Wconditional-uninitialized */
-	time_start = time_stop = 0;	/* -Wconditional-uninitialized */
+	session_stats = NULL;       /* -Wconditional-uninitialized */
+	stats = NULL;               /* -Wconditional-uninitialized */
+	time_start = time_stop = 0; /* -Wconditional-uninitialized */
 
 	WT_STAT_CONN_INCR(session, rwlock_read);
 
@@ -191,9 +190,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 * Fast path: if there is no active writer, join the current
 		 * group.
 		 */
-		for (old.u.v = l->u.v;
-		    old.u.s.current == old.u.s.next;
-		    old.u.v = l->u.v) {
+		for (old.u.v = l->u.v; old.u.s.current == old.u.s.next; old.u.v = l->u.v) {
 			new.u.v = old.u.v;
 			/*
 			 * Check for overflow: if the maximum number of readers
@@ -221,8 +218,8 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 */
 		writers_active = old.u.s.next - old.u.s.current;
 		if (old.u.s.readers_queued > writers_active) {
-stall:			__wt_cond_wait(session,
-			    l->cond_readers, 10 * WT_THOUSAND, NULL);
+		stall:
+			__wt_cond_wait(session, l->cond_readers, 10 * WT_THOUSAND, NULL);
 			continue;
 		}
 
@@ -256,19 +253,16 @@ stall:			__wt_cond_wait(session,
 		else {
 			session->current_rwlock = l;
 			session->current_rwticket = ticket;
-			__wt_cond_wait(session,
-			    l->cond_readers, 10 * WT_THOUSAND, __read_blocked);
+			__wt_cond_wait(session, l->cond_readers, 10 * WT_THOUSAND, __read_blocked);
 		}
 	}
 	if (set_stats) {
 		time_stop = __wt_clock(session);
 		time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
-			stats[session->stat_bucket][l->stat_int_usecs_off] +=
-			    (int64_t)time_diff;
+			stats[session->stat_bucket][l->stat_int_usecs_off] += (int64_t)time_diff;
 		else {
-			stats[session->stat_bucket][l->stat_app_usecs_off] +=
-			    (int64_t)time_diff;
+			stats[session->stat_bucket][l->stat_app_usecs_off] += (int64_t)time_diff;
 		}
 		session_stats[l->stat_session_usecs_off] += (int64_t)time_diff;
 	}
@@ -283,8 +277,7 @@ stall:			__wt_cond_wait(session,
 	WT_READ_BARRIER();
 
 	/* Sanity check that we (still) have the lock. */
-	WT_ASSERT(session,
-	    ticket == l->u.s.current && l->u.s.readers_active > 0);
+	WT_ASSERT(session, ticket == l->u.s.current && l->u.s.readers_active > 0);
 }
 
 /*
@@ -364,8 +357,7 @@ __write_blocked(WT_SESSION_IMPL *session)
 	WT_RWLOCK *l;
 
 	l = session->current_rwlock;
-	return (session->current_rwticket != l->u.s.current ||
-	    l->u.s.readers_active != 0);
+	return (session->current_rwticket != l->u.s.current || l->u.s.readers_active != 0);
 }
 
 /*
@@ -382,9 +374,9 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	int pause_cnt;
 	bool set_stats;
 
-	session_stats = NULL;		/* -Wconditional-uninitialized */
-	stats = NULL;			/* -Wconditional-uninitialized */
-	time_start = time_stop = 0;	/* -Wconditional-uninitialized */
+	session_stats = NULL;       /* -Wconditional-uninitialized */
+	stats = NULL;               /* -Wconditional-uninitialized */
+	time_start = time_stop = 0; /* -Wconditional-uninitialized */
 
 	WT_STAT_CONN_INCR(session, rwlock_write);
 
@@ -401,8 +393,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		 * lock simultaneously.
 		 */
 		if (new.u.s.current == new.u.s.next) {
-			__wt_cond_wait(session,
-			    l->cond_writers, 10 * WT_THOUSAND, NULL);
+			__wt_cond_wait(session, l->cond_writers, 10 * WT_THOUSAND, NULL);
 			continue;
 		}
 		if (__wt_atomic_casv64(&l->u.v, old.u.v, new.u.v))
@@ -425,8 +416,8 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	 * we have the lock.
 	 */
 	for (pause_cnt = 0, old.u.v = l->u.v;
-	    ticket != old.u.s.current || old.u.s.readers_active != 0;
-	    pause_cnt++, old.u.v = l->u.v) {
+	     ticket != old.u.s.current || old.u.s.readers_active != 0;
+	     pause_cnt++, old.u.v = l->u.v) {
 		if (pause_cnt < 1000)
 			WT_PAUSE();
 		else if (pause_cnt < 1200)
@@ -434,19 +425,16 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 		else {
 			session->current_rwlock = l;
 			session->current_rwticket = ticket;
-			__wt_cond_wait(session,
-			    l->cond_writers, 10 * WT_THOUSAND, __write_blocked);
+			__wt_cond_wait(session, l->cond_writers, 10 * WT_THOUSAND, __write_blocked);
 		}
 	}
 	if (set_stats) {
 		time_stop = __wt_clock(session);
 		time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
-			stats[session->stat_bucket][l->stat_int_usecs_off] +=
-			    (int64_t)time_diff;
+			stats[session->stat_bucket][l->stat_int_usecs_off] += (int64_t)time_diff;
 		else
-			stats[session->stat_bucket][l->stat_app_usecs_off] +=
-			    (int64_t)time_diff;
+			stats[session->stat_bucket][l->stat_app_usecs_off] += (int64_t)time_diff;
 		session_stats[l->stat_session_usecs_off] += (int64_t)time_diff;
 	}
 
@@ -460,8 +448,7 @@ __wt_writelock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
 	WT_READ_BARRIER();
 
 	/* Sanity check that we (still) have the lock. */
-	WT_ASSERT(session,
-	    ticket == l->u.s.current && l->u.s.readers_active == 0);
+	WT_ASSERT(session, ticket == l->u.s.current && l->u.s.readers_active == 0);
 }
 
 /*

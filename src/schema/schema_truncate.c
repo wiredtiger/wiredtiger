@@ -19,22 +19,20 @@ __truncate_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 	WT_TABLE *table;
 	u_int i;
 
-	WT_RET(__wt_schema_get_table(
-	    session, uri, strlen(uri), false, 0, &table));
+	WT_RET(__wt_schema_get_table(session, uri, strlen(uri), false, 0, &table));
 	WT_STAT_DATA_INCR(session, cursor_truncate);
 
 	/* Truncate the column groups. */
 	for (i = 0; i < WT_COLGROUPS(table); i++)
-		WT_ERR(__wt_schema_truncate(
-		    session, table->cgroups[i]->source, cfg));
+		WT_ERR(__wt_schema_truncate(session, table->cgroups[i]->source, cfg));
 
 	/* Truncate the indices. */
 	WT_ERR(__wt_schema_open_indices(session, table));
 	for (i = 0; i < table->nindices; i++)
-		WT_ERR(__wt_schema_truncate(
-		    session, table->indices[i]->source, cfg));
+		WT_ERR(__wt_schema_truncate(session, table->indices[i]->source, cfg));
 
-err:	WT_TRET(__wt_schema_release_table(session, &table));
+err:
+	WT_TRET(__wt_schema_release_table(session, &table));
 	return (ret);
 }
 
@@ -58,7 +56,8 @@ __truncate_dsrc(WT_SESSION_IMPL *session, const char *uri)
 	WT_ERR_NOTFOUND_OK(ret);
 	WT_STAT_DATA_INCR(session, cursor_truncate);
 
-err:	WT_TRET(cursor->close(cursor));
+err:
+	WT_TRET(cursor->close(cursor));
 	return (ret);
 }
 
@@ -67,8 +66,7 @@ err:	WT_TRET(cursor->close(cursor));
  *	WT_SESSION::truncate without a range.
  */
 int
-__wt_schema_truncate(
-    WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 {
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
@@ -88,8 +86,7 @@ __wt_schema_truncate(
 	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
 		ret = dsrc->truncate == NULL ?
 		    __truncate_dsrc(session, uri) :
-		    dsrc->truncate(
-		    dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
+		    dsrc->truncate(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
 	else
 		ret = __wt_bad_object_type(session, uri);
 
@@ -129,8 +126,7 @@ __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
  *	WT_SESSION::truncate with a range.
  */
 int
-__wt_schema_range_truncate(
-    WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop)
+__wt_schema_range_truncate(WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop)
 {
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
@@ -144,10 +140,9 @@ __wt_schema_range_truncate(
 			WT_ERR(__cursor_needkey(stop));
 		WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)start)->btree,
 		    ret = __wt_btcur_range_truncate(
-		    (WT_CURSOR_BTREE *)start, (WT_CURSOR_BTREE *)stop));
+		        (WT_CURSOR_BTREE *)start, (WT_CURSOR_BTREE *)stop));
 	} else if (WT_PREFIX_MATCH(uri, "table:"))
-		ret = __wt_table_range_truncate(
-		    (WT_CURSOR_TABLE *)start, (WT_CURSOR_TABLE *)stop);
+		ret = __wt_table_range_truncate((WT_CURSOR_TABLE *)start, (WT_CURSOR_TABLE *)stop);
 	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL &&
 	    dsrc->range_truncate != NULL)
 		ret = dsrc->range_truncate(dsrc, &session->iface, start, stop);

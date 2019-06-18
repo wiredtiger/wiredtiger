@@ -13,8 +13,7 @@
  *	Callback function from log_scan to get a log record.
  */
 static int
-__curlog_logrec(WT_SESSION_IMPL *session,
-    WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
+__curlog_logrec(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord)
 {
 	WT_CURSOR_LOG *cl;
@@ -33,8 +32,7 @@ __curlog_logrec(WT_SESSION_IMPL *session,
 	 */
 	cl->stepp = WT_LOG_SKIP_HEADER(cl->logrec->data);
 	cl->stepp_end = (uint8_t *)cl->logrec->data + logrec->size;
-	WT_RET(__wt_logrec_read(session, &cl->stepp, cl->stepp_end,
-	    &cl->rectype));
+	WT_RET(__wt_logrec_read(session, &cl->stepp, cl->stepp_end, &cl->rectype));
 
 	/* A step count of 0 means the entire record. */
 	cl->step_count = 0;
@@ -44,8 +42,8 @@ __curlog_logrec(WT_SESSION_IMPL *session,
 	 * individual operation for this txnid.
 	 */
 	if (cl->rectype == WT_LOGREC_COMMIT)
-		WT_RET(__wt_vunpack_uint(&cl->stepp,
-		    WT_PTRDIFF(cl->stepp_end, cl->stepp), &cl->txnid));
+		WT_RET(__wt_vunpack_uint(
+		    &cl->stepp, WT_PTRDIFF(cl->stepp_end, cl->stepp), &cl->txnid));
 	else {
 		/*
 		 * Step over anything else.
@@ -80,9 +78,10 @@ __curlog_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	 */
 	if (*cmpp == 0)
 		*cmpp = (acl->step_count != bcl->step_count ?
-		    (acl->step_count < bcl->step_count ? -1 : 1) : 0);
-err:	API_END_RET(session, ret);
-
+		        (acl->step_count < bcl->step_count ? -1 : 1) :
+		        0);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -94,8 +93,8 @@ err:	API_END_RET(session, ret);
  *	key and value to give the user.
  */
 static int
-__curlog_op_read(WT_SESSION_IMPL *session,
-    WT_CURSOR_LOG *cl, uint32_t optype, uint32_t opsize, uint32_t *fileid)
+__curlog_op_read(
+    WT_SESSION_IMPL *session, WT_CURSOR_LOG *cl, uint32_t optype, uint32_t opsize, uint32_t *fileid)
 {
 	WT_ITEM key, value;
 	uint64_t recno;
@@ -105,42 +104,32 @@ __curlog_op_read(WT_SESSION_IMPL *session,
 	end = pp + opsize;
 	switch (optype) {
 	case WT_LOGOP_COL_MODIFY:
-		WT_RET(__wt_logop_col_modify_unpack(session, &pp, end,
-		    fileid, &recno, &value));
+		WT_RET(__wt_logop_col_modify_unpack(session, &pp, end, fileid, &recno, &value));
 		WT_RET(__wt_buf_set(session, cl->opkey, &recno, sizeof(recno)));
-		WT_RET(__wt_buf_set(session,
-		    cl->opvalue, value.data, value.size));
+		WT_RET(__wt_buf_set(session, cl->opvalue, value.data, value.size));
 		break;
 	case WT_LOGOP_COL_PUT:
-		WT_RET(__wt_logop_col_put_unpack(session, &pp, end,
-		    fileid, &recno, &value));
+		WT_RET(__wt_logop_col_put_unpack(session, &pp, end, fileid, &recno, &value));
 		WT_RET(__wt_buf_set(session, cl->opkey, &recno, sizeof(recno)));
-		WT_RET(__wt_buf_set(session,
-		    cl->opvalue, value.data, value.size));
+		WT_RET(__wt_buf_set(session, cl->opvalue, value.data, value.size));
 		break;
 	case WT_LOGOP_COL_REMOVE:
-		WT_RET(__wt_logop_col_remove_unpack(session, &pp, end,
-		    fileid, &recno));
+		WT_RET(__wt_logop_col_remove_unpack(session, &pp, end, fileid, &recno));
 		WT_RET(__wt_buf_set(session, cl->opkey, &recno, sizeof(recno)));
 		WT_RET(__wt_buf_set(session, cl->opvalue, NULL, 0));
 		break;
 	case WT_LOGOP_ROW_MODIFY:
-		WT_RET(__wt_logop_row_modify_unpack(session, &pp, end,
-		    fileid, &key, &value));
+		WT_RET(__wt_logop_row_modify_unpack(session, &pp, end, fileid, &key, &value));
 		WT_RET(__wt_buf_set(session, cl->opkey, key.data, key.size));
-		WT_RET(__wt_buf_set(session,
-		    cl->opvalue, value.data, value.size));
+		WT_RET(__wt_buf_set(session, cl->opvalue, value.data, value.size));
 		break;
 	case WT_LOGOP_ROW_PUT:
-		WT_RET(__wt_logop_row_put_unpack(session, &pp, end,
-		    fileid, &key, &value));
+		WT_RET(__wt_logop_row_put_unpack(session, &pp, end, fileid, &key, &value));
 		WT_RET(__wt_buf_set(session, cl->opkey, key.data, key.size));
-		WT_RET(__wt_buf_set(session,
-		    cl->opvalue, value.data, value.size));
+		WT_RET(__wt_buf_set(session, cl->opvalue, value.data, value.size));
 		break;
 	case WT_LOGOP_ROW_REMOVE:
-		WT_RET(__wt_logop_row_remove_unpack(session, &pp, end,
-		    fileid, &key));
+		WT_RET(__wt_logop_row_remove_unpack(session, &pp, end, fileid, &key));
 		WT_RET(__wt_buf_set(session, cl->opkey, key.data, key.size));
 		WT_RET(__wt_buf_set(session, cl->opvalue, NULL, 0));
 		break;
@@ -177,8 +166,7 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	 * the size and optype and read out any key/value from this operation.
 	 */
 	if ((key_count = cl->step_count++) > 0) {
-		WT_ERR(__wt_logop_read(session,
-		    &cl->stepp, cl->stepp_end, &optype, &opsize));
+		WT_ERR(__wt_logop_read(session, &cl->stepp, cl->stepp_end, &optype, &opsize));
 		WT_ERR(__curlog_op_read(session, cl, optype, opsize, &fileid));
 		/* Position on the beginning of the next record part. */
 		cl->stepp += opsize;
@@ -200,12 +188,12 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	 * and log record related data in the value.  The data in the value
 	 * contains any operation key/value that was in the log record.
 	 */
-	__wt_cursor_set_key(cursor, cl->cur_lsn->l.file, cl->cur_lsn->l.offset,
-	    key_count);
-	__wt_cursor_set_value(cursor, cl->txnid, cl->rectype, optype, fileid,
-	    cl->opkey, cl->opvalue);
+	__wt_cursor_set_key(cursor, cl->cur_lsn->l.file, cl->cur_lsn->l.offset, key_count);
+	__wt_cursor_set_value(
+	    cursor, cl->txnid, cl->rectype, optype, fileid, cl->opkey, cl->opvalue);
 
-err:	F_SET(cursor, raw);
+err:
+	F_SET(cursor, raw);
 	return (ret);
 }
 
@@ -231,8 +219,7 @@ __curlog_next(WT_CURSOR *cursor)
 	 */
 	if (cl->stepp == NULL || cl->stepp >= cl->stepp_end || !*cl->stepp) {
 		cl->txnid = 0;
-		ret = __wt_log_scan(session, cl->next_lsn, WT_LOGSCAN_ONE,
-		    __curlog_logrec, cl);
+		ret = __wt_log_scan(session, cl->next_lsn, WT_LOGSCAN_ONE, __curlog_logrec, cl);
 		if (ret == ENOENT)
 			ret = WT_NOTFOUND;
 		WT_ERR(ret);
@@ -242,8 +229,8 @@ __curlog_next(WT_CURSOR *cursor)
 	WT_STAT_CONN_INCR(session, cursor_next);
 	WT_STAT_DATA_INCR(session, cursor_next);
 
-err:	API_END_RET(session, ret);
-
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -271,8 +258,7 @@ __curlog_search(WT_CURSOR *cursor)
 	 */
 	WT_ERR(__wt_cursor_get_key(cursor, &key_file, &key_offset, &counter));
 	WT_SET_LSN(&key, key_file, key_offset);
-	ret = __wt_log_scan(session, &key, WT_LOGSCAN_ONE,
-	    __curlog_logrec, cl);
+	ret = __wt_log_scan(session, &key, WT_LOGSCAN_ONE, __curlog_logrec, cl);
 	if (ret == ENOENT)
 		ret = WT_NOTFOUND;
 	WT_ERR(ret);
@@ -280,7 +266,8 @@ __curlog_search(WT_CURSOR *cursor)
 	WT_STAT_CONN_INCR(session, cursor_search);
 	WT_STAT_DATA_INCR(session, cursor_search);
 
-err:	F_SET(cursor, raw);
+err:
+	F_SET(cursor, raw);
 	API_END_RET(session, ret);
 }
 
@@ -302,7 +289,8 @@ __curlog_reset(WT_CURSOR *cursor)
 	WT_INIT_LSN(cl->cur_lsn);
 	WT_INIT_LSN(cl->next_lsn);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -345,31 +333,29 @@ err:
  *	Initialize a log cursor.
  */
 int
-__wt_curlog_open(WT_SESSION_IMPL *session,
-    const char *uri, const char *cfg[], WT_CURSOR **cursorp)
+__wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR **cursorp)
 {
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR_STATIC_INIT(iface,
-	    __wt_cursor_get_key,		/* get-key */
-	    __wt_cursor_get_value,		/* get-value */
-	    __wt_cursor_set_key,		/* set-key */
-	    __wt_cursor_set_value,		/* set-value */
-	    __curlog_compare,			/* compare */
-	    __wt_cursor_equals,			/* equals */
-	    __curlog_next,			/* next */
-	    __wt_cursor_notsup,			/* prev */
-	    __curlog_reset,			/* reset */
-	    __curlog_search,			/* search */
-	    __wt_cursor_search_near_notsup,	/* search-near */
-	    __wt_cursor_notsup,			/* insert */
-	    __wt_cursor_modify_notsup,		/* modify */
-	    __wt_cursor_notsup,			/* update */
-	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_notsup,			/* reserve */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
-	    __wt_cursor_notsup,			/* cache */
-	    __wt_cursor_reopen_notsup,		/* reopen */
-	    __curlog_close);			/* close */
+	WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
+	    __wt_cursor_get_value,                        /* get-value */
+	    __wt_cursor_set_key,                          /* set-key */
+	    __wt_cursor_set_value,                        /* set-value */
+	    __curlog_compare,                             /* compare */
+	    __wt_cursor_equals,                           /* equals */
+	    __curlog_next,                                /* next */
+	    __wt_cursor_notsup,                           /* prev */
+	    __curlog_reset,                               /* reset */
+	    __curlog_search,                              /* search */
+	    __wt_cursor_search_near_notsup,               /* search-near */
+	    __wt_cursor_notsup,                           /* insert */
+	    __wt_cursor_modify_notsup,                    /* modify */
+	    __wt_cursor_notsup,                           /* update */
+	    __wt_cursor_notsup,                           /* remove */
+	    __wt_cursor_notsup,                           /* reserve */
+	    __wt_cursor_reconfigure_notsup,               /* reconfigure */
+	    __wt_cursor_notsup,                           /* cache */
+	    __wt_cursor_reopen_notsup,                    /* reopen */
+	    __curlog_close);                              /* close */
 	WT_CURSOR *cursor;
 	WT_CURSOR_LOG *cl;
 	WT_DECL_RET;
@@ -408,11 +394,11 @@ __wt_curlog_open(WT_SESSION_IMPL *session,
 		__wt_readlock(session, &log->log_archive_lock);
 		F_SET(cl, WT_CURLOG_ARCHIVE_LOCK);
 		(void)__wt_atomic_add32(&conn->log_cursors, 1);
-
 	}
 
 	if (0) {
-err:		WT_TRET(__curlog_close(cursor));
+	err:
+		WT_TRET(__curlog_close(cursor));
 		*cursorp = NULL;
 	}
 

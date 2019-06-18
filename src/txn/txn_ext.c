@@ -17,7 +17,7 @@ __wt_ext_transaction_id(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session)
 {
 	WT_SESSION_IMPL *session;
 
-	(void)wt_api;					/* Unused parameters */
+	(void)wt_api; /* Unused parameters */
 	session = (WT_SESSION_IMPL *)wt_session;
 	/* Ignore failures: the only case is running out of transaction IDs. */
 	(void)__wt_txn_id_check(session);
@@ -29,13 +29,12 @@ __wt_ext_transaction_id(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session)
  *	Return if the current transaction's isolation level.
  */
 int
-__wt_ext_transaction_isolation_level(
-    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session)
+__wt_ext_transaction_isolation_level(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session)
 {
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
 
-	(void)wt_api;					/* Unused parameters */
+	(void)wt_api; /* Unused parameters */
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	txn = &session->txn;
@@ -52,13 +51,12 @@ __wt_ext_transaction_isolation_level(
  *	Request notification of transaction resolution.
  */
 int
-__wt_ext_transaction_notify(
-    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_TXN_NOTIFY *notify)
+__wt_ext_transaction_notify(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, WT_TXN_NOTIFY *notify)
 {
 	WT_SESSION_IMPL *session;
 	WT_TXN *txn;
 
-	(void)wt_api;					/* Unused parameters */
+	(void)wt_api; /* Unused parameters */
 
 	session = (WT_SESSION_IMPL *)wt_session;
 	txn = &session->txn;
@@ -72,8 +70,7 @@ __wt_ext_transaction_notify(
 	if (txn->notify == notify)
 		return (0);
 	if (txn->notify != NULL)
-		WT_RET_MSG(
-		    session, WT_ERROR, "transaction notify already scheduled");
+		WT_RET_MSG(session, WT_ERROR, "transaction notify already scheduled");
 
 	txn->notify = notify;
 
@@ -99,8 +96,7 @@ int
 __wt_ext_transaction_visible(
     WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, uint64_t transaction_id)
 {
-	(void)wt_api;					/* Unused parameters */
+	(void)wt_api; /* Unused parameters */
 
-	return (__wt_txn_visible(
-	    (WT_SESSION_IMPL *)wt_session, transaction_id, WT_TS_NONE));
+	return (__wt_txn_visible((WT_SESSION_IMPL *)wt_session, transaction_id, WT_TS_NONE));
 }

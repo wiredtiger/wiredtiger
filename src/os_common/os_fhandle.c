@@ -15,13 +15,11 @@
  *	won't dereference NULL pointers.
  */
 static int
-__fhandle_method_finalize(
-    WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool readonly)
+__fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool readonly)
 {
-#define	WT_HANDLE_METHOD_REQ(name)					\
-	if (handle->name == NULL)					\
-		WT_RET_MSG(session, EINVAL,				\
-		    "a WT_FILE_HANDLE.%s method must be configured", #name)
+#define WT_HANDLE_METHOD_REQ(name) \
+	if (handle->name == NULL)  \
+	WT_RET_MSG(session, EINVAL, "a WT_FILE_HANDLE.%s method must be configured", #name)
 
 	WT_HANDLE_METHOD_REQ(close);
 	/* not required: fh_advise */
@@ -65,7 +63,7 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 
 	__wt_spin_lock(session, &conn->fh_lock);
 
-	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
+	TAILQ_FOREACH (fh, &conn->fhhash[bucket], hashq)
 		if (strcmp(name, fh->name) == 0) {
 			found = true;
 			break;
@@ -82,8 +80,7 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
  *	Search for a matching handle.
  */
 static bool
-__handle_search(
-    WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH **fhp)
+__handle_search(WT_SESSION_IMPL *session, const char *name, WT_FH *newfh, WT_FH **fhp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_FH *fh;
@@ -104,7 +101,7 @@ __handle_search(
 	 * If we already have the file open, increment the reference count and
 	 * return a pointer.
 	 */
-	TAILQ_FOREACH(fh, &conn->fhhash[bucket], hashq)
+	TAILQ_FOREACH (fh, &conn->fhhash[bucket], hashq)
 		if (strcmp(name, fh->name) == 0) {
 			++fh->ref;
 			*fhp = fh;
@@ -162,8 +159,8 @@ __open_verbose_file_type_tag(WT_FS_OPEN_FILE_TYPE file_type)
  *	Optionally output a verbose message on handle open.
  */
 static inline int
-__open_verbose(WT_SESSION_IMPL *session,
-    const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags)
+__open_verbose(
+    WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -178,11 +175,10 @@ __open_verbose(WT_SESSION_IMPL *session,
 	 */
 	WT_RET(__wt_scr_alloc(session, 0, &tmp));
 	sep = " (";
-#define	WT_FS_OPEN_VERBOSE_FLAG(f, name)				\
-	if (LF_ISSET(f)) {						\
-		WT_ERR(__wt_buf_catfmt(					\
-		    session, tmp, "%s%s", sep, name));			\
-		sep = ", ";						\
+#define WT_FS_OPEN_VERBOSE_FLAG(f, name)                                  \
+	if (LF_ISSET(f)) {                                                \
+		WT_ERR(__wt_buf_catfmt(session, tmp, "%s%s", sep, name)); \
+		sep = ", ";                                               \
 	}
 
 	WT_FS_OPEN_VERBOSE_FLAG(WT_FS_OPEN_CREATE, "create");
@@ -194,12 +190,11 @@ __open_verbose(WT_SESSION_IMPL *session,
 	if (tmp->size != 0)
 		WT_ERR(__wt_buf_catfmt(session, tmp, ")"));
 
-	__wt_verbose(session, WT_VERB_FILEOPS,
-	    "%s: file-open: type %s%s",
-	    name, __open_verbose_file_type_tag(file_type),
-	    tmp->size == 0 ? "" : (char *)tmp->data);
+	__wt_verbose(session, WT_VERB_FILEOPS, "%s: file-open: type %s%s", name,
+	    __open_verbose_file_type_tag(file_type), tmp->size == 0 ? "" : (char *)tmp->data);
 
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -208,8 +203,8 @@ err:	__wt_scr_free(session, &tmp);
  *	Open a file handle.
  */
 int
-__wt_open(WT_SESSION_IMPL *session,
-    const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags, WT_FH **fhp)
+__wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_type, u_int flags,
+    WT_FH **fhp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -218,7 +213,7 @@ __wt_open(WT_SESSION_IMPL *session,
 	char *path;
 	bool lock_file, open_called;
 
-	WT_ASSERT(session, file_type != 0);	/* A file type is required. */
+	WT_ASSERT(session, file_type != 0); /* A file type is required. */
 
 	*fhp = NULL;
 
@@ -260,21 +255,20 @@ __wt_open(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_filename(session, name, &path));
 
 	/* Call the underlying open function. */
-	WT_ERR(file_system->fs_open_file(file_system, &session->iface,
-	    path == NULL ? name : path, file_type, flags, &fh->handle));
+	WT_ERR(file_system->fs_open_file(file_system, &session->iface, path == NULL ? name : path,
+	    file_type, flags, &fh->handle));
 	open_called = true;
 
-	WT_ERR(__fhandle_method_finalize(
-	    session, fh->handle, LF_ISSET(WT_FS_OPEN_READONLY)));
+	WT_ERR(__fhandle_method_finalize(session, fh->handle, LF_ISSET(WT_FS_OPEN_READONLY)));
 
 	/*
 	 * Repeat the check for a match: if there's no match, link our newly
 	 * created handle onto the database's list of files.
 	 */
 	if (__handle_search(session, name, fh, fhp)) {
-err:		if (open_called)
-			WT_TRET(fh->handle->close(
-			    fh->handle, (WT_SESSION *)session));
+	err:
+		if (open_called)
+			WT_TRET(fh->handle->close(fh->handle, (WT_SESSION *)session));
 		if (fh != NULL) {
 			__wt_free(session, fh->name);
 			__wt_free(session, fh);
@@ -299,8 +293,7 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
 	conn = S2C(session);
 
 	if (fh->ref != 0) {
-		__wt_errx(session,
-		    "Closing a file handle with open references: %s", fh->name);
+		__wt_errx(session, "Closing a file handle with open references: %s", fh->name);
 	}
 
 	/* Remove from the list. */
@@ -375,7 +368,7 @@ __wt_fsync_background_chk(WT_SESSION_IMPL *session)
 	 * Look for the first data file handle and see if
 	 * the fsync nowait function is supported.
 	 */
-	TAILQ_FOREACH(fh, &conn->fhqh, q) {
+	TAILQ_FOREACH (fh, &conn->fhqh, q) {
 		handle = fh->handle;
 		if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
 			continue;
@@ -407,8 +400,7 @@ __fsync_background(WT_SESSION_IMPL *session, WT_FH *fh)
 	WT_STAT_CONN_INCR(session, fsync_all_fh_total);
 
 	handle = fh->handle;
-	if (handle->fh_sync_nowait == NULL ||
-	    fh->written < WT_CAPACITY_FILE_THRESHOLD)
+	if (handle->fh_sync_nowait == NULL || fh->written < WT_CAPACITY_FILE_THRESHOLD)
 		return (0);
 
 	/* Only sync data files. */
@@ -450,7 +442,8 @@ __wt_fsync_background(WT_SESSION_IMPL *session)
 
 	conn = S2C(session);
 	__wt_spin_lock(session, &conn->fh_lock);
-	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext) {
+	TAILQ_FOREACH_SAFE(fh, &conn->fhqh, q, fhnext)
+	{
 		/*
 		 * The worker routine will unlock the list to avoid holding it
 		 * locked over an fsync. Increment the count on the current and
@@ -494,9 +487,11 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
 	WT_DECL_RET;
 	WT_FH *fh, *fh_tmp;
 
-	WT_TAILQ_SAFE_REMOVE_BEGIN(fh, &S2C(session)->fhqh, q, fh_tmp) {
+	WT_TAILQ_SAFE_REMOVE_BEGIN(fh, &S2C(session)->fhqh, q, fh_tmp)
+	{
 		WT_TRET(__handle_close(session, fh, false));
-	} WT_TAILQ_SAFE_REMOVE_END
+	}
+	WT_TAILQ_SAFE_REMOVE_END
 	return (ret);
 }
 
@@ -505,8 +500,7 @@ __wt_close_connection_close(WT_SESSION_IMPL *session)
  *	Zero out the file from offset for size bytes.
  */
 int
-__wt_file_zero(WT_SESSION_IMPL *session,
-    WT_FH *fh, wt_off_t start_off, wt_off_t size)
+__wt_file_zero(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t start_off, wt_off_t size)
 {
 	WT_DECL_ITEM(zerobuf);
 	WT_DECL_RET;
@@ -542,10 +536,10 @@ __wt_file_zero(WT_SESSION_IMPL *session,
 		if ((uint64_t)size - off < bufsz)
 			wrlen = (uint64_t)size - off;
 		__wt_capacity_throttle(session, wrlen, type);
-		WT_ERR(__wt_write(session,
-		    fh, (wt_off_t)off, (size_t)wrlen, zerobuf->mem));
+		WT_ERR(__wt_write(session, fh, (wt_off_t)off, (size_t)wrlen, zerobuf->mem));
 		off += wrlen;
 	}
-err:	__wt_scr_free(session, &zerobuf);
+err:
+	__wt_scr_free(session, &zerobuf);
 	return (ret);
 }

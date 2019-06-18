@@ -12,22 +12,22 @@
  * Shared rebalance information.
  */
 typedef struct {
-	WT_REF **leaf;				/* List of leaf pages */
-	size_t	 leaf_next;			/* Next entry */
-	size_t   leaf_allocated;		/* Allocated bytes */
+	WT_REF **leaf;         /* List of leaf pages */
+	size_t leaf_next;      /* Next entry */
+	size_t leaf_allocated; /* Allocated bytes */
 
-	WT_ADDR *fl;				/* List of objects to free */
-	size_t	 fl_next;			/* Next entry */
-	size_t   fl_allocated;			/* Allocated bytes */
+	WT_ADDR *fl;         /* List of objects to free */
+	size_t fl_next;      /* Next entry */
+	size_t fl_allocated; /* Allocated bytes */
 
-	WT_PAGE *root;				/* Created root page */
+	WT_PAGE *root; /* Created root page */
 
-	uint8_t	 type;				/* Internal page type */
+	uint8_t type; /* Internal page type */
 
-#define	WT_REBALANCE_PROGRESS_INTERVAL	100
-	uint64_t progress;			/* Progress counter */
+#define WT_REBALANCE_PROGRESS_INTERVAL 100
+	uint64_t progress; /* Progress counter */
 
-	WT_ITEM *tmp1;				/* Temporary buffers */
+	WT_ITEM *tmp1; /* Temporary buffers */
 	WT_ITEM *tmp2;
 } WT_REBALANCE_STUFF;
 
@@ -40,8 +40,7 @@ __rebalance_discard(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
 {
 	while (rs->leaf_next > 0) {
 		--rs->leaf_next;
-		__wt_free_ref(
-		    session, rs->leaf[rs->leaf_next], rs->type, false);
+		__wt_free_ref(session, rs->leaf[rs->leaf_next], rs->type, false);
 	}
 	__wt_free(session, rs->leaf);
 
@@ -57,21 +56,18 @@ __rebalance_discard(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
  *	Add a new entry to the list of leaf pages.
  */
 static int
-__rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
-    const uint8_t *key, size_t key_len, WT_CELL_UNPACK *unpack,
-    WT_REBALANCE_STUFF *rs)
+__rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, const uint8_t *key,
+    size_t key_len, WT_CELL_UNPACK *unpack, WT_REBALANCE_STUFF *rs)
 {
 	WT_ADDR *copy_addr;
 	WT_REF *copy;
 
-	__wt_verbose(session, WT_VERB_REBALANCE,
-	    "rebalance leaf-list append %s, %s",
+	__wt_verbose(session, WT_VERB_REBALANCE, "rebalance leaf-list append %s, %s",
 	    __wt_buf_set_printable(session, key, key_len, rs->tmp2),
 	    __wt_addr_string(session, unpack->data, unpack->size, rs->tmp1));
 
 	/* Allocate and initialize a new leaf page reference. */
-	WT_RET(__wt_realloc_def(
-	    session, &rs->leaf_allocated, rs->leaf_next + 1, &rs->leaf));
+	WT_RET(__wt_realloc_def(session, &rs->leaf_allocated, rs->leaf_next + 1, &rs->leaf));
 	WT_RET(__wt_calloc_one(session, &copy));
 	rs->leaf[rs->leaf_next++] = copy;
 
@@ -84,11 +80,9 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	copy_addr->oldest_start_txn = unpack->oldest_start_txn;
 	copy_addr->newest_stop_ts = unpack->newest_stop_ts;
 	copy_addr->newest_stop_txn = unpack->newest_stop_txn;
-	WT_RET(__wt_memdup(
-	    session, unpack->data, unpack->size, &copy_addr->addr));
+	WT_RET(__wt_memdup(session, unpack->data, unpack->size, &copy_addr->addr));
 	copy_addr->size = (uint8_t)unpack->size;
-	copy_addr->type =
-	    unpack->type == WT_CELL_ADDR_LEAF ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;
+	copy_addr->type = unpack->type == WT_CELL_ADDR_LEAF ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;
 
 	if (key == NULL)
 		copy->ref_recno = unpack->v;
@@ -103,13 +97,12 @@ __rebalance_leaf_append(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
  *	Add a new entry to the free list.
  */
 static int
-__rebalance_fl_append(WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_len, WT_REBALANCE_STUFF *rs)
+__rebalance_fl_append(
+    WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_len, WT_REBALANCE_STUFF *rs)
 {
 	WT_ADDR *copy;
 
-	WT_RET(__wt_realloc_def(
-	    session, &rs->fl_allocated, rs->fl_next + 1, &rs->fl));
+	WT_RET(__wt_realloc_def(session, &rs->fl_allocated, rs->fl_next + 1, &rs->fl));
 	copy = &rs->fl[rs->fl_next++];
 
 	WT_RET(__wt_memdup(session, addr, addr_len, &copy->addr));
@@ -164,7 +157,8 @@ __rebalance_internal(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
 	rs->root = page;
 	return (0);
 
-err:	__wt_page_out(session, &page);
+err:
+	__wt_page_out(session, &page);
 	return (ret);
 }
 
@@ -181,10 +175,8 @@ __rebalance_free_original(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
 	for (i = 0; i < rs->fl_next; ++i) {
 		addr = &rs->fl[i];
 
-		__wt_verbose(session, WT_VERB_REBALANCE,
-		    "rebalance discarding %s",
-		    __wt_addr_string(
-		    session, addr->addr, addr->size, rs->tmp1));
+		__wt_verbose(session, WT_VERB_REBALANCE, "rebalance discarding %s",
+		    __wt_addr_string(session, addr->addr, addr->size, rs->tmp1));
 
 		WT_RET(__wt_btree_block_free(session, addr->addr, addr->size));
 	}
@@ -196,8 +188,8 @@ __rebalance_free_original(WT_SESSION_IMPL *session, WT_REBALANCE_STUFF *rs)
  *	Walk a column-store page and its descendants.
  */
 static int
-__rebalance_col_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
-    const WT_PAGE_HEADER *dsk, WT_REBALANCE_STUFF *rs)
+__rebalance_col_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, const WT_PAGE_HEADER *dsk,
+    WT_REBALANCE_STUFF *rs)
 {
 	WT_BTREE *btree;
 	WT_CELL_UNPACK unpack;
@@ -217,31 +209,29 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	 * location cookie pairs.  Keys are on-page/overflow items and location
 	 * cookies are WT_CELL_ADDR_XXX items.
 	 */
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
+	WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
 		switch (unpack.type) {
 		case WT_CELL_ADDR_INT:
 			/* An internal page: read it and recursively walk it. */
-			WT_ERR(__wt_bt_read(
-			    session, buf, unpack.data, unpack.size));
-			WT_ERR(__rebalance_col_walk(
-			    session, unpack.newest_durable_ts, buf->data, rs));
+			WT_ERR(__wt_bt_read(session, buf, unpack.data, unpack.size));
+			WT_ERR(
+			    __rebalance_col_walk(session, unpack.newest_durable_ts, buf->data, rs));
 			__wt_verbose(session, WT_VERB_REBALANCE,
 			    "free-list append internal page: %s",
-			    __wt_addr_string(
-			    session, unpack.data, unpack.size, rs->tmp1));
-			WT_ERR(__rebalance_fl_append(
-			    session, unpack.data, unpack.size, rs));
+			    __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
+			WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
 			break;
 		case WT_CELL_ADDR_LEAF:
 		case WT_CELL_ADDR_LEAF_NO:
-			WT_ERR(__rebalance_leaf_append(
-			    session, durable_ts, NULL, 0, &unpack, rs));
+			WT_ERR(__rebalance_leaf_append(session, durable_ts, NULL, 0, &unpack, rs));
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, unpack.type);
+			WT_ILLEGAL_VALUE_ERR(session, unpack.type);
 		}
-	} WT_CELL_FOREACH_END;
+	}
+	WT_CELL_FOREACH_END;
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	return (ret);
 }
 
@@ -250,8 +240,8 @@ err:	__wt_scr_free(session, &buf);
  *	Acquire a copy of the key for a leaf page.
  */
 static int
-__rebalance_row_leaf_key(WT_SESSION_IMPL *session,
-    const uint8_t *addr, size_t addr_len, WT_ITEM *key, WT_REBALANCE_STUFF *rs)
+__rebalance_row_leaf_key(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_len,
+    WT_ITEM *key, WT_REBALANCE_STUFF *rs)
 {
 	WT_DECL_RET;
 	WT_PAGE *page;
@@ -276,8 +266,8 @@ __rebalance_row_leaf_key(WT_SESSION_IMPL *session,
  *	Walk a row-store page and its descendants.
  */
 static int
-__rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
-    const WT_PAGE_HEADER *dsk, WT_REBALANCE_STUFF *rs)
+__rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts, const WT_PAGE_HEADER *dsk,
+    WT_REBALANCE_STUFF *rs)
 {
 	WT_BTREE *btree;
 	WT_CELL_UNPACK key, unpack;
@@ -289,7 +279,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	const void *p;
 
 	btree = S2BT(session);
-	WT_CLEAR(key);			/* [-Werror=maybe-uninitialized] */
+	WT_CLEAR(key); /* [-Werror=maybe-uninitialized] */
 
 	WT_ERR(__wt_scr_alloc(session, 0, &buf));
 	WT_ERR(__wt_scr_alloc(session, 0, &leafkey));
@@ -304,7 +294,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 	 * cookies are WT_CELL_ADDR_XXX items.
 	 */
 	first_cell = true;
-	WT_CELL_FOREACH_BEGIN(session, btree, dsk, unpack) {
+	WT_CELL_FOREACH_BEGIN (session, btree, dsk, unpack) {
 		switch (unpack.type) {
 		case WT_CELL_KEY:
 			key = unpack;
@@ -321,11 +311,9 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 			 */
 			__wt_verbose(session, WT_VERB_REBALANCE,
 			    "free-list append overflow key: %s",
-			    __wt_addr_string(
-			    session, unpack.data, unpack.size, rs->tmp1));
+			    __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
 
-			WT_ERR(__rebalance_fl_append(
-			    session, unpack.data, unpack.size, rs));
+			WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
 
 			key = unpack;
 			break;
@@ -342,16 +330,13 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 			/* An internal page, schedule its blocks to be freed. */
 			__wt_verbose(session, WT_VERB_REBALANCE,
 			    "free-list append internal page: %s",
-			    __wt_addr_string(
-			    session, unpack.data, unpack.size, rs->tmp1));
-			WT_ERR(__rebalance_fl_append(
-			    session, unpack.data, unpack.size, rs));
+			    __wt_addr_string(session, unpack.data, unpack.size, rs->tmp1));
+			WT_ERR(__rebalance_fl_append(session, unpack.data, unpack.size, rs));
 
 			/* Read and recursively walk the page. */
-			WT_ERR(__wt_bt_read(
-			    session, buf, unpack.data, unpack.size));
-			WT_ERR(__rebalance_row_walk(
-			    session, unpack.newest_durable_ts, buf->data, rs));
+			WT_ERR(__wt_bt_read(session, buf, unpack.data, unpack.size));
+			WT_ERR(
+			    __rebalance_row_walk(session, unpack.newest_durable_ts, buf->data, rs));
 			break;
 		case WT_CELL_ADDR_LEAF:
 		case WT_CELL_ADDR_LEAF_NO:
@@ -366,8 +351,8 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 			 * sufficient for the page.
 			 */
 			if (first_cell) {
-				WT_ERR(__rebalance_row_leaf_key(session,
-				    unpack.data, unpack.size, leafkey, rs));
+				WT_ERR(__rebalance_row_leaf_key(
+				    session, unpack.data, unpack.size, leafkey, rs));
 				p = leafkey->data;
 				len = leafkey->size;
 			} else if (key.type == WT_CELL_KEY_OVFL) {
@@ -379,16 +364,17 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 				p = key.data;
 				len = key.size;
 			}
-			WT_ERR(__rebalance_leaf_append(
-			    session, durable_ts, p, len, &unpack, rs));
+			WT_ERR(__rebalance_leaf_append(session, durable_ts, p, len, &unpack, rs));
 
 			first_cell = false;
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, unpack.type);
+			WT_ILLEGAL_VALUE_ERR(session, unpack.type);
 		}
-	} WT_CELL_FOREACH_END;
+	}
+	WT_CELL_FOREACH_END;
 
-err:	__wt_scr_free(session, &buf);
+err:
+	__wt_scr_free(session, &buf);
 	__wt_scr_free(session, &leafkey);
 	return (ret);
 }
@@ -418,8 +404,7 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
 	if (ref->page->dsk == NULL)
 		return (0);
 	if (btree->modified)
-		WT_RET_MSG(session, EINVAL,
-		    "tree is modified, only clean trees may be rebalanced");
+		WT_RET_MSG(session, EINVAL, "tree is modified, only clean trees may be rebalanced");
 
 	WT_CLEAR(_rstuff);
 	rs = &_rstuff;
@@ -438,14 +423,12 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
 	 */
 	switch (rs->type) {
 	case WT_PAGE_ROW_INT:
-		WT_ERR(__rebalance_row_walk(
-		    session, WT_TS_MAX, ref->page->dsk, rs));
+		WT_ERR(__rebalance_row_walk(session, WT_TS_MAX, ref->page->dsk, rs));
 		break;
 	case WT_PAGE_COL_INT:
-		WT_ERR(__rebalance_col_walk(
-		    session, WT_TS_MAX, ref->page->dsk, rs));
+		WT_ERR(__rebalance_col_walk(session, WT_TS_MAX, ref->page->dsk, rs));
 		break;
-	WT_ILLEGAL_VALUE_ERR(session, rs->type);
+		WT_ILLEGAL_VALUE_ERR(session, rs->type);
 	}
 
 	/* Build a new root page. */
@@ -465,7 +448,7 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
 	ref->page = rs->root;
 	rs->root = NULL;
 
-err:	/* Discard any leftover root page we created. */
+err: /* Discard any leftover root page we created. */
 	if (rs->root != NULL) {
 		__wt_page_modify_clear(session, rs->root);
 		__wt_page_out(session, &rs->root);

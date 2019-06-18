@@ -20,8 +20,7 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 
 	conn = S2C(session);
 
-	__wt_verbose(session,
-	    WT_VERB_BLOCK, "truncate file to %" PRIuMAX, (uintmax_t)len);
+	__wt_verbose(session, WT_VERB_BLOCK, "truncate file to %" PRIuMAX, (uintmax_t)len);
 
 	/*
 	 * Truncate requires serialization, we depend on our caller for that.
@@ -43,8 +42,8 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
 	 * more targeted solution at some point.
 	 */
 	if (!conn->hot_backup) {
-		WT_WITH_HOTBACKUP_READ_LOCK(session,
-		    ret = __wt_ftruncate(session, block->fh, len), NULL);
+		WT_WITH_HOTBACKUP_READ_LOCK(
+		    session, ret = __wt_ftruncate(session, block->fh, len), NULL);
 	}
 
 	/*
@@ -83,8 +82,8 @@ __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
 		return (0);
 
 	block->os_cache = 0;
-	ret = handle->fh_advise(handle, (WT_SESSION *)session,
-	    (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED);
+	ret = handle->fh_advise(
+	    handle, (WT_SESSION *)session, (wt_off_t)0, (wt_off_t)0, WT_FILE_HANDLE_DONTNEED);
 	return (ret == EBUSY || ret == ENOTSUP ? 0 : ret);
 }
 
@@ -93,8 +92,8 @@ __wt_block_discard(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t added_size)
  *	Extend the file.
  */
 static inline int
-__wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
-    WT_FH *fh, wt_off_t offset, size_t align_size, bool *release_lockp)
+__wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_FH *fh, wt_off_t offset,
+    size_t align_size, bool *release_lockp)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE *handle;
@@ -125,8 +124,8 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * if the file size catches up, every thread tries to extend it.
 	 */
 	if (block->extend_size > block->size &&
-	    (offset > block->extend_size || offset +
-	    block->extend_len + (wt_off_t)align_size < block->extend_size))
+	    (offset > block->extend_size ||
+	        offset + block->extend_len + (wt_off_t)align_size < block->extend_size))
 		return (0);
 
 	/*
@@ -189,8 +188,7 @@ __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t *sizep)
 	 * no sense.  Limit the writes to (4GB - 1KB), it gives us potential
 	 * mode bits, and I'm not interested in debugging corner cases anyway.
 	 */
-	*sizep = (size_t)
-	    WT_ALIGN(*sizep + WT_BLOCK_HEADER_BYTE_SIZE, block->allocsize);
+	*sizep = (size_t)WT_ALIGN(*sizep + WT_BLOCK_HEADER_BYTE_SIZE, block->allocsize);
 	return (*sizep > UINT32_MAX - 1024 ? EINVAL : 0);
 }
 
@@ -199,15 +197,15 @@ __wt_block_write_size(WT_SESSION_IMPL *session, WT_BLOCK *block, size_t *sizep)
  *	Write a buffer into a block, returning the block's address cookie.
  */
 int
-__wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
-    uint8_t *addr, size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
+__wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t *addr,
+    size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
 	wt_off_t offset;
 	uint32_t checksum, size;
 	uint8_t *endp;
 
-	WT_RET(__wt_block_write_off(session, block, buf,
-	    &offset, &size, &checksum, data_checksum, checkpoint_io, false));
+	WT_RET(__wt_block_write_off(
+	    session, block, buf, &offset, &size, &checksum, data_checksum, checkpoint_io, false));
 
 	endp = addr;
 	WT_RET(__wt_block_addr_to_buffer(block, &endp, offset, size, checksum));
@@ -222,9 +220,9 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
  * checksum.
  */
 static int
-__block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
-    WT_ITEM *buf, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump,
-    bool data_checksum, bool checkpoint_io, bool caller_locked)
+__block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
+    uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
+    bool caller_locked)
 {
 	WT_BLOCK_HEADER *blk;
 	WT_DECL_RET;
@@ -235,17 +233,16 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	uint8_t *file_sizep;
 	bool local_locked;
 
-	*offsetp = 0;			/* -Werror=maybe-uninitialized */
-	*sizep = 0;			/* -Werror=maybe-uninitialized */
-	*checksump = 0;			/* -Werror=maybe-uninitialized */
+	*offsetp = 0;   /* -Werror=maybe-uninitialized */
+	*sizep = 0;     /* -Werror=maybe-uninitialized */
+	*checksump = 0; /* -Werror=maybe-uninitialized */
 
 	fh = block->fh;
 
 	/* Buffers should be aligned for writing. */
 	if (!F_ISSET(buf, WT_ITEM_ALIGNED)) {
 		WT_ASSERT(session, F_ISSET(buf, WT_ITEM_ALIGNED));
-		WT_RET_MSG(session, EINVAL,
-		    "direct I/O check: write buffer incorrectly allocated");
+		WT_RET_MSG(session, EINVAL, "direct I/O check: write buffer incorrectly allocated");
 	}
 
 	/*
@@ -253,8 +250,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * may grow the buffer.
 	 */
 	if (block->final_ckpt != NULL)
-		WT_RET(__wt_block_checkpoint_final(
-		    session, block, buf, &file_sizep));
+		WT_RET(__wt_block_checkpoint_final(session, block, buf, &file_sizep));
 
 	/*
 	 * Align the size to an allocation unit.
@@ -266,13 +262,12 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	align_size = WT_ALIGN(buf->size, block->allocsize);
 	if (align_size > buf->memsize) {
 		WT_ASSERT(session, align_size <= buf->memsize);
-		WT_RET_MSG(session, EINVAL,
-		    "buffer size check: write buffer incorrectly allocated");
+		WT_RET_MSG(
+		    session, EINVAL, "buffer size check: write buffer incorrectly allocated");
 	}
 	if (align_size > UINT32_MAX) {
 		WT_ASSERT(session, align_size <= UINT32_MAX);
-		WT_RET_MSG(session, EINVAL,
-		    "buffer size check: write buffer too large to write");
+		WT_RET_MSG(session, EINVAL, "buffer size check: write buffer too large to write");
 	}
 
 	/* Pre-allocate some number of extension structures. */
@@ -291,8 +286,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	}
 	ret = __wt_block_alloc(session, block, &offset, (wt_off_t)align_size);
 	if (ret == 0)
-		ret = __wt_block_extend(
-		    session, block, fh, offset, align_size, &local_locked);
+		ret = __wt_block_extend(session, block, fh, offset, align_size, &local_locked);
 	if (local_locked)
 		__wt_spin_unlock(session, &block->live_lock);
 	WT_RET(ret);
@@ -342,19 +336,17 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		F_SET(blk, WT_BLOCK_DATA_CKSUM);
 	blk->checksum = 0;
 	__wt_block_header_byteswap(blk);
-	blk->checksum = checksum = __wt_checksum(
-	    buf->mem, data_checksum ? align_size : WT_BLOCK_COMPRESS_SKIP);
+	blk->checksum = checksum =
+	    __wt_checksum(buf->mem, data_checksum ? align_size : WT_BLOCK_COMPRESS_SKIP);
 #ifdef WORDS_BIGENDIAN
 	blk->checksum = __wt_bswap32(blk->checksum);
 #endif
 
 	/* Write the block. */
-	if ((ret =
-	    __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
+	if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
 		if (!caller_locked)
 			__wt_spin_lock(session, &block->live_lock);
-		WT_TRET(__wt_block_off_free(
-		    session, block, offset, (wt_off_t)align_size));
+		WT_TRET(__wt_block_off_free(session, block, offset, (wt_off_t)align_size));
 		if (!caller_locked)
 			__wt_spin_unlock(session, &block->live_lock);
 		WT_RET(ret);
@@ -364,14 +356,13 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * Optionally schedule writes for dirty pages in the system buffer
 	 * cache, but only if the current session can wait.
 	 */
-	if (block->os_cache_dirty_max != 0 &&
-	    fh->written > block->os_cache_dirty_max &&
+	if (block->os_cache_dirty_max != 0 && fh->written > block->os_cache_dirty_max &&
 	    __wt_session_can_wait(session)) {
 		fh->written = 0;
 		if ((ret = __wt_fsync(session, fh, false)) != 0) {
-			 /*
-			  * Ignore ENOTSUP, but don't try again.
-			  */
+			/*
+			 * Ignore ENOTSUP, but don't try again.
+			 */
 			if (ret != ENOTSUP)
 				return (ret);
 			block->os_cache_dirty_max = 0;
@@ -384,12 +375,11 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	WT_STAT_CONN_INCR(session, block_write);
 	WT_STAT_CONN_INCRV(session, block_byte_write, align_size);
 	if (checkpoint_io)
-		WT_STAT_CONN_INCRV(
-		    session, block_byte_write_checkpoint, align_size);
+		WT_STAT_CONN_INCRV(session, block_byte_write_checkpoint, align_size);
 
 	__wt_verbose(session, WT_VERB_WRITE,
-	    "off %" PRIuMAX ", size %" PRIuMAX ", checksum %#" PRIx32,
-	    (uintmax_t)offset, (uintmax_t)align_size, checksum);
+	    "off %" PRIuMAX ", size %" PRIuMAX ", checksum %#" PRIx32, (uintmax_t)offset,
+	    (uintmax_t)align_size, checksum);
 
 	*offsetp = offset;
 	*sizep = WT_STORE_SIZE(align_size);
@@ -404,9 +394,9 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
  * checksum.
  */
 int
-__wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
-    WT_ITEM *buf, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump,
-    bool data_checksum, bool checkpoint_io, bool caller_locked)
+__wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
+    uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
+    bool caller_locked)
 {
 	WT_DECL_RET;
 
@@ -417,8 +407,8 @@ __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 * than their original content.
 	 */
 	__wt_page_header_byteswap(buf->mem);
-	ret = __block_write_off(session, block, buf, offsetp,
-	    sizep, checksump, data_checksum, checkpoint_io, caller_locked);
+	ret = __block_write_off(session, block, buf, offsetp, sizep, checksump, data_checksum,
+	    checkpoint_io, caller_locked);
 	__wt_page_header_byteswap(buf->mem);
 	return (ret);
 }

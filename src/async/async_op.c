@@ -39,8 +39,7 @@ __async_set_key(WT_ASYNC_OP *asyncop, ...)
 	__wt_cursor_set_keyv(c, c->flags, ap);
 	if (!WT_DATA_IN_ITEM(&c->key) && !WT_CURSOR_RECNO(c))
 		c->saved_err = __wt_buf_set(
-		    O2S((WT_ASYNC_OP_IMPL *)asyncop),
-		    &c->key, c->key.data, c->key.size);
+		    O2S((WT_ASYNC_OP_IMPL *)asyncop), &c->key, c->key.data, c->key.size);
 	va_end(ap);
 }
 
@@ -76,8 +75,7 @@ __async_set_value(WT_ASYNC_OP *asyncop, ...)
 	/* Copy the data, if it is pointing at data elsewhere. */
 	if (!WT_DATA_IN_ITEM(&c->value))
 		c->saved_err = __wt_buf_set(
-		    O2S((WT_ASYNC_OP_IMPL *)asyncop),
-		    &c->value, c->value.data, c->value.size);
+		    O2S((WT_ASYNC_OP_IMPL *)asyncop), &c->value, c->value.data, c->value.size);
 	va_end(ap);
 }
 
@@ -107,7 +105,8 @@ __async_search(WT_ASYNC_OP *asyncop)
 	ASYNCOP_API_CALL(O2C(op), session, search);
 	WT_STAT_CONN_INCR(O2S(op), async_op_search);
 	WT_ERR(__async_op_wrap(op, WT_AOP_SEARCH));
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -125,7 +124,8 @@ __async_insert(WT_ASYNC_OP *asyncop)
 	ASYNCOP_API_CALL(O2C(op), session, insert);
 	WT_STAT_CONN_INCR(O2S(op), async_op_insert);
 	WT_ERR(__async_op_wrap(op, WT_AOP_INSERT));
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -143,7 +143,8 @@ __async_update(WT_ASYNC_OP *asyncop)
 	ASYNCOP_API_CALL(O2C(op), session, update);
 	WT_STAT_CONN_INCR(O2S(op), async_op_update);
 	WT_ERR(__async_op_wrap(op, WT_AOP_UPDATE));
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -161,7 +162,8 @@ __async_remove(WT_ASYNC_OP *asyncop)
 	ASYNCOP_API_CALL(O2C(op), session, remove);
 	WT_STAT_CONN_INCR(O2S(op), async_op_remove);
 	WT_ERR(__async_op_wrap(op, WT_AOP_REMOVE));
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -179,7 +181,8 @@ __async_compact(WT_ASYNC_OP *asyncop)
 	ASYNCOP_API_CALL(O2C(op), session, compact);
 	WT_STAT_CONN_INCR(O2S(op), async_op_compact);
 	WT_ERR(__async_op_wrap(op, WT_AOP_COMPACT));
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -256,7 +259,7 @@ __wt_async_op_enqueue(WT_SESSION_IMPL *session, WT_ASYNC_OP_IMPL *op)
 	WT_ASYNC *async;
 	WT_CONNECTION_IMPL *conn;
 	uint64_t cur_head, cur_tail, my_alloc, my_slot;
-#ifdef	HAVE_DIAGNOSTIC
+#ifdef HAVE_DIAGNOSTIC
 	WT_ASYNC_OP_IMPL *my_op;
 #endif
 
@@ -268,8 +271,7 @@ __wt_async_op_enqueue(WT_SESSION_IMPL *session, WT_ASYNC_OP_IMPL *op)
 	 * invalid object.
 	 */
 	if (op->state != WT_ASYNCOP_READY)
-		WT_RET_MSG(session, EINVAL,
-		    "application error: WT_ASYNC_OP already in use");
+		WT_RET_MSG(session, EINVAL, "application error: WT_ASYNC_OP already in use");
 
 	/*
 	 * Enqueue op at the tail of the work queue.
@@ -288,7 +290,7 @@ __wt_async_op_enqueue(WT_SESSION_IMPL *session, WT_ASYNC_OP_IMPL *op)
 		WT_ORDERED_READ(cur_tail, async->tail_slot);
 	}
 
-#ifdef	HAVE_DIAGNOSTIC
+#ifdef HAVE_DIAGNOSTIC
 	WT_ORDERED_READ(my_op, async->async_queue[my_slot]);
 	if (my_op != NULL)
 		return (__wt_panic(session));
@@ -337,8 +339,7 @@ __wt_async_op_init(WT_SESSION_IMPL *session)
 	 * can never overlap the tail.  Include extra for the flush op.
 	 */
 	async->async_qsize = conn->async_size + 2;
-	WT_RET(__wt_calloc_def(
-	    session, async->async_qsize, &async->async_queue));
+	WT_RET(__wt_calloc_def(session, async->async_qsize, &async->async_queue));
 	/*
 	 * Allocate and initialize all the user ops.
 	 */
@@ -349,7 +350,8 @@ __wt_async_op_init(WT_SESSION_IMPL *session)
 	}
 	return (0);
 
-err:	__wt_free(session, async->async_ops);
+err:
+	__wt_free(session, async->async_ops);
 	__wt_free(session, async->async_queue);
 	return (ret);
 }

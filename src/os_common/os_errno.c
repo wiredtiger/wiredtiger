@@ -49,11 +49,10 @@ __wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
 	 *
 	 * Fallback to a generic message.
 	 */
-	if (errbuf != NULL &&
-	    __wt_snprintf(errbuf, errlen, "error return: %d", error) == 0)
+	if (errbuf != NULL && __wt_snprintf(errbuf, errlen, "error return: %d", error) == 0)
 		return (errbuf);
-	if (session != NULL && __wt_buf_fmt(
-	    session, &session->err, "error return: %d", error) == 0 &&
+	if (session != NULL &&
+	    __wt_buf_fmt(session, &session->err, "error return: %d", error) == 0 &&
 	    session->err.data != NULL)
 		return (session->err.data);
 
@@ -66,18 +65,17 @@ __wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
  *	Extension API call to map a Windows system error to a POSIX/ANSI error.
  */
 int
-__wt_ext_map_windows_error(
-    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, uint32_t windows_error)
+__wt_ext_map_windows_error(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, uint32_t windows_error)
 {
 	WT_UNUSED(wt_api);
 	WT_UNUSED(wt_session);
 
-	/*
-	 * This extension API only makes sense in Windows builds, but it's hard
-	 * to exclude it otherwise (there's no way to return an error, anyway).
-	 * Call an underlying function on Windows, else panic so callers figure
-	 * out what they're doing wrong.
-	 */
+/*
+ * This extension API only makes sense in Windows builds, but it's hard
+ * to exclude it otherwise (there's no way to return an error, anyway).
+ * Call an underlying function on Windows, else panic so callers figure
+ * out what they're doing wrong.
+ */
 #ifdef _WIN32
 	return (__wt_map_windows_error(windows_error));
 #else

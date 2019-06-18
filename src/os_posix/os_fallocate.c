@@ -18,8 +18,7 @@
  *	Linux fallocate call.
  */
 static int
-__posix_std_fallocate(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,  wt_off_t offset)
+__posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 #if defined(HAVE_FALLOCATE)
 	WT_DECL_RET;
@@ -44,8 +43,7 @@ __posix_std_fallocate(
  *	Linux fallocate call (system call version).
  */
 static int
-__posix_sys_fallocate(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
+__posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 #if defined(__linux__) && defined(SYS_fallocate)
 	WT_DECL_RET;
@@ -61,8 +59,7 @@ __posix_sys_fallocate(
 	 * Linux versions (RHEL 5.5), but not in the version of the C library.
 	 * This allows it to work everywhere the kernel supports it.
 	 */
-	WT_SYSCALL_RETRY(
-	    syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
+	WT_SYSCALL_RETRY(syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
 	return (ret);
 #else
 	WT_UNUSED(file_handle);
@@ -77,8 +74,7 @@ __posix_sys_fallocate(
  *	POSIX fallocate call.
  */
 static int
-__posix_posix_fallocate(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,  wt_off_t offset)
+__posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 #if defined(HAVE_POSIX_FALLOCATE)
 	WT_DECL_RET;
@@ -103,8 +99,7 @@ __posix_posix_fallocate(
  *	Extend the file.
  */
 int
-__wt_posix_file_extend(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
+__wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
 	/*
 	 * The first file extension call: figure out what this system has.

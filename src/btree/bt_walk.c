@@ -13,8 +13,7 @@
  *      Return the page's index and slot for a reference.
  */
 static inline void
-__ref_index_slot(WT_SESSION_IMPL *session,
-    WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
+__ref_index_slot(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
 {
 	WT_PAGE_INDEX *pindex;
 	WT_REF **start, **stop, **p, **t;
@@ -52,10 +51,9 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 			slot = entries - 1;
 		if (pindex->index[slot] == ref)
 			goto found;
-		for (start = &pindex->index[0],
-		    stop = &pindex->index[entries - 1],
+		for (start = &pindex->index[0], stop = &pindex->index[entries - 1],
 		    p = t = &pindex->index[slot];
-		    p > start || t < stop;) {
+		     p > start || t < stop;) {
 			if (p > start && *--p == ref) {
 				slot = (uint32_t)(p - start);
 				goto found;
@@ -71,11 +69,11 @@ __ref_index_slot(WT_SESSION_IMPL *session,
 		 * sleeping so we don't burn CPU to no purpose.
 		 */
 		__wt_spin_backoff(&yield_count, &sleep_usecs);
-		WT_STAT_CONN_INCRV(session, page_index_slot_ref_blocked,
-		    sleep_usecs);
+		WT_STAT_CONN_INCRV(session, page_index_slot_ref_blocked, sleep_usecs);
 	}
 
-found:	WT_ASSERT(session, pindex->index[slot] == ref);
+found:
+	WT_ASSERT(session, pindex->index[slot] == ref);
 	*pindexp = pindex;
 	*slotp = slot;
 }
@@ -97,8 +95,7 @@ __ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * isn't on disk and we don't know the page type.
 	 */
 	__wt_ref_info(session, ref, &addr, &addr_size, &type);
-	return (addr == NULL ?
-	    false : type == WT_CELL_ADDR_LEAF || type == WT_CELL_ADDR_LEAF_NO);
+	return (addr == NULL ? false : type == WT_CELL_ADDR_LEAF || type == WT_CELL_ADDR_LEAF_NO);
 }
 
 /*
@@ -106,8 +103,7 @@ __ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
  *	Ascend the tree one level.
  */
 static inline void
-__ref_ascend(WT_SESSION_IMPL *session,
-    WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
+__ref_ascend(WT_SESSION_IMPL *session, WT_REF **refp, WT_PAGE_INDEX **pindexp, uint32_t *slotp)
 {
 	WT_REF *parent_ref, *ref;
 
@@ -180,8 +176,7 @@ __ref_ascend(WT_SESSION_IMPL *session,
  *	Check for races when descending the tree during a previous-cursor walk.
  */
 static inline bool
-__split_prev_race(
-    WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp)
+__split_prev_race(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE_INDEX **pindexp)
 {
 	WT_PAGE_INDEX *pindex;
 
@@ -273,10 +268,9 @@ __split_prev_race(
  *	Move to the next/previous page in the tree.
  */
 static inline int
-__tree_walk_internal(WT_SESSION_IMPL *session,
-    WT_REF **refp, uint64_t *walkcntp,
-    int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *),
-    void *func_cookie, uint32_t flags)
+__tree_walk_internal(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp,
+    int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *), void *func_cookie,
+    uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
@@ -353,11 +347,11 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	/* If no page is active, begin a walk from the start/end of the tree. */
 	if ((ref = ref_orig) == NULL) {
 		if (0) {
-restart:		/*
-			 * Yield before retrying, and if we've yielded enough
-			 * times, start sleeping so we don't burn CPU to no
-			 * purpose.
-			 */
+		restart: /*
+		          * Yield before retrying, and if we've yielded enough
+		          * times, start sleeping so we don't burn CPU to no
+		          * purpose.
+		          */
 			__wt_spin_backoff(&restart_yield, &restart_sleep);
 
 			WT_ERR(__wt_page_release(session, couple, flags));
@@ -389,8 +383,7 @@ restart:		/*
 		 * it in post-order traversal. Otherwise move to the next/prev
 		 * slot and left/right-most element in that subtree.
 		 */
-		while ((prev && slot == 0) ||
-		    (!prev && slot == pindex->entries - 1)) {
+		while ((prev && slot == 0) || (!prev && slot == pindex->entries - 1)) {
 			/* Ascend to the parent. */
 			__ref_ascend(session, &ref, &pindex, &slot);
 
@@ -434,8 +427,8 @@ restart:		/*
 				 * Restart is not expected, our parent WT_REF
 				 * should not have split.
 				 */
-				ret = __wt_page_swap(session,
-				    couple, ref, WT_READ_NOTFOUND_OK | flags);
+				ret = __wt_page_swap(
+				    session, couple, ref, WT_READ_NOTFOUND_OK | flags);
 				if (ret == 0) {
 					/* Success, "couple" released. */
 					couple = NULL;
@@ -460,12 +453,12 @@ restart:		/*
 			++*walkcntp;
 
 		for (;;) {
-descend:		/*
-			 * Get a reference, setting the reference hint if it's
-			 * wrong (used when we continue the walk). We don't
-			 * always update the hints when splitting, it's expected
-			 * for them to be incorrect in some workloads.
-			 */
+		descend: /*
+		          * Get a reference, setting the reference hint if it's
+		          * wrong (used when we continue the walk). We don't
+		          * always update the hints when splitting, it's expected
+		          * for them to be incorrect in some workloads.
+		          */
 			ref = pindex->index[slot];
 			if (ref->pindex_hint != slot)
 				ref->pindex_hint = slot;
@@ -475,8 +468,7 @@ descend:		/*
 			 * page isn't empty.
 			 */
 			current_state = ref->state;
-			if (current_state != WT_REF_DELETED &&
-			    !LF_ISSET(WT_READ_TRUNCATE))
+			if (current_state != WT_REF_DELETED && !LF_ISSET(WT_READ_TRUNCATE))
 				empty_internal = false;
 
 			if (LF_ISSET(WT_READ_CACHE)) {
@@ -484,8 +476,7 @@ descend:		/*
 				 * Only look at unlocked pages in memory:
 				 * fast-path some common cases.
 				 */
-				if (LF_ISSET(WT_READ_NO_WAIT) &&
-				    current_state != WT_REF_MEM &&
+				if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM &&
 				    current_state != WT_REF_LIMBO)
 					break;
 
@@ -510,8 +501,7 @@ descend:		/*
 					break;
 				empty_internal = false;
 			} else if (skip_func != NULL) {
-				WT_ERR(skip_func(session,
-				    ref, func_cookie, &skip));
+				WT_ERR(skip_func(session, ref, func_cookie, &skip));
 				if (skip)
 					break;
 			} else {
@@ -523,8 +513,8 @@ descend:		/*
 					break;
 			}
 
-			ret = __wt_page_swap(session, couple, ref,
-			    WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
+			ret = __wt_page_swap(
+			    session, couple, ref, WT_READ_NOTFOUND_OK | WT_READ_RESTART_OK | flags);
 			if (ret == 0) {
 				/* Success, so "couple" has been released. */
 				couple = NULL;
@@ -541,13 +531,11 @@ descend:		/*
 				/* Configure traversal of any internal page. */
 				empty_internal = true;
 				if (prev) {
-					if (__split_prev_race(
-					    session, ref, &pindex))
+					if (__split_prev_race(session, ref, &pindex))
 						goto restart;
 					slot = pindex->entries - 1;
 				} else {
-					WT_INTL_INDEX_GET(
-					    session, ref->page, pindex);
+					WT_INTL_INDEX_GET(session, ref->page, pindex);
 					slot = 0;
 				}
 				continue;
@@ -603,11 +591,9 @@ __wt_tree_walk(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
  * references were visited to get there.
  */
 int
-__wt_tree_walk_count(WT_SESSION_IMPL *session,
-    WT_REF **refp, uint64_t *walkcntp, uint32_t flags)
+__wt_tree_walk_count(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *walkcntp, uint32_t flags)
 {
-	return (__tree_walk_internal(
-	    session, refp, walkcntp, NULL, NULL, flags));
+	return (__tree_walk_internal(session, refp, walkcntp, NULL, NULL, flags));
 }
 
 /*
@@ -615,13 +601,11 @@ __wt_tree_walk_count(WT_SESSION_IMPL *session,
  *	Walk the tree calling a custom function to decide whether to skip refs.
  */
 int
-__wt_tree_walk_custom_skip(
-    WT_SESSION_IMPL *session, WT_REF **refp,
-    int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *),
-    void *func_cookie, uint32_t flags)
+__wt_tree_walk_custom_skip(WT_SESSION_IMPL *session, WT_REF **refp,
+    int (*skip_func)(WT_SESSION_IMPL *, WT_REF *, void *, bool *), void *func_cookie,
+    uint32_t flags)
 {
-	return (__tree_walk_internal(
-	    session, refp, NULL, skip_func, func_cookie, flags));
+	return (__tree_walk_internal(session, refp, NULL, skip_func, func_cookie, flags));
 }
 
 /*
@@ -636,8 +620,7 @@ __wt_tree_walk_custom_skip(
  * it.
  */
 static int
-__tree_walk_skip_count_callback(
-    WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+__tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
 	uint64_t *skipleafcntp;
 
@@ -647,8 +630,7 @@ __tree_walk_skip_count_callback(
 	/*
 	 * Skip deleted pages visible to us.
 	 */
-	if (ref->state == WT_REF_DELETED &&
-	    __wt_delete_page_skip(session, ref, false))
+	if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
 		*skipp = true;
 	else if (*skipleafcntp > 0 && __ref_is_leaf(session, ref)) {
 		--*skipleafcntp;
@@ -664,8 +646,7 @@ __tree_walk_skip_count_callback(
  *	of leaf pages before returning.
  */
 int
-__wt_tree_walk_skip(
-    WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
+__wt_tree_walk_skip(WT_SESSION_IMPL *session, WT_REF **refp, uint64_t *skipleafcntp)
 {
 	/*
 	 * Optionally skip leaf pages, the second half. The tree-walk function
@@ -677,9 +658,8 @@ __wt_tree_walk_skip(
 	 * decrementing the count.
 	 */
 	do {
-		WT_RET(__tree_walk_internal(session, refp, NULL,
-		    __tree_walk_skip_count_callback, skipleafcntp,
-		    WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
+		WT_RET(__tree_walk_internal(session, refp, NULL, __tree_walk_skip_count_callback,
+		    skipleafcntp, WT_READ_NO_GEN | WT_READ_SKIP_INTL | WT_READ_WONT_NEED));
 
 		/*
 		 * The walk skipped internal pages, any page returned must be a

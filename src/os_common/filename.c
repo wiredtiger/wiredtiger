@@ -26,8 +26,7 @@ __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path)
  *	connection home directory.
  */
 int
-__wt_nfilename(
-    WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path)
+__wt_nfilename(WT_SESSION_IMPL *session, const char *name, size_t namelen, char **path)
 {
 	WT_DECL_RET;
 	size_t len;
@@ -44,12 +43,13 @@ __wt_nfilename(
 
 	len = strlen(S2C(session)->home) + 1 + namelen + 1;
 	WT_RET(__wt_calloc(session, 1, len, &buf));
-	WT_ERR(__wt_snprintf(buf, len, "%s%s%.*s",
-	    S2C(session)->home, __wt_path_separator(), (int)namelen, name));
+	WT_ERR(__wt_snprintf(
+	    buf, len, "%s%s%.*s", S2C(session)->home, __wt_path_separator(), (int)namelen, name));
 	*path = buf;
 	return (0);
 
-err:	__wt_free(session, buf);
+err:
+	__wt_free(session, buf);
 	return (ret);
 }
 
@@ -59,12 +59,11 @@ err:	__wt_free(session, buf);
  *	the given prefix type. Any identifier that is 0 will be skipped.
  */
 int
-__wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
-    const char *file_prefix, uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
+__wt_filename_construct(WT_SESSION_IMPL *session, const char *path, const char *file_prefix,
+    uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
 {
 	if (path != NULL && path[0] != '\0')
-		WT_RET(__wt_buf_catfmt(
-		    session, buf, "%s%s", path, __wt_path_separator()));
+		WT_RET(__wt_buf_catfmt(session, buf, "%s%s", path, __wt_path_separator()));
 	WT_RET(__wt_buf_catfmt(session, buf, "%s", file_prefix));
 	if (id_1 != UINTMAX_MAX)
 		WT_RET(__wt_buf_catfmt(session, buf, ".%010" PRIuMAX, id_1));
@@ -128,11 +127,11 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 	WT_ERR(__wt_open(session, tmp->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
 	    WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &tfh));
 
-	/*
-	 * Allocate a copy buffer. Don't use a scratch buffer, this thing is
-	 * big, and we don't want it hanging around.
-	 */
-#define	WT_BACKUP_COPY_SIZE	(128 * 1024)
+/*
+ * Allocate a copy buffer. Don't use a scratch buffer, this thing is
+ * big, and we don't want it hanging around.
+ */
+#define WT_BACKUP_COPY_SIZE (128 * 1024)
 	WT_ERR(__wt_malloc(session, WT_BACKUP_COPY_SIZE, &buf));
 
 	/* Get the file's size, then copy the bytes. */
@@ -150,7 +149,8 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
 
 	ret = __wt_fs_rename(session, tmp->data, to, true);
 
-err:	WT_TRET(__wt_close(session, &ffh));
+err:
+	WT_TRET(__wt_close(session, &ffh));
 	WT_TRET(__wt_close(session, &tfh));
 
 	__wt_free(session, buf);

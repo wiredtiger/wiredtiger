@@ -13,8 +13,7 @@
 static inline bool
 __wt_cache_aggressive(WT_SESSION_IMPL *session)
 {
-	return (S2C(session)->cache->evict_aggressive_score >=
-	    WT_EVICT_SCORE_CUTOFF);
+	return (S2C(session)->cache->evict_aggressive_score >= WT_EVICT_SCORE_CUTOFF);
 }
 
 /*
@@ -74,8 +73,7 @@ __wt_cache_read_gen_new(WT_SESSION_IMPL *session, WT_PAGE *page)
 	WT_CACHE *cache;
 
 	cache = S2C(session)->cache;
-	page->read_gen =
-	    (__wt_cache_read_gen(session) + cache->read_gen_oldest) / 2;
+	page->read_gen = (__wt_cache_read_gen(session) + cache->read_gen_oldest) / 2;
 }
 
 /*
@@ -89,8 +87,7 @@ __wt_cache_stuck(WT_SESSION_IMPL *session)
 
 	cache = S2C(session)->cache;
 	return (cache->evict_aggressive_score == WT_EVICT_SCORE_MAX &&
-	    F_ISSET(cache,
-		WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD));
+	    F_ISSET(cache, WT_CACHE_EVICT_CLEAN_HARD | WT_CACHE_EVICT_DIRTY_HARD));
 }
 
 /*
@@ -145,8 +142,8 @@ __wt_cache_bytes_inuse(WT_CACHE *cache)
 static inline uint64_t
 __wt_cache_dirty_inuse(WT_CACHE *cache)
 {
-	return (__wt_cache_bytes_plus_overhead(cache,
-	    cache->bytes_dirty_intl + cache->bytes_dirty_leaf));
+	return (__wt_cache_bytes_plus_overhead(
+	    cache, cache->bytes_dirty_intl + cache->bytes_dirty_leaf));
 }
 
 /*
@@ -184,8 +181,8 @@ __wt_cache_bytes_other(WT_CACHE *cache)
 	 */
 	bytes_image = *(volatile uint64_t *)&cache->bytes_image;
 	bytes_inmem = *(volatile uint64_t *)&cache->bytes_inmem;
-	return ((bytes_image > bytes_inmem) ? 0 :
-	    __wt_cache_bytes_plus_overhead(cache, bytes_inmem - bytes_image));
+	return ((bytes_image > bytes_inmem) ? 0 : __wt_cache_bytes_plus_overhead(
+	                                              cache, bytes_inmem - bytes_image));
 }
 
 /*
@@ -207,7 +204,7 @@ __wt_cache_lookaside_score(WT_CACHE *cache)
  */
 static inline void
 __wt_cache_update_lookaside_score(
-	WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
+    WT_SESSION_IMPL *session, u_int updates_seen, u_int updates_unstable)
 {
 	WT_CACHE *cache;
 	int32_t global_score, score;
@@ -245,8 +242,7 @@ __wt_session_can_wait(WT_SESSION_IMPL *session)
 	 * lock, in that case, or when holding the schema lock, we don't want
 	 * this thread to block for eviction.
 	 */
-	return (!F_ISSET(session,
-	    WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_LOCKED_SCHEMA));
+	return (!F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_LOCKED_SCHEMA));
 }
 
 /*
@@ -287,8 +283,7 @@ __wt_eviction_dirty_target(WT_CACHE *cache)
 	dirty_target = cache->eviction_dirty_target;
 	scrub_target = cache->eviction_scrub_target;
 
-	return (scrub_target > 0 && scrub_target < dirty_target ?
-	    scrub_target : dirty_target);
+	return (scrub_target > 0 && scrub_target < dirty_target ? scrub_target : dirty_target);
 }
 
 /*
@@ -314,8 +309,7 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
 	if (pct_fullp != NULL)
 		*pct_fullp = ((100.0 * dirty_inuse) / bytes_max);
 
-	return (dirty_inuse > (uint64_t)(
-	    cache->eviction_dirty_trigger * bytes_max) / 100);
+	return (dirty_inuse > (uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100);
 }
 
 /*
@@ -324,8 +318,7 @@ __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
  *      percentage as a side-effect.
  */
 static inline bool
-__wt_eviction_needed(
-    WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
+__wt_eviction_needed(WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp)
 {
 	WT_CACHE *cache;
 	double pct_dirty, pct_full;
@@ -352,9 +345,8 @@ __wt_eviction_needed(
 	 * we involve the application thread.
 	 */
 	if (pct_fullp != NULL)
-		*pct_fullp = WT_MAX(0.0, 100.0 - WT_MIN(
-		    cache->eviction_trigger - pct_full,
-		    cache->eviction_dirty_trigger - pct_dirty));
+		*pct_fullp = WT_MAX(0.0, 100.0 - WT_MIN(cache->eviction_trigger - pct_full,
+		                                     cache->eviction_dirty_trigger - pct_dirty));
 
 	/*
 	 * Only check the dirty trigger when the session is not busy.
@@ -388,8 +380,7 @@ __wt_cache_full(WT_SESSION_IMPL *session)
  *	Evict pages if the cache crosses its boundaries.
  */
 static inline int
-__wt_cache_eviction_check(
-    WT_SESSION_IMPL *session, bool busy, bool readonly, bool *didworkp)
+__wt_cache_eviction_check(WT_SESSION_IMPL *session, bool busy, bool readonly, bool *didworkp)
 {
 	WT_BTREE *btree;
 	WT_TXN_GLOBAL *txn_global;
@@ -408,10 +399,8 @@ __wt_cache_eviction_check(
 	 */
 	txn_global = &S2C(session)->txn_global;
 	txn_state = WT_SESSION_TXN_STATE(session);
-	busy = busy || txn_state->id != WT_TXN_NONE ||
-	    session->nhazard > 0 ||
-	    (txn_state->pinned_id != WT_TXN_NONE &&
-	    txn_global->current != txn_global->oldest_id);
+	busy = busy || txn_state->id != WT_TXN_NONE || session->nhazard > 0 ||
+	    (txn_state->pinned_id != WT_TXN_NONE && txn_global->current != txn_global->oldest_id);
 
 	/*
 	 * LSM sets the "ignore cache size" flag when holding the LSM tree
@@ -419,9 +408,8 @@ __wt_cache_eviction_check(
 	 * locks (which can block checkpoints and eviction), don't block the
 	 * thread for eviction.
 	 */
-	if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE |
-	    WT_SESSION_LOCKED_HANDLE_LIST | WT_SESSION_LOCKED_SCHEMA |
-	    WT_SESSION_LOCKED_TABLE))
+	if (F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_LOCKED_HANDLE_LIST |
+	            WT_SESSION_LOCKED_SCHEMA | WT_SESSION_LOCKED_TABLE))
 		return (0);
 
 	/* In memory configurations don't block when the cache is full. */
@@ -435,8 +423,8 @@ __wt_cache_eviction_check(
 	 * resources that could block checkpoints or eviction.
 	 */
 	btree = S2BT_SAFE(session);
-	if (btree != NULL && (F_ISSET(btree, WT_BTREE_IN_MEMORY) ||
-	    WT_IS_METADATA(session->dhandle)))
+	if (btree != NULL &&
+	    (F_ISSET(btree, WT_BTREE_IN_MEMORY) || WT_IS_METADATA(session->dhandle)))
 		return (0);
 
 	/* Check if eviction is needed. */

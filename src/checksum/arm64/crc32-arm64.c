@@ -35,17 +35,17 @@
 #include <sys/auxv.h>
 
 #ifndef __GNUC__
-#define	__asm__	asm
+#define __asm__ asm
 #endif
 
-#define	CRC32CX(crc,value)						\
-	__asm__("crc32cx %w[c], %w[c], %x[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
-#define	CRC32CW(crc,value)						\
-	__asm__("crc32cw %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
-#define	CRC32CH(crc,value)						\
-	__asm__("crc32ch %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
-#define	CRC32CB(crc,value)						\
-	__asm__("crc32cb %w[c], %w[c], %w[v]" : [c]"+r"(*&crc) : [v]"r"(+value))
+#define CRC32CX(crc, value) \
+	__asm__("crc32cx %w[c], %w[c], %x[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+#define CRC32CW(crc, value) \
+	__asm__("crc32cw %w[c], %w[c], %w[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+#define CRC32CH(crc, value) \
+	__asm__("crc32ch %w[c], %w[c], %w[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
+#define CRC32CB(crc, value) \
+	__asm__("crc32cb %w[c], %w[c], %w[v]" : [c] "+r"(*&crc) : [v] "r"(+value))
 
 /*
  * __wt_checksum_hw --
@@ -63,9 +63,7 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	crc = 0xffffffff;
 
 	/* Checksum one byte at a time to the first 4B boundary. */
-	for (p = chunk;
-	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
-	    len > 0; ++p, --len) {
+	for (p = chunk; ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 && len > 0; ++p, --len) {
 		CRC32CB(crc, *p);
 	}
 

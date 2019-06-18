@@ -14,23 +14,21 @@
  *	WT_ITEM and return the decrypted buffer.
  */
 int
-__wt_decrypt(WT_SESSION_IMPL *session,
-    WT_ENCRYPTOR *encryptor, size_t skip, WT_ITEM *in, WT_ITEM *out)
+__wt_decrypt(
+    WT_SESSION_IMPL *session, WT_ENCRYPTOR *encryptor, size_t skip, WT_ITEM *in, WT_ITEM *out)
 {
 	size_t encryptor_data_len, result_len;
 	uint32_t encrypt_len;
 	uint8_t *dst, *src;
 
-	encrypt_len =
-	    WT_STORE_SIZE(*((uint32_t *)((uint8_t *)in->data + skip)));
+	encrypt_len = WT_STORE_SIZE(*((uint32_t *)((uint8_t *)in->data + skip)));
 #ifdef WORDS_BIGENDIAN
 	encrypt_len = __wt_bswap32(encrypt_len);
 #endif
 
 	if (encrypt_len > in->size)
-		WT_RET_MSG(session, WT_ERROR,
-		    "corrupted encrypted item: padded size less than "
-		    "actual size");
+		WT_RET_MSG(session, WT_ERROR, "corrupted encrypted item: padded size less than "
+		                              "actual size");
 	/*
 	 * We're allocating the number of bytes we're expecting
 	 * from decryption plus the unencrypted header.
@@ -41,8 +39,8 @@ __wt_decrypt(WT_SESSION_IMPL *session,
 	encryptor_data_len = encrypt_len - (skip + WT_ENCRYPT_LEN_SIZE);
 	dst = (uint8_t *)out->mem + skip;
 
-	WT_RET(encryptor->decrypt(encryptor, &session->iface,
-	    src, encryptor_data_len, dst, encryptor_data_len, &result_len));
+	WT_RET(encryptor->decrypt(encryptor, &session->iface, src, encryptor_data_len, dst,
+	    encryptor_data_len, &result_len));
 	/*
 	 * We require encryption to be byte for byte.  It should not expand
 	 * the data.
@@ -70,8 +68,8 @@ __wt_decrypt(WT_SESSION_IMPL *session,
  *	Common code to encrypt a WT_ITEM and return the encrypted buffer.
  */
 int
-__wt_encrypt(WT_SESSION_IMPL *session,
-    WT_KEYED_ENCRYPTOR *kencryptor, size_t skip, WT_ITEM *in, WT_ITEM *out)
+__wt_encrypt(WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t skip, WT_ITEM *in,
+    WT_ITEM *out)
 {
 	size_t dst_len, result_len, src_len;
 	uint32_t *unpadded_lenp;
@@ -91,8 +89,8 @@ __wt_encrypt(WT_SESSION_IMPL *session,
 	dst = (uint8_t *)out->mem + skip + WT_ENCRYPT_LEN_SIZE;
 	dst_len = src_len + kencryptor->size_const;
 
-	WT_RET(kencryptor->encryptor->encrypt(kencryptor->encryptor,
-	    &session->iface, src, src_len, dst, dst_len, &result_len));
+	WT_RET(kencryptor->encryptor->encrypt(
+	    kencryptor->encryptor, &session->iface, src, src_len, dst, dst_len, &result_len));
 	/*
 	 * We require encryption to be byte for byte.  It should never expand
 	 * the data.
@@ -124,8 +122,8 @@ __wt_encrypt(WT_SESSION_IMPL *session,
  *	Return the size needed for the destination buffer.
  */
 void
-__wt_encrypt_size(WT_SESSION_IMPL *session,
-    WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep)
+__wt_encrypt_size(
+    WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep)
 {
 	WT_UNUSED(session);
 

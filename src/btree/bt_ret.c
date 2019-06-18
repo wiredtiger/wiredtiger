@@ -59,8 +59,7 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 			cursor->key.size = cbt->row_key->size;
 			return (0);
 		}
-		return (__wt_row_leaf_key(
-		    session, page, rip, &cursor->key, false));
+		return (__wt_row_leaf_key(session, page, rip, &cursor->key, false));
 	}
 
 	/*
@@ -102,17 +101,14 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
 		/* Take the value from the original page cell. */
 		__wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-		return (__wt_page_cell_data_ref(
-		    session, page, &unpack, &cursor->value));
-
+		return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
 	}
 
 	if (page->type == WT_PAGE_COL_VAR) {
 		/* Take the value from the original page cell. */
 		cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
 		__wt_cell_unpack(session, page, cell, &unpack);
-		return (__wt_page_cell_data_ref(
-		    session, page, &unpack, &cursor->value));
+		return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
 	}
 
 	/* WT_PAGE_COL_FIX: Take the value from the original page. */
@@ -126,7 +122,7 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  * allocate memory in a return path, so add a few additional slots to the array
  * we use to build up a list of modify records to apply.
  */
-#define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE + 10)
+#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE + 10)
 
 /*
  * __wt_value_return_upd --
@@ -134,8 +130,8 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	value.
  */
 int
-__wt_value_return_upd(WT_SESSION_IMPL *session,
-    WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
+__wt_value_return_upd(
+    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -165,9 +161,7 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 	 * Find a complete update that's visible to us, tracking modifications
 	 * that are visible to us.
 	 */
-	for (i = 0, listp = list, skipped_birthmark = false;
-	    upd != NULL;
-	    upd = upd->next) {
+	for (i = 0, listp = list, skipped_birthmark = false; upd != NULL; upd = upd->next) {
 		if (upd->txnid == WT_TXN_ABORTED)
 			continue;
 
@@ -195,8 +189,7 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 			if (i >= WT_MODIFY_ARRAY_SIZE) {
 				if (i == WT_MODIFY_ARRAY_SIZE)
 					listp = NULL;
-				WT_ERR(__wt_realloc_def(
-				    session, &allocated_bytes, i + 1, &listp));
+				WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
 				if (i == WT_MODIFY_ARRAY_SIZE)
 					memcpy(listp, list, sizeof(list));
 			}
@@ -242,8 +235,7 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 	} else if (upd->type == WT_UPDATE_TOMBSTONE)
 		WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
 	else
-		WT_ERR(__wt_buf_set(session,
-		    &cursor->value, upd->data, upd->size));
+		WT_ERR(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
 
 	/*
 	 * Once we have a base item, roll forward through any visible modify
@@ -252,7 +244,8 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 	while (i > 0)
 		WT_ERR(__wt_modify_apply(session, cursor, listp[--i]->data));
 
-err:	if (allocated_bytes != 0)
+err:
+	if (allocated_bytes != 0)
 		__wt_free(session, listp);
 	return (ret);
 }
@@ -290,8 +283,7 @@ __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *	Change the cursor to reference an internal return value.
  */
 int
-__wt_value_return(
-    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
 	WT_CURSOR *cursor;
 

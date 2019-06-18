@@ -13,16 +13,14 @@
  *	In-memory conversion of raw bytes to a hexadecimal representation.
  */
 static inline void
-__fill_hex(const uint8_t *src, size_t src_max,
-    uint8_t *dest, size_t dest_max, size_t *lenp)
+__fill_hex(const uint8_t *src, size_t src_max, uint8_t *dest, size_t dest_max, size_t *lenp)
 {
 	uint8_t *dest_orig;
 
 	dest_orig = dest;
-	if (dest_max > 0)		/* save a byte for nul-termination */
+	if (dest_max > 0) /* save a byte for nul-termination */
 		--dest_max;
-	for (; src_max > 0 && dest_max > 1;
-	    src_max -= 1, dest_max -= 2, ++src) {
+	for (; src_max > 0 && dest_max > 1; src_max -= 1, dest_max -= 2, ++src) {
 		*dest++ = __wt_hex((*src & 0xf0) >> 4);
 		*dest++ = __wt_hex(*src & 0x0f);
 	}
@@ -36,8 +34,7 @@ __fill_hex(const uint8_t *src, size_t src_max,
  *	In-memory conversion of raw bytes to a hexadecimal representation.
  */
 void
-__wt_fill_hex(const uint8_t *src, size_t src_max,
-    uint8_t *dest, size_t dest_max, size_t *lenp)
+__wt_fill_hex(const uint8_t *src, size_t src_max, uint8_t *dest, size_t dest_max, size_t *lenp)
 {
 	__fill_hex(src, src_max, dest, dest_max, lenp);
 }
@@ -47,8 +44,7 @@ __wt_fill_hex(const uint8_t *src, size_t src_max,
  *	Convert a chunk of data to a nul-terminated printable hex string.
  */
 int
-__wt_raw_to_hex(
-    WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
+__wt_raw_to_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
 {
 	size_t len;
 
@@ -68,8 +64,7 @@ __wt_raw_to_hex(
  * escaped hex, as necessary.
  */
 int
-__wt_raw_to_esc_hex(
-    WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
+__wt_raw_to_esc_hex(WT_SESSION_IMPL *session, const uint8_t *from, size_t size, WT_ITEM *to)
 {
 	size_t i;
 	const uint8_t *p;
@@ -106,55 +101,142 @@ __wt_hex2byte(const u_char *from, u_char *to)
 	uint8_t byte;
 
 	switch (from[0]) {
-	case '0': byte = 0; break;
-	case '1': byte = 1 << 4; break;
-	case '2': byte = 2 << 4; break;
-	case '3': byte = 3 << 4; break;
-	case '4': byte = 4 << 4; break;
-	case '5': byte = 5 << 4; break;
-	case '6': byte = 6 << 4; break;
-	case '7': byte = 7 << 4; break;
-	case '8': byte = 8 << 4; break;
-	case '9': byte = 9 << 4; break;
-	case 'A': byte = 10 << 4; break;
-	case 'B': byte = 11 << 4; break;
-	case 'C': byte = 12 << 4; break;
-	case 'D': byte = 13 << 4; break;
-	case 'E': byte = 14 << 4; break;
-	case 'F': byte = 15 << 4; break;
-	case 'a': byte = 10 << 4; break;
-	case 'b': byte = 11 << 4; break;
-	case 'c': byte = 12 << 4; break;
-	case 'd': byte = 13 << 4; break;
-	case 'e': byte = 14 << 4; break;
-	case 'f': byte = 15 << 4; break;
+	case '0':
+		byte = 0;
+		break;
+	case '1':
+		byte = 1 << 4;
+		break;
+	case '2':
+		byte = 2 << 4;
+		break;
+	case '3':
+		byte = 3 << 4;
+		break;
+	case '4':
+		byte = 4 << 4;
+		break;
+	case '5':
+		byte = 5 << 4;
+		break;
+	case '6':
+		byte = 6 << 4;
+		break;
+	case '7':
+		byte = 7 << 4;
+		break;
+	case '8':
+		byte = 8 << 4;
+		break;
+	case '9':
+		byte = 9 << 4;
+		break;
+	case 'A':
+		byte = 10 << 4;
+		break;
+	case 'B':
+		byte = 11 << 4;
+		break;
+	case 'C':
+		byte = 12 << 4;
+		break;
+	case 'D':
+		byte = 13 << 4;
+		break;
+	case 'E':
+		byte = 14 << 4;
+		break;
+	case 'F':
+		byte = 15 << 4;
+		break;
+	case 'a':
+		byte = 10 << 4;
+		break;
+	case 'b':
+		byte = 11 << 4;
+		break;
+	case 'c':
+		byte = 12 << 4;
+		break;
+	case 'd':
+		byte = 13 << 4;
+		break;
+	case 'e':
+		byte = 14 << 4;
+		break;
+	case 'f':
+		byte = 15 << 4;
+		break;
 	default:
 		return (1);
 	}
 
 	switch (from[1]) {
-	case '0': break;
-	case '1': byte |= 1; break;
-	case '2': byte |= 2; break;
-	case '3': byte |= 3; break;
-	case '4': byte |= 4; break;
-	case '5': byte |= 5; break;
-	case '6': byte |= 6; break;
-	case '7': byte |= 7; break;
-	case '8': byte |= 8; break;
-	case '9': byte |= 9; break;
-	case 'A': byte |= 10; break;
-	case 'B': byte |= 11; break;
-	case 'C': byte |= 12; break;
-	case 'D': byte |= 13; break;
-	case 'E': byte |= 14; break;
-	case 'F': byte |= 15; break;
-	case 'a': byte |= 10; break;
-	case 'b': byte |= 11; break;
-	case 'c': byte |= 12; break;
-	case 'd': byte |= 13; break;
-	case 'e': byte |= 14; break;
-	case 'f': byte |= 15; break;
+	case '0':
+		break;
+	case '1':
+		byte |= 1;
+		break;
+	case '2':
+		byte |= 2;
+		break;
+	case '3':
+		byte |= 3;
+		break;
+	case '4':
+		byte |= 4;
+		break;
+	case '5':
+		byte |= 5;
+		break;
+	case '6':
+		byte |= 6;
+		break;
+	case '7':
+		byte |= 7;
+		break;
+	case '8':
+		byte |= 8;
+		break;
+	case '9':
+		byte |= 9;
+		break;
+	case 'A':
+		byte |= 10;
+		break;
+	case 'B':
+		byte |= 11;
+		break;
+	case 'C':
+		byte |= 12;
+		break;
+	case 'D':
+		byte |= 13;
+		break;
+	case 'E':
+		byte |= 14;
+		break;
+	case 'F':
+		byte |= 15;
+		break;
+	case 'a':
+		byte |= 10;
+		break;
+	case 'b':
+		byte |= 11;
+		break;
+	case 'c':
+		byte |= 12;
+		break;
+	case 'd':
+		byte |= 13;
+		break;
+	case 'e':
+		byte |= 14;
+		break;
+	case 'f':
+		byte |= 15;
+		break;
 	default:
 		return (1);
 	}
@@ -187,8 +269,7 @@ __wt_hex_to_raw(WT_SESSION_IMPL *session, const char *from, WT_ITEM *to)
  *	Convert a printable hex string to a chunk of data.
  */
 int
-__wt_nhex_to_raw(
-    WT_SESSION_IMPL *session, const char *from, size_t size, WT_ITEM *to)
+__wt_nhex_to_raw(WT_SESSION_IMPL *session, const char *from, size_t size, WT_ITEM *to)
 {
 	const u_char *p;
 	u_char *t;

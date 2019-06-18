@@ -13,11 +13,10 @@
  *	Save a WT_UPDATE list for later restoration.
  */
 static int
-__rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-    WT_INSERT *ins, void *ripcip, WT_UPDATE *onpage_upd, size_t upd_memsize)
+__rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
+    WT_UPDATE *onpage_upd, size_t upd_memsize)
 {
-	WT_RET(__wt_realloc_def(
-	    session, &r->supd_allocated, r->supd_next + 1, &r->supd));
+	WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
 	r->supd[r->supd_next].ins = ins;
 	r->supd[r->supd_next].ripcip = ripcip;
 	r->supd[r->supd_next].onpage_upd = onpage_upd;
@@ -31,8 +30,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r,
  *	Append the key's original value to its update list.
  */
 static int
-__rec_append_orig_value(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
+__rec_append_orig_value(
+    WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
 {
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
@@ -41,14 +40,12 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 
 	/* Done if at least one self-contained update is globally visible. */
 	for (;; upd = upd->next) {
-		if (WT_UPDATE_DATA_VALUE(upd) &&
-		    __wt_txn_upd_visible_all(session, upd))
+		if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
 			return (0);
 
 		/* Add the original value after birthmarks. */
 		if (upd->type == WT_UPDATE_BIRTHMARK) {
-			WT_ASSERT(session, unpack != NULL &&
-			    unpack->type != WT_CELL_DEL);
+			WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
 			break;
 		}
 
@@ -66,16 +63,14 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 	 * pair which simply doesn't exist for some reader; place a deleted
 	 * record at the end of the update list.
 	 */
-	append = NULL;			/* -Wconditional-uninitialized */
-	size = 0;			/* -Wconditional-uninitialized */
+	append = NULL; /* -Wconditional-uninitialized */
+	size = 0;      /* -Wconditional-uninitialized */
 	if (unpack == NULL || unpack->type == WT_CELL_DEL)
-		WT_RET(__wt_update_alloc(session,
-		    NULL, &append, &size, WT_UPDATE_TOMBSTONE));
+		WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
 	else {
 		WT_RET(__wt_scr_alloc(session, 0, &tmp));
 		WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
-		WT_ERR(__wt_update_alloc(
-		    session, tmp, &append, &size, WT_UPDATE_STANDARD));
+		WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
 	}
 
 	/*
@@ -102,7 +97,8 @@ __rec_append_orig_value(WT_SESSION_IMPL *session,
 		upd->txnid = WT_TXN_ABORTED;
 	}
 
-err:	__wt_scr_free(session, &tmp);
+err:
+	__wt_scr_free(session, &tmp);
 	return (ret);
 }
 
@@ -112,8 +108,8 @@ err:	__wt_scr_free(session, &tmp);
  *	be written).
  */
 int
-__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
-    void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
+__wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
+    WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
@@ -183,14 +179,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			    upd->prepare_state == WT_PREPARE_INPROGRESS)
 				prepared = true;
 			else if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-			    WT_TXNID_LE(r->last_running, txnid) :
-			    !__txn_visible_id(session, txnid)) ||
-			    (upd->start_ts != WT_TS_NONE &&
-			    !__wt_txn_upd_durable(session, upd)))
+			                 WT_TXNID_LE(r->last_running, txnid) :
+			                 !__txn_visible_id(session, txnid)) ||
+			    (upd->start_ts != WT_TS_NONE && !__wt_txn_upd_durable(session, upd)))
 				uncommitted = r->update_uncommitted = true;
 
 			if (prepared || uncommitted)
-			       continue;
+				continue;
 		}
 
 		/* Track the first update with non-zero timestamp. */
@@ -218,9 +213,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (upd_select->upd == NULL && r->las_skew_newest)
 			upd_select->upd = upd;
 
-		if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-		    !__wt_txn_upd_visible_all(session, upd) :
-		    !__wt_txn_upd_visible(session, upd)) ||
+		if ((F_ISSET(r, WT_REC_VISIBLE_ALL) ? !__wt_txn_upd_visible_all(session, upd) :
+		                                      !__wt_txn_upd_visible(session, upd)) ||
 		    !__wt_txn_upd_durable(session, upd)) {
 			if (F_ISSET(r, WT_REC_EVICT))
 				++r->updates_unstable;
@@ -233,8 +227,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * stable update and older for correctness and we can't
 			 * discard an uncommitted update.
 			 */
-			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-			    upd_select->upd != NULL &&
+			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
 			    (uncommitted || prepared)) {
 				r->leave_dirty = true;
 				return (__wt_set_return(session, EBUSY));
@@ -262,17 +255,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	upd = upd_select->upd;
 
 	/* Reconciliation should never see an aborted or reserved update. */
-	WT_ASSERT(session, upd == NULL ||
-	    (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_RESERVE));
+	WT_ASSERT(session,
+	    upd == NULL || (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_RESERVE));
 
 	/*
 	 * The checkpoint transaction is special.  Make sure we never write
 	 * metadata updates from a checkpoint in a concurrent session.
 	 */
-	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) ||
-	    upd == NULL || upd->txnid == WT_TXN_NONE ||
-	    upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
-	    WT_SESSION_IS_CHECKPOINT(session));
+	WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
+	        upd->txnid == WT_TXN_NONE ||
+	        upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+	        WT_SESSION_IS_CHECKPOINT(session));
 
 	/* If all of the updates were aborted, quit. */
 	if (first_txn_upd == NULL) {
@@ -308,8 +301,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		upd_select->stop_ts = WT_TS_MAX;
 		upd_select->stop_txn = WT_TXN_MAX;
 		if (upd_select->upd->start_ts != WT_TS_NONE)
-			upd_select->durable_ts =
-			    upd_select->start_ts = upd_select->upd->start_ts;
+			upd_select->durable_ts = upd_select->start_ts = upd_select->upd->start_ts;
 		if (upd_select->upd->txnid != WT_TXN_NONE)
 			upd_select->start_txn = upd_select->upd->txnid;
 
@@ -317,12 +309,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * Finalize the timestamps and transactions, checking if the
 		 * update is globally visible and nothing needs to be written.
 		 */
-		if ((upd_select->stop_ts == WT_TS_MAX &&
-		    upd_select->stop_txn == WT_TXN_MAX) &&
-		    ((upd_select->start_ts == WT_TS_NONE &&
-		    upd_select->start_txn == WT_TXN_NONE) ||
-		    __wt_txn_visible_all(
-		    session, upd_select->start_txn, upd_select->start_ts))) {
+		if ((upd_select->stop_ts == WT_TS_MAX && upd_select->stop_txn == WT_TXN_MAX) &&
+		    ((upd_select->start_ts == WT_TS_NONE && upd_select->start_txn == WT_TXN_NONE) ||
+		        __wt_txn_visible_all(
+		            session, upd_select->start_txn, upd_select->start_ts))) {
 			upd_select->start_ts = WT_TS_NONE;
 			upd_select->start_txn = WT_TXN_NONE;
 			upd_select->stop_ts = WT_TS_MAX;
@@ -348,9 +338,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * update-restore and we skipped a birthmark, the original on-page
 	 * value must be retained.
 	 */
-	if (upd != NULL &&
-	    (upd->type == WT_UPDATE_BIRTHMARK ||
-	    (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)))
+	if (upd != NULL && (upd->type == WT_UPDATE_BIRTHMARK ||
+	                       (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)))
 		upd_select->upd = NULL;
 
 	/*
@@ -363,9 +352,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 */
 	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->durable_ts;
 	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
-	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-	    __wt_txn_visible_all(session, max_txn, timestamp) :
-	    __wt_txn_visible(session, max_txn, timestamp));
+	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ? __wt_txn_visible_all(session, max_txn, timestamp) :
+	                                      __wt_txn_visible(session, max_txn, timestamp));
 
 	if (all_visible)
 		goto check_original_value;
@@ -373,8 +361,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-		WT_PANIC_RET(session, EINVAL,
-		    "reconciliation error, update not visible");
+		WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
 
 	/*
 	 * If not trying to evict the page, we know what we'll write and we're
@@ -409,8 +396,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * The order of the updates on the list matters, we can't move only the
 	 * unresolved updates, move the entire update list.
 	 */
-	WT_RET(__rec_update_save(
-	    session, r, ins, ripcip, upd_select->upd, upd_memsize));
+	WT_RET(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
 	upd_select->upd_saved = true;
 
 	/*
@@ -423,26 +409,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
 			r->unstable_txn = first_upd->txnid;
 		if (first_ts_upd != NULL) {
-			WT_ASSERT(session,
-			   first_ts_upd->prepare_state ==
-			   WT_PREPARE_INPROGRESS ||
-			   first_ts_upd->start_ts <= first_ts_upd->durable_ts);
+			WT_ASSERT(session, first_ts_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+			        first_ts_upd->start_ts <= first_ts_upd->durable_ts);
 
 			if (r->unstable_timestamp < first_ts_upd->start_ts)
 				r->unstable_timestamp = first_ts_upd->start_ts;
 
-			if (r->unstable_durable_timestamp <
-			    first_ts_upd->durable_ts)
-				r->unstable_durable_timestamp =
-				    first_ts_upd->durable_ts;
+			if (r->unstable_durable_timestamp < first_ts_upd->durable_ts)
+				r->unstable_durable_timestamp = first_ts_upd->durable_ts;
 		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
 				continue;
 
-			if (upd->txnid != WT_TXN_NONE &&
-			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
+			if (upd->txnid != WT_TXN_NONE && WT_TXNID_LT(upd->txnid, r->unstable_txn))
 				r->unstable_txn = upd->txnid;
 
 			/*
@@ -451,9 +432,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * it OK to use the two independently and be confident
 			 * both will be set.
 			 */
-			WT_ASSERT(session,
-			   upd->prepare_state == WT_PREPARE_INPROGRESS ||
-			   upd->durable_ts >= upd->start_ts);
+			WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS ||
+			        upd->durable_ts >= upd->start_ts);
 
 			if (r->unstable_timestamp > upd->start_ts)
 				r->unstable_timestamp = upd->start_ts;
@@ -465,8 +445,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * future, including the prepare, so including the
 			 * prepare timestamp instead.
 			 */
-			ts = upd->prepare_state == WT_PREPARE_INPROGRESS ?
-			    upd->start_ts : upd->durable_ts;
+			ts = upd->prepare_state == WT_PREPARE_INPROGRESS ? upd->start_ts :
+			                                                   upd->durable_ts;
 			if (r->unstable_durable_timestamp > ts)
 				r->unstable_durable_timestamp = ts;
 		}
@@ -477,9 +457,7 @@ check_original_value:
 	 * Paranoia: check that we didn't choose an update that has since been
 	 * rolled back.
 	 */
-	WT_ASSERT(session,
-	    upd_select->upd == NULL ||
-	    upd_select->upd->txnid != WT_TXN_ABORTED);
+	WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED);
 
 	/*
 	 * Returning an update means the original on-page value might be lost,
@@ -489,11 +467,10 @@ check_original_value:
 	 * updates and during reconciliation of a backing overflow record that
 	 * will be physically removed once it's no longer needed
 	 */
-	if (upd_select->upd != NULL && (upd_select->upd_saved ||
-	    (vpack != NULL && vpack->ovfl &&
-	    vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-		WT_RET(
-		    __rec_append_orig_value(session, page, first_upd, vpack));
+	if (upd_select->upd != NULL &&
+	    (upd_select->upd_saved ||
+	        (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+		WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
 
 	return (0);
 }

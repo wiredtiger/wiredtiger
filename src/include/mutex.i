@@ -30,7 +30,7 @@ __spin_init_internal(WT_SPINLOCK *t, const char *name)
 
 /* Default to spinning 1000 times before yielding. */
 #ifndef WT_SPIN_COUNT
-#define	WT_SPIN_COUNT WT_THOUSAND
+#define WT_SPIN_COUNT WT_THOUSAND
 #endif
 
 /*
@@ -102,8 +102,7 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 	__sync_lock_release(&t->lock);
 }
 
-#elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||			\
-    SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE
+#elif SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX || SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE
 
 /*
  * __wt_spin_init --
@@ -146,8 +145,7 @@ __wt_spin_destroy(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 	}
 }
 
-#if SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX ||				\
-    SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE
+#if SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX || SPINLOCK_TYPE == SPINLOCK_PTHREAD_MUTEX_ADAPTIVE
 
 /*
  * __wt_spin_trylock --
@@ -201,9 +199,8 @@ __wt_spin_init(WT_SESSION_IMPL *session, WT_SPINLOCK *t, const char *name)
 
 	if (InitializeCriticalSectionAndSpinCount(&t->lock, 4000) == 0) {
 		windows_error = __wt_getlasterror();
-		__wt_errx(session,
-		    "%s: InitializeCriticalSectionAndSpinCount: %s",
-		    name, __wt_formatmessage(session, windows_error));
+		__wt_errx(session, "%s: InitializeCriticalSectionAndSpinCount: %s", name,
+		    __wt_formatmessage(session, windows_error));
 		return (__wt_map_windows_error(windows_error));
 	}
 
@@ -276,22 +273,23 @@ __wt_spin_unlock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
  * Implemented as a macro so we can pass in a statistics field and convert
  * it into a statistics structure array offset.
  */
-#define	WT_SPIN_INIT_TRACKED(session, t, name) do {			\
-	WT_RET(__wt_spin_init(session, t, #name));			\
-	(t)->stat_count_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
-	    S2C(session)->stats, lock_##name##_count);			\
-	(t)->stat_app_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
-	    S2C(session)->stats, lock_##name##_wait_application);	\
-	(t)->stat_int_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(	\
-	    S2C(session)->stats, lock_##name##_wait_internal);		\
-} while (0)
+#define WT_SPIN_INIT_TRACKED(session, t, name)                                                   \
+	do {                                                                                     \
+		WT_RET(__wt_spin_init(session, t, #name));                                       \
+		(t)->stat_count_off =                                                            \
+		    (int16_t)WT_STATS_FIELD_TO_OFFSET(S2C(session)->stats, lock_##name##_count); \
+		(t)->stat_app_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(                     \
+		    S2C(session)->stats, lock_##name##_wait_application);                        \
+		(t)->stat_int_usecs_off = (int16_t)WT_STATS_FIELD_TO_OFFSET(                     \
+		    S2C(session)->stats, lock_##name##_wait_internal);                           \
+	} while (0)
 
-#define	WT_SPIN_INIT_SESSION_TRACKED(session, t, name) do {                \
-	WT_SPIN_INIT_TRACKED(session, t, name);                         \
-	(t)->stat_session_usecs_off = \
-	    (int16_t)WT_SESSION_STATS_FIELD_TO_OFFSET(                  \
-	    &(session)->stats, lock_##name##_wait);                     \
-} while (0)
+#define WT_SPIN_INIT_SESSION_TRACKED(session, t, name)                                   \
+	do {                                                                             \
+		WT_SPIN_INIT_TRACKED(session, t, name);                                  \
+		(t)->stat_session_usecs_off = (int16_t)WT_SESSION_STATS_FIELD_TO_OFFSET( \
+		    &(session)->stats, lock_##name##_wait);                              \
+	} while (0)
 
 /*
  * __wt_spin_lock_track --
@@ -312,11 +310,9 @@ __wt_spin_lock_track(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 		session_stats = (int64_t *)&(session->stats);
 		stats[session->stat_bucket][t->stat_count_off]++;
 		if (F_ISSET(session, WT_SESSION_INTERNAL))
-			stats[session->stat_bucket][t->stat_int_usecs_off] +=
-			    (int64_t)time_diff;
+			stats[session->stat_bucket][t->stat_int_usecs_off] += (int64_t)time_diff;
 		else {
-			stats[session->stat_bucket][t->stat_app_usecs_off] +=
-			    (int64_t)time_diff;
+			stats[session->stat_bucket][t->stat_app_usecs_off] += (int64_t)time_diff;
 		}
 		session_stats[t->stat_session_usecs_off] += (int64_t)time_diff;
 	} else

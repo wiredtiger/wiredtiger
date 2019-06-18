@@ -8,19 +8,17 @@
 
 #include "wt_internal.h"
 
-static int __col_insert_alloc(
-    WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, size_t *);
+static int __col_insert_alloc(WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, size_t *);
 
 /*
  * __wt_col_modify --
  *	Column-store delete, insert, and update.
  */
 int
-__wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-    uint64_t recno, const WT_ITEM *value,
-    WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
+__wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
+    const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
 {
-	static const WT_ITEM col_fix_remove = { "", 1, NULL, 0, 0 };
+	static const WT_ITEM col_fix_remove = {"", 1, NULL, 0, 0};
 	WT_BTREE *btree;
 	WT_DECL_RET;
 	WT_INSERT *ins;
@@ -39,14 +37,12 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	append = logged = false;
 
 	if (upd_arg == NULL) {
-		if (modify_type == WT_UPDATE_RESERVE ||
-		    modify_type == WT_UPDATE_TOMBSTONE) {
+		if (modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) {
 			/*
 			 * Fixed-size column-store doesn't have on-page deleted
 			 * values, it's a nul byte.
 			 */
-			if (modify_type == WT_UPDATE_TOMBSTONE &&
-			    btree->type == BTREE_COL_FIX) {
+			if (modify_type == WT_UPDATE_TOMBSTONE && btree->type == BTREE_COL_FIX) {
 				modify_type = WT_UPDATE_STANDARD;
 				value = &col_fix_remove;
 			}
@@ -63,9 +59,8 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		WT_ASSERT(session, recno != WT_RECNO_OOB || cbt->compare != 0);
 		if (cbt->compare != 0 &&
 		    (recno == WT_RECNO_OOB ||
-		    recno > (btree->type == BTREE_COL_VAR ?
-		    __col_var_last_recno(cbt->ref) :
-		    __col_fix_last_recno(cbt->ref)))) {
+		        recno > (btree->type == BTREE_COL_VAR ? __col_var_last_recno(cbt->ref) :
+		                                                __col_fix_last_recno(cbt->ref)))) {
 			append = true;
 			cbt->ins = NULL;
 			cbt->ins_head = NULL;
@@ -99,8 +94,8 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	 * here.
 	 */
 	if (cbt->ins == NULL && cbt->ins_head != NULL) {
-		cbt->ins = __col_insert_search(
-		    cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
+		cbt->ins =
+		    __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, recno);
 		if (cbt->ins != NULL) {
 			if (WT_INSERT_RECNO(cbt->ins) == recno)
 				cbt->compare = 0;
@@ -137,8 +132,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		WT_ERR(__wt_txn_update_check(session, old_upd = cbt->ins->upd));
 
 		/* Allocate a WT_UPDATE structure and transaction ID. */
-		WT_ERR(__wt_update_alloc(session,
-		    value, &upd, &upd_size, modify_type));
+		WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
 		WT_ERR(__wt_txn_modify(session, upd));
 		logged = true;
 
@@ -153,21 +147,18 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		upd->next = old_upd;
 
 		/* Serialize the update. */
-		WT_ERR(__wt_update_serial(
-		    session, page, &cbt->ins->upd, &upd, upd_size, false));
+		WT_ERR(__wt_update_serial(session, page, &cbt->ins->upd, &upd, upd_size, false));
 	} else {
 		/* Allocate the append/update list reference as necessary. */
 		if (append) {
-			WT_PAGE_ALLOC_AND_SWAP(session,
-			    page, mod->mod_col_append, ins_headp, 1);
+			WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_append, ins_headp, 1);
 			ins_headp = &mod->mod_col_append[0];
 		} else if (page->type == WT_PAGE_COL_FIX) {
-			WT_PAGE_ALLOC_AND_SWAP(session,
-			    page, mod->mod_col_update, ins_headp, 1);
+			WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_update, ins_headp, 1);
 			ins_headp = &mod->mod_col_update[0];
 		} else {
-			WT_PAGE_ALLOC_AND_SWAP(session, page,
-			    mod->mod_col_update, ins_headp, page->entries);
+			WT_PAGE_ALLOC_AND_SWAP(
+			    session, page, mod->mod_col_update, ins_headp, page->entries);
 			ins_headp = &mod->mod_col_update[cbt->slot];
 		}
 
@@ -183,8 +174,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * update the cursor to reference it (the WT_INSERT_HEAD might
 		 * be allocated, the WT_INSERT was allocated).
 		 */
-		WT_ERR(__col_insert_alloc(
-		    session, recno, skipdepth, &ins, &ins_size));
+		WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
 		cbt->ins_head = ins_head;
 		cbt->ins = ins;
 
@@ -194,12 +184,10 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * otherwise diagnose.
 		 */
 		WT_ASSERT(session, mod->mod_col_split_recno == WT_RECNO_OOB ||
-		    (recno != WT_RECNO_OOB &&
-		    mod->mod_col_split_recno > recno));
+		        (recno != WT_RECNO_OOB && mod->mod_col_split_recno > recno));
 
 		if (upd_arg == NULL) {
-			WT_ERR(__wt_update_alloc(session,
-			    value, &upd, &upd_size, modify_type));
+			WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
 			WT_ERR(__wt_txn_modify(session, upd));
 			logged = true;
 
@@ -234,14 +222,11 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 
 		/* Append or insert the WT_INSERT structure. */
 		if (append)
-			WT_ERR(__wt_col_append_serial(
-			    session, page, cbt->ins_head, cbt->ins_stack,
+			WT_ERR(__wt_col_append_serial(session, page, cbt->ins_head, cbt->ins_stack,
 			    &ins, ins_size, &cbt->recno, skipdepth, exclusive));
 		else
-			WT_ERR(__wt_insert_serial(
-			    session, page, cbt->ins_head, cbt->ins_stack,
+			WT_ERR(__wt_insert_serial(session, page, cbt->ins_head, cbt->ins_stack,
 			    &ins, ins_size, skipdepth, exclusive));
-
 	}
 
 	/* If the update was successful, add it to the in-memory log. */
@@ -258,10 +243,10 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 	}
 
 	if (0) {
-err:		/*
-		 * Remove the update from the current transaction, so we don't
-		 * try to modify it on rollback.
-		 */
+	err: /*
+	      * Remove the update from the current transaction, so we don't
+	      * try to modify it on rollback.
+	      */
 		if (logged)
 			__wt_txn_unmodify(session);
 		__wt_free(session, ins);
@@ -277,8 +262,8 @@ err:		/*
  *	Column-store insert: allocate a WT_INSERT structure and fill it in.
  */
 static int
-__col_insert_alloc(WT_SESSION_IMPL *session,
-    uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
+__col_insert_alloc(
+    WT_SESSION_IMPL *session, uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
 {
 	WT_INSERT *ins;
 	size_t ins_size;

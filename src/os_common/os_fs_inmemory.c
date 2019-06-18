@@ -14,8 +14,7 @@
 typedef struct {
 	WT_FILE_SYSTEM iface;
 
-	TAILQ_HEAD(__wt_fhhash_inmem,
-	    __wt_file_handle_inmem) fhhash[WT_HASH_ARRAY_SIZE];
+	TAILQ_HEAD(__wt_fhhash_inmem, __wt_file_handle_inmem) fhhash[WT_HASH_ARRAY_SIZE];
 	TAILQ_HEAD(__wt_fh_inmem_qh, __wt_file_handle_inmem) fhqh;
 
 	WT_SPINLOCK lock;
@@ -38,7 +37,7 @@ __im_handle_search(WT_FILE_SYSTEM *file_system, const char *name)
 
 	hash = __wt_hash_city64(name, strlen(name));
 	bucket = hash % WT_HASH_ARRAY_SIZE;
-	TAILQ_FOREACH(im_fh, &im_fs->fhhash[bucket], hashq)
+	TAILQ_FOREACH (im_fh, &im_fs->fhhash[bucket], hashq)
 		if (strcmp(im_fh->iface.name, name) == 0)
 			break;
 
@@ -51,8 +50,8 @@ __im_handle_search(WT_FILE_SYSTEM *file_system, const char *name)
  *	shutdown.
  */
 static int
-__im_handle_remove(WT_SESSION_IMPL *session,
-    WT_FILE_SYSTEM *file_system, WT_FILE_HANDLE_INMEM *im_fh, bool force)
+__im_handle_remove(
+    WT_SESSION_IMPL *session, WT_FILE_SYSTEM *file_system, WT_FILE_HANDLE_INMEM *im_fh, bool force)
 {
 	WT_FILE_HANDLE *fhp;
 	WT_FILE_SYSTEM_INMEM *im_fs;
@@ -86,8 +85,7 @@ __im_handle_remove(WT_SESSION_IMPL *session,
  *	Return the directory contents.
  */
 static int
-__im_fs_directory_list(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *directory,
+__im_fs_directory_list(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *directory,
     const char *prefix, char ***dirlistp, uint32_t *countp)
 {
 	WT_DECL_RET;
@@ -111,14 +109,13 @@ __im_fs_directory_list(WT_FILE_SYSTEM *file_system,
 	__wt_spin_lock(session, &im_fs->lock);
 
 	count = 0;
-	TAILQ_FOREACH(im_fh, &im_fs->fhqh, q) {
+	TAILQ_FOREACH (im_fh, &im_fs->fhqh, q) {
 		name = im_fh->iface.name;
 		if (strncmp(name, directory, len) != 0 ||
 		    (prefix != NULL && !WT_PREFIX_MATCH(name + len, prefix)))
 			continue;
 
-		WT_ERR(__wt_realloc_def(
-		    session, &dirallocsz, count + 1, &entries));
+		WT_ERR(__wt_realloc_def(session, &dirallocsz, count + 1, &entries));
 		WT_ERR(__wt_strdup(session, name, &entries[count]));
 		++count;
 	}
@@ -126,7 +123,8 @@ __im_fs_directory_list(WT_FILE_SYSTEM *file_system,
 	*dirlistp = entries;
 	*countp = count;
 
-err:	__wt_spin_unlock(session, &im_fs->lock);
+err:
+	__wt_spin_unlock(session, &im_fs->lock);
 	if (ret == 0)
 		return (0);
 
@@ -136,9 +134,8 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
 		__wt_free(session, entries);
 	}
 
-	WT_RET_MSG(session, ret,
-	    "%s: directory-list, prefix \"%s\"",
-	    directory, prefix == NULL ? "" : prefix);
+	WT_RET_MSG(session, ret, "%s: directory-list, prefix \"%s\"", directory,
+	    prefix == NULL ? "" : prefix);
 }
 
 /*
@@ -146,8 +143,8 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  *	Free memory returned by __im_fs_directory_list.
  */
 static int
-__im_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, char **dirlist, uint32_t count)
+__im_fs_directory_list_free(
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, char **dirlist, uint32_t count)
 {
 	WT_SESSION_IMPL *session;
 
@@ -168,8 +165,7 @@ __im_fs_directory_list_free(WT_FILE_SYSTEM *file_system,
  *	Return if the file exists.
  */
 static int
-__im_fs_exist(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, bool *existp)
+__im_fs_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name, bool *existp)
 {
 	WT_FILE_SYSTEM_INMEM *im_fs;
 	WT_SESSION_IMPL *session;
@@ -190,8 +186,8 @@ __im_fs_exist(WT_FILE_SYSTEM *file_system,
  *	POSIX remove.
  */
 static int
-__im_fs_remove(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, uint32_t flags)
+__im_fs_remove(
+    WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
@@ -218,8 +214,8 @@ __im_fs_remove(WT_FILE_SYSTEM *file_system,
  *	POSIX rename.
  */
 static int
-__im_fs_rename(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *from, const char *to, uint32_t flags)
+__im_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *from,
+    const char *to, uint32_t flags)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
@@ -248,7 +244,8 @@ __im_fs_rename(WT_FILE_SYSTEM *file_system,
 		WT_FILE_HANDLE_INSERT(im_fs, im_fh, bucket);
 	}
 
-err:	__wt_spin_unlock(session, &im_fs->lock);
+err:
+	__wt_spin_unlock(session, &im_fs->lock);
 	return (ret);
 }
 
@@ -257,8 +254,7 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  *	Get the size of a file in bytes, by file name.
  */
 static int
-__im_fs_size(WT_FILE_SYSTEM *file_system,
-    WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
+__im_fs_size(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name, wt_off_t *sizep)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
@@ -310,8 +306,7 @@ __im_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  *	Lock/unlock a file.
  */
 static int
-__im_file_lock(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
+__im_file_lock(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, bool lock)
 {
 	WT_UNUSED(file_handle);
 	WT_UNUSED(wt_session);
@@ -324,8 +319,8 @@ __im_file_lock(
  *	POSIX pread.
  */
 static int
-__im_file_read(WT_FILE_HANDLE *file_handle,
-    WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
+__im_file_read(
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len, void *buf)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
@@ -349,9 +344,8 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
 	__wt_spin_unlock(session, &im_fs->lock);
 	if (ret == 0)
 		return (0);
-	WT_RET_MSG(session, WT_ERROR,
-	    "%s: handle-read: failed to read %" WT_SIZET_FMT " bytes at "
-	    "offset %" WT_SIZET_FMT,
+	WT_RET_MSG(session, WT_ERROR, "%s: handle-read: failed to read %" WT_SIZET_FMT " bytes at "
+	                              "offset %" WT_SIZET_FMT,
 	    file_handle->name, len, off);
 }
 
@@ -360,8 +354,7 @@ __im_file_read(WT_FILE_HANDLE *file_handle,
  *	Get the size of a file in bytes, by file handle.
  */
 static int
-__im_file_size(
-    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
+__im_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep)
 {
 	WT_FILE_HANDLE_INMEM *im_fh;
 	WT_FILE_SYSTEM_INMEM *im_fs;
@@ -397,8 +390,8 @@ __im_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  *	POSIX pwrite.
  */
 static int
-__im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
-    wt_off_t offset, size_t len, const void *buf)
+__im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset, size_t len,
+    const void *buf)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE_INMEM *im_fh;
@@ -419,12 +412,12 @@ __im_file_write(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
 	if (off + len > im_fh->buf.size)
 		im_fh->buf.size = off + len;
 
-err:	__wt_spin_unlock(session, &im_fs->lock);
+err:
+	__wt_spin_unlock(session, &im_fs->lock);
 	if (ret == 0)
 		return (0);
-	WT_RET_MSG(session, ret,
-	    "%s: handle-write: failed to write %" WT_SIZET_FMT " bytes at "
-	    "offset %" WT_SIZET_FMT,
+	WT_RET_MSG(session, ret, "%s: handle-write: failed to write %" WT_SIZET_FMT " bytes at "
+	                         "offset %" WT_SIZET_FMT,
 	    file_handle->name, len, off);
 }
 
@@ -433,9 +426,8 @@ err:	__wt_spin_unlock(session, &im_fs->lock);
  *	POSIX fopen/open.
  */
 static int
-__im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
-    const char *name, WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags,
-    WT_FILE_HANDLE **file_handlep)
+__im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *name,
+    WT_FS_OPEN_FILE_TYPE file_type, uint32_t flags, WT_FILE_HANDLE **file_handlep)
 {
 	WT_DECL_RET;
 	WT_FILE_HANDLE *file_handle;
@@ -461,8 +453,7 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	if (im_fh != NULL) {
 
 		if (im_fh->ref != 0)
-			WT_ERR_MSG(session, EBUSY,
-			    "%s: file-open: already open", name);
+			WT_ERR_MSG(session, EBUSY, "%s: file-open: already open", name);
 
 		im_fh->ref = 1;
 
@@ -498,7 +489,8 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session,
 	*file_handlep = file_handle;
 
 	if (0) {
-err:		__wt_free(session, im_fh);
+	err:
+		__wt_free(session, im_fh);
 	}
 
 	__wt_spin_unlock(session, &im_fs->lock);
@@ -520,9 +512,11 @@ __im_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session)
 	session = (WT_SESSION_IMPL *)wt_session;
 	im_fs = (WT_FILE_SYSTEM_INMEM *)file_system;
 
-	WT_TAILQ_SAFE_REMOVE_BEGIN(im_fh, &im_fs->fhqh, q, im_fh_tmp) {
+	WT_TAILQ_SAFE_REMOVE_BEGIN(im_fh, &im_fs->fhqh, q, im_fh_tmp)
+	{
 		WT_TRET(__im_handle_remove(session, file_system, im_fh, true));
-	} WT_TAILQ_SAFE_REMOVE_END
+	}
+	WT_TAILQ_SAFE_REMOVE_END
 
 	__wt_spin_destroy(session, &im_fs->lock);
 	__wt_free(session, im_fs);
@@ -567,6 +561,7 @@ __wt_os_inmemory(WT_SESSION_IMPL *session)
 
 	return (0);
 
-err:	__wt_free(session, im_fs);
+err:
+	__wt_free(session, im_fs);
 	return (ret);
 }

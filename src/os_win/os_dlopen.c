@@ -25,13 +25,11 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 
 	/* NULL means load from the current binary */
 	if (path == NULL) {
-		if (GetModuleHandleExW(
-		    0, NULL, (HMODULE *)&dlh->handle) == FALSE) {
+		if (GetModuleHandleExW(0, NULL, (HMODULE *)&dlh->handle) == FALSE) {
 			windows_error = __wt_getlasterror();
 			ret = __wt_map_windows_error(windows_error);
-			__wt_err(session, ret,
-			    "GetModuleHandleExW: %s: %s",
-			    path, __wt_formatmessage(session, windows_error));
+			__wt_err(session, ret, "GetModuleHandleExW: %s: %s", path,
+			    __wt_formatmessage(session, windows_error));
 			WT_ERR(ret);
 		}
 	} else {
@@ -41,7 +39,8 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 
 	*dlhp = dlh;
 	if (0) {
-err:		__wt_free(session, dlh->name);
+	err:
+		__wt_free(session, dlh->name);
 		__wt_free(session, dlh);
 	}
 	return (ret);
@@ -52,8 +51,7 @@ err:		__wt_free(session, dlh->name);
  *	Lookup a symbol in a dynamic library.
  */
 int
-__wt_dlsym(WT_SESSION_IMPL *session,
-    WT_DLH *dlh, const char *name, bool fail, void *sym_ret)
+__wt_dlsym(WT_SESSION_IMPL *session, WT_DLH *dlh, const char *name, bool fail, void *sym_ret)
 {
 	WT_DECL_RET;
 	DWORD windows_error;
@@ -65,9 +63,7 @@ __wt_dlsym(WT_SESSION_IMPL *session,
 	if (sym == NULL && fail) {
 		windows_error = __wt_getlasterror();
 		ret = __wt_map_windows_error(windows_error);
-		__wt_err(session, ret,
-		    "GetProcAddress: %s in %s: %s",
-		    name, dlh->name,
+		__wt_err(session, ret, "GetProcAddress: %s in %s: %s", name, dlh->name,
 		    __wt_formatmessage(session, windows_error));
 		WT_RET(ret);
 	}
@@ -89,8 +85,8 @@ __wt_dlclose(WT_SESSION_IMPL *session, WT_DLH *dlh)
 	if (FreeLibrary(dlh->handle) == FALSE) {
 		windows_error = __wt_getlasterror();
 		ret = __wt_map_windows_error(windows_error);
-		__wt_err(session, ret, "FreeLibrary: %s: %s",
-		    dlh->name, __wt_formatmessage(session, windows_error));
+		__wt_err(session, ret, "FreeLibrary: %s: %s", dlh->name,
+		    __wt_formatmessage(session, windows_error));
 	}
 
 	__wt_free(session, dlh->name);

@@ -14,8 +14,7 @@
  *	application into the dependent cursors.
  */
 int
-__wt_schema_project_in(WT_SESSION_IMPL *session,
-    WT_CURSOR **cp, const char *proj_arg, va_list ap)
+__wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg, va_list ap)
 {
 	WT_CURSOR *c;
 	WT_DECL_ITEM(buf);
@@ -28,7 +27,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session,
 	uint8_t *p, *end;
 	char *proj;
 
-	p = end = NULL;		/* -Wuninitialized */
+	p = end = NULL; /* -Wuninitialized */
 
 	/* Reset any of the buffers we will be setting. */
 	for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
@@ -53,8 +52,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session,
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
 			} else
-				WT_RET(__pack_init(
-				    session, &pack, c->key_format));
+				WT_RET(__pack_init(session, &pack, c->key_format));
 			buf = &c->key;
 			p = (uint8_t *)buf->data;
 			end = p + buf->size;
@@ -93,52 +91,47 @@ __wt_schema_project_in(WT_SESSION_IMPL *session,
 						pv.u.s = "";
 
 					WT_RET(__pack_size(session, &pv, &len));
-					WT_RET(__wt_buf_grow(session,
-					    buf, buf->size + len));
+					WT_RET(__wt_buf_grow(session, buf, buf->size + len));
 					p = (uint8_t *)buf->mem + buf->size;
-					WT_RET(__pack_write(
-					    session, &pv, &p, len));
+					WT_RET(__pack_write(session, &pv, &p, len));
 					buf->size += len;
 					end = (uint8_t *)buf->mem + buf->size;
 				} else if (*proj == WT_PROJ_SKIP)
-					WT_RET(__unpack_read(session,
-					    &pv, (const uint8_t **)&p,
-					    (size_t)(end - p)));
+					WT_RET(__unpack_read(
+					    session, &pv, (const uint8_t **)&p, (size_t)(end - p)));
 				break;
 
 			case WT_PROJ_NEXT:
 				WT_RET(__pack_next(&pack, &pv));
 				WT_PACK_GET(session, pv, ap);
-				/* FALLTHROUGH */
+			/* FALLTHROUGH */
 
 			case WT_PROJ_REUSE:
 				/* Read the item we're about to overwrite. */
 				next = p;
 				if (p < end) {
 					old_pv = pv;
-					WT_RET(__unpack_read(session, &old_pv,
-					    &next, (size_t)(end - p)));
+					WT_RET(__unpack_read(
+					    session, &old_pv, &next, (size_t)(end - p)));
 				}
 				old_len = (size_t)(next - p);
 
 				WT_RET(__pack_size(session, &pv, &len));
 				offset = WT_PTRDIFF(p, buf->mem);
-				WT_RET(__wt_buf_grow(session,
-				    buf, buf->size + len));
+				WT_RET(__wt_buf_grow(session, buf, buf->size + len));
 				p = (uint8_t *)buf->mem + offset;
 				end = (uint8_t *)buf->mem + buf->size + len;
 				/* Make room if we're inserting out-of-order. */
 				if (offset + old_len < buf->size)
-					memmove(p + len, p + old_len,
-					    buf->size - (offset + old_len));
+					memmove(
+					    p + len, p + old_len, buf->size - (offset + old_len));
 				WT_RET(__pack_write(session, &pv, &p, len));
 				buf->size += len;
 				break;
 
 			default:
-				WT_RET_MSG(session, EINVAL,
-				    "unexpected projection plan: %c",
-				    (int)*proj);
+				WT_RET_MSG(
+				    session, EINVAL, "unexpected projection plan: %c", (int)*proj);
 			}
 		}
 	}
@@ -152,8 +145,7 @@ __wt_schema_project_in(WT_SESSION_IMPL *session,
  *	dependent cursors and return them to the application.
  */
 int
-__wt_schema_project_out(WT_SESSION_IMPL *session,
-    WT_CURSOR **cp, const char *proj_arg, va_list ap)
+__wt_schema_project_out(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg, va_list ap)
 {
 	WT_CURSOR *c;
 	WT_DECL_PACK(pack);
@@ -162,7 +154,7 @@ __wt_schema_project_out(WT_SESSION_IMPL *session,
 	uint8_t *p, *end;
 	char *proj;
 
-	p = end = NULL;		/* -Wuninitialized */
+	p = end = NULL; /* -Wuninitialized */
 
 	for (proj = (char *)proj_arg; *proj != '\0'; proj++) {
 		arg = strtoul(proj, &proj, 10);
@@ -175,8 +167,7 @@ __wt_schema_project_out(WT_SESSION_IMPL *session,
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
 			} else
-				WT_RET(__pack_init(
-				    session, &pack, c->key_format));
+				WT_RET(__pack_init(session, &pack, c->key_format));
 			p = (uint8_t *)c->key.data;
 			end = p + c->key.size;
 			continue;
@@ -199,8 +190,8 @@ __wt_schema_project_out(WT_SESSION_IMPL *session,
 			case WT_PROJ_SKIP:
 			case WT_PROJ_REUSE:
 				WT_RET(__pack_next(&pack, &pv));
-				WT_RET(__unpack_read(session, &pv,
-				    (const uint8_t **)&p, (size_t)(end - p)));
+				WT_RET(__unpack_read(
+				    session, &pv, (const uint8_t **)&p, (size_t)(end - p)));
 				/* Only copy the value out once. */
 				if (*proj != WT_PROJ_NEXT)
 					break;
@@ -219,8 +210,8 @@ __wt_schema_project_out(WT_SESSION_IMPL *session,
  *	a raw buffer.
  */
 int
-__wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
-    const char *proj_arg, bool key_only, const char *vformat, WT_ITEM *value)
+__wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
+    bool key_only, const char *vformat, WT_ITEM *value)
 {
 	WT_CURSOR *c;
 	WT_DECL_ITEM(buf);
@@ -235,7 +226,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
 	char *proj;
 	bool skip;
 
-	p = end = NULL;		/* -Wuninitialized */
+	p = end = NULL; /* -Wuninitialized */
 
 	WT_RET(__pack_init(session, &vpack, vformat));
 	vp = value->data;
@@ -266,8 +257,7 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
 			} else
-				WT_RET(__pack_init(
-				    session, &pack, c->key_format));
+				WT_RET(__pack_init(session, &pack, c->key_format));
 			buf = &c->key;
 			p = (uint8_t *)buf->data;
 			end = p + buf->size;
@@ -311,24 +301,20 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
 						pv.u.s = "";
 
 					WT_RET(__pack_size(session, &pv, &len));
-					WT_RET(__wt_buf_grow(session,
-					    buf, buf->size + len));
+					WT_RET(__wt_buf_grow(session, buf, buf->size + len));
 					p = (uint8_t *)buf->data + buf->size;
-					WT_RET(__pack_write(
-					    session, &pv, &p, len));
+					WT_RET(__pack_write(session, &pv, &p, len));
 					end = p;
 					buf->size += len;
 				} else
-					WT_RET(__unpack_read(session,
-					    &pv, (const uint8_t **)&p,
-					    (size_t)(end - p)));
+					WT_RET(__unpack_read(
+					    session, &pv, (const uint8_t **)&p, (size_t)(end - p)));
 				break;
 
 			case WT_PROJ_NEXT:
 				WT_RET(__pack_next(&vpack, &vpv));
-				WT_RET(__unpack_read(session, &vpv,
-				    &vp, (size_t)(vend - vp)));
-				/* FALLTHROUGH */
+				WT_RET(__unpack_read(session, &vpv, &vp, (size_t)(vend - vp)));
+			/* FALLTHROUGH */
 
 			case WT_PROJ_REUSE:
 				if (skip)
@@ -347,14 +333,13 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
 
 				next = p;
 				if (p < end)
-					WT_RET(__unpack_read(session, &pv,
-					    &next, (size_t)(end - p)));
+					WT_RET(
+					    __unpack_read(session, &pv, &next, (size_t)(end - p)));
 				old_len = (size_t)(next - p);
 
 				/* Make sure the types are compatible. */
-				WT_ASSERT(session,
-				    __wt_tolower((u_char)pv.type) ==
-				    __wt_tolower((u_char)vpv.type));
+				WT_ASSERT(session, __wt_tolower((u_char)pv.type) ==
+				        __wt_tolower((u_char)vpv.type));
 				pv.u = vpv.u;
 
 				WT_RET(__pack_size(session, &pv, &len));
@@ -366,21 +351,20 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
 				 * have to be written to cursor->recno.
 				 */
 				if (len > old_len)
-					WT_RET(__wt_buf_grow(session,
-					    buf, buf->size + len - old_len));
+					WT_RET(
+					    __wt_buf_grow(session, buf, buf->size + len - old_len));
 				p = (uint8_t *)buf->data + offset;
 				/* Make room if we're inserting out-of-order. */
 				if (offset + old_len < buf->size)
-					memmove(p + len, p + old_len,
-					    buf->size - (offset + old_len));
+					memmove(
+					    p + len, p + old_len, buf->size - (offset + old_len));
 				WT_RET(__pack_write(session, &pv, &p, len));
 				buf->size += len - old_len;
 				end = (uint8_t *)buf->data + buf->size;
 				break;
 			default:
-				WT_RET_MSG(session, EINVAL,
-				    "unexpected projection plan: %c",
-				    (int)*proj);
+				WT_RET_MSG(
+				    session, EINVAL, "unexpected projection plan: %c", (int)*proj);
 			}
 		}
 	}
@@ -394,8 +378,8 @@ __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,
  *	column values read from the cursors.
  */
 int
-__wt_schema_project_merge(WT_SESSION_IMPL *session,
-    WT_CURSOR **cp, const char *proj_arg, const char *vformat, WT_ITEM *value)
+__wt_schema_project_merge(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
+    const char *vformat, WT_ITEM *value)
 {
 	WT_CURSOR *c;
 	WT_DECL_PACK(pack);
@@ -409,7 +393,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session,
 	uint8_t *vp;
 	char *proj;
 
-	p = end = NULL;		/* -Wuninitialized */
+	p = end = NULL; /* -Wuninitialized */
 
 	WT_RET(__wt_buf_init(session, value, 0));
 	WT_RET(__pack_init(session, &vpack, vformat));
@@ -425,8 +409,7 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session,
 				c->key.size = sizeof(c->recno);
 				WT_RET(__pack_init(session, &pack, "R"));
 			} else
-				WT_RET(__pack_init(
-				    session, &pack, c->key_format));
+				WT_RET(__pack_init(session, &pack, c->key_format));
 			buf = &c->key;
 			p = buf->data;
 			end = p + buf->size;
@@ -451,21 +434,18 @@ __wt_schema_project_merge(WT_SESSION_IMPL *session,
 			case WT_PROJ_SKIP:
 			case WT_PROJ_REUSE:
 				WT_RET(__pack_next(&pack, &pv));
-				WT_RET(__unpack_read(session, &pv,
-				    &p, (size_t)(end - p)));
+				WT_RET(__unpack_read(session, &pv, &p, (size_t)(end - p)));
 				/* Only copy the value out once. */
 				if (*proj != WT_PROJ_NEXT)
 					break;
 
 				WT_RET(__pack_next(&vpack, &vpv));
 				/* Make sure the types are compatible. */
-				WT_ASSERT(session,
-				    __wt_tolower((u_char)pv.type) ==
-				    __wt_tolower((u_char)vpv.type));
+				WT_ASSERT(session, __wt_tolower((u_char)pv.type) ==
+				        __wt_tolower((u_char)vpv.type));
 				vpv.u = pv.u;
 				WT_RET(__pack_size(session, &vpv, &len));
-				WT_RET(__wt_buf_grow(session,
-				    value, value->size + len));
+				WT_RET(__wt_buf_grow(session, value, value->size + len));
 				vp = (uint8_t *)value->mem + value->size;
 				WT_RET(__pack_write(session, &vpv, &vp, len));
 				value->size += len;

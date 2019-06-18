@@ -13,8 +13,7 @@
  *	Initialize the statistics for a LSM tree.
  */
 static int
-__curstat_lsm_init(
-    WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
+__curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
 {
 	WT_CURSOR *stat_cursor;
 	WT_DECL_ITEM(uribuf);
@@ -26,11 +25,9 @@ __curstat_lsm_init(
 	u_int i;
 	char config[64];
 	bool locked;
-	const char *cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL };
-	const char *disk_cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
-	    "checkpoint=" WT_CHECKPOINT, NULL, NULL };
+	const char *cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL};
+	const char *disk_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
+	    "checkpoint=" WT_CHECKPOINT, NULL, NULL};
 
 	locked = false;
 	WT_RET(__wt_lsm_tree_get(session, uri, false, &lsm_tree));
@@ -38,12 +35,11 @@ __curstat_lsm_init(
 
 	/* Propagate all, fast and/or clear to the cursors we open. */
 	if (cst->flags != 0) {
-		WT_ERR(__wt_snprintf(config, sizeof(config),
-		    "statistics=(%s%s%s%s)",
+		WT_ERR(__wt_snprintf(config, sizeof(config), "statistics=(%s%s%s%s)",
 		    F_ISSET(cst, WT_STAT_TYPE_ALL) ? "all," : "",
 		    F_ISSET(cst, WT_STAT_CLEAR) ? "clear," : "",
-		    !F_ISSET(cst, WT_STAT_TYPE_ALL) &&
-		    F_ISSET(cst, WT_STAT_TYPE_FAST) ? "fast," : "",
+		    !F_ISSET(cst, WT_STAT_TYPE_ALL) && F_ISSET(cst, WT_STAT_TYPE_FAST) ? "fast," :
+		                                                                         "",
 		    F_ISSET(cst, WT_STAT_TYPE_SIZE) ? "size," : ""));
 		cfg[1] = disk_cfg[1] = config;
 	}
@@ -73,14 +69,11 @@ __curstat_lsm_init(
 		 * was written.  If so, try to open the ordinary handle on that
 		 * chunk instead.
 		 */
-		WT_ERR(__wt_buf_fmt(
-		    session, uribuf, "statistics:%s", chunk->uri));
+		WT_ERR(__wt_buf_fmt(session, uribuf, "statistics:%s", chunk->uri));
 		ret = __wt_curstat_open(session, uribuf->data, NULL,
-		    F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) ? disk_cfg : cfg,
-		    &stat_cursor);
+		    F_ISSET(chunk, WT_LSM_CHUNK_ONDISK) ? disk_cfg : cfg, &stat_cursor);
 		if (ret == WT_NOTFOUND && F_ISSET(chunk, WT_LSM_CHUNK_ONDISK))
-			ret = __wt_curstat_open(
-			    session, uribuf->data, NULL, cfg, &stat_cursor);
+			ret = __wt_curstat_open(session, uribuf->data, NULL, cfg, &stat_cursor);
 		WT_ERR(ret);
 
 		/*
@@ -89,8 +82,7 @@ __curstat_lsm_init(
 		 * top-level.
 		 */
 		new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
-		WT_STAT_WRITE(session,
-		    new, lsm_generation_max, chunk->generation);
+		WT_STAT_WRITE(session, new, lsm_generation_max, chunk->generation);
 
 		/* Aggregate statistics from each new chunk. */
 		__wt_stat_dsrc_aggregate_single(new, stats);
@@ -103,10 +95,8 @@ __curstat_lsm_init(
 		++bloom_count;
 
 		/* Get the bloom filter's underlying object. */
-		WT_ERR(__wt_buf_fmt(
-		    session, uribuf, "statistics:%s", chunk->bloom_uri));
-		WT_ERR(__wt_curstat_open(
-		    session, uribuf->data, NULL, cfg, &stat_cursor));
+		WT_ERR(__wt_buf_fmt(session, uribuf, "statistics:%s", chunk->bloom_uri));
+		WT_ERR(__wt_curstat_open(session, uribuf->data, NULL, cfg, &stat_cursor));
 
 		/*
 		 * The underlying statistics have now been initialized; fill in
@@ -135,26 +125,23 @@ __curstat_lsm_init(
 	WT_STAT_WRITE(session, stats, bloom_hit, lsm_tree->bloom_hit);
 	if (F_ISSET(cst, WT_STAT_CLEAR))
 		lsm_tree->bloom_hit = 0;
-	WT_STAT_WRITE(session,
-	    stats, bloom_false_positive, lsm_tree->bloom_false_positive);
+	WT_STAT_WRITE(session, stats, bloom_false_positive, lsm_tree->bloom_false_positive);
 	if (F_ISSET(cst, WT_STAT_CLEAR))
 		lsm_tree->bloom_false_positive = 0;
-	WT_STAT_WRITE(session,
-	    stats, lsm_lookup_no_bloom, lsm_tree->lsm_lookup_no_bloom);
+	WT_STAT_WRITE(session, stats, lsm_lookup_no_bloom, lsm_tree->lsm_lookup_no_bloom);
 	if (F_ISSET(cst, WT_STAT_CLEAR))
 		lsm_tree->lsm_lookup_no_bloom = 0;
-	WT_STAT_WRITE(session,
-	    stats, lsm_checkpoint_throttle, lsm_tree->lsm_checkpoint_throttle);
+	WT_STAT_WRITE(session, stats, lsm_checkpoint_throttle, lsm_tree->lsm_checkpoint_throttle);
 	if (F_ISSET(cst, WT_STAT_CLEAR))
 		lsm_tree->lsm_checkpoint_throttle = 0;
-	WT_STAT_WRITE(session,
-	    stats, lsm_merge_throttle, lsm_tree->lsm_merge_throttle);
+	WT_STAT_WRITE(session, stats, lsm_merge_throttle, lsm_tree->lsm_merge_throttle);
 	if (F_ISSET(cst, WT_STAT_CLEAR))
 		lsm_tree->lsm_merge_throttle = 0;
 
 	__wt_curstat_dsrc_final(cst);
 
-err:	if (locked)
+err:
+	if (locked)
 		__wt_lsm_tree_readunlock(session, lsm_tree);
 	__wt_lsm_tree_release(session, lsm_tree);
 	__wt_scr_free(session, &uribuf);
@@ -167,8 +154,7 @@ err:	if (locked)
  *	Initialize the statistics for a LSM tree.
  */
 int
-__wt_curstat_lsm_init(
-    WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
+__wt_curstat_lsm_init(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR_STAT *cst)
 {
 	WT_DECL_RET;
 
@@ -176,8 +162,7 @@ __wt_curstat_lsm_init(
 	 * Grab the schema lock because we will be locking the LSM tree and we
 	 * may need to open some files.
 	 */
-	WT_WITH_SCHEMA_LOCK(session,
-	    ret = __curstat_lsm_init(session, uri, cst));
+	WT_WITH_SCHEMA_LOCK(session, ret = __curstat_lsm_init(session, uri, cst));
 
 	return (ret);
 }

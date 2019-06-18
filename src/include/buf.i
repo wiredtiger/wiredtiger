@@ -15,7 +15,8 @@ static inline int
 __wt_buf_grow(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 {
 	return (size > buf->memsize || !WT_DATA_IN_ITEM(buf) ?
-	    __wt_buf_grow_worker(session, buf, size) : 0);
+	        __wt_buf_grow_worker(session, buf, size) :
+	        0);
 }
 
 /*
@@ -31,8 +32,8 @@ __wt_buf_extend(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 	 * so grows the buffer exponentially to avoid repeated costly calls to
 	 * realloc.
 	 */
-	return (size > buf->memsize ?
-	    __wt_buf_grow(session, buf, WT_MAX(size, 2 * buf->memsize)) : 0);
+	return (
+	    size > buf->memsize ? __wt_buf_grow(session, buf, WT_MAX(size, 2 * buf->memsize)) : 0);
 }
 
 /*
@@ -61,7 +62,7 @@ __wt_buf_initsize(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 {
 	WT_RET(__wt_buf_init(session, buf, size));
 
-	buf->size = size;			/* Set the data length. */
+	buf->size = size; /* Set the data length. */
 
 	return (0);
 }
@@ -71,8 +72,7 @@ __wt_buf_initsize(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
  *	Set the contents of the buffer.
  */
 static inline int
-__wt_buf_set(
-    WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t size)
+__wt_buf_set(WT_SESSION_IMPL *session, WT_ITEM *buf, const void *data, size_t size)
 {
 	/*
 	 * The buffer grow function does what we need, but expects the data to
@@ -120,8 +120,7 @@ __wt_scr_free(WT_SESSION_IMPL *session, WT_ITEM **bufp)
 		return;
 	*bufp = NULL;
 
-	if (session->scratch_cached + buf->memsize >=
-	    S2C(session)->session_scratch_max) {
+	if (session->scratch_cached + buf->memsize >= S2C(session)->session_scratch_max) {
 		__wt_free(session, buf->mem);
 		buf->memsize = 0;
 	} else

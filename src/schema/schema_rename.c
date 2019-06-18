@@ -13,8 +13,7 @@
  *	WT_SESSION::rename for a file.
  */
 static int
-__rename_file(
-    WT_SESSION_IMPL *session, const char *uri, const char *newuri)
+__rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
 {
 	WT_DECL_RET;
 	const char *filename, *newfile;
@@ -31,8 +30,8 @@ __rename_file(
 	WT_RET(__wt_schema_backup_check(session, filename));
 	WT_RET(__wt_schema_backup_check(session, newfile));
 	/* Close any btree handles in the file. */
-	WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
-	    ret = __wt_conn_dhandle_close_all(session, uri, true, false));
+	WT_WITH_HANDLE_LIST_WRITE_LOCK(
+	    session, ret = __wt_conn_dhandle_close_all(session, uri, true, false));
 	WT_ERR(ret);
 
 	/*
@@ -50,7 +49,7 @@ __rename_file(
 	switch (ret = __wt_metadata_search(session, newuri, &newvalue)) {
 	case 0:
 		WT_ERR_MSG(session, EEXIST, "%s", newuri);
-		/* NOTREACHED */
+	/* NOTREACHED */
 	case WT_NOTFOUND:
 		break;
 	default:
@@ -69,7 +68,8 @@ __rename_file(
 	if (WT_META_TRACKING(session))
 		WT_ERR(__wt_meta_track_fileop(session, uri, newuri));
 
-err:	__wt_free(session, newvalue);
+err:
+	__wt_free(session, newvalue);
 	__wt_free(session, oldvalue);
 	return (ret);
 }
@@ -79,8 +79,8 @@ err:	__wt_free(session, newvalue);
  *	Rename an index or colgroup reference.
  */
 static int
-__rename_tree(WT_SESSION_IMPL *session,
-    WT_TABLE *table, const char *newuri, const char *name, const char *cfg[])
+__rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, const char *name,
+    const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_DECL_ITEM(nn);
@@ -106,8 +106,8 @@ __rename_tree(WT_SESSION_IMPL *session,
 	 */
 	is_colgroup = WT_PREFIX_MATCH(name, "colgroup:");
 	if (!is_colgroup && !WT_PREFIX_MATCH(name, "index:"))
-		WT_ERR_MSG(session, EINVAL,
-		    "expected a 'colgroup:' or 'index:' source: '%s'", name);
+		WT_ERR_MSG(
+		    session, EINVAL, "expected a 'colgroup:' or 'index:' source: '%s'", name);
 
 	suffix = strchr(name, ':');
 	/* An existing table should have a well formed name. */
@@ -115,9 +115,7 @@ __rename_tree(WT_SESSION_IMPL *session,
 	suffix = strchr(suffix + 1, ':');
 
 	WT_ERR(__wt_scr_alloc(session, 0, &nn));
-	WT_ERR(__wt_buf_fmt(session, nn, "%s%s%s",
-	    is_colgroup ? "colgroup:" : "index:",
-	    newname,
+	WT_ERR(__wt_buf_fmt(session, nn, "%s%s%s", is_colgroup ? "colgroup:" : "index:", newname,
 	    (suffix == NULL) ? "" : suffix));
 
 	/* Skip the colon, if any. */
@@ -134,15 +132,12 @@ __rename_tree(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_scr_alloc(session, 0, &ns));
 	table->iface.name = newuri;
 	if (is_colgroup)
-		WT_ERR(__wt_schema_colgroup_source(
-		    session, table, suffix, value, ns));
+		WT_ERR(__wt_schema_colgroup_source(session, table, suffix, value, ns));
 	else
-		WT_ERR(__wt_schema_index_source(
-		    session, table, suffix, value, ns));
+		WT_ERR(__wt_schema_index_source(session, table, suffix, value, ns));
 
 	if ((ret = __wt_config_getones(session, value, "source", &cval)) != 0)
-		WT_ERR_MSG(session, EINVAL,
-		    "index or column group has no data source: %s", value);
+		WT_ERR_MSG(session, EINVAL, "index or column group has no data source: %s", value);
 
 	/* Take a copy of the old data source. */
 	WT_ERR(__wt_scr_alloc(session, 0, &os));
@@ -150,8 +145,7 @@ __rename_tree(WT_SESSION_IMPL *session,
 
 	/* Overwrite it with the new data source. */
 	WT_ERR(__wt_scr_alloc(session, 0, &nv));
-	WT_ERR(__wt_buf_fmt(session, nv, "%.*s%s%s",
-	    (int)WT_PTRDIFF(cval.str, value), value,
+	WT_ERR(__wt_buf_fmt(session, nv, "%.*s%s%s", (int)WT_PTRDIFF(cval.str, value), value,
 	    (const char *)ns->data, cval.str + cval.len));
 
 	/*
@@ -167,7 +161,8 @@ __rename_tree(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_metadata_remove(session, name));
 	WT_ERR(__wt_metadata_insert(session, nn->data, nv->data));
 
-err:	__wt_scr_free(session, &nn);
+err:
+	__wt_scr_free(session, &nn);
 	__wt_scr_free(session, &ns);
 	__wt_scr_free(session, &nv);
 	__wt_scr_free(session, &os);
@@ -190,7 +185,8 @@ __metadata_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
 	WT_ERR(__wt_metadata_remove(session, uri));
 	WT_ERR(__wt_metadata_insert(session, newuri, value));
 
-err:	__wt_free(session, value);
+err:
+	__wt_free(session, value);
 	return (ret);
 }
 
@@ -199,8 +195,7 @@ err:	__wt_free(session, value);
  *	WT_SESSION::rename for a table.
  */
 static int
-__rename_table(WT_SESSION_IMPL *session,
-    const char *uri, const char *newuri, const char *cfg[])
+__rename_table(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[])
 {
 	WT_DECL_RET;
 	WT_TABLE *table;
@@ -221,28 +216,24 @@ __rename_table(WT_SESSION_IMPL *session,
 	 * WT_WITHOUT_LOCKS macro can drop and reacquire the global table lock,
 	 * avoiding deadlocks while waiting for LSM operation to quiesce.
 	 */
-	WT_RET(__wt_schema_get_table(
-	    session, oldname, strlen(oldname), false, 0, &table));
+	WT_RET(__wt_schema_get_table(session, oldname, strlen(oldname), false, 0, &table));
 
 	/* Rename the column groups. */
 	for (i = 0; i < WT_COLGROUPS(table); i++)
-		WT_ERR(__rename_tree(session, table, newuri,
-		    table->cgroups[i]->name, cfg));
+		WT_ERR(__rename_tree(session, table, newuri, table->cgroups[i]->name, cfg));
 
 	/* Rename the indices. */
 	WT_ERR(__wt_schema_open_indices(session, table));
 	for (i = 0; i < table->nindices; i++)
-		WT_ERR(__rename_tree(session, table, newuri,
-		    table->indices[i]->name, cfg));
+		WT_ERR(__rename_tree(session, table, newuri, table->indices[i]->name, cfg));
 
 	/* Make sure the table data handle is closed. */
 	WT_ERR(__wt_schema_release_table(session, &table));
-	WT_ERR(__wt_schema_get_table_uri(
-	    session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
+	WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
 	F_SET(&table->iface, WT_DHANDLE_DISCARD);
 	if (WT_META_TRACKING(session)) {
-		WT_WITH_DHANDLE(session, &table->iface,
-		    ret = __wt_meta_track_handle_lock(session, false));
+		WT_WITH_DHANDLE(
+		    session, &table->iface, ret = __wt_meta_track_handle_lock(session, false));
 		WT_ERR(ret);
 		tracked = true;
 	}
@@ -250,7 +241,8 @@ __rename_table(WT_SESSION_IMPL *session,
 	/* Rename the table. */
 	ret = __metadata_rename(session, uri, newuri);
 
-err:	if (!tracked)
+err:
+	if (!tracked)
 		WT_TRET(__wt_schema_release_table(session, &table));
 	return (ret);
 }
@@ -260,8 +252,7 @@ err:	if (!tracked)
  *	WT_SESSION::rename.
  */
 static int
-__schema_rename(WT_SESSION_IMPL *session,
-    const char *uri, const char *newuri, const char *cfg[])
+__schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[])
 {
 	WT_DATA_SOURCE *dsrc;
 	WT_DECL_RET;
@@ -271,8 +262,8 @@ __schema_rename(WT_SESSION_IMPL *session,
 	for (p = uri, t = newuri; *p == *t && *p != ':'; ++p, ++t)
 		;
 	if (*p != ':' || *t != ':')
-		WT_RET_MSG(session, EINVAL,
-		    "rename target type must match URI: %s to %s", uri, newuri);
+		WT_RET_MSG(
+		    session, EINVAL, "rename target type must match URI: %s to %s", uri, newuri);
 
 	/*
 	 * We track rename operations, if we fail in the middle, we want to
@@ -289,8 +280,7 @@ __schema_rename(WT_SESSION_IMPL *session,
 	else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
 		ret = dsrc->rename == NULL ?
 		    __wt_object_unsupported(session, uri) :
-		    dsrc->rename(dsrc,
-		    &session->iface, uri, newuri, (WT_CONFIG_ARG *)cfg);
+		    dsrc->rename(dsrc, &session->iface, uri, newuri, (WT_CONFIG_ARG *)cfg);
 	else
 		ret = __wt_bad_object_type(session, uri);
 
@@ -305,8 +295,7 @@ __schema_rename(WT_SESSION_IMPL *session,
  *	WT_SESSION::rename.
  */
 int
-__wt_schema_rename(WT_SESSION_IMPL *session,
-    const char *uri, const char *newuri, const char *cfg[])
+__wt_schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, const char *cfg[])
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *int_session;

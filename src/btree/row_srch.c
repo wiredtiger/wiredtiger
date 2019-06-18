@@ -14,8 +14,8 @@
  * as we go.
  */
 static inline int
-__search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-    WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key, bool *donep)
+__search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head,
+    WT_ITEM *srch_key, bool *donep)
 {
 	WT_BTREE *btree;
 	WT_COLLATOR *collator;
@@ -46,9 +46,9 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		 * serialized insert function.
 		 */
 		for (i = WT_SKIP_MAXDEPTH - 1; i >= 0; i--) {
-			cbt->ins_stack[i] = (i == 0) ? &ins->next[0] :
-			    (ins_head->tail[i] != NULL) ?
-			    &ins_head->tail[i]->next[i] : &ins_head->head[i];
+			cbt->ins_stack[i] = (i == 0) ? &ins->next[0] : (ins_head->tail[i] != NULL) ?
+			                               &ins_head->tail[i]->next[i] :
+			                               &ins_head->head[i];
 			cbt->next_stack[i] = NULL;
 		}
 		cbt->compare = -cmp;
@@ -64,8 +64,8 @@ __search_insert_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
  *	Search a row-store insert list, creating a skiplist stack as we go.
  */
 int
-__wt_search_insert(WT_SESSION_IMPL *session,
-    WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key)
+__wt_search_insert(
+    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key)
 {
 	WT_BTREE *btree;
 	WT_COLLATOR *collator;
@@ -76,7 +76,7 @@ __wt_search_insert(WT_SESSION_IMPL *session,
 
 	btree = S2BT(session);
 	collator = btree->collator;
-	cmp = 0;				/* -Wuninitialized */
+	cmp = 0; /* -Wuninitialized */
 
 	/*
 	 * The insert list is a skip list: start at the highest skip level, then
@@ -100,14 +100,13 @@ __wt_search_insert(WT_SESSION_IMPL *session,
 			key.data = WT_INSERT_KEY(ins);
 			key.size = WT_INSERT_KEY_SIZE(ins);
 			match = WT_MIN(skiplow, skiphigh);
-			WT_RET(__wt_compare_skip(
-			    session, collator, srch_key, &key, &cmp, &match));
+			WT_RET(__wt_compare_skip(session, collator, srch_key, &key, &cmp, &match));
 		}
 
-		if (cmp > 0) {			/* Keep going at this level */
+		if (cmp > 0) { /* Keep going at this level */
 			insp = &ins->next[i];
 			skiplow = match;
-		} else if (cmp < 0) {		/* Drop down a level */
+		} else if (cmp < 0) { /* Drop down a level */
 			cbt->next_stack[i] = ins;
 			cbt->ins_stack[i--] = insp--;
 			skiphigh = match;
@@ -135,8 +134,8 @@ __wt_search_insert(WT_SESSION_IMPL *session,
  *	Check the search key is in the leaf page's key range.
  */
 static inline int
-__check_leaf_key_range(WT_SESSION_IMPL *session,
-    WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
+__check_leaf_key_range(
+    WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt)
 {
 	WT_BTREE *btree;
 	WT_COLLATOR *collator;
@@ -177,7 +176,7 @@ __check_leaf_key_range(WT_SESSION_IMPL *session,
 		__wt_ref_key(leaf->home, leaf, &item->data, &item->size);
 		WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
 		if (cmp < 0) {
-			cbt->compare = 1;	/* page keys > search key */
+			cbt->compare = 1; /* page keys > search key */
 			return (0);
 		}
 	}
@@ -188,11 +187,10 @@ __check_leaf_key_range(WT_SESSION_IMPL *session,
 	 */
 	++indx;
 	if (indx < pindex->entries) {
-		__wt_ref_key(
-		    leaf->home, pindex->index[indx], &item->data, &item->size);
+		__wt_ref_key(leaf->home, pindex->index[indx], &item->data, &item->size);
 		WT_RET(__wt_compare(session, collator, srch_key, item, &cmp));
 		if (cmp >= 0) {
-			cbt->compare = -1;	/* page keys < search key */
+			cbt->compare = -1; /* page keys < search key */
 			return (0);
 		}
 	}
@@ -205,8 +203,7 @@ __check_leaf_key_range(WT_SESSION_IMPL *session,
  *	Search a row-store tree for a specific key.
  */
 int
-__wt_row_search(WT_SESSION_IMPL *session,
-    WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt,
+__wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt,
     bool insert, bool restore)
 {
 	WT_BTREE *btree;
@@ -259,8 +256,7 @@ __wt_row_search(WT_SESSION_IMPL *session,
 	 */
 	if (leaf != NULL) {
 		if (!restore) {
-			WT_RET(__check_leaf_key_range(
-			    session, srch_key, leaf, cbt));
+			WT_RET(__check_leaf_key_range(session, srch_key, leaf, cbt));
 			if (cbt->compare != 0) {
 				/*
 				 * !!!
@@ -277,10 +273,10 @@ __wt_row_search(WT_SESSION_IMPL *session,
 	}
 
 	if (0) {
-restart:	/*
-		 * Discard the currently held page and restart the search from
-		 * the root.
-		 */
+	restart: /*
+	          * Discard the currently held page and restart the search from
+	          * the root.
+	          */
 		WT_RET(__wt_page_release(session, current, 0));
 		skiphigh = skiplow = 0;
 	}
@@ -316,8 +312,7 @@ restart:	/*
 			if (pindex->entries == 1)
 				goto append;
 			__wt_ref_key(page, descent, &item->data, &item->size);
-			WT_ERR(__wt_compare(
-			    session, collator, srch_key, item, &cmp));
+			WT_ERR(__wt_compare(session, collator, srch_key, item, &cmp));
 			if (cmp >= 0)
 				goto append;
 
@@ -337,13 +332,11 @@ restart:	/*
 		 */
 		base = 1;
 		limit = pindex->entries - 1;
-		if (collator == NULL &&
-		    srch_key->size <= WT_COMPARE_SHORT_MAXLEN)
+		if (collator == NULL && srch_key->size <= WT_COMPARE_SHORT_MAXLEN)
 			for (; limit != 0; limit >>= 1) {
 				indx = base + (limit >> 1);
 				descent = pindex->index[indx];
-				__wt_ref_key(
-				    page, descent, &item->data, &item->size);
+				__wt_ref_key(page, descent, &item->data, &item->size);
 
 				cmp = __wt_lex_compare_short(srch_key, item);
 				if (cmp > 0) {
@@ -375,12 +368,10 @@ restart:	/*
 			for (; limit != 0; limit >>= 1) {
 				indx = base + (limit >> 1);
 				descent = pindex->index[indx];
-				__wt_ref_key(
-				    page, descent, &item->data, &item->size);
+				__wt_ref_key(page, descent, &item->data, &item->size);
 
 				match = WT_MIN(skiplow, skiphigh);
-				cmp = __wt_lex_compare_skip(
-				    srch_key, item, &match);
+				cmp = __wt_lex_compare_skip(srch_key, item, &match);
 				if (cmp > 0) {
 					skiplow = match;
 					base = indx + 1;
@@ -394,11 +385,9 @@ restart:	/*
 			for (; limit != 0; limit >>= 1) {
 				indx = base + (limit >> 1);
 				descent = pindex->index[indx];
-				__wt_ref_key(
-				    page, descent, &item->data, &item->size);
+				__wt_ref_key(page, descent, &item->data, &item->size);
 
-				WT_ERR(__wt_compare(
-				    session, collator, srch_key, item, &cmp));
+				WT_ERR(__wt_compare(session, collator, srch_key, item, &cmp));
 				if (cmp > 0) {
 					base = indx + 1;
 					--limit;
@@ -426,12 +415,12 @@ restart:	/*
 		 * page), check for an internal page split race.
 		 */
 		if (pindex->entries == base) {
-append:			if (__wt_split_descent_race(
-			    session, current, parent_pindex))
+		append:
+			if (__wt_split_descent_race(session, current, parent_pindex))
 				goto restart;
 		}
 
-descend:	/* Encourage races. */
+	descend: /* Encourage races. */
 		WT_DIAGNOSTIC_YIELD;
 
 		/*
@@ -449,8 +438,7 @@ descend:	/* Encourage races. */
 		read_flags = WT_READ_RESTART_OK;
 		if (F_ISSET(cbt, WT_CBT_READ_ONCE))
 			FLD_SET(read_flags, WT_READ_WONT_NEED);
-		if ((ret = __wt_page_swap(session,
-		    current, descent, read_flags)) == 0) {
+		if ((ret = __wt_page_swap(session, current, descent, read_flags)) == 0) {
 			current = descent;
 			continue;
 		}
@@ -499,14 +487,12 @@ leaf_only:
 			F_SET(cbt, WT_CBT_SEARCH_SMALLEST);
 			ins_head = WT_ROW_INSERT_SMALLEST(page);
 		} else {
-			cbt->slot = WT_ROW_SLOT(page,
-			    page->pg_row + (page->entries - 1));
+			cbt->slot = WT_ROW_SLOT(page, page->pg_row + (page->entries - 1));
 
 			ins_head = WT_ROW_INSERT_SLOT(page, cbt->slot);
 		}
 
-		WT_ERR(__search_insert_append(
-		    session, cbt, ins_head, srch_key, &done));
+		WT_ERR(__search_insert_append(session, cbt, ins_head, srch_key, &done));
 		if (done)
 			return (0);
 	}
@@ -523,8 +509,7 @@ leaf_only:
 		for (; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row + indx;
-			WT_ERR(
-			    __wt_row_leaf_key(session, page, rip, item, true));
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
 			cmp = __wt_lex_compare_short(srch_key, item);
 			if (cmp > 0) {
@@ -537,8 +522,7 @@ leaf_only:
 		for (; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row + indx;
-			WT_ERR(
-			    __wt_row_leaf_key(session, page, rip, item, true));
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
 			match = WT_MIN(skiplow, skiphigh);
 			cmp = __wt_lex_compare_skip(srch_key, item, &match);
@@ -555,11 +539,9 @@ leaf_only:
 		for (; limit != 0; limit >>= 1) {
 			indx = base + (limit >> 1);
 			rip = page->pg_row + indx;
-			WT_ERR(
-			    __wt_row_leaf_key(session, page, rip, item, true));
+			WT_ERR(__wt_row_leaf_key(session, page, rip, item, true));
 
-			WT_ERR(__wt_compare(
-			    session, collator, srch_key, item, &cmp));
+			WT_ERR(__wt_compare(session, collator, srch_key, item, &cmp));
 			if (cmp > 0) {
 				base = indx + 1;
 				--limit;
@@ -573,7 +555,8 @@ leaf_only:
 	 * get out fast.
 	 */
 	if (0) {
-leaf_match:	cbt->compare = 0;
+	leaf_match:
+		cbt->compare = 0;
 		cbt->slot = WT_ROW_SLOT(page, rip);
 		return (0);
 	}
@@ -618,8 +601,7 @@ leaf_match:	cbt->compare = 0;
 	 * catch cursors repeatedly inserting at a single point.
 	 */
 	if (insert) {
-		WT_ERR(__search_insert_append(
-		    session, cbt, ins_head, srch_key, &done));
+		WT_ERR(__search_insert_append(session, cbt, ins_head, srch_key, &done));
 		if (done)
 			return (0);
 	}
@@ -627,6 +609,7 @@ leaf_match:	cbt->compare = 0;
 
 	return (0);
 
-err:	WT_TRET(__wt_page_release(session, current, 0));
+err:
+	WT_TRET(__wt_page_release(session, current, 0));
 	return (ret);
 }

@@ -11,8 +11,7 @@
 int
 util_cerr(WT_CURSOR *cursor, const char *op, int ret)
 {
-	return (
-	    util_err(cursor->session, ret, "%s: cursor.%s", cursor->uri, op));
+	return (util_err(cursor->session, ret, "%s: cursor.%s", cursor->uri, op));
 }
 
 /*
@@ -33,8 +32,8 @@ util_err(WT_SESSION *session, int e, const char *fmt, ...)
 			(void)fprintf(stderr, ": ");
 	}
 	if (e != 0)
-		(void)fprintf(stderr, "%s", session == NULL ?
-		    wiredtiger_strerror(e) : session->strerror(session, e));
+		(void)fprintf(stderr, "%s",
+		    session == NULL ? wiredtiger_strerror(e) : session->strerror(session, e));
 	(void)fprintf(stderr, "\n");
 	return (1);
 }
@@ -65,12 +64,11 @@ util_read_line(WT_SESSION *session, ULINE *l, bool eof_expected, bool *eofp)
 					*eofp = true;
 					return (0);
 				}
-				return (util_err(session, 0,
-				    "line %" PRIu64 ": unexpected end-of-file",
-				    line));
+				return (util_err(
+				    session, 0, "line %" PRIu64 ": unexpected end-of-file", line));
 			}
-			return (util_err(session, 0,
-			    "line %" PRIu64 ": no newline terminator", line));
+			return (
+			    util_err(session, 0, "line %" PRIu64 ": no newline terminator", line));
 		}
 		if (ch == '\n')
 			break;
@@ -80,15 +78,14 @@ util_read_line(WT_SESSION *session, ULINE *l, bool eof_expected, bool *eofp)
 		 * extra byte at the end.
 		 */
 		if (len >= l->memsize - 1) {
-			if ((l->mem =
-			    realloc(l->mem, l->memsize + 1024)) == NULL)
+			if ((l->mem = realloc(l->mem, l->memsize + 1024)) == NULL)
 				return (util_err(session, errno, NULL));
 			l->memsize += 1024;
 		}
 		((uint8_t *)l->mem)[len] = (uint8_t)ch;
 	}
 
-	((uint8_t *)l->mem)[len] = '\0';		/* nul-terminate */
+	((uint8_t *)l->mem)[len] = '\0'; /* nul-terminate */
 
 	return (0);
 }
@@ -123,7 +120,8 @@ util_str2num(WT_SESSION *session, const char *p, bool endnul, uint64_t *vp)
 	 * test off.
 	 */
 	if (endnul && endptr[0] != '\0')
-format:		return (util_err(session, EINVAL, "%s: invalid number", p));
+	format:
+	return (util_err(session, EINVAL, "%s: invalid number", p));
 
 	*vp = v;
 	return (0);

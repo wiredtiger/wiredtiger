@@ -19,27 +19,27 @@ __thread_run(void *arg)
 	WT_SESSION_IMPL *session;
 	WT_THREAD *thread;
 
-	thread = (WT_THREAD*)arg;
+	thread = (WT_THREAD *)arg;
 	session = thread->session;
 
 	for (;;) {
 		if (!F_ISSET(thread, WT_THREAD_RUN))
 			break;
 		if (!F_ISSET(thread, WT_THREAD_ACTIVE))
-			__wt_cond_wait(session, thread->pause_cond,
-			    WT_THREAD_PAUSE * WT_MILLION, thread->chk_func);
+			__wt_cond_wait(session, thread->pause_cond, WT_THREAD_PAUSE * WT_MILLION,
+			    thread->chk_func);
 		WT_ERR(thread->run_func(session, thread));
 	}
 
-	/*
-	 * If a thread is stopping it may have subsystem cleanup to do.
-	 */
-err:	if (thread->stop_func != NULL)
+/*
+ * If a thread is stopping it may have subsystem cleanup to do.
+ */
+err:
+	if (thread->stop_func != NULL)
 		ret = thread->stop_func(session, thread);
 
 	if (ret != 0 && F_ISSET(thread, WT_THREAD_PANIC_FAIL))
-		WT_PANIC_MSG(session, ret,
-		    "Unrecoverable utility thread error");
+		WT_PANIC_MSG(session, ret, "Unrecoverable utility thread error");
 
 	/*
 	 * The three cases when threads are expected to stop are:
@@ -48,7 +48,7 @@ err:	if (thread->stop_func != NULL)
 	 * 3.  When a shutdown has been requested via clearing the run flag.
 	 */
 	WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_RUN) ||
-	    F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING));
+	        F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING));
 
 	return (WT_THREAD_RET_VALUE);
 }
@@ -59,8 +59,7 @@ err:	if (thread->stop_func != NULL)
  *	associated with slots larger than the new count.
  */
 static int
-__thread_group_shrink(
-    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
+__thread_group_shrink(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_count)
 {
 	WT_DECL_RET;
 	WT_SESSION *wt_session;
@@ -69,7 +68,7 @@ __thread_group_shrink(
 
 	WT_ASSERT(session, __wt_rwlock_islocked(session, &group->lock));
 
-	for (current_slot = group->alloc; current_slot > new_count; ) {
+	for (current_slot = group->alloc; current_slot > new_count;) {
 		/*
 		 * The offset value is a counter not an array index,
 		 * so adjust it before finding the last thread in the group.
@@ -80,8 +79,7 @@ __thread_group_shrink(
 			continue;
 
 		WT_ASSERT(session, thread->tid.created);
-		__wt_verbose(session, WT_VERB_THREAD_GROUP,
-		    "Stopping utility thread: %s:%" PRIu32,
+		__wt_verbose(session, WT_VERB_THREAD_GROUP, "Stopping utility thread: %s:%" PRIu32,
 		    group->name, thread->id);
 		if (F_ISSET(thread, WT_THREAD_ACTIVE))
 			--group->current_threads;
@@ -98,7 +96,7 @@ __thread_group_shrink(
 	 * the threads themselves may be waiting on the lock.
 	 */
 	__wt_writeunlock(session, &group->lock);
-	for (current_slot = group->alloc; current_slot > new_count; ) {
+	for (current_slot = group->alloc; current_slot > new_count;) {
 		thread = group->threads[--current_slot];
 
 		if (thread == NULL)
@@ -107,7 +105,7 @@ __thread_group_shrink(
 		__wt_cond_destroy(session, &thread->pause_cond);
 	}
 	__wt_writelock(session, &group->lock);
-	for (current_slot = group->alloc; current_slot > new_count; ) {
+	for (current_slot = group->alloc; current_slot > new_count;) {
 		thread = group->threads[--current_slot];
 
 		if (thread == NULL)
@@ -128,9 +126,8 @@ __thread_group_shrink(
  *	Resize an array of utility threads already holding the lock.
  */
 static int
-__thread_group_resize(
-    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
-    uint32_t new_min, uint32_t new_max, uint32_t flags)
+__thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_min,
+    uint32_t new_max, uint32_t flags)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
@@ -143,21 +140,19 @@ __thread_group_resize(
 	thread = NULL;
 
 	__wt_verbose(session, WT_VERB_THREAD_GROUP,
-	    "Resize thread group: %s, from min: %" PRIu32 " -> %" PRIu32
-	    " from max: %" PRIu32 " -> %" PRIu32,
+	    "Resize thread group: %s, from min: %" PRIu32 " -> %" PRIu32 " from max: %" PRIu32
+	    " -> %" PRIu32,
 	    group->name, group->min, new_min, group->max, new_max);
 
 	WT_ASSERT(session,
-	    group->current_threads <= group->alloc &&
-	    __wt_rwlock_islocked(session, &group->lock));
+	    group->current_threads <= group->alloc && __wt_rwlock_islocked(session, &group->lock));
 
 	if (new_min == group->min && new_max == group->max)
 		return (0);
 
 	if (new_min > new_max)
-		WT_RET_MSG(session, EINVAL,
-		    "Illegal thread group resize: %s, from min: %" PRIu32
-		    " -> %" PRIu32 " from max: %" PRIu32 " -> %" PRIu32,
+		WT_RET_MSG(session, EINVAL, "Illegal thread group resize: %s, from min: %" PRIu32
+		                            " -> %" PRIu32 " from max: %" PRIu32 " -> %" PRIu32,
 		    group->name, group->min, new_min, group->max, new_max);
 
 	/*
@@ -172,8 +167,8 @@ __thread_group_resize(
 	 */
 	if (group->alloc < new_max) {
 		alloc = group->alloc * sizeof(*group->threads);
-		WT_RET(__wt_realloc(session, &alloc,
-		    new_max * sizeof(*group->threads), &group->threads));
+		WT_RET(__wt_realloc(
+		    session, &alloc, new_max * sizeof(*group->threads), &group->threads));
 		group->alloc = new_max;
 	}
 
@@ -187,12 +182,10 @@ __thread_group_resize(
 		 * Threads get their own session and lookaside table cursor
 		 * (if the lookaside table is open).
 		 */
-		session_flags =
-		    LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
-		WT_ERR(__wt_open_internal_session(conn, group->name,
-		    false, session_flags, &thread->session));
-		if (LF_ISSET(WT_THREAD_LOOKASIDE) &&
-		    F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
+		session_flags = LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
+		WT_ERR(__wt_open_internal_session(
+		    conn, group->name, false, session_flags, &thread->session));
+		if (LF_ISSET(WT_THREAD_LOOKASIDE) && F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
 			WT_ERR(__wt_las_cursor_open(thread->session));
 		if (LF_ISSET(WT_THREAD_PANIC_FAIL))
 			F_SET(thread, WT_THREAD_PANIC_FAIL);
@@ -200,19 +193,16 @@ __thread_group_resize(
 		thread->chk_func = group->chk_func;
 		thread->run_func = group->run_func;
 		thread->stop_func = group->stop_func;
-		WT_ERR(__wt_cond_alloc(
-		    session, "Thread cond", &thread->pause_cond));
+		WT_ERR(__wt_cond_alloc(session, "Thread cond", &thread->pause_cond));
 
 		/*
 		 * Start thread as inactive.  We'll activate the needed
 		 * number later.
 		 */
-		__wt_verbose(session, WT_VERB_THREAD_GROUP,
-		    "Starting utility thread: %s:%" PRIu32,
+		__wt_verbose(session, WT_VERB_THREAD_GROUP, "Starting utility thread: %s:%" PRIu32,
 		    group->name, thread->id);
 		F_SET(thread, WT_THREAD_RUN);
-		WT_ERR(__wt_thread_create(thread->session,
-		    &thread->tid, __thread_run, thread));
+		WT_ERR(__wt_thread_create(thread->session, &thread->tid, __thread_run, thread));
 
 		WT_ASSERT(session, group->threads[i] == NULL);
 		group->threads[i] = thread;
@@ -225,11 +215,11 @@ __thread_group_resize(
 		__wt_thread_group_start_one(session, group, true);
 	return (0);
 
-err:	/*
-	 * An error resizing a thread array is currently fatal, it should only
-	 * happen in an out of memory situation. Do real cleanup just in case
-	 * that changes in the future.
-	 */
+err: /*
+      * An error resizing a thread array is currently fatal, it should only
+      * happen in an out of memory situation. Do real cleanup just in case
+      * that changes in the future.
+      */
 	if (thread != NULL) {
 		if (thread->session != NULL) {
 			wt_session = (WT_SESSION *)thread->session;
@@ -255,9 +245,8 @@ err:	/*
  *	Resize an array of utility threads taking the lock.
  */
 int
-__wt_thread_group_resize(
-    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
-    uint32_t new_min, uint32_t new_max, uint32_t flags)
+__wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t new_min,
+    uint32_t new_max, uint32_t flags)
 {
 	WT_DECL_RET;
 
@@ -273,10 +262,8 @@ __wt_thread_group_resize(
  *	zero initialized.
  */
 int
-__wt_thread_group_create(
-    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const char *name,
-    uint32_t min, uint32_t max, uint32_t flags,
-    bool (*chk_func)(WT_SESSION_IMPL *session),
+__wt_thread_group_create(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, const char *name,
+    uint32_t min, uint32_t max, uint32_t flags, bool (*chk_func)(WT_SESSION_IMPL *session),
     int (*run_func)(WT_SESSION_IMPL *session, WT_THREAD *context),
     int (*stop_func)(WT_SESSION_IMPL *session, WT_THREAD *context))
 {
@@ -288,12 +275,10 @@ __wt_thread_group_create(
 
 	cond_alloced = false;
 
-	__wt_verbose(session,
-	    WT_VERB_THREAD_GROUP, "Creating thread group: %s", name);
+	__wt_verbose(session, WT_VERB_THREAD_GROUP, "Creating thread group: %s", name);
 
 	WT_RET(__wt_rwlock_init(session, &group->lock));
-	WT_ERR(__wt_cond_alloc(
-	    session, "thread group cond", &group->wait_cond));
+	WT_ERR(__wt_cond_alloc(session, "thread group cond", &group->wait_cond));
 	cond_alloced = true;
 
 	__wt_writelock(session, &group->lock);
@@ -305,8 +290,9 @@ __wt_thread_group_create(
 	WT_TRET(__thread_group_resize(session, group, min, max, flags));
 	__wt_writeunlock(session, &group->lock);
 
-	/* Cleanup on error to avoid leaking resources */
-err:	if (ret != 0) {
+/* Cleanup on error to avoid leaking resources */
+err:
+	if (ret != 0) {
 		if (cond_alloced)
 			__wt_cond_destroy(session, &group->wait_cond);
 		__wt_rwlock_destroy(session, &group->lock);
@@ -323,8 +309,7 @@ __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 {
 	WT_DECL_RET;
 
-	__wt_verbose(session, WT_VERB_THREAD_GROUP,
-	    "Destroying thread group: %s", group->name);
+	__wt_verbose(session, WT_VERB_THREAD_GROUP, "Destroying thread group: %s", group->name);
 
 	WT_ASSERT(session, __wt_rwlock_islocked(session, &group->lock));
 
@@ -351,8 +336,7 @@ __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
  *	Start a new thread if possible.
  */
 void
-__wt_thread_group_start_one(
-    WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked)
+__wt_thread_group_start_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked)
 {
 	WT_THREAD *thread;
 
@@ -367,8 +351,7 @@ __wt_thread_group_start_one(
 		thread = group->threads[group->current_threads++];
 		WT_ASSERT(session, thread != NULL);
 		__wt_verbose(session, WT_VERB_THREAD_GROUP,
-		    "Activating utility thread: %s:%" PRIu32,
-		    group->name, thread->id);
+		    "Activating utility thread: %s:%" PRIu32, group->name, thread->id);
 		WT_ASSERT(session, !F_ISSET(thread, WT_THREAD_ACTIVE));
 		F_SET(thread, WT_THREAD_ACTIVE);
 		__wt_cond_signal(session, thread->pause_cond);
@@ -393,8 +376,7 @@ __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group)
 	/* Recheck the bounds now that we hold the lock */
 	if (group->current_threads > group->min) {
 		thread = group->threads[--group->current_threads];
-		__wt_verbose(session, WT_VERB_THREAD_GROUP,
-		    "Pausing utility thread: %s:%" PRIu32,
+		__wt_verbose(session, WT_VERB_THREAD_GROUP, "Pausing utility thread: %s:%" PRIu32,
 		    group->name, thread->id);
 		WT_ASSERT(session, F_ISSET(thread, WT_THREAD_ACTIVE));
 		F_CLR(thread, WT_THREAD_ACTIVE);

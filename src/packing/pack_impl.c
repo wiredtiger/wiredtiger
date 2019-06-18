@@ -14,8 +14,8 @@
  *	into a fixed-sized bitfield.
  */
 int
-__wt_struct_check(WT_SESSION_IMPL *session,
-    const char *fmt, size_t len, bool *fixedp, uint32_t *fixed_lenp)
+__wt_struct_check(
+    WT_SESSION_IMPL *session, const char *fmt, size_t len, bool *fixedp, uint32_t *fixed_lenp)
 {
 	WT_DECL_PACK_VALUE(pv);
 	WT_DECL_RET;
@@ -73,8 +73,7 @@ __wt_struct_size(WT_SESSION_IMPL *session, size_t *lenp, const char *fmt, ...)
  *	Pack a byte string.
  */
 int
-__wt_struct_pack(WT_SESSION_IMPL *session,
-    void *buffer, size_t len, const char *fmt, ...)
+__wt_struct_pack(WT_SESSION_IMPL *session, void *buffer, size_t len, const char *fmt, ...)
 {
 	WT_DECL_RET;
 	va_list ap;
@@ -91,8 +90,7 @@ __wt_struct_pack(WT_SESSION_IMPL *session,
  *	Unpack a byte string.
  */
 int
-__wt_struct_unpack(WT_SESSION_IMPL *session,
-    const void *buffer, size_t len, const char *fmt, ...)
+__wt_struct_unpack(WT_SESSION_IMPL *session, const void *buffer, size_t len, const char *fmt, ...)
 {
 	WT_DECL_RET;
 	va_list ap;
@@ -111,8 +109,8 @@ __wt_struct_unpack(WT_SESSION_IMPL *session,
  *	buffer, a buffer is reallocated and filled.
  */
 int
-__wt_struct_repack(WT_SESSION_IMPL *session, const char *infmt,
-    const char *outfmt, const WT_ITEM *inbuf, WT_ITEM *outbuf)
+__wt_struct_repack(WT_SESSION_IMPL *session, const char *infmt, const char *outfmt,
+    const WT_ITEM *inbuf, WT_ITEM *outbuf)
 {
 	WT_DECL_PACK_VALUE(pvin);
 	WT_DECL_PACK_VALUE(pvout);

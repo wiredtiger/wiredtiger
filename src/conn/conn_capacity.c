@@ -12,15 +12,14 @@
  * Compute the time in nanoseconds that must be reserved to represent
  * a number of bytes in a subsystem with a particular capacity per second.
  */
-#define	WT_RESERVATION_NS(bytes, capacity)			\
-	(((bytes) * WT_BILLION) / (capacity))
+#define WT_RESERVATION_NS(bytes, capacity) (((bytes)*WT_BILLION) / (capacity))
 
 /*
  * The fraction of a second's worth of capacity that will be stolen at a
  * time. The number of bytes this represents may be different for different
  * subsystems, since each subsystem has its own capacity per second.
  */
-#define	WT_STEAL_FRACTION(x)		((x) / 16)
+#define WT_STEAL_FRACTION(x) ((x) / 16)
 
 /*
  * __capacity_config --
@@ -38,8 +37,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_RET(__wt_config_gets(session, cfg, "io_capacity.total", &cval));
 	if (cval.val != 0 && cval.val < WT_THROTTLE_MIN)
-		WT_RET_MSG(session, EINVAL,
-		    "total I/O capacity value %" PRId64 " below minimum %d",
+		WT_RET_MSG(session, EINVAL, "total I/O capacity value %" PRId64 " below minimum %d",
 		    cval.val, WT_THROTTLE_MIN);
 
 	cap = &conn->capacity;
@@ -58,8 +56,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 		 * Set the threshold to the percent of our capacity to
 		 * periodically asynchronously flush what we've written.
 		 */
-		cap->threshold = ((cap->ckpt + cap->evict + cap->log) /
-		    100) * WT_CAPACITY_PCT;
+		cap->threshold = ((cap->ckpt + cap->evict + cap->log) / 100) * WT_CAPACITY_PCT;
 		if (cap->threshold < WT_CAPACITY_MIN_THRESHOLD)
 			cap->threshold = WT_CAPACITY_MIN_THRESHOLD;
 		WT_STAT_CONN_SET(session, capacity_threshold, cap->threshold);
@@ -100,8 +97,7 @@ __capacity_server(void *arg)
 		 * Wait until signalled but check once per second in case
 		 * the signal was missed.
 		 */
-		__wt_cond_wait(session,
-		    conn->capacity_cond, WT_MILLION, __capacity_server_run_chk);
+		__wt_cond_wait(session, conn->capacity_cond, WT_MILLION, __capacity_server_run_chk);
 
 		/* Check if we're quitting or being reconfigured. */
 		if (!__capacity_server_run_chk(session))
@@ -120,7 +116,8 @@ __capacity_server(void *arg)
 	}
 
 	if (0) {
-err:		WT_PANIC_MSG(session, ret, "capacity server error");
+	err:
+		WT_PANIC_MSG(session, ret, "capacity server error");
 	}
 	return (WT_THREAD_RET_VALUE);
 }
@@ -139,18 +136,16 @@ __capacity_server_start(WT_CONNECTION_IMPL *conn)
 	/*
 	 * The capacity server gets its own session.
 	 */
-	WT_RET(__wt_open_internal_session(conn,
-	    "capacity-server", false, 0, &conn->capacity_session));
+	WT_RET(
+	    __wt_open_internal_session(conn, "capacity-server", false, 0, &conn->capacity_session));
 	session = conn->capacity_session;
 
-	WT_RET(__wt_cond_alloc(session,
-	    "capacity server", &conn->capacity_cond));
+	WT_RET(__wt_cond_alloc(session, "capacity server", &conn->capacity_cond));
 
 	/*
 	 * Start the thread.
 	 */
-	WT_RET(__wt_thread_create(
-	    session, &conn->capacity_tid, __capacity_server, session));
+	WT_RET(__wt_thread_create(session, &conn->capacity_tid, __capacity_server, session));
 	conn->capacity_tid_set = true;
 
 	return (0);
@@ -257,8 +252,8 @@ __capacity_signal(WT_SESSION_IMPL *session)
  * the capacity of the subsystem.
  */
 static void
-__capacity_reserve(uint64_t *reservation, uint64_t bytes, uint64_t capacity,
-    uint64_t now_ns, uint64_t *result)
+__capacity_reserve(
+    uint64_t *reservation, uint64_t bytes, uint64_t capacity, uint64_t now_ns, uint64_t *result)
 {
 	uint64_t res_len, res_value;
 
@@ -270,8 +265,7 @@ __capacity_reserve(uint64_t *reservation, uint64_t bytes, uint64_t capacity,
 			 * If the reservation clock is out of date, bring it
 			 * to within a second of a current time.
 			 */
-			(void)__wt_atomic_store64(reservation,
-			    (now_ns - WT_BILLION) + res_len);
+			(void)__wt_atomic_store64(reservation, (now_ns - WT_BILLION) + res_len);
 	} else
 		res_value = now_ns;
 
@@ -293,8 +287,7 @@ __capacity_reserve(uint64_t *reservation, uint64_t bytes, uint64_t capacity,
  * in nanoseconds since the epoch.
  */
 void
-__wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
-    WT_THROTTLE_TYPE type)
+__wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type)
 {
 	struct timespec now;
 	WT_CAPACITY *cap;
@@ -342,8 +335,7 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 	 * at some point in the future. If this subsystem is not throttled
 	 * there's nothing to do.
 	 */
-	if (cap->total == 0 || capacity == 0 ||
-	    F_ISSET(conn, WT_CONN_RECOVERING))
+	if (cap->total == 0 || capacity == 0 || F_ISSET(conn, WT_CONN_RECOVERING))
 		return;
 
 	/*
@@ -367,8 +359,8 @@ __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes,
 again:
 	/* Take a reservation for the subsystem, and for the total */
 	__capacity_reserve(reservation, bytes, capacity, now_ns, &res_value);
-	__capacity_reserve(&cap->reservation_total, bytes, total_capacity,
-	    now_ns, &res_total_value);
+	__capacity_reserve(
+	    &cap->reservation_total, bytes, total_capacity, now_ns, &res_total_value);
 
 	/*
 	 * If we ended up with a future reservation, and we aren't constricted
@@ -378,26 +370,22 @@ again:
 	if (res_value > now_ns && res_total_value < now_ns && steal == NULL &&
 	    total_capacity != 0) {
 		best_res = now_ns - WT_BILLION / 2;
-		if (type != WT_THROTTLE_CKPT &&
-		    (this_res = cap->reservation_ckpt) < best_res) {
+		if (type != WT_THROTTLE_CKPT && (this_res = cap->reservation_ckpt) < best_res) {
 			steal = &cap->reservation_ckpt;
 			steal_capacity = cap->ckpt;
 			best_res = this_res;
 		}
-		if (type != WT_THROTTLE_EVICT &&
-		    (this_res = cap->reservation_evict) < best_res) {
+		if (type != WT_THROTTLE_EVICT && (this_res = cap->reservation_evict) < best_res) {
 			steal = &cap->reservation_evict;
 			steal_capacity = cap->evict;
 			best_res = this_res;
 		}
-		if (type != WT_THROTTLE_LOG &&
-		    (this_res = cap->reservation_log) < best_res) {
+		if (type != WT_THROTTLE_LOG && (this_res = cap->reservation_log) < best_res) {
 			steal = &cap->reservation_log;
 			steal_capacity = cap->log;
 			best_res = this_res;
 		}
-		if (type != WT_THROTTLE_READ &&
-		    (this_res = cap->reservation_read) < best_res) {
+		if (type != WT_THROTTLE_READ && (this_res = cap->reservation_read) < best_res) {
 			steal = &cap->reservation_read;
 			steal_capacity = cap->read;
 			best_res = this_res;
@@ -409,8 +397,7 @@ again:
 			 * to steal.  We'll take a small slice (a fraction
 			 * of a second worth) and add it to our own subsystem.
 			 */
-			if (best_res < now_ns - WT_BILLION &&
-			    now_ns > WT_BILLION)
+			if (best_res < now_ns - WT_BILLION && now_ns > WT_BILLION)
 				new_res = now_ns - WT_BILLION;
 			else
 				new_res = best_res;
@@ -422,8 +409,8 @@ again:
 				 * Give up our reservations and try again.
 				 * We won't try to steal the next time.
 				 */
-				(void)__wt_atomic_sub64(reservation,
-				    WT_RESERVATION_NS(bytes, capacity));
+				(void)__wt_atomic_sub64(
+				    reservation, WT_RESERVATION_NS(bytes, capacity));
 				(void)__wt_atomic_sub64(&cap->reservation_total,
 				    WT_RESERVATION_NS(bytes, total_capacity));
 				goto again;
@@ -436,8 +423,8 @@ again:
 			 * capacity.
 			 */
 			stolen_bytes = WT_STEAL_FRACTION(steal_capacity);
-			res_value = __wt_atomic_sub64(reservation,
-			    WT_RESERVATION_NS(stolen_bytes, capacity));
+			res_value = __wt_atomic_sub64(
+			    reservation, WT_RESERVATION_NS(stolen_bytes, capacity));
 		}
 	}
 	if (res_value < res_total_value)
@@ -446,25 +433,20 @@ again:
 	if (res_value > now_ns) {
 		sleep_us = (res_value - now_ns) / WT_THOUSAND;
 		if (res_value == res_total_value)
-			WT_STAT_CONN_INCRV(session,
-			    capacity_time_total, sleep_us);
+			WT_STAT_CONN_INCRV(session, capacity_time_total, sleep_us);
 		else
 			switch (type) {
 			case WT_THROTTLE_CKPT:
-				WT_STAT_CONN_INCRV(session,
-				    capacity_time_ckpt, sleep_us);
+				WT_STAT_CONN_INCRV(session, capacity_time_ckpt, sleep_us);
 				break;
 			case WT_THROTTLE_EVICT:
-				WT_STAT_CONN_INCRV(session,
-				    capacity_time_evict, sleep_us);
+				WT_STAT_CONN_INCRV(session, capacity_time_evict, sleep_us);
 				break;
 			case WT_THROTTLE_LOG:
-				WT_STAT_CONN_INCRV(session,
-				    capacity_time_log, sleep_us);
+				WT_STAT_CONN_INCRV(session, capacity_time_log, sleep_us);
 				break;
 			case WT_THROTTLE_READ:
-				WT_STAT_CONN_INCRV(session,
-				    capacity_time_read, sleep_us);
+				WT_STAT_CONN_INCRV(session, capacity_time_read, sleep_us);
 				break;
 			}
 		if (sleep_us > WT_CAPACITY_SLEEP_CUTOFF_US)

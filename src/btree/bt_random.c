@@ -23,8 +23,8 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	int level;
 
 	page = cbt->ref->page;
-	start = stop = NULL;		/* [-Wconditional-uninitialized] */
-	entries = 0;			/* [-Wconditional-uninitialized] */
+	start = stop = NULL; /* [-Wconditional-uninitialized] */
+	entries = 0;         /* [-Wconditional-uninitialized] */
 
 	__cursor_pos_clear(cbt);
 
@@ -37,8 +37,8 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		 * The real row-store search function builds the key, so we
 		 * have to as well.
 		 */
-		return (__wt_row_leaf_key(session,
-		    page, page->pg_row + cbt->slot, cbt->tmp, false));
+		return (
+		    __wt_row_leaf_key(session, page, page->pg_row + cbt->slot, cbt->tmp, false));
 	}
 
 	/*
@@ -55,8 +55,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 		return (WT_NOTFOUND);
 	for (level = WT_SKIP_MAXDEPTH - 1; level >= 0; --level) {
 		start = &ins_head->head[level];
-		for (entries = 0, stop = start;
-		    *stop != NULL; stop = &(*stop)->next[level])
+		for (entries = 0, stop = start; *stop != NULL; stop = &(*stop)->next[level])
 			++entries;
 
 		if (entries > 50)
@@ -108,8 +107,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 			start = stop;
 			--start;
 			--level;
-			for (entries = 0, stop = start;
-			    *stop != NULL; stop = &(*stop)->next[level])
+			for (entries = 0, stop = start; *stop != NULL; stop = &(*stop)->next[level])
 				++entries;
 		} else {
 			/*
@@ -129,8 +127,7 @@ __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 			--level;
 
 			/* Count the entries in the selected name space. */
-			for (entries = 0,
-			    ins = *start; ins != *stop; ins = ins->next[level])
+			for (entries = 0, ins = *start; ins != *stop; ins = ins->next[level])
 				++entries;
 		}
 	}
@@ -192,10 +189,10 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
 	eviction = LF_ISSET(WT_READ_CACHE);
 
 	if (0) {
-restart:	/*
-		 * Discard the currently held page and restart the search from
-		 * the root.
-		 */
+	restart: /*
+	          * Discard the currently held page and restart the search from
+	          * the root.
+	          */
 		WT_RET(__wt_page_release(session, current, flags));
 	}
 
@@ -211,8 +208,7 @@ restart:	/*
 
 		/* Eviction just wants any random child. */
 		if (eviction) {
-			descent = pindex->index[
-			    __wt_random(&session->rnd) % entries];
+			descent = pindex->index[__wt_random(&session->rnd) % entries];
 			goto descend;
 		}
 
@@ -229,12 +225,9 @@ restart:	/*
 		 */
 		descent = NULL;
 		for (i = 0; i < entries; ++i) {
-			descent =
-			    pindex->index[__wt_random(&session->rnd) % entries];
-			if (descent->state == WT_REF_DISK ||
-			    descent->state == WT_REF_LIMBO ||
-			    descent->state == WT_REF_LOOKASIDE ||
-			    descent->state == WT_REF_MEM)
+			descent = pindex->index[__wt_random(&session->rnd) % entries];
+			if (descent->state == WT_REF_DISK || descent->state == WT_REF_LIMBO ||
+			    descent->state == WT_REF_LOOKASIDE || descent->state == WT_REF_MEM)
 				break;
 		}
 		if (i == entries)
@@ -254,15 +247,15 @@ restart:	/*
 			return (WT_NOTFOUND);
 		}
 
-		/*
-		 * Swap the current page for the child page. If the page splits
-		 * while we're retrieving it, restart the search at the root.
-		 *
-		 * On other error, simply return, the swap call ensures we're
-		 * holding nothing on failure.
-		 */
-descend:	if ((ret = __wt_page_swap(
-		    session, current, descent, flags)) == 0) {
+	/*
+	 * Swap the current page for the child page. If the page splits
+	 * while we're retrieving it, restart the search at the root.
+	 *
+	 * On other error, simply return, the swap call ensures we're
+	 * holding nothing on failure.
+	 */
+	descend:
+		if ((ret = __wt_page_swap(session, current, descent, flags)) == 0) {
 			current = descent;
 			continue;
 		}
@@ -317,8 +310,8 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	 * value from a column-store, if there were any reason to do so.
 	 */
 	if (btree->type != BTREE_ROW)
-		WT_RET_MSG(session, ENOTSUP,
-		    "WT_CURSOR.next_random only supported by row-store tables");
+		WT_RET_MSG(
+		    session, ENOTSUP, "WT_CURSOR.next_random only supported by row-store tables");
 
 	WT_STAT_CONN_INCR(session, cursor_next);
 	WT_STAT_DATA_INCR(session, cursor_next);
@@ -340,8 +333,8 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	 */
 	if (cbt->ref == NULL || cbt->next_random_sample_size == 0) {
 		WT_ERR(__cursor_func_init(cbt, true));
-		WT_WITH_PAGE_INDEX(session,
-		    ret = __wt_random_descent(session, &cbt->ref, read_flags));
+		WT_WITH_PAGE_INDEX(
+		    session, ret = __wt_random_descent(session, &cbt->ref, read_flags));
 		if (ret == 0)
 			goto random_page_entry;
 
@@ -382,9 +375,8 @@ __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
 	 */
 	if (cbt->next_random_leaf_skip == 0) {
 		WT_ERR(btree->bm->size(btree->bm, session, &size));
-		cbt->next_random_leaf_skip = (uint64_t)
-		    ((size / btree->allocsize) /
-		    cbt->next_random_sample_size) + 1;
+		cbt->next_random_leaf_skip =
+		    (uint64_t)((size / btree->allocsize) / cbt->next_random_sample_size) + 1;
 	}
 
 	/*
@@ -436,6 +428,7 @@ random_page_entry:
 	}
 	return (0);
 
-err:	WT_TRET(__cursor_reset(cbt));
+err:
+	WT_TRET(__cursor_reset(cbt));
 	return (ret);
 }

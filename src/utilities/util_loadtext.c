@@ -22,10 +22,9 @@ util_loadtext(WT_SESSION *session, int argc, char *argv[])
 	uri = NULL;
 	while ((ch = __wt_getopt(progname, argc, argv, "f:")) != EOF)
 		switch (ch) {
-		case 'f':	/* input file */
+		case 'f': /* input file */
 			if (freopen(__wt_optarg, "r", stdin) == NULL)
-				return (util_err(
-				    session, errno, "%s: reopen", __wt_optarg));
+				return (util_err(session, errno, "%s: reopen", __wt_optarg));
 			break;
 		case '?':
 		default:
@@ -64,8 +63,7 @@ text(WT_SESSION *session, const char *uri)
 	 * case of row-store objects).  The two flags are mutually exclusive,
 	 * but the library doesn't currently care that we set both of them.
 	 */
-	if ((ret = session->open_cursor(
-	    session, uri, NULL, "append,overwrite", &cursor)) != 0)
+	if ((ret = session->open_cursor(session, uri, NULL, "append,overwrite", &cursor)) != 0)
 		return (util_err(session, ret, "%s: session.open_cursor", uri));
 
 	/*
@@ -75,8 +73,7 @@ text(WT_SESSION *session, const char *uri)
 	 * values.
 	 */
 	if (!WT_STREQ(cursor->value_format, "S") ||
-	    (!WT_STREQ(cursor->key_format, "S") &&
-	    !WT_STREQ(cursor->key_format, "r")))
+	    (!WT_STREQ(cursor->key_format, "S") && !WT_STREQ(cursor->key_format, "r")))
 		return (util_err(session, EINVAL,
 		    "the loadtext command can only load objects configured "
 		    "for record number or string keys, and string values"));
@@ -141,8 +138,7 @@ insert(WT_CURSOR *cursor, const char *name, bool readkey)
 		cursor->set_value(cursor, value.mem);
 
 		if ((ret = cursor->insert(cursor)) != 0)
-			return (
-			    util_err(session, ret, "%s: cursor.insert", name));
+			return (util_err(session, ret, "%s: cursor.insert", name));
 
 		/* Report on progress every 100 inserts. */
 		if (verbose && ++insert_count % 100 == 0) {
@@ -162,9 +158,8 @@ insert(WT_CURSOR *cursor, const char *name, bool readkey)
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "loadtext [-f input-file] uri\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "loadtext [-f input-file] uri\n",
 	    progname, usage_prefix);
 	return (1);
 }

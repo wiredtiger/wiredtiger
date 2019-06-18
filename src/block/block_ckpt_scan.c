@@ -50,8 +50,8 @@
  *	Append metadata and checkpoint information to a buffer.
  */
 int
-__wt_block_checkpoint_final(WT_SESSION_IMPL *session,
-    WT_BLOCK *block, WT_ITEM *buf, uint8_t **file_sizep)
+__wt_block_checkpoint_final(
+    WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_t **file_sizep)
 {
 	WT_CKPT *ckpt;
 	size_t align_size, file_size_offset, len, size;
@@ -175,8 +175,7 @@ struct saved_block_info {
  *	Update the checkpoint information for the file.
  */
 static int
-__block_checkpoint_update(
-    WT_SESSION_IMPL *session, WT_BLOCK *block,  struct saved_block_info *info)
+__block_checkpoint_update(WT_SESSION_IMPL *session, WT_BLOCK *block, struct saved_block_info *info)
 {
 	WT_BLOCK_CKPT ci;
 	WT_ITEM *checkpoint;
@@ -186,45 +185,42 @@ __block_checkpoint_update(
 	checkpoint = info->checkpoint;
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-		__wt_ckpt_verbose(
-		    session, block, "import original", NULL, checkpoint->mem);
+		__wt_ckpt_verbose(session, block, "import original", NULL, checkpoint->mem);
 
 	/*
 	 * Convert the final checkpoint data blob to a WT_BLOCK_CKPT structure,
 	 * update it with the avail list information, and convert it back to a
 	 * data blob.
 	 */
-	WT_RET(__wt_block_buffer_to_ckpt(
-	    session, block, checkpoint->data, &ci));
+	WT_RET(__wt_block_buffer_to_ckpt(session, block, checkpoint->data, &ci));
 	ci.avail.offset = info->offset;
 	ci.avail.size = info->size;
 	ci.avail.checksum = info->checksum;
 	ci.file_size = (wt_off_t)info->file_size;
-	WT_RET(__wt_buf_extend(
-	    session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
+	WT_RET(__wt_buf_extend(session, checkpoint, WT_BLOCK_CHECKPOINT_BUFFER));
 	endp = checkpoint->mem;
 	WT_RET(__wt_block_ckpt_to_buffer(session, block, &endp, &ci, false));
 	checkpoint->size = WT_PTRDIFF(endp, checkpoint->mem);
 
 	if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-		__wt_ckpt_verbose(
-		    session, block, "import replace", NULL, checkpoint->mem);
+		__wt_ckpt_verbose(session, block, "import replace", NULL, checkpoint->mem);
 
 	return (0);
 }
 
-#define	WT_BLOCK_SKIP(a) do {						\
-	if ((a) != 0)							\
-		continue;						\
-} while (0)
+#define WT_BLOCK_SKIP(a)          \
+	do {                      \
+		if ((a) != 0)     \
+			continue; \
+	} while (0)
 
 /*
  * __wt_block_checkpoint_last --
  *	Scan a file for checkpoints, returning the last one we find.
  */
 int
-__wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
-    char **metadatap, char **checkpoint_listp, WT_ITEM *checkpoint)
+__wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block, char **metadatap,
+    char **checkpoint_listp, WT_ITEM *checkpoint)
 {
 	struct saved_block_info *best, _best, *current, _current, *saved_tmp;
 	WT_BLOCK_HEADER *blk;
@@ -259,7 +255,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	WT_ERR(__wt_scr_alloc(session, 0, &current->checkpoint));
 
 	found = false;
-	ext_off = 0;			/* [-Werror=maybe-uninitialized] */
+	ext_off = 0; /* [-Werror=maybe-uninitialized] */
 	ext_size = 0;
 	len = write_gen = 0;
 
@@ -273,8 +269,8 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	 */
 	fh = block->fh;
 	for (nblocks = 0, offset = 0; offset < block->size; offset += size) {
-		/* Report progress occasionally. */
-#define	WT_CHECKPOINT_LIST_PROGRESS_INTERVAL	100
+/* Report progress occasionally. */
+#define WT_CHECKPOINT_LIST_PROGRESS_INTERVAL 100
 		if (++nblocks % WT_CHECKPOINT_LIST_PROGRESS_INTERVAL == 0)
 			WT_ERR(__wt_progress(session, NULL, nblocks));
 
@@ -283,8 +279,8 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * it. Move to the next allocation sized boundary, we'll never
 		 * consider this one again.
 		 */
-		if ((ret = __wt_read(session, fh,
-		    offset, (size_t)WT_BTREE_MIN_ALLOC_SIZE, tmp->mem)) != 0)
+		if ((ret = __wt_read(
+		         session, fh, offset, (size_t)WT_BTREE_MIN_ALLOC_SIZE, tmp->mem)) != 0)
 			break;
 		blk = WT_BLOCK_HEADER_REF(tmp->mem);
 		__wt_block_header_byteswap(blk);
@@ -300,8 +296,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		 * skip to the next possible block.
 		 */
 		if (__wt_block_offset_invalid(block, offset, size) ||
-		    __wt_block_read_off(
-		    session, block, tmp, offset, size, checksum) != 0) {
+		    __wt_block_read_off(session, block, tmp, offset, size, checksum) != 0) {
 			size = WT_BTREE_MIN_ALLOC_SIZE;
 			continue;
 		}
@@ -315,8 +310,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		if (ext_off != WT_BLOCK_EXTLIST_MAGIC || ext_size != 0)
 			continue;
 		for (;;) {
-			if ((ret = __wt_extlist_read_pair(
-			    &p, &ext_off, &ext_size)) != 0)
+			if ((ret = __wt_extlist_read_pair(&p, &ext_off, &ext_size)) != 0)
 				break;
 			if (ext_off == WT_BLOCK_INVALID_OFFSET)
 				break;
@@ -342,8 +336,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 			continue;
 
 		__wt_verbose(session, WT_VERB_CHECKPOINT,
-		    "scan: checkpoint block at offset %" PRIuMAX
-		    ", generation #%" PRIu64,
+		    "scan: checkpoint block at offset %" PRIuMAX ", generation #%" PRIu64,
 		    (uintmax_t)offset, write_gen);
 
 		current->write_gen = write_gen;
@@ -368,8 +361,7 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		/* Save a copy of the checkpoint list. */
 		__wt_free(session, current->checkpoint_list);
 		WT_BLOCK_SKIP(__wt_vunpack_uint(&p, 0, &len));
-		WT_ERR(__wt_strndup(
-		    session, p, len, &current->checkpoint_list));
+		WT_ERR(__wt_strndup(session, p, len, &current->checkpoint_list));
 		p += len;
 
 		/* Save a copy of the checkpoint information. */
@@ -384,19 +376,17 @@ __wt_block_checkpoint_last(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	}
 
 	if (!found)
-		WT_ERR_MSG(session, WT_NOTFOUND,
-		    "%s: no final checkpoint found in file scan",
+		WT_ERR_MSG(session, WT_NOTFOUND, "%s: no final checkpoint found in file scan",
 		    block->name);
 
 	/* Correct the checkpoint. */
-	WT_ERR(__block_checkpoint_update(session, block,  best));
+	WT_ERR(__block_checkpoint_update(session, block, best));
 
 	/*
 	 * Copy the information out to our caller. Do the WT_ITEM first, it's
 	 * the only thing left that can fail and simplifies error handling.
 	 */
-	WT_ERR(__wt_buf_set(session,
-	    checkpoint, best->checkpoint->data, best->checkpoint->size));
+	WT_ERR(__wt_buf_set(session, checkpoint, best->checkpoint->data, best->checkpoint->size));
 	*metadatap = best->metadata;
 	best->metadata = NULL;
 	*checkpoint_listp = best->checkpoint_list;

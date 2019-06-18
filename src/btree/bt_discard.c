@@ -12,8 +12,7 @@ static void __free_page_modify(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_col_var(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_int(WT_SESSION_IMPL *, WT_PAGE *);
 static void __free_page_row_leaf(WT_SESSION_IMPL *, WT_PAGE *);
-static void __free_skip_array(
-		WT_SESSION_IMPL *, WT_INSERT_HEAD **, uint32_t, bool);
+static void __free_skip_array(WT_SESSION_IMPL *, WT_INSERT_HEAD **, uint32_t, bool);
 static void __free_skip_list(WT_SESSION_IMPL *, WT_INSERT *, bool);
 static void __free_update(WT_SESSION_IMPL *, WT_UPDATE **, uint32_t, bool);
 
@@ -67,8 +66,7 @@ __wt_page_out(WT_SESSION_IMPL *session, WT_PAGE **pagep)
 	 * dead trees until sweep gets to them, so we may not in the
 	 * WT_SYNC_DISCARD loop.
 	 */
-	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-	    F_ISSET(S2C(session), WT_CONN_CLOSING))
+	if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING))
 		__wt_page_modify_clear(session, page);
 
 	/* Assert we never discard a dirty page or a page queue for eviction. */
@@ -154,8 +152,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 	switch (mod->rec_result) {
 	case WT_PM_REC_MULTIBLOCK:
 		/* Free list of replacement blocks. */
-		for (multi = mod->mod_multi,
-		    i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+		for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
 			switch (page->type) {
 			case WT_PAGE_ROW_INT:
 			case WT_PAGE_ROW_LEAF:
@@ -182,8 +179,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 	case WT_PAGE_COL_VAR:
 		/* Free the append array. */
 		if ((append = WT_COL_APPEND(page)) != NULL) {
-			__free_skip_list(
-			    session, WT_SKIP_FIRST(append), update_ignore);
+			__free_skip_list(session, WT_SKIP_FIRST(append), update_ignore);
 			__wt_free(session, append);
 			__wt_free(session, mod->mod_col_append);
 		}
@@ -191,8 +187,7 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 		/* Free the insert/update array. */
 		if (mod->mod_col_update != NULL)
 			__free_skip_array(session, mod->mod_col_update,
-			    page->type ==
-			    WT_PAGE_COL_FIX ? 1 : page->entries, update_ignore);
+			    page->type == WT_PAGE_COL_FIX ? 1 : page->entries, update_ignore);
 		break;
 	case WT_PAGE_ROW_LEAF:
 		/*
@@ -203,13 +198,12 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 		 * before keys found on the original page).
 		 */
 		if (mod->mod_row_insert != NULL)
-			__free_skip_array(session, mod->mod_row_insert,
-			    page->entries + 1, update_ignore);
+			__free_skip_array(
+			    session, mod->mod_row_insert, page->entries + 1, update_ignore);
 
 		/* Free the update array. */
 		if (mod->mod_row_update != NULL)
-			__free_update(session, mod->mod_row_update,
-			    page->entries, update_ignore);
+			__free_update(session, mod->mod_row_update, page->entries, update_ignore);
 		break;
 	}
 
@@ -240,8 +234,7 @@ __free_page_int(WT_SESSION_IMPL *session, WT_PAGE *page)
  * pages it references).
  */
 void
-__wt_free_ref(
-    WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
+__wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages)
 {
 	WT_IKEY *ikey;
 
@@ -297,8 +290,7 @@ __wt_free_ref(
  *	Discard a page index and its references.
  */
 void
-__wt_free_ref_index(WT_SESSION_IMPL *session,
-    WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
+__wt_free_ref_index(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages)
 {
 	uint32_t i;
 
@@ -306,8 +298,7 @@ __wt_free_ref_index(WT_SESSION_IMPL *session,
 		return;
 
 	for (i = 0; i < pindex->entries; ++i)
-		__wt_free_ref(
-		    session, pindex->index[i], page->type, free_pages);
+		__wt_free_ref(session, pindex->index[i], page->type, free_pages);
 	__wt_free(session, pindex);
 }
 
@@ -341,10 +332,9 @@ __free_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * points somewhere other than the original page), and if so, free
 	 * the memory.
 	 */
-	WT_ROW_FOREACH(page, rip, i) {
+	WT_ROW_FOREACH (page, rip, i) {
 		copy = WT_ROW_KEY_COPY(rip);
-		(void)__wt_row_leaf_key_info(
-		    page, copy, &ikey, NULL, NULL, NULL);
+		(void)__wt_row_leaf_key_info(page, copy, &ikey, NULL, NULL, NULL);
 		__wt_free(session, ikey);
 	}
 }
@@ -354,8 +344,8 @@ __free_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Discard an array of skip list headers.
  */
 static void
-__free_skip_array(WT_SESSION_IMPL *session,
-    WT_INSERT_HEAD **head_arg, uint32_t entries, bool update_ignore)
+__free_skip_array(
+    WT_SESSION_IMPL *session, WT_INSERT_HEAD **head_arg, uint32_t entries, bool update_ignore)
 {
 	WT_INSERT_HEAD **head;
 
@@ -365,8 +355,7 @@ __free_skip_array(WT_SESSION_IMPL *session,
 	 */
 	for (head = head_arg; entries > 0; --entries, ++head)
 		if (*head != NULL) {
-			__free_skip_list(
-			    session, WT_SKIP_FIRST(*head), update_ignore);
+			__free_skip_list(session, WT_SKIP_FIRST(*head), update_ignore);
 			__wt_free(session, *head);
 		}
 
@@ -397,8 +386,8 @@ __free_skip_list(WT_SESSION_IMPL *session, WT_INSERT *ins, bool update_ignore)
  *	Discard the update array.
  */
 static void
-__free_update(WT_SESSION_IMPL *session,
-    WT_UPDATE **update_head, uint32_t entries, bool update_ignore)
+__free_update(
+    WT_SESSION_IMPL *session, WT_UPDATE **update_head, uint32_t entries, bool update_ignore)
 {
 	WT_UPDATE **updp;
 

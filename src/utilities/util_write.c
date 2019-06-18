@@ -44,9 +44,8 @@ util_write(WT_SESSION *session, int argc, char *argv[])
 	if (append) {
 		if (argc < 2)
 			return (usage());
-	} else
-		if (argc < 3 || ((argc - 1) % 2 != 0))
-			return (usage());
+	} else if (argc < 3 || ((argc - 1) % 2 != 0))
+		return (usage());
 	if ((uri = util_uri(session, *argv, "table")) == NULL)
 		return (1);
 
@@ -54,14 +53,12 @@ util_write(WT_SESSION *session, int argc, char *argv[])
 	 * Open the object; free allocated memory immediately to simplify
 	 * future error handling.
 	 */
-	if ((ret = __wt_snprintf(config, sizeof(config), "%s,%s",
-	    append ? "append=true" : "",
-	    overwrite ? "overwrite=true" : "")) != 0) {
+	if ((ret = __wt_snprintf(config, sizeof(config), "%s,%s", append ? "append=true" : "",
+	         overwrite ? "overwrite=true" : "")) != 0) {
 		free(uri);
 		return (util_err(session, ret, NULL));
 	}
-	if ((ret =
-	    session->open_cursor(session, uri, NULL, config, &cursor)) != 0)
+	if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0)
 		(void)util_err(session, ret, "%s: session.open_cursor", uri);
 	free(uri);
 	if (ret != 0)
@@ -71,19 +68,16 @@ util_write(WT_SESSION *session, int argc, char *argv[])
 	 * A simple search only makes sense if the key format is a string or a
 	 * record number, and the value format is a single string.
 	 */
-	if (!WT_STREQ(cursor->key_format, "r") &&
-	    !WT_STREQ(cursor->key_format, "S")) {
-		fprintf(stderr,
-		    "%s: write command only possible when the key format is "
-		    "a record number or string\n",
+	if (!WT_STREQ(cursor->key_format, "r") && !WT_STREQ(cursor->key_format, "S")) {
+		fprintf(stderr, "%s: write command only possible when the key format is "
+		                "a record number or string\n",
 		    progname);
 		return (1);
 	}
 	rkey = WT_STREQ(cursor->key_format, "r");
 	if (!WT_STREQ(cursor->value_format, "S")) {
-		fprintf(stderr,
-		    "%s: write command only possible when the value format is "
-		    "a string\n",
+		fprintf(stderr, "%s: write command only possible when the value format is "
+		                "a string\n",
 		    progname);
 		return (1);
 	}
@@ -111,9 +105,8 @@ util_write(WT_SESSION *session, int argc, char *argv[])
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "write [-ao] uri key ...\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "write [-ao] uri key ...\n",
 	    progname, usage_prefix);
 	return (1);
 }

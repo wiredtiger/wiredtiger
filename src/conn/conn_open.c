@@ -22,16 +22,14 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
 	WT_ASSERT(session, session->iface.connection == &conn->iface);
 
 	/* WT_SESSION_IMPL array. */
-	WT_RET(__wt_calloc(session,
-	    conn->session_size, sizeof(WT_SESSION_IMPL), &conn->sessions));
+	WT_RET(__wt_calloc(session, conn->session_size, sizeof(WT_SESSION_IMPL), &conn->sessions));
 
 	/*
 	 * Open the default session.  We open this before starting service
 	 * threads because those may allocate and use session resources that
 	 * need to get cleaned up on close.
 	 */
-	WT_RET(__wt_open_internal_session(
-	    conn, "connection", false, 0, &session));
+	WT_RET(__wt_open_internal_session(conn, "connection", false, 0, &session));
 
 	/*
 	 * The connection's default session is originally a static structure,
@@ -125,8 +123,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 	 */
 	if (ret == 0 && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) &&
 	    FLD_ISSET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE))
-		WT_TRET(__wt_txn_checkpoint_log(
-		    session, true, WT_TXN_LOG_CKPT_STOP, NULL));
+		WT_TRET(__wt_txn_checkpoint_log(session, true, WT_TXN_LOG_CKPT_STOP, NULL));
 	WT_TRET(__wt_logmgr_destroy(session));
 
 	/* Free memory for collators, compressors, data sources. */
@@ -185,8 +182,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
 	/* Destroy the file-system configuration. */
 	if (conn->file_system != NULL && conn->file_system->terminate != NULL)
-		WT_TRET(conn->file_system->terminate(
-		    conn->file_system, (WT_SESSION *)session));
+		WT_TRET(conn->file_system->terminate(conn->file_system, (WT_SESSION *)session));
 
 	/* Close extensions, first calling any unload entry point. */
 	while ((dlh = TAILQ_FIRST(&conn->dlhqh)) != NULL) {

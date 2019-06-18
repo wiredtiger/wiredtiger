@@ -76,17 +76,14 @@ list_get_allocsize(WT_SESSION *session, const char *key, size_t *allocsize)
 
 	wt_api = session->connection->get_extension_api(session->connection);
 	if ((ret = wt_api->metadata_search(wt_api, session, key, &config)) != 0)
-		WT_ERR(util_err(
-		    session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
-	if ((ret = wt_api->config_parser_open(wt_api, session, config,
-	    strlen(config), &parser)) != 0)
-		WT_ERR(util_err(
-		    session, ret, "WT_EXTENSION_API.config_parser_open"));
+		WT_ERR(util_err(session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
+	if ((ret = wt_api->config_parser_open(wt_api, session, config, strlen(config), &parser)) !=
+	    0)
+		WT_ERR(util_err(session, ret, "WT_EXTENSION_API.config_parser_open"));
 	if ((ret = parser->get(parser, "allocation_size", &szvalue)) == 0)
 		*allocsize = (size_t)szvalue.val;
 	else
-		ret = ret == WT_NOTFOUND ?
-		    0 : util_err(session, ret, "WT_CONFIG_PARSER.get");
+		ret = ret == WT_NOTFOUND ? 0 : util_err(session, ret, "WT_CONFIG_PARSER.get");
 err:
 	if (parser != NULL && (tret = parser->close(parser)) != 0) {
 		tret = util_err(session, tret, "WT_CONFIG_PARSER.close");
@@ -111,8 +108,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 	bool found;
 
 	/* Open the metadata file. */
-	if ((ret = session->open_cursor(
-	    session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
+	if ((ret = session->open_cursor(session, WT_METADATA_URI, NULL, NULL, &cursor)) != 0) {
 		/*
 		 * If there is no metadata (yet), this will return ENOENT.
 		 * Treat that the same as an empty metadata.
@@ -120,8 +116,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 		if (ret == ENOENT)
 			return (0);
 
-		return (util_err(session,
-		    ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
+		return (util_err(session, ret, "%s: WT_SESSION.open_cursor", WT_METADATA_URI));
 	}
 
 	found = uri == NULL;
@@ -150,8 +145,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
 		if (!vflag && WT_PREFIX_MATCH(key, WT_SYSTEM_PREFIX))
 			continue;
 		if (cflag || vflag ||
-		    (strcmp(key, WT_METADATA_URI) != 0 &&
-		    strcmp(key, WT_LAS_URI) != 0))
+		    (strcmp(key, WT_METADATA_URI) != 0 && strcmp(key, WT_LAS_URI) != 0))
 			printf("%s\n", key);
 
 		if (!cflag && !vflag)
@@ -223,13 +217,13 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 
 	/* Find the longest name, so we can pretty-print. */
 	len = 0;
-	WT_CKPT_FOREACH(ckptbase, ckpt)
+	WT_CKPT_FOREACH (ckptbase, ckpt)
 		if (strlen(ckpt->name) > len)
 			len = strlen(ckpt->name);
 	++len;
 
 	memset(&ci, 0, sizeof(ci));
-	WT_CKPT_FOREACH(ckptbase, ckpt) {
+	WT_CKPT_FOREACH (ckptbase, ckpt) {
 		/*
 		 * Call ctime, not ctime_r; ctime_r has portability problems,
 		 * the Solaris version is different from the POSIX standard.
@@ -246,43 +240,36 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 		/* Decode the checkpoint block. */
 		if (ckpt->raw.data == NULL)
 			continue;
-		if ((ret = __wt_block_ckpt_decode(
-		    session, allocsize, ckpt->raw.data, &ci)) == 0) {
-			printf("\t\t" "file-size: ");
+		if ((ret = __wt_block_ckpt_decode(session, allocsize, ckpt->raw.data, &ci)) == 0) {
+			printf("\t\t"
+			       "file-size: ");
 			list_print_size((uint64_t)ci.file_size);
 			printf(", checkpoint-size: ");
 			list_print_size(ci.ckpt_size);
 			printf("\n\n");
 
-			printf("\t\t" "          offset, size, checksum\n");
-			printf(
-			    "\t\t" "root    "
-			    ": %" PRIuMAX
-			    ", %" PRIu32
-			    ", %" PRIu32 " (%#" PRIx32 ")\n",
-			    (uintmax_t)ci.root_offset, ci.root_size,
-			    ci.root_checksum, ci.root_checksum);
-			printf(
-			    "\t\t" "alloc   "
-			    ": %" PRIuMAX
-			    ", %" PRIu32
-			    ", %" PRIu32 " (%#" PRIx32 ")\n",
-			    (uintmax_t)ci.alloc.offset, ci.alloc.size,
-			    ci.alloc.checksum, ci.alloc.checksum);
-			printf(
-			    "\t\t" "discard "
-			    ": %" PRIuMAX
-			    ", %" PRIu32
-			    ", %" PRIu32 " (%#" PRIx32 ")\n",
-			    (uintmax_t)ci.discard.offset, ci.discard.size,
-			    ci.discard.checksum, ci.discard.checksum);
-			printf(
-			    "\t\t" "avail   "
-			    ": %" PRIuMAX
-			    ", %" PRIu32
-			    ", %" PRIu32 " (%#" PRIx32 ")\n",
-			    (uintmax_t)ci.avail.offset, ci.avail.size,
-			    ci.avail.checksum, ci.avail.checksum);
+			printf("\t\t"
+			       "          offset, size, checksum\n");
+			printf("\t\t"
+			       "root    "
+			       ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.root_offset, ci.root_size, ci.root_checksum,
+			    ci.root_checksum);
+			printf("\t\t"
+			       "alloc   "
+			       ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.alloc.offset, ci.alloc.size, ci.alloc.checksum,
+			    ci.alloc.checksum);
+			printf("\t\t"
+			       "discard "
+			       ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.discard.offset, ci.discard.size, ci.discard.checksum,
+			    ci.discard.checksum);
+			printf("\t\t"
+			       "avail   "
+			       ": %" PRIuMAX ", %" PRIu32 ", %" PRIu32 " (%#" PRIx32 ")\n",
+			    (uintmax_t)ci.avail.offset, ci.avail.size, ci.avail.checksum,
+			    ci.avail.checksum);
 		} else {
 			/* Ignore the error and continue if damaged. */
 			(void)util_err(session, ret, "__wt_block_ckpt_decode");
@@ -296,9 +283,8 @@ list_print_checkpoint(WT_SESSION *session, const char *key)
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "list [-cv] [uri]\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "list [-cv] [uri]\n",
 	    progname, usage_prefix);
 	return (1);
 }

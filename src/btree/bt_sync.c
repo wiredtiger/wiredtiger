@@ -54,8 +54,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * the lock.
 	 */
 	if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
-		for (multi = mod->mod_multi,
-		    i = 0; i < mod->mod_multi_entries; ++multi, ++i)
+		for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i)
 			if (multi->addr.addr == NULL)
 				return (false);
 
@@ -67,8 +66,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_PAGE *page)
  *	Duplicate a tree walk point.
  */
 static inline int
-__sync_dup_walk(
-    WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF **dupp)
+__sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF **dupp)
 {
 	WT_REF *old;
 	bool busy;
@@ -87,8 +85,7 @@ __sync_dup_walk(
 	/* Get a duplicate hazard pointer. */
 	for (;;) {
 #ifdef HAVE_DIAGNOSTIC
-		WT_RET(
-		    __wt_hazard_set(session, walk, &busy, __func__, __LINE__));
+		WT_RET(__wt_hazard_set(session, walk, &busy, __func__, __LINE__));
 #else
 		WT_RET(__wt_hazard_set(session, walk, &busy));
 #endif
@@ -199,8 +196,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 					__wt_txn_get_snapshot(session);
 				leaf_bytes += page->memory_footprint;
 				++leaf_pages;
-				WT_ERR(__wt_reconcile(session,
-				    walk, NULL, WT_REC_CHECKPOINT, NULL));
+				WT_ERR(
+				    __wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
 			}
 		}
 		break;
@@ -240,8 +237,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 		 * Set the checkpointing flag to block such actions and wait for
 		 * any problematic eviction or page splits to complete.
 		 */
-		WT_ASSERT(session, btree->syncing == WT_BTREE_SYNC_OFF &&
-		    btree->sync_session == NULL);
+		WT_ASSERT(
+		    session, btree->syncing == WT_BTREE_SYNC_OFF && btree->sync_session == NULL);
 
 		btree->sync_session = session;
 		btree->syncing = WT_BTREE_SYNC_WAIT;
@@ -270,10 +267,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 				    mod->rec_max_txn > btree->rec_max_txn)
 					btree->rec_max_txn = mod->rec_max_txn;
 				if (mod != NULL &&
-				    btree->rec_max_timestamp <
-				    mod->rec_max_timestamp)
-					btree->rec_max_timestamp =
-					    mod->rec_max_timestamp;
+				    btree->rec_max_timestamp < mod->rec_max_timestamp)
+					btree->rec_max_timestamp = mod->rec_max_timestamp;
 				continue;
 			}
 
@@ -322,11 +317,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			 * discarded), that is not wasted effort because
 			 * checkpoint doesn't need to write the page again.
 			 */
-			if (!WT_PAGE_IS_INTERNAL(page) &&
-			    page->read_gen == WT_READGEN_WONT_NEED &&
+			if (!WT_PAGE_IS_INTERNAL(page) && page->read_gen == WT_READGEN_WONT_NEED &&
 			    !tried_eviction) {
-				WT_ERR_BUSY_OK(
-				    __wt_page_release_evict(session, walk, 0));
+				WT_ERR_BUSY_OK(__wt_page_release_evict(session, walk, 0));
 				walk = prev;
 				prev = NULL;
 				tried_eviction = true;
@@ -334,22 +327,19 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 			}
 			tried_eviction = false;
 
-			WT_ERR(__wt_reconcile(
-			    session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+			WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
 
 			/*
 			 * Update checkpoint IO tracking data if configured
 			 * to log verbose progress messages.
 			 */
 			if (conn->ckpt_timer_start.tv_sec > 0) {
-				conn->ckpt_write_bytes +=
-				    page->memory_footprint;
+				conn->ckpt_write_bytes += page->memory_footprint;
 				++conn->ckpt_write_pages;
 
 				/* Periodically log checkpoint progress. */
 				if (conn->ckpt_write_pages % 5000 == 0)
-					__wt_checkpoint_progress(
-					    session, false);
+					__wt_checkpoint_progress(session, false);
 			}
 		}
 		break;
@@ -362,16 +352,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 	if (timer) {
 		time_stop = __wt_clock(session);
 		__wt_verbose(session, WT_VERB_CHECKPOINT,
-		    "__sync_file WT_SYNC_%s wrote: %" PRIu64
-		    " leaf pages (%" PRIu64 "B), %" PRIu64
+		    "__sync_file WT_SYNC_%s wrote: %" PRIu64 " leaf pages (%" PRIu64 "B), %" PRIu64
 		    " internal pages (%" PRIu64 "B), and took %" PRIu64 "ms",
-		    syncop == WT_SYNC_WRITE_LEAVES ?
-		    "WRITE_LEAVES" : "CHECKPOINT",
-		    leaf_pages, leaf_bytes, internal_pages, internal_bytes,
+		    syncop == WT_SYNC_WRITE_LEAVES ? "WRITE_LEAVES" : "CHECKPOINT", leaf_pages,
+		    leaf_bytes, internal_pages, internal_bytes,
 		    WT_CLOCKDIFF_MS(time_stop, time_start));
 	}
 
-err:	/* On error, clear any left-over tree walk. */
+err: /* On error, clear any left-over tree walk. */
 	WT_TRET(__wt_page_release(session, walk, flags));
 	WT_TRET(__wt_page_release(session, prev, flags));
 
@@ -379,8 +367,7 @@ err:	/* On error, clear any left-over tree walk. */
 	 * If we got a snapshot in order to write pages, and there was no
 	 * snapshot active when we started, release it.
 	 */
-	if (txn->isolation == WT_ISO_READ_COMMITTED &&
-	    saved_pinned_id == WT_TXN_NONE)
+	if (txn->isolation == WT_ISO_READ_COMMITTED && saved_pinned_id == WT_TXN_NONE)
 		__wt_txn_release_snapshot(session);
 
 	/* Clear the checkpoint flag. */
@@ -394,8 +381,7 @@ err:	/* On error, clear any left-over tree walk. */
 	 * before checkpointing the file).  Start a flush to stable storage,
 	 * but don't wait for it.
 	 */
-	if (ret == 0 &&
-	    syncop == WT_SYNC_WRITE_LEAVES && F_ISSET(conn, WT_CONN_CKPT_SYNC))
+	if (ret == 0 && syncop == WT_SYNC_WRITE_LEAVES && F_ISSET(conn, WT_CONN_CKPT_SYNC))
 		WT_RET(btree->bm->sync(btree->bm, session, false));
 
 	return (ret);

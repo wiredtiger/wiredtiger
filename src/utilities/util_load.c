@@ -16,11 +16,11 @@ static int insert(WT_CURSOR *, const char *);
 static int load_dump(WT_SESSION *);
 static int usage(void);
 
-static bool   append = false;		/* -a append (ignore number keys) */
-static char  *cmdname;			/* -r rename */
-static char **cmdconfig;		/* configuration pairs */
-static bool   json = false;		/* -j input is JSON format */
-static bool   no_overwrite = false;	/* -n don't overwrite existing data */
+static bool append = false;       /* -a append (ignore number keys) */
+static char *cmdname;             /* -r rename */
+static char **cmdconfig;          /* configuration pairs */
+static bool json = false;         /* -j input is JSON format */
+static bool no_overwrite = false; /* -n don't overwrite existing data */
 
 int
 util_load(WT_SESSION *session, int argc, char *argv[])
@@ -34,24 +34,22 @@ util_load(WT_SESSION *session, int argc, char *argv[])
 	filename = "<stdin>";
 	while ((ch = __wt_getopt(progname, argc, argv, "af:jnr:")) != EOF)
 		switch (ch) {
-		case 'a':	/* append (ignore record number keys) */
+		case 'a': /* append (ignore record number keys) */
 			append = true;
 			break;
-		case 'f':	/* input file */
+		case 'f': /* input file */
 			if (freopen(__wt_optarg, "r", stdin) == NULL)
-				return (
-				    util_err(session,
-					errno, "%s: reopen", __wt_optarg));
+				return (util_err(session, errno, "%s: reopen", __wt_optarg));
 			else
 				filename = __wt_optarg;
 			break;
-		case 'j':	/* input is JSON */
+		case 'j': /* input is JSON */
 			json = true;
 			break;
-		case 'n':	/* don't overwrite existing data */
+		case 'n': /* don't overwrite existing data */
 			no_overwrite = true;
 			break;
-		case 'r':	/* rename */
+		case 'r': /* rename */
 			cmdname = __wt_optarg;
 			break;
 		case '?':
@@ -98,8 +96,8 @@ load_dump(WT_SESSION *session)
 	bool hex;
 
 	cursor = NULL;
-	list = NULL;		/* -Wuninitialized */
-	hex = false;		/* -Wuninitialized */
+	list = NULL; /* -Wuninitialized */
+	hex = false; /* -Wuninitialized */
 	uri = NULL;
 
 	/* Read the metadata file. */
@@ -120,16 +118,12 @@ load_dump(WT_SESSION *session)
 		goto err;
 
 	/* Open the insert cursor. */
-	if ((ret = __wt_snprintf(config, sizeof(config),
-	    "dump=%s%s%s",
-	    hex ? "hex" : "print",
-	    append ? ",append" : "",
-	    no_overwrite ? ",overwrite=false" : "")) != 0) {
+	if ((ret = __wt_snprintf(config, sizeof(config), "dump=%s%s%s", hex ? "hex" : "print",
+	         append ? ",append" : "", no_overwrite ? ",overwrite=false" : "")) != 0) {
 		ret = util_err(session, ret, NULL);
 		goto err;
 	}
-	if ((ret = session->open_cursor(
-	    session, uri, NULL, config, &cursor)) != 0) {
+	if ((ret = session->open_cursor(session, uri, NULL, config, &cursor)) != 0) {
 		ret = util_err(session, ret, "%s: session.open_cursor", uri);
 		goto err;
 	}
@@ -139,19 +133,18 @@ load_dump(WT_SESSION *session)
 	 * key is a record number).
 	 */
 	if (append && !WT_STREQ(cursor->key_format, "r")) {
-		fprintf(stderr,
-		    "%s: %s: -a option illegal unless the primary key is a "
-		    "record number\n",
+		fprintf(stderr, "%s: %s: -a option illegal unless the primary key is a "
+		                "record number\n",
 		    progname, uri);
 		ret = 1;
 	} else
 		ret = insert(cursor, uri);
 
-err:	/*
-	 * Technically, we don't have to close the cursor because the session
-	 * handle will do it for us, but I'd like to see the flush to disk and
-	 * the close succeed, it's better to fail early when loading files.
-	 */
+err: /*
+      * Technically, we don't have to close the cursor because the session
+      * handle will do it for us, but I'd like to see the flush to disk and
+      * the close succeed, it's better to fail early when loading files.
+      */
 	if (cursor != NULL && (tret = cursor->close(cursor)) != 0) {
 		tret = util_err(session, tret, "%s: cursor.close", uri);
 		if (ret == 0)
@@ -178,8 +171,7 @@ config_exec(WT_SESSION *session, char **list)
 
 	for (; *list != NULL; list += 2)
 		if ((ret = session->create(session, list[0], list[1])) != 0)
-			return (util_err(
-			    session, ret, "%s: session.create", list[0]));
+			return (util_err(session, ret, "%s: session.create", list[0]));
 	return (0);
 }
 
@@ -191,8 +183,8 @@ int
 config_list_add(WT_SESSION *session, CONFIG_LIST *clp, char *val)
 {
 	if (clp->entry + 1 >= clp->max_entry)
-		if ((clp->list = realloc(clp->list, (size_t)
-		    (clp->max_entry += 100) * sizeof(char *))) == NULL)
+		if ((clp->list = realloc(
+		         clp->list, (size_t)(clp->max_entry += 100) * sizeof(char *))) == NULL)
 			/* List already freed by realloc. */
 			return (util_err(session, errno, NULL));
 
@@ -277,8 +269,8 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
 		 * extra slot for NULL termination.
 		 */
 		if (entry + 1 >= max_entry) {
-			if ((tlist = realloc(list, (size_t)
-			    (max_entry += 100) * sizeof(char *))) == NULL) {
+			if ((tlist = realloc(list, (size_t)(max_entry += 100) * sizeof(char *))) ==
+			    NULL) {
 				ret = util_err(session, errno, NULL);
 
 				/*
@@ -307,7 +299,8 @@ config_read(WT_SESSION *session, char ***listp, bool *hexp)
 	free(l.mem);
 	return (0);
 
-err:	if (list != NULL) {
+err:
+	if (list != NULL) {
 		for (tlist = list; *tlist != NULL; ++tlist)
 			free(*tlist);
 		free(list);
@@ -339,8 +332,7 @@ config_reorder(WT_SESSION *session, char **list)
 		 * the configuration information.
 		 */
 		if ((list[0] == NULL || list[1] == NULL || list[2] != NULL) ||
-		    (WT_PREFIX_MATCH(list[0], "file:") &&
-		    WT_PREFIX_MATCH(list[0], "lsm:")))
+		    (WT_PREFIX_MATCH(list[0], "file:") && WT_PREFIX_MATCH(list[0], "lsm:")))
 			return (format(session));
 
 		entry = list;
@@ -352,8 +344,12 @@ config_reorder(WT_SESSION *session, char **list)
 	 * a multiple of 2 entries, so this is safe.)
 	 */
 	if (entry != list) {
-		p = list[0]; list[0] = entry[0]; entry[0] = p;
-		p = list[1]; list[1] = entry[1]; entry[1] = p;
+		p = list[0];
+		list[0] = entry[0];
+		entry[0] = p;
+		p = list[1];
+		list[1] = entry[1];
+		entry[1] = p;
 	}
 	return (0);
 }
@@ -379,10 +375,8 @@ config_update(WT_SESSION *session, char **list)
 	if (cmdname != NULL) {
 		for (listp = list; *listp != NULL; listp += 2)
 			if (WT_PREFIX_MATCH(*listp, "colgroup:") ||
-			    WT_PREFIX_MATCH(*listp, "file:") ||
-			    WT_PREFIX_MATCH(*listp, "index:") ||
-			    WT_PREFIX_MATCH(*listp, "lsm:") ||
-			    WT_PREFIX_MATCH(*listp, "table:"))
+			    WT_PREFIX_MATCH(*listp, "file:") || WT_PREFIX_MATCH(*listp, "index:") ||
+			    WT_PREFIX_MATCH(*listp, "lsm:") || WT_PREFIX_MATCH(*listp, "table:"))
 				if (config_rename(session, listp, cmdname))
 					return (1);
 
@@ -391,8 +385,7 @@ config_update(WT_SESSION *session, char **list)
 		 * rename the configuration pairs as well, because we don't know
 		 * if the user used the old or new names for the pair's URI.
 		 */
-		for (configp = cmdconfig;
-		    cmdconfig != NULL && *configp != NULL; configp += 2)
+		for (configp = cmdconfig; cmdconfig != NULL && *configp != NULL; configp += 2)
 			if (config_rename(session, configp, cmdname))
 				return (1);
 	}
@@ -402,13 +395,10 @@ config_update(WT_SESSION *session, char **list)
 	 * If there were command-line configuration pairs, walk the list of
 	 * command-line configuration strings and check.
 	 */
-	for (configp = cmdconfig;
-	    configp != NULL && *configp != NULL; configp += 2)
-		if (strstr(configp[1], "key_format=") ||
-		    strstr(configp[1], "value_format="))
-			return (util_err(session, 0,
-			    "an object's key or value format may not be "
-			    "modified"));
+	for (configp = cmdconfig; configp != NULL && *configp != NULL; configp += 2)
+		if (strstr(configp[1], "key_format=") || strstr(configp[1], "value_format="))
+			return (util_err(session, 0, "an object's key or value format may not be "
+			                             "modified"));
 
 	/*
 	 * If there were command-line configuration pairs, walk the list of
@@ -416,23 +406,23 @@ config_update(WT_SESSION *session, char **list)
 	 * if a command-line URI doesn't find a single, exact match, that's
 	 * likely a mistake.
 	 */
-	for (configp = cmdconfig;
-	    configp != NULL && *configp != NULL; configp += 2) {
+	for (configp = cmdconfig; configp != NULL && *configp != NULL; configp += 2) {
 		for (found = 0, listp = list; *listp != NULL; listp += 2)
 			if (strncmp(*configp, listp[0], strlen(*configp)) == 0)
 				++found;
 		switch (found) {
 		case 0:
-			return (util_err(session, 0,
-			    "the command line object name %s was not matched "
-			    "by any loaded object name", *configp));
+			return (
+			    util_err(session, 0, "the command line object name %s was not matched "
+			                         "by any loaded object name",
+			        *configp));
 		case 1:
 			break;
 		default:
-			return (util_err(session, 0,
-			    "the command line object name %s was not unique, "
-			    "matching more than a single loaded object name",
-			    *configp));
+			return (
+			    util_err(session, 0, "the command line object name %s was not unique, "
+			                         "matching more than a single loaded object name",
+			        *configp));
 		}
 	}
 
@@ -441,8 +431,7 @@ config_update(WT_SESSION *session, char **list)
 	 * line arguments, a list of configuration values to remove, and the
 	 * base configuration values, plus some slop.
 	 */
-	for (cnt = 0, configp = cmdconfig;
-	    cmdconfig != NULL && *configp != NULL; configp += 2)
+	for (cnt = 0, configp = cmdconfig; cmdconfig != NULL && *configp != NULL; configp += 2)
 		++cnt;
 	if ((cfg = calloc(cnt + 10, sizeof(cfg[0]))) == NULL)
 		return (util_err(session, errno, NULL));
@@ -458,17 +447,15 @@ config_update(WT_SESSION *session, char **list)
 	for (listp = list; *listp != NULL; listp += 2) {
 		cnt = 0;
 		cfg[cnt++] = listp[1];
-		for (configp = cmdconfig;
-		    cmdconfig != NULL && *configp != NULL; configp += 2)
+		for (configp = cmdconfig; cmdconfig != NULL && *configp != NULL; configp += 2)
 			if (strncmp(*configp, listp[0], strlen(*configp)) == 0)
 				cfg[cnt++] = configp[1];
 		cfg[cnt++] = NULL;
 
-		if ((ret = __wt_config_merge((WT_SESSION_IMPL *)session,
-		    cfg,
-		    "filename=,id=,"
-		    "checkpoint=,checkpoint_lsn=,version=,source=,",
-		    &p)) != 0)
+		if ((ret = __wt_config_merge((WT_SESSION_IMPL *)session, cfg,
+		         "filename=,id=,"
+		         "checkpoint=,checkpoint_lsn=,version=,source=,",
+		         &p)) != 0)
 			break;
 
 		free(listp[1]);
@@ -504,8 +491,7 @@ config_rename(WT_SESSION *session, char **urip, const char *name)
 	}
 	*p = '\0';
 	p = strchr(p + 1, ':');
-	if ((ret = __wt_snprintf(
-	    buf, len, "%s:%s%s", *urip, name, p == NULL ? "" : p)) != 0) {
+	if ((ret = __wt_snprintf(buf, len, "%s:%s%s", *urip, name, p == NULL ? "" : p)) != 0) {
 		free(buf);
 		return (util_err(session, ret, NULL));
 	}
@@ -521,8 +507,7 @@ config_rename(WT_SESSION *session, char **urip, const char *name)
 static int
 format(WT_SESSION *session)
 {
-	return (util_err(
-	    session, 0, "input does not match WiredTiger dump format"));
+	return (util_err(session, 0, "input does not match WiredTiger dump format"));
 }
 
 /*
@@ -577,7 +562,8 @@ insert(WT_CURSOR *cursor, const char *name)
 	if (verbose)
 		printf("\r\t%s: %" PRIu64 "\n", name, insert_count);
 
-err:	free(key.mem);
+err:
+	free(key.mem);
 	free(value.mem);
 
 	return (ret);
@@ -586,9 +572,8 @@ err:	free(key.mem);
 static int
 usage(void)
 {
-	(void)fprintf(stderr,
-	    "usage: %s %s "
-	    "load [-as] [-f input-file] [-r name] [object configuration ...]\n",
+	(void)fprintf(stderr, "usage: %s %s "
+	                      "load [-as] [-f input-file] [-r name] [object configuration ...]\n",
 	    progname, usage_prefix);
 	return (1);
 }

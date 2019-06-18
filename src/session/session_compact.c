@@ -160,8 +160,7 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 
 	WT_UNUSED(cfg);
 
-	WT_RET(__wt_session_get_dhandle(
-	    session, session->dhandle->name, NULL, NULL, 0));
+	WT_RET(__wt_session_get_dhandle(session, session->dhandle->name, NULL, NULL, 0));
 
 	/* Set compact active on the handle. */
 	if ((ret = __compact_start(session)) != 0) {
@@ -170,8 +169,8 @@ __compact_handle_append(WT_SESSION_IMPL *session, const char *cfg[])
 	}
 
 	/* Make sure there is space for the next entry. */
-	WT_RET(__wt_realloc_def(session, &session->op_handle_allocated,
-	    session->op_handle_next + 1, &session->op_handle));
+	WT_RET(__wt_realloc_def(session, &session->op_handle_allocated, session->op_handle_next + 1,
+	    &session->op_handle));
 
 	session->op_handle[session->op_handle_next++] = session->dhandle;
 	return (0);
@@ -190,8 +189,9 @@ __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
 		return (0);
 
 	__wt_epoch(session, &end);
-	return (session->compact->max_time >
-	    WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : ETIMEDOUT);
+	return (session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin) ?
+	        0 :
+	        ETIMEDOUT);
 }
 
 /*
@@ -210,7 +210,7 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 	 * work we need to have done is done in the underlying block manager.
 	 */
 	const char *checkpoint_cfg[] = {
-	    WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL };
+	    WT_CONFIG_BASE(session, WT_SESSION_checkpoint), "force=1", NULL};
 
 	/* Checkpoints take a lot of time, check if we've run out. */
 	WT_RET(__wt_session_compact_check_timeout(session));
@@ -274,15 +274,14 @@ __compact_worker(WT_SESSION_IMPL *session)
 	 */
 	for (loop = 0; loop < 100; ++loop) {
 		/* Step through the list of files being compacted. */
-		for (another_pass = false,
-		    i = 0; i < session->op_handle_next; ++i) {
+		for (another_pass = false, i = 0; i < session->op_handle_next; ++i) {
 			/* Skip objects where there's no more work. */
 			if (session->op_handle[i]->compact_skip)
 				continue;
 
 			session->compact_state = WT_COMPACT_RUNNING;
-			WT_WITH_DHANDLE(session,
-			    session->op_handle[i], ret = __wt_compact(session));
+			WT_WITH_DHANDLE(
+			    session, session->op_handle[i], ret = __wt_compact(session));
 
 			/*
 			 * If successful and we did work, schedule another pass.
@@ -290,12 +289,10 @@ __compact_worker(WT_SESSION_IMPL *session)
 			 * the future.
 			 */
 			if (ret == 0) {
-				if (session->
-				    compact_state == WT_COMPACT_SUCCESS)
+				if (session->compact_state == WT_COMPACT_SUCCESS)
 					another_pass = true;
 				else
-					session->
-					    op_handle[i]->compact_skip = true;
+					session->op_handle[i]->compact_skip = true;
 				continue;
 			}
 
@@ -310,9 +307,8 @@ __compact_worker(WT_SESSION_IMPL *session)
 			 */
 			if (ret == EBUSY) {
 				if (__wt_cache_stuck(session)) {
-					WT_ERR_MSG(session, EBUSY,
-					    "compaction halted by eviction "
-					    "pressure");
+					WT_ERR_MSG(session, EBUSY, "compaction halted by eviction "
+					                           "pressure");
 				}
 				ret = 0;
 				another_pass = true;
@@ -330,7 +326,8 @@ __compact_worker(WT_SESSION_IMPL *session)
 		WT_ERR(__compact_checkpoint(session));
 	}
 
-err:	session->compact_state = WT_COMPACT_NONE;
+err:
+	session->compact_state = WT_COMPACT_NONE;
 
 	return (ret);
 }
@@ -340,8 +337,7 @@ err:	session->compact_state = WT_COMPACT_NONE;
  *	WT_SESSION.compact method.
  */
 int
-__wt_session_compact(
-    WT_SESSION *wt_session, const char *uri, const char *config)
+__wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config)
 {
 	WT_COMPACT_STATE compact;
 	WT_CONFIG_ITEM cval;
@@ -381,16 +377,13 @@ __wt_session_compact(
 	/* Disallow objects in the WiredTiger name space. */
 	WT_ERR(__wt_str_name_check(session, uri));
 
-	if (!WT_PREFIX_MATCH(uri, "colgroup:") &&
-	    !WT_PREFIX_MATCH(uri, "file:") &&
-	    !WT_PREFIX_MATCH(uri, "index:") &&
-	    !WT_PREFIX_MATCH(uri, "lsm:") &&
+	if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
+	    !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "lsm:") &&
 	    !WT_PREFIX_MATCH(uri, "table:")) {
 		if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
 			ret = dsrc->compact == NULL ?
 			    __wt_object_unsupported(session, uri) :
-			    dsrc->compact(
-			    dsrc, wt_session, uri, (WT_CONFIG_ARG *)cfg);
+			    dsrc->compact(dsrc, wt_session, uri, (WT_CONFIG_ARG *)cfg);
 		else
 			ret = __wt_bad_object_type(session, uri);
 		goto err;
@@ -410,25 +403,24 @@ __wt_session_compact(
 	 * opening indexes for a table, so acquire the table lock in write
 	 * mode.
 	 */
-	WT_WITH_SCHEMA_LOCK(session,
-	    WT_WITH_TABLE_WRITE_LOCK(session,
-		ret = __wt_schema_worker(session, uri,
-		__compact_handle_append, __compact_uri_analyze, cfg, 0)));
+	WT_WITH_SCHEMA_LOCK(
+	    session, WT_WITH_TABLE_WRITE_LOCK(
+	                 session, ret = __wt_schema_worker(session, uri, __compact_handle_append,
+	                              __compact_uri_analyze, cfg, 0)));
 	WT_ERR(ret);
 
 	if (session->compact->lsm_count != 0)
-		WT_ERR(__wt_schema_worker(
-		    session, uri, NULL, __wt_lsm_compact, cfg, 0));
+		WT_ERR(__wt_schema_worker(session, uri, NULL, __wt_lsm_compact, cfg, 0));
 	if (session->compact->file_count != 0)
 		WT_ERR(__compact_worker(session));
 
-err:	session->compact = NULL;
+err:
+	session->compact = NULL;
 
 	for (i = 0; i < session->op_handle_next; ++i) {
-		WT_WITH_DHANDLE(session, session->op_handle[i],
-		    WT_TRET(__compact_end(session)));
-		WT_WITH_DHANDLE(session, session->op_handle[i],
-		    WT_TRET(__wt_session_release_dhandle(session)));
+		WT_WITH_DHANDLE(session, session->op_handle[i], WT_TRET(__compact_end(session)));
+		WT_WITH_DHANDLE(
+		    session, session->op_handle[i], WT_TRET(__wt_session_release_dhandle(session)));
 	}
 
 	__wt_free(session, session->op_handle);
@@ -455,8 +447,7 @@ err:	session->compact = NULL;
  *	WT_SESSION.compact method; readonly version.
  */
 int
-__wt_session_compact_readonly(
-    WT_SESSION *wt_session, const char *uri, const char *config)
+__wt_session_compact_readonly(WT_SESSION *wt_session, const char *uri, const char *config)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -469,5 +460,6 @@ __wt_session_compact_readonly(
 
 	WT_STAT_CONN_INCR(session, session_table_compact_fail);
 	ret = __wt_session_notsup(session);
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }

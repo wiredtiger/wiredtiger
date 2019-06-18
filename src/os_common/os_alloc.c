@@ -17,11 +17,11 @@
 #ifdef HAVE_LIBTCMALLOC
 #include <gperftools/tcmalloc.h>
 
-#define	calloc			tc_calloc
-#define	malloc			tc_malloc
-#define	realloc 		tc_realloc
-#define	posix_memalign 		tc_posix_memalign
-#define	free 			tc_free
+#define calloc tc_calloc
+#define malloc tc_malloc
+#define realloc tc_realloc
+#define posix_memalign tc_posix_memalign
+#define free tc_free
 #endif
 
 /*
@@ -51,8 +51,7 @@ __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
 
 	if ((p = calloc(number, size)) == NULL)
 		WT_RET_MSG(session, __wt_errno(),
-		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
-		    size * number);
+		    "memory allocation of %" WT_SIZET_FMT " bytes failed", size * number);
 
 	*(void **)retp = p;
 	return (0);
@@ -84,8 +83,7 @@ __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
 
 	if ((p = malloc(bytes_to_allocate)) == NULL)
 		WT_RET_MSG(session, __wt_errno(),
-		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
-		    bytes_to_allocate);
+		    "memory allocation of %" WT_SIZET_FMT " bytes failed", bytes_to_allocate);
 
 	*(void **)retp = p;
 	return (0);
@@ -96,9 +94,8 @@ __wt_malloc(WT_SESSION_IMPL *session, size_t bytes_to_allocate, void *retp)
  *	ANSI realloc function.
  */
 static int
-__realloc_func(WT_SESSION_IMPL *session,
-    size_t *bytes_allocated_ret, size_t bytes_to_allocate, bool clear_memory,
-    void *retp)
+__realloc_func(WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate,
+    bool clear_memory, void *retp)
 {
 	size_t bytes_allocated;
 	void *p;
@@ -111,12 +108,9 @@ __realloc_func(WT_SESSION_IMPL *session,
 	 * final length -- bytes_allocated_ret may be NULL.
 	 */
 	p = *(void **)retp;
-	bytes_allocated =
-	    (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
-	WT_ASSERT(session,
-	    (p == NULL && bytes_allocated == 0) ||
-	    (p != NULL &&
-	    (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+	bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
+	WT_ASSERT(session, (p == NULL && bytes_allocated == 0) ||
+	        (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
 	WT_ASSERT(session, bytes_to_allocate != 0);
 	WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
 
@@ -129,16 +123,14 @@ __realloc_func(WT_SESSION_IMPL *session,
 
 	if ((p = realloc(p, bytes_to_allocate)) == NULL)
 		WT_RET_MSG(session, __wt_errno(),
-		    "memory allocation of %" WT_SIZET_FMT " bytes failed",
-		    bytes_to_allocate);
+		    "memory allocation of %" WT_SIZET_FMT " bytes failed", bytes_to_allocate);
 
 	/*
 	 * Clear the allocated memory, parts of WiredTiger depend on allocated
 	 * memory being cleared.
 	 */
 	if (clear_memory)
-		memset((uint8_t *)p + bytes_allocated,
-		    0, bytes_to_allocate - bytes_allocated);
+		memset((uint8_t *)p + bytes_allocated, 0, bytes_to_allocate - bytes_allocated);
 
 	/* Update caller's bytes allocated value. */
 	if (bytes_allocated_ret != NULL)
@@ -153,11 +145,10 @@ __realloc_func(WT_SESSION_IMPL *session,
  *	WiredTiger's realloc API.
  */
 int
-__wt_realloc(WT_SESSION_IMPL *session,
-    size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
+__wt_realloc(
+    WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
 {
-	return (__realloc_func(
-	    session, bytes_allocated_ret, bytes_to_allocate, true, retp));
+	return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, true, retp));
 }
 
 /*
@@ -165,11 +156,10 @@ __wt_realloc(WT_SESSION_IMPL *session,
  *	WiredTiger's realloc API, not clearing allocated memory.
  */
 int
-__wt_realloc_noclear(WT_SESSION_IMPL *session,
-    size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
+__wt_realloc_noclear(
+    WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
 {
-	return (__realloc_func(
-	    session, bytes_allocated_ret, bytes_to_allocate, false, retp));
+	return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, false, retp));
 }
 
 /*
@@ -178,8 +168,8 @@ __wt_realloc_noclear(WT_SESSION_IMPL *session,
  * the "buffer_alignment" key to wiredtiger_open.
  */
 int
-__wt_realloc_aligned(WT_SESSION_IMPL *session,
-    size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
+__wt_realloc_aligned(
+    WT_SESSION_IMPL *session, size_t *bytes_allocated_ret, size_t bytes_to_allocate, void *retp)
 {
 #if defined(HAVE_POSIX_MEMALIGN)
 	WT_DECL_RET;
@@ -197,12 +187,9 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 		 * final length -- bytes_allocated_ret may be NULL.
 		 */
 		p = *(void **)retp;
-		bytes_allocated =
-		    (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
-		WT_ASSERT(session,
-		    (p == NULL && bytes_allocated == 0) ||
-		    (p != NULL &&
-		    (bytes_allocated_ret == NULL || bytes_allocated != 0)));
+		bytes_allocated = (bytes_allocated_ret == NULL) ? 0 : *bytes_allocated_ret;
+		WT_ASSERT(session, (p == NULL && bytes_allocated == 0) ||
+		        (p != NULL && (bytes_allocated_ret == NULL || bytes_allocated != 0)));
 		WT_ASSERT(session, bytes_to_allocate != 0);
 		WT_ASSERT(session, bytes_allocated < bytes_to_allocate);
 
@@ -214,17 +201,15 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 		 * for aligned buffers is Linux direct I/O, which requires that
 		 * the size be a multiple of the alignment anyway.
 		 */
-		bytes_to_allocate =
-		    WT_ALIGN(bytes_to_allocate, S2C(session)->buffer_alignment);
+		bytes_to_allocate = WT_ALIGN(bytes_to_allocate, S2C(session)->buffer_alignment);
 
 		WT_STAT_CONN_INCR(session, memory_allocation);
 
-		if ((ret = posix_memalign(&newp,
-		    S2C(session)->buffer_alignment,
-		    bytes_to_allocate)) != 0)
+		if ((ret = posix_memalign(
+		         &newp, S2C(session)->buffer_alignment, bytes_to_allocate)) != 0)
 			WT_RET_MSG(session, ret,
-			     "memory allocation of %" WT_SIZET_FMT
-			     " bytes failed", bytes_to_allocate);
+			    "memory allocation of %" WT_SIZET_FMT " bytes failed",
+			    bytes_to_allocate);
 
 		if (p != NULL)
 			memcpy(newp, p, bytes_allocated);
@@ -246,8 +231,7 @@ __wt_realloc_aligned(WT_SESSION_IMPL *session,
 	 * Windows note: Visual C CRT memalign does not match POSIX behavior
 	 * and would also double each allocation so it is bad for memory use.
 	 */
-	return (__realloc_func(
-	    session, bytes_allocated_ret, bytes_to_allocate, false, retp));
+	return (__realloc_func(session, bytes_allocated_ret, bytes_to_allocate, false, retp));
 }
 
 /*
@@ -261,7 +245,7 @@ __wt_memdup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp)
 
 	WT_RET(__wt_malloc(session, len, &p));
 
-	WT_ASSERT(session, p != NULL);		/* quiet clang scan-build */
+	WT_ASSERT(session, p != NULL); /* quiet clang scan-build */
 
 	memcpy(p, str, len);
 
@@ -286,7 +270,7 @@ __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp)
 	/* Copy and nul-terminate. */
 	WT_RET(__wt_malloc(session, len + 1, &p));
 
-	WT_ASSERT(session, p != NULL);		/* quiet clang scan-build */
+	WT_ASSERT(session, p != NULL); /* quiet clang scan-build */
 
 	memcpy(p, str, len);
 	p[len] = '\0';
@@ -306,7 +290,7 @@ __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg)
 	void *p;
 
 	p = *(void **)p_arg;
-	if (p == NULL)				/* ANSI C free semantics */
+	if (p == NULL) /* ANSI C free semantics */
 		return;
 
 	/*

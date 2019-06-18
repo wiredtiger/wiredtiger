@@ -8,62 +8,96 @@
 
 #include "util.h"
 
-const char *home = ".";				/* Home directory */
-const char *progname;				/* Program name */
-						/* Global arguments */
+const char *home = "."; /* Home directory */
+const char *progname;   /* Program name */
+                        /* Global arguments */
 const char *usage_prefix = "[-LRSVv] [-C config] [-E secretkey] [-h home]";
-bool verbose = false;				/* Verbose flag */
+bool verbose = false; /* Verbose flag */
 
-static const char *command;			/* Command name */
+static const char *command; /* Command name */
 
-#define	REC_ERROR	"log=(recover=error)"
-#define	REC_LOGOFF	"log=(enabled=false)"
-#define	REC_RECOVER	"log=(recover=on)"
-#define	REC_SALVAGE	"log=(recover=salvage)"
+#define REC_ERROR "log=(recover=error)"
+#define REC_LOGOFF "log=(enabled=false)"
+#define REC_RECOVER "log=(recover=on)"
+#define REC_SALVAGE "log=(recover=salvage)"
 
 static void
 usage(void)
 {
-	fprintf(stderr,
-	    "WiredTiger Data Engine (version %d.%d)\n",
-	    WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR);
-	fprintf(stderr,
-	    "global options:\n"
-	    "\t" "-C\t" "wiredtiger_open configuration\n"
-	    "\t" "-E\t" "secret encryption key\n"
-	    "\t" "-h\t" "database directory\n"
-	    "\t" "-L\t" "turn logging off for debug-mode\n"
-	    "\t" "-R\t" "run recovery (if recovery configured)\n"
-	    "\t" "-S\t" "run salvage recovery (if recovery configured)\n"
-	    "\t" "-V\t" "display library version and exit\n"
-	    "\t" "-v\t" "verbose\n");
-	fprintf(stderr,
-	    "commands:\n"
-	    "\t" "alter\t  alter an object\n"
-	    "\t" "backup\t  database backup\n"
-	    "\t" "compact\t  compact an object\n"
-	    "\t" "copyright copyright information\n"
-	    "\t" "create\t  create an object\n"
-	    "\t" "downgrade downgrade a database\n"
-	    "\t" "drop\t  drop an object\n"
-	    "\t" "dump\t  dump an object\n"
-	    /*
-	     * Import is not documented.
-	     * "\t" "import\t  import an object\n"
-	     */
-	    "\t" "list\t  list database objects\n"
-	    "\t" "load\t  load an object\n"
-	    "\t" "loadtext  load an object from a text file\n"
-	    "\t" "printlog  display the database log\n"
-	    "\t" "read\t  read values from an object\n"
-	    "\t" "rebalance rebalance an object\n"
-	    "\t" "rename\t  rename an object\n"
-	    "\t" "salvage\t  salvage a file\n"
-	    "\t" "stat\t  display statistics for an object\n"
-	    "\t" "truncate  truncate an object, removing all content\n"
-	    "\t" "upgrade\t  upgrade an object\n"
-	    "\t" "verify\t  verify an object\n"
-	    "\t" "write\t  write values to an object\n");
+	fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
+	    WIREDTIGER_VERSION_MINOR);
+	fprintf(stderr, "global options:\n"
+	                "\t"
+	                "-C\t"
+	                "wiredtiger_open configuration\n"
+	                "\t"
+	                "-E\t"
+	                "secret encryption key\n"
+	                "\t"
+	                "-h\t"
+	                "database directory\n"
+	                "\t"
+	                "-L\t"
+	                "turn logging off for debug-mode\n"
+	                "\t"
+	                "-R\t"
+	                "run recovery (if recovery configured)\n"
+	                "\t"
+	                "-S\t"
+	                "run salvage recovery (if recovery configured)\n"
+	                "\t"
+	                "-V\t"
+	                "display library version and exit\n"
+	                "\t"
+	                "-v\t"
+	                "verbose\n");
+	fprintf(stderr, "commands:\n"
+	                "\t"
+	                "alter\t  alter an object\n"
+	                "\t"
+	                "backup\t  database backup\n"
+	                "\t"
+	                "compact\t  compact an object\n"
+	                "\t"
+	                "copyright copyright information\n"
+	                "\t"
+	                "create\t  create an object\n"
+	                "\t"
+	                "downgrade downgrade a database\n"
+	                "\t"
+	                "drop\t  drop an object\n"
+	                "\t"
+	                "dump\t  dump an object\n"
+	                /*
+	                 * Import is not documented.
+	                 * "\t" "import\t  import an object\n"
+	                 */
+	                "\t"
+	                "list\t  list database objects\n"
+	                "\t"
+	                "load\t  load an object\n"
+	                "\t"
+	                "loadtext  load an object from a text file\n"
+	                "\t"
+	                "printlog  display the database log\n"
+	                "\t"
+	                "read\t  read values from an object\n"
+	                "\t"
+	                "rebalance rebalance an object\n"
+	                "\t"
+	                "rename\t  rename an object\n"
+	                "\t"
+	                "salvage\t  salvage a file\n"
+	                "\t"
+	                "stat\t  display statistics for an object\n"
+	                "\t"
+	                "truncate  truncate an object, removing all content\n"
+	                "\t"
+	                "upgrade\t  upgrade an object\n"
+	                "\t"
+	                "verify\t  verify an object\n"
+	                "\t"
+	                "write\t  write values to an object\n");
 }
 
 int
@@ -89,15 +123,11 @@ main(int argc, char *argv[])
 	command = "";
 
 	/* Check the version against the library build. */
-	(void)wiredtiger_version(&major_v, & minor_v, NULL);
-	if (major_v != WIREDTIGER_VERSION_MAJOR ||
-	    minor_v != WIREDTIGER_VERSION_MINOR) {
-		fprintf(stderr,
-		    "%s: program build version %d.%d does not match "
-		    "library build version %d.%d\n",
-		    progname,
-		    WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR,
-		    major_v,  minor_v);
+	(void)wiredtiger_version(&major_v, &minor_v, NULL);
+	if (major_v != WIREDTIGER_VERSION_MAJOR || minor_v != WIREDTIGER_VERSION_MINOR) {
+		fprintf(stderr, "%s: program build version %d.%d does not match "
+		                "library build version %d.%d\n",
+		    progname, WIREDTIGER_VERSION_MAJOR, WIREDTIGER_VERSION_MINOR, major_v, minor_v);
 		return (EXIT_FAILURE);
 	}
 
@@ -113,36 +143,36 @@ main(int argc, char *argv[])
 	/* Check for standard options. */
 	while ((ch = __wt_getopt(progname, argc, argv, "C:E:h:LRSVv")) != EOF)
 		switch (ch) {
-		case 'C':			/* wiredtiger_open config */
+		case 'C': /* wiredtiger_open config */
 			cmd_config = __wt_optarg;
 			break;
-		case 'E':			/* secret key */
-			free(secretkey);	/* lint: set more than once */
+		case 'E':                /* secret key */
+			free(secretkey); /* lint: set more than once */
 			if ((secretkey = strdup(__wt_optarg)) == NULL) {
 				(void)util_err(NULL, errno, NULL);
 				goto err;
 			}
 			memset(__wt_optarg, 0, strlen(__wt_optarg));
 			break;
-		case 'h':			/* home directory */
+		case 'h': /* home directory */
 			home = __wt_optarg;
 			break;
-		case 'L':			/* no logging */
+		case 'L': /* no logging */
 			rec_config = REC_LOGOFF;
 			logoff = true;
 			break;
-		case 'R':			/* recovery */
+		case 'R': /* recovery */
 			rec_config = REC_RECOVER;
 			recover = true;
 			break;
-		case 'S':			/* salvage */
+		case 'S': /* salvage */
 			rec_config = REC_SALVAGE;
 			salvage = true;
 			break;
-		case 'V':			/* version */
+		case 'V': /* version */
 			printf("%s\n", wiredtiger_version(NULL, NULL, NULL));
 			goto done;
-		case 'v':			/* verbose */
+		case 'v': /* verbose */
 			verbose = true;
 			break;
 		case '?':
@@ -150,8 +180,7 @@ main(int argc, char *argv[])
 			usage();
 			goto err;
 		}
-	if ((logoff && recover) || (logoff && salvage) ||
-	    (recover && salvage)) {
+	if ((logoff && recover) || (logoff && salvage) || (recover && salvage)) {
 		fprintf(stderr, "Only one of -L, -R, and -S is allowed.\n");
 		goto err;
 	}
@@ -234,7 +263,7 @@ main(int argc, char *argv[])
 			config = "statistics=(all)";
 		}
 		break;
-	case 't' :
+	case 't':
 		if (strcmp(command, "truncate") == 0)
 			func = util_truncate;
 		break;
@@ -259,7 +288,7 @@ main(int argc, char *argv[])
 	}
 
 	/* Build the configuration string. */
-	len = 10;					/* some slop */
+	len = 10; /* some slop */
 	p1 = p2 = p3 = "";
 	len += strlen("error_prefix=wt");
 	if (config != NULL)
@@ -278,17 +307,15 @@ main(int argc, char *argv[])
 		goto err;
 	}
 	if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s%s%s%s",
-	    config == NULL ? "" : config,
-	    cmd_config == NULL ? "" : cmd_config,
-	    rec_config, p1, p2, p3)) != 0) {
+	         config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config, rec_config, p1,
+	         p2, p3)) != 0) {
 		(void)util_err(NULL, ret, NULL);
 		goto err;
 	}
 	config = p;
 
 	/* Open the database and a session. */
-	if ((ret = wiredtiger_open(home,
-	    verbose ? verbose_handler : NULL, config, &conn)) != 0) {
+	if ((ret = wiredtiger_open(home, verbose ? verbose_handler : NULL, config, &conn)) != 0) {
 		(void)util_err(NULL, ret, NULL);
 		goto err;
 	}
@@ -301,7 +328,8 @@ main(int argc, char *argv[])
 	ret = func(session, argc, argv);
 
 	if (0) {
-err:		ret = 1;
+	err:
+		ret = 1;
 	}
 done:
 
@@ -326,12 +354,9 @@ util_uri(WT_SESSION *session, const char *s, const char *type)
 	size_t len;
 	char *name;
 
-	if (WT_PREFIX_MATCH(s, "backup:") ||
-	    WT_PREFIX_MATCH(s, "config:") ||
+	if (WT_PREFIX_MATCH(s, "backup:") || WT_PREFIX_MATCH(s, "config:") ||
 	    WT_PREFIX_MATCH(s, "statistics:")) {
-		fprintf(stderr,
-		    "%s: %s: unsupported object type: %s\n",
-		    progname, command, s);
+		fprintf(stderr, "%s: %s: unsupported object type: %s\n", progname, command, s);
 		return (NULL);
 	}
 
@@ -351,7 +376,8 @@ util_uri(WT_SESSION *session, const char *s, const char *type)
 		WT_ERR(__wt_snprintf(name, len, "%s:%s", type, s));
 	return (name);
 
-err:	free(name);
+err:
+	free(name);
 	(void)util_err(session, ret, NULL);
 	return (NULL);
 }

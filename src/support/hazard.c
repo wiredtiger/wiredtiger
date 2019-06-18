@@ -54,8 +54,7 @@ hazard_grow(WT_SESSION_IMPL *session)
 	 * future free of the old memory. Ignore any failure, leak the memory.
 	 */
 	hazard_gen = __wt_gen_next(session, WT_GEN_HAZARD);
-	WT_IGNORE_RET(
-	    __wt_stash_add(session, WT_GEN_HAZARD, hazard_gen, ohazard, 0));
+	WT_IGNORE_RET(__wt_stash_add(session, WT_GEN_HAZARD, hazard_gen, ohazard, 0));
 
 	return (0);
 }
@@ -67,7 +66,8 @@ hazard_grow(WT_SESSION_IMPL *session)
 int
 __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 #ifdef HAVE_DIAGNOSTIC
-    , const char *func, int line
+    ,
+    const char *func, int line
 #endif
     )
 {
@@ -93,9 +93,8 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 
 	/* If we have filled the current hazard pointer array, grow it. */
 	if (session->nhazard >= session->hazard_size) {
-		WT_ASSERT(session,
-		    session->nhazard == session->hazard_size &&
-		    session->hazard_inuse == session->hazard_size);
+		WT_ASSERT(session, session->nhazard == session->hazard_size &&
+		        session->hazard_inuse == session->hazard_size);
 		WT_RET(hazard_grow(session));
 	}
 
@@ -104,14 +103,12 @@ __wt_hazard_set(WT_SESSION_IMPL *session, WT_REF *ref, bool *busyp
 	 * visible.
 	 */
 	if (session->nhazard >= session->hazard_inuse) {
-		WT_ASSERT(session,
-		    session->nhazard == session->hazard_inuse &&
-		    session->hazard_inuse < session->hazard_size);
+		WT_ASSERT(session, session->nhazard == session->hazard_inuse &&
+		        session->hazard_inuse < session->hazard_size);
 		hp = &session->hazard[session->hazard_inuse++];
 	} else {
-		WT_ASSERT(session,
-		    session->nhazard < session->hazard_inuse &&
-		    session->hazard_inuse <= session->hazard_size);
+		WT_ASSERT(session, session->nhazard < session->hazard_inuse &&
+		        session->hazard_inuse <= session->hazard_size);
 
 		/*
 		 * There must be an empty slot in the array, find it. Skip most
@@ -200,9 +197,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Clear the caller's hazard pointer.
 	 * The common pattern is LIFO, so do a reverse search.
 	 */
-	for (hp = session->hazard + session->hazard_inuse - 1;
-	    hp >= session->hazard;
-	    --hp)
+	for (hp = session->hazard + session->hazard_inuse - 1; hp >= session->hazard; --hp)
 		if (hp->ref == ref) {
 			/*
 			 * We don't publish the hazard pointer clear in the
@@ -231,8 +226,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * A serious error, we should always find the hazard pointer.  Panic,
 	 * because using a page we didn't have pinned down implies corruption.
 	 */
-	WT_PANIC_RET(session, EINVAL,
-	    "session %p: clear hazard pointer: %p: not found",
+	WT_PANIC_RET(session, EINVAL, "session %p: clear hazard pointer: %p: not found",
 	    (void *)session, (void *)ref);
 }
 
@@ -251,8 +245,8 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 	 * just check the session's hazard pointer count, but this is a useful
 	 * diagnostic.
 	 */
-	for (found = false, hp = session->hazard;
-	    hp < session->hazard + session->hazard_inuse; ++hp)
+	for (found = false, hp = session->hazard; hp < session->hazard + session->hazard_inuse;
+	     ++hp)
 		if (hp->ref != NULL) {
 			found = true;
 			break;
@@ -260,9 +254,8 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 	if (session->nhazard == 0 && !found)
 		return;
 
-	__wt_errx(session,
-	    "session %p: close hazard pointer table: table not empty",
-	    (void *)session);
+	__wt_errx(
+	    session, "session %p: close hazard pointer table: table not empty", (void *)session);
 
 #ifdef HAVE_DIAGNOSTIC
 	__hazard_dump(session);
@@ -279,17 +272,15 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 	 * We don't panic: this shouldn't be a correctness issue (at least, I
 	 * can't think of a reason it would be).
 	 */
-	for (hp = session->hazard;
-	    hp < session->hazard + session->hazard_inuse; ++hp)
+	for (hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
 		if (hp->ref != NULL) {
 			hp->ref = NULL;
 			--session->nhazard;
 		}
 
 	if (session->nhazard != 0)
-		__wt_errx(session,
-		    "session %p: close hazard pointer table: count didn't "
-		    "match entries",
+		__wt_errx(session, "session %p: close hazard pointer table: count didn't "
+		                   "match entries",
 		    (void *)session);
 }
 
@@ -298,8 +289,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
  *	Return a consistent reference to a hazard pointer array.
  */
 static inline void
-hazard_get_reference(
-    WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *hazard_inusep)
+hazard_get_reference(WT_SESSION_IMPL *session, WT_HAZARD **hazardp, uint32_t *hazard_inusep)
 {
 	/*
 	 * Hazard pointer arrays can be swapped out from under us if they grow.
@@ -322,8 +312,7 @@ hazard_get_reference(
  *	Return if there's a hazard pointer to the page in the system.
  */
 WT_HAZARD *
-__wt_hazard_check(WT_SESSION_IMPL *session,
-    WT_REF *ref, WT_SESSION_IMPL **sessionp)
+__wt_hazard_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_SESSION_IMPL **sessionp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_HAZARD *hp;
@@ -350,8 +339,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session,
 	 * have been active when we started our check.
 	 */
 	WT_ORDERED_READ(session_cnt, conn->session_cnt);
-	for (s = conn->sessions,
-	    i = j = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+	for (s = conn->sessions, i = j = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
 		if (!s->active)
 			continue;
 
@@ -365,8 +353,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session,
 		for (j = 0; j < hazard_inuse; ++hp, ++j) {
 			++walk_cnt;
 			if (hp->ref == ref) {
-				WT_STAT_CONN_INCRV(session,
-				    cache_hazard_walks, walk_cnt);
+				WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
 				if (sessionp != NULL)
 					*sessionp = s;
 				goto done;
@@ -376,7 +363,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session,
 	WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
 	hp = NULL;
 
-done:	/* Leave the current resource generation. */
+done: /* Leave the current resource generation. */
 	__wt_session_gen_leave(session, WT_GEN_HAZARD);
 
 	return (hp);
@@ -422,11 +409,9 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 			break;
 		__wt_sleep(0, 10000);
 	}
-	__wt_errx(session,
-	    "hazard pointer reference to discarded object: "
-	    "(%p: session %p name %s: %s, line %d)",
-	    (void *)hp->ref, (void *)s,
-	    s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
+	__wt_errx(session, "hazard pointer reference to discarded object: "
+	                   "(%p: session %p name %s: %s, line %d)",
+	    (void *)hp->ref, (void *)s, s->name == NULL ? "UNKNOWN" : s->name, hp->func, hp->line);
 	return (false);
 }
 
@@ -439,12 +424,9 @@ __hazard_dump(WT_SESSION_IMPL *session)
 {
 	WT_HAZARD *hp;
 
-	for (hp = session->hazard;
-	    hp < session->hazard + session->hazard_inuse; ++hp)
+	for (hp = session->hazard; hp < session->hazard + session->hazard_inuse; ++hp)
 		if (hp->ref != NULL)
-			__wt_errx(session,
-			    "session %p: hazard pointer %p: %s, line %d",
-			    (void *)session,
-			    (void *)hp->ref, hp->func, hp->line);
+			__wt_errx(session, "session %p: hazard pointer %p: %s, line %d",
+			    (void *)session, (void *)hp->ref, hp->func, hp->line);
 }
 #endif

@@ -13,8 +13,7 @@
  *	Pack a byte string (extension API).
  */
 int
-wiredtiger_struct_pack(WT_SESSION *wt_session,
-    void *buffer, size_t len, const char *format, ...)
+wiredtiger_struct_pack(WT_SESSION *wt_session, void *buffer, size_t len, const char *format, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -34,8 +33,7 @@ wiredtiger_struct_pack(WT_SESSION *wt_session,
  *	Calculate the size of a packed byte string (extension API).
  */
 int
-wiredtiger_struct_size(WT_SESSION *wt_session,
-    size_t *lenp, const char *format, ...)
+wiredtiger_struct_size(WT_SESSION *wt_session, size_t *lenp, const char *format, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -55,8 +53,8 @@ wiredtiger_struct_size(WT_SESSION *wt_session,
  *	Unpack a byte string (extension API).
  */
 int
-wiredtiger_struct_unpack(WT_SESSION *wt_session,
-    const void *buffer, size_t len, const char *format, ...)
+wiredtiger_struct_unpack(
+    WT_SESSION *wt_session, const void *buffer, size_t len, const char *format, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
@@ -76,15 +74,15 @@ wiredtiger_struct_unpack(WT_SESSION *wt_session,
  *	Pack a byte string (extension API).
  */
 int
-__wt_ext_struct_pack(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
-    void *buffer, size_t len, const char *fmt, ...)
+__wt_ext_struct_pack(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, void *buffer, size_t len,
+    const char *fmt, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	va_list ap;
 
 	session = (wt_session != NULL) ? (WT_SESSION_IMPL *)wt_session :
-	    ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
+	                                 ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
 	va_start(ap, fmt);
 	ret = __wt_struct_packv(session, buffer, len, fmt, ap);
@@ -98,15 +96,15 @@ __wt_ext_struct_pack(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
  *	Calculate the size of a packed byte string (extension API).
  */
 int
-__wt_ext_struct_size(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
-    size_t *lenp, const char *fmt, ...)
+__wt_ext_struct_size(
+    WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, size_t *lenp, const char *fmt, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	va_list ap;
 
 	session = (wt_session != NULL) ? (WT_SESSION_IMPL *)wt_session :
-	    ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
+	                                 ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
 	va_start(ap, fmt);
 	ret = __wt_struct_sizev(session, lenp, fmt, ap);
@@ -120,15 +118,15 @@ __wt_ext_struct_size(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
  *	Unpack a byte string (extension API).
  */
 int
-__wt_ext_struct_unpack(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session,
-    const void *buffer, size_t len, const char *fmt, ...)
+__wt_ext_struct_unpack(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const void *buffer,
+    size_t len, const char *fmt, ...)
 {
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	va_list ap;
 
 	session = (wt_session != NULL) ? (WT_SESSION_IMPL *)wt_session :
-	    ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
+	                                 ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
 	va_start(ap, fmt);
 	ret = __wt_struct_unpackv(session, buffer, len, fmt, ap);

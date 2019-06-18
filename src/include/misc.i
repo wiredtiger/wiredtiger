@@ -11,8 +11,8 @@
  *	Wait on a mutex, optionally timing out.
  */
 static inline void
-__wt_cond_wait(WT_SESSION_IMPL *session,
-    WT_CONDVAR *cond, uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *))
+__wt_cond_wait(
+    WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *))
 {
 	bool notused;
 
@@ -26,7 +26,7 @@ __wt_cond_wait(WT_SESSION_IMPL *session,
 static inline u_char
 __wt_hex(int c)
 {
-	return ((u_char)"0123456789abcdef"[c]);
+	return ((u_char) "0123456789abcdef"[c]);
 }
 
 /*
@@ -34,20 +34,21 @@ __wt_hex(int c)
  *      Get a timestamp from CPU registers.
  */
 static inline uint64_t
-__wt_rdtsc(void) {
-#if defined (__i386)
+__wt_rdtsc(void)
+{
+#if defined(__i386)
 	{
-	uint64_t x;
+		uint64_t x;
 
-	__asm__ volatile ("rdtsc" : "=A" (x));
-	return (x);
+		__asm__ volatile("rdtsc" : "=A"(x));
+		return (x);
 	}
-#elif defined (__amd64)
+#elif defined(__amd64)
 	{
-	uint64_t a, d;
+		uint64_t a, d;
 
-	__asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
-	return ((d << 32) | a);
+		__asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
+		return ((d << 32) | a);
 	}
 #else
 	return (0);
@@ -79,8 +80,7 @@ __wt_clock(WT_SESSION_IMPL *session)
 static inline int
 __wt_strdup(WT_SESSION_IMPL *session, const char *str, void *retp)
 {
-	return (__wt_strndup(
-	    session, str, (str == NULL) ? 0 : strlen(str), retp));
+	return (__wt_strndup(session, str, (str == NULL) ? 0 : strlen(str), retp));
 }
 
 /*
@@ -103,7 +103,7 @@ __wt_strnlen(const char *s, size_t maxlen)
  */
 static inline int
 __wt_snprintf(char *buf, size_t size, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 3, 4)))
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 3, 4)))
 {
 	WT_DECL_RET;
 	size_t len;
@@ -142,9 +142,8 @@ __wt_vsnprintf(char *buf, size_t size, const char *fmt, va_list ap)
  *	snprintf convenience function, setting the returned size.
  */
 static inline int
-__wt_snprintf_len_set(
-    char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
+__wt_snprintf_len_set(char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
 {
 	WT_DECL_RET;
 	va_list ap;
@@ -162,8 +161,7 @@ __wt_snprintf_len_set(
  *	vsnprintf convenience function, setting the returned size.
  */
 static inline int
-__wt_vsnprintf_len_set(
-    char *buf, size_t size, size_t *retsizep, const char *fmt, va_list ap)
+__wt_vsnprintf_len_set(char *buf, size_t size, size_t *retsizep, const char *fmt, va_list ap)
 {
 	*retsizep = 0;
 
@@ -175,9 +173,8 @@ __wt_vsnprintf_len_set(
  *	snprintf convenience function, incrementing the returned size.
  */
 static inline int
-__wt_snprintf_len_incr(
-    char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
-    WT_GCC_FUNC_ATTRIBUTE((format (printf, 4, 5)))
+__wt_snprintf_len_incr(char *buf, size_t size, size_t *retsizep, const char *fmt, ...)
+    WT_GCC_FUNC_ATTRIBUTE((format(printf, 4, 5)))
 {
 	WT_DECL_RET;
 	va_list ap;
@@ -196,9 +193,8 @@ static inline int
 __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
 {
 	if (F_ISSET(&session->txn, WT_TXN_PREPARE))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: not permitted in a prepared transaction",
-		    session->name);
+		WT_RET_MSG(
+		    session, EINVAL, "%s: not permitted in a prepared transaction", session->name);
 	return (0);
 }
 
@@ -210,13 +206,11 @@ static inline int
 __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 {
 	if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: only permitted in a running transaction",
-		    session->name);
+		WT_RET_MSG(
+		    session, EINVAL, "%s: only permitted in a running transaction", session->name);
 	if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
-		WT_RET_MSG(session, EINVAL,
-		    "%s: not permitted in a running transaction",
-		    session->name);
+		WT_RET_MSG(
+		    session, EINVAL, "%s: not permitted in a running transaction", session->name);
 	return (0);
 }
 
@@ -245,8 +239,8 @@ __wt_spin_backoff(uint64_t *yield_count, uint64_t *sleep_usecs)
 	__wt_sleep(0, (*sleep_usecs));
 }
 
-				/* Maximum stress delay is 1/10 of a second. */
-#define	WT_TIMING_STRESS_MAX_DELAY	(100000)
+/* Maximum stress delay is 1/10 of a second. */
+#define WT_TIMING_STRESS_MAX_DELAY (100000)
 
 /*
  * __wt_timing_stress --

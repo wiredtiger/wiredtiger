@@ -52,7 +52,7 @@
  * Default hash table size; use a prime number of buckets rather than assuming
  * a good hash (Reference Sedgewick, Algorithms in C, "Hash Functions").
  */
-#define	WT_COUNTER_SLOTS	23
+#define WT_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_SLOT_ID is the thread's slot ID for the array of structures.
@@ -71,8 +71,7 @@
  * Our solution is to use the session ID; there is normally a session per thread
  * and the session ID is a small, monotonically increasing number.
  */
-#define	WT_STATS_SLOT_ID(session)					\
-	(((session)->id) % WT_COUNTER_SLOTS)
+#define WT_STATS_SLOT_ID(session) (((session)->id) % WT_COUNTER_SLOTS)
 
 /*
  * Statistic structures are arrays of int64_t's. We have functions to read/write
@@ -81,21 +80,19 @@
  *
  * Translate a statistic's value name to an offset in the array.
  */
-#define	WT_STATS_FIELD_TO_OFFSET(stats, fld)				\
-	(int)(&(stats)[0]->fld - (int64_t *)(stats)[0])
+#define WT_STATS_FIELD_TO_OFFSET(stats, fld) (int)(&(stats)[0]->fld - (int64_t *)(stats)[0])
 
-#define	WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld)			\
-	(int)(&(stats)->fld - (int64_t *)(stats))
+#define WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld) (int)(&(stats)->fld - (int64_t *)(stats))
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_STAT_CLEAR		0x01u
-#define	WT_STAT_JSON		0x02u
-#define	WT_STAT_ON_CLOSE	0x04u
-#define	WT_STAT_TYPE_ALL	0x08u
-#define	WT_STAT_TYPE_CACHE_WALK	0x10u
-#define	WT_STAT_TYPE_FAST	0x20u
-#define	WT_STAT_TYPE_SIZE	0x40u
-#define	WT_STAT_TYPE_TREE_WALK	0x80u
+#define WT_STAT_CLEAR 0x01u
+#define WT_STAT_JSON 0x02u
+#define WT_STAT_ON_CLOSE 0x04u
+#define WT_STAT_TYPE_ALL 0x08u
+#define WT_STAT_TYPE_CACHE_WALK 0x10u
+#define WT_STAT_TYPE_FAST 0x20u
+#define WT_STAT_TYPE_SIZE 0x40u
+#define WT_STAT_TYPE_TREE_WALK 0x80u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -151,86 +148,79 @@ __wt_stats_clear(void *stats_arg, int slot)
  * writing the field requires different actions: reading sums the values
  * across the array of structures, writing updates a single structure's value.
  */
-#define	WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
+#define WT_STAT_ENABLED(session) (S2C(session)->stat_flags != 0)
 
-#define	WT_STAT_READ(stats, fld)					\
-	__wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
-#define	WT_STAT_WRITE(session, stats, fld, v) do {			\
-	if (WT_STAT_ENABLED(session))					\
-		(stats)->fld = (int64_t)(v);				\
-} while (0)
+#define WT_STAT_READ(stats, fld) __wt_stats_aggregate(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld))
+#define WT_STAT_WRITE(session, stats, fld, v)        \
+	do {                                         \
+		if (WT_STAT_ENABLED(session))        \
+			(stats)->fld = (int64_t)(v); \
+	} while (0)
 
-#define	WT_STAT_DECRV_BASE(session, stat, fld, value) do {		\
-	if (WT_STAT_ENABLED(session))					\
-		(stat)->fld -= (int64_t)(value);			\
-} while (0)
-#define	WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value) do {	\
-	if (WT_STAT_ENABLED(session))					\
-		(void)							\
-		    __wt_atomic_subi64(&(stat)->fld, (int64_t)(value));	\
-} while (0)
-#define	WT_STAT_INCRV_BASE(session, stat, fld, value) do {		\
-	if (WT_STAT_ENABLED(session))					\
-		(stat)->fld += (int64_t)(value);			\
-} while (0)
-#define	WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value) do {	\
-	if (WT_STAT_ENABLED(session))					\
-		(void)							\
-		    __wt_atomic_addi64(&(stat)->fld, (int64_t)(value));	\
-} while (0)
+#define WT_STAT_DECRV_BASE(session, stat, fld, value)    \
+	do {                                             \
+		if (WT_STAT_ENABLED(session))            \
+			(stat)->fld -= (int64_t)(value); \
+	} while (0)
+#define WT_STAT_DECRV_ATOMIC_BASE(session, stat, fld, value)                      \
+	do {                                                                      \
+		if (WT_STAT_ENABLED(session))                                     \
+			(void)__wt_atomic_subi64(&(stat)->fld, (int64_t)(value)); \
+	} while (0)
+#define WT_STAT_INCRV_BASE(session, stat, fld, value)    \
+	do {                                             \
+		if (WT_STAT_ENABLED(session))            \
+			(stat)->fld += (int64_t)(value); \
+	} while (0)
+#define WT_STAT_INCRV_ATOMIC_BASE(session, stat, fld, value)                      \
+	do {                                                                      \
+		if (WT_STAT_ENABLED(session))                                     \
+			(void)__wt_atomic_addi64(&(stat)->fld, (int64_t)(value)); \
+	} while (0)
 
-#define	WT_STAT_DECRV(session, stats, fld, value) do {			\
-	WT_STAT_DECRV_BASE(						\
-	    session, (stats)[(session)->stat_bucket], fld, value);	\
-} while (0)
-#define	WT_STAT_DECRV_ATOMIC(session, stats, fld, value) do {		\
-	WT_STAT_DECRV_ATOMIC_BASE(					\
-	    session, (stats)[(session)->stat_bucket], fld, value);	\
-} while (0)
-#define	WT_STAT_DECR(session, stats, fld)				\
-	WT_STAT_DECRV(session, stats, fld, 1)
+#define WT_STAT_DECRV(session, stats, fld, value)                                         \
+	do {                                                                              \
+		WT_STAT_DECRV_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
+	} while (0)
+#define WT_STAT_DECRV_ATOMIC(session, stats, fld, value)                                         \
+	do {                                                                                     \
+		WT_STAT_DECRV_ATOMIC_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
+	} while (0)
+#define WT_STAT_DECR(session, stats, fld) WT_STAT_DECRV(session, stats, fld, 1)
 
-#define	WT_STAT_INCRV(session, stats, fld, value) do {			\
-	WT_STAT_INCRV_BASE(						\
-	    session, (stats)[(session)->stat_bucket], fld, value);	\
-} while (0)
-#define	WT_STAT_INCRV_ATOMIC(session, stats, fld, value) do {		\
-	WT_STAT_INCRV_ATOMIC_BASE(					\
-	    session, (stats)[(session)->stat_bucket], fld, value);	\
-} while (0)
-#define	WT_STAT_INCR(session, stats, fld)				\
-	WT_STAT_INCRV(session, stats, fld, 1)
-#define	WT_STAT_SET(session, stats, fld, value) do {			\
-	if (WT_STAT_ENABLED(session)) {					\
-		__wt_stats_clear(stats,					\
-		    WT_STATS_FIELD_TO_OFFSET(stats, fld));		\
-		(stats)[0]->fld = (int64_t)(value);			\
-	}								\
-} while (0)
+#define WT_STAT_INCRV(session, stats, fld, value)                                         \
+	do {                                                                              \
+		WT_STAT_INCRV_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
+	} while (0)
+#define WT_STAT_INCRV_ATOMIC(session, stats, fld, value)                                         \
+	do {                                                                                     \
+		WT_STAT_INCRV_ATOMIC_BASE(session, (stats)[(session)->stat_bucket], fld, value); \
+	} while (0)
+#define WT_STAT_INCR(session, stats, fld) WT_STAT_INCRV(session, stats, fld, 1)
+#define WT_STAT_SET(session, stats, fld, value)                                        \
+	do {                                                                           \
+		if (WT_STAT_ENABLED(session)) {                                        \
+			__wt_stats_clear(stats, WT_STATS_FIELD_TO_OFFSET(stats, fld)); \
+			(stats)[0]->fld = (int64_t)(value);                            \
+		}                                                                      \
+	} while (0)
 
 /*
  * Update connection handle statistics if statistics gathering is enabled.
  */
-#define	WT_STAT_CONN_DECRV(session, fld, value)				\
-	WT_STAT_DECRV_BASE(session,					\
-	    S2C(session)->stats[(session)->stat_bucket], fld, value)
-#define	WT_STAT_CONN_DECR_ATOMIC(session, fld)				\
-	WT_STAT_DECRV_ATOMIC_BASE(session,				\
-	    S2C(session)->stats[(session)->stat_bucket], fld, 1)
-#define	WT_STAT_CONN_DECR(session, fld)					\
-	WT_STAT_CONN_DECRV(session, fld, 1)
+#define WT_STAT_CONN_DECRV(session, fld, value) \
+	WT_STAT_DECRV_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, value)
+#define WT_STAT_CONN_DECR_ATOMIC(session, fld) \
+	WT_STAT_DECRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, 1)
+#define WT_STAT_CONN_DECR(session, fld) WT_STAT_CONN_DECRV(session, fld, 1)
 
-#define	WT_STAT_CONN_INCRV(session, fld, value)				\
-	WT_STAT_INCRV_BASE(session,					\
-	    S2C(session)->stats[(session)->stat_bucket], fld, value)
-#define	WT_STAT_CONN_INCR_ATOMIC(session, fld)				\
-	WT_STAT_INCRV_ATOMIC_BASE(session,				\
-	    S2C(session)->stats[(session)->stat_bucket], fld, 1)
-#define	WT_STAT_CONN_INCR(session, fld)					\
-	WT_STAT_CONN_INCRV(session, fld, 1)
+#define WT_STAT_CONN_INCRV(session, fld, value) \
+	WT_STAT_INCRV_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, value)
+#define WT_STAT_CONN_INCR_ATOMIC(session, fld) \
+	WT_STAT_INCRV_ATOMIC_BASE(session, S2C(session)->stats[(session)->stat_bucket], fld, 1)
+#define WT_STAT_CONN_INCR(session, fld) WT_STAT_CONN_INCRV(session, fld, 1)
 
-#define	WT_STAT_CONN_SET(session, fld, value)				\
-	WT_STAT_SET(session, S2C(session)->stats, fld, value)
+#define WT_STAT_CONN_SET(session, fld, value) WT_STAT_SET(session, S2C(session)->stats, fld, value)
 
 /*
  * Update data-source handle statistics if statistics gathering is enabled
@@ -240,34 +230,29 @@ __wt_stats_clear(void *stats_arg, int slot)
  * We shouldn't have to check if the data-source handle is NULL, but it's
  * necessary until everything is converted to using data-source handles.
  */
-#define	WT_STAT_DATA_DECRV(session, fld, value) do {			\
-	if ((session)->dhandle != NULL &&				\
-	    (session)->dhandle->stat_array != NULL)			\
-		WT_STAT_DECRV(						\
-		    session, (session)->dhandle->stats, fld, value);	\
-} while (0)
-#define	WT_STAT_DATA_DECR(session, fld)					\
-	WT_STAT_DATA_DECRV(session, fld, 1)
-#define	WT_STAT_DATA_INCRV(session, fld, value) do {			\
-	if ((session)->dhandle != NULL &&				\
-	    (session)->dhandle->stat_array != NULL)			\
-		WT_STAT_INCRV(						\
-		    session, (session)->dhandle->stats, fld, value);	\
-} while (0)
-#define	WT_STAT_DATA_INCR(session, fld)					\
-	WT_STAT_DATA_INCRV(session, fld, 1)
-#define	WT_STAT_DATA_SET(session, fld, value) do {			\
-	if ((session)->dhandle != NULL &&				\
-	    (session)->dhandle->stat_array != NULL)			\
-		WT_STAT_SET(						\
-		    session, (session)->dhandle->stats, fld, value);	\
-} while (0)
+#define WT_STAT_DATA_DECRV(session, fld, value)                                           \
+	do {                                                                              \
+		if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
+			WT_STAT_DECRV(session, (session)->dhandle->stats, fld, value);    \
+	} while (0)
+#define WT_STAT_DATA_DECR(session, fld) WT_STAT_DATA_DECRV(session, fld, 1)
+#define WT_STAT_DATA_INCRV(session, fld, value)                                           \
+	do {                                                                              \
+		if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
+			WT_STAT_INCRV(session, (session)->dhandle->stats, fld, value);    \
+	} while (0)
+#define WT_STAT_DATA_INCR(session, fld) WT_STAT_DATA_INCRV(session, fld, 1)
+#define WT_STAT_DATA_SET(session, fld, value)                                             \
+	do {                                                                              \
+		if ((session)->dhandle != NULL && (session)->dhandle->stat_array != NULL) \
+			WT_STAT_SET(session, (session)->dhandle->stats, fld, value);      \
+	} while (0)
 
 /*
  * Update per session statistics.
  */
-#define	WT_STAT_SESSION_INCRV(session, fld, value)			\
-       WT_STAT_INCRV_BASE(session, &(session)->stats, fld, value)
+#define WT_STAT_SESSION_INCRV(session, fld, value) \
+	WT_STAT_INCRV_BASE(session, &(session)->stats, fld, value)
 
 /*
  * Construct histogram increment functions to put the passed value into the
@@ -276,43 +261,43 @@ __wt_stats_clear(void *stats_arg, int slot)
  * less than a given minimum are ignored and not put in any bucket.  This floor
  * value keeps us from having an excessively large smallest values.
  */
-#define	WT_STAT_MSECS_HIST_INCR_FUNC(name, stat, min_val)		\
-static inline void							\
-__wt_stat_msecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t msecs) \
-{									\
-	if (msecs < (min_val))						\
-		return;							\
-	if (msecs < 50)							\
-		WT_STAT_CONN_INCR(session, stat##_lt50);		\
-	else if (msecs < 100)						\
-		WT_STAT_CONN_INCR(session, stat##_lt100);		\
-	else if (msecs < 250)						\
-		WT_STAT_CONN_INCR(session, stat##_lt250);		\
-	else if (msecs < 500)						\
-		WT_STAT_CONN_INCR(session, stat##_lt500);		\
-	else if (msecs < 1000)						\
-		WT_STAT_CONN_INCR(session, stat##_lt1000);		\
-	else								\
-		WT_STAT_CONN_INCR(session, stat##_gt1000);		\
-}
+#define WT_STAT_MSECS_HIST_INCR_FUNC(name, stat, min_val)          \
+	static inline void __wt_stat_msecs_hist_incr_##name(       \
+	    WT_SESSION_IMPL *session, uint64_t msecs)              \
+	{                                                          \
+		if (msecs < (min_val))                             \
+			return;                                    \
+		if (msecs < 50)                                    \
+			WT_STAT_CONN_INCR(session, stat##_lt50);   \
+		else if (msecs < 100)                              \
+			WT_STAT_CONN_INCR(session, stat##_lt100);  \
+		else if (msecs < 250)                              \
+			WT_STAT_CONN_INCR(session, stat##_lt250);  \
+		else if (msecs < 500)                              \
+			WT_STAT_CONN_INCR(session, stat##_lt500);  \
+		else if (msecs < 1000)                             \
+			WT_STAT_CONN_INCR(session, stat##_lt1000); \
+		else                                               \
+			WT_STAT_CONN_INCR(session, stat##_gt1000); \
+	}
 
-#define	WT_STAT_USECS_HIST_INCR_FUNC(name, stat, min_val)		\
-static inline void							\
-__wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
-{									\
-	if (usecs < (min_val))						\
-		return;							\
-	if (usecs < 250)						\
-		WT_STAT_CONN_INCR(session, stat##_lt250);		\
-	else if (usecs < 500)						\
-		WT_STAT_CONN_INCR(session, stat##_lt500);		\
-	else if (usecs < 1000)						\
-		WT_STAT_CONN_INCR(session, stat##_lt1000);		\
-	else if (usecs < 10000)						\
-		WT_STAT_CONN_INCR(session, stat##_lt10000);		\
-	else								\
-		WT_STAT_CONN_INCR(session, stat##_gt10000);		\
-}
+#define WT_STAT_USECS_HIST_INCR_FUNC(name, stat, min_val)           \
+	static inline void __wt_stat_usecs_hist_incr_##name(        \
+	    WT_SESSION_IMPL *session, uint64_t usecs)               \
+	{                                                           \
+		if (usecs < (min_val))                              \
+			return;                                     \
+		if (usecs < 250)                                    \
+			WT_STAT_CONN_INCR(session, stat##_lt250);   \
+		else if (usecs < 500)                               \
+			WT_STAT_CONN_INCR(session, stat##_lt500);   \
+		else if (usecs < 1000)                              \
+			WT_STAT_CONN_INCR(session, stat##_lt1000);  \
+		else if (usecs < 10000)                             \
+			WT_STAT_CONN_INCR(session, stat##_lt10000); \
+		else                                                \
+			WT_STAT_CONN_INCR(session, stat##_gt10000); \
+	}
 
 /*
  * DO NOT EDIT: automatically built by dist/stat.py.
@@ -322,7 +307,7 @@ __wt_stat_usecs_hist_incr_##name(WT_SESSION_IMPL *session, uint64_t usecs) \
 /*
  * Statistics entries for connections.
  */
-#define	WT_CONNECTION_STATS_BASE	1000
+#define WT_CONNECTION_STATS_BASE 1000
 struct __wt_connection_stats {
 	int64_t lsm_work_queue_app;
 	int64_t lsm_work_queue_manager;
@@ -724,7 +709,7 @@ struct __wt_connection_stats {
 /*
  * Statistics entries for data sources.
  */
-#define	WT_DSRC_STATS_BASE	2000
+#define WT_DSRC_STATS_BASE 2000
 struct __wt_dsrc_stats {
 	int64_t bloom_false_positive;
 	int64_t bloom_hit;
@@ -877,7 +862,7 @@ struct __wt_dsrc_stats {
 /*
  * Statistics entries for join cursors.
  */
-#define	WT_JOIN_STATS_BASE	3000
+#define WT_JOIN_STATS_BASE 3000
 struct __wt_join_stats {
 	int64_t main_access;
 	int64_t bloom_false_positive;
@@ -889,7 +874,7 @@ struct __wt_join_stats {
 /*
  * Statistics entries for session.
  */
-#define	WT_SESSION_STATS_BASE	4000
+#define WT_SESSION_STATS_BASE 4000
 struct __wt_session_stats {
 	int64_t bytes_read;
 	int64_t bytes_write;

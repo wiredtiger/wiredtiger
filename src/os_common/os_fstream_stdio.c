@@ -46,8 +46,7 @@ __stdio_getline(WT_SESSION_IMPL *session, WT_FSTREAM *fs, WT_ITEM *buf)
  *	ANSI C vfprintf.
  */
 static int
-__stdio_printf(
-    WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_list ap)
+__stdio_printf(WT_SESSION_IMPL *session, WT_FSTREAM *fs, const char *fmt, va_list ap)
 {
 	if (vfprintf(fs->fp, fmt, ap) >= 0)
 		return (0);

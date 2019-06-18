@@ -23,7 +23,8 @@ __curindex_get_value(WT_CURSOR *cursor, ...)
 	JOINABLE_CURSOR_API_CALL(cursor, session, get_value, NULL);
 	WT_ERR(__wt_curindex_get_valuev(cursor, ap));
 
-err:	va_end(ap);
+err:
+	va_end(ap);
 	API_END_RET(session, ret);
 }
 
@@ -38,10 +39,10 @@ __curindex_set_value(WT_CURSOR *cursor, ...)
 	WT_SESSION_IMPL *session;
 
 	JOINABLE_CURSOR_API_CALL(cursor, session, set_value, NULL);
-	WT_ERR_MSG(session, ENOTSUP,
-	    "WT_CURSOR.set_value not supported for index cursors");
+	WT_ERR_MSG(session, ENOTSUP, "WT_CURSOR.set_value not supported for index cursors");
 
-err:	cursor->saved_err = ret;
+err:
+	cursor->saved_err = ret;
 	F_CLR(cursor, WT_CURSTD_VALUE_SET);
 	API_END(session, ret);
 }
@@ -61,18 +62,16 @@ __curindex_compare(WT_CURSOR *a, WT_CURSOR *b, int *cmpp)
 	JOINABLE_CURSOR_API_CALL(a, session, compare, NULL);
 
 	/* Check both cursors are "index:" type. */
-	if (!WT_PREFIX_MATCH(a->uri, "index:") ||
-	    strcmp(a->uri, b->uri) != 0)
-		WT_ERR_MSG(session, EINVAL,
-		    "Cursors must reference the same object");
+	if (!WT_PREFIX_MATCH(a->uri, "index:") || strcmp(a->uri, b->uri) != 0)
+		WT_ERR_MSG(session, EINVAL, "Cursors must reference the same object");
 
 	WT_ERR(__cursor_checkkey(a));
 	WT_ERR(__cursor_checkkey(b));
 
-	ret = __wt_compare(
-	    session, cindex->index->collator, &a->key, &b->key, cmpp);
+	ret = __wt_compare(session, cindex->index->collator, &a->key, &b->key, cmpp);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -94,9 +93,7 @@ __curindex_move(WT_CURSOR_INDEX *cindex)
 	__wt_cursor_set_raw_key(&cindex->iface, &cindex->child->key);
 	F_CLR(&cindex->iface, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-	for (i = 0, cp = cindex->cg_cursors;
-	    i < WT_COLGROUPS(cindex->table);
-	    i++, cp++) {
+	for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++) {
 		if (*cp == NULL)
 			continue;
 		if (first == NULL) {
@@ -105,10 +102,8 @@ __curindex_move(WT_CURSOR_INDEX *cindex)
 			 * key columns, so we have to use the full key format,
 			 * not just the public columns.
 			 */
-			WT_RET(__wt_schema_project_slice(session,
-			    cp, cindex->index->key_plan,
-			    1, cindex->index->key_format,
-			    &cindex->iface.key));
+			WT_RET(__wt_schema_project_slice(session, cp, cindex->index->key_plan, 1,
+			    cindex->index->key_format, &cindex->iface.key));
 			first = *cp;
 		} else {
 			(*cp)->key.data = first->key.data;
@@ -142,7 +137,8 @@ __curindex_next(WT_CURSOR *cursor)
 	if ((ret = cindex->child->next(cindex->child)) == 0)
 		ret = __curindex_move(cindex);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -163,7 +159,8 @@ __curindex_prev(WT_CURSOR *cursor)
 	if ((ret = cindex->child->prev(cindex->child)) == 0)
 		ret = __curindex_move(cindex);
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -184,15 +181,14 @@ __curindex_reset(WT_CURSOR *cursor)
 	F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
 	WT_TRET(cindex->child->reset(cindex->child));
-	for (i = 0, cp = cindex->cg_cursors;
-	    i < WT_COLGROUPS(cindex->table);
-	    i++, cp++) {
+	for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++) {
 		if (*cp == NULL)
 			continue;
 		WT_TRET((*cp)->reset(*cp));
 	}
 
-err:	API_END_RET(session, ret);
+err:
+	API_END_RET(session, ret);
 }
 
 /*
@@ -245,15 +241,13 @@ __curindex_search(WT_CURSOR *cursor)
 	 * Custom collators expect to see complete keys, pass an item containing
 	 * all the visible fields so it unpacks correctly.
 	 */
-	if (cindex->index->collator != NULL &&
-	    !F_ISSET(cursor, WT_CURSTD_RAW_SEARCH))
-		WT_ERR(__wt_struct_repack(session, child->key_format,
-		    cindex->iface.key_format, &child->key, &found_key));
+	if (cindex->index->collator != NULL && !F_ISSET(cursor, WT_CURSTD_RAW_SEARCH))
+		WT_ERR(__wt_struct_repack(
+		    session, child->key_format, cindex->iface.key_format, &child->key, &found_key));
 	else
 		found_key.size = cursor->key.size;
 
-	WT_ERR(__wt_compare(
-	    session, cindex->index->collator, &cursor->key, &found_key, &cmp));
+	WT_ERR(__wt_compare(session, cindex->index->collator, &cursor->key, &found_key, &cmp));
 	if (cmp != 0) {
 		ret = WT_NOTFOUND;
 		goto err;
@@ -262,7 +256,8 @@ __curindex_search(WT_CURSOR *cursor)
 	WT_ERR(__curindex_move(cindex));
 
 	if (0) {
-err:		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	err:
+		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	}
 
 	API_END_RET(session, ret);
@@ -323,21 +318,20 @@ __curindex_search_near(WT_CURSOR *cursor, int *exact)
 		 * containing all the visible fields so it unpacks correctly.
 		 */
 		if (cindex->index->collator != NULL)
-			WT_ERR(__wt_struct_repack(session,
-			    cindex->child->key_format, cindex->iface.key_format,
-			    &child->key, &found_key));
+			WT_ERR(__wt_struct_repack(session, cindex->child->key_format,
+			    cindex->iface.key_format, &child->key, &found_key));
 		else
 			found_key.size = cursor->key.size;
 	}
 
-	WT_ERR(__wt_compare(
-	    session, cindex->index->collator, &cursor->key, &found_key, exact));
+	WT_ERR(__wt_compare(session, cindex->index->collator, &cursor->key, &found_key, exact));
 	*exact = -*exact;
 
 	WT_ERR(__curindex_move(cindex));
 
 	if (0) {
-err:		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+	err:
+		F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 	}
 
 	API_END_RET(session, ret);
@@ -363,8 +357,7 @@ __curindex_close(WT_CURSOR *cursor)
 err:
 
 	if ((cp = cindex->cg_cursors) != NULL)
-		for (i = 0, cp = cindex->cg_cursors;
-		    i < WT_COLGROUPS(cindex->table); i++, cp++)
+		for (i = 0, cp = cindex->cg_cursors; i < WT_COLGROUPS(cindex->table); i++, cp++)
 			if (*cp != NULL) {
 				WT_TRET((*cp)->close(*cp));
 				*cp = NULL;
@@ -395,14 +388,13 @@ err:
  *	Open cursors on the column groups required for an index cursor.
  */
 static int
-__curindex_open_colgroups(
-    WT_SESSION_IMPL *session, WT_CURSOR_INDEX *cindex, const char *cfg_arg[])
+__curindex_open_colgroups(WT_SESSION_IMPL *session, WT_CURSOR_INDEX *cindex, const char *cfg_arg[])
 {
 	WT_CURSOR **cp;
 	WT_TABLE *table;
 	u_long arg;
 	/* Child cursors are opened with dump disabled. */
-	const char *cfg[] = { cfg_arg[0], cfg_arg[1], "dump=\"\"", NULL };
+	const char *cfg[] = {cfg_arg[0], cfg_arg[1], "dump=\"\"", NULL};
 	char *proj;
 	size_t cgcnt;
 
@@ -417,12 +409,10 @@ __curindex_open_colgroups(
 		arg = strtoul(proj, &proj, 10);
 		if (*proj == WT_PROJ_VALUE)
 			cindex->cg_needvalue[arg] = 1;
-		if ((*proj != WT_PROJ_KEY && *proj != WT_PROJ_VALUE) ||
-		    cp[arg] != NULL)
+		if ((*proj != WT_PROJ_KEY && *proj != WT_PROJ_VALUE) || cp[arg] != NULL)
 			continue;
-		WT_RET(__wt_open_cursor(session,
-		    table->cgroups[arg]->source,
-		    &cindex->iface, cfg, &cp[arg]));
+		WT_RET(__wt_open_cursor(
+		    session, table->cgroups[arg]->source, &cindex->iface, cfg, &cp[arg]));
 	}
 
 	return (0);
@@ -433,30 +423,29 @@ __curindex_open_colgroups(
  *	WT_SESSION->open_cursor method for index cursors.
  */
 int
-__wt_curindex_open(WT_SESSION_IMPL *session,
-    const char *uri, WT_CURSOR *owner, const char *cfg[], WT_CURSOR **cursorp)
+__wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, const char *cfg[],
+    WT_CURSOR **cursorp)
 {
-	WT_CURSOR_STATIC_INIT(iface,
-	    __wt_cursor_get_key,		/* get-key */
-	    __curindex_get_value,		/* get-value */
-	    __wt_cursor_set_key,		/* set-key */
-	    __curindex_set_value,		/* set-value */
-	    __curindex_compare,			/* compare */
-	    __wt_cursor_equals,			/* equals */
-	    __curindex_next,			/* next */
-	    __curindex_prev,			/* prev */
-	    __curindex_reset,			/* reset */
-	    __curindex_search,			/* search */
-	    __curindex_search_near,		/* search-near */
-	    __wt_cursor_notsup,			/* insert */
-	    __wt_cursor_modify_notsup,		/* modify */
-	    __wt_cursor_notsup,			/* update */
-	    __wt_cursor_notsup,			/* remove */
-	    __wt_cursor_notsup,			/* reserve */
-	    __wt_cursor_reconfigure_notsup,	/* reconfigure */
-	    __wt_cursor_notsup,			/* cache */
-	    __wt_cursor_reopen_notsup,		/* reopen */
-	    __curindex_close);			/* close */
+	WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
+	    __curindex_get_value,                         /* get-value */
+	    __wt_cursor_set_key,                          /* set-key */
+	    __curindex_set_value,                         /* set-value */
+	    __curindex_compare,                           /* compare */
+	    __wt_cursor_equals,                           /* equals */
+	    __curindex_next,                              /* next */
+	    __curindex_prev,                              /* prev */
+	    __curindex_reset,                             /* reset */
+	    __curindex_search,                            /* search */
+	    __curindex_search_near,                       /* search-near */
+	    __wt_cursor_notsup,                           /* insert */
+	    __wt_cursor_modify_notsup,                    /* modify */
+	    __wt_cursor_notsup,                           /* update */
+	    __wt_cursor_notsup,                           /* remove */
+	    __wt_cursor_notsup,                           /* reserve */
+	    __wt_cursor_reconfigure_notsup,               /* reconfigure */
+	    __wt_cursor_notsup,                           /* cache */
+	    __wt_cursor_reopen_notsup,                    /* reopen */
+	    __curindex_close);                            /* close */
 	WT_CURSOR_INDEX *cindex;
 	WT_CURSOR *cursor;
 	WT_DECL_ITEM(tmp);
@@ -467,17 +456,15 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	size_t namesize;
 
 	tablename = uri;
-	if (!WT_PREFIX_SKIP(tablename, "index:") ||
-	    (idxname = strchr(tablename, ':')) == NULL)
+	if (!WT_PREFIX_SKIP(tablename, "index:") || (idxname = strchr(tablename, ':')) == NULL)
 		WT_RET_MSG(session, EINVAL, "Invalid cursor URI: '%s'", uri);
 	namesize = (size_t)(idxname - tablename);
 	++idxname;
 
-	if ((ret = __wt_schema_get_table(session,
-	    tablename, namesize, false, 0, &table)) != 0) {
+	if ((ret = __wt_schema_get_table(session, tablename, namesize, false, 0, &table)) != 0) {
 		if (ret == WT_NOTFOUND)
-			WT_RET_MSG(session, EINVAL,
-			    "Cannot open cursor '%s' on unknown table", uri);
+			WT_RET_MSG(
+			    session, EINVAL, "Cannot open cursor '%s' on unknown table", uri);
 		return (ret);
 	}
 
@@ -487,8 +474,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	else
 		namesize = (size_t)(columns - idxname);
 
-	if ((ret = __wt_schema_open_index(
-	    session, table, idxname, namesize, &idx)) != 0) {
+	if ((ret = __wt_schema_open_index(session, table, idxname, namesize, &idx)) != 0) {
 		WT_TRET(__wt_schema_release_table(session, &table));
 		return (ret);
 	}
@@ -522,33 +508,29 @@ __wt_curindex_open(WT_SESSION_IMPL *session,
 	/* Handle projections. */
 	if (columns != NULL) {
 		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-		WT_ERR(__wt_struct_reformat(session, table,
-		    columns, strlen(columns), NULL, false, tmp));
-		WT_ERR(__wt_strndup(
-		    session, tmp->data, tmp->size, &cursor->value_format));
+		WT_ERR(__wt_struct_reformat(
+		    session, table, columns, strlen(columns), NULL, false, tmp));
+		WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &cursor->value_format));
 
 		WT_ERR(__wt_buf_init(session, tmp, 0));
-		WT_ERR(__wt_struct_plan(session, table,
-		    columns, strlen(columns), false, tmp));
-		WT_ERR(__wt_strndup(
-		    session, tmp->data, tmp->size, &cindex->value_plan));
+		WT_ERR(__wt_struct_plan(session, table, columns, strlen(columns), false, tmp));
+		WT_ERR(__wt_strndup(session, tmp->data, tmp->size, &cindex->value_plan));
 	}
 
-	WT_ERR(__wt_cursor_init(
-	    cursor, cursor->internal_uri, owner, cfg, cursorp));
+	WT_ERR(__wt_cursor_init(cursor, cursor->internal_uri, owner, cfg, cursorp));
 
-	WT_ERR(__wt_open_cursor(
-	    session, idx->source, cursor, cfg, &cindex->child));
+	WT_ERR(__wt_open_cursor(session, idx->source, cursor, cfg, &cindex->child));
 
 	/* Open the column groups needed for this index cursor. */
 	WT_ERR(__curindex_open_colgroups(session, cindex, cfg));
 
 	if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON))
-		WT_ERR(__wt_json_column_init(cursor, uri, table->key_format,
-		    &idx->colconf, &table->colconf));
+		WT_ERR(__wt_json_column_init(
+		    cursor, uri, table->key_format, &idx->colconf, &table->colconf));
 
 	if (0) {
-err:		WT_TRET(__curindex_close(cursor));
+	err:
+		WT_TRET(__curindex_close(cursor));
 		*cursorp = NULL;
 	}
 
