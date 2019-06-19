@@ -663,7 +663,6 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
 
 	WT_CKPT_FOREACH(ckptbase, ckpt)
 		__wt_meta_checkpoint_free(session, ckpt);
-	__wt_free(session, ckpt->name);
 	__wt_free(session, *ckptbasep);
 }
 
