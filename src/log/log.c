@@ -698,7 +698,9 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 {
 	WT_COMPRESSOR *compressor;
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_RET;
 	WT_LOG_RECORD *logrec;
+	WT_NAMED_COMPRESSOR *ncomp;
 	size_t result_len, skip;
 	uint32_t uncompressed_size;
 
@@ -712,10 +714,28 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	uncompressed_size = logrec->mem_len;
 	WT_RET(__wt_buf_initsize(session, out, uncompressed_size));
 	memcpy(out->mem, in->mem, skip);
-	WT_RET(compressor->decompress(compressor, &session->iface,
+	ret = compressor->decompress(compressor, &session->iface,
 	    (uint8_t *)in->mem + skip, in->size - skip,
 	    (uint8_t *)out->mem + skip,
-	    uncompressed_size - skip, &result_len));
+	    uncompressed_size - skip, &result_len);
+
+	/*
+	 * If our chosen compressor doesn't work, we may have been running with
+	 * a different compressor last time. Cycle through the available ones
+	 * and see if one of them succeeds.
+	 */
+	if (ret != 0)
+		TAILQ_FOREACH(ncomp, &conn->compqh, q) {
+			ret = ncomp->compressor->decompress(compressor,
+			    &session->iface, (uint8_t *)in->mem + skip,
+			    in->size - skip, (uint8_t *)out->mem + skip,
+			    uncompressed_size - skip, &result_len);
+			if (ret == 0)
+				break;
+		}
+
+	/* If none of them worked, then it's time to admit defeat. */
+	WT_RET(ret);
 
 	/*
 	 * If checksums were turned off because we're depending on the
