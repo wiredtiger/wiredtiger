@@ -684,6 +684,32 @@ alter(void *arg)
 }
 
 /*
+ * Generate a string that is pre-pended to log messages. Return a pointer
+ * to the passed in buffer so it can be passed directly to printf.
+ */
+char *
+get_log_msg_metadata(TINFO *tinfo, char *buf, size_t buf_sz)
+{
+	TINFO ltinfo;
+	memset(buf, 0, buf_sz);
+	/*
+	 * There is a path that does reads without a thread info structure,
+	 * that should look similar to doing operations without timestamps.
+	 */
+	if (tinfo == NULL) {
+		memset(&ltinfo, 0, sizeof(ltinfo));
+		tinfo = &ltinfo;
+	}
+
+	testutil_check(__wt_snprintf(buf, buf_sz,
+	    ", read_ts: %" PRIx64 ", commit_ts: %" PRIx64
+	    ", repeatable read: %s",
+	    tinfo->read_ts, tinfo->commit_ts,
+	    tinfo->repeatable_reads ? "yes" : "no"));
+	return buf;
+}
+
+/*
  * print_item_data --
  *	Display a single data/size pair, with a tag.
  */

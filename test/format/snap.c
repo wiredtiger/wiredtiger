@@ -84,6 +84,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	WT_DECL_RET;
 	WT_ITEM *key, *value;
 	uint8_t bitfield;
+	char pbuf[128];
 
 	key = tinfo->key;
 	value = tinfo->value;
@@ -161,6 +162,11 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		fprintf(stderr,
 		    "snapshot-isolation %.*s search mismatch\n",
 		    (int)key->size, (const char *)key->data);
+		(void)g.wt_api->msg_printf(
+		    g.wt_api, cursor->session,
+		    "snapshot-isolation %.*s search mismatch%s\n",
+		    (int)key->size, (const char *)key->data,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 		if (snap->op == REMOVE)
 			fprintf(stderr, "expected {deleted}\n");

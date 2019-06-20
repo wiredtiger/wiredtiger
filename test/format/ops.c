@@ -312,7 +312,7 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 	TINFO **tlp;
 	WT_DECL_RET;
 	WT_SESSION *session;
-	uint64_t ts;
+	uint64_t all_committed_ts, ts;
 	const char *config;
 	char buf[64];
 
@@ -335,6 +335,11 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 		for (ts = UINT64_MAX, tlp = tinfo_list; *tlp != NULL; ++tlp)
 			ts = WT_MIN(ts, (*tlp)->commit_ts);
 	if (ts != 0) {
+		--ts;
+		testutil_check(g.wts_conn->query_timestamp(
+		    g.wts_conn, buf, "get=all_committed"));
+		all_committed_ts = (uint64_t)strtol(buf, NULL, 16);
+		testutil_assert(ts < all_committed_ts);
 		wiredtiger_begin_transaction(session, config);
 
 		/*
@@ -1097,7 +1102,7 @@ wts_read_scan(void)
 		}
 
 		switch (ret = read_row_worker(
-		    cursor, keyno, &key, &value, false)) {
+		    NULL, cursor, keyno, &key, &value, false)) {
 		case 0:
 		case WT_NOTFOUND:
 		case WT_ROLLBACK:
@@ -1120,11 +1125,12 @@ wts_read_scan(void)
  *	Read and verify a single element in a row- or column-store file.
  */
 int
-read_row_worker(
+read_row_worker(TINFO *tinfo,
     WT_CURSOR *cursor, uint64_t keyno, WT_ITEM *key, WT_ITEM *value, bool sn)
 {
 	WT_SESSION *session;
 	uint8_t bitfield;
+	char pbuf[128];
 	int exact, ret;
 
 	session = cursor->session;
@@ -1175,8 +1181,9 @@ read_row_worker(
 
 	/* Log the operation */
 	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    session, "%-10s%" PRIu64, "read", keyno);
+		(void)g.wt_api->msg_printf(
+		    g.wt_api, session, "%-10s%" PRIu64 "%s", "read", keyno,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1215,7 +1222,7 @@ static int
 read_row(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	/* 25% of the time we call search-near. */
-	return (read_row_worker(cursor, tinfo->keyno,
+	return (read_row_worker(tinfo, cursor, tinfo->keyno,
 	    tinfo->key, tinfo->value, mmrand(&tinfo->rnd, 0, 3) == 1));
 }
 
@@ -1233,6 +1240,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 	int cmp;
 	const char *which;
 	bool incrementing, record_gaps;
+	char pbuf[128];
 
 	keyno = 0;
 	which = next ? "WT_CURSOR.next" : "WT_CURSOR.prev";
@@ -1364,19 +1372,22 @@ order_error_row:
 		switch (g.type) {
 		case FIX:
 			(void)g.wt_api->msg_printf(g.wt_api,
-			    cursor->session, "%-10s%" PRIu64 " {0x%02x}",
-			    which, keyno, ((char *)value.data)[0]);
+			    cursor->session, "%-10s%" PRIu64 " {0x%02x}%s",
+			    which, keyno, ((char *)value.data)[0],
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 			break;
 		case ROW:
 			(void)g.wt_api->msg_printf(g.wt_api,
-			    cursor->session, "%-10s{%.*s}, {%.*s}",
+			    cursor->session, "%-10s{%.*s}, {%.*s}%s",
 			    which, (int)key.size, (char *)key.data,
-			    (int)value.size, (char *)value.data);
+			    (int)value.size, (char *)value.data,
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 			break;
 		case VAR:
 			(void)g.wt_api->msg_printf(g.wt_api,
-			    cursor->session, "%-10s%" PRIu64 " {%.*s}",
-			    which, keyno, (int)value.size, (char *)value.data);
+			    cursor->session, "%-10s%" PRIu64 " {%.*s}%s",
+			    which, keyno, (int)value.size, (char *)value.data,
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 			break;
 		}
 
@@ -1434,6 +1445,7 @@ static int
 row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	if (!positioned) {
 		key_gen(tinfo->key, tinfo->keyno);
@@ -1445,8 +1457,9 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}", "reserve",
-		    (int)tinfo->key->size, tinfo->key->data);
+		    "%-10s{%.*s}%s", "reserve",
+		    (int)tinfo->key->size, tinfo->key->data,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 	return (0);
 }
@@ -1459,6 +1472,7 @@ static int
 col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);
@@ -1468,7 +1482,8 @@ col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s%" PRIu64, "reserve", tinfo->keyno);
+		    "%-10s%" PRIu64 "%s", "reserve", tinfo->keyno,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 	return (0);
 }
@@ -1508,6 +1523,7 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
+	char pbuf[128];
 	int nentries;
 
 	if (!positioned) {
@@ -1523,10 +1539,11 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
+		    "%-10s{%.*s}, {%.*s}%s",
 		    "modify",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
+		    (int)tinfo->value->size, tinfo->value->data,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1548,6 +1565,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
+	char pbuf[128];
 	int nentries;
 
 	if (!positioned)
@@ -1561,10 +1579,11 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s%" PRIu64 ", {%.*s}",
+		    "%-10s%" PRIu64 ", {%.*s}%s",
 		    "modify",
 		    tinfo->keyno,
-		    (int)tinfo->value->size, tinfo->value->data);
+		    (int)tinfo->value->size, tinfo->value->data,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1588,6 +1607,7 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	WT_CURSOR *c2;
 	WT_DECL_RET;
 	WT_SESSION *session;
+	char pbuf[128];
 
 	session = cursor->session;
 
@@ -1624,9 +1644,10 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "%-10s%" PRIu64 ", %" PRIu64,
+		    "%-10s%" PRIu64 ", %" PRIu64 "%s",
 		    "truncate",
-		    tinfo->keyno, tinfo->last);
+		    tinfo->keyno, tinfo->last,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -1645,6 +1666,7 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	WT_CURSOR *c2;
 	WT_DECL_RET;
 	WT_SESSION *session;
+	char pbuf[128];
 
 	session = cursor->session;
 
@@ -1676,9 +1698,10 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "%-10s%" PRIu64 "-%" PRIu64,
+		    "%-10s%" PRIu64 "-%" PRIu64 "%s",
 		    "truncate",
-		    tinfo->keyno, tinfo->last);
+		    tinfo->keyno, tinfo->last,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -1695,6 +1718,7 @@ static int
 row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	if (!positioned) {
 		key_gen(tinfo->key, tinfo->keyno);
@@ -1708,10 +1732,11 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
+		    "%-10s{%.*s}, {%.*s}%s",
 		    "put",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
+		    (int)tinfo->value->size, tinfo->value->data,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -1730,6 +1755,7 @@ static int
 col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);
@@ -1745,15 +1771,17 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if (g.logging == LOG_OPS) {
 		if (g.type == FIX)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
+			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}%s",
 			    "update", tinfo->keyno,
-			    ((uint8_t *)tinfo->value->data)[0]);
+			    ((uint8_t *)tinfo->value->data)[0],
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 		else
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {%.*s}",
+			    "%-10s%" PRIu64 " {%.*s}%s",
 			    "update", tinfo->keyno,
 			    (int)tinfo->value->size,
-			    (char *)tinfo->value->data);
+			    (char *)tinfo->value->data,
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 	}
 
 #ifdef HAVE_BERKELEY_DB
@@ -1874,6 +1902,7 @@ static int
 row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	/*
 	 * If we positioned the cursor already, it's a test of an update using
@@ -1892,10 +1921,11 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	/* Log the operation */
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
+		    "%-10s{%.*s}, {%.*s}%s",
 		    "insert",
 		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
+		    (int)tinfo->value->size, tinfo->value->data,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -1914,6 +1944,7 @@ static int
 col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	val_gen(&tinfo->rnd, tinfo->value, g.rows + 1);
 	if (g.type == FIX)
@@ -1931,15 +1962,17 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 	if (g.logging == LOG_OPS) {
 		if (g.type == FIX)
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
+			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}%s",
 			    "insert", tinfo->keyno,
-			    ((uint8_t *)tinfo->value->data)[0]);
+			    ((uint8_t *)tinfo->value->data)[0],
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 		else
 			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {%.*s}",
+			    "%-10s%" PRIu64 " {%.*s}%s",
 			    "insert", tinfo->keyno,
 			    (int)tinfo->value->size,
-			    (char *)tinfo->value->data);
+			    (char *)tinfo->value->data,
+			    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 	}
 
 #ifdef HAVE_BERKELEY_DB
@@ -1961,6 +1994,7 @@ static int
 row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	if (!positioned) {
 		key_gen(tinfo->key, tinfo->keyno);
@@ -1976,7 +2010,9 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
+		    cursor->session, "%-10s%" PRIu64 "%s",
+		    "remove", tinfo->keyno,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {
@@ -1997,6 +2033,7 @@ static int
 col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
+	char pbuf[128];
 
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);
@@ -2010,7 +2047,9 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	if (g.logging == LOG_OPS)
 		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
+		    cursor->session, "%-10s%" PRIu64 "%s",
+		    "remove", tinfo->keyno,
+		    get_log_msg_metadata(tinfo, pbuf, sizeof(pbuf)));
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {

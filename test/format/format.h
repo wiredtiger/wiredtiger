@@ -370,6 +370,7 @@ void	 config_print(bool);
 void	 config_setup(void);
 void	 config_single(const char *, bool);
 void	 fclose_and_clear(FILE **);
+char *	 get_log_msg_metadata(TINFO *, char *, size_t);
 void	 key_gen(WT_ITEM *, uint64_t);
 void	 key_gen_init(WT_ITEM *);
 void	 key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
@@ -379,7 +380,8 @@ WT_THREAD_RET lrt(void *);
 void	 path_setup(const char *);
 void	 print_item(const char *, WT_ITEM *);
 void	 print_item_data(const char *, const uint8_t *, size_t);
-int	 read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
+int	 read_row_worker(
+    TINFO *, WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 uint32_t rng(WT_RAND_STATE *);
 void	 snap_repeat_single(WT_CURSOR *, TINFO *);
 int	 snap_repeat_txn(WT_CURSOR *, TINFO *);
