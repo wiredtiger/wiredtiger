@@ -111,22 +111,21 @@ __modify_apply_one(
 	size = modify->size;
 
 	/*
-	* Grow the buffer to the maximum size we'll need. This is pessimistic
-	* because it ignores replacement bytes, but it's a simpler calculation.
-	*
-	* Grow the buffer first. This function is often called using a cursor
-	* buffer referencing on-page memory and it's easy to overwrite a page.
-	* A side-effect of growing the buffer is to ensure the buffer's value
-	* is in buffer-local memory.
-	*
-	* Because the buffer may reference an overflow item, the data may not
-	* start at the start of the buffer's memory and we have to correct for
-	* that.
-	*/
+	 * Grow the buffer to the maximum size we'll need. This is pessimistic
+	 * because it ignores replacement bytes, but it's a simpler calculation.
+	 *
+	 * Grow the buffer first. This function is often called using a cursor
+	 * buffer referencing on-page memory and it's easy to overwrite a page.
+	 * A side-effect of growing the buffer is to ensure the buffer's value
+	 * is in buffer-local memory.
+	 *
+	 * Because the buffer may reference an overflow item, the data may not
+	 * start at the start of the buffer's memory and we have to correct for
+	 * that.
+	 */
 	len = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
 	WT_RET(__wt_buf_grow(session, value,
 	    len + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
-	WT_ASSERT(session, value->data == value->mem);
 
 	/*
 	 * Fast-path the common case, where we're overwriting a set of bytes
