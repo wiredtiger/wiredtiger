@@ -803,13 +803,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
-	bool locked, prepare, readonly, update_timestamp;
+	bool locked, prepare, readonly, update_timestamp, skip_update_assert;
 
 	txn = &session->txn;
 	conn = S2C(session);
 	txn_global = &conn->txn_global;
 	prev_commit_timestamp = 0;	/* -Wconditional-uninitialized */
-	locked = false;
+	locked = skip_update_assert = false;
 	resolved_update_count = visited_update_count = 0;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -986,10 +986,15 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 				 * it would have happened on a previous
 				 * modification in this txn.
 				 */
-				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
+				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+					skip_update_assert =
+					    skip_update_assert ||
+					    F_ISSET(op, WT_TXN_OP_KEY_RESERVED);
 					WT_ERR(__wt_txn_resolve_prepared_op(
 					    session, op, true,
 					    &resolved_update_count));
+				}
+
 				/*
 				 * We should resolve at least one or more
 				 * updates each time we call
@@ -1014,7 +1019,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
-	WT_ASSERT(session, resolved_update_count == visited_update_count);
+	WT_ASSERT(session, skip_update_assert ||
+	    resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
@@ -1093,7 +1099,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	u_int i;
+	int64_t i;
 
 	txn = &session->txn;
 
@@ -1122,8 +1128,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_session_copy_values(session));
 	}
 
-	/* Prepare updates. */
-	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+	/*
+	 * Prepare updates, traverse the modification array in reverse order
+	 * so that we visit the update chain in newest to oldest order
+	 * allowing us to set the key repeated flag with reserved updates in
+	 * the chain.
+	 */
+	for (i = (int64_t)txn->mod_count - 1, op = &txn->mod[i]; i >= 0;
+		i--, op--) {
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
 		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
@@ -1164,9 +1176,23 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 			 * Set the key repeated flag which tells us that we've
 			 * got multiple updates to the same key by the same txn.
 			 * This is later used in txn commit.
+			 *
+			 * When we see a reserved update we set the
+			 * WT_UPDATE_RESERVED flag instead. We do this as we
+			 * cannot know if our current update should specify the
+			 * key repeated flag as we don't want to traverse the
+			 * entire update chain to find out. i.e. if there is
+			 * an update with our txnid after the reserved update
+			 * we should set key repeated, but if there isn't we
+			 * shouldn't.
 			 */
-			if (upd->next != NULL && upd->txnid == upd->next->txnid)
-				F_SET(op, WT_TXN_OP_KEY_REPEATED);
+			if (upd->next != NULL &&
+			    upd->txnid == upd->next->txnid) {
+				if (upd->next->type == WT_UPDATE_RESERVE)
+					F_SET(op, WT_TXN_OP_KEY_RESERVED);
+				else
+					F_SET(op, WT_TXN_OP_KEY_REPEATED);
+			}
 			break;
 		case WT_TXN_OP_REF_DELETE:
 			__wt_txn_op_apply_prepare_state(
@@ -1208,12 +1234,13 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_UPDATE *upd;
 	int64_t resolved_update_count, visited_update_count;
 	u_int i;
-	bool readonly;
+	bool readonly, skip_update_assert;
 
 	WT_UNUSED(cfg);
 	resolved_update_count = visited_update_count = 0;
 	txn = &session->txn;
 	readonly = txn->mod_count == 0;
+	skip_update_assert = false;
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
 	/* Rollback notification. */
@@ -1253,10 +1280,14 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 				 * it would have happened on a previous
 				 * modification in this txn.
 				 */
-				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
+				if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+					skip_update_assert =
+					    skip_update_assert ||
+					    F_ISSET(op, WT_TXN_OP_KEY_RESERVED);
 					WT_RET(__wt_txn_resolve_prepared_op(
 					    session, op, false,
 					    &resolved_update_count));
+				}
 				/*
 				 * We should resolve at least one or more
 				 * updates each time we call
@@ -1289,7 +1320,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
-	WT_ASSERT(session, resolved_update_count == visited_update_count);
+	WT_ASSERT(session, skip_update_assert ||
+	    resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
