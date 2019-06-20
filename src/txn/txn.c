@@ -732,7 +732,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 				upd = op->u.op_upd->next;
 			/*
 			 * Skip over any aborted update structures, internally
-			 * created update structures  or ones from our own
+			 * created update structures or ones from our own
 			 * transaction.
 			 */
 			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
