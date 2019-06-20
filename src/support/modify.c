@@ -11,24 +11,24 @@
 #define	WT_MODIFY_FOREACH_BEGIN(mod, p, nentries) do {			\
 	const size_t *__p = p;						\
 	const uint8_t *__data =						\
-	    (const uint8_t *)(__p + (size_t)nentries * 3);		\
+	    (const uint8_t *)(__p + (size_t)(nentries) * 3);		\
 	int __i;							\
-	for (__i = 0; __i < nentries; ++__i) {				\
-		mod.data.data = __data;					\
-		memcpy(&mod.data.size, __p++, sizeof(size_t));		\
-		__data += mod.data.size;				\
-		memcpy(&mod.offset, __p++, sizeof(size_t));		\
-		memcpy(&mod.size, __p++, sizeof(size_t));
+	for (__i = 0; __i < (nentries); ++__i) {			\
+		(mod).data.data = __data;				\
+		memcpy(&(mod).data.size, __p++, sizeof(size_t));	\
+		__data += (mod).data.size;				\
+		memcpy(&(mod).offset, __p++, sizeof(size_t));		\
+		memcpy(&(mod).size, __p++, sizeof(size_t));
 
 #define	WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, datasz) do {	\
-	const size_t *__p = p + (size_t)nentries * 3;			\
+	const size_t *__p = (p) + (size_t)(nentries) * 3;		\
 	const uint8_t *__data = (const uint8_t *)__p + datasz;		\
 	int __i;							\
-	for (__i = 0; __i < nentries; ++__i) {				\
-		memcpy(&mod.size, --__p, sizeof(size_t));		\
-		memcpy(&mod.offset, --__p, sizeof(size_t));		\
-		memcpy(&mod.data.size, --__p, sizeof(size_t));		\
-		mod.data.data = (__data -= mod.data.size);
+	for (__i = 0; __i < (nentries); ++__i) {			\
+		memcpy(&(mod).size, --__p, sizeof(size_t));		\
+		memcpy(&(mod).offset, --__p, sizeof(size_t));		\
+		memcpy(&(mod).data.size, --__p, sizeof(size_t));	\
+		(mod).data.data = (__data -= (mod).data.size);
 
 #define	WT_MODIFY_FOREACH_END						\
 	}								\
