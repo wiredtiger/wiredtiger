@@ -265,7 +265,7 @@ modify_run(TEST_OPTS *opts)
 	WT_SESSION_IMPL *session;
 	size_t len;
 	int i, j;
-	char *p;
+	u_char *p;
 	bool verbose;
 
 	session = (WT_SESSION_IMPL *)opts->session;
@@ -297,7 +297,7 @@ modify_run(TEST_OPTS *opts)
 			/* Make lower case so modifications are easy to see. */
 			for (p = localA->mem;
 			    WT_PTRDIFF(p, localA->mem) < localA->size; p++)
-				*p = tolower(*p);
+				*p = __wt_tolower(*p);
 
 			/* Copy the current value into the second item. */
 			testutil_check(__wt_buf_set(
