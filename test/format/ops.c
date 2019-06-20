@@ -1130,8 +1130,8 @@ read_row_worker(TINFO *tinfo,
 {
 	WT_SESSION *session;
 	uint8_t bitfield;
-	char pbuf[128];
 	int exact, ret;
+	char pbuf[128];
 
 	session = cursor->session;
 
@@ -1238,9 +1238,9 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 	uint64_t keyno, keyno_prev;
 	uint8_t bitfield;
 	int cmp;
+	char pbuf[128];
 	const char *which;
 	bool incrementing, record_gaps;
-	char pbuf[128];
 
 	keyno = 0;
 	which = next ? "WT_CURSOR.next" : "WT_CURSOR.prev";
@@ -1523,8 +1523,8 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
-	char pbuf[128];
 	int nentries;
+	char pbuf[128];
 
 	if (!positioned) {
 		key_gen(tinfo->key, tinfo->keyno);
@@ -1565,8 +1565,8 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 {
 	WT_DECL_RET;
 	WT_MODIFY entries[MAX_MODIFY_ENTRIES];
-	char pbuf[128];
 	int nentries;
+	char pbuf[128];
 
 	if (!positioned)
 		cursor->set_key(cursor, tinfo->keyno);

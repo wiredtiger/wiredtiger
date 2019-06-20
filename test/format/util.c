@@ -706,7 +706,7 @@ get_log_msg_metadata(TINFO *tinfo, char *buf, size_t buf_sz)
 	    ", repeatable read: %s",
 	    tinfo->read_ts, tinfo->commit_ts,
 	    tinfo->repeatable_reads ? "yes" : "no"));
-	return buf;
+	return (buf);
 }
 
 /*
