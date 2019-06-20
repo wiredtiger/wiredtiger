@@ -37,7 +37,7 @@
 #define	DATASIZE		1024
 #define	MAX_MODIFY_ENTRIES	37		/* Maximum modify vectors */
 
-static WT_MODIFY entries[1000];			/* Entries vector */
+static WT_MODIFY entries[MAX_MODIFY_ENTRIES];	/* Entries vector */
 static int nentries;				/* Entries count */
 
 /*
@@ -61,12 +61,8 @@ show(WT_ITEM *buf, const char *tag)
 	const uint8_t *a;
 
 	fprintf(stderr, "%s: %" WT_SIZET_FMT " bytes\n\t", tag, buf->size);
-	for (a = buf->data, i = 0; i < buf->size; ++i, ++a) {
-		if (isprint(*a))
-			fprintf(stderr, " %c", *a);
-		else
-			fprintf(stderr, " %#x", *a);
-	}
+	for (a = buf->data, i = 0; i < buf->size; ++i, ++a)
+		fprintf(stderr, " %c", isprint(*a) ? *a : '.');
 	fprintf(stderr, "\n");
 }
 
@@ -80,7 +76,7 @@ modify_repl_init(void)
 	size_t i;
 
 	for (i = 0; i < sizeof(modify_repl); ++i)
-		modify_repl[i] = "zyxwvutsrqponmlkjihgfedcba"[i % 26];
+		modify_repl[i] = 'Z' - (i % 26);
 }
 
 /*
@@ -93,13 +89,13 @@ modify_build(void)
 	int i;
 
 	/* Mess up the entries. */
-	memset(entries, 0xff, MAX_MODIFY_ENTRIES * sizeof(entries[0]));
+	memset(entries, 0xff, sizeof(entries));
 
 	/*
 	 * Randomly select a number of byte changes, offsets and lengths.
 	 * Allow a value of 0, the API should accept it.
 	 */
-	nentries = (int)(__wt_random(&rnd) % MAX_MODIFY_ENTRIES);
+	nentries = (int)(__wt_random(&rnd) % (MAX_MODIFY_ENTRIES + 1));
 	for (i = 0; i < nentries; ++i) {
 		entries[i].data.data =
 		    modify_repl + __wt_random(&rnd) % MAX_REPL_BYTES;
@@ -269,6 +265,7 @@ modify_run(TEST_OPTS *opts)
 	WT_SESSION_IMPL *session;
 	size_t len;
 	int i, j;
+	char *p;
 	bool verbose;
 
 	session = (WT_SESSION_IMPL *)opts->session;
@@ -287,6 +284,7 @@ modify_run(TEST_OPTS *opts)
 	memset(&_localB, 0, sizeof(_localB));
 	cursor = &_cursor;
 	memset(&_cursor, 0, sizeof(_cursor));
+	cursor->session = (WT_SESSION *)session;
 	cursor->value_format = "u";
 
 #define	NRUNS	10000
@@ -296,6 +294,11 @@ modify_run(TEST_OPTS *opts)
 		testutil_check(__wt_buf_set(session, localA, modify_repl, len));
 
 		for (j = 0; j < 1000; ++j) {
+			/* Make lower case so modifications are easy to see. */
+			for (p = localA->mem;
+			    WT_PTRDIFF(p, localA->mem) < localA->size; p++)
+				*p = tolower(*p);
+
 			/* Copy the current value into the second item. */
 			testutil_check(__wt_buf_set(
 			    session, localB, localA->data, localA->size));
@@ -310,7 +313,7 @@ modify_run(TEST_OPTS *opts)
 			testutil_check(__wt_buf_set(session,
 			    &cursor->value, localA->data, localA->size));
 			testutil_check(__wt_modify_apply_api(
-			    session, cursor, entries, nentries));
+			    cursor, entries, nentries));
 			slow_apply_api(localA);
 			compare(localB, localA, &cursor->value);
 
@@ -331,7 +334,7 @@ modify_run(TEST_OPTS *opts)
 			testutil_check(__wt_buf_set(session,
 			    &cursor->value, localB->data, localB->size));
 			testutil_check(__wt_modify_apply_api(
-			    session, cursor, entries, nentries));
+			    cursor, entries, nentries));
 			compare(localB, localA, &cursor->value);
 		}
 		if (verbose) {
