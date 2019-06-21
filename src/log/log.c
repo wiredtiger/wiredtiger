@@ -712,6 +712,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	uncompressed_size = logrec->mem_len;
 	WT_RET(__wt_buf_initsize(session, out, uncompressed_size));
 	memcpy(out->mem, in->mem, skip);
+	result_len = 0;
 
 	/*
 	 * Grab a pointer to the nop compressor if it's available.

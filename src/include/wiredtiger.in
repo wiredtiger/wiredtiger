@@ -4079,6 +4079,8 @@ struct __wt_compressor {
 	 * @param[in] dst the destination buffer
 	 * @param[in] dst_len the length of the destination buffer
 	 * @param[out] result_lenp the length of the decompressed data
+	 * @param[in] verbose whether decompression failures should write error
+	 * messages to the error stream
 	 * @returns zero for success, non-zero to indicate an error.
 	 *
 	 * @snippet nop_compress.c WT_COMPRESSOR decompress
