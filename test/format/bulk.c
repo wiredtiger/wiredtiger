@@ -42,9 +42,7 @@ wts_load(void)
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-	if (g.logging != 0)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== bulk load start ===============");
+	logop(session, "%s", "=============== bulk load start");
 
 	/*
 	 * No bulk load with data-sources.
@@ -89,34 +87,24 @@ wts_load(void)
 			if (!is_bulk)
 				cursor->set_key(cursor, g.key_cnt);
 			cursor->set_value(cursor, *(uint8_t *)value.data);
-			if (g.logging == LOG_OPS)
-				(void)g.wt_api->msg_printf(g.wt_api, session,
-				    "%-10s %" PRIu64 " {0x%02" PRIx8 "}",
-				    "bulk V",
-				    g.key_cnt, ((uint8_t *)value.data)[0]);
+			logop(session, "%-10s %" PRIu64 " {0x%02" PRIx8 "}",
+			    "bulk", g.key_cnt, ((uint8_t *)value.data)[0]);
 			break;
 		case VAR:
 			if (!is_bulk)
 				cursor->set_key(cursor, g.key_cnt);
 			cursor->set_value(cursor, &value);
-			if (g.logging == LOG_OPS)
-				(void)g.wt_api->msg_printf(g.wt_api, session,
-				    "%-10s %" PRIu64 " {%.*s}", "bulk V",
-				    g.key_cnt,
-				    (int)value.size, (char *)value.data);
+			logop(session, "%-10s %" PRIu64 " {%.*s}", "bulk",
+			    g.key_cnt, (int)value.size, (char *)value.data);
 			break;
 		case ROW:
 			cursor->set_key(cursor, &key);
-			if (g.logging == LOG_OPS)
-				(void)g.wt_api->msg_printf(g.wt_api, session,
-				    "%-10s %" PRIu64 " {%.*s}", "bulk K",
-				    g.key_cnt, (int)key.size, (char *)key.data);
 			cursor->set_value(cursor, &value);
-			if (g.logging == LOG_OPS)
-				(void)g.wt_api->msg_printf(g.wt_api, session,
-				    "%-10s %" PRIu64 " {%.*s}", "bulk V",
-				    g.key_cnt,
-				    (int)value.size, (char *)value.data);
+			logop(session,
+			    "%-10s %" PRIu64 " {%.*s}, {%.*s}", "bulk",
+			    g.key_cnt,
+			    (int)key.size, (char *)key.data,
+			    (int)value.size, (char *)value.data);
 			break;
 		}
 
@@ -152,9 +140,7 @@ wts_load(void)
 
 	testutil_check(cursor->close(cursor));
 
-	if (g.logging != 0)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== bulk load stop ===============");
+	logop(session, "%s", "=============== bulk load stop");
 
 	testutil_check(session->close(session, NULL));
 

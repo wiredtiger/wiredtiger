@@ -105,11 +105,8 @@ typedef struct {
 
 	uint32_t run_cnt;			/* Run counter */
 
-	enum {
-	    LOG_FILE=1,				/* Use a log file */
-	    LOG_OPS=2				/* Log all operations */
-	} logging;
-	FILE *logfp;				/* Log file */
+	bool  logging;				/* log operations  */
+	FILE *logfp;				/* log file */
 
 	bool replay;				/* Replaying a run. */
 	bool workers_finished;			/* Operations completed */
@@ -347,6 +344,12 @@ typedef struct {
 	volatile int state;			/* state */
 } TINFO;
 extern TINFO **tinfo_list;
+
+#define	logop(wt_session, fmt, ...) do {				\
+	if (g.logging)							\
+		testutil_check(g.wt_api->msg_printf(			\
+		    g.wt_api, wt_session, fmt, __VA_ARGS__));		\
+} while (0)
 
 #ifdef HAVE_BERKELEY_DB
 void	 bdb_close(void);
