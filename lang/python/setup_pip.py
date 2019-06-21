@@ -195,6 +195,7 @@ def source_filter(sources):
     movers = dict()
     py_dir = os.path.join('lang', 'python')
     pywt_dir = os.path.join(py_dir, 'wiredtiger')
+    pywt_build_dir = os.path.join('build_posix', py_dir, 'wiredtiger')
     pywt_prefix = pywt_dir + os.path.sep
     for f in sources:
         if not re.match(source_regex, f):
@@ -211,7 +212,7 @@ def source_filter(sources):
         result.append(dest)
     # Add SWIG generated files
     result.append('wiredtiger.py')
-    movers['wiredtiger.py'] = os.path.join(pywt_dir, '__init__.py')
+    movers['wiredtiger.py'] = os.path.join(pywt_build_dir, '__init__.py')
     result.append(os.path.join(py_dir, 'wiredtiger_wrap.c'))
     return result, movers
 
