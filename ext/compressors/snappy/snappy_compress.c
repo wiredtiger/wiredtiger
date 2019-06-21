@@ -202,9 +202,9 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		*result_lenp = dst_len;
 		return (0);
 	}
-	return verbose ?
+	return (verbose ?
 	    snappy_error(compressor, session, "snappy_decompress", snret) :
-	    WT_ERROR;
+	    WT_ERROR);
 }
 
 /*

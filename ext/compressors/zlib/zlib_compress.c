@@ -177,9 +177,9 @@ zlib_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	zs.opaque = &opaque;
 
 	if ((ret = inflateInit(&zs)) != Z_OK)
-		return verbose ?
+		return (verbose ?
 		    zlib_error(compressor, session, "inflateInit", ret) :
-		    WT_ERROR;
+		    WT_ERROR);
 
 	zs.next_in = src;
 	zs.avail_in = (uint32_t)src_len;
@@ -198,9 +198,9 @@ zlib_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	if (ret == Z_OK)
 		return (0);
 	else {
-		return verbose ?
+		return (verbose ?
 		    zlib_error(compressor, session, "inflate", ret) :
-		    WT_ERROR;
+		    WT_ERROR);
 	}
 }
 

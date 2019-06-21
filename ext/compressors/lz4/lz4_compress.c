@@ -241,9 +241,9 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		return (0);
 	}
 
-	return verbose ?
+	return (verbose ?
 	    lz4_error(compressor, session, "LZ4 decompress error", decoded) :
-	    WT_ERROR;
+	    WT_ERROR);
 }
 
 /*
