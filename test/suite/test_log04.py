@@ -65,10 +65,11 @@ class test_log04(wttest.WiredTigerTestCase):
         if self.after_compress is not None:
             extlist.extension('compressors', self.after_compress)
 
-    def populate(self):
+    def populate_log(self):
         big_str = 'A' * 10000
         self.session.create(self.uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(self.uri)
+        # Populate the log by performing some timestamped writes past stable.
         for i in range(self.nentries):
             self.session.begin_transaction()
             cursor[str(i)] = big_str
@@ -90,7 +91,7 @@ class test_log04(wttest.WiredTigerTestCase):
             self.homedir, self.make_config_string(self.init_compress))
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
         self.session = self.conn.open_session('isolation=snapshot')
-        self.populate()
+        self.populate_log()
         self.session.close()
         self.conn.close()
 

@@ -703,7 +703,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	WT_NAMED_COMPRESSOR *ncomp;
 	size_t result_len, skip;
 	uint32_t uncompressed_size;
-	bool skipped_active_compressor;
+	bool successful;
 
 	conn = S2C(session);
 	logrec = (WT_LOG_RECORD *)in->mem;
@@ -735,16 +735,16 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 		if (WT_STREQ(ncomp->name, "nop"))
 			nop_compressor = ncomp->compressor;
 
-	skipped_active_compressor = true;
-
 	/* Try the active compressor provided that it's not nop. */
+	successful = false;
 	if (compressor != NULL && compressor->decompress != NULL &&
 	    compressor != nop_compressor) {
 		ret = compressor->decompress(compressor, &session->iface,
 		    (uint8_t *)in->mem + skip, in->size - skip,
 		    (uint8_t *)out->mem + skip,
 		    uncompressed_size - skip, &result_len, false);
-		skipped_active_compressor = false;
+		if (ret == 0)
+			successful = true;
 	}
 
 	/*
@@ -752,7 +752,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	 * a different compressor last time. Cycle through the available ones
 	 * and see if one of them succeeds.
 	 */
-	if (ret != 0 || skipped_active_compressor)
+	if (!successful)
 		TAILQ_FOREACH(ncomp, &conn->compqh, q) {
 			if (ncomp->compressor == nop_compressor)
 				continue;
@@ -760,12 +760,14 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 			    &session->iface, (uint8_t *)in->mem + skip,
 			    in->size - skip, (uint8_t *)out->mem + skip,
 			    uncompressed_size - skip, &result_len, false);
-			if (ret == 0)
+			if (ret == 0) {
+				successful = true;
 				break;
+			}
 		}
 
 	/* If none of them worked, then it's time to admit defeat. */
-	if (ret != 0)
+	if (!successful)
 		WT_RET_MSG(session, ret,
 		    "decompression failed after trying all compressors");
 
