@@ -107,7 +107,7 @@ __wt_bt_read(WT_SESSION_IMPL *session,
 		    (uint8_t *)ip->data + WT_BLOCK_COMPRESS_SKIP,
 		    tmp->size - WT_BLOCK_COMPRESS_SKIP,
 		    (uint8_t *)buf->mem + WT_BLOCK_COMPRESS_SKIP,
-		    dsk->mem_size - WT_BLOCK_COMPRESS_SKIP, &result_len);
+		    dsk->mem_size - WT_BLOCK_COMPRESS_SKIP, &result_len, true);
 
 		/*
 		 * If checksums were turned off because we're depending on the
@@ -223,7 +223,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf,
 		    buf->size - WT_BLOCK_COMPRESS_SKIP,
 		    (uint8_t *)ctmp->data + WT_BLOCK_COMPRESS_SKIP,
 		    ctmp->memsize - WT_BLOCK_COMPRESS_SKIP,
-		    &result_len));
+		    &result_len, true));
 		WT_ASSERT(session,
 		    dsk->mem_size == result_len + WT_BLOCK_COMPRESS_SKIP);
 		ctmp->size = result_len + WT_BLOCK_COMPRESS_SKIP;

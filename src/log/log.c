@@ -696,46 +696,78 @@ __log_size_fit(WT_SESSION_IMPL *session, WT_LSN *lsn, uint64_t recsize)
 static int
 __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 {
-	WT_COMPRESSOR *compressor;
+	WT_COMPRESSOR *compressor, *nop_compressor;
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_LOG_RECORD *logrec;
 	WT_NAMED_COMPRESSOR *ncomp;
 	size_t result_len, skip;
 	uint32_t uncompressed_size;
+	bool skipped_active_compressor;
 
 	conn = S2C(session);
 	logrec = (WT_LOG_RECORD *)in->mem;
 	skip = WT_LOG_COMPRESS_SKIP;
 	compressor = conn->log_compressor;
-	if (compressor == NULL || compressor->decompress == NULL)
-		WT_RET_MSG(session, WT_ERROR,
-		    "Compressed record with no configured compressor");
 	uncompressed_size = logrec->mem_len;
 	WT_RET(__wt_buf_initsize(session, out, uncompressed_size));
 	memcpy(out->mem, in->mem, skip);
-	ret = compressor->decompress(compressor, &session->iface,
-	    (uint8_t *)in->mem + skip, in->size - skip,
-	    (uint8_t *)out->mem + skip,
-	    uncompressed_size - skip, &result_len);
+
+	/*
+	 * Grab a pointer to the nop compressor if it's available.
+	 *
+	 * In the logic below, we're going to attempt decompressing with our
+	 * active compressor. And if that fails, we'll try all available
+	 * compressors (in case we're starting up with a different compressor
+	 * than the previous shutdown).
+	 *
+	 * In general, a compressor's decompress function must return non-zero
+	 * when failing to decompress. The nop compressor can't possibly satisfy
+	 * this guarantee so we're going to avoid using it in the logic below.
+	 *
+	 * Records compressed with the nop compressor won't get marked with the
+	 * WT_LOG_RECORD_COMPRESSED flag and therefore won't trigger
+	 * decompression so it would never be the correct compressor in any
+	 * case.
+	 */
+	nop_compressor = NULL;
+	TAILQ_FOREACH(ncomp, &conn->compqh, q)
+		if (WT_STREQ(ncomp->name, "nop"))
+			nop_compressor = ncomp->compressor;
+
+	skipped_active_compressor = true;
+
+	/* Try the active compressor provided that it's not nop. */
+	if (compressor != NULL && compressor->decompress != NULL &&
+	    compressor != nop_compressor) {
+		ret = compressor->decompress(compressor, &session->iface,
+		    (uint8_t *)in->mem + skip, in->size - skip,
+		    (uint8_t *)out->mem + skip,
+		    uncompressed_size - skip, &result_len, false);
+		skipped_active_compressor = false;
+	}
 
 	/*
 	 * If our chosen compressor doesn't work, we may have been running with
 	 * a different compressor last time. Cycle through the available ones
 	 * and see if one of them succeeds.
 	 */
-	if (ret != 0)
+	if (ret != 0 || skipped_active_compressor)
 		TAILQ_FOREACH(ncomp, &conn->compqh, q) {
+			if (ncomp->compressor == nop_compressor)
+				continue;
 			ret = ncomp->compressor->decompress(compressor,
 			    &session->iface, (uint8_t *)in->mem + skip,
 			    in->size - skip, (uint8_t *)out->mem + skip,
-			    uncompressed_size - skip, &result_len);
+			    uncompressed_size - skip, &result_len, false);
 			if (ret == 0)
 				break;
 		}
 
 	/* If none of them worked, then it's time to admit defeat. */
-	WT_RET(ret);
+	if (ret != 0)
+		WT_RET_MSG(session, ret,
+		    "decompression failed after trying all compressors");
 
 	/*
 	 * If checksums were turned off because we're depending on the

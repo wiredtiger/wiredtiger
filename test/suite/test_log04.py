@@ -38,7 +38,7 @@ def timestamp_str(t):
 class test_log04(wttest.WiredTigerTestCase):
     homedir = 'HOME'
     uri = 'table:test_log04'
-    nentries = 20000
+    nentries = 5
 
     init_compression_values = [
         ('none', dict(init_compress=None)),
@@ -80,6 +80,7 @@ class test_log04(wttest.WiredTigerTestCase):
         if compression is not None:
             config_str += ',compressor={0}'.format(compression)
         config_str += ')'
+        config_str += self.extensionsConfig()
         return config_str
 
     def test_change_log_compression(self):
@@ -93,9 +94,8 @@ class test_log04(wttest.WiredTigerTestCase):
         self.session.close()
         self.conn.close()
 
-        with self.expectedStderrPattern(""):
-            self.conn = self.wiredtiger_open(
-                self.homedir, self.make_config_string(self.after_compress))
+        self.wiredtiger_open(
+            self.homedir, self.make_config_string(self.after_compress))
 
 if __name__ == '__main__':
     wttest.run()
