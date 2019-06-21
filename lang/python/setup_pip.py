@@ -303,6 +303,17 @@ cppflags, cflags, ldflags = get_compile_flags(inc_paths, lib_paths)
 # If we are creating a source distribution, create a staging directory
 # with just the right sources. Put the result in the python dist directory.
 if pip_command == 'sdist':
+
+    # Technically, this script can run under Python2, and will do the
+    # right thing. But if we're running with Python2, chances are we built
+    # WiredTiger using Python2, and a distribution built that way will
+    # only run under Python2, not Python3.  If we do the WiredTiger configure,
+    # build and this script all using Python3, we'll end up with a distribution
+    # that installs and runs under either Python2 or Python3.
+    python2 = (sys.version_info[0] <= 2)
+    if python2:
+        die('Python3 should be used to create a source distribution')
+
     sources, movers = source_filter(get_sources_curdir())
     stage_dir = os.path.join(python_rel_dir, 'stage')
     shutil.rmtree(stage_dir, True)
