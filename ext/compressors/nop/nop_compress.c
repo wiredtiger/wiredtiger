@@ -84,13 +84,12 @@ static int
 nop_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
-    size_t *result_lenp, bool verbose)
+    size_t *result_lenp)
 {
 	NOP_COMPRESSOR *nop_compressor = (NOP_COMPRESSOR *)compressor;
 
 	(void)session;				/* Unused parameters */
 	(void)src_len;
-	(void)verbose;
 
 	++nop_compressor->nop_calls;		/* Call count */
 

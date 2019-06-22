@@ -743,7 +743,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 		ret = compressor->decompress(compressor, &session->iface,
 		    (uint8_t *)in->mem + skip, in->size - skip,
 		    (uint8_t *)out->mem + skip,
-		    uncompressed_size - skip, &result_len, false);
+		    uncompressed_size - skip, &result_len);
 		if (ret == 0)
 			successful = true;
 	}
@@ -760,7 +760,7 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 			ret = ncomp->compressor->decompress(compressor,
 			    &session->iface, (uint8_t *)in->mem + skip,
 			    in->size - skip, (uint8_t *)out->mem + skip,
-			    uncompressed_size - skip, &result_len, false);
+			    uncompressed_size - skip, &result_len);
 			if (ret == 0) {
 				successful = true;
 				break;

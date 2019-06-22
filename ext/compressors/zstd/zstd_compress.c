@@ -156,7 +156,7 @@ static int
 zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
-    size_t *result_lenp, bool verbose)
+    size_t *result_lenp)
 {
 	WT_EXTENSION_API *wt_api;
 	size_t zstd_ret;
@@ -173,11 +173,10 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	zstd_len = zstd_bswap64(zstd_len);
 #endif
 	if (zstd_len + ZSTD_PREFIX > src_len) {
-		if (verbose)
-			(void)wt_api->err_printf(wt_api,
-			    session,
-			    "WT_COMPRESSOR.decompress: stored size exceeds "
-			    "source size");
+		(void)wt_api->err_printf(wt_api,
+		    session,
+		    "WT_COMPRESSOR.decompress: stored size exceeds source "
+		    "size");
 		return (WT_ERROR);
 	}
 
@@ -188,9 +187,7 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		*result_lenp = zstd_ret;
 		return (0);
 	}
-	return (verbose ?
-	    zstd_error(compressor, session, "ZSTD_decompress", zstd_ret) :
-	    WT_ERROR);
+	return (zstd_error(compressor, session, "ZSTD_decompress", zstd_ret));
 }
 
 /*

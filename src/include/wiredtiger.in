@@ -4079,8 +4079,6 @@ struct __wt_compressor {
 	 * @param[in] dst the destination buffer
 	 * @param[in] dst_len the length of the destination buffer
 	 * @param[out] result_lenp the length of the decompressed data
-	 * @param[in] verbose whether decompression failures should write error
-	 * messages to the error stream
 	 * @returns zero for success, non-zero to indicate an error.
 	 *
 	 * @snippet nop_compress.c WT_COMPRESSOR decompress
@@ -4088,7 +4086,7 @@ struct __wt_compressor {
 	int (*decompress)(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	    uint8_t *src, size_t src_len,
 	    uint8_t *dst, size_t dst_len,
-	    size_t *result_lenp, bool verbose);
+	    size_t *result_lenp);
 
 	/*!
 	 * Callback to size a destination buffer for compression

@@ -168,7 +168,7 @@ static int
 snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
-    size_t *result_lenp, bool verbose)
+    size_t *result_lenp)
 {
 	WT_EXTENSION_API *wt_api;
 	snappy_status snret;
@@ -185,11 +185,10 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	snaplen = snappy_bswap64(snaplen);
 #endif
 	if (snaplen + SNAPPY_PREFIX > src_len) {
-		if (verbose)
-			(void)wt_api->err_printf(wt_api,
-			    session,
-			    "WT_COMPRESSOR.decompress: stored size exceeds "
-			    "source size");
+		(void)wt_api->err_printf(wt_api,
+		    session,
+		    "WT_COMPRESSOR.decompress: stored size exceeds source "
+		    "size");
 		return (WT_ERROR);
 	}
 
@@ -202,9 +201,7 @@ snappy_decompression(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		*result_lenp = dst_len;
 		return (0);
 	}
-	return (verbose ?
-	    snappy_error(compressor, session, "snappy_decompress", snret) :
-	    WT_ERROR);
+	return (snappy_error(compressor, session, "snappy_decompress", snret));
 }
 
 /*

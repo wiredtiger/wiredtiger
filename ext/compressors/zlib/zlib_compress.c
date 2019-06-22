@@ -163,7 +163,7 @@ static int
 zlib_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
-    size_t *result_lenp, bool verbose)
+    size_t *result_lenp)
 {
 	ZLIB_OPAQUE opaque;
 	z_stream zs;
@@ -177,9 +177,7 @@ zlib_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	zs.opaque = &opaque;
 
 	if ((ret = inflateInit(&zs)) != Z_OK)
-		return (verbose ?
-		    zlib_error(compressor, session, "inflateInit", ret) :
-		    WT_ERROR);
+		return (zlib_error(compressor, session, "inflateInit", ret));
 
 	zs.next_in = src;
 	zs.avail_in = (uint32_t)src_len;
@@ -195,13 +193,8 @@ zlib_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	if ((tret = inflateEnd(&zs)) != Z_OK && ret == Z_OK)
 		ret = tret;
 
-	if (ret == Z_OK)
-		return (0);
-	else {
-		return (verbose ?
-		    zlib_error(compressor, session, "inflate", ret) :
-		    WT_ERROR);
-	}
+	return (ret == Z_OK ?
+	    0 : zlib_error(compressor, session, "inflate", ret));
 }
 
 /*

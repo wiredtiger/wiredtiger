@@ -177,7 +177,7 @@ static int
 lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
     uint8_t *src, size_t src_len,
     uint8_t *dst, size_t dst_len,
-    size_t *result_lenp, bool verbose)
+    size_t *result_lenp)
 {
 	WT_EXTENSION_API *wt_api;
 	LZ4_PREFIX prefix;
@@ -195,11 +195,10 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 	lz4_prefix_swap(&prefix);
 #endif
 	if (prefix.compressed_len + sizeof(LZ4_PREFIX) > src_len) {
-		if (verbose)
-			(void)wt_api->err_printf(wt_api,
-			    session,
-			    "WT_COMPRESSOR.decompress: stored size exceeds "
-			    "source size");
+		(void)wt_api->err_printf(wt_api,
+		    session,
+		    "WT_COMPRESSOR.decompress: stored size exceeds source "
+		    "size");
 		return (WT_ERROR);
 	}
 
@@ -241,9 +240,8 @@ lz4_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session,
 		return (0);
 	}
 
-	return (verbose ?
-	    lz4_error(compressor, session, "LZ4 decompress error", decoded) :
-	    WT_ERROR);
+	return (
+	    lz4_error(compressor, session, "LZ4 decompress error", decoded));
 }
 
 /*
