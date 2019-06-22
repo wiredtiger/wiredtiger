@@ -522,7 +522,19 @@ __rec_init(WT_SESSION_IMPL *session,
 	btree = S2BT(session);
 	page = ref->page;
 
-	if ((r = *(WT_RECONCILE **)reconcilep) == NULL) {
+	r = *(WT_RECONCILE **)reconcilep;
+
+	/*
+	 * Reconciliation is not re-entrant and we can't modify the existing
+	 * reconciliation information and survive it. Make sure that doesn't
+	 * happen.
+	 */
+	WT_ASSERT(session, r == NULL || r->ref == NULL);
+	if (r != NULL && r->ref != NULL)
+		return (__wt_set_return(session, EBUSY));
+
+	/* Allocate a reconciliation structure as needed. */
+	if (r == NULL) {
 		WT_RET(__wt_calloc_one(session, &r));
 		session->reconcile_cleanup = __rec_destroy_session;
 
@@ -534,9 +546,6 @@ __rec_init(WT_SESSION_IMPL *session,
 		F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
 		F_SET(&r->chunkB.image, WT_ITEM_ALIGNED);
 	}
-
-	/* Reconciliation is not re-entrant, make sure that doesn't happen. */
-	WT_ASSERT(session, r->ref == NULL);
 
 	/* Remember the configuration. */
 	r->ref = ref;
