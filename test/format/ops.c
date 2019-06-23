@@ -1376,8 +1376,9 @@ order_error_row:
 			    which, keyno, ((char *)value.data)[0]);
 			break;
 		case ROW:
-			logop(cursor->session, "%-10s{%.*s}, {%.*s}",
-			    which, (int)key.size, (char *)key.data,
+			logop(cursor->session,
+			    "%-10s%" PRIu64 " {%.*s}, {%.*s}", which, keyno,
+			    (int)key.size, (char *)key.data,
 			    (int)value.size, (char *)value.data);
 			break;
 		case VAR:
@@ -1450,7 +1451,8 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		return (ret);
 
 	logop(cursor->session,
-	    "%-10s{%.*s}", "reserve", (int)tinfo->key->size, tinfo->key->data);
+	    "%-10s%" PRIu64 " {%.*s}", "reserve",
+	    tinfo->keyno, (int)tinfo->key->size, tinfo->key->data);
 
 	return (0);
 }
@@ -1523,8 +1525,8 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	testutil_check(cursor->get_value(cursor, tinfo->value));
 
-	logop(cursor->session, "%-10s{%.*s}, {%.*s}",
-	    "modify",
+	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify",
+	    tinfo->keyno,
 	    (int)tinfo->key->size, tinfo->key->data,
 	    (int)tinfo->value->size, tinfo->value->data);
 
@@ -1559,8 +1561,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	testutil_check(cursor->get_value(cursor, tinfo->value));
 
-	logop(cursor->session, "%-10s%" PRIu64 ", {%.*s}",
-	    "modify",
+	logop(cursor->session, "%-10s%" PRIu64 ", {%.*s}", "modify",
 	    tinfo->keyno, (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
@@ -1697,8 +1698,8 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if ((ret = cursor->update(cursor)) != 0)
 		return (ret);
 
-	logop(cursor->session, "%-10s{%.*s}, {%.*s}",
-	    "update",
+	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update",
+	    tinfo->keyno,
 	    (int)tinfo->key->size, tinfo->key->data,
 	    (int)tinfo->value->size, tinfo->value->data);
 
@@ -1873,7 +1874,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		return (ret);
 
 	/* Log the operation */
-	logop(cursor->session, "%-10s{%.*s}, {%.*s}", "insert",
+	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert",
+	    tinfo->keyno,
 	    (int)tinfo->key->size, tinfo->key->data,
 	    (int)tinfo->value->size, tinfo->value->data);
 
