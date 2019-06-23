@@ -334,7 +334,7 @@ typedef struct {
 	bool repeatable_reads;			/* if read ops repeatable */
 	uint64_t read_ts;			/* read timestamp */
 	uint64_t commit_ts;			/* commit timestamp */
-	SNAP_OPS *snap, *snap_first, snap_list[256];
+	SNAP_OPS *snap, *snap_first, snap_list[512];
 
 	WT_ITEM  *tbuf, _tbuf;			/* temporary buffer */
 

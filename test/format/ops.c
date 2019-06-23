@@ -533,11 +533,11 @@ prepare_transaction(TINFO *tinfo)
 } while (0)
 
 /*
- * When running inside a transaction with snapshot isolation, track operations
- * for later repetition.
+ * When in a transaction on the live table with snapshot isolation, track
+ * operations for later repetition.
  */
 #define	SNAP_TRACK(tinfo, op) do {					\
-	if (intxn && iso_config == ISOLATION_SNAPSHOT)			\
+	if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT)	\
 		snap_track(tinfo, op);					\
 } while (0)
 
@@ -633,7 +633,7 @@ ops(void *arg)
 	iso_config = ISOLATION_RANDOM;	/* -Wconditional-uninitialized */
 	ckpt_handle = false;		/* -Wconditional-uninitialized */
 
-	/* Initialize tracking of snapshot isolation transaction returns. */
+	/* Tracking of transactional snapshot isolation operations. */
 	tinfo->snap = tinfo->snap_first = tinfo->snap_list;
 
 	/* Set up the default key and value buffers. */
@@ -692,7 +692,7 @@ ops(void *arg)
 		}
 
 		/*
-		 * If not in a transaction, have a data handle and running in a
+		 * If not in a transaction, have a live handle and running in a
 		 * timestamp world, occasionally repeat a timestamped operation.
 		 */
 		if (!intxn && !ckpt_handle &&
@@ -702,18 +702,19 @@ ops(void *arg)
 		}
 
 		/*
-		 * If not in a transaction, choose an isolation level and start
-		 * a transaction some percentage of the time.
+		 * If not in a transaction and have a live handle, choose an
+		 * isolation level and start a transaction some percentage of
+		 * the time.
 		 */
 		if (!intxn && (g.c_txn_timestamps ||
 		    mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq)) {
-			tinfo->snap_first = tinfo->snap;
-			intxn = true;
-
 			if (g.c_txn_timestamps)
 				begin_transaction_ts(tinfo, &iso_config);
 			else
 				begin_transaction(tinfo, &iso_config);
+
+			tinfo->snap_first = tinfo->snap;
+			intxn = true;
 		}
 
 		/* Select an operation. */
@@ -983,10 +984,11 @@ update_instead_of_chosen_op:
 			continue;
 
 		/*
-		 * Ending the transaction. If in snapshot isolation, repeat the
-		 * operations and confirm they're unchanged.
+		 * Ending a transaction. If on a live handle and the transaction
+		 * was configured for snapshot isolation, repeat the operations
+		 * and confirm the results are unchanged.
 		 */
-		if (intxn && iso_config == ISOLATION_SNAPSHOT) {
+		if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT) {
 			__wt_yield();		/* Encourage races */
 
 			ret = snap_repeat_txn(cursor, tinfo);
@@ -1016,15 +1018,11 @@ update_instead_of_chosen_op:
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
 			commit_transaction(tinfo, prepared);
-
-			if (intxn && g.c_txn_timestamps)
-				snap_repeat_update(tinfo, true);
+			snap_repeat_update(tinfo, true);
 			break;
 		case 5:						/* 10% */
 rollback:		rollback_transaction(tinfo);
-
-			if (intxn && g.c_txn_timestamps)
-				snap_repeat_update(tinfo, false);
+			snap_repeat_update(tinfo, false);
 			break;
 		}
 

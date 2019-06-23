@@ -360,7 +360,12 @@ snap_repeat_update(TINFO *tinfo, bool committed)
 {
 	SNAP_OPS *start, *stop;
 
-	/* Check from the first operation we saved to the last. */
+	/*
+	 * Check from the first operation we saved to the last. It's possible
+	 * to update none at all if we did exactly the number of operations
+	 * in the circulat buffer, it will look like we didn't do any. That's
+	 * OK, it's a big enough buffer that it's not going to matter.
+	 */
 	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
 		/* Wrap at the end of the circular buffer. */
 		if (start >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
