@@ -363,7 +363,7 @@ snap_repeat_update(TINFO *tinfo, bool committed)
 	/*
 	 * Check from the first operation we saved to the last. It's possible
 	 * to update none at all if we did exactly the number of operations
-	 * in the circulat buffer, it will look like we didn't do any. That's
+	 * in the circular buffer, it will look like we didn't do any. That's
 	 * OK, it's a big enough buffer that it's not going to matter.
 	 */
 	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
