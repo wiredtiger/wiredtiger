@@ -79,6 +79,8 @@ set_alarm(void)
 #endif
 }
 
+TINFO **tinfo_list;
+
 /*
  * wts_ops --
  *	Perform a number of operations in a set of threads.
@@ -86,7 +88,7 @@ set_alarm(void)
 void
 wts_ops(bool lastrun)
 {
-	TINFO **tinfo_list, *tinfo, total;
+	TINFO *tinfo, total;
 	WT_CONNECTION *conn;
 	WT_SESSION *session;
 	wt_thread_t alter_tid, backup_tid, checkpoint_tid, compact_tid, lrt_tid;
@@ -143,17 +145,15 @@ wts_ops(bool lastrun)
 		g.rand_log_stop = true;
 
 	/* Logging requires a session. */
-	if (g.logging != 0) {
+	if (g.logging)
 		testutil_check(conn->open_session(conn, NULL, NULL, &session));
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== thread ops start ===============");
-	}
+	logop(session, "%s", "=============== thread ops start");
 
 	/*
 	 * Create the per-thread structures and start the worker threads.
 	 * Allocate the thread structures separately to minimize false sharing.
 	 */
-	tinfo_list = dcalloc((size_t)g.c_threads, sizeof(TINFO *));
+	tinfo_list = dcalloc((size_t)g.c_threads + 1, sizeof(TINFO *));
 	for (i = 0; i < g.c_threads; ++i) {
 		tinfo_list[i] = tinfo = dcalloc(1, sizeof(TINFO));
 
@@ -289,393 +289,97 @@ wts_ops(bool lastrun)
 		testutil_check(__wt_thread_join(NULL, &timestamp_tid));
 	g.workers_finished = false;
 
-	if (g.logging != 0) {
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== thread ops stop ===============");
+	logop(session, "%s", "=============== thread ops stop");
+	if (g.logging)
 		testutil_check(session->close(session, NULL));
-	}
 
 	for (i = 0; i < g.c_threads; ++i)
 		free(tinfo_list[i]);
 	free(tinfo_list);
 }
 
-typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
-
 /*
- * read_op --
- *	Perform a read operation, waiting out prepare conflicts.
- */
-static inline int
-read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
-{
-	WT_DECL_RET;
-
-	/*
-	 * Read operations wait out prepare-conflicts. (As part of the snapshot
-	 * isolation checks, we repeat reads that succeeded before, they should
-	 * be repeatable.)
-	 */
-	switch (op) {
-	case NEXT:
-		while ((ret = cursor->next(cursor)) == WT_PREPARE_CONFLICT)
-			__wt_yield();
-		break;
-	case PREV:
-		while ((ret = cursor->prev(cursor)) == WT_PREPARE_CONFLICT)
-			__wt_yield();
-		break;
-	case SEARCH:
-		while ((ret = cursor->search(cursor)) == WT_PREPARE_CONFLICT)
-			__wt_yield();
-		break;
-	case SEARCH_NEAR:
-		while ((ret =
-		    cursor->search_near(cursor, exactp)) == WT_PREPARE_CONFLICT)
-			__wt_yield();
-		break;
-	}
-	return (ret);
-}
-
-#define	SNAP_TRACK(tinfo, op) do {					\
-	if (intxn && iso_config == ISOLATION_SNAPSHOT)			\
-		snap_track(tinfo, op);					\
-} while (0)
-
-/*
- * snap_track --
- *     Add a single snapshot isolation returned value to the list.
+ * begin_transaction_ts --
+ *	Begin a timestamped transaction.
  */
 static void
-snap_track(TINFO *tinfo, thread_op op)
+begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 {
-	WT_ITEM *ip;
-	SNAP_OPS *snap;
-
-	snap = tinfo->snap;
-	snap->timestamp = WT_TS_NONE;
-	snap->op = op;
-	snap->keyno = tinfo->keyno;
-	snap->last = op == TRUNCATE ? tinfo->last : 0;
-
-	if (op == INSERT && g.type == ROW) {
-		ip = tinfo->key;
-		if (snap->kmemsize < ip->size) {
-			snap->kdata = drealloc(snap->kdata, ip->size);
-			snap->kmemsize = ip->size;
-		}
-		memcpy(snap->kdata, ip->data, snap->ksize = ip->size);
-	}
-
-	if (op != REMOVE && op != TRUNCATE)  {
-		ip = tinfo->value;
-		if (snap->vmemsize < ip->size) {
-			snap->vdata = drealloc(snap->vdata, ip->size);
-			snap->vmemsize = ip->size;
-		}
-		memcpy(snap->vdata, ip->data, snap->vsize = ip->size);
-	}
-
-	/*
-	 * Move to the next slot, wrap at the end of the circular buffer.
-	 *
-	 * It's possible to pass this transaction's buffer starting point and
-	 * start replacing our own entries. That's OK, we just skip earlier
-	 * operations when we check.
-	 */
-	if (++tinfo->snap >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-		tinfo->snap = tinfo->snap_list;
-}
-
-/*
- * snap_ts_update --
- *	Update the snapshot isolation operations with their timestamps.
- */
-static void
-snap_ts_update(TINFO *tinfo, uint64_t read_ts, uint64_t commit_ts)
-{
-	SNAP_OPS *start, *stop;
-
-	/* Check from the first operation we saved to the last. */
-	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
-		/* Wrap at the end of the circular buffer. */
-		if (start >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-			start = tinfo->snap_list;
-		if (start == stop)
-			break;
-
-		/*
-		 * Updates superseded later are ignored entirely. Else, reads
-		 * are done at the original transaction's read timestamp, and
-		 * anything else is done at the eventual commit timestamp.
-		 */
-		start->repeat_ts = WT_TS_NONE;
-		if (start->timestamp != WT_TS_NONE)
-			start->repeat_ts =
-			    start->op == READ ? read_ts : commit_ts;
-	}
-}
-
-/*
- * snap_verify --
- *	Repeat a read and verify the contents.
- */
-static int
-snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
-{
-	WT_DECL_RET;
-	WT_ITEM *key, *value;
-	uint8_t bitfield;
-
-	key = tinfo->key;
-	value = tinfo->value;
-
-	/*
-	 * Retrieve the key/value pair by key. Row-store inserts have a unique
-	 * generated key we saved, else generate the key from the key number.
-	 */
-	if (snap->op == INSERT && g.type == ROW) {
-		key->data = snap->kdata;
-		key->size = snap->ksize;
-		cursor->set_key(cursor, key);
-	} else {
-		switch (g.type) {
-		case FIX:
-		case VAR:
-			cursor->set_key(cursor, snap->keyno);
-			break;
-		case ROW:
-			key_gen(key, snap->keyno);
-			cursor->set_key(cursor, key);
-			break;
-		}
-	}
-
-	switch (ret = read_op(cursor, SEARCH, NULL)) {
-	case 0:
-		if (g.type == FIX) {
-			testutil_check(cursor->get_value(cursor, &bitfield));
-			*(uint8_t *)(value->data) = bitfield;
-			value->size = 1;
-		} else
-			testutil_check(cursor->get_value(cursor, value));
-		break;
-	case WT_NOTFOUND:
-		break;
-	default:
-		return (ret);
-	}
-
-	/* Check for simple matches. */
-	if (ret == 0 &&
-	    snap->op != REMOVE && snap->op != TRUNCATE &&
-	    value->size == snap->vsize &&
-	    memcmp(value->data, snap->vdata, value->size) == 0)
-		return (0);
-	if (ret == WT_NOTFOUND && (snap->op == REMOVE || snap->op == TRUNCATE))
-		return (0);
-
-	/*
-	 * In fixed length stores, zero values at the end of the key space are
-	 * returned as not-found, and not-found row reads are saved as zero
-	 * values. Map back-and-forth for simplicity.
-	 */
-	if (g.type == FIX) {
-		if (ret == WT_NOTFOUND &&
-		    snap->vsize == 1 && *(uint8_t *)snap->vdata == 0)
-			return (0);
-		if ((snap->op == REMOVE || snap->op == TRUNCATE) &&
-		    value->size == 1 && *(uint8_t *)value->data == 0)
-			return (0);
-	}
-
-	/* Things went pear-shaped. */
-	switch (g.type) {
-	case FIX:
-		testutil_die(ret,
-		    "snapshot-isolation: %" PRIu64 " search: "
-		    "expected {0x%02x}, found {0x%02x}",
-		    snap->keyno,
-		    snap->op == REMOVE ? 0 : *(uint8_t *)snap->vdata,
-		    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
-		/* NOTREACHED */
-	case ROW:
-		fprintf(stderr,
-		    "snapshot-isolation %.*s search mismatch\n",
-		    (int)key->size, (const char *)key->data);
-
-		if (snap->op == REMOVE)
-			fprintf(stderr, "expected {deleted}\n");
-		else
-			print_item_data("expected", snap->vdata, snap->vsize);
-		if (ret == WT_NOTFOUND)
-			fprintf(stderr, "   found {deleted}\n");
-		else
-			print_item_data("   found", value->data, value->size);
-
-		testutil_die(ret,
-		    "snapshot-isolation: %.*s search mismatch",
-		    (int)key->size, key->data);
-		/* NOTREACHED */
-	case VAR:
-		fprintf(stderr,
-		    "snapshot-isolation %" PRIu64 " search mismatch\n",
-		    snap->keyno);
-
-		if (snap->op == REMOVE)
-			fprintf(stderr, "expected {deleted}\n");
-		else
-			print_item_data("expected", snap->vdata, snap->vsize);
-		if (ret == WT_NOTFOUND)
-			fprintf(stderr, "   found {deleted}\n");
-		else
-			print_item_data("   found", value->data, value->size);
-
-		testutil_die(ret,
-		    "snapshot-isolation: %" PRIu64 " search mismatch",
-		    snap->keyno);
-		/* NOTREACHED */
-	}
-
-	/* NOTREACHED */
-	return (1);
-}
-
-/*
- * snap_check --
- *	Check snapshot isolation operations are repeatable.
- */
-static int
-snap_check(WT_CURSOR *cursor, TINFO *tinfo)
-{
-	SNAP_OPS *p, *start, *stop;
-
-	/* Check from the first operation we saved to the last. */
-	for (start = tinfo->snap_first, stop = tinfo->snap;; ++start) {
-		/* Wrap at the end of the circular buffer. */
-		if (start >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-			start = tinfo->snap_list;
-		if (start == stop)
-			break;
-
-		/*
-		 * We don't test all of the records in a truncate range, only
-		 * the first because that matches the rest of the isolation
-		 * checks. If a truncate range was from the start of the table,
-		 * switch to the record at the end.
-		 */
-		if (start->op == TRUNCATE && start->keyno == 0) {
-			start->keyno = start->last;
-			testutil_assert(start->keyno != 0);
-		}
-
-		/*
-		 * Check for subsequent changes to this record. If we find a
-		 * read, don't treat it as a subsequent change, that way we
-		 * verify the results of the change as well as the results of
-		 * the read.
-		 */
-		for (p = start + 1;; ++p) {
-			/* Wrap at the end of the circular buffer. */
-			if (p >=
-			    &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-				p = tinfo->snap_list;
-			if (p == stop)
-				break;
-
-			if (p->op == READ)
-				continue;
-			if (p->keyno == start->keyno)
-				break;
-
-			if (p->op != TRUNCATE)
-				continue;
-			if (g.c_reverse &&
-			    (p->keyno == 0 || p->keyno >= start->keyno) &&
-			    (p->last == 0 || p->last <= start->keyno))
-				break;
-			if (!g.c_reverse &&
-			    (p->keyno == 0 || p->keyno <= start->keyno) &&
-			    (p->last == 0 || p->last >= start->keyno))
-				break;
-		}
-		if (p != stop) {
-			/* The operation isn't repeatable, ignore it. */
-			start->timestamp = WT_TS_NONE;
-			continue;
-		}
-
-		WT_RET(snap_verify(cursor, tinfo, start));
-	}
-
-	return (0);
-}
-
-/*
- * snap_repeat --
- *	Repeat an historic read.
- */
-static void
-snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
-{
-	SNAP_OPS *snap;
+	TINFO **tlp;
 	WT_DECL_RET;
 	WT_SESSION *session;
-	int count;
-	u_int v;
+	uint64_t ts;
+	const char *config;
 	char buf[64];
 
-	session = cursor->session;
+	session = tinfo->session;
+
+	config = "isolation=snapshot";
+	*iso_configp = ISOLATION_SNAPSHOT;
 
 	/*
-	 * Start at a random spot in the list of operations and look for a read
-	 * to retry. Stop when we've walked the entire list or found one.
+	 * Transaction reads are normally repeatable, but WiredTiger timestamps
+	 * allow rewriting commits, that is, applications can specify at commit
+	 * time the timestamp at which the commit happens. If that happens, our
+	 * read might no longer be repeatable. Test in both modes: pick a read
+	 * timestamp we know is repeatable (because it's at least as old as the
+	 * oldest resolved commit timestamp in any thread), and pick a current
+	 * timestamp, 50% of the time.
 	 */
-	v = mmrand(&tinfo->rnd, 1, WT_ELEMENTS(tinfo->snap_list)) - 1;
-	for (snap = &tinfo->snap_list[v],
-	    count = WT_ELEMENTS(tinfo->snap_list); count > 0; --count, ++snap) {
-		/* Wrap at the end of the circular buffer. */
-		if (snap >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
-			snap = tinfo->snap_list;
+	ts = 0;
+	if (mmrand(&tinfo->rnd, 1, 2) == 1)
+		for (ts = UINT64_MAX, tlp = tinfo_list; *tlp != NULL; ++tlp)
+			ts = WT_MIN(ts, (*tlp)->commit_ts);
+	if (ts != 0) {
+		wiredtiger_begin_transaction(session, config);
 
-		if (snap->repeat_ts != WT_TS_NONE)
-			break;
-	}
-
-	if (count == 0)
-		return;
-
-	/*
-	 * Start a new transaction.
-	 * Set the read timestamp.
-	 * Verify the record.
-	 * Discard the transaction.
-	 */
-	while ((ret = session->begin_transaction(
-	    session, "isolation=snapshot")) == WT_CACHE_FULL)
-		;
-	testutil_check(ret);
-
-	/*
-	 * If the timestamp we're using has aged out of the system, we'll get
-	 * EINVAL when we try and set it.
-	 */
-	testutil_check(__wt_snprintf(
-	    buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->timestamp));
-	ret = session->timestamp_transaction(session, buf);
-	if (ret != EINVAL)
-		testutil_check(ret);
-
-	/* The only expected error is rollback. */
-	if (ret == 0) {
-		ret = snap_verify(cursor, tinfo, snap);
-		if (ret != WT_ROLLBACK)
+		/*
+		 * If the timestamp has aged out of the system, we'll get EINVAL
+		 * when we try and set it. That kills the transaction, we have
+		 * to restart.
+		 */
+		testutil_check(__wt_snprintf(
+		    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
+		ret = session->timestamp_transaction(session, buf);
+		if (ret == 0) {
+			tinfo->read_ts = ts;
+			tinfo->repeatable_reads = true;
+			logop(session,
+			    "begin snapshot read-ts=%" PRIu64 " (repeatable)",
+			    tinfo->read_ts);
+			return;
+		}
+		if (ret != EINVAL)
 			testutil_check(ret);
+
+		testutil_check(session->rollback_transaction(session, NULL));
 	}
 
-	/* Discard the transaction. */
-	testutil_check(session->rollback_transaction(session, NULL));
+	wiredtiger_begin_transaction(session, config);
+
+	/*
+	 * Otherwise, pick a current timestamp.
+	 *
+	 * Prepare returns an error if the prepare timestamp is less
+	 * than any active read timestamp, single-thread transaction
+	 * prepare and begin.
+	 *
+	 * Lock out the oldest timestamp update.
+	 */
+	testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
+
+	ts = __wt_atomic_addv64(&g.timestamp, 1);
+	testutil_check(__wt_snprintf(
+	    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
+	testutil_check(session->timestamp_transaction(session, buf));
+
+	testutil_check(pthread_rwlock_unlock(&g.ts_lock));
+
+	tinfo->read_ts = ts;
+	tinfo->repeatable_reads = false;
+
+	logop(session, "begin snapshot read-ts=%" PRIu64 " (not repeatable)",
+	    tinfo->read_ts);
 }
 
 /*
@@ -683,75 +387,42 @@ snap_repeat(WT_CURSOR *cursor, TINFO *tinfo)
  *	Choose an isolation configuration and begin a transaction.
  */
 static void
-begin_transaction(TINFO *tinfo,
-    WT_SESSION *session, uint64_t *read_tsp, u_int *iso_configp)
+begin_transaction(TINFO *tinfo, u_int *iso_configp)
 {
-	WT_DECL_RET;
-	uint64_t ts;
+	WT_SESSION *session;
 	u_int v;
-	char buf[64];
-	const char *config;
+	const char *config, *log;
 
-	if (g.c_txn_timestamps) {
-		*iso_configp = ISOLATION_SNAPSHOT;
+	session = tinfo->session;
 
-		/*
-		 * Keep trying to start a new transaction if it's timing out.
-		 * There are no resources pinned, it should succeed eventually.
-		 */
-		while ((ret = session->begin_transaction(
-		    session, "isolation=snapshot")) == WT_CACHE_FULL)
-			;
-		testutil_check(ret);
-
-		/*
-		 * Prepare returns an error if the prepare timestamp is less
-		 * than any active read timestamp, single-thread transaction
-		 * prepare and begin.
-		 *
-		 * Lock out the oldest timestamp update.
-		 */
-		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
-
-		ts = __wt_atomic_addv64(&g.timestamp, 1);
-		testutil_check(__wt_snprintf(
-		    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
-		testutil_check(session->timestamp_transaction(session, buf));
-
-		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
-
-		*read_tsp = ts;
-	} else {
-		if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
-			v = mmrand(&tinfo->rnd, 1, 3);
-		switch (v) {
-		case 1:
-			v = ISOLATION_READ_UNCOMMITTED;
-			config = "isolation=read-uncommitted";
-			break;
-		case 2:
-			v = ISOLATION_READ_COMMITTED;
-			config = "isolation=read-committed";
-			break;
-		case 3:
-		default:
-			v = ISOLATION_SNAPSHOT;
-			config = "isolation=snapshot";
-			break;
-		}
-		*iso_configp = v;
-
-		/*
-		 * Keep trying to start a new transaction if it's timing out.
-		 * There are no resources pinned, it should succeed eventually.
-		 */
-		while ((ret = session->begin_transaction(
-		    session, config)) == WT_CACHE_FULL)
-			;
-		testutil_check(ret);
-
-		*read_tsp = WT_TS_NONE;
+	if ((v = g.c_isolation_flag) == ISOLATION_RANDOM)
+		v = mmrand(&tinfo->rnd, 1, 3);
+	switch (v) {
+	case 1:
+		v = ISOLATION_READ_UNCOMMITTED;
+		log = "read-uncommitted";
+		config = "isolation=read-uncommitted";
+		break;
+	case 2:
+		v = ISOLATION_READ_COMMITTED;
+		log = "read-committed";
+		config = "isolation=read-committed";
+		break;
+	case 3:
+	default:
+		v = ISOLATION_SNAPSHOT;
+		log = "snapshot";
+		config = "isolation=snapshot";
+		break;
 	}
+	*iso_configp = v;
+
+	wiredtiger_begin_transaction(session, config);
+
+	tinfo->read_ts = WT_TS_NONE;
+	tinfo->repeatable_reads = false;
+
+	logop(session, "begin %s", log);
 }
 
 /*
@@ -759,17 +430,17 @@ begin_transaction(TINFO *tinfo,
  *     Commit a transaction.
  */
 static void
-commit_transaction(TINFO *tinfo,
-    WT_SESSION *session, bool prepared, uint64_t *commit_tsp)
+commit_transaction(TINFO *tinfo, bool prepared)
 {
+	WT_SESSION *session;
 	uint64_t ts;
 	char buf[64];
 
-	if (commit_tsp != NULL)
-		*commit_tsp = WT_TS_NONE;
-
 	++tinfo->commit;
 
+	session = tinfo->session;
+
+	ts = 0;				/* -Wconditional-uninitialized */
 	if (g.c_txn_timestamps) {
 		/* Lock out the oldest timestamp update. */
 		testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
@@ -787,11 +458,15 @@ commit_transaction(TINFO *tinfo,
 		}
 
 		testutil_check(pthread_rwlock_unlock(&g.ts_lock));
-
-		if (commit_tsp != NULL)
-			*commit_tsp = ts;
 	}
 	testutil_check(session->commit_transaction(session, NULL));
+
+	/* Remember our oldest commit timestamp. */
+	tinfo->commit_ts = ts;
+
+	logop(session,
+	    "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64,
+	    tinfo->read_ts, tinfo->commit_ts);
 }
 
 /*
@@ -799,11 +474,18 @@ commit_transaction(TINFO *tinfo,
  *     Rollback a transaction.
  */
 static void
-rollback_transaction(TINFO *tinfo, WT_SESSION *session)
+rollback_transaction(TINFO *tinfo)
 {
+	WT_SESSION *session;
+
+	session = tinfo->session;
+
 	++tinfo->rollback;
 
 	testutil_check(session->rollback_transaction(session, NULL));
+
+	logop(session,
+	    "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 
 /*
@@ -811,11 +493,14 @@ rollback_transaction(TINFO *tinfo, WT_SESSION *session)
  *     Prepare a transaction if timestamps are in use.
  */
 static int
-prepare_transaction(TINFO *tinfo, WT_SESSION *session)
+prepare_transaction(TINFO *tinfo)
 {
 	WT_DECL_RET;
+	WT_SESSION *session;
 	uint64_t ts;
 	char buf[64];
+
+	session = tinfo->session;
 
 	++tinfo->prepare;
 
@@ -866,6 +551,85 @@ prepare_transaction(TINFO *tinfo, WT_SESSION *session)
 } while (0)
 
 /*
+ * When in a transaction on the live table with snapshot isolation, track
+ * operations for later repetition.
+ */
+#define	SNAP_TRACK(tinfo, op) do {					\
+	if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT)	\
+		snap_track(tinfo, op);					\
+} while (0)
+
+/*
+ * ops_open_session --
+ *	Create a new session/cursor pair for the thread.
+ */
+static void
+ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
+{
+	WT_CONNECTION *conn;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_SESSION *session;
+
+	conn = g.wts_conn;
+
+	/* Close any open session/cursor. */
+	if ((session = tinfo->session) != NULL)
+		testutil_check(session->close(session, NULL));
+
+	testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
+	/*
+	 * 10% of the time, perform some read-only operations from a checkpoint.
+	 *
+	 * Skip if single-threaded and checking against a Berkeley DB database,
+	 * that won't work because the Berkeley DB database won't match the
+	 * checkpoint.
+	 *
+	 * Skip if we are using data-sources or LSM, they don't support reading
+	 * from checkpoints.
+	 */
+	cursor = NULL;
+	if (!SINGLETHREADED &&
+	    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
+	    mmrand(&tinfo->rnd, 1, 10) == 1) {
+		/*
+		 * WT_SESSION.open_cursor can return EBUSY if concurrent with a
+		 * metadata operation, retry.
+		 */
+		while ((ret = session->open_cursor(session, g.uri, NULL,
+		    "checkpoint=WiredTigerCheckpoint", &cursor)) == EBUSY)
+			__wt_yield();
+
+		/*
+		 * If the checkpoint hasn't been created yet, ignore the error.
+		 */
+		if (ret != ENOENT) {
+			testutil_check(ret);
+			*ckpt_handlep = true;
+		}
+	}
+	if (cursor == NULL) {
+		/*
+		 * Configure "append", in the case of column stores, we append
+		 * when inserting new rows.
+		 *
+		 * WT_SESSION.open_cursor can return EBUSY if concurrent with a
+		 * metadata operation, retry.
+		 */
+		while ((ret = session->open_cursor(session,
+		    g.uri, NULL, "append", &cursor)) == EBUSY)
+			__wt_yield();
+
+		testutil_check(ret);
+		*ckpt_handlep = false;
+	}
+
+	tinfo->session = session;
+	tinfo->cursor = cursor;
+}
+
+/*
  * ops --
  *     Per-thread operations.
  */
@@ -873,25 +637,21 @@ static WT_THREAD_RET
 ops(void *arg)
 {
 	TINFO *tinfo;
-	WT_CONNECTION *conn;
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_SESSION *session;
 	thread_op op;
-	uint64_t commit_ts, read_ts, reset_op, session_op, truncate_op;
+	uint64_t reset_op, session_op, truncate_op;
 	uint32_t range, rnd;
 	u_int i, j, iso_config;
-	bool greater_than, intxn, next, positioned, prepared, readonly;
+	bool ckpt_handle, greater_than, intxn, next, positioned, prepared;
 
 	tinfo = arg;
 
-	conn = g.wts_conn;
-	commit_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
-	read_ts = WT_TS_NONE;		/* -Wconditional-uninitialized */
 	iso_config = ISOLATION_RANDOM;	/* -Wconditional-uninitialized */
-	readonly = false;		/* -Wconditional-uninitialized */
+	ckpt_handle = false;		/* -Wconditional-uninitialized */
 
-	/* Initialize tracking of snapshot isolation transaction returns. */
+	/* Tracking of transactional snapshot isolation operations. */
 	tinfo->snap = tinfo->snap_first = tinfo->snap_list;
 
 	/* Set up the default key and value buffers. */
@@ -923,66 +683,17 @@ ops(void *arg)
 			 * resolve any running transaction.
 			 */
 			if (intxn) {
-				commit_transaction(tinfo, session, false, NULL);
+				commit_transaction(tinfo, false);
 				intxn = false;
 			}
 
-			if (session != NULL)
-				testutil_check(session->close(session, NULL));
-			testutil_check(
-			    conn->open_session(conn, NULL, NULL, &session));
+			ops_open_session(tinfo, &ckpt_handle);
 
 			/* Pick the next session/cursor close/open. */
 			session_op += mmrand(&tinfo->rnd, 100, 5000);
 
-			/*
-			 * 10% of the time, perform some read-only operations
-			 * from a checkpoint.
-			 *
-			 * Skip if single-threaded and doing checks against a
-			 * Berkeley DB database, that won't work because the
-			 * Berkeley DB database won't match the checkpoint.
-			 *
-			 * Skip if we are using data-sources or LSM, they don't
-			 * support reading from checkpoints.
-			 */
-			if (!SINGLETHREADED &&
-			    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
-			    mmrand(&tinfo->rnd, 1, 10) == 1) {
-				/*
-				 * open_cursor can return EBUSY if concurrent
-				 * with a metadata operation, retry.
-				 */
-				while ((ret = session->open_cursor(session,
-				    g.uri, NULL,
-				    "checkpoint=WiredTigerCheckpoint",
-				    &cursor)) == EBUSY)
-					__wt_yield();
-				/*
-				 * If the checkpoint hasn't been created yet,
-				 * ignore the error.
-				 */
-				if (ret == ENOENT)
-					continue;
-				testutil_check(ret);
-
-				/* Checkpoints are read-only. */
-				readonly = true;
-			} else {
-				/*
-				 * Configure "append", in the case of column
-				 * stores, we append when inserting new rows.
-				 * open_cursor can return EBUSY if concurrent
-				 * with a metadata operation, retry.
-				 */
-				while ((ret = session->open_cursor(session,
-				    g.uri, NULL, "append", &cursor)) == EBUSY)
-					__wt_yield();
-				testutil_check(ret);
-
-				/* Updates supported. */
-				readonly = false;
-			}
+			session = tinfo->session;
+			cursor = tinfo->cursor;
 		}
 
 		/*
@@ -999,29 +710,34 @@ ops(void *arg)
 		}
 
 		/*
-		 * If not in a transaction and running in a timestamp world,
-		 * occasionally repeat a timestamped read.
+		 * If not in a transaction, have a live handle and running in a
+		 * timestamp world, occasionally repeat a timestamped operation.
 		 */
-		if (!intxn &&
-		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 10) == 1) {
+		if (!intxn && !ckpt_handle &&
+		    g.c_txn_timestamps && mmrand(&tinfo->rnd, 1, 15) == 1) {
 			++tinfo->search;
-			snap_repeat(cursor, tinfo);
+			snap_repeat_single(cursor, tinfo);
 		}
 
 		/*
-		 * If not in a transaction, choose an isolation level and start
-		 * a transaction some percentage of the time.
+		 * If not in a transaction and have a live handle, choose an
+		 * isolation level and start a transaction some percentage of
+		 * the time.
 		 */
-		if (!intxn && mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq) {
+		if (!intxn && (g.c_txn_timestamps ||
+		    mmrand(&tinfo->rnd, 1, 100) <= g.c_txn_freq)) {
+			if (g.c_txn_timestamps)
+				begin_transaction_ts(tinfo, &iso_config);
+			else
+				begin_transaction(tinfo, &iso_config);
+
 			tinfo->snap_first = tinfo->snap;
-			begin_transaction(
-			    tinfo, session, &read_ts, &iso_config);
 			intxn = true;
 		}
 
 		/* Select an operation. */
 		op = READ;
-		if (!readonly) {
+		if (!ckpt_handle) {
 			i = mmrand(&tinfo->rnd, 1, 100);
 			if (i < g.c_delete_pct && tinfo->ops > truncate_op) {
 				op = TRUNCATE;
@@ -1065,7 +781,7 @@ ops(void *arg)
 		 * Optionally reserve a row. Reserving a row before a read isn't
 		 * all that sensible, but not unexpected, either.
 		 */
-		if (!readonly && intxn && mmrand(&tinfo->rnd, 0, 20) == 1) {
+		if (intxn && !ckpt_handle && mmrand(&tinfo->rnd, 0, 20) == 1) {
 			switch (g.type) {
 			case ROW:
 				ret = row_reserve(tinfo, cursor, positioned);
@@ -1286,13 +1002,14 @@ update_instead_of_chosen_op:
 			continue;
 
 		/*
-		 * Ending the transaction. If in snapshot isolation, repeat the
-		 * operations and confirm they're unchanged.
+		 * Ending a transaction. If on a live handle and the transaction
+		 * was configured for snapshot isolation, repeat the operations
+		 * and confirm the results are unchanged.
 		 */
-		if (intxn && iso_config == ISOLATION_SNAPSHOT) {
+		if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT) {
 			__wt_yield();		/* Encourage races */
 
-			ret = snap_check(cursor, tinfo);
+			ret = snap_repeat_txn(cursor, tinfo);
 			testutil_assert(ret == 0 || ret == WT_ROLLBACK);
 			if (ret == WT_ROLLBACK)
 				goto rollback;
@@ -1304,7 +1021,7 @@ update_instead_of_chosen_op:
 		 */
 		prepared = false;
 		if (g.c_prepare && mmrand(&tinfo->rnd, 1, 10) == 1) {
-			ret = prepare_transaction(tinfo, session);
+			ret = prepare_transaction(tinfo);
 			if (ret != 0)
 				WRITE_OP_FAILED(false);
 
@@ -1318,21 +1035,14 @@ update_instead_of_chosen_op:
 		 */
 		switch (rnd) {
 		case 1: case 2: case 3: case 4:			/* 40% */
-			commit_transaction(
-			    tinfo, session, prepared, &commit_ts);
+			commit_transaction(tinfo, prepared);
+			snap_repeat_update(tinfo, true);
 			break;
 		case 5:						/* 10% */
-rollback:		rollback_transaction(tinfo, session);
-			commit_ts = WT_TS_NONE;
+rollback:		rollback_transaction(tinfo);
+			snap_repeat_update(tinfo, false);
 			break;
 		}
-
-		/*
-		 * Update any snapshot isolation operations with the timestamp
-		 * we can use to repeat them.
-		 */
-		if (intxn && g.c_txn_timestamps)
-			snap_ts_update(tinfo, read_ts, commit_ts);
 
 		intxn = false;
 	}
@@ -1479,9 +1189,19 @@ read_row_worker(
 	}
 
 	/* Log the operation */
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    session, "%-10s%" PRIu64, "read", keyno);
+	if (ret == 0)
+		switch (g.type) {
+		case FIX:
+			logop(session, "%-10s%" PRIu64 " {0x%02x}",
+			    "read", keyno, ((char *)value->data)[0]);
+			break;
+		case ROW:
+		case VAR:
+			logop(session, "%-10s%" PRIu64 " {%.*s}",
+			    "read", keyno,
+			    (int)value->size, (char *)value->data);
+			break;
+		}
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1540,7 +1260,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
 	bool incrementing, record_gaps;
 
 	keyno = 0;
-	which = next ? "WT_CURSOR.next" : "WT_CURSOR.prev";
+	which = next ? "next" : "prev";
 
 	switch (ret = read_op(cursor, next ? NEXT : PREV, NULL)) {
 	case 0:
@@ -1665,22 +1385,20 @@ order_error_row:
 		return (ret);
 	}
 
-	if (ret == 0 && g.logging == LOG_OPS)
+	if (ret == 0)
 		switch (g.type) {
 		case FIX:
-			(void)g.wt_api->msg_printf(g.wt_api,
-			    cursor->session, "%-10s%" PRIu64 " {0x%02x}",
+			logop(cursor->session, "%-10s%" PRIu64 " {0x%02x}",
 			    which, keyno, ((char *)value.data)[0]);
 			break;
 		case ROW:
-			(void)g.wt_api->msg_printf(g.wt_api,
-			    cursor->session, "%-10s{%.*s}, {%.*s}",
-			    which, (int)key.size, (char *)key.data,
+			logop(cursor->session,
+			    "%-10s%" PRIu64 " {%.*s}, {%.*s}", which, keyno,
+			    (int)key.size, (char *)key.data,
 			    (int)value.size, (char *)value.data);
 			break;
 		case VAR:
-			(void)g.wt_api->msg_printf(g.wt_api,
-			    cursor->session, "%-10s%" PRIu64 " {%.*s}",
+			logop(cursor->session, "%-10s%" PRIu64 " {%.*s}",
 			    which, keyno, (int)value.size, (char *)value.data);
 			break;
 		}
@@ -1748,10 +1466,9 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if ((ret = cursor->reserve(cursor)) != 0)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}", "reserve",
-		    (int)tinfo->key->size, tinfo->key->data);
+	logop(cursor->session,
+	    "%-10s%" PRIu64 " {%.*s}", "reserve",
+	    tinfo->keyno, (int)tinfo->key->size, tinfo->key->data);
 
 	return (0);
 }
@@ -1771,9 +1488,7 @@ col_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if ((ret = cursor->reserve(cursor)) != 0)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s%" PRIu64, "reserve", tinfo->keyno);
+	logop(cursor->session, "%-10s%" PRIu64, "reserve", tinfo->keyno);
 
 	return (0);
 }
@@ -1826,12 +1541,10 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	testutil_check(cursor->get_value(cursor, tinfo->value));
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
-		    "modify",
-		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
+	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify",
+	    tinfo->keyno,
+	    (int)tinfo->key->size, tinfo->key->data,
+	    (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1864,12 +1577,8 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	testutil_check(cursor->get_value(cursor, tinfo->value));
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s%" PRIu64 ", {%.*s}",
-		    "modify",
-		    tinfo->keyno,
-		    (int)tinfo->value->size, tinfo->value->data);
+	logop(cursor->session, "%-10s%" PRIu64 ", {%.*s}", "modify",
+	    tinfo->keyno, (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1927,11 +1636,8 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	if (ret != 0)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "%-10s%" PRIu64 ", %" PRIu64,
-		    "truncate",
-		    tinfo->keyno, tinfo->last);
+	logop(session, "%-10s%" PRIu64 ", %" PRIu64,
+	    "truncate", tinfo->keyno, tinfo->last);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -1979,11 +1685,8 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	if (ret != 0)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "%-10s%" PRIu64 "-%" PRIu64,
-		    "truncate",
-		    tinfo->keyno, tinfo->last);
+	logop(session,
+	    "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -2011,12 +1714,10 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if ((ret = cursor->update(cursor)) != 0)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
-		    "put",
-		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
+	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update",
+	    tinfo->keyno,
+	    (int)tinfo->key->size, tinfo->key->data,
+	    (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -2047,19 +1748,13 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if ((ret = cursor->update(cursor)) != 0)
 		return (ret);
 
-	if (g.logging == LOG_OPS) {
-		if (g.type == FIX)
-			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
-			    "update", tinfo->keyno,
-			    ((uint8_t *)tinfo->value->data)[0]);
-		else
-			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {%.*s}",
-			    "update", tinfo->keyno,
-			    (int)tinfo->value->size,
-			    (char *)tinfo->value->data);
-	}
+	if (g.type == FIX)
+		logop(cursor->session, "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
+		    "update", tinfo->keyno, ((uint8_t *)tinfo->value->data)[0]);
+	else
+		logop(cursor->session, "%-10s%" PRIu64 " {%.*s}",
+		    "update", tinfo->keyno,
+		    (int)tinfo->value->size, (char *)tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {
@@ -2195,12 +1890,10 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		return (ret);
 
 	/* Log the operation */
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-		    "%-10s{%.*s}, {%.*s}",
-		    "insert",
-		    (int)tinfo->key->size, tinfo->key->data,
-		    (int)tinfo->value->size, tinfo->value->data);
+	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert",
+	    tinfo->keyno,
+	    (int)tinfo->key->size, tinfo->key->data,
+	    (int)tinfo->value->size, tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -2233,19 +1926,13 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 
 	table_append(tinfo->keyno);			/* Extend the object. */
 
-	if (g.logging == LOG_OPS) {
-		if (g.type == FIX)
-			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
-			    "insert", tinfo->keyno,
-			    ((uint8_t *)tinfo->value->data)[0]);
-		else
-			(void)g.wt_api->msg_printf(g.wt_api, cursor->session,
-			    "%-10s%" PRIu64 " {%.*s}",
-			    "insert", tinfo->keyno,
-			    (int)tinfo->value->size,
-			    (char *)tinfo->value->data);
-	}
+	if (g.type == FIX)
+		logop(cursor->session, "%-10s%" PRIu64 " {0x%02" PRIx8 "}",
+		    "insert", tinfo->keyno, ((uint8_t *)tinfo->value->data)[0]);
+	else
+		logop(cursor->session, "%-10s%" PRIu64 " {%.*s}",
+		    "insert", tinfo->keyno,
+		    (int)tinfo->value->size, (char *)tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {
@@ -2279,9 +1966,7 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if (ret != 0 && ret != WT_NOTFOUND)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
+	logop(cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {
@@ -2313,9 +1998,7 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	if (ret != 0 && ret != WT_NOTFOUND)
 		return (ret);
 
-	if (g.logging == LOG_OPS)
-		(void)g.wt_api->msg_printf(g.wt_api,
-		    cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
+	logop(cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED) {

@@ -96,6 +96,15 @@ handle_message(WT_EVENT_HANDLER *handler,
 	(void)(handler);
 	(void)(session);
 
+	/*
+	 * WiredTiger logs a verbose message when the read timestamp is set to a
+	 * value older than the oldest timestamp. Ignore the message, it happens
+	 * when repeating operations to confirm timestamped values don't change
+	 * underneath us.
+	 */
+	if (strstr(message, "less than the oldest timestamp") != NULL)
+		return (0);
+
 	/* Write and flush the message so we're up-to-date on error. */
 	if (g.logfp == NULL) {
 		out = printf("%p:%s\n", (void *)session, message);
@@ -526,9 +535,7 @@ wts_verify(const char *tag)
 	track("verify", 0ULL, NULL);
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	if (g.logging != 0)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== verify start ===============");
+	logop(session, "%s", "=============== verify start");
 
 	/*
 	 * Verify can return EBUSY if the handle isn't available. Don't yield
@@ -539,9 +546,7 @@ wts_verify(const char *tag)
 	testutil_assertfmt(
 	    ret == 0 || ret == EBUSY, "session.verify: %s: %s", g.uri, tag);
 
-	if (g.logging != 0)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== verify stop ===============");
+	logop(session, "%s", "=============== verify stop");
 	testutil_check(session->close(session, NULL));
 }
 
