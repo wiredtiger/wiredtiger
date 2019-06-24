@@ -18,7 +18,7 @@ scan_table_count=20
 scan_icount=400000000
 populate_threads=5
 table_count=100
-threads=((count=500,reads=1),(count=20,inserts=1,throttle=500),(count=10,updates=1,throttle=500))
+threads=((count=400,reads=1),(count=20,inserts=1,throttle=500),(count=10,updates=1,throttle=500))
 # Add throughput/latency monitoring
 max_latency=50000
 sample_interval=5
