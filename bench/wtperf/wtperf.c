@@ -1724,8 +1724,7 @@ execute_populate(WTPERF *wtperf)
 	lprintf(wtperf, 0, 1,
 	    "Starting %" PRIu32
 	    " populate thread(s) for %" PRIu64 " items",
-	    opts->populate_threads,
-	    (uint64_t)opts->icount + (uint64_t)opts->scan_icount);
+	    opts->populate_threads, max_key);
 
 	/* Start cycling idle tables if configured. */
 	start_idle_table_cycle(wtperf, &idle_table_cycle_thread);
