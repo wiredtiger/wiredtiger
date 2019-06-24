@@ -1099,7 +1099,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	int64_t i;
+	u_int i;
 
 	txn = &session->txn;
 
@@ -1134,8 +1134,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * allowing us to set the key repeated flag with reserved updates in
 	 * the chain.
 	 */
-	for (i = (int64_t)txn->mod_count - 1, op = &txn->mod[i]; i >= 0;
-		i--, op--) {
+	for (i = txn->mod_count; i > 0; i--, op--) {
+		op = &txn->mod[i - 1];
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
 		    !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
