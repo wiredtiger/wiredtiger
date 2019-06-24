@@ -344,6 +344,9 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 		if (ret == 0) {
 			tinfo->read_ts = ts;
 			tinfo->repeatable_reads = true;
+			logop(session,
+			    "begin snapshot read-ts=%" PRIu64 " (repeatable)",
+			    tinfo->read_ts);
 			return;
 		}
 		if (ret != EINVAL)
@@ -374,6 +377,9 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
 
 	tinfo->read_ts = ts;
 	tinfo->repeatable_reads = false;
+
+	logop(session, "begin snapshot read-ts=%" PRIu64 " (not repeatable)",
+	    tinfo->read_ts);
 }
 
 /*
@@ -385,7 +391,7 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 {
 	WT_SESSION *session;
 	u_int v;
-	const char *config;
+	const char *config, *log;
 
 	session = tinfo->session;
 
@@ -394,15 +400,18 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 	switch (v) {
 	case 1:
 		v = ISOLATION_READ_UNCOMMITTED;
+		log = "read-uncommitted";
 		config = "isolation=read-uncommitted";
 		break;
 	case 2:
 		v = ISOLATION_READ_COMMITTED;
+		log = "read-committed";
 		config = "isolation=read-committed";
 		break;
 	case 3:
 	default:
 		v = ISOLATION_SNAPSHOT;
+		log = "snapshot";
 		config = "isolation=snapshot";
 		break;
 	}
@@ -412,6 +421,8 @@ begin_transaction(TINFO *tinfo, u_int *iso_configp)
 
 	tinfo->read_ts = WT_TS_NONE;
 	tinfo->repeatable_reads = false;
+
+	logop(session, "begin %s", log);
 }
 
 /*
@@ -452,6 +463,10 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
 	/* Remember our oldest commit timestamp. */
 	tinfo->commit_ts = ts;
+
+	logop(session,
+	    "commit read-ts=%" PRIu64 ", commit-ts=%" PRIu64,
+	    tinfo->read_ts, tinfo->commit_ts);
 }
 
 /*
@@ -468,6 +483,9 @@ rollback_transaction(TINFO *tinfo)
 	++tinfo->rollback;
 
 	testutil_check(session->rollback_transaction(session, NULL));
+
+	logop(session,
+	    "abort read-ts=%" PRIu64, tinfo->read_ts);
 }
 
 /*
