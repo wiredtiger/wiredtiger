@@ -253,26 +253,48 @@ snap_repeat_ok_match(SNAP_OPS *current, SNAP_OPS *a)
  * committed successfully.
  */
 static bool
-snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *stop)
+snap_repeat_ok_commit(
+    TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *first, SNAP_OPS *last)
 {
 	SNAP_OPS *p;
 
 	/*
-	 * Check for subsequent changes to the record and don't attempt to
-	 * repeat the read in that case.
+	 * For updates, check for subsequent changes to the record and don't
+	 * repeat the read. For reads, check for either subsequent or previous
+	 * changes to the record and don't repeat the read. (The reads are
+	 * repeatable, but only at the commit timestamp, and the update will
+	 * do the repeatable read in that case.)
 	 */
 	for (p = current;;) {
 		/*
-		 * Wrap at the end of the circular buffer; "stop" is the element
+		 * Wrap at the end of the circular buffer; "last" is the element
 		 * after the last element we want to test.
 		 */
 		if (++p >= &tinfo->snap_list[WT_ELEMENTS(tinfo->snap_list)])
 			p = tinfo->snap_list;
-		if (p == stop)
-			return (true);
+		if (p == last)
+			break;
 
 		if (!snap_repeat_ok_match(current, p))
 			return (false);
+	}
+
+	if (current->op != READ)
+		return (true);
+	for (p = current;;) {
+		/*
+		 * Wrap at the beginning of the circular buffer; "first" is the
+		 * last element we want to test.
+		 */
+		if (p == first)
+			return (true);
+		if (--p < tinfo->snap_list)
+			p = &tinfo->snap_list[
+			    WT_ELEMENTS(tinfo->snap_list) - 1];
+
+		if (!snap_repeat_ok_match(current, p))
+			return (false);
+
 	}
 	/* NOTREACHED */
 }
@@ -283,7 +305,7 @@ snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *stop)
  * transaction has rolled back.
  */
 static bool
-snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *start)
+snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *first)
 {
 	SNAP_OPS *p;
 
@@ -297,10 +319,10 @@ snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *start)
 	 */
 	for (p = current;;) {
 		/*
-		 * Wrap at the beginning of the circular buffer; "start" is the
+		 * Wrap at the beginning of the circular buffer; "first" is the
 		 * last element we want to test.
 		 */
-		if (p == start)
+		if (p == first)
 			return (true);
 		if (--p < tinfo->snap_list)
 			p = &tinfo->snap_list[
@@ -343,7 +365,8 @@ snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
 			testutil_assert(current->keyno != 0);
 		}
 
-		if (snap_repeat_ok_commit(tinfo, current, stop))
+		if (snap_repeat_ok_commit(
+		    tinfo, current, tinfo->snap_first, stop))
 			WT_RET(snap_verify(cursor, tinfo, current));
 	}
 
@@ -385,8 +408,8 @@ snap_repeat_update(TINFO *tinfo, bool committed)
 		 * Second, check based on the transaction resolution (the rules
 		 * are different if the transaction committed or rolled back).
 		 */
-		start->repeatable = committed ?
-		    snap_repeat_ok_commit(tinfo, start, stop) :
+		start->repeatable = committed ? snap_repeat_ok_commit(
+		    tinfo, start, tinfo->snap_first, stop) :
 		    snap_repeat_ok_rollback(tinfo, start, tinfo->snap_first);
 
 		/*
@@ -453,8 +476,13 @@ snap_repeat_single(WT_CURSOR *cursor, TINFO *tinfo)
 
 	ret = session->timestamp_transaction(session, buf);
 	if (ret == 0) {
+		logop(session, "%-10s%" PRIu64 " ts=%" PRIu64 " {%.*s}",
+		    "repeat", snap->keyno, snap->ts,
+		    (int)snap->vsize, (char *)snap->vdata);
+
 		/* The only expected error is rollback. */
 		ret = snap_verify(cursor, tinfo, snap);
+
 		if (ret != 0 && ret != WT_ROLLBACK)
 			testutil_check(ret);
 	} else if (ret == EINVAL)
