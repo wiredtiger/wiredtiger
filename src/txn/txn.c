@@ -1134,7 +1134,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * allowing us to set the key repeated flag with reserved updates in
 	 * the chain.
 	 */
-	for (i = txn->mod_count; i > 0; i--, op--) {
+	for (i = txn->mod_count; i > 0; i--) {
 		op = &txn->mod[i - 1];
 		/* Assert it's not an update to the lookaside file. */
 		WT_ASSERT(session, S2C(session)->cache->las_fileid == 0 ||
