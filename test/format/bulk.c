@@ -28,6 +28,39 @@
 
 #include "format.h"
 
+/*
+ * bulk_begin_transaction --
+ *	Begin a bulk-load transaction.
+ */
+static void
+bulk_begin_transaction(WT_SESSION *session)
+{
+	uint64_t ts;
+	char buf[64];
+
+	wiredtiger_begin_transaction(session, "isolation=snapshot");
+	ts = __wt_atomic_addv64(&g.timestamp, 1);
+	testutil_check(__wt_snprintf(
+	    buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
+	testutil_check(session->timestamp_transaction(session, buf));
+}
+
+/*
+ * bulk_commit_transaction --
+ *	Commit a bulk-load transaction.
+ */
+static void
+bulk_commit_transaction(WT_SESSION *session)
+{
+	uint64_t ts;
+	char buf[64];
+
+	ts = __wt_atomic_addv64(&g.timestamp, 1);
+	testutil_check(__wt_snprintf(
+	    buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
+	testutil_check(session->commit_transaction(session, buf));
+}
+
 void
 wts_load(void)
 {
@@ -69,6 +102,9 @@ wts_load(void)
 	key_gen_init(&key);
 	val_gen_init(&value);
 
+	if (g.c_txn_timestamps)
+		bulk_begin_transaction(session);
+
 	for (;;) {
 		if (++g.key_cnt > g.c_rows) {
 			g.key_cnt = g.rows = g.c_rows;
@@ -76,8 +112,14 @@ wts_load(void)
 		}
 
 		/* Report on progress every 100 inserts. */
-		if (g.key_cnt % 1000 == 0)
+		if (g.key_cnt % 10000 == 0) {
 			track("bulk load", g.key_cnt, NULL);
+
+			if (g.c_txn_timestamps) {
+				bulk_commit_transaction(session);
+				bulk_begin_transaction(session);
+			}
+		}
 
 		key_gen(&key, g.key_cnt);
 		val_gen(NULL, &value, g.key_cnt);
@@ -137,6 +179,9 @@ wts_load(void)
 			bdb_insert(key.data, key.size, value.data, value.size);
 #endif
 	}
+
+	if (g.c_txn_timestamps)
+		bulk_commit_transaction(session);
 
 	testutil_check(cursor->close(cursor));
 
