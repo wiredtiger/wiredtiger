@@ -61,6 +61,16 @@ bulk_commit_transaction(WT_SESSION *session)
 	testutil_check(session->commit_transaction(session, buf));
 }
 
+/*
+ * bulk_rollback_transaction --
+ *	Rollback a bulk-load transaction.
+ */
+static void
+bulk_rollback_transaction(WT_SESSION *session)
+{
+	testutil_check(session->rollback_transaction(session, NULL));
+}
+
 void
 wts_load(void)
 {
@@ -162,8 +172,14 @@ wts_load(void)
 		 * extra space once the run starts.
 		 */
 		if ((ret = cursor->insert(cursor)) != 0) {
-			if (ret != WT_CACHE_FULL)
-				testutil_die(ret, "cursor.insert");
+			testutil_assert(
+			    ret == WT_CACHE_FULL || ret == WT_ROLLBACK);
+
+			if (g.c_txn_timestamps) {
+				bulk_rollback_transaction(session);
+				bulk_begin_transaction(session);
+			}
+
 			g.rows = --g.key_cnt;
 			g.c_rows = (uint32_t)g.key_cnt;
 
