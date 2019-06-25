@@ -529,9 +529,11 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* Check if prepared updates should be ignored during reads. */
 	WT_RET(__wt_config_gets_def(session, cfg, "ignore_prepare", 0, &cval));
-	if (cval.val ||
-	    (cval.len > 0 && WT_STRING_MATCH("force", cval.str, cval.len)))
+	if (cval.len > 0 &&
+	    WT_STRING_MATCH("force", cval.str, cval.len))
 		F_SET(txn, WT_TXN_IGNORE_PREPARE);
+	else if (cval.val)
+		F_SET(txn, WT_TXN_IGNORE_PREPARE | WT_TXN_READONLY);
 
 	/*
 	 * Check if the prepare timestamp and the commit timestamp of a
@@ -729,11 +731,12 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 			} else
 				upd = op->u.op_upd->next;
 			/*
-			 * Skip over any aborted update structures or ones
-			 * from our own transaction.
+			 * Skip over any aborted update structures, internally
+			 * created update structures or ones from our own
+			 * transaction.
 			 */
 			while (upd != NULL && (upd->txnid == WT_TXN_ABORTED ||
-			    upd->txnid == txn->id))
+			    upd->txnid == WT_TXN_NONE || upd->txnid == txn->id))
 				upd = upd->next;
 
 			/*
@@ -1036,7 +1039,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * any cached snapshots have to be refreshed.
 	 */
 	if (!readonly)
-		(void)__wt_gen_next(session, WT_GEN_COMMIT);
+		WT_IGNORE_RET(__wt_gen_next(session, WT_GEN_COMMIT));
 
 	/* First check if we've already committed something in the future. */
 	if (update_timestamp) {
@@ -1065,7 +1068,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * because the user's data is committed.
 	 */
 	if (!readonly)
-		(void)__wt_cache_eviction_check(session, false, false, NULL);
+		WT_IGNORE_RET(
+		    __wt_cache_eviction_check(session, false, false, NULL));
 	return (0);
 
 err:	/*
@@ -1299,7 +1303,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	 * because the user's data is committed.
 	 */
 	if (!readonly)
-		(void)__wt_cache_eviction_check(session, false, false, NULL);
+		WT_IGNORE_RET(
+		    __wt_cache_eviction_check(session, false, false, NULL));
 	return (ret);
 }
 

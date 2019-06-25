@@ -527,6 +527,7 @@ buf
 bufsz
 bugfix
 bugfixes
+builddir
 builtin
 builtins
 bytelock

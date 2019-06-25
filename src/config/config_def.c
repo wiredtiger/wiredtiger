@@ -1466,6 +1466,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "remove_files=true",
 	  confchk_WT_SESSION_drop, 4
 	},
+	{ "WT_SESSION.import",
+	  "",
+	  NULL, 0
+	},
 	{ "WT_SESSION.join",
 	  "bloom_bit_count=16,bloom_false_positives=false,"
 	  "bloom_hash_count=8,compare=\"eq\",count=,operation=\"and\","
