@@ -192,16 +192,22 @@ __wt_conn_remove_collator(WT_SESSION_IMPL *session)
  *	Validate the compressor.
  */
 static int
-__compressor_confchk(
-    WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESSOR **compressorp)
+__compressor_confchk(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
+    WT_COMPRESSOR *default_compressor, WT_COMPRESSOR **compressorp)
 {
 	WT_CONNECTION_IMPL *conn;
 	WT_NAMED_COMPRESSOR *ncomp;
 
-	*compressorp = NULL;
+	*compressorp = default_compressor;
 
-	if (cval->len == 0 || WT_STRING_MATCH("none", cval->str, cval->len))
+	if (cval->len == 0)
 		return (0);
+
+	/* If we specify "none" then don't use the default compressor. */
+	if (WT_STRING_MATCH("none", cval->str, cval->len)) {
+		*compressorp = NULL;
+		return (0);
+	}
 
 	conn = S2C(session);
 	TAILQ_FOREACH(ncomp, &conn->compqh, q)
@@ -221,7 +227,21 @@ int
 __wt_compressor_config(
     WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_COMPRESSOR **compressorp)
 {
-	return (__compressor_confchk(session, cval, compressorp));
+	return (__compressor_confchk(session, cval, NULL, compressorp));
+}
+
+/*
+ * __wt_recovery_compressor_config --
+ *	Given a configuration, configure the recovery compressor. For the
+ *	recovery compressor, we want to fallback to the current compressor
+ *	unless otherwise specified.
+ */
+int
+__wt_recovery_compressor_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
+    WT_COMPRESSOR *compressor, WT_COMPRESSOR **recovery_compressorp)
+{
+	return (__compressor_confchk(
+	    session, cval, compressor, recovery_compressorp));
 }
 
 /*

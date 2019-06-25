@@ -783,6 +783,14 @@ wiredtiger_open_log_configuration = [
             for \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression,
             these names are also available. See @ref compression for more
             information'''),
+        Config('recovery_compressor', '', r'''
+            configure a compressor for decompressing log records. Defaults to
+            the value of compressor if not specified. Permitted values are
+            \c "none" or custom compression engine name created with
+            WT_CONNECTION::add_compressor.  If WiredTiger has builtin support
+            for \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression,
+            these names are also available. See @ref compression for more
+            information'''),
         Config('file_max', '100MB', r'''
             the maximum size of log files''',
             min='100KB',    # !!! Must match WT_LOG_FILE_MIN

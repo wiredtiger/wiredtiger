@@ -76,10 +76,12 @@ class test_log04(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
         cursor.close()
 
-    def make_config_string(self, compression):
+    def make_config_string(self, compression, recovery_compression=None):
         config_str = 'create,log=(enabled'
         if compression is not None:
             config_str += ',compressor={0}'.format(compression)
+        if recovery_compression is not None:
+            config_str += ',recovery_compressor={0}'.format(recovery_compression)
         config_str += ')'
         config_str += self.extensionsConfig()
         return config_str
@@ -96,7 +98,7 @@ class test_log04(wttest.WiredTigerTestCase):
         self.conn.close()
 
         self.wiredtiger_open(
-            self.homedir, self.make_config_string(self.after_compress))
+            self.homedir, self.make_config_string(self.after_compress, self.init_compress))
 
 if __name__ == '__main__':
     wttest.run()

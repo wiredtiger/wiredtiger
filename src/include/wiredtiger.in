@@ -3109,9 +3109,17 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery
  * or error if recovery needs to run after an unclean shutdown., a string\,
  * chosen from the following options: \c "error"\, \c "on"; default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log
- * files., a boolean flag; default \c false.}
- * @config{ ),,}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;recovery_compressor, configure a compressor
+ * for decompressing log records.  Defaults to the value of compressor if not
+ * specified.  Permitted values are \c "none" or custom compression engine name
+ * created with WT_CONNECTION::add_compressor.  If WiredTiger has builtin
+ * support for \c "lz4"\, \c "snappy"\, \c "zlib" or \c "zstd" compression\,
+ * these names are also available.  See @ref compression for more information.,
+ * a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually
+ * write zeroes into log files., a boolean flag; default \c false.}
+ * @config{
+ * ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree
  * management.  The LSM manager is started automatically the first time an LSM
  * tree is opened.  The LSM manager uses a session from the configured

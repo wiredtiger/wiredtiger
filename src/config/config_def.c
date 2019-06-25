@@ -847,6 +847,7 @@ static const WT_CONFIG_CHECK
 	{ "recover", "string",
 	    NULL, "choices=[\"error\",\"on\"]",
 	    NULL, 0 },
+	{ "recovery_compressor", "string", NULL, NULL, NULL, 0 },
 	{ "zero_fill", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -934,7 +935,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
 	    confchk_wiredtiger_open_io_capacity_subconfigs, 1 },
 	{ "log", "category",
 	    NULL, NULL,
-	    confchk_wiredtiger_open_log_subconfigs, 9 },
+	    confchk_wiredtiger_open_log_subconfigs, 10 },
 	{ "lsm_manager", "category",
 	    NULL, NULL,
 	    confchk_wiredtiger_open_lsm_manager_subconfigs, 2 },
@@ -1049,7 +1050,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
 	    confchk_wiredtiger_open_io_capacity_subconfigs, 1 },
 	{ "log", "category",
 	    NULL, NULL,
-	    confchk_wiredtiger_open_log_subconfigs, 9 },
+	    confchk_wiredtiger_open_log_subconfigs, 10 },
 	{ "lsm_manager", "category",
 	    NULL, NULL,
 	    confchk_wiredtiger_open_lsm_manager_subconfigs, 2 },
@@ -1161,7 +1162,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
 	    confchk_wiredtiger_open_io_capacity_subconfigs, 1 },
 	{ "log", "category",
 	    NULL, NULL,
-	    confchk_wiredtiger_open_log_subconfigs, 9 },
+	    confchk_wiredtiger_open_log_subconfigs, 10 },
 	{ "lsm_manager", "category",
 	    NULL, NULL,
 	    confchk_wiredtiger_open_lsm_manager_subconfigs, 2 },
@@ -1271,7 +1272,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
 	    confchk_wiredtiger_open_io_capacity_subconfigs, 1 },
 	{ "log", "category",
 	    NULL, NULL,
-	    confchk_wiredtiger_open_log_subconfigs, 9 },
+	    confchk_wiredtiger_open_log_subconfigs, 10 },
 	{ "lsm_manager", "category",
 	    NULL, NULL,
 	    confchk_wiredtiger_open_lsm_manager_subconfigs, 2 },
@@ -1643,7 +1644,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "close_scan_interval=10),hazard_max=1000,in_memory=false,"
 	  "io_capacity=(total=0),log=(archive=true,compressor=,"
 	  "enabled=false,file_max=100MB,os_cache_dirty_pct=0,path=\".\","
-	  "prealloc=true,recover=on,zero_fill=false),"
+	  "prealloc=true,recover=on,recovery_compressor=,zero_fill=false),"
 	  "lsm_manager=(merge=true,worker_thread_max=4),lsm_merge=true,"
 	  "mmap=true,multiprocess=false,operation_tracking=(enabled=false,"
 	  "path=\".\"),readonly=false,salvage=false,session_max=100,"
@@ -1674,7 +1675,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  "close_scan_interval=10),hazard_max=1000,in_memory=false,"
 	  "io_capacity=(total=0),log=(archive=true,compressor=,"
 	  "enabled=false,file_max=100MB,os_cache_dirty_pct=0,path=\".\","
-	  "prealloc=true,recover=on,zero_fill=false),"
+	  "prealloc=true,recover=on,recovery_compressor=,zero_fill=false),"
 	  "lsm_manager=(merge=true,worker_thread_max=4),lsm_merge=true,"
 	  "mmap=true,multiprocess=false,operation_tracking=(enabled=false,"
 	  "path=\".\"),readonly=false,salvage=false,session_max=100,"
@@ -1703,7 +1704,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",close_idle_time=30,close_scan_interval=10),hazard_max=1000,"
 	  "io_capacity=(total=0),log=(archive=true,compressor=,"
 	  "enabled=false,file_max=100MB,os_cache_dirty_pct=0,path=\".\","
-	  "prealloc=true,recover=on,zero_fill=false),"
+	  "prealloc=true,recover=on,recovery_compressor=,zero_fill=false),"
 	  "lsm_manager=(merge=true,worker_thread_max=4),lsm_merge=true,"
 	  "mmap=true,multiprocess=false,operation_tracking=(enabled=false,"
 	  "path=\".\"),readonly=false,salvage=false,session_max=100,"
@@ -1731,7 +1732,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  ",close_idle_time=30,close_scan_interval=10),hazard_max=1000,"
 	  "io_capacity=(total=0),log=(archive=true,compressor=,"
 	  "enabled=false,file_max=100MB,os_cache_dirty_pct=0,path=\".\","
-	  "prealloc=true,recover=on,zero_fill=false),"
+	  "prealloc=true,recover=on,recovery_compressor=,zero_fill=false),"
 	  "lsm_manager=(merge=true,worker_thread_max=4),lsm_merge=true,"
 	  "mmap=true,multiprocess=false,operation_tracking=(enabled=false,"
 	  "path=\".\"),readonly=false,salvage=false,session_max=100,"

@@ -254,6 +254,11 @@ __logmgr_config(
 		WT_RET(__wt_compressor_config(
 		    session, &cval, &conn->log_compressor));
 
+		WT_RET(__wt_config_gets_none(
+		    session, cfg, "log.recovery_compressor", &cval));
+		WT_RET(__wt_recovery_compressor_config(session, &cval,
+		    conn->log_compressor, &conn->recovery_log_compressor));
+
 		WT_RET(__wt_config_gets(session, cfg, "log.path", &cval));
 		WT_RET(__wt_strndup(
 		    session, cval.str, cval.len, &conn->log_path));
