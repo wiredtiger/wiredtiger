@@ -714,7 +714,8 @@ __log_decompress(WT_SESSION_IMPL *session, WT_ITEM *in, WT_ITEM *out)
 	memcpy(out->mem, in->mem, skip);
 	WT_RET(compressor->decompress(compressor, &session->iface,
 	    (uint8_t *)in->mem + skip, in->size - skip,
-	    (uint8_t *)out->mem + skip, uncompressed_size - skip, &result_len));
+	    (uint8_t *)out->mem + skip,
+	    uncompressed_size - skip, &result_len));
 
 	/*
 	 * If checksums were turned off because we're depending on the
