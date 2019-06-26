@@ -221,7 +221,7 @@ __ckpt_last_name(WT_SESSION_IMPL *session, const char *config, const char **name
         ret = WT_NOTFOUND;
 
     if (0) {
-    err:
+err:
         __wt_free(session, *namep);
     }
     return (ret);
@@ -389,7 +389,7 @@ __wt_meta_ckptlist_get(
     *ckptbasep = ckptbase;
 
     if (0) {
-    err:
+err:
         __wt_meta_ckptlist_free(session, &ckptbase);
     }
     __wt_free(session, config);

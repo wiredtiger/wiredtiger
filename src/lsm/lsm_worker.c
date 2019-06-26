@@ -165,7 +165,7 @@ __lsm_worker(void *arg)
     }
 
     if (ret != 0) {
-    err:
+err:
         __wt_lsm_manager_free_work_unit(session, entry);
         WT_PANIC_MSG(session, ret, "Error in LSM worker thread %u", cookie->id);
     }

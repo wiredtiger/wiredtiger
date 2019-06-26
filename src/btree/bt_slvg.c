@@ -660,7 +660,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
     ss->pages[ss->pages_next++] = trk;
 
     if (0) {
-    err:
+err:
         __wt_free(session, trk);
     }
     if (page != NULL)
@@ -1235,7 +1235,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     __wt_root_ref_init(session, &ss->root_ref, page, true);
 
     if (0) {
-    err:
+err:
         __wt_free(session, addr);
         __wt_page_out(session, &page);
     }
@@ -1323,7 +1323,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
         ret = __wt_evict(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
 
     if (0) {
-    err:
+err:
         WT_TRET(__wt_page_release(session, ref, 0));
     }
 
@@ -1878,7 +1878,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     __wt_root_ref_init(session, &ss->root_ref, page, false);
 
     if (0) {
-    err:
+err:
         __wt_free(session, addr);
         __wt_page_out(session, &page);
     }
@@ -2013,7 +2013,7 @@ __slvg_row_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref, WT_S
         ret = __wt_evict(session, ref, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
 
     if (0) {
-    err:
+err:
         WT_TRET(__wt_page_release(session, ref, 0));
     }
     __wt_scr_free(session, &key);

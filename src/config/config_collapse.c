@@ -136,7 +136,7 @@ __wt_config_discard_defaults(
             continue;
 
     /* Include the quotes around string keys/values. */
-    keep:
+keep:
         if (k.type == WT_CONFIG_ITEM_STRING) {
             --k.str;
             k.len += 2;

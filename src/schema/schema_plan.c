@@ -41,7 +41,7 @@ __find_next_col(WT_SESSION_IMPL *session, WT_TABLE *table, WT_CONFIG_ITEM *colna
             cval = table->colconf;
             col = 0;
         } else {
-        cgcols:
+cgcols:
             cval = colgroup->colconf;
             col = table->nkey_columns;
         }

@@ -218,7 +218,7 @@ __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l)
          */
         writers_active = old.u.s.next - old.u.s.current;
         if (old.u.s.readers_queued > writers_active) {
-        stall:
+stall:
             __wt_cond_wait(session, l->cond_readers, 10 * WT_THOUSAND, NULL);
             continue;
         }

@@ -537,7 +537,7 @@ __wt_log_get_backup_files(
      * once it is done using the returned list.
      */
     if (0) {
-    err:
+err:
         WT_TRET(__wt_fs_directory_list_free(session, &files, count));
     }
     return (ret);
@@ -2218,7 +2218,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     WT_ERR(__wt_scr_alloc(session, 0, &uncitem));
     for (;;) {
         if (rd_lsn.l.offset + allocsize > log_size) {
-        advance:
+advance:
             if (rd_lsn.l.offset == log_size)
                 partial_record = false;
             else {

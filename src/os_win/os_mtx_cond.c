@@ -105,7 +105,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs
     if (sleepret == 0) {
         windows_error = __wt_getlasterror();
         if (windows_error == ERROR_TIMEOUT) {
-        skipping:
+skipping:
             *signalled = false;
             sleepret = 1;
         }

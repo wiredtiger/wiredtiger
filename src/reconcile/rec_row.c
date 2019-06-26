@@ -982,7 +982,7 @@ __wt_rec_row_leaf(
                 tmpkey->size += kpack->size;
             } else
                 WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
-        build:
+build:
             WT_ERR(__rec_cell_build_leaf_key(session, r, tmpkey->data, tmpkey->size, &ovfl_key));
         }
 

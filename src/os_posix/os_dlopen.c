@@ -26,7 +26,7 @@ __wt_dlopen(WT_SESSION_IMPL *session, const char *path, WT_DLH **dlhp)
 
     *dlhp = dlh;
     if (0) {
-    err:
+err:
         __wt_free(session, dlh->name);
         __wt_free(session, dlh);
     }

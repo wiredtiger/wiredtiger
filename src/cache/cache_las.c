@@ -1247,7 +1247,7 @@ srch_notfound:
     WT_ERR_NOTFOUND_OK(ret);
 
     if (0) {
-    err:
+err:
         __wt_buf_free(session, sweep_key);
     }
     if (local_txn) {

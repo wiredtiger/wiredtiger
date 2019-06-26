@@ -527,7 +527,7 @@ __wt_block_alloc(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t *offp, wt_o
     } else {
         __block_size_srch(block->live.avail.sz, size, sstack);
         if ((szp = *sstack[0]) == NULL) {
-        append:
+append:
             WT_RET(__block_extend(session, block, offp, size));
             WT_RET(__block_append(session, block, &block->live.alloc, *offp, (wt_off_t)size));
             return (0);
@@ -1162,7 +1162,7 @@ __wt_block_extlist_read(
          */
         if (off < block->allocsize || off % block->allocsize != 0 || size % block->allocsize != 0 ||
           off + size > ckpt_size) {
-        corrupted:
+corrupted:
             __wt_scr_free(session, &tmp);
             WT_BLOCK_RET(session, block, WT_ERROR,
               "file contains a corrupted %s extent list, range %" PRIdMAX "-%" PRIdMAX

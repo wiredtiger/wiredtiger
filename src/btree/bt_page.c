@@ -89,7 +89,7 @@ __wt_page_alloc(
                 size += sizeof(WT_REF);
             }
         if (0) {
-        err:
+err:
             if ((pindex = WT_INTL_INDEX_GET_SAFE(page)) != NULL) {
                 for (i = 0; i < pindex->entries; ++i)
                     __wt_free(session, pindex->index[i]);

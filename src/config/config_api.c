@@ -336,7 +336,7 @@ __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *
     WT_PUBLISH(*epp, entry);
 
     if (0) {
-    err:
+err:
         if (entry != NULL) {
             __wt_free(session, entry->base);
             __wt_free(session, entry);

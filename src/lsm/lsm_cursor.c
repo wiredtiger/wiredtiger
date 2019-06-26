@@ -242,7 +242,7 @@ __clsm_enter(WT_CURSOR_LSM *clsm, bool reset, bool update)
               (!update && F_ISSET(clsm, WT_CLSM_OPEN_READ))))
             break;
 
-    open:
+open:
         WT_WITH_SCHEMA_LOCK(session, ret = __clsm_open_cursors(clsm, update, 0, 0));
         WT_RET(ret);
     }
@@ -1024,7 +1024,7 @@ __clsm_next_random(WT_CURSOR *cursor)
 
     /* We have found a valid doc. Set that we are now positioned */
     if (0) {
-    err:
+err:
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
     __clsm_leave(clsm);
@@ -1808,7 +1808,7 @@ __wt_clsm_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, cons
         WT_ERR(__wt_clsm_open_bulk(clsm, cfg));
 
     if (0) {
-    err:
+err:
         if (clsm != NULL)
             WT_TRET(__wt_clsm_close(cursor));
         else if (lsm_tree != NULL)

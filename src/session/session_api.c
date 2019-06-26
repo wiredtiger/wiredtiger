@@ -603,7 +603,7 @@ done:
     *cursorp = cursor;
 
     if (0) {
-    err:
+err:
         if (cursor != NULL)
             WT_TRET(cursor->close(cursor));
     }

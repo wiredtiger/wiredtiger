@@ -557,7 +557,7 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
     source->flags = 0;
 
     if (0) {
-    err:
+err:
         WT_TRET(__curds_close(cursor));
         *cursorp = NULL;
     }

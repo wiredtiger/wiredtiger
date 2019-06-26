@@ -323,7 +323,7 @@ __wt_async_worker(void *arg)
     }
 
     if (0) {
-    err:
+err:
         WT_PANIC_MSG(session, ret, "async worker error");
     }
     /*

@@ -231,7 +231,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint3
     }
 
     if (0) {
-    err:
+err:
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 

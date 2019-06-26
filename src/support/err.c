@@ -282,7 +282,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
           "too small");
 
     if (ret != 0) {
-    err:
+err:
         if (fprintf(stderr, "WiredTiger Error%s%s: ", error == 0 ? "" : ": ",
               error == 0 ? "" : __wt_strerror(session, error, NULL, 0)) < 0)
             WT_TRET(EIO);

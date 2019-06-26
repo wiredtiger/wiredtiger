@@ -69,7 +69,7 @@ __wt_curconfig_open(
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
 
     if (0) {
-    err:
+err:
         WT_TRET(__curconfig_close(cursor));
         *cursorp = NULL;
     }

@@ -2115,7 +2115,7 @@ __conn_write_base_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (0) {
     /* Close open file handle, remove any temporary file. */
-    err:
+err:
         WT_TRET(__wt_fclose(session, &fs));
         WT_TRET(__wt_remove_if_exists(session, WT_BASECONFIG_SET, false));
     }

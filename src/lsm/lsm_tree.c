@@ -521,7 +521,7 @@ __lsm_tree_open(WT_SESSION_IMPL *session, const char *uri, bool exclusive, WT_LS
     *treep = lsm_tree;
 
     if (0) {
-    err:
+err:
         WT_TRET(__lsm_tree_discard(session, lsm_tree, false));
     }
     return (ret);

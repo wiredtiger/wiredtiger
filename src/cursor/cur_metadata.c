@@ -636,7 +636,7 @@ __wt_curmetadata_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owne
     }
 
     if (0) {
-    err:
+err:
         WT_TRET(__curmetadata_close(cursor));
         *cursorp = NULL;
     }

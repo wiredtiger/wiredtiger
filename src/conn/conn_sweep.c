@@ -208,7 +208,7 @@ __sweep_remove_one(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
      * don't retry the discard until it times out again.
      */
     if (ret != 0) {
-    err:
+err:
         __wt_writeunlock(session, &dhandle->rwlock);
     }
 
@@ -357,7 +357,7 @@ __sweep_server(void *arg)
     }
 
     if (0) {
-    err:
+err:
         WT_PANIC_MSG(session, ret, "handle sweep server error");
     }
     return (WT_THREAD_RET_VALUE);

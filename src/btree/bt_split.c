@@ -2136,7 +2136,7 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
     __wt_page_out(session, &page);
 
     if (0) {
-    err:
+err:
         for (i = 0; i < new_entries; ++i)
             __split_multi_inmem_fail(session, page, ref_new[i]);
     }

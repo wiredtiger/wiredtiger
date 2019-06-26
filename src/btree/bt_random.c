@@ -251,7 +251,7 @@ __wt_random_descent(WT_SESSION_IMPL *session, WT_REF **refp, uint32_t flags)
      * On other error, simply return, the swap call ensures we're
      * holding nothing on failure.
      */
-    descend:
+descend:
         if ((ret = __wt_page_swap(session, current, descent, flags)) == 0) {
             current = descent;
             continue;

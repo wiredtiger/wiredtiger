@@ -38,7 +38,7 @@ wiredtiger_pack_start(
     *psp = ps;
 
     if (0) {
-    err:
+err:
         (void)wiredtiger_pack_close(ps, NULL);
     }
     return (ret);

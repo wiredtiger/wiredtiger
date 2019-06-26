@@ -1061,7 +1061,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
     WT_ERR(__wt_strdup(session, tmp->data, &ctable->cfg[1]));
 
     if (0) {
-    err:
+err:
         if (*cursorp != NULL) {
             /*
              * When a dump cursor is opened, then *cursorp, not

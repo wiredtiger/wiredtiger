@@ -200,7 +200,7 @@ __curstat_next(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     if (0) {
-    err:
+err:
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     }
     API_END_RET(session, ret);
@@ -244,7 +244,7 @@ __curstat_prev(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 
     if (0) {
-    err:
+err:
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     }
     API_END_RET(session, ret);
@@ -732,7 +732,7 @@ __wt_curstat_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, c
     }
 
     if (0) {
-    err:
+err:
         WT_TRET(__curstat_close(cursor));
         *cursorp = NULL;
     }

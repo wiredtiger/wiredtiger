@@ -330,7 +330,7 @@ main(int argc, char *argv[])
     ret = func(session, argc, argv);
 
     if (0) {
-    err:
+err:
         ret = 1;
     }
 done:

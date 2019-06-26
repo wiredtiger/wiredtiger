@@ -2366,7 +2366,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * it, otherwise on subsequent reconciliation we would fail to
      * remove blocks that are being discarded.
      */
-    split:
+split:
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             multi->addr.reuse = 0;
         mod->mod_multi = r->multi;

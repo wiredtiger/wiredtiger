@@ -256,7 +256,7 @@ __curindex_search(WT_CURSOR *cursor)
     WT_ERR(__curindex_move(cindex));
 
     if (0) {
-    err:
+err:
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
 
@@ -330,7 +330,7 @@ __curindex_search_near(WT_CURSOR *cursor, int *exact)
     WT_ERR(__curindex_move(cindex));
 
     if (0) {
-    err:
+err:
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
 
@@ -527,7 +527,7 @@ __wt_curindex_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
           __wt_json_column_init(cursor, uri, table->key_format, &idx->colconf, &table->colconf));
 
     if (0) {
-    err:
+err:
         WT_TRET(__curindex_close(cursor));
         *cursorp = NULL;
     }

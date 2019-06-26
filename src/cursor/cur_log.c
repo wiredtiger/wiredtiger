@@ -394,7 +394,7 @@ __wt_curlog_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], W
     }
 
     if (0) {
-    err:
+err:
         WT_TRET(__curlog_close(cursor));
         *cursorp = NULL;
     }

@@ -136,7 +136,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         goto err;
 
     if (0) {
-    err:
+err:
         ret = 1;
     }
 
@@ -443,7 +443,7 @@ dump_table_parts_config(
     if (exact > 0)
         goto match;
     while (exact != 0 && (ret = cursor->next(cursor)) == 0) {
-    match:
+match:
         if ((ret = cursor->get_key(cursor, &key)) != 0)
             return (util_cerr(cursor, "get_key", ret));
 

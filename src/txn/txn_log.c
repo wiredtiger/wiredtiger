@@ -218,7 +218,7 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
     txn->logrec = logrec;
 
     if (0) {
-    err:
+err:
         __wt_logrec_free(session, &logrec);
     }
     return (ret);

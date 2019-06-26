@@ -233,7 +233,7 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
       &manager->lsm_worker_cookies[0]));
 
     if (0) {
-    err:
+err:
         for (i = 0; (worker_session = manager->lsm_worker_cookies[i].session) != NULL; i++)
             WT_TRET((&worker_session->iface)->close(&worker_session->iface, NULL));
 
@@ -469,7 +469,7 @@ __lsm_worker_manager(void *arg)
     WT_ERR(__lsm_manager_worker_shutdown(session));
 
     if (ret != 0) {
-    err:
+err:
         WT_PANIC_MSG(session, ret, "LSM worker manager thread error");
     }
 

@@ -629,7 +629,7 @@ __verify_dsk_row(
           __wt_page_type_string(dsk->type), tag, key_cnt, dsk->u.entries);
 
     if (0) {
-    err:
+err:
         if (ret == 0)
             ret = WT_ERROR;
     }

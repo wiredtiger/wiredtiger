@@ -96,7 +96,7 @@ util_stat(WT_SESSION *session, int argc, char *argv[])
     }
 
     if (0) {
-    err:
+err:
         ret = 1;
     }
     if (objname_free)

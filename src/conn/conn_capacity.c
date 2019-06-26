@@ -116,7 +116,7 @@ __capacity_server(void *arg)
     }
 
     if (0) {
-    err:
+err:
         WT_PANIC_MSG(session, ret, "capacity server error");
     }
     return (WT_THREAD_RET_VALUE);

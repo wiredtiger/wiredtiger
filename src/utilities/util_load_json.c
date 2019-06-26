@@ -126,7 +126,7 @@ json_column_group_index(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST 
             goto err;
     }
     if (0) {
-    err:
+err:
         if (ret == 0)
             ret = EINVAL;
     }
@@ -194,7 +194,7 @@ json_strdup(WT_SESSION *session, JSON_INPUT_STATE *ins, char **resultp)
     }
 
     if (0) {
-    err:
+err:
         if (ret == 0)
             ret = EINVAL;
         free(result);
@@ -315,7 +315,7 @@ json_data(WT_SESSION *session, JSON_INPUT_STATE *ins, CONFIG_LIST *clp, uint32_t
             goto err;
     }
     if (0) {
-    err:
+err:
         if (ret == 0)
             ret = EINVAL;
     }
@@ -445,7 +445,7 @@ json_top_level(WT_SESSION *session, JSON_INPUT_STATE *ins, uint32_t flags)
     JSON_EXPECT(session, ins, 0);
 
     if (0) {
-    err:
+err:
         if (ret == 0)
             ret = EINVAL;
     }
@@ -493,7 +493,7 @@ json_peek(WT_SESSION *session, JSON_INPUT_STATE *ins)
         ins->peeking = true;
     }
     if (0) {
-    err:
+err:
         if (ret == 0)
             ret = -1;
     }

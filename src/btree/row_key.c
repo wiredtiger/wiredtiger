@@ -398,7 +398,7 @@ __wt_row_leaf_key_work(
                 break;
         }
 
-    next:
+next:
         switch (direction) {
         case BACKWARD:
             --rip;

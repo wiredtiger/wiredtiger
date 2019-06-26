@@ -78,7 +78,7 @@ __directory_list_worker(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, con
         if (single)
             break;
 
-    skip:
+skip:
         if (FindNextFileW(findhandle, &finddata) != 0)
             continue;
         windows_error = __wt_getlasterror();

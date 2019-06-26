@@ -1413,7 +1413,7 @@ __checkpoint_lock_dirty_tree(
     btree->ckpt = ckptbase;
 
     if (0) {
-    err:
+err:
         __wt_meta_ckptlist_free(session, &ckptbase);
     }
     __wt_free(session, name_alloc);

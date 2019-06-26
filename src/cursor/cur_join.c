@@ -660,7 +660,7 @@ __curjoin_entry_member(
         WT_ERR(__curjoin_entry_in_range(session, entry, &v, iter));
 
     if (0) {
-    err:
+err:
         if (ret == WT_NOTFOUND && bloom_found)
             entry->stats.bloom_false_positive++;
     }
@@ -838,7 +838,7 @@ __curjoin_init_bloom(
          */
         if (F_ISSET(entry, WT_CURJOIN_ENTRY_DISJUNCTION))
             goto advance;
-    insert:
+insert:
         if (entry->index != NULL) {
             curvalue.data = (unsigned char *)curkey.data + curkey.size;
             WT_ASSERT(session, c->key.size > curkey.size);
@@ -847,7 +847,7 @@ __curjoin_init_bloom(
             WT_ERR(c->get_key(c, &curvalue));
         __wt_bloom_insert(bloom, &curvalue);
         entry->stats.bloom_insert++;
-    advance:
+advance:
         if ((ret = c->next(c)) == WT_NOTFOUND)
             break;
     }
@@ -1069,7 +1069,7 @@ __curjoin_next(WT_CURSOR *cursor)
         WT_ERR(tret);
 
     if (0) {
-    err:
+err:
         F_SET(cjoin, WT_CURJOIN_ERROR);
     }
     API_END_RET(session, ret);
@@ -1286,7 +1286,7 @@ __wt_curjoin_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     WT_ERR(__wt_cursor_init(cursor, uri, owner, cfg, cursorp));
 
     if (0) {
-    err:
+err:
         WT_TRET(__curjoin_close(cursor));
         *cursorp = NULL;
     }

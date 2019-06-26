@@ -491,7 +491,7 @@ __im_file_open(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const char *
     *file_handlep = file_handle;
 
     if (0) {
-    err:
+err:
         __wt_free(session, im_fh);
     }
 

@@ -416,7 +416,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
     buf->size = sz;
     F_SET(cursor, WT_CURSTD_KEY_EXT);
     if (0) {
-    err:
+err:
         cursor->saved_err = ret;
     }
 
@@ -550,7 +550,7 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
     buf->size = sz;
 
     if (0) {
-    err:
+err:
         cursor->saved_err = ret;
     }
 
@@ -678,7 +678,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
      * a known state. The reopen may also fail, but that
      * doesn't matter at this point.
      */
-    err:
+err:
         WT_TRET(cursor->reopen(cursor, false));
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
     }

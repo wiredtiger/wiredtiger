@@ -415,7 +415,7 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
          * page), check for an internal page split race.
          */
         if (pindex->entries == base) {
-        append:
+append:
             if (__wt_split_descent_race(session, current, parent_pindex))
                 goto restart;
         }

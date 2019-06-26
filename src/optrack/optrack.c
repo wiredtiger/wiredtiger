@@ -38,7 +38,7 @@ __wt_optrack_record_funcid(WT_SESSION_IMPL *session, const char *func, uint16_t 
     }
 
     if (0) {
-    err:
+err:
         WT_PANIC_MSG(session, ret, "operation tracking initialization failure");
     }
 
@@ -93,7 +93,7 @@ __optrack_open_file(WT_SESSION_IMPL *session)
     session->optrack_offset = sizeof(WT_OPTRACK_HEADER);
 
     if (0) {
-    err:
+err:
         WT_TRET(__wt_close(session, &session->optrack_fh));
     }
     __wt_scr_free(session, &buf);

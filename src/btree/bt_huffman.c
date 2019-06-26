@@ -362,7 +362,7 @@ __wt_huffman_read(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *ip, struct __wt_huff
     *tablep = table;
 
     if (0) {
-    err:
+err:
         __wt_free(session, table);
     }
     (void)__wt_fclose(session, &fs);

@@ -266,7 +266,7 @@ __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_
      * created handle onto the database's list of files.
      */
     if (__handle_search(session, name, fh, fhp)) {
-    err:
+err:
         if (open_called)
             WT_TRET(fh->handle->close(fh->handle, (WT_SESSION *)session));
         if (fh != NULL) {

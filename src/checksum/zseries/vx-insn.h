@@ -15,7 +15,7 @@
 #define WT_CRC32_ENTRY(name) \
     .globl name;             \
     .align 4, 0x90;          \
-    name:
+name:
 
 /* Macros to generate vector instruction byte code */
 

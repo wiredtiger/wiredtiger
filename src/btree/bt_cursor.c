@@ -907,7 +907,7 @@ err:
 
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (ret == 0) {
-    done:
+done:
         F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
         if (append_key)
             F_SET(cursor, WT_CURSTD_KEY_EXT);
@@ -1329,7 +1329,7 @@ err:
      * pointer to the modify function's allocated update structure.
      */
     if (ret == 0) {
-    done:
+done:
         switch (modify_type) {
         case WT_UPDATE_STANDARD:
             /*
@@ -1500,7 +1500,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
      * to reset the cursor, but that shouldn't be a problem.
      */
     if (ret != 0) {
-    err:
+err:
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }

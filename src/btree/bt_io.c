@@ -140,7 +140,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
 
     if (0) {
-    corrupt:
+corrupt:
         if (ret == 0)
             ret = WT_ERROR;
         F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);

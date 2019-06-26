@@ -485,7 +485,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
     log->pool_index = 0;
 
     if (0) {
-    err:
+err:
         while (--i >= 0)
             __wt_buf_free(session, &log->slot_pool[i].slot_buf);
     }

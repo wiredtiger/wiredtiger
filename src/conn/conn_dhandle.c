@@ -478,7 +478,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         ++S2C(session)->open_btree_count;
 
     if (0) {
-    err:
+err:
         if (btree != NULL)
             F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
     }

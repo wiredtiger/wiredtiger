@@ -131,7 +131,7 @@ str2recno(WT_SESSION_IMPL *session, const char *p, uint64_t *recnop)
     if (recno == ULLONG_MAX && errno == ERANGE)
         WT_RET_MSG(session, ERANGE, "%s: invalid record number", p);
     if (endptr[0] != '\0')
-    format:
+format:
     WT_RET_MSG(session, EINVAL, "%s: invalid record number", p);
 
     *recnop = recno;
@@ -187,7 +187,7 @@ __curdump_set_key(WT_CURSOR *cursor, ...)
     }
 
     if (0) {
-    err:
+err:
         cursor->saved_err = ret;
         F_CLR(cursor, WT_CURSTD_KEY_SET);
     }
@@ -274,7 +274,7 @@ __curdump_set_value(WT_CURSOR *cursor, ...)
     child->set_value(child, &cursor->value);
 
     if (0) {
-    err:
+err:
         cursor->saved_err = ret;
         F_CLR(cursor, WT_CURSTD_VALUE_SET);
     }
@@ -399,7 +399,7 @@ __wt_curdump_create(WT_CURSOR *child, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_ERR(__wt_cursor_init(cursor, NULL, owner, cfg, cursorp));
 
     if (0) {
-    err:
+err:
         WT_TRET(__curdump_close(cursor));
         *cursorp = NULL;
     }

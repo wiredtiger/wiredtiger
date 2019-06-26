@@ -328,7 +328,7 @@ __wt_session_get_btree_ckpt(
          */
         if (WT_STRING_MATCH(WT_CHECKPOINT, cval.str, cval.len)) {
             last_ckpt = true;
-        retry:
+retry:
             WT_RET(__wt_meta_checkpoint_last_name(session, uri, &checkpoint));
         } else
             WT_RET(__wt_strndup(session, cval.str, cval.len, &checkpoint));

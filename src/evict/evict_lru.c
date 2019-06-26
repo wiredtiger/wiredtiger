@@ -321,7 +321,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
         WT_ERR(__evict_lru_pages(session, false));
 
     if (0) {
-    err:
+err:
         WT_PANIC_RET(session, ret, "cache eviction thread error");
     }
     return (ret);
@@ -360,7 +360,7 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
 
     if (0) {
-    err:
+err:
         WT_PANIC_RET(session, ret, "cache eviction thread error");
     }
     return (ret);
@@ -895,7 +895,7 @@ __wt_evict_file_exclusive_on(WT_SESSION_IMPL *session)
         __wt_yield();
 
     if (0) {
-    err:
+err:
         --btree->evict_disabled;
     }
     __wt_spin_unlock(session, &cache->evict_walk_lock);

@@ -174,7 +174,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
 
     if (0) {
-    err:
+err:
         WT_TRET(__curbackup_close(cursor));
         *cursorp = NULL;
     }

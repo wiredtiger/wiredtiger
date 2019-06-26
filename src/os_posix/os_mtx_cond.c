@@ -131,7 +131,7 @@ __wt_cond_wait_signal(WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs
       ret == ETIME ||
 #endif
       ret == ETIMEDOUT) {
-    skipping:
+skipping:
         *signalled = false;
         ret = 0;
     }

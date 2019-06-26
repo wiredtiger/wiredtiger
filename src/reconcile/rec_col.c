@@ -1150,7 +1150,7 @@ __wt_rec_col_var(
          * because if it's the maximum record, incrementing it
          * wraps to 0 and this turns into an infinite loop.
          */
-        next:
+next:
             if (src_recno == UINT64_MAX)
                 break;
             ++src_recno;
