@@ -96,6 +96,15 @@ handle_message(WT_EVENT_HANDLER *handler,
 	(void)(handler);
 	(void)(session);
 
+	/*
+	 * WiredTiger logs a verbose message when the read timestamp is set to a
+	 * value older than the oldest timestamp. Ignore the message, it happens
+	 * when repeating operations to confirm timestamped values don't change
+	 * underneath us.
+	 */
+	if (strstr(message, "less than the oldest timestamp") != NULL)
+		return (0);
+
 	/* Write and flush the message so we're up-to-date on error. */
 	if (g.logfp == NULL) {
 		out = printf("%p:%s\n", (void *)session, message);
@@ -413,6 +422,15 @@ wts_init(void)
 	/* Configure Btree split page percentage. */
 	CONFIG_APPEND(p, ",split_pct=%" PRIu32, g.c_split_pct);
 
+	/*
+	 * Assertions.
+	 * Assertions slow down the code for additional diagnostic checking.
+	 */
+	if (g.c_txn_timestamps && g.c_assert_commit_timestamp)
+		CONFIG_APPEND(p, ",assert=(commit_timestamp=key_consistent)");
+	if (g.c_txn_timestamps && g.c_assert_read_timestamp)
+		CONFIG_APPEND(p, ",assert=(read_timestamp=always)");
+
 	/* Configure LSM and data-sources. */
 	if (DATASOURCE("kvsbdb"))
 		CONFIG_APPEND(p, ",type=kvsbdb");
@@ -467,7 +485,7 @@ wts_close(void)
 }
 
 void
-wts_dump(const char *tag, int dump_bdb)
+wts_dump(const char *tag, bool dump_bdb)
 {
 #ifdef HAVE_BERKELEY_DB
 	size_t len;
@@ -517,9 +535,7 @@ wts_verify(const char *tag)
 	track("verify", 0ULL, NULL);
 
 	testutil_check(conn->open_session(conn, NULL, NULL, &session));
-	if (g.logging != 0)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== verify start ===============");
+	logop(session, "%s", "=============== verify start");
 
 	/*
 	 * Verify can return EBUSY if the handle isn't available. Don't yield
@@ -530,9 +546,7 @@ wts_verify(const char *tag)
 	testutil_assertfmt(
 	    ret == 0 || ret == EBUSY, "session.verify: %s: %s", g.uri, tag);
 
-	if (g.logging != 0)
-		(void)g.wt_api->msg_printf(g.wt_api, session,
-		    "=============== verify stop ===============");
+	logop(session, "%s", "=============== verify stop");
 	testutil_check(session->close(session, NULL));
 }
 
