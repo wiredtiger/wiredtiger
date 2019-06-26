@@ -1,0 +1,11 @@
+#! /bin/sh
+
+# Find the top-level WiredTiger directory and move to there.
+cd `git rev-parse --show-toplevel` || exit 1
+
+search=`find bench examples ext src test -name '*.[chi]'`
+for f in $search; do
+	tempfile=$(mktemp)
+	python dist/s_goto.py < "$f" > "$tempfile"
+	mv "$tempfile" "$f"
+done
