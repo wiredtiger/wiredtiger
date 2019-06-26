@@ -101,5 +101,16 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         self.apply_timestamps(6)
         self.session.commit_transaction()
 
+        # Reserved update with multiple extra updates.
+        self.session.begin_transaction('isolation=snapshot')
+        c['key_ts1'] = 'value10'
+        c.set_key('key_ts1')
+        c.reserve()
+        c['key_ts1'] = 'value11'
+        c['key_ts1'] = 'value12'
+        c['key_ts1'] = 'value13'
+        self.apply_timestamps(7)
+        self.session.commit_transaction()
+
 if __name__ == '__main__':
     wttest.run()
