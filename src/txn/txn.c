@@ -803,7 +803,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
-	bool locked, prepare, readonly, update_timestamp, skip_update_assert;
+	bool locked, prepare, readonly, skip_update_assert, update_timestamp;
 
 	txn = &session->txn;
 	conn = S2C(session);
