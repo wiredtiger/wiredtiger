@@ -11,7 +11,7 @@ noinst_PROGRAMS = t
 noinst_SCRIPTS = s_dumpcmp
 t_SOURCES =\
 	backup.c bulk.c compact.c config.c lrt.c ops.c rebalance.c \
-	salvage.c t.c util.c wts.c
+	salvage.c snap.c t.c util.c wts.c
 
 if HAVE_BERKELEY_DB
 t_SOURCES += bdb.c
