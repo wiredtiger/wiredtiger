@@ -46,9 +46,6 @@ AddOption("--enable-zlib", dest="zlib", type="string", nargs=1, action="store",
 AddOption("--prefix", dest="prefix", type="string", nargs=1, action="store", default="package",
           help="Install directory")
 
-AddOption("--with-berkeley-db", dest="bdb", type="string", nargs=1, action="store",
-          help="Berkeley DB install path, ie, /usr/local")
-
 # Get the swig binary from the command line option since SCONS cannot find it automatically
 #
 swig_binary = GetOption("lang-python")

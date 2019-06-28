@@ -30,18 +30,6 @@
 
 #include <signal.h>
 
-#ifdef BDB
-/*
- * Berkeley DB has an #ifdef we need to provide a value for, we'll see an
- * undefined error if it's unset during a strict compile.
- */
-#ifndef	DB_DBM_HSEARCH
-#define	DB_DBM_HSEARCH	0
-#endif
-#include <assert.h>
-#include <db.h>
-#endif
-
 #define	EXTPATH	"../../ext/"			/* Extensions path */
 
 #define	LZ4_PATH							\
@@ -58,9 +46,6 @@
 
 #define	ROTN_PATH							\
 	EXTPATH "encryptors/rotn/.libs/libwiredtiger_rotn.so"
-
-#define	KVS_BDB_PATH							\
-	EXTPATH "test/kvs_bdb/.libs/libwiredtiger_kvs_bdb.so"
 
 #undef	M
 #define	M(v)		((v) * WT_MILLION)	/* Million */
@@ -91,11 +76,6 @@ typedef struct {
 	char *home_stats;			/* Statistics file path */
 
 	char wiredtiger_open_config[8 * 1024];	/* Database open config */
-
-#ifdef HAVE_BERKELEY_DB
-	void *bdb;				/* BDB comparison handle */
-	void *dbc;				/* BDB cursor handle */
-#endif
 
 	WT_CONNECTION	 *wts_conn;
 	WT_EXTENSION_API *wt_api;
@@ -350,17 +330,6 @@ extern TINFO **tinfo_list;
 		testutil_check(g.wt_api->msg_printf(			\
 		    g.wt_api, wt_session, fmt, __VA_ARGS__));		\
 } while (0)
-
-#ifdef HAVE_BERKELEY_DB
-void	 bdb_close(void);
-void	 bdb_insert(const void *, size_t, const void *, size_t);
-void	 bdb_np(bool, void *, size_t *, void *, size_t *, int *);
-void	 bdb_open(void);
-void	 bdb_read(uint64_t, void *, size_t *, int *);
-void	 bdb_remove(uint64_t, int *);
-void	 bdb_truncate(uint64_t, uint64_t);
-void	 bdb_update(const void *, size_t, const void *, size_t);
-#endif
 
 WT_THREAD_RET alter(void *);
 WT_THREAD_RET backup(void *);
