@@ -109,7 +109,6 @@ env['STATIC_AND_SHARED_OBJECTS_ARE_THE_SAME'] = 1
 useZlib = GetOption("zlib")
 useSnappy = GetOption("snappy")
 useLz4 = GetOption("lz4")
-useBdb = GetOption("bdb")
 useTcmalloc = GetOption("tcmalloc")
 wtlibs = []
 
@@ -146,13 +145,6 @@ if useLz4:
         wtlibs.append("lz4")
     else:
         print 'lz4.h must be installed!'
-        Exit(1)
-
-if useBdb:
-    conf.env.Append(CPPPATH=[useBdb+ "/include"])
-    conf.env.Append(LIBPATH=[useBdb+ "/lib"])
-    if not conf.CheckCHeader('db.h'):
-        print 'db.h must be installed!'
         Exit(1)
 
 if useTcmalloc:
