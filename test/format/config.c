@@ -595,7 +595,6 @@ config_pct(void)
 		uint32_t  *vp;			/* Value store */
 		u_int	   order;		/* Order of assignment */
 	} list[] = {
-#define	CONFIG_DELETE_ENTRY	0
 		{ "delete_pct", &g.c_delete_pct, 0 },
 		{ "insert_pct", &g.c_insert_pct, 0 },
 #define	CONFIG_MODIFY_ENTRY	2
