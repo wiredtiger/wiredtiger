@@ -60,8 +60,6 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	bool locked;
 
 	btree = S2BT(session);
-	locked = false;
-	time_start = __wt_clock(session);
 	evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
 
 	/*
@@ -71,23 +69,22 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * without first locking the page, it could be evicted in between.
 	 */
 	previous_state = ref->state;
-	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
-	    WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-		locked = true;
+	locked =
+	    (previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	    WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED);
 	if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
 		if (locked)
 			WT_REF_SET_STATE(ref, previous_state);
 		return (ret == 0 ? EBUSY : ret);
 	}
 
+	/* Track how long forcible eviction took. */
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
-
-	/*
-	 * Track how long the call to evict took. If eviction is successful then
-	 * we have one of two pairs of stats to increment.
-	 */
+	time_start = __wt_clock(session);
 	ret = __wt_evict(session, ref, previous_state, evict_flags);
 	time_stop = __wt_clock(session);
+	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
+
 	if (ret == 0) {
 		WT_STAT_CONN_INCR(session, cache_eviction_force);
 		WT_STAT_CONN_INCRV(session, cache_eviction_force_time,
@@ -97,8 +94,6 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 		WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time,
 		    WT_CLOCKDIFF_US(time_stop, time_start));
 	}
-
-	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
 	return (ret);
 }
