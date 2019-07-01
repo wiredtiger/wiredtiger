@@ -32,7 +32,7 @@
  * JIRA ticket reference: WT-4891
  * Test case description: Test wt_meta_ckptlist_get by creating a number of
  * checkpoints and then running __wt_verify.
- * Failure mode: If the bug still exists then this test will cause address
+ * Failure mode: If the bug still exists then this test will cause an
  * error in address sanitized builds.
  */
 
@@ -63,9 +63,8 @@ main(int argc, char *argv[])
 	    session->open_cursor(session, opts->uri, NULL, NULL, &cursor));
 
 	/*
-	 * Create 100 checkpoints and keep them active by opening a checkpoint
-	 * cursor every time we create one. Then when we call verify we will
-	 * create a 100 long checkpoint list.
+	 * Create checkpoints and keep them active by around by opening a
+	 * checkpoint cursor for each one.
 	 */
 	for (int i = 0; i < CHECKPOINT_COUNT; ++i) {
 		testutil_check(
