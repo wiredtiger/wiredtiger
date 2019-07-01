@@ -625,6 +625,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	}
 
 	__wt_txn_clear_commit_timestamp(session);
+	__wt_txn_clear_durable_timestamp(session);
 
 	/* Free the scratch buffer allocated for logging. */
 	__wt_logrec_free(session, &txn->logrec);
@@ -800,11 +801,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	wt_timestamp_t prev_commit_timestamp;
+	wt_timestamp_t prev_commit_timestamp, prev_durable_timestamp;
 	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
-	bool locked, prepare, readonly, skip_update_assert, update_timestamp;
+	bool locked, prepare, readonly, skip_update_assert, update_commit_ts;
+	bool update_durable_ts;
 
 	txn = &session->txn;
 	conn = S2C(session);
@@ -1034,7 +1036,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * That said, we can't update the global commit timestamp until this
 	 * transaction is visible, which happens when we release it.
 	 */
-	update_timestamp = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
+	update_commit_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
+	update_durable_ts = F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
 
 	__wt_txn_release(session);
 	if (locked)
@@ -1048,9 +1051,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_IGNORE_RET(__wt_gen_next(session, WT_GEN_COMMIT));
 
 	/* First check if we've already committed something in the future. */
-	if (update_timestamp) {
+	if (update_commit_ts) {
 		prev_commit_timestamp = txn_global->commit_timestamp;
-		update_timestamp =
+		update_commit_ts =
 		    txn->commit_timestamp > prev_commit_timestamp;
 	}
 
@@ -1058,7 +1061,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * If it looks like we need to move the global commit timestamp,
 	 * write lock and re-check.
 	 */
-	if (update_timestamp)
+	if (update_commit_ts)
 		while (txn->commit_timestamp > prev_commit_timestamp) {
 			if (__wt_atomic_cas64(&txn_global->commit_timestamp,
 			    prev_commit_timestamp, txn->commit_timestamp)) {
@@ -1067,6 +1070,28 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			}
 			prev_commit_timestamp = txn_global->commit_timestamp;
 		}
+
+	/* First check if we've made something durable in the future. */
+	if (update_durable_ts) {
+		prev_durable_timestamp = txn_global->durable_timestamp;
+		update_durable_ts =
+		    txn->durable_timestamp > prev_durable_timestamp;
+	}
+
+	/*
+	 * If it looks like we'll need to move the global durable timestamp,
+	 * write lock and re-check.
+	 */
+	if (update_durable_ts) {
+		while (txn->durable_timestamp > prev_durable_timestamp) {
+			if (__wt_atomic_cas64(&txn_global->durable_timestamp,
+			    prev_durable_timestamp, txn->durable_timestamp)) {
+				txn_global->has_durable_timestamp = true;
+				break;
+			}
+			prev_durable_timestamp = txn_global->durable_timestamp;
+		}
+	}
 
 	/*
 	 * We're between transactions, if we need to block for eviction, it's
@@ -1458,6 +1483,8 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	    stats, txn_commit_queue_len, txn_global->commit_timestampq_len);
 	WT_STAT_SET(session,
 	    stats, txn_read_queue_len, txn_global->read_timestampq_len);
+	WT_STAT_SET(session,
+	    stats, txn_durable_queue_len, txn_global->durable_timestampq_len);
 }
 
 /*
@@ -1519,6 +1546,10 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RWLOCK_INIT_TRACKED(session,
 	    &txn_global->read_timestamp_rwlock, read_timestamp);
 	TAILQ_INIT(&txn_global->read_timestamph);
+
+	WT_RWLOCK_INIT_TRACKED(session,
+	    &txn_global->durable_timestamp_rwlock, durable_timestamp);
+	TAILQ_INIT(&txn_global->durable_timestamph);
 
 	WT_RET(__wt_rwlock_init(session, &txn_global->nsnap_rwlock));
 	txn_global->nsnap_oldest_id = WT_TXN_NONE;
@@ -1684,6 +1715,9 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	    __wt_timestamp_to_string(txn_global->pinned_timestamp, ts_string)));
 	WT_RET(__wt_msg(session, "stable timestamp: %s",
 	    __wt_timestamp_to_string(txn_global->stable_timestamp, ts_string)));
+	WT_RET(__wt_msg(session, "durable timestamp: %s",
+	    __wt_timestamp_to_string(
+	    txn_global->durable_timestamp, ts_string)));
 	WT_RET(__wt_msg(session, "has_commit_timestamp: %s",
 	    txn_global->has_commit_timestamp ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "has_oldest_timestamp: %s",
@@ -1692,6 +1726,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
 	    txn_global->has_pinned_timestamp ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "has_stable_timestamp: %s",
 	    txn_global->has_stable_timestamp ? "yes" : "no"));
+	WT_RET(__wt_msg(session, "has_durable_timestamp: %s",
+	    txn_global->has_durable_timestamp ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "oldest_is_pinned: %s",
 	    txn_global->oldest_is_pinned ? "yes" : "no"));
 	WT_RET(__wt_msg(session, "stable_is_pinned: %s",

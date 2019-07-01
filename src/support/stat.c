@@ -971,6 +971,10 @@ static const char * const __stats_connection_desc[] = {
 	"lock: dhandle lock internal thread time waiting (usecs)",
 	"lock: dhandle read lock acquisitions",
 	"lock: dhandle write lock acquisitions",
+	"lock: durable timestamp queue lock application thread time waiting (usecs)",
+	"lock: durable timestamp queue lock internal thread time waiting (usecs)",
+	"lock: durable timestamp queue read lock acquisitions",
+	"lock: durable timestamp queue write lock acquisitions",
 	"lock: metadata lock acquisitions",
 	"lock: metadata lock application thread wait time (usecs)",
 	"lock: metadata lock internal thread wait time (usecs)",
@@ -1112,6 +1116,11 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: commit timestamp queue inserts to head",
 	"transaction: commit timestamp queue inserts total",
 	"transaction: commit timestamp queue length",
+	"transaction: durable timestamp queue entries walked",
+	"transaction: durable timestamp queue insert to empty",
+	"transaction: durable timestamp queue inserts to head",
+	"transaction: durable timestamp queue inserts total",
+	"transaction: durable timestamp queue length",
 	"transaction: number of named snapshots created",
 	"transaction: number of named snapshots dropped",
 	"transaction: prepared transactions",
@@ -1408,6 +1417,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->lock_dhandle_wait_internal = 0;
 	stats->lock_dhandle_read_count = 0;
 	stats->lock_dhandle_write_count = 0;
+	stats->lock_durable_timestamp_wait_application = 0;
+	stats->lock_durable_timestamp_wait_internal = 0;
+	stats->lock_durable_timestamp_read_count = 0;
+	stats->lock_durable_timestamp_write_count = 0;
 	stats->lock_metadata_count = 0;
 	stats->lock_metadata_wait_application = 0;
 	stats->lock_metadata_wait_internal = 0;
@@ -1549,6 +1562,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_commit_queue_head = 0;
 	stats->txn_commit_queue_inserts = 0;
 	stats->txn_commit_queue_len = 0;
+	stats->txn_durable_queue_walked = 0;
+	stats->txn_durable_queue_empty = 0;
+	stats->txn_durable_queue_head = 0;
+	stats->txn_durable_queue_inserts = 0;
+	stats->txn_durable_queue_len = 0;
 	stats->txn_snapshots_created = 0;
 	stats->txn_snapshots_dropped = 0;
 	stats->txn_prepare = 0;
@@ -1908,6 +1926,14 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, lock_dhandle_read_count);
 	to->lock_dhandle_write_count +=
 	    WT_STAT_READ(from, lock_dhandle_write_count);
+	to->lock_durable_timestamp_wait_application +=
+	    WT_STAT_READ(from, lock_durable_timestamp_wait_application);
+	to->lock_durable_timestamp_wait_internal +=
+	    WT_STAT_READ(from, lock_durable_timestamp_wait_internal);
+	to->lock_durable_timestamp_read_count +=
+	    WT_STAT_READ(from, lock_durable_timestamp_read_count);
+	to->lock_durable_timestamp_write_count +=
+	    WT_STAT_READ(from, lock_durable_timestamp_write_count);
 	to->lock_metadata_count += WT_STAT_READ(from, lock_metadata_count);
 	to->lock_metadata_wait_application +=
 	    WT_STAT_READ(from, lock_metadata_wait_application);
@@ -2134,6 +2160,16 @@ __wt_stat_connection_aggregate(
 	to->txn_commit_queue_inserts +=
 	    WT_STAT_READ(from, txn_commit_queue_inserts);
 	to->txn_commit_queue_len += WT_STAT_READ(from, txn_commit_queue_len);
+	to->txn_durable_queue_walked +=
+	    WT_STAT_READ(from, txn_durable_queue_walked);
+	to->txn_durable_queue_empty +=
+	    WT_STAT_READ(from, txn_durable_queue_empty);
+	to->txn_durable_queue_head +=
+	    WT_STAT_READ(from, txn_durable_queue_head);
+	to->txn_durable_queue_inserts +=
+	    WT_STAT_READ(from, txn_durable_queue_inserts);
+	to->txn_durable_queue_len +=
+	    WT_STAT_READ(from, txn_durable_queue_len);
 	to->txn_snapshots_created +=
 	    WT_STAT_READ(from, txn_snapshots_created);
 	to->txn_snapshots_dropped +=

@@ -530,6 +530,10 @@ struct __wt_connection_stats {
 	int64_t lock_dhandle_wait_internal;
 	int64_t lock_dhandle_read_count;
 	int64_t lock_dhandle_write_count;
+	int64_t lock_durable_timestamp_wait_application;
+	int64_t lock_durable_timestamp_wait_internal;
+	int64_t lock_durable_timestamp_read_count;
+	int64_t lock_durable_timestamp_write_count;
 	int64_t lock_metadata_count;
 	int64_t lock_metadata_wait_application;
 	int64_t lock_metadata_wait_internal;
@@ -671,6 +675,11 @@ struct __wt_connection_stats {
 	int64_t txn_commit_queue_head;
 	int64_t txn_commit_queue_inserts;
 	int64_t txn_commit_queue_len;
+	int64_t txn_durable_queue_walked;
+	int64_t txn_durable_queue_empty;
+	int64_t txn_durable_queue_head;
+	int64_t txn_durable_queue_inserts;
+	int64_t txn_durable_queue_len;
 	int64_t txn_snapshots_created;
 	int64_t txn_snapshots_dropped;
 	int64_t txn_prepare;

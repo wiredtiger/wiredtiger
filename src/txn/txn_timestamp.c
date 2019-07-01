@@ -273,6 +273,39 @@ __txn_global_query_timestamp(
 		 */
 		if (ts == 0)
 			return (WT_NOTFOUND);
+	} else if (WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
+		if (!txn_global->has_durable_timestamp)
+			return (WT_NOTFOUND);
+		ts = txn_global->durable_timestamp;
+		WT_ASSERT(session, ts != 0);
+
+		/* Skip the lock if there are no running transactions. */
+		if (TAILQ_EMPTY(&txn_global->durable_timestamph))
+			goto done;
+
+		/* Compare with the least recently durable transaction. */
+		__wt_readlock(session, &txn_global->durable_timestamp_rwlock);
+		TAILQ_FOREACH(txn, &txn_global->durable_timestamph,
+			      durable_timestampq) {
+			if (txn->clear_durable_q)
+				continue;
+
+			tmpts = txn->durable_timestamp;
+			WT_ASSERT(session, tmpts != 0);
+			tmpts -= 1;
+
+			if (tmpts < ts)
+				ts = tmpts;
+			break;
+		}
+		__wt_readunlock(session, &txn_global->durable_timestamp_rwlock);
+
+		/*
+		 * If a transaction is committing with a durable timestamp of 1,
+		 * we could return zero here, which is unexpected. Fail instead.
+		 */
+		if (ts == 0)
+			return (WT_NOTFOUND);
 	} else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
 		ts = txn_global->last_ckpt_timestamp;
@@ -1008,6 +1041,7 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_RET(__wt_txn_parse_timestamp(
 		    session, "durable", &ts, &cval));
 		WT_RET(__wt_txn_set_durable_timestamp(session, ts));
+		__wt_txn_publish_durable_timestamp(session);
 	}
 
 	/* Look for a read timestamp. */
@@ -1148,6 +1182,124 @@ __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
 	 * thread walks the queue. We do not need to remove it now.
 	 */
 	WT_PUBLISH(txn->clear_commit_q, true);
+	WT_PUBLISH(txn->flags, flags);
+}
+
+/*
+ * __wt_txn_publish_durable_timestamp --
+ *	Publish a transaction's durable timestamp.
+ */
+void
+__wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
+{
+	WT_TXN *qtxn, *txn, *txn_tmp;
+	WT_TXN_GLOBAL *txn_global;
+	wt_timestamp_t ts;
+	uint64_t walked;
+
+	txn = &session->txn;
+	txn_global = &S2C(session)->txn_global;
+
+	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_DURABLE))
+		return;
+
+	/*
+	 * Copy the current durable timestamp (which can change while the
+	 * transaction is running).
+	 */
+	ts = txn->durable_timestamp;
+
+	__wt_writelock(session, &txn_global->durable_timestamp_rwlock);
+	/*
+	 * If our transaction is on the queue remove it first. The timestamp
+	 * may move earlier so we otherwise might not remove ourselves before
+	 * finding where to insert ourselves (which would result in a list
+	 * loop) and we don't want to walk more of the list than needed.
+	 */
+	if (txn->clear_durable_q) {
+		TAILQ_REMOVE(&txn_global->durable_timestamph,
+		    txn, durable_timestampq);
+		WT_PUBLISH(txn->clear_durable_q, false);
+		--txn_global->durable_timestampq_len;
+	}
+	/*
+	 * Walk the list to look for where to insert our own transaction
+	 * and remove any transactions that are not active.  We stop when
+	 * we get to the location where we want to insert.
+	 */
+	if (TAILQ_EMPTY(&txn_global->durable_timestamph)) {
+		TAILQ_INSERT_HEAD(
+		    &txn_global->durable_timestamph, txn, durable_timestampq);
+		WT_STAT_CONN_INCR(session, txn_durable_queue_empty);
+	} else {
+		/* Walk from the start, removing cleared entries. */
+		walked = 0;
+		TAILQ_FOREACH_SAFE(qtxn, &txn_global->durable_timestamph,
+		    durable_timestampq, txn_tmp) {
+			++walked;
+			/*
+			 * Stop on the first entry that we cannot clear.
+			 */
+			if (!qtxn->clear_commit_q)
+				break;
+
+			TAILQ_REMOVE(&txn_global->durable_timestamph,
+			    qtxn, durable_timestampq);
+			WT_PUBLISH(qtxn->clear_durable_q, false);
+			--txn_global->durable_timestampq_len;
+		}
+
+		/*
+		 * Now walk backwards from the end to find the correct position
+		 * for the insert.
+		 */
+		qtxn = TAILQ_LAST(
+		     &txn_global->durable_timestamph, __wt_txn_dts_qh);
+		while (qtxn != NULL && qtxn->durable_timestamp > ts) {
+			++walked;
+			qtxn = TAILQ_PREV(
+			    qtxn, __wt_txn_dts_qh, durable_timestampq);
+		}
+		if (qtxn == NULL) {
+			TAILQ_INSERT_HEAD(&txn_global->durable_timestamph,
+			    txn, durable_timestampq);
+			WT_STAT_CONN_INCR(session, txn_durable_queue_head);
+		} else
+			TAILQ_INSERT_AFTER(&txn_global->durable_timestamph,
+			    qtxn, txn, durable_timestampq);
+		WT_STAT_CONN_INCRV(session, txn_durable_queue_walked, walked);
+	}
+	txn->durable_timestamp = ts;
+	++txn_global->durable_timestampq_len;
+	WT_STAT_CONN_INCR(session, txn_durable_queue_inserts);
+	txn->clear_durable_q = false;
+	F_SET(txn, WT_TXN_HAS_TS_DURABLE | WT_TXN_PUBLIC_TS_DURABLE);
+	__wt_writeunlock(session, &txn_global->durable_timestamp_rwlock);
+}
+
+/*
+ * __wt_txn_clear_durable_timestamp --
+ *	Clear a transaction's published durable timestamp.
+ */
+void
+__wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session)
+{
+	WT_TXN *txn;
+	uint32_t flags;
+
+	txn = &session->txn;
+
+	if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_DURABLE))
+		return;
+	flags = txn->flags;
+	LF_CLR(WT_TXN_PUBLIC_TS_DURABLE);
+
+	/*
+	 * Notify other threads that our transaction is inactive and can be
+	 * cleaned up safely from the durable timestamp queue whenever the next
+	 * thread walks the queue. We do not need to remove it now.
+	 */
+	WT_PUBLISH(txn->clear_durable_q, true);
 	WT_PUBLISH(txn->flags, flags);
 }
 
