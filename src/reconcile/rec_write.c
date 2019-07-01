@@ -575,6 +575,12 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * history, or the stable timestamp hasn't changed since last time this
 	 * page was successfully, skew oldest instead.
 	 */
+	if (F_ISSET(S2C(session)->cache, WT_CACHE_EVICT_DEBUG_MODE) &&
+	    __wt_random(&session->rnd) % 3 == 0)
+		r->las_skew_newest = false;
+	else
+		r->las_skew_newest =
+		    LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
 	r->las_skew_newest =
 	    LF_ISSET(WT_REC_LOOKASIDE) && LF_ISSET(WT_REC_VISIBLE_ALL);
 	if (r->las_skew_newest &&
