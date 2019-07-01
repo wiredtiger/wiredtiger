@@ -1370,8 +1370,9 @@ order_error_row:
 				testutil_die(0,
 				    "%s returned {%.*s} then {%.*s}",
 				    which,
-				    (int)tinfo->key->size, tinfo->key->data,
-				    (int)key.size, key.data);
+				    (int)tinfo->key->size,
+				    (char *)tinfo->key->data,
+				    (int)key.size, (char *)key.data);
 			}
 
 			testutil_check(__wt_buf_set((WT_SESSION_IMPL *)
@@ -1468,7 +1469,7 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session,
 	    "%-10s%" PRIu64 " {%.*s}", "reserve",
-	    tinfo->keyno, (int)tinfo->key->size, tinfo->key->data);
+	    tinfo->keyno, (int)tinfo->key->size, (char *)tinfo->key->data);
 
 	return (0);
 }
@@ -1543,8 +1544,8 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify",
 	    tinfo->keyno,
-	    (int)tinfo->key->size, tinfo->key->data,
-	    (int)tinfo->value->size, tinfo->value->data);
+	    (int)tinfo->key->size, (char *)tinfo->key->data,
+	    (int)tinfo->value->size, (char *)tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1578,7 +1579,7 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	testutil_check(cursor->get_value(cursor, tinfo->value));
 
 	logop(cursor->session, "%-10s%" PRIu64 ", {%.*s}", "modify",
-	    tinfo->keyno, (int)tinfo->value->size, tinfo->value->data);
+	    tinfo->keyno, (int)tinfo->value->size, (char *)tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (!SINGLETHREADED)
@@ -1716,8 +1717,8 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update",
 	    tinfo->keyno,
-	    (int)tinfo->key->size, tinfo->key->data,
-	    (int)tinfo->value->size, tinfo->value->data);
+	    (int)tinfo->key->size, (char *)tinfo->key->data,
+	    (int)tinfo->value->size, (char *)tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)
@@ -1892,8 +1893,8 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	/* Log the operation */
 	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert",
 	    tinfo->keyno,
-	    (int)tinfo->key->size, tinfo->key->data,
-	    (int)tinfo->value->size, tinfo->value->data);
+	    (int)tinfo->key->size, (char *)tinfo->key->data,
+	    (int)tinfo->value->size, (char *)tinfo->value->data);
 
 #ifdef HAVE_BERKELEY_DB
 	if (SINGLETHREADED)

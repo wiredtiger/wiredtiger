@@ -160,7 +160,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	case ROW:
 		fprintf(stderr,
 		    "snapshot-isolation %.*s search mismatch\n",
-		    (int)key->size, (const char *)key->data);
+		    (int)key->size, (char *)key->data);
 
 		if (snap->op == REMOVE)
 			fprintf(stderr, "expected {deleted}\n");
@@ -173,7 +173,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 
 		testutil_die(ret,
 		    "snapshot-isolation: %.*s search mismatch",
-		    (int)key->size, key->data);
+		    (int)key->size, (char *)key->data);
 		/* NOTREACHED */
 	case VAR:
 		fprintf(stderr,
