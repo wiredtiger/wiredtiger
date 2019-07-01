@@ -67,7 +67,6 @@ typedef struct {
 	char *home;				/* Home directory */
 	char *home_backup;			/* Hot-backup directory */
 	char *home_backup_init;			/* Initialize backup command */
-	char *home_bdb;				/* BDB directory */
 	char *home_config;			/* Run CONFIG file path */
 	char *home_init;			/* Initialize home command */
 	char *home_log;				/* Operation log file path */

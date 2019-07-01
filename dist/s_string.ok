@@ -497,7 +497,6 @@ basecfg
 basho
 bbb
 bcr
-bdb
 beginthreadex
 bigram
 binutils
@@ -905,7 +904,6 @@ keyv
 kv
 kvraw
 kvs
-kvsbdb
 lang
 las
 latencies

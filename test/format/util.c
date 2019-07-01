@@ -348,11 +348,6 @@ path_setup(const char *home)
 	testutil_check(__wt_snprintf(
 	    g.home_stats, len, "%s/%s", g.home, "stats"));
 
-	/* BDB directory. */
-	len = strlen(g.home) + strlen("bdb") + 2;
-	g.home_bdb = dmalloc(len);
-	testutil_check(__wt_snprintf(g.home_bdb, len, "%s/%s", g.home, "bdb"));
-
 	/*
 	 * Home directory initialize command: create the directory if it doesn't
 	 * exist, else remove everything except the RNG log file.
