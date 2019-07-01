@@ -40,10 +40,10 @@ int
 main(int argc, char *argv[])
 {
 	TEST_OPTS *opts, _opts;
-	WT_CURSOR *cursor, *cursorp;
-	WT_CURSOR cursor_array[CHECKPOINT_COUNT];
-	WT_SESSION *session2;
+	WT_CURSOR *cursor, *cursor_ckpt;
 	WT_SESSION *session;
+	int i;
+
 	opts = &_opts;
 	memset(opts, 0, sizeof(*opts));
 	testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -66,7 +66,7 @@ main(int argc, char *argv[])
 	 * Create checkpoints and keep them active by around by opening a
 	 * checkpoint cursor for each one.
 	 */
-	for (int i = 0; i < CHECKPOINT_COUNT; ++i) {
+	for (i = 0; i < CHECKPOINT_COUNT; ++i) {
 		testutil_check(
 		    session->begin_transaction(session, "isolation=snapshot"));
 		cursor->set_key(cursor, "key1");
@@ -74,17 +74,16 @@ main(int argc, char *argv[])
 		testutil_check(cursor->update(cursor));
 		testutil_check(session->commit_transaction(session, NULL));
 		testutil_check(session->checkpoint(session, NULL));
-		cursorp = &cursor_array[i];
 		testutil_check(session->open_cursor(session, opts->uri, NULL,
-		    "checkpoint=WiredTigerCheckpoint", &cursorp));
+		    "checkpoint=WiredTigerCheckpoint", &cursor_ckpt));
 	}
 
 	testutil_check(session->close(session, NULL));
 
 	testutil_check(
-	    opts->conn->open_session(opts->conn, NULL, NULL, &session2));
+	    opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-	testutil_check(session2->verify(session, opts->uri, NULL));
+	testutil_check(session->verify(session, opts->uri, NULL));
 
 	testutil_cleanup(opts);
 
