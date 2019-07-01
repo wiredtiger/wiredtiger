@@ -352,7 +352,7 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
 		__wt_config_subinit(session, &ckptconf, &v);
 		for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
 			WT_ERR(__wt_realloc_def(
-			    session, &allocated, slot + 1, &ckptbase));
+			    session, &allocated, slot + 2, &ckptbase));
 			ckpt = &ckptbase[slot];
 
 			WT_ERR(__ckpt_load(session, &k, &v, ckpt));
