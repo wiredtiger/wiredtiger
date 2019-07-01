@@ -286,7 +286,7 @@ __txn_global_query_timestamp(
 		/* Compare with the least recently durable transaction. */
 		__wt_readlock(session, &txn_global->durable_timestamp_rwlock);
 		TAILQ_FOREACH(txn, &txn_global->durable_timestamph,
-			      durable_timestampq) {
+		    durable_timestampq) {
 			if (txn->clear_durable_q)
 				continue;
 
@@ -1240,7 +1240,7 @@ __wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
 			/*
 			 * Stop on the first entry that we cannot clear.
 			 */
-			if (!qtxn->clear_commit_q)
+			if (!qtxn->clear_durable_q)
 				break;
 
 			TAILQ_REMOVE(&txn_global->durable_timestamph,
