@@ -88,14 +88,10 @@ wts_load(void)
 	logop(session, "%s", "=============== bulk load start");
 
 	/*
-	 * No bulk load with data-sources.
-	 *
 	 * No bulk load with custom collators, the order of insertion will not
 	 * match the collation order.
 	 */
 	is_bulk = true;
-	if (DATASOURCE("kvsbdb"))
-		is_bulk = false;
 	if (g.c_reverse)
 		is_bulk = false;
 
@@ -189,11 +185,6 @@ wts_load(void)
 				g.c_delete_pct += 20;
 			break;
 		}
-
-#ifdef HAVE_BERKELEY_DB
-		if (SINGLETHREADED)
-			bdb_insert(key.data, key.size, value.data, value.size);
-#endif
 	}
 
 	if (g.c_txn_timestamps)

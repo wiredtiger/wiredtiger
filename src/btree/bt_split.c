@@ -1625,7 +1625,7 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_REF *ref)
 	/*
 	 * We failed creating new in-memory pages. For error-handling reasons,
 	 * we've left the update chains referenced by both the original and
-	 * new pages. Discard the new allocated WT_REF structures and their
+	 * new pages. Discard the newly allocated WT_REF structures and their
 	 * pages (setting a flag so the discard code doesn't discard the updates
 	 * on the page).
 	 *
