@@ -144,6 +144,7 @@ __wt_evict(WT_SESSION_IMPL *session,
 	 * forcible eviction statistics, we might do an in-memory split and
 	 * not an eviction, which skips the other statistics.
 	 */
+	time_start = 0;			/* [-Wconditional-uninitialized] */
 	if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
 		time_start = __wt_clock(session);
 		WT_STAT_CONN_INCR(session, cache_eviction_force);
