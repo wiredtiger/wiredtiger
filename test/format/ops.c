@@ -45,10 +45,6 @@ static int   row_truncate(TINFO *, WT_CURSOR *);
 static int   row_update(TINFO *, WT_CURSOR *, bool);
 static void  table_append_init(void);
 
-#ifdef HAVE_BERKELEY_DB
-static int   notfound_chk(const char *, int, int, uint64_t);
-#endif
-
 static char modify_repl[256];
 
 /*
@@ -581,18 +577,11 @@ ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
 
 	/*
 	 * 10% of the time, perform some read-only operations from a checkpoint.
-	 *
-	 * Skip if single-threaded and checking against a Berkeley DB database,
-	 * that won't work because the Berkeley DB database won't match the
-	 * checkpoint.
-	 *
 	 * Skip if we are using data-sources or LSM, they don't support reading
 	 * from checkpoints.
 	 */
 	cursor = NULL;
-	if (!SINGLETHREADED &&
-	    !DATASOURCE("kvsbdb") && !DATASOURCE("lsm") &&
-	    mmrand(&tinfo->rnd, 1, 10) == 1) {
+	if (!DATASOURCE("lsm") && mmrand(&tinfo->rnd, 1, 10) == 1) {
 		/*
 		 * WT_SESSION.open_cursor can return EBUSY if concurrent with a
 		 * metadata operation, retry.
@@ -830,11 +819,11 @@ ops(void *arg)
 			break;
 		case MODIFY:
 			/*
-			 * Change modify into update if not in a transaction
-			 * or in a read-uncommitted transaction, modify isn't
-			 * supported in those cases.
+			 * Change modify into update if not part of a snapshot
+			 * isolation transaction, modify isn't supported in
+			 * those cases.
 			 */
-			if (!intxn || iso_config == ISOLATION_READ_UNCOMMITTED)
+			if (!intxn || iso_config != ISOLATION_SNAPSHOT)
 				goto update_instead_of_chosen_op;
 
 			++tinfo->update;
@@ -1203,32 +1192,6 @@ read_row_worker(
 			break;
 		}
 
-#ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (ret);
-
-	/* Retrieve the BDB value. */
-	{
-	WT_ITEM bdb_value;
-	int notfound;
-
-	bdb_read(keyno, &bdb_value.data, &bdb_value.size, &notfound);
-
-	/* Check for not-found status. */
-	if (notfound_chk("read_row", ret, notfound, keyno))
-		return (ret);
-
-	/* Compare the two. */
-	if (value->size != bdb_value.size ||
-	    memcmp(value->data, bdb_value.data, value->size) != 0) {
-		fprintf(stderr,
-		    "read_row: value mismatch %" PRIu64 ":\n", keyno);
-		print_item("bdb", &bdb_value);
-		print_item(" wt", value);
-		testutil_die(0, NULL);
-	}
-	}
-#endif
 	return (ret);
 }
 
@@ -1370,8 +1333,9 @@ order_error_row:
 				testutil_die(0,
 				    "%s returned {%.*s} then {%.*s}",
 				    which,
-				    (int)tinfo->key->size, tinfo->key->data,
-				    (int)key.size, key.data);
+				    (int)tinfo->key->size,
+				    (char *)tinfo->key->data,
+				    (int)key.size, (char *)key.data);
 			}
 
 			testutil_check(__wt_buf_set((WT_SESSION_IMPL *)
@@ -1403,49 +1367,6 @@ order_error_row:
 			break;
 		}
 
-#ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (ret);
-
-	{
-	WT_ITEM bdb_key, bdb_value;
-	int notfound;
-	char *p;
-
-	/* Retrieve the BDB key/value. */
-	bdb_np(next, &bdb_key.data, &bdb_key.size,
-	    &bdb_value.data, &bdb_value.size, &notfound);
-	if (notfound_chk(
-	    next ? "nextprev(next)" : "nextprev(prev)", ret, notfound, keyno))
-		return (ret);
-
-	/* Compare the two. */
-	if ((g.type == ROW &&
-	    (key.size != bdb_key.size ||
-	    memcmp(key.data, bdb_key.data, key.size) != 0)) ||
-	    (g.type != ROW && keyno != (uint64_t)atoll(bdb_key.data))) {
-		fprintf(stderr, "nextprev: %s KEY mismatch:\n", which);
-		goto mismatch;
-	}
-	if (value.size != bdb_value.size ||
-	    memcmp(value.data, bdb_value.data, value.size) != 0) {
-		fprintf(stderr, "nextprev: %s VALUE mismatch:\n", which);
-mismatch:	if (g.type == ROW) {
-			print_item("bdb-key", &bdb_key);
-			print_item(" wt-key", &key);
-		} else {
-			if ((p = (char *)strchr(bdb_key.data, '.')) != NULL)
-				*p = '\0';
-			fprintf(stderr,
-			    "\t" "bdb-key %.*s != wt-key %" PRIu64 "\n",
-			    (int)bdb_key.size, (char *)bdb_key.data, keyno);
-		}
-		print_item("bdb-value", &bdb_value);
-		print_item(" wt-value", &value);
-		testutil_die(0, NULL);
-	}
-	}
-#endif
 	return (ret);
 }
 
@@ -1468,7 +1389,7 @@ row_reserve(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session,
 	    "%-10s%" PRIu64 " {%.*s}", "reserve",
-	    tinfo->keyno, (int)tinfo->key->size, tinfo->key->data);
+	    tinfo->keyno, (int)tinfo->key->size, (char *)tinfo->key->data);
 
 	return (0);
 }
@@ -1543,17 +1464,9 @@ row_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "modify",
 	    tinfo->keyno,
-	    (int)tinfo->key->size, tinfo->key->data,
-	    (int)tinfo->value->size, tinfo->value->data);
+	    (int)tinfo->key->size, (char *)tinfo->key->data,
+	    (int)tinfo->value->size, (char *)tinfo->value->data);
 
-#ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (0);
-
-	bdb_update(
-	    tinfo->key->data, tinfo->key->size,
-	    tinfo->value->data, tinfo->value->size);
-#endif
 	return (0);
 }
 
@@ -1578,17 +1491,8 @@ col_modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	testutil_check(cursor->get_value(cursor, tinfo->value));
 
 	logop(cursor->session, "%-10s%" PRIu64 ", {%.*s}", "modify",
-	    tinfo->keyno, (int)tinfo->value->size, tinfo->value->data);
+	    tinfo->keyno, (int)tinfo->value->size, (char *)tinfo->value->data);
 
-#ifdef HAVE_BERKELEY_DB
-	if (!SINGLETHREADED)
-		return (0);
-
-	key_gen(tinfo->key, tinfo->keyno);
-	bdb_update(
-	    tinfo->key->data, tinfo->key->size,
-	    tinfo->value->data, tinfo->value->size);
-#endif
 	return (0);
 }
 
@@ -1639,10 +1543,6 @@ row_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	logop(session, "%-10s%" PRIu64 ", %" PRIu64,
 	    "truncate", tinfo->keyno, tinfo->last);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED)
-		bdb_truncate(tinfo->keyno, tinfo->last);
-#endif
 	return (0);
 }
 
@@ -1688,10 +1588,6 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	logop(session,
 	    "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED)
-		bdb_truncate(tinfo->keyno, tinfo->last);
-#endif
 	return (0);
 }
 
@@ -1716,15 +1612,9 @@ row_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "update",
 	    tinfo->keyno,
-	    (int)tinfo->key->size, tinfo->key->data,
-	    (int)tinfo->value->size, tinfo->value->data);
+	    (int)tinfo->key->size, (char *)tinfo->key->data,
+	    (int)tinfo->value->size, (char *)tinfo->value->data);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED)
-		bdb_update(
-		    tinfo->key->data, tinfo->key->size,
-		    tinfo->value->data, tinfo->value->size);
-#endif
 	return (0);
 }
 
@@ -1756,14 +1646,6 @@ col_update(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 		    "update", tinfo->keyno,
 		    (int)tinfo->value->size, (char *)tinfo->value->data);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED) {
-		key_gen(tinfo->key, tinfo->keyno);
-		bdb_update(
-		    tinfo->key->data, tinfo->key->size,
-		    tinfo->value->data, tinfo->value->size);
-	}
-#endif
 	return (0);
 }
 
@@ -1892,15 +1774,9 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 	/* Log the operation */
 	logop(cursor->session, "%-10s%" PRIu64 " {%.*s}, {%.*s}", "insert",
 	    tinfo->keyno,
-	    (int)tinfo->key->size, tinfo->key->data,
-	    (int)tinfo->value->size, tinfo->value->data);
+	    (int)tinfo->key->size, (char *)tinfo->key->data,
+	    (int)tinfo->value->size, (char *)tinfo->value->data);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED)
-		bdb_update(
-		    tinfo->key->data, tinfo->key->size,
-		    tinfo->value->data, tinfo->value->size);
-#endif
 	return (0);
 }
 
@@ -1934,14 +1810,6 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 		    "insert", tinfo->keyno,
 		    (int)tinfo->value->size, (char *)tinfo->value->data);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED) {
-		key_gen(tinfo->key, tinfo->keyno);
-		bdb_update(
-		    tinfo->key->data, tinfo->key->size,
-		    tinfo->value->data, tinfo->value->size);
-	}
-#endif
 	return (0);
 }
 
@@ -1968,14 +1836,6 @@ row_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED) {
-		int notfound;
-
-		bdb_remove(tinfo->keyno, &notfound);
-		(void)notfound_chk("row_remove", ret, notfound, tinfo->keyno);
-	}
-#endif
 	return (ret);
 }
 
@@ -2000,45 +1860,5 @@ col_remove(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 
 	logop(cursor->session, "%-10s%" PRIu64, "remove", tinfo->keyno);
 
-#ifdef HAVE_BERKELEY_DB
-	if (SINGLETHREADED) {
-		int notfound;
-
-		bdb_remove(tinfo->keyno, &notfound);
-		(void)notfound_chk("col_remove", ret, notfound, tinfo->keyno);
-	}
-#endif
 	return (ret);
 }
-
-#ifdef HAVE_BERKELEY_DB
-/*
- * notfound_chk --
- *	Compare notfound returns for consistency.
- */
-static int
-notfound_chk(const char *f, int wt_ret, int bdb_notfound, uint64_t keyno)
-{
-	/* Check for not found status. */
-	if (bdb_notfound && wt_ret == WT_NOTFOUND)
-		return (1);
-
-	if (bdb_notfound) {
-		fprintf(stderr, "%s: %s:", progname, f);
-		if (keyno != 0)
-			fprintf(stderr, " row %" PRIu64 ":", keyno);
-		fprintf(stderr,
-		    " not found in Berkeley DB, found in WiredTiger\n");
-		testutil_die(0, NULL);
-	}
-	if (wt_ret == WT_NOTFOUND) {
-		fprintf(stderr, "%s: %s:", progname, f);
-		if (keyno != 0)
-			fprintf(stderr, " row %" PRIu64 ":", keyno);
-		fprintf(stderr,
-		    " found in Berkeley DB, not found in WiredTiger\n");
-		testutil_die(0, NULL);
-	}
-	return (0);
-}
-#endif
