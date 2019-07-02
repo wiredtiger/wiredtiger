@@ -44,6 +44,9 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot'
 
     def test_all_committed(self):
+        # This test was originally for testing the all_committed timestamp.
+        # In the absence of prepared transactions, all_durable is identical to
+        # all_committed so let's enforce the same values for both.
         all_committed_uri = self.uri + '_all_committed'
         session1 = self.setUpSessionOpen(self.conn)
         session2 = self.setUpSessionOpen(self.conn)
@@ -59,6 +62,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.commit_transaction()
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.conn.query_timestamp('get=all_committed'))
+        self.assertRaisesException(wiredtiger.WiredTigerError,
+            lambda: self.conn.query_timestamp('get=all_durable'))
 
         # Scenario 1: A single transaction with a commit timestamp, will
         # result in the all_committed timestamp being set.
@@ -67,6 +72,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.commit_transaction('commit_timestamp=1')
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "1")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "1")
 
         # Scenario 2: A transaction begins and specifies that it intends
         # to commit at timestamp 2, a second transaction begins and commits
@@ -83,6 +90,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # timestamp is being held at 1.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "1")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "1")
         cur1[1] = 2
         session1.commit_transaction()
 
@@ -91,6 +100,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # a greater timestamp already existing.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "3")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "3")
 
         # Senario 3: Commit with a commit timestamp of 5 and then begin a
         # transaction intending to commit at 4, the all_committed timestamp
@@ -100,6 +111,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.commit_transaction('commit_timestamp=5')
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "5")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "5")
 
         session1.begin_transaction()
         # All committed will now move back to 3 as it is the point at which
@@ -108,6 +121,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "3")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "3")
 
         session1.commit_transaction()
 
@@ -115,6 +130,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # all committed timestamp is back at 5.
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "5")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "5")
 
         # Scenario 4: Holding a transaction open without a commit timestamp
         # Will not affect the all_committed timestamp.
@@ -125,6 +142,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_committed'), "6")
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), "6")
         cur1[1] = 2
         session1.commit_transaction()
 

@@ -2609,9 +2609,9 @@ struct __wt_connection {
 	 * taken prior to a shutdown and \c stable returns the most recent \c
 	 * stable_timestamp set with WT_CONNECTION::set_timestamp.  See @ref
 	 * transaction_timestamps., a string\, chosen from the following
-	 * options: \c "all_committed"\, \c "last_checkpoint"\, \c "oldest"\, \c
-	 * "oldest_reader"\, \c "pinned"\, \c "recovery"\, \c "stable"; default
-	 * \c all_committed.}
+	 * options: \c "all_committed"\, \c "all_durable"\, \c
+	 * "last_checkpoint"\, \c "oldest"\, \c "oldest_reader"\, \c "pinned"\,
+	 * \c "recovery"\, \c "stable"; default \c all_committed.}
 	 * @configend
 	 * @errors
 	 * If there is no matching timestamp (e.g., if this method is called

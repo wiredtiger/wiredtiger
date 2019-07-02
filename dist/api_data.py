@@ -1569,7 +1569,7 @@ methods = {
         stable checkpoint taken prior to a shutdown and \c stable returns the
         most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
         See @ref transaction_timestamps''',
-        choices=['all_committed','last_checkpoint',
+        choices=['all_committed','all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 

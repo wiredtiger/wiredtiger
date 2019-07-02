@@ -279,18 +279,52 @@ __txn_global_query_timestamp(
 		ts = txn_global->durable_timestamp;
 		WT_ASSERT(session, ts != 0);
 
+		/*
+		 * Skip straight to the commit queue if no running transactions
+		 * have an explicit durable timestamp.
+		 */
+		if (!TAILQ_EMPTY(&txn_global->durable_timestamph)) {
+			/*
+			 * Compare with the least recently durable transaction.
+			 */
+			__wt_readlock(
+			    session, &txn_global->durable_timestamp_rwlock);
+			TAILQ_FOREACH(txn, &txn_global->durable_timestamph,
+			    durable_timestampq) {
+				if (txn->clear_durable_q)
+					continue;
+
+				tmpts = txn->durable_timestamp;
+				WT_ASSERT(session, tmpts != 0);
+				tmpts -= 1;
+
+				if (tmpts < ts)
+					ts = tmpts;
+				break;
+			}
+			__wt_readunlock(
+			    session, &txn_global->durable_timestamp_rwlock);
+		}
+
 		/* Skip the lock if there are no running transactions. */
-		if (TAILQ_EMPTY(&txn_global->durable_timestamph))
+		if (TAILQ_EMPTY(&txn_global->commit_timestamph))
 			goto done;
 
-		/* Compare with the least recently durable transaction. */
-		__wt_readlock(session, &txn_global->durable_timestamp_rwlock);
-		TAILQ_FOREACH(txn, &txn_global->durable_timestamph,
-		    durable_timestampq) {
-			if (txn->clear_durable_q)
+		/* Compare with the least recently committed transaction. */
+		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
+		TAILQ_FOREACH(txn, &txn_global->commit_timestamph,
+		    commit_timestampq) {
+			if (txn->clear_commit_q)
+				continue;
+			/*
+			 * We've already checked durable timestamps above. Now
+			 * we're specifically interested in transactions with a
+			 * commit timestamp but no durable timestamp.
+			 */
+			if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
 				continue;
 
-			tmpts = txn->durable_timestamp;
+			tmpts = txn->commit_timestamp;
 			WT_ASSERT(session, tmpts != 0);
 			tmpts -= 1;
 
@@ -298,7 +332,7 @@ __txn_global_query_timestamp(
 				ts = tmpts;
 			break;
 		}
-		__wt_readunlock(session, &txn_global->durable_timestamp_rwlock);
+		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
 
 		/*
 		 * If a transaction is committing with a durable timestamp of 1,

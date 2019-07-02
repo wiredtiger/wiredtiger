@@ -801,12 +801,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_TXN_GLOBAL *txn_global;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	wt_timestamp_t prev_commit_timestamp, prev_durable_timestamp;
+	wt_timestamp_t candidate_durable_timestamp, prev_commit_timestamp;
+	wt_timestamp_t prev_durable_timestamp;
 	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
-	bool locked, prepare, readonly, skip_update_assert, update_commit_ts;
-	bool update_durable_ts;
+	bool has_commit_ts, has_durable_ts, locked, prepare, readonly;
+	bool skip_update_assert, update_commit_ts, update_durable_ts;
 
 	txn = &session->txn;
 	conn = S2C(session);
@@ -1036,8 +1037,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * That said, we can't update the global commit timestamp until this
 	 * transaction is visible, which happens when we release it.
 	 */
-	update_commit_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
-	update_durable_ts = F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+	update_commit_ts = has_commit_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
+	has_durable_ts = F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
 
 	__wt_txn_release(session);
 	if (locked)
@@ -1071,11 +1072,23 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			prev_commit_timestamp = txn_global->commit_timestamp;
 		}
 
+	/*
+	 * If durable is set, we'll try to update the global durable timestamp
+	 * with that value. If durable isn't set, durable is implied to be the
+	 * the same as commit so we'll use that instead.
+	 */
+	candidate_durable_timestamp = 0;
+	if (has_durable_ts)
+		candidate_durable_timestamp = txn->durable_timestamp;
+	else if (has_commit_ts)
+		candidate_durable_timestamp = txn->commit_timestamp;
+
 	/* First check if we've made something durable in the future. */
-	if (update_durable_ts) {
+	update_durable_ts = false;
+	if (candidate_durable_timestamp != 0) {
 		prev_durable_timestamp = txn_global->durable_timestamp;
 		update_durable_ts =
-		    txn->durable_timestamp > prev_durable_timestamp;
+		    candidate_durable_timestamp > prev_durable_timestamp;
 	}
 
 	/*
@@ -1083,9 +1096,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * write lock and re-check.
 	 */
 	if (update_durable_ts) {
-		while (txn->durable_timestamp > prev_durable_timestamp) {
+		while (candidate_durable_timestamp > prev_durable_timestamp) {
 			if (__wt_atomic_cas64(&txn_global->durable_timestamp,
-			    prev_durable_timestamp, txn->durable_timestamp)) {
+			    prev_durable_timestamp,
+			    candidate_durable_timestamp)) {
 				txn_global->has_durable_timestamp = true;
 				break;
 			}
