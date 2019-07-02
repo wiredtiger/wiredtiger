@@ -242,9 +242,6 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 	/* Start the handle sweep thread. */
 	WT_RET(__wt_sweep_create(session));
 
-	/* Start the optional async threads. */
-	WT_RET(__wt_async_create(session, cfg));
-
 	/* Start the optional capacity thread. */
 	WT_RET(__wt_capacity_server_create(session, cfg));
 
