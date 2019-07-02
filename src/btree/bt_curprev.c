@@ -46,8 +46,11 @@ restart:
 	/*
 	 * If the search stack does not point at the current item, fill it in
 	 * with a search.
+	 *
+	 * current pointer is not NULL, when it enters into the loop, but
+	 * Coverity is unconvinced; a test for NULL check isn't a bad idea.
 	 */
-	while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
+	while (((current = cbt->ins) != PREV_INS(cbt, 0)) && (current != NULL)) {
 		if (cbt->btree->type == BTREE_ROW) {
 			key.data = WT_INSERT_KEY(current);
 			key.size = WT_INSERT_KEY_SIZE(current);
