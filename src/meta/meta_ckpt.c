@@ -274,7 +274,8 @@ __wt_meta_block_metadata(
 		metadata = min_config;
 		metadata_len = strlen(min_config);
 	} else {
-		__wt_buf_set(session, a, min_config, strlen(min_config));
+		WT_ERR(__wt_buf_set(
+		    session, a, min_config, strlen(min_config)));
 		__wt_encrypt_size(session, kencryptor, a->size, &encrypt_size);
 		WT_ERR(__wt_buf_grow(session, b, encrypt_size));
 		WT_ERR(__wt_encrypt(session, kencryptor, 0, a, b));
@@ -350,8 +351,12 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
 	    __wt_config_getones(session, config, "checkpoint", &v)) == 0) {
 		__wt_config_subinit(session, &ckptconf, &v);
 		for (; __wt_config_next(&ckptconf, &k, &v) == 0; ++slot) {
+			/*
+			 * Allocate a slot for a new value, plus a slot to mark
+			 * the end.
+			 */
 			WT_ERR(__wt_realloc_def(
-			    session, &allocated, slot + 1, &ckptbase));
+			    session, &allocated, slot + 2, &ckptbase));
 			ckpt = &ckptbase[slot];
 
 			WT_ERR(__ckpt_load(session, &k, &v, ckpt));
@@ -366,9 +371,6 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
 
 	if (update) {
 		/*
-		 * Allocate an extra slot for a new value, plus a slot to mark
-		 * mark the end.
-		 *
 		 * This isn't clean, but there's necessary cooperation between
 		 * the schema layer (that maintains the list of checkpoints),
 		 * the btree layer (that knows when the root page is written,
@@ -376,6 +378,8 @@ __wt_meta_ckptlist_get(WT_SESSION_IMPL *session,
 		 * actually creates the checkpoint). All of that cooperation is
 		 * handled in the array of checkpoint structures referenced from
 		 * the WT_BTREE structure.
+		 *
+		 * Allocate a slot for a new value, plus a slot to mark the end.
 		 */
 		WT_ERR(__wt_realloc_def(
 		    session, &allocated, slot + 2, &ckptbase));

@@ -104,8 +104,8 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, const char * const suffix)
 	len = 13;
 
 	/*
-	 * In a column-store, the key is only used for Berkeley DB inserts,
-	 * and so it doesn't need a random length.
+	 * In a column-store, the key isn't used, it doesn't need a random
+	 * length.
 	 */
 	if (g.type == ROW) {
 		p[len] = '/';
@@ -277,15 +277,16 @@ track(const char *tag, uint64_t cnt, TINFO *tinfo)
 
 	if (tinfo == NULL && cnt == 0)
 		testutil_check(__wt_snprintf_len_set(
-		    msg, sizeof(msg), &len, "%4d: %s", g.run_cnt, tag));
+		    msg, sizeof(msg), &len,
+		    "%4" PRIu32 ": %s", g.run_cnt, tag));
 	else if (tinfo == NULL)
 		testutil_check(__wt_snprintf_len_set(
 		    msg, sizeof(msg), &len,
-		    "%4d: %s: %" PRIu64, g.run_cnt, tag, cnt));
+		    "%4" PRIu32 ": %s: %" PRIu64, g.run_cnt, tag, cnt));
 	else
 		testutil_check(__wt_snprintf_len_set(
 		    msg, sizeof(msg), &len,
-		    "%4d: %s: "
+		    "%4" PRIu32 ": %s: "
 		    "search %" PRIu64 "%s, "
 		    "insert %" PRIu64 "%s, "
 		    "update %" PRIu64 "%s, "
@@ -347,15 +348,9 @@ path_setup(const char *home)
 	testutil_check(__wt_snprintf(
 	    g.home_stats, len, "%s/%s", g.home, "stats"));
 
-	/* BDB directory. */
-	len = strlen(g.home) + strlen("bdb") + 2;
-	g.home_bdb = dmalloc(len);
-	testutil_check(__wt_snprintf(g.home_bdb, len, "%s/%s", g.home, "bdb"));
-
 	/*
 	 * Home directory initialize command: create the directory if it doesn't
-	 * exist, else remove everything except the RNG log file, create the KVS
-	 * subdirectory.
+	 * exist, else remove everything except the RNG log file.
 	 *
 	 * Redirect the "cd" command to /dev/null so chatty cd implementations
 	 * don't add the new working directory to our output.
@@ -365,16 +360,14 @@ path_setup(const char *home)
 #define	CMD  "del /q rand.copy & " \
 	     "(IF EXIST %s\\rand copy /y %s\\rand rand.copy) & "	\
 	     "(IF EXIST %s rd /s /q %s) & mkdir %s & "			\
-	     "(IF EXIST rand.copy copy rand.copy %s\\rand) & " \
-	     "cd %s & mkdir KVS"
+	     "(IF EXIST rand.copy copy rand.copy %s\\rand)"
 	len = strlen(g.home) * 7 + strlen(CMD) + 1;
 	g.home_init = dmalloc(len);
 	testutil_check(__wt_snprintf(g.home_init, len, CMD,
 	    g.home, g.home, g.home, g.home, g.home, g.home, g.home));
 #else
 #define	CMD	"test -e %s || mkdir %s; "				\
-		"cd %s > /dev/null && rm -rf `ls | sed /rand/d`; "	\
-		"mkdir KVS"
+		"cd %s > /dev/null && rm -rf `ls | sed /rand/d`"
 	len = strlen(g.home) * 3 + strlen(CMD) + 1;
 	g.home_init = dmalloc(len);
 	testutil_check(__wt_snprintf(
@@ -535,7 +528,7 @@ checkpoint(void *arg)
 		 */
 		ckpt_config = NULL;
 		backup_locked = false;
-		if (!DATASOURCE("kvsbdb") && !DATASOURCE("lsm"))
+		if (!DATASOURCE("lsm"))
 			switch (mmrand(NULL, 1, 20)) {
 			case 1:
 				/*
