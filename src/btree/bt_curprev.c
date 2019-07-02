@@ -47,7 +47,8 @@ restart:
 	 * If the search stack does not point at the current item, fill it in
 	 * with a search.
 	 */
-	while (((current = cbt->ins) != PREV_INS(cbt, 0)) && (current != NULL)) {
+	while (((current = cbt->ins) != PREV_INS(cbt, 0)) &&
+	    (current != NULL)) {
 		if (cbt->btree->type == BTREE_ROW) {
 			key.data = WT_INSERT_KEY(current);
 			key.size = WT_INSERT_KEY_SIZE(current);
