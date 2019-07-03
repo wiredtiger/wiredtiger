@@ -100,6 +100,9 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
 		testutil_check(__wt_snprintf(tofile, sizeof(tofile),
 		    "%s/%s", todir, dp->d_name));
 		rfd = open(fromfile, O_RDONLY | openflags, 0);
+		if (rfd < 0)
+			fprintf(stderr, "Open of %s failed with %d\n",
+			    fromfile, errno);
 		testutil_assert(rfd >= 0);
 		wfd = open(tofile, O_WRONLY | O_CREAT, 0666);
 		testutil_assert(wfd >= 0);
