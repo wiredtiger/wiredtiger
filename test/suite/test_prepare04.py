@@ -96,8 +96,8 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         c.set_value(2)
         c.update()
         self.session.prepare_transaction('prepare_timestamp=' + self.prepare_ts)
-        conflictmsg = "WT_ROLLBACK: conflict between concurrent operations"
-        preparemsg = "WT_PREPARE_CONFLICT: conflict with a prepared update"
+        conflictmsg = '/conflict between concurrent operations/'
+        preparemsg = '/conflict with a prepared update/'
 
         #'''
         # Verify data visibility from a different session/transaction.
@@ -106,7 +106,7 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         s_other.begin_transaction(self.txn_config + self.ignore_config)
         c_other.set_key(1)
         if self.ignore == False and self.after_ts == True:
-            # WT_PREPARE_CONFLICT error returned when a read encounters a prepared transaction update
+            # Make sure we get the expected prepare conflict message.
             self.assertRaisesException(wiredtiger.WiredTigerError, lambda:c_other.search(), preparemsg)
         else:
             c_other.search()
@@ -114,7 +114,7 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
 
         c_other.set_value(3)
 
-        # WT_ROLLBACK error returned due to conflict with concurrent operations
+        # Make sure we detect the conflict between operations.
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda:c_other.update(), conflictmsg)
         s_other.commit_transaction()
 
