@@ -90,11 +90,11 @@
  */
 
 #define	WT_ATOMIC_CAS(ptr, oldp, new)					\
-	__atomic_compare_exchange_n(						\
+	__atomic_compare_exchange_n(					\
 	    ptr, oldp, new, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define	WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, new_arg) \
+#define	WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, new_arg)		\
 static inline bool							\
-__wt_atomic_cas##name(vp_arg, old_arg, new_arg)			\
+__wt_atomic_cas##name(vp_arg, old_arg, new_arg)				\
 {									\
 	return (WT_ATOMIC_CAS(vp, &old, new));				\
 }
