@@ -1313,7 +1313,7 @@ __evict_lru_walk(WT_SESSION_IMPL *session)
 		__evict_list_clear(session, &queue->evict_queue[--entries]);
 
 	queue->evict_entries = entries;
-	WT_STAT_CONN_SET(
+	WT_STAT_CONN_INCRV(
 	    session, cache_eviction_pages_queued_post_lru, entries);
 
 	if (entries == 0) {
