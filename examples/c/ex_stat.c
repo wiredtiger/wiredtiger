@@ -179,7 +179,7 @@ print_derived_stats(WT_SESSION *session)
 	percent = 0;
 	if (file_size != 0)
 		percent = 100 * ((file_size - ckpt_size) / file_size);
-	printf("Table is %" PRIu64 "%% fragmented\n", percent);
+	printf("Table is %" PRId64 "%% fragmented\n", percent);
 	/*! [statistics calculate table fragmentation] */
 	}
 
