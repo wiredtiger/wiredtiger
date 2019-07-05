@@ -189,8 +189,7 @@ __wt_lsm_manager_reconfig(WT_SESSION_IMPL *session, const char **cfg)
 
 /*
  * __wt_lsm_manager_start --
- *	Start the LSM management infrastructure. Our queues and locks were
- *	initialized when the connection was initialized.
+ *	Start the LSM management infrastructure.
  */
 int
 __wt_lsm_manager_start(WT_SESSION_IMPL *session)
@@ -219,6 +218,16 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 
 	/* We need at least a manager, a switch thread and a generic worker. */
 	WT_ASSERT(session, manager->lsm_workers_max > 2);
+
+	/* Allocate serialization resources. */
+	WT_ERR(__wt_spin_init(session,
+	    &manager->switch_lock, "LSM switch queue lock"));
+	WT_ERR(__wt_spin_init(session,
+	    &manager->app_lock, "LSM application queue lock"));
+	WT_ERR(__wt_spin_init(session,
+	    &manager->manager_lock, "LSM manager queue lock"));
+	WT_ERR(__wt_cond_alloc(session,
+	    "LSM worker cond", &manager->work_cond));
 
 	/*
 	 * Open sessions for all potential worker threads here - it's not
@@ -339,7 +348,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
 	}
 	WT_STAT_CONN_INCRV(session, lsm_work_units_discarded, removed);
 
-	/* Free resources that are allocated in connection initialize */
+	/* Free serialization resources. */
 	__wt_spin_destroy(session, &manager->switch_lock);
 	__wt_spin_destroy(session, &manager->app_lock);
 	__wt_spin_destroy(session, &manager->manager_lock);

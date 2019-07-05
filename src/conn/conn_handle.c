@@ -65,16 +65,6 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
 	WT_RET(__wt_rwlock_init(session, &conn->hot_backup_lock));
 	WT_RWLOCK_INIT_TRACKED(session, &conn->table_lock, table);
 
-	/* Setup the spin locks for the LSM manager queues. */
-	WT_RET(__wt_spin_init(session,
-	    &conn->lsm_manager.app_lock, "LSM application queue lock"));
-	WT_RET(__wt_spin_init(session,
-	    &conn->lsm_manager.manager_lock, "LSM manager queue lock"));
-	WT_RET(__wt_spin_init(
-	    session, &conn->lsm_manager.switch_lock, "LSM switch queue lock"));
-	WT_RET(__wt_cond_alloc(
-	    session, "LSM worker cond", &conn->lsm_manager.work_cond));
-
 	/* Initialize the generation manager. */
 	__wt_gen_init(session);
 
