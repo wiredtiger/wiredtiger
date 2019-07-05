@@ -330,7 +330,7 @@ __wt_hazard_check(WT_SESSION_IMPL *session,
 
 	/* If a file can never be evicted, hazard pointers aren't required. */
 	if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-		return (0);
+		return (NULL);
 
 	conn = S2C(session);
 
@@ -415,10 +415,6 @@ __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
 	WT_HAZARD *hp;
 	WT_SESSION_IMPL *s;
 	int i;
-
-	/* If a file can never be evicted, hazard pointers aren't required. */
-	if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
-		return (0);
 
 	s = NULL;
 	for (i = 0;;) {
