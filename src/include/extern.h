@@ -36,7 +36,7 @@ extern int __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CUR
 extern int __wt_async_create(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_async_destroy(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_async_flush(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_async_new_op(WT_SESSION_IMPL *session, const char *uri, const char *config, const char *cfg[], WT_ASYNC_CALLBACK *cb, WT_ASYNC_OP_IMPL **opp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_async_new_op(WT_SESSION_IMPL *session, const char *uri, const char *config, WT_ASYNC_CALLBACK *cb, WT_ASYNC_OP_IMPL **opp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_async_op_enqueue(WT_SESSION_IMPL *session, WT_ASYNC_OP_IMPL *op) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_async_op_init(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_async_reconfig(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
