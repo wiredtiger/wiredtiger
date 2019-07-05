@@ -94,7 +94,8 @@ __txn_op_log(WT_SESSION_IMPL *session, WT_ITEM *logrec,
 			WT_RET(__wt_logop_row_remove_pack(
 			    session, logrec, fileid, &cursor->key));
 			break;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 	} else {
 		recno = WT_INSERT_RECNO(cbt->ins);
@@ -113,7 +114,8 @@ __txn_op_log(WT_SESSION_IMPL *session, WT_ITEM *logrec,
 			WT_RET(__wt_logop_col_remove_pack(
 			    session, logrec, fileid, recno));
 			break;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 	}
 

@@ -928,7 +928,7 @@ __wt_txn_op_printlog(WT_SESSION_IMPL *session,
 		WT_RET(__wt_logop_txn_timestamp_print(session, pp, end, args));
 		break;
 
-	WT_ILLEGAL_VALUE(session, optype);
+	return (__wt_illegal_value(session, optype));
 	}
 
 	return (0);

@@ -454,7 +454,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref,
 		}
 
 		break;
-	WT_ILLEGAL_VALUE(session, mod->rec_result);
+	default:
+		return (__wt_illegal_value(session, mod->rec_result));
 	}
 
 	return (0);

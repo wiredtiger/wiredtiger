@@ -837,7 +837,8 @@ skip_evict:		/*
 			return (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE) &&
 			    !F_ISSET(session, WT_SESSION_IGNORE_CACHE_SIZE) ?
 			    0 : __wt_txn_autocommit_check(session));
-		WT_ILLEGAL_VALUE(session, current_state);
+		default:
+			return (__wt_illegal_value(session, current_state));
 		}
 
 		/*

@@ -497,7 +497,8 @@ __wt_cursor_key_order_check(
 		return (__cursor_key_order_check_col(session, cbt, next));
 	case WT_PAGE_ROW_LEAF:
 		return (__cursor_key_order_check_row(session, cbt, next));
-	WT_ILLEGAL_VALUE(session, cbt->ref->page->type);
+	default:
+		return (__wt_illegal_value(session, cbt->ref->page->type));
 	}
 	/* NOTREACHED */
 }
@@ -522,7 +523,8 @@ __wt_cursor_key_order_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	case WT_PAGE_ROW_LEAF:
 		return (__wt_buf_set(session,
 		    cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
-	WT_ILLEGAL_VALUE(session, cbt->ref->page->type);
+	default:
+		return (__wt_illegal_value(session, cbt->ref->page->type));
 	}
 	/* NOTREACHED */
 }

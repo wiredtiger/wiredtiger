@@ -657,7 +657,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			continue;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 
 		/* Build key cell. */

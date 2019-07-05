@@ -130,7 +130,8 @@ __stat_page(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **stats)
 	case WT_PAGE_ROW_LEAF:
 		__stat_page_row_leaf(session, page, stats);
 		break;
-	WT_ILLEGAL_VALUE(session, page->type);
+	default:
+		return (__wt_illegal_value(session, page->type));
 	}
 	return (0);
 }

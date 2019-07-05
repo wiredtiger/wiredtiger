@@ -101,9 +101,6 @@
 	__wt_illegal_value_func(session, (uintmax_t)(v), __func__, __LINE__)
 
 /* Return and branch-to-err-label cases for switch statements. */
-#define	WT_ILLEGAL_VALUE(session, v)					\
-	default:							\
-		return (__wt_illegal_value(session, v))
 #define	WT_ILLEGAL_VALUE_ERR(session, v)				\
 	default:							\
 		ret = __wt_illegal_value(session, v);			\
