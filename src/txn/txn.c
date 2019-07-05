@@ -1040,6 +1040,17 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	update_commit_ts = has_commit_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
 	has_durable_ts = F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
 
+	/*
+	 * If durable is set, we'll try to update the global durable timestamp
+	 * with that value. If durable isn't set, durable is implied to be the
+	 * the same as commit so we'll use that instead.
+	 */
+	candidate_durable_timestamp = 0;
+	if (has_durable_ts)
+		candidate_durable_timestamp = txn->durable_timestamp;
+	else if (has_commit_ts)
+		candidate_durable_timestamp = txn->commit_timestamp;
+
 	__wt_txn_release(session);
 	if (locked)
 		__wt_readunlock(session, &txn_global->visibility_rwlock);
@@ -1072,19 +1083,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 			prev_commit_timestamp = txn_global->commit_timestamp;
 		}
 
-	/*
-	 * If durable is set, we'll try to update the global durable timestamp
-	 * with that value. If durable isn't set, durable is implied to be the
-	 * the same as commit so we'll use that instead.
-	 */
-	candidate_durable_timestamp = 0;
-	if (has_durable_ts)
-		candidate_durable_timestamp = txn->durable_timestamp;
-	else if (has_commit_ts)
-		candidate_durable_timestamp = txn->commit_timestamp;
-
 	/* First check if we've made something durable in the future. */
 	update_durable_ts = false;
+	prev_durable_timestamp = 0;
 	if (candidate_durable_timestamp != 0) {
 		prev_durable_timestamp = txn_global->durable_timestamp;
 		update_durable_ts =

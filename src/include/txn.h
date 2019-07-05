@@ -320,7 +320,8 @@ struct __wt_txn {
 	TAILQ_ENTRY(__wt_txn) durable_timestampq;
 	bool clear_commit_q;	/* Set if need to clear from the commit queue */
 	bool clear_read_q;	/* Set if need to clear from the read queue */
-	bool clear_durable_q; /* Set if need to clear from the durable queue */
+	/* Set if need to clear from the durable queue */
+	bool clear_durable_q;
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;

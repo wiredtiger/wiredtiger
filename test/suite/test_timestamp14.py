@@ -257,6 +257,72 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # Pinned timestamp should now match oldest timestamp.
         self.assertTimestampsEqual(self.conn.query_timestamp('get=pinned'), '8')
 
+    def test_all_durable(self):
+        all_durable_uri = self.uri + '_all_durable'
+        session1 = self.setUpSessionOpen(self.conn)
+        session1.create(all_durable_uri, 'key_format=i,value_format=i')
+
+        # Since this is a non-prepared transaction, we'll be using the commit
+        # timestamp when calculating all_durable since it's implied that they're
+        # the same thing.
+        session1.begin_transaction()
+        cur1 = session1.open_cursor(all_durable_uri)
+        cur1[1] = 1
+        session1.commit_transaction('commit_timestamp=3')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), '3')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '3')
+
+        # We have a running transaction with a lower commit_timestamp than we've
+        # seen before. So all_durable (like all_committed) should return (lowest
+        # commit timestamp - 1).
+        session1.begin_transaction()
+        cur1[1] = 2
+        session1.timestamp_transaction('commit_timestamp=2')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), '1')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '1')
+        session1.commit_transaction()
+
+        # After committing, go back to the value we saw previously.
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), '3')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '3')
+
+        # For prepared transactions, we take into account the durable timestamp
+        # when calculating all_durable.
+        session1.begin_transaction()
+        cur1[1] = 3
+        session1.prepare_transaction('prepare_timestamp=6')
+        session1.timestamp_transaction('commit_timestamp=7')
+        session1.timestamp_transaction('durable_timestamp=8')
+        session1.commit_transaction()
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), '7')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '8')
+
+        # All durable moves back when we have a running prepared transaction
+        # with a lower durable timestamp than has previously been committed.
+        session1.begin_transaction()
+        cur1[1] = 4
+        session1.prepare_transaction('prepare_timestamp=3')
+        session1.timestamp_transaction('commit_timestamp=4')
+        session1.timestamp_transaction('durable_timestamp=5')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), '3')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '4')
+        session1.commit_transaction()
+
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_committed'), '7')
+        self.assertTimestampsEqual(
+            self.conn.query_timestamp('get=all_durable'), '8')
+
     def test_all(self):
         all_uri = self.uri + 'pinned_oldest'
         session1 = self.setUpSessionOpen(self.conn)
