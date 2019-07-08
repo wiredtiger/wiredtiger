@@ -816,10 +816,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: cache overflow table on-disk size",
 	"cache: cache overflow table remove calls",
 	"cache: checkpoint blocked page eviction",
-	"cache: clean pages forcibly evicted count",
-	"cache: clean pages forcibly evicted time (usecs)",
-	"cache: dirty pages forcibly evicted count",
-	"cache: dirty pages forcibly evicted time (usecs)",
 	"cache: eviction calls to get a page",
 	"cache: eviction calls to get a page found queue empty",
 	"cache: eviction calls to get a page found queue empty after locking",
@@ -852,6 +848,13 @@ static const char * const __stats_connection_desc[] = {
 	"cache: files with active eviction walks",
 	"cache: files with new eviction walks started",
 	"cache: force re-tuning of eviction workers once in a while",
+	"cache: forced eviction - pages evicted that were clean count",
+	"cache: forced eviction - pages evicted that were clean time (usecs)",
+	"cache: forced eviction - pages evicted that were dirty count",
+	"cache: forced eviction - pages evicted that were dirty time (usecs)",
+	"cache: forced eviction - pages selected because of too many deleted items count",
+	"cache: forced eviction - pages selected count",
+	"cache: forced eviction - pages selected unable to be evicted count",
 	"cache: hazard pointer blocked page eviction",
 	"cache: hazard pointer check calls",
 	"cache: hazard pointer check entries walked",
@@ -885,9 +888,6 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages requested from the cache",
 	"cache: pages seen by eviction walk",
 	"cache: pages selected for eviction unable to be evicted",
-	"cache: pages selected for forced eviction because of too many deleted items count",
-	"cache: pages selected for forced eviction count",
-	"cache: pages selected for forced eviction unable to be evicted count",
 	"cache: pages walked for eviction",
 	"cache: pages written from cache",
 	"cache: pages written requiring in-memory restoration",
@@ -1254,10 +1254,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_lookaside_ondisk */
 	stats->cache_lookaside_remove = 0;
 	stats->cache_eviction_checkpoint = 0;
-	stats->cache_eviction_force_clean = 0;
-	stats->cache_eviction_force_clean_time = 0;
-	stats->cache_eviction_force_dirty = 0;
-	stats->cache_eviction_force_dirty_time = 0;
 	stats->cache_eviction_get_ref = 0;
 	stats->cache_eviction_get_ref_empty = 0;
 	stats->cache_eviction_get_ref_empty2 = 0;
@@ -1290,6 +1286,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 		/* not clearing cache_eviction_walks_active */
 	stats->cache_eviction_walks_started = 0;
 	stats->cache_eviction_force_retune = 0;
+	stats->cache_eviction_force_clean = 0;
+	stats->cache_eviction_force_clean_time = 0;
+	stats->cache_eviction_force_dirty = 0;
+	stats->cache_eviction_force_dirty_time = 0;
+	stats->cache_eviction_force_delete = 0;
+	stats->cache_eviction_force = 0;
+	stats->cache_eviction_force_fail = 0;
 	stats->cache_eviction_hazard = 0;
 	stats->cache_hazard_checks = 0;
 	stats->cache_hazard_walks = 0;
@@ -1323,9 +1326,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_pages_requested = 0;
 	stats->cache_eviction_pages_seen = 0;
 	stats->cache_eviction_fail = 0;
-	stats->cache_eviction_force_delete = 0;
-	stats->cache_eviction_force = 0;
-	stats->cache_eviction_force_fail = 0;
 	stats->cache_eviction_walk = 0;
 	stats->cache_write = 0;
 	stats->cache_write_restore = 0;
@@ -1685,14 +1685,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_lookaside_remove);
 	to->cache_eviction_checkpoint +=
 	    WT_STAT_READ(from, cache_eviction_checkpoint);
-	to->cache_eviction_force_clean +=
-	    WT_STAT_READ(from, cache_eviction_force_clean);
-	to->cache_eviction_force_clean_time +=
-	    WT_STAT_READ(from, cache_eviction_force_clean_time);
-	to->cache_eviction_force_dirty +=
-	    WT_STAT_READ(from, cache_eviction_force_dirty);
-	to->cache_eviction_force_dirty_time +=
-	    WT_STAT_READ(from, cache_eviction_force_dirty_time);
 	to->cache_eviction_get_ref +=
 	    WT_STAT_READ(from, cache_eviction_get_ref);
 	to->cache_eviction_get_ref_empty +=
@@ -1755,6 +1747,19 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, cache_eviction_walks_started);
 	to->cache_eviction_force_retune +=
 	    WT_STAT_READ(from, cache_eviction_force_retune);
+	to->cache_eviction_force_clean +=
+	    WT_STAT_READ(from, cache_eviction_force_clean);
+	to->cache_eviction_force_clean_time +=
+	    WT_STAT_READ(from, cache_eviction_force_clean_time);
+	to->cache_eviction_force_dirty +=
+	    WT_STAT_READ(from, cache_eviction_force_dirty);
+	to->cache_eviction_force_dirty_time +=
+	    WT_STAT_READ(from, cache_eviction_force_dirty_time);
+	to->cache_eviction_force_delete +=
+	    WT_STAT_READ(from, cache_eviction_force_delete);
+	to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
+	to->cache_eviction_force_fail +=
+	    WT_STAT_READ(from, cache_eviction_force_fail);
 	to->cache_eviction_hazard +=
 	    WT_STAT_READ(from, cache_eviction_hazard);
 	to->cache_hazard_checks += WT_STAT_READ(from, cache_hazard_checks);
@@ -1808,11 +1813,6 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_pages_seen +=
 	    WT_STAT_READ(from, cache_eviction_pages_seen);
 	to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
-	to->cache_eviction_force_delete +=
-	    WT_STAT_READ(from, cache_eviction_force_delete);
-	to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
-	to->cache_eviction_force_fail +=
-	    WT_STAT_READ(from, cache_eviction_force_fail);
 	to->cache_eviction_walk += WT_STAT_READ(from, cache_eviction_walk);
 	to->cache_write += WT_STAT_READ(from, cache_write);
 	to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
