@@ -13,7 +13,7 @@
 static inline WT_INSERT *
 __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-	WT_INSERT *ins, **insp;
+	WT_INSERT *ins, **insp, *local_ins;
 	int i;
 
 	/* If there's no insert chain to search, we're done. */
@@ -30,9 +30,11 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 */
 	ins = NULL;
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
-		if (*insp != NULL && recno >= WT_INSERT_RECNO(*insp)) {
-			ins = *insp;	/* GTE: keep going at this level */
-			insp = &(*insp)->next[i];
+		if ((local_ins = *insp) != NULL &&
+		    recno >= WT_INSERT_RECNO(*insp)) {
+			/* GTE: keep going at this level */
+			ins = local_ins;
+			insp = &local_ins->next[i];
 		} else {
 			--i;		/* LT: drop down a level */
 			--insp;
@@ -63,7 +65,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 static inline WT_INSERT *
 __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-	WT_INSERT *ins, **insp;
+	WT_INSERT *ins, **insp, *local_ins;
 	int i;
 
 	/* If there's no insert chain to search, we're done. */
@@ -79,9 +81,11 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 * go as far as possible at each level before stepping down to the next.
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
-		if (*insp != NULL && recno > WT_INSERT_RECNO(*insp)) {
-			ins = *insp;	/* GT: keep going at this level */
-			insp = &(*insp)->next[i];
+		if ((local_ins = *insp) != NULL &&
+		    recno > WT_INSERT_RECNO(*insp)) {
+			/* GT: keep going at this level */
+			ins = local_ins;
+			insp = &local_ins->next[i];
 		} else  {
 			--i;		/* LTE: drop down a level */
 			--insp;
@@ -116,17 +120,16 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 * go as far as possible at each level before stepping down to the next.
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0; ) {
-		if (*insp == NULL) {
+		/*
+		 * Use a local variable to access the insert because the skip
+		 * list can change across references.
+		 */
+		if ((ret_ins = *insp) == NULL) {
 			--i;
 			--insp;
 			continue;
 		}
 
-		/*
-		 * Use a local variable to access the insert because the skip
-		 * list can change across references.
-		 */
-		ret_ins = *insp;
 		ins_recno = WT_INSERT_RECNO(ret_ins);
 		cmp = (recno == ins_recno) ? 0 : (recno < ins_recno) ? -1 : 1;
 
