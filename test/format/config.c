@@ -135,8 +135,8 @@ config_setup(void)
 
 	/*
 	 * Build the top-level object name: we're overloading data_source in
-	 * our configuration, LSM or KVS devices are "tables", but files are
-	 * tested as well.
+	 * our configuration, LSM objects are "tables", but files are tested
+	 * as well.
 	 */
 	g.uri = dmalloc(256);
 	strcpy(g.uri, DATASOURCE("file") ? "file:" : "table:");
@@ -164,23 +164,9 @@ config_setup(void)
 		config_single(buf, false);
 	}
 
-	/* Required shared libraries. */
-	if (DATASOURCE("kvsbdb") && access(KVS_BDB_PATH, R_OK) != 0)
-		testutil_die(errno, "kvsbdb shared library: %s", KVS_BDB_PATH);
-
-	/*
-	 * Only row-store tables support collation order.
-	 * Some data-sources don't support user-specified collations.
-	 */
-	if (g.type != ROW || DATASOURCE("kvsbdb"))
+	/* Only row-store tables support collation order. */
+	if (g.type != ROW)
 		config_single("reverse=off", false);
-
-	/*
-	 * Periodically, run single-threaded so we can compare the results to
-	 * a Berkeley DB copy, as long as the thread-count isn't nailed down.
-	 */
-	if (!config_is_perm("threads") && mmrand(NULL, 1, 20) == 1)
-		g.c_threads = 1;
 
 	/* First, transaction configuration, it configures other features. */
 	config_transaction();
@@ -609,7 +595,6 @@ config_pct(void)
 		uint32_t  *vp;			/* Value store */
 		u_int	   order;		/* Order of assignment */
 	} list[] = {
-#define	CONFIG_DELETE_ENTRY	0
 		{ "delete_pct", &g.c_delete_pct, 0 },
 		{ "insert_pct", &g.c_insert_pct, 0 },
 #define	CONFIG_MODIFY_ENTRY	2
@@ -644,30 +629,22 @@ config_pct(void)
 	}
 
 	/*
-	 * Cursor modify isn't possible for read-uncommitted transactions.
-	 * If both forced, it's an error, else, prefer the forced one, else,
-	 * prefer modify operations.
+	 * Cursor modify isn't possible for anything besides snapshot isolation
+	 * transactions. If both forced, it's an error. The run-time operations
+	 * code converts modify operations into updates if we're in some other
+	 * transaction type, but if we're never going to be able to do a modify,
+	 * turn it off in the CONFIG output to avoid misleading debuggers.
 	 */
-	if (g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
-		if (config_is_perm("isolation")) {
-			if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
-				testutil_die(EINVAL,
-				    "WT_CURSOR.modify not supported with "
-				    "read-uncommitted transactions");
-			list[CONFIG_MODIFY_ENTRY].order = 0;
-			*list[CONFIG_MODIFY_ENTRY].vp = 0;
-		} else
-			config_single("isolation=random", false);
-	}
+	if (g.c_isolation_flag == ISOLATION_READ_COMMITTED ||
+	    g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
+		if (config_is_perm("isolation") &&
+		    config_is_perm("modify_pct") && g.c_modify_pct != 0)
+			testutil_die(EINVAL,
+			    "WT_CURSOR.modify only supported with "
+			    "snapshot isolation transactions");
 
-	/*
-	 * If the delete percentage isn't nailed down, periodically set it to
-	 * 0 so salvage gets run and so we can perform stricter sanity checks
-	 * on key ordering.
-	 */
-	if (!config_is_perm("delete_pct") && mmrand(NULL, 1, 10) == 1) {
-		list[CONFIG_DELETE_ENTRY].order = 0;
-		*list[CONFIG_DELETE_ENTRY].vp = 0;
+		list[CONFIG_MODIFY_ENTRY].order = 0;
+		*list[CONFIG_MODIFY_ENTRY].vp = 0;
 	}
 
 	/*
@@ -989,7 +966,6 @@ config_single(const char *s, bool perm)
 		} else if (strncmp(s,
 		    "data_source", strlen("data_source")) == 0 &&
 		    strncmp("file", ep, strlen("file")) != 0 &&
-		    strncmp("kvsbdb", ep, strlen("kvsbdb")) != 0 &&
 		    strncmp("lsm", ep, strlen("lsm")) != 0 &&
 		    strncmp("table", ep, strlen("table")) != 0) {
 			    fprintf(stderr,
