@@ -576,7 +576,9 @@ __wt_txn_checkpoint_log(
 		__wt_scr_free(session, &txn->ckpt_snapshot);
 		txn->full_ckpt = false;
 		break;
-	WT_ILLEGAL_VALUE_ERR(session, flags);
+	default:
+		ret = __wt_illegal_value(session, flags);
+		goto err;
 	}
 
 err:	__wt_logrec_free(session, &logrec);

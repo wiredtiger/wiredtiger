@@ -272,8 +272,10 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			case WT_PM_REC_REPLACE:
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(
+			default:
+			ret = __wt_illegal_value(
 			    session, child->modify->rec_result);
+			goto err;
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -864,7 +866,10 @@ record_loop:	/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session, upd->type);
+				default:
+					ret = __wt_illegal_value(
+					    session, upd->type);
+					goto err;
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
 				/*
@@ -1172,7 +1177,10 @@ compare:		/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session, upd->type);
+				default:
+					ret = __wt_illegal_value(
+					    session, upd->type);
+					goto err;
 				}
 			}
 

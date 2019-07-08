@@ -230,7 +230,9 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
 	case WT_PAGE_ROW_LEAF:
 		WT_ERR(__inmem_row_leaf(session, page, check_unstable));
 		break;
-	WT_ILLEGAL_VALUE_ERR(session, page->type);
+	default:
+		ret = __wt_illegal_value(session, page->type);
+		goto err;
 	}
 
 	/* Update the page's cache statistics. */
@@ -514,7 +516,9 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 			ref->addr = unpack.cell;
 			++refp;
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, unpack.type);
+		default:
+			ret = __wt_illegal_value(session, unpack.type);
+			goto err;
 		}
 	} WT_CELL_FOREACH_END;
 

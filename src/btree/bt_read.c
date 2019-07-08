@@ -222,7 +222,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			WT_ERR(__wt_buf_set(session,
 			    current_key, las_key.data, las_key.size));
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, page->type);
+		default:
+			ret = __wt_illegal_value(session, page->type);
+			goto err;
 		}
 
 		/* Append the latest update to the list. */
@@ -252,7 +254,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			    current_key, ref, &cbt, first_upd));
 			first_upd = NULL;
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, page->type);
+		default:
+			ret = __wt_illegal_value(session, page->type);
+			goto err;
 		}
 
 	/* Discard the cursor. */

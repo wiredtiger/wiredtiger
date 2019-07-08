@@ -458,7 +458,9 @@ __wt_debug_disk(
 	case WT_PAGE_OVFL:
 		WT_ERR(ds->f(ds, ", datalen %" PRIu32, dsk->u.datalen));
 		break;
-	WT_ILLEGAL_VALUE_ERR(session, dsk->type);
+	default:
+		ret = __wt_illegal_value(session, dsk->type);
+		goto err;
 	}
 
 	if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
@@ -1445,7 +1447,9 @@ __debug_cell_data(WT_DBG *ds,
 	case WT_CELL_VALUE_SHORT:
 		WT_ERR(__debug_item_value(ds, tag, buf->data, buf->size));
 		break;
-	WT_ILLEGAL_VALUE_ERR(session, unpack->raw);
+	default:
+		ret = __wt_illegal_value(session, unpack->raw);
+		goto err;
 	}
 
 err:	__wt_scr_free(session, &buf);
