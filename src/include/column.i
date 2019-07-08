@@ -122,13 +122,18 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 			continue;
 		}
 
-		ins_recno = WT_INSERT_RECNO(*insp);
+		/*
+		 * Use a local variable to access the insert because the skip
+		 * list can change across references.
+		 */
+		ret_ins = *insp;
+		ins_recno = WT_INSERT_RECNO(ret_ins);
 		cmp = (recno == ins_recno) ? 0 : (recno < ins_recno) ? -1 : 1;
 
 		if (cmp == 0)			/* Exact match: return */
-			return (*insp);
+			return (ret_ins);
 		if (cmp > 0)			/* Keep going at this level */
-			insp = &(*insp)->next[i];
+			insp = &ret_ins->next[i];
 		else {				/* Drop down a level */
 			--i;
 			--insp;
