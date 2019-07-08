@@ -846,6 +846,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: pages evicted because they had chains of deleted items time (usecs)",
 	"cache: pages evicted by application threads",
 	"cache: pages queued for eviction",
+	"cache: pages queued for eviction post lru sorting",
 	"cache: pages queued for urgent eviction",
 	"cache: pages queued for urgent eviction during walk",
 	"cache: pages read into cache",
@@ -1274,6 +1275,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_force_delete_time = 0;
 	stats->cache_eviction_app = 0;
 	stats->cache_eviction_pages_queued = 0;
+	stats->cache_eviction_pages_queued_post_lru = 0;
 	stats->cache_eviction_pages_queued_urgent = 0;
 	stats->cache_eviction_pages_queued_oldest = 0;
 	stats->cache_read = 0;
@@ -1744,6 +1746,8 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_app += WT_STAT_READ(from, cache_eviction_app);
 	to->cache_eviction_pages_queued +=
 	    WT_STAT_READ(from, cache_eviction_pages_queued);
+	to->cache_eviction_pages_queued_post_lru +=
+	    WT_STAT_READ(from, cache_eviction_pages_queued_post_lru);
 	to->cache_eviction_pages_queued_urgent +=
 	    WT_STAT_READ(from, cache_eviction_pages_queued_urgent);
 	to->cache_eviction_pages_queued_oldest +=
