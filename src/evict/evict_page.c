@@ -55,16 +55,10 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
 	WT_BTREE *btree;
 	WT_DECL_RET;
-	WT_PAGE *page;
-	uint64_t time_start, time_stop;
 	uint32_t evict_flags, previous_state;
-	bool locked, too_big;
+	bool locked;
 
 	btree = S2BT(session);
-	locked = false;
-	page = ref->page;
-	time_start = __wt_clock(session);
-	evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
 
 	/*
 	 * This function always releases the hazard pointer - ensure that's
@@ -73,47 +67,20 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * without first locking the page, it could be evicted in between.
 	 */
 	previous_state = ref->state;
-	if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
-	    WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-		locked = true;
+	locked =
+	    (previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+	    WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED);
 	if ((ret = __wt_hazard_clear(session, ref)) != 0 || !locked) {
 		if (locked)
 			WT_REF_SET_STATE(ref, previous_state);
 		return (ret == 0 ? EBUSY : ret);
 	}
 
+	evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
+	FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
+
 	(void)__wt_atomic_addv32(&btree->evict_busy, 1);
-
-	too_big = page->memory_footprint >= btree->splitmempage;
-
-	/*
-	 * Track how long the call to evict took. If eviction is successful then
-	 * we have one of two pairs of stats to increment.
-	 */
 	ret = __wt_evict(session, ref, previous_state, evict_flags);
-	time_stop = __wt_clock(session);
-	if (ret == 0) {
-		if (too_big) {
-			WT_STAT_CONN_INCR(session, cache_eviction_force);
-			WT_STAT_CONN_INCRV(session, cache_eviction_force_time,
-			    WT_CLOCKDIFF_US(time_stop, time_start));
-		} else {
-			/*
-			 * If the page isn't too big, we are evicting it because
-			 * it had a chain of deleted entries that make traversal
-			 * expensive.
-			 */
-			WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
-			WT_STAT_CONN_INCRV(session,
-			    cache_eviction_force_delete_time,
-			    WT_CLOCKDIFF_US(time_stop, time_start));
-		}
-	} else {
-		WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
-		WT_STAT_CONN_INCRV(session, cache_eviction_force_fail_time,
-		    WT_CLOCKDIFF_US(time_stop, time_start));
-	}
-
 	(void)__wt_atomic_subv32(&btree->evict_busy, 1);
 
 	return (ret);
@@ -130,12 +97,14 @@ __wt_evict(WT_SESSION_IMPL *session,
 	WT_CONNECTION_IMPL *conn;
 	WT_DECL_RET;
 	WT_PAGE *page;
+	uint64_t time_start, time_stop;
 	bool clean_page, closing, inmem_split, local_gen, tree_dead;
 
 	conn = S2C(session);
 	page = ref->page;
 	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
 	local_gen = false;
+	time_start = time_stop = 0;	/* [-Werror=maybe-uninitialized] */
 
 	__wt_verbose(session, WT_VERB_EVICT,
 	    "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
@@ -152,6 +121,16 @@ __wt_evict(WT_SESSION_IMPL *session,
 	if (__wt_session_gen(session, WT_GEN_EVICT) == 0) {
 		local_gen = true;
 		__wt_session_gen_enter(session, WT_GEN_EVICT);
+	}
+
+	/*
+	 * Track how long forcible eviction took. Immediately increment the
+	 * forcible eviction counter, we might do an in-memory split and not
+	 * an eviction, which skips the other statistics.
+	 */
+	if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+		time_start = __wt_clock(session);
+		WT_STAT_CONN_INCR(session, cache_eviction_force);
 	}
 
 	/*
@@ -225,6 +204,21 @@ __wt_evict(WT_SESSION_IMPL *session,
 	else
 		WT_ERR(__evict_page_dirty_update(session, ref, flags));
 
+	if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+		time_stop = __wt_clock(session);
+		if (clean_page) {
+			WT_STAT_CONN_INCR(session, cache_eviction_force_clean);
+			WT_STAT_CONN_INCRV(session,
+			    cache_eviction_force_clean_time,
+			    WT_CLOCKDIFF_US(time_stop, time_start));
+		}
+		else {
+			WT_STAT_CONN_INCR(session, cache_eviction_force_dirty);
+			WT_STAT_CONN_INCRV(session,
+			    cache_eviction_force_dirty_time,
+			    WT_CLOCKDIFF_US(time_stop, time_start));
+		}
+	}
 	if (clean_page) {
 		WT_STAT_CONN_INCR(session, cache_eviction_clean);
 		WT_STAT_DATA_INCR(session, cache_eviction_clean);
@@ -236,6 +230,14 @@ __wt_evict(WT_SESSION_IMPL *session,
 	if (0) {
 err:		if (!closing)
 			__evict_exclusive_clear(session, ref, previous_state);
+
+		if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+			time_stop = __wt_clock(session);
+			WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
+			WT_STAT_CONN_INCRV(session,
+			    cache_eviction_force_fail_time,
+			    WT_CLOCKDIFF_US(time_stop, time_start));
+		}
 
 		WT_STAT_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_DATA_INCR(session, cache_eviction_fail);
