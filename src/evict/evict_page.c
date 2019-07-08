@@ -231,8 +231,13 @@ __wt_evict(WT_SESSION_IMPL *session,
 err:		if (!closing)
 			__evict_exclusive_clear(session, ref, previous_state);
 
-		if (LF_ISSET(WT_EVICT_CALL_URGENT))
+		if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+			time_stop = __wt_clock(session);
 			WT_STAT_CONN_INCR(session, cache_eviction_force_fail);
+			WT_STAT_CONN_INCRV(session,
+			    cache_eviction_force_fail_time,
+			    WT_CLOCKDIFF_US(time_stop, time_start));
+		}
 
 		WT_STAT_CONN_INCR(session, cache_eviction_fail);
 		WT_STAT_DATA_INCR(session, cache_eviction_fail);

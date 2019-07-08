@@ -858,6 +858,7 @@ static const char * const __stats_connection_desc[] = {
 	"cache: forced eviction - pages selected because of too many deleted items count",
 	"cache: forced eviction - pages selected count",
 	"cache: forced eviction - pages selected unable to be evicted count",
+	"cache: forced eviction - pages selected unable to be evicted time",
 	"cache: hazard pointer blocked page eviction",
 	"cache: hazard pointer check calls",
 	"cache: hazard pointer check entries walked",
@@ -1300,6 +1301,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->cache_eviction_force_delete = 0;
 	stats->cache_eviction_force = 0;
 	stats->cache_eviction_force_fail = 0;
+	stats->cache_eviction_force_fail_time = 0;
 	stats->cache_eviction_hazard = 0;
 	stats->cache_hazard_checks = 0;
 	stats->cache_hazard_walks = 0;
@@ -1774,6 +1776,8 @@ __wt_stat_connection_aggregate(
 	to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
 	to->cache_eviction_force_fail +=
 	    WT_STAT_READ(from, cache_eviction_force_fail);
+	to->cache_eviction_force_fail_time +=
+	    WT_STAT_READ(from, cache_eviction_force_fail_time);
 	to->cache_eviction_hazard +=
 	    WT_STAT_READ(from, cache_eviction_hazard);
 	to->cache_hazard_checks += WT_STAT_READ(from, cache_hazard_checks);

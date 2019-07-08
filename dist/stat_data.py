@@ -227,6 +227,7 @@ connection_stats = [
     CacheStat('cache_eviction_force_dirty', 'forced eviction - pages evicted that were dirty count'),
     CacheStat('cache_eviction_force_dirty_time', 'forced eviction - pages evicted that were dirty time (usecs)'),
     CacheStat('cache_eviction_force_fail', 'forced eviction - pages selected unable to be evicted count'),
+    CacheStat('cache_eviction_force_fail_time', 'forced eviction - pages selected unable to be evicted time'),
     CacheStat('cache_eviction_force_retune', 'force re-tuning of eviction workers once in a while'),
     CacheStat('cache_eviction_get_ref', 'eviction calls to get a page'),
     CacheStat('cache_eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
