@@ -247,8 +247,8 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @param ... pointers to hold key fields corresponding to
 	 * WT_CURSOR::key_format.
-	 * The API don't have a way to validate the argument types passed in,
-	 * caller is responsible to pass proper argument types according to
+	 * The API will not validate the argument types passed in, caller is
+	 * responsible to pass proper argument types according to
 	 * WT_CURSOR::key_format.
 	 * @errors
 	 */
@@ -264,8 +264,8 @@ struct __wt_cursor {
 	 * @param cursor the cursor handle
 	 * @param ... pointers to hold value fields corresponding to
 	 * WT_CURSOR::value_format.
-	 * The API don't have a way to validate the argument types passed in,
-	 * caller is responsible to pass proper argument types according to
+	 * The API will not validate the argument types passed in, caller is
+	 * responsible to pass proper argument types according to
 	 * WT_CURSOR::value_format.
 	 * @errors
 	 */
