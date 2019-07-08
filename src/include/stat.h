@@ -386,6 +386,9 @@ struct __wt_connection_stats {
 	int64_t cache_eviction_server_evicting;
 	int64_t cache_eviction_server_slept;
 	int64_t cache_eviction_slow;
+	int64_t cache_eviction_walk_leaf_notfound;
+	int64_t cache_eviction_walk_internal_wait;
+	int64_t cache_eviction_walk_internal_yield;
 	int64_t cache_eviction_state;
 	int64_t cache_eviction_target_page_lt10;
 	int64_t cache_eviction_target_page_lt32;
@@ -434,6 +437,7 @@ struct __wt_connection_stats {
 	int64_t cache_pages_inuse;
 	int64_t cache_eviction_app;
 	int64_t cache_eviction_pages_queued;
+	int64_t cache_eviction_pages_queued_post_lru;
 	int64_t cache_eviction_pages_queued_urgent;
 	int64_t cache_eviction_pages_queued_oldest;
 	int64_t cache_read;
