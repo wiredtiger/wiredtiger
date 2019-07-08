@@ -31,7 +31,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	ins = NULL;
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
 		if ((local_ins = *insp) != NULL &&
-		    recno >= WT_INSERT_RECNO(*insp)) {
+		    recno >= WT_INSERT_RECNO(local_ins)) {
 			/* GTE: keep going at this level */
 			ins = local_ins;
 			insp = &local_ins->next[i];
@@ -82,7 +82,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
 		if ((local_ins = *insp) != NULL &&
-		    recno > WT_INSERT_RECNO(*insp)) {
+		    recno > WT_INSERT_RECNO(local_ins)) {
 			/* GT: keep going at this level */
 			ins = local_ins;
 			insp = &local_ins->next[i];
