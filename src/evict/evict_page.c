@@ -241,7 +241,8 @@ err:		if (!closing)
 		WT_STAT_DATA_INCR(session, cache_eviction_fail);
 	}
 
-done:	/* Leave any local eviction generation. */
+done:
+	/* Leave any local eviction generation. */
 	if (local_gen)
 		__wt_session_gen_leave(session, WT_GEN_EVICT);
 

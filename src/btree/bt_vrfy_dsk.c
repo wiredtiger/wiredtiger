@@ -635,7 +635,8 @@ __verify_dsk_row(WT_SESSION_IMPL *session,
 			current->size = prefix + unpack->size;
 		}
 
-key_compare:	/*
+key_compare:
+		/*
 		 * Compare the current key against the last key.
 		 *
 		 * Be careful about the 0th key on internal pages: we only store

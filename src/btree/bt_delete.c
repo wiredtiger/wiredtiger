@@ -244,7 +244,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	WT_REF_SET_STATE(ref, current_state);
 
-done:	/*
+done:
+	/*
 	 * Now mark the truncate aborted: this must come last because after
 	 * this point there is nothing preventing the page from being evicted.
 	 */
@@ -467,7 +468,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	return (0);
 
-err:	/*
+err:
+	/*
 	 * The page-delete update structure may have existed before we were
 	 * called, and presumably might be in use by a running transaction.
 	 * The list of update structures cannot have been created before we

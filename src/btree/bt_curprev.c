@@ -360,7 +360,8 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 new_page:	if (cbt->recno < cbt->ref->ref_recno)
 			return (WT_NOTFOUND);
 
-restart_read:	/* Find the matching WT_COL slot. */
+restart_read:
+		/* Find the matching WT_COL slot. */
 		if ((cip =
 		    __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
 			return (WT_NOTFOUND);

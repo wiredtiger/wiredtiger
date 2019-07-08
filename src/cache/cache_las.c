@@ -821,7 +821,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		    "WiredTigerLAS: file size of %" PRIu64 " exceeds maximum "
 		    "size %" PRIu64, (uint64_t)las_size, max_las_size);
 
-err:	/* Resolve the transaction. */
+err:
+	/* Resolve the transaction. */
 	if (local_txn) {
 		if (ret == 0)
 			ret = __wt_txn_commit(session, NULL);

@@ -1402,7 +1402,8 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 	r->min_space_avail =
 	    r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
-done:  	/*
+done:
+	/*
 	 * Overflow values can be larger than the maximum page size but still be
 	 * "on-page". If the next key/value pair is larger than space available
 	 * after a split has happened (in other words, larger than the maximum

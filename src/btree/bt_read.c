@@ -583,7 +583,8 @@ skip_read:
 	WT_REF_SET_STATE(ref, final_state);
 	return (ret);
 
-err:	/*
+err:
+	/*
 	 * If the function building an in-memory version of the page failed,
 	 * it discarded the page, but not the disk image.  Discard the page
 	 * and separately discard the disk image in all cases.
@@ -668,7 +669,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 			if (LF_ISSET(WT_READ_CACHE))
 				return (WT_NOTFOUND);
 
-read:			/*
+read:
+			/*
 			 * The page isn't in memory, read it. If this thread
 			 * respects the cache size, check for space in the
 			 * cache.
@@ -804,7 +806,8 @@ read:			/*
 				continue;
 			}
 
-skip_evict:		/*
+skip_evict:
+			/*
 			 * If we read the page and are configured to not trash
 			 * the cache, and no other thread has already used the
 			 * page, set the read generation so the page is evicted

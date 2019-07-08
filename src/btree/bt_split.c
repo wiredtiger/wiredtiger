@@ -149,7 +149,8 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
 	return (0);
 
-err:	/* Something really bad just happened. */
+err:
+	/* Something really bad just happened. */
 	WT_PANIC_RET(session, ret, "fatal error during page split");
 }
 #endif
@@ -1633,7 +1634,8 @@ __split_multi_inmem(
 	mod->restore_state = orig->modify->restore_state;
 	FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
-err:	/* Free any resources that may have been cached in the cursor. */
+err:
+	/* Free any resources that may have been cached in the cursor. */
 	WT_TRET(__wt_btcur_close(&cbt, true));
 
 	__wt_scr_free(session, &key);

@@ -804,7 +804,8 @@ __wt_rec_col_var(WT_SESSION_IMPL *session,
 		WT_ERR(__wt_dsk_cell_data_ref(
 		    session, WT_PAGE_COL_VAR, vpack, orig));
 
-record_loop:	/*
+record_loop:
+		/*
 		 * Generate on-page entries: loop repeat records, looking for
 		 * WT_INSERT entries matching the record number.  The WT_INSERT
 		 * lists are in sorted order, so only need check the next one.
@@ -977,7 +978,8 @@ record_loop:	/*
 				}
 			}
 
-compare:		/*
+compare:
+			/*
 			 * If we have a record against which to compare, and
 			 * the records compare equal, increment the rle counter
 			 * and continue.  If the records don't compare equal,

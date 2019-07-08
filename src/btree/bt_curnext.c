@@ -214,7 +214,8 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 		__cursor_set_recno(cbt, cbt->recno + 1);
 
 new_page:
-restart_read:	/* Find the matching WT_COL slot. */
+restart_read:
+		/* Find the matching WT_COL slot. */
 		if ((cip =
 		    __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
 			return (WT_NOTFOUND);

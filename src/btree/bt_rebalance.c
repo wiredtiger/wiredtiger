@@ -471,7 +471,8 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
 	ref->page = rs->root;
 	rs->root = NULL;
 
-err:	/* Discard any leftover root page we created. */
+err:
+	/* Discard any leftover root page we created. */
 	if (rs->root != NULL) {
 		__wt_page_modify_clear(session, rs->root);
 		__wt_page_out(session, &rs->root);
