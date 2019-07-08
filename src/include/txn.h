@@ -129,18 +129,18 @@ struct __wt_txn_global {
 	volatile uint64_t oldest_id;
 
 	wt_timestamp_t commit_timestamp;
+	wt_timestamp_t durable_timestamp;
 	wt_timestamp_t last_ckpt_timestamp;
 	wt_timestamp_t meta_ckpt_timestamp;
 	wt_timestamp_t oldest_timestamp;
 	wt_timestamp_t pinned_timestamp;
 	wt_timestamp_t recovery_timestamp;
 	wt_timestamp_t stable_timestamp;
-	wt_timestamp_t durable_timestamp;
 	bool has_commit_timestamp;
+	bool has_durable_timestamp;
 	bool has_oldest_timestamp;
 	bool has_pinned_timestamp;
 	bool has_stable_timestamp;
-	bool has_durable_timestamp;
 	bool oldest_is_pinned;
 	bool stable_is_pinned;
 
@@ -157,15 +157,15 @@ struct __wt_txn_global {
 	TAILQ_HEAD(__wt_txn_cts_qh, __wt_txn) commit_timestamph;
 	uint32_t commit_timestampq_len;
 
-	/* List of transactions sorted by read timestamp. */
-	WT_RWLOCK read_timestamp_rwlock;
-	TAILQ_HEAD(__wt_txn_rts_qh, __wt_txn) read_timestamph;
-	uint32_t read_timestampq_len;
-
 	/* List of transactions sorted by durable timestamp. */
 	WT_RWLOCK durable_timestamp_rwlock;
 	TAILQ_HEAD(__wt_txn_dts_qh, __wt_txn) durable_timestamph;
 	uint32_t durable_timestampq_len;
+
+	/* List of transactions sorted by read timestamp. */
+	WT_RWLOCK read_timestamp_rwlock;
+	TAILQ_HEAD(__wt_txn_rts_qh, __wt_txn) read_timestamph;
+	uint32_t read_timestampq_len;
 
 	/*
 	 * Track information about the running checkpoint. The transaction
@@ -316,12 +316,12 @@ struct __wt_txn {
 	wt_timestamp_t read_timestamp;
 
 	TAILQ_ENTRY(__wt_txn) commit_timestampq;
-	TAILQ_ENTRY(__wt_txn) read_timestampq;
 	TAILQ_ENTRY(__wt_txn) durable_timestampq;
+	TAILQ_ENTRY(__wt_txn) read_timestampq;
 	bool clear_commit_q;	/* Set if need to clear from the commit queue */
-	bool clear_read_q;	/* Set if need to clear from the read queue */
 	/* Set if need to clear from the durable queue */
 	bool clear_durable_q;
+	bool clear_read_q;	/* Set if need to clear from the read queue */
 
 	/* Array of modifications by this transaction. */
 	WT_TXN_OP      *mod;
