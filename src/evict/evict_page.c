@@ -123,6 +123,16 @@ __wt_evict(WT_SESSION_IMPL *session,
 	}
 
 	/*
+	 * Track how long forcible eviction took. Immediately increment the
+	 * forcible eviction counter, we might do an in-memory split and not
+	 * an eviction, which skips the other statistics.
+	 */
+	if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
+		time_start = __wt_clock(session);
+		WT_STAT_CONN_INCR(session, cache_eviction_force);
+	}
+
+	/*
 	 * Get exclusive access to the page if our caller doesn't have the tree
 	 * locked down.
 	 */
@@ -137,17 +147,6 @@ __wt_evict(WT_SESSION_IMPL *session,
 		 * valid memory.
 		 */
 		__wt_evict_list_clear_page(session, ref);
-	}
-
-	/*
-	 * Track how long forcible eviction took. Immediately increment the
-	 * forcible eviction statistics, we might do an in-memory split and
-	 * not an eviction, which skips the other statistics.
-	 */
-	time_start = 0;			/* [-Wconditional-uninitialized] */
-	if (LF_ISSET(WT_EVICT_CALL_URGENT)) {
-		time_start = __wt_clock(session);
-		WT_STAT_CONN_INCR(session, cache_eviction_force);
 	}
 
 	/*
