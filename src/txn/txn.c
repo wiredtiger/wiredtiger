@@ -1631,12 +1631,12 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 	    ", mod count: %u"
 	    ", snap min: %" PRIu64
 	    ", snap max: %" PRIu64
-	    ", no of named snapshots: %u"
+	    ", snapshot count: %u"
 	    ", commit_timestamp: %s"
 	    ", durable_timestamp: %s"
 	    ", first_commit_timestamp: %s"
-	    ", read_timestamp: %s"
 	    ", prepare_timestamp: %s"
+	    ", read_timestamp: %s"
 	    ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
 	    ", full checkpoint: %s"
 	    ", rollback reason: %s"
@@ -1650,8 +1650,8 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 	    __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
 	    __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
 	    __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[2]),
-	    __wt_timestamp_to_string(txn->read_timestamp, ts_string[3]),
-	    __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[4]),
+	    __wt_timestamp_to_string(txn->prepare_timestamp, ts_string[3]),
+	    __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]),
 	    txn->ckpt_lsn.l.file, txn->ckpt_lsn.l.offset,
 	    txn->full_ckpt ? "true" : "false",
 	    txn->rollback_reason == NULL ? "" : txn->rollback_reason,
