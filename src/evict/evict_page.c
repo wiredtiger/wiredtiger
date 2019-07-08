@@ -104,6 +104,7 @@ __wt_evict(WT_SESSION_IMPL *session,
 	page = ref->page;
 	closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
 	local_gen = false;
+	time_start = time_stop = 0;	/* [-Werror=maybe-uninitialized] */
 
 	__wt_verbose(session, WT_VERB_EVICT,
 	    "page %p (%s)", (void *)page, __wt_page_type_string(page->type));
