@@ -447,6 +447,13 @@ restart:		/*
 				WT_ERR_NOTFOUND_OK(ret);
 
 				__wt_spin_backoff(&swap_yield, &swap_sleep);
+				if (swap_yield < 1000)
+					WT_STAT_CONN_INCR(session,
+					    cache_eviction_walk_internal_yield);
+				if (swap_sleep != 0)
+					WT_STAT_CONN_INCRV(session,
+					    cache_eviction_walk_internal_wait,
+					    swap_sleep);
 			}
 			/* NOTREACHED */
 		}
@@ -559,6 +566,8 @@ descend:		/*
 			 * An expected error, so "couple" is unchanged.
 			 */
 			if (ret == WT_NOTFOUND) {
+				WT_STAT_CONN_INCR(session,
+				    cache_eviction_walk_leaf_notfound);
 				WT_NOT_READ(ret, 0);
 				break;
 			}
