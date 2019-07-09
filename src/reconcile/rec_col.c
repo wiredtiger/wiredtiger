@@ -273,8 +273,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 				addr = &child->modify->mod_replace;
 				break;
 			default:
-			ret = __wt_illegal_value(
-			    session, child->modify->rec_result);
+				ret = __wt_illegal_value(
+				    session, child->modify->rec_result);
 			goto err;
 			}
 			break;

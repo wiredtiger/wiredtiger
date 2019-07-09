@@ -457,8 +457,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				addr = &child->modify->mod_replace;
 				break;
 			default:
-			ret = __wt_illegal_value(
-			    session, child->modify->rec_result);
+				ret = __wt_illegal_value(
+				    session, child->modify->rec_result);
 			goto err;
 			}
 			break;
