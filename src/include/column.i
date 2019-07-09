@@ -29,7 +29,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 * go as far as possible at each level before stepping down to the next.
 	 */
 	ins = NULL;
-	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
+	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
 		/*
 		 * Use a local variable to access the insert because the skip
 		 * list can change across references.
@@ -42,6 +42,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 			--i;		/* LT: drop down a level */
 			--insp;
 		}
+        }
 
 	/*
 	 * If we didn't find any records smaller than the target, we never set
@@ -83,7 +84,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 * The insert list is a skip list: start at the highest skip level, then
 	 * go as far as possible at each level before stepping down to the next.
 	 */
-	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
+	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;) {
 		/*
 		 * Use a local variable to access the insert because the skip
 		 * list can change across references.
@@ -96,6 +97,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 			--i;		/* LTE: drop down a level */
 			--insp;
 		}
+        }
 
 	return (ins);
 }
