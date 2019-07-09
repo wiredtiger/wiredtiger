@@ -42,7 +42,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 			--i;		/* LT: drop down a level */
 			--insp;
 		}
-        }
+	}
 
 	/*
 	 * If we didn't find any records smaller than the target, we never set
@@ -97,7 +97,7 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 			--i;		/* LTE: drop down a level */
 			--insp;
 		}
-        }
+	}
 
 	return (ins);
 }
