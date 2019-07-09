@@ -13,7 +13,7 @@
 static inline WT_INSERT *
 __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-	WT_INSERT *ins, **insp, *local_ins;
+	WT_INSERT *ins, **insp;
 	int i;
 
 	/* If there's no insert chain to search, we're done. */
@@ -30,11 +30,14 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 */
 	ins = NULL;
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
-		if ((local_ins = *insp) != NULL &&
-		    recno >= WT_INSERT_RECNO(local_ins)) {
-			/* GTE: keep going at this level */
-			ins = local_ins;
-			insp = &local_ins->next[i];
+		/*
+		 * Use a local variable to access the insert because the skip
+		 * list can change across references.
+		 */
+		WT_ORDERED_READ(ins, *insp);
+		if (ins != NULL && recno >= WT_INSERT_RECNO(ins)) {
+					/* GTE: keep going at this level */
+			insp = &ins->next[i];
 		} else {
 			--i;		/* LT: drop down a level */
 			--insp;
@@ -65,7 +68,7 @@ __col_insert_search_gt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 static inline WT_INSERT *
 __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-	WT_INSERT *ins, **insp, *local_ins;
+	WT_INSERT *ins, **insp;
 	int i;
 
 	/* If there's no insert chain to search, we're done. */
@@ -81,11 +84,14 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 	 * go as far as possible at each level before stepping down to the next.
 	 */
 	for (i = WT_SKIP_MAXDEPTH - 1, insp = &ins_head->head[i]; i >= 0;)
-		if ((local_ins = *insp) != NULL &&
-		    recno > WT_INSERT_RECNO(local_ins)) {
-			/* GT: keep going at this level */
-			ins = local_ins;
-			insp = &local_ins->next[i];
+		/*
+		 * Use a local variable to access the insert because the skip
+		 * list can change across references.
+		 */
+		WT_ORDERED_READ(ins, *insp);
+		if (ins != NULL && recno > WT_INSERT_RECNO(ins)) {
+					/* GT: keep going at this level */
+			insp = &ins->next[i];
 		} else  {
 			--i;		/* LTE: drop down a level */
 			--insp;
@@ -101,19 +107,19 @@ __col_insert_search_lt(WT_INSERT_HEAD *ins_head, uint64_t recno)
 static inline WT_INSERT *
 __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 {
-	WT_INSERT **insp, *ret_ins;
+	WT_INSERT *ins, **insp;
 	uint64_t ins_recno;
 	int cmp, i;
 
 	/* If there's no insert chain to search, we're done. */
-	if ((ret_ins = WT_SKIP_LAST(ins_head)) == NULL)
+	if ((ins = WT_SKIP_LAST(ins_head)) == NULL)
 		return (NULL);
 
 	/* Fast path the check for values at the end of the skiplist. */
-	if (recno > WT_INSERT_RECNO(ret_ins))
+	if (recno > WT_INSERT_RECNO(ins))
 		return (NULL);
-	if (recno == WT_INSERT_RECNO(ret_ins))
-		return (ret_ins);
+	if (recno == WT_INSERT_RECNO(ins))
+		return (ins);
 
 	/*
 	 * The insert list is a skip list: start at the highest skip level, then
@@ -124,19 +130,20 @@ __col_insert_search_match(WT_INSERT_HEAD *ins_head, uint64_t recno)
 		 * Use a local variable to access the insert because the skip
 		 * list can change across references.
 		 */
-		if ((ret_ins = *insp) == NULL) {
+		WT_ORDERED_READ(ins, *insp);
+		if (ins == NULL) {
 			--i;
 			--insp;
 			continue;
 		}
 
-		ins_recno = WT_INSERT_RECNO(ret_ins);
+		ins_recno = WT_INSERT_RECNO(ins);
 		cmp = (recno == ins_recno) ? 0 : (recno < ins_recno) ? -1 : 1;
 
 		if (cmp == 0)			/* Exact match: return */
-			return (ret_ins);
+			return (ins);
 		if (cmp > 0)			/* Keep going at this level */
-			insp = &ret_ins->next[i];
+			insp = &ins->next[i];
 		else {				/* Drop down a level */
 			--i;
 			--insp;
