@@ -679,11 +679,6 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	btree_id = btree->id;
 	local_txn = false;
 
-	/* Ensure enough room for a column-store key without checking. */
-	WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
-	WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
-
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
 
 	if (!btree->lookaside_entries)
@@ -696,7 +691,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	 * There should never be any entries with the page ID we are about to
 	 * use.
 	 */
-	WT_ERR_BUSY_OK(
+	WT_RET_BUSY_OK(
 	    __las_remove_block(cursor, las_pageid, false, &remove_cnt));
 	WT_ASSERT(session, remove_cnt == 0);
 	}
@@ -706,6 +701,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	__las_set_isolation(session, &saved_isolation);
 	WT_ERR(__wt_txn_begin(session, NULL));
 	local_txn = true;
+
+	/* Ensure enough room for a column-store key without checking. */
+	WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+	WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
 
 	/* Enter each update in the boundary's list into the lookaside store. */
 	for (las_counter = 0, i = 0,
@@ -887,8 +887,8 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
-	__wt_scr_free(session, &birthmarks);
 	__wt_scr_free(session, &key);
+	__wt_scr_free(session, &birthmarks);
 	WT_UNUSED(first_upd);
 	return (ret);
 }
