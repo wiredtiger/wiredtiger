@@ -49,7 +49,7 @@ class test_prepare07(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100))
 
         # Commit some updates.
-        value_b = "bbbbb" * 100
+        value_b = b"bbbbb" * 100
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction('isolation=snapshot')
         cursor.set_key(ds.key(nrows + 1))
@@ -145,7 +145,7 @@ class test_prepare07(wttest.WiredTigerTestCase):
         nrows = 100
         ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
         ds.populate()
-        value_a = "aaaaa" * 100
+        value_a = b"aaaaa" * 100
 
         # Initially load huge data
         cursor = self.session.open_cursor(uri)
