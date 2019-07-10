@@ -224,7 +224,7 @@ __wt_txn_get_pinned_timestamp(
 /*
  * __txn_get_durable_timestamp --
  *	Get the current durable timestamp for a given transaction. If there is
- *	explicit durable timestamp, this function will return the commit
+ *	an explicit durable timestamp, this function will return the commit
  *	timestamp since this is implied. If there is neither a commit nor a
  *	durable timestamp, this function will return 0.
  */
@@ -1259,11 +1259,12 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 	++txn_global->durable_timestampq_len;
 	WT_STAT_CONN_INCR(session, txn_durable_queue_inserts);
 	txn->clear_durable_q = false;
+
 	/*
 	 * Mark it has having a PUBLIC durable timestamp so we know to clear it
 	 * out from the queue. But don't mark it as having a durable timestamp
-	 * since we don't want to stop someone from specifying a durable
-	 * timestamp later on.
+	 * since we don't want to try to use txn->durable_timestamp or stop
+	 * someone from specifying a durable timestamp later on.
 	 */
 	F_SET(txn, WT_TXN_PUBLIC_TS_DURABLE);
 	__wt_writeunlock(session, &txn_global->durable_timestamp_rwlock);
