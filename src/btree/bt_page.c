@@ -231,8 +231,7 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref,
 		WT_ERR(__inmem_row_leaf(session, page, check_unstable));
 		break;
 	default:
-		ret = __wt_illegal_value(session, page->type);
-		goto err;
+		WT_ERR(__wt_illegal_value(session, page->type));
 	}
 
 	/* Update the page's cache statistics. */
@@ -517,8 +516,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
 			++refp;
 			break;
 		default:
-			ret = __wt_illegal_value(session, unpack.type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, unpack.type));
 		}
 	} WT_CELL_FOREACH_END;
 

@@ -457,9 +457,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				addr = &child->modify->mod_replace;
 				break;
 			default:
-				ret = __wt_illegal_value(
-				    session, child->modify->rec_result);
-			goto err;
+				WT_ERR(__wt_illegal_value(
+				    session, child->modify->rec_result));
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -980,8 +979,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 				/* Proceed with appended key/value pairs. */
 				goto leaf_insert;
 			default:
-				ret = __wt_illegal_value(session, upd->type);
-				goto err;
+				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 		}
 

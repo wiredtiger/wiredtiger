@@ -266,8 +266,7 @@ __txn_op_apply(
 			stop = cursor;
 			break;
 		default:
-			ret = __wt_illegal_value(session, mode);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, mode));
 		}
 
 		/* Set the keys. */
@@ -293,8 +292,7 @@ __txn_op_apply(
 		    &t_nsec, &commit, &durable, &first, &prepare, &read));
 		break;
 	default:
-		ret = __wt_illegal_value(session, optype);
-		goto err;
+		WT_ERR(__wt_illegal_value(session, optype));
 	}
 
 done:

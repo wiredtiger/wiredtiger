@@ -180,8 +180,7 @@ __wt_buf_set_printable_format(WT_SESSION_IMPL *session,
 			sep = ",";
 			break;
 		default:
-			ret = __wt_illegal_value(session, pv.type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, pv.type));
 		}
 	}
 	WT_ERR_NOTFOUND_OK(ret);

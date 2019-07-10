@@ -328,8 +328,7 @@ __txn_abort_newer_updates(
 		__txn_abort_newer_row_leaf(session, page, rollback_timestamp);
 		break;
 	default:
-		ret = __wt_illegal_value(session, page->type);
-		goto err;
+		WT_ERR(__wt_illegal_value(session, page->type));
 	}
 
 err:	if (local_read)

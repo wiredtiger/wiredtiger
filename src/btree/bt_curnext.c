@@ -670,8 +670,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 				    cbt, newpage, restart);
 				break;
 			default:
-				ret = __wt_illegal_value(session, page->type);
-				goto err;
+				WT_ERR(__wt_illegal_value(session, page->type));
 			}
 			if (ret == 0 || ret == WT_PREPARE_CONFLICT)
 				break;
@@ -690,8 +689,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 				ret = __cursor_row_next(cbt, newpage, restart);
 				break;
 			default:
-				ret = __wt_illegal_value(session, page->type);
-				goto err;
+				WT_ERR(__wt_illegal_value(session, page->type));
 			}
 			if (ret != WT_NOTFOUND)
 				break;

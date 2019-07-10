@@ -724,8 +724,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			}
 			break;
 		default:
-			ret = __wt_illegal_value(session, page->type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, page->type));
 		}
 
 		/*
@@ -771,8 +770,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				las_value.size = 0;
 				break;
 			default:
-				ret = __wt_illegal_value(session, upd->type);
-				goto err;
+				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 
 			cursor->set_key(cursor,

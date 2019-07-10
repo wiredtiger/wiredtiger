@@ -238,8 +238,7 @@ __rebalance_col_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 			    session, durable_ts, NULL, 0, &unpack, rs));
 			break;
 		default:
-			ret = __wt_illegal_value(session, unpack.type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, unpack.type));
 		}
 	} WT_CELL_FOREACH_END;
 
@@ -387,8 +386,7 @@ __rebalance_row_walk(WT_SESSION_IMPL *session, wt_timestamp_t durable_ts,
 			first_cell = false;
 			break;
 		default:
-			ret = __wt_illegal_value(session, unpack.type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, unpack.type));
 		}
 	} WT_CELL_FOREACH_END;
 
@@ -450,8 +448,7 @@ __wt_bt_rebalance(WT_SESSION_IMPL *session, const char *cfg[])
 		    session, WT_TS_MAX, ref->page->dsk, rs));
 		break;
 	default:
-		ret = __wt_illegal_value(session, rs->type);
-		goto err;
+		WT_ERR(__wt_illegal_value(session, rs->type));
 	}
 
 	/* Build a new root page. */

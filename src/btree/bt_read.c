@@ -223,8 +223,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			    current_key, las_key.data, las_key.size));
 			break;
 		default:
-			ret = __wt_illegal_value(session, page->type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, page->type));
 		}
 
 		/* Append the latest update to the list. */
@@ -255,8 +254,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			first_upd = NULL;
 			break;
 		default:
-			ret = __wt_illegal_value(session, page->type);
-			goto err;
+			WT_ERR(__wt_illegal_value(session, page->type));
 		}
 
 	/* Discard the cursor. */
