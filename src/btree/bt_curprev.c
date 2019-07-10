@@ -49,8 +49,7 @@ restart:
 	 * with a search.
 	 */
 	recno = WT_INSERT_RECNO(cbt->ins);
-	while (((current = cbt->ins) != PREV_INS(cbt, 0)) &&
-	    (current != NULL)) {
+	while ((current = cbt->ins) != PREV_INS(cbt, 0)) {
 		if (cbt->btree->type == BTREE_ROW) {
 			key.data = WT_INSERT_KEY(current);
 			key.size = WT_INSERT_KEY_SIZE(current);
