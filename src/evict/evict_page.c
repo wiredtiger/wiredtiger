@@ -428,6 +428,8 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref,
 		 * Eviction wants to keep this page if we have a disk image,
 		 * re-instantiate the page in memory, else discard the page.
 		 */
+		if (ref->page_las != NULL)
+			__wt_free(session, ref->page_las->birthmarks);
 		__wt_free(session, ref->page_las);
 		if (mod->mod_disk_image == NULL) {
 			if (mod->mod_page_las.las_pageid != 0) {

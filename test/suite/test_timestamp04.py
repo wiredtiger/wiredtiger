@@ -109,6 +109,10 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.session = wttest.WiredTigerTestCase.setUpSessionOpen(self, self.conn)
 
     def test_rollback_to_stable(self):
+
+        # Disable this test until we deal with rollback for the relevant history project
+        return
+
         self.ConnectionOpen(self.cacheSize)
         # Configure small page sizes to ensure eviction comes through and we
         # have a somewhat complex tree.

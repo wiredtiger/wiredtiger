@@ -115,6 +115,7 @@ __las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
 static int
 __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+	WT_BIRTHMARK_DETAILS *birthmarkp;
 	WT_CACHE *cache;
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE cbt;
@@ -126,6 +127,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	wt_timestamp_t durable_timestamp, las_timestamp;
 	size_t incr, total_incr;
 	uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
+	uint64_t update_cnt;
 	uint32_t las_id, session_flags;
 	const uint8_t *p;
 	uint8_t prepare_state, upd_type;
@@ -167,9 +169,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	__wt_readlock(session, &cache->las_sweepwalk_lock);
 	WT_PUBLISH(cache->las_reader, false);
 	locked = true;
-	for (ret = __wt_las_cursor_position(cursor, las_pageid);
+
+	for (ret = __wt_las_cursor_position(cursor, las_pageid), update_cnt = 0;
 	    ret == 0;
-	    ret = cursor->next(cursor)) {
+	    ret = cursor->next(cursor), update_cnt++) {
 		WT_ERR(cursor->get_key(cursor,
 		    &las_pageid, &las_id, &las_counter, &las_key));
 
@@ -177,8 +180,14 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
-		if (las_pageid != ref->page_las->las_pageid)
+		if (las_pageid != ref->page_las->las_pageid) {
+#ifdef HAVE_DIAGNOSTIC
+			/* We should have one birthmark entry per update */
+			WT_ASSERT(session,
+			    update_cnt == ref->page_las->birthmarks_cnt);
+#endif
 			break;
+		}
 
 		/* Allocate the WT_UPDATE structure. */
 		WT_ERR(cursor->get_value(
@@ -187,10 +196,29 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		WT_ERR(__wt_update_alloc(
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
-		upd->txnid = las_txnid;
-		upd->durable_ts = durable_timestamp;
-		upd->start_ts = las_timestamp;
-		upd->prepare_state = prepare_state;
+		if (upd_type == WT_UPDATE_BIRTHMARK) {
+			birthmarkp =
+			    (WT_BIRTHMARK_DETAILS *)ref->page_las->birthmarks +
+			    update_cnt;
+			/*
+			 * Confirm that we get the same birthmark information
+			 * from in-memory data and from the lookaside file.
+			 */
+			WT_ASSERT(session, las_txnid == birthmarkp->txnid &&
+			    durable_timestamp == birthmarkp->durable_ts &&
+			    las_timestamp == birthmarkp->start_ts &&
+			    prepare_state == birthmarkp->prepare_state);
+
+			upd->txnid = birthmarkp->txnid;
+			upd->durable_ts = birthmarkp->durable_ts;
+			upd->start_ts = birthmarkp->start_ts;
+			upd->prepare_state = birthmarkp->prepare_state;
+		} else {
+			upd->txnid = las_txnid;
+			upd->durable_ts = durable_timestamp;
+			upd->start_ts = las_timestamp;
+			upd->prepare_state = prepare_state;
+		}
 
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:

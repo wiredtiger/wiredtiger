@@ -653,9 +653,12 @@ __las_insert_block_verbose(
  */
 int
 __wt_las_insert_block(WT_CURSOR *cursor,
-    WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
+    WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
+	WT_BIRTHMARK_DETAILS *birthmarkp;
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_ITEM(birthmarks);
+	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_ITEM las_value;
 	WT_SAVE_UPD *list;
@@ -676,6 +679,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	btree_id = btree->id;
 	local_txn = false;
 
+	/* Ensure enough room for a column-store key without checking. */
+	WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+	WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
+
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
 
 	if (!btree->lookaside_entries)
@@ -688,7 +696,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	 * There should never be any entries with the page ID we are about to
 	 * use.
 	 */
-	WT_RET_BUSY_OK(
+	WT_ERR_BUSY_OK(
 	    __las_remove_block(cursor, las_pageid, false, &remove_cnt));
 	WT_ASSERT(session, remove_cnt == 0);
 	}
@@ -770,6 +778,21 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			WT_ILLEGAL_VALUE_ERR(session, upd->type);
 			}
 
+			/*
+			 * Extend the buffer if needed and initialize the record
+			 * with an empty birthmark.
+			 */
+			WT_ERR(__wt_buf_extend(session, birthmarks,
+			    (insert_cnt + 1) *
+			    sizeof(WT_BIRTHMARK_DETAILS)));
+			birthmarkp =
+			    (WT_BIRTHMARK_DETAILS *)birthmarks->mem +
+			    insert_cnt;
+			birthmarkp->txnid = WT_TXN_NONE;
+			birthmarkp->durable_ts = 0;
+			birthmarkp->start_ts = 0;
+			birthmarkp->prepare_state = false;
+
 			cursor->set_key(cursor,
 			    las_pageid, btree_id, ++las_counter, key);
 
@@ -790,10 +813,24 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, WT_UPDATE_BIRTHMARK,
 				    &las_value);
-			} else
+				birthmarkp->txnid = upd->txnid;
+				birthmarkp->durable_ts = upd->durable_ts;
+				birthmarkp->start_ts = upd->start_ts;
+				birthmarkp->prepare_state = upd->prepare_state;
+			} else {
+				if (upd->type == WT_UPDATE_BIRTHMARK) {
+					WT_ASSERT(session, las_value.size == 0);
+					birthmarkp->txnid = upd->txnid;
+					birthmarkp->durable_ts =
+					    upd->durable_ts;
+					birthmarkp->start_ts = upd->start_ts;
+					birthmarkp->prepare_state =
+					    upd->prepare_state;
+				}
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, upd->type, &las_value);
+			}
 
 			/*
 			 * Using update looks a little strange because the keys
@@ -835,12 +872,23 @@ err:	/* Resolve the transaction. */
 
 	__las_restore_isolation(session, saved_isolation);
 
+	if (ret == 0 && insert_cnt > 0)
+		ret = __wt_calloc(session, insert_cnt,
+		    sizeof(WT_BIRTHMARK_DETAILS), &multi->page_las.birthmarks);
+
 	if (ret == 0 && insert_cnt > 0) {
 		multi->page_las.las_pageid = las_pageid;
 		multi->page_las.has_prepares = prepared_insert_cnt > 0;
+		memcpy(multi->page_las.birthmarks, birthmarks->mem,
+		    insert_cnt * sizeof(WT_BIRTHMARK_DETAILS));
+#ifdef HAVE_DIAGNOSTIC
+		multi->page_las.birthmarks_cnt = insert_cnt;
+#endif
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
+	__wt_scr_free(session, &birthmarks);
+	__wt_scr_free(session, &key);
 	WT_UNUSED(first_upd);
 	return (ret);
 }
