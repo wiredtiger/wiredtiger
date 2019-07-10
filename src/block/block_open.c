@@ -320,6 +320,9 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	uint32_t checksum_calculate, checksum_tmp;
+	bool alt_checksum;
+
+	alt_checksum = false;
 
 	/* If in-memory, we don't read or write the descriptor structure. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -328,6 +331,7 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
+retry_checksum:
 	/* Read the first allocation-sized block and verify the file format. */
 	WT_ERR(__wt_read(session,
 	    block->fh, (wt_off_t)0, (size_t)allocsize, buf->mem));
@@ -342,7 +346,8 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	desc = buf->mem;
 	checksum_tmp = desc->checksum;
 	desc->checksum = 0;
-	checksum_calculate = __wt_checksum(desc, allocsize);
+	checksum_calculate = alt_checksum ?
+	    __wt_checksum_alt(desc, allocsize) : __wt_checksum(desc, allocsize);
 	desc->checksum = checksum_tmp;
 	__wt_block_desc_byteswap(desc);
 
@@ -355,6 +360,10 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	 * may have entered the wrong file name, and is now frantically pounding
 	 * their interrupt key.
 	 */
+	if (desc->checksum != checksum_calculate && !alt_checksum) {
+		alt_checksum = true;
+		goto retry_checksum;
+	}
 	if (desc->magic != WT_BLOCK_MAGIC ||
 	    desc->checksum != checksum_calculate)
 		WT_ERR_MSG(session, WT_ERROR,

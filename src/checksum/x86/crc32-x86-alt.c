@@ -27,61 +27,10 @@
  */
 
 #include <wiredtiger_config.h>
-#if defined(_M_AMD64)
-#include <intrin.h>
-#endif
 #include <inttypes.h>
 #include <stddef.h>
 
 #if !defined(HAVE_NO_CRC32_HARDWARE)
-#if (defined(__amd64) || defined(__x86_64))
-/*
- * __wt_checksum_hw --
- *	Return a checksum for a chunk of memory, computed in hardware
- *	using 8 byte steps.
- */
-static uint32_t
-__wt_checksum_hw(const void *chunk, size_t len)
-{
-	uint32_t crc;
-	size_t nqwords;
-	const uint8_t *p;
-	const uint64_t *p64;
-
-	crc = 0xffffffff;
-
-	/* Checksum one byte at a time to the first 4B boundary. */
-	for (p = chunk;
-	    ((uintptr_t)p & (sizeof(uint32_t) - 1)) != 0 &&
-	    len > 0; ++p, --len) {
-		__asm__ __volatile__(
-				     ".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
-				     : "=S" (crc)
-				     : "0" (crc), "c" (*p));
-	}
-
-	p64 = (const uint64_t *)p;
-	/* Checksum in 8B chunks. */
-	for (nqwords = len / sizeof(uint64_t); nqwords; nqwords--) {
-		__asm__ __volatile__ (
-				      ".byte 0xF2, 0x48, 0x0F, 0x38, 0xF1, 0xF1"
-				      : "=S"(crc)
-				      : "0"(crc), "c" (*p64));
-		p64++;
-	}
-
-	/* Checksum trailing bytes one byte at a time. */
-	p = (const uint8_t *)p64;
-	for (len &= 0x7; len > 0; ++p, len--) {
-		__asm__ __volatile__(
-				     ".byte 0xF2, 0x0F, 0x38, 0xF0, 0xF1"
-				     : "=S" (crc)
-				     : "0" (crc), "c" (*p));
-	}
-	return (~crc);
-}
-#endif
-
 #if defined(_M_AMD64)
 /*
  * __wt_checksum_hw --
@@ -123,34 +72,30 @@ __wt_checksum_hw(const void *chunk, size_t len)
 #endif
 #endif
 
-extern uint32_t __wt_checksum_sw(const void *chunk, size_t len);
 #if defined(__GNUC__)
-extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t)
     __attribute__((visibility("default")));
 #else
-extern uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t);
+extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t);
 #endif
 
 /*
- * wiredtiger_crc32c_func --
- *	WiredTiger: detect CRC hardware and return the checksum function.
+ * __wiredtiger_crc32c_alt_func --
+ *	WiredTiger: detect CRC hardware and return the alternate checksum
+ * function.
+ *
+ * We only return an alternate checksum function on the Windows platform. The
+ * checksum code that originally shipped on Windows did not correctly handle
+ * memory that wasn't 8B aligned and a multiple of 8B. That's likely to always
+ * be the case, but there's some risk. What we do is always write the correct
+ * checksum, and if a checksum test fails, check it against any alternate we
+ * have before failing.
  */
-uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
+uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t)
 {
 #if !defined(HAVE_NO_CRC32_HARDWARE)
 #if (defined(__amd64) || defined(__x86_64))
-	unsigned int eax, ebx, ecx, edx;
-
-	__asm__ __volatile__ (
-			      "cpuid"
-			      : "=a" (eax), "=b" (ebx), "=c" (ecx), "=d" (edx)
-			      : "a" (1));
-
-#define	CPUID_ECX_HAS_SSE42	(1 << 20)
-	if (ecx & CPUID_ECX_HAS_SSE42)
-		return (__wt_checksum_hw);
-	return (__wt_checksum_sw);
-
+	return (NULL);
 #elif defined(_M_AMD64)
 	int cpuInfo[4];
 
@@ -159,11 +104,11 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 #define	CPUID_ECX_HAS_SSE42	(1 << 20)
 	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
 		return (__wt_checksum_hw);
-	return (__wt_checksum_sw);
+	return (NULL);
 #else
-	return (__wt_checksum_sw);
+	return (NULL);
 #endif
 #else
-	return (__wt_checksum_sw);
+	return (NULL);
 #endif
 }

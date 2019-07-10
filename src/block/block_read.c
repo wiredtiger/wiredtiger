@@ -225,6 +225,9 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	WT_BLOCK_HEADER *blk, swap;
 	size_t bufsize;
 	uint32_t page_checksum;
+	bool alt_checksum;
+
+	alt_checksum = false;
 
 	__wt_verbose(session, WT_VERB_READ,
 	    "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
@@ -248,9 +251,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		F_SET(buf, WT_ITEM_ALIGNED);
 		bufsize = WT_MAX(size, buf->memsize + 10);
 	}
-	WT_RET(__wt_buf_init(session, buf, bufsize));
-	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-	buf->size = size;
 
 	/*
 	 * Ensure we don't read information that isn't there. It shouldn't ever
@@ -262,6 +262,11 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 		"allocation size of %" PRIu32,
 		block->name, size, block->allocsize);
 
+retry_checksum:
+	WT_RET(__wt_buf_init(session, buf, bufsize));
+	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+	buf->size = size;
+
 	/*
 	 * We incrementally read through the structure before doing a checksum,
 	 * do little- to big-endian handling early on, and then select from the
@@ -271,9 +276,13 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 	__wt_block_header_byteswap_copy(blk, &swap);
 	if (swap.checksum == checksum) {
 		blk->checksum = 0;
-		page_checksum = __wt_checksum(buf->mem,
-		    F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ?
-		    size : WT_BLOCK_COMPRESS_SKIP);
+		page_checksum = alt_checksum ?
+		    __wt_checksum_alt(buf->mem,
+			F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ?
+			size : WT_BLOCK_COMPRESS_SKIP) :
+		    __wt_checksum(buf->mem,
+			F_ISSET(&swap, WT_BLOCK_DATA_CKSUM) ?
+			size : WT_BLOCK_COMPRESS_SKIP);
 		if (page_checksum == checksum) {
 			/*
 			 * Swap the page-header as needed; this doesn't belong
@@ -281,6 +290,11 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
 			 */
 			__wt_page_header_byteswap(buf->mem);
 			return (0);
+		}
+
+		if (!alt_checksum) {
+			alt_checksum = true;
+			goto retry_checksum;
 		}
 
 		if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))

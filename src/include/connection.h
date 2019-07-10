@@ -21,9 +21,11 @@ struct __wt_process {
 
 	bool page_version_ts;		/* timestamp version page formats */
 
-					/* Checksum function */
+					/* Checksum functions */
 #define	__wt_checksum(chunk, len)	__wt_process.checksum(chunk, len)
 	uint32_t (*checksum)(const void *, size_t);
+#define	__wt_checksum_alt(chunk, len)	__wt_process.checksum_alt(chunk, len)
+	uint32_t (*checksum_alt)(const void *, size_t);
 
 #define	WT_TSC_DEFAULT_RATIO	1.0
 	double	 tsc_nsec_ratio;	/* rdtsc ticks to nanoseconds */
