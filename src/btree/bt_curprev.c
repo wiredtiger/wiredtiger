@@ -38,6 +38,7 @@ __cursor_skip_prev(WT_CURSOR_BTREE *cbt)
 	WT_INSERT *current, *ins;
 	WT_ITEM key;
 	WT_SESSION_IMPL *session;
+	uint64_t recno;
 	int i;
 
 	session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -47,6 +48,7 @@ restart:
 	 * If the search stack does not point at the current item, fill it in
 	 * with a search.
 	 */
+	recno = WT_INSERT_RECNO(cbt->ins);
 	while (((current = cbt->ins) != PREV_INS(cbt, 0)) &&
 	    (current != NULL)) {
 		if (cbt->btree->type == BTREE_ROW) {
@@ -56,8 +58,7 @@ restart:
 			    session, cbt, cbt->ins_head, &key));
 		} else
 			cbt->ins = __col_insert_search(cbt->ins_head,
-			    cbt->ins_stack, cbt->next_stack,
-			    WT_INSERT_RECNO(current));
+			    cbt->ins_stack, cbt->next_stack, recno);
 	}
 
 	/*
