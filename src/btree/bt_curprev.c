@@ -602,7 +602,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			case WT_PAGE_COL_VAR:
 				ret = __cursor_var_append_prev(cbt, newpage);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session, page->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, page->type));
 			}
 			if (ret == 0 || ret == WT_PREPARE_CONFLICT)
 				break;
@@ -622,7 +623,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 			case WT_PAGE_ROW_LEAF:
 				ret = __cursor_row_prev(cbt, newpage);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session, page->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, page->type));
 			}
 			if (ret != WT_NOTFOUND)
 				break;

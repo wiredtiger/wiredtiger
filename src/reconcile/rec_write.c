@@ -447,7 +447,8 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 		return (0);
 	case WT_PM_REC_MULTIBLOCK:			/* Multiple blocks */
 		break;
-	WT_ILLEGAL_VALUE(session, mod->rec_result);
+	default:
+		return (__wt_illegal_value(session, mod->rec_result));
 	}
 
 	__wt_verbose(session, WT_VERB_SPLIT,
@@ -1322,7 +1323,8 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
 		WT_RET(__rec_split_row_promote(
 		    session, r, &r->cur_ptr->key, r->page->type));
 
-done:  	/*
+done:
+	/*
 	 * Overflow values can be larger than the maximum page size but still be
 	 * "on-page". If the next key/value pair is larger than space available
 	 * after a split has happened (in other words, larger than the maximum
@@ -1897,7 +1899,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	case WT_PAGE_ROW_INT:
 		multi->addr.type = WT_ADDR_INT;
 		break;
-	WT_ILLEGAL_VALUE(session, page->type);
+	default:
+		return (__wt_illegal_value(session, page->type));
 	}
 	multi->size = WT_STORE_SIZE(chunk->image.size);
 	multi->checksum = 0;
@@ -2285,7 +2288,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 		mod->mod_replace.size = 0;
 		__wt_free(session, mod->mod_disk_image);
 		break;
-	WT_ILLEGAL_VALUE(session, mod->rec_result);
+	default:
+		return (__wt_illegal_value(session, mod->rec_result));
 	}
 
 	/* Reset the reconciliation state. */

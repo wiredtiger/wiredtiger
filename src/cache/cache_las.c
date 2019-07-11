@@ -712,7 +712,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				key->size = WT_INSERT_KEY_SIZE(list->ins);
 			}
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, page->type);
+		default:
+			WT_ERR(__wt_illegal_value(session, page->type));
 		}
 
 		/*
@@ -757,7 +758,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			case WT_UPDATE_TOMBSTONE:
 				las_value.size = 0;
 				break;
-			WT_ILLEGAL_VALUE_ERR(session, upd->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 
 			cursor->set_key(cursor,
@@ -805,7 +807,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		    "WiredTigerLAS: file size of %" PRIu64 " exceeds maximum "
 		    "size %" PRIu64, (uint64_t)las_size, max_las_size);
 
-err:	/* Resolve the transaction. */
+err:
+	/* Resolve the transaction. */
 	if (local_txn) {
 		if (ret == 0)
 			ret = __wt_txn_commit(session, NULL);
