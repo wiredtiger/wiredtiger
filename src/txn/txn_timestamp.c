@@ -1076,6 +1076,14 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
 
+	/*
+	 * If we know for a fact that this is a prepared transaction, don't
+	 * add to the durable queue. If we poll all_durable after setting the
+	 * commit timestamp of a prepared transaction, that prepared transaction
+	 * should NOT be visible.
+	 */
+	if (F_ISSET(txn, WT_TXN_PREPARE))
+		return;
 	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_DURABLE))
 		return;
 
