@@ -301,7 +301,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.timestamp_transaction('durable_timestamp=8')
         session1.commit_transaction()
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), '7')
+            self.conn.query_timestamp('get=all_committed'), '8')
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_durable'), '8')
 
@@ -313,13 +313,13 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         session1.timestamp_transaction('commit_timestamp=4')
         session1.timestamp_transaction('durable_timestamp=5')
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), '3')
+            self.conn.query_timestamp('get=all_committed'), '4')
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_durable'), '4')
         session1.commit_transaction()
 
         self.assertTimestampsEqual(
-            self.conn.query_timestamp('get=all_committed'), '7')
+            self.conn.query_timestamp('get=all_committed'), '8')
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_durable'), '8')
 
