@@ -1558,7 +1558,7 @@ __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
 
-	if (!txn->clear_commit_q && !txn->clear_read_q)
+	if (!txn->clear_commit_q && !txn->clear_durable_q && !txn->clear_read_q)
 		return;
 
 	if (txn->clear_commit_q) {
@@ -1573,6 +1573,20 @@ __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
 			txn->clear_commit_q = false;
 		}
 		__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
+	}
+	if (txn->clear_durable_q) {
+		__wt_writelock(session, &txn_global->durable_timestamp_rwlock);
+		/*
+		 * Recheck after acquiring the lock.
+		 */
+		if (txn->clear_durable_q) {
+			TAILQ_REMOVE(&txn_global->durable_timestamph,
+			    txn, durable_timestampq);
+			--txn_global->durable_timestampq_len;
+			txn->clear_durable_q = false;
+		}
+		__wt_writeunlock(
+		    session, &txn_global->durable_timestamp_rwlock);
 	}
 	if (txn->clear_read_q) {
 		__wt_writelock(session, &txn_global->read_timestamp_rwlock);

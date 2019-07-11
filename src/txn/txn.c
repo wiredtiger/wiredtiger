@@ -806,8 +806,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	int64_t resolved_update_count, visited_update_count;
 	uint32_t fileid;
 	u_int i;
-	bool has_commit_ts, has_durable_ts, locked, prepare, readonly;
-	bool skip_update_assert, update_commit_ts, update_durable_ts;
+	bool locked, prepare, readonly, skip_update_assert;
+	bool update_commit_ts, update_durable_ts;
 
 	txn = &session->txn;
 	conn = S2C(session);
@@ -1037,8 +1037,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * That said, we can't update the global commit timestamp until this
 	 * transaction is visible, which happens when we release it.
 	 */
-	update_commit_ts = has_commit_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
-	has_durable_ts = F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+	update_commit_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
 
 	/*
 	 * If durable is set, we'll try to update the global durable timestamp
@@ -1046,9 +1045,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * the same as commit so we'll use that instead.
 	 */
 	candidate_durable_timestamp = 0;
-	if (has_durable_ts)
+	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
 		candidate_durable_timestamp = txn->durable_timestamp;
-	else if (has_commit_ts)
+	else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
 		candidate_durable_timestamp = txn->commit_timestamp;
 
 	__wt_txn_release(session);
