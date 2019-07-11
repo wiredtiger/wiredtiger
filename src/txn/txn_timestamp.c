@@ -258,40 +258,8 @@ __txn_global_query_timestamp(
 
 	WT_STAT_CONN_INCR(session, txn_query_ts);
 	WT_RET(__wt_config_gets(session, cfg, "get", &cval));
-	if (WT_STRING_MATCH("all_committed", cval.str, cval.len)) {
-		if (!txn_global->has_commit_timestamp)
-			return (WT_NOTFOUND);
-		ts = txn_global->commit_timestamp;
-		WT_ASSERT(session, ts != 0);
-
-		/* Skip the lock if there are no running transactions. */
-		if (TAILQ_EMPTY(&txn_global->commit_timestamph))
-			goto done;
-
-		/* Compare with the oldest running transaction. */
-		__wt_readlock(session, &txn_global->commit_timestamp_rwlock);
-		TAILQ_FOREACH(txn, &txn_global->commit_timestamph,
-		    commit_timestampq) {
-			if (txn->clear_commit_q)
-				continue;
-
-			tmpts = txn->first_commit_timestamp;
-			WT_ASSERT(session, tmpts != 0);
-			tmpts -= 1;
-
-			if (tmpts < ts)
-				ts = tmpts;
-			break;
-		}
-		__wt_readunlock(session, &txn_global->commit_timestamp_rwlock);
-
-		/*
-		 * If a transaction is committing with timestamp 1, we could
-		 * return zero here, which is unexpected.  Fail instead.
-		 */
-		if (ts == 0)
-			return (WT_NOTFOUND);
-	} else if (WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
+	if (WT_STRING_MATCH("all_committed", cval.str, cval.len) ||
+	    WT_STRING_MATCH("all_durable", cval.str, cval.len)) {
 		if (!txn_global->has_durable_timestamp)
 			return (WT_NOTFOUND);
 		ts = txn_global->durable_timestamp;
@@ -1118,73 +1086,6 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 	 */
 	ts = txn->commit_timestamp;
 
-	__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
-	/*
-	 * If our transaction is on the queue remove it first. The timestamp
-	 * may move earlier so we otherwise might not remove ourselves before
-	 * finding where to insert ourselves (which would result in a list
-	 * loop) and we don't want to walk more of the list than needed.
-	 */
-	if (txn->clear_commit_q) {
-		TAILQ_REMOVE(&txn_global->commit_timestamph,
-		    txn, commit_timestampq);
-		WT_PUBLISH(txn->clear_commit_q, false);
-		--txn_global->commit_timestampq_len;
-	}
-	/*
-	 * Walk the list to look for where to insert our own transaction
-	 * and remove any transactions that are not active.  We stop when
-	 * we get to the location where we want to insert.
-	 */
-	if (TAILQ_EMPTY(&txn_global->commit_timestamph)) {
-		TAILQ_INSERT_HEAD(
-		    &txn_global->commit_timestamph, txn, commit_timestampq);
-		WT_STAT_CONN_INCR(session, txn_commit_queue_empty);
-	} else {
-		/* Walk from the start, removing cleared entries. */
-		walked = 0;
-		TAILQ_FOREACH_SAFE(qtxn, &txn_global->commit_timestamph,
-		    commit_timestampq, txn_tmp) {
-			++walked;
-			/*
-			 * Stop on the first entry that we cannot clear.
-			 */
-			if (!qtxn->clear_commit_q)
-				break;
-
-			TAILQ_REMOVE(&txn_global->commit_timestamph,
-			    qtxn, commit_timestampq);
-			WT_PUBLISH(qtxn->clear_commit_q, false);
-			--txn_global->commit_timestampq_len;
-		}
-
-		/*
-		 * Now walk backwards from the end to find the correct position
-		 * for the insert.
-		 */
-		qtxn = TAILQ_LAST(
-		     &txn_global->commit_timestamph, __wt_txn_cts_qh);
-		while (qtxn != NULL && qtxn->first_commit_timestamp > ts) {
-			++walked;
-			qtxn = TAILQ_PREV(
-			    qtxn, __wt_txn_cts_qh, commit_timestampq);
-		}
-		if (qtxn == NULL) {
-			TAILQ_INSERT_HEAD(&txn_global->commit_timestamph,
-			    txn, commit_timestampq);
-			WT_STAT_CONN_INCR(session, txn_commit_queue_head);
-		} else
-			TAILQ_INSERT_AFTER(&txn_global->commit_timestamph,
-			    qtxn, txn, commit_timestampq);
-		WT_STAT_CONN_INCRV(session, txn_commit_queue_walked, walked);
-	}
-	txn->first_commit_timestamp = ts;
-	++txn_global->commit_timestampq_len;
-	WT_STAT_CONN_INCR(session, txn_commit_queue_inserts);
-	txn->clear_commit_q = false;
-	F_SET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_PUBLIC_TS_COMMIT);
-	__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
-
 	/*
 	 * Provided that we don't already have an explicit durable timestamp set
 	 * (indicated by WT_TXN_HAS_TS_DURABLE) and we haven't published a
@@ -1558,22 +1459,9 @@ __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
 
-	if (!txn->clear_commit_q && !txn->clear_durable_q && !txn->clear_read_q)
+	if (!txn->clear_durable_q && !txn->clear_read_q)
 		return;
 
-	if (txn->clear_commit_q) {
-		__wt_writelock(session, &txn_global->commit_timestamp_rwlock);
-		/*
-		 * Recheck after acquiring the lock.
-		 */
-		if (txn->clear_commit_q) {
-			TAILQ_REMOVE(&txn_global->commit_timestamph,
-			    txn, commit_timestampq);
-			--txn_global->commit_timestampq_len;
-			txn->clear_commit_q = false;
-		}
-		__wt_writeunlock(session, &txn_global->commit_timestamp_rwlock);
-	}
 	if (txn->clear_durable_q) {
 		__wt_writelock(session, &txn_global->durable_timestamp_rwlock);
 		/*

@@ -1494,8 +1494,6 @@ __wt_txn_stats_update(WT_SESSION_IMPL *session)
 	WT_STAT_SET(
 	    session, stats, txn_checkpoint_time_total, conn->ckpt_time_total);
 	WT_STAT_SET(session,
-	    stats, txn_commit_queue_len, txn_global->commit_timestampq_len);
-	WT_STAT_SET(session,
 	    stats, txn_durable_queue_len, txn_global->durable_timestampq_len);
 	WT_STAT_SET(session,
 	    stats, txn_read_queue_len, txn_global->read_timestampq_len);
@@ -1554,10 +1552,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
 
 	WT_RWLOCK_INIT_TRACKED(session,
-	    &txn_global->commit_timestamp_rwlock, commit_timestamp);
-	TAILQ_INIT(&txn_global->commit_timestamph);
-
-	WT_RWLOCK_INIT_TRACKED(session,
 	    &txn_global->durable_timestamp_rwlock, durable_timestamp);
 	TAILQ_INIT(&txn_global->durable_timestamph);
 
@@ -1596,7 +1590,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
 
 	__wt_spin_destroy(session, &txn_global->id_lock);
 	__wt_rwlock_destroy(session, &txn_global->rwlock);
-	__wt_rwlock_destroy(session, &txn_global->commit_timestamp_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->durable_timestamp_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->read_timestamp_rwlock);
 	__wt_rwlock_destroy(session, &txn_global->nsnap_rwlock);

@@ -1117,11 +1117,6 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: Number of prepared updates",
 	"transaction: Number of prepared updates added to cache overflow",
 	"transaction: Number of prepared updates resolved",
-	"transaction: commit timestamp queue entries walked",
-	"transaction: commit timestamp queue insert to empty",
-	"transaction: commit timestamp queue inserts to head",
-	"transaction: commit timestamp queue inserts total",
-	"transaction: commit timestamp queue length",
 	"transaction: durable timestamp queue entries walked",
 	"transaction: durable timestamp queue insert to empty",
 	"transaction: durable timestamp queue inserts to head",
@@ -1569,11 +1564,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_prepared_updates_count = 0;
 	stats->txn_prepared_updates_lookaside_inserts = 0;
 	stats->txn_prepared_updates_resolved = 0;
-	stats->txn_commit_queue_walked = 0;
-	stats->txn_commit_queue_empty = 0;
-	stats->txn_commit_queue_head = 0;
-	stats->txn_commit_queue_inserts = 0;
-	stats->txn_commit_queue_len = 0;
 	stats->txn_durable_queue_walked = 0;
 	stats->txn_durable_queue_empty = 0;
 	stats->txn_durable_queue_head = 0;
@@ -2175,15 +2165,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, txn_prepared_updates_lookaside_inserts);
 	to->txn_prepared_updates_resolved +=
 	    WT_STAT_READ(from, txn_prepared_updates_resolved);
-	to->txn_commit_queue_walked +=
-	    WT_STAT_READ(from, txn_commit_queue_walked);
-	to->txn_commit_queue_empty +=
-	    WT_STAT_READ(from, txn_commit_queue_empty);
-	to->txn_commit_queue_head +=
-	    WT_STAT_READ(from, txn_commit_queue_head);
-	to->txn_commit_queue_inserts +=
-	    WT_STAT_READ(from, txn_commit_queue_inserts);
-	to->txn_commit_queue_len += WT_STAT_READ(from, txn_commit_queue_len);
 	to->txn_durable_queue_walked +=
 	    WT_STAT_READ(from, txn_durable_queue_walked);
 	to->txn_durable_queue_empty +=
