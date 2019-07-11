@@ -291,3 +291,14 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
 		/* The default maximum delay is 1/10th of a second. */
 		__wt_sleep(0, i * (WT_TIMING_STRESS_MAX_DELAY / 10));
 }
+
+/*
+ * __wt_checksum_match --
+ *	Return if a checksum matches either the primary or alternate values.
+ */
+static inline bool
+__wt_checksum_match(const void *chunk, size_t len, uint32_t v)
+{
+	return (__wt_checksum(chunk, len) == v ||
+	    __wt_checksum_alt(chunk, len) == v);
+}

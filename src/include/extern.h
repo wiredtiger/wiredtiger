@@ -907,6 +907,7 @@ static inline bool __wt_btree_lsm_over_size(WT_SESSION_IMPL *session, uint64_t m
 static inline bool __wt_cache_aggressive(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_cache_full(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_cache_stuck(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_checksum_match(const void *chunk, size_t len, uint32_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_needed( WT_SESSION_IMPL *session, bool busy, bool readonly, double *pct_fullp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

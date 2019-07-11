@@ -319,10 +319,8 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	WT_BLOCK_DESC *desc;
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
-	uint32_t checksum_calculate, checksum_tmp;
-	bool alt_checksum;
-
-	alt_checksum = false;
+	uint32_t checksum_saved, checksum_tmp;
+	bool checksum_matched;
 
 	/* If in-memory, we don't read or write the descriptor structure. */
 	if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
@@ -331,7 +329,6 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
 	/* Use a scratch buffer to get correct alignment for direct I/O. */
 	WT_RET(__wt_scr_alloc(session, allocsize, &buf));
 
-retry_checksum:
 	/* Read the first allocation-sized block and verify the file format. */
 	WT_ERR(__wt_read(session,
 	    block->fh, (wt_off_t)0, (size_t)allocsize, buf->mem));
@@ -344,11 +341,13 @@ retry_checksum:
 	 * a calculated checksum that should match the checksum in the header.
 	 */
 	desc = buf->mem;
-	checksum_tmp = desc->checksum;
+	checksum_saved = checksum_tmp = desc->checksum;
+#ifdef WORDS_BIGENDIAN
+	checksum_tmp = __wt_bswap32(checksum_tmp);
+#endif
 	desc->checksum = 0;
-	checksum_calculate = alt_checksum ?
-	    __wt_checksum_alt(desc, allocsize) : __wt_checksum(desc, allocsize);
-	desc->checksum = checksum_tmp;
+	checksum_matched = __wt_checksum_match(desc, allocsize, checksum_tmp);
+	desc->checksum = checksum_saved;
 	__wt_block_desc_byteswap(desc);
 
 	/*
@@ -360,12 +359,7 @@ retry_checksum:
 	 * may have entered the wrong file name, and is now frantically pounding
 	 * their interrupt key.
 	 */
-	if (desc->checksum != checksum_calculate && !alt_checksum) {
-		alt_checksum = true;
-		goto retry_checksum;
-	}
-	if (desc->magic != WT_BLOCK_MAGIC ||
-	    desc->checksum != checksum_calculate)
+	if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched)
 		WT_ERR_MSG(session, WT_ERROR,
 		    "%s does not appear to be a WiredTiger file", block->name);
 

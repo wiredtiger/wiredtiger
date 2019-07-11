@@ -45,26 +45,18 @@ static bool
 __log_checksum_match(WT_ITEM *buf, uint32_t reclen)
 {
 	WT_LOG_RECORD *logrec;
-	uint32_t checksum_calculate, checksum_tmp;
-	bool alt_checksum;
+	uint32_t checksum_saved, checksum_tmp;
+	bool checksum_matched;
 
-	alt_checksum = false;
-
-	logrec = (WT_LOG_RECORD *)buf->mem;
-	checksum_tmp = logrec->checksum;
-	logrec->checksum = 0;
-retry_checksum:
-	checksum_calculate = alt_checksum ?
-	    __wt_checksum_alt(logrec, reclen) : __wt_checksum(logrec, reclen);
+	logrec = buf->mem;
+	checksum_saved = checksum_tmp = logrec->checksum;
 #ifdef WORDS_BIGENDIAN
-	checksum_calculate = __wt_bswap32(checksum_calculate);
+	checksum_tmp = __wt_bswap32(checksum_tmp);
 #endif
-	if (logrec->checksum != checksum_calculate && !alt_checksum) {
-		alt_checksum = true;
-		goto retry_checksum;
-	}
-	logrec->checksum = checksum_tmp;
-	return (logrec->checksum == checksum_calculate);
+	logrec->checksum = 0;
+	checksum_matched = __wt_checksum_match(logrec, reclen, checksum_tmp);
+	logrec->checksum = checksum_saved;
+	return (checksum_matched);
 }
 
 /*
