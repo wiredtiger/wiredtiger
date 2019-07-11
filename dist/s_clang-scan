@@ -1,7 +1,7 @@
 #! /bin/sh
 
 t=__wt.$$
-trap 'rm -rf $t clangScanBuildReports' 0 1 2 3 13 15
+trap 'rm -rf $t' 0 1 2 3 13 15
 
 set -e
 
@@ -37,7 +37,6 @@ sh autogen.sh > /dev/null || exit 1
 
 args="-o clangScanBuildReports"
 args="$args --use-cc=$compiler"
-args="$args -no-failure-reports"
 args="$args -disable-checker core.NullDereference"
 $scan $args ./configure 'CFLAGS=-g' \
     --disable-shared --enable-diagnostic --enable-strict > /dev/null
