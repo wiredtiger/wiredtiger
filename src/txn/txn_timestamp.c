@@ -1076,7 +1076,7 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
 
-	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_COMMIT))
+	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_DURABLE))
 		return;
 
 	/*
@@ -1085,6 +1085,7 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 	 * fixed.
 	 */
 	ts = txn->commit_timestamp;
+	txn->first_commit_timestamp = ts;
 
 	/*
 	 * Provided that we don't already have an explicit durable timestamp set
@@ -1093,8 +1094,7 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 	 * insert the txn in the durable queue using its commit timestamp as an
 	 * implied durable timestamp.
 	 */
-	if (F_ISSET(txn, WT_TXN_PUBLIC_TS_DURABLE) ||
-	    F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
 		return;
 
 	__wt_writelock(session, &txn_global->durable_timestamp_rwlock);
