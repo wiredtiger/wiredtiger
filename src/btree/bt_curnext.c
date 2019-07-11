@@ -192,7 +192,8 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage)
 			return (WT_NOTFOUND);
 		__cursor_set_recno(cbt, cbt->recno + 1);
 
-new_page:	/* Find the matching WT_COL slot. */
+new_page:
+		/* Find the matching WT_COL slot. */
 		if ((cip =
 		    __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
 			return (WT_NOTFOUND);
@@ -457,7 +458,8 @@ __wt_cursor_key_order_check(
 		return (__cursor_key_order_check_col(session, cbt, next));
 	case WT_PAGE_ROW_LEAF:
 		return (__cursor_key_order_check_row(session, cbt, next));
-	WT_ILLEGAL_VALUE(session, cbt->ref->page->type);
+	default:
+		return (__wt_illegal_value(session, cbt->ref->page->type));
 	}
 	/* NOTREACHED */
 }
@@ -482,7 +484,8 @@ __wt_cursor_key_order_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	case WT_PAGE_ROW_LEAF:
 		return (__wt_buf_set(session,
 		    cbt->lastkey, cbt->iface.key.data, cbt->iface.key.size));
-	WT_ILLEGAL_VALUE(session, cbt->ref->page->type);
+	default:
+		return (__wt_illegal_value(session, cbt->ref->page->type));
 	}
 	/* NOTREACHED */
 }
@@ -642,7 +645,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 			case WT_PAGE_COL_VAR:
 				ret = __cursor_var_append_next(cbt, newpage);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session, page->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, page->type));
 			}
 			if (ret == 0)
 				break;
@@ -660,7 +664,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 			case WT_PAGE_ROW_LEAF:
 				ret = __cursor_row_next(cbt, newpage);
 				break;
-			WT_ILLEGAL_VALUE_ERR(session, page->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, page->type));
 			}
 			if (ret != WT_NOTFOUND)
 				break;

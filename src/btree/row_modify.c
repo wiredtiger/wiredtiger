@@ -209,7 +209,8 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
 		WT_ERR(__wt_txn_log_op(session, cbt));
 
 	if (0) {
-err:		/*
+err:
+		/*
 		 * Remove the update from the current transaction, so we don't
 		 * try to modify it on rollback.
 		 */

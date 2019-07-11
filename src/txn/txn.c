@@ -929,7 +929,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		(void)__wt_cache_eviction_check(session, false, false, NULL);
 	return (0);
 
-err:	/*
+err:
+	/*
 	 * If anything went wrong, roll back.
 	 *
 	 * !!!

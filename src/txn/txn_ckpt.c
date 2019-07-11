@@ -1031,7 +1031,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 #endif
 	}
 
-err:	/*
+err:
+	/*
 	 * Reset the timer so that next checkpoint tracks the progress only if
 	 * configured.
 	 */
@@ -1662,7 +1663,8 @@ __checkpoint_tree(
 		if (F_ISSET(ckpt, WT_CKPT_ADD))
 			ckpt->write_gen = btree->write_gen;
 
-fake:	/*
+fake:
+	/*
 	 * If we're faking a checkpoint and logging is enabled, recovery should
 	 * roll forward any changes made between now and the next checkpoint,
 	 * so set the checkpoint LSN to the beginning of time.
@@ -1711,7 +1713,8 @@ fake:	/*
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, false, WT_TXN_LOG_CKPT_STOP, NULL));
 
-err:	/* Resolved the checkpoint for the block manager in the error path. */
+err:
+	/* Resolved the checkpoint for the block manager in the error path. */
 	if (resolve_bm)
 		WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
 

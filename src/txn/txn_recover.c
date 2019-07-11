@@ -248,8 +248,8 @@ __txn_op_apply(
 		case WT_TXN_TRUNC_STOP:
 			stop = cursor;
 			break;
-
-		WT_ILLEGAL_VALUE_ERR(session, mode);
+		default:
+			WT_ERR(__wt_illegal_value(session, mode));
 		}
 
 		/* Set the keys. */
@@ -265,8 +265,8 @@ __txn_op_apply(
 			WT_TRET(stop->close(stop));
 		WT_ERR(ret);
 		break;
-
-	WT_ILLEGAL_VALUE_ERR(session, optype);
+	default:
+	        WT_ERR(__wt_illegal_value(session, optype));
 	}
 
 	/* Reset the cursor so it doesn't block eviction. */
