@@ -1469,12 +1469,12 @@ err:	if (parent != NULL)
 
 #ifdef HAVE_DIAGNOSTIC
 /*
- * __check_upd_list --
+ * __wt_check_upd_list --
  *	Sanity check an update list.
  *	In particular, make sure there no birthmarks.
  */
-static void
-__check_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+void
+__wt_check_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
 	int birthmark_count;
 
@@ -1586,7 +1586,7 @@ __split_multi_inmem(
 			}
 
 #ifdef HAVE_DIAGNOSTIC
-			__check_upd_list(session, upd);
+			__wt_check_upd_list(session, upd);
 #endif
 
 			/* Search the page. */

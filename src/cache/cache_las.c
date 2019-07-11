@@ -668,14 +668,14 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	uint64_t prepared_insert_cnt;
 	uint32_t btree_id, i, slot;
 	uint8_t *p;
-	bool local_txn;
+	bool added_birthmark, local_txn;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	conn = S2C(session);
 	WT_CLEAR(las_value);
 	insert_cnt = prepared_insert_cnt = 0;
 	btree_id = btree->id;
-	local_txn = false;
+	added_birthmark = local_txn = false;
 
 	las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
 
@@ -747,6 +747,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		first_upd = upd = list->ins == NULL ?
 		    page->modify->mod_row_update[slot] : list->ins->upd;
 
+#ifdef HAVE_DIAGNOSTICS
+		__wt_check_upd_list(session, upd);
+#endif
 		/*
 		 * Walk the list of updates, storing each key/value pair into
 		 * the lookaside table. Skip aborted items (there's no point
@@ -786,28 +789,30 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    upd->size > 0 &&
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
-				las_value.size = 0;
 				WT_ASSERT(session, upd != first_upd ||
 				    multi->page_las.skew_newest);
-				cursor->set_value(cursor, upd->txnid,
-				    upd->start_ts, upd->durable_ts,
-				    upd->prepare_state, WT_UPDATE_BIRTHMARK,
-				    &las_value);
-			} else
+				las_value.size = 0;
+				upd->type = WT_UPDATE_BIRTHMARK;
+			}
+			/* Don't add more than one birthmark. */
+			if (!added_birthmark ||
+			    upd->type != WT_UPDATE_BIRTHMARK) {
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, upd->type, &las_value);
-
-			/*
-			 * Using update looks a little strange because the keys
-			 * are guaranteed to not exist, but since we're
-			 * appending, we want the cursor to stay positioned in
-			 * between inserts.
-			 */
-			WT_ERR(cursor->update(cursor));
-			++insert_cnt;
-			if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-				++prepared_insert_cnt;
+				/*
+				 * Using update looks a little strange because
+				 * the keys are guaranteed to not exist, but
+				 * since we're appending, we want the cursor
+				 * to stay positioned in between inserts.
+				 */
+				WT_ERR(cursor->update(cursor));
+				++insert_cnt;
+				if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+					++prepared_insert_cnt;
+				if (upd->type == WT_UPDATE_BIRTHMARK)
+					added_birthmark = true;
+			}
 		} while ((upd = upd->next) != NULL);
 	}
 

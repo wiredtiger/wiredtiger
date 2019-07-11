@@ -233,6 +233,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			last_upd->next = upd;
 			last_upd = upd;
 		}
+#ifdef HAVE_DIAGNOSTIC
+		if (upd_type == WT_UPDATE_BIRTHMARK)
+			__wt_check_upd_list(session, first_upd);
+#endif
 		upd = NULL;
 	}
 	__wt_readunlock(session, &cache->las_sweepwalk_lock);
