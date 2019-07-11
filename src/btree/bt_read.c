@@ -556,9 +556,12 @@ skip_read:
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
 	if (final_state == WT_REF_MEM && ref->page_las != NULL &&
-	    (!ref->page_las->skew_newest || ref->page_las->has_prepares))
+	    (!ref->page_las->skew_newest || ref->page_las->has_prepares)) {
 		WT_ERR(__wt_las_remove_block(
 		    session, ref->page_las->las_pageid));
+		__wt_free(session, ref->page_las->birthmarks);
+		__wt_free(session, ref->page_las);
+	}
 
 	WT_REF_SET_STATE(ref, final_state);
 	return (ret);
