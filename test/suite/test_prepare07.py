@@ -35,7 +35,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_prepare07.py
-# test to ensure prepared updates older than oldest timestamp are not visible.
+# Test to ensure prepared updates older than oldest timestamp are not visible.
 # this test is mainly to ensure there is no gap in txn_visible_all when active
 # oldest transaction is a prepared transaction, and the oldest timestamp advanced
 # past the prepared timestamp.
@@ -87,14 +87,14 @@ class test_prepare07(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(155))
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(155))
 
-        # Commit an update newer to the stable timestamp.
+        # Commit an update newer than the stable timestamp.
         self.session.begin_transaction('isolation=snapshot')
         cursor.set_key(ds.key(nrows + 6))
         cursor.set_value(value_b)
         self.assertEquals(cursor.update(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(160))
 
-        # Take a checkpoint.
+        # Take a checkpoint here, so that prepared transaction will not be durable..
         self.session.checkpoint()
 
         # Commit the prepared transaction.
