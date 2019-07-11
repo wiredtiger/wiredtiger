@@ -1172,32 +1172,6 @@ __wt_txn_publish_commit_timestamp(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_clear_commit_timestamp --
- *	Clear a transaction's published commit timestamp.
- */
-void
-__wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session)
-{
-	WT_TXN *txn;
-	uint32_t flags;
-
-	txn = &session->txn;
-
-	if (!F_ISSET(txn, WT_TXN_PUBLIC_TS_COMMIT))
-		return;
-	flags = txn->flags;
-	LF_CLR(WT_TXN_PUBLIC_TS_COMMIT);
-
-	/*
-	 * Notify other threads that our transaction is inactive and can be
-	 * cleaned up safely from the commit timestamp queue whenever the next
-	 * thread walks the queue. We do not need to remove it now.
-	 */
-	WT_PUBLISH(txn->clear_commit_q, true);
-	WT_PUBLISH(txn->flags, flags);
-}
-
-/*
  * __wt_txn_publish_durable_timestamp --
  *	Publish a transaction's durable timestamp.
  */

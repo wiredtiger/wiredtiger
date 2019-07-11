@@ -879,7 +879,6 @@ extern void __wt_stat_session_init_single(WT_SESSION_STATS *stats);
 extern void __wt_thread_group_start_one( WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, bool is_locked);
 extern void __wt_thread_group_stop_one(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group);
 extern void __wt_timestamp_to_hex_string(wt_timestamp_t ts, char *hex_timestamp);
-extern void __wt_txn_clear_commit_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_durable_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_read_timestamp(WT_SESSION_IMPL *session);
 extern void __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session);
