@@ -528,10 +528,6 @@ struct __wt_connection_stats {
 	int64_t lock_checkpoint_count;
 	int64_t lock_checkpoint_wait_application;
 	int64_t lock_checkpoint_wait_internal;
-	int64_t lock_commit_timestamp_wait_application;
-	int64_t lock_commit_timestamp_wait_internal;
-	int64_t lock_commit_timestamp_read_count;
-	int64_t lock_commit_timestamp_write_count;
 	int64_t lock_dhandle_wait_application;
 	int64_t lock_dhandle_wait_internal;
 	int64_t lock_dhandle_read_count;

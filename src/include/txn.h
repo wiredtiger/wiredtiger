@@ -128,7 +128,6 @@ struct __wt_txn_global {
 	 */
 	volatile uint64_t oldest_id;
 
-	wt_timestamp_t commit_timestamp;
 	wt_timestamp_t durable_timestamp;
 	wt_timestamp_t last_ckpt_timestamp;
 	wt_timestamp_t meta_ckpt_timestamp;
@@ -136,7 +135,6 @@ struct __wt_txn_global {
 	wt_timestamp_t pinned_timestamp;
 	wt_timestamp_t recovery_timestamp;
 	wt_timestamp_t stable_timestamp;
-	bool has_commit_timestamp;
 	bool has_durable_timestamp;
 	bool has_oldest_timestamp;
 	bool has_pinned_timestamp;

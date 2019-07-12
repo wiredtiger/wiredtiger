@@ -969,10 +969,6 @@ static const char * const __stats_connection_desc[] = {
 	"lock: checkpoint lock acquisitions",
 	"lock: checkpoint lock application thread wait time (usecs)",
 	"lock: checkpoint lock internal thread wait time (usecs)",
-	"lock: commit timestamp queue lock application thread time waiting (usecs)",
-	"lock: commit timestamp queue lock internal thread time waiting (usecs)",
-	"lock: commit timestamp queue read lock acquisitions",
-	"lock: commit timestamp queue write lock acquisitions",
 	"lock: dhandle lock application thread time waiting (usecs)",
 	"lock: dhandle lock internal thread time waiting (usecs)",
 	"lock: dhandle read lock acquisitions",
@@ -1416,10 +1412,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->lock_checkpoint_count = 0;
 	stats->lock_checkpoint_wait_application = 0;
 	stats->lock_checkpoint_wait_internal = 0;
-	stats->lock_commit_timestamp_wait_application = 0;
-	stats->lock_commit_timestamp_wait_internal = 0;
-	stats->lock_commit_timestamp_read_count = 0;
-	stats->lock_commit_timestamp_write_count = 0;
 	stats->lock_dhandle_wait_application = 0;
 	stats->lock_dhandle_wait_internal = 0;
 	stats->lock_dhandle_read_count = 0;
@@ -1924,14 +1916,6 @@ __wt_stat_connection_aggregate(
 	    WT_STAT_READ(from, lock_checkpoint_wait_application);
 	to->lock_checkpoint_wait_internal +=
 	    WT_STAT_READ(from, lock_checkpoint_wait_internal);
-	to->lock_commit_timestamp_wait_application +=
-	    WT_STAT_READ(from, lock_commit_timestamp_wait_application);
-	to->lock_commit_timestamp_wait_internal +=
-	    WT_STAT_READ(from, lock_commit_timestamp_wait_internal);
-	to->lock_commit_timestamp_read_count +=
-	    WT_STAT_READ(from, lock_commit_timestamp_read_count);
-	to->lock_commit_timestamp_write_count +=
-	    WT_STAT_READ(from, lock_commit_timestamp_write_count);
 	to->lock_dhandle_wait_application +=
 	    WT_STAT_READ(from, lock_dhandle_wait_application);
 	to->lock_dhandle_wait_internal +=

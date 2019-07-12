@@ -282,7 +282,7 @@ __wt_lsm_chunk_visible_all(
 	 * timestamps associated with those updates are assigned so setup a
 	 * timestamp for visibility checking.
 	 */
-	if (txn_global->has_commit_timestamp ||
+	if (txn_global->has_durable_timestamp ||
 	    txn_global->has_pinned_timestamp) {
 		if (!F_ISSET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP)) {
 			__wt_spin_lock(session, &chunk->timestamp_spinlock);

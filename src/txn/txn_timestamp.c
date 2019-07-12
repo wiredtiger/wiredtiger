@@ -231,10 +231,10 @@ __wt_txn_get_pinned_timestamp(
 static inline wt_timestamp_t
 __txn_get_durable_timestamp(WT_TXN *txn)
 {
-	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+	if (txn->durable_timestamp != WT_TS_NONE)
 		return (txn->durable_timestamp);
-	if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-		return (txn->commit_timestamp);
+	if (txn->first_commit_timestamp != WT_TS_NONE)
+		return (txn->first_commit_timestamp);
 
 	return (0);
 }
@@ -279,6 +279,7 @@ __txn_global_query_timestamp(
 		    durable_timestampq) {
 			if (txn->clear_durable_q)
 				continue;
+
 			tmpts = __txn_get_durable_timestamp(txn);
 			WT_ASSERT(session, tmpts != 0);
 			tmpts -= 1;
