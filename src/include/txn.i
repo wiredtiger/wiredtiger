@@ -427,7 +427,7 @@ __wt_txn_op_delete_commit_apply_timestamps(
 /*
  * __wt_txn_op_set_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
- *	structure doesn't have a populated update or ref field or in prepared
+ *	structure doesn't have a populated update or ref field or is in prepared
  *      state there won't be any check for an existing timestamp.
  */
 static inline void

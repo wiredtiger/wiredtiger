@@ -2100,7 +2100,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session,
 		    !__txn_visible_all_id(session, page->modify->update_txn)))
 			continue;
 
-fast:		/* If the page can't be evicted, give up. */
+fast:
+		/* If the page can't be evicted, give up. */
 		if (!__wt_page_can_evict(session, ref, NULL))
 			continue;
 
