@@ -30,14 +30,23 @@
 #include <inttypes.h>
 #include <stddef.h>
 
+/*
+ * The hardware-accelerated checksum code that originally shipped on Windows
+ * did not correctly handle memory that wasn't 8B aligned and a multiple of 8B.
+ * It's likely that calculations were always 8B aligned, but there's some risk.
+ *
+ * What we do is always write the correct checksum, and if a checksum test
+ * fails, check it against the alternate version have before failing.
+ */
+
 #if defined(_M_AMD64) && !defined(HAVE_NO_CRC32_HARDWARE)
 /*
- * __wt_checksum_alt --
+ * __checksum_alt --
  *	Return a checksum for a chunk of memory, computed in hardware
  *	using 8 byte steps.
  */
-uint32_t
-__wt_checksum_alt(const void *chunk, size_t len)
+static uint32_t
+__checksum_alt(const void *chunk, size_t len)
 {
 	uint32_t crc;
 	size_t nqwords;
@@ -68,4 +77,23 @@ __wt_checksum_alt(const void *chunk, size_t len)
 
 	return (~crc);
 }
+
+/*
+ * __wt_checksum_alt_match --
+ *	Return if a checksum matches the alternate calculation.
+ */
+bool
+__wt_checksum_alt_match(const void *chunk, size_t len, uint32_t v)
+{
+	int cpuInfo[4];
+
+	__cpuid(cpuInfo, 1);
+
+ #define	CPUID_ECX_HAS_SSE42	(1 << 20)
+	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
+		return (__checksum_alt(chunk, len) == v);
+
+	return (false);
+}
+
 #endif
