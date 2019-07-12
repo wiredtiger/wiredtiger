@@ -266,8 +266,7 @@ thread_run(void *arg)
 	 * are in use. Thread numbers start at 0 so we're always guaranteed
 	 * that at least one thread is using prepared transactions.
 	 */
-	//use_prep = (use_ts && td->info % PREPARE_PCT == 0) ? true : false;
-	use_prep = false;
+	use_prep = (use_ts && td->info % PREPARE_PCT == 0) ? true : false;
 
 	/*
 	 * For the prepared case we have two sessions so that the oplog session
