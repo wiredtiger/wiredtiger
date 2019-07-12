@@ -274,8 +274,7 @@ __txn_global_query_timestamp(
 		/*
 		 * Compare with the least recently durable transaction.
 		 */
-		__wt_readlock(
-		    session, &txn_global->durable_timestamp_rwlock);
+		__wt_readlock(session, &txn_global->durable_timestamp_rwlock);
 		TAILQ_FOREACH(txn, &txn_global->durable_timestamph,
 		    durable_timestampq) {
 			if (txn->clear_durable_q)
@@ -288,8 +287,7 @@ __txn_global_query_timestamp(
 				ts = tmpts;
 			break;
 		}
-		__wt_readunlock(
-		    session, &txn_global->durable_timestamp_rwlock);
+		__wt_readunlock(session, &txn_global->durable_timestamp_rwlock);
 
 		/*
 		 * If a transaction is committing with a durable timestamp of 1,
