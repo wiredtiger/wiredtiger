@@ -697,8 +697,8 @@ struct __wt_connection_stats {
 	int64_t txn_rollback_upd_aborted;
 	int64_t txn_rollback_las_removed;
 	int64_t txn_set_ts;
-	int64_t txn_set_ts_commit;
-	int64_t txn_set_ts_commit_upd;
+	int64_t txn_set_ts_durable;
+	int64_t txn_set_ts_durable_upd;
 	int64_t txn_set_ts_oldest;
 	int64_t txn_set_ts_oldest_upd;
 	int64_t txn_set_ts_stable;

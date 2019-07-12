@@ -1138,8 +1138,8 @@ static const char * const __stats_connection_desc[] = {
 	"transaction: rollback to stable updates aborted",
 	"transaction: rollback to stable updates removed from cache overflow",
 	"transaction: set timestamp calls",
-	"transaction: set timestamp commit calls",
-	"transaction: set timestamp commit updates",
+	"transaction: set timestamp durable calls",
+	"transaction: set timestamp durable updates",
 	"transaction: set timestamp oldest calls",
 	"transaction: set timestamp oldest updates",
 	"transaction: set timestamp stable calls",
@@ -1585,8 +1585,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
 	stats->txn_rollback_upd_aborted = 0;
 	stats->txn_rollback_las_removed = 0;
 	stats->txn_set_ts = 0;
-	stats->txn_set_ts_commit = 0;
-	stats->txn_set_ts_commit_upd = 0;
+	stats->txn_set_ts_durable = 0;
+	stats->txn_set_ts_durable_upd = 0;
 	stats->txn_set_ts_oldest = 0;
 	stats->txn_set_ts_oldest_upd = 0;
 	stats->txn_set_ts_stable = 0;
@@ -2198,9 +2198,9 @@ __wt_stat_connection_aggregate(
 	to->txn_rollback_las_removed +=
 	    WT_STAT_READ(from, txn_rollback_las_removed);
 	to->txn_set_ts += WT_STAT_READ(from, txn_set_ts);
-	to->txn_set_ts_commit += WT_STAT_READ(from, txn_set_ts_commit);
-	to->txn_set_ts_commit_upd +=
-	    WT_STAT_READ(from, txn_set_ts_commit_upd);
+	to->txn_set_ts_durable += WT_STAT_READ(from, txn_set_ts_durable);
+	to->txn_set_ts_durable_upd +=
+	    WT_STAT_READ(from, txn_set_ts_durable_upd);
 	to->txn_set_ts_oldest += WT_STAT_READ(from, txn_set_ts_oldest);
 	to->txn_set_ts_oldest_upd +=
 	    WT_STAT_READ(from, txn_set_ts_oldest_upd);

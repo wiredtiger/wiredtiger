@@ -290,7 +290,7 @@ __wt_lsm_chunk_visible_all(
 			if (!F_ISSET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP)) {
 				__wt_readlock(session, &txn_global->rwlock);
 				chunk->switch_timestamp =
-				    txn_global->commit_timestamp;
+				    txn_global->durable_timestamp;
 				__wt_readunlock(session, &txn_global->rwlock);
 				F_SET(chunk, WT_LSM_CHUNK_HAS_TIMESTAMP);
 			}

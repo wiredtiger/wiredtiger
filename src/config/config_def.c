@@ -244,6 +244,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
 	{ "commit_timestamp", "string", NULL, NULL, NULL, 0 },
+	{ "durable_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "force", "boolean", NULL, NULL, NULL, 0 },
 	{ "oldest_timestamp", "string", NULL, NULL, NULL, 0 },
 	{ "stable_timestamp", "string", NULL, NULL, NULL, 0 },
@@ -1367,7 +1368,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_CONNECTION_open_session, 3
 	},
 	{ "WT_CONNECTION.query_timestamp",
-	  "get=all_committed",
+	  "get=all_durable",
 	  confchk_WT_CONNECTION_query_timestamp, 1
 	},
 	{ "WT_CONNECTION.reconfigure",
@@ -1399,9 +1400,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  NULL, 0
 	},
 	{ "WT_CONNECTION.set_timestamp",
-	  "commit_timestamp=,force=false,oldest_timestamp=,"
-	  "stable_timestamp=",
-	  confchk_WT_CONNECTION_set_timestamp, 4
+	  "commit_timestamp=,durable_timestamp=,force=false,"
+	  "oldest_timestamp=,stable_timestamp=",
+	  confchk_WT_CONNECTION_set_timestamp, 5
 	},
 	{ "WT_CURSOR.close",
 	  "",

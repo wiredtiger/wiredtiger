@@ -444,22 +444,36 @@ __wt_txn_update_pinned_timestamp(WT_SESSION_IMPL *session, bool force)
 int
 __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 {
-	WT_CONFIG_ITEM commit_cval, oldest_cval, stable_cval;
 	WT_CONFIG_ITEM cval;
+	WT_CONFIG_ITEM durable_cval, oldest_cval, stable_cval;
 	WT_TXN_GLOBAL *txn_global;
-	wt_timestamp_t commit_ts, oldest_ts, stable_ts;
+	wt_timestamp_t durable_ts, oldest_ts, stable_ts;
 	wt_timestamp_t last_oldest_ts, last_stable_ts;
 	char ts_string[2][WT_TS_INT_STRING_SIZE];
-	bool force, has_commit, has_oldest, has_stable;
+	bool force, has_durable, has_oldest, has_stable;
 
 	txn_global = &S2C(session)->txn_global;
 
 	WT_STAT_CONN_INCR(session, txn_set_ts);
+
+	/*
+	 * TODO: When we remove all_committed, we need to remove this too.
+	 * For now, we're temporarily aliasing the global commit timestamp to
+	 * the global durable timestamp.
+	 */
 	WT_RET(__wt_config_gets_def(session,
-	    cfg, "commit_timestamp", 0, &commit_cval));
-	has_commit = commit_cval.len != 0;
-	if (has_commit)
-		WT_STAT_CONN_INCR(session, txn_set_ts_commit);
+	    cfg, "commit_timestamp", 0, &durable_cval));
+	has_durable = durable_cval.len != 0;
+	if (has_durable)
+		WT_STAT_CONN_INCR(session, txn_set_ts_durable);
+
+	if (!has_durable) {
+		WT_RET(__wt_config_gets_def(session,
+		    cfg, "durable_timestamp", 0, &durable_cval));
+		has_durable = durable_cval.len != 0;
+		if (has_durable)
+			WT_STAT_CONN_INCR(session, txn_set_ts_durable);
+	}
 
 	WT_RET(__wt_config_gets_def(session,
 	    cfg, "oldest_timestamp", 0, &oldest_cval));
@@ -474,7 +488,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_STAT_CONN_INCR(session, txn_set_ts_stable);
 
 	/* If no timestamp was supplied, there's nothing to do. */
-	if (!has_commit && !has_oldest && !has_stable)
+	if (!has_durable && !has_oldest && !has_stable)
 		return (0);
 
 	/*
@@ -482,7 +496,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 * it is not configured.
 	 */
 	WT_RET(__wt_txn_parse_timestamp(
-	    session, "commit", &commit_ts, &commit_cval));
+	    session, "durable", &durable_ts, &durable_cval));
 	WT_RET(__wt_txn_parse_timestamp(
 	    session, "oldest", &oldest_ts, &oldest_cval));
 	WT_RET(__wt_txn_parse_timestamp(
@@ -507,35 +521,35 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	 * then compare against the system timestamp.  If we're
 	 * setting both then compare the passed in values.
 	 */
-	if (!has_commit && txn_global->has_commit_timestamp)
-		commit_ts = txn_global->commit_timestamp;
+	if (!has_durable && txn_global->has_durable_timestamp)
+		durable_ts = txn_global->durable_timestamp;
 	if (!has_oldest && txn_global->has_oldest_timestamp)
 		oldest_ts = last_oldest_ts;
 	if (!has_stable && txn_global->has_stable_timestamp)
 		stable_ts = last_stable_ts;
 
 	/*
-	 * If a commit timestamp was supplied, check that it is no older than
+	 * If a durable timestamp was supplied, check that it is no older than
 	 * either the stable timestamp or the oldest timestamp.
 	 */
-	if (has_commit && (has_oldest ||
-	    txn_global->has_oldest_timestamp) && oldest_ts > commit_ts) {
+	if (has_durable && (has_oldest ||
+	    txn_global->has_oldest_timestamp) && oldest_ts > durable_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: oldest timestamp %s must not be later than "
-		    "commit timestamp %s",
+		    "durable timestamp %s",
 		    __wt_timestamp_to_string(oldest_ts, ts_string[0]),
-		    __wt_timestamp_to_string(commit_ts, ts_string[1]));
+		    __wt_timestamp_to_string(durable_ts, ts_string[1]));
 	}
 
-	if (has_commit && (has_stable ||
-	    txn_global->has_stable_timestamp) && stable_ts > commit_ts) {
+	if (has_durable && (has_stable ||
+	    txn_global->has_stable_timestamp) && stable_ts > durable_ts) {
 		__wt_readunlock(session, &txn_global->rwlock);
 		WT_RET_MSG(session, EINVAL,
 		    "set_timestamp: stable timestamp %s must not be later than "
-		    "commit timestamp %s",
+		    "durable timestamp %s",
 		    __wt_timestamp_to_string(stable_ts, ts_string[0]),
-		    __wt_timestamp_to_string(commit_ts, ts_string[1]));
+		    __wt_timestamp_to_string(durable_ts, ts_string[1]));
 	}
 
 	/*
@@ -565,7 +579,7 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
 	    txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
 		has_stable = false;
 
-	if (!has_commit && !has_oldest && !has_stable)
+	if (!has_durable && !has_oldest && !has_stable)
 		return (0);
 
 set:	__wt_writelock(session, &txn_global->rwlock);
@@ -573,18 +587,18 @@ set:	__wt_writelock(session, &txn_global->rwlock);
 	 * This method can be called from multiple threads, check that we are
 	 * moving the global timestamps forwards.
 	 *
-	 * The exception is the commit timestamp, where the application can
+	 * The exception is the durable timestamp, where the application can
 	 * move it backwards (in fact, it only really makes sense to explicitly
 	 * move it backwards because it otherwise tracks the largest
-	 * commit_timestamp so it moves forward whenever transactions are
+	 * durable_timestamp so it moves forward whenever transactions are
 	 * assigned timestamps).
 	 */
-	if (has_commit) {
-		txn_global->commit_timestamp = commit_ts;
-		txn_global->has_commit_timestamp = true;
-		WT_STAT_CONN_INCR(session, txn_set_ts_commit_upd);
-		__wt_verbose_timestamp(session, commit_ts,
-		    "Updated global commit timestamp");
+	if (has_durable) {
+		txn_global->durable_timestamp = durable_ts;
+		txn_global->has_durable_timestamp = true;
+		WT_STAT_CONN_INCR(session, txn_set_ts_durable_upd);
+		__wt_verbose_timestamp(session, durable_ts,
+		    "Updated global durable timestamp");
 	}
 
 	if (has_oldest && (!txn_global->has_oldest_timestamp || force ||
