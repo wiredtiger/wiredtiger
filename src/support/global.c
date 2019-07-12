@@ -102,8 +102,6 @@ __global_calibrate_ticks(void)
 #endif
 }
 
-extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t);
-
 /*
  * __global_once --
  *	Global initialization, run once.
@@ -126,9 +124,6 @@ __global_once(void)
 	 * alternate, that way code doesn't have to check if it's set or not.
 	 */
 	__wt_process.checksum = wiredtiger_crc32c_func();
-	__wt_process.checksum_alt = __wiredtiger_crc32c_alt_func();
-	if (__wt_process.checksum_alt == NULL)
-		__wt_process.checksum_alt = __wt_process.checksum;
 
 	__global_calibrate_ticks();
 }

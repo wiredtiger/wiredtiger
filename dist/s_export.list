@@ -1,5 +1,4 @@
 # List of OK external symbols.
-__wiredtiger_crc32c_alt_func
 wiredtiger_calc_modify
 wiredtiger_config_parser_open
 wiredtiger_config_validate

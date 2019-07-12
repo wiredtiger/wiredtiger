@@ -102,20 +102,3 @@ uint32_t (*wiredtiger_crc32c_func(void))(const void *, size_t)
 	return (__wt_checksum_sw);
 #endif
 }
-
-#if defined(__GNUC__)
-extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t)
-    __attribute__((visibility("default")));
-#else
-extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t);
-#endif
-
-/*
- * __wiredtiger_crc32c_alt_func --
- *	WiredTiger: detect CRC hardware and return the alternate checksum
- * function.
- */
-uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t)
-{
-	return (NULL);
-}

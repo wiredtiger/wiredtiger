@@ -292,6 +292,7 @@ __wt_timing_stress(WT_SESSION_IMPL *session, u_int flag)
 		__wt_sleep(0, i * (WT_TIMING_STRESS_MAX_DELAY / 10));
 }
 
+#if defined(_M_AMD64) && !defined(HAVE_NO_CRC32_HARDWARE)
 /*
  * __wt_checksum_match --
  *	Return if a checksum matches either the primary or alternate values.
@@ -302,3 +303,16 @@ __wt_checksum_match(const void *chunk, size_t len, uint32_t v)
 	return (__wt_checksum(chunk, len) == v ||
 	    __wt_checksum_alt(chunk, len) == v);
 }
+
+#else
+
+/*
+ * __wt_checksum_match --
+ *	Return if a checksum matches.
+ */
+static inline bool
+__wt_checksum_match(const void *chunk, size_t len, uint32_t v)
+{
+	return (__wt_checksum(chunk, len) == v);
+}
+#endif

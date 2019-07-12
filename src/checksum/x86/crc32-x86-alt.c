@@ -30,15 +30,14 @@
 #include <inttypes.h>
 #include <stddef.h>
 
-#if !defined(HAVE_NO_CRC32_HARDWARE)
-#if defined(_M_AMD64)
+#if defined(_M_AMD64) && !defined(HAVE_NO_CRC32_HARDWARE)
 /*
- * __wt_checksum_hw --
+ * __wt_checksum_alt --
  *	Return a checksum for a chunk of memory, computed in hardware
  *	using 8 byte steps.
  */
-static uint32_t
-__wt_checksum_hw(const void *chunk, size_t len)
+uint32_t
+__wt_checksum_alt(const void *chunk, size_t len)
 {
 	uint32_t crc;
 	size_t nqwords;
@@ -70,45 +69,3 @@ __wt_checksum_hw(const void *chunk, size_t len)
 	return (~crc);
 }
 #endif
-#endif
-
-#if defined(__GNUC__)
-extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t)
-    __attribute__((visibility("default")));
-#else
-extern uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t);
-#endif
-
-/*
- * __wiredtiger_crc32c_alt_func --
- *	WiredTiger: detect CRC hardware and return the alternate checksum
- * function.
- *
- * We only return an alternate checksum function on the Windows platform. The
- * checksum code that originally shipped on Windows did not correctly handle
- * memory that wasn't 8B aligned and a multiple of 8B. That's likely to always
- * be the case, but there's some risk. What we do is always write the correct
- * checksum, and if a checksum test fails, check it against any alternate we
- * have before failing.
- */
-uint32_t (*__wiredtiger_crc32c_alt_func(void))(const void *, size_t)
-{
-#if !defined(HAVE_NO_CRC32_HARDWARE)
-#if (defined(__amd64) || defined(__x86_64))
-	return (NULL);
-#elif defined(_M_AMD64)
-	int cpuInfo[4];
-
-	__cpuid(cpuInfo, 1);
-
-#define	CPUID_ECX_HAS_SSE42	(1 << 20)
-	if (cpuInfo[2] & CPUID_ECX_HAS_SSE42)
-		return (__wt_checksum_hw);
-	return (NULL);
-#else
-	return (NULL);
-#endif
-#else
-	return (NULL);
-#endif
-}
