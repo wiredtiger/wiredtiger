@@ -323,7 +323,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Now the lookaside history has been read into cache there is no
 	 * further need to maintain a reference to it.
 	 */
-	ref->page_las->eviction_to_lookaside = false;
 	ref->page_las->resolved = true;
 
 err:	if (locked)
