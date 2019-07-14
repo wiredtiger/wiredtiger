@@ -780,7 +780,7 @@ __wt_txn_set_commit_timestamp(
 		}
 	}
 
-	WT_ASSERT(session, txn->durable_timestamp == WT_TS_NONE ||
+	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) ||
 	    txn->durable_timestamp == txn->commit_timestamp);
 	txn->durable_timestamp = txn->commit_timestamp = commit_ts;
 	F_SET(txn, WT_TXN_HAS_TS_COMMIT);
