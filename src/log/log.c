@@ -2277,7 +2277,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 				    PRIu32 "/%" PRIu32,
 				    lsnp->l.file, lsnp->l.offset);
 			else
-				return (WT_NOTFOUND);
+				WT_ERR (WT_NOTFOUND);
 		}
 		/*
 		 * If the file is in the future it doesn't exist.
@@ -2293,7 +2293,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 				    " larger than biggest log file %" PRIu32,
 				    lsnp->l.file, lsnp->l.offset, lastlog);
 			else
-				return (WT_NOTFOUND);
+				WT_ERR (WT_NOTFOUND);
 		}
 		/*
 		 * Log cursors may not know the starting LSN.  If an
