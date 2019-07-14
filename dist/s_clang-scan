@@ -44,9 +44,11 @@ $scan $args make -j 8 wt 1>/dev/null 2>$t
 
 make -j 8 distclean > /dev/null
 
-grep 'No bugs found' $t > /dev/null && exit 0
+(grep 'No bugs found' $t ||
+    diff $t dist/s_clang-scan.diff) > /dev/null && exit 0
+
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-echo 'scan-build output:'
+echo 'scan-build output differs from expected:'
 echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 cat $t
 exit 1
