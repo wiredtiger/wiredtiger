@@ -231,7 +231,23 @@ __wt_txn_get_pinned_timestamp(
 static inline wt_timestamp_t
 __txn_get_durable_timestamp(WT_TXN *txn)
 {
-	if (txn->durable_timestamp != WT_TS_NONE)
+	/*
+	 * Any checking of bit flags in this logic is invalid. The txn_release
+	 * function may have already been called on this transaction which will
+	 * set the flags member to 0. So we need to deduce which timestamp to
+	 * use purely by inspecting the timestamp members which we deliberately
+	 * preserve for reader threads such as ourselves.
+	 *
+	 * If either of the timestamps are set to WT_TS_NONE, then they are
+	 * unset and should be skipped.
+	 *
+	 * Additionally, when setting the commit timestamp, we set the durable
+	 * timestamp to mirror it. So we need to also check that it has been
+	 * explicitly set as opposed to simply being copied over from the commit
+	 * timestamp value.
+	 */
+	if (txn->durable_timestamp != WT_TS_NONE &&
+	    txn->durable_timestamp != txn->commit_timestamp)
 		return (txn->durable_timestamp);
 	if (txn->first_commit_timestamp != WT_TS_NONE)
 		return (txn->first_commit_timestamp);

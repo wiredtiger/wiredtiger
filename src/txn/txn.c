@@ -647,7 +647,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
 	/*
 	 * Purposely do NOT clear the commit and durable timestamps on release.
-	 * Other readers may still need to use those timestamps.
+	 * Other readers may still find these transactions in the durable queue
+	 * and will need to see those timestamps.
 	 */
 }
 
