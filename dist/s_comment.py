@@ -5,25 +5,34 @@ in_multiline = False
 line_length = 100
 indentation = 0
 function_desc = False
+is_block = False
+comment = str()
 
 for line in sys.stdin:
     sline = line.strip()
     # Beginning of a multi-line comment.
-    if (sline.startswith('/*') and not sline.endswith('*/') and not
-        sline.startswith('/*-')):
+    if (sline.startswith('/*') and '*/' not in sline and not
+        sline.endswith('\\')):
+        comment = line
         assert not in_multiline
         in_multiline = True
+        is_block = True
         # Figure out how far we need to indent.
         indentation = 0
         for c in line:
             if c == ' ':
                 indentation += 1
+            elif c == '\t':
+                indentation += 8
             else:
                 break
     # End of a comment. If we were in the middle of a multi-line comment then
     # write it.
     elif sline.endswith('*/'):
-        if in_multiline:
+        comment += line
+        if in_multiline and not is_block:
+            sys.stdout.write(comment)
+        elif in_multiline:
             indent_ws = ' ' * indentation
             sys.stdout.write('{}/*\n'.format(indent_ws))
             current_line = indent_ws + ' *'
@@ -48,20 +57,22 @@ for line in sys.stdin:
             sys.stdout.write('{} */\n'.format(indent_ws))
         else:
             sys.stdout.write(line)
+        is_block = False
         words = []
         in_multiline = False
         function_desc = False
     elif in_multiline:
+        comment += line
+        # We're only reformatting block comments where each line begins with a
+        # space and an alphabetic character after the asterisk. The only
+        # exceptions are function descriptions.
+        is_block = is_block and (len(sline) > 3 and sline.startswith('*') and
+                    sline[1] == ' ' and sline[2].isalpha()) or function_desc
         # Trim asterisks at the beginning of each line in a multi-line comment.
         if sline.startswith('*'):
             sline = sline[1:]
         # Might be trailing whitespace after the asterisk. Leading strip again.
         sline = sline.lstrip()
-        # If it's just a blank line within a multi-line comment, let's preserve
-        # that. It's usually to signal a different paragraph/idea.
-        if not sline:
-            words.append('\n')
-        else:
-            words.extend(sline.split())
+        words.extend(sline.split())
     else:
         sys.stdout.write(line)
