@@ -753,8 +753,9 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		 * reconciliation only resolves existing birthmarks if they
 		 * aren't obsolete.
 		 */
-		if ((upd = __wt_update_obsolete_check(
-		    session, page, first_upd, true)) != NULL)
+		WT_WITH_BTREE(session, btree, upd =
+		    __wt_update_obsolete_check(session, page, first_upd, true));
+		if (upd != NULL)
 			__wt_free_update_list(session, upd);
 		upd = first_upd;
 
