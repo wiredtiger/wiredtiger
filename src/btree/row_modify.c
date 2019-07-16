@@ -308,12 +308,13 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value,
  *	Check for obsolete updates.
  */
 WT_UPDATE *
-__wt_update_obsolete_check(
-    WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd)
+__wt_update_obsolete_check(WT_SESSION_IMPL *session,
+    WT_PAGE *page, WT_UPDATE *upd, bool update_accounting)
 {
 	WT_TXN_GLOBAL *txn_global;
 	WT_UPDATE *first, *next;
 	uint64_t oldest, stable;
+	size_t size;
 	u_int count, upd_seen, upd_unstable;
 
 	txn_global = &S2C(session)->txn_global;
@@ -367,8 +368,20 @@ __wt_update_obsolete_check(
 	 */
 	if (first != NULL &&
 	    (next = first->next) != NULL &&
-	    __wt_atomic_cas_ptr(&first->next, next, NULL))
+	    __wt_atomic_cas_ptr(&first->next, next, NULL)) {
+		/*
+		 * Decrement the dirty byte count while holding the page lock,
+		 * else we can race with checkpoints cleaning a page.
+		 */
+		if (update_accounting) {
+			for (size = 0, upd = next; upd != NULL; upd = upd->next)
+				size += WT_UPDATE_MEMSIZE(upd);
+			if (size != 0)
+				__wt_cache_page_inmem_decr(session, page, size);
+		}
 		return (next);
+	}
+
 
 	/*
 	 * If the list is long, don't retry checks on this page until the

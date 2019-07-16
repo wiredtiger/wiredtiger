@@ -27,7 +27,8 @@ __col_instantiate(WT_SESSION_IMPL *session,
 	 * Just free the memory: it hasn't been accounted for on the page yet.
 	 */
 	if (updlist->next != NULL &&
-	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
+	    (upd = __wt_update_obsolete_check(
+	    session, page, updlist, false)) != NULL)
 		__wt_free_update_list(session, upd);
 
 	/* Search the page and add updates. */
@@ -56,7 +57,8 @@ __row_instantiate(WT_SESSION_IMPL *session,
 	 * Just free the memory: it hasn't been accounted for on the page yet.
 	 */
 	if (updlist->next != NULL &&
-	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
+	    (upd = __wt_update_obsolete_check(
+	    session, page, updlist, false)) != NULL)
 		__wt_free_update_list(session, upd);
 
 	/* Search the page and add updates. */
@@ -233,10 +235,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			last_upd->next = upd;
 			last_upd = upd;
 		}
-#ifdef HAVE_DIAGNOSTIC
 		if (upd_type == WT_UPDATE_BIRTHMARK)
 			__wt_check_upd_list(session, first_upd);
-#endif
 		upd = NULL;
 	}
 	__wt_readunlock(session, &cache->las_sweepwalk_lock);

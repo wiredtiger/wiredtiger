@@ -1467,7 +1467,6 @@ err:	if (parent != NULL)
 	return (ret);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __wt_check_upd_list --
  *	Sanity check an update list.
@@ -1476,6 +1475,7 @@ err:	if (parent != NULL)
 void
 __wt_check_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+#ifdef HAVE_DIAGNOSTIC
 	int birthmark_count;
 
 	for (birthmark_count = 0; upd != NULL; upd = upd->next)
@@ -1483,8 +1483,11 @@ __wt_check_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 			++birthmark_count;
 
 	WT_ASSERT(session, birthmark_count <= 1);
-}
+#else
+	WT_UNUSED(session);
+	WT_UNUSED(upd);
 #endif
+}
 
 /*
  * __split_multi_inmem --
