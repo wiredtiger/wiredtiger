@@ -333,6 +333,18 @@ struct __wt_txn {
 
 	const char *rollback_reason;		/* If rollback, the reason */
 
+/*
+ * WT_TXN_HAS_TS_COMMIT --
+ *	The transaction has a set commit timestamp.
+ * WT_TXN_HAS_TS_DURABLE --
+ *	The transaction has an explicitly set durable timestamp (that is, it
+ *	hasn't been mirrored from its commit timestamp value).
+ * WT_TXN_TS_PUBLISHED --
+ *	The transaction has been published to the durable queue. Setting this
+ *	flag lets us know that, on release, we need to mark the transaction for
+ *	clearing.
+ */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_TXN_AUTOCOMMIT	0x0000001u
 #define	WT_TXN_ERROR		0x0000002u
@@ -345,17 +357,17 @@ struct __wt_txn {
 #define	WT_TXN_IGNORE_PREPARE	0x0000100u
 #define	WT_TXN_NAMED_SNAPSHOT	0x0000200u
 #define	WT_TXN_PREPARE		0x0000400u
-#define	WT_TXN_PUBLIC_TS_DURABLE	0x0000800u
-#define	WT_TXN_PUBLIC_TS_READ	0x0001000u
-#define	WT_TXN_READONLY		0x0002000u
-#define	WT_TXN_RUNNING		0x0004000u
-#define	WT_TXN_SYNC_SET		0x0008000u
-#define	WT_TXN_TS_COMMIT_ALWAYS	0x0010000u
-#define	WT_TXN_TS_COMMIT_KEYS	0x0020000u
-#define	WT_TXN_TS_COMMIT_NEVER	0x0040000u
-#define	WT_TXN_TS_DURABLE_ALWAYS	0x0080000u
-#define	WT_TXN_TS_DURABLE_KEYS	0x0100000u
-#define	WT_TXN_TS_DURABLE_NEVER	0x0200000u
+#define	WT_TXN_PUBLIC_TS_READ	0x0000800u
+#define	WT_TXN_READONLY		0x0001000u
+#define	WT_TXN_RUNNING		0x0002000u
+#define	WT_TXN_SYNC_SET		0x0004000u
+#define	WT_TXN_TS_COMMIT_ALWAYS	0x0008000u
+#define	WT_TXN_TS_COMMIT_KEYS	0x0010000u
+#define	WT_TXN_TS_COMMIT_NEVER	0x0020000u
+#define	WT_TXN_TS_DURABLE_ALWAYS	0x0040000u
+#define	WT_TXN_TS_DURABLE_KEYS	0x0080000u
+#define	WT_TXN_TS_DURABLE_NEVER	0x0100000u
+#define	WT_TXN_TS_PUBLISHED	0x0200000u
 #define	WT_TXN_TS_ROUND_PREPARED	0x0400000u
 #define	WT_TXN_TS_ROUND_READ	0x0800000u
 #define	WT_TXN_UPDATE	        0x1000000u

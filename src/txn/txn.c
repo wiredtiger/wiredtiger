@@ -641,15 +641,15 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 
 	txn->rollback_reason = NULL;
 
-	/* Ensure the transaction flags are cleared on exit */
-	txn->flags = 0;
-	txn->prepare_timestamp = WT_TS_NONE;
-
 	/*
+	 * Ensure the transaction flags are cleared on exit
+	 *
 	 * Purposely do NOT clear the commit and durable timestamps on release.
 	 * Other readers may still find these transactions in the durable queue
 	 * and will need to see those timestamps.
 	 */
+	txn->flags = 0;
+	txn->prepare_timestamp = WT_TS_NONE;
 }
 
 /*
