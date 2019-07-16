@@ -759,8 +759,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			__wt_free_update_list(session, upd);
 		upd = first_upd;
 
-		/* Make sure the update list is OK */
-		__wt_check_upd_list(session, upd);
+		/*
+		 * It's not OK for the update list to contain a birthmark on
+		 * entry - we will generate one below if necessary.
+		 */
+		WT_ASSERT(session, __wt_count_birthmarks(first_upd) == 0);
 
 		/*
 		 * Walk the list of updates, storing each key/value pair into

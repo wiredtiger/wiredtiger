@@ -1467,27 +1467,24 @@ err:	if (parent != NULL)
 	return (ret);
 }
 
+#ifdef HAVE_DIAGNOSTIC
 /*
- * __wt_check_upd_list --
+ * __wt_count_birthmarks --
  *	Sanity check an update list.
  *	In particular, make sure there no birthmarks.
  */
-void
-__wt_check_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+int
+__wt_count_birthmarks(WT_UPDATE *upd)
 {
-#ifdef HAVE_DIAGNOSTIC
 	int birthmark_count;
 
 	for (birthmark_count = 0; upd != NULL; upd = upd->next)
 		if (upd->type == WT_UPDATE_BIRTHMARK)
 			++birthmark_count;
 
-	WT_ASSERT(session, birthmark_count <= 1);
-#else
-	WT_UNUSED(session);
-	WT_UNUSED(upd);
-#endif
+	return (birthmark_count);
 }
+#endif
 
 /*
  * __split_multi_inmem --
@@ -1588,9 +1585,7 @@ __split_multi_inmem(
 				key->size = WT_INSERT_KEY_SIZE(supd->ins);
 			}
 
-#ifdef HAVE_DIAGNOSTIC
-			__wt_check_upd_list(session, upd);
-#endif
+			WT_ASSERT(session, __wt_count_birthmarks(upd) <= 1);
 
 			/* Search the page. */
 			WT_ERR(__wt_row_search(

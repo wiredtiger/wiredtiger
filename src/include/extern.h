@@ -223,6 +223,7 @@ extern int __wt_connection_init(WT_CONNECTION_IMPL *conn) WT_GCC_FUNC_DECL_ATTRI
 extern int __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_count_birthmarks(WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other, const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curbulk_init(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool bitmap, bool skip_sort_check) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curconfig_open(WT_SESSION_IMPL *session, const char *uri, const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -759,7 +760,6 @@ extern void __wt_btree_huffman_close(WT_SESSION_IMPL *session);
 extern void __wt_btree_page_version_config(WT_SESSION_IMPL *session);
 extern void __wt_cache_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_capacity_throttle(WT_SESSION_IMPL *session, uint64_t bytes, WT_THROTTLE_TYPE type);
-extern void __wt_check_upd_list(WT_SESSION_IMPL *session, WT_UPDATE *upd);
 extern void __wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing);
 extern void __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize);
 extern void __wt_checkpoint_tree_reconcile_update( WT_SESSION_IMPL *session, wt_timestamp_t newest_durable_ts, wt_timestamp_t oldest_start_ts, uint64_t oldest_start_txn, wt_timestamp_t newest_stop_ts, uint64_t newest_stop_txn);

@@ -235,8 +235,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 			last_upd->next = upd;
 			last_upd = upd;
 		}
-		if (upd_type == WT_UPDATE_BIRTHMARK)
-			__wt_check_upd_list(session, first_upd);
 		upd = NULL;
 	}
 	__wt_readunlock(session, &cache->las_sweepwalk_lock);
@@ -245,6 +243,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	/* Insert the last set of updates, if any. */
 	if (first_upd != NULL)
+		WT_ASSERT(session, __wt_count_birthmarks(first_upd) <= 1);
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
