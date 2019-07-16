@@ -313,8 +313,8 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session,
 {
 	WT_TXN_GLOBAL *txn_global;
 	WT_UPDATE *first, *next;
-	uint64_t oldest, stable;
 	size_t size;
+	uint64_t oldest, stable;
 	u_int count, upd_seen, upd_unstable;
 
 	txn_global = &S2C(session)->txn_global;
@@ -381,7 +381,6 @@ __wt_update_obsolete_check(WT_SESSION_IMPL *session,
 		}
 		return (next);
 	}
-
 
 	/*
 	 * If the list is long, don't retry checks on this page until the
