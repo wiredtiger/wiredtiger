@@ -250,9 +250,9 @@ __txn_get_durable_timestamp(WT_SESSION_IMPL *session, WT_TXN *txn)
 	 */
 	ts = WT_TS_NONE;
 	if (txn->durable_timestamp != WT_TS_NONE &&
-	    txn->durable_timestamp != txn->commit_timestamp)
+	    txn->durable_timestamp != txn->first_commit_timestamp)
 		ts = txn->durable_timestamp;
-	else if (txn->first_commit_timestamp != WT_TS_NONE)
+	else
 		ts = txn->first_commit_timestamp;
 
 	WT_ASSERT(session, ts != WT_TS_NONE);
@@ -800,6 +800,11 @@ __wt_txn_set_commit_timestamp(
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_HAS_TS_DURABLE) ||
 	    txn->durable_timestamp == txn->commit_timestamp);
 	txn->commit_timestamp = commit_ts;
+	/*
+	 * First time copy the commit timestamp to the first commit timestamp.
+	 */
+	if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
+		txn->first_commit_timestamp = commit_ts;
 
 	/*
 	 * Only mirror the commit timestamp if there isn't already an explicit
@@ -1126,7 +1131,6 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
 		 * which is fixed.
 		 */
 		ts = txn->commit_timestamp;
-		txn->first_commit_timestamp = ts;
 		using_commit = true;
 	} else
 		return;
