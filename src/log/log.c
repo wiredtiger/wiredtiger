@@ -42,21 +42,21 @@ __wt_log_printf(WT_SESSION_IMPL *session, const char *format, ...)
  *	Given a log record, return whether the checksum matches.
  */
 static bool
-__log_checksum_match(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t reclen)
+__log_checksum_match(WT_ITEM *buf, uint32_t reclen)
 {
 	WT_LOG_RECORD *logrec;
-	uint32_t checksum_calculate, checksum_tmp;
+	uint32_t checksum_saved, checksum_tmp;
+	bool checksum_matched;
 
-	WT_UNUSED(session);
-	logrec = (WT_LOG_RECORD *)buf->mem;
-	checksum_tmp = logrec->checksum;
-	logrec->checksum = 0;
-	checksum_calculate = __wt_checksum(logrec, reclen);
+	logrec = buf->mem;
+	checksum_saved = checksum_tmp = logrec->checksum;
 #ifdef WORDS_BIGENDIAN
-	checksum_calculate = __wt_bswap32(checksum_calculate);
+	checksum_tmp = __wt_bswap32(checksum_tmp);
 #endif
-	logrec->checksum = checksum_tmp;
-	return (logrec->checksum == checksum_calculate);
+	logrec->checksum = 0;
+	checksum_matched = __wt_checksum_match(logrec, reclen, checksum_tmp);
+	logrec->checksum = checksum_saved;
+	return (checksum_matched);
 }
 
 /*
@@ -1032,7 +1032,7 @@ __log_open_verify(WT_SESSION_IMPL *session, uint32_t id, WT_FH **fhp,
 		goto err;
 	}
 
-	if (!__log_checksum_match(session, buf, allocsize))
+	if (!__log_checksum_match(buf, allocsize))
 		WT_ERR_MSG(session, WT_ERROR,
 		    "%s: System log record checksum mismatch", fh->name);
 	__wt_log_record_byteswap(logrec);
@@ -2266,7 +2266,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		 * information about that.
 		 */
 		if (lsnp->l.offset % allocsize != 0) {
-			if (LF_ISSET(WT_LOGSCAN_RECOVER))
+			if (LF_ISSET(WT_LOGSCAN_RECOVER |
+			    WT_LOGSCAN_RECOVER_METADATA))
 				WT_ERR_MSG(session, WT_NOTFOUND,
 				    "__wt_log_scan unaligned LSN %"
 				    PRIu32 "/%" PRIu32,
@@ -2282,7 +2283,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		 * information about that.
 		 */
 		if (lsnp->l.file > lastlog) {
-			if (LF_ISSET(WT_LOGSCAN_RECOVER))
+			if (LF_ISSET(WT_LOGSCAN_RECOVER |
+			    WT_LOGSCAN_RECOVER_METADATA))
 				WT_ERR_MSG(session, WT_NOTFOUND,
 				    "__wt_log_scan LSN %" PRIu32 "/%" PRIu32
 				    " larger than biggest log file %" PRIu32,
@@ -2304,7 +2306,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 		WT_ERR_MSG(session, WT_ERROR, "log file requires salvage");
 	WT_ERR(__wt_filesize(session, log_fh, &log_size));
 	rd_lsn = start_lsn;
-	if (LF_ISSET(WT_LOGSCAN_RECOVER))
+	if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
 		__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
 		    "Recovering log %" PRIu32 " through %" PRIu32,
 		    rd_lsn.l.file, end_lsn.l.file);
@@ -2366,7 +2368,8 @@ advance:
 			WT_SET_LSN(&rd_lsn, rd_lsn.l.file + 1, 0);
 			if (rd_lsn.l.file > end_lsn.l.file)
 				break;
-			if (LF_ISSET(WT_LOGSCAN_RECOVER))
+			if (LF_ISSET(WT_LOGSCAN_RECOVER |
+			    WT_LOGSCAN_RECOVER_METADATA))
 				__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
 				    "Recovering log %" PRIu32
 				    " through %" PRIu32,
@@ -2479,7 +2482,7 @@ advance:
 		 */
 		buf->size = reclen;
 		logrec = (WT_LOG_RECORD *)buf->mem;
-		if (!__log_checksum_match(session, buf, reclen)) {
+		if (!__log_checksum_match(buf, reclen)) {
 			/*
 			 * A checksum mismatch means we have reached the end of
 			 * the useful part of the log.  This should be found on
@@ -2611,7 +2614,8 @@ err:	WT_STAT_CONN_INCR(session, log_scans);
 	 * an error recovery is likely going to fail.  Try to provide
 	 * a helpful failure message.
 	 */
-	if (ret != 0 && firstrecord && LF_ISSET(WT_LOGSCAN_RECOVER)) {
+	if (ret != 0 && firstrecord && LF_ISSET(WT_LOGSCAN_RECOVER |
+		WT_LOGSCAN_RECOVER_METADATA)) {
 		__wt_err(session, ret,
 		    "WiredTiger is unable to read the recovery log.");
 		__wt_err(session, ret, "This may be due to the log"
