@@ -282,7 +282,7 @@ __txn_global_query_timestamp(
 		if (!txn_global->has_durable_timestamp)
 			return (WT_NOTFOUND);
 		ts = txn_global->durable_timestamp;
-		WT_ASSERT(session, ts != 0);
+		WT_ASSERT(session, ts != WT_TS_NONE);
 
 		/*
 		 * Skip straight to the commit queue if no running transactions
@@ -310,7 +310,7 @@ __txn_global_query_timestamp(
 		 * If a transaction is committing with a durable timestamp of 1,
 		 * we could return zero here, which is unexpected. Fail instead.
 		 */
-		if (ts == 0)
+		if (ts == WT_TS_NONE)
 			return (WT_NOTFOUND);
 	} else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len))
 		/* Read-only value forever. No lock needed. */
