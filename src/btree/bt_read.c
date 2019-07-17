@@ -242,7 +242,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/* Insert the last set of updates, if any. */
-	if (first_upd != NULL)
+	if (first_upd != NULL) {
 		WT_ASSERT(session, __wt_count_birthmarks(first_upd) <= 1);
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
@@ -259,6 +259,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		default:
 			WT_ERR(__wt_illegal_value(session, page->type));
 		}
+	}
 
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
