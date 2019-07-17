@@ -82,6 +82,9 @@ run "sh ./s_prototypes"
 run "sh ./s_typedef -b"
 run "sh ./s_copyright"
 run "sh ./s_style"
+run "sh ./s_clang-format"
+run "sh ./s_goto"
+run "sh ./s_comment"
 
 COMMANDS="
 2>&1 ./s_define > ${t_pfx}s_define

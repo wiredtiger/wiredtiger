@@ -47,7 +47,7 @@ for line in sys.stdin:
                     sys.stdout.write(indent_ws + ' *' + '\n')
                     current_line = indent_ws + ' *'
                     continue
-                if len(current_line) + len(word) > line_length:
+                if len(current_line) + len(word) >= line_length:
                     sys.stdout.write(current_line + '\n')
                     current_line = indent_ws + ' *'
                     if function_desc:
