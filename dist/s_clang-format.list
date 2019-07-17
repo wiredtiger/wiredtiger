@@ -1,3 +1,6 @@
+bench/workgen/workgen.h
+bench/workgen/workgen_int.h
+bench/workgen/workgen_time.h
 src/include/bitstring.i
 src/include/queue.h
 src/os_posix/os_getopt.c

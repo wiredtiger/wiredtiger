@@ -144,7 +144,7 @@ def function_declaration():
                 found,n = function_args(name, line)
                 if found:
                     # List statics first.
-                    if re.search("^\sstatic", line):
+                    if re.search("^\s+static", line):
                         static_list[n].append(line)
                         continue
 
