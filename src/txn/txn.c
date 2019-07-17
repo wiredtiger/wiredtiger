@@ -1036,7 +1036,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	 * with that value. If durable isn't set, durable is implied to be the
 	 * the same as commit so we'll use that instead.
 	 */
-	candidate_durable_timestamp = 0;
+	candidate_durable_timestamp = WT_TS_NONE;
 	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
 		candidate_durable_timestamp = txn->durable_timestamp;
 	else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -1055,8 +1055,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	/* First check if we've made something durable in the future. */
 	update_durable_ts = false;
-	prev_durable_timestamp = 0;
-	if (candidate_durable_timestamp != 0) {
+	prev_durable_timestamp = WT_TS_NONE;
+	if (candidate_durable_timestamp != WT_TS_NONE) {
 		prev_durable_timestamp = txn_global->durable_timestamp;
 		update_durable_ts =
 		    candidate_durable_timestamp > prev_durable_timestamp;
