@@ -273,8 +273,15 @@ __wt_rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
      * birthmark, the original on-page value must be retained.
      */
     if (upd != NULL && (upd->type == WT_UPDATE_BIRTHMARK ||
-                         (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark)))
+                         (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark))) {
+        /*
+         * Resolve the birthmark now regardless of whether the update being written to the data file
+         * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
+         * two birthmark records in the same update chain.
+         */
+        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
         *updp = NULL;
+    }
 
     /*
      * Check if all updates on the page are visible.  If not, it must stay
