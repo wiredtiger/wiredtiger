@@ -18,10 +18,11 @@ BOOL CALLBACK _wt_init_once_callback(
     _Out_opt_    PVOID *Context
     )
 {
-	void(*init_routine)(void) = Parameter;
+	void(*init_routine)(void);
 	WT_UNUSED(InitOnce);
 	WT_UNUSED(Context);
 
+	init_routine = Parameter;
 	init_routine();
 
 	return (TRUE);

@@ -125,7 +125,7 @@ for line in open(f, 'r'):
     tfile.write(prefix + '@configstart{' + config_name +
             ', see dist/api_data.py}\n')
 
-    w = textwrap.TextWrapper(width=80-len(prefix.expandtabs()),
+    w = textwrap.TextWrapper(width=100-len(prefix.expandtabs()),
             break_on_hyphens=False,
             break_long_words=False,
             replace_whitespace=False,
