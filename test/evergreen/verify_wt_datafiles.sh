@@ -43,7 +43,7 @@ if [ ! -x "${wt_binary}" ]; then
 	exit 6
 fi
 
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$(dirname "${wt_binary}")
+export LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-""}:$(dirname "${wt_binary}")
 num_tables_verified=0
 
 # Work out the list of directories that include wt data files
