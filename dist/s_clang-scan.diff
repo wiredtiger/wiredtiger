@@ -1,20 +1,9 @@
-src/block/block_ckpt_scan.c:327:4: warning: Value stored to 'ret' is never read
-                        ret = 0;
-                        ^     ~
-1 warning generated.
 In file included from src/block/block_write.c:9:
 In file included from ./src/include/wt_internal.h:412:
 ./src/include/intpack.i:194:4: warning: Assigned value is garbage or undefined
         p = *pp;
           ^ ~~~
 1 warning generated.
-src/conn/api_calc_modify.c:75:2: warning: Value stored to 'p1' is never read
-        p1 = m1;
-        ^    ~~
-src/conn/api_calc_modify.c:76:2: warning: Value stored to 'p2' is never read
-        p2 = m2;
-        ^    ~~
-2 warnings generated.
 src/conn/conn_capacity.c:310:2: warning: Value stored to 'capacity' is never read
         capacity = steal_capacity = 0;
         ^          ~~~~~~~~~~~~~~~~~~
