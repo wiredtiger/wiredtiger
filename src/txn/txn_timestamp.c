@@ -249,7 +249,6 @@ __txn_get_published_timestamp(WT_SESSION_IMPL *session, WT_TXN *txn)
 	 * In the prepared case, the first commit will always be equal to the
 	 * commit so we'll return durable.
 	 */
-	ts = WT_TS_NONE;
 	if (txn->commit_timestamp != txn->first_commit_timestamp)
 		ts = txn->first_commit_timestamp;
 	else
