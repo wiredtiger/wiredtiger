@@ -642,7 +642,7 @@ __checkpoint_prepare(
 	 */
 	WT_ASSERT(session, !F_ISSET(txn,
 	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
+	    WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ));
 
 	if (use_timestamp) {
 		/*
