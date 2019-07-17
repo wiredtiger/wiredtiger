@@ -222,14 +222,14 @@ __wt_txn_get_pinned_timestamp(
 }
 
 /*
- * __txn_get_durable_timestamp --
+ * __txn_get_published_timestamp --
  *	Get the current durable timestamp for a given transaction. If there is
  *	an explicit durable timestamp, this function will return the commit
  *	timestamp since this is implied. If there is neither a commit nor a
  *	durable timestamp, this function will return 0.
  */
 static inline wt_timestamp_t
-__txn_get_durable_timestamp(WT_SESSION_IMPL *session, WT_TXN *txn)
+__txn_get_published_timestamp(WT_SESSION_IMPL *session, WT_TXN *txn)
 {
 	wt_timestamp_t ts;
 
@@ -240,20 +240,20 @@ __txn_get_durable_timestamp(WT_SESSION_IMPL *session, WT_TXN *txn)
 	 * by inspecting the timestamp members which we deliberately preserve
 	 * for reader threads such as ourselves.
 	 *
-	 * If either of the timestamps are set to WT_TS_NONE, then they are
-	 * unset and should be skipped.
+	 * In the non-prepared case, the first commit will either be less than
+	 * the commit (in the case of multiple commits) in which case we should
+	 * return the first commit. Or it will be equal to the commit (in the
+	 * case of a single commit) and we can return durable (which is mirrored
+	 * from the commit timestamp).
 	 *
-	 * Additionally, when setting the commit timestamp, we set the durable
-	 * timestamp to mirror it. So we need to also check that it has been
-	 * explicitly set as opposed to simply being copied over from the commit
-	 * timestamp value.
+	 * In the prepared case, the first commit will always be equal to the
+	 * commit so we'll return durable.
 	 */
 	ts = WT_TS_NONE;
-	if (txn->durable_timestamp != WT_TS_NONE &&
-	    txn->durable_timestamp != txn->first_commit_timestamp)
-		ts = txn->durable_timestamp;
-	else
+	if (txn->commit_timestamp != txn->first_commit_timestamp)
 		ts = txn->first_commit_timestamp;
+	else
+		ts = txn->durable_timestamp;
 
 	WT_ASSERT(session, ts != WT_TS_NONE);
 	return (ts);
@@ -300,7 +300,7 @@ __txn_global_query_timestamp(
 			if (txn->clear_durable_q)
 				continue;
 
-			tmpts = __txn_get_durable_timestamp(session, txn) - 1;
+			tmpts = __txn_get_published_timestamp(session, txn) - 1;
 			if (tmpts < ts)
 				ts = tmpts;
 			break;
@@ -1113,11 +1113,9 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
 	WT_TXN_GLOBAL *txn_global;
 	wt_timestamp_t ts;
 	uint64_t walked;
-	bool using_commit;
 
 	txn = &session->txn;
 	txn_global = &S2C(session)->txn_global;
-	using_commit = false;
 
 	if (F_ISSET(txn, WT_TXN_TS_PUBLISHED))
 		return;
@@ -1126,22 +1124,16 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
 		ts = txn->durable_timestamp;
 	else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
 		/*
-		 * Copy the current commit timestamp (which can change while the
-		 * transaction is running) into the first_commit_timestamp,
-		 * which is fixed.
+		 * If we know for a fact that this is a prepared transaction and
+		 * we only have a commit timestamp, don't add to the durable
+		 * queue. If we poll all_durable after setting the commit
+		 * timestamp of a prepared transaction, that prepared
+		 * transaction should NOT be visible.
 		 */
+		if (F_ISSET(txn, WT_TXN_PREPARE))
+			return;
 		ts = txn->commit_timestamp;
-		using_commit = true;
 	} else
-		return;
-
-	/*
-	 * If we know for a fact that this is a prepared transaction and we only
-	 * have a commit timestamp, don't add to the durable queue. If we poll
-	 * all_durable after setting the commit timestamp of a prepared
-	 * transaction, that prepared transaction should NOT be visible.
-	 */
-	if (using_commit && F_ISSET(txn, WT_TXN_PREPARE))
 		return;
 
 	__wt_writelock(session, &txn_global->durable_timestamp_rwlock);
@@ -1191,7 +1183,7 @@ __wt_txn_publish_timestamp(WT_SESSION_IMPL *session)
 		qtxn = TAILQ_LAST(
 		     &txn_global->durable_timestamph, __wt_txn_dts_qh);
 		while (qtxn != NULL &&
-		    __txn_get_durable_timestamp(session, qtxn) > ts) {
+		    __txn_get_published_timestamp(session, qtxn) > ts) {
 			++walked;
 			qtxn = TAILQ_PREV(
 			    qtxn, __wt_txn_dts_qh, durable_timestampq);
