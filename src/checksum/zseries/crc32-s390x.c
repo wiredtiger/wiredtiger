@@ -31,7 +31,10 @@
 /* Prototypes for functions in assembly files */
 unsigned int __wt_crc32c_le_vgfm_16(unsigned int crc, const unsigned char *buf, size_t size);
 
-/* Pure C implementations of CRC, one byte at a time */
+/*
+ * __wt_crc32c_le --
+ *	Pure C implementations of CRC, one byte at a time
+ */
 unsigned int __wt_crc32c_le(unsigned int crc, const unsigned char *buf, size_t len){
 	crc = htole32(crc);
 	while (len--)
