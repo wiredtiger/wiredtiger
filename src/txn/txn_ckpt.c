@@ -743,7 +743,7 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 
 	/* Never skip named checkpoints. */
 	WT_RET(__wt_config_gets(session, cfg, "name", &cval));
-	if (cval.val != 0)
+	if (cval.len != 0)
 		return (0);
 
 	/*
