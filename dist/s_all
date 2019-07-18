@@ -82,9 +82,6 @@ run "sh ./s_prototypes"
 run "sh ./s_typedef -b"
 run "sh ./s_copyright"
 run "sh ./s_style"
-run "sh ./s_clang-format"
-run "sh ./s_goto"
-run "sh ./s_comment"
 
 COMMANDS="
 2>&1 ./s_define > ${t_pfx}s_define
@@ -124,6 +121,10 @@ for f in `find . -name ${t_pfx}\*`; do
 		errchk "$FAILED_CMD" $f
 	fi
 done
+
+run "sh ./s_clang-format"
+run "sh ./s_goto"
+run "sh ./s_comment"
 
 echo 'dist/s_all run finished'
 if test $errmode -ne 0; then
