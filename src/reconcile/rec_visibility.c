@@ -160,13 +160,13 @@ __wt_rec_txn_read(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
          * prepared transaction id's are globally visible, need to check the update state as well.
          */
         if (F_ISSET(r, WT_REC_EVICT)) {
-            if (upd->prepare_state == WT_PREPARE_LOCKED ||
-              upd->prepare_state == WT_PREPARE_INPROGRESS)
-                prepared = true;
-
-            if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                                 !__txn_visible_id(session, txnid))
-                uncommitted = r->update_uncommitted = true;
+            prepared = upd->prepare_state == WT_PREPARE_LOCKED ||
+              upd->prepare_state == WT_PREPARE_INPROGRESS;
+            uncommitted =
+              !prepared && (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                                             !__txn_visible_id(session, txnid));
+            if (uncommitted)
+                r->update_uncommitted = true;
 
             if (prepared || uncommitted)
                 continue;
