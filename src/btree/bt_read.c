@@ -583,7 +583,9 @@ skip_read:
 		    session, ref->page_las->las_pageid));
 
 	WT_REF_SET_STATE(ref, final_state);
-	return (ret);
+
+	WT_ASSERT(session, ret == 0);
+	return (0);
 
 err:
 	/*

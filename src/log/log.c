@@ -1133,14 +1133,17 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	uint32_t from_num;
 	u_int logcount;
 	char **logfiles;
+	bool locked;
+
+	conn = S2C(session);
+	log = conn->log;
+	logfiles = NULL;
+	locked = false;
 
 	/*
 	 * If there are no pre-allocated files, return WT_NOTFOUND.
 	 */
-	conn = S2C(session);
-	log = conn->log;
-	logfiles = NULL;
-	WT_ERR(__log_get_files_single(
+	WT_RET(__log_get_files_single(
 	    session, WT_LOG_PREPNAME, &logfiles, &logcount));
 	if (logcount == 0)
 		return (WT_NOTFOUND);
@@ -1153,6 +1156,7 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 	WT_ERR(__log_filename(session, from_num, WT_LOG_PREPNAME, from_path));
 	WT_ERR(__log_filename(session, to_num, WT_LOG_FILENAME, to_path));
 	__wt_spin_lock(session, &log->log_fs_lock);
+	locked = true;
 	__wt_verbose(session, WT_VERB_LOG,
 	    "log_alloc_prealloc: rename log %s to %s",
 	    (const char *)from_path->data, (const char *)to_path->data);
@@ -1165,7 +1169,8 @@ __log_alloc_prealloc(WT_SESSION_IMPL *session, uint32_t to_num)
 
 err:	__wt_scr_free(session, &from_path);
 	__wt_scr_free(session, &to_path);
-	__wt_spin_unlock(session, &log->log_fs_lock);
+	if (locked)
+		__wt_spin_unlock(session, &log->log_fs_lock);
 	WT_TRET(__wt_fs_directory_list_free(session, &logfiles, logcount));
 	return (ret);
 }
@@ -2273,7 +2278,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 				    PRIu32 "/%" PRIu32,
 				    lsnp->l.file, lsnp->l.offset);
 			else
-				return (WT_NOTFOUND);
+				WT_ERR(WT_NOTFOUND);
 		}
 		/*
 		 * If the file is in the future it doesn't exist.
@@ -2290,7 +2295,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
 				    " larger than biggest log file %" PRIu32,
 				    lsnp->l.file, lsnp->l.offset, lastlog);
 			else
-				return (WT_NOTFOUND);
+				WT_ERR(WT_NOTFOUND);
 		}
 		/*
 		 * Log cursors may not know the starting LSN.  If an
