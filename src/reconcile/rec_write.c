@@ -700,7 +700,7 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track if updates were used and/or uncommitted. */
 	r->updates_seen = r->updates_unstable = 0;
-	r->update_prepared = r->update_uncommitted = r->update_used = false;
+	r->update_uncommitted = r->update_used = false;
 
 	/* Track if all the updates are with prepare in-progress state. */
 	r->all_upd_prepare_in_prog = true;
