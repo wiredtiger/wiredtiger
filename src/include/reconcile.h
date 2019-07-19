@@ -44,7 +44,6 @@ typedef struct {
     u_int updates_seen;     /* Count of updates seen. */
     u_int updates_unstable; /* Count of updates not visible_all. */
 
-    bool update_prepared;    /* An update was prepared. */
     bool update_uncommitted; /* An update was uncommitted. */
     bool update_used;        /* An update could be used. */
 
