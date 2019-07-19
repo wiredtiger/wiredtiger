@@ -365,7 +365,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 */
 	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->durable_ts;
 	all_visible = upd == first_txn_upd &&
-	    !list_uncommitted && !list_prepared &&
+	    !list_prepared && !list_uncommitted &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestamp) :
 	    __wt_txn_visible(session, max_txn, timestamp));
