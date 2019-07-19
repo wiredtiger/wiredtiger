@@ -3,7 +3,19 @@
 # Find the top-level WiredTiger directory and move to there.
 cd `git rev-parse --show-toplevel` || exit 1
 
-search=`find bench examples ext src test -name '*.[chi]'`
+case $# in
+0)
+	search=`find bench examples ext src test -name '*.[chi]'`
+	for f in `cat dist/s_clang-format.list`; do
+		search=`echo "$search" | sed "\#$f#d"`
+	done;;
+1)
+	search="$1";;
+*)
+	echo "usage: $0 [file]"
+	exit 1;;
+esac
+
 for f in $search; do
 	tempfile=$(mktemp)
 	python dist/s_comment.py < "$f" > "$tempfile"
