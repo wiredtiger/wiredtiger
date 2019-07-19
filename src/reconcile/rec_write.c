@@ -668,7 +668,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if updates were used and/or uncommitted. */
     r->updates_seen = r->updates_unstable = 0;
-    r->update_uncommitted = r->update_used = false;
+    r->update_prepared = r->update_uncommitted = r->update_used = false;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
