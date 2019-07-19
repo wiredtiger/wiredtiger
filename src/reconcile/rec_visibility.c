@@ -120,7 +120,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	wt_timestamp_t timestamp, ts;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
-	bool all_visible, prepared, skipped_birthmark, uncommitted;
+	bool all_visible, skipped_birthmark;
 
 	/*
 	 * The "saved updates" return value is used independently of returning
@@ -133,7 +133,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	first_ts_upd = first_txn_upd = NULL;
 	upd_memsize = 0;
 	max_txn = WT_TXN_NONE;
-	prepared = skipped_birthmark = uncommitted = false;
+	skipped_birthmark = false;
 
 	/*
 	 * If called with a WT_INSERT item, use its WT_UPDATE list (which must
@@ -179,17 +179,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * globally visible, need to check the update state as well.
 		 */
 		if (F_ISSET(r, WT_REC_EVICT)) {
-			prepared = upd->prepare_state == WT_PREPARE_LOCKED ||
-			    upd->prepare_state == WT_PREPARE_INPROGRESS;
-			uncommitted = !prepared &&
-			    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+			if (upd->prepare_state == WT_PREPARE_LOCKED ||
+			    upd->prepare_state == WT_PREPARE_INPROGRESS) {
+				r->update_prepared = true;
+				continue;
+			}
+			if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			    WT_TXNID_LE(r->last_running, txnid) :
-			    !__txn_visible_id(session, txnid));
-			if (uncommitted)
+			    !__txn_visible_id(session, txnid)) {
 				r->update_uncommitted = true;
-
-			if (prepared || uncommitted)
-			       continue;
+				continue;
+			}
 		}
 
 		/* Track the first update with non-zero timestamp. */
@@ -228,7 +228,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 */
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
 			    upd_select->upd != NULL &&
-			    (uncommitted || prepared)) {
+			    (r->update_uncommitted || r->update_prepared)) {
 				r->leave_dirty = true;
 				return (__wt_set_return(session, EBUSY));
 			}
@@ -364,7 +364,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * with a timestamp (if any).
 	 */
 	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->durable_ts;
-	all_visible = upd == first_txn_upd && !(uncommitted || prepared) &&
+	all_visible = upd == first_txn_upd &&
+	    !r->update_uncommitted && !r->update_prepared &&
 	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 	    __wt_txn_visible_all(session, max_txn, timestamp) :
 	    __wt_txn_visible(session, max_txn, timestamp));
@@ -402,7 +403,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 */
 	if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
 		return (__wt_set_return(session, EBUSY));
-	if (uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
+	if (r->update_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
 		return (__wt_set_return(session, EBUSY));
 
 	WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
