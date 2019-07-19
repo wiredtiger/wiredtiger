@@ -178,9 +178,9 @@ __create_colgroup(WT_SESSION_IMPL *session,
 	size_t tlen;
 	const char **cfgp, *cfg[4] =
 	    { WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL };
-	const char *sourcecfg[] = { config, NULL, NULL };
-	const char *cgname, *source, *sourceconf, *tablename;
 	char *cgconf, *origconf;
+	const char *cgname, *source, *sourceconf, *tablename;
+	const char *sourcecfg[] = { config, NULL, NULL };
 	bool exists, tracked;
 
 	sourceconf = NULL;

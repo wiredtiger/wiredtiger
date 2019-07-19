@@ -44,9 +44,9 @@ __recovery_cursor(WT_SESSION_IMPL *session, WT_RECOVERY *r,
     WT_LSN *lsnp, u_int id, bool duplicate, WT_CURSOR **cp)
 {
 	WT_CURSOR *c;
-	bool metadata_op;
 	const char *cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), "overwrite", NULL };
+	bool metadata_op;
 
 	c = NULL;
 

@@ -23,10 +23,10 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
 	WT_DECL_ITEM(checkpoint);
 	WT_DECL_RET;
 	WT_KEYED_ENCRYPTOR *kencryptor;
+	char *checkpoint_list, *fileconf, *metadata, fileid[64];
 	const char *filename;
 	const char *filecfg[] = {
 	   WT_CONFIG_BASE(session, file_meta), NULL, NULL, NULL, NULL, NULL };
-	char *checkpoint_list, *fileconf, *metadata, fileid[64];
 
 	ckptbase = NULL;
 	checkpoint_list = fileconf = metadata = NULL;
