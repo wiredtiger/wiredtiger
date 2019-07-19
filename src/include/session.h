@@ -230,8 +230,8 @@ struct __wt_session_impl {
 	 * threads of control other than the thread owning the session. For
 	 * example, btree splits and hazard pointers can "free" memory that's
 	 * still in use. In order to eventually free it, it's stashed here with
-	 * with its generation number; when no thread is reading in generation,
-	 * the memory can be freed for real.
+	 * its generation number; when no thread is reading in generation, the
+	 * memory can be freed for real.
 	 */
 	struct __wt_session_stash {
 		struct __wt_stash {
