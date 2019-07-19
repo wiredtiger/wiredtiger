@@ -764,9 +764,9 @@ __curjoin_init_bloom(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	size_t size;
 	u_int skip;
 	int cmp;
-	const char *uri;
 	const char *raw_cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), "raw", NULL };
+	const char *uri;
 
 	c = NULL;
 	skip = 0;
