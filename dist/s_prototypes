@@ -60,6 +60,9 @@ EOF
 	for i in $l; do
 		proto ../$i
 	done) > $t
+	./s_clang-format "${PWD}/$t"
+	./s_goto "${PWD}/$t"
+	./s_comment "${PWD}/$t"
 	cmp $t $f > /dev/null 2>&1 ||
 	    (echo "Building $f" && rm -f $f && cp $t $f)
 }

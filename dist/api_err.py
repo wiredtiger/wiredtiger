@@ -2,7 +2,7 @@
 # message code in strerror.c.
 
 import re, textwrap
-from dist import compare_srcfile
+from dist import compare_srcfile, format_srcfile
 
 class Error:
     def __init__(self, name, value, desc, long_desc=None, **flags):
@@ -100,6 +100,7 @@ for line in open('../src/include/wiredtiger.in', 'r'):
                 tfile.write('/*! @endcond */\n')
         tfile.write('/*\n')
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 # Output the wiredtiger_strerror and wiredtiger_sterror_r code.
@@ -167,6 +168,7 @@ wiredtiger_strerror(int error)
 }
 ''')
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
 
 # Update the error documentation block.
@@ -191,4 +193,5 @@ for line in open(doc, 'r'):
                 '@par <code>' + err.name.upper() + '</code>\n' +
                 " ".join(err.long_desc.split()) + '\n\n')
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, doc)
