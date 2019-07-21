@@ -186,8 +186,7 @@ else
 	fi
 
 	tr -cd '[:alnum:][:space:][:punct:]' < $f |
-	sed -e 's/\([|&=+-]\)  *\([^*]\)/\1 \2/' \
-	    -e '/for /!s/;;$/;/' \
+	sed -e '/for /!s/;;$/;/' \
 	    -e 's/(EOPNOTSUPP)/(ENOTSUP)/' \
 	    -e 's/(unsigned)/(u_int)/' \
 	    -e 's/hazard reference/hazard pointer/' >$t
