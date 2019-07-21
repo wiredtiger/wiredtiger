@@ -30,6 +30,8 @@ for line in sys.stdin:
     # write it.
     elif sline.endswith('*/'):
         comment += line
+        if 'DO NOT EDIT' in comment:
+            is_block = False
         if in_multiline and not is_block:
             sys.stdout.write(comment)
         elif in_multiline:
