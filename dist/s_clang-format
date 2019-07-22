@@ -2,6 +2,11 @@
 
 set -o pipefail
 
+# We're temporarily making this script a no-op to avoid breaking s_all.
+# When we finally apply Clang Format, we can remove this line and run s_all
+# twice before committing.
+exit 0
+
 download_clang_format() {
 	echo "$0: downloading clang-format for $(uname)"
 	if [ `uname` = "Linux" ]; then
