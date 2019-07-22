@@ -837,20 +837,10 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				birthmarkp->durable_ts = upd->durable_ts;
 				birthmarkp->start_ts = upd->start_ts;
 				birthmarkp->prepare_state = upd->prepare_state;
-			} else {
-				if (upd->type == WT_UPDATE_BIRTHMARK) {
-					WT_ASSERT(session, las_value.size == 0);
-					birthmarkp->txnid = upd->txnid;
-					birthmarkp->durable_ts =
-					    upd->durable_ts;
-					birthmarkp->start_ts = upd->start_ts;
-					birthmarkp->prepare_state =
-					    upd->prepare_state;
-				}
+			} else
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, upd->type, &las_value);
-			}
 
 			/*
 			 * Using update looks a little strange because the keys
