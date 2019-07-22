@@ -1577,7 +1577,6 @@ scan_worker(void *arg)
 	WT_CONNECTION *conn;
 	WT_CURSOR *cursor, **cursors;
 	WT_SESSION *session;
-	const char *uri;
 	char *key_buf;
 	struct timespec e, s;
 	uint32_t i, ntables, pct, table_start;
@@ -1592,7 +1591,6 @@ scan_worker(void *arg)
 	session = NULL;
 	cursors = NULL;
 	items = 0;
-	uri = NULL;
 
 	/*
 	 * Figure out how many items we should scan.
