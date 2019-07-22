@@ -135,11 +135,6 @@ __wt_atomic_fetch_add##name(vp_arg, v_arg)				\
 {									\
 	return (__atomic_fetch_add(vp, v, __ATOMIC_SEQ_CST));		\
 }									\
-static inline void							\
-__wt_atomic_store##name(vp_arg, v_arg)					\
-{									\
-	__atomic_store_n(vp, v, __ATOMIC_SEQ_CST);			\
-}									\
 static inline ret							\
 __wt_atomic_sub##name(vp_arg, v_arg)					\
 {									\
