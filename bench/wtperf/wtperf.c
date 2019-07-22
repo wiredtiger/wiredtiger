@@ -1612,14 +1612,14 @@ scan_worker(void *arg)
 	 */
 	if (opts->scan_icount != 0) {
 		end_id = opts->scan_icount;
-		tot_items = (opts->scan_icount * pct) / 100;
-		incr = opts->scan_table_count * 1000 + 1;
+		tot_items = ((uint64_t)opts->scan_icount * pct) / 100;
+		incr = (uint64_t)opts->scan_table_count * 1000 + 1;
 		table_start = opts->table_count;
 		ntables = opts->scan_table_count;
 	} else {
 		end_id = opts->icount;
-		tot_items = (opts->icount * pct) / 100;
-		incr = opts->table_count * 1000 + 1;
+		tot_items = ((uint64_t)opts->icount * pct) / 100;
+		incr = (uint64_t)opts->table_count * 1000 + 1;
 		table_start = 0;
 		ntables = opts->table_count;
 	}
@@ -1678,13 +1678,7 @@ scan_worker(void *arg)
 			}
 		}
 		wtperf->scan = false;
-		if (ret == 0)
-			++thread->scan.ops;
-		else {
-			lprintf(wtperf, ret, 0, "Scan operation failed for %s.",
-			    uri);
-			goto err;
-		}
+		++thread->scan.ops;
 		__wt_epoch(NULL, &e);
 	}
 
