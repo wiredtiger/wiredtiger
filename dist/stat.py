@@ -120,7 +120,6 @@ for line in open('../src/include/wiredtiger.in', 'r'):
         print_defines()
         f.write('/*\n')
 f.close()
-format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 def print_func(name, handle, statlist):

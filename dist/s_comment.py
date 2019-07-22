@@ -11,8 +11,7 @@ comment = str()
 for line in sys.stdin:
     sline = line.strip()
     # Beginning of a multi-line comment.
-    if (sline.startswith('/*') and '*/' not in sline and not
-        sline.endswith('\\') and not sline.endswith('!')):
+    if sline == '/*':
         comment = line
         assert not in_multiline
         in_multiline = True

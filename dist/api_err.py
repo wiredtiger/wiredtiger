@@ -100,7 +100,6 @@ for line in open('../src/include/wiredtiger.in', 'r'):
                 tfile.write('/*! @endcond */\n')
         tfile.write('/*\n')
 tfile.close()
-format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/include/wiredtiger.in')
 
 # Output the wiredtiger_strerror and wiredtiger_sterror_r code.

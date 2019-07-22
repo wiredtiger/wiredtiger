@@ -143,7 +143,6 @@ for line in open(f, 'r'):
     tfile.write(prefix + '@configend\n')
 
 tfile.close()
-format_srcfile(tmp_file)
 compare_srcfile(tmp_file, f)
 
 #####################################################################
