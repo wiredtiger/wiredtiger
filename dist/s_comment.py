@@ -89,13 +89,15 @@ for line in sys.stdin:
         function_desc = False
     elif multiline:
         comment += line
-        if sline.endswith('--'):
+        # Function names begin with either a lowercase char or an underscore.
+        if (len(sline) >= 3 and sline.startswith('*') and sline[1] == ' ' and
+            (sline[2].islower() or sline[2] == '_') and sline.endswith('--')):
             function_desc = True
         # We're only reformatting block comments where each line begins with a
         # space and an alphabetic character after the asterisk. The only
         # exceptions are function descriptions.
         block = block and \
-                (len(sline) > 3 and sline.startswith('*') and
+                (len(sline) >= 3 and sline.startswith('*') and
                  sline[1] == ' ' and sline[2].isalpha()) or function_desc
         # Trim asterisks at the beginning of each line in a multiline comment.
         if sline.startswith('*'):
