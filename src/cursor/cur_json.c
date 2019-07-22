@@ -52,8 +52,9 @@ static int __json_pack_size(WT_SESSION_IMPL *, const char *, WT_CONFIG_ITEM *,
 		WT_RET(json_string_arg(session, &(jstr), &(pv).u.item));\
 		(pv).type = 'K';					\
 		break;							\
-	/* User format strings have already been validated. */		\
-	WT_ILLEGAL_VALUE(session, (pv).type);				\
+	default:							\
+		/* User format strings have already been validated. */	\
+		return (__wt_illegal_value(session, (pv).type));	\
 	}								\
 } while (0)
 
@@ -161,7 +162,7 @@ __json_unpack_put(WT_SESSION_IMPL *session, void *voidpv,
 	case 'r':
 	case 'R':
 		WT_RET(__wt_snprintf_len_incr(
-		    (char *)buf, bufsz, &s, "%" PRId64, pv->u.u));
+		    (char *)buf, bufsz, &s, "%" PRIu64, pv->u.u));
 		*retsizep += s;
 		return (0);
 	}
@@ -934,7 +935,8 @@ __wt_json_strncpy(WT_SESSION *wt_session,
 			case '\\':
 				*dst++ = ch;
 				break;
-			WT_ILLEGAL_VALUE(session, ch);
+			default:
+				return (__wt_illegal_value(session, ch));
 			}
 		else
 			*dst++ = ch;

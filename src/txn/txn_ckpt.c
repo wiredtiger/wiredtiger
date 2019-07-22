@@ -642,7 +642,7 @@ __checkpoint_prepare(
 	 */
 	WT_ASSERT(session, !F_ISSET(txn,
 	    WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_READ |
-	    WT_TXN_PUBLIC_TS_COMMIT | WT_TXN_PUBLIC_TS_READ));
+	    WT_TXN_TS_PUBLISHED | WT_TXN_PUBLIC_TS_READ));
 
 	if (use_timestamp) {
 		/*
@@ -743,7 +743,7 @@ __txn_checkpoint_can_skip(WT_SESSION_IMPL *session,
 
 	/* Never skip named checkpoints. */
 	WT_RET(__wt_config_gets(session, cfg, "name", &cval));
-	if (cval.val != 0)
+	if (cval.len != 0)
 		return (0);
 
 	/*
@@ -1012,7 +1012,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 			conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
 	}
 
-err:	/*
+err:
+	/*
 	 * Reset the timer so that next checkpoint tracks the progress only if
 	 * configured.
 	 */
@@ -1678,7 +1679,8 @@ __checkpoint_tree(
 	else
 		WT_ERR(__wt_evict_file(session, WT_SYNC_CLOSE));
 
-fake:	/*
+fake:
+	/*
 	 * If we're faking a checkpoint and logging is enabled, recovery should
 	 * roll forward any changes made between now and the next checkpoint,
 	 * so set the checkpoint LSN to the beginning of time.
@@ -1727,7 +1729,8 @@ fake:	/*
 		WT_ERR(__wt_txn_checkpoint_log(
 		    session, false, WT_TXN_LOG_CKPT_STOP, NULL));
 
-err:	/* Resolved the checkpoint for the block manager in the error path. */
+err:
+	/* Resolved the checkpoint for the block manager in the error path. */
 	if (resolve_bm)
 		WT_TRET(bm->checkpoint_resolve(bm, session, ret != 0));
 

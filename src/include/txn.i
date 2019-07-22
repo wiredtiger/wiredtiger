@@ -6,14 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-static inline int __wt_txn_id_check(WT_SESSION_IMPL *session);
-static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
-
-typedef enum {
-	WT_VISIBLE_FALSE=0,     /* Not a visible update */
-	WT_VISIBLE_PREPARE=1,   /* Prepared update */
-	WT_VISIBLE_TRUE=2       /* A visible update */
-} WT_VISIBLE_TYPE;
 /*
  * __wt_ref_cas_state_int --
  *	Try to do a compare and swap, if successful update the ref history in
@@ -21,13 +13,13 @@ typedef enum {
  */
 static inline bool
 __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref,
-    uint32_t old_state, uint32_t new_state, const char *file, int line)
+    uint32_t old_state, uint32_t new_state, const char *func, int line)
 {
 	bool cas_result;
 
 	/* Parameters that are used in a macro for diagnostic builds */
 	WT_UNUSED(session);
-	WT_UNUSED(file);
+	WT_UNUSED(func);
 	WT_UNUSED(line);
 
 	cas_result = __wt_atomic_casv32(&ref->state, old_state, new_state);
@@ -39,7 +31,7 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref,
 	 * updated.
 	 */
 	 if (cas_result)
-		WT_REF_SAVE_STATE(ref, new_state, file, line);
+		WT_REF_SAVE_STATE(ref, new_state, func, line);
 #endif
 	return (cas_result);
 }
@@ -435,7 +427,7 @@ __wt_txn_op_delete_commit_apply_timestamps(
 /*
  * __wt_txn_op_set_timestamp --
  *	Decide whether to copy a commit timestamp into an update. If the op
- *	structure doesn't have a populated update or ref field or in prepared
+ *	structure doesn't have a populated update or ref field or is in prepared
  *      state there won't be any check for an existing timestamp.
  */
 static inline void
@@ -691,7 +683,7 @@ __txn_visible_all_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible_all(
-    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
 	wt_timestamp_t pinned_ts;
 
@@ -724,7 +716,12 @@ __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 	    upd->prepare_state == WT_PREPARE_INPROGRESS)
 		return (false);
 
-	return (__wt_txn_visible_all(session, upd->txnid, upd->start_ts));
+	/*
+	 * This function is used to determine when an update is obsolete: that
+	 * should take into account the durable timestamp which is greater than
+	 * or equal to the start timestamp.
+	 */
+	return (__wt_txn_visible_all(session, upd->txnid, upd->durable_ts));
 }
 
 /*
@@ -786,7 +783,7 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static inline bool
 __wt_txn_visible(
-    WT_SESSION_IMPL *session, uint64_t id, const wt_timestamp_t timestamp)
+    WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp)
 {
 	WT_TXN *txn;
 
@@ -1059,7 +1056,7 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 	/* If the transaction is idle, check that the cache isn't full. */
 	WT_RET(__wt_txn_idle_cache_check(session));
 
-	(void)__wt_txn_id_alloc(session, true);
+	WT_IGNORE_RET(__wt_txn_id_alloc(session, true));
 
 	/*
 	 * If we have used 64-bits of transaction IDs, there is nothing
@@ -1089,7 +1086,8 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 	 * verify this transaction has one.  Same if it should never have
 	 * a read timestamp.
 	 */
-	if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
+	if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
+	    FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
 	    !F_ISSET(txn, WT_TXN_PUBLIC_TS_READ))
 		WT_RET_MSG(session, EINVAL, "read_timestamp required and "
 		    "none set on this transaction");

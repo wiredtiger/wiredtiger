@@ -353,7 +353,8 @@ __tree_walk_internal(WT_SESSION_IMPL *session,
 	/* If no page is active, begin a walk from the start/end of the tree. */
 	if ((ref = ref_orig) == NULL) {
 		if (0) {
-restart:		/*
+restart:
+			/*
 			 * Yield before retrying, and if we've yielded enough
 			 * times, start sleeping so we don't burn CPU to no
 			 * purpose.
@@ -447,6 +448,13 @@ restart:		/*
 				WT_ERR_NOTFOUND_OK(ret);
 
 				__wt_spin_backoff(&swap_yield, &swap_sleep);
+				if (swap_yield < 1000)
+					WT_STAT_CONN_INCR(session,
+					    cache_eviction_walk_internal_yield);
+				if (swap_sleep != 0)
+					WT_STAT_CONN_INCRV(session,
+					    cache_eviction_walk_internal_wait,
+					    swap_sleep);
 			}
 			/* NOTREACHED */
 		}
@@ -460,7 +468,8 @@ restart:		/*
 			++*walkcntp;
 
 		for (;;) {
-descend:		/*
+descend:
+			/*
 			 * Get a reference, setting the reference hint if it's
 			 * wrong (used when we continue the walk). We don't
 			 * always update the hints when splitting, it's expected
@@ -560,6 +569,8 @@ descend:		/*
 			 * An expected error, so "couple" is unchanged.
 			 */
 			if (ret == WT_NOTFOUND) {
+				WT_STAT_CONN_INCR(session,
+				    cache_eviction_walk_leaf_notfound);
 				WT_NOT_READ(ret, 0);
 				break;
 			}

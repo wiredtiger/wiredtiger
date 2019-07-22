@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-static int __session_checkpoint(WT_SESSION *, const char *);
-static int __session_snapshot(WT_SESSION *, const char *);
 static int __session_rollback_transaction(WT_SESSION *, const char *);
 
 /*
@@ -1127,6 +1125,8 @@ __session_import(WT_SESSION *wt_session, const char *uri, const char *config)
 
 	WT_UNUSED(config);
 
+	value = NULL;
+
 	session = (WT_SESSION_IMPL *)wt_session;
 	SESSION_API_CALL_NOCONF(session, import);
 
@@ -1148,6 +1148,7 @@ err:
 		WT_STAT_CONN_INCR(session, session_table_import_fail);
 	else
 		WT_STAT_CONN_INCR(session, session_table_import_success);
+	__wt_free(session, value);
 	API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
@@ -1478,7 +1479,8 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 	WT_ERR(__wt_schema_range_truncate(session, start, stop));
 
 done:
-err:	/*
+err:
+	/*
 	 * Close any locally-opened start cursor.
 	 *
 	 * Reset application cursors, they've possibly moved and the
