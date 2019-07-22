@@ -27,7 +27,8 @@ __col_instantiate(WT_SESSION_IMPL *session,
 	 * Just free the memory: it hasn't been accounted for on the page yet.
 	 */
 	if (updlist->next != NULL &&
-	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
+	    (upd = __wt_update_obsolete_check(
+	    session, page, updlist, false)) != NULL)
 		__wt_free_update_list(session, upd);
 
 	/* Search the page and add updates. */
@@ -56,7 +57,8 @@ __row_instantiate(WT_SESSION_IMPL *session,
 	 * Just free the memory: it hasn't been accounted for on the page yet.
 	 */
 	if (updlist->next != NULL &&
-	    (upd = __wt_update_obsolete_check(session, page, updlist)) != NULL)
+	    (upd = __wt_update_obsolete_check(
+	    session, page, updlist, false)) != NULL)
 		__wt_free_update_list(session, upd);
 
 	/* Search the page and add updates. */
@@ -240,7 +242,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_ERR_NOTFOUND_OK(ret);
 
 	/* Insert the last set of updates, if any. */
-	if (first_upd != NULL)
+	if (first_upd != NULL) {
+		WT_ASSERT(session, __wt_count_birthmarks(first_upd) <= 1);
 		switch (page->type) {
 		case WT_PAGE_COL_FIX:
 		case WT_PAGE_COL_VAR:
@@ -256,6 +259,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		default:
 			WT_ERR(__wt_illegal_value(session, page->type));
 		}
+	}
 
 	/* Discard the cursor. */
 	WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
@@ -535,7 +539,9 @@ skip_read:
 		    session, ref->page_las->las_pageid));
 
 	WT_REF_SET_STATE(ref, final_state);
-	return (ret);
+
+	WT_ASSERT(session, ret == 0);
+	return (0);
 
 err:
 	/*
@@ -570,7 +576,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 	uint64_t sleep_usecs, yield_cnt;
 	uint32_t current_state;
 	int force_attempts;
-	bool busy, cache_work, did_read, stalled, wont_need;
+	bool busy, cache_work, evict_skip, stalled, wont_need;
 
 	btree = S2BT(session);
 
@@ -593,7 +599,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 		WT_STAT_DATA_INCR(session, cache_pages_requested);
 	}
 
-	for (did_read = wont_need = stalled = false,
+	for (evict_skip = stalled = wont_need = false,
 	    force_attempts = 0, sleep_usecs = yield_cnt = 0;;) {
 		switch (current_state = ref->state) {
 		case WT_REF_DELETED:
@@ -640,7 +646,7 @@ read:
 			 * We just read a page, don't evict it before we have a
 			 * chance to use it.
 			 */
-			did_read = true;
+			evict_skip = true;
 
 			/*
 			 * If configured to not trash the cache, leave the page
@@ -703,7 +709,7 @@ read:
 			/*
 			 * Check if the page requires forced eviction.
 			 */
-			if (did_read || LF_ISSET(WT_READ_NO_SPLIT) ||
+			if (evict_skip || LF_ISSET(WT_READ_NO_SPLIT) ||
 			    btree->evict_disabled > 0 || btree->lsm_primary)
 				goto skip_evict;
 
@@ -723,8 +729,13 @@ read:
 			    __evict_force_check(session, ref)) {
 				++force_attempts;
 				ret = __wt_page_release_evict(session, ref, 0);
-				/* If forced eviction fails, stall. */
-				if (ret == EBUSY) {
+				/*
+				 * If forced eviction succeeded, don't retry.
+				 * If it failed, stall.
+				 */
+				if (ret == 0)
+					evict_skip = true;
+				else if (ret == EBUSY) {
 					WT_NOT_READ(ret, 0);
 					WT_STAT_CONN_INCR(session,
 					    page_forcible_evict_blocked);
@@ -801,14 +812,13 @@ skip_evict:
 
 		/*
 		 * If stalling and this thread is allowed to do eviction work,
-		 * check if the cache needs help. If we do work for the cache,
-		 * substitute that for a sleep.
+		 * check if the cache needs help evicting clean pages (don't
+		 * force a read to do dirty eviction).  If we do work for the
+		 * cache, substitute that for a sleep.
 		 */
 		if (!LF_ISSET(WT_READ_IGNORE_CACHE_SIZE)) {
 			WT_RET(__wt_cache_eviction_check(
-			    session, true,
-			    !F_ISSET(&session->txn, WT_TXN_HAS_ID),
-			    &cache_work));
+			    session, true, true, &cache_work));
 			if (cache_work)
 				continue;
 		}
