@@ -634,10 +634,6 @@ __evict_update_work(WT_SESSION_IMPL *session)
 	    LF_ISSET(WT_CACHE_EVICT_CLEAN_HARD))
 		LF_SET(WT_CACHE_EVICT_DIRTY);
 
-	/* When we stop looking for dirty pages, reduce the lookaside score. */
-	if (!LF_ISSET(WT_CACHE_EVICT_DIRTY))
-		__wt_cache_update_lookaside_score(session, 1, 0);
-
 	/*
 	 * Scrub dirty pages and keep them in cache if we are less than half
 	 * way to the clean or dirty trigger.
