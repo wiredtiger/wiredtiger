@@ -64,8 +64,7 @@ for line in sys.stdin:
             sys.stdout.write('{}/*\n'.format(indent_ws))
             current_line = indent_ws + ' *'
             for word in words:
-                if word.endswith('--'):
-                    function_desc = True
+                if word == '--' and function_desc:
                     sys.stdout.write(current_line + ' ' + word + '\n')
                     current_line = indent_ws + ' *' + ' ' * 4
                     continue
@@ -90,6 +89,8 @@ for line in sys.stdin:
         function_desc = False
     elif multiline:
         comment += line
+        if sline.endswith('--'):
+            function_desc = True
         # We're only reformatting block comments where each line begins with a
         # space and an alphabetic character after the asterisk. The only
         # exceptions are function descriptions.
