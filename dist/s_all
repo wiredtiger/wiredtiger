@@ -80,7 +80,7 @@ run "python stat.py"
 run "python java_doc.py"
 run "sh ./s_copyright"
 run "sh ./s_style"
-run "sh ./s_clang-format"
+run "./s_clang-format"
 run "sh ./s_prototypes"
 run "sh ./s_typedef -b"
 

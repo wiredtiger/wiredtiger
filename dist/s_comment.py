@@ -1,21 +1,46 @@
+# Fill out block comments to the full line length (currently 100).
+#
+# We're defining a "block comment" to be a multiline comment where each line
+# begins with an alphabetic character.
+#
+# We also have some special logic to handle function description comments even
+# though those don't conform to our definition of a "block comment".
 import re, sys
 
+# List of words in the current block comment.
 words = []
-in_multiline = False
+
+# Whether we're inside a potential block comment.
+multiline = False
+
+# The maximum allowed line length.
 line_length = 100
+
+# How far to indent the current block comment.
 indentation = 0
+
+# Whether we're inside a function description comment. This is not a block
+# comment by our definition but we want to fill these too.
 function_desc = False
-is_block = False
+
+# Whether we've seen a line in the multiline comment to indicate that it is NOT
+# a block comment. In that case don't use the refilling logic and just print the
+# contents verbatim.
+block = False
+
+# The literal contents of the current block comment. If we realise halfway
+# through the comment that it's not a block comment then we'll just print this
+# out and pretend none of this ever happened.
 comment = str()
 
 for line in sys.stdin:
     sline = line.strip()
-    # Beginning of a multi-line comment.
+    # Beginning of a block comment.
     if sline == '/*':
         comment = line
-        assert not in_multiline
-        in_multiline = True
-        is_block = True
+        assert not multiline
+        multiline = True
+        block = True
         # Figure out how far we need to indent.
         indentation = 0
         for c in line:
@@ -25,15 +50,16 @@ for line in sys.stdin:
                 indentation += 8
             else:
                 break
-    # End of a comment. If we were in the middle of a multi-line comment then
-    # write it.
+    # End of a block comment.
     elif sline.endswith('*/'):
         comment += line
+        # Don't mess with generated comments.
+        # Scripts in dist rely on them to figure out where to generate code.
         if 'DO NOT EDIT' in comment:
-            is_block = False
-        if in_multiline and not is_block:
+            block = False
+        if multiline and not block:
             sys.stdout.write(comment)
-        elif in_multiline:
+        elif multiline:
             indent_ws = ' ' * indentation
             sys.stdout.write('{}/*\n'.format(indent_ws))
             current_line = indent_ws + ' *'
@@ -58,18 +84,19 @@ for line in sys.stdin:
             sys.stdout.write('{} */\n'.format(indent_ws))
         else:
             sys.stdout.write(line)
-        is_block = False
+        block = False
         words = []
-        in_multiline = False
+        multiline = False
         function_desc = False
-    elif in_multiline:
+    elif multiline:
         comment += line
         # We're only reformatting block comments where each line begins with a
         # space and an alphabetic character after the asterisk. The only
         # exceptions are function descriptions.
-        is_block = is_block and (len(sline) > 3 and sline.startswith('*') and
-                    sline[1] == ' ' and sline[2].isalpha()) or function_desc
-        # Trim asterisks at the beginning of each line in a multi-line comment.
+        block = block and \
+                (len(sline) > 3 and sline.startswith('*') and
+                 sline[1] == ' ' and sline[2].isalpha()) or function_desc
+        # Trim asterisks at the beginning of each line in a multiline comment.
         if sline.startswith('*'):
             sline = sline[1:]
         # Might be trailing whitespace after the asterisk. Leading strip again.

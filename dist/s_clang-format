@@ -1,4 +1,6 @@
-#! /bin/sh
+#! /bin/bash
+
+set -o pipefail
 
 download_clang_format() {
 	echo "$0: downloading clang-format for $(uname)"
@@ -46,7 +48,10 @@ esac
 # We want to be able to detect modifications.
 for f in $search; do
 	tempfile=$(mktemp)
-	cat "$f" | clang-format --fallback-style=none | python dist/s_goto.py | python dist/s_comment.py > "$tempfile"
+	cat "$f" | \
+            clang-format --fallback-style=none | \
+            python dist/s_goto.py | \
+            python dist/s_comment.py > "$tempfile" || exit 1
 	cmp --silent "$f" "$tempfile"
 	if test $? -ne 0; then
 		if test $# -eq 0 ; then
