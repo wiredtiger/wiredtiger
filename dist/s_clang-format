@@ -11,7 +11,7 @@ download_clang_format() {
 		wget https://s3.amazonaws.com/boxes.10gen.com/build/clang%2Bllvm-3.8.0-x86_64-apple-darwin.tar.xz -O dist/clang-format.tar.gz
 		tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz clang+llvm-3.8.0-x86_64-apple-darwin/bin/clang-format && rm dist/clang-format.tar.gz
 	else
-		echo "$0: unsupported environment"
+		echo "$0: unsupported environment $(uname)"
 		exit 1
 	fi
 }
