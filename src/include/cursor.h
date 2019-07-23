@@ -33,6 +33,7 @@
 	static const WT_CURSOR n = {					\
 	NULL,				/* session */			\
 	NULL,				/* uri */			\
+	NULL,				/* checkpoint */		\
 	NULL,				/* key_format */		\
 	NULL,				/* value_format */		\
 	get_key,							\
@@ -78,6 +79,20 @@ struct __wt_cursor_backup {
 	char **list;			/* List of files to be copied. */
 	size_t list_allocated;
 	size_t list_next;
+
+	/* File offset-based incremental backup. */
+	char	  *incr_file;		/* File */
+	WT_CURSOR *incr_cursor;		/* File cursor */
+					/* Start/stop checkpoints */
+	char	  *incr_checkpoint_start;
+	char	  *incr_checkpoint_stop;
+
+	bool	   incr_init;		/* Cursor traversal initialized */
+	uint64_t  *incr_list;		/* List of file offset/size pairs */
+	uint64_t   incr_list_count;	/* Count of file offset/size pairs */
+	uint64_t   incr_list_offset;	/* Current offset */
+	uint64_t   incr_size;		/* Maximum transfer size */
+	WT_ITEM   *incr_block;		/* Current block of data */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_CURBACKUP_DUP	0x1u	/* Duplicated backup cursor */

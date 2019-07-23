@@ -9,6 +9,52 @@
 #include "wt_internal.h"
 
 /*
+ * __block_read --
+ *	Read a block using an offset/size pair.
+ */
+static int
+__block_read(WT_SESSION_IMPL *session,
+    WT_BLOCK *block, WT_ITEM *buf, wt_off_t offset, uint32_t size)
+{
+	size_t bufsize;
+
+	WT_STAT_CONN_INCR(session, block_read);
+	WT_STAT_CONN_INCRV(session, block_byte_read, size);
+
+	/*
+	 * Grow the buffer as necessary and read the block.  Buffers should be
+	 * aligned for reading, but there are lots of buffers (for example, file
+	 * cursors have two buffers each, key and value), and it's difficult to
+	 * be sure we've found all of them.  If the buffer isn't aligned, it's
+	 * an easy fix: set the flag and guarantee we reallocate it.  (Most of
+	 * the time on reads, the buffer memory has not yet been allocated, so
+	 * we're not adding any additional processing time.)
+	 */
+	if (F_ISSET(buf, WT_ITEM_ALIGNED))
+		bufsize = size;
+	else {
+		F_SET(buf, WT_ITEM_ALIGNED);
+		bufsize = WT_MAX(size, buf->memsize + 10);
+	}
+
+	/*
+	 * Ensure we don't read information that isn't there. It shouldn't ever
+	 * happen, but it's a cheap test.
+	 */
+	if (size < block->allocsize)
+		WT_RET_MSG(session, EINVAL,
+		"%s: impossibly small block size of %" PRIu32 "B, less than "
+		"allocation size of %" PRIu32,
+		block->name, size, block->allocsize);
+
+	WT_RET(__wt_buf_init(session, buf, bufsize));
+	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
+	buf->size = size;
+
+	return (0);
+}
+
+/*
  * __wt_bm_preload --
  *	Pre-load a page.
  */
@@ -52,15 +98,54 @@ __wt_bm_preload(
 }
 
 /*
+ * __wt_bm_read_raw --
+ *	Map or read an offset/size referenced block into a buffer.
+ */
+int
+__wt_bm_read_raw(WT_BM *bm,
+    WT_SESSION_IMPL *session, WT_ITEM *buf, uint64_t offset, uint64_t size)
+{
+	WT_BLOCK *block;
+	WT_FILE_HANDLE *handle;
+	bool mapped;
+
+	block = bm->block;
+
+	/*
+	 * Map the block if it's possible.
+	 */
+	handle = block->fh->handle;
+	mapped = bm->map != NULL && offset + size <= bm->maplen;
+	if (mapped && handle->fh_map_preload != NULL) {
+		WT_STAT_CONN_INCR(session, block_map_read);
+		WT_STAT_CONN_INCRV(session, block_byte_map_read, size);
+
+		buf->data = (uint8_t *)bm->map + offset;
+		buf->size = size;
+		return (handle->fh_map_preload(handle, (WT_SESSION *)session,
+		    buf->data, buf->size, bm->mapped_cookie));
+	}
+
+	/* Read the block. */
+	__wt_capacity_throttle(session, size, WT_THROTTLE_READ);
+	WT_RET(__block_read(
+	    session, block, buf, (wt_off_t)offset, (uint32_t)size));
+
+	/* Optionally discard blocks from the system's buffer cache. */
+	WT_RET(__wt_block_discard(session, block, (size_t)size));
+
+	return (0);
+}
+
+/*
  * __wt_bm_read --
- *	Map or read address cookie referenced block into a buffer.
+ *	Map or read a address cookie referenced block into a buffer.
  */
 int
 __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
     WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
 {
 	WT_BLOCK *block;
-	WT_DECL_RET;
 	WT_FILE_HANDLE *handle;
 	wt_off_t offset;
 	uint32_t checksum, size;
@@ -79,14 +164,13 @@ __wt_bm_read(WT_BM *bm, WT_SESSION_IMPL *session,
 	handle = block->fh->handle;
 	mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
 	if (mapped && handle->fh_map_preload != NULL) {
-		buf->data = (uint8_t *)bm->map + offset;
-		buf->size = size;
-		ret = handle->fh_map_preload(handle, (WT_SESSION *)session,
-		    buf->data, buf->size,bm->mapped_cookie);
-
 		WT_STAT_CONN_INCR(session, block_map_read);
 		WT_STAT_CONN_INCRV(session, block_byte_map_read, size);
-		return (ret);
+
+		buf->data = (uint8_t *)bm->map + offset;
+		buf->size = size;
+		return (handle->fh_map_preload(handle, (WT_SESSION *)session,
+		    buf->data, buf->size, bm->mapped_cookie));
 	}
 
 #ifdef HAVE_DIAGNOSTIC
@@ -216,51 +300,19 @@ err:	__wt_scr_free(session, &tmp);
 
 /*
  * __wt_block_read_off --
- *	Read an addr/size pair referenced block into a buffer.
+ *	Read an offset/size/checksum triplet referenced block into a buffer.
  */
 int
 __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block,
     WT_ITEM *buf, wt_off_t offset, uint32_t size, uint32_t checksum)
 {
 	WT_BLOCK_HEADER *blk, swap;
-	size_t bufsize;
 
 	__wt_verbose(session, WT_VERB_READ,
 	    "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
 	    (uintmax_t)offset, size, checksum);
 
-	WT_STAT_CONN_INCR(session, block_read);
-	WT_STAT_CONN_INCRV(session, block_byte_read, size);
-
-	/*
-	 * Grow the buffer as necessary and read the block.  Buffers should be
-	 * aligned for reading, but there are lots of buffers (for example, file
-	 * cursors have two buffers each, key and value), and it's difficult to
-	 * be sure we've found all of them.  If the buffer isn't aligned, it's
-	 * an easy fix: set the flag and guarantee we reallocate it.  (Most of
-	 * the time on reads, the buffer memory has not yet been allocated, so
-	 * we're not adding any additional processing time.)
-	 */
-	if (F_ISSET(buf, WT_ITEM_ALIGNED))
-		bufsize = size;
-	else {
-		F_SET(buf, WT_ITEM_ALIGNED);
-		bufsize = WT_MAX(size, buf->memsize + 10);
-	}
-
-	/*
-	 * Ensure we don't read information that isn't there. It shouldn't ever
-	 * happen, but it's a cheap test.
-	 */
-	if (size < block->allocsize)
-		WT_RET_MSG(session, EINVAL,
-		"%s: impossibly small block size of %" PRIu32 "B, less than "
-		"allocation size of %" PRIu32,
-		block->name, size, block->allocsize);
-
-	WT_RET(__wt_buf_init(session, buf, bufsize));
-	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
-	buf->size = size;
+	WT_RET(__block_read(session, block, buf, offset, size));
 
 	/*
 	 * We incrementally read through the structure before doing a checksum,

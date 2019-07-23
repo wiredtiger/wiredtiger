@@ -277,11 +277,12 @@ err:	__wt_block_configure_first_fit(block, false);
 }
 
 /*
- * __ckpt_extlist_read --
- *	Read a checkpoints extent lists and copy
+ * __wt_ckpt_extlist_read --
+ *	Read a checkpoints extent lists.
  */
-static int
-__ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
+int
+__wt_ckpt_extlist_read(
+    WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt, bool discard)
 {
 	WT_BLOCK_CKPT *ci;
 
@@ -304,8 +305,9 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 	WT_RET(__wt_block_buffer_to_ckpt(session, block, ckpt->raw.data, ci));
 	WT_RET(__wt_block_extlist_read(
 	    session, block, &ci->alloc, ci->file_size));
-	WT_RET(__wt_block_extlist_read(
-	    session, block, &ci->discard, ci->file_size));
+	if (discard)
+		WT_RET(__wt_block_extlist_read(
+		    session, block, &ci->discard, ci->file_size));
 
 	return (0);
 }
@@ -469,7 +471,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 		 * extent blocks if there is more than one deleted checkpoint).
 		 */
 		if (ckpt->bpriv == NULL)
-			WT_ERR(__ckpt_extlist_read(session, block, ckpt));
+			WT_ERR(__wt_ckpt_extlist_read(
+			    session, block, ckpt, true));
 
 		for (next_ckpt = ckpt + 1;; ++next_ckpt)
 			if (!F_ISSET(next_ckpt, WT_CKPT_FAKE))
@@ -481,7 +484,8 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
 		 */
 		if (next_ckpt->bpriv == NULL &&
 		    !F_ISSET(next_ckpt, WT_CKPT_ADD))
-			WT_ERR(__ckpt_extlist_read(session, block, next_ckpt));
+			WT_ERR(__wt_ckpt_extlist_read(
+			    session, block, next_ckpt, true));
 	}
 
 	/*

@@ -694,6 +694,94 @@ __checkpoint_prepare(
 }
 
 /*
+ * __txn_checkpoint_lock --
+ *	Lock/unlock a checkpoint.
+ */
+static int
+__txn_checkpoint_lock(
+    WT_SESSION_IMPL *session, const char *cfg[], bool *can_skipp)
+{
+	WT_CONFIG_ITEM cval;
+	WT_CONNECTION_IMPL *conn;
+	WT_DECL_ITEM(tmp);
+	WT_DECL_RET;
+	char *remain, *token, *v;
+	bool first, match;
+
+	*can_skipp = false;
+
+	conn = S2C(session);
+	v = NULL;
+
+	WT_ERR(__wt_config_gets(session, cfg, "lock", &cval));
+	if (cval.len != 0) {
+		*can_skipp = true;
+
+		/* Add the newly locked checkpoint to the end of the list. */
+		WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+		WT_ERR(__wt_buf_fmt(session, tmp, "%s%s%.*s",
+		    conn->ckpt_locked == NULL ? "" : conn->ckpt_locked,
+		    conn->ckpt_locked == NULL ? "" : ",",
+		    (int)cval.len, cval.str));
+	}
+	WT_ERR(__wt_config_gets(session, cfg, "unlock", &cval));
+	if (cval.len != 0) {
+		*can_skipp = true;
+
+		if (conn->ckpt_locked == NULL)
+			goto nomatch;
+		if (tmp == NULL)
+			WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+
+		/*
+		 * strtok_r will corrupt the string, make a copy to simplify
+		 * error handling.
+		 */
+		WT_ERR(__wt_strdup(session, conn->ckpt_locked, &v));
+
+		/* Walk the list, discarding any that are no longer locked. */
+		for (first = true, match = false, remain = v;
+		    (token = strtok_r(remain, ",", &remain)) != NULL;)
+			if (WT_STRING_MATCH(token, cval.str, cval.len))
+				match = true;
+			else {
+				WT_ERR(__wt_buf_catfmt(session,
+				    tmp, "%s%s", first ? "" : ",", token));
+				first = false;
+			}
+		if (!match)
+			goto nomatch;
+	}
+
+	if (!*can_skipp)
+		return (0);
+
+	/*
+	 * Update the in-memory copy. This is mildly tricky because we leave
+	 * the in-memory list of locked checkpoints untouched until there is
+	 * no possibility that replacing it will fail.
+	 */
+	__wt_free(session, v);
+	WT_ERR(__wt_strdup(session, tmp->mem, &v));
+	__wt_free(session, conn->ckpt_locked);
+	conn->ckpt_locked = v;
+	v = NULL;
+
+	/* Update the metadata. */
+	WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_LOCK, tmp->mem));
+
+	if (0) {
+nomatch:
+		WT_ERR_MSG(session, WT_NOTFOUND,
+		    "%.*s: not a locked checkpoint", (int)cval.len, cval.str);
+	}
+err:
+	__wt_free(session, v);
+	__wt_scr_free(session, &tmp);
+	return (ret);
+}
+
+/*
  * __txn_checkpoint_can_skip --
  *	Determine whether it's safe to skip taking a checkpoint.
  */
@@ -800,7 +888,14 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 	saved_isolation = session->isolation;
 	full = idle = logging = tracking = use_timestamp = false;
 
-	/* Avoid doing work if possible. */
+	/*
+	 * Avoid doing work if possible. Lock/unlock doesn't do a checkpoint,
+	 * some checkpoints can be skipped.
+	 */
+	WT_RET(__txn_checkpoint_lock(session, cfg, &can_skip));
+	if (can_skip)
+		return (0);
+
 	WT_RET(__txn_checkpoint_can_skip(session,
 	    cfg, &full, &use_timestamp, &can_skip));
 	if (can_skip) {
@@ -1272,6 +1367,43 @@ __drop_to(WT_CKPT *ckptbase, const char *name, size_t len)
 }
 
 /*
+ * __retain_locked --
+ *	Don't drop any checkpoint that's currently locked.
+ */
+static int
+__retain_locked(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
+{
+	WT_CKPT *ckpt;
+	WT_CONNECTION_IMPL *conn;
+	char *remain, *token, *v;
+
+	conn = S2C(session);
+
+	/*
+	 * We have an in-memory list of the locked checkpoints. It would be
+	 * reasonable to instead store/retrieve from the metadata whenever
+	 * we need it and avoid having two copies, but we create checkpoints
+	 * both early and late in the lifecycle of the database, and there
+	 * are times we're here when getting our hands on a metadata cursor
+	 * is tricky, at best. So, two copies it is.
+	 */
+	if (conn->ckpt_locked == NULL)
+		return (0);
+
+	/* strtok_r will corrupt the string, make a copy. */
+	WT_RET(__wt_strdup(session, conn->ckpt_locked, &v));
+
+	for (remain = v; (token = strtok_r(remain, ",", &remain)) != NULL;)
+		WT_CKPT_FOREACH(ckptbase, ckpt)
+			if (F_ISSET(ckpt, WT_CKPT_DELETE) &&
+			    strcmp(ckpt->name, token) == 0)
+				F_CLR(ckpt, WT_CKPT_DELETE);
+
+	__wt_free(session, v);
+	return (0);
+}
+
+/*
  * __checkpoint_lock_dirty_tree_int --
  *	Helper for __checkpoint_lock_dirty_tree.  Intended to be called while
  *	holding the hot backup lock.
@@ -1449,6 +1581,9 @@ __checkpoint_lock_dirty_tree(WT_SESSION_IMPL *session,
 
 	/* Drop checkpoints with the same name as the one we're taking. */
 	__drop(ckptbase, name, strlen(name));
+
+	/* Except for locked checkpoints, they cannot be discarded. */
+	__retain_locked(session, ckptbase);
 
 	/* Set the name of the new entry at the end of the list. */
 	WT_CKPT_FOREACH(ckptbase, ckpt)

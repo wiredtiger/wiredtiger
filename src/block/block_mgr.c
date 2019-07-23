@@ -153,6 +153,19 @@ __bm_checkpoint_resolve_readonly(
 }
 
 /*
+ * __bm_checkpoint_rewrite --
+ *	Return the block/size pairs required to upgrade a file from one
+ * checkpoint to subsequent one.
+ */
+static int
+__bm_checkpoint_rewrite(WT_BM *bm, WT_SESSION_IMPL *session,
+    WT_CKPT *ckpt, uint64_t **listp, uint64_t *list_countp)
+{
+	return (__wt_block_checkpoint_rewrite(
+	    session, bm->block, ckpt, listp, list_countp));
+}
+
+/*
  * __bm_checkpoint_start --
  *	Start the checkpoint.
  */
@@ -577,6 +590,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
 	bm->checkpoint_last = __bm_checkpoint_last;
 	bm->checkpoint_load = __bm_checkpoint_load;
 	bm->checkpoint_resolve = __bm_checkpoint_resolve;
+	bm->checkpoint_rewrite = __bm_checkpoint_rewrite;
 	bm->checkpoint_start = __bm_checkpoint_start;
 	bm->checkpoint_unload = __bm_checkpoint_unload;
 	bm->close = __bm_close;
@@ -590,6 +604,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
 	bm->map_discard = __bm_map_discard;
 	bm->preload = __wt_bm_preload;
 	bm->read = __wt_bm_read;
+	bm->read_raw = __wt_bm_read_raw;
 	bm->salvage_end = __bm_salvage_end;
 	bm->salvage_next = __bm_salvage_next;
 	bm->salvage_start = __bm_salvage_start;

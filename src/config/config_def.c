@@ -325,8 +325,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_begin_transaction[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_checkpoint[] = {
 	{ "drop", "list", NULL, NULL, NULL, 0 },
 	{ "force", "boolean", NULL, NULL, NULL, 0 },
+	{ "lock", "string", NULL, NULL, NULL, 0 },
 	{ "name", "string", NULL, NULL, NULL, 0 },
 	{ "target", "list", NULL, NULL, NULL, 0 },
+	{ "unlock", "string", NULL, NULL, NULL, 0 },
 	{ "use_timestamp", "boolean", NULL, NULL, NULL, 0 },
 	{ NULL, NULL, NULL, NULL, NULL, 0 }
 };
@@ -493,6 +495,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
 	{ "dump", "string",
 	    NULL, "choices=[\"hex\",\"json\",\"print\"]",
 	    NULL, 0 },
+	{ "incremental_checkpoint", "string", NULL, NULL, NULL, 0 },
+	{ "incremental_file", "string", NULL, NULL, NULL, 0 },
+	{ "incremental_size", "int", NULL, "min=1MB", NULL, 0 },
 	{ "next_random", "boolean", NULL, NULL, NULL, 0 },
 	{ "next_random_sample_size", "string", NULL, NULL, NULL, 0 },
 	{ "overwrite", "boolean", NULL, NULL, NULL, 0 },
@@ -1426,8 +1431,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	  confchk_WT_SESSION_begin_transaction, 8
 	},
 	{ "WT_SESSION.checkpoint",
-	  "drop=,force=false,name=,target=,use_timestamp=true",
-	  confchk_WT_SESSION_checkpoint, 5
+	  "drop=,force=false,lock=,name=,target=,unlock=,use_timestamp=true",
+	  confchk_WT_SESSION_checkpoint, 7
 	},
 	{ "WT_SESSION.close",
 	  "",
@@ -1488,10 +1493,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {
 	},
 	{ "WT_SESSION.open_cursor",
 	  "append=false,bulk=false,checkpoint=,checkpoint_wait=true,dump=,"
+	  "incremental_checkpoint=,incremental_file=,incremental_size=16MB,"
 	  "next_random=false,next_random_sample_size=0,overwrite=true,"
 	  "raw=false,read_once=false,readonly=false,skip_sort_check=false,"
 	  "statistics=,target=",
-	  confchk_WT_SESSION_open_cursor, 14
+	  confchk_WT_SESSION_open_cursor, 17
 	},
 	{ "WT_SESSION.prepare_transaction",
 	  "prepare_timestamp=",

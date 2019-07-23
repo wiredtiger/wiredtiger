@@ -218,6 +218,13 @@ struct __wt_cursor {
 	const char *uri;
 
 	/*!
+	 * The name of the checkpoint for a hot backup cursor, or the checkpoint
+	 * within a data source, when it matches the \c checkpoint parameter to
+	 * WT_SESSION::open_cursor used to open the cursor.
+	 */
+	const char *checkpoint;
+
+	/*!
 	 * The format of the data packed into key items.  See @ref packing for
 	 * details.  If not set, a default value of "u" is assumed, and
 	 * applications must use WT_ITEM structures to manipulate untyped byte
@@ -1075,6 +1082,15 @@ struct __wt_session {
 	 * compatible with the @ref util_dump and @ref util_load commands., a
 	 * string\, chosen from the following options: \c "hex"\, \c "json"\, \c
 	 * "print"; default empty.}
+	 * @config{incremental_checkpoint, the starting checkpoint for an file
+	 * offset based incremental backup; valid only for a backup data
+	 * source., a string; default empty.}
+	 * @config{incremental_file, the object for a file offset based
+	 * incremental backup; valid only for " "a backup data source., a
+	 * string; default empty.}
+	 * @config{incremental_size, the maximum block size returned for a file
+	 * offset based incremental backup; valid only for a backup data
+	 * source., an integer greater than or equal to 1MB; default \c 16MB.}
 	 * @config{next_random, configure the cursor to return a pseudo-random
 	 * record from the object when the WT_CURSOR::next method is called;
 	 * valid only for row-store cursors.  See @ref cursor_random for
@@ -2015,11 +2031,17 @@ struct __wt_session {
 	 * @config{force, by default\, checkpoints may be skipped if the
 	 * underlying object has not been modified\, this option forces the
 	 * checkpoint., a boolean flag; default \c false.}
+	 * @config{lock, if set\, specify the name of a checkpoint to lock
+	 * (retain) for use in subsequent incremental backups.  No checkpoint is
+	 * performed., a string; default empty.}
 	 * @config{name, if set\, specify a name for the checkpoint (note that
 	 * checkpoints including LSM trees may not be named)., a string; default
 	 * empty.}
 	 * @config{target, if non-empty\, checkpoint the list of objects., a
 	 * list of strings; default empty.}
+	 * @config{unlock, if set\, specify the name of a checkpoint to unlock
+	 * (discard)\, as it is no longer needed for subsequent incremental
+	 * backups.  No checkpoint is performed., a string; default empty.}
 	 * @config{use_timestamp, by default\, create the checkpoint as of the
 	 * last stable timestamp if timestamps are in use\, or all current
 	 * updates if there is no stable timestamp set.  If false\, this option

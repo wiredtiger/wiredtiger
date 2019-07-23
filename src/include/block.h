@@ -183,6 +183,8 @@ struct __wt_bm {
 	int (*checkpoint_load)(WT_BM *, WT_SESSION_IMPL *,
 	    const uint8_t *, size_t, uint8_t *, size_t *, bool);
 	int (*checkpoint_resolve)(WT_BM *, WT_SESSION_IMPL *, bool);
+	int (*checkpoint_rewrite)
+	    (WT_BM *, WT_SESSION_IMPL *, WT_CKPT *, uint64_t **, uint64_t *);
 	int (*checkpoint_start)(WT_BM *, WT_SESSION_IMPL *);
 	int (*checkpoint_unload)(WT_BM *, WT_SESSION_IMPL *);
 	int (*close)(WT_BM *, WT_SESSION_IMPL *);
@@ -198,6 +200,8 @@ struct __wt_bm {
 	int (*preload)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
 	int (*read)
 	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, const uint8_t *, size_t);
+	int (*read_raw)
+	    (WT_BM *, WT_SESSION_IMPL *, WT_ITEM *, uint64_t, uint64_t);
 	int (*salvage_end)(WT_BM *, WT_SESSION_IMPL *);
 	int (*salvage_next)
 	    (WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t *, bool *);

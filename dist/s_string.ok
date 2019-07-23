@@ -559,6 +559,7 @@ checkkey
 checkpointed
 checkpointer
 checkpointing
+checkpointlock
 checksum
 checksums
 checksys
@@ -924,6 +925,7 @@ libdatasource
 libs
 libtool
 libwiredtiger
+lifecycle
 linkers
 llll
 llu
@@ -1124,6 +1126,7 @@ pvA
 pwrite
 py
 qdown
+qq
 qrrSS
 qsort
 quartile

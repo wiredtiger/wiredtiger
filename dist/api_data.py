@@ -1201,6 +1201,16 @@ methods = {
         characters are hexadecimal encoded.  These formats are compatible
         with the @ref util_dump and @ref util_load commands''',
         choices=['hex', 'json', 'print']),
+    Config('incremental_checkpoint', '', r'''
+        the starting checkpoint for an file offset based incremental backup;
+        valid only for a backup data source'''),
+    Config('incremental_file', '', r'''
+        the object for a file offset based incremental backup; valid only for "
+        "a backup data source'''),
+    Config('incremental_size', '16MB', r'''
+        the maximum block size returned for a file offset based incremental
+        backup; valid only for a backup data source''',
+        min='1MB'),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the
         object when the WT_CURSOR::next method is called; valid only for
@@ -1439,11 +1449,18 @@ methods = {
         by default, checkpoints may be skipped if the underlying object
         has not been modified, this option forces the checkpoint''',
         type='boolean'),
+    Config('lock', '', r'''
+        if set, specify the name of a checkpoint to lock (retain) for use in
+        subsequent incremental backups. No checkpoint is performed'''),
     Config('name', '', r'''
         if set, specify a name for the checkpoint (note that checkpoints
         including LSM trees may not be named)'''),
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
+    Config('unlock', '', r'''
+        if set, specify the name of a checkpoint to unlock (discard), as it
+        is no longer needed for subsequent incremental backups. No checkpoint
+        is performed'''),
     Config('use_timestamp', 'true', r'''
         by default, create the checkpoint as of the last stable timestamp
         if timestamps are in use, or all current updates if there is no
