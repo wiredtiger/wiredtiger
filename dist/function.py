@@ -25,9 +25,16 @@ def missing_comment():
 def function_args_alpha(text):
         s = text.strip()
         s = re.sub("[*]","", s)
-        s = re.sub("^const ","", s)
-        s = re.sub("^static ","", s)
-        s = re.sub("^volatile ","", s)
+        s = s.split()
+        def merge_specifier(words, specifier):
+            if len(words) > 2 and words[0] == specifier:
+                words[1] += specifier
+                words = words[1:]
+            return words
+        s = merge_specifier(s, 'const')
+        s = merge_specifier(s, 'static')
+        s = merge_specifier(s, 'volatile')
+        s = ' '.join(s)
         return s
 
 # List of illegal types.
