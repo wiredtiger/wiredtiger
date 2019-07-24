@@ -199,9 +199,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		    session, &las_value, &upd, &incr, upd_type));
 		total_incr += incr;
 		if (upd_type == WT_UPDATE_BIRTHMARK) {
-			birthmarkp =
-			    (WT_BIRTHMARK_DETAILS *)ref->page_las->birthmarks +
-			    update_cnt;
+			birthmarkp = ref->page_las->birthmarks + update_cnt;
 			/*
 			 * Confirm that we get the same birthmark information
 			 * from in-memory data and from the lookaside file.
