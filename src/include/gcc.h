@@ -89,6 +89,17 @@
  * swap) operations.
  */
 
+/*
+ * We've hit optimization bugs with Clang 3.5 in the past when using the atomic
+ * builtins. See http://llvm.org/bugs/show_bug.cgi?id=21499 for details.
+ */
+#if defined(__clang__) && \
+	defined(__clang_major__) && defined(__clang_minor__) && \
+	(((__clang_major__ == 3) && (__clang_minor__ <= 5)) || \
+	 (__clang_major__ < 3))
+#error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
+#endif
+
 #define	WT_ATOMIC_CAS(ptr, oldp, new)					\
 	__atomic_compare_exchange_n(					\
 	    ptr, oldp, new, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
