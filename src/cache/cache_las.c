@@ -805,8 +805,6 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
-				WT_ASSERT(session, upd != first_upd ||
-				    multi->page_las.skew_newest);
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, WT_UPDATE_BIRTHMARK,

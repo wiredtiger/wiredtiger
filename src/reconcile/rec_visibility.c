@@ -120,7 +120,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	wt_timestamp_t timestamp, ts;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
-	bool all_visible, list_prepared, list_uncommitted, skipped_birthmark;
+	bool all_stable, list_prepared, list_uncommitted, skipped_birthmark;
 
 	/*
 	 * The "saved updates" return value is used independently of returning
@@ -363,17 +363,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * order), so we track the maximum transaction ID and the newest update
 	 * with a timestamp (if any).
 	 */
-	timestamp = first_ts_upd == NULL ? 0 : first_ts_upd->durable_ts;
-	all_visible = upd == first_txn_upd &&
+	timestamp = first_ts_upd == NULL ?
+	    WT_TS_NONE : first_ts_upd->durable_ts;
+	all_stable = upd == first_txn_upd &&
 	    !list_prepared && !list_uncommitted &&
-	    (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-	    __wt_txn_visible_all(session, max_txn, timestamp) :
-	    __wt_txn_visible(session, max_txn, timestamp));
+	    __wt_txn_visible_all(session, max_txn, timestamp);
 
-	if (all_visible)
+	if (all_stable)
 		goto check_original_value;
 
-	r->leave_dirty = true;
+	if (F_ISSET(r, WT_REC_VISIBLE_ALL) ||
+	    !__wt_txn_visible(session, max_txn, timestamp))
+		r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
 		WT_PANIC_RET(session, EINVAL,
@@ -440,7 +441,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 				    first_ts_upd->durable_ts;
 		}
 	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
-		for (upd = first_upd; upd != upd_select->upd; upd = upd->next) {
+		for (upd = first_upd; upd != NULL; upd = upd->next) {
 			if (upd->txnid == WT_TXN_ABORTED)
 				continue;
 
