@@ -456,6 +456,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		}
 
 		/*
+		 * We set the write generation to 1 prior to reconciliation.
+		 * A failed atomic cas indicates that an update has taken place
+		 * during reconciliation.
+		 *
 		 * The page only might be clean; if the write generation is
 		 * unchanged since reconciliation started, it's clean.
 		 *
@@ -463,7 +467,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * since reconciliation started and remains dirty (that can't
 		 * happen when evicting, the page is exclusively locked).
 		 */
-		if (__wt_atomic_cas32(&mod->write_gen, r->orig_write_gen, 0))
+		if (__wt_atomic_cas32(&mod->write_gen, 1, 0))
 			__wt_cache_dirty_decr(session, page);
 		else
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
@@ -602,13 +606,19 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->page = page;
 
 	/*
-	 * Save the page's write generation before reading the page.
 	 * Save the transaction generations before reading the page.
 	 * These are all ordered reads, but we only need one.
 	 */
 	r->orig_btree_checkpoint_gen = btree->checkpoint_gen;
 	r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
-	WT_ORDERED_READ(r->orig_write_gen, page->modify->write_gen);
+
+	/*
+	 * Set the write generation to 1 prior to reconciliation. After
+	 * reconciliation, we want to atomic cas 1 => 0 to potentially mark it
+	 * as clean. If the write generation got incremented to 2, by a
+	 * concurrent update, it'll remain marked as dirty.
+	 */
+	page->modify->write_gen = 1;
 
 	/*
 	 * Cache the oldest running transaction ID.  This is used to check

@@ -492,6 +492,8 @@ static inline void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	uint64_t last_running;
+	uint32_t prev_write_gen;
+	bool made_dirty;
 
 	WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
@@ -500,15 +502,35 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 		last_running = S2C(session)->txn_global.last_running;
 
 	/*
-	 * We depend on atomic-add being a write barrier, that is, a barrier to
+	 * We depend on atomic-cas being a write barrier, that is, a barrier to
 	 * ensure all changes to the page are flushed before updating the page
 	 * write generation and/or marking the tree dirty, otherwise checkpoints
 	 * and/or page reconciliation might be looking at a clean page/tree.
 	 *
 	 * Every time the page transitions from clean to dirty, update the cache
 	 * and transactional information.
+	 *
+	 * The write generation needs to be capped at 2. There is more
+	 * information in the definition of WT_PAGE_MODIFY regarding the meaning
+	 * of each write generation value.
 	 */
-	if (__wt_atomic_add32(&page->modify->write_gen, 1) == 1) {
+	made_dirty = false;
+	prev_write_gen = page->modify->write_gen;
+	while (prev_write_gen < 2) {
+		if (__wt_atomic_cas32(&page->modify->write_gen,
+		    prev_write_gen, prev_write_gen + 1)) {
+			/*
+			 * We just did an atomic cas from 0 => 1 and therefore,
+			 * we're the first ones to dirty the page.
+			 */
+			if (prev_write_gen == 0)
+				made_dirty = true;
+			break;
+		}
+		prev_write_gen = page->modify->write_gen;
+	}
+
+	if (made_dirty) {
 		__wt_cache_dirty_incr(session, page);
 
 		/*

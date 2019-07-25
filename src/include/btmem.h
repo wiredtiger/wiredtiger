@@ -489,8 +489,18 @@ struct __wt_page_modify {
 	WT_SPINLOCK page_lock;		/* Page's spinlock */
 
 	/*
-	 * The write generation is incremented when a page is modified, a page
-	 * is clean if the write generation is 0.
+	 * The write generation is incremented when a page is modified.
+	 *
+	 * 0: The page is clean.
+	 * 1: The page has 1 unreconciled update.
+	 * 2: The page has 2 or more unreconciled updates.
+	 *
+	 * When we reconcile, we artifically set the write generation to 1 and
+	 * check afterwards that the write generation hasn't changed (incr to 2)
+	 * to determine whether reconciliation was able to render the page clean.
+	 *
+	 * Using write generation is a simple counter of the number of updates is
+	 * not acceptable as some workloads will get close to hitting UINT32_MAX.
 	 */
 	uint32_t write_gen;
 
