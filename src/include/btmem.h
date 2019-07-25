@@ -253,10 +253,19 @@ struct __wt_page_lookaside {
 	wt_timestamp_t unstable_durable_timestamp;
 					/* First durable timestamp not on
 					 * page */
-	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
 	bool resolved;			/* History has been read into cache */
 	bool skew_newest;		/* Page image has newest versions */
+
+	struct __wt_birthmark_details {
+		uint64_t txnid;
+		wt_timestamp_t durable_ts;
+		wt_timestamp_t start_ts;
+		uint8_t prepare_state;
+	} *birthmarks;			/* Birthmark details for a record */
+#ifdef HAVE_DIAGNOSTIC
+	uint64_t birthmarks_cnt;	/* Count of keys: for the birthmarks */
+#endif
 };
 
 /*

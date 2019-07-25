@@ -2605,7 +2605,6 @@ static int
 __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
 	WT_CURSOR *cursor;
-	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_MULTI *multi;
 	uint32_t i, session_flags;
@@ -2617,23 +2616,18 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	if (i == r->multi_next)
 		return (0);
 
-	/* Ensure enough room for a column-store key without checking. */
-	WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-
 	__wt_las_cursor(session, &cursor, &session_flags);
 
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 		if (multi->supd != NULL) {
 			WT_ERR(__wt_las_insert_block(
-			    cursor, S2BT(session), r->page, multi, key));
+			    cursor, S2BT(session), r->page, multi));
 
 			__wt_free(session, multi->supd);
 			multi->supd_entries = 0;
 		}
 
 err:	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-
-	__wt_scr_free(session, &key);
 	return (ret);
 }
 
@@ -2655,8 +2649,10 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 	 */
 	for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
 		if (multi->supd != NULL &&
-		    (las_pageid = multi->page_las.las_pageid) != 0)
+		    (las_pageid = multi->page_las.las_pageid) != 0) {
 			WT_TRET(__wt_las_remove_block(session, las_pageid));
+			__wt_free(session, multi->page_las.birthmarks);
+		}
 
 	return (ret);
 }

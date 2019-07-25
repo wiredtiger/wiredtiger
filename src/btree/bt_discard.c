@@ -270,6 +270,8 @@ __wt_free_ref(
 	__wt_ref_addr_free(session, ref);
 
 	/* Free any lookaside or page-deleted information. */
+	if (ref->page_las != NULL)
+		__wt_free(session, ref->page_las->birthmarks);
 	__wt_free(session, ref->page_las);
 	if (ref->page_del != NULL) {
 		__wt_free(session, ref->page_del->update_list);

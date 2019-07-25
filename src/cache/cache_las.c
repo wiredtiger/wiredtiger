@@ -653,9 +653,12 @@ __las_insert_block_verbose(
  */
 int
 __wt_las_insert_block(WT_CURSOR *cursor,
-    WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
+    WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
+	WT_BIRTHMARK_DETAILS *birthmarkp;
 	WT_CONNECTION_IMPL *conn;
+	WT_DECL_ITEM(birthmarks);
+	WT_DECL_ITEM(key);
 	WT_DECL_RET;
 	WT_ITEM las_value;
 	WT_SAVE_UPD *list;
@@ -698,6 +701,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	__las_set_isolation(session, &saved_isolation);
 	WT_ERR(__wt_txn_begin(session, NULL));
 	local_txn = true;
+
+	/* Ensure enough room for a column-store key without checking. */
+	WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+
+	WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
 
 	/* Enter each update in the boundary's list into the lookaside store. */
 	for (las_counter = 0, i = 0,
@@ -790,6 +798,21 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 
+			/*
+			 * Extend the buffer if needed and initialize the record
+			 * with an empty birthmark.
+			 */
+			WT_ERR(__wt_buf_extend(session, birthmarks,
+			    (insert_cnt + 1) *
+			    sizeof(WT_BIRTHMARK_DETAILS)));
+			birthmarkp =
+			    (WT_BIRTHMARK_DETAILS *)birthmarks->mem +
+			    insert_cnt;
+			birthmarkp->txnid = WT_TXN_NONE;
+			birthmarkp->durable_ts = 0;
+			birthmarkp->start_ts = 0;
+			birthmarkp->prepare_state = false;
+
 			cursor->set_key(cursor,
 			    las_pageid, btree_id, ++las_counter, key);
 
@@ -810,6 +833,10 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, WT_UPDATE_BIRTHMARK,
 				    &las_value);
+				birthmarkp->txnid = upd->txnid;
+				birthmarkp->durable_ts = upd->durable_ts;
+				birthmarkp->start_ts = upd->start_ts;
+				birthmarkp->prepare_state = upd->prepare_state;
 			} else
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
@@ -856,12 +883,23 @@ err:
 
 	__las_restore_isolation(session, saved_isolation);
 
+	if (ret == 0 && insert_cnt > 0)
+		ret = __wt_calloc(session, insert_cnt,
+		    sizeof(WT_BIRTHMARK_DETAILS), &multi->page_las.birthmarks);
+
 	if (ret == 0 && insert_cnt > 0) {
 		multi->page_las.las_pageid = las_pageid;
 		multi->page_las.has_prepares = prepared_insert_cnt > 0;
+		memcpy(multi->page_las.birthmarks, birthmarks->mem,
+		    insert_cnt * sizeof(WT_BIRTHMARK_DETAILS));
+#ifdef HAVE_DIAGNOSTIC
+		multi->page_las.birthmarks_cnt = insert_cnt;
+#endif
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
+	__wt_scr_free(session, &key);
+	__wt_scr_free(session, &birthmarks);
 	WT_UNUSED(first_upd);
 	return (ret);
 }
