@@ -500,7 +500,7 @@ struct __wt_page_modify {
 	 * to determine whether reconciliation was able to render the page
 	 * clean.
 	 *
-	 * Using write generation is a simple counter of the number of updates
+	 * Using write generation as a simple counter of the number of updates
 	 * is not acceptable as some workloads will get close to hitting
 	 * UINT32_MAX.
 	 */
