@@ -495,12 +495,14 @@ struct __wt_page_modify {
 	 * 1: The page has 1 unreconciled update.
 	 * 2: The page has 2 or more unreconciled updates.
 	 *
-	 * When we reconcile, we artifically set the write generation to 1 and
+	 * When we reconcile, we artificially set the write generation to 1 and
 	 * check afterwards that the write generation hasn't changed (incr to 2)
-	 * to determine whether reconciliation was able to render the page clean.
+	 * to determine whether reconciliation was able to render the page
+	 * clean.
 	 *
-	 * Using write generation is a simple counter of the number of updates is
-	 * not acceptable as some workloads will get close to hitting UINT32_MAX.
+	 * Using write generation is a simple counter of the number of updates
+	 * is not acceptable as some workloads will get close to hitting
+	 * UINT32_MAX.
 	 */
 	uint32_t write_gen;
 
