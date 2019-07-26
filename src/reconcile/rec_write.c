@@ -456,7 +456,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		}
 
 		/*
-		 * We set the mod state to MOD_STATE_CLEAN prior to
+		 * We set the mod state to WT_MOD_STATE_SINGLE prior to
 		 * reconciliation. A failed atomic cas indicates that an update
 		 * has taken place during reconciliation.
 		 *
