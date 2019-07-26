@@ -652,6 +652,16 @@ __rec_init(WT_SESSION_IMPL *session,
 		r->las_skew_newest = false;
 
 	/*
+	 * Set the timestamp reconciliation will use to select updates if not
+	 * skewing newest.
+	 */
+	if (F_ISSET(r, WT_REC_VISIBLE_ALL) ||
+	    !F_ISSET(&session->txn, WT_TXN_HAS_TS_READ)) {
+		r->rec_timestamp = txn_global->oldest_timestamp;
+	} else
+		r->rec_timestamp = session->txn.read_timestamp;
+
+	/*
 	 * When operating on the lookaside table, we should never try
 	 * update/restore or lookaside eviction.
 	 */
@@ -680,23 +690,7 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
-	r->max_timestamp = 0;
-
-	/*
-	 * Track the first unstable transaction (when skewing newest this is
-	 * the newest update, otherwise the newest update not on the page).
-	 * This is the boundary between the on-page information and the history
-	 * stored in the lookaside table.
-	 */
-	if (r->las_skew_newest) {
-		r->unstable_txn = WT_TXN_NONE;
-		r->unstable_timestamp = WT_TS_NONE;
-		r->unstable_durable_timestamp = WT_TS_NONE;
-	} else {
-		r->unstable_txn = WT_TXN_ABORTED;
-		r->unstable_timestamp = WT_TS_MAX;
-		r->unstable_durable_timestamp = WT_TS_MAX;
-	}
+	r->max_timestamp = WT_TS_NONE;
 
 	/* Track if updates were used and/or uncommitted. */
 	r->updates_seen = r->updates_unstable = 0;
@@ -1746,18 +1740,10 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 
 done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		/* Track the oldest lookaside timestamp seen so far. */
-		multi->page_las.skew_newest = r->las_skew_newest;
 		multi->page_las.max_txn = r->max_txn;
-		multi->page_las.unstable_txn = r->unstable_txn;
-		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
 		multi->page_las.max_timestamp = r->max_timestamp;
-
-		WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
-		    r->unstable_durable_timestamp >= r->unstable_timestamp);
-
-		multi->page_las.unstable_timestamp = r->unstable_timestamp;
-		multi->page_las.unstable_durable_timestamp =
-		    r->unstable_durable_timestamp;
+		multi->page_las.rec_timestamp = r->las_skew_newest ?
+		    r->max_timestamp : r->rec_timestamp;
 	}
 
 err:	__wt_scr_free(session, &key);

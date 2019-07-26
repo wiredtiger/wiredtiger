@@ -33,20 +33,17 @@ struct __wt_reconcile {
 	uint64_t orig_txn_checkpoint_gen;
 
 	/*
-	 * Track the oldest running transaction and whether to skew lookaside
-	 * to the newest update.
+	 * Track the timestamp reconciliation will use for reads, the oldest
+	 * running transaction and whether to skew lookaside to the newest
+	 * update.
 	 */
-	bool las_skew_newest;
+	wt_timestamp_t rec_timestamp;
 	uint64_t last_running;
+	bool las_skew_newest;
 
 	/* Track the page's min/maximum transactions. */
 	uint64_t max_txn;
 	wt_timestamp_t max_timestamp;
-
-	/* Lookaside boundary tracking. */
-	uint64_t unstable_txn;
-	wt_timestamp_t unstable_durable_timestamp;
-	wt_timestamp_t unstable_timestamp;
 
 	u_int updates_seen;		/* Count of updates seen. */
 	u_int updates_unstable;		/* Count of updates not visible_all. */

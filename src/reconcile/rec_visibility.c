@@ -9,6 +9,25 @@
 #include "wt_internal.h"
 
 /*
+ * __rec_update_durable --
+ *	Return whether an update is suitable for writing to a disk image.
+ */
+static bool
+__rec_update_durable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
+{
+	if (F_ISSET(r, WT_REC_VISIBLE_ALL))
+		return (__wt_txn_upd_visible_all(session, upd));
+
+	if (!__txn_visible_id(session, upd->txnid))
+		return (false);
+
+	if (!F_ISSET(&session->txn, WT_TXN_HAS_TS_READ))
+		return (true);
+
+	return (upd->durable_ts <= r->rec_timestamp);
+}
+
+/*
  * __rec_update_save --
  *	Save a WT_UPDATE list for later restoration.
  */
@@ -116,8 +135,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
     void *ripcip, WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
 {
 	WT_PAGE *page;
-	WT_UPDATE *first_ts_upd, *first_txn_upd, *first_upd, *upd;
-	wt_timestamp_t timestamp, ts;
+	WT_UPDATE *first_txn_upd, *first_upd, *upd;
+	wt_timestamp_t max_timestamp;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
 	bool all_stable, list_prepared, list_uncommitted, skipped_birthmark;
@@ -130,8 +149,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	upd_select->upd_saved = false;
 
 	page = r->page;
-	first_ts_upd = first_txn_upd = NULL;
+	first_txn_upd = NULL;
 	upd_memsize = 0;
+	max_timestamp = WT_TS_NONE;
 	max_txn = WT_TXN_NONE;
 	list_prepared = list_uncommitted = skipped_birthmark = false;
 
@@ -179,22 +199,24 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 * globally visible, need to check the update state as well.
 		 */
 		if (F_ISSET(r, WT_REC_EVICT)) {
-			if (upd->prepare_state == WT_PREPARE_LOCKED ||
-			    upd->prepare_state == WT_PREPARE_INPROGRESS) {
-				list_prepared = true;
-				continue;
-			}
 			if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
 			    WT_TXNID_LE(r->last_running, txnid) :
 			    !__txn_visible_id(session, txnid)) {
 				r->update_uncommitted = list_uncommitted = true;
 				continue;
 			}
+			if (upd->prepare_state == WT_PREPARE_LOCKED ||
+			    upd->prepare_state == WT_PREPARE_INPROGRESS) {
+				list_prepared = true;
+				if (upd->start_ts > max_timestamp)
+					max_timestamp = upd->start_ts;
+				continue;
+			}
 		}
 
 		/* Track the first update with non-zero timestamp. */
-		if (first_ts_upd == NULL && upd->start_ts != WT_TS_NONE)
-			first_ts_upd = upd;
+		if (upd->durable_ts > max_timestamp)
+			max_timestamp = upd->durable_ts;
 
 		/*
 		 * Select the update to write to the disk image.
@@ -212,9 +234,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		if (upd_select->upd == NULL && r->las_skew_newest)
 			upd_select->upd = upd;
 
-		if (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
-		    !__wt_txn_upd_visible_all(session, upd) :
-		    !__wt_txn_upd_durable(session, upd)) {
+		if (!__rec_update_durable(session, r, upd)) {
 			if (F_ISSET(r, WT_REC_EVICT))
 				++r->updates_unstable;
 
@@ -241,8 +261,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 
 		/*
 		 * Lookaside without stable timestamp was taken care of above
-		 * (set to the first uncommitted transaction). Lookaside with
-		 * stable timestamp always takes the first stable update.
+		 * (set to the first uncommitted transaction). All other
+		 * reconciliation takes the first stable update.
 		 */
 		if (upd_select->upd == NULL)
 			upd_select->upd = upd;
@@ -333,8 +353,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		r->max_txn = max_txn;
 
 	/* Update the maximum timestamp. */
-	if (first_ts_upd != NULL && r->max_timestamp < first_ts_upd->durable_ts)
-		r->max_timestamp = first_ts_upd->durable_ts;
+	if (max_timestamp > r->max_timestamp)
+		r->max_timestamp = max_timestamp;
 
 	/*
 	 * If the update we chose was a birthmark, or we are doing
@@ -363,17 +383,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 * order), so we track the maximum transaction ID and the newest update
 	 * with a timestamp (if any).
 	 */
-	timestamp = first_ts_upd == NULL ?
-	    WT_TS_NONE : first_ts_upd->durable_ts;
 	all_stable = upd == first_txn_upd &&
 	    !list_prepared && !list_uncommitted &&
-	    __wt_txn_visible_all(session, max_txn, timestamp);
+	    __wt_txn_visible_all(session, max_txn, max_timestamp);
 
 	if (all_stable)
 		goto check_original_value;
 
 	if (F_ISSET(r, WT_REC_VISIBLE_ALL) ||
-	    !__wt_txn_visible(session, max_txn, timestamp))
+	    !__wt_txn_visible(session, max_txn, max_timestamp))
 		r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
@@ -416,65 +434,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	WT_RET(__rec_update_save(
 	    session, r, ins, ripcip, upd_select->upd, upd_memsize));
 	upd_select->upd_saved = true;
-
-	/*
-	 * Track the first off-page update when saving history in the lookaside
-	 * table.  When skewing newest, we want the first (non-aborted) update
-	 * after the one stored on the page.  Otherwise, we want the update
-	 * before the on-page update.
-	 */
-	if (F_ISSET(r, WT_REC_LOOKASIDE) && r->las_skew_newest) {
-		if (WT_TXNID_LT(r->unstable_txn, first_upd->txnid))
-			r->unstable_txn = first_upd->txnid;
-		if (first_ts_upd != NULL) {
-			WT_ASSERT(session,
-			    first_ts_upd->prepare_state ==
-			    WT_PREPARE_INPROGRESS ||
-			    first_ts_upd->start_ts <= first_ts_upd->durable_ts);
-
-			if (r->unstable_timestamp < first_ts_upd->start_ts)
-				r->unstable_timestamp = first_ts_upd->start_ts;
-
-			if (r->unstable_durable_timestamp <
-			    first_ts_upd->durable_ts)
-				r->unstable_durable_timestamp =
-				    first_ts_upd->durable_ts;
-		}
-	} else if (F_ISSET(r, WT_REC_LOOKASIDE)) {
-		for (upd = first_upd; upd != NULL; upd = upd->next) {
-			if (upd->txnid == WT_TXN_ABORTED)
-				continue;
-
-			if (upd->txnid != WT_TXN_NONE &&
-			    WT_TXNID_LT(upd->txnid, r->unstable_txn))
-				r->unstable_txn = upd->txnid;
-
-			/*
-			 * The durable timestamp is always set by commit, and
-			 * usually the same as the start timestamp, which makes
-			 * it OK to use the two independently and be confident
-			 * both will be set.
-			 */
-			WT_ASSERT(session,
-			    upd->prepare_state == WT_PREPARE_INPROGRESS ||
-			    upd->durable_ts >= upd->start_ts);
-
-			if (r->unstable_timestamp > upd->start_ts)
-				r->unstable_timestamp = upd->start_ts;
-
-			/*
-			 * An in-progress prepared update will always have a
-			 * zero durable timestamp.  Checkpoints can only skip
-			 * reading lookaside history if all updates are in the
-			 * future, including the prepare, so including the
-			 * prepare timestamp instead.
-			 */
-			ts = upd->prepare_state == WT_PREPARE_INPROGRESS ?
-			    upd->start_ts : upd->durable_ts;
-			if (r->unstable_durable_timestamp > ts)
-				r->unstable_durable_timestamp = ts;
-		}
-	}
 
 check_original_value:
 	/*

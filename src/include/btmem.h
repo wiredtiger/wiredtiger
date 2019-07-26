@@ -247,16 +247,11 @@ struct __wt_ovfl_reuse {
 struct __wt_page_lookaside {
 	uint64_t las_pageid;		/* Page ID in lookaside */
 	uint64_t max_txn;		/* Maximum transaction ID */
-	uint64_t unstable_txn;		/* First transaction ID not on page */
 	wt_timestamp_t max_timestamp;	/* Maximum timestamp */
-	wt_timestamp_t unstable_timestamp;/* First timestamp not on page */
-	wt_timestamp_t unstable_durable_timestamp;
-					/* First durable timestamp not on
-					 * page */
+	wt_timestamp_t rec_timestamp;	/* Timestamp when reconciliation ran */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
 	bool resolved;			/* History has been read into cache */
-	bool skew_newest;		/* Page image has newest versions */
 };
 
 /*

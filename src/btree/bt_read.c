@@ -124,6 +124,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	WT_DECL_RET;
 	WT_ITEM las_key, las_value;
 	WT_PAGE *page;
+	WT_PAGE_LOOKASIDE *page_las;
 	WT_UPDATE *first_upd, *last_upd, *upd;
 	wt_timestamp_t durable_timestamp, las_timestamp;
 	size_t incr, total_incr;
@@ -139,7 +140,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	locked = false;
 	total_incr = 0;
 	current_recno = recno = WT_RECNO_OOB;
-	las_pageid = ref->page_las->las_pageid;
+	page_las = ref->page_las;
+	las_pageid = page_las->las_pageid;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	WT_CLEAR(las_key);
 
@@ -179,7 +181,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 		 * Confirm the search using the unique prefix; if not a match,
 		 * we're done searching for records for this page.
 		 */
-		if (las_pageid != ref->page_las->las_pageid)
+		if (las_pageid != page_las->las_pageid)
 			break;
 
 		/* Allocate the WT_UPDATE structure. */
@@ -285,14 +287,14 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
-		if (ref->page_las->skew_newest &&
-		    !ref->page_las->has_prepares &&
+		if (page_las->max_timestamp <= page_las->rec_timestamp &&
+		    !page_las->has_prepares &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
-		    __wt_txn_visible_all(session, ref->page_las->unstable_txn,
-		    ref->page_las->unstable_durable_timestamp)) {
-			page->modify->rec_max_txn = ref->page_las->max_txn;
+		    __wt_txn_visible_all(session, page_las->max_txn,
+		    page_las->max_timestamp)) {
+			page->modify->rec_max_txn = page_las->max_txn;
 			page->modify->rec_max_timestamp =
-			    ref->page_las->max_timestamp;
+			    page_las->max_timestamp;
 			__wt_page_modify_clear(session, page);
 		}
 	}
@@ -301,8 +303,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * Now the lookaside history has been read into cache there is no
 	 * further need to maintain a reference to it.
 	 */
-	ref->page_las->eviction_to_lookaside = false;
-	ref->page_las->resolved = true;
+	page_las->eviction_to_lookaside = false;
+	page_las->resolved = true;
 
 err:	if (locked)
 		__wt_readunlock(session, &cache->las_sweepwalk_lock);
@@ -578,9 +580,10 @@ skip_read:
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
 	if (final_state == WT_REF_MEM && ref->page_las != NULL &&
-	    (!ref->page_las->skew_newest || ref->page_las->has_prepares))
-		WT_ERR(__wt_las_remove_block(
-		    session, ref->page_las->las_pageid));
+	    (ref->page_las->max_timestamp > ref->page_las->rec_timestamp ||
+	    ref->page_las->has_prepares))
+		WT_ERR(
+		    __wt_las_remove_block(session, ref->page_las->las_pageid));
 
 	WT_REF_SET_STATE(ref, final_state);
 
