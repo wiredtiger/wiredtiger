@@ -456,18 +456,19 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		}
 
 		/*
-		 * We set the write generation to 1 prior to reconciliation.
-		 * A failed atomic cas indicates that an update has taken place
-		 * during reconciliation.
+		 * We set the mod state to MOD_STATE_CLEAN prior to
+		 * reconciliation. A failed atomic cas indicates that an update
+		 * has taken place during reconciliation.
 		 *
-		 * The page only might be clean; if the write generation is
-		 * unchanged since reconciliation started, it's clean.
+		 * The page only might be clean; if the mod state is unchanged
+		 * since reconciliation started, it's clean.
 		 *
-		 * If the write generation changed, the page has been written
-		 * since reconciliation started and remains dirty (that can't
-		 * happen when evicting, the page is exclusively locked).
+		 * If the mod state changed, the page has been written since
+		 * reconciliation started and remains dirty (that can't happen
+		 * when evicting, the page is exclusively locked).
 		 */
-		if (__wt_atomic_cas32(&mod->write_gen, 1, 0))
+		if (__wt_atomic_cas8(
+		    &mod->mod_state, WT_MOD_STATE_SINGLE, WT_MOD_STATE_CLEAN))
 			__wt_cache_dirty_decr(session, page);
 		else
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
@@ -613,12 +614,13 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
 	/*
-	 * Set the write generation to 1 prior to reconciliation. After
-	 * reconciliation, we want to atomic cas 1 => 0 to potentially mark it
-	 * as clean. If the write generation got incremented to 2, by a
+	 * Set the mod state to WT_MOD_STATE_SINGLE prior to reconciliation.
+	 * After reconciliation, we want to atomic cas
+	 * WT_MOD_STATE_SINGLE => WT_MOD_STATE_CLEAN to potentially mark it as
+	 * clean. If the mod state got incremented to WT_MOD_STATE_MANY, by a
 	 * concurrent update, it'll remain marked as dirty.
 	 */
-	page->modify->write_gen = 1;
+	page->modify->mod_state = WT_MOD_STATE_SINGLE;
 
 	/*
 	 * Cache the oldest running transaction ID.  This is used to check

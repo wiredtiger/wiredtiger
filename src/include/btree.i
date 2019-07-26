@@ -34,7 +34,8 @@ __wt_page_is_empty(WT_PAGE *page)
 static inline bool
 __wt_page_evict_clean(WT_PAGE *page)
 {
-	return (page->modify == NULL || (page->modify->write_gen == 0 &&
+	return (page->modify == NULL ||
+	    (page->modify->mod_state == WT_MOD_STATE_CLEAN &&
 	    page->modify->rec_result == 0));
 }
 
@@ -45,7 +46,8 @@ __wt_page_evict_clean(WT_PAGE *page)
 static inline bool
 __wt_page_is_modified(WT_PAGE *page)
 {
-	return (page->modify != NULL && page->modify->write_gen != 0);
+	return (page->modify != NULL &&
+	    page->modify->mod_state != WT_MOD_STATE_CLEAN);
 }
 
 /*
@@ -492,42 +494,39 @@ static inline void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	uint64_t last_running;
-	uint32_t prev_write_gen;
+	uint8_t prev_mod_state;
 	bool made_dirty;
 
 	WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
 	last_running = 0;
-	if (page->modify->write_gen == 0)
+	if (page->modify->mod_state == WT_MOD_STATE_CLEAN)
 		last_running = S2C(session)->txn_global.last_running;
 
 	/*
 	 * We depend on atomic-cas being a write barrier, that is, a barrier to
 	 * ensure all changes to the page are flushed before updating the page
-	 * write generation and/or marking the tree dirty, otherwise checkpoints
+	 * mod state and/or marking the tree dirty, otherwise checkpoints
 	 * and/or page reconciliation might be looking at a clean page/tree.
 	 *
 	 * Every time the page transitions from clean to dirty, update the cache
 	 * and transactional information.
-	 *
-	 * The write generation needs to be capped at 2. There is more
-	 * information in the definition of WT_PAGE_MODIFY regarding the meaning
-	 * of each write generation value.
 	 */
 	made_dirty = false;
-	prev_write_gen = page->modify->write_gen;
-	while (prev_write_gen < 2) {
-		if (__wt_atomic_cas32(&page->modify->write_gen,
-		    prev_write_gen, prev_write_gen + 1)) {
+	prev_mod_state = page->modify->mod_state;
+	while (prev_mod_state < WT_MOD_STATE_MANY) {
+		if (__wt_atomic_cas8(&page->modify->mod_state,
+		    prev_mod_state, prev_mod_state + 1)) {
 			/*
-			 * We just did an atomic cas from 0 => 1 and therefore,
-			 * we're the first ones to dirty the page.
+			 * We just did an atomic cas from
+			 * WT_MOD_STATE_CLEAN => WT_MOD_STATE_SINGLE and
+			 * therefore, we're the first ones to dirty the page.
 			 */
-			if (prev_write_gen == 0)
+			if (prev_mod_state == WT_MOD_STATE_CLEAN)
 				made_dirty = true;
 			break;
 		}
-		prev_write_gen = page->modify->write_gen;
+		prev_mod_state = page->modify->mod_state;
 	}
 
 	if (made_dirty) {
@@ -601,7 +600,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Allow the call to be made on clean pages.
 	 */
 	if (__wt_page_is_modified(page)) {
-		page->modify->write_gen = 0;
+		page->modify->mod_state = WT_MOD_STATE_CLEAN;
 		__wt_cache_dirty_decr(session, page);
 	}
 }

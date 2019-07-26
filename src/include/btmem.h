@@ -489,22 +489,28 @@ struct __wt_page_modify {
 	WT_SPINLOCK page_lock;		/* Page's spinlock */
 
 	/*
-	 * The write generation is incremented when a page is modified.
+	 * The mod state is incremented when a page is modified.
 	 *
-	 * 0: The page is clean.
-	 * 1: The page has 1 unreconciled update.
-	 * 2: The page has 2 or more unreconciled updates.
+	 * WT_MOD_STATE_CLEAN --
+	 *	The page is clean.
+	 * WT_MOD_STATE_SINGLE --
+	 *	The page has 1 unreconciled update.
+	 * WT_MOD_STATE_MANY --
+	 *	The page has 2 or more unreconciled updates.
 	 *
-	 * When we reconcile, we artificially set the write generation to 1 and
-	 * check afterwards that the write generation hasn't changed (incr to 2)
-	 * to determine whether reconciliation was able to render the page
-	 * clean.
+	 * When we reconcile, we artificially set the mod state to
+	 * WT_MOD_STATE_SINGLE and check afterwards that it hasn't changed
+	 * (increased to WT_MOD_STATE_MANY) to determine whether reconciliation
+	 * was able to render the page clean.
 	 *
-	 * Using write generation as a simple counter of the number of updates
-	 * is not acceptable as some workloads will get close to hitting
-	 * UINT32_MAX.
+	 * Using mod state as a simple counter of the number of updates is not
+	 * acceptable as some workloads will get close to hitting the max size
+	 * of whatever unsigned type we use.
 	 */
-	uint32_t write_gen;
+#define	WT_MOD_STATE_CLEAN	0
+#define	WT_MOD_STATE_SINGLE	1
+#define	WT_MOD_STATE_MANY	2
+	uint8_t mod_state;
 
 #define	WT_PM_REC_EMPTY		1	/* Reconciliation: no replacement */
 #define	WT_PM_REC_MULTIBLOCK	2	/* Reconciliation: multiple blocks */
