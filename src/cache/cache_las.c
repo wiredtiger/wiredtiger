@@ -418,8 +418,8 @@ __wt_las_cursor_close(
 
 /*
  * __wt_las_page_skip_locked --
- *	 Check if we can skip reading a page with lookaside entries, where
- * the page is already locked.
+ *	Check if we can skip reading a page with lookaside entries, where the
+ *	page is already locked.
  */
 bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -465,8 +465,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
 		return (!ref->page_las->has_prepares &&
-		    ref->page_las->max_timestamp >=
-		    ref->page_las->rec_timestamp);
+		    ref->page_las->max_ts == ref->page_las->max_onpage_ts);
 
 	/*
 	 * Skip lookaside history if reading as of a timestamp, we evicted new
@@ -474,18 +473,19 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * possible for prepared updates, because the commit timestamp was not
 	 * known when the page was evicted.
 	 *
-	 * Otherwise, checkpoint can skip reading lookaside pages in the
-	 * special case of reading as of the same timestamp used when the page
-	 * was evicted.  This seems unlikely, but is exactly what eviction
-	 * tries to do when a checkpoint is running.
+	 * Otherwise, skip reading lookaside history if everything on the page
+	 * is older than the read timestamp, and the oldest update in lookaside
+	 * newer than the page is in the future of the reader.  This seems
+	 * unlikely, but is exactly what eviction tries to do when a checkpoint
+	 * is running.
 	 */
 	if (!ref->page_las->has_prepares &&
-	    ref->page_las->max_timestamp <= ref->page_las->rec_timestamp &&
-	    txn->read_timestamp >= ref->page_las->max_timestamp)
+	    ref->page_las->max_ts == ref->page_las->max_onpage_ts &&
+	    txn->read_timestamp >= ref->page_las->max_ts)
 		return (true);
 
-	if (WT_SESSION_IS_CHECKPOINT(session) &&
-	    txn->read_timestamp == ref->page_las->rec_timestamp)
+	if (txn->read_timestamp >= ref->page_las->max_onpage_ts &&
+	    txn->read_timestamp < ref->page_las->min_newer_ts)
 		return (true);
 
 	return (false);
@@ -635,9 +635,9 @@ __las_insert_block_verbose(
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
 		    __wt_timestamp_to_string(
-		    multi->page_las.max_timestamp, ts_string),
-		    multi->page_las.max_timestamp <=
-		    multi->page_las.rec_timestamp ?  "newest" : "not newest",
+		    multi->page_las.max_ts, ts_string),
+		    multi->page_las.max_ts == multi->page_las.max_onpage_ts ?
+		    "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
 	}

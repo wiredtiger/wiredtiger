@@ -263,8 +263,8 @@ __txn_abort_newer_updates(
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
 	if ((page_las = ref->page_las) != NULL) {
-		if (page_las->max_timestamp <= page_las->rec_timestamp &&
-		    rollback_timestamp < page_las->max_timestamp) {
+		if (page_las->max_ts == page_las->max_onpage_ts &&
+		    rollback_timestamp < page_las->max_ts) {
 			/*
 			 * Make sure we get back a page with history, not a
 			 * limbo page.
@@ -277,8 +277,10 @@ __txn_abort_newer_updates(
 			    __wt_page_is_modified(ref->page));
 			local_read = true;
 		}
-		if (page_las->max_timestamp > rollback_timestamp)
-			page_las->max_timestamp = rollback_timestamp;
+		if (page_las->max_onpage_ts > rollback_timestamp)
+			page_las->max_onpage_ts = rollback_timestamp;
+		if (page_las->max_ts > rollback_timestamp)
+			page_las->max_ts = rollback_timestamp;
 	}
 
 	/* Review deleted page saved to the ref */

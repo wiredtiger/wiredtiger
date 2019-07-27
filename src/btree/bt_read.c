@@ -287,14 +287,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 		FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
-		if (page_las->max_timestamp <= page_las->rec_timestamp &&
+		if (page_las->max_ts == page_las->max_onpage_ts &&
 		    !page_las->has_prepares &&
 		    !S2C(session)->txn_global.has_stable_timestamp &&
 		    __wt_txn_visible_all(session, page_las->max_txn,
-		    page_las->max_timestamp)) {
+		    page_las->max_ts)) {
 			page->modify->rec_max_txn = page_las->max_txn;
-			page->modify->rec_max_timestamp =
-			    page_las->max_timestamp;
+			page->modify->rec_max_timestamp = page_las->max_ts;
 			__wt_page_modify_clear(session, page);
 		}
 	}
@@ -580,7 +579,7 @@ skip_read:
 	 * Don't free WT_REF.page_las, there may be concurrent readers.
 	 */
 	if (final_state == WT_REF_MEM && ref->page_las != NULL &&
-	    (ref->page_las->max_timestamp > ref->page_las->rec_timestamp ||
+	    (ref->page_las->max_ts > ref->page_las->max_onpage_ts ||
 	    ref->page_las->has_prepares))
 		WT_ERR(
 		    __wt_las_remove_block(session, ref->page_las->las_pageid));

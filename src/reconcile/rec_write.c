@@ -438,7 +438,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * we can evict a clean page and discard its history).
 		 */
 		mod->rec_max_txn = r->max_txn;
-		mod->rec_max_timestamp = r->max_timestamp;
+		mod->rec_max_timestamp = r->max_ts;
 
 		/*
 		 * Track the tree's maximum transaction ID (used to decide if
@@ -451,8 +451,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		if (!F_ISSET(r, WT_REC_EVICT)) {
 			if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
 				btree->rec_max_txn = r->max_txn;
-			if (btree->rec_max_timestamp < r->max_timestamp)
-				btree->rec_max_timestamp = r->max_timestamp;
+			if (btree->rec_max_timestamp < r->max_ts)
+				btree->rec_max_timestamp = r->max_ts;
 		}
 
 		/*
@@ -652,16 +652,6 @@ __rec_init(WT_SESSION_IMPL *session,
 		r->las_skew_newest = false;
 
 	/*
-	 * Set the timestamp reconciliation will use to select updates if not
-	 * skewing newest.
-	 */
-	if (F_ISSET(r, WT_REC_VISIBLE_ALL) ||
-	    !F_ISSET(&session->txn, WT_TXN_HAS_TS_READ)) {
-		r->rec_timestamp = txn_global->oldest_timestamp;
-	} else
-		r->rec_timestamp = session->txn.read_timestamp;
-
-	/*
 	 * When operating on the lookaside table, we should never try
 	 * update/restore or lookaside eviction.
 	 */
@@ -690,7 +680,8 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
-	r->max_timestamp = WT_TS_NONE;
+	r->max_onpage_ts = r->max_ts = WT_TS_NONE;
+	r->min_newer_ts = WT_TS_MAX;
 
 	/* Track if updates were used and/or uncommitted. */
 	r->updates_seen = r->updates_unstable = 0;
@@ -1741,9 +1732,9 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		/* Track the oldest lookaside timestamp seen so far. */
 		multi->page_las.max_txn = r->max_txn;
-		multi->page_las.max_timestamp = r->max_timestamp;
-		multi->page_las.rec_timestamp = r->las_skew_newest ?
-		    r->max_timestamp : r->rec_timestamp;
+		multi->page_las.max_onpage_ts = r->max_onpage_ts;
+		multi->page_las.max_ts = r->max_ts;
+		multi->page_las.min_newer_ts = r->min_newer_ts;
 	}
 
 err:	__wt_scr_free(session, &key);

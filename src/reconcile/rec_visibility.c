@@ -15,16 +15,9 @@
 static bool
 __rec_update_durable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
-	if (F_ISSET(r, WT_REC_VISIBLE_ALL))
-		return (__wt_txn_upd_visible_all(session, upd));
-
-	if (!__txn_visible_id(session, upd->txnid))
-		return (false);
-
-	if (!F_ISSET(&session->txn, WT_TXN_HAS_TS_READ))
-		return (true);
-
-	return (upd->durable_ts <= r->rec_timestamp);
+	return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
+	    __wt_txn_upd_visible_all(session, upd) :
+	    __wt_txn_visible(session, upd->txnid, upd->durable_ts));
 }
 
 /*
@@ -136,7 +129,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 {
 	WT_PAGE *page;
 	WT_UPDATE *first_txn_upd, *first_upd, *upd;
-	wt_timestamp_t max_timestamp;
+	wt_timestamp_t max_ts;
 	size_t upd_memsize;
 	uint64_t max_txn, txnid;
 	bool all_stable, list_prepared, list_uncommitted, skipped_birthmark;
@@ -151,7 +144,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	page = r->page;
 	first_txn_upd = NULL;
 	upd_memsize = 0;
-	max_timestamp = WT_TS_NONE;
+	max_ts = WT_TS_NONE;
 	max_txn = WT_TXN_NONE;
 	list_prepared = list_uncommitted = skipped_birthmark = false;
 
@@ -208,15 +201,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			if (upd->prepare_state == WT_PREPARE_LOCKED ||
 			    upd->prepare_state == WT_PREPARE_INPROGRESS) {
 				list_prepared = true;
-				if (upd->start_ts > max_timestamp)
-					max_timestamp = upd->start_ts;
+				if (upd->start_ts > max_ts)
+					max_ts = upd->start_ts;
 				continue;
 			}
 		}
 
 		/* Track the first update with non-zero timestamp. */
-		if (upd->durable_ts > max_timestamp)
-			max_timestamp = upd->durable_ts;
+		if (upd->durable_ts > max_ts)
+			max_ts = upd->durable_ts;
 
 		/*
 		 * Select the update to write to the disk image.
@@ -255,6 +248,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 
 			if (upd->type == WT_UPDATE_BIRTHMARK)
 				skipped_birthmark = true;
+
+			/*
+			 * Track the oldest update not on the page.
+			 *
+			 * This is used to decide whether reads can use the
+			 * page image, hence using the start rather than the
+			 * durable timestamp.
+			 */
+			if (upd_select->upd == NULL &&
+			    upd->start_ts < r->min_newer_ts)
+				r->min_newer_ts = upd->start_ts;
 
 			continue;
 		}
@@ -296,6 +300,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	/* If no updates were skipped, record that we're making progress. */
 	if (upd == first_txn_upd)
 		r->update_used = true;
+
+	if (upd != NULL && upd->durable_ts > r->max_onpage_ts)
+		r->max_onpage_ts = upd->durable_ts;
 
 	/*
 	 * TIMESTAMP-FIXME
@@ -353,8 +360,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		r->max_txn = max_txn;
 
 	/* Update the maximum timestamp. */
-	if (max_timestamp > r->max_timestamp)
-		r->max_timestamp = max_timestamp;
+	if (max_ts > r->max_ts)
+		r->max_ts = max_ts;
 
 	/*
 	 * If the update we chose was a birthmark, or we are doing
@@ -385,13 +392,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	 */
 	all_stable = upd == first_txn_upd &&
 	    !list_prepared && !list_uncommitted &&
-	    __wt_txn_visible_all(session, max_txn, max_timestamp);
+	    __wt_txn_visible_all(session, max_txn, max_ts);
 
 	if (all_stable)
 		goto check_original_value;
 
-	if (F_ISSET(r, WT_REC_VISIBLE_ALL) ||
-	    !__wt_txn_visible(session, max_txn, max_timestamp))
+	if (upd != first_txn_upd ||
+	    list_prepared || list_uncommitted ||
+		F_ISSET(r, WT_REC_VISIBLE_ALL) ||
+	    !__wt_txn_visible(session, max_txn, max_ts))
 		r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
