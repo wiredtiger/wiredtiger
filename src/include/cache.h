@@ -170,7 +170,7 @@ struct __wt_cache {
 	 * Score of how aggressive eviction should be about selecting eviction
 	 * candidates. If eviction is struggling to make progress, this score
 	 * rises (up to a maximum of 100), at which point the cache is "stuck"
-	 * and transaction will be rolled back.
+	 * and transactions will be rolled back.
 	 */
 	uint32_t evict_aggressive_score;
 
@@ -248,13 +248,15 @@ struct __wt_cache {
 	uint32_t pool_flags;		/* Cache pool flags */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_CACHE_EVICT_CLEAN	  0x01u	/* Evict clean pages */
-#define	WT_CACHE_EVICT_CLEAN_HARD 0x02u	/* Clean % blocking app threads */
-#define	WT_CACHE_EVICT_DIRTY	  0x04u	/* Evict dirty pages */
-#define	WT_CACHE_EVICT_DIRTY_HARD 0x08u	/* Dirty % blocking app threads */
-#define	WT_CACHE_EVICT_LOOKASIDE  0x10u	/* Try lookaside eviction */
-#define	WT_CACHE_EVICT_SCRUB	  0x20u	/* Scrub dirty pages */
-#define	WT_CACHE_EVICT_URGENT	  0x40u	/* Pages are in the urgent queue */
+#define	WT_CACHE_EVICT_CLEAN	  0x001u /* Evict clean pages */
+#define	WT_CACHE_EVICT_CLEAN_HARD 0x002u /* Clean % blocking app threads */
+#define	WT_CACHE_EVICT_DEBUG_MODE 0x004u /* Aggressive debugging mode */
+#define	WT_CACHE_EVICT_DIRTY	  0x008u /* Evict dirty pages */
+#define	WT_CACHE_EVICT_DIRTY_HARD 0x010u /* Dirty % blocking app threads */
+#define	WT_CACHE_EVICT_LOOKASIDE  0x020u /* Try lookaside eviction */
+#define	WT_CACHE_EVICT_NOKEEP	  0x040u /* Don't add read pages to cache */
+#define	WT_CACHE_EVICT_SCRUB	  0x080u /* Scrub dirty pages */
+#define	WT_CACHE_EVICT_URGENT	  0x100u /* Pages are in the urgent queue */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 #define	WT_CACHE_EVICT_ALL	(WT_CACHE_EVICT_CLEAN | WT_CACHE_EVICT_DIRTY)
 	uint32_t flags;
@@ -292,6 +294,7 @@ struct __wt_cache_pool {
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define	WT_EVICT_CALL_CLOSING  0x1u		/* Closing connection or tree */
-#define	WT_EVICT_CALL_NO_SPLIT 0x2u		/* Splits not allowed */
+#define	WT_EVICT_CALL_CLOSING	0x1u		/* Closing connection or tree */
+#define	WT_EVICT_CALL_NO_SPLIT	0x2u		/* Splits not allowed */
+#define	WT_EVICT_CALL_URGENT	0x4u		/* Urgent eviction */
 /* AUTOMATIC FLAG VALUE GENERATION STOP */

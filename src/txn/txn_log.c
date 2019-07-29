@@ -38,6 +38,7 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 	if (cbt->ins == NULL) {
 		session = (WT_SESSION_IMPL *)cbt->iface.session;
 		page = cbt->ref->page;
+		WT_ASSERT(session, cbt->slot < page->entries);
 		rip = &page->pg_row[cbt->slot];
 		WT_ASSERT(session,
 		    __wt_row_leaf_key(session, page, rip, &key, false) == 0);
@@ -93,7 +94,8 @@ __txn_op_log(WT_SESSION_IMPL *session, WT_ITEM *logrec,
 			WT_RET(__wt_logop_row_remove_pack(
 			    session, logrec, fileid, &cursor->key));
 			break;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 	} else {
 		recno = WT_INSERT_RECNO(cbt->ins);
@@ -112,7 +114,8 @@ __txn_op_log(WT_SESSION_IMPL *session, WT_ITEM *logrec,
 			WT_RET(__wt_logop_col_remove_pack(
 			    session, logrec, fileid, recno));
 			break;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 	}
 
@@ -573,7 +576,8 @@ __wt_txn_checkpoint_log(
 		__wt_scr_free(session, &txn->ckpt_snapshot);
 		txn->full_ckpt = false;
 		break;
-	WT_ILLEGAL_VALUE_ERR(session, flags);
+	default:
+		WT_ERR(__wt_illegal_value(session, flags));
 	}
 
 err:	__wt_logrec_free(session, &logrec);
