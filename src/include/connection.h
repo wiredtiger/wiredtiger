@@ -21,7 +21,7 @@ struct __wt_process {
 
 	bool page_version_ts;		/* timestamp version page formats */
 
-					/* Checksum function */
+					/* Checksum functions */
 #define	__wt_checksum(chunk, len)	__wt_process.checksum(chunk, len)
 	uint32_t (*checksum)(const void *, size_t);
 
@@ -155,8 +155,8 @@ struct __wt_named_extractor {
  *	backup.
  */
 #define	WT_CONN_HOTBACKUP_START(conn) do {				\
-	conn->hot_backup = true;					\
-	conn->hot_backup_list = NULL;					\
+	(conn)->hot_backup = true;					\
+	(conn)->hot_backup_list = NULL;					\
 } while (0)
 
 /*

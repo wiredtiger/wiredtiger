@@ -55,13 +55,14 @@ typedef struct {
 	char *home;				/* Home directory */
 	const char *checkpoint_name;		/* Checkpoint name */
 	WT_CONNECTION *conn;			/* WiredTiger connection */
+	bool debug_mode;			/* Lookaside stress test */
 	u_int nkeys;				/* Keys to load */
 	u_int nops;				/* Operations per thread */
 	FILE *logfp;				/* Message log file. */
 	int nworkers;				/* Number workers configured */
 	int ntables;				/* Number tables configured */
 	int ntables_created;			/* Number tables opened */
-	int running;				/* Whether to stop */
+	volatile int running;			/* Whether to stop */
 	int status;				/* Exit status */
 	bool sweep_stress;			/* Sweep stress test */
 	u_int ts;				/* Current timestamp */

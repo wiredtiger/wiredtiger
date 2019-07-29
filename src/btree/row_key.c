@@ -166,7 +166,8 @@ __wt_row_leaf_key_work(WT_SESSION_IMPL *session,
 	direction = BACKWARD;
 	for (slot_offset = 0;;) {
 		if (0) {
-switch_and_jump:	/* Switching to a forward roll. */
+switch_and_jump:
+			/* Switching to a forward roll. */
 			WT_ASSERT(session, direction == BACKWARD);
 			direction = FORWARD;
 
@@ -179,8 +180,8 @@ switch_and_jump:	/* Switching to a forward roll. */
 		/*
 		 * Figure out what the key looks like.
 		 */
-		(void)__wt_row_leaf_key_info(
-		    page, copy, &ikey, &cell, &p, &size);
+		WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(
+		    page, copy, &ikey, &cell, &p, &size));
 
 		/* 1: the test for a directly referenced on-page key. */
 		if (cell == NULL) {
@@ -436,8 +437,8 @@ next:		switch (direction) {
 	 */
 	if (instantiate) {
 		copy = WT_ROW_KEY_COPY(rip_arg);
-		(void)__wt_row_leaf_key_info(
-		    page, copy, &ikey, &cell, NULL, NULL);
+		WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(
+		    page, copy, &ikey, &cell, NULL, NULL));
 		if (ikey == NULL) {
 			WT_ERR(__wt_row_ikey_alloc(session,
 			    WT_PAGE_DISK_OFFSET(page, cell),

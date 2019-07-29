@@ -922,6 +922,7 @@ __wt_row_leaf_key_set_cell(WT_PAGE *page, WT_ROW *rip, WT_CELL *cell)
 	 */
 	v = WT_CELL_ENCODE_OFFSET(WT_PAGE_DISK_OFFSET(page, cell)) |
 	    WT_CELL_FLAG;
+	WT_ASSERT(NULL, WT_ROW_SLOT(page, rip) < page->entries);
 	WT_ROW_KEY_SET(rip, v);
 }
 
@@ -941,6 +942,7 @@ __wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
 	v = WT_K_ENCODE_KEY_LEN(unpack->size) |
 	    WT_K_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) |
 	    WT_K_FLAG;
+	WT_ASSERT(NULL, WT_ROW_SLOT(page, rip) < page->entries);
 	WT_ROW_KEY_SET(rip, v);
 }
 
@@ -979,6 +981,7 @@ __wt_row_leaf_value_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK *unpack)
 	    WT_KV_ENCODE_VALUE_LEN(unpack->size) |
 	    WT_KV_ENCODE_KEY_OFFSET(key_offset) |
 	    WT_KV_ENCODE_VALUE_OFFSET(value_offset) | WT_KV_FLAG;
+	WT_ASSERT(NULL, WT_ROW_SLOT(page, rip) < page->entries);
 	WT_ROW_KEY_SET(rip, v);
 }
 
@@ -1505,7 +1508,8 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * memory_page_max setting, when we see many deleted items, and when we
 	 * are attempting to scan without trashing the cache.
 	 *
-	 * Fast checks if eviction is disabled for this handle, operation or
+	 * Fast checks if flag indicates no evict, session can't perform slow
+	 * operation, eviction is disabled for this handle, operation or
 	 * tree, then perform a general check if eviction will be possible.
 	 *
 	 * Checkpoint should not queue pages for urgent eviction if it cannot
@@ -1514,14 +1518,16 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * checkpointed, and no other thread can help with that.
 	 */
 	page = ref->page;
-	if (WT_READGEN_EVICT_SOON(page->read_gen) &&
+	if (!LF_ISSET(WT_READ_NO_EVICT) &&
+	    __wt_session_can_wait(session) &&
+	    WT_READGEN_EVICT_SOON(page->read_gen) &&
 	    btree->evict_disabled == 0 &&
 	    __wt_page_can_evict(session, ref, &inmem_split)) {
 		if (!__wt_page_evict_clean(page) &&
 		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
 			if (!WT_SESSION_BTREE_SYNC(session))
-				WT_IGNORE_RET(
+				WT_IGNORE_RET_BOOL(
 				    __wt_page_evict_urgent(session, ref));
 		} else {
 			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref,

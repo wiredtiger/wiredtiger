@@ -725,7 +725,9 @@ __conn_async_new_op(WT_CONNECTION *wt_conn, const char *uri, const char *config,
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
 	CONNECTION_API_CALL(conn, session, async_new_op, config, cfg);
-	WT_ERR(__wt_async_new_op(session, uri, config, cfg, callback, &op));
+	WT_UNUSED(cfg);
+
+	WT_ERR(__wt_async_new_op(session, uri, config, callback, &op));
 
 	*asyncopp = &op->iface;
 
@@ -1047,22 +1049,13 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	const char *ckpt_cfg;
 
 	conn = (WT_CONNECTION_IMPL *)wt_conn;
-	ckpt_cfg = "use_timestamp=false";
 
 	CONNECTION_API_CALL(conn, session, close, config, cfg);
-
-	/* The default session is used to access data handles during close. */
-	F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
+err:
 
 	WT_TRET(__wt_config_gets(session, cfg, "leak_memory", &cval));
 	if (cval.val != 0)
 		F_SET(conn, WT_CONN_LEAK_MEMORY);
-	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
-	if (cval.val != 0) {
-		ckpt_cfg = "use_timestamp=true";
-		if (conn->txn_global.has_stable_timestamp)
-			F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
-	}
 
 	/*
 	 * Ramp the eviction dirty target down to encourage eviction threads to
@@ -1071,7 +1064,7 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 	conn->cache->eviction_dirty_trigger = 1.0;
 	conn->cache->eviction_dirty_target = 0.1;
 
-err:	/*
+	/*
 	 * Rollback all running transactions.
 	 * We do this as a separate pass because an active transaction in one
 	 * session could cause trouble when closing a file, even if that
@@ -1102,7 +1095,8 @@ err:	/*
 			WT_TRET(wt_session->close(wt_session, config));
 		}
 
-	WT_TRET(__wt_async_flush(session));
+	/* Wait for in-flight operations to complete. */
+	WT_TRET(__wt_txn_activity_drain(session));
 
 	/*
 	 * Disable lookaside eviction: it doesn't help us shut down and can
@@ -1111,8 +1105,24 @@ err:	/*
 	 */
 	F_SET(conn, WT_CONN_EVICTION_NO_LOOKASIDE);
 
-	/* Wait for in-flight operations to complete. */
-	WT_TRET(__wt_txn_activity_drain(session));
+	/*
+	 * Clear any pending async operations and shut down the async worker
+	 * threads and system before closing LSM.
+	 */
+	WT_TRET(__wt_async_flush(session));
+	WT_TRET(__wt_async_destroy(session));
+
+	WT_TRET(__wt_lsm_manager_destroy(session));
+
+	/*
+	 * After the async and LSM threads have exited, we shouldn't opening
+	 * any more files.
+	 */
+	F_SET(conn, WT_CONN_CLOSING_NO_MORE_OPENS);
+	WT_FULL_BARRIER();
+
+	/* The default session is used to access data handles during close. */
+	F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
 
 	/*
 	 * Perform a system-wide checkpoint so that all tables are consistent
@@ -1121,6 +1131,13 @@ err:	/*
 	 * shutting down all the subsystems.  We have shut down all user
 	 * sessions, but send in true for waiting for internal races.
 	 */
+	WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
+	ckpt_cfg = "use_timestamp=false";
+	if (cval.val != 0) {
+		ckpt_cfg = "use_timestamp=true";
+		if (conn->txn_global.has_stable_timestamp)
+			F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
+	}
 	if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
 		s = NULL;
 		WT_TRET(__wt_open_internal_session(
@@ -1813,7 +1830,8 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
 			    "option configured");
 	}
 
-err:	/*
+err:
+	/*
 	 * We ignore the connection's lock file handle on error, it will be
 	 * closed when the connection structure is destroyed.
 	 */
@@ -1830,23 +1848,14 @@ err:	/*
 int
 __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 {
+	WT_CACHE *cache;
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_TXN_GLOBAL *txn_global;
 
 	conn = S2C(session);
+	cache = conn->cache;
 	txn_global = &conn->txn_global;
-
-	WT_RET(__wt_config_gets(session,
-	    cfg, "debug_mode.rollback_error", &cval));
-	txn_global->debug_rollback = (uint64_t)cval.val;
-
-	WT_RET(__wt_config_gets(session,
-	    cfg, "debug_mode.table_logging", &cval));
-	if (cval.val)
-		FLD_SET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
-	else
-		FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
 
 	WT_RET(__wt_config_gets(session,
 	    cfg, "debug_mode.checkpoint_retention", &cval));
@@ -1861,6 +1870,24 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 	else
 		WT_RET(__wt_calloc_def(session,
 		    conn->debug_ckpt_cnt, &conn->debug_ckpt));
+
+	WT_RET(__wt_config_gets(session,
+	    cfg, "debug_mode.eviction", &cval));
+	if (cval.val)
+		F_SET(cache, WT_CACHE_EVICT_DEBUG_MODE);
+	else
+		F_CLR(cache, WT_CACHE_EVICT_DEBUG_MODE);
+
+	WT_RET(__wt_config_gets(session,
+	    cfg, "debug_mode.rollback_error", &cval));
+	txn_global->debug_rollback = (uint64_t)cval.val;
+
+	WT_RET(__wt_config_gets(session,
+	    cfg, "debug_mode.table_logging", &cval));
+	if (cval.val)
+		FLD_SET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
+	else
+		FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
 
 	return (0);
 }
@@ -2637,7 +2664,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 		    session, cval.str, cval.len, &conn->error_prefix));
 	}
 	WT_ERR(__wt_verbose_config(session, cfg));
-	WT_ERR(__wt_debug_mode_config(session, cfg));
 	WT_ERR(__wt_timing_stress_config(session, cfg));
 	__wt_btree_page_version_config(session);
 
@@ -2762,6 +2788,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	session = conn->default_session;
 
 	/*
+	 * This function expects the cache to be created so parse this after
+	 * the rest of the connection is set up.
+	 */
+	WT_ERR(__wt_debug_mode_config(session, cfg));
+
+	/*
 	 * Load the extensions after initialization completes; extensions expect
 	 * everything else to be in place, and the extensions call back into the
 	 * library.
@@ -2837,7 +2869,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	WT_STATIC_ASSERT(offsetof(WT_CONNECTION_IMPL, iface) == 0);
 	*connectionp = &conn->iface;
 
-err:	/* Discard the scratch buffers. */
+err:
+	/* Discard the scratch buffers. */
 	__wt_scr_free(session, &encbuf);
 	__wt_scr_free(session, &i1);
 	__wt_scr_free(session, &i2);

@@ -618,8 +618,10 @@ __las_insert_block_verbose(
 	    (ckpt_gen_current > ckpt_gen_last &&
 	    __wt_atomic_casv64(&cache->las_verb_gen_write,
 	    ckpt_gen_last, ckpt_gen_current))) {
-		(void)__wt_eviction_clean_needed(session, &pct_full);
-		(void)__wt_eviction_dirty_needed(session, &pct_dirty);
+		WT_IGNORE_RET_BOOL(
+		    __wt_eviction_clean_needed(session, &pct_full));
+		WT_IGNORE_RET_BOOL(
+		    __wt_eviction_dirty_needed(session, &pct_dirty));
 
 		__wt_verbose(session,
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
@@ -660,7 +662,7 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_SAVE_UPD *list;
 	WT_SESSION_IMPL *session;
 	WT_TXN_ISOLATION saved_isolation;
-	WT_UPDATE *upd;
+	WT_UPDATE *first_upd, *upd;
 	wt_off_t las_size;
 	uint64_t insert_cnt, las_counter, las_pageid, max_las_size;
 	uint64_t prepared_insert_cnt;
@@ -721,7 +723,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				key->size = WT_INSERT_KEY_SIZE(list->ins);
 			}
 			break;
-		WT_ILLEGAL_VALUE_ERR(session, page->type);
+		default:
+			WT_ERR(__wt_illegal_value(session, page->type));
 		}
 
 		/*
@@ -741,8 +744,26 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			slot = page->type == WT_PAGE_ROW_LEAF ?
 			    WT_ROW_SLOT(page, list->ripcip) :
 			    WT_COL_SLOT(page, list->ripcip);
-		upd = list->ins == NULL ?
+		first_upd = list->ins == NULL ?
 		    page->modify->mod_row_update[slot] : list->ins->upd;
+
+		/*
+		 * Trim any updates before writing to lookaside. This saves
+		 * wasted work, but is also necessary because the
+		 * reconciliation only resolves existing birthmarks if they
+		 * aren't obsolete.
+		 */
+		WT_WITH_BTREE(session, btree, upd =
+		    __wt_update_obsolete_check(session, page, first_upd, true));
+		if (upd != NULL)
+			__wt_free_update_list(session, upd);
+		upd = first_upd;
+
+		/*
+		 * It's not OK for the update list to contain a birthmark on
+		 * entry - we will generate one below if necessary.
+		 */
+		WT_ASSERT(session, __wt_count_birthmarks(first_upd) == 0);
 
 		/*
 		 * Walk the list of updates, storing each key/value pair into
@@ -759,11 +780,15 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				las_value.data = upd->data;
 				las_value.size = upd->size;
 				break;
-			case WT_UPDATE_BIRTHMARK:
 			case WT_UPDATE_TOMBSTONE:
 				las_value.size = 0;
 				break;
-			WT_ILLEGAL_VALUE_ERR(session, upd->type);
+			default:
+				/*
+				 * It is never OK to see a birthmark here - it
+				 * would be referring to the wrong page image.
+				 */
+				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 
 			cursor->set_key(cursor,
@@ -780,6 +805,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 			    (upd->type == WT_UPDATE_STANDARD ||
 			    upd->type == WT_UPDATE_MODIFY)) {
 				las_value.size = 0;
+				WT_ASSERT(session, upd != first_upd ||
+				    multi->page_las.skew_newest);
 				cursor->set_value(cursor, upd->txnid,
 				    upd->start_ts, upd->durable_ts,
 				    upd->prepare_state, WT_UPDATE_BIRTHMARK,
@@ -810,7 +837,8 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 		    "WiredTigerLAS: file size of %" PRIu64 " exceeds maximum "
 		    "size %" PRIu64, (uint64_t)las_size, max_las_size);
 
-err:	/* Resolve the transaction. */
+err:
+	/* Resolve the transaction. */
 	if (local_txn) {
 		if (ret == 0)
 			ret = __wt_txn_commit(session, NULL);
@@ -835,6 +863,7 @@ err:	/* Resolve the transaction. */
 		__las_insert_block_verbose(session, btree, multi);
 	}
 
+	WT_UNUSED(first_upd);
 	return (ret);
 }
 

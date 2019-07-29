@@ -208,9 +208,7 @@ __wt_hazard_clear(WT_SESSION_IMPL *session, WT_REF *ref)
 			 * We don't publish the hazard pointer clear in the
 			 * general case.  It's not required for correctness;
 			 * it gives an eviction thread faster access to the
-			 * page were the page selected for eviction, but the
-			 * generation number was just set, it's unlikely the
-			 * page will be selected for eviction.
+			 * page were the page selected for eviction.
 			 */
 			hp->ref = NULL;
 
@@ -330,6 +328,10 @@ __wt_hazard_check(WT_SESSION_IMPL *session,
 	WT_SESSION_IMPL *s;
 	uint32_t i, j, hazard_inuse, max, session_cnt, walk_cnt;
 
+	/* If a file can never be evicted, hazard pointers aren't required. */
+	if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+		return (NULL);
+
 	conn = S2C(session);
 
 	WT_STAT_CONN_INCR(session, cache_hazard_checks);
@@ -376,7 +378,8 @@ __wt_hazard_check(WT_SESSION_IMPL *session,
 	WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
 	hp = NULL;
 
-done:	/* Leave the current resource generation. */
+done:
+	/* Leave the current resource generation. */
 	__wt_session_gen_leave(session, WT_GEN_HAZARD);
 
 	return (hp);

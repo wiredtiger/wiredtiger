@@ -265,8 +265,8 @@ __txn_op_apply(
 		case WT_TXN_TRUNC_STOP:
 			stop = cursor;
 			break;
-
-		WT_ILLEGAL_VALUE_ERR(session, mode);
+		default:
+			WT_ERR(__wt_illegal_value(session, mode));
 		}
 
 		/* Set the keys. */
@@ -291,8 +291,8 @@ __txn_op_apply(
 		WT_ERR(__wt_logop_txn_timestamp_unpack(session, pp, end, &t_sec,
 		    &t_nsec, &commit, &durable, &first, &prepare, &read));
 		break;
-
-	WT_ILLEGAL_VALUE_ERR(session, optype);
+	default:
+		WT_ERR(__wt_illegal_value(session, optype));
 	}
 
 done:
@@ -457,6 +457,11 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 		r->nfiles = fileid + 1;
 	}
 
+	if (r->files[fileid].uri != NULL)
+		WT_PANIC_RET(r->session, WT_PANIC,
+		    "metadata corruption: files %s and %s have the same "
+		    "file ID %u",
+		    uri, r->files[fileid].uri, fileid);
 	WT_RET(__wt_strdup(r->session, uri, &r->files[fileid].uri));
 	WT_RET(
 	    __wt_config_getones(r->session, config, "checkpoint_lsn", &cval));
@@ -650,7 +655,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
 			 */
 			r.ckpt_lsn = metafile->ckpt_lsn;
 			ret = __wt_log_scan(session,
-			    &metafile->ckpt_lsn, 0, __txn_log_recover, &r);
+			    &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA,
+			    __txn_log_recover, &r);
 		}
 		if (F_ISSET(conn, WT_CONN_SALVAGE))
 			ret = 0;

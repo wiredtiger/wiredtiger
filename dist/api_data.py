@@ -495,6 +495,12 @@ connection_runtime_config = [
             adjust log archiving to retain the log records of this number
             of checkpoints. Zero or one means perform normal archiving.''',
             min='0', max='1024'),
+        Config('eviction', 'false', r'''
+            if true, modify internal algorithms to change skew to force
+            lookaside eviction to happen more aggressively. This includes but
+            is not limited to not skewing newest, not favoring leaf pages,
+            and modifying the eviction score mechanism.''',
+            type='boolean'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about
             every Nth operation to simulate a collision''',
@@ -1109,6 +1115,8 @@ methods = {
         type='boolean'),
 ]),
 
+'WT_SESSION.import' : Method([]),
+
 'WT_SESSION.join' : Method([
     Config('compare', '"eq"', r'''
         modifies the set of items to be returned so that the index key
@@ -1549,31 +1557,41 @@ methods = {
 'WT_CONNECTION.open_session' : Method(session_config),
 
 'WT_CONNECTION.query_timestamp' : Method([
-    Config('get', 'all_committed', r'''
+    Config('get', 'all_durable', r'''
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
-        \c last_checkpoint returns the timestamp of the most recent stable
-        checkpoint, \c oldest returns the most recent \c oldest_timestamp set
-        with WT_CONNECTION::set_timestamp, \c oldest_reader returns the
-        minimum of the read timestamps of all active readers \c pinned returns
-        the minimum of the \c oldest_timestamp and the read timestamps of all
-        active readers, \c recovery returns the timestamp of the most recent
-        stable checkpoint taken prior to a shutdown and \c stable returns the
-        most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
-        See @ref transaction_timestamps''',
-        choices=['all_committed','last_checkpoint',
+        \c all_durable returns the largest timestamp such that all timestamps
+        up to that value have been made durable, \c last_checkpoint returns the
+        timestamp of the most recent stable checkpoint, \c oldest returns the
+        most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp,
+        \c oldest_reader returns the minimum of the read timestamps of all
+        active readers \c pinned returns the minimum of the \c oldest_timestamp
+        and the read timestamps of all active readers, \c recovery returns the
+        timestamp of the most recent stable checkpoint taken prior to a shutdown
+        and \c stable returns the most recent \c stable_timestamp set with
+        WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
+        choices=['all_committed','all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
     Config('commit_timestamp', '', r'''
-        reset the maximum commit timestamp tracked by WiredTiger.  This will
-        cause future calls to WT_CONNECTION::query_timestamp to ignore commit
-        timestamps greater than the specified value until the next commit moves
-        the tracked commit timestamp forwards.  This is only intended for use
-        where the application is rolling back locally committed transactions.
-        The supplied value must not be older than the current oldest and
-        stable timestamps.  See @ref transaction_timestamps'''),
+        (deprecated) reset the maximum commit timestamp tracked by WiredTiger.
+        This will cause future calls to WT_CONNECTION::query_timestamp to
+        ignore commit timestamps greater than the specified value until the
+        next commit moves the tracked commit timestamp forwards.  This is only
+        intended for use where the application is rolling back locally
+        committed transactions. The supplied value must not be older than the
+        current oldest and stable timestamps.
+        See @ref transaction_timestamps'''),
+    Config('durable_timestamp', '', r'''
+        reset the maximum durable timestamp tracked by WiredTiger.  This will
+        cause future calls to WT_CONNECTION::query_timestamp to ignore durable
+        timestamps greater than the specified value until the next durable
+        timestamp moves the tracked durable timestamp forwards.  This is only
+        intended for use where the application is rolling back locally committed
+        transactions. The supplied value must not be older than the current
+        oldest and stable timestamps.  See @ref transaction_timestamps'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
         For example allow the \c oldest_timestamp to move backwards''',
