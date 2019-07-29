@@ -299,7 +299,7 @@ __modify_fast_path(
  *	Apply a single set of WT_MODIFY changes to a buffer, where the changes
  *	are in sorted order and none of the changes overlap.
  */
-static int
+static void
 __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value,
     const size_t *p, int nentries, int napplied, size_t datasz, size_t destsz)
 {
@@ -330,7 +330,6 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value,
 	} WT_MODIFY_FOREACH_END;
 
 	value->size = destsz;
-	return (0);
 }
 
 /*
@@ -386,8 +385,8 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 		WT_RET(__wt_buf_grow(session, value,
 		    WT_MAX(destsz, value->size) + (sformat ? 1 : 0)));
 
-		WT_RET(__modify_apply_no_overlap(
-		    session, value, p, nentries, napplied, datasz, destsz));
+		__modify_apply_no_overlap(
+		    session, value, p, nentries, napplied, datasz, destsz);
 		goto done;
 	}
 
