@@ -72,24 +72,24 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
     def one_test(self, c, k, oldsz, repeatsz, nmod, maxdiff, size_test):
         oldv = self.mkstring(oldsz, repeatsz)
 
-	func_maxdiff = maxdiff
-	func_nmod = nmod
+        func_maxdiff = maxdiff
+        func_nmod = nmod
 
         # if the test is to verify the number of modifications reaching the maximum limit,
-        # then increase the maximum modification size that is passed to the 
+        # then increase the maximum modification size that is passed to the
         # wiredtiger_calc_modify_function.
         #
-	# if the test is to verify the total modification size reaching the maximum limit,
+        # if the test is to verify the total modification size reaching the maximum limit,
         # then increase the number of modifications value that is passed to the
         # wiredtiger_calc_modify function.
         if size_test == 0:
             func_maxdiff = maxdiff + 10
         else:
-            func_nmod = nmod + 10    
+            func_nmod = nmod + 10
 
-	self.pr("func maxdiff: %d" % func_maxdiff)
-	self.pr("func nmod: %d" % func_nmod)
-	
+        self.pr("func maxdiff: %d" % func_maxdiff)
+        self.pr("func nmod: %d" % func_nmod)
+
         lengths = [maxdiff/nmod for i in range(nmod)]
         offsets = sorted(r.sample(range(oldsz), nmod))
         modsizes = [maxdiff/nmod for i in range(nmod)]
@@ -119,13 +119,13 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
 
         self.pr("oldv: %s" % oldv)
         self.pr("newv: %s" % newv)
-	
-	start_time = time.time();
+
+        start_time = time.time()
         try:
             mods = wiredtiger.wiredtiger_calc_modify(None, oldv, newv, func_maxdiff, func_nmod)
             self.pr("calculated mods: %s" % mods)
-	    self.pr("wiredtiger_calc_modify is success")
-	    return
+            self.pr("wiredtiger_calc_modify is success")
+            return
         except wiredtiger.WiredTigerError:
             c[k] = oldv
             self.session.begin_transaction('isolation=snapshot')
@@ -133,20 +133,20 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
             c.set_value(newv)
             c.update()
             self.session.commit_transaction()
-	modify_fail_update_elapsed_time = time.time() - start_time;
-  
-	start_time = time.time();
+        modify_fail_update_elapsed_time = time.time() - start_time
+
+        start_time = time.time()
 
         c[k] = oldv
         self.session.begin_transaction('isolation=snapshot')
         c.set_key(k)
-        c.set_value(newv);
+        c.set_value(newv)
         c.update()
         self.session.commit_transaction()
 
-	normal_update_elapsed_time = time.time() - start_time;
-        
-	self.pr("normal update elapsed time: %f seconds" % normal_update_elapsed_time)
+        normal_update_elapsed_time = time.time() - start_time
+
+        self.pr("normal update elapsed time: %f seconds" % normal_update_elapsed_time)
         self.pr("modify fail update elapsed time: %f seconds" % modify_fail_update_elapsed_time)
         self.pr("overhead time: %f seconds" % (modify_fail_update_elapsed_time - normal_update_elapsed_time))
 
@@ -154,22 +154,22 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
         c = self.session.open_cursor(self.uri)
 
-	for size in range(1000, 10000):    
-	    # The total size of modifications reach 10% of total document size, but less than total number of modifications.
-            repeats = r.randint(1,size);
-            nmods = 10 
-            maxdiff = size/10
-	    size_test = 1 
-            self.pr("size %s, repeats %s, nmods %s, maxdiff %s, size_test %s" % (size, repeats, nmods, maxdiff, size_test))
-            self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
+    for size in range(1000, 10000):
+        # The total size of modifications reach 10% of total document size, but less than total number of modifications.
+        repeats = r.randint(1,size)
+        nmods = 10
+        maxdiff = size/10
+        size_test = 1
+        self.pr("size %s, repeats %s, nmods %s, maxdiff %s, size_test %s" % (size, repeats, nmods, maxdiff, size_test))
+        self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
 
-            # The number of modifications reach max number of modifications, but under maximum modification size.
-            repeats = r.randint(1,size);
-            nmods = 16 
-            maxdiff = size/20
-	    size_test = 0
-            self.pr("size %s, repeats %s, nmods %s, maxdiff %s size_test %s" % (size, repeats, nmods, maxdiff, size_test))
-            self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
+        # The number of modifications reach max number of modifications, but under maximum modification size.
+        repeats = r.randint(1,size)
+        nmods = 16
+        maxdiff = size/20
+        size_test = 0
+        self.pr("size %s, repeats %s, nmods %s, maxdiff %s size_test %s" % (size, repeats, nmods, maxdiff, size_test))
+        self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
 
 if __name__ == '__main__':
     wttest.run()
