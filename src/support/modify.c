@@ -8,23 +8,25 @@
 
 #include "wt_internal.h"
 
-#define	WT_MODIFY_FOREACH_BEGIN(mod, p, nentries) do {			\
+#define	WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, napplied) do {	\
 	const size_t *__p = p;						\
 	const uint8_t *__data =						\
 	    (const uint8_t *)(__p + (size_t)(nentries) * 3);		\
 	int __i;							\
 	for (__i = 0; __i < (nentries); ++__i) {			\
-		(mod).data.data = __data;				\
 		memcpy(&(mod).data.size, __p++, sizeof(size_t));	\
-		__data += (mod).data.size;				\
 		memcpy(&(mod).offset, __p++, sizeof(size_t));		\
-		memcpy(&(mod).size, __p++, sizeof(size_t));
+		memcpy(&(mod).size, __p++, sizeof(size_t));		\
+		(mod).data.data = __data;				\
+		__data += (mod).data.size;				\
+		if (__i < (napplied))					\
+			continue;
 
-#define	WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, datasz) do {	\
+#define	WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz) do {\
 	const size_t *__p = (p) + (size_t)(nentries) * 3;		\
 	const uint8_t *__data = (const uint8_t *)__p + datasz;		\
 	int __i;							\
-	for (__i = 0; __i < (nentries); ++__i) {			\
+	for (__i = (napplied); __i < (nentries); ++__i) {		\
 		memcpy(&(mod).size, --__p, sizeof(size_t));		\
 		memcpy(&(mod).offset, --__p, sizeof(size_t));		\
 		memcpy(&(mod).data.size, --__p, sizeof(size_t));	\
@@ -132,16 +134,9 @@ __modify_apply_one(
 	 * that already exist in the buffer.
 	 */
 	if (value->size > offset + data_size && data_size == size) {
-		memmove((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->mem + offset, data, data_size);
 		return (0);
 	}
-
-	/*
-	 * Decrement the size to discard the trailing nul (done after growing
-	 * the buffer to ensure it can be restored without further checking).
-	 */
-	if (sformat)
-		--value->size;
 
 	/*
 	 * If appending bytes past the end of the value, initialize gap bytes
@@ -153,12 +148,8 @@ __modify_apply_one(
 		if (value->size < offset)
 			memset((uint8_t *)value->mem + value->size,
 			    sformat ? ' ' : 0, offset - value->size);
-		memmove((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->mem + offset, data, data_size);
 		value->size = offset + data_size;
-
-		/* Restore the trailing nul. */
-		if (sformat)
-			((char *)value->data)[value->size++] = '\0';
 		return (0);
 	}
 
@@ -175,7 +166,7 @@ __modify_apply_one(
 
 	if (data_size == size) {			/* Overwrite */
 		/* Copy in the new data. */
-		memmove((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->mem + offset, data, data_size);
 
 		/*
 		 * The new data must overlap the buffer's end (else, we'd use
@@ -196,7 +187,7 @@ __modify_apply_one(
 		memmove(to, from, value->size - (offset + size));
 
 		/* Copy in the new data. */
-		memmove((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->mem + offset, data, data_size);
 
 		/*
 		 * Correct the size. This works because of how the C standard
@@ -213,26 +204,24 @@ __modify_apply_one(
 		 value->size += (data_size - size);
 	}
 
-	/* Restore the trailing nul. */
-	if (sformat)
-		((char *)value->data)[value->size++] = '\0';
-
 	return (0);
 }
 
 /*
- * __modify_check_fast_path --
- *	Process a set of modifications, check if the fast path is possible.
+ * __modify_fast_path --
+ *	Process a set of modifications, applying any that can be made in place,
+ *	and check if the remaining ones are sorted and non-overlapping.
  */
-static bool
-__modify_check_fast_path(
+static void
+__modify_fast_path(
     WT_ITEM *value, const size_t *p, int nentries,
-    size_t *dataszp, size_t *destszp)
+    int *nappliedp, bool *overlapp, size_t *dataszp, size_t *destszp)
 {
 	WT_MODIFY current, prev;
 	size_t datasz, destoff;
-	bool first;
+	bool fastpath, first;
 
+	*overlapp = true;
 	datasz = destoff = 0;
 	WT_CLEAR(current);
 
@@ -247,18 +236,28 @@ __modify_check_fast_path(
 	 * that shrink or grow the data affect subsequent modification's byte
 	 * offsets.
 	 */
-	first = true;
-	WT_MODIFY_FOREACH_BEGIN(current, p, nentries) {
+	fastpath = first = true;
+	*nappliedp = 0;
+	WT_MODIFY_FOREACH_BEGIN(current, p, nentries, 0) {
 		datasz += current.data.size;
 
-		/* Step over the current unmodified block. */
+		if (fastpath && current.data.size == current.size &&
+		    current.offset + current.size <= value->size) {
+			memcpy((uint8_t *)value->mem + current.offset,
+			    current.data.data, current.data.size);
+			++(*nappliedp);
+			continue;
+		}
+		fastpath = false;
+
+		/* Step over the bytes before the current block. */
 		if (first)
 			destoff = current.offset;
 		else {
 			/* Check that entries are sorted and non-overlapping. */
 			if (current.offset < prev.offset + prev.size ||
 			    current.offset < prev.offset + prev.data.size)
-				return (false);
+				return;
 			destoff += current.offset - (prev.offset + prev.size);
 		}
 
@@ -269,15 +268,15 @@ __modify_check_fast_path(
 		 * applying the changes.
 		 */
 		if (current.offset + current.size > value->size)
-			return (false);
+			return;
 
 		/*
-		 * If copying this block overlaps with the next one, the fast
-		 * path in reverse order will fail.
+		 * If copying this block overlaps with the next one, we can't
+		 * build the value in reverse order.
 		 */
 		if (current.size != current.data.size &&
 		    current.offset + current.size > destoff)
-			return (false);
+			return;
 
 		/* Step over the current modification. */
 		destoff += current.data.size;
@@ -289,9 +288,10 @@ __modify_check_fast_path(
 	/* Step over the final unmodified block. */
 	destoff += value->size - (current.offset + current.size);
 
+	*overlapp = false;
 	*dataszp = datasz;
 	*destszp = destoff;
-	return (true);
+	return;
 }
 
 /*
@@ -300,31 +300,17 @@ __modify_check_fast_path(
  *	are in sorted order and none of the changes overlap.
  */
 static int
-__modify_apply_no_overlap(WT_SESSION_IMPL *session,
-    WT_ITEM *value, const size_t *p, int nentries, size_t datasz, size_t destsz)
+__modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value,
+    const size_t *p, int nentries, int napplied, size_t datasz, size_t destsz)
 {
 	WT_MODIFY current;
 	size_t sz;
 	const uint8_t *from;
 	uint8_t *to;
-	int delta;
-
-	/*
-	 * Grow the buffer first. This function is often called using a cursor
-	 * buffer referencing on-page memory and it's easy to overwrite a page.
-	 * A side-effect of growing the buffer is to ensure the buffer's value
-	 * is in buffer-local memory.
-	 */
-	WT_RET(__wt_buf_grow(session, value, WT_MAX(destsz, value->size)));
-
-	delta = 0;
-	WT_MODIFY_FOREACH_BEGIN(current, p, nentries) {
-		delta += (int)current.data.size - (int)current.size;
-	} WT_MODIFY_FOREACH_END;
 
 	from = (const uint8_t *)value->data + value->size;
 	to = (uint8_t *)value->mem + destsz;
-	WT_MODIFY_FOREACH_REVERSE(current, p, nentries, datasz) {
+	WT_MODIFY_FOREACH_REVERSE(current, p, nentries, napplied, datasz) {
 		/* Move the current unmodified block into place if necessary. */
 		sz = WT_PTRDIFF(to, value->mem) -
 		    (current.offset + current.data.size);
@@ -340,30 +326,11 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session,
 
 		from -= current.size;
 		to -= current.data.size;
-		memmove(to, current.data.data, current.data.size);
+		memcpy(to, current.data.data, current.data.size);
 	} WT_MODIFY_FOREACH_END;
 
 	value->size = destsz;
 	return (0);
-}
-
-/*
- * __wt_modify_apply_api --
- *	Apply a single set of WT_MODIFY changes to a buffer, the cursor API
- * interface.
- */
-int
-__wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-	WT_DECL_ITEM(modify);
-	WT_DECL_RET;
-
-	WT_ERR(__wt_modify_pack(cursor, &modify, entries, nentries));
-	WT_ERR(__wt_modify_apply(cursor, modify->data));
-
-err:	__wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
-	return (ret);
 }
 
 /*
@@ -378,8 +345,8 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 	WT_SESSION_IMPL *session;
 	size_t datasz, destsz, tmp;
 	const size_t *p;
-	int nentries;
-	bool fast_path, sformat;
+	int napplied, nentries;
+	bool overlap, sformat;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	sformat = cursor->value_format[0] == 'S';
@@ -393,16 +360,63 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 	memcpy(&tmp, p++, sizeof(size_t));
 	nentries = (int)tmp;
 
-	fast_path = __modify_check_fast_path(
-	    value, p, nentries, &datasz, &destsz);
+	/*
+	 * Grow the buffer first. This function is often called using a cursor
+	 * buffer referencing on-page memory and it's easy to overwrite a page.
+	 * A side-effect of growing the buffer is to ensure the buffer's value
+	 * is in buffer-local memory.
+	 */
+	WT_RET(__wt_buf_grow(session, value, value->size));
 
-	if (fast_path && !sformat)
-		return (__modify_apply_no_overlap(
-		    session, value, p, nentries, datasz, destsz));
+	/*
+	 * Decrement the size to discard the trailing nul (done after growing
+	 * the buffer to ensure it can be restored without further checking).
+	 */
+	if (sformat)
+		--value->size;
 
-	WT_MODIFY_FOREACH_BEGIN(mod, p, nentries) {
+	__modify_fast_path(
+	    value, p, nentries, &napplied, &overlap, &datasz, &destsz);
+
+	if (napplied == nentries)
+		goto done;
+
+	if (!overlap) {
+		/* Grow the buffer first. */
+		WT_RET(__wt_buf_grow(session, value,
+		    WT_MAX(destsz, value->size) + (sformat ? 1 : 0)));
+
+		WT_RET(__modify_apply_no_overlap(
+		    session, value, p, nentries, napplied, datasz, destsz));
+		goto done;
+	}
+
+	WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, napplied) {
 		WT_RET(__modify_apply_one(session, value, &mod, sformat));
 	} WT_MODIFY_FOREACH_END;
 
+done:	/* Restore the trailing nul. */
+	if (sformat)
+		((char *)value->data)[value->size++] = '\0';
+
 	return (0);
+}
+
+/*
+ * __wt_modify_apply_api --
+ *	Apply a single set of WT_MODIFY changes to a buffer, the cursor API
+ *	interface.
+ */
+int
+__wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+	WT_DECL_ITEM(modify);
+	WT_DECL_RET;
+
+	WT_ERR(__wt_modify_pack(cursor, &modify, entries, nentries));
+	WT_ERR(__wt_modify_apply(cursor, modify->data));
+
+err:	__wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
+	return (ret);
 }
