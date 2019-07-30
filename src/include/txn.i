@@ -844,18 +844,6 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
 	return (WT_VISIBLE_TRUE);
 }
-/*
- * __wt_txn_upd_durable --
- *	Can the current transaction make the given update durable.
- */
-static inline bool
-__wt_txn_upd_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-{
-	/* If update is visible then check if it is durable. */
-	if (__wt_txn_upd_visible_type(session, upd) != WT_VISIBLE_TRUE)
-		return (false);
-	return (__wt_txn_visible(session, upd->txnid, upd->durable_ts));
-}
 
 /*
  * __wt_txn_upd_visible --

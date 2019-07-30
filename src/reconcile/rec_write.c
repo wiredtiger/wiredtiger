@@ -438,7 +438,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * we can evict a clean page and discard its history).
 		 */
 		mod->rec_max_txn = r->max_txn;
-		mod->rec_max_timestamp = r->max_timestamp;
+		mod->rec_max_timestamp = r->max_ts;
 
 		/*
 		 * Track the tree's maximum transaction ID (used to decide if
@@ -451,8 +451,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		if (!F_ISSET(r, WT_REC_EVICT)) {
 			if (WT_TXNID_LT(btree->rec_max_txn, r->max_txn))
 				btree->rec_max_txn = r->max_txn;
-			if (btree->rec_max_timestamp < r->max_timestamp)
-				btree->rec_max_timestamp = r->max_timestamp;
+			if (btree->rec_max_timestamp < r->max_ts)
+				btree->rec_max_timestamp = r->max_ts;
 		}
 
 		/*
@@ -680,23 +680,8 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
-	r->max_timestamp = 0;
-
-	/*
-	 * Track the first unstable transaction (when skewing newest this is
-	 * the newest update, otherwise the newest update not on the page).
-	 * This is the boundary between the on-page information and the history
-	 * stored in the lookaside table.
-	 */
-	if (r->las_skew_newest) {
-		r->unstable_txn = WT_TXN_NONE;
-		r->unstable_timestamp = WT_TS_NONE;
-		r->unstable_durable_timestamp = WT_TS_NONE;
-	} else {
-		r->unstable_txn = WT_TXN_ABORTED;
-		r->unstable_timestamp = WT_TS_MAX;
-		r->unstable_durable_timestamp = WT_TS_MAX;
-	}
+	r->max_onpage_ts = r->max_ts = WT_TS_NONE;
+	r->min_newer_ts = WT_TS_MAX;
 
 	/* Track if updates were used and/or uncommitted. */
 	r->updates_seen = r->updates_unstable = 0;
@@ -1746,18 +1731,10 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 
 done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		/* Track the oldest lookaside timestamp seen so far. */
-		multi->page_las.skew_newest = r->las_skew_newest;
 		multi->page_las.max_txn = r->max_txn;
-		multi->page_las.unstable_txn = r->unstable_txn;
-		WT_ASSERT(session, r->unstable_txn != WT_TXN_NONE);
-		multi->page_las.max_timestamp = r->max_timestamp;
-
-		WT_ASSERT(session, r->all_upd_prepare_in_prog == true ||
-		    r->unstable_durable_timestamp >= r->unstable_timestamp);
-
-		multi->page_las.unstable_timestamp = r->unstable_timestamp;
-		multi->page_las.unstable_durable_timestamp =
-		    r->unstable_durable_timestamp;
+		multi->page_las.max_onpage_ts = r->max_onpage_ts;
+		multi->page_las.max_ts = r->max_ts;
+		multi->page_las.min_newer_ts = r->min_newer_ts;
 	}
 
 err:	__wt_scr_free(session, &key);

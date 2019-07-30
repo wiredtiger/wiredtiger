@@ -418,14 +418,13 @@ __wt_las_cursor_close(
 
 /*
  * __wt_las_page_skip_locked --
- *	 Check if we can skip reading a page with lookaside entries, where
- * the page is already locked.
+ *	Check if we can skip reading a page with lookaside entries, where the
+ *	page is already locked.
  */
 bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
 	WT_TXN *txn;
-	wt_timestamp_t unstable_timestamp;
 
 	txn = &session->txn;
 
@@ -454,15 +453,19 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 
 	/*
 	 * If some of the page's history overlaps with the reader's snapshot
-	 * then we have to read it.  This is only relevant if we chose versions
-	 * that were unstable when the page was written.
+	 * then we have to read it.
 	 */
-	if (ref->page_las->skew_newest &&
-	    WT_TXNID_LE(txn->snap_min, ref->page_las->unstable_txn))
+	if (WT_TXNID_LE(txn->snap_min, ref->page_las->max_txn))
 		return (false);
 
+	/*
+	 * Otherwise, if not reading at a timestamp, the page's history is in
+	 * the past, so the page image is correct if it contains the most
+	 * recent versions of everything and nothing was prepared.
+	 */
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
-		return (ref->page_las->skew_newest);
+		return (!ref->page_las->has_prepares &&
+		    ref->page_las->max_ts == ref->page_las->max_onpage_ts);
 
 	/*
 	 * Skip lookaside history if reading as of a timestamp, we evicted new
@@ -470,22 +473,19 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * possible for prepared updates, because the commit timestamp was not
 	 * known when the page was evicted.
 	 *
-	 * Skip lookaside pages if reading as of a timestamp, we evicted old
-	 * versions of data and all the unstable updates are in the future.
-	 *
-	 * Checkpoint should respect durable timestamps, other reads should
-	 * respect ordinary visibility.  Checking for just the unstable updates
-	 * during checkpoint would end up reading more content from lookaside
-	 * than necessary.
+	 * Otherwise, skip reading lookaside history if everything on the page
+	 * is older than the read timestamp, and the oldest update in lookaside
+	 * newer than the page is in the future of the reader.  This seems
+	 * unlikely, but is exactly what eviction tries to do when a checkpoint
+	 * is running.
 	 */
-	unstable_timestamp = WT_SESSION_IS_CHECKPOINT(session) ?
-	    ref->page_las->unstable_durable_timestamp :
-	    ref->page_las->unstable_timestamp;
-	if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
-	    txn->read_timestamp > unstable_timestamp)
+	if (!ref->page_las->has_prepares &&
+	    ref->page_las->max_ts == ref->page_las->max_onpage_ts &&
+	    txn->read_timestamp >= ref->page_las->max_ts)
 		return (true);
-	if (!ref->page_las->skew_newest &&
-	    txn->read_timestamp < unstable_timestamp)
+
+	if (txn->read_timestamp >= ref->page_las->max_onpage_ts &&
+	    txn->read_timestamp < ref->page_las->min_newer_ts)
 		return (true);
 
 	return (false);
@@ -596,7 +596,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char ts_string[2][WT_TS_INT_STRING_SIZE];
+	char ts_string[WT_TS_INT_STRING_SIZE];
 
 	btree_id = btree->id;
 
@@ -627,18 +627,17 @@ __las_insert_block_verbose(
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
 		    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
-		    "Max txn ID %" PRIu64 ", unstable timestamp %s,"
-		    " unstable durable timestamp %s, %s. "
+		    "Max txn ID %" PRIu64 ", max timestamp %s. "
+		    "page image contains %s. "
 		    "Entries now in lookaside file: %" PRId64 ", "
 		    "cache dirty: %2.3f%% , "
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
 		    __wt_timestamp_to_string(
-		    multi->page_las.unstable_timestamp, ts_string[0]),
-		    __wt_timestamp_to_string(
-		    multi->page_las.unstable_durable_timestamp, ts_string[1]),
-		    multi->page_las.skew_newest ? "newest" : "not newest",
+		    multi->page_las.max_ts, ts_string),
+		    multi->page_las.max_ts == multi->page_las.max_onpage_ts ?
+		    "newest" : "not newest",
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
 	}

@@ -36,17 +36,14 @@ struct __wt_reconcile {
 	 * Track the oldest running transaction and whether to skew lookaside
 	 * to the newest update.
 	 */
-	bool las_skew_newest;
 	uint64_t last_running;
+	bool las_skew_newest;
 
 	/* Track the page's min/maximum transactions. */
 	uint64_t max_txn;
-	wt_timestamp_t max_timestamp;
-
-	/* Lookaside boundary tracking. */
-	uint64_t unstable_txn;
-	wt_timestamp_t unstable_durable_timestamp;
-	wt_timestamp_t unstable_timestamp;
+	wt_timestamp_t min_newer_ts;
+	wt_timestamp_t max_ts;
+	wt_timestamp_t max_onpage_ts;
 
 	u_int updates_seen;		/* Count of updates seen. */
 	u_int updates_unstable;		/* Count of updates not visible_all. */
