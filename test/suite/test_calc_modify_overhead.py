@@ -67,7 +67,7 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
             pattern = ''.join(r.choice(choices) for _ in range(repeat_size))
         else:
             pattern = b''.join(bytes([r.choice(choices.encode())]) for _ in range(repeat_size))
-        return (pattern * ((size + repeat_size - 1) // repeat_size))[:size]
+        return (pattern * int(((size + repeat_size - 1) // repeat_size)))[:size]
 
     def one_test(self, c, k, oldsz, repeatsz, nmod, maxdiff, size_test):
         oldv = self.mkstring(oldsz, repeatsz)
