@@ -154,22 +154,22 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=i,value_format=' + self.valuefmt)
         c = self.session.open_cursor(self.uri)
 
-    for size in range(1000, 10000):
-        # The total size of modifications reach 10% of total document size, but less than total number of modifications.
-        repeats = r.randint(1,size)
-        nmods = 10
-        maxdiff = size/10
-        size_test = 1
-        self.pr("size %s, repeats %s, nmods %s, maxdiff %s, size_test %s" % (size, repeats, nmods, maxdiff, size_test))
-        self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
+        for size in range(1000, 10000):
+            # The total size of modifications reach 10% of total document size, but less than total number of modifications.
+            repeats = r.randint(1,size)
+            nmods = 10
+            maxdiff = size/10
+            size_test = 1
+            self.pr("size %s, repeats %s, nmods %s, maxdiff %s, size_test %s" % (size, repeats, nmods, maxdiff, size_test))
+            self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
 
-        # The number of modifications reach max number of modifications, but under maximum modification size.
-        repeats = r.randint(1,size)
-        nmods = 16
-        maxdiff = size/20
-        size_test = 0
-        self.pr("size %s, repeats %s, nmods %s, maxdiff %s size_test %s" % (size, repeats, nmods, maxdiff, size_test))
-        self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
+            # The number of modifications reach max number of modifications, but under maximum modification size.
+            repeats = r.randint(1,size)
+            nmods = 16
+            maxdiff = size/20
+            size_test = 0
+            self.pr("size %s, repeats %s, nmods %s, maxdiff %s size_test %s" % (size, repeats, nmods, maxdiff, size_test))
+            self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
 
 if __name__ == '__main__':
     wttest.run()
