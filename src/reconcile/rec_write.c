@@ -621,6 +621,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * concurrent update, it'll remain marked as dirty.
 	 */
 	page->modify->mod_state = WT_MOD_STATE_SINGLE;
+	WT_WRITE_BARRIER();
 
 	/*
 	 * Cache the oldest running transaction ID.  This is used to check
