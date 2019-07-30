@@ -90,9 +90,9 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
         self.pr("func maxdiff: %d" % func_maxdiff)
         self.pr("func nmod: %d" % func_nmod)
 
-        lengths = [maxdiff/nmod for i in range(nmod)]
+        lengths = [int(maxdiff/nmod) for i in range(nmod)]
         offsets = sorted(r.sample(range(oldsz), nmod))
-        modsizes = [maxdiff/nmod for i in range(nmod)]
+        modsizes = [int(maxdiff/nmod) for i in range(nmod)]
         modtypes = [r.choice((self.ADD, self.REPLACE)) for _ in range(nmod)]
 
         self.pr("offsets: %s" % offsets)
@@ -158,7 +158,7 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
             # The total size of modifications reach 10% of total document size, but less than total number of modifications.
             repeats = r.randint(1,size)
             nmods = 10
-            maxdiff = size/10
+            maxdiff = int(size/10)
             size_test = 1
             self.pr("size %s, repeats %s, nmods %s, maxdiff %s, size_test %s" % (size, repeats, nmods, maxdiff, size_test))
             self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
@@ -166,7 +166,7 @@ class test_calc_modify_overhead(wttest.WiredTigerTestCase):
             # The number of modifications reach max number of modifications, but under maximum modification size.
             repeats = r.randint(1,size)
             nmods = 16
-            maxdiff = size/20
+            maxdiff = int(size/20)
             size_test = 0
             self.pr("size %s, repeats %s, nmods %s, maxdiff %s size_test %s" % (size, repeats, nmods, maxdiff, size_test))
             self.one_test(c, size, size, repeats, nmods, maxdiff, size_test)
