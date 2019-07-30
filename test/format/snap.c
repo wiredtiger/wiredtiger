@@ -83,10 +83,20 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 {
 	WT_DECL_RET;
 	WT_ITEM *key, *value;
+	uint64_t keyno;
 	uint8_t bitfield;
 
 	key = tinfo->key;
 	value = tinfo->value;
+
+	/*
+	 * Test just the first or last records in the truncate range; a key set
+	 * to 0 flags a truncate from/to table beginning/end.
+	 */
+	if ((keyno = snap->keyno) == 0) {
+		keyno = snap->last;
+		testutil_assert(keyno != 0 && snap->op == TRUNCATE);
+	}
 
 	/*
 	 * Retrieve the key/value pair by key. Row-store inserts have a unique
@@ -100,10 +110,10 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		switch (g.type) {
 		case FIX:
 		case VAR:
-			cursor->set_key(cursor, snap->keyno);
+			cursor->set_key(cursor, keyno);
 			break;
 		case ROW:
-			key_gen(key, snap->keyno);
+			key_gen(key, keyno);
 			cursor->set_key(cursor, key);
 			break;
 		}
@@ -153,7 +163,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		testutil_die(ret,
 		    "snapshot-isolation: %" PRIu64 " search: "
 		    "expected {0x%02x}, found {0x%02x}",
-		    snap->keyno,
+		    keyno,
 		    snap->op == REMOVE ? 0 : *(uint8_t *)snap->vdata,
 		    ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
 		/* NOTREACHED */
@@ -177,8 +187,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		/* NOTREACHED */
 	case VAR:
 		fprintf(stderr,
-		    "snapshot-isolation %" PRIu64 " search mismatch\n",
-		    snap->keyno);
+		    "snapshot-isolation %" PRIu64 " search mismatch\n", keyno);
 
 		if (snap->op == REMOVE)
 			fprintf(stderr, "expected {deleted}\n");
@@ -190,8 +199,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 			print_item_data("   found", value->data, value->size);
 
 		testutil_die(ret,
-		    "snapshot-isolation: %" PRIu64 " search mismatch",
-		    snap->keyno);
+		    "snapshot-isolation: %" PRIu64 " search mismatch", keyno);
 		/* NOTREACHED */
 	}
 
@@ -351,19 +359,6 @@ snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
 			current = tinfo->snap_list;
 		if (current == stop)
 			break;
-
-		/*
-		 * We don't test all of the records in a truncate range, only
-		 * the first because that matches the rest of the isolation
-		 * checks. If a truncate range was from the start of the table,
-		 * switch to the record at the end. This is done in the first
-		 * routine that considers if operations are repeatable, and the
-		 * rest of those functions depend on it already being done.
-		 */
-		if (current->op == TRUNCATE && current->keyno == 0) {
-			current->keyno = current->last;
-			testutil_assert(current->keyno != 0);
-		}
 
 		if (snap_repeat_ok_commit(
 		    tinfo, current, tinfo->snap_first, stop))
