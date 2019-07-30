@@ -247,9 +247,8 @@ struct __wt_ovfl_reuse {
 struct __wt_page_lookaside {
 	uint64_t las_pageid;		/* Page ID in lookaside */
 	uint64_t max_txn;		/* Maximum transaction ID */
-	wt_timestamp_t max_onpage_ts;	/* Maximum timestamp on page */
-	wt_timestamp_t max_ts;		/* Maximum timestamp seen */
-	wt_timestamp_t min_newer_ts;	/* Update newer than on-page */
+	wt_timestamp_t max_ondisk_ts;	/* Maximum timestamp on page */
+	wt_timestamp_t min_skipped_ts;	/* Update newer than on-page */
 	bool eviction_to_lookaside;	/* Revert to lookaside on eviction */
 	bool has_prepares;		/* One or more updates are prepared */
 	bool resolved;			/* History has been read into cache */

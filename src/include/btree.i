@@ -1203,12 +1203,12 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 		return (false);
 	if (page_las->resolved)
 		return (false);
-	if (page_las->max_ts > page_las->max_onpage_ts ||
+	if (page_las->min_skipped_ts != WT_TS_MAX ||
 	    page_las->has_prepares)
 		return (true);
 
 	return (!__wt_txn_visible_all(
-	    session, page_las->max_txn, page_las->max_ts));
+	    session, page_las->max_txn, page_las->max_ondisk_ts));
 }
 
 /*

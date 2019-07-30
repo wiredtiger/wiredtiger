@@ -680,8 +680,8 @@ __rec_init(WT_SESSION_IMPL *session,
 
 	/* Track the page's min/maximum transaction */
 	r->max_txn = WT_TXN_NONE;
-	r->max_onpage_ts = r->max_ts = WT_TS_NONE;
-	r->min_newer_ts = WT_TS_MAX;
+	r->max_ondisk_ts = r->max_ts = WT_TS_NONE;
+	r->min_skipped_ts = WT_TS_MAX;
 
 	/* Track if updates were used and/or uncommitted. */
 	r->updates_seen = r->updates_unstable = 0;
@@ -1732,9 +1732,8 @@ __rec_split_write_supd(WT_SESSION_IMPL *session,
 done:	if (F_ISSET(r, WT_REC_LOOKASIDE)) {
 		/* Track the oldest lookaside timestamp seen so far. */
 		multi->page_las.max_txn = r->max_txn;
-		multi->page_las.max_onpage_ts = r->max_onpage_ts;
-		multi->page_las.max_ts = r->max_ts;
-		multi->page_las.min_newer_ts = r->min_newer_ts;
+		multi->page_las.max_ondisk_ts = r->max_ondisk_ts;
+		multi->page_las.min_skipped_ts = r->min_skipped_ts;
 	}
 
 err:	__wt_scr_free(session, &key);

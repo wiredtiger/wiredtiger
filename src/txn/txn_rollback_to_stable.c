@@ -249,9 +249,7 @@ __txn_abort_newer_updates(
 	 *
 	 * So, if there is lookaside history for a page, first check if the
 	 * history needs to be rolled back make sure that history is loaded
-	 * into cache.  That is, if skew_newest is true, so the disk image
-	 * potentially contained unstable updates, and the history is more
-	 * recent than the rollback timestamp.
+	 * into cache.
 	 *
 	 * Also, we have separately discarded any lookaside history more recent
 	 * than the rollback timestamp.  For page_las structures in cache,
@@ -263,8 +261,7 @@ __txn_abort_newer_updates(
 	local_read = false;
 	read_flags = WT_READ_WONT_NEED;
 	if ((page_las = ref->page_las) != NULL) {
-		if (page_las->max_ts == page_las->max_onpage_ts &&
-		    rollback_timestamp < page_las->max_ts) {
+		if (rollback_timestamp < page_las->max_ondisk_ts) {
 			/*
 			 * Make sure we get back a page with history, not a
 			 * limbo page.
@@ -277,10 +274,10 @@ __txn_abort_newer_updates(
 			    __wt_page_is_modified(ref->page));
 			local_read = true;
 		}
-		if (page_las->max_onpage_ts > rollback_timestamp)
-			page_las->max_onpage_ts = rollback_timestamp;
-		if (page_las->max_ts > rollback_timestamp)
-			page_las->max_ts = rollback_timestamp;
+		if (page_las->max_ondisk_ts > rollback_timestamp)
+			page_las->max_ondisk_ts = rollback_timestamp;
+		if (page_las->min_skipped_ts > rollback_timestamp)
+			page_las->min_skipped_ts = rollback_timestamp;
 	}
 
 	/* Review deleted page saved to the ref */

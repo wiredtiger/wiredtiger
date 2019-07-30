@@ -258,8 +258,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 * durable timestamp.
 			 */
 			if (upd_select->upd == NULL &&
-			    upd->start_ts < r->min_newer_ts)
-				r->min_newer_ts = upd->start_ts;
+			    upd->start_ts < r->min_skipped_ts)
+				r->min_skipped_ts = upd->start_ts;
 
 			continue;
 		}
@@ -302,8 +302,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	if (upd == first_txn_upd)
 		r->update_used = true;
 
-	if (upd != NULL && upd->durable_ts > r->max_onpage_ts)
-		r->max_onpage_ts = upd->durable_ts;
+	if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
+		r->max_ondisk_ts = upd->durable_ts;
 
 	/*
 	 * TIMESTAMP-FIXME

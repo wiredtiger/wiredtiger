@@ -465,7 +465,7 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 */
 	if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
 		return (!ref->page_las->has_prepares &&
-		    ref->page_las->max_ts == ref->page_las->max_onpage_ts);
+		    ref->page_las->min_skipped_ts == WT_TS_MAX);
 
 	/*
 	 * Skip lookaside history if reading as of a timestamp, we evicted new
@@ -480,12 +480,12 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 	 * is running.
 	 */
 	if (!ref->page_las->has_prepares &&
-	    ref->page_las->max_ts == ref->page_las->max_onpage_ts &&
-	    txn->read_timestamp >= ref->page_las->max_ts)
+	    ref->page_las->min_skipped_ts == WT_TS_MAX &&
+	    txn->read_timestamp >= ref->page_las->max_ondisk_ts)
 		return (true);
 
-	if (txn->read_timestamp >= ref->page_las->max_onpage_ts &&
-	    txn->read_timestamp < ref->page_las->min_newer_ts)
+	if (txn->read_timestamp >= ref->page_las->max_ondisk_ts &&
+	    txn->read_timestamp < ref->page_las->min_skipped_ts)
 		return (true);
 
 	return (false);
@@ -596,7 +596,7 @@ __las_insert_block_verbose(
 	double pct_dirty, pct_full;
 	uint64_t ckpt_gen_current, ckpt_gen_last;
 	uint32_t btree_id;
-	char ts_string[WT_TS_INT_STRING_SIZE];
+	char ts_string[2][WT_TS_INT_STRING_SIZE];
 
 	btree_id = btree->id;
 
@@ -627,17 +627,17 @@ __las_insert_block_verbose(
 		    WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
 		    "Page reconciliation triggered lookaside write "
 		    "file ID %" PRIu32 ", page ID %" PRIu64 ". "
-		    "Max txn ID %" PRIu64 ", max timestamp %s. "
-		    "page image contains %s. "
+		    "Max txn ID %" PRIu64 ", max ondisk timestamp %s, "
+		    "first skipped ts %s. "
 		    "Entries now in lookaside file: %" PRId64 ", "
 		    "cache dirty: %2.3f%% , "
 		    "cache use: %2.3f%%",
 		    btree_id, multi->page_las.las_pageid,
 		    multi->page_las.max_txn,
 		    __wt_timestamp_to_string(
-		    multi->page_las.max_ts, ts_string),
-		    multi->page_las.max_ts == multi->page_las.max_onpage_ts ?
-		    "newest" : "not newest",
+		    multi->page_las.max_ondisk_ts, ts_string[0]),
+		    __wt_timestamp_to_string(
+		    multi->page_las.min_skipped_ts, ts_string[1]),
 		    WT_STAT_READ(conn->stats, cache_lookaside_entries),
 		    pct_dirty, pct_full);
 	}
