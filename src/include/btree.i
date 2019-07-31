@@ -1508,21 +1508,23 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * memory_page_max setting, when we see many deleted items, and when we
 	 * are attempting to scan without trashing the cache.
 	 *
-	 * Fast checks if flag indicates no evict, session can't perform slow
-	 * operation, eviction is disabled for this handle, operation or
-	 * tree, then perform a general check if eviction will be possible.
-	 *
 	 * Checkpoint should not queue pages for urgent eviction if it cannot
 	 * evict them immediately: there is a special exemption that allows
 	 * checkpoint to evict dirty pages in a tree that is being
 	 * checkpointed, and no other thread can help with that.
+	 *
+	 * If the operation has disabled eviction or splitting, or the session
+	 * is preventing from reconciling, then just queue the page for urgent
+	 * eviction.  Otherwise, attempt to release and evict it.
 	 */
 	page = ref->page;
 	if (WT_READGEN_EVICT_SOON(page->read_gen) &&
 	    btree->evict_disabled == 0 &&
-	    __wt_page_can_evict(session, ref, &inmem_split)) {
-		if (LF_ISSET(WT_READ_NO_EVICT | WT_READ_NO_SPLIT) ||
-		    (!inmem_split &&
+	    __wt_page_can_evict(session, ref, &inmem_split) &&
+	    (!WT_SESSION_IS_CHECKPOINT(session) ||
+	    __wt_page_evict_clean(page))) {
+		if (LF_ISSET(WT_READ_NO_EVICT) ||
+		    (inmem_split ? LF_ISSET(WT_READ_NO_SPLIT) :
 		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))
 			WT_IGNORE_RET_BOOL(
 			    __wt_page_evict_urgent(session, ref));
