@@ -489,7 +489,7 @@ struct __wt_page_modify {
 	WT_SPINLOCK page_lock;		/* Page's spinlock */
 
 	/*
-	 * The mod state is incremented when a page is modified.
+	 * The page state is incremented when a page is modified.
 	 *
 	 * WT_PAGE_CLEAN --
 	 *	The page is clean.

@@ -461,10 +461,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * indicates that an update has taken place during
 		 * reconciliation.
 		 *
-		 * The page only might be clean; if the mod state is unchanged
+		 * The page only might be clean; if the page state is unchanged
 		 * since reconciliation started, it's clean.
 		 *
-		 * If the mod state changed, the page has been written since
+		 * If the page state changed, the page has been written since
 		 * reconciliation started and remains dirty (that can't happen
 		 * when evicting, the page is exclusively locked).
 		 */
