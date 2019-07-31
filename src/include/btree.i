@@ -35,7 +35,7 @@ static inline bool
 __wt_page_evict_clean(WT_PAGE *page)
 {
 	return (page->modify == NULL ||
-	    (page->modify->mod_state == WT_MOD_STATE_CLEAN &&
+	    (page->modify->page_state == WT_PAGE_CLEAN &&
 	    page->modify->rec_result == 0));
 }
 
@@ -47,7 +47,7 @@ static inline bool
 __wt_page_is_modified(WT_PAGE *page)
 {
 	return (page->modify != NULL &&
-	    page->modify->mod_state != WT_MOD_STATE_CLEAN);
+	    page->modify->page_state != WT_PAGE_CLEAN);
 }
 
 /*
@@ -494,13 +494,12 @@ static inline void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	uint64_t last_running;
-	uint8_t prev_mod_state;
-	bool made_dirty;
+	uint8_t prev_page_state;
 
 	WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
 	last_running = 0;
-	if (page->modify->mod_state == WT_MOD_STATE_CLEAN)
+	if (page->modify->page_state == WT_PAGE_CLEAN)
 		last_running = S2C(session)->txn_global.last_running;
 
 	/*
@@ -512,42 +511,35 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Every time the page transitions from clean to dirty, update the cache
 	 * and transactional information.
 	 */
-	made_dirty = false;
-	prev_mod_state = page->modify->mod_state;
-	while (prev_mod_state < WT_MOD_STATE_MANY) {
-		if (__wt_atomic_cas8(&page->modify->mod_state,
-		    prev_mod_state, prev_mod_state + 1)) {
-			/*
-			 * We just did an atomic cas from
-			 * WT_MOD_STATE_CLEAN => WT_MOD_STATE_SINGLE and
-			 * therefore, we're the first ones to dirty the page.
-			 */
-			if (prev_mod_state == WT_MOD_STATE_CLEAN)
-				made_dirty = true;
+	while ((prev_page_state = page->modify->page_state) < WT_PAGE_DIRTY)
+		if (__wt_atomic_cas8(&page->modify->page_state,
+		    prev_page_state, prev_page_state + 1)) {
+			if (prev_page_state == WT_PAGE_CLEAN) {
+				__wt_cache_dirty_incr(session, page);
+
+				/*
+				 * We won the race to dirty the page, but
+				 * another thread could have committed in the
+				 * meantime, and the last_running field been
+				 * updated past it.  That is all very unlikely,
+				 * but not impossible, so we take care to read
+				 * the global state before the atomic increment.
+				 *
+				 * If the page was dirty on entry, then
+				 * last_running == 0. The page could have become
+				 * clean since then, if reconciliation
+				 * completed. In that case, we leave the
+				 * previous value for first_dirty_txn rather
+				 * than potentially racing to update it, at
+				 * worst, we'll unnecessarily write a page in a
+				 * checkpoint.
+				 */
+				if (last_running != 0)
+					page->modify->first_dirty_txn =
+					    last_running;
+			}
 			break;
 		}
-		prev_mod_state = page->modify->mod_state;
-	}
-
-	if (made_dirty) {
-		__wt_cache_dirty_incr(session, page);
-
-		/*
-		 * We won the race to dirty the page, but another thread could
-		 * have committed in the meantime, and the last_running field
-		 * been updated past it.  That is all very unlikely, but not
-		 * impossible, so we take care to read the global state before
-		 * the atomic increment.
-		 *
-		 * If the page was dirty on entry, then last_running == 0. The
-		 * page could have become clean since then, if reconciliation
-		 * completed. In that case, we leave the previous value for
-		 * first_dirty_txn rather than potentially racing to update it,
-		 * at worst, we'll unnecessarily write a page in a checkpoint.
-		 */
-		if (last_running != 0)
-			page->modify->first_dirty_txn = last_running;
-	}
 
 	/* Check if this is the largest transaction ID to update the page. */
 	if (WT_TXNID_LT(page->modify->update_txn, session->txn.id))
@@ -600,7 +592,7 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Allow the call to be made on clean pages.
 	 */
 	if (__wt_page_is_modified(page)) {
-		page->modify->mod_state = WT_MOD_STATE_CLEAN;
+		page->modify->page_state = WT_PAGE_CLEAN;
 		__wt_cache_dirty_decr(session, page);
 	}
 }

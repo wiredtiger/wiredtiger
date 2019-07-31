@@ -456,9 +456,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		}
 
 		/*
-		 * We set the mod state to WT_MOD_STATE_SINGLE prior to
-		 * reconciliation. A failed atomic cas indicates that an update
-		 * has taken place during reconciliation.
+		 * We set the page state to mark it as having been dirtied for
+		 * the first time prior to reconciliation. A failed atomic cas
+		 * indicates that an update has taken place during
+		 * reconciliation.
 		 *
 		 * The page only might be clean; if the mod state is unchanged
 		 * since reconciliation started, it's clean.
@@ -468,7 +469,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * when evicting, the page is exclusively locked).
 		 */
 		if (__wt_atomic_cas8(
-		    &mod->mod_state, WT_MOD_STATE_SINGLE, WT_MOD_STATE_CLEAN))
+		    &mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
 			__wt_cache_dirty_decr(session, page);
 		else
 			WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
@@ -614,13 +615,14 @@ __rec_init(WT_SESSION_IMPL *session,
 	r->orig_txn_checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
 
 	/*
-	 * Set the mod state to WT_MOD_STATE_SINGLE prior to reconciliation.
-	 * After reconciliation, we want to atomic cas
-	 * WT_MOD_STATE_SINGLE => WT_MOD_STATE_CLEAN to potentially mark it as
-	 * clean. If the mod state got incremented to WT_MOD_STATE_MANY, by a
-	 * concurrent update, it'll remain marked as dirty.
+	 * Update the page state to indicate that all currently installed
+	 * updates will be included in this reconciliation if it would mark the
+	 * page clean.
+	 *
+	 * Add a write barrier to make it more likely that a thread adding an
+	 * update will see this state change.
 	 */
-	page->modify->mod_state = WT_MOD_STATE_SINGLE;
+	page->modify->page_state = WT_PAGE_DIRTY_FIRST;
 	WT_WRITE_BARRIER();
 
 	/*

@@ -491,26 +491,22 @@ struct __wt_page_modify {
 	/*
 	 * The mod state is incremented when a page is modified.
 	 *
-	 * WT_MOD_STATE_CLEAN --
+	 * WT_PAGE_CLEAN --
 	 *	The page is clean.
-	 * WT_MOD_STATE_SINGLE --
+	 * WT_PAGE_DIRTY_FIRST --
 	 *	The page has 1 unreconciled update.
-	 * WT_MOD_STATE_MANY --
+	 * WT_PAGE_DIRTY --
 	 *	The page has 2 or more unreconciled updates.
 	 *
-	 * When we reconcile, we artificially set the mod state to
-	 * WT_MOD_STATE_SINGLE and check afterwards that it hasn't changed
-	 * (increased to WT_MOD_STATE_MANY) to determine whether reconciliation
+	 * When we reconcile, we artificially set the state to
+	 * single and check afterwards that it hasn't changed
+	 * to determine whether reconciliation
 	 * was able to render the page clean.
-	 *
-	 * Using mod state as a simple counter of the number of updates is not
-	 * acceptable as some workloads will get close to hitting the max size
-	 * of whatever unsigned type we use.
 	 */
-#define	WT_MOD_STATE_CLEAN	0
-#define	WT_MOD_STATE_SINGLE	1
-#define	WT_MOD_STATE_MANY	2
-	uint8_t mod_state;
+#define	WT_PAGE_CLEAN		0
+#define	WT_PAGE_DIRTY_FIRST	1
+#define	WT_PAGE_DIRTY		2
+	uint8_t page_state;
 
 #define	WT_PM_REC_EMPTY		1	/* Reconciliation: no replacement */
 #define	WT_PM_REC_MULTIBLOCK	2	/* Reconciliation: multiple blocks */
