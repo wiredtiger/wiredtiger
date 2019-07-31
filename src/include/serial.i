@@ -140,8 +140,6 @@ __wt_col_append_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	new_ins = *new_insp;
 	*new_insp = NULL;
 
-	WT_ASSERT(session, page->modify->page_state <= WT_PAGE_DIRTY);
-
 	/*
 	 * Acquire the page's spinlock unless we already have exclusive access.
 	 * Then call the worker function.
@@ -190,8 +188,6 @@ __wt_insert_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	/* Clear references to memory we now own and must free on error. */
 	new_ins = *new_insp;
 	*new_insp = NULL;
-
-	WT_ASSERT(session, page->modify->page_state <= WT_PAGE_DIRTY);
 
 	simple = true;
 	for (i = 0; i < skipdepth; i++)
@@ -246,8 +242,6 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page,
 	/* Clear references to memory we now own and must free on error. */
 	upd = *updp;
 	*updp = NULL;
-
-	WT_ASSERT(session, page->modify->page_state <= WT_PAGE_DIRTY);
 
 	/*
 	 * All structure setup must be flushed before the structure is entered
