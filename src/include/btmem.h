@@ -494,13 +494,11 @@ struct __wt_page_modify {
 	 * WT_PAGE_CLEAN --
 	 *	The page is clean.
 	 * WT_PAGE_DIRTY_FIRST --
-	 *	The page has 1 unreconciled update.
+	 *	The page is in this state after the first operation that marks a
+	 *	page dirty, or when reconciliation is checking to see if it has
+	 *	done enough work to be able to mark the page clean.
 	 * WT_PAGE_DIRTY --
-	 *	The page has 2 or more unreconciled updates.
-	 *
-	 * When we reconcile, we artificially set the state to single and check
-	 * afterwards that it hasn't changed to determine whether reconciliation
-	 * was able to render the page clean.
+	 *	Two or more updates have been added to the page.
 	 */
 #define	WT_PAGE_CLEAN		0
 #define	WT_PAGE_DIRTY_FIRST	1
