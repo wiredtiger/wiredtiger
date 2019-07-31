@@ -1508,10 +1508,11 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * memory_page_max setting, when we see many deleted items, and when we
 	 * are attempting to scan without trashing the cache.
 	 *
-	 * Checkpoint should not queue pages for urgent eviction if it cannot
-	 * evict them immediately: there is a special exemption that allows
-	 * checkpoint to evict dirty pages in a tree that is being
-	 * checkpointed, and no other thread can help with that.
+	 * Checkpoint should not queue pages for urgent eviction if they require
+	 * dirty eviction: there is a special exemption that allows checkpoint
+	 * to evict dirty pages in a tree that is being checkpointed, and no
+	 * other thread can help with that. Checkpoints don't rely on this code
+	 * for dirty eviction: that is handled explicitly in __wt_sync_file.
 	 *
 	 * If the operation has disabled eviction or splitting, or the session
 	 * is preventing from reconciling, then just queue the page for urgent
