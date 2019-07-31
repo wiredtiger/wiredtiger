@@ -499,8 +499,8 @@ struct __wt_page_modify {
 	 *	The page has 2 or more unreconciled updates.
 	 *
 	 * When we reconcile, we artificially set the state to single and check
-	 * afterwards that it hasn't changed to determine whether reconciliation was
-	 * able to render the page clean.
+	 * afterwards that it hasn't changed to determine whether reconciliation
+	 * was able to render the page clean.
 	 */
 #define	WT_PAGE_CLEAN		0
 #define	WT_PAGE_DIRTY_FIRST	1
