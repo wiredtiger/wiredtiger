@@ -494,7 +494,6 @@ static inline void
 __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
 	uint64_t last_running;
-	uint8_t prev_page_state;
 
 	WT_ASSERT(session, !F_ISSET(session->dhandle, WT_DHANDLE_DEAD));
 
@@ -511,35 +510,26 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Every time the page transitions from clean to dirty, update the cache
 	 * and transactional information.
 	 */
-	while ((prev_page_state = page->modify->page_state) < WT_PAGE_DIRTY)
-		if (__wt_atomic_cas8(&page->modify->page_state,
-		    prev_page_state, prev_page_state + 1)) {
-			if (prev_page_state == WT_PAGE_CLEAN) {
-				__wt_cache_dirty_incr(session, page);
+	if (page->modify->page_state < WT_PAGE_DIRTY &&
+	    __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY) {
+		__wt_cache_dirty_incr(session, page);
 
-				/*
-				 * We won the race to dirty the page, but
-				 * another thread could have committed in the
-				 * meantime, and the last_running field been
-				 * updated past it.  That is all very unlikely,
-				 * but not impossible, so we take care to read
-				 * the global state before the atomic increment.
-				 *
-				 * If the page was dirty on entry, then
-				 * last_running == 0. The page could have become
-				 * clean since then, if reconciliation
-				 * completed. In that case, we leave the
-				 * previous value for first_dirty_txn rather
-				 * than potentially racing to update it, at
-				 * worst, we'll unnecessarily write a page in a
-				 * checkpoint.
-				 */
-				if (last_running != 0)
-					page->modify->first_dirty_txn =
-					    last_running;
-			}
-			break;
-		}
+		/*
+		 * We won the race to dirty the page, but another thread could
+		 * have committed in the meantime, and the last_running field
+		 * been updated past it.  That is all very unlikely, but not
+		 * impossible, so we take care to read the global state before
+		 * the atomic increment.
+		 *
+		 * If the page was dirty on entry, then last_running == 0. The
+		 * page could have become clean since then, if reconciliation
+		 * completed. In that case, we leave the previous value for
+		 * first_dirty_txn rather than potentially racing to update it,
+		 * at worst, we'll unnecessarily write a page in a checkpoint.
+		 */
+		if (last_running != 0)
+			page->modify->first_dirty_txn = last_running;
+	}
 
 	/* Check if this is the largest transaction ID to update the page. */
 	if (WT_TXNID_LT(page->modify->update_txn, session->txn.id))

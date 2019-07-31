@@ -468,7 +468,7 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 		 * reconciliation started and remains dirty (that can't happen
 		 * when evicting, the page is exclusively locked).
 		 */
-		if (__wt_atomic_cas8(
+		if (__wt_atomic_cas32(
 		    &mod->page_state, WT_PAGE_DIRTY_FIRST, WT_PAGE_CLEAN))
 			__wt_cache_dirty_decr(session, page);
 		else
