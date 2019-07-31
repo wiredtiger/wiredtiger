@@ -273,10 +273,9 @@ __txn_abort_newer_updates(
 			    ref->page != NULL &&
 			    __wt_page_is_modified(ref->page));
 			local_read = true;
-		}
-		if (page_las->max_ondisk_ts > rollback_timestamp)
 			page_las->max_ondisk_ts = rollback_timestamp;
-		if (page_las->min_skipped_ts > rollback_timestamp)
+		}
+		if (rollback_timestamp < page_las->min_skipped_ts)
 			page_las->min_skipped_ts = rollback_timestamp;
 	}
 
