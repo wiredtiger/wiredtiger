@@ -1518,20 +1518,17 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 	 * checkpointed, and no other thread can help with that.
 	 */
 	page = ref->page;
-	if (!LF_ISSET(WT_READ_NO_EVICT) &&
-	    __wt_session_can_wait(session) &&
-	    WT_READGEN_EVICT_SOON(page->read_gen) &&
+	if (WT_READGEN_EVICT_SOON(page->read_gen) &&
 	    btree->evict_disabled == 0 &&
 	    __wt_page_can_evict(session, ref, &inmem_split)) {
-		if (!__wt_page_evict_clean(page) &&
-		    (LF_ISSET(WT_READ_NO_SPLIT) || (!inmem_split &&
-		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))) {
-			if (!WT_SESSION_BTREE_SYNC(session))
-				WT_IGNORE_RET_BOOL(
-				    __wt_page_evict_urgent(session, ref));
-		} else {
-			WT_RET_BUSY_OK(__wt_page_release_evict(session, ref,
-			    flags));
+		if (LF_ISSET(WT_READ_NO_EVICT | WT_READ_NO_SPLIT) ||
+		    (!inmem_split &&
+		    F_ISSET(session, WT_SESSION_NO_RECONCILE)))
+			WT_IGNORE_RET_BOOL(
+			    __wt_page_evict_urgent(session, ref));
+		else {
+			WT_RET_BUSY_OK(
+			    __wt_page_release_evict(session, ref, flags));
 			return (0);
 		}
 	}
