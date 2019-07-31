@@ -511,7 +511,8 @@ __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * and transactional information.
 	 */
 	if (page->modify->page_state < WT_PAGE_DIRTY &&
-	    __wt_atomic_add32(&page->modify->page_state, 1) == WT_PAGE_DIRTY) {
+	    __wt_atomic_add32(&page->modify->page_state, 1) ==
+	    WT_PAGE_DIRTY_FIRST) {
 		__wt_cache_dirty_incr(session, page);
 
 		/*
