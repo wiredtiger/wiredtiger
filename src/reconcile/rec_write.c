@@ -623,7 +623,7 @@ __rec_init(WT_SESSION_IMPL *session,
 	 * update will see this state change.
 	 */
 	page->modify->page_state = WT_PAGE_DIRTY_FIRST;
-	WT_WRITE_BARRIER();
+	WT_FULL_BARRIER();
 
 	/*
 	 * Cache the oldest running transaction ID.  This is used to check
