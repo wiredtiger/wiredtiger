@@ -360,12 +360,12 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 	nentries = (int)tmp;
 
 	/*
-	 * Grow the buffer first. This function is often called using a cursor
-	 * buffer referencing on-page memory and it's easy to overwrite a page.
-	 * A side-effect of growing the buffer is to ensure the buffer's value
-	 * is in buffer-local memory.
+	 * This function is often called using a cursor buffer referencing
+	 * on-page memory and it's easy to overwrite a page. Side-effects
+	 * of initializing the buffer to a size are setting the data field
+	 * and ensuring the buffer's value is in buffer-local memory.
 	 */
-	WT_RET(__wt_buf_grow(session, value, value->size));
+	WT_RET(__wt_buf_init(session, value, value->size));
 
 	/*
 	 * Decrement the size to discard the trailing nul (done after growing
