@@ -587,6 +587,15 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 * Allow the call to be made on clean pages.
 	 */
 	if (__wt_page_is_modified(page)) {
+		/*
+		 * The only parts where ordering matters is during
+		 * reconciliation when updates on other threads are updating the
+		 * page state.
+		 *
+		 * Since clearing is not going to be happening during
+		 * reconciliation on a separate thread, there's no write barrier
+		 * needed here.
+		 */
 		page->modify->page_state = WT_PAGE_CLEAN;
 		__wt_cache_dirty_decr(session, page);
 	}
