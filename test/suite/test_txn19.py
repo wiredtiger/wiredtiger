@@ -53,6 +53,20 @@ def corrupt(fname, truncate, offset, writeit):
         if writeit:
             log.write(writeit)
 
+def copy_for_crash_restart(olddir, newdir):
+    ''' Simulate a crash from olddir and restart in newdir. '''
+    # with the connection still open, copy files to new directory
+    shutil.rmtree(newdir, ignore_errors=True)
+    os.mkdir(newdir)
+    for fname in os.listdir(olddir):
+        fullname = os.path.join(olddir, fname)
+        # Skip lock file on Windows since it is locked
+        if os.path.isfile(fullname) and \
+            "WiredTiger.lock" not in fullname and \
+            "Tmplog" not in fullname and \
+            "Preplog" not in fullname:
+            shutil.copy(fullname, newdir)
+
 class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(archive=false,enabled,file_max=100K),' + \
                   'transaction_sync=(enabled,method=none)'
@@ -157,20 +171,6 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
                 if os.stat(fullname).st_size == 0:
                     self.tty('LOGS ' + msg + ': ' + str(i) + ' is empty')
         self.tty('LOGS ' + msg + ': ' + str(loglist))
-
-    def copy_for_crash_restart(self, olddir, newdir):
-        ''' Simulate a crash from olddir and restart in newdir. '''
-        # with the connection still open, copy files to new directory
-        shutil.rmtree(newdir, ignore_errors=True)
-        os.mkdir(newdir)
-        for fname in os.listdir(olddir):
-            fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
-            if os.path.isfile(fullname) and \
-                "WiredTiger.lock" not in fullname and \
-                "Tmplog" not in fullname and \
-                "Preplog" not in fullname:
-                shutil.copy(fullname, newdir)
 
     # Generate a value that is a bit over half the size of the log file.
     def valuegen(self, i):
@@ -280,7 +280,7 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.uri, self.create_params)
         self.inserts([x for x in range(0, self.nrecords)])
         newdir = "RESTART"
-        self.copy_for_crash_restart(self.home, newdir)
+        copy_for_crash_restart(self.home, newdir)
         self.close_conn()
         #self.show_logs(newdir, 'before corruption')
         self.corrupt_log(newdir)
@@ -346,12 +346,92 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         newdir2 = "RESTART2"
         self.inserts([self.nrecords, self.nrecords + 1])
         expect.extend([self.nrecords, self.nrecords + 1])
-        self.copy_for_crash_restart(newdir, newdir2)
+        copy_for_crash_restart(newdir, newdir2)
         self.checks(expect)
         self.reopen_conn(newdir)
         self.checks(expect)
         self.reopen_conn(newdir2, self.conn_config)
         self.checks(expect)
+
+class test_txn19_turtle(wttest.WiredTigerTestCase, suite_subprocess):
+    base_config = 'log=(archive=false,enabled,file_max=100K),' + \
+                  'transaction_sync=(enabled,method=none)'
+    conn_config = base_config
+
+    corruption_scen = [
+        # Removal of the turtle file is not salvageable, all other
+        # cases are.
+        ('removal', dict(salvageable=False, f=lambda fname:
+            os.remove(fname))),
+        ('truncate', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, True, 0, None))),
+        ('truncate-middle', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, True, 1024 * 25, None))),
+        ('zero-begin', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, False, 0, '\0' * 4096))),
+        ('zero-trunc', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, True, 0, '\0' * 4096))),
+        ('zero-end', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, False, -1, '\0' * 4096))),
+        ('garbage-begin', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, False, 0, 'Bad!' * 1024))),
+        ('garbage-middle', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, False, 1024 * 25, 'Bad!' * 1024))),
+        ('garbage-end', dict(salvageable=True, f=lambda fname:
+            corrupt(fname, False, -1, 'Bad!' * 1024))),
+        ]
+    file = 'WiredTiger.turtle'
+    scenarios = make_scenarios(corruption_scen)
+    uri = 'table:test_txn19_turtle_'
+    ntables = 5
+    create_params = 'key_format=i,value_format=S'
+    nrecords = 1000                                  # records per table.
+    suffixes = [ str(x) for x in range(0, ntables)]  # [ '0', '1', ... ]
+
+    def valuegen(self, i):
+        return str(i) + 'A' * 1024
+
+    # Insert a list of keys
+    def inserts(self, keylist):
+        for suffix in self.suffixes:
+            c = self.session.open_cursor(self.uri + suffix)
+            for i in keylist:
+                c[i] = self.valuegen(i)
+            c.close()
+
+    def checks(self, expectlist):
+        for suffix in self.suffixes:
+            c = self.session.open_cursor(self.uri + suffix, None, None)
+            gotlist = []
+            for key, value in c:
+                gotlist.append(key)
+                self.assertEqual(self.valuegen(key), value)
+            self.assertEqual(expectlist, gotlist)
+            c.close()
+
+    def corrupt_turtle(self, homedir):
+        # Mark this test has having corrupted files
+        self.databaseCorrupted()
+        filename = os.path.join(homedir, self.file)
+        self.f(filename)
+
+    def test_corrupt_turtle(self):
+        for suffix in self.suffixes:
+            self.session.create(self.uri + suffix, self.create_params)
+        newdir = "RESTART"
+        self.inserts(range(0, self.nrecords))
+        copy_for_crash_restart(self.home, newdir)
+        self.close_conn()
+        self.corrupt_turtle(newdir)
+        salvage_config = self.base_config + ',salvage=true'
+        if self.salvageable:
+            self.reopen_conn(newdir, salvage_config)
+            self.checks(range(0, self.nrecords))
+        else:
+            with self.expectedStdoutPattern('unexpected file WiredTiger.wt'):
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.reopen_conn(newdir, salvage_config),
+                    '/.*File exists.*/')
 
 if __name__ == '__main__':
     wttest.run()
