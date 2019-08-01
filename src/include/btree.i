@@ -588,13 +588,14 @@ __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page)
 	 */
 	if (__wt_page_is_modified(page)) {
 		/*
-		 * The only parts where ordering matters is during
-		 * reconciliation when updates on other threads are updating the
-		 * page state.
+		 * The only part where ordering matters is during
+		 * reconciliation where updates on other threads are performing
+		 * writes to the page state that need to be visible to the
+		 * reconciliation thread.
 		 *
-		 * Since clearing is not going to be happening during
-		 * reconciliation on a separate thread, there's no write barrier
-		 * needed here.
+		 * Since clearing of the page state is not going to be happening
+		 * during reconciliation on a separate thread, there's no write
+		 * barrier needed here.
 		 */
 		page->modify->page_state = WT_PAGE_CLEAN;
 		__wt_cache_dirty_decr(session, page);
