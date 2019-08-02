@@ -103,7 +103,7 @@ static int
 __modify_apply_one(
     WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, bool sformat)
 {
-	size_t data_size, len, offset, size;
+	size_t data_size, item_offset, offset, size;
 	const uint8_t *data, *from;
 	uint8_t *to;
 
@@ -125,16 +125,17 @@ __modify_apply_one(
 	 * start at the start of the buffer's memory and we have to correct for
 	 * that.
 	 */
-	len = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
-	WT_RET(__wt_buf_grow(session, value,
-	    len + WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
+	item_offset =
+	    WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
+	WT_RET(__wt_buf_grow(session, value, item_offset +
+	    WT_MAX(value->size, offset) + data_size + (sformat ? 1 : 0)));
 
 	/*
 	 * Fast-path the common case, where we're overwriting a set of bytes
 	 * that already exist in the buffer.
 	 */
 	if (value->size > offset + data_size && data_size == size) {
-		memcpy((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->data + offset, data, data_size);
 		return (0);
 	}
 
@@ -143,12 +144,10 @@ __modify_apply_one(
 	 * and copy the new bytes into place.
 	 */
 	if (value->size <= offset) {
-		WT_ASSERT(session,
-		    offset + data_size + (sformat ? 1 : 0) <= value->memsize);
 		if (value->size < offset)
-			memset((uint8_t *)value->mem + value->size,
+			memset((uint8_t *)value->data + value->size,
 			    sformat ? ' ' : 0, offset - value->size);
-		memcpy((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->data + offset, data, data_size);
 		value->size = offset + data_size;
 		return (0);
 	}
@@ -166,7 +165,7 @@ __modify_apply_one(
 
 	if (data_size == size) {			/* Overwrite */
 		/* Copy in the new data. */
-		memcpy((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->data + offset, data, data_size);
 
 		/*
 		 * The new data must overlap the buffer's end (else, we'd use
@@ -180,14 +179,14 @@ __modify_apply_one(
 		WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
 		    from + (value->size - (offset + size)) <=
 		    (uint8_t *)value->mem + value->memsize);
-		to = (uint8_t *)value->mem + (offset + data_size);
+		to = (uint8_t *)value->data + (offset + data_size);
 		WT_ASSERT(session, WT_DATA_IN_ITEM(value) &&
 		    to + (value->size - (offset + size)) <=
 		    (uint8_t *)value->mem + value->memsize);
 		memmove(to, from, value->size - (offset + size));
 
 		/* Copy in the new data. */
-		memcpy((uint8_t *)value->mem + offset, data, data_size);
+		memcpy((uint8_t *)value->data + offset, data, data_size);
 
 		/*
 		 * Correct the size. This works because of how the C standard
@@ -243,7 +242,7 @@ __modify_fast_path(
 
 		if (fastpath && current.data.size == current.size &&
 		    current.offset + current.size <= value->size) {
-			memcpy((uint8_t *)value->mem + current.offset,
+			memcpy((uint8_t *)value->data + current.offset,
 			    current.data.data, current.data.size);
 			++(*nappliedp);
 			continue;
@@ -309,15 +308,15 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value,
 	uint8_t *to;
 
 	from = (const uint8_t *)value->data + value->size;
-	to = (uint8_t *)value->mem + destsz;
+	to = (uint8_t *)value->data + destsz;
 	WT_MODIFY_FOREACH_REVERSE(current, p, nentries, napplied, datasz) {
 		/* Move the current unmodified block into place if necessary. */
-		sz = WT_PTRDIFF(to, value->mem) -
+		sz = WT_PTRDIFF(to, value->data) -
 		    (current.offset + current.data.size);
 		from -= sz;
 		to -= sz;
 		WT_ASSERT(session, from >= (const uint8_t *)value->data &&
-		    to >= (uint8_t *)value->mem);
+		    to >= (uint8_t *)value->data);
 		WT_ASSERT(session,
 		    from + sz <= (const uint8_t *)value->data + value->size);
 
@@ -342,7 +341,7 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 	WT_ITEM *value;
 	WT_MODIFY mod;
 	WT_SESSION_IMPL *session;
-	size_t datasz, destsz, tmp;
+	size_t datasz, destsz, item_offset, tmp;
 	const size_t *p;
 	int napplied, nentries;
 	bool overlap, sformat;
@@ -364,8 +363,14 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 	 * buffer referencing on-page memory and it's easy to overwrite a page.
 	 * A side-effect of growing the buffer is to ensure the buffer's value
 	 * is in buffer-local memory.
+	 *
+	 * Because the buffer may reference an overflow item, the data may not
+	 * start at the start of the buffer's memory and we have to correct for
+	 * that.
 	 */
-	WT_RET(__wt_buf_grow(session, value, value->size));
+	item_offset = WT_DATA_IN_ITEM(value) ?
+	    WT_PTRDIFF(value->data, value->mem) : 0;
+	WT_RET(__wt_buf_grow(session, value, item_offset + value->size));
 
 	/*
 	 * Decrement the size to discard the trailing nul (done after growing
@@ -381,8 +386,8 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 		goto done;
 
 	if (!overlap) {
-		/* Grow the buffer first. */
-		WT_RET(__wt_buf_grow(session, value,
+		/* Grow the buffer first, correcting for the data offset. */
+		WT_RET(__wt_buf_grow(session, value, item_offset +
 		    WT_MAX(destsz, value->size) + (sformat ? 1 : 0)));
 
 		__modify_apply_no_overlap(
