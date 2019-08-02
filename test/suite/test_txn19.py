@@ -428,8 +428,11 @@ class test_txn19_turtle(wttest.WiredTigerTestCase, suite_subprocess):
             self.reopen_conn(newdir, salvage_config)
             self.checks(range(0, self.nrecords))
         else:
-            with self.expectedStdoutPattern('unexpected file WiredTiger.wt'):
-                # There may or may not be a message associated with the error.
+            # Certain cases are not currently salvageable, they result in
+            # an error during the wiredtiger_open.  But the nature of the
+            # messages produced during the error is variable from system
+            # to system.
+            with self.expectedStdoutPattern('.'):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(newdir, salvage_config),
                     '/.*/')
