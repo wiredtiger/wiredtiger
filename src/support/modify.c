@@ -221,8 +221,10 @@ __modify_fast_path(
 	bool fastpath, first;
 
 	*overlapp = true;
+
 	datasz = destoff = 0;
 	WT_CLEAR(current);
+	WT_CLEAR(prev);			/* [-Werror=maybe-uninitialized] */
 
 	/*
 	 * If the modifications are sorted and don't overlap in the old or new
