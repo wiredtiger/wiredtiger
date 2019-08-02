@@ -442,14 +442,15 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         for suffix in self.suffixes:
             self.session.create(self.uri + suffix, self.create_params)
         newdir = "RESTART"
-        self.inserts(range(0, self.nrecords))
+        expect = list(range(0, self.nrecords))
+        self.inserts(expect)
         copy_for_crash_restart(self.home, newdir)
         self.close_conn()
         self.corrupt_meta(newdir)
         salvage_config = self.base_config + ',salvage=true'
         if self.salvageable():
             self.reopen_conn(newdir, salvage_config)
-            self.checks(range(0, self.nrecords))
+            self.checks(expect)
         else:
             # Certain cases are not currently salvageable, they result in
             # an error during the wiredtiger_open.  But the nature of the
