@@ -429,9 +429,10 @@ class test_txn19_turtle(wttest.WiredTigerTestCase, suite_subprocess):
             self.checks(range(0, self.nrecords))
         else:
             with self.expectedStdoutPattern('unexpected file WiredTiger.wt'):
+                # There may or may not be a message associated with the error.
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(newdir, salvage_config),
-                    '/.*File exists.*/')
+                    '/.*/')
 
 if __name__ == '__main__':
     wttest.run()
