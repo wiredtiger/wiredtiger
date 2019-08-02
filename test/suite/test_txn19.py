@@ -353,36 +353,55 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         self.reopen_conn(newdir2, self.conn_config)
         self.checks(expect)
 
-class test_txn19_turtle(wttest.WiredTigerTestCase, suite_subprocess):
+class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'log=(archive=false,enabled,file_max=100K),' + \
                   'transaction_sync=(enabled,method=none)'
     conn_config = base_config
 
+    # The type of corruption to be applied
     corruption_scen = [
-        # Removal of the turtle file is not salvageable, all other
-        # cases are.
-        ('removal', dict(salvageable=False, f=lambda fname:
+        ('removal', dict(kind='removal', f=lambda fname:
             os.remove(fname))),
-        ('truncate', dict(salvageable=True, f=lambda fname:
+        ('truncate', dict(kind='truncate', f=lambda fname:
             corrupt(fname, True, 0, None))),
-        ('truncate-middle', dict(salvageable=True, f=lambda fname:
+        ('truncate-middle', dict(kind='truncate-middle', f=lambda fname:
             corrupt(fname, True, 1024 * 25, None))),
-        ('zero-begin', dict(salvageable=True, f=lambda fname:
+        ('zero-begin', dict(kind='zero', f=lambda fname:
             corrupt(fname, False, 0, '\0' * 4096))),
-        ('zero-trunc', dict(salvageable=True, f=lambda fname:
+        ('zero-trunc', dict(kind='zero', f=lambda fname:
             corrupt(fname, True, 0, '\0' * 4096))),
-        ('zero-end', dict(salvageable=True, f=lambda fname:
+        ('zero-end', dict(kind='zero-end', f=lambda fname:
             corrupt(fname, False, -1, '\0' * 4096))),
-        ('garbage-begin', dict(salvageable=True, f=lambda fname:
+        ('garbage-begin', dict(kind='garbage-begin', f=lambda fname:
             corrupt(fname, False, 0, 'Bad!' * 1024))),
-        ('garbage-middle', dict(salvageable=True, f=lambda fname:
+        ('garbage-middle', dict(kind='garbage-middle', f=lambda fname:
             corrupt(fname, False, 1024 * 25, 'Bad!' * 1024))),
-        ('garbage-end', dict(salvageable=True, f=lambda fname:
+        ('garbage-end', dict(kind='garbage-end', f=lambda fname:
             corrupt(fname, False, -1, 'Bad!' * 1024))),
-        ]
-    file = 'WiredTiger.turtle'
-    scenarios = make_scenarios(corruption_scen)
-    uri = 'table:test_txn19_turtle_'
+    ]
+    # File to be corrupted
+    filename_scen = [
+        ('WiredTiger', dict(filename='WiredTiger')),
+        ('WiredTiger.basecfg', dict(filename='WiredTiger.basecfg')),
+        ('WiredTiger.turtle', dict(filename='WiredTiger.turtle')),
+        ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
+        ('WiredTigerLAS.wt', dict(filename='WiredTigerLAS.wt')),
+    ]
+
+    # The cases for which salvage will not work, represented in the
+    # form (self.kind + ':' + self.filename)
+    not_salvageable = [
+        "removal:WiredTiger.turtle",
+        "removal:WiredTiger.wt",
+        "truncate:WiredTiger.wt",
+        "zero:WiredTiger.wt",
+        "garbage-begin:WiredTiger.basecfg",
+        "garbage-begin:WiredTiger.wt",
+        "garbage-end:WiredTiger.basecfg",
+    ]
+
+    scenarios = make_scenarios(corruption_scen, filename_scen)
+    uri = 'table:test_txn19_meta_'
     ntables = 5
     create_params = 'key_format=i,value_format=S'
     nrecords = 1000                                  # records per table.
@@ -409,29 +428,33 @@ class test_txn19_turtle(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(expectlist, gotlist)
             c.close()
 
-    def corrupt_turtle(self, homedir):
+    def corrupt_meta(self, homedir):
         # Mark this test has having corrupted files
         self.databaseCorrupted()
-        filename = os.path.join(homedir, self.file)
+        filename = os.path.join(homedir, self.filename)
         self.f(filename)
 
-    def test_corrupt_turtle(self):
+    def salvageable(self):
+        key = self.kind + ':' + self.filename
+        return key not in self.not_salvageable
+
+    def test_corrupt_meta(self):
         for suffix in self.suffixes:
             self.session.create(self.uri + suffix, self.create_params)
         newdir = "RESTART"
         self.inserts(range(0, self.nrecords))
         copy_for_crash_restart(self.home, newdir)
         self.close_conn()
-        self.corrupt_turtle(newdir)
+        self.corrupt_meta(newdir)
         salvage_config = self.base_config + ',salvage=true'
-        if self.salvageable:
+        if self.salvageable():
             self.reopen_conn(newdir, salvage_config)
             self.checks(range(0, self.nrecords))
         else:
             # Certain cases are not currently salvageable, they result in
             # an error during the wiredtiger_open.  But the nature of the
-            # messages produced during the error is variable from system
-            # to system.
+            # messages produced during the error is variable by which case
+            # it is, and even variable from system to system.
             with self.expectedStdoutPattern('.'):
                 self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                     lambda: self.reopen_conn(newdir, salvage_config),
