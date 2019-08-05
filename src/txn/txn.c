@@ -662,8 +662,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  *	non-null cursor pointer in the cursors array.
  */
 static inline int
-__txn_commit_timestamps_assert(
-    WT_SESSION_IMPL *session, WT_CURSOR **cursors)
+__txn_commit_timestamps_assert(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -827,7 +826,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	cursors = NULL;
 	if (txn->mod_count != 0)
 		WT_ERR(__wt_calloc(
-		    session, sizeof(WT_CURSOR*), txn->mod_count, &cursors));
+		    session, sizeof(WT_CURSOR *), txn->mod_count, &cursors));
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -876,8 +875,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
 
-	WT_ERR(__txn_commit_timestamps_assert(
-	    session, cursors));
+	WT_ERR(__txn_commit_timestamps_assert(session, cursors));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -1047,6 +1045,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		if (cursor != NULL)
 			WT_IGNORE_RET(cursor->close(cursor));
 	}
+	__wt_free(session, cursors);
 
 	txn->mod_count = 0;
 
