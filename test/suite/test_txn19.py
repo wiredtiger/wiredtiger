@@ -359,7 +359,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = base_config
 
     # The type of corruption to be applied
-    corruption_scenario = [
+    corruption_scenarios = [
         ('removal', dict(kind='removal', f=lambda fname:
             os.remove(fname))),
         ('truncate', dict(kind='truncate', f=lambda fname:
@@ -380,7 +380,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
             corrupt(fname, False, -1, 'Bad!' * 1024))),
     ]
     # File to be corrupted
-    filename_scenario = [
+    filename_scenarios = [
         ('WiredTiger', dict(filename='WiredTiger')),
         ('WiredTiger.basecfg', dict(filename='WiredTiger.basecfg')),
         ('WiredTiger.turtle', dict(filename='WiredTiger.turtle')),
@@ -435,7 +435,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "garbage-end:WiredTiger.basecfg",
     ]
 
-    scenarios = make_scenarios(corruption_scenario, filename_scenario)
+    scenarios = make_scenarios(corruption_scenarios, filename_scenarios)
     uri = 'table:test_txn19_meta_'
     ntables = 5
     create_params = 'key_format=i,value_format=S'
