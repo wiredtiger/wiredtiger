@@ -797,6 +797,27 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
 }
 
 /*
+ * __txn_commit_free_cursors --
+ *	Close an array of cursors and free the underlying buffer.
+ */
+static void
+__txn_commit_free_cursors(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
+{
+	WT_CURSOR *cursor;
+	WT_TXN *txn;
+	u_int i;
+
+	txn = &session->txn;
+
+	for (i = 0; i < txn->mod_count; ++i) {
+		cursor = cursors[i];
+		if (cursor != NULL)
+			WT_IGNORE_RET(cursor->close(cursor));
+	}
+	__wt_free(session, cursors);
+}
+
+/*
  * __wt_txn_commit --
  *	Commit the current transaction.
  */
@@ -805,7 +826,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR *cursor;
 	WT_CURSOR **cursors;
 	WT_DECL_RET;
 	WT_TXN *txn;
@@ -1040,12 +1060,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
-	for (i = 0; i < txn->mod_count; ++i) {
-		cursor = cursors[i];
-		if (cursor != NULL)
-			WT_IGNORE_RET(cursor->close(cursor));
-	}
-	__wt_free(session, cursors);
+	__txn_commit_free_cursors(session, cursors);
 
 	txn->mod_count = 0;
 
@@ -1106,6 +1121,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 
 err:
+	__txn_commit_free_cursors(session, cursors);
+
 	/*
 	 * If anything went wrong, roll back.
 	 *
