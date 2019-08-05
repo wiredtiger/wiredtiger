@@ -521,7 +521,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         if expect_fail:
             self.check_file_contains_one_of(errfile,
                 ['/unknown configuration key/',
-                '/handle-open: open:/',
+                '/handle-open:/',
                 '/turtle file read error: WT_NOTFOUND: item not found/',
                 'WT_ERROR: non-specific WiredTiger error',
                 'WT_TRY_SALVAGE: database corruption detected'])
