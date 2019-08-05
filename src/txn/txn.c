@@ -663,7 +663,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static inline int
 __txn_commit_timestamps_assert(
-    WT_SESSION_IMPL *session, WT_CURSOR **cursors, size_t cursors_len)
+    WT_SESSION_IMPL *session, WT_CURSOR **cursors)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
@@ -671,7 +671,6 @@ __txn_commit_timestamps_assert(
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
 	wt_timestamp_t op_timestamp;
-	size_t cursor_index;
 	u_int i;
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
@@ -713,7 +712,6 @@ __txn_commit_timestamps_assert(
 	 * Error on any valid update structures for the same key that
 	 * are at a later timestamp or use timestamps inconsistently.
 	 */
-	cursor_index = 0;
 	for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
 		if (op->type == WT_TXN_OP_BASIC_COL ||
 		    op->type == WT_TXN_OP_BASIC_ROW) {
@@ -722,14 +720,10 @@ __txn_commit_timestamps_assert(
 			 * restored, if moved to lookaside.
 			 */
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
-				if (cursor_index >= cursors_len)
-					WT_RET_MSG(session, EINVAL,
-					    "prepared update has unreasonably "
-					    "long update list");
 				WT_RET(__wt_open_cursor(session,
 				    op->btree->dhandle->name, NULL,
-				    open_cursor_cfg, &cursors[cursor_index]));
-				cursor = cursors[cursor_index++];
+				    open_cursor_cfg, &cursors[i]));
+				cursor = cursors[i];
 				F_CLR(txn, WT_TXN_PREPARE);
 				if (op->type == WT_TXN_OP_BASIC_ROW)
 					__wt_cursor_set_raw_key(
@@ -813,7 +807,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
 	WT_CURSOR *cursor;
-	WT_CURSOR *cursors[WT_MAX_MODIFY_UPDATE * WT_THOUSAND];
+	WT_CURSOR **cursors;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
@@ -830,7 +824,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	locked = skip_update_assert = false;
 	resolved_update_count = visited_update_count = 0;
-	memset(&cursors, 0, sizeof(cursors));
+	cursors = NULL;
+	if (txn->mod_count != 0)
+		WT_ERR(__wt_calloc(
+		    session, sizeof(WT_CURSOR*), txn->mod_count, &cursors));
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -880,7 +877,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		    txn->commit_timestamp <= txn->durable_timestamp);
 
 	WT_ERR(__txn_commit_timestamps_assert(
-	    session, cursors, sizeof(cursors)));
+	    session, cursors));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -1045,7 +1042,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
-	for (i = 0; i < sizeof(cursors); ++i) {
+	for (i = 0; i < txn->mod_count; ++i) {
 		cursor = cursors[i];
 		if (cursor == NULL)
 			break;
