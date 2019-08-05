@@ -659,12 +659,14 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  *	For prepared transactions, this function will open cursors to mutate the
  *	update list with pointers to uncommitted data. After they are finished
  *	with the update list, the caller is responsible for closing every
- *	non-null cursor pointer in the cursors array.
+ *	non-null cursor pointer in the cursors array and freeing the underlying
+ *	buffer.
  */
 static inline int
-__txn_commit_timestamps_assert(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
+__txn_commit_timestamps_assert(
+    WT_SESSION_IMPL *session, WT_CURSOR ***cursor_buf)
 {
-	WT_CURSOR *cursor;
+	WT_CURSOR *cursor, **cursors;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
@@ -706,6 +708,13 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
 	 */
 	if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_KEYS))
 		return (0);
+
+	cursors = NULL;
+	if (txn->mod_count != 0) {
+		WT_RET(__wt_calloc(
+		    session, sizeof(WT_CURSOR *), txn->mod_count, cursor_buf));
+		cursors = *cursor_buf;
+	}
 
 	/*
 	 * Error on any valid update structures for the same key that
@@ -844,9 +853,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	locked = skip_update_assert = false;
 	resolved_update_count = visited_update_count = 0;
 	cursors = NULL;
-	if (txn->mod_count != 0)
-		WT_ERR(__wt_calloc(
-		    session, sizeof(WT_CURSOR *), txn->mod_count, &cursors));
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -895,7 +901,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
 
-	WT_ERR(__txn_commit_timestamps_assert(session, cursors));
+	WT_ERR(__txn_commit_timestamps_assert(session, &cursors));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -1059,8 +1065,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
-
-	__txn_commit_free_cursors(session, cursors);
+	if (cursors != NULL)
+		__txn_commit_free_cursors(session, cursors);
 
 	txn->mod_count = 0;
 
@@ -1121,7 +1127,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 
 err:
-	__txn_commit_free_cursors(session, cursors);
+	if (cursors != NULL)
+		__txn_commit_free_cursors(session, cursors);
 
 	/*
 	 * If anything went wrong, roll back.
