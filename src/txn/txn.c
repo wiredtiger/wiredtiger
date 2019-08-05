@@ -1044,9 +1044,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 	for (i = 0; i < txn->mod_count; ++i) {
 		cursor = cursors[i];
-		if (cursor == NULL)
-			break;
-		WT_IGNORE_RET(cursor->close(cursor));
+		if (cursor != NULL)
+			WT_IGNORE_RET(cursor->close(cursor));
 	}
 
 	txn->mod_count = 0;
