@@ -491,7 +491,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Simulate a crash by copying the contents of the directory
         # before closing.  After we corrupt the copy, make another
-        # copy of the correupted directory.
+        # copy of the corrupted directory.
         #
         # The first corrupted copy will be used to run:
         #    wiredtiger_open without salvage flag, followed by:
