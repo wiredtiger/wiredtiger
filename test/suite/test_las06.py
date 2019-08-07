@@ -11,7 +11,7 @@ def timestamp_str(t):
 # The required value should be fetched from lookaside and then passed straight
 # back to the user without putting together an update chain.
 #
-# TODO: Uncomment the checks after the main portion of the relevant history
+# TODO: Tweak the checks after the main portion of the relevant history
 # project work is complete.
 class test_las06(wttest.WiredTigerTestCase):
     # Force a small cache.
@@ -72,11 +72,28 @@ class test_las06(wttest.WiredTigerTestCase):
         end_usage = self.get_non_page_image_memory_usage()
 
         # We expect to have used lookaside when reading historical data.
-        self.assertNotEqual(self.get_lookaside_usage(), 0)
+        #
+        # Prior to this change, this type of workload will cause every lookaside
+        # entry for a given page to get read in. Now that we're only reading the
+        # lookaside entry that we need, we expect to see comparatively fewer
+        # reads from lookaside.
+        #
+        # TODO: Set the upper bound to something smaller once the project work
+        # is done. At the time of writing, I get ~1500 lookaside reads for this
+        # workload.
+        las_usage = self.get_lookaside_usage()
+        self.assertNotEqual(las_usage, 0)
+        self.assertLess(las_usage, 2000)
 
         # Non-page related memory usage shouldn't spike significantly.
+        #
         # Prior to this change, this type of workload would use a lot of memory
         # to recreate update lists for each page.
+        #
+        # This check could be more aggressive but to avoid potential flakiness,
+        # lets just ensure that it hasn't doubled.
+        #
+        # TODO: Uncomment this once the project work is done.
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
 if __name__ == '__main__':
