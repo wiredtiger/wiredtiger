@@ -74,8 +74,8 @@ class test_las06(wttest.WiredTigerTestCase):
         # We expect to have used lookaside when reading historical data.
         #
         # Prior to this change, this type of workload will cause every lookaside
-        # entry for a given page to get read in. Now that we're only reading the
-        # lookaside entry that we need, we expect to see comparatively fewer
+        # entry for a given value to get read in. Now that we're only reading
+        # the lookaside entry that we need, we expect to see comparatively fewer
         # reads from lookaside.
         #
         # TODO: Set the upper bound to something smaller once the project work
