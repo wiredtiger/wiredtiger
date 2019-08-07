@@ -11,7 +11,7 @@ def timestamp_str(t):
 # The required value should be fetched from lookaside and then passed straight
 # back to the user without putting together an update chain.
 #
-# TODO: Tweak the checks after the main portion of the relevant history
+# TODO: Uncomment the checks after the main portion of the relevant history
 # project work is complete.
 class test_las06(wttest.WiredTigerTestCase):
     # Force a small cache.
@@ -26,9 +26,6 @@ class test_las06(wttest.WiredTigerTestCase):
 
     def get_non_page_image_memory_usage(self):
         return self.get_stat(stat.conn.cache_bytes_other)
-
-    def get_lookaside_usage(self):
-        return self.get_stat(stat.conn.cache_read_lookaside)
 
     def test_las_reads_workload(self):
         # Create a small table.
@@ -58,9 +55,6 @@ class test_las06(wttest.WiredTigerTestCase):
 
         start_usage = self.get_non_page_image_memory_usage()
 
-        # We haven't used much lookaside yet.
-        self.assertLess(self.get_lookaside_usage(), 100)
-
         # Whenever we request something out of cache of timestamp 2, we should
         # be reading it straight from lookaside without initialising a full
         # update chain of every version of the data.
@@ -70,20 +64,6 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         end_usage = self.get_non_page_image_memory_usage()
-
-        # We expect to have used lookaside when reading historical data.
-        #
-        # Prior to this change, this type of workload will cause every lookaside
-        # entry for a given value to get read in. Now that we're only reading
-        # the lookaside entry that we need, we expect to see comparatively fewer
-        # reads from lookaside.
-        #
-        # TODO: Set the upper bound to something smaller once the project work
-        # is done. At the time of writing, I get ~1500 lookaside reads for this
-        # workload.
-        las_usage = self.get_lookaside_usage()
-        self.assertNotEqual(las_usage, 0)
-        self.assertLess(las_usage, 2000)
 
         # Non-page related memory usage shouldn't spike significantly.
         #
