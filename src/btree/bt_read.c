@@ -98,7 +98,6 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session,
 	ref = cbt->ref;
 	las_pageid = ref->page_las->las_pageid;
 	key = &cbt->iface.key;
-	upd_visible = false;
 	*updp = upd = NULL;
 
 	/* Open a lookaside table cursor. */
