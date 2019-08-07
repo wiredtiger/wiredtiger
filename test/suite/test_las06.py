@@ -30,7 +30,7 @@ class test_las06(wttest.WiredTigerTestCase):
     def get_lookaside_usage(self):
         return self.get_stat(stat.conn.cache_read_lookaside)
 
-    def test_checkpoint_las_reads(self):
+    def test_las_reads_workload(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format=i,value_format=S,'
@@ -58,8 +58,8 @@ class test_las06(wttest.WiredTigerTestCase):
 
         start_usage = self.get_non_page_image_memory_usage()
 
-        # We haven't used lookaside yet.
-        self.assertEqual(self.get_lookaside_usage(), 0)
+        # We haven't used much lookaside yet.
+        self.assertLess(self.get_lookaside_usage(), 100)
 
         # Whenever we request something out of cache of timestamp 2, we should
         # be reading it straight from lookaside without initialising a full
