@@ -1128,6 +1128,9 @@ struct __wt_update {
 	 */
 	volatile uint8_t prepare_state;	/* prepare state */
 
+	/* Temp: Remove after integrating las cursors with btree cursors */
+	bool ext;
+
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the
 	 * WT_UPDATE structure.  We use a C99 flexible array member which has
@@ -1140,7 +1143,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data --
  * we verify the build to ensure the compiler hasn't inserted padding.
  */
-#define	WT_UPDATE_SIZE	38
+#define	WT_UPDATE_SIZE	39
 
 /*
  * The memory size of an update: include some padding because this is such a

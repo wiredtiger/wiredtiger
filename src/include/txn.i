@@ -873,8 +873,10 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *	Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
+__wt_txn_read(WT_SESSION_IMPL *session,
+    WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
+	WT_UPDATE *tmp_upd;
 	static WT_UPDATE tombstone = {
 		.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE
 	};
@@ -894,6 +896,32 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
 		/* An invisible birthmark is equivalent to a tombstone. */
 		if (upd->type == WT_UPDATE_BIRTHMARK)
 			skipped_birthmark = true;
+	}
+
+	/*
+	 * If there is a related lookaside entry, find it and try matching the
+	 * in-memory record.
+	 */
+	if (upd != NULL && cbt->ref->page_las != NULL &&
+	    __wt_find_lookaside_upd(session, cbt, &tmp_upd, true) == 0) {
+		/* It is okay to locate an older update in lookaside */
+		WT_ASSERT(session, upd->start_ts >= tmp_upd->start_ts);
+
+		if (upd->start_ts == tmp_upd->start_ts) {
+			/*
+			 * If we located the correct record, the contents should
+			 * be the same and we can use the record from lookaside.
+			 */
+			WT_ASSERT(session, (upd->size == tmp_upd->size &&
+			    memcmp(upd->data, tmp_upd->data, upd->size) == 0));
+			upd = tmp_upd;
+			/*
+			 * Mark this update as external and to be discarded
+			 * when not needed.
+			 */
+			upd->ext = true;
+		} else
+			__wt_free_update_list(session, tmp_upd);
 	}
 
 	if (upd == NULL && skipped_birthmark)

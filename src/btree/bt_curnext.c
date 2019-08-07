@@ -62,7 +62,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 		cbt->v = 0;
 		cbt->iface.value.data = &cbt->v;
 	} else {
-restart_read:	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+restart_read:	WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
 		if (upd == NULL) {
 			cbt->v = 0;
 			cbt->iface.value.data = &cbt->v;
@@ -116,7 +116,7 @@ new_page:
 	if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
 		cbt->ins = NULL;
 	if (cbt->ins != NULL)
-restart_read:	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+restart_read:	WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
 	if (upd == NULL) {
 		cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
 		cbt->iface.value.data = &cbt->v;
@@ -153,7 +153,7 @@ new_page:	if (cbt->ins == NULL)
 			return (WT_NOTFOUND);
 
 		__cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-restart_read:	WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+restart_read:	WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
 		if (upd == NULL)
 			continue;
 		if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -226,7 +226,8 @@ restart_read:
 		cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
 		upd = NULL;
 		if (cbt->ins != NULL)
-			WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
+			WT_RET(__wt_txn_read(session,
+			    cbt, cbt->ins->upd, &upd));
 		if (upd != NULL) {
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
 				if (upd->txnid != WT_TXN_NONE &&
@@ -359,7 +360,7 @@ new_insert:
 		cbt->iter_retry = WT_CBT_RETRY_INSERT;
 restart_read_insert:
 		if ((ins = cbt->ins) != NULL) {
-			WT_RET(__wt_txn_read(session, ins->upd, &upd));
+			WT_RET(__wt_txn_read(session, cbt, ins->upd, &upd));
 			if (upd == NULL)
 				continue;
 			if (upd->type == WT_UPDATE_TOMBSTONE) {
@@ -395,7 +396,8 @@ restart_read_insert:
 		cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
 		rip = &page->pg_row[cbt->slot];
-		WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
+		WT_RET(__wt_txn_read(session,
+		    cbt, WT_ROW_UPDATE(page, rip), &upd));
 		if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
 			if (upd->txnid != WT_TXN_NONE &&
 			    __wt_txn_upd_visible_all(session, upd))

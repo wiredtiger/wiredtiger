@@ -155,9 +155,16 @@ __wt_value_return_upd(WT_SESSION_IMPL *session,
 	 * Fast path if it's a standard item, assert our caller's behavior.
 	 */
 	if (upd->type == WT_UPDATE_STANDARD) {
-		cursor->value.data = upd->data;
-		cursor->value.size = upd->size;
-		return (0);
+		if (upd->ext) {
+			/* Copy an external update, and delete after using it */
+			ret = __wt_buf_set(session,
+			    &cursor->value, upd->data, upd->size);
+			__wt_free_update_list(session, upd);
+		} else {
+			cursor->value.data = upd->data;
+			cursor->value.size = upd->size;
+		}
+		return (ret);
 	}
 	WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY);
 
