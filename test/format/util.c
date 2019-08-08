@@ -330,6 +330,12 @@ path_setup(const char *home)
 	g.home_log = dmalloc(len);
 	testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, "log"));
 
+	/* Page dump file. */
+	len = strlen(g.home) + strlen("pagedump") + 2;
+	g.home_pagedump = dmalloc(len);
+	testutil_check(__wt_snprintf(
+	    g.home_pagedump, len, "%s/%s", g.home, "pagedump"));
+
 	/* RNG log file. */
 	len = strlen(g.home) + strlen("rand") + 2;
 	g.home_rand = dmalloc(len);
@@ -347,12 +353,6 @@ path_setup(const char *home)
 	g.home_stats = dmalloc(len);
 	testutil_check(__wt_snprintf(
 	    g.home_stats, len, "%s/%s", g.home, "stats"));
-
-	/* Tree dump file. */
-	len = strlen(g.home) + strlen("pagedump") + 2;
-	g.home_pagedump = dmalloc(len);
-	testutil_check(__wt_snprintf(
-	    g.home_pagedump, len, "%s/%s", g.home, "pagedump"));
 
 	/*
 	 * Home directory initialize command: create the directory if it doesn't
