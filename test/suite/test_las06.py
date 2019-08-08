@@ -33,8 +33,8 @@ class test_las06(wttest.WiredTigerTestCase):
         create_params = 'key_format=i,value_format=S,'
         self.session.create(uri, create_params)
 
-        value1 = b'a' * 500
-        value2 = b'b' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
 
         # Fill up the cache with 50Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
