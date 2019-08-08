@@ -178,6 +178,11 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	}
 
 	/* Things went pear-shaped. */
+#ifdef HAVE_DIAGNOSTIC
+	fprintf(stderr,
+	    "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
+	testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
+#endif
 	switch (g.type) {
 	case FIX:
 		testutil_die(ret,

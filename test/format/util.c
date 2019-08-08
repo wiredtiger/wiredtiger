@@ -330,6 +330,12 @@ path_setup(const char *home)
 	g.home_log = dmalloc(len);
 	testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, "log"));
 
+	/* Page dump file. */
+	len = strlen(g.home) + strlen("pagedump") + 2;
+	g.home_pagedump = dmalloc(len);
+	testutil_check(__wt_snprintf(
+	    g.home_pagedump, len, "%s/%s", g.home, "pagedump"));
+
 	/* RNG log file. */
 	len = strlen(g.home) + strlen("rand") + 2;
 	g.home_rand = dmalloc(len);

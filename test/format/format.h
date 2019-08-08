@@ -70,6 +70,7 @@ typedef struct {
 	char *home_config;			/* Run CONFIG file path */
 	char *home_init;			/* Initialize home command */
 	char *home_log;				/* Operation log file path */
+	char *home_pagedump;			/* Page dump filename */
 	char *home_rand;			/* RNG log file path */
 	char *home_salvage_copy;		/* Salvage copy command */
 	char *home_stats;			/* Statistics file path */
