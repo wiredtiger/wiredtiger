@@ -900,9 +900,11 @@ __wt_txn_read(WT_SESSION_IMPL *session,
 
 	/*
 	 * If there is a related lookaside entry, find it and try matching the
-	 * in-memory record.
+	 * in-memory record. The following conditions will be refined in the
+	 * future once we make the change to stop initializing a page using
+	 * lookaside.
 	 */
-	if (upd != NULL && cbt->ref->page_las != NULL &&
+	if (upd != NULL && upd->txnid != 0 && cbt->ref->page_las != NULL &&
 	    __wt_find_lookaside_upd(session, cbt, &tmp_upd, true) == 0) {
 		/* It is okay to locate an older update in lookaside */
 		WT_ASSERT(session, upd->start_ts >= tmp_upd->start_ts);
