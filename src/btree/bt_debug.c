@@ -658,30 +658,6 @@ __wt_debug_tree_all(
 }
 
 /*
- * __wt_debug_tree_cursor --
- *	Dump the in-memory information for a tree, including leaf pages
- *	starting from a user's cursor and the root of the tree.
- */
-int
-__wt_debug_tree_cursor(WT_CURSOR *cursor, const char *ofile)
-    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-	WT_CURSOR_BTREE *cbt;
-	WT_DECL_RET;
-	WT_SESSION_IMPL *session;
-
-	session = (WT_SESSION_IMPL *)cursor->session;
-	cbt = (WT_CURSOR_BTREE *)cursor;
-
-	/*
-	 * Dump only the cursor referenced page.
-	 */
-	WT_WITH_BTREE(session, cbt->btree, ret = __wt_debug_page(
-	    session, NULL, cbt->ref, ofile));
-	return (ret);
-}
-
-/*
  * __wt_debug_tree --
  *	Dump the in-memory information for a tree, not including leaf pages.
  */
@@ -742,6 +718,7 @@ __wt_debug_page(
  */
 int
 __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
+    WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
 	WT_CURSOR *cursor;
 	WT_CURSOR_BTREE *cbt;

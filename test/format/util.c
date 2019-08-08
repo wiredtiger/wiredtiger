@@ -349,10 +349,10 @@ path_setup(const char *home)
 	    g.home_stats, len, "%s/%s", g.home, "stats"));
 
 	/* Tree dump file. */
-	len = strlen(g.home) + strlen("treedump") + 2;
-	g.home_treedump = dmalloc(len);
+	len = strlen(g.home) + strlen("pagedump") + 2;
+	g.home_pagedump = dmalloc(len);
 	testutil_check(__wt_snprintf(
-	    g.home_treedump, len, "%s/%s", g.home, "treedump"));
+	    g.home_pagedump, len, "%s/%s", g.home, "pagedump"));
 
 	/*
 	 * Home directory initialize command: create the directory if it doesn't
