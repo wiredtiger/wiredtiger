@@ -386,6 +386,7 @@ ThreadListWrapper
 Timespec
 Timestamp
 Timestamps
+Treedump
 TryCV
 TxnID
 UDF
@@ -1283,6 +1284,7 @@ toupper
 transactional
 transactionally
 trecno
+treedump
 trk
 trk's
 trunc

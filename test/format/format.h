@@ -73,6 +73,7 @@ typedef struct {
 	char *home_rand;			/* RNG log file path */
 	char *home_salvage_copy;		/* Salvage copy command */
 	char *home_stats;			/* Statistics file path */
+	char *home_treedump;			/* Treedump filename */
 
 	char wiredtiger_open_config[8 * 1024];	/* Database open config */
 
