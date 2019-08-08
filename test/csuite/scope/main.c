@@ -91,12 +91,8 @@ cursor_scope_ops(WT_SESSION *session, const char *uri)
 	int exact;
 	bool recno, vstring;
 
-	/*
-	 * Modify and reserve require a transaction, modify requires snapshot
-	 * isolation.
-	 */
-	testutil_check(
-	    session->begin_transaction(session, "isolation=snapshot"));
+	/* Reserve requires a running transaction. */
+	testutil_check(session->begin_transaction(session, NULL));
 
 	cursor = NULL;
 	for (op = ops; op->op != NULL; op++) {
