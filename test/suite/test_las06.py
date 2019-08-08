@@ -36,7 +36,7 @@ class test_las06(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 500
 
-        # Fill up the cache with 50Mb of data.
+        # Load 5Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
@@ -44,7 +44,7 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[i] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 50Mb of data with a later timestamp.
+        # Load another 5Mb of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 10000):
             cursor[i] = value2
