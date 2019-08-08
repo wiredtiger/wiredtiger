@@ -105,6 +105,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	WT_ITEM *key, *value;
 	uint64_t keyno;
 	uint8_t bitfield;
+	int t_ret;
 
 	key = tinfo->key;
 	value = tinfo->value;
@@ -181,7 +182,9 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 #ifdef HAVE_DIAGNOSTIC
 	fprintf(stderr,
 	    "snapshot-isolation error: Dumping tree to %s\n", g.home_treedump);
-	(void)__wt_debug_tree_cursor(cursor, g.home_treedump);
+	t_ret = __wt_debug_tree_cursor(cursor, g.home_treedump);
+	if (ret == 0)
+		ret = t_ret;
 #endif
 	switch (g.type) {
 	case FIX:
