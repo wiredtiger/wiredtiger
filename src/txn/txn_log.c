@@ -215,8 +215,10 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
 	 * are recording diagnostic information. In that case, allocate an id.
 	 */
 	if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
-	    txn->id == WT_TXN_NONE)
+	    txn->id == WT_TXN_NONE) {
+		WT_ASSERT(session, !F_ISSET(txn, WT_TXN_PREPARE));
 		WT_RET(__wt_txn_id_check(session));
+	}
 	else
 		WT_ASSERT(session, txn->id != WT_TXN_NONE);
 
