@@ -153,14 +153,14 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	default:
 		return (ret);
 	}
+#define	OP_REMOVED(snap)	((snap)->op == REMOVE || (snap)->op == TRUNCATE)
 
 	/* Check for simple matches. */
-	if (ret == 0 &&
-	    snap->op != REMOVE && snap->op != TRUNCATE &&
+	if (ret == 0 && !OP_REMOVED(snap) &&
 	    value->size == snap->vsize &&
 	    memcmp(value->data, snap->vdata, value->size) == 0)
 		return (0);
-	if (ret == WT_NOTFOUND && (snap->op == REMOVE || snap->op == TRUNCATE))
+	if (ret == WT_NOTFOUND && OP_REMOVED(snap))
 		return (0);
 
 	/*
@@ -172,7 +172,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		if (ret == WT_NOTFOUND &&
 		    snap->vsize == 1 && *(uint8_t *)snap->vdata == 0)
 			return (0);
-		if ((snap->op == REMOVE || snap->op == TRUNCATE) &&
+		if (OP_REMOVED(snap) &&
 		    value->size == 1 && *(uint8_t *)value->data == 0)
 			return (0);
 	}
@@ -197,7 +197,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		    "snapshot-isolation %.*s search mismatch\n",
 		    (int)key->size, (char *)key->data);
 
-		if (snap->op == REMOVE)
+		if (OP_REMOVED(snap))
 			fprintf(stderr, "expected {deleted}\n");
 		else
 			print_item_data("expected", snap->vdata, snap->vsize);
@@ -214,7 +214,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		fprintf(stderr,
 		    "snapshot-isolation %" PRIu64 " search mismatch\n", keyno);
 
-		if (snap->op == REMOVE)
+		if (OP_REMOVED(snap))
 			fprintf(stderr, "expected {deleted}\n");
 		else
 			print_item_data("expected", snap->vdata, snap->vsize);
