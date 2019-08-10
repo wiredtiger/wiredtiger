@@ -116,7 +116,7 @@ __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 	} else {
 		cmp = -1;
 		count = 0;
-		WT_RET(__wt_log_printf(start->session,
+		WT_RET(__wt_log_printf((WT_SESSION_IMPL *)start->session,
 		    "RANGE_TRUNCATE: start remove loop %" PRIu64,
 		    start->recno));
 		do {
@@ -126,7 +126,7 @@ __wt_range_truncate(WT_CURSOR *start, WT_CURSOR *stop)
 			++count;
 		} while (cmp < 0 && (ret = start->next(start)) == 0);
 		WT_RET_NOTFOUND_OK(ret);
-		WT_RET(__wt_log_printf(start->session,
+		WT_RET(__wt_log_printf((WT_SESSION_IMPL *)start->session,
 		    "RANGE_TRUNCATE: removed %d entries", count));
 	}
 	return (0);
