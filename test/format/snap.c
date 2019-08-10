@@ -95,6 +95,32 @@ snap_track(TINFO *tinfo, thread_op op)
 }
 
 /*
+ * print_item_data --
+ *	Display a single data/size pair, with a tag.
+ */
+static void
+print_item_data(const char *tag, const uint8_t *data, size_t size)
+{
+	static const char hex[] = "0123456789abcdef";
+	u_char ch;
+
+	fprintf(stderr, "%s {", tag);
+	if (g.type == FIX)
+		fprintf(stderr, "0x%02x", data[0]);
+	else
+		for (; size > 0; --size, ++data) {
+			ch = data[0];
+			if (__wt_isprint(ch))
+				fprintf(stderr, "%c", (int)ch);
+			else
+				fprintf(stderr, "%x%x",
+				    (u_int)hex[(data[0] & 0xf0) >> 4],
+				    (u_int)hex[data[0] & 0x0f]);
+		}
+	fprintf(stderr, "}\n");
+}
+
+/*
  * snap_verify --
  *	Repeat a read and verify the contents.
  */
