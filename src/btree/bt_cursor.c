@@ -1777,7 +1777,7 @@ err:	if (ret == WT_RESTART) {
 		__cursor_restart(session, &yield_count, &sleep_usecs);
 		goto retry;
 	}
-	WT_RET(__wt_log_printf(session,
+	WT_ERR(__wt_log_printf(session,
 	    "CURSOR_TRUNCATE: DONE key %" PRIu64 ": %d records removed",
 	    start->recno, count));
 
