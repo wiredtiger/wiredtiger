@@ -1730,7 +1730,6 @@ __cursor_truncate(WT_SESSION_IMPL *session,
 {
 	WT_DECL_RET;
 	uint64_t yield_count, sleep_usecs;
-	int count;
 
 	yield_count = sleep_usecs = 0;
 
@@ -1757,14 +1756,9 @@ retry:	WT_ERR(__wt_btcur_search(start));
 	WT_ASSERT(session,
 	    F_MASK((WT_CURSOR *)start, WT_CURSTD_KEY_SET) == WT_CURSTD_KEY_INT);
 
-	WT_ERR(__wt_log_printf(session,
-	    "CURSOR_TRUNCATE: rmfunc loop start %" PRIu64 " stop %" PRIu64,
-	    start->recno, stop != NULL ? stop->recno : 0));
-	count = 0;
 	for (;;) {
 		WT_ERR(rmfunc(session, start, WT_UPDATE_TOMBSTONE));
 
-		++count;
 		if (stop != NULL && __cursor_equals(start, stop))
 			return (0);
 
@@ -1777,9 +1771,6 @@ err:	if (ret == WT_RESTART) {
 		__cursor_restart(session, &yield_count, &sleep_usecs);
 		goto retry;
 	}
-	WT_ERR(__wt_log_printf(session,
-	    "CURSOR_TRUNCATE: DONE key %" PRIu64 ": %d records removed",
-	    start->recno, count));
 
 	WT_RET_NOTFOUND_OK(ret);
 	return (0);
@@ -1878,8 +1869,6 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
 		    session, start, stop, __cursor_col_modify));
 		break;
 	case BTREE_COL_VAR:
-		WT_ERR(__wt_log_printf(session,
-		    "BTCUR_RANGE_TRUNCATE: call cursor_truncate"));
 		WT_ERR(__cursor_truncate(
 		    session, start, stop, __cursor_col_modify));
 		break;

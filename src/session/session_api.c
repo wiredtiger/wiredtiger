@@ -1438,32 +1438,18 @@ __wt_session_range_truncate(WT_SESSION_IMPL *session,
 	 * fail to move forward or backward in a range, there are no keys in
 	 * the range. In either of those cases, we're done.
 	 */
-	if (start != NULL) {
-		WT_ERR(__wt_log_printf(session,
-		    "SESS_RANGE_TRUNC from %" PRIu64 " (cbt %" PRIu64 ") to end",
-		    start->recno, ((WT_CURSOR_BTREE *)start)->recno));
+	if (start != NULL)
 		if ((ret = start->search_near(start, &cmp)) != 0 ||
 		    (cmp < 0 && (ret = start->next(start)) != 0)) {
-			WT_ERR(__wt_log_printf(session,
-			    "SESS_RANGE_TRUNC search near %" PRIu64 " returned %d",
-			    start->recno, ret));
 			WT_ERR_NOTFOUND_OK(ret);
 			goto done;
 		}
-	}
-	if (stop != NULL) {
-		WT_ERR(__wt_log_printf(session,
-		    "SESS_RANGE_TRUNC stop from %" PRIu64 " (cbt %" PRIu64 ") to end",
-		    stop->recno, ((WT_CURSOR_BTREE *)stop)->recno));
+	if (stop != NULL)
 		if ((ret = stop->search_near(stop, &cmp)) != 0 ||
 		    (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
-			WT_ERR(__wt_log_printf(session,
-			    "SESS_RANGE_TRUNC stop search near %" PRIu64 " returned %d",
-			    stop->recno, ret));
 			WT_ERR_NOTFOUND_OK(ret);
 			goto done;
 		}
-	}
 
 	/*
 	 * We always truncate in the forward direction because the underlying
