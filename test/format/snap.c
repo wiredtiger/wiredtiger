@@ -132,17 +132,11 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	uint64_t keyno;
 	uint8_t bitfield;
 
+	testutil_assert(snap->op != TRUNCATE);
+
 	key = tinfo->key;
 	value = tinfo->value;
-
-	/*
-	 * Test just the first or last records in the truncate range; a key set
-	 * to 0 flags a truncate from/to table beginning/end.
-	 */
-	if ((keyno = snap->keyno) == 0) {
-		keyno = snap->last;
-		testutil_assert(keyno != 0 && snap->op == TRUNCATE);
-	}
+	keyno = snap->keyno;
 
 	/*
 	 * Retrieve the key/value pair by key. Row-store inserts have a unique
@@ -179,14 +173,13 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 	default:
 		return (ret);
 	}
-#define	OP_REMOVED(snap)	((snap)->op == REMOVE || (snap)->op == TRUNCATE)
 
 	/* Check for simple matches. */
-	if (ret == 0 && !OP_REMOVED(snap) &&
+	if (ret == 0 && snap->op != REMOVE &&
 	    value->size == snap->vsize &&
 	    memcmp(value->data, snap->vdata, value->size) == 0)
 		return (0);
-	if (ret == WT_NOTFOUND && OP_REMOVED(snap))
+	if (ret == WT_NOTFOUND && snap->op == REMOVE)
 		return (0);
 
 	/*
@@ -198,7 +191,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		if (ret == WT_NOTFOUND &&
 		    snap->vsize == 1 && *(uint8_t *)snap->vdata == 0)
 			return (0);
-		if (OP_REMOVED(snap) &&
+		if (snap->op == REMOVE &&
 		    value->size == 1 && *(uint8_t *)value->data == 0)
 			return (0);
 	}
@@ -223,7 +216,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		    "snapshot-isolation %.*s search mismatch\n",
 		    (int)key->size, (char *)key->data);
 
-		if (OP_REMOVED(snap))
+		if (snap->op == REMOVE)
 			fprintf(stderr, "expected {deleted}\n");
 		else
 			print_item_data("expected", snap->vdata, snap->vsize);
@@ -240,7 +233,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 		fprintf(stderr,
 		    "snapshot-isolation %" PRIu64 " search mismatch\n", keyno);
 
-		if (OP_REMOVED(snap))
+		if (snap->op == REMOVE)
 			fprintf(stderr, "expected {deleted}\n");
 		else
 			print_item_data("expected", snap->vdata, snap->vsize);
@@ -315,6 +308,13 @@ static bool
 snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current)
 {
 	SNAP_OPS *p;
+
+	/*
+	 * Truncates can't be repeated, we don't know the exact range of records
+	 * that were removed (if any).
+	 */
+	if (current->op == TRUNCATE)
+		return (false);
 
 	/*
 	 * For updates, check for subsequent changes to the record and don't
