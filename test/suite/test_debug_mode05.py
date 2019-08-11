@@ -47,6 +47,7 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(100))
 
+        # Try doing a normal prepared txn and then rollback to stable.
         self.session.begin_transaction()
         for i in range(1, 50):
             cursor[i] = 'a' * 100
@@ -58,14 +59,14 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
             'durable_timestamp=' + timestamp_str(250))
         self.session.commit_transaction()
 
-        # The original bug happened when we had a transaction that:
-        # a). Was prepared.
-        # b). Did not cause anything to be written to the log before committing.
-        # Therefore, we're specifically not doing anything here.
+        self.conn.rollback_to_stable()
+
+        # The original bug happened when we had a txn that:
+        # 1). Was prepared.
+        # 2). Did not cause anything to be written to the log before committing.
+        # 3). Was the last txn before the rollback to stable call.
+        # Therefore, we're specifically not doing any operations here.
         self.session.begin_transaction()
-        # for i in range(1, 50):
-        #     cursor.set_key(i)
-        #     cursor.remove()
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(300))
         self.session.timestamp_transaction(
@@ -73,6 +74,8 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
         self.session.timestamp_transaction(
             'durable_timestamp=' + timestamp_str(400))
         self.session.commit_transaction()
+
+        self.conn.rollback_to_stable()
 
         self.session.begin_transaction()
         for i in range(1, 50):
