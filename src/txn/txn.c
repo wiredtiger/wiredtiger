@@ -664,9 +664,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static inline int
 __txn_commit_timestamps_assert(
-    WT_SESSION_IMPL *session, WT_CURSOR ***cursor_buf)
+    WT_SESSION_IMPL *session, WT_CURSOR ***cursor_listp)
 {
-	WT_CURSOR *cursor, **cursors;
+	WT_CURSOR *cursor, **cursor_list;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
@@ -709,11 +709,11 @@ __txn_commit_timestamps_assert(
 	if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_KEYS))
 		return (0);
 
-	cursors = NULL;
+	cursor_list = NULL;
 	if (txn->mod_count != 0) {
-		WT_RET(__wt_calloc(
-		    session, sizeof(WT_CURSOR *), txn->mod_count, cursor_buf));
-		cursors = *cursor_buf;
+		WT_RET(__wt_calloc(session,
+		    sizeof(WT_CURSOR *), txn->mod_count, &cursor_list));
+		*cursor_listp = cursor_list;
 	}
 
 	/*
@@ -730,8 +730,8 @@ __txn_commit_timestamps_assert(
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
 				WT_RET(__wt_open_cursor(session,
 				    op->btree->dhandle->name, NULL,
-				    open_cursor_cfg, &cursors[i]));
-				cursor = cursors[i];
+				    open_cursor_cfg, &cursor_list[i]));
+				cursor = cursor_list[i];
 				F_CLR(txn, WT_TXN_PREPARE);
 				if (op->type == WT_TXN_OP_BASIC_ROW)
 					__wt_cursor_set_raw_key(
@@ -806,11 +806,11 @@ __txn_commit_timestamps_assert(
 }
 
 /*
- * __txn_commit_free_cursors --
+ * __txn_commit_free_cursor_list --
  *	Close an array of cursors and free the underlying buffer.
  */
 static void
-__txn_commit_free_cursors(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
+__txn_commit_free_cursor_list(WT_SESSION_IMPL *session, WT_CURSOR **cursor_list)
 {
 	WT_CURSOR *cursor;
 	WT_TXN *txn;
@@ -819,11 +819,11 @@ __txn_commit_free_cursors(WT_SESSION_IMPL *session, WT_CURSOR **cursors)
 	txn = &session->txn;
 
 	for (i = 0; i < txn->mod_count; ++i) {
-		cursor = cursors[i];
+		cursor = cursor_list[i];
 		if (cursor != NULL)
 			WT_IGNORE_RET(cursor->close(cursor));
 	}
-	__wt_free(session, cursors);
+	__wt_free(session, cursor_list);
 }
 
 /*
@@ -835,7 +835,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR **cursors;
+	WT_CURSOR **cursor_list;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
@@ -852,7 +852,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	locked = skip_update_assert = false;
 	resolved_update_count = visited_update_count = 0;
-	cursors = NULL;
+	cursor_list = NULL;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -901,7 +901,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
 
-	WT_ERR(__txn_commit_timestamps_assert(session, &cursors));
+	WT_ERR(__txn_commit_timestamps_assert(session, &cursor_list));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -1065,8 +1065,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
-	if (cursors != NULL)
-		__txn_commit_free_cursors(session, cursors);
+	if (cursor_list != NULL)
+		__txn_commit_free_cursor_list(session, cursor_list);
 
 	txn->mod_count = 0;
 
@@ -1127,8 +1127,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 
 err:
-	if (cursors != NULL)
-		__txn_commit_free_cursors(session, cursors);
+	if (cursor_list != NULL)
+		__txn_commit_free_cursor_list(session, cursor_list);
 
 	/*
 	 * If anything went wrong, roll back.
