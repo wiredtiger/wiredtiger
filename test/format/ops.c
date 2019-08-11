@@ -1558,9 +1558,6 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	 */
 	testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
-	testutil_check(session->log_printf(session,
-	    "COL_TRUNCATE: START keyno %" PRIu64 " last %" PRIu64,
-	    tinfo->keyno, tinfo->last));
 	c2 = NULL;
 	if (tinfo->keyno == 0) {
 		cursor->set_key(cursor, tinfo->last);
@@ -1581,9 +1578,6 @@ col_truncate(TINFO *tinfo, WT_CURSOR *cursor)
 	if (ret != 0)
 		return (ret);
 
-	testutil_check(session->log_printf(session,
-	    "COL_TRUNCATE: COMPLETE keyno %" PRIu64 " last %" PRIu64,
-	    tinfo->keyno, tinfo->last));
 	logop(session,
 	    "%-10s%" PRIu64 "-%" PRIu64, "truncate", tinfo->keyno, tinfo->last);
 
