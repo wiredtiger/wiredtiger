@@ -353,8 +353,6 @@ void	 key_gen_teardown(WT_ITEM *);
 void	 key_init(void);
 WT_THREAD_RET lrt(void *);
 void	 path_setup(const char *);
-void	 print_item(const char *, WT_ITEM *);
-void	 print_item_data(const char *, const uint8_t *, size_t);
 int	 read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 uint32_t rng(WT_RAND_STATE *);
 void	 snap_init(TINFO *, uint64_t, bool);
