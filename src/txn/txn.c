@@ -593,13 +593,14 @@ __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
 void
 __wt_txn_release(WT_SESSION_IMPL *session)
 {
+	WT_CONNECTION_IMPL *conn;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
 
+	conn = S2C(session);
 	txn = &session->txn;
-	txn_global = &S2C(session)->txn_global;
+	txn_global = &conn->txn_global;
 
-	WT_ASSERT(session, txn->mod_count == 0);
 	txn->notify = NULL;
 
 	/* Clear the transaction's ID from the global table. */
@@ -618,8 +619,15 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		/*
 		 * If transaction is prepared, this would have been done in
 		 * prepare.
+		 *
+		 * If the logging debug mode is on, an empty prepared txn which
+		 * never gets an ID allocated to it will be allocated one at
+		 * commit time in order for it to be logged. If that happens, we
+		 * need to remove that ID from the global table now.
 		 */
-		if (!F_ISSET(txn, WT_TXN_PREPARE))
+		if (!F_ISSET(txn, WT_TXN_PREPARE) ||
+		    (FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE) &&
+		    txn->mod_count == 0))
 			__txn_remove_from_global_table(session);
 		txn->id = WT_TXN_NONE;
 	}
@@ -650,6 +658,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 	 */
 	txn->flags = 0;
 	txn->prepare_timestamp = WT_TS_NONE;
+	txn->mod_count = 0;
 }
 
 /*
@@ -1029,8 +1038,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
-	txn->mod_count = 0;
-
 	/*
 	 * If durable is set, we'll try to update the global durable timestamp
 	 * with that value. If durable isn't set, durable is implied to be the
@@ -1335,8 +1342,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	    resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
-
-	txn->mod_count = 0;
 
 	__wt_txn_release(session);
 	/*
