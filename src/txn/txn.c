@@ -655,12 +655,6 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 /*
  * __txn_commit_timestamps_assert --
  *	Validate that timestamps provided to commit are legal.
- *
- *	For prepared transactions, this function will open cursors to mutate the
- *	update list with pointers to uncommitted data. After they are finished
- *	with the update list, the caller is responsible for closing every
- *	non-null cursor pointer in the cursors array and freeing the underlying
- *	buffer.
  */
 static inline int
 __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
