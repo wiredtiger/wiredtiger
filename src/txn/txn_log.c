@@ -207,8 +207,10 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
 	rectype = WT_LOGREC_COMMIT;
 	fmt = WT_UNCHECKED_STRING(Iq);
 
-	if (txn->logrec != NULL)
+	if (txn->logrec != NULL) {
+		WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_ID));
 		return (0);
+	}
 
 	/*
 	 * The only way we should ever get in here without a txn id is if we
