@@ -1396,3 +1396,132 @@ err:		__wt_buf_free(session, sweep_key);
 
 	return (ret);
 }
+
+/*
+ * __wt_find_lookaside_upd --
+ * 	Scan the lookaside for a record the btree cursor wants to position on.
+ * 	Create an update for the record and return to the caller.
+ */
+int
+__wt_find_lookaside_upd(
+    WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+    wt_timestamp_t start_ts, WT_UPDATE **updp, bool ignore_birthmark)
+{
+	WT_CACHE *cache;
+	WT_CURSOR *cursor;
+	WT_DECL_RET;
+	WT_ITEM *key, las_key, las_value;
+	WT_REF *ref;
+	WT_UPDATE *upd;
+	wt_timestamp_t durable_timestamp, las_timestamp;
+	size_t incr;
+	uint64_t las_counter, las_pageid, las_txnid;
+	uint32_t las_id, session_flags;
+	uint8_t prepare_state, upd_type;
+	int cmp;
+	bool upd_visible;
+
+	*updp = upd = NULL;
+	cache = S2C(session)->cache;
+	cursor = NULL;
+	key = &cbt->iface.key;
+	ref = cbt->ref;
+	las_pageid = ref->page_las->las_pageid;
+	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+
+	/* Open a lookaside table cursor. */
+	__wt_las_cursor(session, &cursor, &session_flags);
+
+	/*
+	 * The lookaside records are in key and update order, that is, there
+	 * will be a set of in-order updates for a key, then another set of
+	 * in-order updates for a subsequent key. We scan through all of the
+	 * updates till we locate the one we want.
+	 */
+	WT_PUBLISH(cache->las_reader, true);
+	__wt_readlock(session, &cache->las_sweepwalk_lock);
+	WT_PUBLISH(cache->las_reader, false);
+
+	for (ret = __wt_las_cursor_position(cursor, las_pageid);
+	    ret == 0;
+	    ret = cursor->next(cursor)) {
+		WT_ERR(cursor->get_key(cursor,
+		    &las_pageid, &las_id, &las_counter, &las_key));
+
+		/* Stop before crossing over to the next page block */
+		if (las_pageid != ref->page_las->las_pageid)
+			break;
+
+		/*
+		 * Keys are sorted in an order, skip the ones before the desired
+		 * key, and bail out if we have crossed over the desired key and
+		 * not found the record we are looking for.
+		 */
+		WT_ERR(__wt_compare(session,
+		    S2BT(session)->collator, &las_key, key, &cmp));
+		if (cmp < 0)
+			continue;
+		else if (cmp > 0)
+			break;
+
+		WT_ERR(cursor->get_value(
+		    cursor, &las_txnid, &las_timestamp,
+		    &durable_timestamp, &prepare_state, &upd_type, &las_value));
+
+		/*
+		 * It is safe to assume that the updates are sorted newest to
+		 * the oldest. We can quit searching after finding the newest
+		 * visible record.
+		 */
+		upd_visible =
+		    __wt_txn_visible(session, las_txnid, las_timestamp);
+		if (!upd_visible)
+			continue;
+
+		/*
+		 * Found a visible record, return success unless it is prepared
+		 * and we are not ignoring prepared.
+		 */
+		if (prepare_state == WT_PREPARE_INPROGRESS &&
+		    !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE))
+			break;
+
+		if (upd_type == WT_UPDATE_BIRTHMARK && ignore_birthmark)
+			break;
+
+		/* It is okay to locate an older update in lookaside,
+		 * but we proceed only if we find a matching record. */
+		WT_ASSERT(session, start_ts >= las_timestamp);
+		if (start_ts != las_timestamp)
+			break;
+
+		/* Allocate an update structure for the record found. */
+		WT_ERR(__wt_update_alloc(
+		    session, &las_value, &upd, &incr, upd_type));
+		upd->txnid = las_txnid;
+		upd->durable_ts = durable_timestamp;
+		upd->start_ts = las_timestamp;
+		upd->prepare_state = prepare_state;
+		/*
+		 * Mark this update as external and to be discarded when not
+		 * needed.
+		 */
+		upd->ext = 1;
+		*updp = upd;
+
+		/* We are done, we found the record we were searching for */
+		break;
+	}
+	WT_ERR_NOTFOUND_OK(ret);
+
+err:	__wt_readunlock(session, &cache->las_sweepwalk_lock);
+	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+
+	/* Couldn't find a record */
+	if (upd == NULL && ret == 0)
+		ret = WT_NOTFOUND;
+
+	WT_ASSERT(session, upd != NULL || ret != 0);
+
+	return (ret);
+}

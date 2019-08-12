@@ -904,26 +904,17 @@ __wt_txn_read(WT_SESSION_IMPL *session,
 	 * future once we make the change to stop initializing a page using
 	 * lookaside.
 	 */
-	if (upd != NULL && upd->txnid != 0 && cbt->ref->page_las != NULL &&
-	    __wt_find_lookaside_upd(session, cbt, &tmp_upd, true) == 0) {
-		/* It is okay to locate an older update in lookaside */
-		WT_ASSERT(session, upd->start_ts >= tmp_upd->start_ts);
-
-		if (upd->start_ts == tmp_upd->start_ts) {
-			/*
-			 * If we located the correct record, the contents should
-			 * be the same and we can use the record from lookaside.
-			 */
-			WT_ASSERT(session, (upd->size == tmp_upd->size &&
-			    memcmp(upd->data, tmp_upd->data, upd->size) == 0));
-			upd = tmp_upd;
-			/*
-			 * Mark this update as external and to be discarded
-			 * when not needed.
-			 */
-			upd->ext = true;
-		} else
-			__wt_free_update_list(session, tmp_upd);
+	if (upd != NULL && upd->txnid != 0 &&
+	    cbt->ref->page_las != NULL &&
+	    __wt_find_lookaside_upd(session,
+	    cbt, upd->start_ts, &tmp_upd, true) == 0) {
+		/*
+		 * If we located the correct record, the contents should
+		 * be the same and we can use the record from lookaside.
+		 */
+		WT_ASSERT(session, upd->size == tmp_upd->size &&
+		    memcmp(upd->data, tmp_upd->data, upd->size) == 0);
+		upd = tmp_upd;
 	}
 
 	if (upd == NULL && skipped_birthmark)

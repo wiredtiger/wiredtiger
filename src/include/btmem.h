@@ -1129,7 +1129,7 @@ struct __wt_update {
 	volatile uint8_t prepare_state;	/* prepare state */
 
 	/* Temp: Remove after integrating las cursors with btree cursors */
-	bool ext;
+	uint8_t ext;
 
 	/*
 	 * Zero or more bytes of value (the payload) immediately follows the
