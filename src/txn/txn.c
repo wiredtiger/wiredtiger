@@ -737,7 +737,6 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 				upd = op->u.op_upd;
 
 			WT_ASSERT(session, upd != NULL);
-
 			op_timestamp = upd->start_ts;
 
 			/*
@@ -772,7 +771,6 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 
 			if (upd == NULL)
 				continue;
-
 			/*
 			 * Check for consistent per-key timestamp usage.
 			 * If timestamps are or are not used originally then
