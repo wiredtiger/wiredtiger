@@ -711,20 +711,22 @@ config_pct(void)
 	}
 
 	/*
-	 * Cursor modify isn't possible for read-uncommitted transactions.
-	 * If both forced, it's an error, else, prefer the forced one, else,
-	 * prefer modify operations.
+	 * Cursor modify isn't possible for anything besides snapshot isolation
+	 * transactions. If both forced, it's an error. The run-time operations
+	 * code converts modify operations into updates if we're in some other
+	 * transaction type, but if we're never going to be able to do a modify,
+	 * turn it off in the CONFIG output to avoid misleading debuggers.
 	 */
-	if (g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
-		if (config_is_perm("isolation")) {
-			if (config_is_perm("modify_pct") && g.c_modify_pct != 0)
-				testutil_die(EINVAL,
-				    "WT_CURSOR.modify not supported with "
-				    "read-uncommitted transactions");
-			list[CONFIG_MODIFY_ENTRY].order = 0;
-			*list[CONFIG_MODIFY_ENTRY].vp = 0;
-		} else
-			config_single("isolation=random", 0);
+	if (g.c_isolation_flag == ISOLATION_READ_COMMITTED ||
+	    g.c_isolation_flag == ISOLATION_READ_UNCOMMITTED) {
+		if (config_is_perm("isolation") &&
+		    config_is_perm("modify_pct") && g.c_modify_pct != 0)
+			testutil_die(EINVAL,
+			    "WT_CURSOR.modify only supported with "
+			    "snapshot isolation transactions");
+
+		list[CONFIG_MODIFY_ENTRY].order = 0;
+		*list[CONFIG_MODIFY_ENTRY].vp = 0;
 	}
 
 	/*
