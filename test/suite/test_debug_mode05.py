@@ -50,7 +50,7 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
         # Try doing a normal prepared txn and then rollback to stable.
         self.session.begin_transaction()
         for i in range(1, 50):
-            cursor[i] = 'a' * 100
+            cursor[i] = b'a' * 100
         self.session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(150))
         self.session.timestamp_transaction(
@@ -79,7 +79,7 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction()
         for i in range(1, 50):
-            cursor[i] = 'b' * 100
+            cursor[i] = b'b' * 100
         self.session.commit_transaction(
             'commit_timestamp=' + timestamp_str(450))
 
