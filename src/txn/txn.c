@@ -663,21 +663,21 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  *	buffer.
  */
 static inline int
-__txn_commit_timestamps_assert(
-    WT_SESSION_IMPL *session, WT_CURSOR ***cursor_listp)
+__txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 {
-	WT_CURSOR *cursor, **cursor_list;
+	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_OP *op;
 	WT_UPDATE *upd;
-	wt_timestamp_t op_timestamp;
+	wt_timestamp_t durable_op_timestamp, op_timestamp, prev_op_timestamp;
 	u_int i;
 	const char *open_cursor_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL };
 	bool op_zero_ts, upd_zero_ts;
 
 	txn = &session->txn;
+	cursor = NULL;
 
 	/*
 	 * Debugging checks on timestamps, if user requested them.
@@ -709,13 +709,6 @@ __txn_commit_timestamps_assert(
 	if (!F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS | WT_TXN_TS_DURABLE_KEYS))
 		return (0);
 
-	cursor_list = NULL;
-	if (txn->mod_count != 0) {
-		WT_RET(__wt_calloc(session,
-		    sizeof(WT_CURSOR *), txn->mod_count, &cursor_list));
-		*cursor_listp = cursor_list;
-	}
-
 	/*
 	 * Error on any valid update structures for the same key that
 	 * are at a later timestamp or use timestamps inconsistently.
@@ -730,8 +723,7 @@ __txn_commit_timestamps_assert(
 			if (F_ISSET(txn, WT_TXN_PREPARE)) {
 				WT_RET(__wt_open_cursor(session,
 				    op->btree->dhandle->name, NULL,
-				    open_cursor_cfg, &cursor_list[i]));
-				cursor = cursor_list[i];
+				    open_cursor_cfg, &cursor));
 				F_CLR(txn, WT_TXN_PREPARE);
 				if (op->type == WT_TXN_OP_BASIC_ROW)
 					__wt_cursor_set_raw_key(
@@ -746,9 +738,13 @@ __txn_commit_timestamps_assert(
 				if (ret != 0)
 					WT_RET_MSG(session, EINVAL,
 					    "prepared update restore failed");
-				op->u.op_upd = upd;
 			} else
-				upd = op->u.op_upd->next;
+				upd = op->u.op_upd;
+
+			WT_ASSERT(session, upd != NULL);
+
+			op_timestamp = upd->start_ts;
+
 			/*
 			 * Skip over any aborted update structures, internally
 			 * created update structures or ones from our own
@@ -765,6 +761,21 @@ __txn_commit_timestamps_assert(
 			 */
 			if (upd == NULL)
 				continue;
+
+			prev_op_timestamp = upd->start_ts;
+			durable_op_timestamp = upd->durable_ts;
+
+			/*
+			 * We no longer need to access the update structure so
+			 * it's safe to release our reference to the page.
+			 */
+			if (cursor != NULL) {
+				WT_ASSERT(
+				    session, F_ISSET(txn, WT_TXN_PREPARE));
+				WT_RET(cursor->close(cursor));
+				cursor = NULL;
+			}
+
 			/*
 			 * Check for consistent per-key timestamp usage.
 			 * If timestamps are or are not used originally then
@@ -774,7 +785,7 @@ __txn_commit_timestamps_assert(
 			 * Check timestamps are used in order.
 			 */
 			op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
-			upd_zero_ts = upd->start_ts == WT_TS_NONE;
+			upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
 			if (op_zero_ts != upd_zero_ts)
 				WT_RET_MSG(session, EINVAL,
 				    "per-key timestamps used inconsistently");
@@ -786,7 +797,6 @@ __txn_commit_timestamps_assert(
 			if (op_zero_ts)
 				continue;
 
-			op_timestamp = op->u.op_upd->start_ts;
 			/*
 			 * Only if the update structure doesn't have a timestamp
 			 * then use the one in the transaction structure.
@@ -794,36 +804,15 @@ __txn_commit_timestamps_assert(
 			if (op_timestamp == WT_TS_NONE)
 				op_timestamp = txn->commit_timestamp;
 			if (F_ISSET(txn, WT_TXN_TS_COMMIT_KEYS) &&
-				op_timestamp < upd->start_ts)
+				op_timestamp < prev_op_timestamp)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order commit timestamps");
 			if (F_ISSET(txn, WT_TXN_TS_DURABLE_KEYS) &&
-			    txn->durable_timestamp < upd->durable_ts)
+			    txn->durable_timestamp < durable_op_timestamp)
 				WT_RET_MSG(session, EINVAL,
 				    "out of order durable timestamps");
 		}
 	return (0);
-}
-
-/*
- * __txn_commit_free_cursor_list --
- *	Close an array of cursors and free the underlying buffer.
- */
-static void
-__txn_commit_free_cursor_list(WT_SESSION_IMPL *session, WT_CURSOR **cursor_list)
-{
-	WT_CURSOR *cursor;
-	WT_TXN *txn;
-	u_int i;
-
-	txn = &session->txn;
-
-	for (i = 0; i < txn->mod_count; ++i) {
-		cursor = cursor_list[i];
-		if (cursor != NULL)
-			WT_IGNORE_RET(cursor->close(cursor));
-	}
-	__wt_free(session, cursor_list);
 }
 
 /*
@@ -835,7 +824,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
 	WT_CONFIG_ITEM cval;
 	WT_CONNECTION_IMPL *conn;
-	WT_CURSOR **cursor_list;
 	WT_DECL_RET;
 	WT_TXN *txn;
 	WT_TXN_GLOBAL *txn_global;
@@ -852,7 +840,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	txn_global = &conn->txn_global;
 	locked = skip_update_assert = false;
 	resolved_update_count = visited_update_count = 0;
-	cursor_list = NULL;
 
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 	WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) ||
@@ -901,7 +888,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 		WT_ASSERT(session,
 		    txn->commit_timestamp <= txn->durable_timestamp);
 
-	WT_ERR(__txn_commit_timestamps_assert(session, &cursor_list));
+	WT_ERR(__txn_commit_timestamps_assert(session));
 
 	/*
 	 * The default sync setting is inherited from the connection, but can
@@ -1065,8 +1052,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	    resolved_update_count == visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
-	if (cursor_list != NULL)
-		__txn_commit_free_cursor_list(session, cursor_list);
 
 	txn->mod_count = 0;
 
@@ -1127,9 +1112,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	return (0);
 
 err:
-	if (cursor_list != NULL)
-		__txn_commit_free_cursor_list(session, cursor_list);
-
 	/*
 	 * If anything went wrong, roll back.
 	 *
