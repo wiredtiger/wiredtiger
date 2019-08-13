@@ -128,9 +128,34 @@
 		__wt_abort(session);					\
 	}								\
 } while (0)
+#define	WT_ERR_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp)) {							\
+		ret = (v);						\
+		__wt_err(session, ret, __VA_ARGS__);			\
+		__wt_abort(session);					\
+	}								\
+} while (0)
+#define	WT_RET_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp))							\
+	{								\
+		int __ret = (v);					\
+		__wt_err(session, __ret, __VA_ARGS__);			\
+		__wt_abort(session);					\
+	}								\
+} while (0)
 #else
 #define	WT_ASSERT(session, exp)						\
 	WT_UNUSED(session)
+#define	WT_ERR_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp)) {							\
+		WT_ERR_MSG(session, v, __VA_ARGS__);			\
+	}								\
+} while (0)
+#define	WT_RET_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp)) {							\
+		WT_RET_MSG(session, v, __VA_ARGS__);			\
+	}								\
+} while (0)
 #endif
 
 /*
