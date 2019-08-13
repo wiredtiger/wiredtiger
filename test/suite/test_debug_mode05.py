@@ -62,9 +62,9 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
         self.conn.rollback_to_stable()
 
         # The original bug happened when we had a txn that:
-        # 1). Was prepared.
-        # 2). Did not cause anything to be written to the log before committing.
-        # 3). Was the last txn before the rollback to stable call.
+        # 1. Was prepared.
+        # 2. Did not cause anything to be written to the log before committing.
+        # 3. Was the last txn before the rollback to stable call.
         # Therefore, we're specifically not doing any operations here.
         self.session.begin_transaction()
         self.session.prepare_transaction(
@@ -75,6 +75,10 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
             'durable_timestamp=' + timestamp_str(400))
         self.session.commit_transaction()
 
+        # The aforementioned bug resulted in a failure in rollback to stable.
+        # This is because we failed to clear out a txn id from our global state
+        # which caused us to think that we had a running txn.
+        # Verify that we can rollback to stable without issues.
         self.conn.rollback_to_stable()
 
         self.session.begin_transaction()
@@ -84,3 +88,6 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
             'commit_timestamp=' + timestamp_str(450))
 
         self.conn.rollback_to_stable()
+
+if __name__ == '__main__':
+    wttest.run()
