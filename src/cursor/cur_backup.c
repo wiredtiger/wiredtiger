@@ -298,7 +298,7 @@ __backup_start(WT_SESSION_IMPL *session,
 	if (is_dup) {
 		if (!log_only)
 			WT_ERR_MSG(session, EINVAL,
-			    "duplicate backup cursor must be for logs only.");
+			    "duplicate backup cursor must be for logs only");
 		F_SET(cb, WT_CURBACKUP_DUP);
 		F_SET(session, WT_SESSION_BACKUP_DUP);
 		goto done;

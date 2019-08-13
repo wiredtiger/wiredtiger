@@ -1123,7 +1123,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
 		WT_RET_ASSERT(session, txn->logrec == NULL, EINVAL,
 		    "A transaction should not have been assigned a log"
-		    " record if WT_CONN_LOG_DEBUG mode is not enabled.");
+		    " record if WT_CONN_LOG_DEBUG mode is not enabled");
 
 	/* Set the prepare timestamp.  */
 	WT_RET(__wt_txn_set_timestamp(session, cfg));
@@ -1336,7 +1336,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 	WT_RET_ASSERT(session, skip_update_assert ||
 	    resolved_update_count == visited_update_count, EINVAL,
 	    "Expected number of resolved prepared updates does not"
-	    " match actual.");
+	    " match actual");
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 

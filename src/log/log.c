@@ -2622,7 +2622,7 @@ err:	WT_STAT_CONN_INCR(session, log_scans);
 	if (ret != 0 && firstrecord && LF_ISSET(WT_LOGSCAN_RECOVER |
 		WT_LOGSCAN_RECOVER_METADATA)) {
 		__wt_err(session, ret,
-		    "WiredTiger is unable to read the recovery log.");
+		    "WiredTiger is unable to read the recovery log");
 		__wt_err(session, ret, "This may be due to the log"
 		    " files being encrypted, being from an older"
 		    " version or due to corruption on disk");
