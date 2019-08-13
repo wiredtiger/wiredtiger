@@ -408,6 +408,15 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
 		return (0);
 
+	/*
+	 * There is a rare usage case of a prepared transaction that has no
+	 * modifications, but then commits and sets timestamps. If an empty
+	 * transaction has been prepared, don't bother writing a timestamp
+	 * operation record.
+	 */
+	if (F_ISSET(txn, WT_TXN_PREPARE) && txn->mod_count == 0)
+		return (0);
+
 	/* We'd better have a transaction running. */
 	WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
