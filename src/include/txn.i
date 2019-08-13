@@ -1254,6 +1254,12 @@ __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_active)
 	txn_global = &S2C(session)->txn_global;
 
 	/*
+	 * Default to true - callers shouldn't rely on this if an error is
+	 * returned, but let's give them deterministic behaviour if they do.
+	 */
+	*txn_active = true;
+
+	/*
 	 * Ensure the oldest ID is as up to date as possible so we can use a
 	 * simple check to find if there are any running transactions.
 	 */

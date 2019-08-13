@@ -474,6 +474,10 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
 	 */
 	__wt_writelock(session, &conn->cache->las_sweepwalk_lock);
 	ret = __wt_txn_activity_check(session, &txn_active);
+#if defined (HAVE_DIAGNOSTIC)
+	if (txn_active)
+		WT_TRET(__wt_verbose_dump_txn(session));
+#endif
 	__wt_writeunlock(session, &conn->cache->las_sweepwalk_lock);
 
 	if (ret == 0 && txn_active)
