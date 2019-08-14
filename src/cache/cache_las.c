@@ -1438,9 +1438,9 @@ __wt_find_lookaside_upd(
 	 * in-order updates for a subsequent key. We scan through all of the
 	 * updates till we locate the one we want.
 	 */
-	WT_PUBLISH(cache->las_reader, true);
+	cache->las_reader = true;
 	__wt_readlock(session, &cache->las_sweepwalk_lock);
-	WT_PUBLISH(cache->las_reader, false);
+	cache->las_reader = false;
 
 	for (ret = __wt_las_cursor_position(cursor, las_pageid);
 	    ret == 0;
