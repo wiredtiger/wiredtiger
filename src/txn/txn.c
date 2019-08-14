@@ -621,6 +621,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 		 */
 		if (!F_ISSET(txn, WT_TXN_PREPARE))
 			__txn_remove_from_global_table(session);
+		else
+			WT_ASSERT(session,
+			    WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
 		txn->id = WT_TXN_NONE;
 	}
 

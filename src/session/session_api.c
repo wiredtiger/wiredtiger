@@ -1728,7 +1728,8 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 		WT_TRET(__wt_txn_rollback(session, cfg));
 	}
 
-err:	API_END_RET(session, ret);
+err:	WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
+	API_END_RET(session, ret);
 }
 
 /*
@@ -1762,7 +1763,8 @@ __session_prepare_transaction(WT_SESSION *wt_session, const char *config)
 
 	WT_ERR(__wt_txn_prepare(session, cfg));
 
-err:	API_END_RET(session, ret);
+err:	WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
+	API_END_RET(session, ret);
 
 }
 

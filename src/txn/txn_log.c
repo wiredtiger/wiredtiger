@@ -207,8 +207,10 @@ __txn_logrec_init(WT_SESSION_IMPL *session)
 	rectype = WT_LOGREC_COMMIT;
 	fmt = WT_UNCHECKED_STRING(Iq);
 
-	if (txn->logrec != NULL)
+	if (txn->logrec != NULL) {
+		WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_ID));
 		return (0);
+	}
 
 	/*
 	 * The only way we should ever get in here without a txn id is if we
@@ -404,6 +406,15 @@ __wt_txn_ts_log(WT_SESSION_IMPL *session)
 	if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
 	    F_ISSET(session, WT_SESSION_NO_LOGGING) ||
 	    !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE))
+		return (0);
+
+	/*
+	 * There is a rare usage case of a prepared transaction that has no
+	 * modifications, but then commits and sets timestamps. If an empty
+	 * transaction has been prepared, don't bother writing a timestamp
+	 * operation record.
+	 */
+	if (F_ISSET(txn, WT_TXN_PREPARE) && txn->mod_count == 0)
 		return (0);
 
 	/* We'd better have a transaction running. */
