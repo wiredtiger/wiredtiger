@@ -122,7 +122,7 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[i] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another a slight modification with a later timestamp.
+        # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 5000):
             cursor.set_key(i)
