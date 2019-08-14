@@ -116,10 +116,10 @@
 } while (0)
 
 /*
- * WT_ASSERT
- *	Assert an expression, aborting in diagnostic mode.  Otherwise,
- * "use" the session to keep the compiler quiet and don't evaluate the
- * expression.
+ * WT_ERR_ASSERT, WT_RET_ASSERT, WT_ASSERT
+ *	Assert an expression, aborting in diagnostic mode and otherwise exiting
+ * the function with an error. WT_ASSERT is deprecated, and should be used only
+ * where required for performance.
  */
 #ifdef HAVE_DIAGNOSTIC
 #define	WT_ASSERT(session, exp) do {					\
@@ -128,9 +128,29 @@
 		__wt_abort(session);					\
 	}								\
 } while (0)
+#define	WT_ERR_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp)) {							\
+		__wt_err(session, v, __VA_ARGS__);			\
+		__wt_abort(session);					\
+	}								\
+} while (0)
+#define	WT_RET_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp)) {							\
+		__wt_err(session, v, __VA_ARGS__);			\
+		__wt_abort(session);					\
+	}								\
+} while (0)
 #else
 #define	WT_ASSERT(session, exp)						\
 	WT_UNUSED(session)
+#define	WT_ERR_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp))							\
+		WT_ERR_MSG(session, v, __VA_ARGS__);			\
+} while (0)
+#define	WT_RET_ASSERT(session, exp, v, ...) do {			\
+	if (!(exp))							\
+		WT_RET_MSG(session, v, __VA_ARGS__);			\
+} while (0)
 #endif
 
 /*

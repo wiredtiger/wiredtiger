@@ -286,7 +286,7 @@ __wt_conn_optrack_setup(WT_SESSION_IMPL *session,
 		/* Operation tracking isn't supported in read-only mode */
 		WT_RET_MSG(session, EINVAL,
 		    "Operation tracking is incompatible with read only "
-		    "configuration.");
+		    "configuration");
 	if (F_ISSET(conn, WT_CONN_OPTRACK))
 		/* Already enabled, nothing else to do */
 		return (0);

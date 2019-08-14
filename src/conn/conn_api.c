@@ -2765,8 +2765,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler,
 	if (cval.val) {
 		if (F_ISSET(conn, WT_CONN_READONLY))
 			WT_ERR_MSG(session, EINVAL,
-			    "Readonly configuration incompatible with "
-			    "salvage.");
+			    "Readonly configuration incompatible with salvage");
 		F_SET(conn, WT_CONN_SALVAGE);
 	}
 

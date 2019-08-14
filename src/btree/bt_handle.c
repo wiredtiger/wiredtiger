@@ -972,7 +972,7 @@ __btree_page_sizes(WT_SESSION_IMPL *session)
 		btree->split_pct = WT_BTREE_MIN_SPLIT_PCT;
 		WT_RET(__wt_msg(session,
 		    "Re-setting split_pct for %s to the minimum allowed of "
-		    "%d%%.", session->dhandle->name, WT_BTREE_MIN_SPLIT_PCT));
+		    "%d%%", session->dhandle->name, WT_BTREE_MIN_SPLIT_PCT));
 	} else
 		btree->split_pct = (int)cval.val;
 	intl_split_size = __wt_split_page_size(

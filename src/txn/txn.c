@@ -1043,8 +1043,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
-	WT_ASSERT(session, skip_update_assert ||
-	    resolved_update_count == visited_update_count);
+	WT_ERR_ASSERT(session, skip_update_assert ||
+	    resolved_update_count == visited_update_count, EINVAL,
+	    "Number of resolved prepared updates: %" PRId64 " does not match"
+	    " number visited: %" PRId64, resolved_update_count,
+	    visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
@@ -1140,7 +1143,9 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 	 * if debug mode logging is not turned on.
 	 */
 	if (!FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_DEBUG_MODE))
-		WT_ASSERT(session, txn->logrec == NULL);
+		WT_RET_ASSERT(session, txn->logrec == NULL, EINVAL,
+		    "A transaction should not have been assigned a log"
+		    " record if WT_CONN_LOG_DEBUG mode is not enabled");
 
 	/* Set the prepare timestamp.  */
 	WT_RET(__wt_txn_set_timestamp(session, cfg));
@@ -1350,8 +1355,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
 		__wt_txn_op_free(session, op);
 	}
-	WT_ASSERT(session, skip_update_assert ||
-	    resolved_update_count == visited_update_count);
+	WT_RET_ASSERT(session, skip_update_assert ||
+	    resolved_update_count == visited_update_count, EINVAL,
+	    "Number of resolved prepared updates: %" PRId64 " does not match"
+	    " number visited: %" PRId64, resolved_update_count,
+	    visited_update_count);
 	WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved,
 	    resolved_update_count);
 
