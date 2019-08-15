@@ -1398,6 +1398,15 @@ err:		__wt_buf_free(session, sweep_key);
 }
 
 /*
+ * When threads race modifying a record, we can end up with more than the max
+ * number of modifications in an update list.
+ *
+ * Leave space for double the maximum number on the stack as a best attempt to
+ * avoid heap allocation.
+ */
+#define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE * 2)
+
+/*
  * __wt_find_lookaside_upd --
  * 	Scan the lookaside for a record the btree cursor wants to position on.
  * 	Create an update for the record and return to the caller.
@@ -1412,10 +1421,11 @@ __wt_find_lookaside_upd(
 	WT_DECL_RET;
 	WT_ITEM *key, las_key, las_value;
 	WT_REF *ref;
-	WT_UPDATE *upd, *list[1000];
+	WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE];
+	WT_UPDATE *upd, **listp;
 	wt_timestamp_t _durable_timestamp, _las_timestamp;
 	wt_timestamp_t durable_timestamp, las_timestamp;
-	size_t incr;
+	size_t allocated_bytes, incr;
 	uint64_t las_counter, las_pageid, las_txnid, _las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type, _prepare_state;
@@ -1431,6 +1441,8 @@ __wt_find_lookaside_upd(
 	las_pageid = ref->page_las->las_pageid;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	i = 0;
+	allocated_bytes = 0;
+	listp = list;
 
 	/* Open a lookaside table cursor. */
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -1508,7 +1520,16 @@ __wt_find_lookaside_upd(
 			while (upd_type == WT_UPDATE_MODIFY) {
 				WT_ERR(__wt_update_alloc(session,
 				    &las_value, &upd, &incr, upd_type));
-				list[i++] = upd;
+				if (i >= WT_MODIFY_ARRAY_SIZE) {
+					if (i == WT_MODIFY_ARRAY_SIZE)
+						listp = NULL;
+					WT_ERR(__wt_realloc_def(session,
+					    &allocated_bytes, i + 1, &listp));
+					if (i == WT_MODIFY_ARRAY_SIZE)
+						memcpy(
+						    listp, list, sizeof(list));
+				}
+				listp[i++] = upd;
 				WT_ERR(cursor->next(cursor));
 #ifdef HAVE_DIAGNOSTIC
 				/*
@@ -1546,8 +1567,8 @@ __wt_find_lookaside_upd(
 			while (i > 0) {
 				WT_ERR(__wt_modify_apply_item(
 				    (WT_SESSION_IMPL *)cursor->session,
-				    &las_value, list[i - 1]->data, false));
-				__wt_free_update_list(session, list[i - 1]);
+				    &las_value, listp[i - 1]->data, false));
+				__wt_free_update_list(session, listp[i - 1]);
 				--i;
 			}
 		}
@@ -1573,8 +1594,12 @@ __wt_find_lookaside_upd(
 
 err:	__wt_readunlock(session, &cache->las_sweepwalk_lock);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+	if (listp == NULL)
+		listp = list;
 	while (i > 0)
-		__wt_free_update_list(session, list[--i]);
+		__wt_free_update_list(session, listp[--i]);
+	if (allocated_bytes != 0)
+		__wt_free(session, listp);
 
 	/* Couldn't find a record */
 	if (upd == NULL && ret == 0)
