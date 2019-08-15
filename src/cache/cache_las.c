@@ -1541,6 +1541,10 @@ __wt_find_lookaside_upd(
 				    &las_id, &las_counter, &las_key));
 				WT_ASSERT(session,
 				    las_pageid == ref->page_las->las_pageid);
+				WT_ERR(__wt_compare(session,
+				    S2BT(session)->collator,
+				    &las_key, key, &cmp));
+				WT_ASSERT(session, cmp == 0);
 #endif
 				/*
 				 * Make sure we use the underscore variants of
