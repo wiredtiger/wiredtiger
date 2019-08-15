@@ -1508,7 +1508,6 @@ __wt_find_lookaside_upd(
 		 * It is okay to locate an older update in lookaside,
 		 * but we proceed only if we find a matching record.
 		 */
-		WT_ASSERT(session, start_ts >= las_timestamp);
 		if (start_ts != las_timestamp)
 			break;
 
