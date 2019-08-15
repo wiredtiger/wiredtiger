@@ -163,16 +163,6 @@ class test_las06(wttest.WiredTigerTestCase):
         #                             between on value1 to deduce value3.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, 5000):
-            val = cursor[i]
-            #print(len(val))
-            for i in range(0, len(val) - 1):
-                c = val[i]
-                if c == 'B':
-                    pass
-                    # print('b found at {}'.format(i))
-                elif c == 'C':
-                    pass
-                    # print('c found at {}'.format(i))
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 

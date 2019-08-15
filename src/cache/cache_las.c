@@ -1414,10 +1414,11 @@ __wt_find_lookaside_upd(
 	WT_REF *ref;
 	WT_UPDATE *upd, *list[1000];
 	wt_timestamp_t durable_timestamp, las_timestamp;
+	wt_timestamp_t _durable_timestamp, _las_timestamp;
 	size_t incr;
-	uint64_t las_counter, las_pageid, las_txnid;
+	uint64_t las_counter, las_pageid, las_txnid, _las_txnid;
 	uint32_t las_id, session_flags;
-	uint8_t prepare_state, upd_type;
+	uint8_t prepare_state, upd_type, _prepare_state;
 	int cmp;
 	u_int i;
 	bool upd_visible;
@@ -1429,6 +1430,7 @@ __wt_find_lookaside_upd(
 	ref = cbt->ref;
 	las_pageid = ref->page_las->las_pageid;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	i = 0;
 
 	/* Open a lookaside table cursor. */
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -1503,7 +1505,6 @@ __wt_find_lookaside_upd(
 		 * Once we get to that point, squash the updates together.
 		 */
 		if (upd_type == WT_UPDATE_MODIFY) {
-			i = 0;
 			while (upd_type == WT_UPDATE_MODIFY) {
 				/*
 				 * TODO: Add asserts later.
@@ -1518,33 +1519,39 @@ __wt_find_lookaside_upd(
 				list[i++] = upd;
 				WT_ERR(cursor->next(cursor));
 				WT_ERR(cursor->get_value(
-				    cursor, &las_txnid, &las_timestamp,
-				    &durable_timestamp, &prepare_state,
+				    cursor, &_las_txnid, &_las_timestamp,
+				    &_durable_timestamp, &_prepare_state,
 				    &upd_type, &las_value));
 			}
+
+			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+
 			/*
-			 * When we break out, we should have reached a full
-			 * update.
+			 * This value is a pointer/size pair pointing at a spot
+			 * in the cursor's buffer. Our modify function needs to
+			 * know to allocate its own buffer when applying
+			 * modifications so explicitly unset these.
 			 */
 			las_value.mem = NULL;
 			las_value.memsize = 0;
-			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-			while (i > 0)
-				(void)__wt_modify_apply_buf(
+			while (i > 0) {
+				WT_ERR(__wt_modify_apply_item(
 				    (WT_SESSION_IMPL *)cursor->session,
-				    &las_value, list[--i]->data, false);
-			WT_ERR(__wt_update_alloc(
-				       session, &las_value, &upd, &incr, upd_type));
-		} else {
-			/* Allocate an update structure for the record found. */
-			WT_ERR(__wt_update_alloc(
-			    session, &las_value, &upd, &incr, upd_type));
+				    &las_value, list[i - 1]->data, false));
+				__wt_free_update_list(session, list[i - 1]);
+				--i;
+			}
+		}
+
+		/* Allocate an update structure for the record found. */
+		WT_ERR(__wt_update_alloc(
+		    session, &las_value, &upd, &incr, upd_type));
 
 		upd->txnid = las_txnid;
 		upd->durable_ts = durable_timestamp;
 		upd->start_ts = las_timestamp;
 		upd->prepare_state = prepare_state;
-		}
+
 		/*
 		 * Mark this update as external and to be discarded when not
 		 * needed.
@@ -1559,6 +1566,9 @@ __wt_find_lookaside_upd(
 
 err:	__wt_readunlock(session, &cache->las_sweepwalk_lock);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+
+	while (i > 0)
+		__wt_free_update_list(session, list[--i]);
 
 	/* Couldn't find a record */
 	if (upd == NULL && ret == 0)
