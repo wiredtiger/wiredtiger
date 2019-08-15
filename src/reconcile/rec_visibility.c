@@ -172,8 +172,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 		 */
 		if (first_txn_upd == NULL)
 			first_txn_upd = upd;
-
-		/* Track the largest transaction ID seen. */
 		if (WT_TXNID_LT(max_txn, txnid))
 			max_txn = txnid;
 
@@ -242,10 +240,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 			 */
 			if (F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
 			    upd_select->upd != NULL &&
-			    (list_prepared || list_uncommitted)) {
-				r->leave_dirty = true;
+			    (list_prepared || list_uncommitted))
 				return (__wt_set_return(session, EBUSY));
-			}
 
 			if (upd->type == WT_UPDATE_BIRTHMARK)
 				skipped_birthmark = true;
