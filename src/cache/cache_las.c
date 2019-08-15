@@ -1413,14 +1413,14 @@ __wt_find_lookaside_upd(
 	WT_ITEM *key, las_key, las_value;
 	WT_REF *ref;
 	WT_UPDATE *upd, *list[1000];
-	wt_timestamp_t durable_timestamp, las_timestamp;
 	wt_timestamp_t _durable_timestamp, _las_timestamp;
+	wt_timestamp_t durable_timestamp, las_timestamp;
 	size_t incr;
 	uint64_t las_counter, las_pageid, las_txnid, _las_txnid;
 	uint32_t las_id, session_flags;
 	uint8_t prepare_state, upd_type, _prepare_state;
-	int cmp;
 	u_int i;
+	int cmp;
 	bool upd_visible;
 
 	*updp = upd = NULL;
@@ -1506,8 +1506,8 @@ __wt_find_lookaside_upd(
 		 */
 		if (upd_type == WT_UPDATE_MODIFY) {
 			while (upd_type == WT_UPDATE_MODIFY) {
-				WT_ERR(__wt_update_alloc(
-				    session, &las_value, &upd, &incr, upd_type));
+				WT_ERR(__wt_update_alloc(session,
+				    &las_value, &upd, &incr, upd_type));
 				list[i++] = upd;
 				WT_ERR(cursor->next(cursor));
 #ifdef HAVE_DIAGNOSTIC
@@ -1519,7 +1519,7 @@ __wt_find_lookaside_upd(
 				WT_ERR(cursor->get_key(cursor, &las_pageid,
 				    &las_id, &las_counter, &las_key));
 				WT_ASSERT(session,
-				    las_pageid != ref->page_las->las_pageid);
+				    las_pageid == ref->page_las->las_pageid);
 #endif
 				/*
 				 * Make sure we use the underscore variants of
@@ -1533,7 +1533,6 @@ __wt_find_lookaside_upd(
 				WT_ASSERT(session, __wt_txn_visible(
 				    session, _las_txnid, _las_timestamp));
 			}
-
 			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
 
 			/*

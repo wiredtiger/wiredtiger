@@ -910,8 +910,8 @@ __wt_txn_read(WT_SESSION_IMPL *session,
 		 * If we located the correct record, the contents should
 		 * be the same and we can use the record from lookaside.
 		 */
-		/* WT_ASSERT(session, upd->size == tmp_upd->size && */
-		/*     memcmp(upd->data, tmp_upd->data, upd->size) == 0); */
+		WT_ASSERT(session, upd->size == tmp_upd->size &&
+		    memcmp(upd->data, tmp_upd->data, upd->size) == 0);
 		upd = tmp_upd;
 	}
 

@@ -346,7 +346,8 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 	session = (WT_SESSION_IMPL *)cursor->session;
 	sformat = cursor->value_format[0] == 'S';
 
-	return __wt_modify_apply_item(session, &cursor->value, modify, sformat);
+	return (__wt_modify_apply_item(
+	    session, &cursor->value, modify, sformat));
 }
 
 /*
