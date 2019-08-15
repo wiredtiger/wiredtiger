@@ -1506,22 +1506,32 @@ __wt_find_lookaside_upd(
 		 */
 		if (upd_type == WT_UPDATE_MODIFY) {
 			while (upd_type == WT_UPDATE_MODIFY) {
+				WT_ERR(__wt_update_alloc(
+				    session, &las_value, &upd, &incr, upd_type));
+				list[i++] = upd;
+				WT_ERR(cursor->next(cursor));
+#ifdef HAVE_DIAGNOSTIC
 				/*
-				 * TODO: Add asserts later.
-				 *
 				 * We shouldn't be crossing over to another LAS
 				 * page id or breaking any visibility rules
 				 * while doing this.
 				 */
-				WT_ERR(__wt_update_alloc(
-				    session, &las_value, &upd, &incr, upd_type));
-				WT_ASSERT(session, i < 1000);
-				list[i++] = upd;
-				WT_ERR(cursor->next(cursor));
+				WT_ERR(cursor->get_key(cursor, &las_pageid,
+				    &las_id, &las_counter, &las_key));
+				WT_ASSERT(session,
+				    las_pageid != ref->page_las->las_pageid);
+#endif
+				/*
+				 * Make sure we use the underscore variants of
+				 * these variables. We need to retain the
+				 * timestamps of the original modify we saw.
+				 */
 				WT_ERR(cursor->get_value(
 				    cursor, &_las_txnid, &_las_timestamp,
 				    &_durable_timestamp, &_prepare_state,
 				    &upd_type, &las_value));
+				WT_ASSERT(session, __wt_txn_visible(
+				    session, _las_txnid, _las_timestamp));
 			}
 
 			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
@@ -1546,12 +1556,10 @@ __wt_find_lookaside_upd(
 		/* Allocate an update structure for the record found. */
 		WT_ERR(__wt_update_alloc(
 		    session, &las_value, &upd, &incr, upd_type));
-
 		upd->txnid = las_txnid;
 		upd->durable_ts = durable_timestamp;
 		upd->start_ts = las_timestamp;
 		upd->prepare_state = prepare_state;
-
 		/*
 		 * Mark this update as external and to be discarded when not
 		 * needed.
@@ -1566,7 +1574,6 @@ __wt_find_lookaside_upd(
 
 err:	__wt_readunlock(session, &cache->las_sweepwalk_lock);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-
 	while (i > 0)
 		__wt_free_update_list(session, list[--i]);
 
