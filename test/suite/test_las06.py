@@ -112,7 +112,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         # Create initial large values.
         value1 = 'a' * 500
-        value2 = 'b' * 500
+        value2 = 'd' * 500
 
         # Load 5Mb of data.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
@@ -126,7 +126,7 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, 5000):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('b', 100, 1)]
+            mods = [wiredtiger.Modify('B', 100, 1)]
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
@@ -134,7 +134,7 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         for i in range(1, 5000):
             cursor.set_key(i)
-            mods = [wiredtiger.Modify('c', 200, 1)]
+            mods = [wiredtiger.Modify('C', 200, 1)]
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
@@ -148,8 +148,8 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         expected = list(value1)
-        expected[100] = 'b'
-        expected[200] = 'c'
+        expected[100] = 'B'
+        expected[200] = 'C'
         expected = str().join(expected)
 
         # Whenever we request something of timestamp 4, this should be a modify
@@ -163,6 +163,16 @@ class test_las06(wttest.WiredTigerTestCase):
         #                             between on value1 to deduce value3.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, 5000):
+            val = cursor[i]
+            #print(len(val))
+            for i in range(0, len(val) - 1):
+                c = val[i]
+                if c == 'B':
+                    pass
+                    # print('b found at {}'.format(i))
+                elif c == 'C':
+                    pass
+                    # print('c found at {}'.format(i))
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 

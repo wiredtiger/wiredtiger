@@ -335,22 +335,32 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value,
 
 /*
  * __wt_modify_apply --
- *	Apply a single set of WT_MODIFY changes to a buffer.
+ *	Apply a single set of WT_MODIFY changes to a cursor buffer.
  */
 int
 __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
 {
-	WT_ITEM *value;
-	WT_MODIFY mod;
 	WT_SESSION_IMPL *session;
-	size_t datasz, destsz, item_offset, tmp;
-	const size_t *p;
-	int napplied, nentries;
-	bool overlap, sformat;
+	bool sformat;
 
 	session = (WT_SESSION_IMPL *)cursor->session;
 	sformat = cursor->value_format[0] == 'S';
-	value = &cursor->value;
+
+	return __wt_modify_apply_buf(session, &cursor->value, modify, sformat);
+}
+
+/*
+ * __wt_modify_apply_buf --
+ *	Apply a single set of WT_MODIFY changes to a buffer.
+ */
+int
+__wt_modify_apply_buf(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify, bool sformat)
+{
+	WT_MODIFY mod;
+	size_t datasz, destsz, item_offset, tmp;
+	const size_t *p;
+	int napplied, nentries;
+	bool overlap;
 
 	/*
 	 * Get the number of modify entries and set a second pointer to
