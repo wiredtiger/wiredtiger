@@ -2093,9 +2093,13 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 			 * entries were used, there's no disk image to write.
 			 * There's no more work to do in this case, lookaside
 			 * eviction doesn't copy disk images.
+			 *
+			 * Note we can't mark such a page clean because there
+			 * would be no page to reference a lookaside record.
 			 */
 			if (chunk->entries == 0)
-				return (0);
+				return (r->leave_dirty ?
+				    0 : __wt_set_return(session, EBUSY));
 		} else {
 			r->cache_write_restore = true;
 
