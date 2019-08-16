@@ -1557,15 +1557,6 @@ __wt_find_lookaside_upd(
 				    session, _las_txnid, _las_timestamp));
 			}
 			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-
-			/*
-			 * This value is a pointer/size pair pointing at a spot
-			 * in the cursor's buffer. Our modify function needs to
-			 * know to allocate its own buffer when applying
-			 * modifications so explicitly unset these.
-			 */
-			las_value.mem = NULL;
-			las_value.memsize = 0;
 			while (i > 0) {
 				WT_ERR(__wt_modify_apply_item(
 				    (WT_SESSION_IMPL *)cursor->session,
