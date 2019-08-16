@@ -1558,8 +1558,7 @@ __wt_find_lookaside_upd(
 			}
 			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
 			while (i > 0) {
-				WT_ERR(__wt_modify_apply_item(
-				    (WT_SESSION_IMPL *)cursor->session,
+				WT_ERR(__wt_modify_apply_item(session,
 				    &las_value, listp[i - 1]->data, false));
 				__wt_free_update_list(session, listp[i - 1]);
 				--i;
