@@ -394,9 +394,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
 	if (all_stable)
 		goto check_original_value;
 
-	if (upd != first_txn_upd || list_prepared || list_uncommitted ||
+	if (!r->leave_dirty &&
+	    (upd != first_txn_upd || list_prepared || list_uncommitted ||
 	    F_ISSET(r, WT_REC_VISIBLE_ALL) ||
-	    !__wt_txn_visible(session, max_txn, max_ts))
+	    !__wt_txn_visible(session, max_txn, max_ts)))
 		r->leave_dirty = true;
 
 	if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
