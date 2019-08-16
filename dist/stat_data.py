@@ -237,6 +237,7 @@ connection_stats = [
     CacheStat('cache_eviction_maximum_page_size', 'maximum page size at eviction', 'no_clear,no_scale,size'),
     CacheStat('cache_eviction_pages_queued', 'pages queued for eviction'),
     CacheStat('cache_eviction_pages_queued_oldest', 'pages queued for urgent eviction during walk'),
+    CacheStat('cache_eviction_pages_queued_post_lru', 'pages queued for eviction post lru sorting'),
     CacheStat('cache_eviction_pages_queued_urgent', 'pages queued for urgent eviction'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
