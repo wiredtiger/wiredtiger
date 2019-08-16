@@ -1403,6 +1403,8 @@ err:		__wt_buf_free(session, sweep_key);
  *
  * Leave space for double the maximum number on the stack as a best attempt to
  * avoid heap allocation.
+ *
+ * TODO: Look into reusing code from __wt_value_return_upd.
  */
 #define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE * 2)
 
@@ -1437,12 +1439,13 @@ __wt_find_lookaside_upd(
 	cache = S2C(session)->cache;
 	cursor = NULL;
 	key = &cbt->iface.key;
+	WT_CLEAR(las_value);
 	ref = cbt->ref;
+	listp = list;
+	allocated_bytes = 0;
 	las_pageid = ref->page_las->las_pageid;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
 	i = 0;
-	allocated_bytes = 0;
-	listp = list;
 
 	/* Open a lookaside table cursor. */
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -1504,10 +1507,6 @@ __wt_find_lookaside_upd(
 		if (upd_type == WT_UPDATE_BIRTHMARK && ignore_birthmark)
 			break;
 
-		/*
-		 * It is okay to locate an older update in lookaside,
-		 * but we proceed only if we find a matching record.
-		 */
 		if (start_ts != las_timestamp)
 			break;
 
@@ -1525,8 +1524,8 @@ __wt_find_lookaside_upd(
 					WT_ERR(__wt_realloc_def(session,
 					    &allocated_bytes, i + 1, &listp));
 					if (i == WT_MODIFY_ARRAY_SIZE)
-						memcpy(
-						    listp, list, sizeof(list));
+						memcpy(listp,
+						    list, sizeof(list));
 				}
 				listp[i++] = upd;
 				WT_ERR(cursor->next(cursor));
