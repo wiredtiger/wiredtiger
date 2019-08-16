@@ -724,6 +724,17 @@ __evict_review(WT_SESSION_IMPL *session,
 	ret = __wt_reconcile(session, ref, NULL, flags, lookaside_retryp);
 
 	/*
+	 * If attempting eviction during a checkpoint, we may successfully
+	 * reconcile but then find that there are updates on the page too new
+	 * to evict.  Give up evicting in that case: checkpoint will include
+	 * the reconciled page when it visits the parent.
+	 */
+	if (WT_SESSION_BTREE_SYNC(session) && !__wt_page_is_modified(page) &&
+	    !__wt_txn_visible_all(session, page->modify->rec_max_txn,
+	    page->modify->rec_max_timestamp))
+		return (__wt_set_return(session, EBUSY));
+
+	/*
 	 * If reconciliation fails but reports it might succeed if we use the
 	 * lookaside table, try again with the lookaside table, allowing the
 	 * eviction of pages we'd otherwise have to retain in cache to support
