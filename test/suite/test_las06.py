@@ -28,6 +28,7 @@
 
 import wiredtiger, wttest
 from wiredtiger import stat
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -45,6 +46,11 @@ class test_las06(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
+    key_format_values = [
+        ('column_store', dict(key_format='r')),
+        ('row_store', dict(key_format='i'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -58,7 +64,7 @@ class test_las06(wttest.WiredTigerTestCase):
     def test_las_reads_workload(self):
         # Create a small table.
         uri = "table:test_las06"
-        create_params = 'key_format=i,value_format=S,'
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
         value1 = 'a' * 500
@@ -107,7 +113,7 @@ class test_las06(wttest.WiredTigerTestCase):
     def test_las_modify_reads_workload(self):
         # Create a small table.
         uri = "table:test_las06"
-        create_params = 'key_format=i,value_format=S,'
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
         # Create initial large values.
