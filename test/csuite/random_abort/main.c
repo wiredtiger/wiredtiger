@@ -37,6 +37,7 @@ static char home[1024]; /* Program working dir */
  * These two names for the URI and file system must be maintained in tandem.
  */
 static const char *const uri = "table:main";
+static const char *const col_uri = "table:col_main";
 static bool compat;
 static bool inmem;
 
@@ -44,7 +45,11 @@ static bool inmem;
 #define MIN_TH 5
 #define MAX_TIME 40
 #define MIN_TIME 10
-#define RECORDS_FILE "records-%" PRIu32
+#define MAX_NUM_OPS 3
+#define MAX_RECORD_FILES 3
+#define DELETE_RECORDS_FILE "delete-records-%" PRIu32
+#define INSERT_RECORDS_FILE "insert-records-%" PRIu32
+#define MODIFY_RECORDS_FILE "modify-records-%" PRIu32
 
 #define ENV_CONFIG_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_DEF "create,log=(file_max=10M,enabled)"
@@ -72,28 +77,40 @@ typedef struct {
 static WT_THREAD_RET
 thread_run(void *arg)
 {
-    FILE *fp;
+    FILE *fp[MAX_RECORD_FILES];
     WT_CURSOR *cursor;
-    WT_ITEM data;
+    WT_ITEM data, newv;
+    WT_MODIFY entries[10];
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     WT_THREAD_DATA *td;
     size_t lsize;
+    size_t maxdiff, new_buf_size;
     uint64_t i;
-    char buf[MAX_VAL], kname[64], lgbuf[8];
+    int nentries;
+    int ret;
+    char buf[MAX_RECORD_FILES][MAX_VAL], new_buf[MAX_VAL];
+    char kname[64], lgbuf[8];
     char large[128 * 1024];
+    bool columnar_table;
 
     __wt_random_init(&rnd);
-    memset(buf, 0, sizeof(buf));
+    for (i = 0; i < MAX_RECORD_FILES; i++)
+        memset(buf[i], 0, sizeof(buf[i]));
+    memset(new_buf, 0, sizeof(new_buf));
     memset(kname, 0, sizeof(kname));
     lsize = sizeof(large);
     memset(large, 0, lsize);
+    nentries = 10;
+    columnar_table = false;
 
     td = (WT_THREAD_DATA *)arg;
     /*
      * The value is the name of the record file with our id appended.
      */
-    testutil_check(__wt_snprintf(buf, sizeof(buf), RECORDS_FILE, td->id));
+    testutil_check(__wt_snprintf(buf[0], sizeof(buf[0]), INSERT_RECORDS_FILE, td->id));
+    testutil_check(__wt_snprintf(buf[1], sizeof(buf[1]), MODIFY_RECORDS_FILE, td->id));
+    testutil_check(__wt_snprintf(buf[2], sizeof(buf[2]), DELETE_RECORDS_FILE, td->id));
     /*
      * Set up a large value putting our id in it. Write it in there a bunch of times, but the rest
      * of the buffer can just be zero.
@@ -104,25 +121,49 @@ thread_run(void *arg)
     /*
      * Keep a separate file with the records we wrote for checking.
      */
-    (void)unlink(buf);
-    if ((fp = fopen(buf, "w")) == NULL)
-        testutil_die(errno, "fopen");
-    /*
-     * Set to line buffering. But that is advisory only. We've seen cases where the result files end
-     * up with partial lines.
-     */
-    __wt_stream_set_line_buffer(fp);
+    for (i = 0; i < MAX_RECORD_FILES; i++) {
+        (void)unlink(buf[i]);
+        if ((fp[i] = fopen(buf[i], "w")) == NULL)
+            testutil_die(errno, "fopen");
+        /*
+         * Set to line buffering. But that is advisory only. We've seen cases where the result files
+         * end up with partial lines.
+         */
+        __wt_stream_set_line_buffer(fp[i]);
+    }
+
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
-    data.data = buf;
-    data.size = sizeof(buf);
+
+    /* Make sure that alternative threads operate on column-store table */
+    if (td->id % 2 != 0)
+        columnar_table = true;
+
+    if (columnar_table)
+        testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &cursor));
+    else
+        testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+
+    /*
+     * Initialize the data with predefined data, this buffer modified randomly for the required
+     * buffer to insert.
+     */
+    memset(buf[0], 'a', MAX_VAL - 1);
+    data.data = buf[0];
+    data.size = sizeof(buf[0]);
     /*
      * Write our portion of the key space until we're killed.
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->id, td->start);
     for (i = td->start;; ++i) {
-        testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
-        cursor->set_key(cursor, kname);
+        if (i == 0)
+            i++;
+
+        if (columnar_table)
+            cursor->set_key(cursor, i);
+        else {
+            testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, i));
+            cursor->set_key(cursor, kname);
+        }
         /*
          * Every 30th record write a very large record that exceeds the log buffer size. This forces
          * us to use the unbuffered path.
@@ -132,15 +173,82 @@ thread_run(void *arg)
             data.data = large;
         } else {
             data.size = __wt_random(&rnd) % MAX_VAL;
-            data.data = buf;
+
+            /*
+             * Modify the last character buffer according to the random size, this may generate a
+             * unique record.
+             */
+            buf[0][data.size - 1] = 'b';
+            data.data = buf[0];
         }
         cursor->set_value(cursor, &data);
         testutil_check(cursor->insert(cursor));
         /*
          * Save the key separately for checking later.
          */
-        if (fprintf(fp, "%" PRIu64 "\n", i) == -1)
+        if (fprintf(fp[0], "%" PRIu64 "\n", i) == -1)
             testutil_die(errno, "fprintf");
+
+        /*
+         * Decide what kind of operation can be performed on the already inserted data.
+         */
+        if (i % MAX_NUM_OPS == 0)
+            continue;
+        else if (i % MAX_NUM_OPS == 1) {
+            new_buf_size = (data.size < MAX_VAL - 1 ? data.size : MAX_VAL - 1);
+            memcpy(new_buf, data.data, new_buf_size);
+            new_buf[0] = 'b';
+            new_buf[new_buf_size + 1] = 0;
+
+            newv.data = new_buf;
+            newv.size = new_buf_size;
+            maxdiff = MAX_VAL;
+
+            /*
+             * Make sure the modify operation is carried out in an snapshot isolation level with
+             * explicit transaction.
+             */
+            testutil_check(session->begin_transaction(session, "isolation=snapshot"));
+
+            ret = wiredtiger_calc_modify(session, &data, &newv, maxdiff, entries, &nentries);
+
+            if (columnar_table)
+                cursor->set_key(cursor, i);
+            else
+                cursor->set_key(cursor, kname);
+
+            if (ret == 0)
+                testutil_check(cursor->modify(cursor, entries, nentries));
+            else {
+                /*
+                 * In case if we couldn't able to generate modify vectors, treat this change as a
+                 * normal update operation.
+                 */
+                cursor->set_value(cursor, &newv);
+                testutil_check(cursor->update(cursor));
+            }
+
+            testutil_check(session->commit_transaction(session, NULL));
+
+            /*
+             * Save the key and new value separately for checking later.
+             */
+            if (fprintf(fp[1], "%" PRIu64 ",%s \n", i, new_buf) == -1)
+                testutil_die(errno, "fprintf");
+        } else {
+            if (columnar_table)
+                cursor->set_key(cursor, i);
+            else
+                cursor->set_key(cursor, kname);
+
+            testutil_check(cursor->remove(cursor));
+
+            /*
+             * Save the key separately for checking later.
+             */
+            if (fprintf(fp[2], "%" PRIu64 "\n", i) == -1)
+                testutil_die(errno, "fprintf");
+        }
     }
     /* NOTREACHED */
 }
@@ -173,6 +281,7 @@ fill_db(uint32_t nth)
 
     testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    testutil_check(session->create(session, col_uri, "key_format=r,value_format=u"));
     testutil_check(session->create(session, uri, "key_format=S,value_format=u"));
     testutil_check(session->close(session, NULL));
 
@@ -219,18 +328,20 @@ main(int argc, char *argv[])
 {
     struct sigaction sa;
     struct stat sb;
-    FILE *fp;
+    FILE *fp[MAX_RECORD_FILES];
     WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
+    WT_CURSOR *col_cursor, *cursor, *row_cursor;
+    WT_ITEM search_value;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     pid_t pid;
     uint64_t absent, count, key, last_key, middle;
-    uint32_t i, nth, timeout;
+    uint32_t i, j, nth, timeout;
     int ch, status, ret;
-    char buf[1024], fname[64], kname[64];
+    char buf[1024], fname[MAX_RECORD_FILES][64], kname[64];
+    char file_value[MAX_VAL];
     const char *working_dir;
-    bool fatal, rand_th, rand_time, verify_only;
+    bool columnar_table, fatal, rand_th, rand_time, verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -321,13 +432,23 @@ main(int argc, char *argv[])
          */
         i = 0;
         while (i < nth) {
-            /*
-             * Wait for each record file to exist.
-             */
-            testutil_check(__wt_snprintf(fname, sizeof(fname), RECORDS_FILE, i));
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, fname));
-            while (stat(buf, &sb) != 0)
-                testutil_sleep_wait(1, pid);
+            for (j = 0; j < MAX_RECORD_FILES; j++) {
+                /*
+                 * Wait for each record file to exist.
+                 */
+                if (j == 0)
+                    testutil_check(
+                      __wt_snprintf(fname[j], sizeof(fname[j]), INSERT_RECORDS_FILE, i));
+                else if (j == 1)
+                    testutil_check(
+                      __wt_snprintf(fname[j], sizeof(fname[j]), MODIFY_RECORDS_FILE, i));
+                else
+                    testutil_check(
+                      __wt_snprintf(fname[j], sizeof(fname[j]), DELETE_RECORDS_FILE, i));
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, fname[j]));
+                while (stat(buf, &sb) != 0)
+                    testutil_sleep_wait(1, pid);
+            }
             ++i;
         }
         sleep(timeout);
@@ -362,16 +483,34 @@ main(int argc, char *argv[])
     printf("Open database, run recovery and verify content\n");
     testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
+    testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &col_cursor));
+    testutil_check(session->open_cursor(session, uri, NULL, NULL, &row_cursor));
 
     absent = count = 0;
     fatal = false;
     for (i = 0; i < nth; ++i) {
-        middle = 0;
-        testutil_check(__wt_snprintf(fname, sizeof(fname), RECORDS_FILE, i));
-        if ((fp = fopen(fname, "r")) == NULL)
-            testutil_die(errno, "fopen: %s", fname);
+        /*
+         * Every alternative thread is operated on column-store table. Make sure that proper cursor
+         * is used for verification of recovered records.
+         */
+        if (i % 2 != 0) {
+            columnar_table = true;
+            cursor = col_cursor;
+        } else {
+            columnar_table = false;
+            cursor = row_cursor;
+        }
 
+        middle = 0;
+        testutil_check(__wt_snprintf(fname[0], sizeof(fname[0]), INSERT_RECORDS_FILE, i));
+        if ((fp[0] = fopen(fname[0], "r")) == NULL)
+            testutil_die(errno, "fopen: %s", fname[0]);
+        testutil_check(__wt_snprintf(fname[1], sizeof(fname[1]), MODIFY_RECORDS_FILE, i));
+        if ((fp[1] = fopen(fname[1], "r")) == NULL)
+            testutil_die(errno, "fopen: %s", fname[1]);
+        testutil_check(__wt_snprintf(fname[2], sizeof(fname[2]), DELETE_RECORDS_FILE, i));
+        if ((fp[2] = fopen(fname[2], "r")) == NULL)
+            testutil_die(errno, "fopen: %s", fname[2]);
         /*
          * For every key in the saved file, verify that the key exists in the table after recovery.
          * If we're doing in-memory log buffering we never expect a record missing in the middle,
@@ -379,7 +518,7 @@ main(int argc, char *argv[])
          * have been recovered.
          */
         for (last_key = UINT64_MAX;; ++count, last_key = key) {
-            ret = fscanf(fp, "%" SCNu64 "\n", &key);
+            ret = fscanf(fp[0], "%" SCNu64 "\n", &key);
             /*
              * Consider anything other than clear success in getting the key to be EOF. We've seen
              * file system issues where the file ends with zeroes on a 4K boundary and does not
@@ -392,36 +531,168 @@ main(int argc, char *argv[])
              * result in a false negative error for a missing record. Detect it.
              */
             if (last_key != UINT64_MAX && key != last_key + 1) {
-                printf("%s: Ignore partial record %" PRIu64 " last valid key %" PRIu64 "\n", fname,
-                  key, last_key);
+                printf("%s: Ignore partial record %" PRIu64 " last valid key %" PRIu64 "\n",
+                  fname[0], key, last_key);
                 break;
             }
-            testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
-            cursor->set_key(cursor, kname);
-            if ((ret = cursor->search(cursor)) != 0) {
-                if (ret != WT_NOTFOUND)
-                    testutil_die(ret, "search");
-                if (!inmem)
-                    printf("%s: no record with key %" PRIu64 "\n", fname, key);
-                absent++;
-                middle = key;
-            } else if (middle != 0) {
+
+            if (key % MAX_NUM_OPS == 0) {
                 /*
-                 * We should never find an existing key after we have detected one missing.
+                 * If it is insert only operation, make sure the record exist
                  */
-                printf("%s: after absent record at %" PRIu64 " key %" PRIu64 " exists\n", fname,
-                  middle, key);
-                fatal = true;
+                if (columnar_table)
+                    cursor->set_key(cursor, key);
+                else {
+                    testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+                    cursor->set_key(cursor, kname);
+                }
+
+                if ((ret = cursor->search(cursor)) != 0) {
+                    if (ret != WT_NOTFOUND)
+                        testutil_die(ret, "search");
+                    if (!inmem)
+                        printf(
+                          "%s: no insert record"
+                          " with key %" PRIu64 "\n",
+                          fname[0], key);
+                    absent++;
+                    middle = key;
+                } else if (middle != 0) {
+                    /*
+                     * We should never find an existing key after we have detected one missing for
+                     * the thread.
+                     */
+                    printf("%s: after missing record at %" PRIu64 " key %" PRIu64 " exists\n",
+                      fname[0], middle, key);
+                    fatal = true;
+                }
+            } else if (key % MAX_NUM_OPS == 1) {
+                /*
+                 * If it is modify operation, make sure value of the fetched record matches with
+                 * saved.
+                 */
+                ret = fscanf(fp[1], "%" SCNu64 ",%s \n", &key, file_value);
+
+                /*
+                 * Consider anything other than clear success in getting the key to be EOF. We've
+                 * seen file system issues where the file ends with zeroes on a 4K boundary and does
+                 * not return EOF but a ret of zero.
+                 */
+                if (ret != 2)
+                    break;
+
+                /*
+                 * If we're unlucky, the last line may be a partially written key and value at the
+                 * end that can result in a false negative error for a missing record. Detect the
+                 * key.
+                 */
+                if (last_key != UINT64_MAX && key <= last_key) {
+                    printf("%s: Ignore partial record %" PRIu64 " last valid key %" PRIu64 "\n",
+                      fname[1], key, last_key);
+                    break;
+                }
+
+                if (columnar_table)
+                    cursor->set_key(cursor, key);
+                else {
+                    testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+                    cursor->set_key(cursor, kname);
+                }
+
+                if ((ret = cursor->search(cursor)) != 0) {
+                    if (ret != WT_NOTFOUND)
+                        testutil_die(ret, "search");
+                    if (!inmem)
+                        printf(
+                          "%s: no modified record"
+                          " with key %" PRIu64 "\n",
+                          fname[1], key);
+                    absent++;
+                    middle = key;
+                } else if (middle != 0) {
+                    /*
+                     * We should never find an existing key after we have detected one missing for
+                     * the thread.
+                     */
+                    printf("%s: after missing record at %" PRIu64 " key %" PRIu64 " exists\n",
+                      fname[1], middle, key);
+                    fatal = true;
+                } else {
+                    testutil_check(cursor->get_value(cursor, &search_value));
+                    if (strncmp(file_value, search_value.data, search_value.size) == 0)
+                        continue;
+
+                    /*
+                     * If we're unlucky, the last line value can be partial written at the end that
+                     * can result in a false negative error for unmatched record. Ignore it for the
+                     * first time and throw and error later.
+                     */
+                    absent++;
+                    middle = key;
+                }
+            } else {
+                /*
+                 * If it is delete operation, make sure the record doesn't exist.
+                 */
+                ret = fscanf(fp[2], "%" SCNu64 "\n", &key);
+
+                /*
+                 * Consider anything other than clear success in getting the key to be EOF. We've
+                 * seen file system issues where the file ends with zeroes on a 4K boundary and does
+                 * not return EOF but a ret of zero.
+                 */
+                if (ret != 1)
+                    break;
+
+                /*
+                 * If we're unlucky, the last line may be a partially written key at the end that
+                 * can result in a false negative error for a missing record. Detect it.
+                 */
+                if (last_key != UINT64_MAX && key <= last_key) {
+                    printf("%s: Ignore partial record %" PRIu64 " last valid key %" PRIu64 "\n",
+                      fname[2], key, last_key);
+                    break;
+                }
+
+                if (columnar_table)
+                    cursor->set_key(cursor, key);
+                else {
+                    testutil_check(__wt_snprintf(kname, sizeof(kname), "%" PRIu64, key));
+                    cursor->set_key(cursor, kname);
+                }
+
+                if ((ret = cursor->search(cursor)) != 0) {
+                    if (ret != WT_NOTFOUND)
+                        testutil_die(ret, "search");
+                } else if (middle != 0) {
+                    /*
+                     * We should never find an existing key after we have detected one missing for
+                     * the thread.
+                     */
+                    printf("%s: after missing record at %" PRIu64 " key %" PRIu64 " exists\n",
+                      fname[2], middle, key);
+                    fatal = true;
+                } else {
+                    if (!inmem)
+                        printf(
+                          "%s: deleted record"
+                          " found with key %" PRIu64 "\n",
+                          fname[2], key);
+                    absent++;
+                    middle = key;
+                }
             }
         }
-        if (fclose(fp) != 0)
-            testutil_die(errno, "fclose");
+        for (j = 0; j < MAX_RECORD_FILES; j++) {
+            if (fclose(fp[j]) != 0)
+                testutil_die(errno, "fclose");
+        }
     }
     testutil_check(conn->close(conn, NULL));
     if (fatal)
         return (EXIT_FAILURE);
     if (!inmem && absent) {
-        printf("%" PRIu64 " record(s) absent from %" PRIu64 "\n", absent, count);
+        printf("%" PRIu64 " record(s) are missed from %" PRIu64 "\n", absent, count);
         return (EXIT_FAILURE);
     }
     printf("%" PRIu64 " records verified\n", count);
