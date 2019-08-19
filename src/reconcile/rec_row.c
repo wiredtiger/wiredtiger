@@ -927,7 +927,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 			 * Get the key from the page or an instantiated key, or
 			 * inline building the key from a previous key (it's a
 			 * fast path for simple, prefix-compressed keys), or by
-			 * by building the key from scratch.
+			 * building the key from scratch.
 			 */
 			if (__wt_row_leaf_key_info(page, copy,
 			    NULL, &cell, &tmpkey->data, &tmpkey->size))
