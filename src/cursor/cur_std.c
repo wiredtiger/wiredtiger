@@ -109,6 +109,19 @@ __wt_cursor_equals_notsup(WT_CURSOR *cursor, WT_CURSOR *other, int *equalp)
 int
 __wt_cursor_modify_notsup(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
 {
+    WT_UNUSED(entries);
+    WT_UNUSED(nentries);
+
+    return (__wt_cursor_notsup(cursor));
+}
+
+/*
+ * __wt_cursor_modify_notsup_valuefmt --
+ *     Unsupported cursor modify value format.
+ */
+int
+__wt_cursor_modify_notsup_valuefmt(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
+{
     WT_SESSION_IMPL *session;
 
     WT_UNUSED(entries);
@@ -1071,7 +1084,7 @@ __wt_cursor_init(
      * initialized (file cursors have a faster implementation).
      */
     if ((WT_STREQ(cursor->value_format, "S") || WT_STREQ(cursor->value_format, "u")) &&
-      cursor->modify == __wt_cursor_modify_notsup)
+      cursor->modify == __wt_cursor_modify_notsup_valuefmt)
         cursor->modify = __cursor_modify;
 
     /*
