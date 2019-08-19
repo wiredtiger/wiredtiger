@@ -3,7 +3,6 @@
 set -o pipefail
 
 download_clang_format() {
-	echo "$0: downloading clang-format for $(uname)"
 	if [ `uname` = "Linux" ]; then
 		wget https://s3.amazonaws.com/boxes.10gen.com/build/clang-format-3.8-rhel55.tar.gz -O dist/clang-format.tar.gz
 		tar --strip=2 -C dist/ -xf dist/clang-format.tar.gz build/bin/clang-format && rm dist/clang-format.tar.gz
@@ -26,7 +25,6 @@ export PATH="${PWD}/dist":$PATH
 clang_format_version="3.8.0"
 clang-format --version | grep "version $clang_format_version" >/dev/null 2>&1
 if test $? -ne 0; then
-	echo "$0: incorrect/missing version of clang-format ($clang_format_version required)"
 	download_clang_format
 fi
 

@@ -41,11 +41,6 @@ test "$reconf" -eq 0 || {
 	    cd ../build_posix && 2>&1 sh ./reconf | sed -e 's/^/    /')
 }
 
-# Temporarily disable s_all.
-# It's too hard making s_all return clean for a pre and post formatted
-# WiredTiger codebase so let's just disable it and reenable when we apply it.
-exit 0
-
 errchk()
 {
 	if ! `test -s $2`; then
