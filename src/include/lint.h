@@ -75,8 +75,32 @@ __wt_atomic_cas_ptr(void *vp, void *orig, void *new) {
 	return (false);
 }
 
+/*
+ * WT_BARRIER --
+ *	No-op implementation of WT_BARRIER.
+ */
 static inline void WT_BARRIER(void) {}
+
+/*
+ * WT_FULL_BARRIER --
+ *	No-op implementation of WT_FULL_BARRIER.
+ */
 static inline void WT_FULL_BARRIER(void) {}
+
+/*
+ * WT_PAUSE --
+ *	No-op implementation of WT_PAUSE.
+ */
 static inline void WT_PAUSE(void) {}
+
+/*
+ * WT_READ_BARRIER --
+ *	No-op implementation of WT_READ_BARRIER.
+ */
 static inline void WT_READ_BARRIER(void) {}
+
+/*
+ * WT_WRITE_BARRIER --
+ *	No-op implementation of WT_WRITE_BARRIER.
+ */
 static inline void WT_WRITE_BARRIER(void) {}

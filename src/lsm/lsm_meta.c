@@ -176,10 +176,10 @@ __lsm_meta_read_v1(
 	WT_DECL_ITEM(buf);
 	WT_DECL_RET;
 	WT_LSM_CHUNK *chunk;
+	u_int nchunks;
 	const char *file_cfg[] = {
 	    WT_CONFIG_BASE(session, file_config), NULL, NULL, NULL };
 	char *fileconf;
-	u_int nchunks;
 
 	chunk = NULL;			/* -Wconditional-uninitialized */
 

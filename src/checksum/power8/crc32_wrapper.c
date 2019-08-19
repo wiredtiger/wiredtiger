@@ -9,23 +9,23 @@
 #define VMX_ALIGN	16U
 #define VMX_ALIGN_MASK	(VMX_ALIGN-1)
 
-#ifdef REFLECT
+/*
+ * crc32_align --
+ *	Align helper for CRC32 functions.
+ */
 static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
 			       unsigned long len)
 {
+#ifdef REFLECT
 	while (len--)
 		crc = crc_table[(crc ^ *p++) & 0xff] ^ (crc >> 8);
 	return crc;
-}
 #else
-static unsigned int crc32_align(unsigned int crc, const unsigned char *p,
-				unsigned long len)
-{
 	while (len--)
 		crc = crc_table[((crc >> 24) ^ *p++) & 0xff] ^ (crc << 8);
 	return crc;
-}
 #endif
+}
 
 unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
 			    unsigned long len);
@@ -33,6 +33,11 @@ unsigned int __crc32_vpmsum(unsigned int crc, const unsigned char *p,
 /* -Werror=missing-prototypes */
 unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p,
 			  unsigned long len);
+
+/*
+ * crc32_vpmsum --
+ *	VPM sum helper for CRC32 functions.
+ */
 unsigned int crc32_vpmsum(unsigned int crc, const unsigned char *p,
 			  unsigned long len)
 {
