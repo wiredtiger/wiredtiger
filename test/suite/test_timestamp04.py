@@ -78,7 +78,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Search for the expected items as well as iterating.
         for k, v in expected.items():
             if missing == False:
-                self.assertEqual(cur[k], v, "for key " + str(k))
+                self.assertEqual(cur[k], v, "for key " + str(k) +
+                    " expected " + str(v) + ", got " + str(cur[k]))
             else:
                 cur.set_key(k)
                 if self.empty:

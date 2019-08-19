@@ -222,6 +222,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
 {
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_LOOKASIDE *page_las;
     uint32_t read_flags;
     bool local_read;
 
@@ -234,9 +235,7 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
      *
      * So, if there is lookaside history for a page, first check if the
      * history needs to be rolled back make sure that history is loaded
-     * into cache.  That is, if skew_newest is true, so the disk image
-     * potentially contained unstable updates, and the history is more
-     * recent than the rollback timestamp.
+     * into cache.
      *
      * Also, we have separately discarded any lookaside history more recent
      * than the rollback timestamp.  For page_las structures in cache,
@@ -247,9 +246,8 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
      */
     local_read = false;
     read_flags = WT_READ_WONT_NEED;
-    if (ref->page_las != NULL) {
-        if (ref->page_las->skew_newest &&
-          rollback_timestamp < ref->page_las->unstable_durable_timestamp) {
+    if ((page_las = ref->page_las) != NULL) {
+        if (rollback_timestamp < page_las->max_ondisk_ts) {
             /*
              * Make sure we get back a page with history, not a limbo page.
              */
@@ -258,13 +256,10 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             WT_ASSERT(session,
               ref->state != WT_REF_LIMBO && ref->page != NULL && __wt_page_is_modified(ref->page));
             local_read = true;
+            page_las->max_ondisk_ts = rollback_timestamp;
         }
-        if (ref->page_las->max_timestamp > rollback_timestamp)
-            ref->page_las->max_timestamp = rollback_timestamp;
-        if (ref->page_las->unstable_durable_timestamp > rollback_timestamp)
-            ref->page_las->unstable_durable_timestamp = rollback_timestamp;
-        if (ref->page_las->unstable_timestamp > rollback_timestamp)
-            ref->page_las->unstable_timestamp = rollback_timestamp;
+        if (rollback_timestamp < page_las->min_skipped_ts)
+            page_las->min_skipped_ts = rollback_timestamp;
     }
 
     /* Review deleted page saved to the ref */
