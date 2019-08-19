@@ -447,8 +447,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				 */
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(
-			    session, child->modify->rec_result);
+			default:
+				WT_ERR(__wt_illegal_value(
+				    session, child->modify->rec_result));
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -602,7 +603,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			continue;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 
 		/* Build key cell. */
@@ -892,7 +894,8 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 
 				/* Proceed with appended key/value pairs. */
 				goto leaf_insert;
-			WT_ILLEGAL_VALUE_ERR(session, upd->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 		}
 
@@ -924,7 +927,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session,
 			 * Get the key from the page or an instantiated key, or
 			 * inline building the key from a previous key (it's a
 			 * fast path for simple, prefix-compressed keys), or by
-			 * by building the key from scratch.
+			 * building the key from scratch.
 			 */
 			if (__wt_row_leaf_key_info(page, copy,
 			    NULL, &cell, &tmpkey->data, &tmpkey->size))
@@ -1011,7 +1014,8 @@ build:
 		/* Update compression state. */
 		__rec_key_state_update(r, ovfl_key);
 
-leaf_insert:	/* Write any K/V pairs inserted into the page after this key. */
+leaf_insert:
+		/* Write any K/V pairs inserted into the page after this key. */
 		if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
 			WT_ERR(__rec_row_leaf_insert(session, r, ins));
 	}

@@ -261,8 +261,9 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			case WT_PM_REC_REPLACE:
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(
-			    session, child->modify->rec_result);
+			default:
+				WT_ERR(__wt_illegal_value(
+				    session, child->modify->rec_result));
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -724,7 +725,8 @@ __wt_rec_col_var(WT_SESSION_IMPL *session,
 			    session, WT_PAGE_COL_VAR, vpack, orig));
 		}
 
-record_loop:	/*
+record_loop:
+		/*
 		 * Generate on-page entries: loop repeat records, looking for
 		 * WT_INSERT entries matching the record number.  The WT_INSERT
 		 * lists are in sorted order, so only need check the next one.
@@ -760,7 +762,9 @@ record_loop:	/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session, upd->type);
+				default:
+					WT_ERR(__wt_illegal_value(
+					    session, upd->type));
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
 				/*
@@ -862,7 +866,8 @@ record_loop:	/*
 				}
 			}
 
-compare:		/*
+compare:
+			/*
 			 * If we have a record against which to compare, and
 			 * the records compare equal, increment the rle counter
 			 * and continue.  If the records don't compare equal,
@@ -1005,7 +1010,9 @@ compare:		/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session, upd->type);
+				default:
+					WT_ERR(__wt_illegal_value(
+					    session, upd->type));
 				}
 
 			/*

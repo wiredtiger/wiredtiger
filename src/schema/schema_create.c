@@ -178,9 +178,9 @@ __create_colgroup(WT_SESSION_IMPL *session,
 	size_t tlen;
 	const char **cfgp, *cfg[4] =
 	    { WT_CONFIG_BASE(session, colgroup_meta), config, NULL, NULL };
-	const char *sourcecfg[] = { config, NULL, NULL };
-	const char *cgname, *source, *sourceconf, *tablename;
 	char *cgconf, *origconf;
+	const char *cgname, *source, *sourceconf, *tablename;
+	const char *sourcecfg[] = { config, NULL, NULL };
 	bool exists, tracked;
 
 	sourceconf = NULL;
@@ -371,14 +371,14 @@ __create_index(WT_SESSION_IMPL *session,
 	WT_ITEM confbuf, extra_cols, fmt, namebuf;
 	WT_PACK pack;
 	WT_TABLE *table;
+	size_t tlen;
+	u_int i, npublic_cols;
 	const char *cfg[4] =
 	    { WT_CONFIG_BASE(session, index_meta), NULL, NULL, NULL };
-	const char *sourcecfg[] = { config, NULL, NULL };
-	const char *source, *sourceconf, *idxname, *tablename;
 	char *idxconf, *origconf;
-	size_t tlen;
+	const char *source, *sourceconf, *idxname, *tablename;
+	const char *sourcecfg[] = { config, NULL, NULL };
 	bool exists, have_extractor;
-	u_int i, npublic_cols;
 
 	sourceconf = NULL;
 	idxconf = origconf = NULL;
@@ -581,12 +581,12 @@ __create_table(WT_SESSION_IMPL *session,
 	WT_CONFIG_ITEM cgkey, cgval, cval;
 	WT_DECL_RET;
 	WT_TABLE *table;
-	const char *cfg[4] =
-	    { WT_CONFIG_BASE(session, table_meta), config, NULL, NULL };
-	const char *tablename;
-	char *tableconf, *cgname;
 	size_t cgsize;
 	int ncolgroups;
+	const char *cfg[4] =
+	    { WT_CONFIG_BASE(session, table_meta), config, NULL, NULL };
+	char *tableconf, *cgname;
+	const char *tablename;
 
 	cgname = NULL;
 	table = NULL;

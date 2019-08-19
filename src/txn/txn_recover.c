@@ -44,9 +44,9 @@ __recovery_cursor(WT_SESSION_IMPL *session, WT_RECOVERY *r,
     WT_LSN *lsnp, u_int id, bool duplicate, WT_CURSOR **cp)
 {
 	WT_CURSOR *c;
-	bool metadata_op;
 	const char *cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), "overwrite", NULL };
+	bool metadata_op;
 
 	c = NULL;
 
@@ -265,8 +265,8 @@ __txn_op_apply(
 		case WT_TXN_TRUNC_STOP:
 			stop = cursor;
 			break;
-
-		WT_ILLEGAL_VALUE_ERR(session, mode);
+		default:
+			WT_ERR(__wt_illegal_value(session, mode));
 		}
 
 		/* Set the keys. */
@@ -291,8 +291,8 @@ __txn_op_apply(
 		WT_ERR(__wt_logop_txn_timestamp_unpack(session, pp, end, &t_sec,
 		    &t_nsec, &commit, &durable, &first, &prepare, &read));
 		break;
-
-	WT_ILLEGAL_VALUE_ERR(session, optype);
+	default:
+		WT_ERR(__wt_illegal_value(session, optype));
 	}
 
 done:

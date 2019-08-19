@@ -143,11 +143,11 @@ __curjoin_iter_set_entry(WT_CURSOR_JOIN_ITER *iter, u_int entry_pos)
 	WT_DECL_RET;
 	WT_SESSION_IMPL *session;
 	size_t size;
-	const char *raw_cfg[] = { WT_CONFIG_BASE(
-	    iter->session, WT_SESSION_open_cursor), "raw", NULL };
+	const char **config;
 	const char *def_cfg[] = { WT_CONFIG_BASE(
 	    iter->session, WT_SESSION_open_cursor), NULL };
-	const char **config;
+	const char *raw_cfg[] = { WT_CONFIG_BASE(
+	    iter->session, WT_SESSION_open_cursor), "raw", NULL };
 	char *uri;
 
 	session = iter->session;
@@ -500,7 +500,9 @@ __curjoin_entry_in_range(WT_SESSION_IMPL *session, WT_CURSOR_JOIN_ENTRY *entry,
 			passed = (cmp < 0);
 			break;
 
-		WT_ILLEGAL_VALUE(session, WT_CURJOIN_END_RANGE(end));
+		default:
+			return (__wt_illegal_value(
+			    session, WT_CURJOIN_END_RANGE(end)));
 		}
 
 		if (!passed) {
@@ -764,9 +766,9 @@ __curjoin_init_bloom(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	size_t size;
 	u_int skip;
 	int cmp;
-	const char *uri;
 	const char *raw_cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), "raw", NULL };
+	const char *uri;
 
 	c = NULL;
 	skip = 0;
@@ -913,12 +915,12 @@ __curjoin_init_next(WT_SESSION_IMPL *session, WT_CURSOR_JOIN *cjoin,
 	WT_DECL_RET;
 	size_t size;
 	uint32_t f, k;
-	char *mainbuf;
+	const char **config, *proj, *urimain;
 	const char *def_cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), NULL };
+	char *mainbuf;
 	const char *raw_cfg[] = { WT_CONFIG_BASE(
 	    session, WT_SESSION_open_cursor), "raw", NULL };
-	const char **config, *proj, *urimain;
 
 	mainbuf = NULL;
 	if (cjoin->entries_next == 0)
