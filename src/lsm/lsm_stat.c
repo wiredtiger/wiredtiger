@@ -24,13 +24,13 @@ __curstat_lsm_init(
 	WT_LSM_TREE *lsm_tree;
 	int64_t bloom_count;
 	u_int i;
-	char config[64];
-	bool locked;
 	const char *cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL, NULL };
+	char config[64];
 	const char *disk_cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_open_cursor),
 	    "checkpoint=" WT_CHECKPOINT, NULL, NULL };
+	bool locked;
 
 	locked = false;
 	WT_RET(__wt_lsm_tree_get(session, uri, false, &lsm_tree));

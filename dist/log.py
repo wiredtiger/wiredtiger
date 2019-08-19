@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, re, sys, textwrap
-from dist import compare_srcfile
+from dist import compare_srcfile, format_srcfile
 import log_data
 
 # Temporary file.
@@ -339,4 +339,5 @@ tfile.write('''
 ''')
 
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, f)

@@ -105,10 +105,10 @@ __metadata_load_bulk(WT_SESSION_IMPL *session)
 	WT_CURSOR *cursor;
 	WT_DECL_RET;
 	uint32_t allocsize;
-	bool exist;
 	const char *filecfg[] = {
 	    WT_CONFIG_BASE(session, file_meta), NULL, NULL };
 	const char *key, *value;
+	bool exist;
 
 	/*
 	 * If a file was being bulk-loaded during the hot backup, it will appear

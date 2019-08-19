@@ -84,8 +84,32 @@ __wt_atomic_cas_ptr(void *vp, void *old, void *new)
 	    vp, (int64_t)new, (int64_t)old) == ((int64_t)old));
 }
 
+/*
+ * WT_BARRIER --
+ *	MSVC implementation of WT_BARRIER.
+ */
 static inline void WT_BARRIER(void) { _ReadWriteBarrier(); }
+
+/*
+ * WT_FULL_BARRIER --
+ *	MSVC implementation of WT_FULL_BARRIER.
+ */
 static inline void WT_FULL_BARRIER(void) { _mm_mfence(); }
+
+/*
+ * WT_PAUSE --
+ *	MSVC implementation of WT_PAUSE.
+ */
 static inline void WT_PAUSE(void) { _mm_pause(); }
+
+/*
+ * WT_READ_BARRIER --
+ *	MSVC implementation of WT_READ_BARRIER.
+ */
 static inline void WT_READ_BARRIER(void) { _mm_lfence(); }
+
+/*
+ * WT_WRITE_BARRIER --
+ *	MSVC implementation of WT_WRITE_BARRIER.
+ */
 static inline void WT_WRITE_BARRIER(void) { _mm_sfence(); }

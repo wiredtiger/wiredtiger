@@ -200,9 +200,9 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
 {
 	WT_CONFIG_ITEM cv;
 	uint32_t flags;
-	bool exclusive_refreshed;
 	const char *cfg[] = {
 	    WT_CONFIG_BASE(session, WT_SESSION_alter), newcfg[0], NULL};
+	bool exclusive_refreshed;
 
 	/*
 	 * Determine what configuration says about exclusive access.

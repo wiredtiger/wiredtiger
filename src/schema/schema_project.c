@@ -215,8 +215,7 @@ __wt_schema_project_out(WT_SESSION_IMPL *session,
 
 /*
  * __wt_schema_project_slice --
- *	Given list of cursors and a projection, read columns from the
- *	a raw buffer.
+ *	Given list of cursors and a projection, read columns from a raw buffer.
  */
 int
 __wt_schema_project_slice(WT_SESSION_IMPL *session, WT_CURSOR **cp,

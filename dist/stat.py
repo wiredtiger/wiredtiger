@@ -2,7 +2,7 @@
 # initialize and refresh code.
 
 import re, string, sys, textwrap
-from dist import compare_srcfile
+from dist import compare_srcfile, format_srcfile
 
 # Read the source files.
 from stat_data import groups, dsrc_stats, connection_stats, join_stats
@@ -37,6 +37,7 @@ for line in open('../src/include/stat.h', 'r'):
         print_struct('data sources', 'dsrc', 2000, dsrc_stats)
         print_struct('join cursors', 'join', 3000, join_stats)
 f.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/include/stat.h')
 
 def print_defines_one(capname, base, stats):
@@ -241,4 +242,5 @@ print_func('dsrc', 'WT_DATA_HANDLE', dsrc_stats)
 print_func('connection', 'WT_CONNECTION_IMPL', connection_stats)
 print_func('join', None, join_stats)
 f.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/support/stat.c')

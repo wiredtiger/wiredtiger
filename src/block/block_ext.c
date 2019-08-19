@@ -1172,9 +1172,9 @@ __wt_block_extlist_read(WT_SESSION_IMPL *session,
 	WT_DECL_ITEM(tmp);
 	WT_DECL_RET;
 	wt_off_t off, size;
+	const uint8_t *p;
 	int (*func)(
 	    WT_SESSION_IMPL *, WT_BLOCK *, WT_EXTLIST *, wt_off_t, wt_off_t);
-	const uint8_t *p;
 
 	/* If there isn't a list, we're done. */
 	if (el->offset == WT_BLOCK_INVALID_OFFSET)

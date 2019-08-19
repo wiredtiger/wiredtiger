@@ -400,6 +400,7 @@ Uryyb
 VARCHAR
 VLDB
 VMSG
+VPM
 VR
 VX
 Vc
@@ -1337,6 +1338,7 @@ versa
 vfprintf
 vm
 vpack
+vpmsum
 vprintf
 vrfy
 vsize
