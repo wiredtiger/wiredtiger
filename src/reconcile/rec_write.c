@@ -1923,8 +1923,8 @@ __rec_child_modify(WT_SESSION_IMPL *session,
 			 */
 			WT_ASSERT(session, WT_REF_SPLIT != WT_REF_SPLIT);
 			return (__wt_set_return(session, EBUSY));
-
-		WT_ILLEGAL_VALUE(session, r->tested_ref_state);
+		default:
+			return (__wt_illegal_value(session, r->tested_ref_state));
 		}
 		WT_STAT_CONN_INCR(session, child_modify_blocked_page);
 	}
@@ -2926,7 +2926,8 @@ __rec_split_raw(WT_SESSION_IMPL *session,
 			}
 			r->raw_entries[slots] = entry;
 			continue;
-		WT_ILLEGAL_VALUE(session, unpack->type);
+		default:
+			return (__wt_illegal_value(session, unpack->type));
 		}
 
 		/*
@@ -3724,7 +3725,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r,
 	case WT_PAGE_ROW_INT:
 		multi->addr.type = WT_ADDR_INT;
 		break;
-	WT_ILLEGAL_VALUE(session, page->type);
+	default:
+		return (__wt_illegal_value(session, page->type));
 	}
 	multi->size = WT_STORE_SIZE(chunk->image.size);
 	multi->checksum = 0;
@@ -4248,8 +4250,9 @@ __rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 			case WT_PM_REC_REPLACE:
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(
-			    session, child->modify->rec_result);
+			default:
+				WT_ERR(__wt_illegal_value(
+				    session, child->modify->rec_result));
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -4799,7 +4802,8 @@ record_loop:	/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session, upd->type);
+				default:
+					WT_ERR(__wt_illegal_value(session, upd->type));
 				}
 			} else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
 				/*
@@ -5044,7 +5048,8 @@ compare:		/*
 				case WT_UPDATE_TOMBSTONE:
 					deleted = true;
 					break;
-				WT_ILLEGAL_VALUE_ERR(session, upd->type);
+				default:
+					WT_ERR(__wt_illegal_value(session, upd->type));
 				}
 
 			/*
@@ -5263,8 +5268,9 @@ __rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 				 */
 				addr = &child->modify->mod_replace;
 				break;
-			WT_ILLEGAL_VALUE_ERR(
-			    session, child->modify->rec_result);
+			default:
+				WT_ERR(__wt_illegal_value(
+				    session, child->modify->rec_result));
 			}
 			break;
 		case WT_CHILD_ORIGINAL:
@@ -5650,7 +5656,8 @@ __rec_row_leaf(WT_SESSION_IMPL *session,
 
 				/* Proceed with appended key/value pairs. */
 				goto leaf_insert;
-			WT_ILLEGAL_VALUE_ERR(session, upd->type);
+			default:
+				WT_ERR(__wt_illegal_value(session, upd->type));
 			}
 		}
 
@@ -5860,7 +5867,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 			break;
 		case WT_UPDATE_TOMBSTONE:
 			continue;
-		WT_ILLEGAL_VALUE(session, upd->type);
+		default:
+			return (__wt_illegal_value(session, upd->type));
 		}
 
 		/* Build key cell. */
