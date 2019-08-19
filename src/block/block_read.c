@@ -198,7 +198,7 @@ __wt_block_read_off_blind(WT_SESSION_IMPL *session,
 
 	/*
 	 * Make sure the buffer is large enough for the header and read the
-	 * the first allocation-size block.
+	 * first allocation-size block.
 	 */
 	WT_RET(__wt_scr_alloc(session, block->allocsize, &tmp));
 	WT_ERR(__wt_read(

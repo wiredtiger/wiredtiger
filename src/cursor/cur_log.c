@@ -197,8 +197,8 @@ __curlog_kv(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 	}
 	/*
 	 * The log cursor sets the LSN and step count as the cursor key and
-	 * and log record related data in the value.  The data in the value
-	 * contains any operation key/value that was in the log record.
+	 * log record related data in the value.  The data in the value contains
+	 * any operation key/value that was in the log record.
 	 */
 	__wt_cursor_set_key(cursor, cl->cur_lsn->l.file, cl->cur_lsn->l.offset,
 	    key_count);

@@ -1059,7 +1059,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 	/*
 	 * If durable is set, we'll try to update the global durable timestamp
 	 * with that value. If durable isn't set, durable is implied to be the
-	 * the same as commit so we'll use that instead.
+	 * same as commit so we'll use that instead.
 	 */
 	candidate_durable_timestamp = WT_TS_NONE;
 	if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))

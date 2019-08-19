@@ -890,7 +890,7 @@ transaction_ops(WT_SESSION *session_arg)
 		/*
 		 * If commit_transaction succeeds, cursors remain positioned; if
 		 * commit_transaction fails, the transaction was rolled-back and
-		 * and all cursors are reset.
+		 * all cursors are reset.
 		 */
 		break;
 	case WT_ROLLBACK:			/* Update conflict */

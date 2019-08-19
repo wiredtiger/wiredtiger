@@ -517,10 +517,11 @@ struct __wt_page_modify {
 
 /*
  * WT_COL_RLE --
- * Variable-length column-store pages have an array of page entries with RLE
- * counts greater than 1 when reading the page, so it's not necessary to walk
- * the page counting records to find a specific entry. We can do a binary search
- * in this array, then an offset calculation to find the cell.
+ *	Variable-length column-store pages have an array of page entries with
+ *	RLE counts greater than 1 when reading the page, so it's not necessary
+ *	to walk the page counting records to find a specific entry. We can do a
+ *	binary search in this array, then an offset calculation to find the
+ *	cell.
  */
 WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
 	uint64_t recno;			/* Record number of first repeat. */
@@ -530,7 +531,7 @@ WT_PACKED_STRUCT_END
 
 /*
  * WT_PAGE --
- * The WT_PAGE structure describes the in-memory page information.
+ *	The WT_PAGE structure describes the in-memory page information.
  */
 struct __wt_page {
 	/* Per page-type information. */
@@ -1061,11 +1062,11 @@ struct __wt_col {
 
 /*
  * WT_IKEY --
- * Instantiated key: row-store keys are usually prefix compressed and sometimes
- * Huffman encoded or overflow objects.  Normally, a row-store page in-memory
- * key points to the on-page WT_CELL, but in some cases, we instantiate the key
- * in memory, in which case the row-store page in-memory key points to a WT_IKEY
- * structure.
+ *	Instantiated key: row-store keys are usually prefix compressed and
+ *	sometimes Huffman encoded or overflow objects.  Normally, a row-store
+ *	page in-memory key points to the on-page WT_CELL, but in some cases,
+ *	we instantiate the key in memory, in which case the row-store page
+ *	in-memory key points to a WT_IKEY structure.
  */
 struct __wt_ikey {
 	uint32_t size;			/* Key length */
@@ -1087,13 +1088,13 @@ struct __wt_ikey {
 
 /*
  * WT_UPDATE --
- * Entries on leaf pages can be updated, either modified or deleted.  Updates
- * to entries referenced from the WT_ROW and WT_COL arrays are stored in the
- * page's WT_UPDATE array.  When the first element on a page is updated, the
- * WT_UPDATE array is allocated, with one slot for every existing element in
- * the page.  A slot points to a WT_UPDATE structure; if more than one update
- * is done for an entry, WT_UPDATE structures are formed into a forward-linked
- * list.
+ *	Entries on leaf pages can be updated, either modified or deleted.
+ *	Updates to entries referenced from the WT_ROW and WT_COL arrays are
+ *	stored in the page's WT_UPDATE array.  When the first element on a page
+ *	is updated, the WT_UPDATE array is allocated, with one slot for every
+ *	existing element in the page.  A slot points to a WT_UPDATE structure;
+ *	if more than one update is done for an entry, WT_UPDATE structures are
+ *	formed into a forward-linked list.
  */
 struct __wt_update {
 	volatile uint64_t txnid;	/* transaction ID */
@@ -1264,9 +1265,9 @@ struct __wt_insert_head {
 	    NULL : (page)->modify->mod_row_update[WT_ROW_SLOT(page, ip)])
 /*
  * WT_ROW_INSERT_SMALLEST references an additional slot past the end of the
- * the "one per WT_ROW slot" insert array.  That's because the insert array
- * requires an extra slot to hold keys that sort before any key found on the
- * original page.
+ * "one per WT_ROW slot" insert array.  That's because the insert array requires
+ * an extra slot to hold keys that sort before any key found on the original
+ * page.
  */
 #define	WT_ROW_INSERT_SMALLEST(page)					\
 	((page)->modify == NULL ||					\

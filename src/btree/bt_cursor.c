@@ -1281,7 +1281,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 
 		/*
 		 * The pinned page goes away if we fail for any reason, get a
-		 * a local copy of any pinned key or value. (Restart could still
+		 * local copy of any pinned key or value. (Restart could still
 		 * use the pinned page, but that's an unlikely path.) Re-save
 		 * the cursor state: we may retry but eventually fail.
 		 */
