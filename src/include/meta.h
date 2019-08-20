@@ -30,8 +30,9 @@
 #define WT_LAS_FILE "WiredTigerLAS.wt"     /* Lookaside table */
 #define WT_LAS_URI "file:WiredTigerLAS.wt" /* Lookaside table URI*/
 
-#define WT_SYSTEM_PREFIX "system:"             /* System URI prefix */
-#define WT_SYSTEM_CKPT_URI "system:checkpoint" /* Checkpoint URI */
+#define WT_SYSTEM_PREFIX "system:"                  /* System URI prefix */
+#define WT_SYSTEM_CKPT_URI "system:checkpoint"      /* Checkpoint URI */
+#define WT_SYSTEM_CKPT_LOCK "system:checkpointlock" /* Checkpoint lock */
 
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
@@ -97,10 +98,12 @@ struct __wt_ckpt {
     void *bpriv; /* Block manager private */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CKPT_ADD 0x1u    /* Checkpoint to be added */
-#define WT_CKPT_DELETE 0x2u /* Checkpoint to be deleted */
-#define WT_CKPT_FAKE 0x4u   /* Checkpoint is a fake */
-#define WT_CKPT_UPDATE 0x8u /* Checkpoint requires update */
-                            /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CKPT_ADD 0x01u        /* Checkpoint to be added */
+#define WT_CKPT_DELETE 0x02u     /* Checkpoint to be deleted */
+#define WT_CKPT_FAKE 0x04u       /* Checkpoint is a fake */
+#define WT_CKPT_INCR_START 0x08u /* Checkpoint start incremental */
+#define WT_CKPT_INCR_STOP 0x10u  /* Checkpoint stop incremental */
+#define WT_CKPT_UPDATE 0x20u     /* Checkpoint requires update */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP*/
     uint32_t flags;
 };

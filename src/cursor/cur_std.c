@@ -721,6 +721,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
         if (cval.len != 0)
             return (WT_NOTFOUND);
 
+        WT_RET(__wt_config_gets_def(session, cfg, "incremental_backup", 0, &cval));
+        if (cval.val != 0)
+            return (WT_NOTFOUND);
+
         WT_RET(__wt_config_gets_def(session, cfg, "next_random", 0, &cval));
         if (cval.val != 0)
             return (WT_NOTFOUND);
@@ -821,6 +825,9 @@ __wt_cursor_close(WT_CURSOR *cursor)
 {
     WT_SESSION_IMPL *session;
 
+    if (cursor == NULL)
+        return;
+
     session = (WT_SESSION_IMPL *)cursor->session;
 
     if (F_ISSET(cursor, WT_CURSTD_OPEN)) {
@@ -831,9 +838,9 @@ __wt_cursor_close(WT_CURSOR *cursor)
     }
     __wt_buf_free(session, &cursor->key);
     __wt_buf_free(session, &cursor->value);
-
     __wt_free(session, cursor->internal_uri);
     __wt_free(session, cursor->uri);
+    __wt_free(session, cursor->checkpoint);
     __wt_overwrite_and_free(session, cursor);
 }
 
