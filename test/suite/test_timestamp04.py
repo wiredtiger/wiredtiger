@@ -131,6 +131,9 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.table_nots_nolog, config_default + config_nolog + self.extra_config)
         cur_nots_nolog = self.session.open_cursor(self.table_nots_nolog)
 
+        # We're about to test rollback-to-stable which requires a checkpoint to which we can roll back.
+        self.session.checkpoint()
+
         # Insert keys each with timestamp=key, in some order.
         key_range = 10000
         keys = list(range(1, key_range + 1))

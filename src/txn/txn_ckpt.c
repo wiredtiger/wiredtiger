@@ -607,7 +607,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
         /*
          * If the user wants timestamps then set the metadata checkpoint timestamp based on whether
          * or not a stable timestamp is actually in use. Only set it when we're not running recovery
-         * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
+         * because recovery doesn't set the recovery timestamp until its checkpoint is complete. If
+         * recovery has never been run, set it to something other than WT_TS_NONE, because it has to
+         * be set in order for rollback-to-stable to be allowed.
          */
         if (txn_global->has_stable_timestamp) {
             txn->read_timestamp = txn_global->stable_timestamp;
@@ -615,8 +617,11 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
             F_SET(txn, WT_TXN_HAS_TS_READ);
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
                 txn_global->meta_ckpt_timestamp = txn->read_timestamp;
-        } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
+        } else if (!F_ISSET(conn, WT_CONN_RECOVERING)) {
             txn_global->meta_ckpt_timestamp = txn_global->recovery_timestamp;
+            if (txn_global->meta_ckpt_timestamp == WT_TS_NONE)
+                txn_global->meta_ckpt_timestamp = 1;
+        }
     } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
         txn_global->meta_ckpt_timestamp = WT_TS_NONE;
 
