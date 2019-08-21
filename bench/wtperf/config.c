@@ -797,8 +797,7 @@ config_sanity(WTPERF *wtperf)
             if (opts->readonly && (workp->insert != 0 || workp->modify != 0 ||
                                     workp->truncate != 0 || workp->update != 0)) {
                 fprintf(stderr,
-                  "Invalid workload: insert, modify, "
-                  "truncate or update specified with "
+                  "Invalid workload: insert, modify, truncate or update specified with "
                   "readonly\n");
                 return (EINVAL);
             }
@@ -817,8 +816,7 @@ config_sanity(WTPERF *wtperf)
             }
             if (workp->modify != 0 && workp->ops_per_txn == 0) {
                 fprintf(stderr,
-                  "Modify operations must be executed with "
-                  "explicit transaction, specify "
+                  "Modify operations must be executed with explicit transaction, specify "
                   "ops_per_txn.");
                 return (EINVAL);
             }

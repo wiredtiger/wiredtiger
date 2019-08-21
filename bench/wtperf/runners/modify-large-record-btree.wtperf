@@ -1,4 +1,4 @@
-# wtperf options file: btree with updatesy. The goal here is to have a workload
+# wtperf options file: btree with updates. The goal here is to have a workload
 # of large documents that uses a lot of transaction IDs for modify operations
 conn_config="cache_size=20G"
 sess_config="isolation=snapshot"

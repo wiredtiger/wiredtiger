@@ -510,7 +510,7 @@ worker(void *arg)
     WT_ITEM newv, oldv;
     WT_MODIFY entries[MAX_MODIFY_NUM];
     WT_SESSION *session;
-    size_t i, iter, modify_offset, modify_size, total_modify_size;
+    size_t i, iter, modify_offset, modify_size, total_modify_size, value_len;
     int64_t delta, ops, ops_per_txn;
     uint64_t log_id, next_val, usecs;
     uint32_t rand_val, total_table_count;
@@ -750,7 +750,8 @@ worker(void *arg)
                 /*
                  * The maximum that will be modified is a fixed percentage of the total record size.
                  */
-                total_modify_size = strlen(value) / MAX_MODIFY_PCT;
+                value_len = strlen(value);
+                total_modify_size = value_len / MAX_MODIFY_PCT;
 
                 /*
                  * Randomize the maximum modification size and offset per modify.
@@ -764,8 +765,8 @@ worker(void *arg)
                 /*
                  * Offset location difference between modifications
                  */
-                if ((strlen(value) / (size_t)nmodify) != 0)
-                    modify_offset = (size_t)rand_val % (strlen(value) / (size_t)nmodify);
+                if ((value_len / (size_t)nmodify) != 0)
+                    modify_offset = (size_t)rand_val % (value_len / (size_t)nmodify);
                 else
                     modify_offset = 0;
 
@@ -787,7 +788,7 @@ worker(void *arg)
                     nmodify++;
 
                 oldv.data = value;
-                oldv.size = strlen(value);
+                oldv.size = value_len;
 
                 newv.data = value_buf;
                 newv.size = strlen(value_buf);

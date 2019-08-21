@@ -147,10 +147,10 @@ struct __wtperf {         /* Per-database structure */
     uint64_t ckpt_ops;     /* checkpoint operations */
     uint64_t scan_ops;     /* scan operations */
     uint64_t insert_ops;   /* insert operations */
+    uint64_t modify_ops;   /* modify operations */
     uint64_t read_ops;     /* read operations */
     uint64_t truncate_ops; /* truncate operations */
     uint64_t update_ops;   /* update operations */
-    uint64_t modify_ops;   /* modify operations */
 
     uint64_t insert_key;         /* insert key */
     uint64_t log_like_table_key; /* used to allocate IDs for log table */
@@ -250,12 +250,12 @@ struct __wtperf_thread {    /* Per-thread structure */
 
     TRACK ckpt;           /* Checkpoint operations */
     TRACK insert;         /* Insert operations */
+    TRACK modify;         /* Modify operations */
     TRACK read;           /* Read operations */
     TRACK scan;           /* Scan operations */
-    TRACK update;         /* Update operations */
-    TRACK modify;         /* Modify operations */
     TRACK truncate;       /* Truncate operations */
     TRACK truncate_sleep; /* Truncate sleep operations */
+    TRACK update;         /* Update operations */
 };
 
 void cleanup_truncate_config(WTPERF *);
@@ -269,10 +269,10 @@ int config_opt_str(WTPERF *, const char *);
 void config_opt_usage(void);
 int config_sanity(WTPERF *);
 void latency_insert(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
+void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_print(WTPERF *);
 void latency_read(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 void latency_update(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
-void latency_modify(WTPERF *, uint32_t *, uint32_t *, uint32_t *);
 int run_truncate(WTPERF *, WTPERF_THREAD *, WT_CURSOR *, WT_SESSION *, int *);
 int setup_log_file(WTPERF *);
 void setup_throttle(WTPERF_THREAD *);
@@ -283,11 +283,11 @@ void worker_throttle(WTPERF_THREAD *);
 uint64_t sum_ckpt_ops(WTPERF *);
 uint64_t sum_scan_ops(WTPERF *);
 uint64_t sum_insert_ops(WTPERF *);
+uint64_t sum_modify_ops(WTPERF *);
 uint64_t sum_pop_ops(WTPERF *);
 uint64_t sum_read_ops(WTPERF *);
 uint64_t sum_truncate_ops(WTPERF *);
 uint64_t sum_update_ops(WTPERF *);
-uint64_t sum_modify_ops(WTPERF *);
 
 void lprintf(const WTPERF *, int err, uint32_t, const char *, ...)
 #if defined(__GNUC__)
