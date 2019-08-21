@@ -618,7 +618,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = txn_global->recovery_timestamp;
     } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
-        txn_global->meta_ckpt_timestamp = 0;
+        txn_global->meta_ckpt_timestamp = WT_TS_NONE;
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
