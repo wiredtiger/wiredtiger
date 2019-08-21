@@ -169,7 +169,7 @@ thread_run(void *arg)
      */
     printf("Thread %" PRIu32 " starts at %" PRIu64 "\n", td->id, td->start);
     for (i = td->start;; ++i) {
-        /* Recno 0 is invalid for columnar store */
+        /* Record number 0 is invalid for columnar store, check it. */
         if (i == 0)
             i++;
 
