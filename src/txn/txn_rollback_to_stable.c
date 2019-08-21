@@ -227,14 +227,14 @@ __txn_abort_newer_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     bool local_read;
 
     /*
-     * If we created a page image with updates the need to be rolled back,
+     * If we created a page image with updates that need to be rolled back,
      * read the history into cache now and make sure the page is marked
      * dirty.  Otherwise, the history we need could be swept from the
      * lookaside table before the page is read because the lookaside sweep
      * code has no way to tell that the page image is invalid.
      *
      * So, if there is lookaside history for a page, first check if the
-     * history needs to be rolled back make sure that history is loaded
+     * history needs to be rolled back then ensure the history is loaded
      * into cache.
      *
      * Also, we have separately discarded any lookaside history more recent
