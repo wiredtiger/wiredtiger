@@ -704,9 +704,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages read into cache after truncate in prepare state",
   "cache: pages read into cache requiring cache overflow entries",
   "cache: pages read into cache requiring cache overflow for checkpoint",
-  "cache: pages read into cache skipping older cache overflow entries",
-  "cache: pages read into cache with skipped cache overflow entries needed later",
-  "cache: pages read into cache with skipped cache overflow entries needed later by checkpoint",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages selected for eviction unable to be evicted", "cache: pages walked for eviction",
   "cache: pages written from cache", "cache: pages written requiring in-memory restoration",
@@ -1054,9 +1051,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_deleted_prepared = 0;
     stats->cache_read_lookaside = 0;
     stats->cache_read_lookaside_checkpoint = 0;
-    stats->cache_read_lookaside_skipped = 0;
-    stats->cache_read_lookaside_delay = 0;
-    stats->cache_read_lookaside_delay_checkpoint = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_fail = 0;
@@ -1481,10 +1475,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
     to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
     to->cache_read_lookaside_checkpoint += WT_STAT_READ(from, cache_read_lookaside_checkpoint);
-    to->cache_read_lookaside_skipped += WT_STAT_READ(from, cache_read_lookaside_skipped);
-    to->cache_read_lookaside_delay += WT_STAT_READ(from, cache_read_lookaside_delay);
-    to->cache_read_lookaside_delay_checkpoint +=
-      WT_STAT_READ(from, cache_read_lookaside_delay_checkpoint);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);

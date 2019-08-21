@@ -241,10 +241,19 @@ struct __wt_page_lookaside {
     wt_timestamp_t unstable_durable_timestamp;
     /* First durable timestamp not on
      * page */
-    bool eviction_to_lookaside; /* Revert to lookaside on eviction */
-    bool has_prepares;          /* One or more updates are prepared */
-    bool resolved;              /* History has been read into cache */
-    bool skew_newest;           /* Page image has newest versions */
+    bool has_prepares; /* One or more updates are prepared */
+    bool resolved;     /* History has been read into cache */
+    bool skew_newest;  /* Page image has newest versions */
+
+    struct __wt_birthmark_details {
+        uint64_t txnid;
+        wt_timestamp_t durable_ts;
+        wt_timestamp_t start_ts;
+        uint8_t prepare_state;
+    } * birthmarks; /* Birthmark details for a record */
+#ifdef HAVE_DIAGNOSTIC
+    uint64_t birthmarks_cnt; /* Count of keys: for the birthmarks */
+#endif
 };
 
 /*
@@ -780,10 +789,6 @@ struct __wt_page {
  *	row-store leaf pages without reading them if they don't reference
  *	overflow items.
  *
- * WT_REF_LIMBO:
- *	The page image has been loaded into memory but there is additional
- *	history in the lookaside table that has not been applied.
- *
  * WT_REF_LOCKED:
  *	Locked for exclusive access.  In eviction, this page or a parent has
  *	been selected for eviction; once hazard pointers are checked, the page
@@ -866,12 +871,11 @@ struct __wt_ref {
 
 #define WT_REF_DISK 0        /* Page is on disk */
 #define WT_REF_DELETED 1     /* Page is on disk, but deleted */
-#define WT_REF_LIMBO 2       /* Page is in cache without history */
-#define WT_REF_LOCKED 3      /* Page locked for exclusive access */
-#define WT_REF_LOOKASIDE 4   /* Page is on disk with lookaside */
-#define WT_REF_MEM 5         /* Page is in cache and valid */
-#define WT_REF_READING 6     /* Page being read */
-#define WT_REF_SPLIT 7       /* Parent page split (WT_REF dead) */
+#define WT_REF_LOCKED 2      /* Page locked for exclusive access */
+#define WT_REF_LOOKASIDE 3   /* Page is on disk with lookaside */
+#define WT_REF_MEM 4         /* Page is in cache and valid */
+#define WT_REF_READING 5     /* Page being read */
+#define WT_REF_SPLIT 6       /* Parent page split (WT_REF dead) */
     volatile uint32_t state; /* Page state */
 
     /*
@@ -1094,6 +1098,9 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
+    /* Temp: Remove after integrating las cursors with btree cursors */
+    uint8_t ext;
+
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
      * a C99 flexible array member which has the semantics we want.
@@ -1105,7 +1112,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 38
+#define WT_UPDATE_SIZE 39
 
 /*
  * The memory size of an update: include some padding because this is such a common case that

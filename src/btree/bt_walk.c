@@ -467,8 +467,7 @@ descend:
                 /*
                  * Only look at unlocked pages in memory: fast-path some common cases.
                  */
-                if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM &&
-                  current_state != WT_REF_LIMBO)
+                if (LF_ISSET(WT_READ_NO_WAIT) && current_state != WT_REF_MEM)
                     break;
 
                 /* Skip lookaside pages if not requested. */

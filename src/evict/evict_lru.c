@@ -1995,9 +1995,8 @@ fast:
      * an idle tree.
      *
      * If we land on a page requiring forced eviction, or that isn't an
-     * ordinary in-memory page (e.g., WT_REF_LIMBO), move until we find an
-     * ordinary page: we should not prevent exclusive access to the page
-     * until the next walk.
+     * in-memory page, move until we find one: we should not prevent
+     * exclusive access to the page until the next walk.
      */
     if (ref != NULL) {
         if (__wt_ref_is_root(ref) || evict == start || give_up ||
@@ -2154,8 +2153,7 @@ __evict_get_ref(WT_SESSION_IMPL *session, bool is_server, WT_BTREE **btreep, WT_
          * Lock the page while holding the eviction mutex to prevent multiple attempts to evict it.
          * For pages that are already being evicted, this operation will fail and we will move on.
          */
-        if (((previous_state = evict->ref->state) != WT_REF_MEM &&
-              previous_state != WT_REF_LIMBO) ||
+        if ((previous_state = evict->ref->state) != WT_REF_MEM ||
           !WT_REF_CAS_STATE(session, evict->ref, previous_state, WT_REF_LOCKED)) {
             __evict_list_clear(session, evict);
             continue;

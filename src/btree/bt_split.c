@@ -832,6 +832,8 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             __wt_free(session, next_ref->page_del->update_list);
             __wt_free(session, next_ref->page_del);
         }
+        if (next_ref->page_las != NULL)
+            __wt_free(session, next_ref->page_las->birthmarks);
         __wt_free(session, next_ref->page_las);
 
         /* Free the backing block and address. */
@@ -1698,6 +1700,10 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
 
         WT_RET(__wt_calloc_one(session, &ref->page_las));
         *ref->page_las = multi->page_las;
+        ref->page_las->birthmarks = multi->page_las.birthmarks;
+#ifdef HAVE_DIAGNOSTIC
+        ref->page_las->birthmarks_cnt = multi->page_las.birthmarks_cnt;
+#endif
         WT_ASSERT(session, ref->page_las->max_txn != WT_TXN_NONE);
         WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
     }

@@ -187,9 +187,6 @@ __wt_rec_child_modify(
              */
             break;
 
-        case WT_REF_LIMBO:
-            WT_ASSERT(session, !F_ISSET(r, WT_REC_EVICT));
-        /* FALLTHROUGH */
         case WT_REF_LOOKASIDE:
             /*
              * On disk or in cache with lookaside updates.

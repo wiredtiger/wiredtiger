@@ -60,9 +60,6 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *k
     upd = upd_arg;
     logged = false;
 
-    /* We're going to modify the page, we should have loaded history. */
-    WT_ASSERT(session, cbt->ref->state != WT_REF_LIMBO);
-
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
     mod = page->modify;

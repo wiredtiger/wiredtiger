@@ -73,7 +73,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
     /* If we have a clean page in memory, attempt to evict it. */
     previous_state = ref->state;
-    if ((previous_state == WT_REF_MEM || previous_state == WT_REF_LIMBO) &&
+    if (previous_state == WT_REF_MEM &&
       WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED)) {
         if (__wt_page_is_modified(ref->page)) {
             WT_REF_SET_STATE(ref, previous_state);
@@ -200,7 +200,6 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
                 locked = true;
             break;
         case WT_REF_DISK:
-        case WT_REF_LIMBO:
         case WT_REF_LOOKASIDE:
         case WT_REF_READING:
         default:

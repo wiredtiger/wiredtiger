@@ -109,6 +109,7 @@ __las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
 static int
 __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CACHE *cache;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE cbt;
@@ -120,6 +121,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t incr, total_incr;
     uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
+    uint64_t update_cnt;
     uint32_t las_id, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
@@ -156,29 +158,53 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * of the updates for a key and then insert those updates into the page, then all the updates
      * for the next key, and so on.
      */
-    WT_PUBLISH(cache->las_reader, true);
+    cache->las_reader = true;
     __wt_readlock(session, &cache->las_sweepwalk_lock);
-    WT_PUBLISH(cache->las_reader, false);
+    cache->las_reader = false;
     locked = true;
-    for (ret = __wt_las_cursor_position(cursor, las_pageid); ret == 0; ret = cursor->next(cursor)) {
+
+    for (ret = __wt_las_cursor_position(cursor, las_pageid), update_cnt = 0; ret == 0;
+         ret = cursor->next(cursor), update_cnt++) {
         WT_ERR(cursor->get_key(cursor, &las_pageid, &las_id, &las_counter, &las_key));
 
         /*
          * Confirm the search using the unique prefix; if not a match, we're done searching for
          * records for this page.
          */
-        if (las_pageid != ref->page_las->las_pageid)
+        if (las_pageid != ref->page_las->las_pageid) {
+#ifdef HAVE_DIAGNOSTIC
+            /* We should have one birthmark entry per update */
+            WT_ASSERT(session, update_cnt == ref->page_las->birthmarks_cnt);
+#endif
             break;
+        }
 
         /* Allocate the WT_UPDATE structure. */
         WT_ERR(cursor->get_value(cursor, &las_txnid, &las_timestamp, &durable_timestamp,
           &prepare_state, &upd_type, &las_value));
         WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
         total_incr += incr;
-        upd->txnid = las_txnid;
-        upd->durable_ts = durable_timestamp;
-        upd->start_ts = las_timestamp;
-        upd->prepare_state = prepare_state;
+        if (upd_type == WT_UPDATE_BIRTHMARK) {
+            birthmarkp = ref->page_las->birthmarks + update_cnt;
+            /*
+             * Confirm that we get the same birthmark information from in-memory data and from the
+             * lookaside file.
+             */
+            WT_ASSERT(session, las_txnid == birthmarkp->txnid &&
+                durable_timestamp == birthmarkp->durable_ts &&
+                las_timestamp == birthmarkp->start_ts &&
+                prepare_state == birthmarkp->prepare_state);
+
+            upd->txnid = birthmarkp->txnid;
+            upd->durable_ts = birthmarkp->durable_ts;
+            upd->start_ts = birthmarkp->start_ts;
+            upd->prepare_state = birthmarkp->prepare_state;
+        } else {
+            upd->txnid = las_txnid;
+            upd->durable_ts = durable_timestamp;
+            upd->start_ts = las_timestamp;
+            upd->prepare_state = prepare_state;
+        }
 
         switch (page->type) {
         case WT_PAGE_COL_FIX:
@@ -279,7 +305,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * Now the lookaside history has been read into cache there is no further need to maintain a
      * reference to it.
      */
-    ref->page_las->eviction_to_lookaside = false;
     ref->page_las->resolved = true;
 
 err:
@@ -372,39 +397,6 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __page_read_lookaside --
- *     Figure out whether to instantiate content from lookaside on page access.
- */
-static inline int
-__page_read_lookaside(
-  WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint32_t *final_statep)
-{
-    /*
-     * Reading a lookaside ref for the first time, and not requiring the history triggers a
-     * transition to WT_REF_LIMBO, if we are already in limbo and still don't need the history - we
-     * are done.
-     */
-    if (__wt_las_page_skip_locked(session, ref)) {
-        if (previous_state == WT_REF_LOOKASIDE) {
-            WT_STAT_CONN_INCR(session, cache_read_lookaside_skipped);
-            ref->page_las->eviction_to_lookaside = true;
-        }
-        *final_statep = WT_REF_LIMBO;
-        return (0);
-    }
-
-    /* Instantiate updates from the database's lookaside table. */
-    if (previous_state == WT_REF_LIMBO) {
-        WT_STAT_CONN_INCR(session, cache_read_lookaside_delay);
-        if (WT_SESSION_IS_CHECKPOINT(session))
-            WT_STAT_CONN_INCR(session, cache_read_lookaside_delay_checkpoint);
-    }
-
-    WT_RET(__las_page_instantiate(session, ref));
-    return (0);
-}
-
-/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -443,7 +435,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         new_state = WT_REF_READING;
         break;
     case WT_REF_DELETED:
-    case WT_REF_LIMBO:
     case WT_REF_LOOKASIDE:
         new_state = WT_REF_LOCKED;
         break;
@@ -454,10 +445,6 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         return (0);
 
     final_state = WT_REF_MEM;
-
-    /* If we already have the page image, just instantiate the history. */
-    if (previous_state == WT_REF_LIMBO)
-        goto skip_read;
 
     /*
      * Get the address: if there is no address, the page was deleted or had only lookaside entries,
@@ -507,8 +494,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     /*
      * The WT_REF lookaside state should match the page-header state of any page we read.
      */
-    WT_ASSERT(session, (previous_state != WT_REF_LIMBO && previous_state != WT_REF_LOOKASIDE) ||
-        ref->page->dsk == NULL || F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
+    WT_ASSERT(session, previous_state != WT_REF_LOOKASIDE || ref->page->dsk == NULL ||
+        F_ISSET(ref->page->dsk, WT_PAGE_LAS_UPDATE));
 
 skip_read:
     switch (previous_state) {
@@ -524,9 +511,8 @@ skip_read:
         /* Move all records to a deleted state. */
         WT_ERR(__wt_delete_page_instantiate(session, ref));
         break;
-    case WT_REF_LIMBO:
     case WT_REF_LOOKASIDE:
-        WT_ERR(__page_read_lookaside(session, ref, previous_state, &final_state));
+        WT_ERR(__las_page_instantiate(session, ref));
         break;
     }
 
@@ -543,8 +529,11 @@ skip_read:
      * Don't free WT_REF.page_las, there may be concurrent readers.
      */
     if (final_state == WT_REF_MEM && ref->page_las != NULL &&
-      (!ref->page_las->skew_newest || ref->page_las->has_prepares))
+      (!ref->page_las->skew_newest || ref->page_las->has_prepares)) {
         WT_ERR(__wt_las_remove_block(session, ref->page_las->las_pageid));
+        __wt_free(session, ref->page_las->birthmarks);
+        __wt_free(session, ref->page_las);
+    }
 
     WT_REF_SET_STATE(ref, final_state);
 
@@ -556,7 +545,7 @@ err:
      * If the function building an in-memory version of the page failed, it discarded the page, but
      * not the disk image. Discard the page and separately discard the disk image in all cases.
      */
-    if (ref->page != NULL && previous_state != WT_REF_LIMBO)
+    if (ref->page != NULL)
         __wt_ref_out(session, ref);
     WT_REF_SET_STATE(ref, previous_state);
 
@@ -677,7 +666,6 @@ read:
             break;
         case WT_REF_SPLIT:
             return (WT_RESTART);
-        case WT_REF_LIMBO:
         case WT_REF_MEM:
             /*
              * The page is in memory.
@@ -702,19 +690,6 @@ read:
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
                 break;
             }
-            /*
-             * If we are a limbo page check whether we need to instantiate the history. By having a
-             * hazard pointer we can use the locked version.
-             */
-            if (current_state == WT_REF_LIMBO &&
-              ((!LF_ISSET(WT_READ_CACHE) || LF_ISSET(WT_READ_LOOKASIDE)) &&
-                  !__wt_las_page_skip_locked(session, ref))) {
-                WT_RET(__wt_hazard_clear(session, ref));
-                goto read;
-            }
-            if (current_state == WT_REF_LIMBO && LF_ISSET(WT_READ_CACHE) &&
-              LF_ISSET(WT_READ_LOOKASIDE))
-                __wt_tree_modify_set(session);
 
             /*
              * Check if the page requires forced eviction.
