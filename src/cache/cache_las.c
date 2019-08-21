@@ -1398,6 +1398,17 @@ err:		__wt_buf_free(session, sweep_key);
 }
 
 /*
+ * When threads race modifying a record, we can end up with more than the max
+ * number of modifications in an update list.
+ *
+ * Leave space for double the maximum number on the stack as a best attempt to
+ * avoid heap allocation.
+ *
+ * TODO: Look into reusing code from __wt_value_return_upd.
+ */
+#define	WT_MODIFY_ARRAY_SIZE	(WT_MAX_MODIFY_UPDATE * 2)
+
+/*
  * __wt_find_lookaside_upd --
  * 	Scan the lookaside for a record the btree cursor wants to position on.
  * 	Create an update for the record and return to the caller.
@@ -1412,12 +1423,15 @@ __wt_find_lookaside_upd(
 	WT_DECL_RET;
 	WT_ITEM *key, las_key, las_value;
 	WT_REF *ref;
-	WT_UPDATE *upd;
+	WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE];
+	WT_UPDATE *upd, **listp;
+	wt_timestamp_t _durable_timestamp, _las_timestamp;
 	wt_timestamp_t durable_timestamp, las_timestamp;
-	size_t incr;
-	uint64_t las_counter, las_pageid, las_txnid;
+	size_t allocated_bytes, incr;
+	uint64_t las_counter, las_pageid, las_txnid, _las_txnid;
 	uint32_t las_id, session_flags;
-	uint8_t prepare_state, upd_type;
+	uint8_t prepare_state, upd_type, _prepare_state;
+	u_int i;
 	int cmp;
 	bool upd_visible;
 
@@ -1425,9 +1439,13 @@ __wt_find_lookaside_upd(
 	cache = S2C(session)->cache;
 	cursor = NULL;
 	key = &cbt->iface.key;
+	WT_CLEAR(las_value);
 	ref = cbt->ref;
+	listp = list;
+	allocated_bytes = 0;
 	las_pageid = ref->page_las->las_pageid;
 	session_flags = 0;		/* [-Werror=maybe-uninitialized] */
+	i = 0;
 
 	/* Open a lookaside table cursor. */
 	__wt_las_cursor(session, &cursor, &session_flags);
@@ -1489,11 +1507,63 @@ __wt_find_lookaside_upd(
 		if (upd_type == WT_UPDATE_BIRTHMARK && ignore_birthmark)
 			break;
 
-		/* It is okay to locate an older update in lookaside,
-		 * but we proceed only if we find a matching record. */
-		WT_ASSERT(session, start_ts >= las_timestamp);
 		if (start_ts != las_timestamp)
 			break;
+
+		/*
+		 * Keep walking until we get a non-modify update.
+		 * Once we get to that point, squash the updates together.
+		 */
+		if (upd_type == WT_UPDATE_MODIFY) {
+			while (upd_type == WT_UPDATE_MODIFY) {
+				WT_ERR(__wt_update_alloc(session,
+				    &las_value, &upd, &incr, upd_type));
+				if (i >= WT_MODIFY_ARRAY_SIZE) {
+					if (i == WT_MODIFY_ARRAY_SIZE)
+						listp = NULL;
+					WT_ERR(__wt_realloc_def(session,
+					    &allocated_bytes, i + 1, &listp));
+					if (i == WT_MODIFY_ARRAY_SIZE)
+						memcpy(listp,
+						    list, sizeof(list));
+				}
+				listp[i++] = upd;
+				WT_ERR(cursor->next(cursor));
+#ifdef HAVE_DIAGNOSTIC
+				/*
+				 * We shouldn't be crossing over to another LAS
+				 * page id or breaking any visibility rules
+				 * while doing this.
+				 */
+				WT_ERR(cursor->get_key(cursor, &las_pageid,
+				    &las_id, &las_counter, &las_key));
+				WT_ASSERT(session,
+				    las_pageid == ref->page_las->las_pageid);
+				WT_ERR(__wt_compare(session,
+				    S2BT(session)->collator,
+				    &las_key, key, &cmp));
+				WT_ASSERT(session, cmp == 0);
+#endif
+				/*
+				 * Make sure we use the underscore variants of
+				 * these variables. We need to retain the
+				 * timestamps of the original modify we saw.
+				 */
+				WT_ERR(cursor->get_value(
+				    cursor, &_las_txnid, &_las_timestamp,
+				    &_durable_timestamp, &_prepare_state,
+				    &upd_type, &las_value));
+				WT_ASSERT(session, __wt_txn_visible(
+				    session, _las_txnid, _las_timestamp));
+			}
+			WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+			while (i > 0) {
+				WT_ERR(__wt_modify_apply_item(session,
+				    &las_value, listp[i - 1]->data, false));
+				__wt_free_update_list(session, listp[i - 1]);
+				--i;
+			}
+		}
 
 		/* Allocate an update structure for the record found. */
 		WT_ERR(__wt_update_alloc(
@@ -1516,6 +1586,12 @@ __wt_find_lookaside_upd(
 
 err:	__wt_readunlock(session, &cache->las_sweepwalk_lock);
 	WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+	if (listp == NULL)
+		listp = list;
+	while (i > 0)
+		__wt_free_update_list(session, listp[--i]);
+	if (allocated_bytes != 0)
+		__wt_free(session, listp);
 
 	/* Couldn't find a record */
 	if (upd == NULL && ret == 0)

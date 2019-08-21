@@ -104,5 +104,67 @@ class test_las06(wttest.WiredTigerTestCase):
         # TODO: Uncomment this once the project work is done.
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
+    def test_las_modify_reads_workload(self):
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format=i,value_format=S,'
+        self.session.create(uri, create_params)
+
+        # Create initial large values.
+        value1 = 'a' * 500
+        value2 = 'd' * 500
+
+        # Load 5Mb of data.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, 5000):
+            cursor[i] = value1
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+
+        # Load a slight modification with a later timestamp.
+        self.session.begin_transaction()
+        for i in range(1, 5000):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('B', 100, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # And another.
+        self.session.begin_transaction()
+        for i in range(1, 5000):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('C', 200, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        # Now write something completely different.
+        self.session.begin_transaction()
+        for i in range(1, 5000):
+            cursor[i] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        # Now the latest version will get written to the data file.
+        self.session.checkpoint()
+
+        expected = list(value1)
+        expected[100] = 'B'
+        expected[200] = 'C'
+        expected = str().join(expected)
+
+        # Whenever we request something of timestamp 4, this should be a modify
+        # op. We should keep looking backwards in lookaside until we find the
+        # newest whole update (timestamp 2).
+        #
+        # t5: value1 (full update)
+        # t4: (delta) <= We're querying for t4 so we begin here.
+        # t3: (delta)
+        # t2: value2 (full update) <= And finish here, applying all deltas in
+        #                             between on value1 to deduce value3.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
+        for i in range(1, 5000):
+            self.assertEqual(cursor[i], expected)
+        self.session.rollback_transaction()
+
 if __name__ == '__main__':
     wttest.run()
