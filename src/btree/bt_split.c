@@ -832,9 +832,7 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             __wt_free(session, next_ref->page_del->update_list);
             __wt_free(session, next_ref->page_del);
         }
-        if (next_ref->page_las != NULL)
-            __wt_free(session, next_ref->page_las->birthmarks);
-        __wt_free(session, next_ref->page_las);
+        __wt_page_las_free(session, next_ref);
 
         /* Free the backing block and address. */
         WT_TRET(__wt_ref_block_free(session, next_ref));

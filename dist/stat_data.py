@@ -294,7 +294,6 @@ connection_stats = [
     CacheStat('cache_read_deleted', 'pages read into cache after truncate'),
     CacheStat('cache_read_deleted_prepared', 'pages read into cache after truncate in prepare state'),
     CacheStat('cache_read_lookaside', 'pages read into cache requiring cache overflow entries'),
-    CacheStat('cache_read_lookaside_checkpoint', 'pages read into cache requiring cache overflow for checkpoint'),
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_timed_out_ops', 'operations timed out waiting for space in cache'),
     CacheStat('cache_write', 'pages written from cache'),

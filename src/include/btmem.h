@@ -242,18 +242,16 @@ struct __wt_page_lookaside {
     /* First durable timestamp not on
      * page */
     bool has_prepares; /* One or more updates are prepared */
-    bool resolved;     /* History has been read into cache */
     bool skew_newest;  /* Page image has newest versions */
 
     struct __wt_birthmark_details {
+        WT_ITEM key;
         uint64_t txnid;
         wt_timestamp_t durable_ts;
         wt_timestamp_t start_ts;
         uint8_t prepare_state;
-    } * birthmarks; /* Birthmark details for a record */
-#ifdef HAVE_DIAGNOSTIC
-    uint64_t birthmarks_cnt; /* Count of keys: for the birthmarks */
-#endif
+    } * birthmarks;          /* Birthmark details for a record */
+    uint64_t birthmarks_cnt; /* Count of birthmarks records */
 };
 
 /*

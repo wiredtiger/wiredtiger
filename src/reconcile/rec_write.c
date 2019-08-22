@@ -2486,10 +2486,11 @@ err:
 static int
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
+    WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_DECL_RET;
     WT_MULTI *multi;
     uint64_t las_pageid;
-    uint32_t i;
+    uint32_t i, j;
 
     /*
      * Note the additional check for a non-zero lookaside page ID, that flags if lookaside table
@@ -2498,6 +2499,13 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL && (las_pageid = multi->page_las.las_pageid) != 0) {
             WT_TRET(__wt_las_remove_block(session, las_pageid));
+            if (multi->page_las.birthmarks_cnt != 0) {
+                WT_ASSERT(session, multi->page_las.birthmarks != NULL);
+                for (j = 0; j < multi->page_las.birthmarks_cnt; j++) {
+                    birthmarkp = multi->page_las.birthmarks + j;
+                    __wt_buf_free(session, &birthmarkp->key);
+                }
+            }
             __wt_free(session, multi->page_las.birthmarks);
         }
 

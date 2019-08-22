@@ -65,261 +65,71 @@ __row_instantiate(
 }
 
 /*
- * __las_page_instantiate_verbose --
- *     Create a verbose message to display at most once per checkpoint when performing a lookaside
- *     table read.
+ * __create_birthmark_upd --
+ *     Create a birthmark update to be put on the page.
  */
-static void
-__las_page_instantiate_verbose(WT_SESSION_IMPL *session, uint64_t las_pageid)
+static int
+__create_birthmark_upd(WT_SESSION_IMPL *session, WT_BIRTHMARK_DETAILS *birthmarkp, WT_UPDATE **updp)
 {
-    WT_CACHE *cache;
-    uint64_t ckpt_gen_current, ckpt_gen_last;
+    WT_ITEM empty_item;
+    WT_UPDATE *upd;
+    size_t incr;
 
-    if (!WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY))
-        return;
+    *updp = NULL;
+    empty_item.size = 0;
 
-    cache = S2C(session)->cache;
-    ckpt_gen_current = __wt_gen(session, WT_GEN_CHECKPOINT);
-    ckpt_gen_last = cache->las_verb_gen_read;
+    WT_RET(__wt_update_alloc(session, &empty_item, &upd, &incr, WT_UPDATE_BIRTHMARK));
+    upd->txnid = birthmarkp->txnid;
+    upd->durable_ts = birthmarkp->durable_ts;
+    upd->start_ts = birthmarkp->start_ts;
+    upd->prepare_state = birthmarkp->prepare_state;
+    *updp = upd;
 
-    /*
-     * This message is throttled to one per checkpoint. To do this we track the generation of the
-     * last checkpoint for which the message was printed and check against the current checkpoint
-     * generation.
-     */
-    if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE) || ckpt_gen_current > ckpt_gen_last) {
-        /*
-         * Attempt to atomically replace the last checkpoint generation for which this message was
-         * printed. If the atomic swap fails we have raced and the winning thread will print the
-         * message.
-         */
-        if (__wt_atomic_casv64(&cache->las_verb_gen_read, ckpt_gen_last, ckpt_gen_current)) {
-            __wt_verbose(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
-              "Read from lookaside file triggered for "
-              "file ID %" PRIu32 ", page ID %" PRIu64,
-              S2BT(session)->id, las_pageid);
-        }
-    }
+    return (0);
 }
 
 /*
- * __las_page_instantiate --
- *     Instantiate lookaside update records in a recently read page.
+ * __instantiate_birthmarks --
+ *     Instantiate birthmarks records in a recently read page.
  */
 static int
-__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_BIRTHMARK_DETAILS *birthmarkp;
-    WT_CACHE *cache;
-    WT_CURSOR *cursor;
     WT_CURSOR_BTREE cbt;
-    WT_DECL_ITEM(current_key);
     WT_DECL_RET;
-    WT_ITEM las_key, las_value;
-    WT_PAGE *page;
-    WT_UPDATE *first_upd, *last_upd, *upd;
-    wt_timestamp_t durable_timestamp, las_timestamp;
-    size_t incr, total_incr;
-    uint64_t current_recno, las_counter, las_pageid, las_txnid, recno;
-    uint64_t update_cnt;
-    uint32_t las_id, session_flags;
-    uint8_t prepare_state, upd_type;
+    WT_UPDATE *upd;
+    uint64_t recno;
+    uint32_t i;
     const uint8_t *p;
-    bool locked;
 
-    cursor = NULL;
-    page = ref->page;
-    first_upd = last_upd = upd = NULL;
-    locked = false;
-    total_incr = 0;
-    current_recno = recno = WT_RECNO_OOB;
-    las_pageid = ref->page_las->las_pageid;
-    session_flags = 0; /* [-Werror=maybe-uninitialized] */
-    WT_CLEAR(las_key);
-
-    cache = S2C(session)->cache;
-    __las_page_instantiate_verbose(session, las_pageid);
-    WT_STAT_CONN_INCR(session, cache_read_lookaside);
-    WT_STAT_DATA_INCR(session, cache_read_lookaside);
-    if (WT_SESSION_IS_CHECKPOINT(session))
-        WT_STAT_CONN_INCR(session, cache_read_lookaside_checkpoint);
+    upd = NULL;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    WT_ERR(__wt_scr_alloc(session, 0, &current_key));
+    for (i = 0; i < ref->page_las->birthmarks_cnt; i++) {
+        birthmarkp = ref->page_las->birthmarks + i;
+        WT_ERR(__create_birthmark_upd(session, birthmarkp, &upd));
 
-    /* Open a lookaside table cursor. */
-    __wt_las_cursor(session, &cursor, &session_flags);
-
-    /*
-     * The lookaside records are in key and update order, that is, there will be a set of in-order
-     * updates for a key, then another set of in-order updates for a subsequent key. We process all
-     * of the updates for a key and then insert those updates into the page, then all the updates
-     * for the next key, and so on.
-     */
-    cache->las_reader = true;
-    __wt_readlock(session, &cache->las_sweepwalk_lock);
-    cache->las_reader = false;
-    locked = true;
-
-    for (ret = __wt_las_cursor_position(cursor, las_pageid), update_cnt = 0; ret == 0;
-         ret = cursor->next(cursor), update_cnt++) {
-        WT_ERR(cursor->get_key(cursor, &las_pageid, &las_id, &las_counter, &las_key));
-
-        /*
-         * Confirm the search using the unique prefix; if not a match, we're done searching for
-         * records for this page.
-         */
-        if (las_pageid != ref->page_las->las_pageid) {
-#ifdef HAVE_DIAGNOSTIC
-            /* We should have one birthmark entry per update */
-            WT_ASSERT(session, update_cnt == ref->page_las->birthmarks_cnt);
-#endif
-            break;
-        }
-
-        /* Allocate the WT_UPDATE structure. */
-        WT_ERR(cursor->get_value(cursor, &las_txnid, &las_timestamp, &durable_timestamp,
-          &prepare_state, &upd_type, &las_value));
-        WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
-        total_incr += incr;
-        if (upd_type == WT_UPDATE_BIRTHMARK) {
-            birthmarkp = ref->page_las->birthmarks + update_cnt;
-            /*
-             * Confirm that we get the same birthmark information from in-memory data and from the
-             * lookaside file.
-             */
-            WT_ASSERT(session, las_txnid == birthmarkp->txnid &&
-                durable_timestamp == birthmarkp->durable_ts &&
-                las_timestamp == birthmarkp->start_ts &&
-                prepare_state == birthmarkp->prepare_state);
-
-            upd->txnid = birthmarkp->txnid;
-            upd->durable_ts = birthmarkp->durable_ts;
-            upd->start_ts = birthmarkp->start_ts;
-            upd->prepare_state = birthmarkp->prepare_state;
-        } else {
-            upd->txnid = las_txnid;
-            upd->durable_ts = durable_timestamp;
-            upd->start_ts = las_timestamp;
-            upd->prepare_state = prepare_state;
-        }
-
-        switch (page->type) {
+        switch (ref->page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            p = las_key.data;
+            p = birthmarkp->key.data;
             WT_ERR(__wt_vunpack_uint(&p, 0, &recno));
-            if (current_recno == recno)
-                break;
-            WT_ASSERT(session, current_recno < recno);
-
-            if (first_upd != NULL) {
-                WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, first_upd));
-                first_upd = NULL;
-            }
-            current_recno = recno;
+            WT_ERR(__col_instantiate(session, recno, ref, &cbt, upd));
+            upd = NULL;
             break;
         case WT_PAGE_ROW_LEAF:
-            if (current_key->size == las_key.size &&
-              memcmp(current_key->data, las_key.data, las_key.size) == 0)
-                break;
-
-            if (first_upd != NULL) {
-                WT_ERR(__row_instantiate(session, current_key, ref, &cbt, first_upd));
-                first_upd = NULL;
-            }
-            WT_ERR(__wt_buf_set(session, current_key, las_key.data, las_key.size));
+            WT_ERR(__row_instantiate(session, &birthmarkp->key, ref, &cbt, upd));
+            upd = NULL;
             break;
-        default:
-            WT_ERR(__wt_illegal_value(session, page->type));
-        }
-
-        /* Append the latest update to the list. */
-        if (first_upd == NULL)
-            first_upd = last_upd = upd;
-        else {
-            last_upd->next = upd;
-            last_upd = upd;
-        }
-        upd = NULL;
-    }
-    __wt_readunlock(session, &cache->las_sweepwalk_lock);
-    locked = false;
-    WT_ERR_NOTFOUND_OK(ret);
-
-    /* Insert the last set of updates, if any. */
-    if (first_upd != NULL) {
-        WT_ASSERT(session, __wt_count_birthmarks(first_upd) <= 1);
-        switch (page->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, first_upd));
-            first_upd = NULL;
-            break;
-        case WT_PAGE_ROW_LEAF:
-            WT_ERR(__row_instantiate(session, current_key, ref, &cbt, first_upd));
-            first_upd = NULL;
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, page->type));
         }
     }
-
-    /* Discard the cursor. */
-    WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
-
-    if (total_incr != 0) {
-        __wt_cache_page_inmem_incr(session, page, total_incr);
-
-        /*
-         * If the updates in lookaside are newer than the versions on
-         * the page, it must be included in the next checkpoint.
-         *
-         * Otherwise, the page image contained the newest versions of
-         * data so the updates are all older and we could consider
-         * marking it clean (i.e., the next checkpoint can use the
-         * version already on disk).
-         *
-         * This needs care because (a) it creates pages with history
-         * that can't be evicted until they are marked dirty again, and
-         * (b) checkpoints may need to visit these pages to resolve
-         * changes evicted while a checkpoint is running.
-         */
-        page->modify->first_dirty_txn = WT_TXN_FIRST;
-
-        FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
-
-        if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
-          !S2C(session)->txn_global.has_stable_timestamp &&
-          __wt_txn_visible_all(
-              session, ref->page_las->unstable_txn, ref->page_las->unstable_durable_timestamp)) {
-            page->modify->rec_max_txn = ref->page_las->max_txn;
-            page->modify->rec_max_timestamp = ref->page_las->max_timestamp;
-            __wt_page_modify_clear(session, page);
-        }
-    }
-
-    /*
-     * Now the lookaside history has been read into cache there is no further need to maintain a
-     * reference to it.
-     */
-    ref->page_las->resolved = true;
 
 err:
-    if (locked)
-        __wt_readunlock(session, &cache->las_sweepwalk_lock);
-    WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
     WT_TRET(__wt_btcur_close(&cbt, true));
-
-    /*
-     * On error, upd points to a single unlinked WT_UPDATE structure, first_upd points to a list.
-     */
     __wt_free(session, upd);
-    __wt_free_update_list(session, first_upd);
-
-    __wt_scr_free(session, &current_key);
 
     return (ret);
 }
@@ -506,33 +316,14 @@ skip_read:
          * and then apply the delete.
          */
         if (ref->page_las != NULL)
-            WT_ERR(__las_page_instantiate(session, ref));
+            WT_ERR(__instantiate_birthmarks(session, ref));
 
         /* Move all records to a deleted state. */
         WT_ERR(__wt_delete_page_instantiate(session, ref));
         break;
     case WT_REF_LOOKASIDE:
-        WT_ERR(__las_page_instantiate(session, ref));
+        WT_ERR(__instantiate_birthmarks(session, ref));
         break;
-    }
-
-    /*
-     * Once the page is instantiated, we no longer need the history in
-     * lookaside.  We leave the lookaside sweep thread to do most cleanup,
-     * but it can only remove committed updates and keys that skew newest
-     * (if there are entries in the lookaside newer than the page, they need
-     * to be read back into cache or they will be lost).
-     *
-     * Prepared updates can not be removed by the lookaside sweep, remove
-     * them as we read the page back in memory.
-     *
-     * Don't free WT_REF.page_las, there may be concurrent readers.
-     */
-    if (final_state == WT_REF_MEM && ref->page_las != NULL &&
-      (!ref->page_las->skew_newest || ref->page_las->has_prepares)) {
-        WT_ERR(__wt_las_remove_block(session, ref->page_las->las_pageid));
-        __wt_free(session, ref->page_las->birthmarks);
-        __wt_free(session, ref->page_las);
     }
 
     WT_REF_SET_STATE(ref, final_state);
