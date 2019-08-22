@@ -988,9 +988,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_ITEM *sweep_key;
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t durable_timestamp, las_timestamp;
-    uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
+    uint64_t cnt, remove_cnt, visit_cnt;
     uint64_t las_counter, las_txnid;
-    uint32_t las_id, session_flags;
+    uint32_t las_id, saved_las_id, session_flags;
     uint8_t prepare_state, upd_type;
     int notused;
     bool local_txn, locked, removing_key_block;
@@ -1003,7 +1003,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     local_txn = locked = removing_key_block = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &saved_key));
-    saved_pageid = 0;
+    saved_las_id = 0;
 
     /*
      * Prevent other threads removing entries from underneath the sweep.
@@ -1055,11 +1055,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
 
-        las_pageid = 0;
         __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
           "Sweep reviewing lookaside entry with lookaside "
-          "page ID %" PRIu64 " btree ID %" PRIu32 " saved key size: %" WT_SIZET_FMT,
-          las_pageid, las_id, saved_key->size);
+          "btree ID %" PRIu32 " saved key size: %" WT_SIZET_FMT,
+          las_id, saved_key->size);
 
         /*
          * Signal to stop if the cache is stuck: we are ignoring the cache size while scanning the
@@ -1114,13 +1113,13 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          * because it is possible for the same key to be at the start
          * of the next block. See WT-3982 for details.
          */
-        if (las_pageid != saved_pageid || saved_key->size != las_key.size ||
+        if (las_id != saved_las_id || saved_key->size != las_key.size ||
           memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
             /* If we've examined enough entries, give up. */
             if (cnt == 0)
                 break;
 
-            saved_pageid = las_pageid;
+            saved_las_id = las_id;
             WT_ERR(__wt_buf_set(session, saved_key, las_key.data, las_key.size));
 
             /*
@@ -1160,9 +1159,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
         __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
           "Sweep removing lookaside entry with "
-          "page ID: %" PRIu64 " btree ID: %" PRIu32 " saved key size: %" WT_SIZET_FMT
-          ", record type: %" PRIu8 " transaction ID: %" PRIu64,
-          las_pageid, las_id, saved_key->size, upd_type, las_txnid);
+          "btree ID: %" PRIu32 " saved key size: %" WT_SIZET_FMT ", record type: %" PRIu8
+          " transaction ID: %" PRIu64,
+          las_id, saved_key->size, upd_type, las_txnid);
         WT_ERR(cursor->remove(cursor));
         ++remove_cnt;
     }
