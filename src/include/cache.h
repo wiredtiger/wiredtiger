@@ -198,16 +198,15 @@ struct __wt_cache {
     uint32_t las_fileid;       /* Lookaside table file ID */
     uint64_t las_insert_count; /* Count of inserts to lookaside */
     uint64_t las_remove_count; /* Count of removes from lookaside */
-    uint64_t las_pageid;       /* Lookaside table page ID counter */
+    uint64_t las_counter;      /* Lookaside counter */
 
     bool las_reader; /* Indicate an LAS reader to sweep */
     WT_RWLOCK las_sweepwalk_lock;
     WT_SPINLOCK las_sweep_lock;
-    WT_ITEM las_sweep_key;         /* Track sweep position. */
-    uint32_t las_sweep_dropmin;    /* Minimum btree ID in current set. */
-    uint8_t *las_sweep_dropmap;    /* Bitmap of dropped btree IDs. */
-    uint32_t las_sweep_dropmax;    /* Maximum btree ID in current set. */
-    uint64_t las_sweep_max_pageid; /* Maximum page ID for sweep. */
+    WT_ITEM las_sweep_key;      /* Track sweep position. */
+    uint32_t las_sweep_dropmin; /* Minimum btree ID in current set. */
+    uint8_t *las_sweep_dropmap; /* Bitmap of dropped btree IDs. */
+    uint32_t las_sweep_dropmax; /* Maximum btree ID in current set. */
 
     uint32_t *las_dropped;    /* List of dropped btree IDs. */
     size_t las_dropped_next;  /* Next index into drop list. */

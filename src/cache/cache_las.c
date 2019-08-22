@@ -598,8 +598,6 @@ __wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULT
     btree_id = btree->id;
     local_txn = false;
 
-    las_pageid = __wt_atomic_add64(&conn->cache->las_pageid, 1);
-
     if (!btree->lookaside_entries)
         btree->lookaside_entries = true;
 
@@ -695,7 +693,7 @@ __wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULT
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
 
-            cursor->set_key(cursor, btree_id, key, ++las_counter);
+            cursor->set_key(cursor, btree_id, key, __wt_atomic_add64(&conn->cache->las_counter, 1));
 
             /*
              * If saving a non-zero length value on the page, save a birthmark instead of
@@ -952,19 +950,6 @@ __las_sweep_init(WT_SESSION_IMPL *session)
         goto err;
     }
 
-    /*
-     * Record the current page ID: sweep will stop after this point.
-     *
-     * Since the btree IDs we're scanning are closed, any eviction must
-     * have already completed, so we won't miss anything with this
-     * approach.
-     *
-     * Also, if a tree is reopened and there is lookaside activity before
-     * this sweep completes, it will have a higher page ID and should not
-     * be removed.
-     */
-    cache->las_sweep_max_pageid = cache->las_pageid;
-
     /* Scan the btree IDs to find min/max. */
     cache->las_sweep_dropmin = UINT32_MAX;
     cache->las_sweep_dropmax = 0;
@@ -1082,16 +1067,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          */
         if (__wt_cache_stuck(session))
             cnt = 0;
-
-        /*
-         * Don't go past the end of lookaside from when sweep started. If a file is reopened, its ID
-         * may be reused past this point so the bitmap we're using is not valid.
-         */
-        if (las_pageid > cache->las_sweep_max_pageid) {
-            __wt_buf_free(session, sweep_key);
-            ret = WT_NOTFOUND;
-            break;
-        }
 
         /*
          * We only want to break between key blocks. Stop if we've processed enough entries either
