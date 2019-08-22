@@ -949,12 +949,18 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         __checkpoint_stats(session);
 
         /*
-         * If timestamps were used to define the content of the checkpoint update the saved last
-         * checkpoint timestamp, otherwise leave it alone. If a checkpoint is taken without
-         * timestamps, it's likely a bug, but we don't want to clear the saved last checkpoint
-         * timestamp regardless.
+         * If timestamps defined the checkpoint's content, set the saved last checkpoint timestamp,
+         * otherwise clear it. We clear it for a couple of reasons: applications can query it and we
+         * don't want to lie, and we use it to decide if WT_CONNECTION.rollback_to_stable is an
+         * allowed operation. For the same reason, don't set it to WT_TS_NONE when the checkpoint
+         * timestamp is WT_TS_NONE, set it to 1 so we can tell the difference.
          */
-        conn->txn_global.last_ckpt_timestamp = use_timestamp ? ckpt_tmp_ts : WT_TS_NONE;
+        if (use_timestamp) {
+            conn->txn_global.last_ckpt_timestamp = use_timestamp ? ckpt_tmp_ts : WT_TS_NONE;
+            if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
+                conn->txn_global.last_ckpt_timestamp = WT_TS_NONE + 1;
+        } else
+            conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
 
 err:
