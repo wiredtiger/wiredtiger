@@ -2494,18 +2494,16 @@ struct __wt_connection {
 	/*!
 	 * Rollback in-memory non-logged state to an earlier point in time.
 	 *
-	 * This method uses a timestamp to define the rollback point, and thus
-	 * requires that the application uses timestamps and that the
-	 * stable_timestamp must have been set via a call to
-	 * WT_CONNECTION::set_timestamp. Any updates to checkpoint durable
-	 * tables that are more recent than the stable timestamp are removed.
+	 * This method uses a timestamp to define the rollback point, and requires the application
+	 * use timestamps, the stable_timestamp have been set via a call to
+	 * WT_CONNECTION::set_timestamp, and a checkpoint operating on the last stable timestamp
+	 * to have completed. Any updates to checkpoint durable tables that are more recent than
+	 * the stable timestamp are removed.
 	 *
-	 * This method requires that there are no active operations for the
-	 * duration of the call.
+	 * This method requires that there are no active operations for the duration of the call.
 	 *
-	 * Any updates made to logged tables will not be rolled back. Any
-	 * updates made without an associated timestamp will not be rolled
-	 * back. See @ref transaction_timestamps.
+	 * Any updates made to logged tables will not be rolled back. Any updates made without an
+	 * associated timestamp will not be rolled back. See @ref transaction_timestamps.
 	 *
 	 * @snippet ex_all.c rollback to stable
 	 *

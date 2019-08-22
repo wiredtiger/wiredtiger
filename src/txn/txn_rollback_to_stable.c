@@ -433,7 +433,7 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
 
     if (txn_global->has_stable_timestamp == WT_TS_NONE ||
-      txn_global->meta_ckpt_timestamp == WT_TS_NONE)
+      txn_global->last_ckpt_timestamp == WT_TS_NONE)
         WT_RET_MSG(
           session, EINVAL, "rollback_to_stable requires a checkpoint with a stable timestamp");
 
