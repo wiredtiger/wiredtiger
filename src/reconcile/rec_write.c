@@ -2489,7 +2489,6 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_DECL_RET;
     WT_MULTI *multi;
-    uint64_t las_pageid;
     uint32_t i, j;
 
     /*
@@ -2497,8 +2496,7 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * entries for this page have been written.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && (las_pageid = multi->page_las.las_pageid) != 0) {
-            WT_TRET(__wt_las_remove_block(session, las_pageid));
+        if (multi->supd != NULL && multi->page_las.has_las) {
             if (multi->page_las.birthmarks_cnt != 0) {
                 WT_ASSERT(session, multi->page_las.birthmarks != NULL);
                 for (j = 0; j < multi->page_las.birthmarks_cnt; j++) {
