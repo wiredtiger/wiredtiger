@@ -13,7 +13,7 @@ static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_las_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static int __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
+static void __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
@@ -2438,7 +2438,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * store. Remove them.
      */
     if (F_ISSET(r, WT_REC_LOOKASIDE))
-        WT_TRET(__rec_las_wrapup_err(session, r));
+        __rec_las_wrapup_err(session, r);
 
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
@@ -2483,11 +2483,10 @@ err:
  * __rec_las_wrapup_err --
  *     Discard any saved updates from the database's lookaside buffer.
  */
-static int
+static void
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_BIRTHMARK_DETAILS *birthmarkp;
-    WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i, j;
 
@@ -2506,8 +2505,6 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             }
             __wt_free(session, multi->page_las.birthmarks);
         }
-
-    return (ret);
 }
 
 /*

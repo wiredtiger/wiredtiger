@@ -584,7 +584,7 @@ __wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULT
     WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *first_upd, *upd;
     wt_off_t las_size;
-    uint64_t insert_cnt, las_counter, max_las_size;
+    uint64_t insert_cnt, max_las_size;
     uint64_t prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
@@ -612,7 +612,7 @@ __wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULT
     WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
 
     /* Enter each update in the boundary's list into the lookaside store. */
-    for (las_counter = 0, i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
+    for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* Lookaside table key component: source key. */
         switch (page->type) {
         case WT_PAGE_COL_FIX:
@@ -1228,7 +1228,6 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_ITEM *key, las_key, las_value;
-    WT_REF *ref;
     WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE];
     WT_UPDATE *upd, **listp;
     wt_timestamp_t _durable_timestamp, _las_timestamp;
@@ -1247,7 +1246,6 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     key = &cbt->iface.key;
     WT_CLEAR(las_key);
     WT_CLEAR(las_value);
-    ref = cbt->ref;
     listp = list;
     allocated_bytes = 0;
     las_id = S2BT(session)->id;
@@ -1270,7 +1268,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          ret = cursor->next(cursor)) {
         WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
 
-        /* Stop before crossing over to the next page block */
+        /* Stop before crossing over to the next btree */
         if (las_id != S2BT(session)->id)
             break;
 
