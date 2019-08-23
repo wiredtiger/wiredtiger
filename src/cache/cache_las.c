@@ -1355,7 +1355,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     size_t allocated_bytes, incr;
     uint64_t las_counter, las_pageid, las_txnid, _las_txnid;
     uint32_t las_id, session_flags;
-    uint8_t prepare_state, upd_type, _prepare_state;
+    uint8_t prepare_state, upd_type, _prepare_state, *p;
     u_int i;
     int cmp;
     bool upd_visible;
@@ -1363,7 +1363,6 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     *updp = upd = NULL;
     cache = S2C(session)->cache;
     cursor = NULL;
-    key = &cbt->iface.key;
     WT_CLEAR(las_key);
     WT_CLEAR(las_value);
     ref = cbt->ref;
@@ -1372,6 +1371,20 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     las_pageid = ref->page_las->las_pageid;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
+
+    /* Row-store has the key available, create the column-store key on demand. */
+    switch (cbt->btree->type) {
+    case BTREE_ROW:
+        key = &cbt->iface.key;
+        break;
+    case BTREE_COL_FIX:
+    case BTREE_COL_VAR:
+        WT_RET(__wt_buf_grow(session, cbt->tmp, WT_INTPACK64_MAXSIZE));
+        p = cbt->tmp->mem;
+        WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
+        cbt->tmp->size = WT_PTRDIFF(p, cbt->tmp->mem);
+        key = cbt->tmp;
+    }
 
     /* Open a lookaside table cursor. */
     __wt_las_cursor(session, &cursor, &session_flags);
