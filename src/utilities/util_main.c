@@ -20,6 +20,7 @@ static const char *command; /* Command name */
 #define REC_LOGOFF "log=(enabled=false)"
 #define REC_RECOVER "log=(recover=on)"
 #define REC_SALVAGE "log=(recover=salvage)"
+#define READONLY "readonly=true"
 
 static void
 usage(void)
@@ -206,8 +207,10 @@ main(int argc, char *argv[])
             func = util_alter;
         break;
     case 'b':
-        if (strcmp(command, "backup") == 0)
+        if (strcmp(command, "backup") == 0) {
             func = util_backup;
+            config = READONLY;
+        }
         break;
     case 'c':
         if (strcmp(command, "compact") == 0)
@@ -217,7 +220,7 @@ main(int argc, char *argv[])
             goto done;
         } else if (strcmp(command, "create") == 0) {
             func = util_create;
-            config = "create";
+            config = "create," READONLY;
         }
         break;
     case 'd':
@@ -225,17 +228,20 @@ main(int argc, char *argv[])
             func = util_downgrade;
         else if (strcmp(command, "drop") == 0)
             func = util_drop;
-        else if (strcmp(command, "dump") == 0)
+        else if (strcmp(command, "dump") == 0) {
             func = util_dump;
+            config = READONLY;
+        }
         break;
     case 'i':
         if (strcmp(command, "import") == 0)
             func = util_import;
         break;
     case 'l':
-        if (strcmp(command, "list") == 0)
+        if (strcmp(command, "list") == 0) {
             func = util_list;
-        else if (strcmp(command, "load") == 0) {
+            config = READONLY;
+        } else if (strcmp(command, "load") == 0) {
             func = util_load;
             config = "create";
         } else if (strcmp(command, "loadtext") == 0) {
@@ -247,12 +253,14 @@ main(int argc, char *argv[])
         if (strcmp(command, "printlog") == 0) {
             func = util_printlog;
             rec_config = REC_LOGOFF;
+            config = READONLY;
         }
         break;
     case 'r':
-        if (strcmp(command, "read") == 0)
+        if (strcmp(command, "read") == 0) {
             func = util_read;
-        else if (strcmp(command, "rebalance") == 0)
+            config = READONLY;
+        } else if (strcmp(command, "rebalance") == 0)
             func = util_rebalance;
         else if (strcmp(command, "rename") == 0)
             func = util_rename;
@@ -262,7 +270,7 @@ main(int argc, char *argv[])
             func = util_salvage;
         else if (strcmp(command, "stat") == 0) {
             func = util_stat;
-            config = "statistics=(all)";
+            config = "statistics=(all)," READONLY;
         }
         break;
     case 't':
@@ -274,8 +282,10 @@ main(int argc, char *argv[])
             func = util_upgrade;
         break;
     case 'v':
-        if (strcmp(command, "verify") == 0)
+        if (strcmp(command, "verify") == 0) {
             func = util_verify;
+            config = READONLY;
+        }
         break;
     case 'w':
         if (strcmp(command, "write") == 0)
