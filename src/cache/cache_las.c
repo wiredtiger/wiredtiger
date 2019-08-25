@@ -796,15 +796,13 @@ err:
  *     entries if they have been removed by WT_CONNECTION::rollback_to_stable.
  */
 int
-__wt_las_cursor_position(WT_CURSOR *cursor, uint32_t btree_id, WT_ITEM *key)
+__wt_las_cursor_position(
+  WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id, WT_ITEM *key)
 {
     WT_ITEM las_key;
-    WT_SESSION_IMPL *session;
     uint64_t las_counter;
     uint32_t las_id;
     int cmp, exact;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
 
     /*
      * When scanning for all pages, start at the beginning of the lookaside table.
@@ -839,7 +837,7 @@ __wt_las_cursor_position(WT_CURSOR *cursor, uint32_t btree_id, WT_ITEM *key)
             return (0);
         else if (las_id == btree_id) {
             WT_RET(__wt_compare(session, S2BT(session)->collator, &las_key, key, &cmp));
-            if (cmp > 0)
+            if (cmp >= 0)
                 return (0);
         }
     }
@@ -1264,7 +1262,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     __wt_readlock(session, &cache->las_sweepwalk_lock);
     cache->las_reader = false;
 
-    for (ret = __wt_las_cursor_position(cursor, las_id, key); ret == 0;
+    for (ret = __wt_las_cursor_position(session, cursor, las_id, key); ret == 0;
          ret = cursor->next(cursor)) {
         WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
 
