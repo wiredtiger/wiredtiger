@@ -220,7 +220,7 @@ main(int argc, char *argv[])
             goto done;
         } else if (strcmp(command, "create") == 0) {
             func = util_create;
-            config = "create," READONLY;
+            config = "create";
         }
         break;
     case 'd':
