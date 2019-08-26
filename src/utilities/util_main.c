@@ -322,8 +322,8 @@ main(int argc, char *argv[])
         goto err;
     }
     if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,%s%s%s%s",
-         config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
-         readonly_config == NULL ? "" : readonly_config, rec_config, p1, p2, p3)) != 0) {
+           config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
+           readonly_config == NULL ? "" : readonly_config, rec_config, p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
