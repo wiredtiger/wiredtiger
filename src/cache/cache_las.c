@@ -1264,7 +1264,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     int cmp;
     bool sweep_locked;
 
-    *updp = NULL;
+    *updp = upd = NULL;
 
     cache = S2C(session)->cache;
     cursor = NULL;
