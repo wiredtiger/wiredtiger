@@ -842,7 +842,7 @@ __wt_las_cursor_position(
         if (las_id > btree_id)
             return (0);
         else if (las_id == btree_id) {
-            WT_RET(__wt_compare(session, S2BT(session)->collator, &las_key, key, &cmp));
+            WT_RET(__wt_compare(session, NULL, &las_key, key, &cmp));
             if (cmp >= 0)
                 return (0);
         }
@@ -1083,7 +1083,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
         if (__wt_cache_stuck(session))
             cnt = 0;
 
-        WT_ERR(__wt_compare(session, S2BT(session)->collator, &las_key, &cache->las_max_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &las_key, &cache->las_max_key, &cmp));
         if (las_id > cache->las_max_btree_id || (las_id == cache->las_max_btree_id && cmp > 0) ||
           (las_id == cache->las_max_btree_id && cmp == 0 && las_counter > cache->las_max_counter)) {
             __wt_buf_free(session, sweep_key);
@@ -1320,7 +1320,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
          * have crossed over the desired key and not found the record we are looking for.
          */
-        WT_ERR(__wt_compare(session, S2BT(session)->collator, las_key, key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
         if (cmp < 0)
             continue;
         else if (cmp > 0)
@@ -1365,12 +1365,12 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
                 WT_ERR(cursor->next(cursor));
 #ifdef HAVE_DIAGNOSTIC
                 /*
-                 * We shouldn't be crossing over to another LAS page id or breaking any visibility
+                 * We shouldn't be crossing over to another LAS btree id or breaking any visibility
                  * rules while doing this.
                  */
                 WT_ERR(cursor->get_key(cursor, &las_id, las_key, &las_counter));
                 WT_ASSERT(session, las_id == S2BT(session)->id);
-                WT_ERR(__wt_compare(session, S2BT(session)->collator, las_key, key, &cmp));
+                WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
                 WT_ASSERT(session, cmp == 0);
 #endif
                 /*
