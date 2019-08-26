@@ -693,6 +693,11 @@ __wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULT
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
 
+            /*
+             * The las counter is a global counter that we add to make each lookaside record unique.
+             * The counter itself is already unique but we put the btree id and key beforehand
+             * because those are the keys that we want to search with.
+             */
             cursor->set_key(cursor, btree_id, key, __wt_atomic_add64(&conn->cache->las_counter, 1));
 
             /*
