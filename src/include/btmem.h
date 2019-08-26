@@ -909,6 +909,7 @@ struct __wt_ref {
         WT_SESSION_IMPL *session;
         const char *name;
         const char *func;
+        struct timespec time;
         uint16_t line;
         uint16_t state;
     } hist[WT_REF_SAVE_STATE_MAX];
@@ -917,6 +918,7 @@ struct __wt_ref {
     do {                                                                  \
         (ref)->hist[(ref)->histoff].session = session;                    \
         (ref)->hist[(ref)->histoff].name = session->name;                 \
+        __wt_epoch(session, &(ref)->hist[(ref)->histoff].time);           \
         (ref)->hist[(ref)->histoff].func = (f);                           \
         (ref)->hist[(ref)->histoff].line = (uint16_t)(l);                 \
         (ref)->hist[(ref)->histoff].state = (uint16_t)(s);                \

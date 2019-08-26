@@ -128,6 +128,7 @@ __wt_row_leaf_key_work(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb, bool instantiate)
 {
     enum { FORWARD, BACKWARD } direction;
+    struct timespec start;
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -160,6 +161,7 @@ __wt_row_leaf_key_work(
     size = 0; /* -Werror=maybe-uninitialized */
 
     direction = BACKWARD;
+    __wt_epoch(session, &start);
     for (slot_offset = 0;;) {
         if (0) {
         switch_and_jump:
