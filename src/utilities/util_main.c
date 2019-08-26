@@ -112,8 +112,8 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *cmd_config, *config, *p1, *p2, *p3, *rec_config;
-    bool logoff, recover, salvage;
+    const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config;
+    bool logoff, recover, readonly, salvage;
 
     conn = NULL;
     p = NULL;
@@ -135,14 +135,14 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    cmd_config = config = secretkey = NULL;
+    cmd_config = config = readonly_config = secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    logoff = recover = salvage = false;
+    logoff = readonly = recover = salvage = false;
     /* Check for standard options. */
     while ((ch = __wt_getopt(progname, argc, argv, "C:E:h:LRSVv")) != EOF)
         switch (ch) {
@@ -199,7 +199,6 @@ main(int argc, char *argv[])
 
     /* Reset getopt. */
     __wt_optreset = __wt_optind = 1;
-
     func = NULL;
     switch (command[0]) {
     case 'a':
@@ -209,7 +208,7 @@ main(int argc, char *argv[])
     case 'b':
         if (strcmp(command, "backup") == 0) {
             func = util_backup;
-            config = READONLY;
+            readonly_config = READONLY;
         }
         break;
     case 'c':
@@ -230,7 +229,7 @@ main(int argc, char *argv[])
             func = util_drop;
         else if (strcmp(command, "dump") == 0) {
             func = util_dump;
-            config = READONLY;
+            readonly_config = READONLY;
         }
         break;
     case 'i':
@@ -240,7 +239,7 @@ main(int argc, char *argv[])
     case 'l':
         if (strcmp(command, "list") == 0) {
             func = util_list;
-            config = READONLY;
+            readonly_config = READONLY;
         } else if (strcmp(command, "load") == 0) {
             func = util_load;
             config = "create";
@@ -253,13 +252,13 @@ main(int argc, char *argv[])
         if (strcmp(command, "printlog") == 0) {
             func = util_printlog;
             rec_config = REC_LOGOFF;
-            config = READONLY;
+            readonly_config = READONLY;
         }
         break;
     case 'r':
         if (strcmp(command, "read") == 0) {
             func = util_read;
-            config = READONLY;
+            readonly_config = READONLY;
         } else if (strcmp(command, "rebalance") == 0)
             func = util_rebalance;
         else if (strcmp(command, "rename") == 0)
@@ -270,7 +269,8 @@ main(int argc, char *argv[])
             func = util_salvage;
         else if (strcmp(command, "stat") == 0) {
             func = util_stat;
-            config = "statistics=(all)," READONLY;
+            config = "statistics=(all)";
+            readonly_config = READONLY;
         }
         break;
     case 't':
@@ -284,7 +284,7 @@ main(int argc, char *argv[])
     case 'v':
         if (strcmp(command, "verify") == 0) {
             func = util_verify;
-            config = READONLY;
+            readonly_config = READONLY;
         }
         break;
     case 'w':
@@ -298,6 +298,9 @@ main(int argc, char *argv[])
         usage();
         goto err;
     }
+
+    if (recover || salvage)
+        readonly_config = NULL;
 
     /* Build the configuration string. */
     len = 10; /* some slop */
@@ -318,8 +321,9 @@ main(int argc, char *argv[])
         (void)util_err(NULL, errno, NULL);
         goto err;
     }
-    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s%s%s%s", config == NULL ? "" : config,
-           cmd_config == NULL ? "" : cmd_config, rec_config, p1, p2, p3)) != 0) {
+    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,%s%s%s%s",
+         config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
+         readonly_config == NULL ? "" : readonly_config, rec_config, p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
