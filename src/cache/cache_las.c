@@ -1249,31 +1249,50 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
 {
     WT_CACHE *cache;
     WT_CURSOR *cursor;
+    WT_DECL_ITEM(las_key);
+    WT_DECL_ITEM(las_value);
     WT_DECL_RET;
-    WT_ITEM *key, las_key, las_value;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE];
-    WT_UPDATE *upd, **listp;
-    wt_timestamp_t _durable_timestamp, _las_timestamp;
-    wt_timestamp_t durable_timestamp, las_timestamp;
+    WT_ITEM *key;
+    WT_REF *ref;
+    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp;
+    wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
     uint64_t las_counter, las_txnid, _las_txnid;
     uint32_t las_id, session_flags;
-    uint8_t prepare_state, upd_type, _prepare_state;
+    uint8_t prepare_state, _prepare_state, *p, upd_type;
     u_int i;
     int cmp;
-    bool upd_visible;
+    bool sweep_locked;
 
-    *updp = upd = NULL;
+    *updp = NULL;
+
     cache = S2C(session)->cache;
     cursor = NULL;
-    key = &cbt->iface.key;
-    WT_CLEAR(las_key);
-    WT_CLEAR(las_value);
+    ref = cbt->ref;
     listp = list;
     allocated_bytes = 0;
     las_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
+    sweep_locked = false;
+
+    /* Row-store has the key available, create the column-store key on demand. */
+    switch (cbt->btree->type) {
+    case BTREE_ROW:
+        key = &cbt->iface.key;
+        break;
+    case BTREE_COL_FIX:
+    case BTREE_COL_VAR:
+        WT_RET(__wt_buf_grow(session, cbt->tmp, WT_INTPACK64_MAXSIZE));
+        p = cbt->tmp->mem;
+        WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
+        cbt->tmp->size = WT_PTRDIFF(p, cbt->tmp->mem);
+        key = cbt->tmp;
+    }
+
+    /* Allocate buffers for the lookaside key/value. */
+    WT_ERR(__wt_scr_alloc(session, 0, &las_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &las_value));
 
     /* Open a lookaside table cursor. */
     __wt_las_cursor(session, &cursor, &session_flags);
@@ -1286,10 +1305,11 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     cache->las_reader = true;
     __wt_readlock(session, &cache->las_sweepwalk_lock);
     cache->las_reader = false;
+    sweep_locked = true;
 
     for (ret = __wt_las_cursor_position(session, cursor, las_id, key); ret == 0;
          ret = cursor->next(cursor)) {
-        WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
+        WT_ERR(cursor->get_key(cursor, &las_id, las_key, &las_counter));
 
         /* Stop before crossing over to the next btree */
         if (las_id != S2BT(session)->id)
@@ -1299,21 +1319,20 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
          * have crossed over the desired key and not found the record we are looking for.
          */
-        WT_ERR(__wt_compare(session, S2BT(session)->collator, &las_key, key, &cmp));
+        WT_ERR(__wt_compare(session, S2BT(session)->collator, las_key, key, &cmp));
         if (cmp < 0)
             continue;
         else if (cmp > 0)
             break;
 
         WT_ERR(cursor->get_value(cursor, &las_txnid, &las_timestamp, &durable_timestamp,
-          &prepare_state, &upd_type, &las_value));
+          &prepare_state, &upd_type, las_value));
 
         /*
          * It is safe to assume that the updates are sorted newest to the oldest. We can quit
          * searching after finding the newest visible record.
          */
-        upd_visible = __wt_txn_visible(session, las_txnid, las_timestamp);
-        if (!upd_visible)
+        if (!__wt_txn_visible(session, las_txnid, las_timestamp))
             continue;
 
         /*
@@ -1333,7 +1352,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          */
         if (upd_type == WT_UPDATE_MODIFY) {
             while (upd_type == WT_UPDATE_MODIFY) {
-                WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
+                WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
                 if (i >= WT_MODIFY_ARRAY_SIZE) {
                     if (i == WT_MODIFY_ARRAY_SIZE)
                         listp = NULL;
@@ -1348,9 +1367,9 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
                  * We shouldn't be crossing over to another LAS page id or breaking any visibility
                  * rules while doing this.
                  */
-                WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
+                WT_ERR(cursor->get_key(cursor, &las_id, las_key, &las_counter));
                 WT_ASSERT(session, las_id == S2BT(session)->id);
-                WT_ERR(__wt_compare(session, S2BT(session)->collator, &las_key, key, &cmp));
+                WT_ERR(__wt_compare(session, S2BT(session)->collator, las_key, key, &cmp));
                 WT_ASSERT(session, cmp == 0);
 #endif
                 /*
@@ -1358,19 +1377,19 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
                  * the timestamps of the original modify we saw.
                  */
                 WT_ERR(cursor->get_value(cursor, &_las_txnid, &_las_timestamp, &_durable_timestamp,
-                  &_prepare_state, &upd_type, &las_value));
+                  &_prepare_state, &upd_type, las_value));
                 WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
             while (i > 0) {
-                WT_ERR(__wt_modify_apply_item(session, &las_value, listp[i - 1]->data, false));
+                WT_ERR(__wt_modify_apply_item(session, las_value, listp[i - 1]->data, false));
                 __wt_free_update_list(session, listp[i - 1]);
                 --i;
             }
         }
 
         /* Allocate an update structure for the record found. */
-        WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
+        WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
         upd->txnid = las_txnid;
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_timestamp;
@@ -1387,8 +1406,14 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     WT_ERR_NOTFOUND_OK(ret);
 
 err:
-    __wt_readunlock(session, &cache->las_sweepwalk_lock);
+    if (sweep_locked)
+        __wt_readunlock(session, &cache->las_sweepwalk_lock);
+
+    __wt_scr_free(session, &las_key);
+    __wt_scr_free(session, &las_value);
+
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+
     if (listp == NULL)
         listp = list;
     while (i > 0)
