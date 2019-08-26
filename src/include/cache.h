@@ -207,7 +207,9 @@ struct __wt_cache {
     uint32_t las_sweep_dropmin; /* Minimum btree ID in current set. */
     uint8_t *las_sweep_dropmap; /* Bitmap of dropped btree IDs. */
     uint32_t las_sweep_dropmax; /* Maximum btree ID in current set. */
+    uint32_t las_max_btree_id;  /* Maximum btree ID for sweep. */
     WT_ITEM las_max_key;        /* Maximum key for sweep. */
+    uint64_t las_max_counter;   /* Maximum counter for sweep. */
 
     uint32_t *las_dropped;    /* List of dropped btree IDs. */
     size_t las_dropped_next;  /* Next index into drop list. */
