@@ -310,6 +310,8 @@ main(int argc, char *argv[])
         len += strlen(config);
     if (cmd_config != NULL)
         len += strlen(cmd_config);
+    if (readonly_config != NULL)
+        len += strlen(readonly_config);
     if (secretkey != NULL) {
         len += strlen(secretkey) + 30;
         p1 = ",encryption=(secretkey=";
