@@ -798,8 +798,9 @@ err:
 
 /*
  * __wt_las_cursor_position --
- *     Position a lookaside cursor at the beginning of a block. There may be no block of lookaside
- *     entries if they have been removed by WT_CONNECTION::rollback_to_stable.
+ *     Position a lookaside cursor at the beginning of a block of records for a given btree id and
+ *     key. There may be no block of lookaside entries if they have been removed by
+ *     WT_CONNECTION::rollback_to_stable.
  */
 int
 __wt_las_cursor_position(

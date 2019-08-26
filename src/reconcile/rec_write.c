@@ -2491,8 +2491,8 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     uint32_t i, j;
 
     /*
-     * Note the additional check for a non-zero lookaside page ID, that flags if lookaside table
-     * entries for this page have been written.
+     * Note the additional check for whether lookaside table entries for this page have been
+     * written.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL && multi->page_las.has_las) {
