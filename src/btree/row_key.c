@@ -128,7 +128,6 @@ __wt_row_leaf_key_work(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip_arg, WT_ITEM *keyb, bool instantiate)
 {
     enum { FORWARD, BACKWARD } direction;
-    struct timespec start;
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -137,6 +136,9 @@ __wt_row_leaf_key_work(
     WT_IKEY *ikey;
     WT_ROW *rip, *jump_rip;
     size_t size;
+#ifdef HAVE_DIAGNOSTIC
+    uint64_t start;
+#endif
     u_int last_prefix;
     int jump_slot_offset, slot_offset;
     void *copy;
@@ -161,7 +163,10 @@ __wt_row_leaf_key_work(
     size = 0; /* -Werror=maybe-uninitialized */
 
     direction = BACKWARD;
-    __wt_epoch(session, &start);
+#ifdef HAVE_DIAGNOSTIC
+    WT_NOT_READ(start, 0);
+    __wt_seconds(session, &start);
+#endif
     for (slot_offset = 0;;) {
         if (0) {
         switch_and_jump:
