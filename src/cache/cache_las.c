@@ -229,6 +229,7 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
     }
 
     __wt_buf_free(session, &cache->las_sweep_key);
+    __wt_buf_free(session, &cache->las_max_key);
     __wt_free(session, cache->las_dropped);
     __wt_free(session, cache->las_sweep_dropmap);
 
@@ -934,13 +935,15 @@ __las_sweep_count(WT_CACHE *cache)
  *     Prepare to start a lookaside sweep.
  */
 static int
-__las_sweep_init(WT_SESSION_IMPL *session)
+__las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
 {
     WT_CACHE *cache;
     WT_DECL_RET;
+    WT_ITEM max_key;
     u_int i;
 
     cache = S2C(session)->cache;
+    WT_CLEAR(max_key);
 
     __wt_spin_lock(session, &cache->las_sweep_lock);
 
@@ -952,6 +955,12 @@ __las_sweep_init(WT_SESSION_IMPL *session)
             ret = WT_NOTFOUND;
         goto err;
     }
+
+    /* Find the max key for the current sweep. */
+    WT_ERR(las_cursor->reset(las_cursor));
+    WT_ERR(las_cursor->prev(las_cursor));
+    WT_ERR(las_cursor->get_key(las_cursor, &max_key));
+    WT_ERR(__wt_buf_set(session, &cache->las_max_key, max_key.data, max_key.size));
 
     /* Scan the btree IDs to find min/max. */
     cache->las_sweep_dropmin = UINT32_MAX;
@@ -987,7 +996,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_ITEM(saved_key);
     WT_DECL_RET;
-    WT_ITEM las_key, las_value;
+    WT_ITEM las_full_key, las_key, las_value;
     WT_ITEM *sweep_key;
     WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t durable_timestamp, las_timestamp;
@@ -995,11 +1004,12 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     uint64_t las_counter, las_txnid;
     uint32_t las_id, saved_las_id, session_flags;
     uint8_t prepare_state, upd_type;
-    int notused;
+    int cmp, notused;
     bool local_txn, locked, removing_key_block;
 
     cache = S2C(session)->cache;
     cursor = NULL;
+    WT_CLEAR(las_full_key);
     sweep_key = &cache->las_sweep_key;
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
@@ -1047,7 +1057,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          */
         __wt_buf_free(session, sweep_key);
     } else
-        ret = __las_sweep_init(session);
+        ret = __las_sweep_init(session, cursor);
     if (ret != 0)
         goto srch_notfound;
 
@@ -1056,6 +1066,16 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
+        /* Get the full key as a binary blob so we can compare with the max sweep key. */
+        WT_ERR(cursor->get_key(cursor, &las_full_key));
+        WT_ERR(
+          __wt_compare(session, S2BT(session)->collator, &las_full_key, &cache->las_max_key, &cmp));
+        if (cmp > 0) {
+            __wt_buf_free(session, sweep_key);
+            ret = WT_NOTFOUND;
+            break;
+        }
+
         WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
 
         __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
