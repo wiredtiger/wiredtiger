@@ -98,7 +98,7 @@ def check_needed_dependencies(builtins, inc_paths, lib_paths):
 #   Locate an executable in the PATH.
 def find_executable(exename, path):
     p = subprocess.Popen(['which', exename ], stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE)
+                         stderr=subprocess.PIPE, universal_newlines=True)
     out, err = p.communicate('')
     out = str(out)  # needed for Python3
     if out == '':
@@ -146,7 +146,8 @@ def get_sources_curdir():
     DEVNULL = open(os.devnull, 'w')
     gitproc = subprocess.Popen(
         ['git', 'ls-tree', '-r', '--name-only', 'HEAD^{tree}'],
-        stdin=DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        stdin=DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        universal_newlines=True)
     sources = [line.rstrip() for line in gitproc.stdout.readlines()]
     err = gitproc.stderr.read()
     gitproc.wait()
@@ -176,6 +177,7 @@ def get_library_dirs():
     dirs.append("/usr/local/lib")
     dirs.append("/usr/local/lib64")
     dirs.append("/lib/x86_64-linux-gnu")
+    dirs.append("/usr/lib/x86_64-linux-gnu")
     dirs.append("/opt/local/lib")
     dirs.append("/usr/lib")
     dirs.append("/usr/lib64")
@@ -193,6 +195,7 @@ def source_filter(sources):
     movers = dict()
     py_dir = os.path.join('lang', 'python')
     pywt_dir = os.path.join(py_dir, 'wiredtiger')
+    pywt_build_dir = os.path.join('build_posix', py_dir, 'wiredtiger')
     pywt_prefix = pywt_dir + os.path.sep
     for f in sources:
         if not re.match(source_regex, f):
@@ -209,7 +212,7 @@ def source_filter(sources):
         result.append(dest)
     # Add SWIG generated files
     result.append('wiredtiger.py')
-    movers['wiredtiger.py'] = os.path.join(pywt_dir, '__init__.py')
+    movers['wiredtiger.py'] = os.path.join(pywt_build_dir, '__init__.py')
     result.append(os.path.join(py_dir, 'wiredtiger_wrap.c'))
     return result, movers
 
@@ -230,10 +233,6 @@ elif os.path.isfile(os.path.join(this_dir, 'LICENSE')):
     wt_dir = this_dir
 else:
     die('running from an unknown directory')
-
-python3 = (sys.version_info[0] > 2)
-if python3:
-    die('Python3 is not yet supported')
 
 # Ensure that Extensions won't be built for 32 bit,
 # that won't work with WiredTiger.
@@ -304,6 +303,17 @@ cppflags, cflags, ldflags = get_compile_flags(inc_paths, lib_paths)
 # If we are creating a source distribution, create a staging directory
 # with just the right sources. Put the result in the python dist directory.
 if pip_command == 'sdist':
+
+    # Technically, this script can run under Python2, and will do the
+    # right thing. But if we're running with Python2, chances are we built
+    # WiredTiger using Python2, and a distribution built that way will
+    # only run under Python2, not Python3.  If we do the WiredTiger configure,
+    # build and this script all using Python3, we'll end up with a distribution
+    # that installs and runs under either Python2 or Python3.
+    python2 = (sys.version_info[0] <= 2)
+    if python2:
+        die('Python3 should be used to create a source distribution')
+
     sources, movers = source_filter(get_sources_curdir())
     stage_dir = os.path.join(python_rel_dir, 'stage')
     shutil.rmtree(stage_dir, True)

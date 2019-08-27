@@ -57,6 +57,7 @@ func_ok()
 	    -e '/int __wt_block_write_size$/d' \
 	    -e '/int __wt_buf_catfmt$/d' \
 	    -e '/int __wt_buf_fmt$/d' \
+	    -e '/int __wt_count_birthmarks$/d' \
 	    -e '/int __wt_curjoin_joined$/d' \
 	    -e '/int __wt_cursor_noop$/d' \
 	    -e '/int __wt_epoch$/d' \
@@ -116,6 +117,7 @@ func_ok()
 	    -e '/int snappy_pre_size$/d' \
 	    -e '/int snappy_terminate$/d' \
 	    -e '/int subtest_error_handler$/d' \
+	    -e '/int test_las_workload$/d' \
 	    -e '/int uri2name$/d' \
 	    -e '/int usage$/d' \
 	    -e '/int util_err$/d' \
@@ -146,7 +148,6 @@ for f in `find bench ext src test -name '*.[ci]'`; do
 	    -e '/WT_CURSOR_NEEDKEY(/d' \
 	    -e '/WT_CURSOR_NEEDVALUE(/d' \
 	    -e '/WT_ERR[A-Z_]*(/d' \
-	    -e '/WT_ILLEGAL_VALUE[A-Z_]*(/d' \
 	    -e '/WT_PANIC[A-Z_]*(/d' \
 	    -e '/WT_RET[A-Z_]*(/d' \
 	    -e '/WT_SIZE_CHECK_PACK(/d' \
@@ -175,7 +176,6 @@ for f in `find bench ext src test -name '*.[ci]'`; do
 	    -e '/WT_CURSOR_NEEDKEY/d' \
 	    -e '/WT_CURSOR_NEEDVALUE/d' \
 	    -e '/WT_ERR/d' \
-	    -e '/WT_ILLEGAL_VALUE_ERR/d' \
 	    -e '/WT_SYSCALL.*ret/d' \
 	    -e '/WT_TRET/d' \
 	    -e 's/^\([^(]*\).*/\1/' \

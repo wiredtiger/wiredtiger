@@ -105,6 +105,7 @@ DeadStores
 Decrement
 Decrypt
 DeleteFileW
+Dh
 EACCES
 EAGAIN
 EB
@@ -228,8 +229,6 @@ LZO
 LeafGreen
 LevelDB
 Levyx
-Llqr
-Llqrt
 LmT
 LoadLoad
 LockFile
@@ -412,6 +411,7 @@ VALGRIND
 VARCHAR
 VLDB
 VMSG
+VPM
 VR
 VRFY
 VX
@@ -498,7 +498,6 @@ basecfg
 basho
 bbb
 bcr
-bdb
 beginthreadex
 bigram
 binutils
@@ -526,6 +525,7 @@ buf
 bufsz
 bugfix
 bugfixes
+builddir
 builtin
 builtins
 bytelock
@@ -905,7 +905,6 @@ keyv
 kv
 kvraw
 kvs
-kvsbdb
 lang
 las
 latencies
@@ -946,6 +945,8 @@ lookaside
 lookup
 lookups
 lossy
+lqr
+lqrt
 lr
 lrt
 lru
@@ -1072,6 +1073,7 @@ ownp
 pR
 pS
 packv
+pagedump
 pagesize
 parens
 pareto
@@ -1097,6 +1099,7 @@ pragmas
 pre
 pread
 prealloc
+precomp
 preload
 preloaded
 prepend
@@ -1324,6 +1327,7 @@ unmodify
 unordered
 unpackv
 unpadded
+unreconciled
 unreferenced
 unregister
 unsized
@@ -1359,6 +1363,7 @@ versa
 vfprintf
 vm
 vpack
+vpmsum
 vprintf
 vrfy
 vsize
