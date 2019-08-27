@@ -137,7 +137,7 @@ __wt_row_leaf_key_work(
     WT_ROW *rip, *jump_rip;
     size_t size;
 #ifdef HAVE_DIAGNOSTIC
-    uint64_t current, start;
+    uint32_t current, start;
 #endif
     u_int last_prefix;
     int jump_slot_offset, slot_offset;
@@ -164,7 +164,7 @@ __wt_row_leaf_key_work(
 
     direction = BACKWARD;
 #ifdef HAVE_DIAGNOSTIC
-    __wt_seconds(session, &start);
+    __wt_seconds32(session, &start);
 #endif
     for (slot_offset = 0;;) {
         if (0) {
@@ -183,12 +183,12 @@ __wt_row_leaf_key_work(
          * Debugging added to detect and gather information for rare hang. Detect and abort if the
          * current operation takes too long.
          */
-        __wt_seconds(session, &current);
+        __wt_seconds32(session, &current);
         WT_ERR_ASSERT(session, (current - start) < WT_MINUTE * 5, EINVAL,
-          "Row_leaf_key_work taking too long: current %" PRIu64 " func started %" PRIu64, current,
-          start);
+          "Current function call taking too long: current %" PRIu32 " func started %" PRIu32,
+          current, start);
         WT_ERR_ASSERT(session, (current - session->op_start) < WT_MINUTE * 5, EINVAL,
-          "Operation taking too long: current %" PRIu64 " started %" PRIu64, current,
+          "Operation taking too long: current %" PRIu32 " started %" PRIu32, current,
           session->op_start);
 #endif
 

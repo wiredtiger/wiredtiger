@@ -27,7 +27,7 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s) \
     if (--(s)->api_enter_refcnt == 0)  \
         WT_PUBLISH((s)->api_tid, 0);
-#define WT_TRACK_TIME(s) __wt_seconds((s), &(s)->op_start)
+#define WT_TRACK_TIME(s) __wt_seconds32((s), &(s)->op_start)
 #else
 #define WT_SINGLE_THREAD_CHECK_START(s)
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
