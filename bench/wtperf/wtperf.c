@@ -529,6 +529,7 @@ worker(void *arg)
     ops = 0;
     ops_per_txn = workload->ops_per_txn;
     session = NULL;
+    total_modify_size = 0;
     trk = NULL;
 
     if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
@@ -733,53 +734,57 @@ worker(void *arg)
                 if (opts->random_value)
                     randomize_value(thread, value_buf, delta);
 
+                value_len = strlen(value);
+
+                if (workload->distribute_modifications) {
+                    /*
+                     * Distribute the modifications across the whole document. We randomly choose up
+                     * to the maximum number of modifications and modify up to the maximum percent
+                     * of the record size.
+                     */
+                    nmodify = MAX_MODIFY_NUM;
+
+                    /*
+                     * The maximum that will be modified is a fixed percentage of the total record
+                     * size.
+                     */
+                    total_modify_size = value_len / MAX_MODIFY_PCT;
+
+                    /*
+                     * Randomize the maximum modification size and offset per modify.
+                     */
+                    rand_val = __wt_random(&thread->rnd);
+                    if ((total_modify_size / (size_t)nmodify) != 0)
+                        modify_size = rand_val % (total_modify_size / (size_t)nmodify);
+                    else
+                        modify_size = 0;
+
+                    /*
+                     * Offset location difference between modifications
+                     */
+                    if ((value_len / (size_t)nmodify) != 0)
+                        modify_offset = (size_t)rand_val % (value_len / (size_t)nmodify);
+                    else
+                        modify_offset = 0;
+
+                    /*
+                     * Make sure the offset is more than size, otherwise modifications don't spread
+                     * properly.
+                     */
+                    if (modify_offset < modify_size)
+                        modify_offset = modify_size + 1;
+
+                    for (iter = (size_t)nmodify; iter > 0; iter--)
+                        memmove(&value_buf[(iter * modify_offset) - modify_offset],
+                          &value_buf[(iter * modify_offset) - modify_size], modify_size);
+                }
+
                 if (*op == WORKER_UPDATE) {
                     cursor->set_value(cursor, value_buf);
                     if ((ret = cursor->update(cursor)) == 0)
                         break;
                     goto op_err;
                 }
-
-                /*
-                 * Distribute the modifications across the whole document. We randomly choose up to
-                 * the maximum number of modifications and modify up to the maximum percent of the
-                 * record size.
-                 */
-                nmodify = MAX_MODIFY_NUM;
-
-                /*
-                 * The maximum that will be modified is a fixed percentage of the total record size.
-                 */
-                value_len = strlen(value);
-                total_modify_size = value_len / MAX_MODIFY_PCT;
-
-                /*
-                 * Randomize the maximum modification size and offset per modify.
-                 */
-                rand_val = __wt_random(&thread->rnd);
-                if ((total_modify_size / (size_t)nmodify) != 0)
-                    modify_size = rand_val % (total_modify_size / (size_t)nmodify);
-                else
-                    modify_size = 0;
-
-                /*
-                 * Offset location difference between modifications
-                 */
-                if ((value_len / (size_t)nmodify) != 0)
-                    modify_offset = (size_t)rand_val % (value_len / (size_t)nmodify);
-                else
-                    modify_offset = 0;
-
-                /*
-                 * Make sure the offset is more than size, otherwise modifications don't spread
-                 * properly.
-                 */
-                if (modify_offset < modify_size)
-                    modify_offset = modify_size + 1;
-
-                for (iter = (size_t)nmodify; iter > 0; iter--)
-                    memmove(&value_buf[(iter * modify_offset) - modify_offset],
-                      &value_buf[(iter * modify_offset) - modify_size], modify_size);
 
                 /*
                  * Increase the number of modifications, so that normal modify operations succeeded.
