@@ -16,11 +16,11 @@ bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
+#define READONLY "readonly=true"
 #define REC_ERROR "log=(recover=error)"
 #define REC_LOGOFF "log=(enabled=false)"
 #define REC_RECOVER "log=(recover=on)"
 #define REC_SALVAGE "log=(recover=salvage)"
-#define READONLY "readonly=true"
 
 static void
 usage(void)
@@ -113,7 +113,7 @@ main(int argc, char *argv[])
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
     const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config;
-    bool logoff, recover, readonly, salvage;
+    bool logoff, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
