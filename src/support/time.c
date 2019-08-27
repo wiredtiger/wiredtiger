@@ -78,7 +78,6 @@ __wt_seconds(WT_SESSION_IMPL *session, uint64_t *secondsp)
  */
 void
 __wt_seconds32(WT_SESSION_IMPL *session, uint32_t *secondsp)
-  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     struct timespec t;
 
