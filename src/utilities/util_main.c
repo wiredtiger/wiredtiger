@@ -206,10 +206,8 @@ main(int argc, char *argv[])
             func = util_alter;
         break;
     case 'b':
-        if (strcmp(command, "backup") == 0) {
+        if (strcmp(command, "backup") == 0)
             func = util_backup;
-            readonly_config = READONLY;
-        }
         break;
     case 'c':
         if (strcmp(command, "compact") == 0)
