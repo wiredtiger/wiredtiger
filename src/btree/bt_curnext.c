@@ -292,6 +292,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 static inline int
 __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
+    WT_CELL_UNPACK kpack;
     WT_INSERT *ins;
     WT_ITEM *key;
     WT_PAGE *page;
@@ -348,6 +349,8 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iter_retry = WT_CBT_RETRY_INSERT;
     restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
+            key->data = WT_INSERT_KEY(ins);
+            key->size = WT_INSERT_KEY_SIZE(ins);
             WT_RET(__wt_txn_read(session, cbt, ins->upd, &upd));
             if (upd == NULL)
                 continue;
@@ -356,8 +359,6 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                     ++cbt->page_deleted_count;
                 continue;
             }
-            key->data = WT_INSERT_KEY(ins);
-            key->size = WT_INSERT_KEY_SIZE(ins);
             return (__wt_value_return(session, cbt, upd));
         }
 
@@ -382,13 +383,14 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
     restart_read_page:
         rip = &page->pg_row[cbt->slot];
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
         WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd));
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
             continue;
         }
-        return (__cursor_row_slot_return(cbt, rip, upd));
+        return (__cursor_row_slot_val_return(cbt, rip, &kpack, upd));
     }
     /* NOTREACHED */
 }

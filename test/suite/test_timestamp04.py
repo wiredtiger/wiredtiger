@@ -110,7 +110,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_rollback_to_stable(self):
 
-        # Disable this test until we deal with rollback for the relevant history project
+        # Disable this test until we deal with rollback for the relevant history project.
+        # WT-4680 to re-enable.
         return
 
         self.ConnectionOpen(self.cacheSize)
