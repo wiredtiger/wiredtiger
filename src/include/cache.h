@@ -195,10 +195,10 @@ struct __wt_cache {
     WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
     bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
+    uint64_t las_counter;      /* Lookaside counter */
     uint32_t las_fileid;       /* Lookaside table file ID */
     uint64_t las_insert_count; /* Count of inserts to lookaside */
     uint64_t las_remove_count; /* Count of removes from lookaside */
-    uint64_t las_counter;      /* Lookaside counter */
 
     bool las_reader; /* Indicate an LAS reader to sweep */
     WT_RWLOCK las_sweepwalk_lock;

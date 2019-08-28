@@ -1786,6 +1786,14 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
 
+    if (ref->page_las != NULL) {
+        /* Copy the existing las info but we don't need the birthmarks. */
+        WT_ERR(__wt_calloc_one(session, &child->page_las));
+        *child->page_las = *ref->page_las;
+        child->page_las->birthmarks = NULL;
+        child->page_las->birthmarks_cnt = 0;
+    }
+
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
      * ref is discarded.
@@ -1844,6 +1852,14 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     child->state = WT_REF_MEM;
+
+    if (ref->page_las != NULL) {
+        /* Copy the existing las info but we don't need the birthmarks. */
+        WT_ERR(__wt_calloc_one(session, &child->page_las));
+        *child->page_las = *ref->page_las;
+        child->page_las->birthmarks = NULL;
+        child->page_las->birthmarks_cnt = 0;
+    }
 
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_row_ikey(
