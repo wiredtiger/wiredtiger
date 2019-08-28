@@ -1962,7 +1962,7 @@ execute_workload(WTPERF *wtperf)
 
         lprintf(wtperf, 0, 1,
           "%" PRIu64 " inserts, %" PRIu64 " modifies, %" PRIu64 " reads, %" PRIu64
-          " truncates, %" PRIu64 "updates, %" PRIu64 " checkpoints, %" PRIu64 " scans in %" PRIu32
+          " truncates, %" PRIu64 " updates, %" PRIu64 " checkpoints, %" PRIu64 " scans in %" PRIu32
           " secs (%" PRIu32 " total secs)",
           wtperf->insert_ops - last_inserts, wtperf->modify_ops - last_modifies,
           wtperf->read_ops - last_reads, wtperf->truncate_ops - last_truncates,
