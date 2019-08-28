@@ -187,7 +187,8 @@ __wt_row_leaf_key_work(
         WT_ERR_ASSERT(session, (current - start) < WT_MINUTE * 5, EINVAL,
           "Current function call taking too long: current %" PRIu32 " func started %" PRIu32,
           current, start);
-        WT_ERR_ASSERT(session, (current - session->op_start) < WT_MINUTE * 5, EINVAL,
+        WT_ERR_ASSERT(session,
+          session->op_start == 0 || ((current - session->op_start) < WT_MINUTE * 5), EINVAL,
           "Operation taking too long: current %" PRIu32 " started %" PRIu32, current,
           session->op_start);
 #endif
