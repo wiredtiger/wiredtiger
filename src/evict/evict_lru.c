@@ -2295,6 +2295,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     if (timer)
         time_start = __wt_clock(session);
 
+    WT_TRACK_TIME(session);
     for (initial_progress = cache->eviction_progress;; ret = 0) {
         /*
          * A pathological case: if we're the oldest transaction in the
