@@ -735,15 +735,14 @@ worker(void *arg)
 
                 value_len = strlen(value);
                 total_modify_size = value_len;
+                nmodify = MAX_MODIFY_NUM;
 
+                /*
+                 * Distribute the modifications across the whole document. We randomly choose up to
+                 * the maximum number of modifications and modify up to the maximum percent of the
+                 * record size.
+                 */
                 if (workload->distribute_modifications) {
-                    /*
-                     * Distribute the modifications across the whole document. We randomly choose up
-                     * to the maximum number of modifications and modify up to the maximum percent
-                     * of the record size.
-                     */
-                    nmodify = MAX_MODIFY_NUM;
-
                     /*
                      * The maximum that will be modified is a fixed percentage of the total record
                      * size.
