@@ -529,7 +529,6 @@ worker(void *arg)
     ops = 0;
     ops_per_txn = workload->ops_per_txn;
     session = NULL;
-    total_modify_size = 0;
     trk = NULL;
 
     if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
@@ -735,6 +734,7 @@ worker(void *arg)
                     randomize_value(thread, value_buf, delta);
 
                 value_len = strlen(value);
+                total_modify_size = value_len;
 
                 if (workload->distribute_modifications) {
                     /*
