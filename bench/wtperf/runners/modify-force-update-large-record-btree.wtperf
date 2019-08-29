@@ -11,4 +11,4 @@ report_interval=5
 random_value=true
 run_time=120
 populate_threads=1
-threads=((count=1,modify=1,ops_per_txn=1,distribute_changes=true,modify_force_update=true))
+threads=((count=1,modify=1,ops_per_txn=1,distribute_modifications=true,modify_force_update=true))

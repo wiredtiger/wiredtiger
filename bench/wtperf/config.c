@@ -220,7 +220,7 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
                     goto err;
                 continue;
             }
-            if (STRING_MATCH("distribute_changes", k.str, k.len)) {
+            if (STRING_MATCH("distribute_modifications", k.str, k.len)) {
                 if (v.type != WT_CONFIG_ITEM_BOOL)
                     goto err;
                 workp->distribute_modifications = v.val;
