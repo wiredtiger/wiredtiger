@@ -858,8 +858,6 @@ err:
         }
     }
     __wt_scr_free(session, &birthmarks);
-    // if ret != 0, free all birthmark->key, also free those where
-    // page_las.birthmarks is freed
     WT_UNUSED(first_upd);
     return (ret);
 }
@@ -1360,11 +1358,12 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     int cmp;
     bool sweep_locked;
 
-    *updp = upd = NULL;
+    *updp = NULL;
 
     cache = S2C(session)->cache;
     cursor = NULL;
     ref = cbt->ref;
+    upd = NULL;
     listp = list;
     allocated_bytes = 0;
     las_pageid = ref->page_las->las_pageid;
