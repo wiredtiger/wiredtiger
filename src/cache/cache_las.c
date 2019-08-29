@@ -1362,6 +1362,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
 
     cache = S2C(session)->cache;
     cursor = NULL;
+    key = NULL;
     ref = cbt->ref;
     upd = NULL;
     listp = list;
