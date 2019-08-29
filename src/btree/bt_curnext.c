@@ -299,6 +299,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
+    bool kpack_used;
 
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     page = cbt->ref->page;
@@ -383,14 +384,14 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
     restart_read_page:
         rip = &page->pg_row[cbt->slot];
-        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
         WT_RET(__wt_txn_read(session, cbt, WT_ROW_UPDATE(page, rip), &upd));
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
             continue;
         }
-        return (__cursor_row_slot_val_return(cbt, rip, &kpack, upd));
+        return (__cursor_row_slot_val_return(cbt, rip, &kpack, kpack_used, upd));
     }
     /* NOTREACHED */
 }

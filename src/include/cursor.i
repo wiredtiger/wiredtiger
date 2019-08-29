@@ -358,7 +358,8 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
  *     Return a row-store leaf page slot's Key.
  */
 static inline int
-__cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack)
+__cursor_row_slot_key_return(
+  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, bool *kpack_used)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -372,6 +373,8 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *
     page = cbt->ref->page;
 
     kb = &cbt->iface.key;
+
+    *kpack_used = false;
 
     /*
      * The row-store key can change underfoot; explicitly take a copy.
@@ -405,6 +408,7 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *
      */
     memset(kpack, 0, sizeof(*kpack));
     __wt_cell_unpack(session, page, cell, kpack);
+    *kpack_used = true;
     if (kpack->type == WT_CELL_KEY && cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
         WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
 
@@ -440,7 +444,7 @@ slow:
  */
 static inline int
 __cursor_row_slot_val_return(
-  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_UPDATE *upd)
+  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, bool kpack_used, WT_UPDATE *upd)
 {
     WT_CELL_UNPACK *vpack, _vpack;
     WT_ITEM *vb;
@@ -465,6 +469,6 @@ __cursor_row_slot_val_return(
         return (0);
 
     /* Else, take the value from the original page cell. */
-    __wt_row_leaf_value_cell(session, page, rip, kpack, vpack);
+    __wt_row_leaf_value_cell(session, page, rip, kpack_used ? kpack : NULL, vpack);
     return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
 }
