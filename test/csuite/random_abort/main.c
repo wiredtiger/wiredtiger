@@ -66,6 +66,12 @@ static bool inmem;
     "create,log=(file_max=10M,enabled)," \
     "transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_REC "log=(recover=on)"
+
+/*
+ * Maximum number of modifications that are allowed to perform cursor modify operation.
+ */
+#define MAX_MODIFY_ENTRIES 10
+
 #define MAX_VAL 4096
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -88,8 +94,9 @@ thread_run(void *arg)
 {
     FILE *fp[MAX_RECORD_FILES];
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_ITEM data, newv;
-    WT_MODIFY entries[10];
+    WT_MODIFY entries[MAX_MODIFY_ENTRIES];
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     WT_THREAD_DATA *td;
@@ -97,7 +104,6 @@ thread_run(void *arg)
     size_t maxdiff, new_buf_size;
     uint64_t i;
     int nentries;
-    int ret;
     char buf[MAX_VAL], fname[MAX_RECORD_FILES][64], new_buf[MAX_VAL];
     char kname[64], lgbuf[8];
     char large[128 * 1024];
@@ -111,7 +117,7 @@ thread_run(void *arg)
     memset(kname, 0, sizeof(kname));
     lsize = sizeof(large);
     memset(large, 0, lsize);
-    nentries = 10;
+    nentries = MAX_MODIFY_ENTRIES;
     columnar_table = false;
 
     td = (WT_THREAD_DATA *)arg;
@@ -218,9 +224,9 @@ thread_run(void *arg)
             /* Save the key separately for checking later.*/
             if (fprintf(fp[DELETE_RECORD_FILE_ID], "%" PRIu64 "\n", i) == -1)
                 testutil_die(errno, "fprintf");
-        } else if (i % MAX_NUM_OPS == OP_TYPE_INSERT) {
+        } else if (i % MAX_NUM_OPS == OP_TYPE_INSERT)
             continue;
-        } else if (i % MAX_NUM_OPS == OP_TYPE_MODIFY) {
+        else if (i % MAX_NUM_OPS == OP_TYPE_MODIFY) {
             new_buf_size = (data.size < MAX_VAL - 1 ? data.size : MAX_VAL - 1);
             memcpy(new_buf, data.data, new_buf_size);
             new_buf[0] = 'b';
@@ -261,11 +267,9 @@ thread_run(void *arg)
              */
             if (fprintf(fp[MODIFY_RECORD_FILE_ID], "%" PRIu64 ",%s \n", i, new_buf) == -1)
                 testutil_die(errno, "fprintf");
-        } else {
+        } else
             /* Dead code. To catch any op type misses */
-            printf("Unsupported operation type. \n");
-            continue;
-        }
+            testutil_die(0, "Unsupported operation type.");
     }
     /* NOTREACHED */
 }
@@ -340,162 +344,20 @@ handler(int sig)
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
-int
-main(int argc, char *argv[])
+static int
+recover_and_verify(uint32_t nthreads)
 {
-    struct sigaction sa;
-    struct stat sb;
     FILE *fp[MAX_RECORD_FILES];
     WT_CONNECTION *conn;
     WT_CURSOR *col_cursor, *cursor, *row_cursor;
+    WT_DECL_RET;
     WT_ITEM search_value;
-    WT_RAND_STATE rnd;
     WT_SESSION *session;
-    pid_t pid;
     uint64_t absent, count, key, last_key, middle;
-    uint32_t i, j, nth, timeout;
-    int ch, status, ret;
-    char buf[1024], fname[MAX_RECORD_FILES][64], kname[64];
+    uint32_t i, j;
     char file_value[MAX_VAL];
-    const char *working_dir;
-    bool columnar_table, fatal, rand_th, rand_time, verify_only;
-
-    (void)testutil_set_progname(argv);
-
-    compat = inmem = false;
-    nth = MIN_TH;
-    rand_th = rand_time = true;
-    timeout = MIN_TIME;
-    verify_only = false;
-    working_dir = "WT_TEST.random-abort";
-
-    while ((ch = __wt_getopt(progname, argc, argv, "Ch:mT:t:v")) != EOF)
-        switch (ch) {
-        case 'C':
-            compat = true;
-            break;
-        case 'h':
-            working_dir = __wt_optarg;
-            break;
-        case 'm':
-            inmem = true;
-            break;
-        case 'T':
-            rand_th = false;
-            nth = (uint32_t)atoi(__wt_optarg);
-            break;
-        case 't':
-            rand_time = false;
-            timeout = (uint32_t)atoi(__wt_optarg);
-            break;
-        case 'v':
-            verify_only = true;
-            break;
-        default:
-            usage();
-        }
-    argc -= __wt_optind;
-    if (argc != 0)
-        usage();
-
-    testutil_work_dir_from_path(home, sizeof(home), working_dir);
-    /*
-     * If the user wants to verify they need to tell us how many threads there were so we can find
-     * the old record files.
-     */
-    if (verify_only && rand_th) {
-        fprintf(stderr, "Verify option requires specifying number of threads\n");
-        exit(EXIT_FAILURE);
-    }
-    if (!verify_only) {
-        testutil_make_work_dir(home);
-
-        __wt_random_init_seed(NULL, &rnd);
-        if (rand_time) {
-            timeout = __wt_random(&rnd) % MAX_TIME;
-            if (timeout < MIN_TIME)
-                timeout = MIN_TIME;
-        }
-        if (rand_th) {
-            nth = __wt_random(&rnd) % MAX_TH;
-            if (nth < MIN_TH)
-                nth = MIN_TH;
-        }
-        printf("Parent: Compatibility %s in-mem log %s\n", compat ? "true" : "false",
-          inmem ? "true" : "false");
-        printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          compat ? " -C" : "", inmem ? " -m" : "", working_dir, nth, timeout);
-        /*
-         * Fork a child to insert as many items. We will then randomly kill the child, run recovery
-         * and make sure all items we wrote exist after recovery runs.
-         */
-        memset(&sa, 0, sizeof(sa));
-        sa.sa_handler = handler;
-        testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-        if ((pid = fork()) < 0)
-            testutil_die(errno, "fork");
-
-        if (pid == 0) { /* child */
-            fill_db(nth);
-            return (EXIT_SUCCESS);
-        }
-
-        /* parent */
-        /*
-         * Sleep for the configured amount of time before killing the child. Start the timeout from
-         * the time we notice that the child workers have created their record files. That allows
-         * the test to run correctly on really slow machines.
-         */
-        i = 0;
-        while (i < nth) {
-            for (j = 0; j < MAX_RECORD_FILES; j++) {
-                /*
-                 * Wait for each record file to exist.
-                 */
-                if (j == DELETE_RECORD_FILE_ID)
-                    testutil_check(
-                      __wt_snprintf(fname[j], sizeof(fname[j]), DELETE_RECORDS_FILE, i));
-                else if (j == INSERT_RECORD_FILE_ID)
-                    testutil_check(
-                      __wt_snprintf(fname[j], sizeof(fname[j]), INSERT_RECORDS_FILE, i));
-                else
-                    testutil_check(
-                      __wt_snprintf(fname[j], sizeof(fname[j]), MODIFY_RECORDS_FILE, i));
-                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, fname[j]));
-                while (stat(buf, &sb) != 0)
-                    testutil_sleep_wait(1, pid);
-            }
-            ++i;
-        }
-        sleep(timeout);
-        sa.sa_handler = SIG_DFL;
-        testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-
-        /*
-         * !!! It should be plenty long enough to make sure more than
-         * one log file exists.  If wanted, that check would be added
-         * here.
-         */
-        printf("Kill child\n");
-        if (kill(pid, SIGKILL) != 0)
-            testutil_die(errno, "kill");
-        if (waitpid(pid, &status, 0) == -1)
-            testutil_die(errno, "waitpid");
-    }
-    /*
-     * !!! If we wanted to take a copy of the directory before recovery,
-     * this is the place to do it.
-     */
-    if (chdir(home) != 0)
-        testutil_die(errno, "parent chdir: %s", home);
-
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE; mkdir ../%s.SAVE; "
-      "cp -p WiredTigerLog.* ../%s.SAVE;",
-      home, home, home));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
+    char fname[MAX_RECORD_FILES][64], kname[64];
+    bool columnar_table, fatal;
 
     printf("Open database, run recovery and verify content\n");
     testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
@@ -505,7 +367,7 @@ main(int argc, char *argv[])
 
     absent = count = 0;
     fatal = false;
-    for (i = 0; i < nth; ++i) {
+    for (i = 0; i < nthreads; ++i) {
         /*
          * Every alternative thread is operated on column-store table. Make sure that proper cursor
          * is used for verification of recovered records.
@@ -700,11 +562,9 @@ main(int argc, char *argv[])
                     absent++;
                     middle = key;
                 }
-            } else {
+            } else
                 /* Dead code. To catch any op type misses */
-                printf("Unsupported operation type. \n");
-                continue;
-            }
+                testutil_die(0, "Unsupported operation type.");
         }
         for (j = 0; j < MAX_RECORD_FILES; j++) {
             if (fclose(fp[j]) != 0)
@@ -720,4 +580,160 @@ main(int argc, char *argv[])
     }
     printf("%" PRIu64 " records verified\n", count);
     return (EXIT_SUCCESS);
+}
+
+int
+main(int argc, char *argv[])
+{
+    struct sigaction sa;
+    struct stat sb;
+    WT_RAND_STATE rnd;
+    pid_t pid;
+    uint32_t i, j, nth, timeout;
+    int ch, status;
+    char buf[1024], fname[MAX_RECORD_FILES][64];
+    const char *working_dir;
+    bool rand_th, rand_time, verify_only;
+
+    (void)testutil_set_progname(argv);
+
+    compat = inmem = false;
+    nth = MIN_TH;
+    rand_th = rand_time = true;
+    timeout = MIN_TIME;
+    verify_only = false;
+    working_dir = "WT_TEST.random-abort";
+
+    while ((ch = __wt_getopt(progname, argc, argv, "Ch:mT:t:v")) != EOF)
+        switch (ch) {
+        case 'C':
+            compat = true;
+            break;
+        case 'h':
+            working_dir = __wt_optarg;
+            break;
+        case 'm':
+            inmem = true;
+            break;
+        case 'T':
+            rand_th = false;
+            nth = (uint32_t)atoi(__wt_optarg);
+            break;
+        case 't':
+            rand_time = false;
+            timeout = (uint32_t)atoi(__wt_optarg);
+            break;
+        case 'v':
+            verify_only = true;
+            break;
+        default:
+            usage();
+        }
+    argc -= __wt_optind;
+    if (argc != 0)
+        usage();
+
+    testutil_work_dir_from_path(home, sizeof(home), working_dir);
+    /*
+     * If the user wants to verify they need to tell us how many threads there were so we can find
+     * the old record files.
+     */
+    if (verify_only && rand_th) {
+        fprintf(stderr, "Verify option requires specifying number of threads\n");
+        exit(EXIT_FAILURE);
+    }
+    if (!verify_only) {
+        testutil_make_work_dir(home);
+
+        __wt_random_init_seed(NULL, &rnd);
+        if (rand_time) {
+            timeout = __wt_random(&rnd) % MAX_TIME;
+            if (timeout < MIN_TIME)
+                timeout = MIN_TIME;
+        }
+        if (rand_th) {
+            nth = __wt_random(&rnd) % MAX_TH;
+            if (nth < MIN_TH)
+                nth = MIN_TH;
+        }
+        printf("Parent: Compatibility %s in-mem log %s\n", compat ? "true" : "false",
+          inmem ? "true" : "false");
+        printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
+        printf("CONFIG: %s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
+          compat ? " -C" : "", inmem ? " -m" : "", working_dir, nth, timeout);
+        /*
+         * Fork a child to insert as many items. We will then randomly kill the child, run recovery
+         * and make sure all items we wrote exist after recovery runs.
+         */
+        memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = handler;
+        testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
+        if ((pid = fork()) < 0)
+            testutil_die(errno, "fork");
+
+        if (pid == 0) { /* child */
+            fill_db(nth);
+            return (EXIT_SUCCESS);
+        }
+
+        /* parent */
+        /*
+         * Sleep for the configured amount of time before killing the child. Start the timeout from
+         * the time we notice that the child workers have created their record files. That allows
+         * the test to run correctly on really slow machines.
+         */
+        i = 0;
+        while (i < nth) {
+            for (j = 0; j < MAX_RECORD_FILES; j++) {
+                /*
+                 * Wait for each record file to exist.
+                 */
+                if (j == DELETE_RECORD_FILE_ID)
+                    testutil_check(
+                      __wt_snprintf(fname[j], sizeof(fname[j]), DELETE_RECORDS_FILE, i));
+                else if (j == INSERT_RECORD_FILE_ID)
+                    testutil_check(
+                      __wt_snprintf(fname[j], sizeof(fname[j]), INSERT_RECORDS_FILE, i));
+                else
+                    testutil_check(
+                      __wt_snprintf(fname[j], sizeof(fname[j]), MODIFY_RECORDS_FILE, i));
+                testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, fname[j]));
+                while (stat(buf, &sb) != 0)
+                    testutil_sleep_wait(1, pid);
+            }
+            ++i;
+        }
+        sleep(timeout);
+        sa.sa_handler = SIG_DFL;
+        testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
+
+        /*
+         * !!! It should be plenty long enough to make sure more than
+         * one log file exists.  If wanted, that check would be added
+         * here.
+         */
+        printf("Kill child\n");
+        if (kill(pid, SIGKILL) != 0)
+            testutil_die(errno, "kill");
+        if (waitpid(pid, &status, 0) == -1)
+            testutil_die(errno, "waitpid");
+    }
+    /*
+     * !!! If we wanted to take a copy of the directory before recovery,
+     * this is the place to do it.
+     */
+    if (chdir(home) != 0)
+        testutil_die(errno, "parent chdir: %s", home);
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE; mkdir ../%s.SAVE; "
+      "cp -p WiredTigerLog.* ../%s.SAVE;",
+      home, home, home));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+
+    /*
+     * Recover the database and verify whether all the records from all threads are present or not?
+     */
+    return recover_and_verify(nth);
 }
