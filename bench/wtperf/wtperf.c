@@ -726,12 +726,6 @@ worker(void *arg)
 
                 if (delta != 0)
                     update_value_delta(thread, delta);
-                if (value_buf[0] == 'a')
-                    value_buf[0] = 'b';
-                else
-                    value_buf[0] = 'a';
-                if (opts->random_value)
-                    randomize_value(thread, value_buf, delta);
 
                 value_len = strlen(value);
                 total_modify_size = value_len;
@@ -742,7 +736,7 @@ worker(void *arg)
                  * the maximum number of modifications and modify up to the maximum percent of the
                  * record size.
                  */
-                if (workload->distribute_modifications) {
+                if (workload->modify_distribute) {
                     /*
                      * The maximum that will be modified is a fixed percentage of the total record
                      * size.
@@ -776,6 +770,13 @@ worker(void *arg)
                     for (iter = (size_t)nmodify; iter > 0; iter--)
                         memmove(&value_buf[(iter * modify_offset) - modify_offset],
                           &value_buf[(iter * modify_offset) - modify_size], modify_size);
+                } else {
+                    if (value_buf[0] == 'a')
+                        value_buf[0] = 'b';
+                    else
+                        value_buf[0] = 'a';
+                    if (opts->random_value)
+                        randomize_value(thread, value_buf, delta);
                 }
 
                 if (*op == WORKER_UPDATE) {

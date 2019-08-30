@@ -220,12 +220,6 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
                     goto err;
                 continue;
             }
-            if (STRING_MATCH("distribute_modifications", k.str, k.len)) {
-                if (v.type != WT_CONFIG_ITEM_BOOL)
-                    goto err;
-                workp->distribute_modifications = v.val;
-                continue;
-            }
             if (STRING_MATCH("modify", k.str, k.len)) {
                 if ((workp->modify = v.val) < 0)
                     goto err;
@@ -245,6 +239,12 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
                     if (v.val < 0)
                         F_SET(wtperf, CFG_SHRINK);
                 }
+                continue;
+            }
+            if (STRING_MATCH("modify_distribute", k.str, k.len)) {
+                if (v.type != WT_CONFIG_ITEM_BOOL)
+                    goto err;
+                workp->modify_distribute = v.val;
                 continue;
             }
             if (STRING_MATCH("modify_force_update", k.str, k.len)) {
