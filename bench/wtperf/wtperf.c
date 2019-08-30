@@ -728,7 +728,6 @@ worker(void *arg)
                     update_value_delta(thread, delta);
 
                 value_len = strlen(value);
-                total_modify_size = value_len;
                 nmodify = MAX_MODIFY_NUM;
 
                 /*
@@ -746,19 +745,24 @@ worker(void *arg)
                     /*
                      * Randomize the maximum modification size and offset per modify.
                      */
-                    rand_val = __wt_random(&thread->rnd);
-                    if ((total_modify_size / (size_t)nmodify) != 0)
-                        modify_size = rand_val % (total_modify_size / (size_t)nmodify);
-                    else
-                        modify_size = 0;
+                    if (opts->random_value) {
+                        rand_val = __wt_random(&thread->rnd);
+                        if ((total_modify_size / (size_t)nmodify) != 0)
+                            modify_size = rand_val % (total_modify_size / (size_t)nmodify);
+                        else
+                            modify_size = 0;
 
-                    /*
-                     * Offset location difference between modifications
-                     */
-                    if ((value_len / (size_t)nmodify) != 0)
-                        modify_offset = (size_t)rand_val % (value_len / (size_t)nmodify);
-                    else
-                        modify_offset = 0;
+                        /*
+                         * Offset location difference between modifications
+                         */
+                        if ((value_len / (size_t)nmodify) != 0)
+                            modify_offset = (size_t)rand_val % (value_len / (size_t)nmodify);
+                        else
+                            modify_offset = 0;
+                    } else {
+                        modify_size = total_modify_size / (size_t)nmodify;
+                        modify_offset = value_len / (size_t)nmodify;
+                    }
 
                     /*
                      * Make sure the offset is more than size, otherwise modifications don't spread
@@ -767,9 +771,19 @@ worker(void *arg)
                     if (modify_offset < modify_size)
                         modify_offset = modify_size + 1;
 
-                    for (iter = (size_t)nmodify; iter > 0; iter--)
-                        memmove(&value_buf[(iter * modify_offset) - modify_offset],
-                          &value_buf[(iter * modify_offset) - modify_size], modify_size);
+                    for (iter = (size_t)nmodify; iter > 0; iter--) {
+                        if (opts->random_value)
+                            memmove(&value_buf[(iter * modify_offset) - modify_offset],
+                              &value_buf[(iter * modify_offset) - modify_size], modify_size);
+                        else {
+                            if (value_buf[(iter * modify_offset) - modify_offset] == 'a')
+                                memset(&value_buf[(iter * modify_offset) - modify_offset], 'b',
+                                  modify_size);
+                            else
+                                memset(&value_buf[(iter * modify_offset) - modify_offset], 'a',
+                                  modify_size);
+                        }
+                    }
                 } else {
                     if (value_buf[0] == 'a')
                         value_buf[0] = 'b';
@@ -786,12 +800,6 @@ worker(void *arg)
                     goto op_err;
                 }
 
-                /*
-                 * Increase the number of modifications, so that normal modify operations succeeded.
-                 */
-                if (!workload->modify_force_update)
-                    nmodify++;
-
                 oldv.data = value;
                 oldv.size = value_len;
 
@@ -803,8 +811,7 @@ worker(void *arg)
                  * input. This function may fail when the modifications count reaches the maximum
                  * number of modifications that are allowed for the modify operation.
                  */
-                ret = wiredtiger_calc_modify(
-                  session, &oldv, &newv, total_modify_size, entries, &nmodify);
+                ret = wiredtiger_calc_modify(session, &oldv, &newv, value_len, entries, &nmodify);
 
                 if (ret == WT_NOTFOUND || workload->modify_force_update) {
                     cursor->set_value(cursor, value_buf);
