@@ -121,9 +121,7 @@ thread_run(void *arg)
     columnar_table = false;
 
     td = (WT_THREAD_DATA *)arg;
-    /*
-     * The value is the name of the record file with our id appended.
-     */
+
     testutil_check(__wt_snprintf(fname[DELETE_RECORD_FILE_ID], sizeof(fname[DELETE_RECORD_FILE_ID]),
       DELETE_RECORDS_FILE, td->id));
     testutil_check(__wt_snprintf(fname[INSERT_RECORD_FILE_ID], sizeof(fname[INSERT_RECORD_FILE_ID]),
@@ -174,6 +172,9 @@ thread_run(void *arg)
         if (i == 0)
             i++;
 
+        /*
+         * The value is the insert- with key appended.
+         */
         testutil_check(__wt_snprintf(buf, sizeof(buf), "insert-%" PRIu64, i));
 
         if (columnar_table)
