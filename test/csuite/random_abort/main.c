@@ -163,11 +163,6 @@ thread_run(void *arg)
     else
         testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
-    /*
-     * Initialize the data with predefined data, this buffer modified randomly for the required
-     * buffer to insert.
-     */
-    memset(buf, 'a', MAX_VAL - 1);
     data.data = buf;
     data.size = sizeof(buf);
     /*
@@ -178,6 +173,8 @@ thread_run(void *arg)
         /* Record number 0 is invalid for columnar store, check it. */
         if (i == 0)
             i++;
+
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "insert-%" PRIu64, i));
 
         if (columnar_table)
             cursor->set_key(cursor, i);
@@ -194,12 +191,6 @@ thread_run(void *arg)
             data.data = large;
         } else {
             data.size = __wt_random(&rnd) % MAX_VAL;
-
-            /*
-             * Modify the last character buffer according to the random size, this may generate a
-             * unique record.
-             */
-            buf[data.size - 1] = 'b';
             data.data = buf;
         }
         cursor->set_value(cursor, &data);
@@ -227,10 +218,8 @@ thread_run(void *arg)
         } else if (i % MAX_NUM_OPS == OP_TYPE_INSERT)
             continue;
         else if (i % MAX_NUM_OPS == OP_TYPE_MODIFY) {
+            testutil_check(__wt_snprintf(new_buf, sizeof(new_buf), "modify-%" PRIu64, i));
             new_buf_size = (data.size < MAX_VAL - 1 ? data.size : MAX_VAL - 1);
-            memcpy(new_buf, data.data, new_buf_size);
-            new_buf[0] = 'b';
-            new_buf[new_buf_size + 1] = 0;
 
             newv.data = new_buf;
             newv.size = new_buf_size;
@@ -265,7 +254,7 @@ thread_run(void *arg)
             /*
              * Save the key and new value separately for checking later.
              */
-            if (fprintf(fp[MODIFY_RECORD_FILE_ID], "%" PRIu64 ",%s \n", i, new_buf) == -1)
+            if (fprintf(fp[MODIFY_RECORD_FILE_ID], "%s %" PRIu64 "\n", new_buf, i) == -1)
                 testutil_die(errno, "fprintf");
         } else
             /* Dead code. To catch any op type misses */
@@ -466,13 +455,13 @@ recover_and_verify(uint32_t nthreads)
                         printf(
                           "%s: deleted record"
                           " found with key %" PRIu64 "\n",
-                          fname[2], key);
+                          fname[DELETE_RECORD_FILE_ID], key);
                     absent++;
                     middle = key;
                 }
             } else if (key % MAX_NUM_OPS == OP_TYPE_INSERT) {
                 /*
-                 * If it is insert only operation, make sure the record exist
+                 * If it is insert only operation, make sure the record exists
                  */
                 if (columnar_table)
                     cursor->set_key(cursor, key);
@@ -488,7 +477,7 @@ recover_and_verify(uint32_t nthreads)
                         printf(
                           "%s: no insert record"
                           " with key %" PRIu64 "\n",
-                          fname[0], key);
+                          fname[INSERT_RECORD_FILE_ID], key);
                     absent++;
                     middle = key;
                 } else if (middle != 0) {
@@ -505,7 +494,7 @@ recover_and_verify(uint32_t nthreads)
                  * If it is modify operation, make sure value of the fetched record matches with
                  * saved.
                  */
-                ret = fscanf(fp[MODIFY_RECORD_FILE_ID], "%" SCNu64 ",%s \n", &key, file_value);
+                ret = fscanf(fp[MODIFY_RECORD_FILE_ID], "%s %" SCNu64 "\n", file_value, &key);
 
                 /*
                  * Consider anything other than clear success in getting the key to be EOF. We've
@@ -555,12 +544,13 @@ recover_and_verify(uint32_t nthreads)
                         continue;
 
                     /*
-                     * If we're unlucky, the last line value can be partial written at the end that
-                     * can result in a false negative error for unmatched record. Ignore it for the
-                     * first time and throw and error later.
+                     * Once the key exist in the database, there is no way that fetched data can
+                     * mismatch with saved.
                      */
-                    absent++;
-                    middle = key;
+                    printf("%s: modified record with data mismatch key %" PRIu64 "\n",
+                      fname[MODIFY_RECORD_FILE_ID], key);
+                    fatal = true;
+                    break;
                 }
             } else
                 /* Dead code. To catch any op type misses */
