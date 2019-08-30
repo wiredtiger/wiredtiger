@@ -13,7 +13,7 @@ static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_las_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static int __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
+static void __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
@@ -2439,7 +2439,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * store. Remove them.
      */
     if (F_ISSET(r, WT_REC_LOOKASIDE))
-        WT_TRET(__rec_las_wrapup_err(session, r));
+        __rec_las_wrapup_err(session, r);
 
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
@@ -2484,22 +2484,19 @@ err:
  * __rec_las_wrapup_err --
  *     Discard any saved updates from the database's lookaside buffer.
  */
-static int
+static void
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     WT_BIRTHMARK_DETAILS *birthmarkp;
-    WT_DECL_RET;
     WT_MULTI *multi;
-    uint64_t las_pageid;
     uint32_t i, j;
 
     /*
-     * Note the additional check for a non-zero lookaside page ID, that flags if lookaside table
-     * entries for this page have been written.
+     * Note the additional check for whether lookaside table entries for this page have been
+     * written.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && (las_pageid = multi->page_las.las_pageid) != 0) {
-            WT_TRET(__wt_las_remove_block(session, las_pageid));
+        if (multi->supd != NULL && multi->page_las.has_las) {
             if (multi->page_las.birthmarks_cnt != 0) {
                 WT_ASSERT(session, multi->page_las.birthmarks != NULL);
                 for (j = 0; j < multi->page_las.birthmarks_cnt; j++) {
@@ -2509,8 +2506,6 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
             }
             __wt_free(session, multi->page_las.birthmarks);
         }
-
-    return (ret);
 }
 
 /*

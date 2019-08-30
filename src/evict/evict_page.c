@@ -397,7 +397,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          */
         __wt_page_las_free(session, ref);
         if (mod->mod_disk_image == NULL) {
-            if (mod->mod_page_las.las_pageid != 0) {
+            if (mod->mod_page_las.has_las) {
                 WT_RET(__wt_calloc_one(session, &ref->page_las));
                 *ref->page_las = mod->mod_page_las;
                 __wt_page_modify_clear(session, ref->page);

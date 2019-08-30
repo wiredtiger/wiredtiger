@@ -222,10 +222,10 @@ struct __wt_ovfl_reuse {
 #else
 #define WT_LOOKASIDE_COMPRESSOR "none"
 #endif
-#define WT_LAS_CONFIG                                                             \
-    "key_format=" WT_UNCHECKED_STRING(QIQu) ",value_format=" WT_UNCHECKED_STRING( \
-      QQQBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                        \
-              ",leaf_value_max=64MB"                                              \
+#define WT_LAS_CONFIG                                                            \
+    "key_format=" WT_UNCHECKED_STRING(IuQ) ",value_format=" WT_UNCHECKED_STRING( \
+      QQQBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                       \
+              ",leaf_value_max=64MB"                                             \
               ",prefix_compression=true"
 
 /*
@@ -233,7 +233,6 @@ struct __wt_ovfl_reuse {
  *	Related information for on-disk pages with lookaside entries.
  */
 struct __wt_page_lookaside {
-    uint64_t las_pageid;               /* Page ID in lookaside */
     uint64_t max_txn;                  /* Maximum transaction ID */
     uint64_t unstable_txn;             /* First transaction ID not on page */
     wt_timestamp_t max_timestamp;      /* Maximum timestamp */
@@ -243,6 +242,7 @@ struct __wt_page_lookaside {
      * page */
     bool has_prepares; /* One or more updates are prepared */
     bool skew_newest;  /* Page image has newest versions */
+    bool has_las;      /* The page has lookaside content on disk */
 
     struct __wt_birthmark_details {
         WT_ITEM key;
