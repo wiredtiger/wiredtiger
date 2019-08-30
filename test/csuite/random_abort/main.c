@@ -544,14 +544,16 @@ recover_and_verify(uint32_t nthreads)
                     if (strncmp(file_value, search_value.data, search_value.size) == 0)
                         continue;
 
-                    /*
-                     * Once the key exist in the database, there is no way that fetched data can
-                     * mismatch with saved.
-                     */
-                    printf("%s: modified record with data mismatch key %" PRIu64 "\n",
-                      fname[MODIFY_RECORD_FILE_ID], key);
-                    fatal = true;
-                    break;
+                    if (!inmem)
+                        /*
+                         * Once the key exist in the database, there is no way that fetched data can
+                         * mismatch with saved.
+                         */
+                        printf("%s: modified record with data mismatch key %" PRIu64 "\n",
+                          fname[MODIFY_RECORD_FILE_ID], key);
+
+                    absent++;
+                    middle = key;
                 }
             } else
                 /* Dead code. To catch any op type misses */
