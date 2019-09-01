@@ -153,7 +153,7 @@ DEF_OPT_AS_BOOL(
   reopen_connection, 1, "close and reopen the connection between populate and workload phases")
 DEF_OPT_AS_UINT32(
   report_interval, 2, "output throughput information every interval seconds, 0 to disable")
-DEF_OPT_AS_UINT32(run_ops, 0, "total insert, modify, insert and update workload operations")
+DEF_OPT_AS_UINT32(run_ops, 0, "total insert, modify, read and update workload operations")
 DEF_OPT_AS_UINT32(run_time, 0, "total workload seconds")
 DEF_OPT_AS_UINT32(sample_interval, 0, "performance logging every interval seconds, 0 to disable")
 DEF_OPT_AS_UINT32(sample_rate, 50,
@@ -203,10 +203,10 @@ DEF_OPT_AS_CONFIG_STRING(transaction_config, "",
 DEF_OPT_AS_STRING(table_name, "test", "table name")
 DEF_OPT_AS_BOOL(
   truncate_single_ops, 0, "Implement truncate via cursor remove instead of session API")
-DEF_OPT_AS_UINT32(
-  value_sz_max, 1000, "maximum value size when delta updates/modify are present. Default disabled")
-DEF_OPT_AS_UINT32(
-  value_sz_min, 1, "minimum value size when delta updates/modify are present. Default disabled")
+DEF_OPT_AS_UINT32(value_sz_max, 1000,
+  "maximum value size when delta updates/modify operations are present. Default disabled")
+DEF_OPT_AS_UINT32(value_sz_min, 1,
+  "minimum value size when delta updates/modify operations are present. Default disabled")
 DEF_OPT_AS_UINT32(value_sz, 100, "value size")
 DEF_OPT_AS_UINT32(verbose, 1, "verbosity")
 DEF_OPT_AS_UINT32(warmup, 0, "How long to run the workload phase before starting measurements")
