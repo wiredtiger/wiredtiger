@@ -2469,7 +2469,7 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_las_insert_block(cursor, S2BT(session), r->page, multi));
+            WT_ERR(__wt_las_insert(cursor, S2BT(session), r->page, multi));
 
             __wt_free(session, multi->supd);
             multi->supd_entries = 0;
@@ -2499,10 +2499,9 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         if (multi->supd != NULL && multi->page_las.has_las) {
             if (multi->page_las.birthmarks_cnt != 0) {
                 WT_ASSERT(session, multi->page_las.birthmarks != NULL);
-                for (j = 0; j < multi->page_las.birthmarks_cnt; j++) {
-                    birthmarkp = multi->page_las.birthmarks + j;
+                for (j = 0, birthmarkp = multi->page_las.birthmarks;
+                     j < multi->page_las.birthmarks_cnt; j++, birthmarkp++)
                     __wt_buf_free(session, &birthmarkp->key);
-                }
             }
             __wt_free(session, multi->page_las.birthmarks);
         }

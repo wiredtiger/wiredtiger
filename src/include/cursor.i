@@ -355,7 +355,7 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 
 /*
  * __cursor_row_slot_key_return --
- *     Return a row-store leaf page slot's Key.
+ *     Return a row-store leaf page slot's key.
  */
 static inline int
 __cursor_row_slot_key_return(
@@ -368,13 +368,13 @@ __cursor_row_slot_key_return(
     WT_SESSION_IMPL *session;
     void *copy;
 
+    *kpack_used = false;
+
     session = (WT_SESSION_IMPL *)cbt->iface.session;
     btree = S2BT(session);
     page = cbt->ref->page;
 
     kb = &cbt->iface.key;
-
-    *kpack_used = false;
 
     /*
      * The row-store key can change underfoot; explicitly take a copy.
@@ -444,7 +444,7 @@ slow:
  */
 static inline int
 __cursor_row_slot_val_return(
-  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, bool kpack_used, WT_UPDATE *upd)
+  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK *kpack, WT_UPDATE *upd)
 {
     WT_CELL_UNPACK *vpack, _vpack;
     WT_ITEM *vb;
@@ -469,6 +469,6 @@ __cursor_row_slot_val_return(
         return (0);
 
     /* Else, take the value from the original page cell. */
-    __wt_row_leaf_value_cell(session, page, rip, kpack_used ? kpack : NULL, vpack);
+    __wt_row_leaf_value_cell(session, page, rip, kpack, vpack);
     return (__wt_page_cell_data_ref(session, cbt->ref->page, vpack, vb));
 }

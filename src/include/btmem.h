@@ -233,17 +233,14 @@ struct __wt_ovfl_reuse {
  *	Related information for on-disk pages with lookaside entries.
  */
 struct __wt_page_lookaside {
-    uint64_t max_txn;                  /* Maximum transaction ID */
-    uint64_t unstable_txn;             /* First transaction ID not on page */
-    wt_timestamp_t max_timestamp;      /* Maximum timestamp */
-    wt_timestamp_t unstable_timestamp; /* First timestamp not on page */
-    wt_timestamp_t unstable_durable_timestamp;
-    /* First durable timestamp not on
-     * page */
-    bool has_prepares; /* One or more updates are prepared */
-    bool skew_newest;  /* Page image has newest versions */
-    bool has_las;      /* The page has lookaside content on disk */
-
+    uint64_t max_txn;                          /* Maximum transaction ID */
+    uint64_t unstable_txn;                     /* First transaction ID not on page */
+    wt_timestamp_t max_timestamp;              /* Maximum timestamp */
+    wt_timestamp_t unstable_timestamp;         /* First timestamp not on page */
+    wt_timestamp_t unstable_durable_timestamp; /* First durable timestamp not on page */
+    bool has_prepares;                         /* One or more updates are prepared */
+    bool skew_newest;                          /* Page image has newest versions */
+    bool has_las;                              /* The page has lookaside content on disk */
     struct __wt_birthmark_details {
         WT_ITEM key;
         uint64_t txnid;
@@ -251,7 +248,7 @@ struct __wt_page_lookaside {
         wt_timestamp_t start_ts;
         uint8_t prepare_state;
     } * birthmarks;          /* Birthmark details for a record */
-    uint64_t birthmarks_cnt; /* Count of birthmarks records */
+    uint64_t birthmarks_cnt; /* Count of birthmark records */
 };
 
 /*

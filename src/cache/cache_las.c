@@ -522,16 +522,11 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *
         WT_IGNORE_RET_BOOL(__wt_eviction_dirty_needed(session, &pct_dirty));
 
         __wt_verbose(session, WT_VERB_LOOKASIDE | WT_VERB_LOOKASIDE_ACTIVITY,
-          "Page reconciliation triggered lookaside write "
-          "file ID %" PRIu32
+          "Page reconciliation triggered lookaside write: file ID %" PRIu32
           ". "
           "Max txn ID %" PRIu64
-          ", unstable timestamp %s,"
-          " unstable durable timestamp %s, %s. "
-          "Entries now in lookaside file: %" PRId64
-          ", "
-          "cache dirty: %2.3f%% , "
-          "cache use: %2.3f%%",
+          ", unstable timestamp %s, unstable durable timestamp %s, %s. "
+          "Entries now in lookaside file: %" PRId64 ", cache dirty: %2.3f%%, cache use: %2.3f%%",
           btree_id, multi->page_las.max_txn,
           __wt_timestamp_to_string(multi->page_las.unstable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(multi->page_las.unstable_durable_timestamp, ts_string[1]),
@@ -558,21 +553,20 @@ __wt_page_las_free(WT_SESSION_IMPL *session, WT_REF *ref)
         return;
 
     if (ref->page_las->birthmarks != NULL) {
-        for (i = 0; i < ref->page_las->birthmarks_cnt; i++) {
-            birthmarkp = ref->page_las->birthmarks + i;
+        for (i = 0, birthmarkp = ref->page_las->birthmarks; i < ref->page_las->birthmarks_cnt;
+             i++, birthmarkp++)
             __wt_buf_free(session, &birthmarkp->key);
-        }
         __wt_free(session, ref->page_las->birthmarks);
     }
     __wt_free(session, ref->page_las);
 }
 
 /*
- * __wt_las_insert_block --
+ * __wt_las_insert --
  *     Copy one set of saved updates into the database's lookaside table.
  */
 int
-__wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
+__wt_las_insert(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CONNECTION_IMPL *conn;
@@ -585,8 +579,7 @@ __wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULT
     WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *first_upd, *upd;
     wt_off_t las_size;
-    uint64_t insert_cnt, max_las_size;
-    uint64_t prepared_insert_cnt;
+    uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
     bool local_txn;
@@ -783,12 +776,9 @@ err:
 
     __wt_scr_free(session, &key);
     /* Free all the birthmark keys if there was a failure */
-    if (ret != 0) {
-        for (i = 0; i < birthmarks_cnt; i++) {
-            birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + i;
+    if (ret != 0)
+        for (i = 0, birthmarkp = birthmarks->mem; i < birthmarks_cnt; i++, birthmarkp++)
             __wt_buf_free(session, &birthmarkp->key);
-        }
-    }
     __wt_scr_free(session, &birthmarks);
     WT_UNUSED(first_upd);
     return (ret);

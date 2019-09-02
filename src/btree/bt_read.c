@@ -73,12 +73,12 @@ __create_birthmark_upd(WT_SESSION_IMPL *session, WT_BIRTHMARK_DETAILS *birthmark
 {
     WT_ITEM empty_item;
     WT_UPDATE *upd;
-    size_t incr;
+    size_t not_used;
 
     *updp = NULL;
     empty_item.size = 0;
 
-    WT_RET(__wt_update_alloc(session, &empty_item, &upd, &incr, WT_UPDATE_BIRTHMARK));
+    WT_RET(__wt_update_alloc(session, &empty_item, &upd, &not_used, WT_UPDATE_BIRTHMARK));
     upd->txnid = birthmarkp->txnid;
     upd->durable_ts = birthmarkp->durable_ts;
     upd->start_ts = birthmarkp->start_ts;
@@ -90,7 +90,7 @@ __create_birthmark_upd(WT_SESSION_IMPL *session, WT_BIRTHMARK_DETAILS *birthmark
 
 /*
  * __instantiate_birthmarks --
- *     Instantiate birthmarks records in a recently read page.
+ *     Instantiate birthmark records in a recently read page.
  */
 static int
 __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)

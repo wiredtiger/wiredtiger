@@ -391,7 +391,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                 ++cbt->page_deleted_count;
             continue;
         }
-        return (__cursor_row_slot_val_return(cbt, rip, &kpack, kpack_used, upd));
+        return (__cursor_row_slot_val_return(cbt, rip, kpack_used ? &kpack : NULL, upd));
     }
     /* NOTREACHED */
 }
