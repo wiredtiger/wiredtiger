@@ -21,6 +21,7 @@ static int __rec_write_check_complete(WT_SESSION_IMPL *, WT_RECONCILE *, int, bo
 static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int __rec_write_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
+static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *, bool *);
 
 /*
  * __wt_reconcile --
@@ -30,18 +31,14 @@ int
 __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
   bool *lookaside_retryp)
 {
-    WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_PAGE_MODIFY *mod;
-    WT_RECONCILE *r;
-    uint64_t oldest_id;
+    bool no_reconcile_set, page_locked;
 
-    btree = S2BT(session);
-    page = ref->page;
-    mod = page->modify;
     if (lookaside_retryp != NULL)
         *lookaside_retryp = false;
+
+    page = ref->page;
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -66,8 +63,16 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_ASSERT(session, !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT));
 
-    /* We shouldn't get called with a clean page, that's an error. */
+    /* It's an error to be called with a clean page. */
     WT_ASSERT(session, __wt_page_is_modified(page));
+
+    /*
+     * Reconciliation acquires and releases pages, and in rare cases that page release triggers
+     * eviction. If the page is dirty, eviction can trigger reconciliation, and we re-enter this
+     * code. Reconciliation isn't re-entrant, so we need to ensure that doesn't happen.
+     */
+    no_reconcile_set = F_ISSET(session, WT_SESSION_NO_RECONCILE);
+    F_SET(session, WT_SESSION_NO_RECONCILE);
 
     /*
      * Reconciliation locks the page for three reasons:
@@ -79,24 +84,42 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
      * a child page splitting during the reconciliation.
      */
     WT_PAGE_LOCK(session, page);
+    page_locked = true;
 
     /*
      * Now that the page is locked, if attempting to evict it, check again whether eviction is
      * permitted. The page's state could have changed while we were waiting to acquire the lock
      * (e.g., the page could have split).
      */
-    if (LF_ISSET(WT_REC_EVICT) && !__wt_page_can_evict(session, ref, NULL)) {
-        WT_PAGE_UNLOCK(session, page);
-        return (__wt_set_return(session, EBUSY));
-    }
+    if (LF_ISSET(WT_REC_EVICT) && !__wt_page_can_evict(session, ref, NULL))
+        WT_ERR(__wt_set_return(session, EBUSY));
 
-    /* Initialize the reconciliation structure for each new run. */
-    if ((ret = __rec_init(session, ref, flags, salvage, &session->reconcile)) != 0) {
-        WT_PAGE_UNLOCK(session, page);
-        return (ret);
-    }
-    r = session->reconcile;
+    /*
+     * Reconcile the page. The reconciliation code unlocks the page as soon as possible, and returns
+     * that information.
+     */
+    ret = __reconcile(session, ref, salvage, flags, lookaside_retryp, &page_locked);
 
+err:
+    if (page_locked)
+        WT_PAGE_UNLOCK(session, page);
+    if (!no_reconcile_set)
+        F_CLR(session, WT_SESSION_NO_RECONCILE);
+    return (ret);
+}
+
+/*
+ * __reconcile_save_evict_state --
+ *     Save the transaction state that causes history to be pinned, whether reconciliation succeeds
+ *     or fails.
+ */
+static void
+__reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
+{
+    WT_PAGE_MODIFY *mod;
+    uint64_t oldest_id;
+
+    mod = ref->page->modify;
     oldest_id = __wt_txn_oldest_id(session);
 
     /*
@@ -119,6 +142,32 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_ASSERT(session, WT_TXNID_LE(mod->last_oldest_id, oldest_id));
     mod->last_oldest_id = oldest_id;
 #endif
+}
+
+/*
+ * __reconcile --
+ *     Reconcile an in-memory page into its on-disk format, and write it.
+ */
+static int
+__reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags,
+  bool *lookaside_retryp, bool *page_lockedp)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    WT_PAGE *page;
+    WT_PAGE_MODIFY *mod;
+    WT_RECONCILE *r;
+
+    btree = S2BT(session);
+    page = ref->page;
+    mod = page->modify;
+
+    /* Save the eviction state. */
+    __reconcile_save_evict_state(session, ref, flags);
+
+    /* Initialize the reconciliation structure for each new run. */
+    WT_RET(__rec_init(session, ref, flags, salvage, &session->reconcile));
+    r = session->reconcile;
 
     /* Reconcile the page. */
     switch (page->type) {
@@ -168,6 +217,7 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
         mod->last_stable_timestamp = S2C(session)->txn_global.stable_timestamp;
 
     /* Release the reconciliation lock. */
+    *page_lockedp = false;
     WT_PAGE_UNLOCK(session, page);
 
     /* Update statistics. */
@@ -485,7 +535,16 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     btree = S2BT(session);
     page = ref->page;
 
-    if ((r = *(WT_RECONCILE **)reconcilep) == NULL) {
+    /*
+     * Reconciliation is not re-entrant, make sure that doesn't happen. Our caller sets
+     * WT_SESSION_IMPL.WT_SESSION_NO_RECONCILE to prevent it, but it's been a problem in the past,
+     * check to be sure.
+     */
+    r = *(WT_RECONCILE **)reconcilep;
+    if (r != NULL && r->ref != NULL)
+        WT_RET_MSG(session, WT_ERROR, "reconciliation re-entered");
+
+    if (r == NULL) {
         WT_RET(__wt_calloc_one(session, &r));
 
         *(WT_RECONCILE **)reconcilep = r;
@@ -499,9 +558,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
         F_SET(&r->chunkB.image, WT_ITEM_ALIGNED);
     }
-
-    /* Reconciliation is not re-entrant, make sure that doesn't happen. */
-    WT_ASSERT(session, r->ref == NULL);
 
     /* Remember the configuration. */
     r->ref = ref;
