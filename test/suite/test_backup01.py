@@ -89,6 +89,7 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Make sure all the files were copied.
         self.runWt(['list'], outfilename='outfile.orig')
+        # Pass -R flag as we need to run recovery on the backup dir before calling list.
         self.runWt(['-h', self.dir, '-R', 'list'], outfilename='outfile.backup')
         self.assertEqual(
             True, compare_files(self, 'outfile.orig', 'outfile.backup'))
