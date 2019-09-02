@@ -260,18 +260,11 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
      */
     WT_ASSERT(session, modify_type != WT_UPDATE_INVALID);
 
-    /*
-     * Allocate the WT_UPDATE structure and room for the value, then copy the value into place.
-     */
-    if (modify_type == WT_UPDATE_BIRTHMARK || modify_type == WT_UPDATE_RESERVE ||
-      modify_type == WT_UPDATE_TOMBSTONE)
-        WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE, &upd));
-    else {
-        WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + value->size, &upd));
-        if (value->size != 0) {
-            upd->size = WT_STORE_SIZE(value->size);
-            memcpy(upd->data, value->data, value->size);
-        }
+    /* Allocate the WT_UPDATE structure and room for the value, then copy any value into place. */
+    WT_RET(__wt_calloc(session, 1, WT_UPDATE_SIZE + (value == NULL ? 0 : value->size), &upd));
+    if (value != NULL && value->size != 0) {
+        upd->size = WT_STORE_SIZE(value->size);
+        memcpy(upd->data, value->data, value->size);
     }
     upd->type = (uint8_t)modify_type;
 
