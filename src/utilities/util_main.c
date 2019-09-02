@@ -297,6 +297,10 @@ main(int argc, char *argv[])
         goto err;
     }
 
+    /*
+     * If the user has specified recovery or salvage disable readonly mode, as they are
+     * both not readonly operations.
+     */
     if (recover || salvage)
         readonly_config = NULL;
 
