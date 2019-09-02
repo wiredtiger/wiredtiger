@@ -21,7 +21,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     WT_ITEM las_key, las_value;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_timestamp, las_timestamp, rollback_timestamp;
-    uint64_t las_counter, las_pageid, las_total, las_txnid;
+    uint64_t las_counter, las_total, las_txnid;
     uint32_t las_id, session_flags;
     uint8_t prepare_state, upd_type;
 
@@ -47,7 +47,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     __wt_writelock(session, &conn->cache->las_sweepwalk_lock);
     while ((ret = cursor->next(cursor)) == 0) {
         ++las_total;
-        WT_ERR(cursor->get_key(cursor, &las_pageid, &las_id, &las_counter, &las_key));
+        WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
 
         /* Check the file ID so we can skip durable tables */
         if (las_id >= conn->stable_rollback_maxfile)

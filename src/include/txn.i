@@ -823,6 +823,7 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
     static WT_UPDATE tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
+    WT_DECL_RET;
     WT_UPDATE *tmp_upd;
     WT_VISIBLE_TYPE upd_visible;
     bool skipped_birthmark;
@@ -842,20 +843,18 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
             skipped_birthmark = true;
     }
 
-    /*
-     * If there is a related lookaside entry, find it and try matching the in-memory record. The
-     * following conditions will be refined in the future once we make the change to stop
-     * initializing a page using lookaside.
-     */
-    if (upd != NULL && upd->txnid != 0 && cbt->ref->page_las != NULL &&
-      __wt_find_lookaside_upd(session, cbt, upd->start_ts, &tmp_upd, true) == 0) {
-        /*
-         * If we located the correct record, the contents should be the same and we can use the
-         * record from lookaside.
-         */
-        WT_ASSERT(session, upd->type == WT_UPDATE_MODIFY ||
-            (upd->size == tmp_upd->size && memcmp(upd->data, tmp_upd->data, upd->size) == 0));
-        upd = tmp_upd;
+    /* Find a visible record in the lookaside and check if we should use that instead. */
+    if ((upd == NULL || session->txn.read_timestamp != 0) &&
+      __wt_page_las_active(session, cbt->ref)) {
+        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret == 0) {
+            /* Pick newer of the visible updates */
+            if (upd == NULL || upd->start_ts < tmp_upd->start_ts)
+                upd = tmp_upd;
+            else
+                __wt_free_update_list(session, tmp_upd);
+        }
     }
 
     if (upd == NULL && skipped_birthmark)

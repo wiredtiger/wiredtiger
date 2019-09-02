@@ -395,11 +395,9 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
          * memory, else discard the page.
          */
-        if (ref->page_las != NULL)
-            __wt_free(session, ref->page_las->birthmarks);
-        __wt_free(session, ref->page_las);
+        __wt_page_las_free(session, ref);
         if (mod->mod_disk_image == NULL) {
-            if (mod->mod_page_las.las_pageid != 0) {
+            if (mod->mod_page_las.has_las) {
                 WT_RET(__wt_calloc_one(session, &ref->page_las));
                 *ref->page_las = mod->mod_page_las;
                 __wt_page_modify_clear(session, ref->page);
@@ -556,6 +554,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      */
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         return (0);
+
+    /* Temp fix: do not evict a page with active las */
+    if (__wt_page_las_active(session, ref))
+        return (__wt_set_return(session, EBUSY));
 
     /*
      * Retrieve the modified state of the page. This must happen after the check for evictable
