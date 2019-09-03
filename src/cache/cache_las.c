@@ -1117,14 +1117,12 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
           cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
         /*
-         * Check to see if the btree id or key has changed this iteration,
-         * and if they have, setup context for safely removing obsolete
-         * updates.
+         * Check to see if the btree id or key has changed this iteration, and if they have, setup
+         * context for safely removing obsolete updates.
          *
-         * It's important to check for btree id boundaries explicitly
-         * because it is possible for the same key for a different btree to be positioned
-         * contiguously in lookaside.
-         * See WT-3982 for details.
+         * It's important to check for btree id boundaries explicitly because it is possible for the
+         * same key for a different btree to be positioned contiguously in lookaside. See WT-3982
+         * for details.
          */
         if (las_btree_id != saved_btree_id || saved_key->size != las_key.size ||
           memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
