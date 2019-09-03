@@ -461,9 +461,6 @@ next:
 
 done:
 err:
-#ifdef HAVE_DIAGNOSTIC
-    session->op_start = 0;
-#endif
     __wt_scr_free(session, &tmp);
     return (ret);
 }
