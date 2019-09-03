@@ -152,6 +152,8 @@ struct __wt_cursor_btree {
      *
      * A temporary buffer for building on-page keys when searching row-store
      * files.
+     *
+     * A temporary buffer for tracking random key return values to avoid repetition.
      */
     WT_ITEM *tmp, _tmp;
 
