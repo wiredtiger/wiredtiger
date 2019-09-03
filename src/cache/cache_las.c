@@ -487,12 +487,12 @@ __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __las_insert_block_verbose --
+ * __las_insert_updates_verbose --
  *     Display a verbose message once per checkpoint with details about the cache state when
  *     performing a lookaside table write.
  */
 static void
-__las_insert_block_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *multi)
+__las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *multi)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
@@ -766,7 +766,7 @@ err:
               birthmarks_cnt * sizeof(WT_BIRTHMARK_DETAILS));
             multi->page_las.birthmarks_cnt = birthmarks_cnt;
         }
-        __las_insert_block_verbose(session, btree, multi);
+        __las_insert_updates_verbose(session, btree, multi);
     }
 
     __wt_scr_free(session, &key);
@@ -781,9 +781,9 @@ err:
 
 /*
  * __wt_las_cursor_position --
- *     Position a lookaside cursor at the beginning of a block of records for a given btree id and
- *     key. There may be no block of lookaside entries if they have been removed by
- *     WT_CONNECTION::rollback_to_stable.
+ *     Position a lookaside cursor at the beginning of a set of updates for a given btree id, record
+ *     key and timestamp. There may be no lookaside entries for the given btree id and record key if
+ *     they have been removed by WT_CONNECTION::rollback_to_stable.
  */
 int
 __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
@@ -805,7 +805,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
 
     /*
      * Because of the special visibility rules for lookaside, a new key can appear in between our
-     * search and the block of interest. Keep trying until we find it.
+     * search and the set of updates that we're interested in. Keep trying until we find it.
      */
     for (;;) {
         WT_CLEAR(las_key);
@@ -815,12 +815,11 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
             WT_RET(cursor->next(cursor));
 
         /*
-         * Because of the special visibility rules for lookaside, a new
-         * block can appear in between our search and the block of
-         * interest. Keep trying while we have a key lower than we
-         * expect.
+         * Because of the special visibility rules for lookaside, a new key can appear in between
+         * our search and the set of updates we're interested in. Keep trying while we have a key
+         * lower than we expect.
          *
-         * There may be no block of lookaside entries if they have been
+         * There may be no lookaside entries for the given btree id and record key if they have been
          * removed by WT_CONNECTION::rollback_to_stable.
          */
         WT_RET(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
@@ -999,14 +998,14 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     uint32_t las_btree_id, saved_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
     int cmp, notused;
-    bool local_txn, locked, removing_key_block;
+    bool local_txn, locked;
 
     cache = S2C(session)->cache;
     cursor = NULL;
     sweep_key = &cache->las_sweep_key;
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
-    local_txn = locked = removing_key_block = false;
+    local_txn = locked = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &saved_key));
     saved_btree_id = 0;
@@ -1086,12 +1085,11 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
         }
 
         /*
-         * We only want to break between key blocks. Stop if we've processed enough entries either
-         * all we wanted or enough and there is a reader waiting and we're on a key boundary.
+         * Stop if we've processed enough entries either all we wanted or enough and there is a
+         * reader waiting.
          */
         ++visit_cnt;
-        if (!removing_key_block &&
-          (cnt == 0 || (visit_cnt > WT_LAS_SWEEP_ENTRIES && cache->las_reader)))
+        if (cnt == 0 || (visit_cnt > WT_LAS_SWEEP_ENTRIES && cache->las_reader))
             break;
         if (cnt > 0)
             --cnt;
@@ -1109,10 +1107,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
             WT_ERR(cursor->remove(cursor));
             ++remove_cnt;
             saved_key->size = 0;
-            /*
-             * Allow sweep to break while removing entries from a dead file.
-             */
-            removing_key_block = false;
             continue;
         }
 
@@ -1123,13 +1117,14 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
           cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
         /*
-         * Check to see if the page or key has changed this iteration,
+         * Check to see if the btree id or key has changed this iteration,
          * and if they have, setup context for safely removing obsolete
          * updates.
          *
-         * It's important to check for page boundaries explicitly
-         * because it is possible for the same key to be at the start
-         * of the next block. See WT-3982 for details.
+         * It's important to check for btree id boundaries explicitly
+         * because it is possible for the same key for a different btree to be positioned
+         * contiguously in lookaside.
+         * See WT-3982 for details.
          */
         if (las_btree_id != saved_btree_id || saved_key->size != las_key.size ||
           memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
@@ -1164,22 +1159,18 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
              *  * The first entry is globally visible.
              *  * The entry wasn't from a prepared transaction.
              */
-            if (upd_type == WT_UPDATE_BIRTHMARK &&
-              __wt_txn_visible_all(session, las_txnid, durable_timestamp) &&
-              prepare_state != WT_PREPARE_INPROGRESS)
-                removing_key_block = true;
-            else
-                removing_key_block = false;
-        }
-
-        if (!removing_key_block)
+            if (upd_type != WT_UPDATE_BIRTHMARK ||
+              !__wt_txn_visible_all(session, las_txnid, durable_timestamp) ||
+              prepare_state == WT_PREPARE_INPROGRESS)
+                continue;
+        } else
             continue;
 
         __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
           "Sweep removing lookaside entry with "
-          "btree ID: %" PRIu32 " saved key size: %" WT_SIZET_FMT ", record type: %" PRIu8
-          " transaction ID: %" PRIu64,
-          las_btree_id, saved_key->size, upd_type, las_txnid);
+          "btree ID: %" PRIu32 " saved key size: %" WT_SIZET_FMT " record type: %" PRIu8
+          " timestamp: %" PRIu64 " transaction ID: %" PRIu64,
+          las_btree_id, saved_key->size, upd_type, las_timestamp, las_txnid);
         WT_ERR(cursor->remove(cursor));
         ++remove_cnt;
     }
