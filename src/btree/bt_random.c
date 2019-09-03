@@ -61,6 +61,8 @@ __random_skip_entries(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_
     uint32_t entries;
     int level;
 
+    entries = 0; /* [-Wconditional-uninitialized] */
+
     if (ins_head == NULL)
         return (0);
 
