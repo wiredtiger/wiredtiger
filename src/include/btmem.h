@@ -192,41 +192,38 @@ struct __wt_ovfl_reuse {
 };
 
 /*
- * Lookaside table support: when a page is being reconciled for eviction and has
- * updates that might be required by earlier readers in the system, the updates
- * are written into a lookaside table, and restored as necessary if the page is
- * read.
+ * Lookaside table support: when a page is being reconciled for eviction and has updates that might
+ * be required by earlier readers in the system, the updates are written into a lookaside table, and
+ * restored as necessary if the page is read.
  *
- * The key is a unique marker for the page (a page ID plus a file ID, ordered
- * this way so that overall the lookaside table is append-mostly), a counter
- * (used to ensure the update records remain in the original order), and the
- * record's key (byte-string for row-store, record number for column-store).
+ * The first part of the key is comprised of a file ID, record key (byte-string for row-store,
+ * record number for column-store) and timestamp. This allows us to search efficiently for a given
+ * record key and read timestamp combination. The last part of the key is the transaction ID to
+ * account for updates that don't have a timestamp associated with them. Since the transaction ID is
+ * monotonically increasing, this will keep them in order.
  * The value is the WT_UPDATE structure's:
- * 	- transaction ID
- * 	- timestamp
  * 	- durable timestamp
  * 	- update's prepare state
  *	- update type
  *	- value.
  *
- * As the key for the lookaside table is different for row- and column-store, we
- * store both key types in a WT_ITEM, building/parsing them in the code, because
- * otherwise we'd need two lookaside files with different key formats. We could
- * make the lookaside table's key standard by moving the source key into the
- * lookaside table value, but that doesn't make the coding any simpler, and it
- * makes the lookaside table's value more likely to overflow the page size when
- * the row-store key is relatively large.
+ * As the key for the lookaside table is different for row- and column-store, we store both key
+ * types in a WT_ITEM, building/parsing them in the code, because otherwise we'd need two lookaside
+ * files with different key formats. We could make the lookaside table's key standard by moving the
+ * source key into the lookaside table value, but that doesn't make the coding any simpler, and it
+ * makes the lookaside table's value more likely to overflow the page size when the row-store key is
+ * relatively large.
  */
 #ifdef HAVE_BUILTIN_EXTENSION_SNAPPY
 #define WT_LOOKASIDE_COMPRESSOR "snappy"
 #else
 #define WT_LOOKASIDE_COMPRESSOR "none"
 #endif
-#define WT_LAS_CONFIG                                                            \
-    "key_format=" WT_UNCHECKED_STRING(IuQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QQQBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                       \
-              ",leaf_value_max=64MB"                                             \
-              ",prefix_compression=true"
+#define WT_LAS_CONFIG                                                             \
+    "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
+      QBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                          \
+            ",leaf_value_max=64MB"                                                \
+            ",prefix_compression=true"
 
 /*
  * WT_PAGE_LOOKASIDE --

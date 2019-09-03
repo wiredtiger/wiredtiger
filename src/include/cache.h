@@ -195,7 +195,6 @@ struct __wt_cache {
     WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
     bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
-    uint64_t las_counter;      /* Lookaside counter */
     uint32_t las_fileid;       /* Lookaside table file ID */
     uint64_t las_insert_count; /* Count of inserts to lookaside */
     uint64_t las_remove_count; /* Count of removes from lookaside */
@@ -203,13 +202,14 @@ struct __wt_cache {
     bool las_reader; /* Indicate an LAS reader to sweep */
     WT_RWLOCK las_sweepwalk_lock;
     WT_SPINLOCK las_sweep_lock;
-    WT_ITEM las_sweep_key;      /* Track sweep position. */
-    uint32_t las_sweep_dropmin; /* Minimum btree ID in current set. */
-    uint8_t *las_sweep_dropmap; /* Bitmap of dropped btree IDs. */
-    uint32_t las_sweep_dropmax; /* Maximum btree ID in current set. */
-    uint32_t las_max_btree_id;  /* Maximum btree ID for sweep. */
-    WT_ITEM las_max_key;        /* Maximum key for sweep. */
-    uint64_t las_max_counter;   /* Maximum counter for sweep. */
+    WT_ITEM las_sweep_key;            /* Track sweep position. */
+    uint32_t las_sweep_dropmin;       /* Minimum btree ID in current set. */
+    uint8_t *las_sweep_dropmap;       /* Bitmap of dropped btree IDs. */
+    uint32_t las_sweep_dropmax;       /* Maximum btree ID in current set. */
+    uint32_t las_max_btree_id;        /* Maximum btree ID for sweep. */
+    WT_ITEM las_max_key;              /* Maximum key for sweep. */
+    wt_timestamp_t las_max_timestamp; /* Maximum timestamp for sweep. */
+    uint64_t las_max_txnid;           /* Maximum txn ID for sweep. */
 
     uint32_t *las_dropped;    /* List of dropped btree IDs. */
     size_t las_dropped_next;  /* Next index into drop list. */

@@ -21,8 +21,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     WT_ITEM las_key, las_value;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_timestamp, las_timestamp, rollback_timestamp;
-    uint64_t las_counter, las_total, las_txnid;
-    uint32_t las_id, session_flags;
+    uint64_t las_total, las_txnid;
+    uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
 
     conn = S2C(session);
@@ -47,18 +47,18 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     __wt_writelock(session, &conn->cache->las_sweepwalk_lock);
     while ((ret = cursor->next(cursor)) == 0) {
         ++las_total;
-        WT_ERR(cursor->get_key(cursor, &las_id, &las_key, &las_counter));
+        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
 
         /* Check the file ID so we can skip durable tables */
-        if (las_id >= conn->stable_rollback_maxfile)
+        if (las_btree_id >= conn->stable_rollback_maxfile)
             WT_PANIC_RET(session, EINVAL,
-              "file ID %" PRIu32 " in lookaside table larger than max %" PRIu32, las_id,
+              "file ID %" PRIu32 " in lookaside table larger than max %" PRIu32, las_btree_id,
               conn->stable_rollback_maxfile);
-        if (__bit_test(conn->stable_rollback_bitstring, las_id))
+        if (__bit_test(conn->stable_rollback_bitstring, las_btree_id))
             continue;
 
-        WT_ERR(cursor->get_value(cursor, &las_txnid, &las_timestamp, &durable_timestamp,
-          &prepare_state, &upd_type, &las_value));
+        WT_ERR(
+          cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
         /*
          * Entries with no timestamp will have a timestamp of zero, which will fail the following
