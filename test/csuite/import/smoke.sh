@@ -1,4 +1,8 @@
-#! /bin/sh
+#! /bin/dash
+# XXX - This should be /bin/sh but there is a bug in bash on many Linux systems that results
+# in a memory leak detection on immediate exit after a 'test' statement like below.
+# This is reported in https://bugzilla.redhat.com/show_bug.cgi?id=1746101
+# When that bug is fixed, this script should revert back on /bin/sh.
 
 set -e
 
