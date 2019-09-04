@@ -558,6 +558,15 @@ struct __wt_page {
         for (__refp = __pindex->index, __entries = __pindex->entries; __entries > 0; \
              --__entries) {                                                          \
             (ref) = *__refp++;
+#define WT_INTL_FOREACH_REVERSE_BEGIN(session, page, ref)                                 \
+    do {                                                                                  \
+        WT_PAGE_INDEX *__pindex;                                                          \
+        WT_REF **__refp;                                                                  \
+        uint32_t __entries;                                                               \
+        WT_INTL_INDEX_GET(session, page, __pindex);                                       \
+        for (__refp = __pindex->index + __pindex->entries, __entries = __pindex->entries; \
+             __entries > 0; --__entries) {                                                \
+            (ref) = *--__refp;
 #define WT_INTL_FOREACH_END \
     }                       \
     }                       \
@@ -858,15 +867,18 @@ struct __wt_ref {
     WT_PAGE_DELETED *page_del;   /* Deleted page information */
     WT_PAGE_LOOKASIDE *page_las; /* Lookaside information */
 
-/* A macro wrapper allowing us to remember the callers code location */
-#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int((session), (ref), (old_state), (new_state), __FILE__, __LINE__)
+/*
+ * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in
+ * that case.
+ */
+#define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
+
 #ifdef HAVE_DIAGNOSTIC
     /* Capture history of ref state changes. */
     struct __wt_ref_hist {
         WT_SESSION_IMPL *session;
         const char *name;
-        const char *file;
+        const char *func;
         int line;
         uint32_t state;
     } hist[3];
@@ -875,19 +887,23 @@ struct __wt_ref {
     do {                                                                  \
         (ref)->hist[(ref)->histoff].session = session;                    \
         (ref)->hist[(ref)->histoff].name = session->name;                 \
-        (ref)->hist[(ref)->histoff].file = (f);                           \
+        (ref)->hist[(ref)->histoff].func = (f);                           \
         (ref)->hist[(ref)->histoff].line = (l);                           \
         (ref)->hist[(ref)->histoff].state = s;                            \
         (ref)->histoff = ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist); \
     } while (0)
 #define WT_REF_SET_STATE(ref, s)                       \
     do {                                               \
-        WT_REF_SAVE_STATE(ref, s, __FILE__, __LINE__); \
+        WT_REF_SAVE_STATE(ref, s, __func__, __LINE__); \
         WT_PUBLISH((ref)->state, s);                   \
     } while (0)
 #else
 #define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
 #endif
+
+/* A macro wrapper allowing us to remember the callers code location */
+#define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
+    __wt_ref_cas_state_int(session, ref, old_state, new_state, __func__, __LINE__)
 };
 /*
  * WT_REF_SIZE is the expected structure size -- we verify the build to ensure the compiler hasn't

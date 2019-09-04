@@ -277,7 +277,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
         __wt_free(session, ref->page_del);
     }
 
-    __wt_overwrite_and_free(session, ref);
+    __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
 }
 
 /*
