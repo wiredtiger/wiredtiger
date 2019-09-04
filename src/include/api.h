@@ -46,7 +46,7 @@
      * correct.                                                     \
      */                                                             \
     WT_TRACK_OP_INIT(s);                                            \
-    WT_TRACK_TIME(s);                                               \
+    (s)->op_start = 0;                                              \
     WT_SINGLE_THREAD_CHECK_START(s);                                \
     WT_ERR(WT_SESSION_CHECK_PANIC(s));                              \
     /* Reset wait time if this isn't an API reentry. */             \
