@@ -909,7 +909,7 @@ struct __wt_ref {
         WT_SESSION_IMPL *session;
         const char *name;
         const char *func;
-        uint32_t time_sec; /* DEBUGGING field for rare hang. */
+        uint32_t time_sec;
         uint16_t line;
         uint16_t state;
     } hist[WT_REF_SAVE_STATE_MAX];
