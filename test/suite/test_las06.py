@@ -172,5 +172,34 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
+    def test_las_prepare_workload(self):
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
+
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+
+        # Load 5Mb of prepared data and leave it in a prepared state.
+        prepare_session = self.conn.open_session(self.session_config)
+        prepare_cursor = prepare_session.open_cursor(uri)
+        prepare_session.begin_transaction()
+        for i in range(1, 10000):
+            prepare_cursor[i] = value1
+        prepare_session.prepare_transaction('prepare_timestamp=' + timestamp_str(2))
+
+        # Try to write to every key again. Expect a prepare conflict.
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, 10000):
+            cursor[i] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Now the latest version will get written to the data file.
+        prepare_session.rollback_transaction()
+
 if __name__ == '__main__':
     wttest.run()
