@@ -52,7 +52,7 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, WT_UPDATE **updp, bool 
 
 /*
  * __random_skip_entries --
- *     Return a guess of how many entries are in a skip list.
+ *     Return an estimate of how many entries are in a skip list.
  */
 static uint32_t
 __random_skip_entries(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEAD *ins_head)
@@ -300,13 +300,13 @@ __random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      * We don't have many disk-based entries, we didn't find any large insert lists. Where we get
      * into trouble is a small number of pages with large numbers of deleted items. Try and move out
      * of the problematic namespace into something we can use by cursoring forward or backward. On a
-     * page with a sufficiently large group of deleted items that the randomly selected entries were
-     * all deleted, simply moving to the next record likely means returning the same record every
-     * time, so cursor a random number of items instead of doing just moving to the next item.
-     * Further, detect if we're about to return the same item twice in a row and try to avoid it.
-     * (If there's only a single record, or only a pair of records, we'll still end up in trouble,
-     * but at some point the tree is too small to do anything better.) All of this is slow and
-     * expensive, but the alternative is customer complaints.
+     * page with a sufficiently large group of deleted items where the randomly selected entries are
+     * all deleted, simply moving to the next or previous record likely means moving to the same
+     * record every time, so move the cursor a random number of items. Further, detect if we're
+     * about to return the same item twice in a row and try to avoid it. (If there's only a single
+     * record, or only a pair of records, we'll still end up in trouble, but at some point the tree
+     * is too small to do anything better.) All of this is slow and expensive, but the alternative
+     * is customer complaints.
      */
     __cursor_pos_clear(cbt);
     cbt->slot = 0;
