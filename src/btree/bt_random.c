@@ -45,10 +45,10 @@ __random_slot_valid(WT_CURSOR_BTREE *cbt, uint32_t slot, WT_UPDATE **updp, bool 
     return (__wt_cursor_valid(cbt, updp, validp));
 }
 
-/* Magic constant: 50 entries in a skip list is enough to predict the size. */
-#define WT_RANDOM_SKIP_PREDICT 50
 /* Magic constant: 5000 entries in a skip list is enough to forcibly evict. */
 #define WT_RANDOM_SKIP_EVICT_SOON 5000
+/* Magic constant: 50 entries in a skip list is enough to predict the size. */
+#define WT_RANDOM_SKIP_PREDICT 50
 
 /*
  * __random_skip_entries --
@@ -92,10 +92,10 @@ __random_skip_entries(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_
     return (entries);
 }
 
-/* Magic constant: retry 3 times in a skip list before giving up. */
-#define WT_RANDOM_SKIP_RETRY 3
 /* Magic constant: check 3 records before/after the selected record. */
 #define WT_RANDOM_SKIP_LOCAL 3
+/* Magic constant: retry 3 times in a skip list before giving up. */
+#define WT_RANDOM_SKIP_RETRY 3
 
 /*
  * __random_leaf_skip --
@@ -149,10 +149,10 @@ __random_leaf_skip(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_INSERT_HEA
     return (0);
 }
 
-/* Magic constant: 1000 entries in an initial skip list is enough to always select from it. */
-#define WT_RANDOM_SKIP_INSERT_SMALLEST_ENOUGH 1000
 /* Magic constant: 100 entries in any randomly chosen skip list is enough to select from it. */
 #define WT_RANDOM_SKIP_INSERT_ENOUGH 100
+/* Magic constant: 1000 entries in an initial skip list is enough to always select from it. */
+#define WT_RANDOM_SKIP_INSERT_SMALLEST_ENOUGH 1000
 
 /*
  * __random_leaf_insert --
@@ -250,10 +250,10 @@ __random_leaf_disk(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **u
     return (0);
 }
 
-/* Magic constant: 1000 disk-based entries in a page is enough to always select from them. */
-#define WT_RANDOM_DISK_ENOUGH 1000
 /* Magic constant: cursor up to 250 next/previous records before selecting a key. */
 #define WT_RANDOM_CURSOR_MOVE 250
+/* Magic constant: 1000 disk-based entries in a page is enough to always select from them. */
+#define WT_RANDOM_DISK_ENOUGH 1000
 
 /*
  * __random_leaf --
