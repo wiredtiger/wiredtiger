@@ -1589,7 +1589,7 @@ __wt_txn_is_blocking_pin(WT_SESSION_IMPL *session)
      * don't check unless we're configured to time out thread operations, a way to confirm our
      * caller is prepared for rollback.
      */
-    if (!F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT) || txn->snap_min == WT_TXN_NONE)
+    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || txn->snap_min == WT_TXN_NONE)
         return (0);
     if (!__wt_op_timer_fired(session))
         return (0);
