@@ -871,8 +871,12 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
         if (session->ncursors > 0)
             WT_RET(__wt_session_copy_values(session));
 
-        /* Stall here if the cache is completely full. */
-        WT_RET(__wt_cache_eviction_check(session, false, true, NULL));
+        /*
+         * Stall here if the cache is completely full. It's possible for cache eviction to decide
+         * we're the problem (we might be pinning data in the cache), and return WT_ROLLBACK. The
+         * WT_SESSION.begin_transaction API can't return rollback, continue on.
+         */
+        WT_RET_ERROR_OK(__wt_cache_eviction_check(session, false, true, NULL), WT_ROLLBACK);
 
         __wt_txn_get_snapshot(session);
     }
@@ -1142,40 +1146,6 @@ __wt_txn_cursor_op(WT_SESSION_IMPL *session)
             txn_state->metadata_pinned = txn_state->pinned_id;
     } else if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         __wt_txn_get_snapshot(session);
-}
-
-/*
- * __wt_txn_am_oldest --
- *     Am I the oldest transaction in the system?
- */
-static inline bool
-__wt_txn_am_oldest(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_TXN *txn;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *s;
-    uint64_t id;
-    uint32_t i, session_cnt;
-
-    conn = S2C(session);
-    txn = &session->txn;
-    txn_global = &conn->txn_global;
-
-    if (txn->id == WT_TXN_NONE || F_ISSET(txn, WT_TXN_PREPARE))
-        return (false);
-
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0, s = txn_global->states; i < session_cnt; i++, s++)
-        /*
-         * We are checking if the transaction is oldest one in the system. It is safe to ignore any
-         * sessions that are allocating transaction IDs, since we already have an ID, they are
-         * guaranteed to be newer.
-         */
-        if (!s->is_allocating && (id = s->id) != WT_TXN_NONE && WT_TXNID_LT(id, txn->id))
-            return (false);
-
-    return (true);
 }
 
 /*

@@ -605,6 +605,13 @@ connection_runtime_config = [
     Config('lsm_merge', 'true', r'''
         merge LSM chunks where possible (deprecated)''',
         type='boolean', undoc=True),
+    Config('operation_timeout_ms', '0', r'''
+        when non-zero, a requested limit on the number of elapsed real time milliseconds
+        application threads will take to complete database operations. Time is measured from the
+        start of each WiredTiger API call.  There is no guarantee any operation will not take
+        longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
+        operation may return a WT_ROLLBACK error. Default is to have no limit''',
+        min=1),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
@@ -1333,6 +1340,13 @@ methods = {
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
     Config('name', '', r'''
         name of the transaction for tracing and debugging'''),
+    Config('operation_timeout_ms', '0', r'''
+        when non-zero, a requested limit on the number of elapsed real time milliseconds taken
+        to complete database operations in this transaction.  Time is measured from the start
+        of each WiredTiger API call.  There is no guarantee any operation will not take longer
+        than this amount of time. If WiredTiger notices the limit has been exceeded, an operation
+        may return a WT_ROLLBACK error. Default is to have no limit''',
+        min=1),
     Config('priority', 0, r'''
         priority of the transaction for resolving conflicts.
         Transactions with higher values are less likely to abort''',

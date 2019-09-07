@@ -152,3 +152,31 @@ __wt_clock_to_nsec(uint64_t end, uint64_t begin)
     clock_diff = (double)(end - begin);
     return ((uint64_t)(clock_diff / __wt_process.tsc_nsec_ratio));
 }
+
+/*
+ * __wt_op_timer_start --
+ *     Start the operations timer.
+ */
+static inline void
+__wt_op_timer_start(WT_SESSION_IMPL *session)
+{
+    session->operation_start_us = session->operation_timeout_us == 0 ? 0 : __wt_clock(session);
+}
+
+/*
+ * __wt_op_timer_fired --
+ *     Check the operations timers.
+ */
+static inline bool
+__wt_op_timer_fired(WT_SESSION_IMPL *session)
+{
+    uint64_t diff, now;
+
+    /* Check for both a timeout and a start time to avoid any future configuration races. */
+    if (session->operation_timeout_us == 0 || session->operation_start_us == 0)
+        return (false);
+
+    now = __wt_clock(session);
+    diff = WT_CLOCKDIFF_US(now, session->operation_start_us);
+    return (diff > session->operation_timeout_us);
+}

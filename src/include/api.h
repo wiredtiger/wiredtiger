@@ -45,6 +45,7 @@
      */                                                             \
     WT_TRACK_OP_INIT(s);                                            \
     WT_SINGLE_THREAD_CHECK_START(s);                                \
+    __wt_op_timer_start(s);                                         \
     WT_ERR(WT_SESSION_CHECK_PANIC(s));                              \
     /* Reset wait time if this isn't an API reentry. */             \
     if (__oldname == NULL)                                          \
