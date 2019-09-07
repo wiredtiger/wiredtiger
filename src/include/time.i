@@ -117,10 +117,7 @@ __wt_seconds(WT_SESSION_IMPL *session, uint64_t *secondsp)
 
     __wt_epoch(session, &t);
 
-    /*
-     * A time_t isn't guaranteed to fit into a uint64_t, but it's asserted when WiredTiger builds.
-     */
-    *secondsp = (uint64_t)t.tv_sec;
+    *secondsp = (uint64_t)(t.tv_sec + t.tv_nsec / WT_BILLION);
 }
 
 /*
@@ -130,14 +127,11 @@ __wt_seconds(WT_SESSION_IMPL *session, uint64_t *secondsp)
 static inline void
 __wt_seconds32(WT_SESSION_IMPL *session, uint32_t *secondsp)
 {
-    struct timespec t;
+    uint64_t seconds;
 
-    __wt_epoch(session, &t);
-
-    /*
-     * This won't work in 2038. But for now allow it.
-     */
-    *secondsp = (uint32_t)t.tv_sec;
+    /* This won't work in 2038. But for now allow it. */
+    __wt_seconds(session, &seconds);
+    *secondsp = (uint32_t)seconds;
 }
 
 /*
