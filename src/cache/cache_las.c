@@ -1247,16 +1247,18 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
     WT_ITEM *key;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
-    uint64_t las_txnid, _las_txnid;
+    uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, upd_type;
+    const uint8_t* recnop;
     u_int i;
     int cmp;
-    bool sweep_locked;
+    bool modify, sweep_locked;
 
     WT_UNUSED(_las_timestamp);
     WT_UNUSED(_las_txnid);
@@ -1266,6 +1268,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     cache = S2C(session)->cache;
     cursor = NULL;
     key = NULL;
+    ref = cbt->ref;
     upd = NULL;
     listp = list;
     txn = &session->txn;
@@ -1273,7 +1276,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     las_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
-    sweep_locked = false;
+    modify = sweep_locked = false;
 
     /* Row-store has the key available, create the column-store key on demand. */
     switch (cbt->btree->type) {
@@ -1354,6 +1357,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          * updates together.
          */
         if (upd_type == WT_UPDATE_MODIFY) {
+            modify = true;
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
                 if (i >= WT_MODIFY_ARRAY_SIZE) {
@@ -1398,10 +1402,33 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_timestamp;
         upd->prepare_state = prepare_state;
-        /*
-         * Mark this update as external and to be discarded when not needed.
-         */
-        upd->ext = 1;
+
+        if (prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_ASSERT(session, !modify);
+            switch (ref->page->type) {
+            case WT_PAGE_COL_FIX:
+            case WT_PAGE_COL_VAR:
+                recnop = las_key->data;
+                WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
+                WT_ERR(__wt_col_instantiate(session, recno, ref, cbt, upd));
+                break;
+            case WT_PAGE_ROW_LEAF:
+                WT_ERR(__wt_row_instantiate(session, las_key, ref, cbt, upd));
+                break;
+            }
+            /*
+             * After reading in the prepared update, we need to delete it from lookaside. If it gets
+             * committed, the timestamp in the las key may differ so it's easier if we just get rid
+             * of it now and rewrite on eviction/commit/rollback.
+             */
+            cursor->remove(cursor);
+        } else
+            /*
+             * We're not keeping this in our update list as we want to get rid of it after the read
+             * has been dealt with. Mark this update as external and to be discarded when not
+             * needed.
+             */
+            upd->ext = 1;
         *updp = upd;
 
         /* We are done, we found the record we were searching for */

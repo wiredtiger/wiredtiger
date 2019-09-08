@@ -178,8 +178,8 @@ class test_las06(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
-        value1 = 'a' * 500
-        value2 = 'b' * 500
+        value1 = 'a' * 5000
+        value2 = 'b' * 5000
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
 
@@ -187,15 +187,18 @@ class test_las06(wttest.WiredTigerTestCase):
         prepare_session = self.conn.open_session(self.session_config)
         prepare_cursor = prepare_session.open_cursor(uri)
         prepare_session.begin_transaction()
-        for i in range(1, 10000):
+        for i in range(1, 20000):
             prepare_cursor[i] = value1
         prepare_session.prepare_transaction('prepare_timestamp=' + timestamp_str(2))
 
         # Try to write to every key again. Expect a prepare conflict.
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 10000):
-            cursor[i] = value2
+        for i in range(1, 20000):
+            self.assertRaisesException(
+                wiredtiger.WiredTigerError,
+                lambda: self.assertEqual(cursor[i], value1),
+                '/conflict with a prepared update/')
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Now the latest version will get written to the data file.
