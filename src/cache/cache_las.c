@@ -1255,7 +1255,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, upd_type;
-    const uint8_t* recnop;
+    const uint8_t *recnop;
     u_int i;
     int cmp;
     bool modify, sweep_locked;
