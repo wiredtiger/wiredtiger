@@ -165,6 +165,7 @@ __wt_txn_resolve_prepared_op(
   WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, int64_t *resolved_update_countp)
 {
     WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *upd;
@@ -177,6 +178,7 @@ __wt_txn_resolve_prepared_op(
         return (0);
 
     WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+    cbt = (WT_CURSOR_BTREE *)cursor;
 
     /*
      * Transaction prepare is cleared temporarily as cursor functions are not allowed for prepared
@@ -186,12 +188,14 @@ __wt_txn_resolve_prepared_op(
     if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)
         __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
     else
-        ((WT_CURSOR_BTREE *)cursor)->iface.recno = op->u.op_col.recno;
+        cbt->iface.recno = op->u.op_col.recno;
     F_SET(txn, WT_TXN_PREPARE);
 
-    WT_WITH_BTREE(
-      session, op->btree, ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
+    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_uncommitted(cbt, &upd));
     WT_ERR(ret);
+
+    if (upd == NULL && __wt_page_las_active(session, cbt->ref))
+        WT_ERR(__wt_find_lookaside_upd(session, cbt, &upd, true));
 
     /* If we haven't found anything then there's an error. */
     if (upd == NULL) {
@@ -846,7 +850,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     /* Find a visible record in the lookaside and check if we should use that instead. */
     if ((upd == NULL || session->txn.read_timestamp != 0) &&
       __wt_page_las_active(session, cbt->ref)) {
-        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd);
+        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, false);
         WT_RET_NOTFOUND_OK(ret);
         if (ret == 0) {
             /* Pick newer of the visible updates */

@@ -1239,7 +1239,8 @@ err:
  *     the record and return to the caller.
  */
 int
-__wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
+__wt_find_lookaside_upd(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prep)
 {
     WT_CACHE *cache;
     WT_CURSOR *cursor;
@@ -1346,7 +1347,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          * prepared.
          */
         if (prepare_state == WT_PREPARE_INPROGRESS &&
-          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE))
+          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prep)
             break;
 
         /* We do not have birthmarks in the lookaside anymore. */
@@ -1421,7 +1422,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
              * committed, the timestamp in the las key may differ so it's easier if we just get rid
              * of it now and rewrite on eviction/commit/rollback.
              */
-            cursor->remove(cursor);
+            WT_ERR(cursor->remove(cursor));
         } else
             /*
              * We're not keeping this in our update list as we want to get rid of it after the read
