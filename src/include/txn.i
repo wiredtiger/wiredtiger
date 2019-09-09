@@ -194,9 +194,6 @@ __wt_txn_resolve_prepared_op(
     WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_uncommitted(cbt, &upd));
     WT_ERR(ret);
 
-    if (upd == NULL && __wt_page_las_active(session, cbt->ref))
-        WT_ERR(__wt_find_lookaside_upd(session, cbt, &upd, true));
-
     /* If we haven't found anything then there's an error. */
     if (upd == NULL) {
         WT_ERR_ASSERT(session, upd != NULL, WT_NOTFOUND,

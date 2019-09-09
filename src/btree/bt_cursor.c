@@ -465,11 +465,13 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
+    WT_REF *ref;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
+    ref = cbt->ref;
     session = (WT_SESSION_IMPL *)cursor->session;
     *updp = upd = NULL; /* -Wuninitialized */
 
@@ -494,7 +496,8 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
         WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
             cbt->ref->page->modify->mod_row_update != NULL);
         upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-    }
+    } else if (ref->page_las->has_las && __wt_page_las_active(session, ref))
+        WT_RET(__wt_find_lookaside_upd(session, cbt, &upd, true));
 
     *updp = upd;
     return (0);

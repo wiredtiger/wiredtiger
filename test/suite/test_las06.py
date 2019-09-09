@@ -172,32 +172,37 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_las_prepare_workload(self):
+    def test_las_prepare_reads_workload(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
-        value = 'a' * 5000
+        value = 'a' * 500
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
 
-        # Load 5Mb of prepared data and leave it in a prepared state.
+        # Load prepared data and leave it in a prepared state.
         prepare_session = self.conn.open_session(self.session_config)
         prepare_cursor = prepare_session.open_cursor(uri)
         prepare_session.begin_transaction()
-        for i in range(1, 20000):
+        for i in range(1, 5000):
             prepare_cursor[i] = value
         prepare_session.prepare_transaction('prepare_timestamp=' + timestamp_str(2))
 
-        # Try to read every key again. Expect a prepare conflict.
+        # Write some more to cause eviction of the prepared data.
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 20000):
+        for i in range(5001, 20000):
+            cursor[i] = value
+
+        # Try to read every key of the prepared data again.
+        # Ensure that we read the lookaside to find the prepared update and
+        # return a prepare conflict as appropriate.
+        for i in range(1, 5000):
             cursor.set_key(i)
-            cursor.search()
             self.assertRaisesException(
                 wiredtiger.WiredTigerError,
-                lambda: cursor.get_value(),
+                lambda: cursor.search(),
                 '/conflict with a prepared update/')
 
         prepare_session.rollback_transaction()
