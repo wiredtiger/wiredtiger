@@ -561,6 +561,8 @@ __wt_page_las_free(WT_SESSION_IMPL *session, WT_REF *ref)
             __wt_buf_free(session, &birthmarkp->key);
         __wt_free(session, ref->page_las->birthmarks);
     }
+    __wt_buf_free(session, &ref->page_las->max_las_key);
+    __wt_buf_free(session, &ref->page_las->min_las_key);
     __wt_free(session, ref->page_las);
 }
 
@@ -575,6 +577,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(birthmarks);
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(max_las_key);
+    WT_DECL_ITEM(min_las_key);
     WT_DECL_RET;
     WT_ITEM las_value;
     WT_SAVE_UPD *list;
@@ -585,6 +589,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
+    int cmp;
     bool local_txn;
 
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -605,6 +610,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &max_las_key));
+    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &min_las_key));
 
     WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
 
@@ -627,10 +634,27 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 key->data = WT_INSERT_KEY(list->ins);
                 key->size = WT_INSERT_KEY_SIZE(list->ins);
             }
+
             break;
         default:
             WT_ERR(__wt_illegal_value(session, page->type));
         }
+
+        /* Set the first key as the minimum key */
+        if (i == 0)
+            WT_ERR(__wt_buf_set(session, min_las_key, key->data, key->size));
+
+        /*
+         * Keys are sorted in an order, find out whether the current key is minimum or maximum key
+         * that is getting stored in the LAS.
+         */
+        WT_ERR(__wt_compare(session, NULL, max_las_key, key, &cmp));
+        if (cmp < 0)
+            WT_ERR(__wt_buf_set(session, max_las_key, key->data, key->size));
+
+        WT_ERR(__wt_compare(session, NULL, min_las_key, key, &cmp));
+        if (cmp > 0)
+            WT_ERR(__wt_buf_set(session, min_las_key, key->data, key->size));
 
         /*
          * Lookaside table value component: update reference. Updates come from the row-store insert
@@ -765,10 +789,20 @@ err:
               birthmarks_cnt * sizeof(WT_BIRTHMARK_DETAILS));
             multi->page_las.birthmarks_cnt = birthmarks_cnt;
         }
+        /*
+         * FIXME: Using scratch buffer doesn't seems to be correct this may free after * session
+         * close?
+         */
+        ret =
+          __wt_buf_set(session, &multi->page_las.max_las_key, max_las_key->data, max_las_key->size);
+        ret =
+          __wt_buf_set(session, &multi->page_las.min_las_key, min_las_key->data, min_las_key->size);
         __las_insert_updates_verbose(session, btree, multi);
     }
 
     __wt_scr_free(session, &key);
+    __wt_scr_free(session, &max_las_key);
+    __wt_scr_free(session, &min_las_key);
     /* Free all the birthmark keys if there was a failure */
     if (ret != 0)
         for (i = 0, birthmarkp = birthmarks->mem; i < birthmarks_cnt; i++, birthmarkp++)
