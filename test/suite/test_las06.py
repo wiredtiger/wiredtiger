@@ -186,19 +186,20 @@ class test_las06(wttest.WiredTigerTestCase):
         prepare_session = self.conn.open_session(self.session_config)
         prepare_cursor = prepare_session.open_cursor(uri)
         prepare_session.begin_transaction()
-        for i in range(1, 5000):
+        for i in range(1, 10):
             prepare_cursor[i] = value
-        prepare_session.prepare_transaction('prepare_timestamp=' + timestamp_str(2))
+        prepare_session.prepare_transaction(
+            'prepare_timestamp=' + timestamp_str(3))
 
         # Write some more to cause eviction of the prepared data.
         cursor = self.session.open_cursor(uri)
-        for i in range(5001, 20000):
+        for i in range(11, 20000):
             cursor[i] = value
 
         # Try to read every key of the prepared data again.
         # Ensure that we read the lookaside to find the prepared update and
         # return a prepare conflict as appropriate.
-        for i in range(1, 5000):
+        for i in range(1, 10):
             cursor.set_key(i)
             self.assertRaisesException(
                 wiredtiger.WiredTigerError,
