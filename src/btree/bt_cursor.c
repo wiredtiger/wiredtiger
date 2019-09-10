@@ -465,13 +465,11 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
-    WT_REF *ref;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
-    ref = cbt->ref;
     session = (WT_SESSION_IMPL *)cursor->session;
     *updp = upd = NULL; /* -Wuninitialized */
 
@@ -483,20 +481,21 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
      * itself. But, we cannot be sure of finding one, as pre processing of this prepared transaction
      * updates could have happened as part of resolving earlier transaction operations.
      */
-    if (cbt->compare != 0)
-        return (0);
+    if (cbt->compare == 0) {
+        /*
+         * Get the uncommitted update from the cursor. For column store there will be always a
+         * insert structure for updates irrespective of fixed length or variable length.
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else if (cbt->btree->type == BTREE_ROW) {
+            WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
+                cbt->ref->page->modify->mod_row_update != NULL);
+            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        }
+    }
 
-    /*
-     * Get the uncommitted update from the cursor. For column store there will be always a insert
-     * structure for updates irrespective of fixed length or variable length.
-     */
-    if (cbt->ins != NULL)
-        upd = cbt->ins->upd;
-    else if (cbt->btree->type == BTREE_ROW) {
-        WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
-            cbt->ref->page->modify->mod_row_update != NULL);
-        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-    } else if (ref->page_las->has_las && __wt_page_las_active(session, ref))
+    if (upd == NULL && cbt->ref->page_las->has_las && __wt_page_las_active(session, cbt->ref))
         WT_RET(__wt_find_lookaside_upd(session, cbt, &upd, true));
 
     *updp = upd;

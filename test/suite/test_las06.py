@@ -47,7 +47,7 @@ class test_las06(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
     key_format_values = [
-        ('column_store', dict(key_format='r')),
+#        ('column_store', dict(key_format='r')),
         ('row_store', dict(key_format='i'))
     ]
     scenarios = make_scenarios(key_format_values)
@@ -191,20 +191,35 @@ class test_las06(wttest.WiredTigerTestCase):
         prepare_session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(3))
 
+        self.printVerbose(0, 'trying to evict shit. come on now.')
+
         # Write some more to cause eviction of the prepared data.
         cursor = self.session.open_cursor(uri)
         for i in range(11, 20000):
+            # self.session.begin_transaction()
             cursor[i] = value
+            # self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        self.printVerbose(0, 'committed stuff... hopefully its out of cache now ')
+
+        self.session.breakpoint()
 
         # Try to read every key of the prepared data again.
         # Ensure that we read the lookaside to find the prepared update and
         # return a prepare conflict as appropriate.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        cursor.reset()
         for i in range(1, 10):
-            cursor.set_key(i)
+            self.printVerbose(0, 'check prep {0}'.format(i))
+            # cursor.set_key(i)
+            cursor.next()
             self.assertRaisesException(
                 wiredtiger.WiredTigerError,
-                lambda: cursor.search(),
+                lambda: cursor.get_value(),
                 '/conflict with a prepared update/')
+        self.session.rollback_transaction()
+
+        self.printVerbose(0, 'okkk, time to do da roooooollback')
 
         prepare_session.rollback_transaction()
 
