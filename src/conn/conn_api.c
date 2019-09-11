@@ -1010,7 +1010,6 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
     WT_SESSION *wt_session;
     WT_SESSION_IMPL *s, *session;
     uint32_t i;
-    const char *ckpt_cfg;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
@@ -1082,39 +1081,8 @@ err:
     /* The default session is used to access data handles during close. */
     F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
 
-    /*
-     * Perform a system-wide checkpoint so that all tables are consistent with each other. All
-     * transactions are resolved but ignore timestamps to make sure all data gets to disk. Do this
-     * before shutting down all the subsystems. We have shut down all user sessions, but send in
-     * true for waiting for internal races.
-     */
-    WT_TRET(__wt_config_gets(session, cfg, "use_timestamp", &cval));
-    ckpt_cfg = "use_timestamp=false";
-    if (cval.val != 0) {
-        ckpt_cfg = "use_timestamp=true";
-        if (conn->txn_global.has_stable_timestamp)
-            F_SET(conn, WT_CONN_CLOSING_TIMESTAMP);
-    }
-    if (!F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY)) {
-        s = NULL;
-        WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, &s));
-        if (s != NULL) {
-            const char *checkpoint_cfg[] = {
-              WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
-            wt_session = &s->iface;
-            WT_TRET(__wt_txn_checkpoint(s, checkpoint_cfg, true));
-
-            /*
-             * Mark the metadata dirty so we flush it on close, allowing recovery to be skipped.
-             */
-            WT_WITH_DHANDLE(s, WT_SESSION_META_DHANDLE(s), __wt_tree_modify_set(s));
-
-            WT_TRET(wt_session->close(wt_session, config));
-        }
-    }
-
-    /* Shut down the global transaction state. */
-    __wt_txn_global_shutdown(session);
+    /* Perform a final checkpoint and shut down the global transaction state. */
+    WT_TRET(__wt_txn_global_shutdown(session, config, cfg));
 
     if (ret != 0) {
         __wt_err(session, ret, "failure during close, disabling further writes");
