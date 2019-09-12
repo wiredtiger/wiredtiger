@@ -158,20 +158,22 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
     WT_PAGE *page;
-    WT_UPDATE *first_upd, *last_upd, *upd;
+    WT_UPDATE *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t incr;
-    uint64_t i, current_recno, las_txnid, recno;
+    uint64_t birthmark_cnt, current_recno, las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp;
-    bool locked;
+    bool birthmark_record, locked;
 
+    birthmark_cnt = 0;
     birthmarkp = NULL;
+    birthmark_record = false;
     cursor = NULL;
     page = ref->page;
-    first_upd = last_upd = upd = NULL;
+    upd = NULL;
     las_btree_id = S2BT(session)->id;
     locked = false;
     current_recno = recno = WT_RECNO_OOB;
@@ -188,12 +190,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         goto err;
     }
 
+    WT_ERR(__wt_scr_alloc(session, 0, &current_key));
     WT_STAT_CONN_INCR(session, cache_read_lookaside_skew_old);
     WT_STAT_DATA_INCR(session, cache_read_lookaside_skew_old);
     if (WT_SESSION_IS_CHECKPOINT(session))
         WT_STAT_CONN_INCR(session, cache_read_lookaside_skew_old_checkpoint);
-
-    WT_ERR(__wt_scr_alloc(session, 0, &current_key));
 
     /* Open a lookaside table cursor. */
     __wt_las_cursor(session, &cursor, &session_flags);
@@ -222,15 +223,39 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         if (cmp > 0)
             break;
 
+        /* Ignore the next set of records for the same key that is already instantiated. */
+        switch (page->type) {
+        case WT_PAGE_COL_FIX:
+        case WT_PAGE_COL_VAR:
+            p = las_key.data;
+            WT_ERR(__wt_vunpack_uint(&p, 0, &recno));
+            if (current_recno == recno)
+                continue;
+            WT_ASSERT(session, current_recno < recno);
+
+            current_recno = recno;
+            break;
+        case WT_PAGE_ROW_LEAF:
+            if (current_key->size == las_key.size &&
+              memcmp(current_key->data, las_key.data, las_key.size) == 0)
+                continue;
+
+            WT_ERR(__wt_buf_set(session, current_key, las_key.data, las_key.size));
+            break;
+        default:
+            WT_ERR(__wt_illegal_value(session, page->type));
+        }
+
         if (ref->page_las->birthmarks_cnt > 0) {
-            for (i = 0; i < ref->page_las->birthmarks_cnt; i++) {
-                birthmarkp = ref->page_las->birthmarks + i;
+            for (; birthmark_cnt < ref->page_las->birthmarks_cnt; birthmark_cnt++) {
+                birthmarkp = ref->page_las->birthmarks + birthmark_cnt;
                 if (birthmarkp->instantiated)
                     continue;
 
                 WT_ERR(__wt_compare(session, NULL, &las_key, &birthmarkp->key, &cmp));
                 if (cmp == 0) {
                     WT_ERR(__create_birthmark_upd(session, birthmarkp, &upd));
+                    birthmark_record = true;
                     break;
                 }
             }
@@ -251,65 +276,28 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         switch (page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            p = las_key.data;
-            WT_ERR(__wt_vunpack_uint(&p, 0, &recno));
-            if (current_recno == recno)
-                break;
-            WT_ASSERT(session, current_recno < recno);
-
-            if (first_upd != NULL) {
-                WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, first_upd));
-                first_upd = NULL;
-            }
-            current_recno = recno;
+            WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, upd));
             break;
         case WT_PAGE_ROW_LEAF:
-            if (current_key->size == las_key.size &&
-              memcmp(current_key->data, las_key.data, las_key.size) == 0)
-                break;
-
-            if (first_upd != NULL) {
-                WT_ERR(__row_instantiate(session, current_key, ref, &cbt, first_upd));
-                first_upd = NULL;
-            }
-            WT_ERR(__wt_buf_set(session, current_key, las_key.data, las_key.size));
+            WT_ERR(__row_instantiate(session, current_key, ref, &cbt, upd));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        /* Append the latest update to the list. */
-        if (first_upd == NULL)
-            first_upd = last_upd = upd;
-        else {
-            last_upd->next = upd;
-            last_upd = upd;
+        /* Remove the prepared record from LAS */
+        if (!birthmark_record && upd->prepare_state == WT_PREPARE_INPROGRESS)
+            cursor->remove(cursor);
+
+        if (birthmark_record) {
+            birthmarkp->instantiated = true;
+            birthmark_record = false;
         }
         upd = NULL;
-        if (birthmarkp)
-            birthmarkp->instantiated = true;
-        birthmarkp = NULL;
     }
     __wt_readunlock(session, &cache->las_sweepwalk_lock);
     locked = false;
     WT_ERR_NOTFOUND_OK(ret);
-
-    /* Insert the last set of updates, if any. */
-    if (first_upd != NULL) {
-        switch (page->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, first_upd));
-            first_upd = NULL;
-            break;
-        case WT_PAGE_ROW_LEAF:
-            WT_ERR(__row_instantiate(session, current_key, ref, &cbt, first_upd));
-            first_upd = NULL;
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, page->type));
-        }
-    }
 
     /* Discard the cursor. */
     WT_ERR(__wt_las_cursor_close(session, &cursor, session_flags));
@@ -324,13 +312,7 @@ err:
         __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
     WT_TRET(__wt_btcur_close(&cbt, true));
-
-    /*
-     * On error, upd points to a single unlinked WT_UPDATE structure, first_upd points to a list.
-     */
     __wt_free(session, upd);
-    __wt_free_update_list(session, first_upd);
-
     __wt_scr_free(session, &current_key);
 
     return (ret);
