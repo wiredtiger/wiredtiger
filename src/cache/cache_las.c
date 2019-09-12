@@ -729,6 +729,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 birthmarkp->durable_ts = upd->durable_ts;
                 birthmarkp->start_ts = upd->start_ts;
                 birthmarkp->prepare_state = upd->prepare_state;
+                birthmarkp->instantiated = false;
                 /* Copy the key as well for reference */
                 WT_CLEAR(birthmarkp->key);
                 WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
