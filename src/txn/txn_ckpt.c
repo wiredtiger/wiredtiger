@@ -957,8 +957,19 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
          */
         if (use_timestamp) {
             conn->txn_global.last_ckpt_timestamp = use_timestamp ? ckpt_tmp_ts : WT_TS_NONE;
+            /*
+             * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
+             * cases it queries the recovery timestamp to determine the last stable recovery
+             * timestamp. So, if the recovery timestamp is valid, set the last checkpoint timestamp
+             * to recovery timestamp. This should never be a problem, as checkpoint timestamp should
+             * never be less than recovery timestamp. This could potentially avoid MongoDB making
+             * two calls to determine last stable recovery timestamp.
+             */
             if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
-                conn->txn_global.last_ckpt_timestamp = WT_TS_NONE + 1;
+                conn->txn_global.last_ckpt_timestamp =
+                  (conn->txn_global.recovery_timestamp != WT_TS_NONE) ?
+                  conn->txn_global.recovery_timestamp :
+                  (WT_TS_NONE + 1);
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
