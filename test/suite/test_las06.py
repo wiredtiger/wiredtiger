@@ -178,45 +178,52 @@ class test_las06(wttest.WiredTigerTestCase):
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
-        value = 'a' * 500
+        value1 = 'a' * 500
+        value2 = 'b' * 500
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+        for i in range(0, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load prepared data and leave it in a prepared state.
         prepare_session = self.conn.open_session(self.session_config)
         prepare_cursor = prepare_session.open_cursor(uri)
         prepare_session.begin_transaction()
         for i in range(1, 10):
-            prepare_cursor[i] = value
+            prepare_cursor[i] = value2
         prepare_session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(3))
 
         self.printVerbose(0, 'trying to evict shit. come on now.')
 
         # Write some more to cause eviction of the prepared data.
-        cursor = self.session.open_cursor(uri)
-        for i in range(11, 20000):
-            # self.session.begin_transaction()
-            cursor[i] = value
-            # self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+        for i in range(11, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         self.printVerbose(0, 'committed stuff... hopefully its out of cache now ')
 
+        self.session.checkpoint()
         self.session.breakpoint()
 
         # Try to read every key of the prepared data again.
         # Ensure that we read the lookaside to find the prepared update and
         # return a prepare conflict as appropriate.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        cursor.reset()
         for i in range(1, 10):
-            self.printVerbose(0, 'check prep {0}'.format(i))
-            # cursor.set_key(i)
-            cursor.next()
-            self.assertRaisesException(
-                wiredtiger.WiredTigerError,
-                lambda: cursor.get_value(),
-                '/conflict with a prepared update/')
+            self.printVerbose(0, 'about to search {0}'.format(i))
+            cursor.set_key(i)
+            self.printVerbose(0, 'got {}'.format(cursor.search()))
+            self.printVerbose(0, 'just searched {0}'.format(i))
+            self.printVerbose(0, 'checked {}'.format(cursor.get_value()))
+            # self.assertRaisesException(
+            #     wiredtiger.WiredTigerError,
+            #     lambda: cursor.search(),
+            #     '/conflict with a prepared update/')
         self.session.rollback_transaction()
 
         self.printVerbose(0, 'okkk, time to do da roooooollback')
