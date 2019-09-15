@@ -797,8 +797,10 @@ err:
          */
         ret =
           __wt_buf_set(session, &multi->page_las.max_las_key, max_las_key->data, max_las_key->size);
+        WT_UNUSED(ret);
         ret =
           __wt_buf_set(session, &multi->page_las.min_las_key, min_las_key->data, min_las_key->size);
+        WT_UNUSED(ret);
         __las_insert_updates_verbose(session, btree, multi);
     }
 
