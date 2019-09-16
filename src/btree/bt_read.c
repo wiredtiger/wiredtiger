@@ -259,7 +259,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     /* LAS key is less than birthmark key, so no birthmark record for that key */
                     break;
                 else
-                    /* LAS key is greater than birthmark key, check next set of birthmkark records */
+                    /* LAS key is greater than birthmark key, check next set of birthmark records */
                     continue;
             }
         }
