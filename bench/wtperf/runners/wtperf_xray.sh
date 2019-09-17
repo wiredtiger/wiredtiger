@@ -8,7 +8,7 @@
 #
 # Environment variables
 # XRAY_BINARY: The binary to use to inspect the xray log. (default: llvm-xray)
-# FLAME_GRAPH_PATH: The path to your copy of Brendan Gregg's FlameGraph scripts.
+# FLAME_GRAPH_PATH: The path to your copy of Brendan Gregg's FlameGraph script.
 
 if test "$#" -lt "1"; then
 	echo "$0: must specify wtperf test to run"
@@ -29,7 +29,7 @@ rm xray-log.wtperf.* \
 	wtperf_flame.svg
 
 export XRAY_OPTIONS="patch_premain=true xray_mode=xray-basic verbosity=1"
-wtperf_out=$(./wtperf -O "$@")
+./wtperf -O "$@"
 
 xray_log=$(ls xray-log.wtperf.*)
 num_logs=$(echo "$xray_log" | wc -w)
@@ -45,18 +45,18 @@ else
 	xray_bin="$XRAY_BINARY"
 fi
 
-$xray_bin account $xray_log \
+$xray_bin account "$xray_log" \
 	-top=10 -sort=sum -sortorder=dsc -instr_map ./wtperf > \
 	wtperf_account.txt
 
 # Use the -per-thread-stacks option to get the top 10 stacks for each thread.
 # We could use the -aggregate-threads flag here so get the top stacks for all threads (omitting duplicates).
-$xray_bin stack -per-thread-stacks $xray_log \
+$xray_bin stack -per-thread-stacks "$xray_log" \
 	-instr_map ./wtperf > \
 	wtperf_stack.txt
 
 # Generate a DOT graph.
-$xray_bin graph $xray_log \
+$xray_bin graph "$xray_log" \
 	-m ./wtperf -color-edges=sum -edge-label=sum | \
 	unflatten -f -l10 | \
 	dot -Tsvg -o wtperf_graph.svg
@@ -68,7 +68,7 @@ $xray_bin graph $xray_log \
 if test -z "$FLAME_GRAPH_PATH"; then
 	echo "$0: FLAME_GRAPH_PATH is unset, skipping flame graph generation"
 else
-	$xray_bin stack $xray_log \
+	$xray_bin stack "$xray_log" \
 		-instr_map ./wtperf -stack-format=flame -aggregation-type=time -all-stacks | \
 		"$FLAME_GRAPH_PATH" > wtperf_flame.svg
 fi
