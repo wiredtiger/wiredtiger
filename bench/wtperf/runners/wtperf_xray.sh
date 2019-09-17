@@ -12,7 +12,11 @@ if test -z "$objdump_out"; then
     exit 1
 fi
 
-rm xray-log.wtperf.*
+rm xray-log.wtperf.* \
+   wtperf_account.txt \
+   wtperf_stack.txt \
+   wtperf_graph.svg \
+   wtperf_flame.svg
 
 export XRAY_OPTIONS="patch_premain=true xray_mode=xray-basic verbosity=1"
 wtperf_out=$(./wtperf -O "$@")
@@ -33,13 +37,16 @@ fi
 
 $xray_bin account $xray_log -top=10 -sortorder=dsc -instr_map ./wtperf > wtperf_account.txt
 
-# Use the -per-thread-stacks option to get the top 10 stacks for each thread.
-# We could use -aggregate-threads flag here so get the top stacks for all threads (omitting duplicates).
-$xray_bin stack -per-thread-stacks $xray_log -instr_map ./wtperf > wtperf_stack.txt
+# Use the -aggregate-threads flag here so get the top stacks for all threads (omitting duplicates).
+# We could use the -per-thread-stacks option to get the top 10 stacks for each thread.
+$xray_bin stack -aggregate-threads $xray_log -instr_map ./wtperf > wtperf_stack.txt
 
 # Generate a DOT graph.
 $xray_bin graph $xray_log -m ./wtperf -color-edges=sum -edge-label=sum | unflatten -f -l10 | dot -Tsvg -o wtperf_graph.svg
-$xray_bin convert -symbolize -instr_map=./wtperf -output-format=trace_event $xray_log | gzip > wtperf_trace.txt.gz
+
+# This file can be inspected in the Google Chrome Trace Viewer.
+# It seems to take a long time to generate this so just disable it for now.
+# $xray_bin convert -symbolize -instr_map=./wtperf -output-format=trace_event $xray_log | gzip > wtperf_trace.txt.gz
 
 if test -z "$FLAME_GRAPH_PATH"; then
     echo "$0: FLAME_GRAPH_PATH is unset, skipping flame graph generation"
