@@ -1,5 +1,15 @@
 #!/bin/bash
 
+# wtperf_xray.sh - run wtperf regression tests with xray profiling and generate
+# profiling information
+#
+# Usage
+# ./wtperf_xray.sh <TEST> <TEST_ARGS>
+#
+# Environment variables
+# XRAY_BINARY: The binary to use to inspect the xray log. (default: llvm-xray)
+# FLAME_GRAPH_PATH: The path to your copy of Brendan Gregg's FlameGraph scripts.
+
 if test "$#" -lt "1"; then
 	echo "$0: must specify wtperf test to run"
 	exit 1
@@ -8,7 +18,7 @@ fi
 # Check symbols to ensure we've compiled with XRay.
 objdump_out=$(objdump -h -j xray_instr_map ./wtperf)
 if test -z "$objdump_out"; then
-	echo "$0: wtperf not compiled with xray"
+	echo "$0: wtperf not compiled with xray, add '-fxray-instrument' to your CFLAGS"
 	exit 1
 fi
 
