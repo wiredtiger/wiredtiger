@@ -50,7 +50,7 @@ class test_timestamp16(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=100')
         self.session.rollback_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('1', self.conn.query_timestamp('get=last_checkpoint'))
+        self.assertTimestampsEqual('0', self.conn.query_timestamp('get=last_checkpoint'))
 
         # Set a stable and make sure that we still checkpoint at the stable.
         self.conn.set_timestamp('stable_timestamp=2')
