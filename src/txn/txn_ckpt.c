@@ -966,10 +966,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
              * two calls to determine last stable recovery timestamp.
              */
             if (conn->txn_global.last_ckpt_timestamp == WT_TS_NONE)
-                conn->txn_global.last_ckpt_timestamp =
-                  (conn->txn_global.recovery_timestamp != WT_TS_NONE) ?
-                  conn->txn_global.recovery_timestamp :
-                  (WT_TS_NONE + 1);
+                conn->txn_global.last_ckpt_timestamp = conn->txn_global.recovery_timestamp;
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
