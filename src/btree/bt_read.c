@@ -158,7 +158,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
     WT_PAGE *page;
-    WT_UPDATE *upd;
+    WT_UPDATE *lastupd, *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t incr;
     uint64_t birthmark_cnt, current_recno, las_txnid, recno;
@@ -173,7 +173,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     birthmark_record = false;
     cursor = NULL;
     page = ref->page;
-    upd = NULL;
+    lastupd = upd = NULL;
     las_btree_id = S2BT(session)->id;
     locked = false;
     current_recno = recno = WT_RECNO_OOB;
@@ -229,17 +229,65 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         case WT_PAGE_COL_VAR:
             p = las_key.data;
             WT_ERR(__wt_vunpack_uint(&p, 0, &recno));
-            if (current_recno == recno)
-                continue;
+            if (current_recno == recno) {
+                /*
+                 * For birthmark records insert only the birthmark record, and for other records,
+                 * insert the latest record for that key.
+                 */
+                if (birthmark_record)
+                    continue;
+                else
+                    break;
+            }
             WT_ASSERT(session, current_recno < recno);
 
+            if (lastupd != NULL) {
+                WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, lastupd));
+
+                /* Remove the prepared record from LAS */
+                if (!birthmark_record && lastupd->prepare_state == WT_PREPARE_INPROGRESS) {
+                    cursor->prev(cursor);
+                    cursor->remove(cursor);
+                    cursor->next(cursor);
+                }
+
+                if (birthmark_record) {
+                    birthmarkp->instantiated = true;
+                    birthmark_record = false;
+                }
+                lastupd = NULL;
+            }
             current_recno = recno;
             break;
         case WT_PAGE_ROW_LEAF:
             if (current_key->size == las_key.size &&
-              memcmp(current_key->data, las_key.data, las_key.size) == 0)
-                continue;
+              memcmp(current_key->data, las_key.data, las_key.size) == 0) {
+                /*
+                 * For birthmark records insert only the birthmark record, and for other records,
+                 * insert the latest record for that key.
+                 */
+                if (birthmark_record)
+                    continue;
+                else
+                    break;
+            }
 
+            if (lastupd != NULL) {
+                WT_ERR(__row_instantiate(session, current_key, ref, &cbt, lastupd));
+
+                /* Remove the prepared record from LAS */
+                if (!birthmark_record && lastupd->prepare_state == WT_PREPARE_INPROGRESS) {
+                    cursor->prev(cursor);
+                    cursor->remove(cursor);
+                    cursor->next(cursor);
+                }
+
+                if (birthmark_record) {
+                    birthmarkp->instantiated = true;
+                    birthmark_record = false;
+                }
+                lastupd = NULL;
+            }
             WT_ERR(__wt_buf_set(session, current_key, las_key.data, las_key.size));
             break;
         default:
@@ -278,27 +326,35 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->prepare_state = prepare_state;
         }
 
+        __wt_free(session, lastupd);
+        lastupd = upd;
+        upd = NULL;
+    }
+
+    if (lastupd != NULL) {
         switch (page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, upd));
+            WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, lastupd));
             break;
         case WT_PAGE_ROW_LEAF:
-            WT_ERR(__row_instantiate(session, current_key, ref, &cbt, upd));
+            WT_ERR(__row_instantiate(session, current_key, ref, &cbt, lastupd));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
         /* Remove the prepared record from LAS */
-        if (!birthmark_record && upd->prepare_state == WT_PREPARE_INPROGRESS)
+        if (!birthmark_record && lastupd->prepare_state == WT_PREPARE_INPROGRESS) {
+            cursor->prev(cursor);
             cursor->remove(cursor);
+        }
 
         if (birthmark_record) {
             birthmarkp->instantiated = true;
             birthmark_record = false;
         }
-        upd = NULL;
+        lastupd = NULL;
     }
     __wt_readunlock(session, &cache->las_sweepwalk_lock);
     locked = false;
@@ -317,6 +373,7 @@ err:
         __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
     WT_TRET(__wt_btcur_close(&cbt, true));
+    __wt_free(session, lastupd);
     __wt_free(session, upd);
     __wt_scr_free(session, &current_key);
 
