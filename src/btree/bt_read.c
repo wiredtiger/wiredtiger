@@ -348,10 +348,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             cursor->remove(cursor);
         }
 
-        if (birthmark_record) {
+        if (birthmark_record)
             birthmarkp->instantiated = true;
-            birthmark_record = false;
-        }
+
         lastupd = NULL;
     }
     __wt_readunlock(session, &cache->las_sweepwalk_lock);
