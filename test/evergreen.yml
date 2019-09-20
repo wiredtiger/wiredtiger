@@ -1033,7 +1033,7 @@ tasks:
   - name: million-collection-test
     depends_on: []
     run_on:
-      - rhel62-large
+      - rhel80-build
     commands:
       - func: "fetch source"
       - func: "fetch mongo-tests repo"
@@ -1043,8 +1043,8 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ulimit -n 1000000
-            ulimit -c unlimited
+            sudo ulimit -n 1000000
+            sudo ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
   - name: compatibility-test-for-mongodb-releases
@@ -1276,7 +1276,7 @@ buildvariants:
   display_name: Large scale testing
   batchtime: 1440 # 1 day
   run_on:
-  - rhel62-large
+  - rhel80-build
   expansions:
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++
   tasks:
