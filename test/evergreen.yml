@@ -1182,10 +1182,10 @@ tasks:
 
 
 buildvariants:
-- name: ubuntu1404
-  display_name: Ubuntu 14.04
+- name: ubuntu1804
+  display_name: Ubuntu 18.04
   run_on:
-  - ubuntu1404-test
+  - ubuntu1804-test
   expansions:
     # It's ugly, but we need the absolute path here, not the relative
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
@@ -1250,10 +1250,10 @@ buildvariants:
     - name: unit-test-bucket07
     - name: fops
 
-- name: ubuntu1404-python3
-  display_name: Ubuntu 14.04 (Python3)
+- name: ubuntu1804-python3
+  display_name: Ubuntu 18.04 (Python3)
   run_on:
-  - ubuntu1404-test
+  - ubuntu1804-test
   expansions:
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -1286,7 +1286,7 @@ buildvariants:
   display_name: Compatibility tests
   batchtime: 10080 # 7 days
   run_on:
-  - ubuntu1404-test
+  - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-mongodb-releases
 
@@ -1308,10 +1308,10 @@ buildvariants:
     #- name: format  - Enable when we have a solution for hangs and crashses
     - name: fops
 
-- name: macos-1012
-  display_name: OS X 10.12
+- name: macos-1014-i7
+  display_name: OS X 10.14
   run_on:
-  - macos-1012
+  - macos-1014-i7
   expansions:
     smp_command: -j $(sysctl -n hw.logicalcpu)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
