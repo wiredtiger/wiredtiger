@@ -88,6 +88,12 @@ class test_las06(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         self.session.checkpoint()
 
+        # Check the checkpoint wrote the expected values.
+        cursor2 = self.session.open_cursor(uri, None, 'checkpoint=WiredTigerCheckpoint')
+        for key, value in cursor2:
+            self.assertEqual(value, value1)
+        cursor2.close()
+
         start_usage = self.get_non_page_image_memory_usage()
 
         # Whenever we request something out of cache of timestamp 2, we should
