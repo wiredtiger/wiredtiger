@@ -234,8 +234,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     las_positioned = false;
     list_prepared = list_uncommitted = skipped_birthmark = false;
 
-    /* For now only do this when reconciling for a checkpoint. */
-    if (F_ISSET(r, WT_REC_CHECKPOINT) && __wt_page_las_active(session, r->ref)) {
+    if (__wt_page_las_active(session, r->ref)) {
         /* Obtain the key to iterate the lookaside */
         WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
         switch (page->type) {
