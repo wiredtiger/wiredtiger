@@ -497,7 +497,8 @@ recover_and_verify(uint32_t nthreads)
                  * If it is modify operation, make sure value of the fetched record matches with
                  * saved.
                  */
-                ret = fscanf(fp[MODIFY_RECORD_FILE_ID], "%" STR_MAX_VAL "s %" SCNu64 "\n", file_value, &key);
+                ret = fscanf(
+                  fp[MODIFY_RECORD_FILE_ID], "%" STR_MAX_VAL "s %" SCNu64 "\n", file_value, &key);
 
                 /*
                  * Consider anything other than clear success in getting the key to be EOF. We've
