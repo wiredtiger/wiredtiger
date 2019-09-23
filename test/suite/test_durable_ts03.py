@@ -39,9 +39,6 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     def test_durable_ts03(self):
-        # Disabled for relevant-history-in-cache. WT-5072 to re-enable.
-        return
-
         # Create a table.
         uri = 'table:test_durable_ts03'
         nrows = 3000

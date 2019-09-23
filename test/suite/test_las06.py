@@ -84,7 +84,8 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[i] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Now the latest version will get written to the data file.
+        # Write a version of the data to disk.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         self.session.checkpoint()
 
         start_usage = self.get_non_page_image_memory_usage()
