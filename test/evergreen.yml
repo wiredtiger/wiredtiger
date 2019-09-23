@@ -1043,8 +1043,8 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            sudo ulimit -n 1000000
-            sudo ulimit -c unlimited
+            sudo sysctl -w fs.file-max=1000000
+            sudo sysctl -p
             largescale/run-million-collection-test.sh .
 
   - name: compatibility-test-for-mongodb-releases
