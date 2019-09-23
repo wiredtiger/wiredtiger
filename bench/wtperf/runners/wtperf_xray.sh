@@ -1,19 +1,26 @@
 #!/bin/bash
 
 # wtperf_xray.sh - run wtperf regression tests with xray profiling and generate
-# profiling information
+# profiling information.
+#
+# This script assumes it is running in the directory with the wtperf executable.
 #
 # Usage
-# ./wtperf_xray.sh <TEST> <TEST_ARGS>
+# wtperf_xray.sh <wtperf-config-file> [wtperf other args]
 #
 # Environment variables
 # XRAY_BINARY: The binary to use to inspect the xray log. (default: llvm-xray)
 # FLAME_GRAPH_PATH: The path to your copy of Brendan Gregg's FlameGraph script.
-
+#
+# When this is complete you can find information in the following files:
+# XXX
+#
 if test "$#" -lt "1"; then
-	echo "$0: must specify wtperf test to run"
+	echo "$0: must specify wtperf configuration to run"
 	exit 1
 fi
+
+# XXX add conditional to check existence of ./wtperf here.
 
 # Check symbols to ensure we've compiled with XRay.
 objdump_out=$(objdump -h -j xray_instr_map ./wtperf)
@@ -64,7 +71,6 @@ $xray_bin graph "$xray_log" \
 # This file can be inspected in the Google Chrome Trace Viewer.
 # It seems to take a long time to generate this so just disable it for now.
 # $xray_bin convert -symbolize -instr_map=./wtperf -output-format=trace_event $xray_log | gzip > wtperf_trace.txt.gz
-
 if test -z "$FLAME_GRAPH_PATH"; then
 	echo "$0: FLAME_GRAPH_PATH is unset, skipping flame graph generation"
 else
