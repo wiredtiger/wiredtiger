@@ -72,11 +72,11 @@ static bool inmem;
  */
 #define MAX_MODIFY_ENTRIES 10
 
-#define STR(X) #X
-#define XSTR(X) STR(X)
-
 #define MAX_VAL 4096
-#define STR_MAX_VAL XSTR(MAX_VAL)
+/*
+ * STR_MAX_VAL is set to MAX_VAL - 1 to account for the extra null character.
+ */
+#define STR_MAX_VAL "4095"
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
