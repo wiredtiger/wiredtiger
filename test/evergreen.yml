@@ -1041,10 +1041,11 @@ tasks:
         params:
           working_dir: mongo-tests
           script: |
+            sudo su
             set -o errexit
             set -o verbose
-            sudo sysctl -w fs.file-max=1000000
-            sudo sysctl -p
+            ulimit -n 1000000
+            ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
   - name: compatibility-test-for-mongodb-releases
