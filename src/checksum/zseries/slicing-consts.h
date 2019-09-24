@@ -1,5 +1,6 @@
 /* CRC-32 and CRC-32C slicing-by-8 constants, for use on big-endian systems. */
-static const unsigned int __attribute__((aligned(128), unused)) crc32table_le[8][256] = {
+#if 0
+static const unsigned int __attribute__((aligned(128))) crc32table_le[8][256] = {
   {0x00000000, 0x96300777, 0x2c610eee, 0xba510999, 0x19c46d07, 0x8ff46a70, 0x35a563e9, 0xa395649e,
     0x3288db0e, 0xa4b8dc79, 0x1ee9d5e0, 0x88d9d297, 0x2b4cb609, 0xbd7cb17e, 0x072db8e7, 0x911dbf90,
     0x6410b71d, 0xf220b06a, 0x4871b9f3, 0xde41be84, 0x7dd4da1a, 0xebe4dd6d, 0x51b5d4f4, 0xc785d383,
@@ -258,7 +259,9 @@ static const unsigned int __attribute__((aligned(128), unused)) crc32table_le[8]
     0xff0f8e2c, 0x610f24e0, 0x8208ab6e, 0x1c0801a2, 0x0501c4a8, 0x9b016e64, 0x7806e1ea,
     0xe6064b26}};
 
-static const unsigned int __attribute__((aligned(128), unused)) crc32table_be[8][256] = {
+#endif /* NOT CURRENTLY USED */
+#if 0
+static const unsigned int __attribute__((aligned(128))) crc32table_be[8][256] = {
   {0x00000000, 0x04c11db7, 0x09823b6e, 0x0d4326d9, 0x130476dc, 0x17c56b6b, 0x1a864db2, 0x1e475005,
     0x2608edb8, 0x22c9f00f, 0x2f8ad6d6, 0x2b4bcb61, 0x350c9b64, 0x31cd86d3, 0x3c8ea00a, 0x384fbdbd,
     0x4c11db70, 0x48d0c6c7, 0x4593e01e, 0x4152fda9, 0x5f15adac, 0x5bd4b01b, 0x569796c2, 0x52568b75,
@@ -516,6 +519,7 @@ static const unsigned int __attribute__((aligned(128), unused)) crc32table_be[8]
     0x3548049b, 0x6ee9d851, 0x820bbd0f, 0xd9aa61c5, 0x5f0e6a04, 0x04afb6ce, 0xe84dd390, 0xb3ec0f5a,
     0xe1c4d9a5, 0xba65056f, 0x56876031, 0x0d26bcfb, 0x8b82b73a, 0xd0236bf0, 0x3cc10eae,
     0x6760d264}};
+#endif /* NOT CURRENTLY USED */
 
 static const unsigned int __attribute__((aligned(128))) crc32ctable_le[8][256] = {
   {0x00000000, 0x03836bf2, 0xf7703be1, 0xf4f35013, 0x1f979ac7, 0x1c14f135, 0xe8e7a126, 0xeb64cad4,
@@ -776,7 +780,8 @@ static const unsigned int __attribute__((aligned(128))) crc32ctable_le[8][256] =
     0xa1354ce5, 0x864870ac, 0xefcf3477, 0xc8b2083e, 0xccb751c4, 0xebca6d8d, 0x824d2956,
     0xa530151f}};
 
-static const unsigned int __attribute__((aligned(128), unused)) crc32ctable_be[8][256] = {
+#if 0
+static const unsigned int __attribute__((aligned(128))) crc32ctable_be[8][256] = {
   {0x00000000, 0x1edc6f41, 0x3db8de82, 0x2364b1c3, 0x7b71bd04, 0x65add245, 0x46c96386, 0x58150cc7,
     0xf6e37a08, 0xe83f1549, 0xcb5ba48a, 0xd587cbcb, 0x8d92c70c, 0x934ea84d, 0xb02a198e, 0xaef676cf,
     0xf31a9b51, 0xedc6f410, 0xcea245d3, 0xd07e2a92, 0x886b2655, 0x96b74914, 0xb5d3f8d7, 0xab0f9796,
@@ -1034,3 +1039,4 @@ static const unsigned int __attribute__((aligned(128), unused)) crc32ctable_be[8
     0x7b80461d, 0x5de9c631, 0x37534645, 0x113ac669, 0xe22646ad, 0xc44fc681, 0xaef546f5, 0x889cc6d9,
     0x5610283c, 0x7079a810, 0x1ac32864, 0x3caaa848, 0xcfb6288c, 0xe9dfa8a0, 0x836528d4,
     0xa50ca8f8}};
+#endif /* NOT CURRENTLY USED */
