@@ -240,7 +240,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ASSERT(session, current_recno < recno);
 
             if (lastupd != NULL) {
-                WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, lastupd));
+                WT_ERR(__wt_col_instantiate(session, current_recno, ref, &cbt, lastupd));
 
                 /* Remove the prepared record from LAS */
                 if (!birthmark_record && lastupd->prepare_state == WT_PREPARE_INPROGRESS) {
@@ -271,7 +271,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             }
 
             if (lastupd != NULL) {
-                WT_ERR(__row_instantiate(session, current_key, ref, &cbt, lastupd));
+                WT_ERR(__wt_row_instantiate(session, current_key, ref, &cbt, lastupd));
 
                 /* Remove the prepared record from LAS */
                 if (!birthmark_record && lastupd->prepare_state == WT_PREPARE_INPROGRESS) {
@@ -333,10 +333,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         switch (page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            WT_ERR(__col_instantiate(session, current_recno, ref, &cbt, lastupd));
+            WT_ERR(__wt_col_instantiate(session, current_recno, ref, &cbt, lastupd));
             break;
         case WT_PAGE_ROW_LEAF:
-            WT_ERR(__row_instantiate(session, current_key, ref, &cbt, lastupd));
+            WT_ERR(__wt_row_instantiate(session, current_key, ref, &cbt, lastupd));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, page->type));
