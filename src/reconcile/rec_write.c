@@ -2503,6 +2503,8 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
                     __wt_buf_free(session, &birthmarkp->key);
             }
             __wt_free(session, multi->page_las.birthmarks);
+            __wt_buf_free(session, &multi->page_las.max_las_key);
+            __wt_buf_free(session, &multi->page_las.min_las_key);
         }
 }
 

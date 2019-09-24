@@ -62,9 +62,6 @@ class test_las02(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     def test_las(self):
-        # Disabled for relevant-history-in-cache. WT-5089 to re-enable.
-        return
-
         nrows = 10000
 
         # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.

@@ -1699,6 +1699,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         WT_RET(__wt_calloc_one(session, &ref->page_las));
         *ref->page_las = multi->page_las;
         ref->page_las->birthmarks = multi->page_las.birthmarks;
+        ref->page_las->max_las_key = multi->page_las.max_las_key;
+        ref->page_las->min_las_key = multi->page_las.min_las_key;
 #ifdef HAVE_DIAGNOSTIC
         ref->page_las->birthmarks_cnt = multi->page_las.birthmarks_cnt;
 #endif
