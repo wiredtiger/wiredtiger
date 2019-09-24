@@ -258,8 +258,8 @@ static const unsigned int __attribute__((aligned(128))) crc32table_le[8][256] = 
     0x4a146bff, 0xd414c133, 0x37134ebd, 0xa913e471, 0xb01a217b, 0x2e1a8bb7, 0xcd1d0439, 0x531daef5,
     0xff0f8e2c, 0x610f24e0, 0x8208ab6e, 0x1c0801a2, 0x0501c4a8, 0x9b016e64, 0x7806e1ea,
     0xe6064b26}};
-
 #endif /* NOT CURRENTLY USED */
+
 #if 0
 static const unsigned int __attribute__((aligned(128))) crc32table_be[8][256] = {
   {0x00000000, 0x04c11db7, 0x09823b6e, 0x0d4326d9, 0x130476dc, 0x17c56b6b, 0x1a864db2, 0x1e475005,
