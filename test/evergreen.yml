@@ -1031,9 +1031,6 @@ tasks:
             cmd.exe /c "cd test\\format && ..\\..\\t_format.exe reverse=0 encryption=none logging_compression=none runs=20"
 
   - name: million-collection-test
-    depends_on: []
-    run_on:
-      - rhel80-build
     commands:
       - func: "fetch source"
       - func: "fetch mongo-tests repo"
