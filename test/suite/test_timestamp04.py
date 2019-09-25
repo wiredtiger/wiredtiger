@@ -131,9 +131,6 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create(self.table_nots_nolog, config_default + config_nolog + self.extra_config)
         cur_nots_nolog = self.session.open_cursor(self.table_nots_nolog)
 
-        # We're about to test rollback-to-stable which requires a checkpoint to which we can roll back.
-        self.session.checkpoint()
-
         # Insert keys each with timestamp=key, in some order.
         key_range = 10000
         keys = list(range(1, key_range + 1))
@@ -166,7 +163,11 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
         # Roll back half timestamps.
         stable_ts = timestamp_str(key_range // 2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
+
+        # We're about to test rollback-to-stable which requires a checkpoint to which we can roll back.
+        self.session.checkpoint()
         self.conn.rollback_to_stable()
+
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rollback_to_stable][2]
         upd_aborted = (stat_cursor[stat.conn.txn_rollback_upd_aborted][2] +

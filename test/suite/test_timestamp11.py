@@ -43,7 +43,6 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         base = 'timestamp11'
         uri = 'file:' + base
         self.session.create(uri, 'key_format=S,value_format=S')
-        self.session.checkpoint()
 
         # Test that mixed timestamp usage where some transactions use timestamps
         # and others don't behave in the expected way.
@@ -84,6 +83,7 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         #
         stable_ts = timestamp_str(2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
+        self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         c = self.session.open_cursor(uri)
