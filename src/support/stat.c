@@ -47,11 +47,11 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: page written requiring cache overflow records", "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
+  "cache: pages read into cache by checkpoint requiring cache overflow entries because they were "
+  "not evicted with skew-newest.",
   "cache: pages read into cache requiring cache overflow entries",
-  "cache: pages read into cache requiring cache overflow entries because of page is skewed with "
-  "old entries",
-  "cache: pages read into cache requiring cache overflow entries by checkpoint because of page is "
-  "skewed with old entries",
+  "cache: pages read into cache requiring cache overflow entries because they were not evicted "
+  "with skew-newest.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages written from cache", "cache: pages written requiring in-memory restoration",
   "cache: tracked dirty bytes in the cache", "cache: unmodified pages evicted",
@@ -208,9 +208,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
+    stats->cache_read_lookaside_skew_old_checkpoint = 0;
     stats->cache_read_lookaside = 0;
     stats->cache_read_lookaside_skew_old = 0;
-    stats->cache_read_lookaside_skew_old_checkpoint = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
@@ -382,9 +382,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read += from->cache_read;
     to->cache_read_deleted += from->cache_read_deleted;
     to->cache_read_deleted_prepared += from->cache_read_deleted_prepared;
+    to->cache_read_lookaside_skew_old_checkpoint += from->cache_read_lookaside_skew_old_checkpoint;
     to->cache_read_lookaside += from->cache_read_lookaside;
     to->cache_read_lookaside_skew_old += from->cache_read_lookaside_skew_old;
-    to->cache_read_lookaside_skew_old_checkpoint += from->cache_read_lookaside_skew_old_checkpoint;
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
@@ -552,10 +552,10 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read += WT_STAT_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
-    to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
-    to->cache_read_lookaside_skew_old += WT_STAT_READ(from, cache_read_lookaside_skew_old);
     to->cache_read_lookaside_skew_old_checkpoint +=
       WT_STAT_READ(from, cache_read_lookaside_skew_old_checkpoint);
+    to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
+    to->cache_read_lookaside_skew_old += WT_STAT_READ(from, cache_read_lookaside_skew_old);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_READ(from, cache_write);
@@ -713,11 +713,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages queued for urgent eviction", "cache: pages queued for urgent eviction during walk",
   "cache: pages read into cache", "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
+  "cache: pages read into cache by checkpoint requiring cache overflow entries because they were "
+  "not evicted with skew-newest.",
   "cache: pages read into cache requiring cache overflow entries",
-  "cache: pages read into cache requiring cache overflow entries because of page is skewed with "
-  "old entries",
-  "cache: pages read into cache requiring cache overflow entries by checkpoint because of page is "
-  "skewed with old entries",
+  "cache: pages read into cache requiring cache overflow entries because they were not evicted "
+  "with skew-newest.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages selected for eviction unable to be evicted", "cache: pages walked for eviction",
   "cache: pages written from cache", "cache: pages written requiring in-memory restoration",
@@ -1063,9 +1063,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
+    stats->cache_read_lookaside_skew_old_checkpoint = 0;
     stats->cache_read_lookaside = 0;
     stats->cache_read_lookaside_skew_old = 0;
-    stats->cache_read_lookaside_skew_old_checkpoint = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_fail = 0;
@@ -1488,10 +1488,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read += WT_STAT_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
-    to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
-    to->cache_read_lookaside_skew_old += WT_STAT_READ(from, cache_read_lookaside_skew_old);
     to->cache_read_lookaside_skew_old_checkpoint +=
       WT_STAT_READ(from, cache_read_lookaside_skew_old_checkpoint);
+    to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
+    to->cache_read_lookaside_skew_old += WT_STAT_READ(from, cache_read_lookaside_skew_old);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);

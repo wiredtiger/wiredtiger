@@ -1225,9 +1225,10 @@ struct __wt_session {
 	 * clear text\, and thus is available when the wiredtiger database is reopened.  On the
 	 * first use of a (name\, keyid) combination\, the WT_ENCRYPTOR::customize function is
 	 * called with the keyid as an argument., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or custom encryption
-	 * engine name created with WT_CONNECTION::add_encryptor.  See @ref encryption for more
-	 * information., a string; default \c none.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;name, Permitted values are \c "none" or custom encryption engine name created
+	 * with WT_CONNECTION::add_encryptor.  See @ref encryption for more information., a string;
+	 * default \c none.}
 	 * @config{ ),,}
 	 * @config{exclusive, fail if the object exists.  When false (the default)\, if the object
 	 * exists\, check that its settings match the specified configuration., a boolean flag;
@@ -1294,14 +1295,17 @@ struct __wt_session {
 	 * default \c true.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom, create bloom filters on LSM tree
 	 * chunks as they are merged., a boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_bit_count, the number of bits used per item for LSM
-	 * bloom filters., an integer between 2 and 1000; default \c 16.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_config, config string used when creating Bloom
-	 * filter files\, passed to WT_SESSION::create., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_hash_count, the number of hash values per item used
-	 * for LSM bloom filters., an integer between 2 and 100; default \c 8.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_oldest, create a bloom filter on the oldest LSM
-	 * tree chunk.  Only supported if bloom filters are enabled., a boolean flag; default \c
+	 * @config{&nbsp;&nbsp;&nbsp;
+	 * &nbsp;bloom_bit_count, the number of bits used per item for LSM bloom filters., an
+	 * integer between 2 and 1000; default \c 16.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_config,
+	 * config string used when creating Bloom filter files\, passed to WT_SESSION::create., a
+	 * string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_hash_count, the number of
+	 * hash values per item used for LSM bloom filters., an integer between 2 and 100; default
+	 * \c 8.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bloom_oldest, create a bloom filter on the oldest
+	 * LSM tree chunk.  Only supported if bloom filters are enabled., a boolean flag; default \c
 	 * false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_count_limit, the maximum number of chunks
 	 * to allow in an LSM tree.  This option automatically times out old data.  As new chunks
@@ -1320,17 +1324,19 @@ struct __wt_session {
 	 * below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;prefix, custom data
 	 * source prefix instead of \c "file"., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start_generation, merge
-	 * generation at which the custom data source is used (zero indicates no custom data
-	 * source)., an integer between 0 and 10; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;suffix, custom data source suffix
-	 * instead of \c ".lsm"., a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;
+	 * &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;start_generation, merge generation at which the custom data
+	 * source is used (zero indicates no custom data source)., an integer between 0 and 10;
+	 * default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;suffix, custom
+	 * data source suffix instead of \c ".lsm"., a string; default empty.}
 	 * @config{ ),,}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;merge_max, the maximum number of chunks to include in a
 	 * merge operation., an integer between 2 and 100; default \c 15.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;merge_min, the minimum number of chunks to include in a
-	 * merge operation.  If set to 0 or 1 half the value of merge_max is used., an integer no
-	 * more than 100; default \c 0.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;merge_min, the minimum number of chunks to include in a merge operation.  If
+	 * set to 0 or 1 half the value of merge_max is used., an integer no more than 100; default
+	 * \c 0.}
 	 * @config{ ),,}
 	 * @config{memory_page_image_max, the maximum in-memory page image represented by a single
 	 * storage block.  Depending on compression efficiency\, compression can create storage
@@ -1946,8 +1952,9 @@ struct __wt_session {
 	 * including the specified name., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * names, drop specific named snapshots., a list of strings; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;to, drop all snapshots up to and including the specified
-	 * name., a string; default empty.}
+	 * @config{&nbsp;
+	 * &nbsp;&nbsp;&nbsp;to, drop all snapshots up to and including the specified name., a
+	 * string; default empty.}
 	 * @config{ ),,}
 	 * @config{include_updates, make updates from the current transaction visible to users of
 	 * the named snapshot.  Transactions started with such a named snapshot are restricted to
@@ -2122,11 +2129,12 @@ struct __wt_connection {
 	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable
 	 * asynchronous operation., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;ops_max, maximum number of expected simultaneous
-	 * asynchronous operations., an integer between 1 and 4096; default \c 1024.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads, the number of worker threads to service
-	 * asynchronous requests.  Each worker thread uses a session from the configured
-	 * session_max., an integer between 1 and 20; default \c 2.}
+	 * @config{&nbsp;&nbsp;&nbsp;
+	 * &nbsp;ops_max, maximum number of expected simultaneous asynchronous operations., an
+	 * integer between 1 and 4096; default \c 1024.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads,
+	 * the number of worker threads to service asynchronous requests.  Each worker thread uses a
+	 * session from the configured session_max., an integer between 1 and 20; default \c 2.}
 	 * @config{ ),,}
 	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
 	 * wait for space to be available in cache before giving up.  Default will wait forever., an
@@ -2158,15 +2166,15 @@ struct __wt_connection {
 	 * value will use a minimum of the log file size.  A database can configure both log_size
 	 * and wait to set an upper bound for checkpoints; setting this value above 0 configures
 	 * periodic checkpoints., an integer between 0 and 2GB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each checkpoint; setting
-	 * this value above 0 configures periodic checkpoints., an integer between 0 and 100000;
-	 * default \c 0.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;wait, seconds to wait between each checkpoint; setting this value above 0
+	 * configures periodic checkpoints., an integer between 0 and 100000; default \c 0.}
 	 * @config{ ),,}
 	 * @config{compatibility = (, set compatibility version of database.  Changing the
 	 * compatibility version requires that there are no active operations for the duration of
 	 * the call., a set of related configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release, compatibility release version string., a string;
-	 * default empty.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;release, compatibility release version string., a string; default empty.}
 	 * @config{ ),,}
 	 * @config{debug_mode = (, control the settings of various extended debugging features., a
 	 * set of related configuration options defined below.}
@@ -2226,12 +2234,13 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * close_handle_minimum, number of handles open before the file manager will look for
 	 * handles to close., an integer greater than or equal to 0; default \c 250.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_idle_time, amount of time in seconds a file handle
-	 * needs to be idle before attempting to close it.  A setting of 0 means that idle handles
-	 * are not closed., an integer between 0 and 100000; default \c 30.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_scan_interval, interval in seconds at which to
-	 * check for files that are inactive and close them., an integer between 1 and 100000;
-	 * default \c 10.}
+	 * @config{&nbsp;
+	 * &nbsp;&nbsp;&nbsp;close_idle_time, amount of time in seconds a file handle needs to be
+	 * idle before attempting to close it.  A setting of 0 means that idle handles are not
+	 * closed., an integer between 0 and 100000; default \c 30.}
+	 * @config{&nbsp;&nbsp;&nbsp;
+	 * &nbsp;close_scan_interval, interval in seconds at which to check for files that are
+	 * inactive and close them., an integer between 1 and 100000; default \c 10.}
 	 * @config{ ),,}
 	 * @config{io_capacity = (, control how many bytes per second are written and read.
 	 * Exceeding the capacity results in throttling., a set of related configuration options
@@ -2250,10 +2259,10 @@ struct __wt_connection {
 	 * non-zero\, schedule writes for dirty blocks belonging to the log in the system buffer
 	 * cache after that percentage of the log has been written into the buffer cache without an
 	 * intervening file sync., an integer between 0 and 100; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag;
-	 * default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into
-	 * log files., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag; default \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files., a
+	 * boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{lsm_manager = (, configure database wide options for LSM tree management.  The
 	 * LSM manager is started automatically the first time an LSM tree is opened.  The LSM
@@ -2289,17 +2298,19 @@ struct __wt_connection {
 	 * below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk, the granularity that a shared cache is
 	 * redistributed., an integer between 1MB and 10TB; default \c 10MB.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, the name of a cache that is shared between
-	 * databases or \c "none" when no shared cache is configured., a string; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;quota, maximum size of cache this database can be
-	 * allocated from the shared cache.  Defaults to the entire shared cache size., an integer;
-	 * default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;reserve, amount of cache this database is
-	 * guaranteed to have available from the shared cache.  This setting is per database.
-	 * Defaults to the chunk size., an integer; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * size, maximum memory to allocate for the shared cache.  Setting this will update the
-	 * value if one is already set., an integer between 1MB and 10TB; default \c 500MB.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;name, the name of a cache that is shared between databases or \c "none" when
+	 * no shared cache is configured., a string; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;
+	 * &nbsp;quota, maximum size of cache this database can be allocated from the shared cache.
+	 * Defaults to the entire shared cache size., an integer; default \c 0.}
+	 * @config{&nbsp;
+	 * &nbsp;&nbsp;&nbsp;reserve, amount of cache this database is guaranteed to have available
+	 * from the shared cache.  This setting is per database.  Defaults to the chunk size., an
+	 * integer; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate
+	 * for the shared cache.  Setting this will update the value if one is already set., an
+	 * integer between 1MB and 10TB; default \c 500MB.}
 	 * @config{ ),,}
 	 * @config{statistics, Maintain database statistics\, which may impact performance.
 	 * Choosing "all" maintains all statistics regardless of cost\, "fast" maintains a subset of
@@ -2320,18 +2331,19 @@ struct __wt_connection {
 	 * a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;on_close, log
 	 * statistics on database close., a boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;sources, if non-empty\, include statistics for the list
-	 * of data source URIs\, if they are open at the time of the statistics logging.  The list
-	 * may include URIs matching a single data source ("table:mytable")\, or a URI matching all
-	 * data sources of a particular type ("table:")., a list of strings; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log record\, may
-	 * contain strftime conversion specifications\, when \c json is configured\, defaults to \c
-	 * "%FT%Y.000Z"., a string; default \c "%b %d %H:%M:%S".}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * wait, seconds to wait between each write of the log records; setting this value above 0
-	 * configures statistics logging., an integer between 0 and 100000; default \c 0.}
-	 * @config{
-	 * ),,}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;sources, if non-empty\, include statistics for the list of data source URIs\,
+	 * if they are open at the time of the statistics logging.  The list may include URIs
+	 * matching a single data source ("table:mytable")\, or a URI matching all data sources of a
+	 * particular type ("table:")., a list of strings; default empty.}
+	 * @config{&nbsp;&nbsp;
+	 * &nbsp;&nbsp;timestamp, a timestamp prepended to each log record\, may contain strftime
+	 * conversion specifications\, when \c json is configured\, defaults to \c "%FT%Y.000Z"., a
+	 * string; default \c "%b %d %H:%M:%S".}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to
+	 * wait between each write of the log records; setting this value above 0 configures
+	 * statistics logging., an integer between 0 and 100000; default \c 0.}
+	 * @config{ ),,}
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the
 	 * following options: \c "api"\, \c "block"\, \c "checkpoint"\, \c "checkpoint_progress"\,
@@ -2869,8 +2881,9 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_idle_time, amount of time in seconds a
  * file handle needs to be idle before attempting to close it.  A setting of 0 means that idle
  * handles are not closed., an integer between 0 and 100000; default \c 30.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;close_scan_interval, interval in seconds at which to check for
- * files that are inactive and close them., an integer between 1 and 100000; default \c 10.}
+ * @config{&nbsp;&nbsp;
+ * &nbsp;&nbsp;close_scan_interval, interval in seconds at which to check for files that are
+ * inactive and close them., an integer between 1 and 100000; default \c 10.}
  * @config{ ),,}
  * @config{in_memory, keep data in-memory only.  See @ref in_memory for more information., a boolean
  * flag; default \c false.}
@@ -2883,10 +2896,10 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{log = (, enable logging.  Enabling logging uses three sessions from the configured
  * session_max., a set of related configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a boolean
- * flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for
- * log records.  Permitted values are \c "none" or custom compression engine name created with
+ * @config{&nbsp;&nbsp;&nbsp;
+ * &nbsp;archive, automatically archive unneeded log files., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;compressor, configure a compressor for log records.  Permitted
+ * values are \c "none" or custom compression engine name created with
  * WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for \c "lz4"\, \c "snappy"\, \c
  * "zlib" or \c "zstd" compression\, these names are also available.  See @ref compression for more
  * information., a string; default \c none.}
@@ -2894,20 +2907,22 @@ struct __wt_connection {
  * subsystem., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;file_max, the
  * maximum size of log files., an integer between 100KB and 2GB; default \c 100MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\, as
- * a percentage of the log's \c file_max.  If non-zero\, schedule writes for dirty blocks belonging
- * to the log in the system buffer cache after that percentage of the log has been written into the
- * buffer cache without an intervening file sync., an integer between 0 and 100; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the name of a directory into which log files are written.
- * The directory must already exist.  If the value is not an absolute path\, the path is relative to
- * the database home (see @ref absolute_path for more information)., a string; default \c ".".}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag; default \c
- * true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or error if recovery needs to run
- * after an unclean shutdown., a string\, chosen from the following options: \c "error"\, \c "on";
- * default \c on.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files.,
- * a boolean flag; default \c false.}
+ * @config{&nbsp;
+ * &nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\, as a percentage
+ * of the log's \c file_max.  If non-zero\, schedule writes for dirty blocks belonging to the log in
+ * the system buffer cache after that percentage of the log has been written into the buffer cache
+ * without an intervening file sync., an integer between 0 and 100; default \c 0.}
+ * @config{&nbsp;
+ * &nbsp;&nbsp;&nbsp;path, the name of a directory into which log files are written.  The directory
+ * must already exist.  If the value is not an absolute path\, the path is relative to the database
+ * home (see @ref absolute_path for more information)., a string; default \c ".".}
+ * @config{&nbsp;
+ * &nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;recover, run recovery or error if recovery needs to run after an
+ * unclean shutdown., a string\, chosen from the following options: \c "error"\, \c "on"; default \c
+ * on.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files., a boolean
+ * flag; default \c false.}
  * @config{ ),,}
  * @config{lsm_manager = (, configure database wide options for LSM tree management.  The LSM
  * manager is started automatically the first time an LSM tree is opened.  The LSM manager uses a
@@ -2952,19 +2967,20 @@ struct __wt_connection {
  * a cache_size or a shared_cache not both.  Enabling a shared cache uses a session from the
  * configured session_max.  A shared cache can not have absolute values configured for cache
  * eviction settings., a set of related configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk, the granularity that a shared cache is redistributed., an
- * integer between 1MB and 10TB; default \c 10MB.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, the name of
- * a cache that is shared between databases or \c "none" when no shared cache is configured., a
- * string; default \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;quota, maximum size of cache this
- * database can be allocated from the shared cache.  Defaults to the entire shared cache size., an
- * integer; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;reserve, amount of cache this database is
- * guaranteed to have available from the shared cache.  This setting is per database.  Defaults to
- * the chunk size., an integer; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory
- * to allocate for the shared cache.  Setting this will update the value if one is already set., an
+ * @config{&nbsp;&nbsp;
+ * &nbsp;&nbsp;chunk, the granularity that a shared cache is redistributed., an integer between 1MB
+ * and 10TB; default \c 10MB.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, the name of a cache that is
+ * shared between databases or \c "none" when no shared cache is configured., a string; default \c
+ * none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;quota, maximum size of cache this database can be
+ * allocated from the shared cache.  Defaults to the entire shared cache size., an integer; default
+ * \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;reserve, amount of cache this database is guaranteed to
+ * have available from the shared cache.  This setting is per database.  Defaults to the chunk
+ * size., an integer; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to
+ * allocate for the shared cache.  Setting this will update the value if one is already set., an
  * integer between 1MB and 10TB; default \c 500MB.}
  * @config{ ),,}
  * @config{statistics, Maintain database statistics\, which may impact performance.  Choosing "all"
@@ -3004,9 +3020,10 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, whether to
  * sync the log on every commit by default\, can be overridden by the \c sync setting to
  * WT_SESSION::commit_transaction., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;method, the method used to ensure log records are stable on
- * disk\, see @ref tune_durability for more information., a string\, chosen from the following
- * options: \c "dsync"\, \c "fsync"\, \c "none"; default \c fsync.}
+ * @config{&nbsp;&nbsp;&nbsp;
+ * &nbsp;method, the method used to ensure log records are stable on disk\, see @ref tune_durability
+ * for more information., a string\, chosen from the following options: \c "dsync"\, \c "fsync"\, \c
+ * "none"; default \c fsync.}
  * @config{ ),,}
  * @config{use_environment, use the \c WIREDTIGER_CONFIG and \c WIREDTIGER_HOME environment
  * variables if the process is not running with special privileges.  See @ref home for more
@@ -5106,18 +5123,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_READ_DELETED			1118
 /*! cache: pages read into cache after truncate in prepare state */
 #define	WT_STAT_CONN_CACHE_READ_DELETED_PREPARED	1119
+/*!
+ * cache: pages read into cache by checkpoint requiring cache overflow
+ * entries because they were not evicted with skew-newest.
+ */
+#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE_SKEW_OLD_CHECKPOINT	1120
 /*! cache: pages read into cache requiring cache overflow entries */
-#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE		1120
+#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE		1121
 /*!
  * cache: pages read into cache requiring cache overflow entries because
- * of page is skewed with old entries
+ * they were not evicted with skew-newest.
  */
-#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE_SKEW_OLD	1121
-/*!
- * cache: pages read into cache requiring cache overflow entries by
- * checkpoint because of page is skewed with old entries
- */
-#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE_SKEW_OLD_CHECKPOINT	1122
+#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE_SKEW_OLD	1122
 /*! cache: pages requested from the cache */
 #define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1123
 /*! cache: pages seen by eviction walk */
@@ -5904,18 +5921,18 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_DELETED			2071
 /*! cache: pages read into cache after truncate in prepare state */
 #define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2072
+/*!
+ * cache: pages read into cache by checkpoint requiring cache overflow
+ * entries because they were not evicted with skew-newest.
+ */
+#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE_SKEW_OLD_CHECKPOINT	2073
 /*! cache: pages read into cache requiring cache overflow entries */
-#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE		2073
+#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE		2074
 /*!
  * cache: pages read into cache requiring cache overflow entries because
- * of page is skewed with old entries
+ * they were not evicted with skew-newest.
  */
-#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE_SKEW_OLD	2074
-/*!
- * cache: pages read into cache requiring cache overflow entries by
- * checkpoint because of page is skewed with old entries
- */
-#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE_SKEW_OLD_CHECKPOINT	2075
+#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE_SKEW_OLD	2075
 /*! cache: pages requested from the cache */
 #define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2076
 /*! cache: pages seen by eviction walk */

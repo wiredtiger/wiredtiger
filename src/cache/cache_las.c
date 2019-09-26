@@ -589,7 +589,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
-    int cmp;
     bool local_txn;
 
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -642,18 +641,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         /* Set the first key as the minimum key */
         if (i == 0)
-            WT_ERR(__wt_buf_set(session, min_las_key, key->data, key->size));
-
-        /*
-         * Keys are sorted in an order, find out whether the current key is minimum or maximum key
-         * that is getting stored in the LAS.
-         */
-        WT_ERR(__wt_compare(session, NULL, max_las_key, key, &cmp));
-        if (cmp < 0)
-            WT_ERR(__wt_buf_set(session, max_las_key, key->data, key->size));
-
-        WT_ERR(__wt_compare(session, NULL, min_las_key, key, &cmp));
-        if (cmp > 0)
             WT_ERR(__wt_buf_set(session, min_las_key, key->data, key->size));
 
         /*
@@ -751,6 +738,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         } while ((upd = upd->next) != NULL);
     }
 
+    WT_ERR(__wt_buf_set(session, max_las_key, key->data, key->size));
+
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
     WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
     max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
@@ -836,7 +825,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
      */
     if (btree_id == 0) {
         WT_RET(cursor->reset(cursor));
-        return (cursor->next(cursor));
+        return (cursor->prev(cursor));
     }
 
     /*
@@ -847,8 +836,8 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
         WT_CLEAR(las_key);
         cursor->set_key(cursor, btree_id, key, timestamp, (uint64_t)0);
         WT_RET(cursor->search_near(cursor, &exact));
-        if (exact < 0)
-            WT_RET(cursor->next(cursor));
+        if (exact > 0)
+            WT_RET(cursor->prev(cursor));
 
         /*
          * Because of the special visibility rules for lookaside, a new key can appear in between
@@ -863,10 +852,10 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
             return (0);
         else if (las_btree_id == btree_id) {
             WT_RET(__wt_compare(session, NULL, &las_key, key, &cmp));
-            if (cmp > 0)
+            if (cmp < 0)
                 return (0);
             else if (cmp == 0)
-                if (las_timestamp >= timestamp)
+                if (las_timestamp <= timestamp)
                     return (0);
         }
     }
