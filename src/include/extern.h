@@ -1194,8 +1194,6 @@ extern int __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
 extern int __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *key,
   const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_row_random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf,
   WT_CURSOR_BTREE *cbt, bool insert, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rwlock_init(WT_SESSION_IMPL *session, WT_RWLOCK *l)
@@ -1798,8 +1796,6 @@ static inline bool __wt_session_can_wait(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_split_descent_race(WT_SESSION_IMPL *session, WT_REF *ref,
   WT_PAGE_INDEX *saved_pindex) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline bool __wt_txn_upd_durable(WT_SESSION_IMPL *session, WT_UPDATE *upd)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_txn_upd_visible_all(WT_SESSION_IMPL *session, WT_UPDATE *upd)
