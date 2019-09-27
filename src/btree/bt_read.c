@@ -130,6 +130,10 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /* We do not need the birthmark information in the lookaside structure anymore. */
+    for (i = 0; i < ref->page_las->birthmarks_cnt; i++) {
+        birthmarkp = ref->page_las->birthmarks + i;
+        __wt_buf_free(session, &birthmarkp->key);
+    }
     ref->page_las->birthmarks_cnt = 0;
     __wt_free(session, ref->page_las->birthmarks);
 
