@@ -96,18 +96,20 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+    WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *upd;
     uint64_t recno;
     uint32_t i;
     const uint8_t *p;
 
     upd = NULL;
+    page_las = ref->page_las;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    for (i = 0; i < ref->page_las->birthmarks_cnt; i++) {
-        birthmarkp = ref->page_las->birthmarks + i;
+    for (i = 0; i < page_las->birthmarks_cnt; i++) {
+        birthmarkp = page_las->birthmarks + i;
         WT_ERR(__create_birthmark_upd(session, birthmarkp, &upd));
 
         switch (ref->page->type) {
@@ -126,12 +128,12 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /* We do not need the birthmark information in the lookaside structure anymore. */
-    for (i = 0; i < ref->page_las->birthmarks_cnt; i++) {
-        birthmarkp = ref->page_las->birthmarks + i;
+    for (i = 0; i < page_las->birthmarks_cnt; i++) {
+        birthmarkp = page_las->birthmarks + i;
         __wt_buf_free(session, &birthmarkp->key);
     }
-    ref->page_las->birthmarks_cnt = 0;
-    __wt_free(session, ref->page_las->birthmarks);
+    page_las->birthmarks_cnt = 0;
+    __wt_free(session, page_las->birthmarks);
 
 err:
     WT_TRET(__wt_btcur_close(&cbt, true));

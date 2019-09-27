@@ -397,7 +397,6 @@ bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_TXN *txn;
-    wt_timestamp_t unstable_timestamp;
 
     txn = &session->txn;
 
@@ -426,13 +425,17 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * If some of the page's history overlaps with the reader's snapshot then we have to read it.
-     * This is only relevant if we chose versions that were unstable when the page was written.
      */
-    if (ref->page_las->skew_newest && WT_TXNID_LE(txn->snap_min, ref->page_las->unstable_txn))
+    if (WT_TXNID_LE(txn->snap_min, ref->page_las->max_txn))
         return (false);
 
+    /*
+     * Otherwise, if not reading at a timestamp, the page's history is in the past, so the page
+     * image is correct if it contains the most recent versions of everything and nothing was
+     * prepared.
+     */
     if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
-        return (ref->page_las->skew_newest);
+        return (!ref->page_las->has_prepares && ref->page_las->min_skipped_ts == WT_TS_MAX);
 
     /*
      * Skip lookaside history if reading as of a timestamp, we evicted new
@@ -440,21 +443,18 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
      * possible for prepared updates, because the commit timestamp was not
      * known when the page was evicted.
      *
-     * Skip lookaside pages if reading as of a timestamp, we evicted old
-     * versions of data and all the unstable updates are in the future.
-     *
-     * Checkpoint should respect durable timestamps, other reads should
-     * respect ordinary visibility.  Checking for just the unstable updates
-     * during checkpoint would end up reading more content from lookaside
-     * than necessary.
+     * Otherwise, skip reading lookaside history if everything on the page
+     * is older than the read timestamp, and the oldest update in lookaside
+     * newer than the page is in the future of the reader.  This seems
+     * unlikely, but is exactly what eviction tries to do when a checkpoint
+     * is running.
      */
-    unstable_timestamp = WT_SESSION_IS_CHECKPOINT(session) ?
-      ref->page_las->unstable_durable_timestamp :
-      ref->page_las->unstable_timestamp;
-    if (ref->page_las->skew_newest && !ref->page_las->has_prepares &&
-      txn->read_timestamp > unstable_timestamp)
+    if (!ref->page_las->has_prepares && ref->page_las->min_skipped_ts == WT_TS_MAX &&
+      txn->read_timestamp >= ref->page_las->max_ondisk_ts)
         return (true);
-    if (!ref->page_las->skew_newest && txn->read_timestamp < unstable_timestamp)
+
+    if (txn->read_timestamp >= ref->page_las->max_ondisk_ts &&
+      txn->read_timestamp < ref->page_las->min_skipped_ts)
         return (true);
 
     return (false);
@@ -525,12 +525,15 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
           "Page reconciliation triggered lookaside write: file ID %" PRIu32
           ". "
           "Max txn ID %" PRIu64
-          ", unstable timestamp %s, unstable durable timestamp %s, %s. "
-          "Entries now in lookaside file: %" PRId64 ", cache dirty: %2.3f%%, cache use: %2.3f%%",
+          ", max ondisk timestamp %s, "
+          "first skipped ts %s. "
+          "Entries now in lookaside file: %" PRId64
+          ", "
+          "cache dirty: %2.3f%% , "
+          "cache use: %2.3f%%",
           btree_id, multi->page_las.max_txn,
-          __wt_timestamp_to_string(multi->page_las.unstable_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(multi->page_las.unstable_durable_timestamp, ts_string[1]),
-          multi->page_las.skew_newest ? "newest" : "not newest",
+          __wt_timestamp_to_string(multi->page_las.max_ondisk_ts, ts_string[0]),
+          __wt_timestamp_to_string(multi->page_las.min_skipped_ts, ts_string[1]),
           WT_STAT_READ(conn->stats, cache_lookaside_entries), pct_dirty, pct_full);
     }
 
@@ -696,7 +699,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             if (upd == list->onpage_upd && upd->size > 0 &&
               (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
-                WT_ASSERT(session, upd != first_upd || multi->page_las.skew_newest);
                 /* Extend the buffer if needed */
                 WT_ERR(__wt_buf_extend(
                   session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
@@ -716,11 +718,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 cursor->set_value(
                   cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
 
-            /*
-             * Using update looks a little strange because the keys are guaranteed to not exist, but
-             * since we're appending, we want the cursor to stay positioned in between inserts.
-             */
-            WT_ERR(cursor->update(cursor));
+            /* Using insert so we don't keep the page pinned longer than necessary. */
+            WT_ERR(cursor->insert(cursor));
             ++insert_cnt;
             if (upd->prepare_state == WT_PREPARE_INPROGRESS)
                 ++prepared_insert_cnt;

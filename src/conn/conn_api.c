@@ -2574,6 +2574,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__wt_config_gets(session, cfg, "mmap", &cval));
     conn->mmap = cval.val != 0;
 
+    WT_ERR(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
+    conn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
+
     WT_ERR(__wt_config_gets(session, cfg, "salvage", &cval));
     if (cval.val) {
         if (F_ISSET(conn, WT_CONN_READONLY))
