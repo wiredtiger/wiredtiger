@@ -834,7 +834,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
      */
     for (;;) {
         WT_CLEAR(las_key);
-        cursor->set_key(cursor, btree_id, key, timestamp, UINT64_MAX);
+        cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX);
         WT_RET(cursor->search_near(cursor, &exact));
         if (exact > 0)
             WT_RET(cursor->prev(cursor));

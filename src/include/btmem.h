@@ -245,13 +245,13 @@ struct __wt_ovfl_reuse {
  * the future of the reader.
  */
 struct __wt_page_lookaside {
-    uint64_t max_txn;                          /* Maximum transaction ID */
+    uint64_t max_txn;              /* Maximum transaction ID */
     wt_timestamp_t max_ondisk_ts;  /* Maximum timestamp on disk */
     wt_timestamp_t min_skipped_ts; /* Skipped in favor of disk version */
-    bool has_las;                              /* The page has lookaside content on disk */
-    bool has_prepares;                         /* One or more updates are prepared */
-    WT_ITEM max_las_key;                       /* The maximum key in the LAS for the page */
-    WT_ITEM min_las_key;                       /* The minimum key in the LAS for the page */
+    bool has_las;                  /* The page has lookaside content on disk */
+    bool has_prepares;             /* One or more updates are prepared */
+    WT_ITEM max_las_key;           /* The maximum key in the LAS for the page */
+    WT_ITEM min_las_key;           /* The minimum key in the LAS for the page */
     struct __wt_birthmark_details {
         WT_ITEM key;
         uint64_t txnid;
