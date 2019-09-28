@@ -1337,7 +1337,7 @@ buildvariants:
   modules:
   - enterprise
   run_on:
-  - ubuntu1604-zseries-small
+  - ubuntu1804-zseries-build
   batchtime: 10080 # 7 days
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
