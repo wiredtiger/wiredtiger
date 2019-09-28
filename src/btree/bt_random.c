@@ -314,8 +314,8 @@ __random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     for (i = __wt_random(&session->rnd) % WT_RANDOM_CURSOR_MOVE;;) {
         ret = next ? __wt_btcur_next(cbt, false) : __wt_btcur_prev(cbt, false);
         if (ret == WT_NOTFOUND) {
-            next = false; /* Reverse direction from the end of the tree. */
-            ret = __wt_btcur_prev(cbt, false);
+            next = !next; /* Reverse direction. */
+            ret = next ? __wt_btcur_next(cbt, false) : __wt_btcur_prev(cbt, false);
             WT_RET(ret); /* An empty tree. */
         }
         if (i > 0)
