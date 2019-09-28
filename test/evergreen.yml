@@ -1025,9 +1025,6 @@ tasks:
             cmd.exe /c "cd test\\format && ..\\..\\t_format.exe reverse=0 encryption=none logging_compression=none runs=20"
 
   - name: million-collection-test
-    depends_on: []
-    run_on:
-      - rhel62-large
     commands:
       - func: "fetch source"
       - func: "fetch mongo-tests repo"
@@ -1035,6 +1032,7 @@ tasks:
         params:
           working_dir: mongo-tests
           script: |
+            sudo su
             set -o errexit
             set -o verbose
             ulimit -n 1000000
@@ -1270,7 +1268,7 @@ buildvariants:
   display_name: Large scale testing
   batchtime: 1440 # 1 day
   run_on:
-  - rhel62-large
+  - rhel80-build
   expansions:
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++
   tasks:
