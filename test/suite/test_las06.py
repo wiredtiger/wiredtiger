@@ -218,7 +218,13 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         self.session.breakpoint()
-        prepare_session.rollback_transaction()
+        prepare_session.commit_transaction(
+            'commit_timestamp=' + timestamp_str(5) + ',durable_timestamp=' + timestamp_str(6))
+
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
+        for i in range(1, 11):
+            self.assertEquals(value2, cursor[i])
+        self.session.rollback_transaction()
 
 if __name__ == '__main__':
     wttest.run()
