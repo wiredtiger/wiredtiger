@@ -1,5 +1,4 @@
 #! /bin/sh
-
 set -e
 
 # Bypass this test for slow machines, valgrind

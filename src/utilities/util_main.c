@@ -11,11 +11,12 @@
 const char *home = "."; /* Home directory */
 const char *progname;   /* Program name */
                         /* Global arguments */
-const char *usage_prefix = "[-LRSVv] [-C config] [-E secretkey] [-h home]";
+const char *usage_prefix = "[-LRrSVv] [-C config] [-E secretkey] [-h home]";
 bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
+#define READONLY "readonly=true"
 #define REC_ERROR "log=(recover=error)"
 #define REC_LOGOFF "log=(enabled=false)"
 #define REC_RECOVER "log=(recover=on)"
@@ -43,6 +44,9 @@ usage(void)
       "\t"
       "-R\t"
       "run recovery (if recovery configured)\n"
+      "\t"
+      "-r\t"
+      "access the database via a readonly connection\n"
       "\t"
       "-S\t"
       "run salvage recovery (if recovery configured)\n"
@@ -111,8 +115,8 @@ main(int argc, char *argv[])
     size_t len;
     int ch, major_v, minor_v, tret, (*func)(WT_SESSION *, int, char *[]);
     char *p, *secretkey;
-    const char *cmd_config, *config, *p1, *p2, *p3, *rec_config;
-    bool logoff, recover, salvage;
+    const char *cmd_config, *config, *p1, *p2, *p3, *readonly_config, *rec_config;
+    bool logoff, readonly, recover, salvage;
 
     conn = NULL;
     p = NULL;
@@ -134,16 +138,16 @@ main(int argc, char *argv[])
         return (EXIT_FAILURE);
     }
 
-    cmd_config = config = secretkey = NULL;
+    cmd_config = config = readonly_config = secretkey = NULL;
     /*
      * We default to returning an error if recovery needs to be run. Generally we expect this to be
      * run after a clean shutdown. The printlog command disables logging entirely. If recovery is
      * needed, the user can specify -R to run recovery.
      */
     rec_config = REC_ERROR;
-    logoff = recover = salvage = false;
+    logoff = readonly = recover = salvage = false;
     /* Check for standard options. */
-    while ((ch = __wt_getopt(progname, argc, argv, "C:E:h:LRSVv")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:E:h:LRrSVv")) != EOF)
         switch (ch) {
         case 'C': /* wiredtiger_open config */
             cmd_config = __wt_optarg;
@@ -167,6 +171,10 @@ main(int argc, char *argv[])
             rec_config = REC_RECOVER;
             recover = true;
             break;
+        case 'r':
+            readonly_config = READONLY;
+            readonly = true;
+            break;
         case 'S': /* salvage */
             rec_config = REC_SALVAGE;
             salvage = true;
@@ -186,6 +194,10 @@ main(int argc, char *argv[])
         fprintf(stderr, "Only one of -L, -R, and -S is allowed.\n");
         goto err;
     }
+    if ((recover || salvage) && readonly) {
+        fprintf(stderr, "-R and -S cannot be used with -r\n");
+        goto err;
+    }
     argc -= __wt_optind;
     argv += __wt_optind;
 
@@ -198,7 +210,6 @@ main(int argc, char *argv[])
 
     /* Reset getopt. */
     __wt_optreset = __wt_optind = 1;
-
     func = NULL;
     switch (command[0]) {
     case 'a':
@@ -297,6 +308,8 @@ main(int argc, char *argv[])
         len += strlen(config);
     if (cmd_config != NULL)
         len += strlen(cmd_config);
+    if (readonly_config != NULL)
+        len += strlen(readonly_config);
     if (secretkey != NULL) {
         len += strlen(secretkey) + 30;
         p1 = ",encryption=(secretkey=";
@@ -308,8 +321,9 @@ main(int argc, char *argv[])
         (void)util_err(NULL, errno, NULL);
         goto err;
     }
-    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s%s%s%s", config == NULL ? "" : config,
-           cmd_config == NULL ? "" : cmd_config, rec_config, p1, p2, p3)) != 0) {
+    if ((ret = __wt_snprintf(p, len, "error_prefix=wt,%s,%s,%s,%s%s%s%s",
+           config == NULL ? "" : config, cmd_config == NULL ? "" : cmd_config,
+           readonly_config == NULL ? "" : readonly_config, rec_config, p1, p2, p3)) != 0) {
         (void)util_err(NULL, ret, NULL);
         goto err;
     }
