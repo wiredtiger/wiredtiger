@@ -70,8 +70,6 @@ random_kv(void *arg)
 
         /* This is just a smoke-test, get some key/value pairs. */
         for (i = mmrand(NULL, 0, 1000); i > 0; --i) {
-            fprintf(stderr, ".");
-            fflush(stderr);
             testutil_check(cursor->next(cursor));
             testutil_check(cursor->get_key(cursor, &key));
             testutil_check(cursor->get_value(cursor, &value));
