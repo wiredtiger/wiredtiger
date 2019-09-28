@@ -42,7 +42,8 @@ err:
  */
 int
 __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *key,
-  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
+  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive,
+  WT_UPDATE *single_upd)
 {
     WT_DECL_RET;
     WT_INSERT *ins;
@@ -87,10 +88,15 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *k
             /* Make sure the update can proceed. */
             WT_ERR(__wt_txn_update_check(session, old_upd = *upd_entry));
 
-            /* Allocate a WT_UPDATE structure and transaction ID. */
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
-            WT_ERR(__wt_txn_modify(session, upd));
-            logged = true;
+            if (single_upd == NULL) {
+                /* Allocate a WT_UPDATE structure and transaction ID. */
+                WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+                WT_ERR(__wt_txn_modify(session, upd));
+                logged = true;
+            } else {
+                upd = single_upd;
+                upd_size = WT_UPDATE_MEMSIZE(upd);
+            }
 
             /* Avoid WT_CURSOR.update data copy. */
             cbt->modify_update = upd;

@@ -825,7 +825,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
      */
     if (btree_id == 0) {
         WT_RET(cursor->reset(cursor));
-        return (cursor->next(cursor));
+        return (cursor->prev(cursor));
     }
 
     /*
@@ -848,7 +848,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
          * removed by WT_CONNECTION::rollback_to_stable.
          */
         WT_RET(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
-        if (las_btree_id > btree_id)
+        if (las_btree_id < btree_id)
             return (0);
         else if (las_btree_id == btree_id) {
             WT_RET(__wt_compare(session, NULL, &las_key, key, &cmp));
@@ -1265,7 +1265,7 @@ err:
  */
 int
 __wt_find_lookaside_upd(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prep)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prepare)
 {
     WT_CACHE *cache;
     WT_CURSOR *cursor;
@@ -1275,7 +1275,7 @@ __wt_find_lookaside_upd(
     WT_ITEM *key;
     WT_REF *ref;
     WT_TXN *txn;
-    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp;
+    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp, *prev_upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
     uint64_t las_txnid, _las_txnid, recno;
@@ -1289,7 +1289,7 @@ __wt_find_lookaside_upd(
     WT_UNUSED(_las_timestamp);
     WT_UNUSED(_las_txnid);
 
-    *updp = NULL;
+    *updp = prev_upd = NULL;
 
     cache = S2C(session)->cache;
     cursor = NULL;
@@ -1340,7 +1340,8 @@ __wt_find_lookaside_upd(
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    for (ret = __wt_las_cursor_position(session, cursor, las_btree_id, key, txn->read_timestamp);
+    for (ret = __wt_las_cursor_position(session, cursor, las_btree_id, key,
+           allow_prepare ? txn->prepare_timestamp : txn->read_timestamp);
          ret == 0; ret = cursor->prev(cursor)) {
         WT_ERR(cursor->get_key(cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
 
@@ -1372,8 +1373,10 @@ __wt_find_lookaside_upd(
          * prepared.
          */
         if (prepare_state == WT_PREPARE_INPROGRESS &&
-          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prep)
+          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
+            ret = WT_PREPARE_CONFLICT;
             break;
+        }
 
         /* We do not have birthmarks in the lookaside anymore. */
         WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK);
@@ -1439,7 +1442,8 @@ __wt_find_lookaside_upd(
                 WT_ERR(__wt_col_instantiate(session, recno, ref, cbt, upd));
                 break;
             case WT_PAGE_ROW_LEAF:
-                WT_ERR(__wt_row_instantiate(session, las_key, ref, cbt, upd));
+                WT_ERR(__wt_row_modify(
+                  session, cbt, las_key, NULL, NULL, WT_UPDATE_STANDARD, false, upd));
                 break;
             }
             /*

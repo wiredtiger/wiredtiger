@@ -1515,7 +1515,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ASSERT(session, cbt.compare == 0 || upd->type != WT_UPDATE_BIRTHMARK);
 
             /* Apply the modification. */
-            WT_ERR(__wt_row_modify(session, &cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
+            WT_ERR(__wt_row_modify(session, &cbt, key, NULL, upd, WT_UPDATE_INVALID, true, NULL));
             break;
         default:
             WT_ERR(__wt_illegal_value(session, orig->type));

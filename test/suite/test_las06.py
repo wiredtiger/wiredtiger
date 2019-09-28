@@ -192,12 +192,10 @@ class test_las06(wttest.WiredTigerTestCase):
         prepare_session = self.conn.open_session(self.session_config)
         prepare_cursor = prepare_session.open_cursor(uri)
         prepare_session.begin_transaction()
-        for i in range(1, 10):
+        for i in range(1, 11):
             prepare_cursor[i] = value2
         prepare_session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(3))
-
-        self.printVerbose(0, 'trying to evict shit. come on now.')
 
         # Write some more to cause eviction of the prepared data.
         for i in range(11, 10000):
@@ -205,29 +203,21 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[i] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
-        self.printVerbose(0, 'committed stuff... hopefully its out of cache now ')
-
         self.session.checkpoint()
-        self.session.breakpoint()
 
         # Try to read every key of the prepared data again.
         # Ensure that we read the lookaside to find the prepared update and
         # return a prepare conflict as appropriate.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        for i in range(1, 10):
-            self.printVerbose(0, 'about to search {0}'.format(i))
+        for i in range(1, 11):
             cursor.set_key(i)
-            self.printVerbose(0, 'got {}'.format(cursor.search()))
-            self.printVerbose(0, 'just searched {0}'.format(i))
-            self.printVerbose(0, 'checked {}'.format(cursor.get_value()))
-            # self.assertRaisesException(
-            #     wiredtiger.WiredTigerError,
-            #     lambda: cursor.search(),
-            #     '/conflict with a prepared update/')
+            self.assertRaisesException(
+                wiredtiger.WiredTigerError,
+                lambda: cursor.search(),
+                '/conflict with a prepared update/')
         self.session.rollback_transaction()
 
-        self.printVerbose(0, 'okkk, time to do da roooooollback')
-
+        self.session.breakpoint()
         prepare_session.rollback_transaction()
 
 if __name__ == '__main__':

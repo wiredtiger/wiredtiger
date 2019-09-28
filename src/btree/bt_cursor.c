@@ -397,7 +397,7 @@ static inline int
 __cursor_row_modify_v(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 {
-    return (__wt_row_modify(session, cbt, &cbt->iface.key, value, NULL, modify_type, false));
+    return (__wt_row_modify(session, cbt, &cbt->iface.key, value, NULL, modify_type, false, NULL));
 }
 
 /*
@@ -418,8 +418,8 @@ __cursor_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, u_int modify
 static inline int
 __cursor_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, u_int modify_type)
 {
-    return (
-      __wt_row_modify(session, cbt, &cbt->iface.key, &cbt->iface.value, NULL, modify_type, false));
+    return (__wt_row_modify(
+      session, cbt, &cbt->iface.key, &cbt->iface.value, NULL, modify_type, false, NULL));
 }
 
 /*
@@ -465,8 +465,9 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
     WT_CURSOR *cursor;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd;
+    WT_UPDATE *upd, *tmp_upd;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
@@ -488,15 +489,21 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
          */
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
-        else if (cbt->btree->type == BTREE_ROW) {
-            WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
-                cbt->ref->page->modify->mod_row_update != NULL);
-            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-        }
+        else if (cbt->btree->type == BTREE_ROW)
+            if (cbt->ref->page->modify)
+                upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
     }
 
-    if (upd == NULL && cbt->ref->page_las->has_las && __wt_page_las_active(session, cbt->ref))
-        WT_RET(__wt_find_lookaside_upd(session, cbt, &upd, true));
+    if (__wt_page_las_active(session, cbt->ref) && cbt->ref->page_las->has_las) {
+        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, true);
+        WT_RET_NOTFOUND_OK(ret);
+        if (ret == 0) {
+            if (upd == NULL || upd->start_ts < tmp_upd->start_ts)
+                upd = tmp_upd;
+            else
+                __wt_free_update_list(session, tmp_upd);
+        }
+    }
 
     *updp = upd;
     return (0);
