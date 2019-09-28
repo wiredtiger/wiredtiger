@@ -69,13 +69,15 @@ random_kv(void *arg)
         testutil_check(ret);
 
         /* This is just a smoke-test, get some key/value pairs. */
-        for (i = mmrand(NULL, 0, 100); i > 0; --i) {
+        for (i = mmrand(NULL, 0, 1000); i > 0; --i) {
             fprintf(stderr, ".");
             fflush(stderr);
             testutil_check(cursor->next(cursor));
             testutil_check(cursor->get_key(cursor, &key));
             testutil_check(cursor->get_value(cursor, &value));
         }
+
+        testutil_check(cursor->close(cursor));
 
         /* Sleep for some number of seconds. */
         period = mmrand(NULL, 1, 10);
