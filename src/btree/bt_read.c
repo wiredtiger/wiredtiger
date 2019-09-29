@@ -60,7 +60,7 @@ __wt_row_instantiate(
 
     /* Search the page and add updates. */
     WT_RET(__wt_row_search(session, key, ref, cbt, true, true));
-    WT_RET(__wt_row_modify(session, cbt, key, NULL, updlist, WT_UPDATE_INVALID, false, NULL));
+    WT_RET(__wt_row_modify(session, cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
     return (0);
 }
 

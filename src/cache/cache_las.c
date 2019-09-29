@@ -1275,9 +1275,9 @@ __wt_find_lookaside_upd(
     WT_ITEM *key;
     WT_REF *ref;
     WT_TXN *txn;
-    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp, *prev_upd;
+    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp, **upd_entry, *old_upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
-    size_t allocated_bytes, incr;
+    size_t allocated_bytes, incr, upd_size;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, upd_type;
@@ -1289,7 +1289,7 @@ __wt_find_lookaside_upd(
     WT_UNUSED(_las_timestamp);
     WT_UNUSED(_las_txnid);
 
-    *updp = prev_upd = NULL;
+    *updp = NULL;
 
     cache = S2C(session)->cache;
     cursor = NULL;
@@ -1442,8 +1442,24 @@ __wt_find_lookaside_upd(
                 WT_ERR(__wt_col_instantiate(session, recno, ref, cbt, upd));
                 break;
             case WT_PAGE_ROW_LEAF:
-                WT_ERR(__wt_row_modify(
-                  session, cbt, las_key, NULL, NULL, WT_UPDATE_STANDARD, false, upd));
+                (void)upd_entry;
+                (void)old_upd;
+                (void)upd_size;
+                WT_ERR(__wt_row_append(session, cbt, upd));
+                /* ref = cbt->ref; */
+                /* if (cbt->ins == NULL) { */
+                /*     WT_PAGE_ALLOC_AND_SWAP(session, ref->page, ref->page->modify->mod_row_update,
+                 */
+                /*       upd_entry, ref->page->entries); */
+                /*     upd_entry = &ref->page->modify->mod_row_update[cbt->slot]; */
+                /* } else */
+                /*     upd_entry = &cbt->ins->upd; */
+                /* old_upd = *upd_entry; */
+                /* upd_size = WT_UPDATE_MEMSIZE(upd); */
+                /* cbt->modify_update = upd; */
+                /* upd->next = old_upd; */
+                /* WT_ERR(__wt_update_serial(session, ref->page, upd_entry, &upd, upd_size, false));
+                 */
                 break;
             }
             /*
