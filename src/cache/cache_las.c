@@ -1273,9 +1273,9 @@ __wt_find_lookaside_upd(
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
     WT_ITEM *key;
-    WT_REF *ref;
+    WT_PAGE *page;
     WT_TXN *txn;
-    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp, **upd_entry, *tmp_upd, *old_upd;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *old_upd, *tmp_upd, *upd, **upd_entry;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr, upd_size;
     uint64_t las_txnid, _las_txnid;
@@ -1293,7 +1293,7 @@ __wt_find_lookaside_upd(
     cache = S2C(session)->cache;
     cursor = NULL;
     key = NULL;
-    ref = cbt->ref;
+    page = cbt->ref->page;
     upd = NULL;
     listp = list;
     txn = &session->txn;
@@ -1433,34 +1433,38 @@ __wt_find_lookaside_upd(
 
         if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, !modify);
-            switch (ref->page->type) {
+            WT_ASSERT(session, cbt->compare == 0);
+            upd_entry = NULL;
+            switch (page->type) {
             case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
-                old_upd = cbt->ins->upd;
                 WT_ASSERT(session, cbt->ins != NULL);
-                upd_size = WT_UPDATE_MEMSIZE(upd);
-                cbt->modify_update = upd;
-                upd->next = old_upd;
-                tmp_upd = upd;
-                WT_ERR(__wt_update_serial(
-                  session, ref->page, &cbt->ins->upd, &tmp_upd, upd_size, false));
+                upd_entry = &cbt->ins->upd;
                 break;
             case WT_PAGE_ROW_LEAF:
                 if (cbt->ins == NULL) {
-                    WT_PAGE_ALLOC_AND_SWAP(session, ref->page, ref->page->modify->mod_row_update,
-                      upd_entry, ref->page->entries);
-                    upd_entry = &ref->page->modify->mod_row_update[cbt->slot];
+                    WT_PAGE_ALLOC_AND_SWAP(
+                      session, page, page->modify->mod_row_update, upd_entry, page->entries);
+                    upd_entry = &page->modify->mod_row_update[cbt->slot];
                 } else
                     upd_entry = &cbt->ins->upd;
-                old_upd = *upd_entry;
-                upd_size = WT_UPDATE_MEMSIZE(upd);
-                cbt->modify_update = upd;
-                upd->next = old_upd;
-                tmp_upd = upd;
-                WT_ERR(
-                  __wt_update_serial(session, ref->page, upd_entry, &tmp_upd, upd_size, false));
                 break;
             }
+
+            WT_ASSERT(session, upd_entry != NULL);
+            old_upd = *upd_entry;
+            upd_size = WT_UPDATE_MEMSIZE(upd);
+            cbt->modify_update = upd;
+            upd->next = old_upd;
+
+            /*
+             * Update serial will set the update pointer to null since it considers itself the owner
+             * of it now. However, we want to be able to keep a handle on the update so pass in a
+             * copy of the pointer.
+             */
+            tmp_upd = upd;
+            WT_ERR(__wt_update_serial(session, page, upd_entry, &tmp_upd, upd_size, false));
+
             /*
              * After reading in the prepared update, we need to delete it from lookaside. If it gets
              * committed, the timestamp in the las key may differ so it's easier if we just get rid
