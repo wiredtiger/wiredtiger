@@ -1370,6 +1370,9 @@ __wt_find_lookaside_upd(
         /*
          * Found a visible record, return success unless it is prepared and we are not ignoring
          * prepared.
+         *
+         * It's necessary to explicitly signal a prepare conflict so that the callers don't fallback
+         * to using something from the update list.
          */
         if (prepare_state == WT_PREPARE_INPROGRESS &&
           !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
@@ -1442,12 +1445,8 @@ __wt_find_lookaside_upd(
                 upd_entry = &cbt->ins->upd;
                 break;
             case WT_PAGE_ROW_LEAF:
-                if (cbt->ins == NULL) {
-                    WT_PAGE_ALLOC_AND_SWAP(
-                      session, page, page->modify->mod_row_update, upd_entry, page->entries);
-                    upd_entry = &page->modify->mod_row_update[cbt->slot];
-                } else
-                    upd_entry = &cbt->ins->upd;
+                upd_entry =
+                  cbt->ins == NULL ? &page->modify->mod_row_update[cbt->slot] : &cbt->ins->upd;
                 break;
             }
 
