@@ -47,7 +47,7 @@ class test_las06(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
     key_format_values = [
-#        ('column_store', dict(key_format='r')),
+        ('column_store', dict(key_format='r')),
         ('row_store', dict(key_format='i'))
     ]
     scenarios = make_scenarios(key_format_values)
@@ -183,7 +183,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
-        for i in range(0, 10000):
+        for i in range(1, 10000):
             self.session.begin_transaction()
             cursor[i] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))

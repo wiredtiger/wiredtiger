@@ -1439,7 +1439,8 @@ __wt_find_lookaside_upd(
             case WT_PAGE_COL_VAR:
                 recnop = las_key->data;
                 WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
-                WT_ERR(__wt_col_instantiate(session, recno, ref, cbt, upd));
+                WT_ERR(
+                  __wt_col_modify(session, cbt, recno, NULL, NULL, WT_UPDATE_STANDARD, false, upd));
                 break;
             case WT_PAGE_ROW_LEAF:
                 (void)upd_entry;

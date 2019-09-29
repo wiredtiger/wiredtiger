@@ -367,8 +367,8 @@ extern int __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
 extern int __wt_col_instantiate(WT_SESSION_IMPL *session, uint64_t recno, WT_REF *ref,
   WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive,
+  WT_UPDATE *single_upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_search(WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf,
   WT_CURSOR_BTREE *cbt, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_collator_config(WT_SESSION_IMPL *session, const char *uri, WT_CONFIG_ITEM *cname,
