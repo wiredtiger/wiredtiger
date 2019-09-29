@@ -494,7 +494,12 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
                 upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
     }
 
-    if (__wt_page_las_active(session, cbt->ref) && cbt->ref->page_las->has_las) {
+    /*
+     * In the case of prepare, there could be "uncommitted" updates in the lookaside that are newer
+     * than those in the update list.
+     */
+    if (__wt_page_las_active(session, cbt->ref) && cbt->ref->page_las->has_las &&
+      cbt->ref->page_las->has_prepares) {
         ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, true);
         WT_RET_NOTFOUND_OK(ret);
         if (ret == 0) {
