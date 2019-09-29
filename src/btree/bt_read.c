@@ -32,7 +32,7 @@ __col_instantiate(
 
     /* Search the page and add updates. */
     WT_RET(__wt_col_search(session, recno, ref, cbt, true));
-    WT_RET(__wt_col_modify(session, cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false, NULL));
+    WT_RET(__wt_col_modify(session, cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
     return (0);
 }
 

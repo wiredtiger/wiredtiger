@@ -386,7 +386,7 @@ static inline int
 __cursor_col_modify_v(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 {
-    return (__wt_col_modify(session, cbt, cbt->iface.recno, value, NULL, modify_type, false, NULL));
+    return (__wt_col_modify(session, cbt, cbt->iface.recno, value, NULL, modify_type, false));
 }
 
 /*
@@ -407,8 +407,8 @@ __cursor_row_modify_v(
 static inline int
 __cursor_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, u_int modify_type)
 {
-    return (__wt_col_modify(
-      session, cbt, cbt->iface.recno, &cbt->iface.value, NULL, modify_type, false, NULL));
+    return (
+      __wt_col_modify(session, cbt, cbt->iface.recno, &cbt->iface.value, NULL, modify_type, false));
 }
 
 /*

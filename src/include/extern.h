@@ -365,8 +365,8 @@ extern int __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 extern int __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive,
-  WT_UPDATE *single_upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_search(WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf,
   WT_CURSOR_BTREE *cbt, bool restore) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_collator_config(WT_SESSION_IMPL *session, const char *uri, WT_CONFIG_ITEM *cname,
@@ -1178,8 +1178,6 @@ extern int __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INS
 extern int __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage,
   uint32_t flags, bool *lookaside_retryp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_row_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_row_ikey(WT_SESSION_IMPL *session, uint32_t cell_offset, const void *key,
   size_t size, WT_REF *ref) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

@@ -16,8 +16,7 @@ static int __col_insert_alloc(WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, 
  */
 int
 __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive,
-  WT_UPDATE *single_upd)
+  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
 {
     static const WT_ITEM col_fix_remove = {"", 1, NULL, 0, 0};
     WT_BTREE *btree;
@@ -124,15 +123,10 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
         /* Make sure the update can proceed. */
         WT_ERR(__wt_txn_update_check(session, old_upd = cbt->ins->upd));
 
-        if (single_upd == NULL) {
-            /* Allocate a WT_UPDATE structure and transaction ID. */
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
-            WT_ERR(__wt_txn_modify(session, upd));
-            logged = true;
-        } else {
-            upd = single_upd;
-            upd_size = WT_UPDATE_MEMSIZE(upd);
-        }
+        /* Allocate a WT_UPDATE structure and transaction ID. */
+        WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+        WT_ERR(__wt_txn_modify(session, upd));
+        logged = true;
 
         /* Avoid a data copy in WT_CURSOR.update. */
         cbt->modify_update = upd;
@@ -181,14 +175,9 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
             (recno != WT_RECNO_OOB && mod->mod_col_split_recno > recno));
 
         if (upd_arg == NULL) {
-            if (single_upd == NULL) {
-                WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
-                WT_ERR(__wt_txn_modify(session, upd));
-                logged = true;
-            } else {
-                upd = single_upd;
-                upd_size = WT_UPDATE_MEMSIZE(upd);
-            }
+            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_txn_modify(session, upd));
+            logged = true;
 
             /* Avoid a data copy in WT_CURSOR.update. */
             cbt->modify_update = upd;

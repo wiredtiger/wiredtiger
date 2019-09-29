@@ -214,57 +214,6 @@ err:
     return (ret);
 }
 
-int
-__wt_row_append(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
-{
-    WT_DECL_RET;
-    WT_INSERT *ins;
-    WT_PAGE *page;
-    WT_PAGE_MODIFY *mod;
-    WT_UPDATE *old_upd, **upd_entry;
-    size_t upd_size;
-
-    ins = NULL;
-    page = cbt->ref->page;
-    mod = page->modify;
-
-    if (cbt->ins == NULL) {
-        /* Allocate an update array as necessary. */
-        WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
-
-        /* Set the WT_UPDATE array reference. */
-        upd_entry = &mod->mod_row_update[cbt->slot];
-    } else
-        upd_entry = &cbt->ins->upd;
-
-    /* Make sure the update can proceed. */
-    old_upd = *upd_entry;
-
-    upd_size = WT_UPDATE_MEMSIZE(upd);
-
-    /* Avoid WT_CURSOR.update data copy. */
-    cbt->modify_update = upd;
-    /*
-     * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
-     * serialization function lock acts as our memory barrier to flush this write.
-     */
-    upd->next = old_upd;
-
-    /* Serialize the update. */
-    WT_ERR(__wt_update_serial(session, page, upd_entry, &upd, upd_size, false));
-
-    if (0) {
-err:
-        WT_ASSERT(session, false);
-        /*
-         * Remove the update from the current transaction, so we don't try to modify it on rollback.
-         */
-        __wt_free(session, upd);
-    }
-
-    return (ret);
-}
-
 /*
  * __wt_row_insert_alloc --
  *     Row-store insert: allocate a WT_INSERT structure and fill it in.
