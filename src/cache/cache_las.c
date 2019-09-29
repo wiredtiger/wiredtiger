@@ -1287,6 +1287,7 @@ __wt_find_lookaside_upd(
 
     WT_UNUSED(_las_timestamp);
     WT_UNUSED(_las_txnid);
+    WT_UNUSED(modify);
 
     *updp = NULL;
 
