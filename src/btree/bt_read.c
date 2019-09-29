@@ -12,7 +12,7 @@
  * __col_instantiate --
  *     Update a column-store page entry based on a lookaside table update list.
  */
-int
+static int
 __col_instantiate(
   WT_SESSION_IMPL *session, uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
 {
@@ -40,7 +40,7 @@ __col_instantiate(
  * __row_instantiate --
  *     Update a row-store page entry based on a lookaside table update list.
  */
-int
+static int
 __row_instantiate(
   WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
 {
