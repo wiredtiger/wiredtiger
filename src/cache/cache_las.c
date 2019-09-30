@@ -577,8 +577,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(birthmarks);
     WT_DECL_ITEM(key);
-    WT_DECL_ITEM(max_las_key);
-    WT_DECL_ITEM(min_las_key);
     WT_DECL_RET;
     WT_ITEM las_value;
     WT_SAVE_UPD *list;
@@ -609,8 +607,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &max_las_key));
-    WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &min_las_key));
 
     WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
 
@@ -641,7 +637,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         /* Set the first key as the minimum key */
         if (i == 0)
-            WT_ERR(__wt_buf_set(session, min_las_key, key->data, key->size));
+            WT_ERR(__wt_buf_set(session, &multi->page_las.min_las_key, key->data, key->size));
 
         /*
          * Lookaside table value component: update reference. Updates come from the row-store insert
@@ -726,9 +722,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
                 /* Do not put birthmarks into the lookaside */
                 continue;
-            } else
-                cursor->set_value(
-                  cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
+            }
+
+            cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
 
             /* Using insert so we don't keep the page pinned longer than necessary. */
             WT_ERR(cursor->insert(cursor));
@@ -738,7 +734,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         } while ((upd = upd->next) != NULL);
     }
 
-    WT_ERR(__wt_buf_set(session, max_las_key, key->data, key->size));
+    WT_ERR(__wt_buf_set(session, &multi->page_las.max_las_key, key->data, key->size));
 
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
     WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
@@ -779,26 +775,17 @@ err:
               birthmarks_cnt * sizeof(WT_BIRTHMARK_DETAILS));
             multi->page_las.birthmarks_cnt = birthmarks_cnt;
         }
-        /*
-         * FIXME: Using scratch buffer doesn't seems to be correct this may free after * session
-         * close?
-         */
-        ret =
-          __wt_buf_set(session, &multi->page_las.max_las_key, max_las_key->data, max_las_key->size);
-        WT_UNUSED(ret);
-        ret =
-          __wt_buf_set(session, &multi->page_las.min_las_key, min_las_key->data, min_las_key->size);
-        WT_UNUSED(ret);
         __las_insert_updates_verbose(session, btree, multi);
     }
 
     __wt_scr_free(session, &key);
-    __wt_scr_free(session, &max_las_key);
-    __wt_scr_free(session, &min_las_key);
     /* Free all the birthmark keys if there was a failure */
-    if (ret != 0)
+    if (ret != 0) {
         for (i = 0, birthmarkp = birthmarks->mem; i < birthmarks_cnt; i++, birthmarkp++)
             __wt_buf_free(session, &birthmarkp->key);
+        __wt_buf_free(session, &multi->page_las.min_las_key);
+        __wt_buf_free(session, &multi->page_las.max_las_key);
+    }
     __wt_scr_free(session, &birthmarks);
     WT_UNUSED(first_upd);
     return (ret);
@@ -833,7 +820,6 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
      * search and the set of updates that we're interested in. Keep trying until we find it.
      */
     for (;;) {
-        WT_CLEAR(las_key);
         cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX);
         WT_RET(cursor->search_near(cursor, &exact));
         if (exact > 0)
@@ -847,6 +833,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
          * There may be no lookaside entries for the given btree id and record key if they have been
          * removed by WT_CONNECTION::rollback_to_stable.
          */
+        WT_CLEAR(las_key);
         WT_RET(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
         if (las_btree_id > btree_id)
             return (0);
@@ -854,9 +841,8 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
             WT_RET(__wt_compare(session, NULL, &las_key, key, &cmp));
             if (cmp < 0)
                 return (0);
-            else if (cmp == 0)
-                if (las_timestamp <= timestamp)
-                    return (0);
+            if (cmp == 0 && las_timestamp <= timestamp)
+                return (0);
         }
     }
 
