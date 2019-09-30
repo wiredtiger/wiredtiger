@@ -217,7 +217,6 @@ class test_las06(wttest.WiredTigerTestCase):
                 '/conflict with a prepared update/')
         self.session.rollback_transaction()
 
-        self.session.breakpoint()
         prepare_session.commit_transaction(
             'commit_timestamp=' + timestamp_str(5) + ',durable_timestamp=' + timestamp_str(6))
 
