@@ -6,7 +6,7 @@
 # This script assumes it is running in the directory with the wtperf executable.
 #
 # Usage
-# wtperf_xray.sh <wtperf-config-file> [wtperf other args]
+# wtperf_xray.sh [-h output-directory] <wtperf-config-file> [wtperf other args]
 #
 # Environment variables
 # XRAY_BINARY --
@@ -30,13 +30,29 @@
 #	frame. If FLAME_GRAPH_PATH is not specified, this graph won't be
 #	generated.
 #
-if test "$#" -lt "1"; then
-	echo "$0: must specify wtperf configuration to run"
+if ! test -f ./wtperf; then
+	echo "$0: could not find wtperf in current working directory"
 	exit 1
 fi
 
-if ! test -f ./wtperf; then
-	echo "$0: could not find wtperf in current working directory"
+xray_home="."
+if test "$#" -ne "0"; then
+	opt="$1"
+	case "$opt" in
+	-h )
+		shift
+		if test "$#" -eq "0"; then
+			echo "$0: the -h flag must be followed by a valid directory"
+			exit 1
+		fi
+		xray_home="$1"
+		shift
+		;;
+	esac
+fi
+
+if test "$#" -lt "1"; then
+	echo "$0: must specify wtperf configuration to run"
 	exit 1
 fi
 
@@ -47,11 +63,16 @@ if test -z "$objdump_out"; then
 	exit 1
 fi
 
+xray_account_path="${xray_home}/wtperf_account.txt"
+xray_stack_path="${xray_home}/wtperf_stack.txt"
+xray_graph_path="${xray_home}/wtperf_graph.svg"
+xray_flame_path="${xray_home}/wtperf_flame.svg"
+
 rm xray-log.wtperf.* \
-	wtperf_account.txt \
-	wtperf_stack.txt \
-	wtperf_graph.svg \
-	wtperf_flame.svg
+	"$xray_account_path" \
+	"$xray_stack_path" \
+	"$xray_graph_path" \
+	"$xray_flame_path"
 
 export XRAY_OPTIONS="patch_premain=true xray_mode=xray-basic verbosity=1"
 ./wtperf -O "$@"
@@ -72,19 +93,19 @@ fi
 
 $xray_bin account "$xray_log" \
 	-top=10 -sort=sum -sortorder=dsc -instr_map ./wtperf > \
-	wtperf_account.txt
+	"$xray_account_path"
 
 # Use the -per-thread-stacks option to get the top 10 stacks for each thread.
 # We could use the -aggregate-threads flag here so get the top stacks for all threads (omitting duplicates).
 $xray_bin stack -per-thread-stacks "$xray_log" \
 	-instr_map ./wtperf > \
-	wtperf_stack.txt
+	"$xray_stack_path"
 
 # Generate a DOT graph.
 $xray_bin graph "$xray_log" \
 	-m ./wtperf -color-edges=sum -edge-label=sum | \
 	unflatten -f -l10 | \
-	dot -Tsvg -o wtperf_graph.svg
+	dot -Tsvg -o "$xray_graph_path"
 
 # This file can be inspected in the Google Chrome Trace Viewer.
 # It seems to take a long time to generate this so just disable it for now.
@@ -94,5 +115,5 @@ if test -z "$FLAME_GRAPH_PATH"; then
 else
 	$xray_bin stack "$xray_log" \
 		-instr_map ./wtperf -stack-format=flame -aggregation-type=time -all-stacks | \
-		"$FLAME_GRAPH_PATH" > wtperf_flame.svg
+		"$FLAME_GRAPH_PATH" > "$xray_flame_path"
 fi
