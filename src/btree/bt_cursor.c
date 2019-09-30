@@ -482,18 +482,19 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
      * itself. But, we cannot be sure of finding one, as pre processing of this prepared transaction
      * updates could have happened as part of resolving earlier transaction operations.
      */
-    if (cbt->compare == 0) {
-        /*
-         * Get the uncommitted update from the cursor. For column store there will be always a
-         * insert structure for updates irrespective of fixed length or variable length.
-         */
-        if (cbt->ins != NULL)
-            upd = cbt->ins->upd;
-        else {
-            WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
-                cbt->ref->page->modify->mod_row_update != NULL);
-            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
-        }
+    if (cbt->compare != 0)
+        return (0);
+
+    /*
+     * Get the uncommitted update from the cursor. For column store there will be always a insert
+     * structure for updates irrespective of fixed length or variable length.
+     */
+    if (cbt->ins != NULL)
+        upd = cbt->ins->upd;
+    else {
+        WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
+            cbt->ref->page->modify->mod_row_update != NULL);
+        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
     }
 
     /*
