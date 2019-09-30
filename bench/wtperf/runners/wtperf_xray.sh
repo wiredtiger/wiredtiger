@@ -63,6 +63,11 @@ if test -z "$objdump_out"; then
 	exit 1
 fi
 
+if ! test -d "$xray_home"; then
+	echo "$0: creating directory $xray_home"
+	mkdir "$xray_home"
+fi
+
 xray_account_path="${xray_home}/wtperf_account.txt"
 xray_stack_path="${xray_home}/wtperf_stack.txt"
 xray_graph_path="${xray_home}/wtperf_graph.svg"
