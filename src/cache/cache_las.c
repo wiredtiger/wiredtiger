@@ -1261,7 +1261,9 @@ err:
 /*
  * __wt_find_lookaside_upd --
  *     Scan the lookaside for a record the btree cursor wants to position on. Create an update for
- *     the record and return to the caller.
+ *     the record and return to the caller. The caller may choose to optionally allow prepared
+ *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
+ *     prepare conflict will be returned upon reading a prepared update.
  */
 int
 __wt_find_lookaside_upd(
@@ -1303,6 +1305,12 @@ __wt_find_lookaside_upd(
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
     modify = sweep_locked = false;
+
+    /*
+     * Prior to calling this function, we should have successfully searched the correct key with our
+     * cursor.
+     */
+    WT_ASSERT(session, cbt->compare == 0);
 
     /* Row-store has the key available, create the column-store key on demand. */
     switch (cbt->btree->type) {
@@ -1435,9 +1443,14 @@ __wt_find_lookaside_upd(
         upd->start_ts = las_timestamp;
         upd->prepare_state = prepare_state;
 
+        /*
+         * When we find a prepared update in lookaside, we should add it to our update list and
+         * subsequently delete the corresponding lookaside entry. If it gets committed, the
+         * timestamp in the las key may differ so it's easier if we get rid of it now and rewrite
+         * the entry on eviction/commit/rollback.
+         */
         if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, !modify);
-            WT_ASSERT(session, cbt->compare == 0);
             upd_entry = NULL;
             switch (page->type) {
             case WT_PAGE_COL_FIX:
@@ -1465,11 +1478,6 @@ __wt_find_lookaside_upd(
             tmp_upd = upd;
             WT_ERR(__wt_update_serial(session, page, upd_entry, &tmp_upd, upd_size, false));
 
-            /*
-             * After reading in the prepared update, we need to delete it from lookaside. If it gets
-             * committed, the timestamp in the las key may differ so it's easier if we just get rid
-             * of it now and rewrite on eviction/commit/rollback.
-             */
             WT_ERR(cursor->remove(cursor));
         } else
             /*

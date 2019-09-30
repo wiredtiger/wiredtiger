@@ -467,7 +467,7 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *upd, *tmp_upd;
+    WT_UPDATE *tmp_upd, *upd;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
@@ -489,23 +489,25 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
          */
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
-        else if (cbt->btree->type == BTREE_ROW)
-            if (cbt->ref->page->modify)
-                upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        else {
+            WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
+                cbt->ref->page->modify->mod_row_update != NULL);
+            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        }
     }
 
     /*
      * In the case of prepare, there could be "uncommitted" updates in the lookaside that are newer
      * than those in the update list.
      */
-    if (__wt_page_las_active(session, cbt->ref) && cbt->ref->page_las->has_las &&
-      cbt->ref->page_las->has_prepares) {
+    if (cbt->ref->page_las != NULL && cbt->ref->page_las->has_prepares) {
         ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, true);
         WT_RET_NOTFOUND_OK(ret);
         if (ret == 0) {
-            if (upd == NULL || upd->start_ts < tmp_upd->start_ts)
+            if (upd == NULL || upd->start_ts < tmp_upd->start_ts) {
+                WT_ASSERT(session, tmp_upd->prepare_state == WT_PREPARE_INPROGRESS);
                 upd = tmp_upd;
-            else
+            } else
                 __wt_free_update_list(session, tmp_upd);
         }
     }
