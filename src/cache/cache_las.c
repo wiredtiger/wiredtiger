@@ -1277,9 +1277,9 @@ __wt_find_lookaside_upd(
     WT_ITEM *key;
     WT_PAGE *page;
     WT_TXN *txn;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *old_upd, *tmp_upd, *upd, **upd_entry;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *tmp_upd, *upd, **upd_entry;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
-    size_t allocated_bytes, incr, upd_size;
+    size_t allocated_bytes, incr;
     uint64_t las_txnid, _las_txnid;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, upd_type;
@@ -1465,10 +1465,8 @@ __wt_find_lookaside_upd(
             }
 
             WT_ASSERT(session, upd_entry != NULL);
-            old_upd = *upd_entry;
-            upd_size = WT_UPDATE_MEMSIZE(upd);
             cbt->modify_update = upd;
-            upd->next = old_upd;
+            upd->next = *upd_entry;
 
             /*
              * Update serial will set the update pointer to null since it considers itself the owner
@@ -1476,7 +1474,8 @@ __wt_find_lookaside_upd(
              * copy of the pointer.
              */
             tmp_upd = upd;
-            WT_ERR(__wt_update_serial(session, page, upd_entry, &tmp_upd, upd_size, false));
+            WT_ERR(__wt_update_serial(
+              session, page, upd_entry, &tmp_upd, WT_UPDATE_MEMSIZE(upd), false));
 
             WT_ERR(cursor->remove(cursor));
         } else
