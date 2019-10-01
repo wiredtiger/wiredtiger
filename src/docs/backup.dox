@@ -68,7 +68,7 @@ most recent checkpoint prior to the opening of the backup cursor, even
 if later database checkpoints were completed. <b>Note this exception to
 WiredTiger's checkpoint durability guarantees.</b>
 
-The following is a programmatic example of creating a backup:
+The following is a programmatic example of creating a full backup:
 
 @snippet ex_all.c backup
 
@@ -89,7 +89,17 @@ rm -rf /path/database.backup &&
     wt -h /path/database.source backup /path/database.backup
 @endcode
 
-@section backup_incremental Incremental backup
+@section backup_o_direct Backup and O_DIRECT
+
+Many Linux systems do not support mixing \c O_DIRECT and memory mapping
+or normal I/O to the same file.   If \c O_DIRECT is configured for data
+or log files on Linux systems (using the wiredtiger_open \c direct_io
+configuration), any program used to copy files during backup should also
+specify \c O_DIRECT when configuring its file access.  Likewise, when
+\c O_DIRECT is not configured by the database application, programs
+copying files should not configure \c O_DIRECT.
+
+@section backup_incremental_log Incremental backup using log files
 
 Once a backup has been done, it can be rolled forward incrementally by
 adding log files to the backup copy. Adding log files to the copy
@@ -139,18 +149,83 @@ database directory has not been opened and recovery run.  Once recovery
 has run in a backup directory, you can no longer back up to that
 database directory.
 
-An example of opening the backup data source for an incremental backup:
+An example of opening the backup data source for an incremental backup using log files:
 
-@snippet ex_all.c incremental backup
+@snippet ex_all.c incremental backup using log files
 
-@section backup_o_direct Backup and O_DIRECT
+If incremental backup fails (for example, if the backup directory runs out of space), a full
+backup should be performed.
 
-Many Linux systems do not support mixing \c O_DIRECT and memory mapping
-or normal I/O to the same file.   If \c O_DIRECT is configured for data
-or log files on Linux systems (using the wiredtiger_open \c direct_io
-configuration), any program used to copy files during backup should also
-specify \c O_DIRECT when configuring its file access.  Likewise, when
-\c O_DIRECT is not configured by the database application, programs
-copying files should not configure \c O_DIRECT.
+Incremental backup using log files cannot be used in conjunction with incremental backup
+using block transfer.
+
+@section backup_incremental_block Incremental backup using block transfer
+
+Once a backup has been done, it can be rolled forward incrementally by updating file blocks
+in the backup copy.
+
+The following is the procedure for incrementally backing up a database using block transfer
+from the original database home:
+
+1. Perform a full backup of the database (as described above), with the additional configuration
+   \c incremental_preserve.
+
+2. Save the name of the full backup's origin checkpoint for use in subsequent incremental backups
+   (it's the \c WT_CURSOR::checkpoint attribute of the backup cursor used to perform the full
+   backup).
+
+3. Begin the incremental backup by opening a cursor on the \c "backup:" data source, configured
+   with \c "incremental_checkpoint=name", where the checkpoint name is the name of the starting
+   checkpoint from which the backup is being rolled forward.
+
+4. For each file returned by the WT_CURSOR::next method, open a duplicate backup cursor on the
+   file, configured with \c "incremental_file=name", where the file name is the key returned
+   by the backup cursor.
+
+5. The key format for the duplicate backup cursor is \c qq, representing a file offset and size
+   pair. There is no associated value. For each offset/size returned by the duplicate backup
+   cursor's WT_CURSOR::next method, read the block from the source database file and write the
+   block to the backup database file, replacing the current backup file's contents. It is not
+   an error for an offset/size pair to extend past the current end of the file, and any missing
+   data should be ignored.
+
+6. Close the duplicate backup cursor.
+
+7. Save the name of the checkpoint to which the backup was rolled forward for use as an origin
+   checkpoint in subsequent incremental backups (it's the \c WT_CURSOR::checkpoint attribute
+   of the backup cursor used to perform the incremental backup).
+
+8. Close the backup cursor.
+
+Steps 3-8 can be repeated any number of times. Incremental backups may be repeated as long as
+the backup database directory has not been opened and recovery run. Once recovery has run in
+a backup directory, you can no longer back up to that database directory.
+
+Each time the incremental backup is repeated, the origin checkpoint name should be updated to
+a new value. If failure occurs at any point, the incremental backup may be repeated from the
+same origin checkpoint name; once an incremental backup has been performed using an updated
+origin checkpoint name, it will no longer be possible to perform an incremental backup using
+a previous origin checkpoint name.
+
+The following is a programmatic example of creating a full backup with the expectation of
+performing future incremental backups:
+
+@snippet ex_all.c full backup for incremental
+
+An example of opening the backup data source for an incremental backup using block transfer:
+
+@snippet ex_all.c incremental backup using block transfer
+
+To support incremental backup using block transfer, WiredTiger must track block changes across
+checkpoints which can require significant resources. The granularity of this tracking can be
+configured using the \c incremental_granularity configuration to WT_SESSION::open_cursor when
+opening the first full-backup cursor. A larger configuration reduces the amount of information
+WiredTiger must retain by conflating multiple block changes.
+
+If incremental backup fails (for example, if the backup directory runs out of space), a full
+backup should be performed.
+
+Incremental backup using block transfer cannot be used in conjunction with incremental backup
+using log files.
 
 */

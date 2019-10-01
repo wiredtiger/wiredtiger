@@ -9,8 +9,7 @@
 #include "wt_internal.h"
 
 static int __ckpt_process(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *);
-static int __ckpt_update(
-  WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *, bool);
+static int __ckpt_update(WT_SESSION_IMPL *, WT_BLOCK *, WT_CKPT *, WT_CKPT *, WT_BLOCK_CKPT *);
 
 /*
  * __wt_block_ckpt_init --
@@ -264,7 +263,7 @@ err:
 
 /*
  * __ckpt_extlist_read --
- *     Read a checkpoints extent lists and copy
+ *     Read a checkpoint's extent lists.
  */
 static int
 __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
@@ -334,6 +333,7 @@ __ckpt_verify(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
         case WT_CKPT_DELETE | WT_CKPT_FAKE:
         case WT_CKPT_FAKE:
             break;
+        case WT_CKPT_ADD | WT_CKPT_BLOCK_MODS:
         case WT_CKPT_ADD:
             if (ckpt[1].name == NULL)
                 break;
@@ -581,7 +581,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
     /* Update checkpoints marked for update. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (F_ISSET(ckpt, WT_CKPT_UPDATE))
-            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv, false));
+            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ckpt->bpriv));
 
 live_update:
     /* Truncate the file if that's possible. */
@@ -618,7 +618,7 @@ live_update:
              */
             ci->ckpt_size = WT_MIN(ckpt_size, (uint64_t)block->size);
 
-            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ci, true));
+            WT_ERR(__ckpt_update(session, block, ckptbase, ckpt, ci));
         }
 
     /*
@@ -669,12 +669,17 @@ err:
  *     Update a checkpoint.
  */
 static int
-__ckpt_update(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, WT_CKPT *ckpt,
-  WT_BLOCK_CKPT *ci, bool is_live)
+__ckpt_update(
+  WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, WT_CKPT *ckpt, WT_BLOCK_CKPT *ci)
 {
     WT_DECL_ITEM(a);
     WT_DECL_RET;
+    WT_EXT *ext;
+    uint64_t entries, *list;
     uint8_t *endp;
+    bool is_live;
+
+    is_live = F_ISSET(ckpt, WT_CKPT_ADD);
 
 #ifdef HAVE_DIAGNOSTIC
     /* Check the extent list combinations for overlaps. */
@@ -682,11 +687,7 @@ __ckpt_update(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, WT_C
     WT_RET(__wt_block_extlist_check(session, &ci->discard, &ci->avail));
     WT_RET(__wt_block_extlist_check(session, &ci->alloc, &ci->discard));
 #endif
-    /*
-     * Write the checkpoint's alloc and discard extent lists. After each write, remove any allocated
-     * blocks from the system's allocation list, checkpoint extent blocks don't appear on any extent
-     * lists.
-     */
+    /* Write the checkpoint's alloc and discard extent lists. */
     WT_RET(__wt_block_extlist_write(session, block, &ci->alloc, NULL));
     WT_RET(__wt_block_extlist_write(session, block, &ci->discard, NULL));
 
@@ -733,6 +734,40 @@ __ckpt_update(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase, WT_C
         ret = __wt_block_extlist_write(session, block, &ci->avail, &ci->ckpt_avail);
         block->final_ckpt = NULL;
         WT_RET(ret);
+    }
+
+    /*
+     * If this is the live system, the hot backup code needs a list of the blocks we've written for
+     * this checkpoint (including the blocks we allocated to write the extent lists).
+     */
+    if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS)) {
+        entries = ci->alloc.entries;
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
+            ++entries;
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+            ++entries;
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
+            ++entries;
+
+        WT_RET(__wt_calloc_def(session, entries * 2, &list));
+        ckpt->alloc_list = list;
+        ckpt->alloc_list_entries = entries;
+        WT_EXT_FOREACH (ext, ci->alloc.off) {
+            *list++ = (uint64_t)ext->off;
+            *list++ = (uint64_t)ext->size;
+        }
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET) {
+            *list++ = (uint64_t)ci->alloc.offset;
+            *list++ = (uint64_t)ci->alloc.size;
+        }
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET) {
+            *list++ = (uint64_t)ci->discard.offset;
+            *list++ = (uint64_t)ci->discard.size;
+        }
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET) {
+            *list++ = (uint64_t)ci->avail.offset;
+            *list++ = (uint64_t)ci->avail.size;
+        }
     }
 
     /*

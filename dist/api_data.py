@@ -1201,6 +1201,16 @@ methods = {
         characters are hexadecimal encoded.  These formats are compatible
         with the @ref util_dump and @ref util_load commands''',
         choices=['hex', 'json', 'print']),
+    Config('incremental_checkpoint', '', r'''
+        the origin checkpoint for a file offset based incremental backup; valid only for a backup
+        data source; see @ref backup'''),
+    Config('incremental_file', '', r'''
+        the object for a file offset based incremental backup; valid only for a backup data source;
+        see @ref backup'''),
+    Config('incremental_granularity', '16MB', r'''
+        the block size granularity for file offset based incremental backup; valid only for a
+        backup data source; see @ref backup''',
+        min='1MB'),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the
         object when the WT_CURSOR::next method is called; valid only for

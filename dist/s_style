@@ -94,11 +94,11 @@ else
 		cat $t
 	fi
 
-	egrep -w 'off_t' $f > $t
-	test -s $t && {
+	if ! expr "$f" : 'examples/c/.*' > /dev/null &&
+	    egrep -w 'off_t' $f > $t; then
 		echo "$f: off_t type declaration, use wt_off_t"
 		cat $t
-	}
+	fi
 
 	if ! expr "$f" : 'src/include/misc.h' > /dev/null &&
 	    grep '[[:space:]]qsort(' $f > $t; then

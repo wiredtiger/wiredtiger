@@ -218,6 +218,13 @@ struct __wt_cursor {
 	const char *uri;
 
 	/*!
+	 * The name of the checkpoint within a data source, where it matches the \c checkpoint
+	 * parameter to WT_SESSION::open_cursor used to open the cursor, or the checkpoint for
+	 * a hot backup cursor.
+	 */
+	const char *checkpoint;
+
+	/*!
 	 * The format of the data packed into key items.  See @ref packing for
 	 * details.  If not set, a default value of "u" is assumed, and
 	 * applications must use WT_ITEM structures to manipulate untyped byte
@@ -1063,6 +1070,13 @@ struct __wt_session {
 	 * non-printing characters are hexadecimal encoded.  These formats are compatible with the
 	 * @ref util_dump and @ref util_load commands., a string\, chosen from the following
 	 * options: \c "hex"\, \c "json"\, \c "print"; default empty.}
+	 * @config{incremental_checkpoint, the origin checkpoint for a file offset based incremental
+	 * backup; valid only for a backup data source; see @ref backup., a string; default empty.}
+	 * @config{incremental_file, the object for a file offset based incremental backup; valid
+	 * only for a backup data source; see @ref backup., a string; default empty.}
+	 * @config{incremental_granularity, the block size granularity for file offset based
+	 * incremental backup; valid only for a backup data source; see @ref backup., an integer
+	 * greater than or equal to 1MB; default \c 16MB.}
 	 * @config{next_random, configure the cursor to return a pseudo-random record from the
 	 * object when the WT_CURSOR::next method is called; valid only for row-store cursors.  See
 	 * @ref cursor_random for details., a boolean flag; default \c false.}

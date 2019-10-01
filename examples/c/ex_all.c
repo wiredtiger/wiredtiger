@@ -36,18 +36,13 @@
 
 static const char *home;
 
-static void add_collator(WT_CONNECTION *conn);
-static void add_extractor(WT_CONNECTION *conn);
-static void backup(WT_SESSION *session);
-static void checkpoint_ops(WT_SESSION *session);
-static void connection_ops(WT_CONNECTION *conn);
-static int cursor_ops(WT_SESSION *session);
-static void cursor_search_near(WT_CURSOR *cursor);
-static void cursor_statistics(WT_SESSION *session);
-static void named_snapshot_ops(WT_SESSION *session);
-static void pack_ops(WT_SESSION *session);
-static void session_ops(WT_SESSION *session);
-static void transaction_ops(WT_SESSION *session);
+static void backup_full_block(WT_SESSION *);
+static void backup_full_log(WT_SESSION *);
+static void backup_incremental_block(WT_SESSION *);
+static void backup_incremental_log(WT_SESSION *);
+static void cursor_search_near(WT_CURSOR *);
+static void pack_ops(WT_SESSION *);
+static void transaction_ops(WT_SESSION *);
 
 static int
 cursor_ops(WT_SESSION *session)
@@ -785,7 +780,10 @@ session_ops(WT_SESSION *session)
          * purposes that don't exist on test systems. That said, we have to reference the function
          * to avoid build warnings about unused static code.
          */
-        (void)backup;
+        backup_full_log(session);
+        backup_incremental_log(session);
+        backup_full_block(session);
+        backup_incremental_block(session);
 
         /* Call other functions, where possible. */
         checkpoint_ops(session);
@@ -1096,7 +1094,90 @@ pack_ops(WT_SESSION *session)
 }
 
 static void
-backup(WT_SESSION *session)
+backup_full_block(WT_SESSION *session)
+{
+    char buf[1024];
+
+    /*! [full backup for incremental]*/
+    WT_CURSOR *backup_cursor;
+    const char *filename, *backup_checkpoint;
+    int ret;
+
+    /* Create the backup directory. */
+    error_check(mkdir("/path/database.backup", 077));
+
+    /* Open the backup data source. */
+    error_check(
+      session->open_cursor(session, "backup:", NULL, "incremental_preserve=true", &backup_cursor));
+
+    /* Copy the list of files. */
+    while ((ret = backup_cursor->next(backup_cursor)) == 0) {
+        error_check(backup_cursor->get_key(backup_cursor, &filename));
+        (void)snprintf(
+          buf, sizeof(buf), "cp /path/database/%s /path/database.backup/%s", filename, filename);
+        error_check(system(buf));
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+
+    /* Save the current checkpoint name for future incremental backup use. */
+    backup_checkpoint = strdup(backup_cursor->checkpoint);
+
+    error_check(backup_cursor->close(backup_cursor));
+    /*! [full backup for incremental]*/
+
+    (void)backup_checkpoint; /* [-Werror=unused-but-set-variable] */
+}
+
+static void
+backup_incremental_block(WT_SESSION *session)
+{
+    const char *backup_checkpoint = "checkpoint-name";
+    char buf[1024];
+
+    /*! [incremental backup using block transfer]*/
+    WT_CURSOR *backup_cursor, *incremental_cursor;
+    uint64_t offset, size;
+    int ret, rfd, wfd;
+    const char *filename;
+
+    /* Open the backup data source for incremental backup using log files. */
+    (void)snprintf(buf, sizeof(buf), "incremental_checkpoint=%s", backup_checkpoint);
+    error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cursor));
+
+    /* For each file listed, open a duplicate backup cursor and copy the blocks. */
+    while ((ret = backup_cursor->next(backup_cursor)) == 0) {
+        error_check(backup_cursor->get_key(backup_cursor, &filename));
+        (void)snprintf(buf, sizeof(buf), "/path/database/%s", filename);
+        error_check(rfd = open(buf, O_RDONLY, 0));
+        (void)snprintf(buf, sizeof(buf), "/path/database.backup/%s", filename);
+        error_check(wfd = open(buf, O_WRONLY, 0));
+
+        (void)snprintf(buf, sizeof(buf), "incremental_file=%s", filename);
+        error_check(session->open_cursor(session, NULL, backup_cursor, buf, &incremental_cursor));
+        while ((ret = incremental_cursor->next(incremental_cursor)) == 0) {
+            error_check(incremental_cursor->get_key(incremental_cursor, &offset, &size));
+            error_check(lseek(rfd, (off_t)offset, SEEK_SET));
+            error_check(read(rfd, buf, size));
+            error_check(lseek(wfd, (off_t)offset, SEEK_SET));
+            error_check(write(wfd, buf, size));
+        }
+        scan_end_check(ret == WT_NOTFOUND);
+        error_check(incremental_cursor->close(incremental_cursor));
+
+        error_check(close(rfd));
+        error_check(close(wfd));
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+
+    /* Save the current checkpoint name for future incremental backup use. */
+    backup_checkpoint = strdup(backup_cursor->checkpoint);
+
+    error_check(backup_cursor->close(backup_cursor));
+    /*! [incremental backup using block transfer]*/
+}
+
+static void
+backup_full_log(WT_SESSION *session)
 {
     char buf[1024];
 
@@ -1123,15 +1204,35 @@ backup(WT_SESSION *session)
     error_check(cursor->close(cursor));
     /*! [backup]*/
 
-    /*! [incremental backup]*/
-    /* Open the backup data source for incremental backup. */
-    error_check(session->open_cursor(session, "backup:", NULL, "target=(\"log:\")", &cursor));
-    /*! [incremental backup]*/
-    error_check(cursor->close(cursor));
-
     /*! [backup of a checkpoint]*/
     error_check(session->checkpoint(session, "drop=(from=June01),name=June01"));
     /*! [backup of a checkpoint]*/
+}
+
+static void
+backup_incremental_log(WT_SESSION *session)
+{
+    char buf[1024];
+
+    /*! [incremental backup using log files]*/
+    WT_CURSOR *cursor;
+    const char *filename;
+    int ret;
+
+    /* Open the backup data source for incremental backup using log files. */
+    error_check(session->open_cursor(session, "backup:", NULL, "target=(\"log:\")", &cursor));
+
+    /* Copy the list of files. */
+    while ((ret = cursor->next(cursor)) == 0) {
+        error_check(cursor->get_key(cursor, &filename));
+        (void)snprintf(
+          buf, sizeof(buf), "cp /path/database/%s /path/database.backup/%s", filename, filename);
+        error_check(system(buf));
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+
+    error_check(cursor->close(cursor));
+    /*! [incremental backup using log files]*/
 }
 
 int

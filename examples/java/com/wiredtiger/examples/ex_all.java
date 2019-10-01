@@ -890,10 +890,18 @@ backup(Session session)
         }
     /*! [backup]*/
         try {
-	    /*! [incremental backup]*/
+	    /*! [incremental backup using log files]*/
             /* Open the backup data source for incremental backup. */
             cursor = session.open_cursor("backup:", null, "target=(\"log:\")");
-	    /*! [incremental backup]*/
+	    /*! [incremental backup using log files]*/
+
+	    /*! [full backup for incremental]*/
+	    /* XXX NEEDS TO BE WRITTEN XXX */
+	    /*! [full backup for incremental]*/
+
+	    /*! [incremental backup using block transfer]*/
+	    /* XXX NEEDS TO BE WRITTEN XXX */
+	    /*! [incremental backup using block transfer]*/
 
             ret = cursor.close();
         }

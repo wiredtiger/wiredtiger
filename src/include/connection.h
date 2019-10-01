@@ -149,17 +149,6 @@ struct __wt_named_extractor {
     } while (0)
 
 /*
- * WT_CONN_HOTBACKUP_START --
- *	Macro to set connection data appropriately for when we commence hot
- *	backup.
- */
-#define WT_CONN_HOTBACKUP_START(conn)   \
-    do {                                \
-        (conn)->hot_backup = true;      \
-        (conn)->hot_backup_list = NULL; \
-    } while (0)
-
-/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
@@ -274,6 +263,7 @@ struct __wt_connection_impl {
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     bool hot_backup;           /* Hot backup in progress */
     char **hot_backup_list;    /* Hot backup file list */
+    bool hot_backup_done;      /* Hot backup performed in database life */
 
     WT_SESSION_IMPL *ckpt_session; /* Checkpoint thread session */
     wt_thread_t ckpt_tid;          /* Checkpoint thread */

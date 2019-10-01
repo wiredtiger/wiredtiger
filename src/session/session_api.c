@@ -507,11 +507,16 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
      * When opening simple tables, the table code calls this function on the underlying data source,
      * in which case the application's URI has been copied.
      */
-    if ((*cursorp)->uri == NULL && (ret = __wt_strdup(session, uri, &(*cursorp)->uri)) != 0) {
-        WT_TRET((*cursorp)->close(*cursorp));
-        *cursorp = NULL;
-    }
+    if ((*cursorp)->uri == NULL)
+        WT_ERR(__wt_strdup(session, uri, &(*cursorp)->uri));
+    if ((*cursorp)->checkpoint == NULL && session->dhandle != NULL &&
+      session->dhandle->checkpoint != NULL)
+        WT_ERR(__wt_strdup(session, session->dhandle->checkpoint, &(*cursorp)->checkpoint));
+    return (0);
 
+err:
+    WT_TRET((*cursorp)->close(*cursorp));
+    *cursorp = NULL;
     return (ret);
 }
 

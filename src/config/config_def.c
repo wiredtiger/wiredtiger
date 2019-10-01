@@ -297,6 +297,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"checkpoint", "string", NULL, NULL, NULL, 0},
   {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0},
   {"dump", "string", NULL, "choices=[\"hex\",\"json\",\"print\"]", NULL, 0},
+  {"incremental_checkpoint", "string", NULL, NULL, NULL, 0},
+  {"incremental_file", "string", NULL, NULL, NULL, 0},
+  {"incremental_granularity", "int", NULL, "min=1MB", NULL, 0},
   {"next_random", "boolean", NULL, NULL, NULL, 0},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0},
   {"overwrite", "boolean", NULL, NULL, NULL, 0}, {"raw", "boolean", NULL, NULL, NULL, 0},
@@ -880,10 +883,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.log_printf", "", NULL, 0},
   {"WT_SESSION.open_cursor",
     "append=false,bulk=false,checkpoint=,checkpoint_wait=true,dump=,"
-    "next_random=false,next_random_sample_size=0,overwrite=true,"
-    "raw=false,read_once=false,readonly=false,skip_sort_check=false,"
-    "statistics=,target=",
-    confchk_WT_SESSION_open_cursor, 14},
+    "incremental_checkpoint=,incremental_file=,"
+    "incremental_granularity=16MB,next_random=false,"
+    "next_random_sample_size=0,overwrite=true,raw=false,"
+    "read_once=false,readonly=false,skip_sort_check=false,statistics="
+    ",target=",
+    confchk_WT_SESSION_open_cursor, 17},
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},

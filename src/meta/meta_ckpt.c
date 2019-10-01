@@ -380,7 +380,13 @@ __wt_meta_ckptlist_get(
 
         WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
 
+        /*
+         * Set the add-a-checkpoint flag, and if we're doing hot backups, request a list of the
+         * checkpoint's modified blocks from the block manager.
+         */
         F_SET(ckpt, WT_CKPT_ADD);
+        if (S2C(session)->hot_backup_done)
+            F_SET(ckpt, WT_CKPT_BLOCK_MODS);
     }
 
     /* Return the array to our caller. */
@@ -404,20 +410,11 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 {
     WT_CONFIG_ITEM a;
     WT_DECL_RET;
+    uint64_t entries, *list;
     char timebuf[64];
+    const char *p;
 
-    /*
-     * Copy the name, address (raw and hex), order and time into the slot. If there's no address,
-     * it's a fake.
-     */
     WT_RET(__wt_strndup(session, k->str, k->len, &ckpt->name));
-
-    WT_RET(__wt_config_subgets(session, v, "addr", &a));
-    WT_RET(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
-    if (a.len == 0)
-        F_SET(ckpt, WT_CKPT_FAKE);
-    else
-        WT_RET(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw));
 
     WT_RET(__wt_config_subgets(session, v, "order", &a));
     if (a.len == 0)
@@ -435,6 +432,11 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 
     WT_RET(__wt_config_subgets(session, v, "size", &a));
     ckpt->size = (uint64_t)a.val;
+
+    WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
+    if (a.len == 0)
+        goto format;
+    ckpt->write_gen = (uint64_t)a.val;
 
     /* Default to durability. */
     ret = __wt_config_subgets(session, v, "newest_durable_ts", &a);
@@ -455,10 +457,40 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     __wt_check_addr_validity(session, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
       ckpt->newest_stop_ts, ckpt->newest_stop_txn);
 
-    WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
+    ret = __wt_config_subgets(session, v, "modified_blocks", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret != WT_NOTFOUND) {
+        p = a.str;
+        if (*p != '(')
+            goto format;
+        if (p[1] != ')') {
+            for (entries = 0; p < a.str + a.len; ++p)
+                if (*p == ',')
+                    ++entries;
+            if (p[-1] != ')' || ++entries % 2 != 0)
+                goto format;
+
+            WT_RET(__wt_calloc_def(session, entries, &list));
+            ckpt->alloc_list = list;
+            ckpt->alloc_list_entries = entries / 2;
+            for (p = a.str + 1; *p != ')'; ++list) {
+                if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
+                    goto format;
+                for (; *p != ',' && *p != ')'; ++p)
+                    ;
+                if (*p == ',')
+                    ++p;
+            }
+        }
+    }
+
+    /* If there's no address, it's a fake. */
+    WT_RET(__wt_config_subgets(session, v, "addr", &a));
+    WT_RET(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
     if (a.len == 0)
-        goto format;
-    ckpt->write_gen = (uint64_t)a.val;
+        F_SET(ckpt, WT_CKPT_FAKE);
+    else
+        WT_RET(__wt_nhex_to_raw(session, a.str, a.len, &ckpt->raw));
 
     return (0);
 
@@ -534,6 +566,7 @@ int
 __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM *buf)
 {
     WT_CKPT *ckpt;
+    uint64_t *p, entries;
     const char *sep;
 
     sep = "";
@@ -569,11 +602,17 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",oldest_start_txn=%" PRId64
-          ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64 ")",
+          ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64
+          ",modified_blocks=(",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->newest_durable_ts, (int64_t)ckpt->oldest_start_ts,
           (int64_t)ckpt->oldest_start_txn, (int64_t)ckpt->newest_stop_ts,
           (int64_t)ckpt->newest_stop_txn, (int64_t)ckpt->write_gen));
+        for (entries = 0, p = ckpt->alloc_list; entries < ckpt->alloc_list_entries;
+             ++entries, p += 2)
+            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
+              (int64_t)p[0], (int64_t)p[1]));
+        WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 
@@ -641,6 +680,7 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     __wt_free(session, ckpt->name);
     __wt_free(session, ckpt->block_metadata);
     __wt_free(session, ckpt->block_checkpoint);
+    __wt_free(session, ckpt->alloc_list);
     __wt_buf_free(session, &ckpt->addr);
     __wt_buf_free(session, &ckpt->raw);
     __wt_free(session, ckpt->bpriv);
