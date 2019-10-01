@@ -1268,7 +1268,7 @@ __wt_find_lookaside_upd(
     WT_DECL_RET;
     WT_ITEM *key;
     WT_TXN *txn;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd, **upd_entry;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
     uint64_t las_txnid, _las_txnid, recno;
@@ -1441,7 +1441,6 @@ __wt_find_lookaside_upd(
          */
         if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, !modify);
-            upd_entry = NULL;
             switch (cbt->ref->page->type) {
             case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
