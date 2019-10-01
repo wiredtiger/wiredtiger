@@ -41,9 +41,6 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
      * - A full update list to instantiate with.
      * - An update to append the existing update list with.
      * - A key/value pair to create an update with and append to the update list.
-     *
-     * A full update list is distinguished from an update by checking whether it has any "next"
-     * update.
      */
     WT_ASSERT(session, (value != NULL) ^ (upd_arg != NULL));
 
