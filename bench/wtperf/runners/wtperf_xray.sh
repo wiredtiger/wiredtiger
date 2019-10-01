@@ -48,7 +48,9 @@ fi
 # By default, wtperf uses WT_TEST as its home directory.
 xray_home="WT_TEST"
 if test "$2" = "-h"; then
-	xray_home="$3"
+	if ! test -z "$3"; then
+		xray_home="$3"
+	fi
 fi
 echo "$0: using $xray_home as home directory"
 
