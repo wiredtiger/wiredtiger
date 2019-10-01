@@ -281,14 +281,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         sweep_locked = true;
 
         /*
-         * Position one past the last update for this key, then step back one update. The updates
-         * are sorted oldest to newest in the lookaside.
+         * Position on the latest update for this key. If no updates exist for this key, it is okay
+         * to position on an update for an adjacent key. We will check the validity of our position
+         * again when fetching the record. The updates are sorted oldest to newest in the lookaside.
          */
         WT_ERR(__wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, UINT64_MAX));
-        ret = las_cursor->prev(las_cursor);
-        if (ret == 0)
-            las_positioned = true;
-        WT_ERR_NOTFOUND_OK(ret);
+        las_positioned = true;
     }
 
     /*
