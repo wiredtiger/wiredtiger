@@ -806,8 +806,8 @@ err:
 
 /*
  * __wt_las_cursor_position --
- *     Position a lookaside cursor at the beginning of a set of updates for a given btree id, record
- *     key and timestamp. There may be no lookaside entries for the given btree id and record key if
+ *     Position a lookaside cursor at the end of a set of updates for a given btree id, record key
+ *     and timestamp. There may be no lookaside entries for the given btree id and record key if
  *     they have been removed by WT_CONNECTION::rollback_to_stable.
  */
 int
@@ -821,7 +821,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
     int cmp, exact;
 
     /*
-     * When scanning for all pages, start at the beginning of the lookaside table.
+     * When scanning for all pages, start at the end of the lookaside table.
      */
     if (btree_id == 0) {
         WT_RET(cursor->reset(cursor));
@@ -1348,9 +1348,9 @@ __wt_find_lookaside_upd(
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    for (ret = __wt_las_cursor_position(session, cursor, las_btree_id, key,
-           allow_prepare ? txn->prepare_timestamp : txn->read_timestamp);
-         ret == 0; ret = cursor->prev(cursor)) {
+    ret = __wt_las_cursor_position(session, cursor, las_btree_id, key,
+      allow_prepare ? txn->prepare_timestamp : txn->read_timestamp);
+    for (; ret == 0; ret = cursor->prev(cursor)) {
         WT_ERR(cursor->get_key(cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
 
         /* Stop before crossing over to the next btree */
