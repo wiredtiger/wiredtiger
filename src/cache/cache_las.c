@@ -1413,6 +1413,9 @@ __wt_find_lookaside_upd(
                 /*
                  * We shouldn't be crossing over to another btree id, key combination or breaking
                  * any visibility rules while doing this.
+                 *
+                 * Make sure we use the underscore variants of these variables. We need to retain
+                 * the timestamps of the original modify we saw.
                  */
                 WT_ERR(
                   cursor->get_key(cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
@@ -1421,10 +1424,6 @@ __wt_find_lookaside_upd(
                 WT_ASSERT(session, cmp == 0);
                 WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
 #endif
-                /*
-                 * Make sure we use the underscore variants of these variables. We need to retain
-                 * the timestamps of the original modify we saw.
-                 */
                 WT_ERR(cursor->get_value(
                   cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
             }
@@ -1477,7 +1476,11 @@ __wt_find_lookaside_upd(
             WT_ERR(__wt_update_serial(
               session, page, upd_entry, &tmp_upd, WT_UPDATE_MEMSIZE(upd), false));
 
-            WT_ERR(cursor->remove(cursor));
+            ret = cursor->remove(cursor);
+            if (ret != 0)
+                WT_PANIC_ERR(session, ret,
+                  "initialised prepared update but was unable to remove the corresponding entry "
+                  "from lookaside");
         } else
             /*
              * We're not keeping this in our update list as we want to get rid of it after the read
