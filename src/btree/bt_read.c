@@ -193,9 +193,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     birthmark_record = false;
     locked = false;
 
-    /*
-     * Check whether the disk image contains all the newest versions of the page or not?
-     */
+    /* Check whether the disk image contains all the newest versions of the page. */
     if (ref->page_las->min_skipped_ts == WT_TS_MAX)
         return (__instantiate_birthmarks(session, ref));
 
@@ -227,7 +225,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * either the last record of the search key or the first record of the next key.
      *
      * Once we instantiate the most recent record for a key, the search continues to the next key.
-     * since we're pointing at the max timestamp and transaction id pairing for a given key, the
+     * Since we're pointing at the max timestamp and transaction id pairing for a given key, the
      * next entry is guaranteed to be for the next key in the LAS and again set the search for the
      * next key with maximum timestamp and transaction id.
      */
@@ -249,8 +247,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
         WT_ERR(cursor->search_near(cursor, &exact));
         /*
-         * Check whether the search_near returned the same key or not? In case if it returns next
-         * key, continue with the previous record.
+         * Check whether the search_near returned the same key. If it returns the next key, continue
+         * with the previous record.
          */
         if (exact > 0)
             WT_ERR(cursor->prev(cursor));

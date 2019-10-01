@@ -395,7 +395,7 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
          * memory, else discard the page.
          */
-        __wt_page_las_free(session, ref);
+        __wt_page_las_free(session, &ref->page_las);
         if (mod->mod_disk_image == NULL) {
             if (mod->mod_page_las.has_las) {
                 WT_RET(__wt_calloc_one(session, &ref->page_las));

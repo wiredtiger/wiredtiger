@@ -258,7 +258,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     __wt_ref_addr_free(session, ref);
 
     /* Free any lookaside or page-deleted information. */
-    __wt_page_las_free(session, ref);
+    __wt_page_las_free(session, &ref->page_las);
     if (ref->page_del != NULL) {
         __wt_free(session, ref->page_del->update_list);
         __wt_free(session, ref->page_del);
@@ -272,23 +272,26 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
  *     Free the lookaside information for a page.
  */
 void
-__wt_page_las_free(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_page_las_free(WT_SESSION_IMPL *session, WT_PAGE_LOOKASIDE **page_lasp)
 {
     WT_BIRTHMARK_DETAILS *birthmarkp;
+    WT_PAGE_LOOKASIDE *page_las;
     uint32_t i;
 
-    if (ref->page_las == NULL)
+    page_las = *page_lasp;
+    if (page_las == NULL)
         return;
 
-    if (ref->page_las->birthmarks != NULL) {
-        for (i = 0, birthmarkp = ref->page_las->birthmarks; i < ref->page_las->birthmarks_cnt;
+    if (page_las->birthmarks != NULL) {
+        for (i = 0, birthmarkp = page_las->birthmarks; i < page_las->birthmarks_cnt;
              i++, birthmarkp++)
             __wt_buf_free(session, &birthmarkp->key);
-        __wt_free(session, ref->page_las->birthmarks);
+        __wt_free(session, page_las->birthmarks);
     }
-    __wt_buf_free(session, &ref->page_las->max_las_key);
-    __wt_buf_free(session, &ref->page_las->min_las_key);
-    __wt_free(session, ref->page_las);
+    __wt_buf_free(session, &page_las->max_las_key);
+    __wt_buf_free(session, &page_las->min_las_key);
+    __wt_free(session, page_las);
+    *page_lasp = NULL;
 }
 
 /*
