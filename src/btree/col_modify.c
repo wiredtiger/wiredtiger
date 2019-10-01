@@ -42,7 +42,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
      * - An update to append the existing update list with.
      * - A key/value pair to create an update with and append to the update list.
      */
-    WT_ASSERT(session, (value == NULL) != (upd_arg == NULL));
+    WT_ASSERT(session, (value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL));
 
     if (upd_arg == NULL) {
         if (modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) {

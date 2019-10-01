@@ -1281,7 +1281,6 @@ __wt_find_lookaside_upd(
 
     WT_UNUSED(_las_timestamp);
     WT_UNUSED(_las_txnid);
-    WT_UNUSED(modify);
 
     *updp = NULL;
 
@@ -1295,7 +1294,8 @@ __wt_find_lookaside_upd(
     las_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
-    modify = sweep_locked = false;
+    WT_NOT_READ(modify, false);
+    sweep_locked = false;
 
     /*
      * Prior to calling this function, we should have successfully searched the correct key with our
@@ -1388,7 +1388,7 @@ __wt_find_lookaside_upd(
          * updates together.
          */
         if (upd_type == WT_UPDATE_MODIFY) {
-            modify = true;
+            WT_NOT_READ(modify, true);
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
                 if (i >= WT_MODIFY_ARRAY_SIZE) {
