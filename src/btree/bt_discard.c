@@ -268,6 +268,30 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
 }
 
 /*
+ * __wt_page_las_free --
+ *     Free the lookaside information for a page.
+ */
+void
+__wt_page_las_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_BIRTHMARK_DETAILS *birthmarkp;
+    uint32_t i;
+
+    if (ref->page_las == NULL)
+        return;
+
+    if (ref->page_las->birthmarks != NULL) {
+        for (i = 0, birthmarkp = ref->page_las->birthmarks; i < ref->page_las->birthmarks_cnt;
+             i++, birthmarkp++)
+            __wt_buf_free(session, &birthmarkp->key);
+        __wt_free(session, ref->page_las->birthmarks);
+    }
+    __wt_buf_free(session, &ref->page_las->max_las_key);
+    __wt_buf_free(session, &ref->page_las->min_las_key);
+    __wt_free(session, ref->page_las);
+}
+
+/*
  * __free_page_int --
  *     Discard a WT_PAGE_COL_INT or WT_PAGE_ROW_INT page.
  */

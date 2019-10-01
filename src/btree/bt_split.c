@@ -1701,6 +1701,12 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
 
         WT_ASSERT(session, ref->page_las->max_txn != WT_TXN_NONE);
         WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
+
+        /*
+         * Successfully copied the LAS contents into WT_REF. Remove the LAS reference from
+         * multi-block entry.
+         */
+        WT_CLEAR(multi->page_las);
     }
 
     /*

@@ -543,30 +543,6 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
- * __wt_page_las_free --
- *     Free the lookaside information for a page.
- */
-void
-__wt_page_las_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_BIRTHMARK_DETAILS *birthmarkp;
-    uint32_t i;
-
-    if (ref->page_las == NULL)
-        return;
-
-    if (ref->page_las->birthmarks != NULL) {
-        for (i = 0, birthmarkp = ref->page_las->birthmarks; i < ref->page_las->birthmarks_cnt;
-             i++, birthmarkp++)
-            __wt_buf_free(session, &birthmarkp->key);
-        __wt_free(session, ref->page_las->birthmarks);
-    }
-    __wt_buf_free(session, &ref->page_las->max_las_key);
-    __wt_buf_free(session, &ref->page_las->min_las_key);
-    __wt_free(session, ref->page_las);
-}
-
-/*
  * __wt_las_insert_updates --
  *     Copy one set of saved updates into the database's lookaside table.
  */
@@ -629,13 +605,12 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 key->data = WT_INSERT_KEY(list->ins);
                 key->size = WT_INSERT_KEY_SIZE(list->ins);
             }
-
             break;
         default:
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        /* Set the first key as the minimum key */
+        /* Set the first key as the minimum key. */
         if (i == 0)
             WT_ERR(__wt_buf_set(session, &multi->page_las.min_las_key, key->data, key->size));
 
@@ -715,12 +690,12 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 birthmarkp->start_ts = upd->start_ts;
                 birthmarkp->prepare_state = upd->prepare_state;
                 birthmarkp->instantiated = false;
-                /* Copy the key as well for reference */
+                /* Copy the key as well for reference. */
                 WT_CLEAR(birthmarkp->key);
                 WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
                 birthmarks_cnt++;
 
-                /* Do not put birthmarks into the lookaside */
+                /* Do not put birthmarks into the lookaside. */
                 continue;
             }
 
@@ -734,13 +709,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         } while ((upd = upd->next) != NULL);
     }
 
+    /* Set the last key of the page as the maximum key written to LAS. */
     WT_ERR(__wt_buf_set(session, &multi->page_las.max_las_key, key->data, key->size));
 
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
     WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
     max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
     if (max_las_size != 0 && (uint64_t)las_size > max_las_size)
-        WT_PANIC_MSG(session, WT_PANIC, "WiredTigerLAS: file size of %" PRIu64
+        WT_PANIC_ERR(session, WT_PANIC, "WiredTigerLAS: file size of %" PRIu64
                                         " exceeds maximum "
                                         "size %" PRIu64,
           (uint64_t)las_size, max_las_size);
