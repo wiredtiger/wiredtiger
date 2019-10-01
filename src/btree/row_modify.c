@@ -73,7 +73,7 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *k
      * A full update list is distinguished from an update by checking whether it has any "next"
      * update.
      */
-    WT_ASSERT(session, (value != NULL) ^ (upd_arg != NULL));
+    WT_ASSERT(session, (value == NULL) != (upd_arg == NULL));
 
     /*
      * Modify: allocate an update array as necessary, build a WT_UPDATE
