@@ -45,7 +45,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
      * A full update list is distinguished from an update by checking whether it has any "next"
      * update.
      */
-    WT_ASSERT(session, value != NULL ^ upd_arg != NULL);
+    WT_ASSERT(session, (value != NULL) ^ (upd_arg != NULL));
 
     if (upd_arg == NULL) {
         if (modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) {
