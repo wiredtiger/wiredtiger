@@ -36,6 +36,17 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
     upd = upd_arg;
     append = logged = false;
 
+    /*
+     * We should have EITHER:
+     * - A full update list to instantiate with.
+     * - An update to append the existing update list with.
+     * - A key/value pair to create an update with and append to the update list.
+     *
+     * A full update list is distinguished from an update by checking whether it has any "next"
+     * update.
+     */
+    WT_ASSERT(session, value != NULL ^ upd_arg != NULL);
+
     if (upd_arg == NULL) {
         if (modify_type == WT_UPDATE_RESERVE || modify_type == WT_UPDATE_TOMBSTONE) {
             /*
@@ -114,19 +125,19 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
      * structure pair, and link it into place.
      */
     if (cbt->compare == 0 && cbt->ins != NULL) {
-        /*
-         * If we are restoring updates that couldn't be evicted, the key must not exist on the new
-         * page.
-         */
-        WT_ASSERT(session, upd_arg == NULL);
+        old_upd = cbt->ins->upd;
+        if (upd_arg == NULL) {
+            /* Make sure the update can proceed. */
+            WT_ERR(__wt_txn_update_check(session, old_upd));
 
-        /* Make sure the update can proceed. */
-        WT_ERR(__wt_txn_update_check(session, old_upd = cbt->ins->upd));
-
-        /* Allocate a WT_UPDATE structure and transaction ID. */
-        WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
-        WT_ERR(__wt_txn_modify(session, upd));
-        logged = true;
+            /* Allocate a WT_UPDATE structure and transaction ID. */
+            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_txn_modify(session, upd));
+            logged = true;
+        } else {
+            upd = upd_arg;
+            upd_size = WT_UPDATE_MEMSIZE(upd);
+        }
 
         /* Avoid a data copy in WT_CURSOR.update. */
         cbt->modify_update = upd;

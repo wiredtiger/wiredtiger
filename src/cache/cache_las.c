@@ -1275,14 +1275,14 @@ __wt_find_lookaside_upd(
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
     WT_ITEM *key;
-    WT_PAGE *page;
     WT_TXN *txn;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *tmp_upd, *upd, **upd_entry;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd, **upd_entry;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
-    uint64_t las_txnid, _las_txnid;
+    uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, upd_type;
+    const uint8_t *recnop;
     u_int i;
     int cmp;
     bool modify, sweep_locked;
@@ -1296,7 +1296,6 @@ __wt_find_lookaside_upd(
     cache = S2C(session)->cache;
     cursor = NULL;
     key = NULL;
-    page = cbt->ref->page;
     upd = NULL;
     listp = list;
     txn = &session->txn;
@@ -1451,30 +1450,18 @@ __wt_find_lookaside_upd(
         if (prepare_state == WT_PREPARE_INPROGRESS) {
             WT_ASSERT(session, !modify);
             upd_entry = NULL;
-            switch (page->type) {
+            switch (cbt->ref->page->type) {
             case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
-                WT_ASSERT(session, cbt->ins != NULL);
-                upd_entry = &cbt->ins->upd;
+                recnop = las_key->data;
+                WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
+                WT_ERR(__wt_col_modify(session, cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
                 break;
             case WT_PAGE_ROW_LEAF:
-                upd_entry =
-                  cbt->ins == NULL ? &page->modify->mod_row_update[cbt->slot] : &cbt->ins->upd;
+                WT_ERR(
+                  __wt_row_modify(session, cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
                 break;
             }
-
-            WT_ASSERT(session, upd_entry != NULL);
-            cbt->modify_update = upd;
-            upd->next = *upd_entry;
-
-            /*
-             * Update serial will set the update pointer to null since it considers itself the owner
-             * of it now. However, we want to be able to keep a handle on the update so pass in a
-             * copy of the pointer.
-             */
-            tmp_upd = upd;
-            WT_ERR(__wt_update_serial(
-              session, page, upd_entry, &tmp_upd, WT_UPDATE_MEMSIZE(upd), false));
 
             ret = cursor->remove(cursor);
             if (ret != 0)
