@@ -6,7 +6,12 @@
 # This script assumes it is running in the directory with the wtperf executable.
 #
 # Usage
-# wtperf_xray.sh [-h output-directory] <wtperf-config-file> [wtperf other args]
+# wtperf_xray.sh <wtperf-config-file> [-h output-directory] [wtperf other args]
+#
+# This script checks the first argument after the wtperf configuration to see
+# whether a home directory is being specified with the -h flag. If so, this
+# script will write its output files to that directory. Otherwise it will
+# default to WT_TEST (wtperf's default).
 #
 # Environment variables
 # XRAY_BINARY --
@@ -35,26 +40,17 @@ if ! test -f ./wtperf; then
 	exit 1
 fi
 
-xray_home="."
-if test "$#" -ne "0"; then
-	opt="$1"
-	case "$opt" in
-	-h )
-		shift
-		if test "$#" -eq "0"; then
-			echo "$0: the -h flag must be followed by a valid directory"
-			exit 1
-		fi
-		xray_home="$1"
-		shift
-		;;
-	esac
-fi
-
 if test "$#" -lt "1"; then
 	echo "$0: must specify wtperf configuration to run"
 	exit 1
 fi
+
+# By default, wtperf uses WT_TEST as its home directory.
+xray_home="WT_TEST"
+if test "$2" = "-h"; then
+	xray_home="$3"
+fi
+echo "$0: using $xray_home as home directory"
 
 # Check symbols to ensure we've compiled with XRay.
 objdump_out=$(objdump -h -j xray_instr_map ./wtperf)
