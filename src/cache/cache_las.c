@@ -821,14 +821,6 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
     int cmp, exact;
 
     /*
-     * When scanning for all pages, start at the end of the lookaside table.
-     */
-    if (btree_id == 0) {
-        WT_RET(cursor->reset(cursor));
-        return (cursor->prev(cursor));
-    }
-
-    /*
      * Because of the special visibility rules for lookaside, a new key can appear in between our
      * search and the set of updates that we're interested in. Keep trying until we find it.
      */
