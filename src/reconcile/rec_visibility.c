@@ -264,7 +264,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             } else {
                 key->data = WT_INSERT_KEY(ins);
                 key->size = WT_INSERT_KEY_SIZE(ins);
-                printf("key: %" PRIu64 "\n", *(uint64_t *)key->data);
             }
             break;
         default:
