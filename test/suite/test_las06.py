@@ -172,5 +172,58 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
+    def test_las_prepare_reads_workload(self):
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
+
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+
+        # Load prepared data and leave it in a prepared state.
+        prepare_session = self.conn.open_session(self.session_config)
+        prepare_cursor = prepare_session.open_cursor(uri)
+        prepare_session.begin_transaction()
+        for i in range(1, 11):
+            prepare_cursor[i] = value2
+        prepare_session.prepare_transaction(
+            'prepare_timestamp=' + timestamp_str(3))
+
+        # Write some more to cause eviction of the prepared data.
+        for i in range(11, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        self.session.checkpoint()
+
+        # Try to read every key of the prepared data again.
+        # Ensure that we read the lookaside to find the prepared update and
+        # return a prepare conflict as appropriate.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        for i in range(1, 11):
+            cursor.set_key(i)
+            self.assertRaisesException(
+                wiredtiger.WiredTigerError,
+                lambda: cursor.search(),
+                '/conflict with a prepared update/')
+        self.session.rollback_transaction()
+
+        prepare_session.commit_transaction(
+            'commit_timestamp=' + timestamp_str(5) + ',durable_timestamp=' + timestamp_str(6))
+
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
+        for i in range(1, 11):
+            self.assertEquals(value2, cursor[i])
+        self.session.rollback_transaction()
+
 if __name__ == '__main__':
     wttest.run()
