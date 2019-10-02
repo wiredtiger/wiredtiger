@@ -65,6 +65,17 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *k
     mod = page->modify;
 
     /*
+     * We should have EITHER:
+     * - A full update list to instantiate with.
+     * - An update to append the existing update list with.
+     * - A key/value pair to create an update with and append to the update list.
+     *
+     * A full update list is distinguished from an update by checking whether it has any "next"
+     * update.
+     */
+    WT_ASSERT(session, (value == NULL && upd_arg != NULL) || (value != NULL && upd_arg == NULL));
+
+    /*
      * Modify: allocate an update array as necessary, build a WT_UPDATE
      * structure, and call a serialized function to insert the WT_UPDATE
      * structure.
@@ -98,16 +109,15 @@ __wt_row_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, const WT_ITEM *k
             upd_size = __wt_update_list_memsize(upd);
 
             /*
-             * We are restoring updates that couldn't be evicted, there should only be one update
-             * list per key.
-             */
-            WT_ASSERT(session, *upd_entry == NULL);
-
-            /*
+             * If it's a full update list, we're trying to instantiate the row. Otherwise, it's just
+             * a single update that we'd like to append to the update list.
+             *
              * Set the "old" entry to the second update in the list so that the serialization
              * function succeeds in swapping the first update into place.
              */
-            old_upd = *upd_entry = upd->next;
+            if (upd->next != NULL)
+                *upd_entry = upd->next;
+            old_upd = *upd_entry;
         }
 
         /*

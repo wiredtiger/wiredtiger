@@ -769,8 +769,8 @@ err:
 
 /*
  * __wt_las_cursor_position --
- *     Position a lookaside cursor at the beginning of a set of updates for a given btree id, record
- *     key and timestamp. There may be no lookaside entries for the given btree id and record key if
+ *     Position a lookaside cursor at the end of a set of updates for a given btree id, record key
+ *     and timestamp. There may be no lookaside entries for the given btree id and record key if
  *     they have been removed by WT_CONNECTION::rollback_to_stable.
  */
 int
@@ -782,14 +782,6 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
     uint64_t las_txnid;
     uint32_t las_btree_id;
     int cmp, exact;
-
-    /*
-     * When scanning for all pages, start at the beginning of the lookaside table.
-     */
-    if (btree_id == 0) {
-        WT_RET(cursor->reset(cursor));
-        return (cursor->next(cursor));
-    }
 
     /*
      * Because of the special visibility rules for lookaside, a new key can appear in between our
@@ -811,7 +803,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
          */
         WT_CLEAR(las_key);
         WT_RET(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
-        if (las_btree_id > btree_id)
+        if (las_btree_id < btree_id)
             return (0);
         else if (las_btree_id == btree_id) {
             WT_RET(__wt_compare(session, NULL, &las_key, key, &cmp));
@@ -1223,10 +1215,13 @@ err:
 /*
  * __wt_find_lookaside_upd --
  *     Scan the lookaside for a record the btree cursor wants to position on. Create an update for
- *     the record and return to the caller.
+ *     the record and return to the caller. The caller may choose to optionally allow prepared
+ *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
+ *     prepare conflict will be returned upon reading a prepared update.
  */
 int
-__wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
+__wt_find_lookaside_upd(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prepare)
 {
     WT_CACHE *cache;
     WT_CURSOR *cursor;
@@ -1235,15 +1230,16 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     WT_DECL_RET;
     WT_ITEM key;
     WT_TXN *txn;
-    WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
-    uint64_t las_txnid, _las_txnid;
+    uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
+    const uint8_t *recnop;
     u_int i;
     int cmp;
-    bool sweep_locked;
+    bool modify, sweep_locked;
 
     WT_UNUSED(_las_timestamp);
     WT_UNUSED(_las_txnid);
@@ -1260,7 +1256,14 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     las_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
+    WT_NOT_READ(modify, false);
     sweep_locked = false;
+
+    /*
+     * Prior to calling this function, we should have successfully searched the correct key with our
+     * cursor.
+     */
+    WT_ASSERT(session, cbt->compare == 0);
 
     /* Row-store has the key available, create the column-store key on demand. */
     switch (cbt->btree->type) {
@@ -1297,8 +1300,9 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    for (ret = __wt_las_cursor_position(session, cursor, las_btree_id, &key, txn->read_timestamp);
-         ret == 0; ret = cursor->prev(cursor)) {
+    ret = __wt_las_cursor_position(session, cursor, las_btree_id, &key,
+      allow_prepare ? txn->prepare_timestamp : txn->read_timestamp);
+    for (; ret == 0; ret = cursor->prev(cursor)) {
         WT_ERR(cursor->get_key(cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
 
         /* Stop before crossing over to the next btree */
@@ -1327,10 +1331,15 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
         /*
          * Found a visible record, return success unless it is prepared and we are not ignoring
          * prepared.
+         *
+         * It's necessary to explicitly signal a prepare conflict so that the callers don't fallback
+         * to using something from the update list.
          */
         if (prepare_state == WT_PREPARE_INPROGRESS &&
-          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE))
+          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
+            ret = WT_PREPARE_CONFLICT;
             break;
+        }
 
         /* We do not have birthmarks in the lookaside anymore. */
         WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK);
@@ -1340,6 +1349,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          * updates together.
          */
         if (upd_type == WT_UPDATE_MODIFY) {
+            WT_NOT_READ(modify, true);
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
                 if (i >= WT_MODIFY_ARRAY_SIZE) {
@@ -1355,6 +1365,9 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
                 /*
                  * We shouldn't be crossing over to another btree id, key combination or breaking
                  * any visibility rules while doing this.
+                 *
+                 * Make sure we use the underscore variants of these variables. We need to retain
+                 * the timestamps of the original modify we saw.
                  */
                 WT_ERR(
                   cursor->get_key(cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
@@ -1363,10 +1376,6 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
                 WT_ASSERT(session, cmp == 0);
                 WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
 #endif
-                /*
-                 * Make sure we use the underscore variants of these variables. We need to retain
-                 * the timestamps of the original modify we saw.
-                 */
                 WT_ERR(cursor->get_value(
                   cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
             }
@@ -1384,10 +1393,40 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_timestamp;
         upd->prepare_state = prepare_state;
+
         /*
-         * Mark this update as external and to be discarded when not needed.
+         * When we find a prepared update in lookaside, we should add it to our update list and
+         * subsequently delete the corresponding lookaside entry. If it gets committed, the
+         * timestamp in the las key may differ so it's easier if we get rid of it now and rewrite
+         * the entry on eviction/commit/rollback.
          */
-        upd->ext = 1;
+        if (prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_ASSERT(session, !modify);
+            switch (cbt->ref->page->type) {
+            case WT_PAGE_COL_FIX:
+            case WT_PAGE_COL_VAR:
+                recnop = las_key->data;
+                WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
+                WT_ERR(__wt_col_modify(session, cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
+                break;
+            case WT_PAGE_ROW_LEAF:
+                WT_ERR(
+                  __wt_row_modify(session, cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
+                break;
+            }
+
+            ret = cursor->remove(cursor);
+            if (ret != 0)
+                WT_PANIC_ERR(session, ret,
+                  "initialised prepared update but was unable to remove the corresponding entry "
+                  "from lookaside");
+        } else
+            /*
+             * We're not keeping this in our update list as we want to get rid of it after the read
+             * has been dealt with. Mark this update as external and to be discarded when not
+             * needed.
+             */
+            upd->ext = 1;
         *updp = upd;
 
         /* We are done, we found the record we were searching for */
