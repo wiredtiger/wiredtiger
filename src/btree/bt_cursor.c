@@ -1824,6 +1824,7 @@ __wt_btcur_open(WT_CURSOR_BTREE *cbt)
 {
     cbt->row_key = &cbt->_row_key;
     cbt->tmp = &cbt->_tmp;
+    cbt->las = &cbt->_las;
 
 #ifdef HAVE_DIAGNOSTIC
     cbt->lastkey = &cbt->_lastkey;

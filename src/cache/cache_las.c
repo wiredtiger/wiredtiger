@@ -1269,11 +1269,11 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
-        WT_RET(__wt_buf_grow(session, cbt->tmp, WT_INTPACK64_MAXSIZE));
-        p = cbt->tmp->mem;
+        WT_RET(__wt_buf_grow(session, cbt->las, WT_INTPACK64_MAXSIZE));
+        p = cbt->las->mem;
         WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
-        cbt->tmp->size = WT_PTRDIFF(p, cbt->tmp->mem);
-        key = cbt->tmp;
+        cbt->las->size = WT_PTRDIFF(p, cbt->las->mem);
+        key = cbt->las;
     }
 
     /* Allocate buffers for the lookaside key/value. */
