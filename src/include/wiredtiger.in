@@ -5108,16 +5108,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_READ_DELETED_PREPARED	1119
 /*!
  * cache: pages read into cache by checkpoint requiring cache overflow
- * entries because they were not evicted with skew-newest.
+ * entries.
  */
-#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE_SKEW_OLD_CHECKPOINT	1120
+#define	WT_STAT_CONN_CACHE_PAGE_INSTANTIATE_READ_LOOKASIDE_CHECKPOINT	1120
 /*! cache: pages read into cache requiring cache overflow entries */
 #define	WT_STAT_CONN_CACHE_READ_LOOKASIDE		1121
-/*!
- * cache: pages read into cache requiring cache overflow entries because
- * they were not evicted with skew-newest.
- */
-#define	WT_STAT_CONN_CACHE_READ_LOOKASIDE_SKEW_OLD	1122
+/*! cache: pages read into cache requiring cache overflow entries. */
+#define	WT_STAT_CONN_CACHE_PAGE_INSTANTIATE_READ_LOOKASIDE	1122
 /*! cache: pages requested from the cache */
 #define	WT_STAT_CONN_CACHE_PAGES_REQUESTED		1123
 /*! cache: pages seen by eviction walk */
@@ -5906,16 +5903,13 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_DELETED_PREPARED	2072
 /*!
  * cache: pages read into cache by checkpoint requiring cache overflow
- * entries because they were not evicted with skew-newest.
+ * entries.
  */
-#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE_SKEW_OLD_CHECKPOINT	2073
+#define	WT_STAT_DSRC_CACHE_PAGE_INSTANTIATE_READ_LOOKASIDE_CHECKPOINT	2073
 /*! cache: pages read into cache requiring cache overflow entries */
 #define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE		2074
-/*!
- * cache: pages read into cache requiring cache overflow entries because
- * they were not evicted with skew-newest.
- */
-#define	WT_STAT_DSRC_CACHE_READ_LOOKASIDE_SKEW_OLD	2075
+/*! cache: pages read into cache requiring cache overflow entries. */
+#define	WT_STAT_DSRC_CACHE_PAGE_INSTANTIATE_READ_LOOKASIDE	2075
 /*! cache: pages requested from the cache */
 #define	WT_STAT_DSRC_CACHE_PAGES_REQUESTED		2076
 /*! cache: pages seen by eviction walk */
