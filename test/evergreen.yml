@@ -1267,11 +1267,10 @@ buildvariants:
     - name: unit-test-bucket07
 
 - name: rhel80
-  display_name: Red Hat Linux 8
+  display_name: RHEL 8.0
   run_on:
   - rhel80-test
   expansions:
-    # It's ugly, but we need the absolute path here, not the relative
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
@@ -1279,60 +1278,24 @@ buildvariants:
   tasks:
     - name: compile
     - name: lang-python-test
-    - name: examples-c-test
-    - name: bloom-test
-    - name: checkpoint-test
-    - name: cursor-order-test
-    - name: fops-test
-    - name: format-test
-    - name: huge-test
-    - name: manydbs-test
-    - name: packing-test
-    - name: readonly-test
-    - name: salvage-test
-    - name: thread-test
-    - name: bench-wtperf-test
-    - name: csuite-import-test
-    - name: csuite-random-abort-test
-    - name: csuite-random-directio-test
-    - name: csuite-schema-abort-test
-    - name: csuite-timestamp-abort-test
-    - name: csuite-scope-test
-    - name: csuite-truncated-log-test
-    - name: csuite-wt1965-col-efficiency-test
-    - name: csuite-wt2403-lsm-workload-test
-    - name: csuite-wt2447-join-main-table-test
-    - name: csuite-wt2695-checksum-test
-    - name: csuite-wt2592-join-schema-test
-    - name: csuite-wt2719-reconfig-test
-    - name: csuite-wt2999-join-extractor-test
-    - name: csuite-wt3120-filesys-test
-    - name: csuite-wt3135-search-near-collator-test
-    - name: csuite-wt3184-dup-index-collator-test
-    - name: csuite-wt3363-checkpoint-op-races-test
-    - name: csuite-wt3874-pad-byte-collator-test
-    - name: csuite-wt4105-large-doc-small-upd-test
-    - name: csuite-wt4117-checksum-test
-    - name: csuite-wt4156-metadata-salvage-test
-    - name: csuite-wt4699-json-test
-    - name: csuite-rwlock-test
-    - name: csuite-wt2246-col-append-test
-    - name: csuite-wt2323-join-visibility-test
-    - name: csuite-wt2535-insert-race-test
-    - name: csuite-wt2834-join-bloom-fix-test
-    - name: csuite-wt2853-perf-test
-    - name: csuite-wt2909-checkpoint-integrity-test
-    - name: csuite-wt3338-partial-update-test
-    - name: csuite-wt4333-handle-locks-test
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
+    - name: make-check-test
+    - name: unit-test
     - name: fops
+
+- name: rhel80-python3
+  display_name: RHEL 8.0 (Python3)
+  run_on:
+  - rhel80-test
+  expansions:
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    configure_python_setting: PYTHON=python3
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    python_binary: python3
+  tasks:
+    - name: compile
+    - name: lang-python-test
 
 - name: large-scale-test
   display_name: Large scale testing
