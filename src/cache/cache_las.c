@@ -1233,14 +1233,14 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     WT_DECL_ITEM(las_key);
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
-    WT_ITEM *key;
+    WT_ITEM key;
     WT_TXN *txn;
     WT_UPDATE *upd, *list[WT_MODIFY_ARRAY_SIZE], **listp;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
     uint64_t las_txnid, _las_txnid;
     uint32_t las_btree_id, session_flags;
-    uint8_t prepare_state, _prepare_state, *p, upd_type;
+    uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     u_int i;
     int cmp;
     bool sweep_locked;
@@ -1252,7 +1252,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
 
     cache = S2C(session)->cache;
     cursor = NULL;
-    key = NULL;
+    WT_CLEAR(key);
     upd = NULL;
     listp = list;
     txn = &session->txn;
@@ -1265,15 +1265,14 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
     /* Row-store has the key available, create the column-store key on demand. */
     switch (cbt->btree->type) {
     case BTREE_ROW:
-        key = &cbt->iface.key;
+        key = cbt->iface.key;
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
-        WT_RET(__wt_buf_grow(session, cbt->las, WT_INTPACK64_MAXSIZE));
-        p = cbt->las->mem;
+        p = recno_key;
         WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
-        cbt->las->size = WT_PTRDIFF(p, cbt->las->mem);
-        key = cbt->las;
+        key.data = recno_key;
+        key.size = WT_PTRDIFF(p, recno_key);
     }
 
     /* Allocate buffers for the lookaside key/value. */
@@ -1298,7 +1297,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    for (ret = __wt_las_cursor_position(session, cursor, las_btree_id, key, txn->read_timestamp);
+    for (ret = __wt_las_cursor_position(session, cursor, las_btree_id, &key, txn->read_timestamp);
          ret == 0; ret = cursor->prev(cursor)) {
         WT_ERR(cursor->get_key(cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
 
@@ -1310,7 +1309,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
          * Keys are sorted in an order, skip the ones before the desired key, and bail out if we
          * have crossed over the desired key and not found the record we are looking for.
          */
-        WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, las_key, &key, &cmp));
         if (cmp < 0)
             continue;
         else if (cmp > 0)
@@ -1360,7 +1359,7 @@ __wt_find_lookaside_upd(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDAT
                 WT_ERR(
                   cursor->get_key(cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
                 WT_ASSERT(session, las_btree_id == S2BT(session)->id);
-                WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
+                WT_ERR(__wt_compare(session, NULL, las_key, &key, &cmp));
                 WT_ASSERT(session, cmp == 0);
                 WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
 #endif

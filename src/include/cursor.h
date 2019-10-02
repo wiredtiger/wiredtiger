@@ -158,11 +158,6 @@ struct __wt_cursor_btree {
     WT_ITEM *tmp, _tmp;
 
     /*
-     * A temporary buffer, used in storing the key for the columnar table to search an LAS record.
-     */
-    WT_ITEM *las, _las;
-
-    /*
      * The update structure allocated by the row- and column-store modify functions, used to avoid a
      * data copy in the WT_CURSOR.update call.
      */
