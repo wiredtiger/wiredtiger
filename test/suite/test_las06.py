@@ -225,5 +225,50 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[i])
         self.session.rollback_transaction()
 
+    def test_multiple_modifies_workload(self):
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
+
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        # Load 5Mb of data.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+
+        # Apply three sets of modifies.
+        # They specifically need to be in separate modify calls.
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        expected = list(value1)
+        expected[100] = 'B'
+        expected[200] = 'C'
+        expected[300] = 'D'
+        expected = str().join(expected)
+
+        # Write a newer value on top.
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        # Go back and read. We should get the initial value with the 3 modifies applied on top.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        for i in range(1, 10000):
+            self.assertEqual(cursor[i], expected)
+        self.session.rollback_transaction()
+
 if __name__ == '__main__':
     wttest.run()
