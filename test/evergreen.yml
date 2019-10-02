@@ -1295,7 +1295,7 @@ buildvariants:
     python_binary: python3
   tasks:
     - name: compile
-    - name: lang-python-test
+    - name: unit-test
 
 - name: large-scale-test
   display_name: Large scale testing
