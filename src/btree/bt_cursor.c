@@ -84,6 +84,16 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
         return (false);
 
     /*
+     * XXX No fast-path searches outside of snapshot isolation. Underlying transactional functions
+     * called by the fast and slow path code handle transaction IDs differently, resulting in
+     * different search results at lower isolation. This doesn't make a difference for the update
+     * functions, but in the case of a search, we can see different results based on the cursor's
+     * initial location. See WT-5134 for the details.
+     */
+    if (search_operation && session->txn.isolation != WT_ISO_SNAPSHOT)
+        return (false);
+
+    /*
      * Fail if the page is flagged for forced eviction (so we periodically release pages grown too
      * large).
      */
