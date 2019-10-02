@@ -116,6 +116,98 @@ err:
 }
 
 /*
+ * __get_next_rec_upd --
+ *     Return the next update in a list, considering both lookaside and in-memory updates.
+ */
+static int
+__get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *las_positioned,
+  WT_CURSOR *las_cursor, uint32_t btree_id, WT_ITEM *key, WT_UPDATE **upd)
+{
+    WT_DECL_ITEM(las_key);
+    WT_DECL_ITEM(las_value);
+    WT_DECL_RET;
+    wt_timestamp_t durable_timestamp, las_timestamp, las_txnid;
+    size_t not_used;
+    uint32_t las_btree_id;
+    uint8_t prepare_state, upd_type;
+    int cmp;
+    bool use_las_rec;
+
+    use_las_rec = false;
+
+    /* Free an external update to start with */
+    if (*upd != NULL && (*upd)->ext == 1)
+        __wt_free_update_list(session, *upd);
+
+    /* Determine whether to use lookaside or an in-memory update. */
+    if (*las_positioned) {
+        WT_RET(__wt_scr_alloc(session, 0, &las_key));
+
+        /* Check if lookaside cursor is still positioned on an update for the given key. */
+        WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
+        if (las_btree_id != btree_id) {
+            *las_positioned = false;
+            goto inmem;
+        } else {
+            WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
+            if (cmp != 0) {
+                *las_positioned = false;
+                goto inmem;
+            }
+        }
+
+        if (*inmem_upd_pos == NULL) {
+            /* There are no more in-memory updates to consider. */
+            use_las_rec = true;
+        } else {
+            if (las_timestamp > (*inmem_upd_pos)->start_ts)
+                use_las_rec = true;
+            else if (las_timestamp == (*inmem_upd_pos)->start_ts) {
+                if (las_txnid > (*inmem_upd_pos)->txnid)
+                    use_las_rec = true;
+            }
+        }
+    }
+
+    if (use_las_rec) {
+        WT_ERR(__wt_scr_alloc(session, 0, &las_value));
+
+        /* Create an update from the lookaside, mark it external and reposition lookaside cursor.*/
+        WT_ERR(las_cursor->get_value(
+          las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
+        WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK);
+
+        /* Allocate an update structure for the record found. */
+        WT_ERR(__wt_update_alloc(session, las_value, upd, &not_used, upd_type));
+        (*upd)->txnid = las_txnid;
+        (*upd)->durable_ts = durable_timestamp;
+        (*upd)->start_ts = las_timestamp;
+        (*upd)->prepare_state = prepare_state;
+        /*
+         * Mark this update as external and to be discarded when not needed.
+         */
+        (*upd)->ext = 1;
+
+        ret = las_cursor->prev(las_cursor);
+        if (ret == WT_NOTFOUND) {
+            *las_positioned = false;
+            ret = 0;
+        }
+        WT_ERR(ret);
+    } else {
+inmem:
+        *upd = *inmem_upd_pos;
+        if (*inmem_upd_pos != NULL)
+            *inmem_upd_pos = (*inmem_upd_pos)->next;
+    }
+
+err:
+    __wt_scr_free(session, &las_key);
+    __wt_scr_free(session, &las_value);
+    return (ret);
+}
+
+/*
  * __wt_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
@@ -123,12 +215,19 @@ int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
   WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
 {
+    WT_CACHE *cache;
+    WT_CURSOR *las_cursor;
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd;
+    WT_UPDATE *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *upd;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
-    bool all_stable, list_prepared, list_uncommitted, skipped_birthmark;
+    uint32_t session_flags;
+    uint8_t *p;
+    bool all_stable, las_cursor_open, las_positioned, list_prepared, list_uncommitted;
+    bool skipped_birthmark, sweep_locked;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -137,24 +236,77 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->upd = NULL;
     upd_select->upd_saved = false;
 
+    cache = S2C(session)->cache;
     page = r->page;
     first_txn_upd = NULL;
+    upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    list_prepared = list_uncommitted = skipped_birthmark = false;
+    session_flags = 0; /* [-Werror=maybe-uninitialized] */
+    las_cursor_open = las_positioned = list_prepared = list_uncommitted = skipped_birthmark = false;
+
+    if (__wt_page_las_active(session, r->ref)) {
+        /* Obtain the key to iterate the lookaside */
+        WT_RET(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
+        switch (page->type) {
+        case WT_PAGE_COL_FIX:
+        case WT_PAGE_COL_VAR:
+            p = key->mem;
+            WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(ins)));
+            key->size = WT_PTRDIFF(p, key->data);
+            break;
+        case WT_PAGE_ROW_LEAF:
+            if (ins == NULL) {
+                WT_WITH_BTREE(session, S2BT(session),
+                  ret = __wt_row_leaf_key(session, page, ripcip, key, false));
+                WT_ERR(ret);
+            } else {
+                key->data = WT_INSERT_KEY(ins);
+                key->size = WT_INSERT_KEY_SIZE(ins);
+                printf("key: %" PRIu64 "\n", *(uint64_t *)key->data);
+            }
+            break;
+        default:
+            WT_ERR(__wt_illegal_value(session, page->type));
+        }
+
+        /* Open a lookaside cursor, position at the latest update for this key */
+        /* Remember to unlock */
+        __wt_las_cursor(session, &las_cursor, &session_flags);
+        las_cursor_open = true;
+        cache->las_reader = true;
+        //__wt_readlock(session, &cache->las_sweepwalk_lock);
+        cache->las_reader = false;
+        sweep_locked = true;
+
+        /*
+         * Position on the latest update for this key. If no updates exist for this key, it is okay
+         * to position on an update for an adjacent key. We will check the validity of our position
+         * again when fetching the record. The updates are sorted oldest to newest in the lookaside.
+         */
+        WT_ERR(__wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, UINT64_MAX));
+        las_positioned = true;
+    }
 
     /*
-     * If called with a WT_INSERT item, use its WT_UPDATE list (which must
-     * exist), otherwise check for an on-page row-store WT_UPDATE list
-     * (which may not exist). Return immediately if the item has no updates.
+     * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
+     * for an on-page row-store WT_UPDATE list (which may not exist). Also, check for any updates in
+     * the lookaside. Return immediately if the item has no updates.
      */
     if (ins != NULL)
-        first_upd = ins->upd;
-    else if ((first_upd = WT_ROW_UPDATE(page, ripcip)) == NULL)
-        return (0);
+        first_inmem_upd = ins->upd;
+    else
+        first_inmem_upd = WT_ROW_UPDATE(page, ripcip);
 
-    for (upd = first_upd; upd != NULL; upd = upd->next) {
+    inmem_upd_pos = first_inmem_upd;
+    WT_ERR(__get_next_rec_upd(
+      session, &inmem_upd_pos, &las_positioned, las_cursor, S2BT(session)->id, key, &upd));
+    if (upd == NULL)
+        goto err;
+
+    for (; ret == 0 && upd != NULL; ret = __get_next_rec_upd(session, &inmem_upd_pos,
+                                      &las_positioned, las_cursor, S2BT(session)->id, key, &upd)) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
@@ -227,8 +379,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * discard an uncommitted update.
              */
             if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
-              (list_prepared || list_uncommitted))
-                return (__wt_set_return(session, EBUSY));
+              (list_prepared || list_uncommitted)) {
+                ret = __wt_set_return(session, EBUSY);
+                goto err;
+            }
 
             if (upd->type == WT_UPDATE_BIRTHMARK)
                 skipped_birthmark = true;
@@ -257,6 +411,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
+    WT_ERR(ret);
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
@@ -276,7 +431,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /* If all of the updates were aborted, quit. */
     if (first_txn_upd == NULL) {
         WT_ASSERT(session, upd == NULL);
-        return (0);
+        goto err;
     }
 
     /* If no updates were skipped, record that we're making progress. */
@@ -346,7 +501,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
          * two birthmark records in the same update chain.
          */
-        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
         upd_select->upd = NULL;
     }
 
@@ -365,7 +520,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     r->leave_dirty = true;
 
     if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-        WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
+        WT_PANIC_ERR(session, EINVAL, "reconciliation error, update not visible");
 
     /* If not trying to evict the page, we know what we'll write and we're done. */
     if (!F_ISSET(r, WT_REC_EVICT))
@@ -386,10 +541,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * path is the WT_REC_UPDATE_RESTORE flag, the lookaside table path is
      * the WT_REC_LOOKASIDE flag.
      */
-    if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
-        return (__wt_set_return(session, EBUSY));
-    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
-        return (__wt_set_return(session, EBUSY));
+    if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE)) {
+        ret = __wt_set_return(session, EBUSY);
+        goto err;
+    }
+    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE)) {
+        ret = __wt_set_return(session, EBUSY);
+        goto err;
+    }
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
@@ -397,7 +556,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * The order of the updates on the list matters, we can't move only the unresolved updates, move
      * the entire update list.
      */
-    WT_RET(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
     upd_select->upd_saved = true;
 
 check_original_value:
@@ -416,7 +575,16 @@ check_original_value:
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved ||
           (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
 
-    return (0);
+err:
+    __wt_scr_free(session, &key);
+    if (las_cursor_open)
+        WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
+
+    if (sweep_locked) {
+        //__wt_readunlock(session, &cache->las_sweepwalk_lock);
+    }
+
+    return (ret);
 }
