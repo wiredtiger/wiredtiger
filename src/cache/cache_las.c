@@ -543,6 +543,17 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
+ * When threads race modifying a record, we can end up with more than the max
+ * number of modifications in an update list.
+ *
+ * Leave space for double the maximum number on the stack as a best attempt to
+ * avoid heap allocation.
+ *
+ * TODO: Look into reusing code from __wt_value_return_upd.
+ */
+#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE * 2)
+
+/*
  * __las_squash_modifies --
  *     Squash multiple modify operations for the same key and timestamp into a standard update and
  *     insert it into lookaside. This is necessary since multiple updates on the same key/timestamp
@@ -553,32 +564,52 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
 {
     WT_DECL_RET;
     WT_ITEM las_value;
-    WT_UPDATE *modify_list[100], *next_upd, *start_upd, *upd;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *next_upd, *start_upd, *upd;
+    size_t allocated_bytes;
     u_int i;
 
     WT_CLEAR(las_value);
+    listp = list;
     start_upd = upd = *updp;
     next_upd = start_upd->next;
-    i = 0;
+    allocated_bytes = i = 0;
 
     while (upd->type == WT_UPDATE_MODIFY) {
-        WT_ASSERT(session, i < 100);
-        modify_list[i++] = upd;
+        /* Leave a reasonable amount of space on the stack for the regular case. */
+        if (i >= WT_MODIFY_ARRAY_SIZE) {
+            if (i == WT_MODIFY_ARRAY_SIZE)
+                listp = NULL;
+            WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
+            if (i == WT_MODIFY_ARRAY_SIZE)
+                memcpy(listp, list, sizeof(list));
+        }
+        listp[i++] = upd;
         upd = upd->next;
+        /*
+         * Our goal here is to squash and write one update in the case where there are multiple
+         * modifies for a given timestamp and transaction id. So we want to resume insertions right
+         * where a new timestamp and transaction id pairing begins.
+         */
         if (start_upd->start_ts == upd->start_ts && start_upd->txnid == upd->txnid)
             next_upd = upd;
+        /*
+         * If we've spotted a modify, there should be a standard update later in the update list. If
+         * we hit the end and still haven't found one, something is not right.
+         */
         WT_ASSERT(session, upd != NULL);
     }
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
     while (i > 0)
-        WT_ERR(__wt_modify_apply_item(session, &las_value, modify_list[--i]->data, false));
+        WT_ERR(__wt_modify_apply_item(session, &las_value, listp[--i]->data, false));
     cursor->set_value(
       cursor, start_upd->durable_ts, start_upd->prepare_state, WT_UPDATE_STANDARD, &las_value);
     WT_ERR(cursor->insert(cursor));
-    *updp = next_upd;
 
 err:
     __wt_buf_free(session, &las_value);
+    if (allocated_bytes != 0)
+        __wt_free(session, listp);
+    *updp = next_upd;
     return (ret);
 }
 
@@ -714,17 +745,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
             cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid);
 
-            /* Look forward and squash anything with the same timestamp. */
-            if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
-              upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
-                tmp_upd = upd;
-                WT_ERR(__las_squash_modifies(session, cursor, &upd));
-                if (tmp_upd->prepare_state == WT_PREPARE_INPROGRESS)
-                    ++prepared_insert_cnt;
-                ++insert_cnt;
-                continue;
-            }
-
             /*
              * If saving a non-zero length value on the page, save a birthmark instead of
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
@@ -747,6 +767,21 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 birthmarks_cnt++;
 
                 /* Do not put birthmarks into the lookaside. */
+                continue;
+            }
+
+            /*
+             * If we encounter a modify with preceding updates that have the same timestamp and
+             * transaction id, they need to be squashed into a single lookaside entry to avoid
+             * displacing each other.
+             */
+            if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
+              upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
+                tmp_upd = upd;
+                WT_ERR(__las_squash_modifies(session, cursor, &upd));
+                if (tmp_upd->prepare_state == WT_PREPARE_INPROGRESS)
+                    ++prepared_insert_cnt;
+                ++insert_cnt;
                 continue;
             }
 
@@ -1251,17 +1286,6 @@ err:
 
     return (ret);
 }
-
-/*
- * When threads race modifying a record, we can end up with more than the max
- * number of modifications in an update list.
- *
- * Leave space for double the maximum number on the stack as a best attempt to
- * avoid heap allocation.
- *
- * TODO: Look into reusing code from __wt_value_return_upd.
- */
-#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE * 2)
 
 /*
  * __wt_find_lookaside_upd --
