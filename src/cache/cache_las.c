@@ -674,6 +674,40 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
             cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid);
 
+            /* Look forward and squash anything with the same timestamp. */
+            if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
+              upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
+                u_int counter;
+                WT_UPDATE *modify_list[100];
+                WT_UPDATE *peek_upd = upd;
+                WT_UPDATE *next_upd = NULL;
+                counter = 0;
+                while (peek_upd->type == WT_UPDATE_MODIFY) {
+                    WT_ASSERT(session, counter < 100);
+                    modify_list[counter++] = peek_upd;
+                    peek_upd = peek_upd->next;
+                    if (upd->start_ts == peek_upd->start_ts && upd->txnid == peek_upd->txnid)
+                        next_upd = peek_upd;
+                    WT_ASSERT(session, peek_upd != NULL);
+                }
+                WT_ITEM standard_upd_value;
+                WT_CLEAR(standard_upd_value);
+                standard_upd_value.data = peek_upd->data;
+                standard_upd_value.size = peek_upd->size;
+                while (counter > 0) {
+                    WT_ERR(__wt_modify_apply_item(
+                      session, &standard_upd_value, modify_list[--counter]->data, false));
+                }
+                cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, WT_UPDATE_STANDARD,
+                  &standard_upd_value);
+                WT_ERR(cursor->insert(cursor));
+                ++insert_cnt;
+                if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+                    ++prepared_insert_cnt;
+                upd = next_upd;
+                continue;
+            }
+
             /*
              * If saving a non-zero length value on the page, save a birthmark instead of
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
