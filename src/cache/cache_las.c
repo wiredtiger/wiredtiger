@@ -792,6 +792,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             ++insert_cnt;
             if (upd->prepare_state == WT_PREPARE_INPROGRESS)
                 ++prepared_insert_cnt;
+
+            /*
+             * If we encounter subsequent updates with the same timestamp, skip them to avoid
+             * clobbering the entry that we just wrote to lookaside. Only the last thing in the
+             * update list for that timestamp matters anyway.
+             */
+            while (upd->next != NULL && upd->start_ts == upd->next->start_ts)
+                upd = upd->next;
         } while ((upd = upd->next) != NULL);
     }
 
