@@ -1228,14 +1228,14 @@ __wt_find_lookaside_upd(
     WT_DECL_ITEM(las_key);
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
-    WT_ITEM *key;
+    WT_ITEM *key, _key;
     WT_TXN *txn;
     WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
-    uint8_t prepare_state, _prepare_state, *p, upd_type;
+    uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
     u_int i;
     int cmp;
@@ -1272,11 +1272,12 @@ __wt_find_lookaside_upd(
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
-        WT_RET(__wt_buf_grow(session, cbt->tmp, WT_INTPACK64_MAXSIZE));
-        p = cbt->tmp->mem;
+        p = recno_key;
         WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
-        cbt->tmp->size = WT_PTRDIFF(p, cbt->tmp->mem);
-        key = cbt->tmp;
+        WT_CLEAR(_key);
+        _key.data = recno_key;
+        _key.size = WT_PTRDIFF(p, recno_key);
+        key = &_key;
     }
 
     /* Allocate buffers for the lookaside key/value. */
