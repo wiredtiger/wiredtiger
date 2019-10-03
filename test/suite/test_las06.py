@@ -244,7 +244,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         # Apply three sets of modifies.
         # They specifically need to be in separate modify calls.
-        for i in range(1, 10000):
+        for i in range(1, 11):
             self.session.begin_transaction()
             cursor.set_key(i)
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
@@ -266,7 +266,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         # Go back and read. We should get the initial value with the 3 modifies applied on top.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        for i in range(1, 10000):
+        for i in range(1, 11):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 

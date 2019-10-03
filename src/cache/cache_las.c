@@ -543,6 +543,46 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
+ * __las_squash_modifies --
+ *     Squash multiple modify operations for the same key and timestamp into a standard update and
+ *     insert it into lookaside. This is necessary since multiple updates on the same key/timestamp
+ *     and transaction will clobber each other in the lookaside which is problematic for modifies.
+ */
+static int
+__las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **updp)
+{
+    WT_DECL_RET;
+    WT_ITEM las_value;
+    WT_UPDATE *modify_list[100], *next_upd, *start_upd, *upd;
+    u_int i;
+
+    WT_CLEAR(las_value);
+    start_upd = upd = *updp;
+    next_upd = start_upd->next;
+    i = 0;
+
+    while (upd->type == WT_UPDATE_MODIFY) {
+        WT_ASSERT(session, i < 100);
+        modify_list[i++] = upd;
+        upd = upd->next;
+        if (start_upd->start_ts == upd->start_ts && start_upd->txnid == upd->txnid)
+            next_upd = upd;
+        WT_ASSERT(session, upd != NULL);
+    }
+    WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
+    while (i > 0)
+        WT_ERR(__wt_modify_apply_item(session, &las_value, modify_list[--i]->data, false));
+    cursor->set_value(
+      cursor, start_upd->durable_ts, start_upd->prepare_state, WT_UPDATE_STANDARD, &las_value);
+    WT_ERR(cursor->insert(cursor));
+    *updp = next_upd;
+
+err:
+    __wt_buf_free(session, &las_value);
+    return (ret);
+}
+
+/*
  * __wt_las_insert_updates --
  *     Copy one set of saved updates into the database's lookaside table.
  */
@@ -558,7 +598,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *first_upd, *upd;
+    WT_UPDATE *first_upd, *tmp_upd, *upd;
     wt_off_t las_size;
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
@@ -677,34 +717,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             /* Look forward and squash anything with the same timestamp. */
             if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
               upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
-                u_int counter;
-                WT_UPDATE *modify_list[100];
-                WT_UPDATE *peek_upd = upd;
-                WT_UPDATE *next_upd = NULL;
-                counter = 0;
-                while (peek_upd->type == WT_UPDATE_MODIFY) {
-                    WT_ASSERT(session, counter < 100);
-                    modify_list[counter++] = peek_upd;
-                    peek_upd = peek_upd->next;
-                    if (upd->start_ts == peek_upd->start_ts && upd->txnid == peek_upd->txnid)
-                        next_upd = peek_upd;
-                    WT_ASSERT(session, peek_upd != NULL);
-                }
-                WT_ITEM standard_upd_value;
-                WT_CLEAR(standard_upd_value);
-                standard_upd_value.data = peek_upd->data;
-                standard_upd_value.size = peek_upd->size;
-                while (counter > 0) {
-                    WT_ERR(__wt_modify_apply_item(
-                      session, &standard_upd_value, modify_list[--counter]->data, false));
-                }
-                cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, WT_UPDATE_STANDARD,
-                  &standard_upd_value);
-                WT_ERR(cursor->insert(cursor));
-                ++insert_cnt;
-                if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+                tmp_upd = upd;
+                WT_ERR(__las_squash_modifies(session, cursor, &upd));
+                if (tmp_upd->prepare_state == WT_PREPARE_INPROGRESS)
                     ++prepared_insert_cnt;
-                upd = next_upd;
+                ++insert_cnt;
                 continue;
             }
 
