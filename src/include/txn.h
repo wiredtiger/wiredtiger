@@ -186,7 +186,7 @@ struct __wt_txn_global {
 };
 
 typedef enum __wt_txn_isolation {
-    WT_ISO_UNKNOWN = 0,
+    WT_ISO_NOT_SET = 0,
     WT_ISO_READ_COMMITTED,
     WT_ISO_READ_UNCOMMITTED,
     WT_ISO_SNAPSHOT

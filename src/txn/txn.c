@@ -1661,8 +1661,8 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
 
     WT_NOT_READ(iso_tag, "INVALID");
     switch (txn->isolation) {
-    case WT_ISO_UNKNOWN:
-        iso_tag = "WT_ISO_UNKNOWN";
+    case WT_ISO_NOT_SET:
+        iso_tag = "WT_ISO_NOT_SET";
         break;
     case WT_ISO_READ_COMMITTED:
         iso_tag = "WT_ISO_READ_COMMITTED";

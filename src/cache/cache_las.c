@@ -34,7 +34,7 @@ __las_set_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp
 static void
 __las_restore_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolation)
 {
-    if (saved_isolation != WT_ISO_UNKNOWN)
+    if (saved_isolation != WT_ISO_NOT_SET)
         session->txn.isolation = saved_isolation;
 }
 
@@ -506,7 +506,7 @@ __las_remove_block(WT_CURSOR *cursor, uint64_t pageid, bool lock_wait, uint64_t 
 
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
-    saved_isolation = WT_ISO_UNKNOWN;
+    saved_isolation = WT_ISO_NOT_SET;
     local_txn = false;
 
     /* Prevent the sweep thread from removing the block. */
@@ -630,7 +630,7 @@ __wt_las_insert_block(
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
     WT_CLEAR(las_value);
-    saved_isolation = WT_ISO_UNKNOWN;
+    saved_isolation = WT_ISO_NOT_SET;
     insert_cnt = prepared_insert_cnt = 0;
     btree_id = btree->id;
     local_txn = false;
@@ -1042,7 +1042,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     cache = S2C(session)->cache;
     cursor = NULL;
     sweep_key = &cache->las_sweep_key;
-    saved_isolation = WT_ISO_UNKNOWN;
+    saved_isolation = WT_ISO_NOT_SET;
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     local_txn = locked = removing_key_block = false;
