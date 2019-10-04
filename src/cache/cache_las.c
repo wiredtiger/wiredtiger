@@ -502,6 +502,7 @@ __las_remove_block(WT_CURSOR *cursor, uint64_t pageid, bool lock_wait, uint64_t 
     bool local_txn;
 
     *remove_cntp = 0;
+    saved_isolation = 0; /*[-Wconditional-uninitialized] */
 
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
@@ -628,6 +629,7 @@ __wt_las_insert_block(
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
     WT_CLEAR(las_value);
+    saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = prepared_insert_cnt = 0;
     btree_id = btree->id;
     local_txn = false;
@@ -1038,6 +1040,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     cache = S2C(session)->cache;
     cursor = NULL;
     sweep_key = &cache->las_sweep_key;
+    saved_isolation = 0; /*[-Wconditional-uninitialized] */
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     local_txn = locked = removing_key_block = false;
