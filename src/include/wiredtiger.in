@@ -4958,11 +4958,11 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_LOOKASIDE_READ		1050
 /*! cache: cache overflow table update reads missed */
 #define	WT_STAT_CONN_CACHE_LOOKASIDE_READ_MISS		1051
-/*! cache: cache overflow table update reads requiring modify squashing */
+/*! cache: cache overflow table update reads requiring squashed modifies */
 #define	WT_STAT_CONN_CACHE_LOOKASIDE_READ_SQUASH	1052
 /*! cache: cache overflow table update reads wasted */
 #define	WT_STAT_CONN_CACHE_LOOKASIDE_READ_WASTED	1053
-/*! cache: cache overflow table update writes requiring modify squashing */
+/*! cache: cache overflow table update writes requiring squashed modifies */
 #define	WT_STAT_CONN_CACHE_LOOKASIDE_WRITE_SQUASH	1054
 /*! cache: checkpoint blocked page eviction */
 #define	WT_STAT_CONN_CACHE_EVICTION_CHECKPOINT		1055
