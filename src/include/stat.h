@@ -359,6 +359,7 @@ struct __wt_connection_stats {
     int64_t cache_lookaside_read;
     int64_t cache_lookaside_read_miss;
     int64_t cache_lookaside_read_squash;
+    int64_t cache_lookaside_read_wasted;
     int64_t cache_lookaside_write_squash;
     int64_t cache_eviction_checkpoint;
     int64_t cache_eviction_get_ref;

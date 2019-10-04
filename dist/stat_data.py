@@ -285,6 +285,7 @@ connection_stats = [
     CacheStat('cache_lookaside_read', 'cache overflow table update reads'),
     CacheStat('cache_lookaside_read_miss', 'cache overflow table update reads missed'),
     CacheStat('cache_lookaside_read_squash', 'cache overflow table update reads requiring modify squashing'),
+    CacheStat('cache_lookaside_read_wasted', 'cache overflow table update reads wasted'),
     CacheStat('cache_lookaside_remove', 'cache overflow table remove calls'),
     CacheStat('cache_lookaside_score', 'cache overflow score', 'no_clear,no_scale'),
     CacheStat('cache_lookaside_write_squash', 'cache overflow table update writes requiring modify squashing'),
