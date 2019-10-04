@@ -356,6 +356,10 @@ struct __wt_connection_stats {
     int64_t cache_lookaside_ondisk_max;
     int64_t cache_lookaside_ondisk;
     int64_t cache_lookaside_remove;
+    int64_t cache_lookaside_read;
+    int64_t cache_lookaside_read_miss;
+    int64_t cache_lookaside_read_squash;
+    int64_t cache_lookaside_write_squash;
     int64_t cache_eviction_checkpoint;
     int64_t cache_eviction_get_ref;
     int64_t cache_eviction_get_ref_empty;
@@ -427,7 +431,6 @@ struct __wt_connection_stats {
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_page_instantiate_read_lookaside_checkpoint;
-    int64_t cache_read_lookaside;
     int64_t cache_page_instantiate_read_lookaside;
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;
@@ -757,6 +760,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_dirty_total;
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
+    int64_t cache_lookaside_read;
     int64_t cache_eviction_checkpoint;
     int64_t cache_eviction_fail;
     int64_t cache_eviction_walk_passes;
@@ -786,7 +790,6 @@ struct __wt_dsrc_stats {
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;
     int64_t cache_page_instantiate_read_lookaside_checkpoint;
-    int64_t cache_read_lookaside;
     int64_t cache_page_instantiate_read_lookaside;
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;

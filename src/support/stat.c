@@ -27,7 +27,7 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: row-store internal pages", "btree: row-store leaf pages",
   "cache: bytes currently in the cache", "cache: bytes dirty in the cache cumulative",
   "cache: bytes read into cache", "cache: bytes written from cache",
-  "cache: checkpoint blocked page eviction",
+  "cache: cache overflow table update reads", "cache: checkpoint blocked page eviction",
   "cache: data source pages selected for eviction unable to be evicted",
   "cache: eviction walk passes of a file", "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
@@ -48,7 +48,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
   "cache: pages read into cache by checkpoint requiring cache overflow entries.",
-  "cache: pages read into cache requiring cache overflow entries",
   "cache: pages read into cache requiring cache overflow entries.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages written from cache", "cache: pages written requiring in-memory restoration",
@@ -178,6 +177,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing cache_bytes_dirty_total */
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
+    stats->cache_lookaside_read = 0;
     stats->cache_eviction_checkpoint = 0;
     stats->cache_eviction_fail = 0;
     stats->cache_eviction_walk_passes = 0;
@@ -207,7 +207,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
     stats->cache_page_instantiate_read_lookaside_checkpoint = 0;
-    stats->cache_read_lookaside = 0;
     stats->cache_page_instantiate_read_lookaside = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
@@ -352,6 +351,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_bytes_dirty_total += from->cache_bytes_dirty_total;
     to->cache_bytes_read += from->cache_bytes_read;
     to->cache_bytes_write += from->cache_bytes_write;
+    to->cache_lookaside_read += from->cache_lookaside_read;
     to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
     to->cache_eviction_fail += from->cache_eviction_fail;
     to->cache_eviction_walk_passes += from->cache_eviction_walk_passes;
@@ -382,7 +382,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read_deleted_prepared += from->cache_read_deleted_prepared;
     to->cache_page_instantiate_read_lookaside_checkpoint +=
       from->cache_page_instantiate_read_lookaside_checkpoint;
-    to->cache_read_lookaside += from->cache_read_lookaside;
     to->cache_page_instantiate_read_lookaside += from->cache_page_instantiate_read_lookaside;
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
@@ -521,6 +520,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_bytes_dirty_total += WT_STAT_READ(from, cache_bytes_dirty_total);
     to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
+    to->cache_lookaside_read += WT_STAT_READ(from, cache_lookaside_read);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
     to->cache_eviction_walk_passes += WT_STAT_READ(from, cache_eviction_walk_passes);
@@ -553,7 +553,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
     to->cache_page_instantiate_read_lookaside_checkpoint +=
       WT_STAT_READ(from, cache_page_instantiate_read_lookaside_checkpoint);
-    to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
     to->cache_page_instantiate_read_lookaside +=
       WT_STAT_READ(from, cache_page_instantiate_read_lookaside);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
@@ -662,8 +661,12 @@ static const char *const __stats_connection_desc[] = {
   "cache: cache overflow cursor internal thread wait time (usecs)", "cache: cache overflow score",
   "cache: cache overflow table entries", "cache: cache overflow table insert calls",
   "cache: cache overflow table max on-disk size", "cache: cache overflow table on-disk size",
-  "cache: cache overflow table remove calls", "cache: checkpoint blocked page eviction",
-  "cache: eviction calls to get a page", "cache: eviction calls to get a page found queue empty",
+  "cache: cache overflow table remove calls", "cache: cache overflow table update reads",
+  "cache: cache overflow table update reads missed",
+  "cache: cache overflow table update reads requiring modify squashing",
+  "cache: cache overflow table update writes requiring modify squashing",
+  "cache: checkpoint blocked page eviction", "cache: eviction calls to get a page",
+  "cache: eviction calls to get a page found queue empty",
   "cache: eviction calls to get a page found queue empty after locking",
   "cache: eviction currently operating in aggressive mode", "cache: eviction empty score",
   "cache: eviction passes of a file",
@@ -714,7 +717,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages read into cache", "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
   "cache: pages read into cache by checkpoint requiring cache overflow entries.",
-  "cache: pages read into cache requiring cache overflow entries",
   "cache: pages read into cache requiring cache overflow entries.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages selected for eviction unable to be evicted", "cache: pages walked for eviction",
@@ -991,6 +993,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_lookaside_ondisk_max */
     /* not clearing cache_lookaside_ondisk */
     stats->cache_lookaside_remove = 0;
+    stats->cache_lookaside_read = 0;
+    stats->cache_lookaside_read_miss = 0;
+    stats->cache_lookaside_read_squash = 0;
+    stats->cache_lookaside_write_squash = 0;
     stats->cache_eviction_checkpoint = 0;
     stats->cache_eviction_get_ref = 0;
     stats->cache_eviction_get_ref_empty = 0;
@@ -1062,7 +1068,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
     stats->cache_page_instantiate_read_lookaside_checkpoint = 0;
-    stats->cache_read_lookaside = 0;
     stats->cache_page_instantiate_read_lookaside = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
@@ -1408,6 +1413,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_lookaside_ondisk_max += WT_STAT_READ(from, cache_lookaside_ondisk_max);
     to->cache_lookaside_ondisk += WT_STAT_READ(from, cache_lookaside_ondisk);
     to->cache_lookaside_remove += WT_STAT_READ(from, cache_lookaside_remove);
+    to->cache_lookaside_read += WT_STAT_READ(from, cache_lookaside_read);
+    to->cache_lookaside_read_miss += WT_STAT_READ(from, cache_lookaside_read_miss);
+    to->cache_lookaside_read_squash += WT_STAT_READ(from, cache_lookaside_read_squash);
+    to->cache_lookaside_write_squash += WT_STAT_READ(from, cache_lookaside_write_squash);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
     to->cache_eviction_get_ref += WT_STAT_READ(from, cache_eviction_get_ref);
     to->cache_eviction_get_ref_empty += WT_STAT_READ(from, cache_eviction_get_ref_empty);
@@ -1488,7 +1497,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
     to->cache_page_instantiate_read_lookaside_checkpoint +=
       WT_STAT_READ(from, cache_page_instantiate_read_lookaside_checkpoint);
-    to->cache_read_lookaside += WT_STAT_READ(from, cache_read_lookaside);
     to->cache_page_instantiate_read_lookaside +=
       WT_STAT_READ(from, cache_page_instantiate_read_lookaside);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);

@@ -609,6 +609,7 @@ err:
     __wt_buf_free(session, &las_value);
     if (allocated_bytes != 0)
         __wt_free(session, listp);
+    WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
     *updp = next_upd;
     return (ret);
 }
@@ -1469,6 +1470,7 @@ __wt_find_lookaside_upd(
                 __wt_free_update_list(session, listp[i - 1]);
                 --i;
             }
+            WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
         }
 
         /* Allocate an update structure for the record found. */
@@ -1534,9 +1536,16 @@ err:
     if (allocated_bytes != 0)
         __wt_free(session, listp);
 
-    /* Couldn't find a record */
-    if (upd == NULL && ret == 0)
-        ret = WT_NOTFOUND;
+    if (ret == 0) {
+        /* Couldn't find a record. */
+        if (upd == NULL) {
+            ret = WT_NOTFOUND;
+            WT_STAT_CONN_INCR(session, cache_lookaside_read_miss);
+        } else {
+            WT_STAT_CONN_INCR(session, cache_lookaside_read);
+            WT_STAT_DATA_INCR(session, cache_lookaside_read);
+        }
+    }
 
     WT_ASSERT(session, upd != NULL || ret != 0);
 
