@@ -1215,42 +1215,15 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     WT_SESSION_IMPL *session;
     size_t addr_size;
     const uint8_t *addr;
-    const char *state;
 
     session = ds->session;
-
-    switch (ref->state) {
-    case WT_REF_DISK:
-        state = "disk";
-        break;
-    case WT_REF_DELETED:
-        state = "deleted";
-        break;
-    case WT_REF_LOCKED:
-        state = "locked";
-        break;
-    case WT_REF_LOOKASIDE:
-        state = "lookaside";
-        break;
-    case WT_REF_MEM:
-        state = "memory";
-        break;
-    case WT_REF_READING:
-        state = "reading";
-        break;
-    case WT_REF_SPLIT:
-        state = "split";
-        break;
-    default:
-        state = "INVALID";
-        break;
-    }
 
     __wt_ref_info(session, ref, &addr, &addr_size, NULL);
     return (ds->f(ds,
       "\t"
       "%p %s %s\n",
-      (void *)ref, state, __wt_addr_string(session, addr, addr_size, ds->t1)));
+      (void *)ref, __wt_ref_state_string(ref->state),
+      __wt_addr_string(session, addr, addr_size, ds->t1)));
 }
 
 /*

@@ -9,36 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_page_type_string --
- *     Return a string representing the page type.
- */
-const char *
-__wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
-{
-    switch (type) {
-    case WT_PAGE_INVALID:
-        return ("invalid");
-    case WT_PAGE_BLOCK_MANAGER:
-        return ("block manager");
-    case WT_PAGE_COL_FIX:
-        return ("column-store fixed-length leaf");
-    case WT_PAGE_COL_INT:
-        return ("column-store internal");
-    case WT_PAGE_COL_VAR:
-        return ("column-store variable-length leaf");
-    case WT_PAGE_OVFL:
-        return ("overflow");
-    case WT_PAGE_ROW_INT:
-        return ("row-store internal");
-    case WT_PAGE_ROW_LEAF:
-        return ("row-store leaf");
-    default:
-        return ("unknown");
-    }
-    /* NOTREACHED */
-}
-
-/*
  * __wt_cell_type_string --
  *     Return a string representing the cell type.
  */
@@ -80,6 +50,64 @@ __wt_cell_type_string(uint8_t type)
         return ("value/short");
     default:
         return ("unknown");
+    }
+    /* NOTREACHED */
+}
+
+/*
+ * __wt_page_type_string --
+ *     Return a string representing the page type.
+ */
+const char *
+__wt_page_type_string(u_int type) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    switch (type) {
+    case WT_PAGE_INVALID:
+        return ("invalid");
+    case WT_PAGE_BLOCK_MANAGER:
+        return ("block manager");
+    case WT_PAGE_COL_FIX:
+        return ("column-store fixed-length leaf");
+    case WT_PAGE_COL_INT:
+        return ("column-store internal");
+    case WT_PAGE_COL_VAR:
+        return ("column-store variable-length leaf");
+    case WT_PAGE_OVFL:
+        return ("overflow");
+    case WT_PAGE_ROW_INT:
+        return ("row-store internal");
+    case WT_PAGE_ROW_LEAF:
+        return ("row-store leaf");
+    default:
+        return ("unknown");
+    }
+    /* NOTREACHED */
+}
+
+/*
+ * __wt_ref_state_string --
+ *     Return a string representing the WT_REF state.
+ */
+const char *
+__wt_ref_state_string(u_int state)
+{
+    switch (state) {
+    case WT_REF_DISK:
+        return ("disk");
+    case WT_REF_DELETED:
+        return ("deleted");
+    case WT_REF_LOCKED:
+        return ("locked");
+    case WT_REF_LOOKASIDE:
+        return ("lookaside");
+    case WT_REF_MEM:
+        return ("memory");
+    case WT_REF_READING:
+        return ("reading");
+    case WT_REF_SPLIT:
+        return ("split");
+    default:
+        return ("INVALID");
     }
     /* NOTREACHED */
 }
