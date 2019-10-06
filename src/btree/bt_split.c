@@ -1531,8 +1531,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->first_dirty_txn = WT_TXN_FIRST;
 
     /*
-     * Restore the previous page' modify state to avoid repeatedly attempting eviction on the
-     * same page.
+     * Restore the previous page' modify state to avoid repeatedly attempting eviction on the same
+     * page.
      */
     mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
     mod->last_eviction_id = orig->modify->last_eviction_id;

@@ -106,7 +106,7 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     upd = NULL;
 
     if (page_las->birthmarks_cnt == 0)
-	return (0);
+        return (0);
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -152,11 +152,11 @@ err:
 }
 
 /*
- * __las_page_instantiate --
+ * __instantiate_lookaside --
  *     Instantiate lookaside update records that are not on disk image in a recently read page.
  */
 static int
-__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     struct las_page_prepared_updates {
         WT_ITEM key;
@@ -171,14 +171,15 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_ITEM las_key, las_value, next_las_key;
     WT_PAGE *page;
+    WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t incr;
-    uint64_t birthmark_cnt, las_txnid, recno;
+    uint64_t birthmark_cnt, instantiated_cnt, las_txnid, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
-    int cmp, exact, instantiated_cnt;
+    int cmp, exact;
     bool birthmark_record, first_scan, locked;
 
     birthmarkp = NULL;
@@ -186,6 +187,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cursor = NULL;
     WT_CLEAR(las_key);
     page = ref->page;
+    page_las = ref->page_las;
     upd = NULL;
     birthmark_cnt = 0;
     recno = WT_RECNO_OOB;
@@ -197,7 +199,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     locked = false;
 
     /* Check whether the disk image contains all the newest versions of the page. */
-    if (ref->page_las->min_skipped_ts == WT_TS_MAX)
+    if (page_las->min_skipped_ts == WT_TS_MAX)
         return (__instantiate_birthmarks(session, ref));
 
     __wt_btcur_init(session, &cbt);
@@ -237,7 +239,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cache->las_reader = false;
     first_scan = true;
     locked = true;
-    cursor->set_key(cursor, las_btree_id, &ref->page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
+    cursor->set_key(cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
     for (; ret == 0; ret = cursor->next(cursor)) {
         if (!first_scan) {
             WT_ERR(
@@ -262,20 +264,20 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         if (las_btree_id != S2BT(session)->id)
             break;
 
-        WT_ERR(__wt_compare(session, NULL, &las_key, &ref->page_las->min_las_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->min_las_key, &cmp));
         /* We got a key that is less than the minimum key of the page. */
         if (cmp < 0)
             break;
 
-        WT_ERR(__wt_compare(session, NULL, &las_key, &ref->page_las->max_las_key, &cmp));
+        WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->max_las_key, &cmp));
         /* We reached the end of the key of the LAS records related to the current page. */
         if (cmp > 0)
             break;
 
         instantiated_cnt++;
-        if (ref->page_las->birthmarks_cnt > 0) {
-            for (birthmarkp = ref->page_las->birthmarks + birthmark_cnt;
-                 birthmark_cnt < ref->page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++) {
+        if (page_las->birthmarks_cnt > 0) {
+            for (birthmarkp = page_las->birthmarks + birthmark_cnt;
+                 birthmark_cnt < page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++) {
                 if (birthmarkp->instantiated)
                     continue;
 
@@ -346,11 +348,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     locked = false;
     WT_ERR_NOTFOUND_OK(ret);
 
-    __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
-      "Page is instantiated with LAS content for btree ID %" PRIu32
-      " with number of keys: %" PRId32,
-      las_btree_id, instantiated_cnt);
-
     /* Instantiate any remaining birthmark entries. */
     WT_ERR(__instantiate_birthmarks(session, ref));
 
@@ -364,8 +361,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(cursor->remove(cursor));
     }
 
-    __wt_buf_free(session, &ref->page_las->max_las_key);
-    __wt_buf_free(session, &ref->page_las->min_las_key);
+    __wt_buf_free(session, &page_las->max_las_key);
+    __wt_buf_free(session, &page_las->min_las_key);
+
+    __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
+      "btree ID %" PRIu32 " page instantiated with %" PRIu64 " lookaside items", las_btree_id,
+      instantiated_cnt);
 
 err:
     if (las_prepare_cnt != 0)
@@ -373,8 +374,8 @@ err:
             __wt_buf_free(session, &las_preparep->key);
 
     __wt_scr_free(session, &las_prepares);
-    for (birthmark_cnt = 0, birthmarkp = ref->page_las->birthmarks;
-         birthmark_cnt < ref->page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++)
+    for (birthmark_cnt = 0, birthmarkp = page_las->birthmarks;
+         birthmark_cnt < page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++)
         birthmarkp->instantiated = false;
 
     if (locked)
@@ -568,13 +569,13 @@ skip_read:
          * and then apply the delete.
          */
         if (ref->page_las != NULL)
-            WT_ERR(__las_page_instantiate(session, ref));
+            WT_ERR(__instantiate_lookaside(session, ref));
 
         /* Move all records to a deleted state. */
         WT_ERR(__wt_delete_page_instantiate(session, ref));
         break;
     case WT_REF_LOOKASIDE:
-        WT_ERR(__las_page_instantiate(session, ref));
+        WT_ERR(__instantiate_lookaside(session, ref));
         break;
     }
 
