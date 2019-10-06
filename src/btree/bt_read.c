@@ -105,6 +105,9 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     page_las = ref->page_las;
     upd = NULL;
 
+    if (page_las->birthmarks_cnt == 0)
+	return (0);
+
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
@@ -348,7 +351,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
       " with number of keys: %" PRId32,
       las_btree_id, instantiated_cnt);
 
-    /* Instantiate the remaining birthmark entries. */
+    /* Instantiate any remaining birthmark entries. */
     WT_ERR(__instantiate_birthmarks(session, ref));
 
     /*
