@@ -575,6 +575,16 @@ skip_read:
         break;
     }
 
+    /*
+     * If we've modified the page, there were records from the lookaside table or birthmark used to
+     * updated the read page, in which case it might need to be included in the next checkpoint.
+     * When modifying the page we set the first dirty transaction to the last transaction currently
+     * running. However, the lookaside updates we made might be older than that. Set the first dirty
+     * transaction to an impossibly old value so this page is never skipped in a checkpoint.
+     */
+    if (ref->page->modify != NULL)
+        ref->page->modify->first_dirty_txn = WT_TXN_FIRST;
+
     WT_REF_SET_STATE(ref, final_state);
 
     WT_ASSERT(session, ret == 0);
