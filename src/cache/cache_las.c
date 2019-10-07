@@ -621,7 +621,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *first_upd, *tmp_upd, *upd;
+    WT_UPDATE *first_upd, *upd;
     wt_off_t las_size;
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
@@ -762,6 +762,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 continue;
             }
 
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+                ++prepared_insert_cnt;
+
             /*
              * If we encounter a modify with preceding updates that have the same timestamp and
              * transaction id, they need to be squashed into a single lookaside entry to avoid
@@ -769,10 +772,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
               upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
-                tmp_upd = upd;
                 WT_ERR(__las_squash_modifies(session, cursor, &upd));
-                if (tmp_upd->prepare_state == WT_PREPARE_INPROGRESS)
-                    ++prepared_insert_cnt;
                 ++insert_cnt;
                 continue;
             }
@@ -782,8 +782,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             /* Using insert so we don't keep the page pinned longer than necessary. */
             WT_ERR(cursor->insert(cursor));
             ++insert_cnt;
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-                ++prepared_insert_cnt;
 
             /*
              * If we encounter subsequent updates with the same timestamp, skip them to avoid
