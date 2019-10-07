@@ -622,7 +622,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *first_upd, *tmp_upd, *upd;
+    WT_UPDATE *first_upd, *upd;
     wt_off_t las_size;
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
