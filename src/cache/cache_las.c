@@ -543,17 +543,6 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
- * When threads race modifying a record, we can end up with more than the max
- * number of modifications in an update list.
- *
- * Leave space for double the maximum number on the stack as a best attempt to
- * avoid heap allocation.
- *
- * TODO: Look into reusing code from __wt_value_return_upd.
- */
-#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE * 2)
-
-/*
  * __las_squash_modifies --
  *     Squash multiple modify operations for the same key and timestamp into a standard update and
  *     insert it into lookaside. This is necessary since multiple updates on the same key/timestamp
@@ -568,11 +557,11 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     size_t allocated_bytes;
     u_int i;
 
-    WT_CLEAR(las_value);
     listp = list;
     start_upd = upd = *updp;
     next_upd = start_upd->next;
-    allocated_bytes = i = 0;
+    allocated_bytes = 0;
+    i = 0;
 
     while (upd->type == WT_UPDATE_MODIFY) {
         /* Leave a reasonable amount of space on the stack for the regular case. */
@@ -596,8 +585,11 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
          * If we've spotted a modify, there should be a standard update later in the update list. If
          * we hit the end and still haven't found one, something is not right.
          */
-        WT_ASSERT(session, upd != NULL);
+        if (upd == NULL)
+            WT_PANIC_ERR(session, WT_PANIC,
+              "found modify update but no corresponding standard update in the update list");
     }
+    WT_CLEAR(las_value);
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
     while (i > 0)
         WT_ERR(__wt_modify_apply_item(session, &las_value, listp[--i]->data, false));
@@ -771,6 +763,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 continue;
             }
 
+            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
+                ++prepared_insert_cnt;
+
             /*
              * If we encounter a modify with preceding updates that have the same timestamp and
              * transaction id, they need to be squashed into a single lookaside entry to avoid
@@ -778,10 +773,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
               upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
-                tmp_upd = upd;
                 WT_ERR(__las_squash_modifies(session, cursor, &upd));
-                if (tmp_upd->prepare_state == WT_PREPARE_INPROGRESS)
-                    ++prepared_insert_cnt;
                 ++insert_cnt;
                 continue;
             }
@@ -791,15 +783,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             /* Using insert so we don't keep the page pinned longer than necessary. */
             WT_ERR(cursor->insert(cursor));
             ++insert_cnt;
-            if (upd->prepare_state == WT_PREPARE_INPROGRESS)
-                ++prepared_insert_cnt;
 
             /*
              * If we encounter subsequent updates with the same timestamp, skip them to avoid
              * clobbering the entry that we just wrote to lookaside. Only the last thing in the
-             * update list for that timestamp matters anyway.
+             * update list for that timestamp and transaction id matters anyway.
              */
-            while (upd->next != NULL && upd->start_ts == upd->next->start_ts)
+            while (upd->next != NULL && upd->start_ts == upd->next->start_ts &&
+              upd->txnid == upd->next->txnid)
                 upd = upd->next;
         } while ((upd = upd->next) != NULL);
     }
@@ -858,7 +849,6 @@ err:
         __wt_buf_free(session, &multi->page_las.max_las_key);
     }
     __wt_scr_free(session, &birthmarks);
-    WT_UNUSED(first_upd);
     return (ret);
 }
 
@@ -1312,14 +1302,14 @@ __wt_find_lookaside_upd(
     WT_DECL_ITEM(las_key);
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
-    WT_ITEM *key;
+    WT_ITEM *key, _key;
     WT_TXN *txn;
     WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, incr;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
-    uint8_t prepare_state, _prepare_state, *p, upd_type;
+    uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
     u_int i;
     int cmp;
@@ -1356,11 +1346,12 @@ __wt_find_lookaside_upd(
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
-        WT_RET(__wt_buf_grow(session, cbt->tmp, WT_INTPACK64_MAXSIZE));
-        p = cbt->tmp->mem;
+        p = recno_key;
         WT_RET(__wt_vpack_uint(&p, 0, cbt->recno));
-        cbt->tmp->size = WT_PTRDIFF(p, cbt->tmp->mem);
-        key = cbt->tmp;
+        WT_CLEAR(_key);
+        _key.data = recno_key;
+        _key.size = WT_PTRDIFF(p, recno_key);
+        key = &_key;
     }
 
     /* Allocate buffers for the lookaside key/value. */
