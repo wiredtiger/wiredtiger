@@ -508,8 +508,10 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
             if (upd == NULL || upd->start_ts < tmp_upd->start_ts) {
                 WT_ASSERT(session, tmp_upd->prepare_state == WT_PREPARE_INPROGRESS);
                 upd = tmp_upd;
-            } else
+            } else {
+                WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
                 __wt_free_update_list(session, tmp_upd);
+            }
         }
     }
 
