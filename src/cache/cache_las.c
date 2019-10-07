@@ -543,17 +543,6 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
- * When threads race modifying a record, we can end up with more than the max
- * number of modifications in an update list.
- *
- * Leave space for double the maximum number on the stack as a best attempt to
- * avoid heap allocation.
- *
- * TODO: Look into reusing code from __wt_value_return_upd.
- */
-#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE * 2)
-
-/*
  * __las_squash_modifies --
  *     Squash multiple modify operations for the same key and timestamp into a standard update and
  *     insert it into lookaside. This is necessary since multiple updates on the same key/timestamp
