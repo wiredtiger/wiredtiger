@@ -568,11 +568,11 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     size_t allocated_bytes;
     u_int i;
 
-    WT_CLEAR(las_value);
     listp = list;
     start_upd = upd = *updp;
     next_upd = start_upd->next;
-    allocated_bytes = i = 0;
+    allocated_bytes = 0;
+    i = 0;
 
     while (upd->type == WT_UPDATE_MODIFY) {
         /* Leave a reasonable amount of space on the stack for the regular case. */
@@ -596,8 +596,11 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
          * If we've spotted a modify, there should be a standard update later in the update list. If
          * we hit the end and still haven't found one, something is not right.
          */
-        WT_ASSERT(session, upd != NULL);
+        if (upd == NULL)
+            WT_PANIC_ERR(session, WT_PANIC,
+              "found modify update but no corresponding standard update in the update list");
     }
+    WT_CLEAR(las_value);
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
     while (i > 0)
         WT_ERR(__wt_modify_apply_item(session, &las_value, listp[--i]->data, false));
@@ -857,7 +860,6 @@ err:
         __wt_buf_free(session, &multi->page_las.max_las_key);
     }
     __wt_scr_free(session, &birthmarks);
-    WT_UNUSED(first_upd);
     return (ret);
 }
 
