@@ -112,13 +112,6 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * When threads race modifying a record, we can end up with more than the usual maximum number of
- * modifications in an update list. We'd prefer not to allocate memory in a return path, so add a
- * few additional slots to the array we use to build up a list of modify records to apply.
- */
-#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE + 10)
-
-/*
  * __wt_value_return_upd --
  *     Change the cursor to reference an internal update structure return value.
  */
