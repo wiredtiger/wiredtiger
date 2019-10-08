@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import time
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
@@ -65,13 +66,13 @@ class test_las02(wttest.WiredTigerTestCase):
         nrows = 10000
 
         # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.
-        uri = "table:las02_main"
+        uri = "table:las07_main"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="S", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds.populate()
 
-        uri2 = "table:las02_extra"
-        ds2 = SimpleDataSet(self, uri2, 0, key_format="S", value_format="S")
+        uri2 = "table:las07_extra"
+        ds2 = SimpleDataSet(self, uri2, 0, key_format="i", value_format="S")
         ds2.populate()
 
         # Pin oldest and stable to timestamp 1.
@@ -79,64 +80,117 @@ class test_las02(wttest.WiredTigerTestCase):
             ',stable_timestamp=' + timestamp_str(1))
 
         bigvalue = "aaaaa" * 100
+        bigvalue2 = "ddddd" * 100
         self.large_updates(uri, bigvalue, ds, nrows, 1)
 
         # Check that all updates are seen
-        self.check(bigvalue, uri, nrows, 1)
-
-        # Check to see lookaside working with old timestamp
-        bigvalue2 = "ddddd" * 100
-        self.large_updates(uri, bigvalue2, ds, nrows, 100)
+        self.check(bigvalue, uri, nrows, 100)
 
         # Force out most of the pages by updating a different tree
         self.large_updates(uri2, bigvalue, ds2, nrows, 100)
 
         # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue, uri, nrows, 1)
-        self.check(bigvalue2, uri, nrows, 100)
+        self.check(bigvalue, uri, nrows, 100)
 
         # Pin oldest and stable to timestamp 100.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(100) +
             ',stable_timestamp=' + timestamp_str(100))
 
+        # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
+        time.sleep(10)
+
         # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue2, uri, nrows, 100)
+        self.check(bigvalue, uri, nrows, 100)
+
+        # Load a slight modification with a later timestamp.
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('A', 10, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(110))
+
+        # Load a slight modification with a later timestamp.
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('B', 20, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(120))
+
+        # Load a slight modification with a later timestamp.
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('C', 30, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(130))
+        cursor.close()
 
         # Second set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue, ds, nrows, 250)
-        self.large_updates(uri, bigvalue2, ds, nrows, 300)
+        self.large_updates(uri, bigvalue2, ds, nrows, 200)
+
+        # Force out most of the pages by updating a different tree
+        self.large_updates(uri2, bigvalue2, ds2, nrows, 200)
+
+        # Check that the new updates are only seen after the update timestamp
+        self.check(bigvalue2, uri, nrows, 200)
+
+        # Pin oldest and stable to timestamp 300.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(200) +
+            ',stable_timestamp=' + timestamp_str(200))
+
+        # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
+        time.sleep(10)
+
+        # Check that the new updates are only seen after the update timestamp
+        self.check(bigvalue2, uri, nrows, 200)
+
+        # Load a slight modification with a later timestamp.
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('A', 10, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(210))
+
+        # Load a slight modification with a later timestamp.
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('B', 20, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(220))
+
+        # Load a slight modification with a later timestamp.
+        self.session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify('C', 30, 1)]
+            self.assertEqual(cursor.modify(mods), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(230))
+        cursor.close()
+
+        # Third set of update operations with increased timestamp
+        self.large_updates(uri, bigvalue, ds, nrows, 300)
 
         # Force out most of the pages by updating a different tree
         self.large_updates(uri2, bigvalue, ds2, nrows, 300)
 
         # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue, uri, nrows, 250)
-        self.check(bigvalue2, uri, nrows, 300)
+        self.check(bigvalue, uri, nrows, 300)
 
-        # Pin oldest and stable to timestamp 300.
+        # Pin oldest and stable to timestamp 400.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(300) +
             ',stable_timestamp=' + timestamp_str(300))
 
-        # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue2, uri, nrows, 300)
-
-        # Third set of update operations with increased timestamp
-        self.large_updates(uri, bigvalue, ds, nrows, 350)
-        self.large_updates(uri, bigvalue2, ds, nrows, 400)
-
-        # Force out most of the pages by updating a different tree
-        self.large_updates(uri2, bigvalue, ds2, nrows, 400)
+        # Sleep here to let that sweep server to trigger cleanup of obsolete entries.
+        time.sleep(10)
 
         # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue, uri, nrows, 350)
-        self.check(bigvalue2, uri, nrows, 400)
-
-        # Pin oldest and stable to timestamp 400.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(400) +
-            ',stable_timestamp=' + timestamp_str(400))
-
-        # Check that the new updates are only seen after the update timestamp
-        self.check(bigvalue2, uri, nrows, 400)
+        self.check(bigvalue, uri, nrows, 300)
 
 if __name__ == '__main__':
     wttest.run()

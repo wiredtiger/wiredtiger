@@ -1004,12 +1004,8 @@ __las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
     /*
      * If no files have been dropped and the lookaside file is empty, there's nothing to do.
      */
-    if (cache->las_dropped_next == 0) {
-        if (__wt_las_empty(session)) {
-            ret = WT_NOTFOUND;
-            goto err;
-        }
-    }
+    if (cache->las_dropped_next == 0 && __wt_las_empty(session))
+        WT_ERR(WT_NOTFOUND);
 
     /* Find the max key for the current sweep. */
     WT_ERR(las_cursor->reset(las_cursor));
@@ -1075,10 +1071,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     sweep_key = &cache->las_sweep_key;
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
-    local_txn = locked = remove_entry = false;
+    local_txn = locked = false;
 
     WT_RET(__wt_scr_alloc(session, 0, &saved_key));
-    saved_btree_id = 0;
 
     /*
      * Prevent other threads removing entries from underneath the sweep.
@@ -1132,16 +1127,29 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     cnt = __las_sweep_count(cache);
     skip_update_modify_cnt = 0;
     visit_cnt = 0;
+    saved_btree_id = 0;
     prev_entry_can_remove = false;
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
 
-        __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
-          "Sweep reviewing lookaside entry with lookaside "
-          "btree ID %" PRIu32 " saved key size: %" WT_SIZET_FMT,
-          las_btree_id, saved_key->size);
+        /*
+         * Check for the max range for the current sweep is reached.
+         *
+         * The LAS key is in the order of btree id, key, timestamp and transaction id.
+         * The current LAS record key is compared against the max key that is stored
+         * to find out whether it reached the max range for the current sweep.
+         */
+        WT_ERR(__wt_compare(session, NULL, &las_key, &cache->las_max_key, &cmp));
+        if (las_btree_id > cache->las_max_btree_id ||
+          (las_btree_id == cache->las_max_btree_id && cmp > 0) ||
+          (las_btree_id == cache->las_max_btree_id && cmp == 0 &&
+              las_timestamp > cache->las_max_timestamp) ||
+          (las_btree_id == cache->las_max_btree_id && cmp == 0 &&
+              las_timestamp == cache->las_max_timestamp && las_txnid > cache->las_max_txnid))
+            /* It is a success scenario, don't return error */
+            goto err;
 
         /*
          * Signal to stop if the cache is stuck: we are ignoring the cache size while scanning the
@@ -1149,18 +1157,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          */
         if (__wt_cache_stuck(session))
             cnt = 0;
-
-        WT_ERR(__wt_compare(session, NULL, &las_key, &cache->las_max_key, &cmp));
-        if (las_btree_id > cache->las_max_btree_id ||
-          (las_btree_id == cache->las_max_btree_id && cmp > 0) ||
-          (las_btree_id == cache->las_max_btree_id && cmp == 0 &&
-              las_timestamp > cache->las_max_timestamp) ||
-          (las_btree_id == cache->las_max_btree_id && cmp == 0 &&
-              las_timestamp == cache->las_max_timestamp && las_txnid > cache->las_max_txnid)) {
-            __wt_buf_free(session, sweep_key);
-            ret = WT_NOTFOUND;
-            break;
-        }
 
         /*
          * We only want to break between key blocks. Stop if we've processed enough entries either
@@ -1196,18 +1192,24 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
         /*
          * Expect an update entry with:
-         *	1. not in a prepare locked state
-         *	2. durable timestamp as not max timestamp.
-         *	3. for an in-progress prepared update, durable
-         *	timestamp should be zero.
-         *	4. no restriction on durable timestamp value
-         *	for other updates.
+         *  1. Not in a prepare locked state
+         *  2. Durable timestamp as not max timestamp
+         *  3. For an in-progress prepared update, durable timestamp should be zero
+         *  and no restriction on durable timestamp value for other updates.
          */
-        WT_ASSERT(session, prepare_state != WT_PREPARE_LOCKED && durable_timestamp != WT_TS_MAX &&
-            (prepare_state != WT_PREPARE_INPROGRESS || durable_timestamp == 0));
-
-        WT_ASSERT(
-          session, (prepare_state == WT_PREPARE_INPROGRESS || durable_timestamp >= las_timestamp));
+        WT_ERR_ASSERT(session, prepare_state != WT_PREPARE_LOCKED, EINVAL,
+          "LAS prepared record is in locked state");
+        WT_ERR_ASSERT(session, durable_timestamp != WT_TS_MAX, EINVAL,
+          "LAS record durable timestamp is set as MAX timestamp");
+        WT_ERR_ASSERT(
+          session,
+          ((prepare_state != WT_PREPARE_INPROGRESS || durable_timestamp == 0) &&
+            (prepare_state == WT_PREPARE_INPROGRESS || durable_timestamp >= las_timestamp)),
+          EINVAL,
+          "Either LAS record is a in-progress prepared update with wrong durable timestamp or not"
+          " a prepared update with wrong durable timestamp. prepared state: %" PRIu8
+          " durable timestamp: %" PRIu64,
+          prepare_state, durable_timestamp);
 
         /*
          * Check to see if the page or key has changed this iteration, and if they have, setup
@@ -1220,39 +1222,45 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
                 remove_entry = true;
                 saved_btree_id = las_btree_id;
                 WT_ERR(__wt_buf_set(session, saved_key, las_key.data, las_key.size));
-            } else {
-                if (upd_type != WT_UPDATE_MODIFY)
-                    remove_entry = true;
-                else
-                    skip_update_modify_cnt++;
-            }
+            } else if (upd_type != WT_UPDATE_MODIFY)
+                remove_entry = true;
+            else
+                skip_update_modify_cnt++;
         }
 
         /* Remove the obsolete entries */
         if (remove_entry) {
-            /* Rewind the cursor to a point of remove record. */
-            for (i = 0; i < skip_update_modify_cnt + 1; i++)
-                cursor->prev(cursor);
-
-            WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
-            WT_ERR(
-              cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
-
             /* Remove each individual LAS record till the current record. */
             for (i = 0; i < skip_update_modify_cnt + 1; i++) {
-                __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
-                  "Sweep removing lookaside entry with "
-                  "btree ID: %" PRIu32 " saved key size: %" WT_SIZET_FMT ", record type: %" PRIu8
-                  " transaction ID: %" PRIu64,
-                  las_btree_id, saved_key->size, upd_type, las_txnid);
+                WT_ERR(cursor->prev(cursor));
 
-                cursor->remove(cursor);
-                cursor->next(cursor);
+                if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE_ACTIVITY)) {
+                    WT_ERR(
+                      cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+                    WT_ERR(cursor->get_value(
+                      cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+
+                    __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
+                      "Sweep removing lookaside entry with "
+                      "btree ID: %" PRIu32 " key size: %" WT_SIZET_FMT " prepared state: %" PRIu8
+                      " record type: %" PRIu8 " durable timestamp: %" PRIu64
+                      " transaction ID: %" PRIu64,
+                      las_btree_id, las_key.size, prepare_state, upd_type, durable_timestamp,
+                      las_txnid);
+                }
+
+                WT_ERR(cursor->remove(cursor));
+                ++remove_cnt;
+            }
+
+            WT_ERR(cursor->next(cursor));
+
+            /* Get the LAS key and value in case if their replaced. */
+            if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE_ACTIVITY)) {
                 WT_ERR(
                   cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
                 WT_ERR(cursor->get_value(
                   cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
-                ++remove_cnt;
             }
             skip_update_modify_cnt = 0;
         }
@@ -1278,9 +1286,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
     /*
      * If the loop terminates after completing a work unit, we will continue the table sweep next
-     * time. Get a local copy of the sweep key, we're going to reset the cursor; do so before
-     * calling cursor.remove, cursor.remove can discard our hazard pointer and the page could be
-     * evicted from underneath us.
+     * time. Get a local copy of the sweep key to initialize the cursor position.
      */
     if (ret == 0) {
         WT_ERR(__wt_cursor_get_raw_key(cursor, sweep_key));
