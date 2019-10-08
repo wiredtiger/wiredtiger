@@ -433,8 +433,7 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
 
     if (!txn_global->has_stable_timestamp)
-        WT_RET_MSG(
-          session, EINVAL, "rollback_to_stable requires a stable timestamp");
+        WT_RET_MSG(session, EINVAL, "rollback_to_stable requires a stable timestamp");
 
     /*
      * Help the user comply with the requirement that there are no concurrent operations. Protect
