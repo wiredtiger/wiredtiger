@@ -1178,6 +1178,17 @@ tasks:
             set -o verbose
             ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
+  - name: clang-analyzer
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh dist/s_clang-scan 2>&1
 
 buildvariants:
 - name: ubuntu1804
