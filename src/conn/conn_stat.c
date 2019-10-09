@@ -513,7 +513,7 @@ __statlog_log_one(WT_SESSION_IMPL *session, WT_ITEM *path, WT_ITEM *tmp)
 
     /*
      * Walk the list of open LSM trees, dumping any that match the
-     * the list of object sources.
+     * list of object sources.
      *
      * XXX
      * This code should be removed when LSM objects are converted to

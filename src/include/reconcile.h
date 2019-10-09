@@ -116,7 +116,7 @@ struct __wt_reconcile {
      * Chunks are referenced by current and previous pointers. In case of a
      * split, previous references the first chunk and current switches to
      * the second chunk. If reconciliation generates more split chunks, the
-     * the previous chunk is written to the disk and current and previous
+     * previous chunk is written to the disk and current and previous
      * swap.
      */
     struct __wt_rec_chunk {

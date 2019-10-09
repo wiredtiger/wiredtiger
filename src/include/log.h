@@ -110,7 +110,9 @@ union __wt_lsn {
  * Possible values for the consolidation array slot states:
  *
  * WT_LOG_SLOT_CLOSE - slot is in use but closed to new joins.
+ *
  * WT_LOG_SLOT_FREE - slot is available for allocation.
+ *
  * WT_LOG_SLOT_WRITTEN - slot is written and should be processed by worker.
  *
  * The slot state must be volatile: threads loop checking the state and can't
