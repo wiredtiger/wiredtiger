@@ -557,6 +557,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     size_t allocated_bytes;
     u_int i;
 
+    WT_CLEAR(las_value);
     listp = list;
     start_upd = upd = *updp;
     next_upd = start_upd->next;
@@ -589,7 +590,6 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
             WT_PANIC_ERR(session, WT_PANIC,
               "found modify update but no corresponding standard update in the update list");
     }
-    WT_CLEAR(las_value);
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
     while (i > 0)
         WT_ERR(__wt_modify_apply_item(session, &las_value, listp[--i]->data, false));
