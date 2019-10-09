@@ -317,7 +317,7 @@ __random_leaf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
             next = !next; /* Reverse direction. */
             ret = next ? __wt_btcur_next(cbt, false) : __wt_btcur_prev(cbt, false);
         }
-	WT_RET(ret);
+        WT_RET(ret);
 
         if (i > 0)
             --i;
