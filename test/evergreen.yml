@@ -1279,14 +1279,7 @@ buildvariants:
     - name: compile
     - name: lang-python-test
     - name: make-check-test
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
+    - name: unit-test
     - name: fops
 
 - name: rhel80-python3
@@ -1302,14 +1295,7 @@ buildvariants:
     python_binary: python3
   tasks:
     - name: compile
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
+    - name: unit-test
 
 - name: large-scale-test
   display_name: Large scale testing
