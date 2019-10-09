@@ -4,7 +4,7 @@
 #
 
 functions:
-  "get project" :
+  "fetch source" :
     command: git.get_project
     params:
       directory: wiredtiger
@@ -55,11 +55,11 @@ functions:
         set -o verbose
         if [ "Windows_NT" = "$OS" ]; then
           pip install scons==3.1.1
-          scons-3.1.1.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
+          scons-3.1.1.bat ${win_configure_flags|} ${smp_command|}
         else
           cd build_posix
           sh ./reconf
-          ${configure_env_vars|} ../configure ${configure_python_setting|} --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+          ${configure_env_vars|} ../configure ${configure_python_setting|} ${posix_configure_flags|}
           ${make_command|make} ${smp_command|} 2>&1
 
           # On macOS, change the binary location with install_name_tool since DYLD_LIBRARY_PATH
@@ -100,7 +100,10 @@ tasks:
 ## Base compile task on posix flavours
   - name: compile
     commands:
-      - func: "get project"
+      - func: "fetch source"
+      - command: git.apply_patch
+        params:
+          directory: wiredtiger
       - func: "compile wiredtiger"
       - command: archive.targz_pack
         params:
@@ -1025,7 +1028,7 @@ tasks:
 
   - name: million-collection-test
     commands:
-      - func: "get project"
+      - func: "fetch source"
       - func: "fetch mongo-tests repo"
       - command: shell.exec
         params:
@@ -1040,7 +1043,7 @@ tasks:
 
   - name: compatibility-test-for-mongodb-releases
     commands:
-      - func: "get project"
+      - func: "fetch source"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -1182,6 +1185,7 @@ buildvariants:
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
     - name: compile
@@ -1250,6 +1254,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     configure_python_setting: PYTHON=python3
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     python_binary: python3
   tasks:
@@ -1271,6 +1276,7 @@ buildvariants:
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
     - name: compile
@@ -1285,6 +1291,7 @@ buildvariants:
   - rhel80-build
   expansions:
     configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
   tasks:
     - name: million-collection-test
 
@@ -1300,6 +1307,8 @@ buildvariants:
   display_name: Windows 64-bit
   run_on:
   - windows-64-vs2017-test
+  expansions:
+    win_configure_flags: --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic
   tasks:
     - name: compile
     - name: compile-windows-alt
@@ -1321,6 +1330,7 @@ buildvariants:
   expansions:
     smp_command: -j $(sysctl -n hw.logicalcpu)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
@@ -1337,6 +1347,7 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
   - name: compile
@@ -1354,6 +1365,7 @@ buildvariants:
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    posix_configure_flags: --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.lib top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
   - name: compile
