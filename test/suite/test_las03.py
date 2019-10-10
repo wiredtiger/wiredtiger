@@ -89,9 +89,9 @@ class test_las03(wttest.WiredTigerTestCase):
             # Now just update one record and checkpoint again.
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, 1)
 
-            las_reads_start = self.get_stat(stat.conn.cache_read_lookaside)
+            las_reads_start = self.get_stat(stat.conn.cache_lookaside_read)
             self.session.checkpoint()
-            las_reads = self.get_stat(stat.conn.cache_read_lookaside) - las_reads_start
+            las_reads = self.get_stat(stat.conn.cache_lookaside_read) - las_reads_start
 
             # Since we're dealing with eviction concurrent with checkpoints
             # and skewing is controlled by a heuristic, we can't put too tight
