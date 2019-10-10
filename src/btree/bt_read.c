@@ -351,6 +351,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                   __wt_modify_apply_item(session, &las_value, listp[mod_counter - 1]->data, false));
                 __wt_free_update_list(session, listp[mod_counter - 1]);
                 --mod_counter;
+                /* We had to do some backtracking to squash. Unwind back to where we were before. */
                 WT_ERR(cursor->next(cursor));
             }
 
@@ -433,8 +434,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_buf_free(session, &page_las->min_las_key);
 
 err:
+    if (listp == NULL)
+        listp = list;
     while (mod_counter > 0)
         __wt_free_update_list(session, listp[--mod_counter]);
+    if (allocated_bytes != 0)
+        __wt_free(session, listp);
     if (las_prepare_cnt != 0)
         for (i = 0, las_preparep = las_prepares->mem; i < las_prepare_cnt; i++, las_preparep++)
             __wt_buf_free(session, &las_preparep->key);
