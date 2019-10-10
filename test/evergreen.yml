@@ -141,7 +141,6 @@ tasks:
             set -o errexit
             set -o verbose
 
-            alias python=${python_binary|python}
             ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
 
   # Start of normal make check test tasks
