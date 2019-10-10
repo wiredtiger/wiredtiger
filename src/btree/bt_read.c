@@ -206,6 +206,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     if (page_las->min_skipped_ts == WT_TS_MAX) {
         WT_RET(__instantiate_birthmarks(session, ref));
 
+        /*
+         * Checkpoint may specify an older timestamp than the timestamp used to write the page, it
+         * must be included in the next checkpoint.
+         */
+        page->modify->first_dirty_txn = WT_TXN_FIRST;
         FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
         /*
