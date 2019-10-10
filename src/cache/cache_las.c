@@ -557,6 +557,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     size_t allocated_bytes;
     u_int i;
 
+    WT_CLEAR(las_value);
     listp = list;
     start_upd = upd = *updp;
     next_upd = start_upd->next;
@@ -589,7 +590,6 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
             WT_PANIC_ERR(session, WT_PANIC,
               "found modify update but no corresponding standard update in the update list");
     }
-    WT_CLEAR(las_value);
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
     while (i > 0)
         WT_ERR(__wt_modify_apply_item(session, &las_value, listp[--i]->data, false));
@@ -632,6 +632,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
     WT_CLEAR(las_value);
+    saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = prepared_insert_cnt = 0;
     birthmarks_cnt = 0;
     btree_id = btree->id;
@@ -641,8 +642,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         btree->lookaside_entries = true;
 
     /* Wrap all the updates in a transaction. */
-    __las_set_isolation(session, &saved_isolation);
     WT_ERR(__wt_txn_begin(session, NULL));
+    __las_set_isolation(session, &saved_isolation);
     local_txn = true;
 
     /* Ensure enough room for a column-store key without checking. */
@@ -814,6 +815,7 @@ err:
             ret = __wt_txn_commit(session, NULL);
         else
             WT_TRET(__wt_txn_rollback(session, NULL));
+        __las_restore_isolation(session, saved_isolation);
 
         /* Adjust the entry count. */
         if (ret == 0) {
@@ -1004,11 +1006,8 @@ __las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
     /*
      * If no files have been dropped and the lookaside file is empty, there's nothing to do.
      */
-    if (cache->las_dropped_next == 0) {
-        if (__wt_las_empty(session))
-            ret = WT_NOTFOUND;
-        goto err;
-    }
+    if (cache->las_dropped_next == 0 && __wt_las_empty(session))
+        WT_ERR(WT_NOTFOUND);
 
     /* Find the max key for the current sweep. */
     WT_ERR(las_cursor->reset(las_cursor));
@@ -1067,6 +1066,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     cache = S2C(session)->cache;
     cursor = NULL;
     sweep_key = &cache->las_sweep_key;
+    saved_isolation = 0; /*[-Wconditional-uninitialized] */
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     local_txn = locked = removing_key_block = false;
@@ -1086,8 +1086,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
      */
     __wt_las_cursor(session, &cursor, &session_flags);
     WT_ASSERT(session, cursor->session == &session->iface);
-    __las_set_isolation(session, &saved_isolation);
     WT_ERR(__wt_txn_begin(session, NULL));
+    __las_set_isolation(session, &saved_isolation);
     local_txn = true;
 
     /* Encourage a race */
@@ -1271,11 +1271,11 @@ err:
             ret = __wt_txn_commit(session, NULL);
         else
             WT_TRET(__wt_txn_rollback(session, NULL));
+        __las_restore_isolation(session, saved_isolation);
         if (ret == 0)
             (void)__wt_atomic_add64(&cache->las_remove_count, remove_cnt);
     }
 
-    __las_restore_isolation(session, saved_isolation);
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
     if (locked)

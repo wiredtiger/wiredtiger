@@ -149,6 +149,9 @@ __wt_cache_page_inmem_incr(WT_SESSION_IMPL *session, WT_PAGE *page, size_t size)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
+    if (size == 0)
+        return;
+
     (void)__wt_atomic_add64(&btree->bytes_inmem, size);
     (void)__wt_atomic_add64(&cache->bytes_inmem, size);
     (void)__wt_atomic_addsize(&page->memory_footprint, size);
