@@ -188,7 +188,7 @@ __wt_row_leaf_key_work(
           "call tracking for WT-5043: %s took longer than 5 minutes", __func__);
         WT_ERR_ASSERT(session,
           (session->op_5043_seconds == 0 || (current - session->op_5043_seconds) < WT_MINUTE * 5),
-          EINVAL, "operation tracking for WT-5043: %s took longer than > 5 minutes", session->name);
+          EINVAL, "operation tracking for WT-5043: %s took longer than 5 minutes", session->name);
 #endif
 
         /*

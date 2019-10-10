@@ -1423,6 +1423,8 @@ extern int __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_init(WT_SESSION_IMPL *session, WT_SESSION_IMPL *session_ret)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_is_blocking_old(WT_SESSION_IMPL *session)
@@ -1722,7 +1724,6 @@ extern void __wt_txn_clear_timestamp_queues(WT_SESSION_IMPL *session);
 extern void __wt_txn_destroy(WT_SESSION_IMPL *session);
 extern void __wt_txn_get_snapshot(WT_SESSION_IMPL *session);
 extern void __wt_txn_global_destroy(WT_SESSION_IMPL *session);
-extern void __wt_txn_global_shutdown(WT_SESSION_IMPL *session);
 extern void __wt_txn_named_snapshot_destroy(WT_SESSION_IMPL *session);
 extern void __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 extern void __wt_txn_publish_read_timestamp(WT_SESSION_IMPL *session);
