@@ -117,9 +117,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
-      - func: "upload artifact"
-      # Avoid uploading the artifact twice
-      - func: "cleanup"
 
   - name: compile-asan
     commands:
@@ -128,9 +125,6 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=address
           posix_configure_flag: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
-      - func: "upload artifact"
-      # Avoid uploading the artifact twice
-      - func: "cleanup"
 
   - name: make-check-test
     depends_on:
