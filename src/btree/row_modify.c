@@ -263,7 +263,6 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
     WT_UPDATE *upd;
 
     *updp = NULL;
-    *sizep = 0;
 
     /*
      * The code paths leading here are convoluted: assert we never attempt to allocate an update
