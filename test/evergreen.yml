@@ -4,7 +4,7 @@
 #
 
 functions:
-  "fetch source" :
+  "get project" :
     command: git.get_project
     params:
       directory: wiredtiger
@@ -100,10 +100,7 @@ tasks:
 ## Base compile task on posix flavours
   - name: compile
     commands:
-      - func: "fetch source"
-      - command: git.apply_patch
-        params:
-          directory: wiredtiger
+      - func: "get project"
       - func: "compile wiredtiger"
       - command: archive.targz_pack
         params:
@@ -1028,7 +1025,7 @@ tasks:
 
   - name: million-collection-test
     commands:
-      - func: "fetch source"
+      - func: "get project"
       - func: "fetch mongo-tests repo"
       - command: shell.exec
         params:
@@ -1043,7 +1040,7 @@ tasks:
 
   - name: compatibility-test-for-mongodb-releases
     commands:
-      - func: "fetch source"
+      - func: "get project"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
