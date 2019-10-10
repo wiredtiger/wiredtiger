@@ -13,7 +13,7 @@ functions:
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${parent_task|compile}_${build_id}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
         bucket: build_external
         extract_to: wiredtiger
   "fetch artifacts from little-endian" :
@@ -118,6 +118,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "upload artifact"
+      # Avoid uploading the artifact twice
       - func: "cleanup"
 
   - name: compile-asan
@@ -125,10 +126,10 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-          test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=address
+          posix_configure_flag: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "upload artifact"
+      # Avoid uploading the artifact twice
       - func: "cleanup"
 
   - name: make-check-test
@@ -174,14 +175,14 @@ tasks:
     commands:
       - func: "fetch artifacts"
         vars:
-          parent_task: compile-asan
+          dependent_task: compile-asan
       - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=address
+          posix_configure_flag: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check directory"
         vars:
           directory: examples/c
-          smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-          test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=address
 
   - name: bloom-test
     depends_on:
