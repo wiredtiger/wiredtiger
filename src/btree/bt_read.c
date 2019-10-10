@@ -173,11 +173,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ITEM las_key, las_value, next_las_key;
     WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
-    WT_UPDATE *upd;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
-    size_t incr, total_incr;
+    size_t allocated_bytes, incr, total_incr;
     uint64_t birthmark_cnt, las_txnid, recno;
-    uint32_t i, las_btree_id, las_prepare_cnt, session_flags;
+    uint32_t i, las_btree_id, las_prepare_cnt, session_flags, mod_counter;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp, exact, instantiated_cnt;
@@ -189,11 +189,13 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CLEAR(las_key);
     page_las = ref->page_las;
     page = ref->page;
+    listp = list;
     upd = NULL;
+    allocated_bytes = 0;
     birthmark_cnt = 0;
     recno = WT_RECNO_OOB;
     las_btree_id = S2BT(session)->id;
-    las_prepare_cnt = 0;
+    las_prepare_cnt = mod_counter = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     instantiated_cnt = 0;
     birthmark_record = false;
@@ -321,6 +323,37 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(
               cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
+            /*
+             * If our update is a modify then squash it into a standard update. It's a problem if we
+             * need to read backwards into lookaside just to make sense of what we have in our
+             * update list.
+             */
+            if (upd_type == WT_UPDATE_MODIFY) {
+                while (upd_type == WT_UPDATE_MODIFY) {
+                    WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
+                    if (mod_counter >= WT_MODIFY_ARRAY_SIZE) {
+                        if (mod_counter == WT_MODIFY_ARRAY_SIZE)
+                            listp = NULL;
+                        WT_ERR(
+                          __wt_realloc_def(session, &allocated_bytes, mod_counter + 1, &listp));
+                        if (mod_counter == WT_MODIFY_ARRAY_SIZE)
+                            memcpy(listp, list, sizeof(list));
+                    }
+                    listp[mod_counter++] = upd;
+                    WT_ERR(cursor->prev(cursor));
+                    WT_ERR(cursor->get_value(
+                      cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+                }
+                WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+            }
+            while (mod_counter > 0) {
+                WT_ERR(
+                  __wt_modify_apply_item(session, &las_value, listp[mod_counter - 1]->data, false));
+                __wt_free_update_list(session, listp[mod_counter - 1]);
+                --mod_counter;
+                WT_ERR(cursor->next(cursor));
+            }
+
             WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
             upd->txnid = las_txnid;
             upd->durable_ts = durable_timestamp;
@@ -400,6 +433,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_buf_free(session, &page_las->min_las_key);
 
 err:
+    while (mod_counter > 0)
+        __wt_free_update_list(session, listp[--mod_counter]);
     if (las_prepare_cnt != 0)
         for (i = 0, las_preparep = las_prepares->mem; i < las_prepare_cnt; i++, las_preparep++)
             __wt_buf_free(session, &las_preparep->key);

@@ -1139,6 +1139,7 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *prepare_state;
 
+    /* tetsuo-cpp: Maybe we need to just scan lookaside here. It's debug code so it's fine. */
     for (; upd != NULL; upd = upd->next) {
         switch (upd->type) {
         case WT_UPDATE_INVALID:
