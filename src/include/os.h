@@ -130,6 +130,8 @@ struct __wt_file_handle_win {
 
 #else
 
+#define USE_MMAP_FOR_IO 1
+
 struct __wt_file_handle_posix {
     WT_FILE_HANDLE iface;
 
@@ -139,6 +141,10 @@ struct __wt_file_handle_posix {
     int fd; /* POSIX file handle */
 
     bool direct_io; /* O_DIRECT configured */
+#if USE_MMAP_FOR_IO
+    void *mmapped_buf;
+    size_t mmapped_size;
+#endif
 };
 #endif
 
