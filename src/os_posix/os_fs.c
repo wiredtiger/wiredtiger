@@ -880,8 +880,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
                        name);
         else
             pfh->mmapped_size = len;
+        printf("Map success: %p, %lu\n", pfh->mmapped_buf, len);
     }
-    printf("Map success: %p, %lu\n", pfh->mmapped_buf, len);
 #endif
 
 directory_open:
