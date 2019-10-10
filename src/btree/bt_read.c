@@ -255,7 +255,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cache->las_reader = true;
     __wt_readlock(session, &cache->las_sweepwalk_lock);
     cache->las_reader = false;
-    incr = total_incr = 0;
+    total_incr = 0;
     first_scan = true;
     locked = true;
     cursor->set_key(cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
@@ -377,8 +377,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     /* Instantiate the remaining birthmark entries. */
     WT_ERR(__instantiate_birthmarks(session, ref));
 
-    if (total_incr != 0)
-        __wt_cache_page_inmem_incr(session, page, total_incr);
+    __wt_cache_page_inmem_incr(session, page, total_incr);
 
     /*
      * If the updates in lookaside are newer than the versions on the page, it must be included in
