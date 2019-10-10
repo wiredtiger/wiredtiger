@@ -335,9 +335,6 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
      */
     cbt->ins_stack[0] = NULL;
 
-    /* Don't allow previous comparison results to remain. */
-    cbt->compare = 0;
-
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
 
