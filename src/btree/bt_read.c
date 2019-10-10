@@ -174,15 +174,12 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
     WT_ITEM las_key, las_value, next_las_key;
-    WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
     WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t incr, total_incr;
-    size_t incr, total_incr;
     uint64_t birthmark_cnt, instantiated_cnt, las_txnid, recno;
-    uint64_t birthmark_cnt, las_txnid, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
@@ -193,7 +190,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     cache = S2C(session)->cache;
     cursor = NULL;
     WT_CLEAR(las_key);
-    page_las = ref->page_las;
     page = ref->page;
     page_las = ref->page_las;
     upd = NULL;
