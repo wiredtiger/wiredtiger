@@ -475,7 +475,7 @@ __posix_file_read_mmap(
         printf("\nBUF IS:\n");
         for (size_t i = 0; i < len/sizeof(int); i++) {
             printf("%d ", ((int*)buf)[i]);
-            if (i%31 == 0)
+            if (i%32 == 31)
                 printf("\n");
         }
     }
@@ -483,7 +483,7 @@ __posix_file_read_mmap(
         printf("\nMEMCPY_BUF IS:\n");
         for (size_t i = 0; i < len/sizeof(int); i++) {
             printf("%d ", ((int*)memcpy_buf)[i]);
-            if (i%31 == 0)
+            if (i%32 == 31)
                 printf("\n");
         }
     }
@@ -598,6 +598,8 @@ __posix_file_write(
     size_t chunk;
     ssize_t nw;
     const uint8_t *addr;
+    wt_off_t prev_offset = offset;
+    size_t prev_len = len;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -606,11 +608,18 @@ __posix_file_write(
            pfh->fd, offset, len, buf);
 
     if (offset == 12288) {
+	printf("BUFFER TO WRITE:\n");
         for (size_t i = 0; i < len/sizeof(int); i++) {
             printf("%d ", ((int*)buf)[i]);
-            if (i%31 == 0)
+            if (i%32 == 31)
                 printf("\n");
         }
+	printf("Mapped buffer BEFORE WRITE:\n");
+	for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
+		printf("%d ", ((int*)pfh->mmapped_buf)[i]);
+		if (i%31 == 0)
+			printf("\n");
+	}
     }
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
@@ -627,6 +636,16 @@ __posix_file_write(
               "%s: handle-write: pwrite: failed to write %" WT_SIZET_FMT
               " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
+    }
+    if (prev_offset == 12288) {
+	offset = prev_offset;
+	len = prev_len;
+	printf("\nMapped buffer AFTER WRITE:\n");
+	for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
+		printf("%d ", ((int*)pfh->mmapped_buf)[i]);
+		if (i%32 == 31)
+			printf("\n");
+	}
     }
     return (0);
 }
