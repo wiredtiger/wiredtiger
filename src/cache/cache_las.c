@@ -1126,6 +1126,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     pending_remove_cnt = 0;
     visit_cnt = 0;
     saved_btree_id = 0;
+    saved_timestamp = WT_TS_NONE;
+    saved_txnid = WT_TXN_NONE;
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
