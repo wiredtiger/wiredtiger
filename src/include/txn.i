@@ -1074,6 +1074,10 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
      * Always include prepared transactions in this check: they are not supposed to affect
      * visibility for update operations.
      */
+    /*
+     * tetsuo-cpp: I think that if there is a prepare that it must have been loaded into memory upon
+     * page instantiation. So it should be fine to do this without consulting las.
+     */
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {

@@ -709,6 +709,11 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
              * Skip over any aborted update structures, internally created update structures or ones
              * from our own transaction.
              */
+            /*
+             * tetsuo-cpp: This looks ok to me. In the case of non-prepared, everything should be in
+             * memory. And in the case of prepared, the relevant updates should be in memory upon
+             * page instantiation.
+             */
             while (upd != NULL &&
               (upd->txnid == WT_TXN_ABORTED || upd->txnid == WT_TXN_NONE || upd->txnid == txn->id))
                 upd = upd->next;
@@ -1143,6 +1148,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * an update with our txnid after the reserved update
              * we should set key repeated, but if there isn't we
              * shouldn't.
+             */
+            /*
+             * tetsuo-cpp: This is all uncommitted updates since it's the prepare path. So we can
+             * assume it's in memory.
              */
             if (upd->next != NULL && upd->txnid == upd->next->txnid) {
                 if (upd->next->type == WT_UPDATE_RESERVE)
