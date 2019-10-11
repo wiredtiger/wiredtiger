@@ -133,6 +133,7 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
     int cmp;
     bool use_las_rec;
 
+    las_timestamp = las_txnid = 0;
     use_las_rec = false;
 
     /* Free an external update to start with */
@@ -237,6 +238,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->upd_saved = false;
 
     cache = S2C(session)->cache;
+    las_cursor = NULL;
     page = r->page;
     first_txn_upd = NULL;
     upd = NULL;
@@ -245,6 +247,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     max_txn = WT_TXN_NONE;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     las_cursor_open = las_positioned = list_prepared = list_uncommitted = skipped_birthmark = false;
+    sweep_locked = false;
 
     if (__wt_page_las_active(session, r->ref)) {
         /* Obtain the key to iterate the lookaside */
@@ -271,11 +274,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
 
         /* Open a lookaside cursor, position at the latest update for this key */
-        /* Remember to unlock */
         __wt_las_cursor(session, &las_cursor, &session_flags);
         las_cursor_open = true;
         cache->las_reader = true;
-        //__wt_readlock(session, &cache->las_sweepwalk_lock);
+        __wt_readlock(session, &cache->las_sweepwalk_lock);
         cache->las_reader = false;
         sweep_locked = true;
 
@@ -582,7 +584,7 @@ err:
         WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
 
     if (sweep_locked) {
-        //__wt_readunlock(session, &cache->las_sweepwalk_lock);
+        __wt_readunlock(session, &cache->las_sweepwalk_lock);
     }
 
     return (ret);
