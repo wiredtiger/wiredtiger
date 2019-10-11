@@ -981,6 +981,20 @@ tasks:
 
   # End of Python unit test tasks
 
+  - name: s-all
+    tags: ["pull_request"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/dist"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh s_all -A -E 2>&1
+
   - name: compile-windows-alt
     tags: ["pull_request", "windows_only"]
     depends_on:
