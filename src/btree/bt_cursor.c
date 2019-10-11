@@ -1386,6 +1386,7 @@ __cursor_chain_exceeded(WT_CURSOR_BTREE *cbt)
      * multiplies cache pressure because the old ones cannot be freed, so
      * allow the modify chain to grow.
      */
+    /* tetsuo-cpp: Squashing modifies on instantiation solves this. */
     for (i = 0, upd_size = 0; upd != NULL && upd->type == WT_UPDATE_MODIFY; ++i, upd = upd->next) {
         upd_size += WT_UPDATE_MEMSIZE(upd);
         if (i >= WT_MAX_MODIFY_UPDATE && upd_size * WT_MODIFY_MEM_FRACTION >= cursor->value.size)

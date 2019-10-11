@@ -200,6 +200,12 @@ __wt_txn_resolve_prepared_op(
           "Unable to locate update associated with a prepared operation.");
     }
 
+    /*
+     * tetsuo-cpp: __wt_btcur_search_uncommitted is LAS aware so we might get a LAS update here. I
+     * think that the txnid shouldn't be aborted in that case so this should be fine as we'll never
+     * need to access it's next member. If it's not fine then we'll have to traverse with the cursor
+     * and this will require a significant refactor.
+     */
     for (; upd != NULL; upd = upd->next) {
         /*
          * Aborted updates can exist in the update chain of our txn. Generally this will occur due

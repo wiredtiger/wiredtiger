@@ -319,6 +319,10 @@ __wt_update_obsolete_check(
      * this behavior to avoid creating update chains with multiple
      * birthmarks.
      */
+    /*
+     * tetsuo-cpp: This is fine. Sweep will do the equivalent for LAS so no need to make this LAS
+     * aware.
+     */
     for (first = prev = NULL, count = 0; upd != NULL; prev = upd, upd = upd->next, count++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
