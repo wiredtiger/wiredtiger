@@ -1036,9 +1036,6 @@ __las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
     /* Clear the list of btree IDs. */
     cache->las_dropped_next = 0;
 
-    /* Reset the cursor to start from first record */
-    WT_ERR(las_cursor->reset(las_cursor));
-
 err:
     __wt_spin_unlock(session, &cache->las_sweep_lock);
     return (ret);
@@ -1055,18 +1052,17 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_ITEM(saved_key);
     WT_DECL_RET;
-    WT_ITEM las_key, las_value;
+    WT_ITEM las_key, las_value, remove_key, remove_value;
     WT_ITEM *sweep_key;
     WT_TXN_ISOLATION saved_isolation;
-    wt_timestamp_t durable_timestamp, las_timestamp;
-    uint64_t cnt, i, remove_cnt, skip_update_modify_cnt, visit_cnt;
-    uint64_t las_txnid;
-    uint32_t las_btree_id, saved_btree_id, session_flags;
-    uint8_t prepare_state, upd_type;
+    wt_timestamp_t durable_timestamp, las_timestamp, remove_durable_timestamp, remove_timestamp,
+      saved_timestamp;
+    uint64_t cnt, remove_cnt, pending_remove_cnt, visit_cnt;
+    uint64_t las_txnid, remove_txnid, saved_txnid;
+    uint32_t las_btree_id, remove_btree_id, saved_btree_id, session_flags;
+    uint8_t prepare_state, remove_prepare_state, remove_upd_type, upd_type;
     int cmp, notused;
-    const char *txn_cfg[] = {
-      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
-    bool local_txn, locked, prev_entry_can_remove, remove_entry;
+    bool local_txn, key_change, locked, prev_rec_verified;
 
     cache = S2C(session)->cache;
     cursor = NULL;
@@ -1090,14 +1086,9 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
      */
     __wt_las_cursor(session, &cursor, &session_flags);
     WT_ASSERT(session, cursor->session == &session->iface);
+    WT_ERR(__wt_txn_begin(session, NULL));
     __las_set_isolation(session, &saved_isolation);
 
-    /*
-     * Open a transaction with snapshot isolation. The LAS cursor moves it's position to either prev
-     * or next many times during the sweep process, so make sure that the cursor doesn't see newer
-     * updates.
-     */
-    WT_ERR(__wt_txn_begin(session, txn_cfg));
     local_txn = true;
 
     /* Encourage a race */
@@ -1122,16 +1113,19 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          * repeatedly checking the same rows.
          */
         __wt_buf_free(session, sweep_key);
-    } else
+    } else {
         ret = __las_sweep_init(session, cursor);
+
+        /* Reset the cursor to start from first record */
+        cursor->reset(cursor);
+    }
     if (ret != 0)
         goto srch_notfound;
 
     cnt = __las_sweep_count(cache);
-    skip_update_modify_cnt = 0;
+    pending_remove_cnt = 0;
     visit_cnt = 0;
     saved_btree_id = 0;
-    prev_entry_can_remove = false;
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
@@ -1218,73 +1212,82 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          * Check to see if the page or key has changed this iteration, and if they have, setup
          * context for safely removing obsolete updates.
          */
-        remove_entry = false;
-        if (prev_entry_can_remove) {
-            if (las_btree_id != saved_btree_id || saved_key->size != las_key.size ||
-              memcmp(saved_key->data, las_key.data, las_key.size) != 0) {
-                remove_entry = true;
-                saved_btree_id = las_btree_id;
-                WT_ERR(__wt_buf_set(session, saved_key, las_key.data, las_key.size));
-            } else if (upd_type != WT_UPDATE_MODIFY)
-                remove_entry = true;
-            else
-                skip_update_modify_cnt++;
-        }
+        key_change = false;
+        if (las_btree_id != saved_btree_id || saved_key->size != las_key.size ||
+          memcmp(saved_key->data, las_key.data, las_key.size) != 0)
+            key_change = true;
 
-        /* Remove the obsolete entries */
-        if (remove_entry) {
-            /* Remove each individual LAS record till the current record. */
-            for (i = 0; i < skip_update_modify_cnt + 1; i++) {
+        /*
+         * Remove the previous obsolete entries whenever the scan moves into next key or the current
+         * LAS record is not a modify record.
+         */
+        if (pending_remove_cnt && (key_change || upd_type != WT_UPDATE_MODIFY)) {
+            prev_rec_verified = false;
+            while (pending_remove_cnt > 0) {
                 WT_ERR(cursor->prev(cursor));
 
+                /*
+                 * New inserts of any existing LAS record keys or higher keys are only possible
+                 * at the end of the key boundary. There may be a case that sweep server can see the
+                 * newly inserted LAS record while scanning backwards to remove the obsolete records
+                 * (when it switches to the next key in the LAS file). To avoid such problems, the
+                 * first previous key that is getting removed must be verified the saved key.
+                 */
+                if (key_change && !prev_rec_verified) {
+                    WT_ERR(cursor->get_key(
+                      cursor, &remove_btree_id, &remove_key, &remove_timestamp, &remove_txnid));
+                    if (remove_btree_id != saved_btree_id || saved_key->size != remove_key.size ||
+                      memcmp(saved_key->data, remove_key.data, remove_key.size) != 0 ||
+                      saved_timestamp != remove_timestamp || saved_txnid != remove_txnid) {
+                        pending_remove_cnt = 0;
+                        break;
+                    }
+                    prev_rec_verified = true;
+                }
+
+                /* Produce the verbose output of a remove record if configured. */
                 if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE_ACTIVITY)) {
-                    WT_ERR(
-                      cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
-                    WT_ERR(cursor->get_value(
-                      cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+                    WT_ERR(cursor->get_key(
+                      cursor, &remove_btree_id, &remove_key, &remove_timestamp, &remove_txnid));
+                    WT_ERR(cursor->get_value(cursor, &remove_durable_timestamp,
+                      &remove_prepare_state, &remove_upd_type, &remove_value));
 
                     __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
                       "Sweep removing lookaside entry with "
                       "btree ID: %" PRIu32 " key size: %" WT_SIZET_FMT " prepared state: %" PRIu8
                       " record type: %" PRIu8 " durable timestamp: %" PRIu64
                       " transaction ID: %" PRIu64,
-                      las_btree_id, las_key.size, prepare_state, upd_type, durable_timestamp,
-                      las_txnid);
+                      remove_btree_id, remove_key.size, remove_prepare_state, remove_upd_type,
+                      remove_durable_timestamp, remove_txnid);
                 }
 
                 WT_ERR(cursor->remove(cursor));
                 ++remove_cnt;
+                --pending_remove_cnt;
             }
 
             WT_ERR(cursor->next(cursor));
-
-            /* Get the LAS key and value in case if their replaced. */
-            if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE_ACTIVITY)) {
-                WT_ERR(
-                  cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
-                WT_ERR(cursor->get_value(
-                  cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
-            }
-            skip_update_modify_cnt = 0;
         }
 
         /* Don't remove the non obsolete entry. */
-        if (las_timestamp > S2C(session)->txn_global.oldest_timestamp) {
+        if (las_timestamp > S2C(session)->txn_global.oldest_timestamp ||
+          prepare_state == WT_PREPARE_INPROGRESS) {
             /*
-             * TODO: In case if there exists any skipped update modify records that can be removed,
+             * TODO: In case if there exists any pending remove count records that can be removed,
              * it is better to squash them to frame a UPDATE record and remove the obsolete records.
              */
-            prev_entry_can_remove = false;
-            skip_update_modify_cnt = 0;
+            pending_remove_cnt = 0;
             continue;
         }
 
-        prev_entry_can_remove = true;
-        /* Save the first key. */
-        if (saved_btree_id == 0) {
+        /* Save the key whenever we get a new key. */
+        if (key_change) {
             saved_btree_id = las_btree_id;
             WT_ERR(__wt_buf_set(session, saved_key, las_key.data, las_key.size));
         }
+        saved_timestamp = las_timestamp;
+        saved_txnid = las_txnid;
+        pending_remove_cnt++;
     }
 
     /*
