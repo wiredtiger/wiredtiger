@@ -293,6 +293,8 @@ __handle_close(WT_SESSION_IMPL *session, WT_FH *fh, bool locked)
         __wt_errx(session, "Closing a file handle with open references: %s", fh->name);
     }
 
+    printf("handle_close: fh=%p, session=%d\n", (void*)fh, session->id);
+
     /* Remove from the list. */
     bucket = fh->name_hash % WT_HASH_ARRAY_SIZE;
     WT_FILE_HANDLE_REMOVE(conn, fh, bucket);
@@ -326,6 +328,8 @@ __wt_close(WT_SESSION_IMPL *session, WT_FH **fhp)
         return (0);
     fh = *fhp;
     *fhp = NULL;
+
+    printf("close: fh=%p, session=%d\n", (void*)fh, session->id);
 
     /* Track handle-close as a file operation, so open and close match. */
     __wt_verbose(session, WT_VERB_FILEOPS, "%s: file-close", fh->name);

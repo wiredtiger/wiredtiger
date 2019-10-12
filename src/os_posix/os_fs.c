@@ -346,8 +346,12 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 #if USE_MMAP_FOR_IO
-    printf("close. %p, %lu \n", pfh->mmapped_buf, pfh->mmapped_size);
+    printf("close. fd=%d, session=%d, fh=%p, mbuf=%p, %lu \n",
+	   pfh->fd, session->id, (void*)file_handle,
+	   pfh->mmapped_buf, pfh->mmapped_size);
     if (pfh->mmapped_buf != NULL) {
+	/* Paranoid */
+	WT_RET(msync(pfh->mmapped_buf, pfh->mmapped_size, MS_SYNC));
         WT_RET(munmap(pfh->mmapped_buf, pfh->mmapped_size));
         pfh->mmapped_buf = 0;
         pfh->mmapped_size = 0;
@@ -525,6 +529,7 @@ __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t 
     WT_SYSCALL(fstat(pfh->fd, &sb), ret);
     if (ret == 0) {
         *sizep = sb.st_size;
+	printf("File size is %lu\n", (size_t)sb.st_size);
         return (0);
     }
     WT_RET_MSG(session, ret, "%s: handle-size: fstat", file_handle->name);
@@ -914,6 +919,9 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     wt_off_t file_size;
     size_t len;
 
+    printf("open: %s, fd=%d, session=%d, fh=%p\n",
+	   name, pfh->fd, session->id, (void*)pfh);
+
     /*
      * There's no locking here to prevent the underlying file from changing
      * underneath us, our caller needs to ensure consistency of the mapped
@@ -921,6 +929,9 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
      */
     WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size));
     len = (size_t)file_size;
+
+    printf("try to mmap:  %s, fd=%d, session=%d, fh=%p. File size=%lu\n",
+	   name, pfh->fd, session->id, (void*)pfh, len);
 
     if (len > 0) {
         printf("mmap: %s,  %lu, %d, fp: %p, id: %d\n", name, len, pfh->fd,
@@ -934,6 +945,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
             pfh->mmapped_size = len;
         printf("Map success: %p, %lu\n", pfh->mmapped_buf, len);
     }
+    else
+	printf("Did not mmap\n");
 #endif
 
 directory_open:
