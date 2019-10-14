@@ -1333,12 +1333,6 @@ __wt_find_lookaside_upd(
     WT_NOT_READ(modify, false);
     sweep_locked = false;
 
-    /*
-     * Prior to calling this function, we should have successfully searched the correct key with our
-     * cursor.
-     */
-    WT_ASSERT(session, cbt->compare == 0);
-
     /* Row-store has the key available, create the column-store key on demand. */
     switch (cbt->btree->type) {
     case BTREE_ROW:
