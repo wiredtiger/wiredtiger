@@ -78,6 +78,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
      */
     WT_ASSERT(session, !F_ISSET(conn, WT_CONN_SERVER_ASYNC | WT_CONN_SERVER_LSM));
 
+    /* Shut down the subsystems, ensuring workers see the state change. */
+    F_SET(conn, WT_CONN_CLOSING);
+    WT_FULL_BARRIER();
+
     /* The default session is used to access data handles during close. */
     F_CLR(session, WT_SESSION_NO_DATA_HANDLES);
 
