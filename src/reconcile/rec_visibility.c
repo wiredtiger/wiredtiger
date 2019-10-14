@@ -286,8 +286,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * to position on an update for an adjacent key. We will check the validity of our position
          * again when fetching the record. The updates are sorted oldest to newest in the lookaside.
          */
-        WT_ERR(__wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, UINT64_MAX));
-        las_positioned = true;
+        ret = __wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, UINT64_MAX);
+        las_positioned = ret == 0;
+	WT_ERR_NOTFOUND_OK(ret);
     }
 
     /*
