@@ -1183,18 +1183,16 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
             continue;
         }
 
-        /*
-         * Remove all entries for a key once they have aged out and are no longer needed.
-         */
+        /* The remaining tests require the value. */
         WT_ERR(
           cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
         /*
          * Expect an update entry with:
          *  1. Not in a prepare locked state
-         *  2. Durable timestamp as not max timestamp
-         *  3. For an in-progress prepared update, durable timestamp should be zero
-         *  and no restriction on durable timestamp value for other updates.
+         *  2. Durable timestamp not max timestamp
+         *  3. For an in-progress prepared update, durable timestamp should be zero and no
+         *     restriction on durable timestamp value for other updates.
          */
         WT_ERR_ASSERT(session, prepare_state != WT_PREPARE_LOCKED, EINVAL,
           "LAS prepared record is in locked state");
@@ -1206,8 +1204,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
             (prepare_state == WT_PREPARE_INPROGRESS || durable_timestamp >= las_timestamp)),
           EINVAL,
           "Either LAS record is a in-progress prepared update with wrong durable timestamp or not"
-          " a prepared update with wrong durable timestamp. prepared state: %" PRIu8
-          " durable timestamp: %" PRIu64,
+          " a prepared update with wrong durable timestamp (prepared state: %" PRIu8
+          " durable timestamp: %" PRIu64 ")",
           prepare_state, durable_timestamp);
 
         /*
