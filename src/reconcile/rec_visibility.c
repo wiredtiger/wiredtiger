@@ -288,7 +288,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          */
         ret = __wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, UINT64_MAX);
         las_positioned = ret == 0;
-	WT_ERR_NOTFOUND_OK(ret);
+        WT_ERR_NOTFOUND_OK(ret);
     }
 
     /*
