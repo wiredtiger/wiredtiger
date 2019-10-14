@@ -1553,6 +1553,10 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
         }
     }
 
+    /* Mark the connection closing, ensuring workers see the state change. */
+    F_SET(conn, WT_CONN_CLOSING);
+    WT_FULL_BARRIER();
+
     /*
      * All application transactions have completed, ignore the pinned timestamp so that updates can
      * be evicted from the cache during connection close.
