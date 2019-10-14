@@ -1013,6 +1013,10 @@ __conn_close(WT_CONNECTION *wt_conn, const char *config)
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
+    /* Mark the connection closing, ensuring workers see the state change. */
+    F_SET(conn, WT_CONN_CLOSING);
+    WT_FULL_BARRIER();
+
     CONNECTION_API_CALL(conn, session, close, config, cfg);
 err:
 
