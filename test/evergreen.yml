@@ -128,12 +128,40 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=address
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
 
+  - name: compile-msan
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ MSAN_OPTIONS=abort_on_error=1:disable_coredump=0 MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=memory
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+
   - name: make-check-test
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+
+  - name: make-check-msan-test
+    depends_on:
+      - name: compile-msan
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-msan
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ MSAN_OPTIONS=abort_on_error=1:disable_coredump=0 MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS=-fsanitize=memory
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -1191,6 +1219,8 @@ buildvariants:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
     - name: ".pull_request !.windows_only"
+    - name: compile-msan
+    - name: make-check-msan-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
