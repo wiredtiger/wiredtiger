@@ -206,26 +206,28 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     if (page_las->min_skipped_ts == WT_TS_MAX) {
         WT_RET(__instantiate_birthmarks(session, ref));
 
-        /*
-         * Checkpoint may specify an older timestamp than the timestamp used to write the page, it
-         * must be included in the next checkpoint.
-         */
-        page->modify->first_dirty_txn = WT_TXN_FIRST;
-        FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+        if (page->modify != NULL) {
+            /*
+             * Checkpoint may specify an older timestamp than the timestamp used to write the page,
+             * it must be included in the next checkpoint.
+             */
+            page->modify->first_dirty_txn = WT_TXN_FIRST;
+            FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
-        /*
-         * The page image contained the newest versions of data so the updates in lookaside are all
-         * older and we could consider marking it clean (i.e., the next checkpoint can use the
-         * version already on disk).
-         */
-        if (!page_las->has_prepares && !S2C(session)->txn_global.has_stable_timestamp &&
-          __wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts)) {
-            page->modify->rec_max_txn = page_las->max_txn;
-            page->modify->rec_max_timestamp = page_las->max_ondisk_ts;
-            __wt_page_modify_clear(session, page);
+            /*
+             * The page image contained the newest versions of data so the updates in lookaside are
+             * all older and we could consider marking it clean (i.e., the next checkpoint can use
+             * the version already on disk).
+             */
+            if (!page_las->has_prepares && !S2C(session)->txn_global.has_stable_timestamp &&
+              __wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts)) {
+                page->modify->rec_max_txn = page_las->max_txn;
+                page->modify->rec_max_timestamp = page_las->max_ondisk_ts;
+                __wt_page_modify_clear(session, page);
+            }
         }
 
-        return 0;
+        return (0);
     }
 
     __wt_btcur_init(session, &cbt);
@@ -386,8 +388,10 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
      * If the updates in lookaside are newer than the versions on the page, it must be included in
      * the next checkpoint.
      */
-    page->modify->first_dirty_txn = WT_TXN_FIRST;
-    FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+    if (page->modify != NULL) {
+        page->modify->first_dirty_txn = WT_TXN_FIRST;
+        FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+    }
 
     /*
      * Now the page is successfully instantiated. Remove the prepared updates from LAS that are
