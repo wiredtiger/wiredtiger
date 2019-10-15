@@ -36,7 +36,7 @@ def timestamp_str(t):
 
 # test_las07.py
 # Test that LAS sweep cleans the obsolete lookaside entries and gives expected results.
-class test_las02(wttest.WiredTigerTestCase):
+class test_las07(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
