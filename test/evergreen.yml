@@ -979,9 +979,10 @@ tasks:
 
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
 
-# End of Python unit test tasks
+  # End of Python unit test tasks
 
   - name: conf-dump-test
+    tags: ["pull_request"]
     depends_on:
     - name: compile
     commands:
