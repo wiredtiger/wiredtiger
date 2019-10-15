@@ -1042,6 +1042,39 @@ err:
 }
 
 /*
+ * __las_sweep_remove --
+ *     Remove a record for the sweep cursor.
+ */
+static int
+__las_sweep_remove(WT_CURSOR *cursor)
+{
+    WT_ITEM remove_key, remove_value;
+    WT_SESSION_IMPL *session;
+    wt_timestamp_t remove_durable_timestamp, remove_timestamp;
+    uint64_t remove_txnid;
+    uint32_t remove_btree_id;
+    uint8_t remove_prepare_state, remove_upd_type;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
+
+    /* Produce the verbose output of a remove record if configured. */
+    if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE_ACTIVITY)) {
+        WT_RET(
+          cursor->get_key(cursor, &remove_btree_id, &remove_key, &remove_timestamp, &remove_txnid));
+        WT_RET(cursor->get_value(cursor, &remove_durable_timestamp, &remove_prepare_state,
+          &remove_upd_type, &remove_value));
+
+        __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
+          "Sweep removing lookaside entry with "
+          "btree ID: %" PRIu32 " key size: %" WT_SIZET_FMT " prepared state: %" PRIu8
+          " record type: %" PRIu8 " durable timestamp: %" PRIu64 " transaction ID: %" PRIu64,
+          remove_btree_id, remove_key.size, remove_prepare_state, remove_upd_type,
+          remove_durable_timestamp, remove_txnid);
+    }
+    return (cursor->remove(cursor));
+}
+
+/*
  * __wt_las_sweep --
  *     Sweep the lookaside table.
  */
@@ -1052,15 +1085,14 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor;
     WT_DECL_ITEM(saved_key);
     WT_DECL_RET;
-    WT_ITEM las_key, las_value, remove_key, remove_value;
+    WT_ITEM las_key, las_value, remove_key;
     WT_ITEM *sweep_key;
     WT_TXN_ISOLATION saved_isolation;
-    wt_timestamp_t durable_timestamp, las_timestamp, remove_durable_timestamp, remove_timestamp,
-      saved_timestamp;
+    wt_timestamp_t durable_timestamp, las_timestamp, remove_timestamp, saved_timestamp;
     uint64_t cnt, remove_cnt, pending_remove_cnt, visit_cnt;
     uint64_t las_txnid, remove_txnid, saved_txnid;
     uint32_t las_btree_id, remove_btree_id, saved_btree_id, session_flags;
-    uint8_t prepare_state, remove_prepare_state, remove_upd_type, upd_type;
+    uint8_t prepare_state, upd_type;
     int cmp, notused;
     bool local_txn, key_change, locked, prev_rec_verified;
 
@@ -1177,7 +1209,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          */
         if (las_btree_id >= cache->las_sweep_dropmin && las_btree_id <= cache->las_sweep_dropmax &&
           __bit_test(cache->las_sweep_dropmap, las_btree_id - cache->las_sweep_dropmin)) {
-            WT_ERR(cursor->remove(cursor));
+            WT_ERR(__las_sweep_remove(cursor));
             ++remove_cnt;
             saved_key->size = 0;
             continue;
@@ -1245,23 +1277,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
                     prev_rec_verified = true;
                 }
 
-                /* Produce the verbose output of a remove record if configured. */
-                if (WT_VERBOSE_ISSET(session, WT_VERB_LOOKASIDE_ACTIVITY)) {
-                    WT_ERR(cursor->get_key(
-                      cursor, &remove_btree_id, &remove_key, &remove_timestamp, &remove_txnid));
-                    WT_ERR(cursor->get_value(cursor, &remove_durable_timestamp,
-                      &remove_prepare_state, &remove_upd_type, &remove_value));
-
-                    __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
-                      "Sweep removing lookaside entry with "
-                      "btree ID: %" PRIu32 " key size: %" WT_SIZET_FMT " prepared state: %" PRIu8
-                      " record type: %" PRIu8 " durable timestamp: %" PRIu64
-                      " transaction ID: %" PRIu64,
-                      remove_btree_id, remove_key.size, remove_prepare_state, remove_upd_type,
-                      remove_durable_timestamp, remove_txnid);
-                }
-
-                WT_ERR(cursor->remove(cursor));
+                WT_ERR(__las_sweep_remove(cursor));
                 ++remove_cnt;
                 --pending_remove_cnt;
             }
