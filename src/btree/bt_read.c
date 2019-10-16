@@ -327,31 +327,34 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
              * If our update is a modify then rewrite it as a standard update. It's a problem if we
              * need to read backwards into lookaside just to make sense of what we have in our
              * update list.
+             *
+             * The update we're constructing will have the same visibility as the modify that we're
+             * replacing it with.
              */
-            if (upd_type == WT_UPDATE_MODIFY) {
-                while (upd_type == WT_UPDATE_MODIFY) {
-                    WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
-                    if (mod_counter >= WT_MODIFY_ARRAY_SIZE) {
-                        if (mod_counter == WT_MODIFY_ARRAY_SIZE)
-                            listp = NULL;
-                        WT_ERR(
-                          __wt_realloc_def(session, &allocated_bytes, mod_counter + 1, &listp));
-                        if (mod_counter == WT_MODIFY_ARRAY_SIZE)
-                            memcpy(listp, list, sizeof(list));
-                    }
-                    listp[mod_counter++] = upd;
-                    WT_ERR(cursor->prev(cursor));
-                    WT_ERR(cursor->get_value(
-                      cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+            while (upd_type == WT_UPDATE_MODIFY) {
+                if (mod_counter >= WT_MODIFY_ARRAY_SIZE) {
+                    if (mod_counter == WT_MODIFY_ARRAY_SIZE)
+                        listp = NULL;
+                    WT_ERR(__wt_realloc_def(session, &allocated_bytes, mod_counter + 1, &listp));
+                    if (mod_counter == WT_MODIFY_ARRAY_SIZE)
+                        memcpy(listp, list, sizeof(list));
                 }
-                WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+                WT_ERR(
+                  __wt_update_alloc(session, &las_value, &listp[mod_counter++], &incr, upd_type));
+                WT_ERR(cursor->prev(cursor));
+                WT_ERR(cursor->get_value(
+                  cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
             }
+            WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
             while (mod_counter > 0) {
                 WT_ERR(
                   __wt_modify_apply_item(session, &las_value, listp[mod_counter - 1]->data, false));
                 __wt_free_update_list(session, listp[mod_counter - 1]);
                 --mod_counter;
-                /* We had to do some backtracking to squash. Unwind back to where we were before. */
+                /*
+                 * We had to do some backtracking to construct this update. Unwind back to where we
+                 * were before.
+                 */
                 WT_ERR(cursor->next(cursor));
             }
 
