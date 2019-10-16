@@ -83,12 +83,19 @@ functions:
 
         ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C ${directory}  ${smp_command|} 2>&1
   "upload artifact":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger"
+        script: |
+          rm -rf .git
     - command: archive.targz_pack
       params:
         target: "wiredtiger.tgz"
         source_dir: "wiredtiger"
         include:
           - "./**"
+        exclude_files:
+          - "./.git"
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
