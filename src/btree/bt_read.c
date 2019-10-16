@@ -324,7 +324,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
               cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
             /*
-             * If our update is a modify then squash it into a standard update. It's a problem if we
+             * If our update is a modify then rewrite it as a standard update. It's a problem if we
              * need to read backwards into lookaside just to make sense of what we have in our
              * update list.
              */
