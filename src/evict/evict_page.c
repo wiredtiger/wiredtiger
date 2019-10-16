@@ -338,51 +338,48 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
     WT_ASSERT(session, ref->addr == NULL);
 
     switch (mod->rec_result) {
-    case WT_PM_REC_EMPTY: /* Page is empty */
-                          /*
-                           * Update the parent to reference a deleted page. Reconciliation left the
-                           * page "empty", so there's no older transaction in the system that might
-                           * need to see an earlier version of the page. There's no backing address,
-                           * if we're forced to "read" into that namespace, we instantiate a new
-                           * page instead of trying to read from the backing store.
-                           */
+    case WT_PM_REC_EMPTY:
+        /*
+         * Page is empty: Update the parent to reference a deleted page. Reconciliation left the
+         * page "empty", so there's no older transaction in the system that might need to see an
+         * earlier version of the page. There's no backing address, if we're forced to "read" into
+         * that namespace, we instantiate a new page instead of trying to read from the backing
+         * store.
+         */
         __wt_ref_out(session, ref);
         WT_WITH_PAGE_INDEX(session, ret = __evict_delete_ref(session, ref, evict_flags));
         WT_RET_BUSY_OK(ret);
         break;
-    case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
-                               /*
-                                * Either a split where we reconciled a page and it turned into
-                                * a lot of pages or an in-memory page that got too large, we
-                                * forcibly evicted it, and there wasn't anything to write.
-                                *
-                                * The latter is a special case of forced eviction. Imagine a
-                                * thread updating a small set keys on a leaf page. The page
-                                * is too large or has too many deleted items, so we try and
-                                * evict it, but after reconciliation there's only a small
-                                * amount of live data (so it's a single page we can't split),
-                                * and if there's an older reader somewhere, there's data on
-                                * the page we can't write (so the page can't be evicted). In
-                                * that case, we end up here with a single block that we can't
-                                * write. Take advantage of the fact we have exclusive access
-                                * to the page and rewrite it in memory.
-                                */
+    case WT_PM_REC_MULTIBLOCK:
+        /*
+         * Multiple blocks: Either a split where we reconciled a page and it turned into a lot of
+         * pages or an in-memory page that got too large, we forcibly evicted it, and there wasn't
+         * anything to write.
+         *
+         * The latter is a special case of forced eviction. Imagine a thread updating a small set
+         * keys on a leaf page. The page is too large or has too many deleted items, so we try and
+         * evict it, but after reconciliation there's only a small amount of live data (so it's a
+         * single page we can't split), and if there's an older reader somewhere, there's data on
+         * the page we can't write (so the page can't be evicted). In that case, we end up here with
+         * a single block that we can't write. Take advantage of the fact we have exclusive access
+         * to the page and rewrite it in memory.
+         */
         if (mod->mod_multi_entries == 1) {
             WT_ASSERT(session, closing == false);
             WT_RET(__wt_split_rewrite(session, ref, &mod->mod_multi[0]));
         } else
             WT_RET(__wt_split_multi(session, ref, closing));
         break;
-    case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
-                            /*
-                             * Update the parent to reference the replacement page.
-                             *
-                             * A page evicted with lookaside entries may not have an
-                             * address, if no updates were visible to reconciliation.
-                             *
-                             * Publish: a barrier to ensure the structure fields are set
-                             * before the state change makes the page available to readers.
-                             */
+    case WT_PM_REC_REPLACE:
+        /*
+         * 1-for-1 page swap: Update the parent to reference the replacement page.
+         *
+         * A page evicted with lookaside entries may not have an address, if no updates were visible
+         * to reconciliation.
+         *
+         * Publish: a barrier to ensure the structure fields are set before the state change makes
+         * the page available to readers.
+         */
         if (mod->mod_replace.addr != NULL) {
             WT_RET(__wt_calloc_one(session, &addr));
             *addr = mod->mod_replace;
