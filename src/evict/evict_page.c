@@ -394,12 +394,30 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
         /*
          * Eviction wants to keep this page if we have a disk image, re-instantiate the page in
          * memory, else discard the page.
+         *
+         * If there is lookaside information attached to the original page then there are records
+         * for this page in the lookaside that need to be accounted for in the lookaside information
+         * attached to the replacement page. It is too expensive to figure out the exact lookaside
+         * content for the replacement page, so we:
+         * 1. Copy the original page's lookaside information into the replacement page when the
+         *    replacement page itself didn't undergo lookaside eviction.
+         * 2. Aggregate the original page's lookaside information with the replacement page's
+         *    information when the replacement page did undergo lookaside eviction.
          */
-        __wt_page_las_free(session, &ref->page_las);
         if (mod->mod_disk_image == NULL) {
-            if (mod->mod_page_las.has_las) {
-                WT_RET(__wt_calloc_one(session, &ref->page_las));
-                *ref->page_las = mod->mod_page_las;
+            if (ref->page_las != NULL || mod->mod_page_las.has_las) {
+                if (ref->page_las == NULL) {
+                    WT_RET(__wt_calloc_one(session, &ref->page_las));
+                    *ref->page_las = mod->mod_page_las;
+                } else if (mod->mod_page_las.has_las) {
+                    ref->page_las->max_txn =
+                      WT_MAX(ref->page_las->max_txn, mod->mod_page_las.max_txn);
+                    ref->page_las->max_ondisk_ts =
+                      WT_MAX(ref->page_las->max_ondisk_ts, mod->mod_page_las.max_ondisk_ts);
+                    ref->page_las->min_skipped_ts =
+                      WT_MIN(ref->page_las->min_skipped_ts, mod->mod_page_las.min_skipped_ts);
+                    ref->page_las->has_prepares |= mod->mod_page_las.has_prepares;
+                }
                 __wt_page_modify_clear(session, ref->page);
                 __wt_ref_out(session, ref);
                 WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
@@ -413,7 +431,9 @@ __evict_page_dirty_update(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_
              */
             memset(&multi, 0, sizeof(multi));
             multi.disk_image = mod->mod_disk_image;
-
+            if (ref->page_las != NULL)
+                multi.page_las = *ref->page_las;
+            __wt_page_las_free(session, &ref->page_las);
             WT_RET(__wt_split_rewrite(session, ref, &multi));
         }
 
@@ -554,10 +574,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      */
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         return (0);
-
-    /* Temp fix: do not evict a page with active las */
-    if (__wt_page_las_active(session, ref))
-        return (__wt_set_return(session, EBUSY));
 
     /*
      * Retrieve the modified state of the page. This must happen after the check for evictable

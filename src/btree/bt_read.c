@@ -227,6 +227,9 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             }
         }
 
+        __wt_buf_free(session, &page_las->max_las_key);
+        __wt_buf_free(session, &page_las->min_las_key);
+
         return (0);
     }
 
