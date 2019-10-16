@@ -1306,7 +1306,7 @@ __wt_find_lookaside_upd(
     WT_TXN *txn;
     WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
-    size_t allocated_bytes, incr;
+    size_t allocated_bytes, notused, size;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
@@ -1326,7 +1326,7 @@ __wt_find_lookaside_upd(
     upd = NULL;
     listp = list;
     txn = &session->txn;
-    allocated_bytes = 0;
+    allocated_bytes = notused = size = 0;
     las_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     i = 0;
@@ -1427,7 +1427,7 @@ __wt_find_lookaside_upd(
         if (upd_type == WT_UPDATE_MODIFY) {
             WT_NOT_READ(modify, true);
             while (upd_type == WT_UPDATE_MODIFY) {
-                WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
+                WT_ERR(__wt_update_alloc(session, las_value, &upd, &notused, upd_type));
                 if (i >= WT_MODIFY_ARRAY_SIZE) {
                     if (i == WT_MODIFY_ARRAY_SIZE)
                         listp = NULL;
@@ -1465,7 +1465,7 @@ __wt_find_lookaside_upd(
         }
 
         /* Allocate an update structure for the record found. */
-        WT_ERR(__wt_update_alloc(session, las_value, &upd, &incr, upd_type));
+        WT_ERR(__wt_update_alloc(session, las_value, &upd, &size, upd_type));
         upd->txnid = las_txnid;
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_timestamp;
@@ -1497,6 +1497,9 @@ __wt_find_lookaside_upd(
                 WT_PANIC_ERR(session, ret,
                   "initialised prepared update but was unable to remove the corresponding entry "
                   "from lookaside");
+
+            /* This is going in our update list so it should be accounted for in cache usage. */
+            __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
         } else
             /*
              * We're not keeping this in our update list as we want to get rid of it after the read

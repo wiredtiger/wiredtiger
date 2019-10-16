@@ -175,7 +175,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
-    size_t allocated_bytes, incr, total_incr;
+    size_t allocated_bytes, notused, size, total_incr;
     uint64_t birthmark_cnt, las_txnid, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
@@ -257,7 +257,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cache->las_reader = true;
     __wt_readlock(session, &cache->las_sweepwalk_lock);
     cache->las_reader = false;
-    incr = total_incr = 0;
+    notused = size = total_incr = 0;
     first_scan = true;
     locked = true;
     cursor->set_key(cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
@@ -304,7 +304,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
                 WT_ERR(__wt_compare(session, NULL, &las_key, &birthmarkp->key, &cmp));
                 if (cmp == 0) {
-                    WT_ERR(__create_birthmark_upd(session, birthmarkp, &incr, &upd));
+                    WT_ERR(__create_birthmark_upd(session, birthmarkp, &size, &upd));
                     birthmark_record = true;
                     break;
                 } else if (cmp < 0)
@@ -339,8 +339,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     if (mod_counter == WT_MODIFY_ARRAY_SIZE)
                         memcpy(listp, list, sizeof(list));
                 }
-                WT_ERR(
-                  __wt_update_alloc(session, &las_value, &listp[mod_counter++], &incr, upd_type));
+                WT_ERR(__wt_update_alloc(
+                  session, &las_value, &listp[mod_counter++], &notused, upd_type));
                 WT_ERR(cursor->prev(cursor));
                 WT_ERR(cursor->get_value(
                   cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
@@ -358,14 +358,14 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_ERR(cursor->next(cursor));
             }
 
-            WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
+            WT_ERR(__wt_update_alloc(session, &las_value, &upd, &size, upd_type));
             upd->txnid = las_txnid;
             upd->durable_ts = durable_timestamp;
             upd->start_ts = las_timestamp;
             upd->prepare_state = prepare_state;
         }
 
-        total_incr += incr;
+        total_incr += size;
 
         switch (page->type) {
         case WT_PAGE_COL_FIX:
