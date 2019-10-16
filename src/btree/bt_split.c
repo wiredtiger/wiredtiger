@@ -1784,6 +1784,10 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->pindex_hint = ref->pindex_hint;
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
+    WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
+      "unexpected page-delete structure when splitting a page");
+    WT_ERR_ASSERT(session, ref->page_las == NULL, WT_PANIC,
+      "unexpected page-lookaside structure when splitting a page");
 
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
