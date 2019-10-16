@@ -100,6 +100,11 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
 int
 __wt_posix_file_extend(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset)
 {
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    printf("EXTENDING FILE: session %d\n", session->id);
     /*
      * The first file extension call: figure out what this system has.
      *

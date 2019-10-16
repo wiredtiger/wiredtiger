@@ -142,7 +142,7 @@ struct __wt_file_handle_posix {
 
     bool direct_io; /* O_DIRECT configured */
 #if USE_MMAP_FOR_IO
-    void *mmapped_buf;
+    char  *mmapped_buf;
     size_t mmapped_size;
 #endif
 };

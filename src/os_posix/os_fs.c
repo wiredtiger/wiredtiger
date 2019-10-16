@@ -348,7 +348,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 #if USE_MMAP_FOR_IO
     printf("close. fd=%d, session=%d, fh=%p, mbuf=%p, %lu \n",
 	   pfh->fd, session->id, (void*)file_handle,
-	   pfh->mmapped_buf, pfh->mmapped_size);
+	   (void*)pfh->mmapped_buf, pfh->mmapped_size);
     if (pfh->mmapped_buf != NULL) {
 	/* Paranoid */
 	WT_RET(msync(pfh->mmapped_buf, pfh->mmapped_size, MS_SYNC));
@@ -444,6 +444,8 @@ __posix_file_read(
 }
 
 #if USE_MMAP_FOR_IO
+static int
+__posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 /*
  * __posix_file_read_mmap --
  *     Get the buffer from the mmapped region.
@@ -455,27 +457,26 @@ __posix_file_read_mmap(
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    //int ret;
-    // void *memcpy_buf;
+    wt_off_t file_size;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    /*
-    memcpy_buf = malloc(len);
-    if (memcpy_buf == NULL) {
-        printf("COULD NOT ALLOCATE BUFFER\n");
-        goto done;
-    }
-    */
     printf("read_mmap: from %d, offset=%" PRIu64 ", len= %lu to %p, fh=%p, session=%d\n",
            pfh->fd, offset, len, buf, (void*)file_handle, session->id);
 
+    WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session,
+			      &file_size));
+    printf("File size is %lld\n", file_size);
+
 
     if (pfh->mmapped_buf != 0) {
-        printf("memcpy from address %p (base %p, offset %" PRIu64 ") to %p, %lu bytes\n",
-               (void*)(&((char *)pfh->mmapped_buf)[offset]), pfh->mmapped_buf, offset, buf, len);
-        memcpy(buf, &((char *)pfh->mmapped_buf)[offset], len);
+        printf("memcpy from address %p (base %p, offset %" PRIu64 ") "
+	       "to %p, %lu bytes\n",
+               (void *)(pfh->mmapped_buf + offset), (void *)pfh->mmapped_buf,
+	       offset, buf, len);
+
+        memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
 
         if (offset == 24576) {
             printf("\nBUF IS:\n");
@@ -486,28 +487,9 @@ __posix_file_read_mmap(
         }
         return (0);
     }
-    return __posix_file_read(file_handle, wt_session, offset, len, buf);
+    else
+	return __posix_file_read(file_handle, wt_session, offset, len, buf);
 
-/*
-    if (offset == 12288) {
-        printf("\nMEMCPY_BUF IS:\n");
-        for (size_t i = 0; i < len/sizeof(int); i++) {
-            printf("%d ", ((int*)memcpy_buf)[i]);
-            if (i%32 == 31)
-                printf("\n");
-        }
-    }
-    if (memcpy_buf != NULL) {
-        for (size_t i = 0; i < len; i++) {
-            if(((char*)buf)[i] != ((char*)memcpy_buf)[i]) {
-                printf("NOT EQUAL at location %zu\n", i);
-                printf("buf[i]=%c, memcpy_buf[i]=%c\n", ((char*)buf)[i], ((char*)memcpy_buf)[i]);
-                return -1;
-            }
-        }
-    }
-    return ret;
-*/
 }
 #endif
 
@@ -525,6 +507,8 @@ __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t 
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    printf("__posix_file_size\n");
 
     WT_SYSCALL(fstat(pfh->fd, &sb), ret);
     if (ret == 0) {
@@ -575,6 +559,12 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 }
 #endif
 
+#if USE_MMAP_FOR_IO
+static int
+__posix_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+		     off_t len);
+#endif
+
 #ifdef HAVE_FTRUNCATE
 /*
  * __posix_file_truncate --
@@ -589,6 +579,16 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+#if USE_MMAP_FOR_IO
+
+    printf("TRUNCATING FILE: session %d\n", session->id);
+
+    if (pfh->mmapped_buf && (size_t)len < pfh->mmapped_size)
+	if (__posix_remap_region(file_handle, wt_session, len))
+	    WT_RET_MSG(session, __wt_errno(), "%s: __posix_remap_region",
+		       file_handle->name);
+#endif
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (ret == 0)
@@ -674,22 +674,26 @@ __posix_file_write(
  */
 static int
 __posix_file_write_mmap(
-  WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset,
-  size_t len, const void *buf)
+    WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset,
+    size_t len, const void *buf)
 {
 
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
+    wt_off_t file_size;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
     printf("write_mmap: to %d, at %" PRIu64 ", %lu bytes, fp: %p, session=%d\n",
            pfh->fd, offset, len, (void*)file_handle, session->id);
+
+    WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session,
+			      &file_size));
+    printf("File size is %lld\n", file_size);
+
     if (pfh->mmapped_buf != NULL) {
-        if (pfh->mmapped_size < (size_t)(offset + (off_t)len)) {
-            wt_off_t file_size;
-            void *old_mapped_buf;
+        if (pfh->mmapped_size < (size_t)offset + len) {
             /*
              * We are growing the file, but the mmapped buffer is not
              * large enough. Extend the file and remap the buffer.
@@ -710,35 +714,24 @@ __posix_file_write_mmap(
                    pfh->mmapped_size, file_size);
 
             /* Remap the region */
-            old_mapped_buf = pfh->mmapped_buf;
-            if (munmap(pfh->mmapped_buf, pfh->mmapped_size))
-                WT_RET_MSG(session, __wt_errno(),
-                           "%s: memory-unmap: munmap, %p",
-                           file_handle->name, pfh->mmapped_buf);
-            if ((pfh->mmapped_buf = mmap(old_mapped_buf, (size_t)file_size,
-                                         PROT_WRITE | PROT_READ, MAP_FILE | MAP_SHARED, pfh->fd, 0))
-                == MAP_FAILED)
-                WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap",
-                           file_handle->name);
-            printf("REMAPPED file %s (%d) to %p, size %lld\n",
-                   file_handle->name, pfh->fd, pfh->mmapped_buf, file_size);
-            pfh->mmapped_size = (size_t)file_size;
+	    if(__posix_remap_region(file_handle, wt_session, file_size))
+		WT_RET_MSG(session, __wt_errno(), "%s:  __posix_remap_region",
+		       file_handle->name);
         }
 
 	printf("memcpy to base %p, offset  %" PRIu64 ", len=%lu"
-	       "by session %d \n", pfh->mmapped_buf, offset, len,
+	       "by session %d \n", (void*)pfh->mmapped_buf, offset, len,
                session->id);
 	printf("memcpy args: %p, %p, %lu\n",
-	       (void*)&(((char*)pfh->mmapped_buf)[offset]),
-	       buf, len);
+	       (void*)(pfh->mmapped_buf+offset), buf, len);
 
 	if (offset == 24576 || offset == 32768) {
 	    printf("MAPPED BUFFER BEFORE WRITE:\n");
 
-	    for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
+	    for (size_t i = (size_t)offset; i < (size_t)offset + len; i++) {
 		if (offset == 32768)
-		    printf("i=%lu, %p\n", i, (void*)&(((int*)pfh->mmapped_buf)[i]));
-		printf("%d ", ((int*)pfh->mmapped_buf)[i]);
+		    printf("i=%lu, %p\n", i, (void*)(pfh->mmapped_buf+i));
+		printf("%02x ", ((uint8_t *)pfh->mmapped_buf)[i]);
 	    }
 	    printf("\n");
 	}
@@ -953,7 +946,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
                        name);
         else
             pfh->mmapped_size = len;
-        printf("Map success: %p, %lu\n", pfh->mmapped_buf, len);
+        printf("Map success: %p, %lu\n", (void*)pfh->mmapped_buf, len);
     }
     else
 	printf("Did not mmap\n");
@@ -1013,6 +1006,46 @@ err:
     WT_TRET(__posix_file_close((WT_FILE_HANDLE *)pfh, wt_session));
     return (ret);
 }
+
+
+#if USE_MMAP_FOR_IO
+/*
+ *
+ * __posix_remap_region
+ *     Remap the region to reflect the new file size.
+ */
+static int
+__posix_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
+		     off_t len)
+{
+    char *old_mapped_buf;
+    WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    printf("remap_region: %s, mapped_size=%lu, new size = %lu, session=%d\n",
+	   file_handle->name, pfh->mmapped_size, (size_t)len, session->id);
+
+    old_mapped_buf = pfh->mmapped_buf;
+    if (munmap(pfh->mmapped_buf, pfh->mmapped_size))
+	WT_RET_MSG(session, __wt_errno(),
+		   "%s: memory-unmap: munmap, %p",
+		   file_handle->name, (void*)pfh->mmapped_buf);
+    if ((pfh->mmapped_buf = mmap(old_mapped_buf, (size_t)len,
+				 PROT_WRITE | PROT_READ,
+				 MAP_FILE | MAP_SHARED, pfh->fd, 0))
+	== MAP_FAILED)
+	WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap",
+		   file_handle->name);
+    printf("REMAPPED file %s (%d) to %p, size %lld\n",
+	   file_handle->name, pfh->fd, (void*)pfh->mmapped_buf, len);
+    pfh->mmapped_size = (size_t)len;
+
+    return 0;
+}
+#endif
 
 /*
  * __posix_terminate --

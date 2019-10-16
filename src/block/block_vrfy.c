@@ -146,6 +146,7 @@ __verify_set_file_size(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
 
+    printf("__verify_set_file_size\n");
     ci = &_ci;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
     WT_ERR(__wt_block_buffer_to_ckpt(session, block, ckpt->raw.data, ci));
