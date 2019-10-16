@@ -782,12 +782,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     int64_t resolved_update_count, visited_update_count;
     uint32_t fileid;
     u_int i;
-    bool locked, prepare, readonly, skip_update_assert, update_durable_ts;
+    bool locked, prepare, readonly, update_durable_ts;
 
     txn = &session->txn;
     conn = S2C(session);
     txn_global = &conn->txn_global;
-    locked = skip_update_assert = false;
+    locked = false;
     resolved_update_count = visited_update_count = 0;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
@@ -948,7 +948,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * would have happened on a previous modification in this txn.
                  */
                 if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
-                    skip_update_assert = skip_update_assert || F_ISSET(op, WT_TXN_OP_KEY_RESERVED);
                     WT_ERR(__wt_txn_resolve_prepared_op(session, op, true, &resolved_update_count));
                 }
 
@@ -974,7 +973,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
         __wt_txn_op_free(session, op);
     }
-    WT_ERR_ASSERT(session, skip_update_assert || resolved_update_count == visited_update_count,
+    WT_ERR_ASSERT(session, resolved_update_count == visited_update_count,
       EINVAL,
       "Number of resolved prepared updates: %" PRId64 " does not match number visited: %" PRId64,
       resolved_update_count, visited_update_count);
@@ -1055,7 +1054,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_TXN *txn;
     WT_TXN_OP *op;
-    WT_UPDATE *upd;
+    WT_UPDATE *upd, *tmp;
     u_int i;
 
     txn = &session->txn;
@@ -1138,11 +1137,13 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * update with our txnid after the reserved update we should set key repeated, but if
              * there isn't we shouldn't.
              */
-            if (upd->next != NULL && upd->txnid == upd->next->txnid) {
-                if (upd->next->type == WT_UPDATE_RESERVE)
-                    F_SET(op, WT_TXN_OP_KEY_RESERVED);
-                else
+            tmp = upd->next;
+            while (tmp != NULL && tmp->txnid == upd->txnid) {
+                if (tmp->type != WT_UPDATE_RESERVE) {
                     F_SET(op, WT_TXN_OP_KEY_REPEATED);
+                    break;
+                }
+                tmp = tmp->next;
             }
             break;
         case WT_TXN_OP_REF_DELETE:
@@ -1184,13 +1185,12 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UPDATE *upd;
     int64_t resolved_update_count, visited_update_count;
     u_int i;
-    bool readonly, skip_update_assert;
+    bool readonly;
 
     WT_UNUSED(cfg);
     resolved_update_count = visited_update_count = 0;
     txn = &session->txn;
     readonly = txn->mod_count == 0;
-    skip_update_assert = false;
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
 
     /* Rollback notification. */
@@ -1228,7 +1228,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * would have happened on a previous modification in this txn.
                  */
                 if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
-                    skip_update_assert = skip_update_assert || F_ISSET(op, WT_TXN_OP_KEY_RESERVED);
                     WT_RET(
                       __wt_txn_resolve_prepared_op(session, op, false, &resolved_update_count));
                 }
@@ -1260,7 +1259,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
         __wt_txn_op_free(session, op);
     }
-    WT_RET_ASSERT(session, skip_update_assert || resolved_update_count == visited_update_count,
+    WT_RET_ASSERT(session, resolved_update_count == visited_update_count,
       EINVAL, "Number of resolved prepared updates: %" PRId64
               " does not match"
               " number visited: %" PRId64,
