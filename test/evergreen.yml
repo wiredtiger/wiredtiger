@@ -981,6 +981,20 @@ tasks:
 
   # End of Python unit test tasks
 
+  - name: s-all
+    tags: ["pull_request"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/dist"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh s_all -A -E 2>&1
+
   - name: conf-dump-test
     tags: ["pull_request"]
     depends_on:
@@ -1193,6 +1207,17 @@ tasks:
             set -o verbose
             ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
+  - name: clang-analyzer
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh dist/s_clang-scan 2>&1
 
 buildvariants:
 - name: ubuntu1804
