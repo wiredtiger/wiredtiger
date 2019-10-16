@@ -345,7 +345,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_ERR(cursor->get_value(
                   cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
             }
-            WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+            WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD || upd_type == WT_UPDATE_TOMBSTONE);
             while (mod_counter > 0) {
                 WT_ERR(
                   __wt_modify_apply_item(session, &las_value, listp[mod_counter - 1]->data, false));
