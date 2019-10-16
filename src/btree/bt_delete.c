@@ -411,10 +411,6 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /* Walk the page entries, giving each one a tombstone. */
-    /*
-     * tetsuo-cpp: I think this doesn't need to be LAS aware. All we're doing is appending a
-     * tombstone to the update list for each entry on the page.
-     */
     size = 0;
     count = 0;
     upd_array = page->modify->mod_row_update;

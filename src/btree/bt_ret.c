@@ -152,7 +152,6 @@ __wt_value_return_upd(
     /*
      * Find a complete update that's visible to us, tracking modifications that are visible to us.
      */
-    /* tetsuo-cpp: Squashing on instantiation should solve this problem for us. */
     for (i = 0, listp = list, skipped_birthmark = false; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;

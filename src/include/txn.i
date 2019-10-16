@@ -200,12 +200,6 @@ __wt_txn_resolve_prepared_op(
           "Unable to locate update associated with a prepared operation.");
     }
 
-    /*
-     * tetsuo-cpp: __wt_btcur_search_uncommitted is LAS aware so we might get a LAS update here. I
-     * think that the txnid shouldn't be aborted in that case so this should be fine as we'll never
-     * need to access it's next member. If it's not fine then we'll have to traverse with the cursor
-     * and this will require a significant refactor.
-     */
     for (; upd != NULL; upd = upd->next) {
         /*
          * Aborted updates can exist in the update chain of our txn. Generally this will occur due
@@ -1079,10 +1073,6 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     /*
      * Always include prepared transactions in this check: they are not supposed to affect
      * visibility for update operations.
-     */
-    /*
-     * tetsuo-cpp: I think that if there is a prepare that it must have been loaded into memory upon
-     * page instantiation. So it should be fine to do this without consulting las.
      */
     ignore_prepare_set = F_ISSET(txn, WT_TXN_IGNORE_PREPARE);
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);

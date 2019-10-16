@@ -177,7 +177,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t allocated_bytes, incr, total_incr;
     uint64_t birthmark_cnt, las_txnid, recno;
-    uint32_t i, las_btree_id, las_prepare_cnt, session_flags, mod_counter;
+    uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp, exact, instantiated_cnt;
