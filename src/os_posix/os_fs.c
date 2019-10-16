@@ -360,6 +360,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     /* Close the file handle. */
     if (pfh->fd != -1) {
+	fsync(pfh->fd);
         WT_SYSCALL(close(pfh->fd), ret);
         if (ret != 0)
             __wt_err(session, ret, "%s: handle-close: close", file_handle->name);
@@ -476,13 +477,12 @@ __posix_file_read_mmap(
                (void*)(&((char *)pfh->mmapped_buf)[offset]), pfh->mmapped_buf, offset, buf, len);
         memcpy(buf, &((char *)pfh->mmapped_buf)[offset], len);
 
-        if (offset == 12288) {
+        if (offset == 24576) {
             printf("\nBUF IS:\n");
             for (size_t i = 0; i < len/sizeof(int); i++) {
                 printf("%d ", ((int*)buf)[i]);
-                if (i%32 == 31)
-                    printf("\n");
             }
+	    printf("\n");
         }
         return (0);
     }
@@ -619,19 +619,17 @@ __posix_file_write(
     printf("write: to %d, offset=%" PRIu64 ", len= %lu to %p, fh: %p, %d\n",
            pfh->fd, offset, len, buf, (void*)file_handle, session->id);
 
-    if (offset == 12288) {
+    if (offset == 24576 || offset == 32768) {
         printf("BUFFER TO WRITE:\n");
         for (size_t i = 0; i < len/sizeof(int); i++) {
             printf("%d ", ((int*)buf)[i]);
-            if (i%32 == 31)
-                printf("\n");
         }
+	printf("\n");
         printf("Mapped buffer BEFORE WRITE:\n");
         for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
                 printf("%d ", ((int*)pfh->mmapped_buf)[i]);
-                if (i%31 == 0)
-                        printf("\n");
         }
+	printf("\n");
     }
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
@@ -650,23 +648,21 @@ __posix_file_write(
               file_handle->name, chunk, (uintmax_t)offset);
     }
 
-    if (prev_offset == 12288) {
+    if (prev_offset == 24576) {
         offset = prev_offset;
         len = prev_len;
-        printf("\nMapped buffer AFTER WRITE:\n");
+        printf("\nIn regular read: Mapped buffer AFTER WRITE:\n");
         for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
                 printf("%d ", ((int*)pfh->mmapped_buf)[i]);
-                if (i%32 == 31)
-                        printf("\n");
-        }
+	}
+	printf("\n");
 
         memcpy((&((char*)pfh->mmapped_buf)[offset]), buf, len);
-        printf("\nMapped buffer AFTER MEMCPY:\n");
+        printf("\nIn regular read: Mapped buffer AFTER MEMCPY:\n");
         for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
                 printf("%d ", ((int*)pfh->mmapped_buf)[i]);
-                if (i%32 == 31)
-                        printf("\n");
-        }
+	}
+	printf("\n");
     }
     return (0);
 }
@@ -720,7 +716,7 @@ __posix_file_write_mmap(
                            "%s: memory-unmap: munmap, %p",
                            file_handle->name, pfh->mmapped_buf);
             if ((pfh->mmapped_buf = mmap(old_mapped_buf, (size_t)file_size,
-                                         PROT_WRITE, MAP_PRIVATE, pfh->fd, 0))
+                                         PROT_WRITE | PROT_READ, MAP_FILE | MAP_SHARED, pfh->fd, 0))
                 == MAP_FAILED)
                 WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap",
                            file_handle->name);
@@ -728,30 +724,44 @@ __posix_file_write_mmap(
                    file_handle->name, pfh->fd, pfh->mmapped_buf, file_size);
             pfh->mmapped_size = (size_t)file_size;
         }
-        printf("memcpy to offset  %" PRIu64 " by session %d \n", offset,
-               session->id);
-        memcpy((&((char*)pfh->mmapped_buf)[offset]), buf, len);
-        printf("buf[0]: %d, mmapped_buf[offset]: %d\n",
-               (int)((char*)buf)[0], (int)((char*)pfh->mmapped_buf)[offset]);
 
-        if (offset == 12288) {
-        printf("BUFFER TO WRITE:\n");
-        for (size_t i = 0; i < len/sizeof(int); i++) {
-            printf("%d ", ((int*)buf)[i]);
-            if (i%32 == 31)
-                printf("\n");
-        }
-        printf("Mapped buffer AFTER WRITE:\n");
-        for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
+	printf("memcpy to base %p, offset  %" PRIu64 ", len=%lu"
+	       "by session %d \n", pfh->mmapped_buf, offset, len,
+               session->id);
+	printf("memcpy args: %p, %p, %lu\n",
+	       (void*)&(((char*)pfh->mmapped_buf)[offset]),
+	       buf, len);
+
+	if (offset == 24576 || offset == 32768) {
+	    printf("MAPPED BUFFER BEFORE WRITE:\n");
+
+	    for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
+		if (offset == 32768)
+		    printf("i=%lu, %p\n", i, (void*)&(((int*)pfh->mmapped_buf)[i]));
+		printf("%d ", ((int*)pfh->mmapped_buf)[i]);
+	    }
+	    printf("\n");
+	}
+
+        memcpy( (void*)(pfh->mmapped_buf + offset), buf, len);
+
+        if (offset == 24576) {
+	    printf("BUFFER TO WRITE:\n");
+	    for (size_t i = 0; i < len/sizeof(int); i++) {
+		printf("%d ", ((int*)buf)[i]);
+	    }
+	    printf("\n");
+	    printf("Mapped buffer AFTER WRITE:\n");
+	    for (size_t i = (size_t)offset/sizeof(int); i < ((size_t)offset + len)/sizeof(int); i++) {
                 printf("%d ", ((int*)pfh->mmapped_buf)[i]);
-                if (i%31 == 0)
-                        printf("\n");
-        }
-    }
-        return (0);
+	    }
+	    printf("\n");
+	}
+	//return __posix_file_write(file_handle, wt_session, offset, len, buf);
+	return (0);
     }
     else {
-        printf("Doing regular write\n");
+        printf("Doing REGULAR write\n");
         return __posix_file_write(file_handle, wt_session, offset, len, buf);
     }
 }
@@ -936,8 +946,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     if (len > 0) {
         printf("mmap: %s,  %lu, %d, fp: %p, id: %d\n", name, len, pfh->fd,
                (void*)file_handlep, session->id);
-        if ((pfh->mmapped_buf = (char *)mmap(NULL, len, PROT_WRITE,
-                                             MAP_PRIVATE, pfh->fd, 0))
+        if ((pfh->mmapped_buf = (char *)mmap(NULL, len, PROT_WRITE | PROT_READ,
+                                             MAP_SHARED | MAP_FILE, pfh->fd, 0))
             == MAP_FAILED)
             WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap",
                        name);
