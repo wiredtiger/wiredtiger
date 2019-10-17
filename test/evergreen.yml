@@ -1061,7 +1061,7 @@ tasks:
             fi
 
   - name: format
-    tags: ["pull_request", "windows_only"]
+    tags: ["windows_only"]
     depends_on:
     - name: compile
     commands:
