@@ -382,11 +382,9 @@ __wt_debug_offset(
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
     /*
-     * This routine depends on the default block manager's view of files,
-     * where an address consists of a file offset, length, and checksum.
-     * This is for debugging only: other block managers might not see a
-     * file or address the same way, that's why there's no block manager
-     * method.
+     * This routine depends on the default block manager's view of files, where an address consists
+     * of a file offset, length, and checksum. This is for debugging only: other block managers
+     * might not see a file or address the same way, that's why there's no block manager method.
      *
      * Convert the triplet into an address structure.
      */

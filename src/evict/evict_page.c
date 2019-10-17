@@ -260,14 +260,12 @@ __evict_delete_ref(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         ndeleted = __wt_atomic_addv32(&pindex->deleted_entries, 1);
 
         /*
-         * If more than 10% of the parent references are deleted, try a
-         * reverse split.  Don't bother if there is a single deleted
-         * reference: the internal page is empty and we have to wait
+         * If more than 10% of the parent references are deleted, try a reverse split. Don't bother
+         * if there is a single deleted reference: the internal page is empty and we have to wait
          * for eviction to notice.
          *
-         * This will consume the deleted ref (and eventually free it).
-         * If the reverse split can't get the access it needs because
-         * something is busy, be sure that the page still ends up
+         * This will consume the deleted ref (and eventually free it). If the reverse split can't
+         * get the access it needs because something is busy, be sure that the page still ends up
          * marked deleted.
          */
         if (ndeleted > pindex->entries / 10 && pindex->entries > 1) {
@@ -494,19 +492,16 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             break;
         case WT_REF_DELETED: /* On-disk, deleted */
                              /*
-                              * If the child page was part of a truncate,
-                              * transaction rollback might switch this page into its
-                              * previous state at any time, so the delete must be
-                              * resolved before the parent can be evicted.
+                              * If the child page was part of a truncate, transaction rollback might
+                              * switch this page into its previous state at any time, so the delete
+                              * must be resolved before the parent can be evicted.
                               *
-                              * We have the internal page locked, which prevents a
-                              * search from descending into it.  However, a walk
-                              * from an adjacent leaf page could attempt to hazard
-                              * couple into a child page and free the page_del
-                              * structure as we are examining it.  Flip the state to
-                              * locked to make this check safe: if that fails, we
-                              * have raced with a read and should give up on
-                              * evicting the parent.
+                              * We have the internal page locked, which prevents a search from
+                              * descending into it. However, a walk from an adjacent leaf page could
+                              * attempt to hazard couple into a child page and free the page_del
+                              * structure as we are examining it. Flip the state to locked to make
+                              * this check safe: if that fails, we have raced with a read and should
+                              * give up on evicting the parent.
                               */
             if (!__wt_atomic_casv32(&child->state, WT_REF_DELETED, WT_REF_LOCKED))
                 return (__wt_set_return(session, EBUSY));
@@ -621,32 +616,29 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /*
      * If the page is dirty, reconcile it to decide if we can evict it.
      *
-     * If we have an exclusive lock (we're discarding the tree), assert
-     * there are no updates we cannot read.
+     * If we have an exclusive lock (we're discarding the tree), assert there are no updates we
+     * cannot read.
      *
-     * Don't set any other flags for internal pages: there are no update
-     * lists to be saved and restored, changes can't be written into the
-     * lookaside table, nor can we re-create internal pages in memory.
+     * Don't set any other flags for internal pages: there are no update lists to be saved and
+     * restored, changes can't be written into the lookaside table, nor can we re-create internal
+     * pages in memory.
      *
      * For leaf pages:
      *
      * In-memory pages are a known configuration.
      *
-     * Set the update/restore flag, so reconciliation will write blocks it
-     * can write and create a list of skipped updates for blocks it cannot
-     * write, along with disk images. This is how eviction of active, huge
-     * pages works: we take a big page and reconcile it into blocks, some of
-     * which we write and discard, the rest of which we re-create as smaller
-     * in-memory pages, (restoring the updates that stopped us from writing
-     * the block), and inserting the whole mess into the page's parent. Set
-     * the flag in all cases because the incremental cost of update/restore
-     * in reconciliation is minimal, eviction shouldn't have picked a page
-     * where update/restore is necessary, absent some cache pressure. It's
-     * possible updates occurred after we selected this page for eviction,
-     * but it's unlikely and we don't try and manage that risk.
+     * Set the update/restore flag, so reconciliation will write blocks it can write and create a
+     * list of skipped updates for blocks it cannot write, along with disk images. This is how
+     * eviction of active, huge pages works: we take a big page and reconcile it into blocks, some
+     * of which we write and discard, the rest of which we re-create as smaller in-memory pages,
+     * (restoring the updates that stopped us from writing the block), and inserting the whole mess
+     * into the page's parent. Set the flag in all cases because the incremental cost of
+     * update/restore in reconciliation is minimal, eviction shouldn't have picked a page where
+     * update/restore is necessary, absent some cache pressure. It's possible updates occurred after
+     * we selected this page for eviction, but it's unlikely and we don't try and manage that risk.
      *
-     * Additionally, if we aren't trying to free space in the cache, scrub
-     * the page and keep it in memory.
+     * Additionally, if we aren't trying to free space in the cache, scrub the page and keep it in
+     * memory.
      */
     cache = conn->cache;
     lookaside_retry = false;
@@ -705,11 +697,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /*
      * Give up on eviction during a checkpoint if the page splits.
      *
-     * We get here if checkpoint reads a page with lookaside entries: if
-     * more of those entries are visible now than when the original
-     * eviction happened, the page could split.  In most workloads, this is
-     * very unlikely.  However, since checkpoint is partway through
-     * reconciling the parent page, a split can corrupt the checkpoint.
+     * We get here if checkpoint reads a page with lookaside entries: if more of those entries are
+     * visible now than when the original eviction happened, the page could split. In most
+     * workloads, this is very unlikely. However, since checkpoint is partway through reconciling
+     * the parent page, a split can corrupt the checkpoint.
      */
     if (WT_SESSION_BTREE_SYNC(session) && page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
         return (__wt_set_return(session, EBUSY));
