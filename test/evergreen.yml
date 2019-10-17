@@ -860,7 +860,7 @@ tasks:
   # "test/suite/run.py [ab]" will be translated to testing "test_a*.py" and "test_b*.py"
 
   - name: unit-test-bucket00
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -875,7 +875,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ab] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket01
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -890,7 +890,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [c] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket02
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -905,7 +905,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket03
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -920,7 +920,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket04
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -935,7 +935,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket05
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -950,7 +950,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket06
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -965,7 +965,7 @@ tasks:
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [t] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket07
-    tags: ["pull_request"]
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1025,6 +1025,22 @@ tasks:
 
             pip install scons==3.1.1
             scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
+
+  - name: scons-check
+    tags: ["pull_request", "windows_only"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            pip install scons==3.1.1
+            scons-3.1.1.bat ${smp_command|} check
 
   - name: fops
     tags: ["pull_request"]
@@ -1247,14 +1263,7 @@ buildvariants:
     python_binary: python3
   tasks:
     - name: compile
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
+    - name: ".unit_test"
     - name: conf-dump-test
 
 - name: rhel80
@@ -1296,15 +1305,8 @@ buildvariants:
   - windows-64-vs2017-test
   tasks:
     - name: compile
-    - name: compile-windows-alt
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
+    - name: ".windows_only"
+    - name: ".unit_test"
     #- name: format  - Enable when we have a solution for hangs and crashses
     - name: fops
 
