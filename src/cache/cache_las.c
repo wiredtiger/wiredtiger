@@ -1426,9 +1426,7 @@ __wt_find_lookaside_upd(
          * have crossed over the desired key and not found the record we are looking for.
          */
         WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
-        if (cmp < 0)
-            continue;
-        else if (cmp > 0)
+        if (cmp != 0)
             break;
 
         /*
