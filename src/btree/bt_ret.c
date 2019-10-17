@@ -68,11 +68,11 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_return --
- *     Change the cursor to reference an internal original-page return value.
+ * __value_return_buf --
+ *     Change a buffer to reference an internal original-page return value.
  */
 static inline int
-__value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *buf)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -91,24 +91,38 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
         rip = &page->pg_row[cbt->slot];
 
         /* Simple values have their location encoded in the WT_ROW. */
-        if (__wt_row_leaf_value(page, rip, &cursor->value))
+        if (__wt_row_leaf_value(page, rip, buf))
             return (0);
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-        return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
+        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     if (page->type == WT_PAGE_COL_VAR) {
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
         __wt_cell_unpack(session, page, cell, &unpack);
-        return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
+        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     /* WT_PAGE_COL_FIX: Take the value from the original page. */
     v = __bit_getv_recno(cbt->ref, cursor->recno, btree->bitcnt);
-    return (__wt_buf_set(session, &cursor->value, &v, 1));
+    return (__wt_buf_set(session, buf, &v, 1));
+}
+
+/*
+ * __value_return --
+ *     Change the cursor to reference an internal original-page return value.
+ */
+static inline int
+__value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+    WT_CURSOR *cursor;
+
+    cursor = &cbt->iface;
+
+    return (__value_return_buf(session, cbt, &cursor->value));
 }
 
 /*
