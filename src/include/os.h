@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-2019 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *      All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -11,7 +11,7 @@
         /*                                                             \
          * A call returning 0 indicates success; any call where        \
          * 0 is not the only successful return must provide an         \
-         * expression evaluating to 0 in all successful	cases.         \
+         * expression evaluating to 0 in all successful cases.         \
          *                                                             \
          * XXX                                                         \
          * Casting the call's return to int is because CentOS 7.3.1611 \
@@ -130,7 +130,7 @@ struct __wt_file_handle_win {
 
 #else
 
-#define USE_MMAP_FOR_IO 1
+#define WT_IO_VIA_MMAP 1
 
 struct __wt_file_handle_posix {
     WT_FILE_HANDLE iface;
@@ -141,7 +141,7 @@ struct __wt_file_handle_posix {
     int fd; /* POSIX file handle */
 
     bool direct_io; /* O_DIRECT configured */
-#if USE_MMAP_FOR_IO
+#if WT_IO_VIA_MMAP
     char  *mmapped_buf;
     size_t mmapped_size;
 #endif
