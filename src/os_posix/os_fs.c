@@ -345,14 +345,14 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-#if USE_MMAP_FOR_IO
+#if WT_IO_VIA_MMAP
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-close: fd=%d\n",
                  file_handle->name, pfh->fd);
 
     if (pfh->mmapped_buf != NULL) {
         /* Do we need to msync here? */
-        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" PRId64 "\n",
-                     file_handle->name, pfh->mmapped_buf, pfh->mmapped_size);
+        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-unmap: buffer=%p, size=%" PRIu64 "\n",
+                     file_handle->name, (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
         WT_RET(munmap(pfh->mmapped_buf, pfh->mmapped_size));
         pfh->mmapped_buf = 0;
         pfh->mmapped_size = 0;
@@ -423,8 +423,8 @@ __posix_file_read(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    __wt_verbose(session, WT_VERB_READ, "read: %s, fd=%d, offset=%" PRId64 ", len=%" PRId64 "\n",
-                 file_handle->name, pfh->fd, offset, len);
+    __wt_verbose(session, WT_VERB_READ, "read: %s, fd=%d, offset=%" PRId64 ", len=%" PRIu64 "\n",
+                 file_handle->name, pfh->fd, offset, (uint64_t)len);
 
     /* Assert direct I/O is aligned and a multiple of the alignment. */
     WT_ASSERT(
@@ -446,6 +446,7 @@ __posix_file_read(
 #if WT_IO_VIA_MMAP
 static int
 __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
+
 /*
  * __posix_file_read_mmap --
  *     Get the buffer from the mmapped region.
@@ -462,31 +463,18 @@ __posix_file_read_mmap(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    (void)session;
-
-#if LOUD
-    printf("read_mmap: from %d, offset=%" PRIu64 ", len= %lu to %p, fh=%p, session=%d\n",
-           pfh->fd, offset, len, buf, (void*)file_handle, session->id);
-#endif
     WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session,
                               &file_size));
-#if LOUD
-    printf("File size is %lld\n", file_size);
-#endif
+    __wt_verbose(session, WT_VERB_READ, "read-mmap: %s, fd=%d, offset=%" PRId64 ","
+                 "len=%" PRIu64 ", mapped buffer: %p, file size=%" PRId64 "\n",
+                 file_handle->name, pfh->fd, offset, (uint64_t)len, (void*)pfh->mmapped_buf, file_size);
 
     if (pfh->mmapped_buf != 0) {
-#if LOUD
-        printf("memcpy from address %p (base %p, offset %" PRIu64 ") "
-               "to %p, %lu bytes\n",
-               (void *)(pfh->mmapped_buf + offset), (void *)pfh->mmapped_buf,
-               offset, buf, len);
-#endif
         memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
         return (0);
     }
     else
         return __posix_file_read(file_handle, wt_session, offset, len, buf);
-
 }
 #endif
 
@@ -571,23 +559,25 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
 
+#if WT_IO_VIA_MMAP
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-#if WT_IO_VIA_MMAP
-
-#if LOUD
-    printf("TRUNCATING FILE: session %d\n", session->id);
-#endif
-    if (pfh->mmapped_buf && (size_t)len < pfh->mmapped_size)
-        if (__posix_remap_region(file_handle, wt_session, len))
-            WT_RET_MSG(session, __wt_errno(), "%s: __posix_remap_region",
-                       file_handle->name);
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: fd=%d, new size=%" PRId64 ","
+                 "mapped buffer size=%" PRId64 "\n",
+                 file_handle->name, pfh->fd, len, pfh->mmapped_size);
 #endif
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
-    if (ret == 0)
+    if (ret == 0) {
+#if WT_IO_VIA_MMAP
+        if (pfh->mmapped_buf && (size_t)len != pfh->mmapped_size)
+            if (__posix_remap_region(file_handle, wt_session, len))
+                WT_RET_MSG(session, __wt_errno(), "%s: __posix_remap_region",
+                           file_handle->name);
+#endif
         return (0);
+    }
     WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
 }
 #endif
