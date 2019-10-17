@@ -1307,7 +1307,6 @@ buildvariants:
     - name: compile
     - name: ".windows_only"
     - name: ".unit_test"
-    #- name: format  - Enable when we have a solution for hangs and crashses
     - name: fops
 
 - name: macos-1012
