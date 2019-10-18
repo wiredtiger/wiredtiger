@@ -544,16 +544,16 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
 {
     WT_DECL_RET;
     WT_ITEM las_value;
-    WT_MODIFY_VECTOR mv;
+    WT_MODIFY_VECTOR modifies;
     WT_UPDATE *next_upd, *start_upd, *upd;
 
     WT_CLEAR(las_value);
-    __wt_modify_vector_init(&mv, session);
+    __wt_modify_vector_init(&modifies, session);
     start_upd = upd = *updp;
     next_upd = start_upd->next;
 
     while (upd->type == WT_UPDATE_MODIFY) {
-        WT_ERR(__wt_modify_vector_push(&mv, upd));
+        WT_ERR(__wt_modify_vector_push(&modifies, upd));
         upd = upd->next;
         /*
          * Our goal here is to squash and write one update in the case where there are multiple
@@ -571,8 +571,8 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
               "found modify update but no corresponding standard update in the update list");
     }
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
-    while (mv.size > 0) {
-        __wt_modify_vector_pop(&mv, &upd);
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
         WT_ERR(__wt_modify_apply_item(session, &las_value, upd->data, false));
     }
     cursor->set_value(
@@ -580,7 +580,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     WT_ERR(cursor->insert(cursor));
 
 err:
-    __wt_modify_vector_free(&mv);
+    __wt_modify_vector_free(&modifies);
     __wt_buf_free(session, &las_value);
     WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
     *updp = next_upd;
@@ -1335,7 +1335,7 @@ __wt_find_lookaside_upd(
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
     WT_ITEM *key, _key;
-    WT_MODIFY_VECTOR mv;
+    WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
@@ -1356,7 +1356,7 @@ __wt_find_lookaside_upd(
     cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
-    __wt_modify_vector_init(&mv, session);
+    __wt_modify_vector_init(&modifies, session);
     txn = &session->txn;
     notused = size = 0;
     las_btree_id = S2BT(session)->id;
@@ -1451,7 +1451,7 @@ __wt_find_lookaside_upd(
             WT_NOT_READ(modify, true);
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, las_value, &mod_upd, &notused, upd_type));
-                WT_ERR(__wt_modify_vector_push(&mv, mod_upd));
+                WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
                 WT_ERR(cursor->prev(cursor));
 #ifdef HAVE_DIAGNOSTIC
@@ -1473,8 +1473,8 @@ __wt_find_lookaside_upd(
                   cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-            while (mv.size > 0) {
-                __wt_modify_vector_pop(&mv, &mod_upd);
+            while (modifies.size > 0) {
+                __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, las_value, mod_upd->data, false));
                 __wt_free_update_list(session, mod_upd);
                 mod_upd = NULL;
@@ -1541,11 +1541,11 @@ err:
 
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
     __wt_free_update_list(session, mod_upd);
-    while (mv.size > 0) {
-        __wt_modify_vector_pop(&mv, &upd);
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
         __wt_free_update_list(session, upd);
     }
-    __wt_modify_vector_free(&mv);
+    __wt_modify_vector_free(&modifies);
 
     if (ret == 0) {
         /* Couldn't find a record. */

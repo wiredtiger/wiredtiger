@@ -157,11 +157,11 @@ err:
  *     Initialise a modify vector.
  */
 void
-__wt_modify_vector_init(WT_MODIFY_VECTOR *mv, WT_SESSION_IMPL *session)
+__wt_modify_vector_init(WT_MODIFY_VECTOR *modifies, WT_SESSION_IMPL *session)
 {
-    WT_CLEAR(*mv);
-    mv->session = session;
-    mv->listp = mv->list;
+    WT_CLEAR(*modifies);
+    modifies->session = session;
+    modifies->listp = modifies->list;
 }
 
 /*
@@ -170,29 +170,30 @@ __wt_modify_vector_init(WT_MODIFY_VECTOR *mv, WT_SESSION_IMPL *session)
  *     vector, we'll be doing malloc here.
  */
 int
-__wt_modify_vector_push(WT_MODIFY_VECTOR *mv, WT_UPDATE *upd)
+__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
 {
     WT_DECL_RET;
     bool migrate_from_stack;
 
     migrate_from_stack = false;
 
-    if (mv->size >= WT_MODIFY_ARRAY_SIZE) {
-        if (mv->capacity == 0 && mv->size == WT_MODIFY_ARRAY_SIZE) {
+    if (modifies->size >= WT_MODIFY_ARRAY_SIZE) {
+        if (modifies->capacity == 0 && modifies->size == WT_MODIFY_ARRAY_SIZE) {
             migrate_from_stack = true;
-            mv->listp = NULL;
+            modifies->listp = NULL;
         }
-        WT_ERR(__wt_realloc_def(mv->session, &mv->capacity, mv->size + 1, &mv->listp));
+        WT_ERR(__wt_realloc_def(
+          modifies->session, &modifies->capacity, modifies->size + 1, &modifies->listp));
         if (migrate_from_stack)
-            memcpy(mv->listp, mv->list, sizeof(mv->list));
+            memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
     }
-    mv->listp[mv->size++] = upd;
+    modifies->listp[modifies->size++] = upd;
     return (0);
 
 err:
-    if (mv->listp == NULL) {
-        mv->listp = mv->list;
-        mv->capacity = 0;
+    if (modifies->listp == NULL) {
+        modifies->listp = modifies->list;
+        modifies->capacity = 0;
     }
     return (ret);
 }
@@ -202,11 +203,11 @@ err:
  *     Pop an update pointer off a modify vector.
  */
 void
-__wt_modify_vector_pop(WT_MODIFY_VECTOR *mv, WT_UPDATE **updp)
+__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
 {
-    WT_ASSERT(mv->session, mv->size > 0);
+    WT_ASSERT(modifies->session, modifies->size > 0);
 
-    *updp = mv->listp[--mv->size];
+    *updp = modifies->listp[--modifies->size];
 }
 
 /*
@@ -215,12 +216,12 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *mv, WT_UPDATE **updp)
  *     the vector and had to fallback to dynamic allocations, we'll be doing a free here.
  */
 void
-__wt_modify_vector_free(WT_MODIFY_VECTOR *mv)
+__wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
 {
-    if (mv->capacity != 0)
-        __wt_free(mv->session, mv->listp);
-    WT_CLEAR(*mv);
-    mv->listp = mv->list;
+    if (modifies->capacity != 0)
+        __wt_free(modifies->session, modifies->listp);
+    WT_CLEAR(*modifies);
+    modifies->listp = modifies->list;
 }
 
 /*
@@ -242,7 +243,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
     WT_ITEM las_key, las_value, next_las_key;
-    WT_MODIFY_VECTOR mv;
+    WT_MODIFY_VECTOR modifies;
     WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
     WT_UPDATE *mod_upd, *upd;
@@ -260,7 +261,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cursor = NULL;
     WT_CLEAR(las_key);
     WT_CLEAR(las_value);
-    __wt_modify_vector_init(&mv, session);
+    __wt_modify_vector_init(&modifies, session);
     page_las = ref->page_las;
     page = ref->page;
     mod_upd = upd = NULL;
@@ -406,15 +407,15 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
              */
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, &las_value, &mod_upd, &notused, upd_type));
-                WT_ERR(__wt_modify_vector_push(&mv, mod_upd));
+                WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
                 WT_ERR(cursor->prev(cursor));
                 WT_ERR(cursor->get_value(
                   cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD || upd_type == WT_UPDATE_TOMBSTONE);
-            while (mv.size > 0) {
-                __wt_modify_vector_pop(&mv, &mod_upd);
+            while (modifies.size > 0) {
+                __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, &las_value, mod_upd->data, false));
                 __wt_free_update_list(session, mod_upd);
                 mod_upd = NULL;
@@ -505,11 +506,11 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
 err:
     __wt_free_update_list(session, mod_upd);
-    while (mv.size > 0) {
-        __wt_modify_vector_pop(&mv, &mod_upd);
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &mod_upd);
         __wt_free_update_list(session, mod_upd);
     }
-    __wt_modify_vector_free(&mv);
+    __wt_modify_vector_free(&modifies);
     if (las_prepare_cnt != 0)
         for (i = 0, las_preparep = las_prepares->mem; i < las_prepare_cnt; i++, las_preparep++)
             __wt_buf_free(session, &las_preparep->key);
