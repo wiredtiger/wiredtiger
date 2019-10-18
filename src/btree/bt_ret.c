@@ -131,13 +131,12 @@ __wt_value_return_upd(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
-    size_t allocated_bytes;
+    WT_MODIFY_VECTOR modifies;
     u_int i;
     bool skipped_birthmark;
 
     cursor = &cbt->iface;
-    allocated_bytes = 0;
+    __wt_modify_vector_init(&modifies, session);
 
     /*
      * We're passed a "standard" or "modified" update that's visible to us. Our caller should have
@@ -161,7 +160,7 @@ __wt_value_return_upd(
     /*
      * Find a complete update that's visible to us, tracking modifications that are visible to us.
      */
-    for (i = 0, listp = list, skipped_birthmark = false; upd != NULL; upd = upd->next) {
+    for (i = 0, skipped_birthmark = false; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -185,14 +184,7 @@ __wt_value_return_upd(
              * room on the stack to avoid memory allocation in normal cases, but we have to handle
              * the edge cases too.
              */
-            if (i >= WT_MODIFY_ARRAY_SIZE) {
-                if (i == WT_MODIFY_ARRAY_SIZE)
-                    listp = NULL;
-                WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
-                if (i == WT_MODIFY_ARRAY_SIZE)
-                    memcpy(listp, list, sizeof(list));
-            }
-            listp[i++] = upd;
+            WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /*
              * Once a modify is found, all previously committed modifications should be applied
@@ -231,12 +223,13 @@ __wt_value_return_upd(
     /*
      * Once we have a base item, roll forward through any visible modify updates.
      */
-    while (i > 0)
-        WT_ERR(__wt_modify_apply(cursor, listp[--i]->data));
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ERR(__wt_modify_apply(cursor, upd->data));
+    }
 
 err:
-    if (allocated_bytes != 0)
-        __wt_free(session, listp);
+    __wt_modify_vector_free(&modifies);
     return (ret);
 }
 
