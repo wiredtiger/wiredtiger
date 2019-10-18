@@ -544,27 +544,16 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
 {
     WT_DECL_RET;
     WT_ITEM las_value;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *next_upd, *start_upd, *upd;
-    size_t allocated_bytes;
-    u_int i;
+    WT_MODIFY_VECTOR mv;
+    WT_UPDATE *next_upd, *start_upd, *upd;
 
     WT_CLEAR(las_value);
-    listp = list;
+    __wt_modify_vector_init(&mv, session);
     start_upd = upd = *updp;
     next_upd = start_upd->next;
-    allocated_bytes = 0;
-    i = 0;
 
     while (upd->type == WT_UPDATE_MODIFY) {
-        /* Leave a reasonable amount of space on the stack for the regular case. */
-        if (i >= WT_MODIFY_ARRAY_SIZE) {
-            if (i == WT_MODIFY_ARRAY_SIZE)
-                listp = NULL;
-            WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
-            if (i == WT_MODIFY_ARRAY_SIZE)
-                memcpy(listp, list, sizeof(list));
-        }
-        listp[i++] = upd;
+        WT_ERR(__wt_modify_vector_push(&mv, upd));
         upd = upd->next;
         /*
          * Our goal here is to squash and write one update in the case where there are multiple
@@ -582,16 +571,17 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
               "found modify update but no corresponding standard update in the update list");
     }
     WT_ERR(__wt_buf_set(session, &las_value, upd->data, upd->size));
-    while (i > 0)
-        WT_ERR(__wt_modify_apply_item(session, &las_value, listp[--i]->data, false));
+    while (mv.size > 0) {
+        __wt_modify_vector_pop(&mv, &upd);
+        WT_ERR(__wt_modify_apply_item(session, &las_value, upd->data, false));
+    }
     cursor->set_value(
       cursor, start_upd->durable_ts, start_upd->prepare_state, WT_UPDATE_STANDARD, &las_value);
     WT_ERR(cursor->insert(cursor));
 
 err:
+    __wt_modify_vector_free(&mv);
     __wt_buf_free(session, &las_value);
-    if (allocated_bytes != 0)
-        __wt_free(session, listp);
     WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
     *updp = next_upd;
     return (ret);
@@ -1349,7 +1339,7 @@ __wt_find_lookaside_upd(
     WT_TXN *txn;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
-    size_t allocated_bytes, notused, size;
+    size_t notused, size;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
@@ -1368,7 +1358,7 @@ __wt_find_lookaside_upd(
     mod_upd = upd = NULL;
     __wt_modify_vector_init(&mv, session);
     txn = &session->txn;
-    allocated_bytes = notused = size = 0;
+    notused = size = 0;
     las_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     WT_NOT_READ(modify, false);
