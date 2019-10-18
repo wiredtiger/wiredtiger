@@ -1345,15 +1345,15 @@ __wt_find_lookaside_upd(
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
     WT_ITEM *key, _key;
+    WT_MODIFY_VECTOR mv;
     WT_TXN *txn;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
+    WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, notused, size;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
-    u_int i;
     int cmp;
     bool modify, sweep_locked;
 
@@ -1365,13 +1365,12 @@ __wt_find_lookaside_upd(
     cache = S2C(session)->cache;
     cursor = NULL;
     key = NULL;
-    upd = NULL;
-    listp = list;
+    mod_upd = upd = NULL;
+    __wt_modify_vector_init(&mv, session);
     txn = &session->txn;
     allocated_bytes = notused = size = 0;
     las_btree_id = S2BT(session)->id;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
-    i = 0;
     WT_NOT_READ(modify, false);
     sweep_locked = false;
 
@@ -1461,15 +1460,9 @@ __wt_find_lookaside_upd(
         if (upd_type == WT_UPDATE_MODIFY) {
             WT_NOT_READ(modify, true);
             while (upd_type == WT_UPDATE_MODIFY) {
-                WT_ERR(__wt_update_alloc(session, las_value, &upd, &notused, upd_type));
-                if (i >= WT_MODIFY_ARRAY_SIZE) {
-                    if (i == WT_MODIFY_ARRAY_SIZE)
-                        listp = NULL;
-                    WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
-                    if (i == WT_MODIFY_ARRAY_SIZE)
-                        memcpy(listp, list, sizeof(list));
-                }
-                listp[i++] = upd;
+                WT_ERR(__wt_update_alloc(session, las_value, &mod_upd, &notused, upd_type));
+                WT_ERR(__wt_modify_vector_push(&mv, mod_upd));
+                mod_upd = NULL;
                 WT_ERR(cursor->prev(cursor));
 #ifdef HAVE_DIAGNOSTIC
                 /*
@@ -1490,10 +1483,11 @@ __wt_find_lookaside_upd(
                   cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-            while (i > 0) {
-                WT_ERR(__wt_modify_apply_item(session, las_value, listp[i - 1]->data, false));
-                __wt_free_update_list(session, listp[i - 1]);
-                --i;
+            while (mv.size > 0) {
+                __wt_modify_vector_pop(&mv, &mod_upd);
+                WT_ERR(__wt_modify_apply_item(session, las_value, mod_upd->data, false));
+                __wt_free_update_list(session, mod_upd);
+                mod_upd = NULL;
             }
             WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
         }
@@ -1556,13 +1550,12 @@ err:
     __wt_scr_free(session, &las_value);
 
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
-
-    if (listp == NULL)
-        listp = list;
-    while (i > 0)
-        __wt_free_update_list(session, listp[--i]);
-    if (allocated_bytes != 0)
-        __wt_free(session, listp);
+    __wt_free_update_list(session, mod_upd);
+    while (mv.size > 0) {
+        __wt_modify_vector_pop(&mv, &upd);
+        __wt_free_update_list(session, upd);
+    }
+    __wt_modify_vector_free(&mv);
 
     if (ret == 0) {
         /* Couldn't find a record. */

@@ -260,6 +260,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cursor = NULL;
     WT_CLEAR(las_key);
     WT_CLEAR(las_value);
+    __wt_modify_vector_init(&mv, session);
     page_las = ref->page_las;
     page = ref->page;
     mod_upd = upd = NULL;
@@ -272,8 +273,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     instantiated_cnt = 0;
     birthmark_record = false;
     locked = false;
-
-    __wt_modify_vector_init(&mv, session);
 
     /* Check whether the disk image contains all the newest versions of the page. */
     if (page_las->min_skipped_ts == WT_TS_MAX) {
