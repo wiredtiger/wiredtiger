@@ -118,11 +118,7 @@ __value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *buf)
 static inline int
 __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
-    WT_CURSOR *cursor;
-
-    cursor = &cbt->iface;
-
-    return (__value_return_buf(session, cbt, &cursor->value));
+    return (__value_return_buf(session, cbt, &cbt->iface.value));
 }
 
 /*
