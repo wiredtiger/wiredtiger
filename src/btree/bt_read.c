@@ -177,8 +177,8 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
 
     migrate_from_stack = false;
 
-    if (modifies->size >= WT_MODIFY_ARRAY_SIZE) {
-        if (modifies->capacity == 0 && modifies->size == WT_MODIFY_ARRAY_SIZE) {
+    if (modifies->size >= WT_MODIFY_VECTOR_STACK_SIZE) {
+        if (modifies->capacity == 0 && modifies->size == WT_MODIFY_VECTOR_STACK_SIZE) {
             migrate_from_stack = true;
             modifies->listp = NULL;
         }

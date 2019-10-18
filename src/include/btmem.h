@@ -1120,17 +1120,17 @@ struct __wt_update {
 #define WT_UPDATE_MEMSIZE(upd) WT_ALIGN(WT_UPDATE_SIZE + (upd)->size, 32)
 
 /*
- * WT_MAX_MODIFY_UPDATE, WT_MODIFY_ARRAY_SIZE
+ * WT_MAX_MODIFY_UPDATE, WT_MODIFY_VECTOR_STACK_SIZE
  *	Limit update chains value to avoid penalizing reads and permit truncation. Having a smaller
  * value will penalize the cases when history has to be maintained, resulting in multiplying cache
  * pressure.
  *
  * When threads race modifying a record, we can end up with more than the usual maximum number of
- * modifications in an update list. We use arrays of updates in a couple of places to avoid heap
- * allocation, add a few additional slots to that array.
+ * modifications in an update list. We use small vectors of modify updates in a couple of places to
+ * avoid heap allocation, add a few additional slots to that array.
  */
 #define WT_MAX_MODIFY_UPDATE 10
-#define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE + 10)
+#define WT_MODIFY_VECTOR_STACK_SIZE (WT_MAX_MODIFY_UPDATE + 10)
 
 /*
  * WT_MODIFY_VECTOR --
@@ -1140,7 +1140,7 @@ struct __wt_update {
  */
 struct __wt_modify_vector {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE];
+    WT_UPDATE *list[WT_MODIFY_VECTOR_STACK_SIZE];
     WT_UPDATE **listp;
     size_t capacity;
     size_t size;
