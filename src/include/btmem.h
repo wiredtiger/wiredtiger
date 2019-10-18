@@ -1133,6 +1133,20 @@ struct __wt_update {
 #define WT_MODIFY_ARRAY_SIZE (WT_MAX_MODIFY_UPDATE + 10)
 
 /*
+ * WT_MODIFY_VECTOR --
+ * 	A resizable array for storing modify updates. The allocation strategy is similar to that of
+ *	llvm::SmallVector<T> where we keep space on the stack for the regular case but fall back to
+ *	dynamic allocation as needed.
+ */
+struct __wt_modify_vector {
+    WT_SESSION_IMPL *session;
+    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE];
+    WT_UPDATE **listp;
+    size_t capacity;
+    size_t size;
+};
+
+/*
  * WT_MODIFY_MEM_FRACTION
  *	Limit update chains to a fraction of the base document size.
  */

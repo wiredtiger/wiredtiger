@@ -1065,6 +1065,8 @@ extern int __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, cons
   bool sformat) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int nentries)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_modify_vector_push(WT_MODIFY_VECTOR *mv, WT_UPDATE *upd)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 2, 3)))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1668,6 +1670,9 @@ extern void __wt_meta_track_discard(WT_SESSION_IMPL *session);
 extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
+extern void __wt_modify_vector_free(WT_MODIFY_VECTOR *mv);
+extern void __wt_modify_vector_init(WT_MODIFY_VECTOR *mv, WT_SESSION_IMPL *session);
+extern void __wt_modify_vector_pop(WT_MODIFY_VECTOR *mv, WT_UPDATE **updp);
 extern void __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern void __wt_optrack_record_funcid(
   WT_SESSION_IMPL *session, const char *func, uint16_t *func_idp);

@@ -153,6 +153,77 @@ err:
 }
 
 /*
+ * __wt_modify_vector_init --
+ *     Initialise a modify vector.
+ */
+void
+__wt_modify_vector_init(WT_MODIFY_VECTOR *mv, WT_SESSION_IMPL *session)
+{
+    WT_CLEAR(*mv);
+    mv->session = session;
+    mv->listp = mv->list;
+}
+
+/*
+ * __wt_modify_vector_push --
+ *     Push a modify update pointer to a modify vector. If we exceed the allowed stack space in the
+ *     vector, we'll be doing malloc here.
+ */
+int
+__wt_modify_vector_push(WT_MODIFY_VECTOR *mv, WT_UPDATE *upd)
+{
+    WT_DECL_RET;
+    bool migrate_from_stack;
+
+    migrate_from_stack = false;
+
+    if (mv->size >= WT_MODIFY_ARRAY_SIZE) {
+        if (mv->capacity == 0 && mv->size == WT_MODIFY_ARRAY_SIZE) {
+            migrate_from_stack = true;
+            mv->listp = NULL;
+        }
+        WT_ERR(__wt_realloc_def(mv->session, &mv->capacity, mv->size + 1, &mv->listp));
+        if (migrate_from_stack)
+            memcpy(mv->listp, mv->list, sizeof(mv->list));
+    }
+    mv->listp[mv->size++] = upd;
+    return (0);
+
+err:
+    if (mv->listp == NULL) {
+        mv->listp = mv->list;
+        mv->capacity = 0;
+    }
+    return (ret);
+}
+
+/*
+ * __wt_modify_vector_pop --
+ *     Pop an update pointer off a modify vector.
+ */
+void
+__wt_modify_vector_pop(WT_MODIFY_VECTOR *mv, WT_UPDATE **updp)
+{
+    WT_ASSERT(mv->session, mv->size > 0);
+
+    *updp = mv->listp[--mv->size];
+}
+
+/*
+ * __wt_modify_vector_free --
+ *     Free any resources associated with a modify vector. If we exceeded the allowed stack space on
+ *     the vector and had to fallback to dynamic allocations, we'll be doing a free here.
+ */
+void
+__wt_modify_vector_free(WT_MODIFY_VECTOR *mv)
+{
+    if (mv->capacity != 0)
+        __wt_free(mv->session, mv->listp);
+    WT_CLEAR(*mv);
+    mv->listp = mv->list;
+}
+
+/*
  * __las_page_instantiate --
  *     Instantiate lookaside update records that are not on disk image in a recently read page.
  */
@@ -171,9 +242,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
     WT_ITEM las_key, las_value, next_las_key;
+    WT_MODIFY_VECTOR mv;
     WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
-    WT_UPDATE *list[WT_MODIFY_ARRAY_SIZE], **listp, *upd;
+    WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, las_timestamp;
     size_t allocated_bytes, notused, size, total_incr;
     uint64_t birthmark_cnt, las_txnid, recno;
@@ -189,8 +261,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CLEAR(las_key);
     page_las = ref->page_las;
     page = ref->page;
-    listp = list;
-    upd = NULL;
+    mod_upd = upd = NULL;
     allocated_bytes = 0;
     birthmark_cnt = 0;
     recno = WT_RECNO_OOB;
@@ -200,6 +271,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     instantiated_cnt = 0;
     birthmark_record = false;
     locked = false;
+
+    __wt_modify_vector_init(&mv, session);
 
     /* Check whether the disk image contains all the newest versions of the page. */
     if (page_las->min_skipped_ts == WT_TS_MAX) {
@@ -332,25 +405,19 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
              * replacing it with.
              */
             while (upd_type == WT_UPDATE_MODIFY) {
-                if (mod_counter >= WT_MODIFY_ARRAY_SIZE) {
-                    if (mod_counter == WT_MODIFY_ARRAY_SIZE)
-                        listp = NULL;
-                    WT_ERR(__wt_realloc_def(session, &allocated_bytes, mod_counter + 1, &listp));
-                    if (mod_counter == WT_MODIFY_ARRAY_SIZE)
-                        memcpy(listp, list, sizeof(list));
-                }
-                WT_ERR(__wt_update_alloc(
-                  session, &las_value, &listp[mod_counter++], &notused, upd_type));
+                WT_ERR(__wt_update_alloc(session, &las_value, &mod_upd, &notused, upd_type));
+                WT_ERR(__wt_modify_vector_push(&mv, mod_upd));
+                mod_upd = NULL;
                 WT_ERR(cursor->prev(cursor));
                 WT_ERR(cursor->get_value(
                   cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD || upd_type == WT_UPDATE_TOMBSTONE);
-            while (mod_counter > 0) {
-                WT_ERR(
-                  __wt_modify_apply_item(session, &las_value, listp[mod_counter - 1]->data, false));
-                __wt_free_update_list(session, listp[mod_counter - 1]);
-                --mod_counter;
+            while (mv.size > 0) {
+                __wt_modify_vector_pop(&mv, &mod_upd);
+                WT_ERR(__wt_modify_apply_item(session, &las_value, mod_upd->data, false));
+                __wt_free_update_list(session, mod_upd);
+                mod_upd = NULL;
                 /*
                  * We had to do some backtracking to construct this update. Unwind back to where we
                  * were before.
@@ -437,12 +504,12 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_buf_free(session, &page_las->min_las_key);
 
 err:
-    if (listp == NULL)
-        listp = list;
-    while (mod_counter > 0)
-        __wt_free_update_list(session, listp[--mod_counter]);
-    if (allocated_bytes != 0)
-        __wt_free(session, listp);
+    __wt_free_update_list(session, mod_upd);
+    while (mv.size > 0) {
+        __wt_modify_vector_pop(&mv, &mod_upd);
+        __wt_free_update_list(session, mod_upd);
+    }
+    __wt_modify_vector_free(&mv);
     if (las_prepare_cnt != 0)
         for (i = 0, las_preparep = las_prepares->mem; i < las_prepare_cnt; i++, las_preparep++)
             __wt_buf_free(session, &las_preparep->key);
