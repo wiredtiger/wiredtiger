@@ -259,6 +259,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cache = S2C(session)->cache;
     cursor = NULL;
     WT_CLEAR(las_key);
+    WT_CLEAR(las_value);
     page_las = ref->page_las;
     page = ref->page;
     mod_upd = upd = NULL;
