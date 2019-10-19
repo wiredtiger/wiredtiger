@@ -809,26 +809,19 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (prepare) {
         if (!F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
-            WT_ERR_MSG(session, EINVAL,
-              "commit_timestamp is required for a prepared "
-              "transaction");
+            WT_ERR_MSG(session, EINVAL, "commit_timestamp is required for a prepared transaction");
 
         if (!F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-            WT_ERR_MSG(session, EINVAL,
-              "durable_timestamp is required for a prepared "
-              "transaction");
+            WT_ERR_MSG(session, EINVAL, "durable_timestamp is required for a prepared transaction");
 
         WT_ASSERT(session, txn->prepare_timestamp <= txn->commit_timestamp);
     } else {
         if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
-            WT_ERR_MSG(session, EINVAL,
-              "prepare timestamp is set for non-prepared "
-              "transaction");
+            WT_ERR_MSG(session, EINVAL, "prepare timestamp is set for non-prepared transaction");
 
         if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
             WT_ERR_MSG(session, EINVAL,
-              "durable_timestamp should not be specified for "
-              "non-prepared transaction");
+              "durable_timestamp should not be specified for non-prepared transaction");
     }
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT))
@@ -942,25 +935,21 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
                 __wt_txn_op_set_timestamp(session, op);
             } else {
-                visited_update_count++;
                 /*
                  * If we have set the key repeated flag we can skip resolving prepared updates as it
                  * would have happened on a previous modification in this txn.
                  */
-                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
                     WT_ERR(__wt_txn_resolve_prepared_op(session, op, true, &resolved_update_count));
-                }
 
                 /*
-                 * We should resolve at least one or more
-                 * updates each time we call
-                 * __wt_txn_resolve_prepared_op, as such
-                 * resolved update count should never be less
-                 * than visited update count.
+                 * We should resolve at least one or more updates each time we call the underlying
+                 * prepared-op function, as such resolved update count should never be less visited
+                 * update count.
                  */
+                visited_update_count++;
                 WT_ASSERT(session, resolved_update_count >= visited_update_count);
             }
-
             break;
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_set_timestamp(session, op);
@@ -973,8 +962,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
         __wt_txn_op_free(session, op);
     }
-    WT_ERR_ASSERT(session, resolved_update_count == visited_update_count,
-      EINVAL,
+    WT_ERR_ASSERT(session, resolved_update_count == visited_update_count, EINVAL,
       "Number of resolved prepared updates: %" PRId64 " does not match number visited: %" PRId64,
       resolved_update_count, visited_update_count);
     WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved, resolved_update_count);
@@ -1137,14 +1125,11 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * update with our txnid after the reserved update we should set key repeated, but if
              * there isn't we shouldn't.
              */
-            tmp = upd->next;
-            while (tmp != NULL && tmp->txnid == upd->txnid) {
+            for (tmp = upd->next; tmp != NULL && tmp->txnid == upd->txnid; tmp = tmp->next)
                 if (tmp->type != WT_UPDATE_RESERVE) {
                     F_SET(op, WT_TXN_OP_KEY_REPEATED);
                     break;
                 }
-                tmp = tmp->next;
-            }
             break;
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_apply_prepare_state(session, op->u.ref, false);
@@ -1259,10 +1244,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
         __wt_txn_op_free(session, op);
     }
-    WT_RET_ASSERT(session, resolved_update_count == visited_update_count,
-      EINVAL, "Number of resolved prepared updates: %" PRId64
-              " does not match"
-              " number visited: %" PRId64,
+    WT_RET_ASSERT(session, resolved_update_count == visited_update_count, EINVAL,
+      "Number of resolved prepared updates: %" PRId64 " does not match number visited: %" PRId64,
       resolved_update_count, visited_update_count);
     WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved, resolved_update_count);
 
