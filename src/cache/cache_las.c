@@ -1272,6 +1272,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
         /* Don't remove the non obsolete entry. */
         if (las_timestamp > S2C(session)->txn_global.oldest_timestamp ||
+          las_timestamp > S2C(session)->txn_global.last_ckpt_timestamp ||
           prepare_state == WT_PREPARE_INPROGRESS) {
             /*
              * TODO: In case if there exists any pending remove count records that can be removed,
