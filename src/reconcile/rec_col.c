@@ -761,7 +761,7 @@ __wt_rec_col_var(
                 ins = WT_SKIP_NEXT(ins);
             }
 
-            update_no_copy = true; /* No data copy */
+            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
             repeat_count = 1;      /* Single record */
             deleted = false;
 
@@ -976,8 +976,8 @@ compare:
             stop_txn = upd_select.stop_txn;
         }
         while (src_recno <= n) {
+            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
             deleted = false;
-            update_no_copy = true;
 
             /*
              * The application may have inserted records which left gaps in the name space, and
