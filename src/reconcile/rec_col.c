@@ -762,7 +762,7 @@ __wt_rec_col_var(
             }
 
             update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
-            repeat_count = 1;      /* Single record */
+            repeat_count = 1;                              /* Single record */
             deleted = false;
 
             if (upd != NULL) {
