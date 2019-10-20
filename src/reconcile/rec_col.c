@@ -449,16 +449,13 @@ __wt_rec_col_fix_slvg(
     page = pageref->page;
 
     /*
-     * !!!
-     * It's vanishingly unlikely and probably impossible for fixed-length
-     * column-store files to have overlapping key ranges.  It's possible
-     * for an entire key range to go missing (if a page is corrupted and
-     * lost), but because pages can't split, it shouldn't be possible to
-     * find pages where the key ranges overlap.  That said, we check for
-     * it during salvage and clean up after it here because it doesn't
-     * cost much and future column-store formats or operations might allow
-     * for fixed-length format ranges to overlap during salvage, and I
-     * don't want to have to retrofit the code later.
+     * It's vanishingly unlikely and probably impossible for fixed-length column-store files to have
+     * overlapping key ranges. It's possible for an entire key range to go missing (if a page is
+     * corrupted and lost), but because pages can't split, it shouldn't be possible to find pages
+     * where the key ranges overlap. That said, we check for it during salvage and clean up after it
+     * here because it doesn't cost much and future column-store formats or operations might allow
+     * for fixed-length format ranges to overlap during salvage, and I don't want to have to
+     * retrofit the code later.
      */
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage));
 
@@ -900,17 +897,12 @@ compare:
              */
             if (!deleted) {
                 /*
-                 * We can't simply assign the data values into
-                 * the last buffer because they may have come
-                 * from a copy built from an encoded/overflow
-                 * cell and creating the next record is going
-                 * to overwrite that memory.  Check, because
-                 * encoded/overflow cells aren't that common
-                 * and we'd like to avoid the copy.  If data
-                 * was taken from the current unpack structure
-                 * (which points into the page), or was taken
-                 * from an update structure, we can just use
-                 * the pointers, they're not moving.
+                 * We can't simply assign the data values into the last buffer because they may have
+                 * come from a copy built from an encoded/overflow cell and creating the next record
+                 * is going to overwrite that memory. Check, because encoded/overflow cells aren't
+                 * that common and we'd like to avoid the copy. If data was taken from the current
+                 * unpack structure (which points into the page), or was taken from an update
+                 * structure, we can just use the pointers, they're not moving.
                  */
                 if (data == vpack->data || update_no_copy) {
                     last.value->data = data;
