@@ -284,8 +284,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE **srch_upd
 
     WT_PAGE_UNLOCK(session, page);
 
-    if (obsolete != NULL)
-        __wt_free_update_list(session, obsolete);
+    __wt_free_update_list(session, &obsolete);
 
     return (0);
 }

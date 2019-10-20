@@ -522,7 +522,7 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
                 upd = tmp_upd;
             } else {
                 WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
-                __wt_free_update_list(session, tmp_upd);
+                __wt_free_update_list(session, &tmp_upd);
             }
         }
     }

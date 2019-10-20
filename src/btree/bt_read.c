@@ -28,7 +28,7 @@ __col_instantiate(
      */
     if (updlist->next != NULL &&
       (upd = __wt_update_obsolete_check(session, page, updlist, false)) != NULL)
-        __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
 
     /* Search the page and add updates. */
     WT_RET(__wt_col_search(session, recno, ref, cbt, true));
@@ -56,7 +56,7 @@ __row_instantiate(
      */
     if (updlist->next != NULL &&
       (upd = __wt_update_obsolete_check(session, page, updlist, false)) != NULL)
-        __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
 
     /* Search the page and add updates. */
     WT_RET(__wt_row_search(session, key, ref, cbt, true, true));
@@ -362,7 +362,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             while (mod_counter > 0) {
                 WT_ERR(
                   __wt_modify_apply_item(session, &las_value, listp[mod_counter - 1]->data, false));
-                __wt_free_update_list(session, listp[mod_counter - 1]);
+                __wt_free_update_list(session, &listp[mod_counter - 1]);
                 --mod_counter;
                 /*
                  * We had to do some backtracking to construct this update. Unwind back to where we
@@ -454,7 +454,7 @@ err:
     if (listp == NULL)
         listp = list;
     while (mod_counter > 0)
-        __wt_free_update_list(session, listp[--mod_counter]);
+        __wt_free_update_list(session, &listp[--mod_counter]);
     if (allocated_bytes != 0)
         __wt_free(session, listp);
     if (las_prepare_cnt != 0)

@@ -692,8 +692,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         WT_WITH_BTREE(
           session, btree, upd = __wt_update_obsolete_check(session, page, first_upd, true));
-        if (upd != NULL)
-            __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
         upd = first_upd;
 
         /*
@@ -1494,7 +1493,7 @@ __wt_find_lookaside_upd(
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
             while (i > 0) {
                 WT_ERR(__wt_modify_apply_item(session, las_value, listp[i - 1]->data, false));
-                __wt_free_update_list(session, listp[i - 1]);
+                __wt_free_update_list(session, &listp[i - 1]);
                 --i;
             }
             WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
@@ -1562,7 +1561,7 @@ err:
     if (listp == NULL)
         listp = list;
     while (i > 0)
-        __wt_free_update_list(session, listp[--i]);
+        __wt_free_update_list(session, &listp[--i]);
     if (allocated_bytes != 0)
         __wt_free(session, listp);
 

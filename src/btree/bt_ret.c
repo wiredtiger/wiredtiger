@@ -139,7 +139,7 @@ __wt_value_return_upd(
         if (upd->ext == 1) {
             /* Copy an external update, and delete after using it */
             WT_RET(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
-            __wt_free_update_list(session, upd);
+            __wt_free_update_list(session, &upd);
         } else {
             cursor->value.data = upd->data;
             cursor->value.size = upd->size;

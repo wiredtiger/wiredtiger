@@ -118,7 +118,7 @@ err:
  */
 static int
 __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *las_positioned,
-  WT_CURSOR *las_cursor, uint32_t btree_id, WT_ITEM *key, WT_UPDATE **upd)
+  WT_CURSOR *las_cursor, uint32_t btree_id, WT_ITEM *key, WT_UPDATE **updp)
 {
     WT_DECL_ITEM(las_key);
     WT_DECL_ITEM(las_value);
@@ -133,9 +133,9 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
     las_timestamp = las_txnid = 0;
     use_las_rec = false;
 
-    /* Free an external update to start with */
-    if (*upd != NULL && (*upd)->ext == 1)
-        __wt_free_update_list(session, *upd);
+    /* Free any external update we're holding. */
+    if (*updp != NULL && (*updp)->ext == 1)
+        __wt_free_update_list(session, updp);
 
     /* Determine whether to use lookaside or an in-memory update. */
     if (*las_positioned) {
@@ -175,16 +175,16 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
           las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
         WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK);
 
-        /* Allocate an update structure for the record found. */
-        WT_ERR(__wt_update_alloc(session, las_value, upd, &not_used, upd_type));
-        (*upd)->txnid = las_txnid;
-        (*upd)->durable_ts = durable_timestamp;
-        (*upd)->start_ts = las_timestamp;
-        (*upd)->prepare_state = prepare_state;
         /*
-         * Mark this update as external and to be discarded when not needed.
+         * Allocate an update structure for the record found. Mark this update as external and to be
+         * discarded when not needed.
          */
-        (*upd)->ext = 1;
+        WT_ERR(__wt_update_alloc(session, las_value, updp, &not_used, upd_type));
+        (*updp)->txnid = las_txnid;
+        (*updp)->durable_ts = durable_timestamp;
+        (*updp)->start_ts = las_timestamp;
+        (*updp)->prepare_state = prepare_state;
+        (*updp)->ext = 1;
 
         ret = las_cursor->prev(las_cursor);
         if (ret == WT_NOTFOUND) {
@@ -194,7 +194,7 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
         WT_ERR(ret);
     } else {
 inmem:
-        *upd = *inmem_upd_pos;
+        *updp = *inmem_upd_pos;
         if (*inmem_upd_pos != NULL)
             *inmem_upd_pos = (*inmem_upd_pos)->next;
     }
