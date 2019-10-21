@@ -455,6 +455,7 @@ __posix_file_read_mmap(
   WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset,
   size_t len, void *buf)
 {
+    char *mapped_buf;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
 
@@ -466,8 +467,15 @@ __posix_file_read_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
 
-    if (pfh->mmapped_buf != 0 && pfh->mmapped_size <= (size_t)offset + len) {
-        memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
+    /*
+     * Someone might be trying to remap the buffer underneath us. That is okay,
+     * because remapping will only use the same address as the old mapped buffer,
+     * We are relying on the artifact of the current implementation that if there
+     * is a concurrent truncate, no reads will try to read beyond the truncate point.
+     */
+    WT_ORDERED_READ(mapped_buf, pfh->mmapped_buf);
+    if (mapped_buf != 0 && pfh->mmapped_size <= (size_t)offset + len) {
+        memcpy(buf, (void *)(mapped_buf + offset), len);
         return (0);
     }
     else
@@ -501,7 +509,7 @@ __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t 
 /*
  * __posix_file_sync --
  *     POSIX fsync.
- */
+S */
 static int
 __posix_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
@@ -559,15 +567,15 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 #if WT_IO_VIA_MMAP
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: fd=%d, new size=%" PRId64 ","
-                 "mapped buffer size=%" PRIu64 "\n",
-                 file_handle->name, pfh->fd, len, (uint64_t)pfh->mmapped_size);
 #endif
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
     if (ret == 0) {
 #if WT_IO_VIA_MMAP
+        __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: fd=%d, new size=%" PRId64 ","
+                     "mapped buffer size=%" PRIu64 "\n",
+                     file_handle->name, pfh->fd, len, (uint64_t)pfh->mmapped_size);
+
         if (pfh->mmapped_buf && (size_t)len != pfh->mmapped_size)
             if (__posix_remap_region(file_handle, wt_session, len))
                 WT_RET_MSG(session, __wt_errno(), "%s: __posix_remap_region",
@@ -628,10 +636,10 @@ __posix_file_write_mmap(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset,
     size_t len, const void *buf)
 {
-
+    char *mapped_buf;
+    WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    wt_off_t file_size;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -641,33 +649,36 @@ __posix_file_write_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
 
-    if (pfh->mmapped_buf != NULL) {
+    WT_ORDERED_READ(mapped_buf, pfh->mmapped_buf);
+    if (mapped_buf != NULL) {
         if (pfh->mmapped_size < (size_t)offset + len) {
-            /*
-             * We are growing the file, but the mmapped buffer is not
-             * large enough. Extend the file and remap the buffer.
-             */
+
             __wt_verbose(session, WT_VERB_FILEOPS, "write-mmap: %s, fd=%d, "
                          "mmapped size = %" PRIu64 " won't fit the write at offset="
-			 "%" PRId64 ", len=%" PRIu64 "\n", file_handle->name, pfh->fd,
-			 (uint64_t)pfh->mmapped_size, offset, (uint64_t)len);
+                         "%" PRId64 ", len=%" PRIu64 "\n", file_handle->name, pfh->fd,
+                         (uint64_t)pfh->mmapped_size, offset, (uint64_t)len);
 
-            if (__wt_posix_file_extend(file_handle, wt_session,
-                                       offset+(wt_off_t)len) !=0) {
-                WT_RET_MSG(session, __wt_errno(),
-                           "%s: write-mmap: failed to extend file to %" PRIu64 " bytes\n",
-                           file_handle->name, (uint64_t)offset+len);
-            }
-
-            WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session,
-                                          &file_size));
+             /*
+             * We are asked to write beyond the sized of the mapped buffer.
+             * Do the regular write so it extends the file.
+             * Then remap the buffer.
+             */
+            if ((ret = __posix_file_write(file_handle, wt_session, offset, len, buf)) < 0)
+                return ret;
 
             /* Remap the region */
-            if(__posix_remap_region(file_handle, wt_session, file_size))
+            if(__posix_remap_region(file_handle, wt_session, offset+(off_t)len))
                 WT_RET_MSG(session, __wt_errno(), "%s:  __posix_remap_region",
-                       file_handle->name);
+                           file_handle->name);
+            return (0);
         }
-        memcpy( (void*)(pfh->mmapped_buf + offset), buf, len);
+        /*
+         * Someone might be trying to remap the buffer underneath us. That is okay,
+         * because remapping will only use the same address as the old mapped buffer.
+         * We are relying on the artifact of the current implementation that truncates
+         * and writes are sequential with respect to each other.
+         */
+        memcpy( (void*)(mapped_buf + offset), buf, len);
         return (0);
     }
     else
@@ -868,7 +879,11 @@ directory_open:
     if (!pfh->direct_io)
         file_handle->fh_advise = __posix_file_advise;
 #endif
+#if WT_IO_VIA_MMAP
+    file_handle->fh_extend = NULL;
+#else
     file_handle->fh_extend = __wt_posix_file_extend;
+#endif
     file_handle->fh_lock = __posix_file_lock;
 #ifdef WORDS_BIGENDIAN
 /*
@@ -918,29 +933,38 @@ err:
  *     Remap the region to reflect the new file size.
  */
 static int
-__posix_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
-                     off_t len)
+__posix_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, off_t len)
 {
-    char *old_mapped_buf;
+    char *old_mapped_buf, *new_mapped_buf;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+    /* If someone else is trying to remap the buffer concurrently, we are done. */
+    old_mapped_buf = pfh->mmapped_buf;
+    if (!__wt_atomic_cas_ptr(&pfh->mmapped_buf, old_mapped_buf, NULL))
+        return 0;
+
     __wt_verbose(session, WT_VERB_FILEOPS, "remap-region: %s, mapped_size=%lu, "
                  "new size = %" PRIu64 "\n", file_handle->name, pfh->mmapped_size, (uint64_t)len);
 
-    old_mapped_buf = pfh->mmapped_buf;
-    if (munmap(pfh->mmapped_buf, pfh->mmapped_size))
-        WT_RET_MSG(session, __wt_errno(),
-                   "%s: memory-unmap: munmap, %p",
-                   file_handle->name, (void*)pfh->mmapped_buf);
-    if ((pfh->mmapped_buf = mmap(old_mapped_buf, (size_t)len, PROT_WRITE | PROT_READ,
-                                 MAP_FILE | MAP_SHARED, pfh->fd, 0)) == MAP_FAILED)
+    /*
+     * We are asking to map the new buffer with the MAP_FIXED flag. We are remapping the same file,
+     * just asking to extend its size, so we want the mapped file to be placed at exactly the same
+     * address as the previous mapping. Readers and writers can thus use the mapped buffer address
+     * for memory-mapped I/O as we are remapping the region.
+     */
+    if ((new_mapped_buf = mmap(old_mapped_buf, (size_t)len, PROT_WRITE | PROT_READ,
+                                 MAP_FILE | MAP_SHARED | MAP_FIXED, pfh->fd, 0)) == MAP_FAILED)
         WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", file_handle->name);
 
+    WT_ASSERT(session, new_mapped_buf == old_mapped_buf);
+
     pfh->mmapped_size = (size_t)len;
+    WT_PUBLISH(pfh->mmapped_buf, new_mapped_buf);
+
     return 0;
 }
 #endif
