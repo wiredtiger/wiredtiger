@@ -95,6 +95,8 @@ class CapturedFd(object):
         file.  If there is, raise it as a test failure.
         This is generally called after 'release' is called.
         """
+        if WiredTigerTestCase._ignoreStdout:
+            return
         if self.file != None:
             self.file.flush()
         filesize = os.path.getsize(self.filename)
@@ -184,7 +186,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False):
+                    longtest = False, ignoreStdout = False):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -200,6 +202,7 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
         WiredTigerTestCase._verbose = verbose
+        WiredTigerTestCase._ignoreStdout = ignoreStdout
         WiredTigerTestCase._dupout = os.dup(sys.stdout.fileno())
         WiredTigerTestCase._stdout = sys.stdout
         WiredTigerTestCase._stderr = sys.stderr
@@ -246,6 +249,9 @@ class WiredTigerTestCase(unittest.TestCase):
     def simpleName(self):
         return "%s.%s.%s" %  (self.__module__,
                               self.className(), self._testMethodName)
+
+    def buildDirectory(self):
+        return self._builddir
 
     # Return the wiredtiger_open extension argument for
     # any needed shared library.
@@ -523,20 +529,33 @@ class WiredTigerTestCase(unittest.TestCase):
         """
         Like TestCase.assertRaises(), with some additional options.
         If the exceptionString argument is used, the exception's string
-        must match it. If optional is set, then no assertion occurs
-        if the exception doesn't occur.
+        must match it, or its pattern if the string starts and ends with
+        a slash. If optional is set, then no assertion occurs if the
+        exception doesn't occur.
         Returns true if the assertion is raised.
         """
         raised = False
         try:
             expr()
         except BaseException as err:
+            self.pr('Exception raised shown as string: "' + \
+                    str(err) + '"')
             if not isinstance(err, exceptionType):
                 self.fail('Exception of incorrect type raised, got type: ' + \
                     str(type(err)))
-            if exceptionString != None and exceptionString != str(err):
-                self.fail('Exception with incorrect string raised, got: "' + \
-                    str(err) + '"')
+            if exceptionString != None:
+                # Match either a pattern or an exact string.
+                fail = False
+                self.pr('Expecting string msg: ' + exceptionString)
+                if len(exceptionString) > 2 and \
+                  exceptionString[0] == '/' and exceptionString[-1] == '/' :
+                      if re.search(exceptionString[1:-1], str(err)) == None:
+                        fail = True
+                elif exceptionString != str(err):
+                        fail = True
+                if fail:
+                    self.fail('Exception with incorrect string raised, got: "' + \
+                        str(err) + '" Expected: ' + exceptionString)
             raised = True
         if not raised and not optional:
             self.fail('no assertion raised')
@@ -544,12 +563,13 @@ class WiredTigerTestCase(unittest.TestCase):
 
     def raisesBusy(self, expr):
         """
-        Execute the expression, returning true if a 'Resource busy'
-        exception is raised, returning false if no exception is raised.
+        Execute the expression, returning true if a 'Resource busy' exception
+        is raised, returning false if no exception is raised. Some systems
+        report 'Device or resource busy', allow either.
         Any other exception raises a test suite failure.
         """
         return self.assertRaisesException(wiredtiger.WiredTigerError, \
-            expr, exceptionString='Resource busy', optional=True)
+            expr, exceptionString='/[Rr]esource busy/', optional=True)
 
     def assertTimestampsEqual(self, ts1, ts2):
         """

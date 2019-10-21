@@ -2,7 +2,7 @@
 # message code in strerror.c.
 
 import re, textwrap
-from dist import compare_srcfile
+from dist import compare_srcfile, format_srcfile
 
 class Error:
     def __init__(self, name, value, desc, long_desc=None, **flags):
@@ -67,8 +67,10 @@ errors = [
     Error('WT_TRY_SALVAGE', -31809,
         'database corruption detected', '''
         This error is generated when corruption is detected in an on-disk file.
-        The application may choose to salvage the file or retry wiredtiger_open
-        with the 'salvage=true' configuration setting.'''),
+        During normal operations, this may occur in rare circumstances as a
+        result of a system crash. The application may choose to salvage the
+        file or retry wiredtiger_open with the 'salvage=true' configuration
+        setting.'''),
 ]
 
 # Update the #defines in the wiredtiger.in file.
@@ -165,6 +167,7 @@ wiredtiger_strerror(int error)
 }
 ''')
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, '../src/conn/api_strerror.c')
 
 # Update the error documentation block.
@@ -189,4 +192,5 @@ for line in open(doc, 'r'):
                 '@par <code>' + err.name.upper() + '</code>\n' +
                 " ".join(err.long_desc.split()) + '\n\n')
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, doc)

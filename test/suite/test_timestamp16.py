@@ -42,6 +42,7 @@ def timestamp_str(t):
 class test_timestamp16(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp16'
     uri = 'table:' + tablename
+    session_config = 'isolation=snapshot'
 
     def test_read_timestamp_cleared(self):
         # Ensure that the read timestamp doesn't move our checkpoint.
@@ -49,25 +50,21 @@ class test_timestamp16(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.begin_transaction('read_timestamp=100')
         self.session.rollback_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('0',
-            self.conn.query_timestamp('get=last_checkpoint'))
+        self.assertTimestampsEqual('0', self.conn.query_timestamp('get=last_checkpoint'))
 
-        # Set a stable and make sure that we still checkpoint at
-        # the stable.
-        self.conn.set_timestamp('stable_timestamp=1')
+        # Set a stable and make sure that we still checkpoint at the stable.
+        self.conn.set_timestamp('stable_timestamp=2')
         self.session.begin_transaction('read_timestamp=100')
         self.session.rollback_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('1',
-            self.conn.query_timestamp('get=last_checkpoint'))
+        self.assertTimestampsEqual('2', self.conn.query_timestamp('get=last_checkpoint'))
 
         # Finally make sure that commit also resets the read timestamp.
         self.session.create(self.uri, 'key_format=i,value_format=i')
         self.session.begin_transaction('read_timestamp=150')
         self.session.commit_transaction()
         self.session.checkpoint('use_timestamp=true')
-        self.assertTimestampsEqual('1',
-            self.conn.query_timestamp('get=last_checkpoint'))
+        self.assertTimestampsEqual('2', self.conn.query_timestamp('get=last_checkpoint'))
 
 if __name__ == '__main__':
     wttest.run()

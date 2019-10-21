@@ -28,8 +28,12 @@
 #
 
 from __future__ import print_function
-from wiredtiger.packing import _chr, _ord
 import math, struct, sys
+try:
+    from wiredtiger.packutil import _chr, _ord, x00_entry, xff_entry
+except ImportError:
+    # When WiredTiger is installed as a package, python2 needs this
+    from .packutil import _chr, _ord, x00_entry, xff_entry
 
 # Variable-length integer packing
 # need: up to 64 bits, both signed and unsigned
@@ -46,7 +50,7 @@ import math, struct, sys
 # [01 xxxxxx] | 0    | -2^6                   | -1
 # [10 xxxxxx] | 0    | 0                      | 2^6 - 1 
 # [11 0xxxxx] | 1    | 2^6                    | 2^13 + 2^6 - 1
-# [11 10llll] | l    | 2^14 + 2^7             | 2^64 - 1
+# [11 10llll] | l    | 2^13 + 2^6             | 2^64 - 1
 # [11 11xxxx] | free | N/A                    | N/A
 
 NEG_MULTI_MARKER = 0x10
@@ -63,14 +67,6 @@ POS_2BYTE_MAX = 2**13 + POS_1BYTE_MAX
 
 MINUS_BIT = -1 << 64
 UINT64_MASK = 0xffffffffffffffff
-
-_python3 = (sys.version_info >= (3, 0, 0))
-if _python3:
-    xff_entry = 0xff
-    x00_entry = 0x00
-else:
-    xff_entry = '\xff'
-    x00_entry = '\x00'
 
 def getbits(x, start, end=0):
     '''return the least significant bits of x, from start to end'''

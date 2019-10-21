@@ -450,6 +450,18 @@ connection_runtime_config = [
         for space to be available in cache before giving up. Default will
         wait forever''',
         min=0),
+    Config('cache_overflow', '', r'''
+        cache overflow configuration options''',
+        type='category', subconfig=[
+        Config('file_max', '0', r'''
+            The maximum number of bytes that WiredTiger is allowed to use for
+            its cache overflow mechanism. If the cache overflow file exceeds
+            this size, a panic will be triggered. The default value means that
+            the cache overflow file is unbounded and may use as much space as
+            the filesystem will accommodate. The minimum non-zero setting is
+            100MB.''',    # !!! Must match WT_LAS_FILE_MIN
+            min='0')
+        ]),
     Config('cache_overhead', '8', r'''
         assume the heap allocator overhead is the specified percentage, and
         adjust the cache usage by that amount (for example, if there is 10GB
@@ -475,6 +487,31 @@ connection_runtime_config = [
             seconds to wait between each checkpoint; setting this value
             above 0 configures periodic checkpoints''',
             min='0', max='100000'),
+        ]),
+    Config('debug_mode', '', r'''
+        control the settings of various extended debugging features''',
+        type='category', subconfig=[
+        Config('checkpoint_retention', '0', r'''
+            adjust log archiving to retain the log records of this number
+            of checkpoints. Zero or one means perform normal archiving.''',
+            min='0', max='1024'),
+        Config('eviction', 'false', r'''
+            if true, modify internal algorithms to change skew to force
+            lookaside eviction to happen more aggressively. This includes but
+            is not limited to not skewing newest, not favoring leaf pages,
+            and modifying the eviction score mechanism.''',
+            type='boolean'),
+        Config('rollback_error', '0', r'''
+            return a WT_ROLLBACK error from a transaction operation about
+            every Nth operation to simulate a collision''',
+            min='0', max='10M'),
+        Config('table_logging', 'false', r'''
+            if true, write transaction related information to the log for all
+            operations, even operations for tables with logging turned off.
+            This setting introduces a log format change that may break older
+            versions of WiredTiger. These operations are informational and
+            skipped in recovery.''',
+            type='boolean'),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
@@ -568,6 +605,13 @@ connection_runtime_config = [
     Config('lsm_merge', 'true', r'''
         merge LSM chunks where possible (deprecated)''',
         type='boolean', undoc=True),
+    Config('operation_timeout_ms', '0', r'''
+        when non-zero, a requested limit on the number of elapsed real time milliseconds
+        application threads will take to complete database operations. Time is measured from the
+        start of each WiredTiger API call.  There is no guarantee any operation will not take
+        longer than this amount of time. If WiredTiger notices the limit has been exceeded, an
+        operation may return a WT_ROLLBACK error. Default is to have no limit''',
+        min=1),
     Config('operation_tracking', '', r'''
         enable tracking of performance-critical functions. See
         @ref operation_tracking for more information''',
@@ -863,7 +907,7 @@ wiredtiger_open_common =\
         warnings.  Including \c "data" will cause WiredTiger data files to use
         direct I/O, including \c "log" will cause WiredTiger log files to use
         direct I/O, and including \c "checkpoint" will cause WiredTiger data
-        files opened at a checkpoint (i.e: read only) to use direct I/O.
+        files opened at a checkpoint (i.e: read-only) to use direct I/O.
         \c direct_io should be combined with \c write_through to get the
         equivalent of \c O_DIRECT on Windows''',
         type='list', choices=['checkpoint', 'data', 'log']),
@@ -1078,6 +1122,8 @@ methods = {
         type='boolean'),
 ]),
 
+'WT_SESSION.import' : Method([]),
+
 'WT_SESSION.join' : Method([
     Config('compare', '"eq"', r'''
         modifies the set of items to be returned so that the index key
@@ -1282,14 +1328,25 @@ methods = {
 'WT_SESSION.begin_transaction' : Method([
     Config('ignore_prepare', 'false', r'''
         whether to ignore the updates by other prepared transactions as part of
-        read operations of this transaction''',
-        type='boolean'),
+        read operations of this transaction.  When \c true, forces the
+        transaction to be read-only.  Use \c force to ignore prepared updates
+        and permit writes (which can cause lost updates unless the application
+        knows something about the relationship between prepared transactions
+        and the updates that are ignoring them)''',
+        choices=['false', 'force', 'true']),
     Config('isolation', '', r'''
         the isolation level for this transaction; defaults to the
         session's isolation level''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
     Config('name', '', r'''
         name of the transaction for tracing and debugging'''),
+    Config('operation_timeout_ms', '0', r'''
+        when non-zero, a requested limit on the number of elapsed real time milliseconds taken
+        to complete database operations in this transaction.  Time is measured from the start
+        of each WiredTiger API call.  There is no guarantee any operation will not take longer
+        than this amount of time. If WiredTiger notices the limit has been exceeded, an operation
+        may return a WT_ROLLBACK error. Default is to have no limit''',
+        min=1),
     Config('priority', 0, r'''
         priority of the transaction for resolving conflicts.
         Transactions with higher values are less likely to abort''',
@@ -1393,8 +1450,8 @@ methods = {
         dropped while a hot backup is in progress or if open in
         a cursor''', type='list'),
     Config('force', 'false', r'''
-        by default, checkpoints may be skipped if the underlying object
-        has not been modified, this option forces the checkpoint''',
+        if false (the default), checkpoints may be skipped if the underlying object has not been
+        modified, if true, this option forces the checkpoint''',
         type='boolean'),
     Config('name', '', r'''
         if set, specify a name for the checkpoint (note that checkpoints
@@ -1402,10 +1459,9 @@ methods = {
     Config('target', '', r'''
         if non-empty, checkpoint the list of objects''', type='list'),
     Config('use_timestamp', 'true', r'''
-        by default, create the checkpoint as of the last stable timestamp
-        if timestamps are in use, or all current updates if there is no
-        stable timestamp set.  If false, this option generates a checkpoint
-        with all updates including those later than the timestamp''',
+        if true (the default), create the checkpoint as of the last stable timestamp if timestamps
+        are in use, or all current updates if there is no stable timestamp set. If false, this
+        option generates a checkpoint with all updates including those later than the timestamp''',
         type='boolean'),
 ]),
 
@@ -1514,31 +1570,41 @@ methods = {
 'WT_CONNECTION.open_session' : Method(session_config),
 
 'WT_CONNECTION.query_timestamp' : Method([
-    Config('get', 'all_committed', r'''
+    Config('get', 'all_durable', r'''
         specify which timestamp to query: \c all_committed returns the largest
         timestamp such that all timestamps up to that value have committed,
-        \c last_checkpoint returns the timestamp of the most recent stable
-        checkpoint, \c oldest returns the most recent \c oldest_timestamp set
-        with WT_CONNECTION::set_timestamp, \c oldest_reader returns the
-        minimum of the read timestamps of all active readers \c pinned returns
-        the minimum of the \c oldest_timestamp and the read timestamps of all
-        active readers, \c recovery returns the timestamp of the most recent
-        stable checkpoint taken prior to a shutdown and \c stable returns the
-        most recent \c stable_timestamp set with WT_CONNECTION::set_timestamp.
-        See @ref transaction_timestamps''',
-        choices=['all_committed','last_checkpoint',
+        \c all_durable returns the largest timestamp such that all timestamps
+        up to that value have been made durable, \c last_checkpoint returns the
+        timestamp of the most recent stable checkpoint, \c oldest returns the
+        most recent \c oldest_timestamp set with WT_CONNECTION::set_timestamp,
+        \c oldest_reader returns the minimum of the read timestamps of all
+        active readers \c pinned returns the minimum of the \c oldest_timestamp
+        and the read timestamps of all active readers, \c recovery returns the
+        timestamp of the most recent stable checkpoint taken prior to a shutdown
+        and \c stable returns the most recent \c stable_timestamp set with
+        WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
+        choices=['all_committed','all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
     Config('commit_timestamp', '', r'''
-        reset the maximum commit timestamp tracked by WiredTiger.  This will
-        cause future calls to WT_CONNECTION::query_timestamp to ignore commit
-        timestamps greater than the specified value until the next commit moves
-        the tracked commit timestamp forwards.  This is only intended for use
-        where the application is rolling back locally committed transactions.
-        The supplied value must not be older than the current oldest and
-        stable timestamps.  See @ref transaction_timestamps'''),
+        (deprecated) reset the maximum commit timestamp tracked by WiredTiger.
+        This will cause future calls to WT_CONNECTION::query_timestamp to
+        ignore commit timestamps greater than the specified value until the
+        next commit moves the tracked commit timestamp forwards.  This is only
+        intended for use where the application is rolling back locally
+        committed transactions. The supplied value must not be older than the
+        current oldest and stable timestamps.
+        See @ref transaction_timestamps'''),
+    Config('durable_timestamp', '', r'''
+        reset the maximum durable timestamp tracked by WiredTiger.  This will
+        cause future calls to WT_CONNECTION::query_timestamp to ignore durable
+        timestamps greater than the specified value until the next durable
+        timestamp moves the tracked durable timestamp forwards.  This is only
+        intended for use where the application is rolling back locally committed
+        transactions. The supplied value must not be older than the current
+        oldest and stable timestamps.  See @ref transaction_timestamps'''),
     Config('force', 'false', r'''
         set timestamps even if they violate normal ordering requirements.
         For example allow the \c oldest_timestamp to move backwards''',

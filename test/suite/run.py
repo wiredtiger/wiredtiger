@@ -31,7 +31,7 @@
 #
 
 from __future__ import print_function
-import glob, json, os, re, sys
+import glob, json, os, random, re, sys
 
 try:
     xrange
@@ -118,9 +118,12 @@ Options:\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run the entire test suite\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
+  -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
+                                 execute every Nth (2<=N<=1000) scenario.\n\
   -s N    | --scenario N         use scenario N (N can be number or symbolic)\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
+  -i      | --ignore-stdout      dont fail on unexpected stdout or stderr\n\
 \n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
@@ -267,8 +270,9 @@ if __name__ == '__main__':
     tests = unittest.TestSuite()
 
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = ignoreStdout = False
     parallel = 0
+    random_sample = 0
     configfile = None
     configwrite = False
     dirarg = None
@@ -307,6 +311,15 @@ if __name__ == '__main__':
             if option == '-long' or option == 'l':
                 longtest = True
                 continue
+            if option == '-random-sample' or option == 'r':
+                if len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                random_sample = int(args.pop(0))
+                if random_sample < 2 or random_sample > 1000:
+                    usage()
+                    sys.exit(2)
+                continue
             if option == '-parallel' or option == 'j':
                 if parallel != 0 or len(args) == 0:
                     usage()
@@ -335,6 +348,9 @@ if __name__ == '__main__':
                 if verbose < 0:
                         verbose = 0
                 continue
+            if option == '--ignore-stdout' or option == 'i':
+                ignoreStdout = True
+                continue
             if option == '-config' or option == 'c':
                 if configfile != None or len(args) == 0:
                     usage()
@@ -357,7 +373,7 @@ if __name__ == '__main__':
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, timestamp, gdbSub, lldbSub,
                                           verbose, wt_builddir, dirarg,
-                                          longtest)
+                                          longtest, ignoreStdout)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
@@ -376,6 +392,14 @@ if __name__ == '__main__':
         for arg in testargs:
             testsFromArg(tests, loader, arg, scenario)
 
+    # Shuffle the tests and create a new suite containing every Nth test from
+    # the original suite
+    if random_sample > 0:
+        random_sample_tests = []
+        for test in tests:
+            random_sample_tests.append(test)
+        random.shuffle(random_sample_tests)
+        tests = unittest.TestSuite(random_sample_tests[::random_sample])
     if debug:
         import pdb
         pdb.set_trace()

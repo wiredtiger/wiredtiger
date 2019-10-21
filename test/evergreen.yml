@@ -4,16 +4,16 @@
 #
 
 functions:
-  "fetch source" :
+  "get project" :
     command: git.get_project
     params:
       directory: wiredtiger
-  "fetch artifacts" : 
+  "fetch artifacts" :
     - command: s3.get
       params:
         aws_key: ${aws_key}
         aws_secret: ${aws_secret}
-        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${dependent_task|compile}_${build_id}.tgz
         bucket: build_external
         extract_to: wiredtiger
   "fetch artifacts from little-endian" :
@@ -43,7 +43,7 @@ functions:
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
-      script: | 
+      script: |
         git clone https://github.com/wiredtiger/mongo-tests
   "compile wiredtiger":
     command: shell.exec
@@ -54,13 +54,16 @@ functions:
         set -o errexit
         set -o verbose
         if [ "Windows_NT" = "$OS" ]; then
-          scons.bat --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${smp_command|}
+          pip install scons==3.1.1
+          scons-3.1.1.bat ${win_configure_flags|--enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic} ${smp_command|}
         else
           cd build_posix
           sh ./reconf
-          ${configure_env_vars|} ../configure --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+          ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb"} \
+            ../configure ${configure_python_setting|} \
+            ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
           ${make_command|make} ${smp_command|} 2>&1
-    
+
           # On macOS, change the binary location with install_name_tool since DYLD_LIBRARY_PATH
           # appears not to work for dynamic modules loaded by python. For wt, the libtool generated
           # script has the wrong path for running on test machines.
@@ -70,68 +73,61 @@ functions:
             install_name_tool -change /usr/local/lib/libwiredtiger-$WT_VERSION.dylib $(pwd)/.libs/libwiredtiger-$WT_VERSION.dylib .libs/wt
           fi
         fi
-
-pre:
-  - command: shell.exec
+  "make check directory":
+    command: shell.exec
     params:
-      script: |
-        rm -rf "wiredtiger"
-post:
-  - command: shell.exec
-    params:
+      working_dir: "wiredtiger/build_posix"
       script: |
         set -o errexit
         set -o verbose
-        cd wiredtiger
-        tar cfz ../wiredtiger.tgz .
-        cd ..
-  - command: s3.put
-    params:
-      aws_secret: ${aws_secret}
-      aws_key: ${aws_key}
-      local_file: wiredtiger.tgz
-      bucket: build_external
-      permissions: public-read
-      content_type: application/tar
-      display_name: Artifacts
-      remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_id}.tgz
-  - command: shell.exec
+
+        ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C ${directory}  ${smp_command|} 2>&1
+  "upload artifact":
+    - command: archive.targz_pack
+      params:
+        target: "wiredtiger.tgz"
+        source_dir: "wiredtiger"
+        include:
+          - "./**"
+    - command: s3.put
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: wiredtiger.tgz
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: Artifacts
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}.tgz
+  "cleanup":
+    command: shell.exec
     params:
       script: |
         rm -rf "wiredtiger"
+        rm -rf "wiredtiger.tgz"
+
+pre:
+  - func: "cleanup"
+post:
+  - func: "upload artifact"
+  - func: "cleanup"
 
 tasks:
 ## Base compile task on posix flavours
   - name: compile
-    depends_on: []
+    tags: ["pull_request"]
     commands:
-      - func: "fetch source"
-      - command: git.apply_patch
-        params:
-          directory: wiredtiger
+      - func: "get project"
       - func: "compile wiredtiger"
-      - command: archive.targz_pack
-        params:
-          target: "wiredtiger.tgz"
-          source_dir: "wiredtiger"
-          include:
-            - "./**"
-      - command: s3.put
-        params:
-          aws_secret: ${aws_secret}
-          aws_key: ${aws_key}
-          local_file: wiredtiger.tgz
-          bucket: build_external
-          permissions: public-read
-          content_type: application/tar
-          display_name: Artifacts_compile
-          remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${build_id}.tgz
-      # Remove the artifacts here so the later post commands won't perform duplicated archiving.
-      - command: shell.exec
-        params:
-          script: |
-            rm -rf "wiredtiger"
-            rm -rf "wiredtiger.tgz"
+
+  - name: compile-asan
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS="-fsanitize=address -ggdb"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
 
   - name: make-check-test
     depends_on:
@@ -151,652 +147,688 @@ tasks:
   # Start of normal make check test tasks
 
   - name: lang-python-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C lang/python ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: lang/python
 
   - name: examples-c-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
+      - func: "make check directory"
+        vars:
+          directory: examples/c
 
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C examples/c  ${smp_command|} 2>&1
+  - name: examples-c-asan-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile-asan
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-asan
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer CFLAGS="-fsanitize=address -ggdb"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+      - func: "make check directory"
+        vars:
+          directory: examples/c
 
   - name: bloom-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/bloom  ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/bloom
 
   - name: checkpoint-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/checkpoint ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/checkpoint
 
   - name: cursor-order-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/cursor_order ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/cursor_order
 
   - name: fops-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/fops ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/fops
 
   - name: format-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/format ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/format
 
   - name: huge-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/huge ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/huge
 
   - name: manydbs-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/manydbs ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/manydbs
 
   - name: packing-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/packing ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/packing
 
   - name: readonly-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/readonly ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/readonly
 
   - name: salvage-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/salvage ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/salvage
 
   - name: thread-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C test/thread ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: test/thread
 
   - name: bench-wtperf-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} ${make_command|make} VERBOSE=1 check -C bench/wtperf ${smp_command|} 2>&1
+      - func: "make check directory"
+        vars:
+          directory: bench/wtperf
 
   # End of normal make check test tasks
 
   # Start of csuite test tasks
 
-  - name: csuite-random-abort-test
+  - name: csuite-import-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/../../../test/csuite/random_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/import/smoke.sh 2>&1
+
+  - name: csuite-random-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
 
   - name: csuite-random-directio-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/../../../test/csuite/random_directio/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/random_directio/smoke.sh 2>&1
 
   - name: csuite-schema-abort-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/../../../test/csuite/schema_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
 
   - name: csuite-timestamp-abort-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/../../../test/csuite/timestamp_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
 
   - name: csuite-scope-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_scope 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_scope 2>&1
 
   - name: csuite-truncated-log-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_truncated_log 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
 
   - name: csuite-wt1965-col-efficiency-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt1965_col_efficiency 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt1965_col_efficiency 2>&1
 
   - name: csuite-wt2403-lsm-workload-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2403_lsm_workload 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2403_lsm_workload 2>&1
 
   - name: csuite-wt2447-join-main-table-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2447_join_main_table 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2447_join_main_table 2>&1
 
   - name: csuite-wt2695-checksum-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2695_checksum 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2695_checksum 2>&1
 
   - name: csuite-wt2592-join-schema-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2592_join_schema 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2592_join_schema 2>&1
 
   - name: csuite-wt2719-reconfig-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2719_reconfig 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2719_reconfig 2>&1
 
   - name: csuite-wt2999-join-extractor-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2999_join_extractor 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2999_join_extractor 2>&1
 
   - name: csuite-wt3120-filesys-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt3120_filesys 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt3120_filesys 2>&1
 
   - name: csuite-wt3135-search-near-collator-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt3135_search_near_collator 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt3135_search_near_collator 2>&1
 
   - name: csuite-wt3184-dup-index-collator-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt3184_dup_index_collator 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt3184_dup_index_collator 2>&1
 
   - name: csuite-wt3363-checkpoint-op-races-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt3363_checkpoint_op_races 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt3363_checkpoint_op_races 2>&1
 
   - name: csuite-wt3874-pad-byte-collator-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt3874_pad_byte_collator 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt3874_pad_byte_collator 2>&1
 
   - name: csuite-wt4105-large-doc-small-upd-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt4105_large_doc_small_upd 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4105_large_doc_small_upd 2>&1
 
   - name: csuite-wt4117-checksum-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt4117_checksum 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4117_checksum 2>&1
 
   - name: csuite-wt4156-metadata-salvage-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt4156_metadata_salvage 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4156_metadata_salvage 2>&1
 
   - name: csuite-wt4699-json-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt4699_json 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4699_json 2>&1
+
+  - name: csuite-wt4803-cache-overflow-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_cache_overflow_abort 2>&1
+
+  - name: csuite-wt4891-meta-ckptlist-get-alloc-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4891_meta_ckptlist_get_alloc 2>&1
 
   - name: csuite-rwlock-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_rwlock 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_rwlock 2>&1
 
   - name: csuite-wt2246-col-append-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2246_col_append 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2246_col_append 2>&1
 
   - name: csuite-wt2323-join-visibility-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2323_join_visibility 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2323_join_visibility 2>&1
 
   - name: csuite-wt2535-insert-race-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2535_insert_race 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2535_insert_race 2>&1
 
   - name: csuite-wt2834-join-bloom-fix-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2834_join_bloom_fix 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2834_join_bloom_fix 2>&1
 
   - name: csuite-wt2853-perf-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2853_perf 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2853_perf 2>&1
 
   - name: csuite-wt2909-checkpoint-integrity-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt2909_checkpoint_integrity 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt2909_checkpoint_integrity 2>&1
 
   - name: csuite-wt3338-partial-update-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt3338_partial_update 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt3338_partial_update 2>&1
 
   - name: csuite-wt4333-handle-locks-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger/build_posix/test/csuite"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test_wt4333_handle_locks 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt4333_handle_locks 2>&1
 
   # End of csuite test tasks
 
@@ -819,16 +851,17 @@ tasks:
             # Avoid /usr/bin/python, at least on macOS: with System Integrity
             # Protection enabled, it ignores DYLD_LIBRARY_PATH and hence
             # doesn't find the WiredTiger library in the local tree.
-            ${test_env_vars|} python ../test/suite/run.py -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -v 2 ${smp_command|} 2>&1
 
   # Break out Python unit tests into multiple buckets/tasks based on test name and runtime
   # The test/suite/run.py script can work out test names by casting each command argument
-  # with "test_" prefix and "*.py" postfix. 
+  # with "test_" prefix and "*.py" postfix.
   #
-  # One example: 
+  # One example:
   # "test/suite/run.py [ab]" will be translated to testing "test_a*.py" and "test_b*.py"
 
   - name: unit-test-bucket00
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -840,9 +873,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [ab] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ab] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket01
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -854,9 +888,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [c] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [c] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket02
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -868,9 +903,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket03
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -882,9 +918,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket04
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -896,9 +933,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket05
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -910,9 +948,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [rs] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket06
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -924,9 +963,10 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [t] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [t] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket07
+    tags: ["pull_request", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -938,11 +978,41 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} python ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
 
   # End of Python unit test tasks
 
+  - name: s-all
+    tags: ["pull_request"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/dist"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh s_all -A -E 2>&1
+
+  - name: conf-dump-test
+    tags: ["pull_request"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test"
+          script: |
+            set -o errexit
+            set -o verbose
+            
+            ${test_env_vars|} ${python_binary|python} ../../test/wtperf/test_conf_dump.py 2>&1
+
   - name: compile-windows-alt
+    tags: ["pull_request", "windows_only"]
     depends_on:
     - name: compile
     commands:
@@ -954,9 +1024,27 @@ tasks:
             set -o errexit
             set -o verbose
 
-            scons.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
+            pip install scons==3.1.1
+            scons-3.1.1.bat ${smp_command|} "CFLAGS=/Gv /wd4090 /wd4996 /we4047 /we4024 /TC /we4100 /we4133" wiredtiger.dll libwiredtiger.lib
+
+  - name: scons-check
+    tags: ["pull_request", "windows_only"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            pip install scons==3.1.1
+            scons-3.1.1.bat ${smp_command|} check
 
   - name: fops
+    tags: ["pull_request"]
     depends_on:
     - name: compile
     commands:
@@ -974,6 +1062,7 @@ tasks:
             fi
 
   - name: format
+    tags: ["windows_only"]
     depends_on:
     - name: compile
     commands:
@@ -988,24 +1077,23 @@ tasks:
             cmd.exe /c "cd test\\format && ..\\..\\t_format.exe reverse=0 encryption=none logging_compression=none runs=20"
 
   - name: million-collection-test
-    depends_on: []
-    run_on: 
-      - rhel62-large
-    commands: 
+    commands:
+      - func: "get project"
       - func: "fetch mongo-tests repo"
       - command: shell.exec
         params:
           working_dir: mongo-tests
-          script: | 
+          script: |
+            sudo su
             set -o errexit
             set -o verbose
             ulimit -n 1000000
-            ulimit -c unlimited 
+            ulimit -c unlimited
             largescale/run-million-collection-test.sh .
 
   - name: compatibility-test-for-mongodb-releases
     commands:
-      - func: "fetch source"
+      - func: "get project"
       - command: shell.exec
         params:
           working_dir: "wiredtiger"
@@ -1136,82 +1224,66 @@ tasks:
             set -o verbose
             ./test/evergreen/verify_wt_datafiles.sh 2>&1
 
+  - name: clang-analyzer
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            sh dist/s_clang-scan 2>&1
 
 buildvariants:
-- name: ubuntu1404
-  display_name: Ubuntu 14.04
+- name: ubuntu1804
+  display_name: Ubuntu 18.04
   run_on:
-  - ubuntu1404-test
+  - ubuntu1804-test
   expansions:
-    # It's ugly, but we need the absolute path here, not the relative
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+  tasks:
+    - name: ".pull_request !.windows_only"
+
+- name: ubuntu1804-python3
+  display_name: Ubuntu 18.04 (Python3)
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    configure_python_setting: PYTHON=python3
+    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    python_binary: python3
+  tasks:
+    - name: compile
+    - name: ".unit_test"
+    - name: conf-dump-test
+
+- name: rhel80
+  display_name: RHEL 8.0
+  run_on:
+  - rhel80-test
+  expansions:
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
     - name: compile
-    - name: lang-python-test
-    - name: examples-c-test
-    - name: bloom-test
-    - name: checkpoint-test
-    - name: cursor-order-test
-    - name: fops-test
-    - name: format-test
-    - name: huge-test
-    - name: manydbs-test
-    - name: packing-test
-    - name: readonly-test
-    - name: salvage-test
-    - name: thread-test
-    - name: bench-wtperf-test
-    - name: csuite-random-abort-test
-    - name: csuite-random-directio-test
-    - name: csuite-schema-abort-test
-    - name: csuite-timestamp-abort-test
-    - name: csuite-scope-test
-    - name: csuite-truncated-log-test
-    - name: csuite-wt1965-col-efficiency-test
-    - name: csuite-wt2403-lsm-workload-test
-    - name: csuite-wt2447-join-main-table-test
-    - name: csuite-wt2695-checksum-test
-    - name: csuite-wt2592-join-schema-test
-    - name: csuite-wt2719-reconfig-test
-    - name: csuite-wt2999-join-extractor-test
-    - name: csuite-wt3120-filesys-test
-    - name: csuite-wt3135-search-near-collator-test
-    - name: csuite-wt3184-dup-index-collator-test
-    - name: csuite-wt3363-checkpoint-op-races-test
-    - name: csuite-wt3874-pad-byte-collator-test
-    - name: csuite-wt4105-large-doc-small-upd-test
-    - name: csuite-wt4117-checksum-test
-    - name: csuite-wt4156-metadata-salvage-test
-    - name: csuite-wt4699-json-test
-    - name: csuite-rwlock-test
-    - name: csuite-wt2246-col-append-test
-    - name: csuite-wt2323-join-visibility-test
-    - name: csuite-wt2535-insert-race-test
-    - name: csuite-wt2834-join-bloom-fix-test
-    - name: csuite-wt2853-perf-test
-    - name: csuite-wt2909-checkpoint-integrity-test
-    - name: csuite-wt3338-partial-update-test
-    - name: csuite-wt4333-handle-locks-test
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
+    - name: make-check-test
+    - name: unit-test
     - name: fops
 
 - name: large-scale-test
   display_name: Large scale testing
   batchtime: 1440 # 1 day
   run_on:
-  - rhel62-large
-  expansions:
-    configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++
+  - rhel80-build
   tasks:
     - name: million-collection-test
 
@@ -1219,26 +1291,18 @@ buildvariants:
   display_name: Compatibility tests
   batchtime: 10080 # 7 days
   run_on:
-  - ubuntu1404-test
+  - ubuntu1804-test
   tasks:
     - name: compatibility-test-for-mongodb-releases
 
 - name: windows-64
   display_name: Windows 64-bit
   run_on:
-  - windows-64-vs2013-test
+  - windows-64-vs2017-test
   tasks:
     - name: compile
-    - name: compile-windows-alt
-    - name: unit-test-bucket00
-    - name: unit-test-bucket01
-    - name: unit-test-bucket02
-    - name: unit-test-bucket03
-    - name: unit-test-bucket04
-    - name: unit-test-bucket05
-    - name: unit-test-bucket06
-    - name: unit-test-bucket07
-    #- name: format  - Enable when we have a solution for hangs and crashses
+    - name: ".windows_only"
+    - name: ".unit_test"
     - name: fops
 
 - name: macos-1012
@@ -1247,9 +1311,9 @@ buildvariants:
   - macos-1012
   expansions:
     smp_command: -j $(sysctl -n hw.logicalcpu)
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb"
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
     - name: compile
     - name: make-check-test
@@ -1259,12 +1323,11 @@ buildvariants:
 - name: little-endian
   display_name: Little-endian (x86)
   run_on:
-  - ubuntu1404-test
-  batchtime: 1440 # 1 day
+  - ubuntu1804-test
+  batchtime: 10080 # 7 days
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
   - name: compile
   - name: generate-datafile-little-endian
@@ -1276,12 +1339,11 @@ buildvariants:
   modules:
   - enterprise
   run_on:
-  - ubuntu1604-zseries-small
-  batchtime: 1440 # 1 day
+  - ubuntu1804-zseries-build
+  batchtime: 10080 # 7 days
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.lib top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
   - name: compile
   - name: generate-datafile-big-endian

@@ -29,7 +29,7 @@ define([AC_LIBTOOL_LANG_F77_CONFIG], [:])dnl
 # reason to believe "c++" can build compatible objects.
 #
 # Check whether the C++ compiler works by linking a trivial program.
-if test $CC = "cc"; then
+if test "$CC" = "cc"; then
 	AC_CACHE_CHECK([whether the C++ compiler works],
 		       [wt_cv_prog_cxx_works],
 		       [AC_LANG_PUSH([C++])
@@ -56,7 +56,7 @@ AS_CASE([$host_cpu],
 	[wt_cv_powerpc="no"])
 AM_CONDITIONAL([POWERPC_HOST], [test "$wt_cv_powerpc" = "yes"])
 AS_CASE([$host_cpu],
-	[amd*|i[[3456]]86*|pentium|x86*], [wt_cv_x86="yes"], [wt_cv_x86="no"])
+	[amd*|i[[3456]]86*|pentium|x86*|mips64el*], [wt_cv_x86="yes"], [wt_cv_x86="no"])
 AM_CONDITIONAL([X86_HOST], [test "$wt_cv_x86" = "yes"])
 AS_CASE([$host_cpu],
 	[s390x*], [wt_cv_zseries="yes"],
@@ -66,6 +66,10 @@ AS_CASE([$host_cpu],
 	[aarch64*], [wt_cv_arm64="yes"],
 	[wt_cv_arm64="no"])
 AM_CONDITIONAL([ARM64_HOST], [test "$wt_cv_arm64" = "yes"])
+AS_CASE([$host_cpu],
+       [mips64el*], [wt_cv_mips64el="yes"],
+       [wt_cv_mips64el="no"])
+AM_CONDITIONAL([MIPS64EL_HOST], [test "$wt_cv_mips64el" = "yes"])
 AS_CASE([$host_os], [*solaris*], [wt_cv_solaris="yes"], [wt_cv_solaris="no"])
 
 # This is a workaround as part of WT-2459. Currently, clang (v3.7) does not
@@ -239,35 +243,6 @@ AC_DEFINE_UNQUOTED(WT_BUFFER_ALIGNMENT_DEFAULT, $BUFFER_ALIGNMENT,
 
 AC_SUBST(AM_CFLAGS)
 
-# test/format optionally uses a Oracle Berkeley DB release for verification.
-AC_MSG_CHECKING([if --with-berkeleydb=DIR option specified])
-AC_ARG_WITH(berkeleydb,
-    [AS_HELP_STRING([--with-berkeleydb=DIR],
-	[Specify installed library directory of Berkeley DB])],
-    [with_berkeleydb="$withval"], [with_berkeleydb="NO_BERKELEY_DB_LIBRARY"])
-AC_MSG_RESULT($with_berkeleydb)
-AM_CONDITIONAL([HAVE_BERKELEY_DB], [test -d $with_berkeleydb])
-AC_SUBST(BERKELEY_DB_PATH, [$with_berkeleydb])
-
-# test/format optionally supports the Levyx/Helium key/value store.
-AC_MSG_CHECKING([if --with-helium=DIR option specified])
-AC_ARG_WITH(helium,
-    [AS_HELP_STRING([--with-helium=DIR],
-	[Specify installed library directory of Helium])],
-    [with_helium="$withval"], [with_helium="NO_HELIUM_LIBRARY"])
-AC_MSG_RESULT($with_helium)
-AM_CONDITIONAL([HAVE_HELIUM], [test -d $with_helium])
-AC_SUBST(HELIUM_PATH, [$with_helium])
-
-# Sanity check the build
-AM_COND_IF([LEVELDB], [
-  AM_COND_IF([SNAPPY], [], [
-    AC_MSG_ERROR(
-      [--enable-leveldb requires --enable-snappy or --with-builtins=snappy.])
-  ])
-])
-
-
 # Warn that diagnostic builds should not be used in production
 if test "$wt_cv_enable_diagnostic" = "yes"; then
 	AC_MSG_WARN(
@@ -295,10 +270,6 @@ fi
 
 # Output files
 AC_CONFIG_HEADERS([wiredtiger_config.h:build_posix/config.hin])
-
-# The LevelDB API needs some configuration knowledge
-AM_COND_IF([LEVELDB],
-    AC_CONFIG_HEADERS([api/leveldb/leveldb_wt_config.h:api/leveldb/config.hin]))
 
 # BEGIN check existence -- maintained by reconf and Make.subdirs
 # END check existence

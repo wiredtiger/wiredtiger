@@ -37,6 +37,8 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
+    session_config = 'isolation=snapshot'
+
     def test_timestamp_range(self):
         base = 'timestamp11'
         uri = 'file:' + base
@@ -81,6 +83,7 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         #
         stable_ts = timestamp_str(2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
+        self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         c = self.session.open_cursor(uri)

@@ -53,7 +53,7 @@ LIBS
 LLVM
 LOGREC
 LRU
-LRVv
+LRrVv
 LSB
 LSM
 LZ
@@ -79,6 +79,7 @@ RepMgr
 Riak
 RocksDB
 Roelofs
+RrVv
 Rrx
 SCons
 Seward's
@@ -120,8 +121,6 @@ autogen
 automake
 basecfg
 basho
-bdb
-bdbmap
 benchmarking
 bigram
 bindir
@@ -266,7 +265,6 @@ html
 htmlinclude
 huffman
 hugepage
-hyperleveldb
 icount
 iflag
 indices
@@ -293,7 +291,6 @@ lang
 lastname
 le
 len
-leveldb
 li
 libdir
 libhe
@@ -428,7 +425,6 @@ ret
 rf
 rmw
 ro
-rocksdb
 rotn
 rpc
 runnable

@@ -41,8 +41,12 @@ if fname != '__init__.py' and fname != '__init__.pyc':
 # After importing the SWIG-generated file, copy all symbols from from it
 # to this module so they will appear in the wiredtiger namespace.
 me = sys.modules[__name__]
-sys.path.append(os.path.dirname(__file__))  # needed for Python3
-import wiredtiger
-for name in dir(wiredtiger):
-    value = getattr(wiredtiger, name)
+sys.path.append(os.path.dirname(__file__))
+try:
+    import wiredtiger.wiredtiger as swig_wiredtiger
+except ImportError:
+    # for Python2
+    import wiredtiger as swig_wiredtiger
+for name in dir(swig_wiredtiger):
+    value = getattr(swig_wiredtiger, name)
     setattr(me, name, value)

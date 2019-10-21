@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 import os, re, sys, textwrap
-from dist import compare_srcfile
+from dist import compare_srcfile, format_srcfile
 import log_data
 
 # Temporary file.
@@ -18,6 +18,9 @@ field_types = {
           'WT_ERR(__logrec_make_hex_str(session, &escaped, &arg));']),
     'recno' : ('uint64_t', 'r', '%" PRIu64 "', 'arg', [ '' ]),
     'uint32' : ('uint32_t', 'I', '%" PRIu32 "', 'arg', [ '' ]),
+    # The fileid may have the high bit set. Print in both decimal and hex.
+    'uint32_id' : ('uint32_t', 'I',
+        '%" PRIu32 " 0x%" PRIx32 "', 'arg, arg', [ '' ]),
     'uint64' : ('uint64_t', 'Q', '%" PRIu64 "', 'arg', [ '' ]),
 }
 
@@ -330,7 +333,7 @@ for optype in log_data.optypes:
 })
 
 tfile.write('''
-\tWT_ILLEGAL_VALUE(session, optype);
+\tdefault:\n\t\treturn (__wt_illegal_value(session, optype));
 \t}
 
 \treturn (0);
@@ -338,4 +341,5 @@ tfile.write('''
 ''')
 
 tfile.close()
+format_srcfile(tmp_file)
 compare_srcfile(tmp_file, f)
