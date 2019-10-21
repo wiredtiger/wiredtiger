@@ -1264,6 +1264,17 @@ tasks:
             set -o verbose
             sh dist/s_clang-scan 2>&1
 
+  - name: configure-combinations
+    commands:
+      - func: "get project"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger"
+          script: |
+            set -o errexit
+            set -o verbose
+            ./configure_combinations ${smp_command|}
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1278,6 +1289,7 @@ buildvariants:
     - name: ".pull_request !.windows_only"
     - name: compile-msan
     - name: make-check-msan-test
+    - name: configure-combinations
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
