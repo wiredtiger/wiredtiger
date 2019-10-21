@@ -457,19 +457,16 @@ __posix_file_read_mmap(
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    wt_off_t file_size;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size));
-
     __wt_verbose(session, WT_VERB_READ, "read-mmap: %s, fd=%d, offset=%" PRId64 ","
-                 "len=%" PRIu64 ", mapped buffer: %p, mmapped size = %" PRIu64 ", "
-                 "file size=%" PRId64 "\n", file_handle->name, pfh->fd, offset, (uint64_t)len,
-                 (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size, file_size);
+                 "len=%" PRIu64 ", mapped buffer: %p, mmapped size = %" PRIu64 "\n",
+                 file_handle->name, pfh->fd, offset, (uint64_t)len,
+                 (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
 
-    if (pfh->mmapped_buf != 0) {
+    if (pfh->mmapped_buf != 0 && pfh->mmapped_size <= (size_t)offset + len) {
         memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
         return (0);
     }
@@ -639,12 +636,10 @@ __posix_file_write_mmap(
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
-    WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size));
-
     __wt_verbose(session, WT_VERB_WRITE, "write-mmap: %s, fd=%d, offset=%" PRId64 ","
-                 "len=%" PRIu64 ", mapped buffer: %p, mmapped size = %" PRIu64 ", "
-                 "file size=%" PRId64 "\n", file_handle->name, pfh->fd, offset, (uint64_t)len,
-                 (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size, file_size);
+                 "len=%" PRIu64 ", mapped buffer: %p, mmapped size = %" PRIu64 ".\n",
+                 file_handle->name, pfh->fd, offset, (uint64_t)len,
+                 (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
 
     if (pfh->mmapped_buf != NULL) {
         if (pfh->mmapped_size < (size_t)offset + len) {
@@ -652,15 +647,15 @@ __posix_file_write_mmap(
              * We are growing the file, but the mmapped buffer is not
              * large enough. Extend the file and remap the buffer.
              */
-            __wt_verbose(session, WT_VERB_FILEOPS, "file-extend: %s, fd=%d, "
-                         "mmapped size = %" PRIu64 ", new file size=%" PRId64 "\n",
-                         file_handle->name, pfh->fd, (uint64_t)pfh->mmapped_size, file_size);
+            __wt_verbose(session, WT_VERB_FILEOPS, "write-mmap: %s, fd=%d, "
+                         "mmapped size = %" PRIu64 " won't fit the write at offset="
+			 "%" PRId64 ", len=%" PRIu64 "\n", file_handle->name, pfh->fd,
+			 (uint64_t)pfh->mmapped_size, offset, (uint64_t)len);
 
             if (__wt_posix_file_extend(file_handle, wt_session,
                                        offset+(wt_off_t)len) !=0) {
                 WT_RET_MSG(session, __wt_errno(),
-                           "%s: write-mmap: failed to extend file to "
-                           "%" PRId64 " bytes\n",
+                           "%s: write-mmap: failed to extend file to %" PRIu64 " bytes\n",
                            file_handle->name, (uint64_t)offset+len);
             }
 
@@ -842,7 +837,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
      * We are going to use mmap for I/O. So let's mmap the file
      * on opening.
      */
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-open\n", file_handle->name);
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-open\n", name);
 
     WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size));
     len = (size_t)file_size;
@@ -855,7 +850,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
             pfh->mmapped_size = len;
 
         __wt_verbose(session, WT_VERB_FILEOPS, "%s: mmap: fd=%d, size=%" PRIu64 ", "
-                     "mapped buffer=%p\n", file_handle->name, pfh->fd, (uint64_t)pfh->mmapped_size,
+                     "mapped buffer=%p\n", name, pfh->fd, (uint64_t)pfh->mmapped_size,
                      (void*)pfh->mmapped_buf);
     }
 #endif
@@ -941,15 +936,11 @@ __posix_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session,
         WT_RET_MSG(session, __wt_errno(),
                    "%s: memory-unmap: munmap, %p",
                    file_handle->name, (void*)pfh->mmapped_buf);
-    if ((pfh->mmapped_buf = mmap(old_mapped_buf, (size_t)len,
-                                 PROT_WRITE | PROT_READ,
-                                 MAP_FILE | MAP_SHARED, pfh->fd, 0))
-        == MAP_FAILED)
-        WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap",
-                   file_handle->name);
-    
-    pfh->mmapped_size = (size_t)len;
+    if ((pfh->mmapped_buf = mmap(old_mapped_buf, (size_t)len, PROT_WRITE | PROT_READ,
+                                 MAP_FILE | MAP_SHARED, pfh->fd, 0)) == MAP_FAILED)
+        WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", file_handle->name);
 
+    pfh->mmapped_size = (size_t)len;
     return 0;
 }
 #endif
