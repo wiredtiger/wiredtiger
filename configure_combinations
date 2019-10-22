@@ -32,10 +32,10 @@ BuildTest() {
         eval make "$3" || return 1
         make -C examples/c check VERBOSE=1 > /dev/null || return 1
         case "$2" in
-        		# Execute python test
-        		*with-timestamp-size=0*)
-                	doinstall=false
-                	env LD_LIBRARY_PATH=.libs python ../test/suite/run.py -v 4 $TESTFLAGS
+        	# Execute python test
+        	*with-timestamp-size=0*)
+                    doinstall=false
+                    env LD_LIBRARY_PATH=.libs python ../test/suite/run.py -v 4 $TESTFLAGS
                     ;;
                 # Skip the install step with Python.  Even with --prefix, the
                 # install tries to write to /usr/lib64/python2.7/site-packages .
