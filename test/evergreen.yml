@@ -360,6 +360,10 @@ tasks:
       - name: compile-ubsan
     commands:
       - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix/examples/c"
