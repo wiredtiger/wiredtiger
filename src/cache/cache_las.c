@@ -1504,8 +1504,8 @@ __wt_find_lookaside_upd(
                 if (birthmark_upd != NULL && ((birthmark_upd->start_ts > _las_timestamp) ||
                                                (birthmark_upd->start_ts == _las_timestamp &&
                                                  birthmark_upd->txnid > _las_txnid))) {
-                    las_value->data = birthmark_upd->data;
-                    las_value->size = birthmark_upd->size;
+                    WT_ERR(
+                      __wt_buf_set(session, las_value, birthmark_upd->data, birthmark_upd->size));
                     break;
                 }
                 WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
