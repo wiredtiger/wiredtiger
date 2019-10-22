@@ -1239,12 +1239,14 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
          * Remove the previous obsolete entries whenever the scan moves into next key or the current
          * LAS record is not a modify record.
          *
-         * The special ondisk value that is present in the LAS is only removed whenever a next
-         * record of the same key gets removed. This is to protect the cases where we may still need
-         * the older ondisk value for some scenarios. The draw back is that this record never be
-         * removes until no updates happens on that key, but these scenarios are minimal.
+         * The special ondisk value i.e both timestamp and transaction id values as 0 and is the
+         * last record of the key that is globally visible is present in the LAS can only be removed
+         * whenever a next record of the same key gets removed. This is to protect the cases where
+         * we may still need the older ondisk value for some scenarios. The draw back is that this
+         * record never be removed until more updates happens on that key, but these scenarios are
+         * minimal.
          *
-         * TODO: Better key/value pair design that let you know that on disk impage of the key is
+         * TODO: Better key/value pair design that let you know that on disk image of the key is
          * globally visible will simplify the logic of removing the entire LAS records for that key.
          */
         if ((special_ondisk_value ? pending_remove_cnt > 1 : pending_remove_cnt > 0) &&
@@ -1282,16 +1284,15 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
         }
 
         /*
-         * There are several conditions that need to be met
-         * before we choose to remove a lookaside entry:
-         *  * If there exists a last checkpoint timestamp, then the lookaside record timestamp
-         *    must be less than last checkpoint timestamp.
+         * There are several conditions that need to be met before we choose to remove a lookaside
+         * entry:
+         *  * If there exists a last checkpoint timestamp, then the lookaside record timestamp must
+         *    be less than last checkpoint timestamp.
          *  * The entry is globally visible.
          *  * The entry wasn't from a prepared transaction.
          */
-        if (((S2C(session)->txn_global.last_ckpt_timestamp != WT_TS_NONE) ?
-                (las_timestamp > S2C(session)->txn_global.last_ckpt_timestamp) :
-                (false)) ||
+        if (((S2C(session)->txn_global.last_ckpt_timestamp != WT_TS_NONE) &&
+              (las_timestamp > S2C(session)->txn_global.last_ckpt_timestamp)) ||
           !__wt_txn_visible_all(session, las_txnid, durable_timestamp) ||
           prepare_state == WT_PREPARE_INPROGRESS) {
             /*
