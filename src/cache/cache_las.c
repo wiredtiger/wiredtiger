@@ -1454,7 +1454,7 @@ __wt_find_lookaside_upd(
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
                 WT_ERR(cursor->prev(cursor));
-#ifdef HAVE_DIAGNOSTIC
+
                 /*
                  * We shouldn't be crossing over to another btree id, key combination or breaking
                  * any visibility rules while doing this.
@@ -1466,9 +1466,13 @@ __wt_find_lookaside_upd(
                   cursor->get_key(cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
                 WT_ASSERT(session, las_btree_id == S2BT(session)->id);
                 WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
-                WT_ASSERT(session, cmp == 0);
-                WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
-#endif
+                if (las_btree_id != S2BT(session)->id || cmp != 0) {
+                    upd_type = WT_UPDATE_STANDARD;
+                    prepare_state = WT_PREPARE_INIT;
+                    WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, las_value));
+                    break;
+                } else
+                    WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
                 WT_ERR(cursor->get_value(
                   cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
             }
