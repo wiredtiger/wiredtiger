@@ -720,8 +720,8 @@ __wt_las_insert_block(
                 break;
             default:
                 /*
-                 * It is never OK to see a birthmark here - it
-                 * would be referring to the wrong page image.
+                 * It is never OK to see a birthmark here - it would be referring to the wrong page
+                 * image.
                  */
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
