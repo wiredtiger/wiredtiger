@@ -94,8 +94,6 @@ functions:
         source_dir: "wiredtiger"
         include:
           - "./**"
-        exclude_files:
-          - "./.git"
     - command: s3.put
       params:
         aws_secret: ${aws_secret}
