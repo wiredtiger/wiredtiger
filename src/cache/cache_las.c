@@ -1319,6 +1319,33 @@ err:
 }
 
 /*
+ * __find_birthmark_update --
+ *     A helper function to find a birthmark update for a given key. If there is no birthmark record
+ *     (either no lookaside content or the most recent value was instantiated) the update pointer
+ *     will be set to null.
+ */
+static void
+__find_birthmark_update(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
+{
+    WT_PAGE *page;
+    WT_UPDATE *upd;
+
+    page = cbt->ref->page;
+
+    upd = NULL;
+    if (cbt->ins != NULL)
+        upd = cbt->ins->upd;
+    else if (cbt->btree->type == BTREE_ROW && page->modify != NULL &&
+      page->modify->mod_row_update != NULL)
+        upd = page->modify->mod_row_update[cbt->slot];
+
+    for (; upd != NULL && upd->type != WT_UPDATE_BIRTHMARK; upd = upd->next)
+        ;
+
+    *updp = upd;
+}
+
+/*
  * __wt_find_lookaside_upd --
  *     Scan the lookaside for a record the btree cursor wants to position on. Create an update for
  *     the record and return to the caller. The caller may choose to optionally allow prepared
@@ -1337,7 +1364,7 @@ __wt_find_lookaside_upd(
     WT_ITEM *key, _key;
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
-    WT_UPDATE *mod_upd, *upd;
+    WT_UPDATE *birthmark_upd, *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t notused, size;
     uint64_t las_txnid, _las_txnid, recno;
@@ -1450,6 +1477,7 @@ __wt_find_lookaside_upd(
          */
         if (upd_type == WT_UPDATE_MODIFY) {
             WT_NOT_READ(modify, true);
+            __find_birthmark_update(cbt, &birthmark_upd);
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, las_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
@@ -1457,16 +1485,37 @@ __wt_find_lookaside_upd(
                 WT_ERR(las_cursor->prev(las_cursor));
 
                 /*
-                 * We shouldn't be crossing over to another btree id, key combination or breaking
-                 * any visibility rules while doing this.
-                 *
                  * Make sure we use the underscore variants of these variables. We need to retain
                  * the timestamps of the original modify we saw.
+                 *
+                 * The regular case is where we keep looking back into lookaside until we find a
+                 * base update to apply the deltas on top of.
                  */
                 WT_ERR(las_cursor->get_key(
                   las_cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
-                WT_ASSERT(session, las_btree_id == S2BT(session)->id);
+
+                /*
+                 * Another possibility is where the birthmark that we instantiated the lookaside
+                 * page with IS the base update that we should be applying the deltas to. If the
+                 * cursor positions itself on a modify, we immediately traverse the update list to
+                 * look for the birthmark update and compare its timestamp/txnid with the lookaside
+                 * contents.
+                 */
+                if (birthmark_upd != NULL && ((birthmark_upd->start_ts > _las_timestamp) ||
+                                               (birthmark_upd->start_ts == _las_timestamp &&
+                                                 birthmark_upd->txnid > _las_txnid))) {
+                    las_value->data = birthmark_upd->data;
+                    las_value->size = birthmark_upd->size;
+                    break;
+                }
                 WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
+
+                /*
+                 * The last possibility is where the on-disk value is the base update but is not a
+                 * birthmark record. This can happen if reconciliation occurred when ONLY that value
+                 * existed. It will be not be a birthmark since we won't go through the lookaside
+                 * eviction path in the case of a single value.
+                 */
                 if (las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
