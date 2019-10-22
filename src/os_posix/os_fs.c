@@ -881,50 +881,6 @@ err:
     return (ret);
 }
 
-
-#if 0
-/*
- *
- * __posix_remap_region
- *     Remap the region to reflect the new file size.
- */
-static int
-__posix_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, off_t len)
-{
-    char *old_mapped_buf, *new_mapped_buf;
-    WT_FILE_HANDLE_POSIX *pfh;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
-
-    /* If someone else is trying to remap the buffer concurrently, we are done. */
-    old_mapped_buf = pfh->mmapped_buf;
-    if (!__wt_atomic_cas_ptr(&pfh->mmapped_buf, old_mapped_buf, NULL))
-        return 0;
-
-    __wt_verbose(session, WT_VERB_FILEOPS, "remap-region: %s, mapped_size=%lu, "
-                 "new size = %" PRIu64 "\n", file_handle->name, pfh->mmapped_size, (uint64_t)len);
-
-    /*
-     * We are asking to map the new buffer with the MAP_FIXED flag. We are remapping the same file,
-     * just asking to extend its size, so we want the mapped file to be placed at exactly the same
-     * address as the previous mapping. Readers and writers can thus use the mapped buffer address
-     * for memory-mapped I/O as we are remapping the region.
-     */
-    if ((new_mapped_buf = mmap(old_mapped_buf, (size_t)len, PROT_WRITE | PROT_READ,
-                                 MAP_FILE | MAP_SHARED | MAP_FIXED, pfh->fd, 0)) == MAP_FAILED)
-        WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", file_handle->name);
-
-    WT_ASSERT(session, new_mapped_buf == old_mapped_buf);
-
-    pfh->mmapped_size = (size_t)len;
-    WT_PUBLISH(pfh->mmapped_buf, new_mapped_buf);
-
-    return 0;
-}
-#endif
-
 /*
  * __posix_terminate --
  *     Terminate a POSIX configuration.
