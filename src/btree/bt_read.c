@@ -238,18 +238,18 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     } * las_preparep;
     WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CACHE *cache;
-    WT_CURSOR *cursor;
+    WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
-    WT_ITEM las_key, las_value, next_las_key;
+    WT_ITEM las_key, _las_key, las_value, next_las_key;
     WT_MODIFY_VECTOR modifies;
     WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, las_timestamp;
+    wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
     size_t allocated_bytes, notused, size, total_incr;
-    uint64_t birthmark_cnt, las_txnid, recno;
+    uint64_t birthmark_cnt, las_txnid, _las_txnid, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
@@ -258,8 +258,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     birthmarkp = NULL;
     cache = S2C(session)->cache;
-    cursor = NULL;
+    las_cursor = NULL;
     WT_CLEAR(las_key);
+    WT_CLEAR(_las_key);
     WT_CLEAR(las_value);
     __wt_modify_vector_init(&modifies, session);
     page_las = ref->page_las;
@@ -308,7 +309,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /* Open a lookaside table cursor. */
-    __wt_las_cursor(session, &cursor, &session_flags);
+    __wt_las_cursor(session, &las_cursor, &session_flags);
 
     /*
      * The lookaside records are in key and update order, that is, there will be a set of in-order
@@ -334,26 +335,27 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     notused = size = total_incr = 0;
     first_scan = true;
     locked = true;
-    cursor->set_key(cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
-    for (; ret == 0; ret = cursor->next(cursor)) {
+    las_cursor->set_key(las_cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
+    for (; ret == 0; ret = las_cursor->next(las_cursor)) {
         if (!first_scan) {
-            WT_ERR(
-              cursor->get_key(cursor, &las_btree_id, &next_las_key, &las_timestamp, &las_txnid));
+            WT_ERR(las_cursor->get_key(
+              las_cursor, &las_btree_id, &next_las_key, &las_timestamp, &las_txnid));
 
             /* Set the key to check with maximum timestamp and transaction id. */
-            cursor->set_key(cursor, las_btree_id, &next_las_key, WT_TS_MAX, WT_TXN_MAX);
+            las_cursor->set_key(las_cursor, las_btree_id, &next_las_key, WT_TS_MAX, WT_TXN_MAX);
         }
         first_scan = false;
 
-        WT_ERR(cursor->search_near(cursor, &exact));
+        WT_ERR(las_cursor->search_near(las_cursor, &exact));
         /*
          * Check whether the search_near returned the same key. If it returns the next key, continue
          * with the previous record.
          */
         if (exact > 0)
-            WT_ERR(cursor->prev(cursor));
+            WT_ERR(las_cursor->prev(las_cursor));
 
-        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_ERR(
+          las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
 
         /* Stop before crossing over to the next btree. */
         if (las_btree_id != S2BT(session)->id)
@@ -394,8 +396,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
         if (upd == NULL) {
             /* Allocate the WT_UPDATE structure. */
-            WT_ERR(
-              cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+            WT_ERR(las_cursor->get_value(
+              las_cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
 
             /*
              * If our update is a modify then rewrite it as a standard update. It's a problem if we
@@ -409,9 +411,27 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_ERR(__wt_update_alloc(session, &las_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
-                WT_ERR(cursor->prev(cursor));
-                WT_ERR(cursor->get_value(
-                  cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+                WT_ERR(las_cursor->prev(las_cursor));
+
+                /*
+                 * Check that we haven't crossed over to another btree/key. If we've crossed a
+                 * boundary then the base update that we're applying the modifies to should be the
+                 * on-disk value which won't be in the lookaside.
+                 *
+                 * The on-disk value cannot be a modify or a prepare so we can confidently assign
+                 * the update type and prepare state to the resulting update.
+                 */
+                WT_ERR(las_cursor->get_key(
+                  las_cursor, &las_btree_id, &_las_key, &_las_timestamp, &_las_txnid));
+                WT_ERR(__wt_compare(session, NULL, &las_key, &_las_key, &cmp));
+                if (las_btree_id != S2BT(session)->id || cmp != 0) {
+                    upd_type = WT_UPDATE_STANDARD;
+                    prepare_state = WT_PREPARE_INIT;
+                    WT_ASSERT(session, __wt_value_return_buf(session, &cbt, ref, &las_value) == 0);
+                } else
+                    WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
+                WT_ERR(las_cursor->get_value(
+                  las_cursor, &_durable_timestamp, &prepare_state, &upd_type, &las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD || upd_type == WT_UPDATE_TOMBSTONE);
             while (modifies.size > 0) {
@@ -423,7 +443,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                  * We had to do some backtracking to construct this update. Unwind back to where we
                  * were before.
                  */
-                WT_ERR(cursor->next(cursor));
+                WT_ERR(las_cursor->next(las_cursor));
             }
 
             WT_ERR(__wt_update_alloc(session, &las_value, &upd, &size, upd_type));
@@ -496,9 +516,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * instantiated.
      */
     for (i = 0, las_preparep = las_prepares->mem; i < las_prepare_cnt; i++, las_preparep++) {
-        cursor->set_key(
-          cursor, las_btree_id, &las_preparep->key, las_preparep->timestamp, las_preparep->txnid);
-        WT_ERR(cursor->remove(cursor));
+        las_cursor->set_key(las_cursor, las_btree_id, &las_preparep->key, las_preparep->timestamp,
+          las_preparep->txnid);
+        WT_ERR(las_cursor->remove(las_cursor));
     }
 
     __wt_buf_free(session, &page_las->max_las_key);
@@ -522,7 +542,7 @@ err:
 
     if (locked)
         __wt_readunlock(session, &cache->las_sweepwalk_lock);
-    WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_free(session, upd);
 

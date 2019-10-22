@@ -68,11 +68,11 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_return_buf --
+ * __wt_value_return_buf --
  *     Change a buffer to reference an internal original-page return value.
  */
-static inline int
-__value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *buf)
+int
+__wt_value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -84,7 +84,7 @@ __value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *buf)
 
     btree = S2BT(session);
 
-    page = cbt->ref->page;
+    page = ref->page;
     cursor = &cbt->iface;
 
     if (page->type == WT_PAGE_ROW_LEAF) {
@@ -107,7 +107,7 @@ __value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *buf)
     }
 
     /* WT_PAGE_COL_FIX: Take the value from the original page. */
-    v = __bit_getv_recno(cbt->ref, cursor->recno, btree->bitcnt);
+    v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
     return (__wt_buf_set(session, buf, &v, 1));
 }
 
@@ -118,7 +118,7 @@ __value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *buf)
 static inline int
 __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 {
-    return (__value_return_buf(session, cbt, &cbt->iface.value));
+    return (__wt_value_return_buf(session, cbt, cbt->ref, &cbt->iface.value));
 }
 
 /*
