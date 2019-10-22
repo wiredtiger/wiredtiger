@@ -364,8 +364,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * (but we save enough information that checkpoint can fix
          * things up if we choose an update that is too new).
          */
-        if (upd_select->upd == NULL && r->las_skew_newest)
+        if (upd_select->upd == NULL && r->las_skew_newest) {
             upd_select->upd = upd;
+            if (upd_select->upd->ext == 1)
+                upd_select->upd->ext++;
+        }
 
         if (!__rec_update_durable(session, r, upd)) {
             if (F_ISSET(r, WT_REC_EVICT))
@@ -403,8 +406,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * (set to the first uncommitted transaction). All other
          * reconciliation takes the first stable update.
          */
-        if (upd_select->upd == NULL)
+        if (upd_select->upd == NULL) {
             upd_select->upd = upd;
+            if (upd_select->upd->ext == 1)
+                upd_select->upd->ext++;
+        }
 
         if (!F_ISSET(r, WT_REC_EVICT))
             break;

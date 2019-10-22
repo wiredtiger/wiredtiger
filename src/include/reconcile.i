@@ -202,19 +202,18 @@ __wt_rec_cell_build_addr(
  */
 static inline int
 __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size,
-  wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts, uint64_t stop_txn,
-  uint64_t rle)
+  bool copy_data, wt_timestamp_t start_ts, uint64_t start_txn, wt_timestamp_t stop_ts,
+  uint64_t stop_txn, uint64_t rle)
 {
     WT_BTREE *btree;
     WT_REC_KV *val;
 
     btree = S2BT(session);
-
     val = &r->v;
 
     /*
-     * We don't copy the data into the buffer, it's not necessary; just re-point the buffer's
-     * data/length fields.
+     * Unless necessary we don't copy the data into the buffer; start by just re-pointing the
+     * buffer's data/length fields.
      */
     val->buf.data = data;
     val->buf.size = size;
@@ -222,9 +221,12 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
     /* Handle zero-length cells quickly. */
     if (size != 0) {
         /* Optionally compress the data using the Huffman engine. */
-        if (btree->huffman_value != NULL)
+        if (btree->huffman_value != NULL) {
             WT_RET(__wt_huffman_encode(
               session, btree->huffman_value, val->buf.data, (uint32_t)val->buf.size, &val->buf));
+            /* Encoding copies the data in the buffer, we do not need to copy explicitly. */
+            copy_data = false;
+        }
 
         /* Create an overflow object if the data won't fit. */
         if (val->buf.size > btree->maxleafvalue) {
@@ -234,6 +236,11 @@ __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *d
               session, r, val, WT_CELL_VALUE_OVFL, start_ts, start_txn, stop_ts, stop_txn, rle));
         }
     }
+
+    /* If the caller asked us to make a copy, do so now. */
+    if (copy_data)
+        WT_RET(__wt_buf_set(session, &val->buf, data, size));
+
     val->cell_len = __wt_cell_pack_value(
       session, &val->cell, start_ts, start_txn, stop_ts, stop_txn, rle, val->buf.size);
     val->len = val->cell_len + val->buf.size;

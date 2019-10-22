@@ -136,7 +136,7 @@ __wt_value_return_upd(
      * Fast path if it's a standard item, assert our caller's behavior.
      */
     if (upd->type == WT_UPDATE_STANDARD) {
-        if (upd->ext == 1) {
+        if (upd->ext != 0) {
             /* Copy an external update, and delete after using it */
             WT_RET(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
             __wt_free_update_list(session, &upd);
