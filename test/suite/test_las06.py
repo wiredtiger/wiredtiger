@@ -364,8 +364,6 @@ class test_las06(wttest.WiredTigerTestCase):
         expected[300] = 'D'
         expected = str().join(expected)
 
-        self.session.breakpoint()
-
         # Go back and read. We should get the initial value with the 3 modifies applied on top.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
         for i in range(1, 11):
