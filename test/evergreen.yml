@@ -370,7 +370,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            UBSAN_OPTIONS="print_stacktrace=1:halt_on_error=1:abort_on_error=1:disable_coredump=0" ./ex_access
+            UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1:abort_on_error=1:disable_coredump=0 ./ex_access
 
   # Start of csuite test tasks
 
