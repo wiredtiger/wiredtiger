@@ -106,25 +106,17 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
 static int
 __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
 {
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    char *config, *newcfg;
-    const char *cfg[3];
 
-    config = newcfg = NULL;
-
-    /* Retrieve the metadata for this file. */
-    WT_ERR(__wt_metadata_search(session, fname, &config));
-
-    /* Replace the checkpoint entry. */
-    cfg[0] = config;
-    cfg[1] = v == NULL ? "checkpoint=()" : v;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
-    WT_ERR(__wt_metadata_update(session, fname, newcfg));
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s", session->dhandle->meta_base));
+    WT_ERR(__wt_buf_catfmt(session, tmp, ",%s", v == NULL ? "checkpoint=()," : v));
+    WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
 
 err:
-    __wt_free(session, config);
-    __wt_free(session, newcfg);
+    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
@@ -236,37 +228,28 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
     WT_DECL_RET;
     WT_KEYED_ENCRYPTOR *kencryptor;
     size_t encrypt_size, metadata_len;
-    char *min_config;
     const char *metadata, *filecfg[] = {WT_CONFIG_BASE(session, file_meta), NULL, NULL};
 
-    min_config = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &a));
     WT_ERR(__wt_scr_alloc(session, 0, &b));
-
-    /*
-     * The metadata has to be encrypted because it contains private data
-     * (for example, column names). We pass the block manager text that
-     * describes the metadata (the encryption information), and the
-     * possibly encrypted metadata encoded as a hexadecimal string.
-     * configuration string.
-     *
-     * Get a minimal configuration string, just the non-default entries.
-     */
-    WT_ERR(__wt_config_discard_defaults(session, filecfg, config, &min_config));
 
     /* Fill out the configuration array for normal retrieval. */
     filecfg[1] = config;
 
     /*
-     * Find out if this file is encrypted. If encrypting, encrypt and encode the minimal
-     * configuration.
+     * Find out if this file is encrypted. If encrypting, encrypt and encode.
+     * The metadata has to be encrypted because it contains private data
+     * (for example, column names). We pass the block manager text that
+     * describes the metadata (the encryption information), and the
+     * possibly encrypted metadata encoded as a hexadecimal string.
+     * configuration string.
      */
     WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
     if (kencryptor == NULL) {
-        metadata = min_config;
-        metadata_len = strlen(min_config);
+        metadata = config;
+        metadata_len = strlen(config);
     } else {
-        WT_ERR(__wt_buf_set(session, a, min_config, strlen(min_config)));
+        WT_ERR(__wt_buf_set(session, a, config, strlen(config)));
         __wt_encrypt_size(session, kencryptor, a->size, &encrypt_size);
         WT_ERR(__wt_buf_grow(session, b, encrypt_size));
         WT_ERR(__wt_encrypt(session, kencryptor, 0, a, b));
@@ -289,7 +272,6 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
     WT_ERR(__wt_strndup(session, b->data, b->size, &ckpt->block_metadata));
 
 err:
-    __wt_free(session, min_config);
     __wt_scr_free(session, &a);
     __wt_scr_free(session, &b);
     return (ret);

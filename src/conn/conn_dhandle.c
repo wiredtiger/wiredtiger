@@ -25,6 +25,7 @@ __conn_dhandle_config_clear(WT_SESSION_IMPL *session)
     for (a = dhandle->cfg; *a != NULL; ++a)
         __wt_free(session, *a);
     __wt_free(session, dhandle->cfg);
+    __wt_free(session, dhandle->meta_base);
 }
 
 /*
@@ -36,9 +37,11 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 {
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    char *metaconf;
+    char *metaconf, *tmp;
+    const char *base, *cfg[3];
 
     dhandle = session->dhandle;
+    base = NULL;
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.
@@ -48,6 +51,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
             ret = __wt_set_return(session, ENOENT);
         WT_RET(ret);
     }
+    cfg[0] = metaconf;
+    cfg[1] = NULL;
+    cfg[2] = NULL;
 
     /*
      * The defaults are included because persistent configuration information is stored in the
@@ -64,16 +70,28 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
+        WT_ASSERT(session, dhandle->meta_base == NULL);
+        /* Overwrite any checkpoint info. */
+        cfg[1] = "checkpoint=()";
+        WT_ERR(__wt_config_collapse(session, cfg, &tmp));
+        /* Now strip out the checkpoint. */
+        cfg[0] = tmp;
+        cfg[1] = NULL;
+        WT_ERR(__wt_config_merge(session, cfg, "checkpoint=,checkpoint_lsn=", &base));
+        __wt_free(session, tmp);
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
         break;
     }
     dhandle->cfg[1] = metaconf;
+    dhandle->meta_base = base;
     return (0);
 
 err:
+    __wt_free(session, base);
     __wt_free(session, metaconf);
+    __wt_free(session, tmp);
     return (ret);
 }
 
