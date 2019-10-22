@@ -428,6 +428,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
                     WT_ERR(__wt_value_return_buf(session, &cbt, ref, &las_value));
+                    break;
                 } else
                     WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
                 WT_ERR(las_cursor->get_value(
