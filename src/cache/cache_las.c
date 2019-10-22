@@ -1330,7 +1330,7 @@ __wt_find_lookaside_upd(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool allow_prepare)
 {
     WT_CACHE *cache;
-    WT_CURSOR *cursor;
+    WT_CURSOR *las_cursor;
     WT_DECL_ITEM(las_key);
     WT_DECL_ITEM(las_value);
     WT_DECL_RET;
@@ -1353,7 +1353,7 @@ __wt_find_lookaside_upd(
     *updp = NULL;
 
     cache = S2C(session)->cache;
-    cursor = NULL;
+    las_cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
     __wt_modify_vector_init(&modifies, session);
@@ -1384,7 +1384,7 @@ __wt_find_lookaside_upd(
     WT_ERR(__wt_scr_alloc(session, 0, &las_value));
 
     /* Open a lookaside table cursor. */
-    __wt_las_cursor(session, &cursor, &session_flags);
+    __wt_las_cursor(session, &las_cursor, &session_flags);
 
     /*
      * The lookaside records are in key and update order, that is, there will be a set of in-order
@@ -1401,10 +1401,10 @@ __wt_find_lookaside_upd(
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    ret = __wt_las_cursor_position(session, cursor, las_btree_id, key,
+    ret = __wt_las_cursor_position(session, las_cursor, las_btree_id, key,
       allow_prepare ? txn->prepare_timestamp : txn->read_timestamp);
-    for (; ret == 0; ret = cursor->prev(cursor)) {
-        WT_ERR(cursor->get_key(cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
+    for (; ret == 0; ret = las_cursor->prev(las_cursor)) {
+        WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
 
         /* Stop before crossing over to the next btree */
         if (las_btree_id != S2BT(session)->id)
@@ -1425,7 +1425,8 @@ __wt_find_lookaside_upd(
         if (!__wt_txn_visible(session, las_txnid, las_timestamp))
             continue;
 
-        WT_ERR(cursor->get_value(cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
+        WT_ERR(las_cursor->get_value(
+          las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
 
         /*
          * Found a visible record, return success unless it is prepared and we are not ignoring
@@ -1453,7 +1454,7 @@ __wt_find_lookaside_upd(
                 WT_ERR(__wt_update_alloc(session, las_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
-                WT_ERR(cursor->prev(cursor));
+                WT_ERR(las_cursor->prev(las_cursor));
 
                 /*
                  * We shouldn't be crossing over to another btree id, key combination or breaking
@@ -1462,8 +1463,8 @@ __wt_find_lookaside_upd(
                  * Make sure we use the underscore variants of these variables. We need to retain
                  * the timestamps of the original modify we saw.
                  */
-                WT_ERR(
-                  cursor->get_key(cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
+                WT_ERR(las_cursor->get_key(
+                  las_cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
                 WT_ASSERT(session, las_btree_id == S2BT(session)->id);
                 WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
                 if (las_btree_id != S2BT(session)->id || cmp != 0) {
@@ -1473,8 +1474,8 @@ __wt_find_lookaside_upd(
                     break;
                 } else
                     WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
-                WT_ERR(cursor->get_value(
-                  cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
+                WT_ERR(las_cursor->get_value(
+                  las_cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
             while (modifies.size > 0) {
@@ -1514,7 +1515,7 @@ __wt_find_lookaside_upd(
                 break;
             }
 
-            ret = cursor->remove(cursor);
+            ret = las_cursor->remove(las_cursor);
             if (ret != 0)
                 WT_PANIC_ERR(session, ret,
                   "initialised prepared update but was unable to remove the corresponding entry "
@@ -1543,7 +1544,7 @@ err:
     __wt_scr_free(session, &las_key);
     __wt_scr_free(session, &las_value);
 
-    WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
+    WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
     __wt_free_update_list(session, mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
