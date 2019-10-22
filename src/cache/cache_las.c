@@ -1366,6 +1366,7 @@ __wt_find_lookaside_upd(
     WT_TXN *txn;
     WT_UPDATE *birthmark_upd, *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
+    wt_timestamp_t read_timestamp;
     size_t notused, size;
     uint64_t las_txnid, _las_txnid, recno;
     uint32_t las_btree_id, session_flags;
@@ -1428,8 +1429,8 @@ __wt_find_lookaside_upd(
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * las) to the oldest (earlier in the las) for a given key.
      */
-    ret = __wt_las_cursor_position(session, las_cursor, las_btree_id, key,
-      allow_prepare ? txn->prepare_timestamp : txn->read_timestamp);
+    read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
+    ret = __wt_las_cursor_position(session, las_cursor, las_btree_id, key, read_timestamp);
     for (; ret == 0; ret = las_cursor->prev(las_cursor)) {
         WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
 
@@ -1501,9 +1502,12 @@ __wt_find_lookaside_upd(
                  * look for the birthmark update and compare its timestamp/txnid with the lookaside
                  * contents.
                  */
-                if (birthmark_upd != NULL && ((birthmark_upd->start_ts > _las_timestamp) ||
-                                               (birthmark_upd->start_ts == _las_timestamp &&
-                                                 birthmark_upd->txnid > _las_txnid))) {
+                if (birthmark_upd != NULL && birthmark_upd->start_ts < read_timestamp &&
+                  ((birthmark_upd->start_ts > _las_timestamp) ||
+                      (birthmark_upd->start_ts == _las_timestamp &&
+                        birthmark_upd->txnid > _las_txnid))) {
+                    upd_type = WT_UPDATE_STANDARD;
+                    prepare_state = WT_PREPARE_INIT;
                     WT_ERR(
                       __wt_buf_set(session, las_value, birthmark_upd->data, birthmark_upd->size));
                     break;
