@@ -715,13 +715,14 @@ __wt_las_insert_block(
                 las_value.data = upd->data;
                 las_value.size = upd->size;
                 break;
-            case WT_UPDATE_BIRTHMARK:
-                WT_ASSERT(session, upd != first_upd || multi->page_las.skew_newest);
-            /* FALLTHROUGH */
             case WT_UPDATE_TOMBSTONE:
                 las_value.size = 0;
                 break;
             default:
+                /*
+                 * It is never OK to see a birthmark here - it
+                 * would be referring to the wrong page image.
+                 */
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
 
