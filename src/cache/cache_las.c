@@ -1082,7 +1082,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     uint32_t las_btree_id, remove_btree_id, saved_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
     int cmp, notused;
-    bool local_txn, key_change, locked, prev_rec_verified;
+    bool globally_visible_ondisk_value, key_change, local_txn, locked, prev_rec_verified;
 
     cache = S2C(session)->cache;
     cursor = NULL;
@@ -1146,6 +1146,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     saved_btree_id = 0;
     saved_timestamp = WT_TS_NONE;
     saved_txnid = WT_TXN_NONE;
+    globally_visible_ondisk_value = false;
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
@@ -1237,9 +1238,21 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
         /*
          * Remove the previous obsolete entries whenever the scan moves into next key or the current
          * LAS record is not a modify record.
+         *
+         * The special ondisk value i.e both timestamp and transaction id values as 0 and is the
+         * last record of the key that is globally visible is present in the LAS can only be removed
+         * whenever a next record of the same key gets removed. This is to protect the cases where
+         * we may still need the older ondisk value for some scenarios. The draw back is that this
+         * record never be removed until more updates happens on that key, but these scenarios are
+         * minimal.
+         *
+         * TODO: Better key/value pair design that let you know that on disk image of the key is
+         * globally visible will simplify the logic of removing the entire LAS records for that key.
          */
-        if (pending_remove_cnt && (key_change || upd_type != WT_UPDATE_MODIFY)) {
+        if ((globally_visible_ondisk_value ? pending_remove_cnt > 1 : pending_remove_cnt > 0) &&
+          (key_change || upd_type != WT_UPDATE_MODIFY)) {
             prev_rec_verified = false;
+            globally_visible_ondisk_value = false;
             while (pending_remove_cnt > 0) {
                 WT_ERR(cursor->prev(cursor));
 
@@ -1270,8 +1283,17 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
             WT_ERR(cursor->next(cursor));
         }
 
-        /* Don't remove the non obsolete entry. */
-        if (las_timestamp > S2C(session)->txn_global.oldest_timestamp ||
+        /*
+         * There are several conditions that need to be met before we choose to remove a lookaside
+         * entry:
+         *  1. If there exists a last checkpoint timestamp, then the lookaside record timestamp must
+         *     be less than last checkpoint timestamp.
+         *  2. The entry is globally visible.
+         *  3. The entry wasn't from a prepared transaction.
+         */
+        if (((S2C(session)->txn_global.last_ckpt_timestamp != WT_TS_NONE) &&
+              (las_timestamp > S2C(session)->txn_global.last_ckpt_timestamp)) ||
+          !__wt_txn_visible_all(session, las_txnid, durable_timestamp) ||
           prepare_state == WT_PREPARE_INPROGRESS) {
             /*
              * TODO: In case if there exists any pending remove count records that can be removed,
@@ -1285,9 +1307,16 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
         if (key_change) {
             saved_btree_id = las_btree_id;
             WT_ERR(__wt_buf_set(session, saved_key, las_key.data, las_key.size));
+            pending_remove_cnt = 0;
+            globally_visible_ondisk_value = false;
         }
         saved_timestamp = las_timestamp;
         saved_txnid = las_txnid;
+
+        /* Mark the flag if the LAS record is a previous ondisk image value */
+        if (las_timestamp == WT_TS_NONE && las_txnid == WT_TXN_NONE)
+            globally_visible_ondisk_value = true;
+
         pending_remove_cnt++;
     }
 
