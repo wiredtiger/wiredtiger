@@ -178,11 +178,6 @@ __wt_value_return_upd(
             break;
 
         if (upd->type == WT_UPDATE_MODIFY) {
-            /*
-             * Update lists are expected to be short, but it's not guaranteed. There's sufficient
-             * room on the stack to avoid memory allocation in normal cases, but we have to handle
-             * the edge cases too.
-             */
             WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /*
