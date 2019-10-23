@@ -1082,7 +1082,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     uint32_t las_btree_id, remove_btree_id, saved_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
     int cmp, notused;
-    bool local_txn, key_change, locked, prev_rec_verified, globally_visible_ondisk_value;
+    bool globally_visible_ondisk_value, key_change, local_txn, locked, prev_rec_verified;
 
     cache = S2C(session)->cache;
     cursor = NULL;
