@@ -248,7 +248,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
-    size_t allocated_bytes, notused, size, total_incr;
+    size_t notused, size, total_incr;
     uint64_t birthmark_cnt, las_txnid, _las_txnid, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
@@ -266,7 +266,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     page_las = ref->page_las;
     page = ref->page;
     mod_upd = upd = NULL;
-    allocated_bytes = 0;
     birthmark_cnt = 0;
     recno = WT_RECNO_OOB;
     las_btree_id = S2BT(session)->id;

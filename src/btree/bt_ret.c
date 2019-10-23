@@ -132,7 +132,6 @@ __wt_value_return_upd(
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
-    u_int i;
     bool skipped_birthmark;
 
     cursor = &cbt->iface;
@@ -160,7 +159,7 @@ __wt_value_return_upd(
     /*
      * Find a complete update that's visible to us, tracking modifications that are visible to us.
      */
-    for (i = 0, skipped_birthmark = false; upd != NULL; upd = upd->next) {
+    for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
