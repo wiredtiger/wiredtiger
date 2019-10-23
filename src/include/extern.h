@@ -1969,8 +1969,6 @@ static inline int __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *k
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_read(WT_SESSION_IMPL *session, WT_UPDATE *upd, WT_UPDATE **updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit,
-  int64_t *resolved_update_countp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_update_check(WT_SESSION_IMPL *session, WT_UPDATE *upd)
