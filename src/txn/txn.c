@@ -645,32 +645,38 @@ __txn_resolve_prepared_op(
 
     txn = &session->txn;
 
-    if (op->type == WT_TXN_OP_NONE || op->type == WT_TXN_OP_REF_DELETE ||
-      op->type == WT_TXN_OP_TRUNCATE_COL || op->type == WT_TXN_OP_TRUNCATE_ROW)
-        return (0);
-
     WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
 
-    /*
-     * Transaction prepare is cleared temporarily as cursor functions are not allowed for prepared
-     * transactions.
-     */
-    F_CLR(txn, WT_TXN_PREPARE);
-    if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)
-        __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
-    else
+    switch (op->type) {
+    case WT_TXN_OP_BASIC_COL:
+    case WT_TXN_OP_INMEM_COL:
         ((WT_CURSOR_BTREE *)cursor)->iface.recno = op->u.op_col.recno;
-    F_SET(txn, WT_TXN_PREPARE);
+        break;
+    case WT_TXN_OP_BASIC_ROW:
+    case WT_TXN_OP_INMEM_ROW:
+        /*
+         * Transaction prepare is cleared temporarily as cursor functions are not allowed for
+         * prepared transactions.
+         */
+        F_CLR(txn, WT_TXN_PREPARE);
+        __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
+        F_SET(txn, WT_TXN_PREPARE);
+        break;
+    case WT_TXN_OP_NONE:
+    case WT_TXN_OP_REF_DELETE:
+    case WT_TXN_OP_TRUNCATE_COL:
+    case WT_TXN_OP_TRUNCATE_ROW:
+        WT_ERR_ASSERT(session, false, WT_PANIC, "invalid prepared operation update type");
+        break;
+    }
 
     WT_WITH_BTREE(
       session, op->btree, ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
     WT_ERR(ret);
 
     /* If we haven't found anything then there's an error. */
-    if (upd == NULL) {
-        WT_ERR_ASSERT(session, upd != NULL, WT_NOTFOUND,
-          "Unable to locate update associated with a prepared operation.");
-    }
+    WT_ERR_ASSERT(session, upd != NULL, WT_NOTFOUND,
+      "unable to locate update associated with a prepared operation");
 
     for (; upd != NULL; upd = upd->next) {
         /*
@@ -691,31 +697,26 @@ __txn_resolve_prepared_op(
         }
 
         /*
-         * Newer updates are inserted at head of update chain, and
-         * transaction operations are added at the tail of the
-         * transaction modify chain.
+         * Newer updates are inserted at head of update chain, and transaction operations are added
+         * at the tail of the transaction modify chain.
          *
          * For example, a transaction has modified [k,v] as
-         * [k, v]  -> [k, u1]   (txn_op : txn_op1)
-         * [k, u1] -> [k, u2]   (txn_op : txn_op2)
-         * update chain : u2->u1
-         * txn_mod      : txn_op1->txn_op2.
+         *	[k, v]  -> [k, u1]   (txn_op : txn_op1)
+         *	[k, u1] -> [k, u2]   (txn_op : txn_op2)
+         *	update chain : u2->u1
+         *	txn_mod      : txn_op1->txn_op2.
          *
-         * Only the key is saved in the transaction operation
-         * structure, hence we cannot identify whether "txn_op1"
-         * corresponds to "u2" or "u1" during commit/rollback.
+         * Only the key is saved in the transaction operation structure, hence we cannot identify
+         * whether "txn_op1" corresponds to "u2" or "u1" during commit/rollback.
          *
-         * To make things simpler we will handle all the updates
-         * that match the key saved in a transaction operation in a
-         * single go. As a result, multiple updates of a key, if any
-         * will be resolved as part of the first transaction operation
-         * resolution of that key, and subsequent transaction operation
-         * resolution of the same key will be effectively
-         * a no-op.
+         * To make things simpler we will handle all the updates that match the key saved in a
+         * transaction operation in a single go. As a result, multiple updates of a key, if any
+         * will be resolved as part of the first transaction operation * resolution of that key,
+         * and subsequent transaction operation resolution of the same key will be effectively a
+         * no-op.
          *
-         * In the above example, we will resolve "u2" and "u1" as part
-         * of resolving "txn_op1" and will not do any significant
-         * thing as part of "txn_op2".
+         * In the above example, we will resolve "u2" and "u1" as part of resolving "txn_op1" and
+         * will not do any significant thing as part of "txn_op2".
          */
 
         /* Resolve the prepared update to be committed update. */
