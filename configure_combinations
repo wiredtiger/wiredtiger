@@ -13,7 +13,7 @@ options="--enable-diagnostic
 --enable-java --enable-python
 --enable-snappy --enable-zlib --enable-lz4
 --with-builtins=lz4,snappy,zlib
---with-timestamp-size=0 --enable-python
+--enable-python
 --enable-diagnostic --enable-java --enable-python"
 
 saved_IFS=$IFS
@@ -35,7 +35,7 @@ BuildTest() {
 		# Execute python test
 		*with-timestamp-size=0*)
                     doinstall=false
-                    env LD_LIBRARY_PATH=.libs python ../test/suite/run.py -v 4 $TESTFLAGS
+                    env LD_LIBRARY_PATH=.libs python ../test/suite/run.py -v 4 "$3"
                     ;;
                 # Skip the install step with Python.  Even with --prefix, the
                 # install tries to write to /usr/lib64/python2.7/site-packages .
