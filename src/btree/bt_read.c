@@ -178,12 +178,12 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
     migrate_from_stack = false;
 
     if (modifies->size >= WT_MODIFY_VECTOR_STACK_SIZE) {
-        if (modifies->capacity == 0 && modifies->size == WT_MODIFY_VECTOR_STACK_SIZE) {
+        if (modifies->allocated_bytes == 0 && modifies->size == WT_MODIFY_VECTOR_STACK_SIZE) {
             migrate_from_stack = true;
             modifies->listp = NULL;
         }
         WT_ERR(__wt_realloc_def(
-          modifies->session, &modifies->capacity, modifies->size + 1, &modifies->listp));
+          modifies->session, &modifies->allocated_bytes, modifies->size + 1, &modifies->listp));
         if (migrate_from_stack)
             memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
     }
@@ -193,7 +193,7 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
 err:
     if (modifies->listp == NULL) {
         modifies->listp = modifies->list;
-        modifies->capacity = 0;
+        modifies->allocated_bytes = 0;
     }
     return (ret);
 }
@@ -218,10 +218,9 @@ __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
 void
 __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
 {
-    if (modifies->capacity != 0)
+    if (modifies->allocated_bytes != 0)
         __wt_free(modifies->session, modifies->listp);
-    WT_CLEAR(*modifies);
-    modifies->listp = modifies->list;
+    __wt_modify_vector_init(modifies, modifies->session);
 }
 
 /*

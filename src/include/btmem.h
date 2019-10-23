@@ -1142,7 +1142,7 @@ struct __wt_modify_vector {
     WT_SESSION_IMPL *session;
     WT_UPDATE *list[WT_MODIFY_VECTOR_STACK_SIZE];
     WT_UPDATE **listp;
-    size_t capacity;
+    size_t allocated_bytes;
     size_t size;
 };
 
