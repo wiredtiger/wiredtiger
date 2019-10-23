@@ -1273,7 +1273,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ./configure_combinations ${smp_command} 2>&1
+            ./configure_combinations ${smp_command|} 2>&1
 
 buildvariants:
 - name: ubuntu1804
