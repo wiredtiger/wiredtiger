@@ -238,7 +238,8 @@ tasks:
           test_env_vars: ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
           directory: examples/c
 
-  - name: examples-c-test-disable-shared-without-enable-diagnostic
+  - name: examples-c-disable-shared-without-enable-diagnostic-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile-disable-shared-without-enable-diagnostic
     commands:
@@ -252,7 +253,8 @@ tasks:
         vars:
           directory: examples/c
 
-  - name: examples-c-test-disable-static-without-enable-diagnostic
+  - name: examples-c-disable-static-without-enable-diagnostic-test
+    tags: ["pull_request"]
     depends_on:
       - name: compile-disable-static-without-enable-diagnostic
     commands:
@@ -262,34 +264,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
-      - func: "make check directory"
-        vars:
-          directory: examples/c
-
-  - name: examples-c-test-timestamp-size-0
-    depends_on:
-      - name: compile-timestamp-size-0
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-timestamp-size-0
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --with-timestamp-size=0 --enable-silent-rules --enable-strict --disable-static --enable-python
-      - func: "make check directory"
-        vars:
-          directory: examples/c
-
-  - name: examples-c-test-timestamp-size-37
-    depends_on:
-      - name: compile-timestamp-size-37
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-timestamp-size-37
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --with-timestamp-size=37 --enable-silent-rules --enable-strict --disable-static --enable-python
       - func: "make check directory"
         vars:
           directory: examples/c
