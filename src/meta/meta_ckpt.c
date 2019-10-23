@@ -108,15 +108,37 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    char *config, *newcfg;
+    const char *cfg[3], *str;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-    WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
-    WT_ERR(__wt_buf_fmt(session, tmp, "%s", session->dhandle->meta_base));
-    WT_ERR(__wt_buf_catfmt(session, tmp, ",%s", v == NULL ? "checkpoint=()," : v));
-    WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
+    /*
+     * If we have a dhandle with a metadata base configuration, use it. We want to avoid using
+     * configuration parsing functions if we can during checkpoints but some paths don't have a
+     * dhandle. In those cases, use the slower path.
+     */
+    config = newcfg = NULL;
+    str = v == NULL ? "checkpoint=()," : v;
+    if (session->dhandle != NULL) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
+        /* Concatenate the metadata base string with the checkpoint string. */
+        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", session->dhandle->meta_base, str));
+        WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
+    } else {
+        /* Retrieve the metadata for this file. */
+        WT_ERR(__wt_metadata_search(session, fname, &config));
+        /* Replace the checkpoint entry. */
+        cfg[0] = config;
+        cfg[1] = str;
+        cfg[2] = NULL;
+        WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
+        WT_ERR(__wt_metadata_update(session, fname, newcfg));
+    }
 
 err:
     __wt_scr_free(session, &tmp);
+    __wt_free(session, config);
+    __wt_free(session, newcfg);
     return (ret);
 }
 

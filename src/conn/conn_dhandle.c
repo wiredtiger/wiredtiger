@@ -51,9 +51,6 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
             ret = __wt_set_return(session, ENOENT);
         WT_RET(ret);
     }
-    cfg[0] = metaconf;
-    cfg[1] = NULL;
-    cfg[2] = NULL;
 
     /*
      * The defaults are included because persistent configuration information is stored in the
@@ -69,10 +66,12 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc_def(session, 3, &dhandle->cfg));
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
+        cfg[0] = metaconf;
+        cfg[1] = "checkpoint=()";
+        cfg[2] = NULL;
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
         WT_ASSERT(session, dhandle->meta_base == NULL);
         /* Overwrite any checkpoint info. */
-        cfg[1] = "checkpoint=()";
         WT_ERR(__wt_config_collapse(session, cfg, &tmp));
         /* Now strip out the checkpoint. */
         cfg[0] = tmp;
