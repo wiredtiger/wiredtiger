@@ -146,6 +146,15 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=memory -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
 
+  - name: compile-ubsan
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
+
+
   - name: make-check-test
     depends_on:
       - name: compile
@@ -343,6 +352,23 @@ tasks:
           directory: bench/wtperf
 
   # End of normal make check test tasks
+
+  - name: ubsan-test
+    depends_on:
+      - name: compile-ubsan
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/examples/c"
+          script: |
+            set -o errexit
+            set -o verbose
+            UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1:abort_on_error=1:disable_coredump=0 ./ex_access
 
   # Start of csuite test tasks
 
@@ -1276,6 +1302,8 @@ buildvariants:
     - name: ".pull_request !.windows_only"
     - name: compile-msan
     - name: make-check-msan-test
+    - name: compile-ubsan
+    - name: ubsan-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
