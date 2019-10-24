@@ -914,7 +914,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [c] -v 2 ${smp_command|} 2>&1
+            # Reserve this bucket only for compat tests, which take a long time to run
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py compat -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket02
     tags: ["pull_request", "unit_test"]
@@ -929,7 +930,9 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defg] -v 2 ${smp_command|} 2>&1
+            # Non-compat tests in the 'c' family
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -v 2 ${smp_command|} \
+              $(ls ../test/suite/test_c*.py | xargs -n1 basename | grep -v compat) 2>&1
 
   - name: unit-test-bucket03
     tags: ["pull_request", "unit_test"]
@@ -944,7 +947,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [hijk] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defghijk] -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket04
     tags: ["pull_request", "unit_test"]
@@ -989,7 +992,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [t] -v 2 ${smp_command|} 2>&1
+            # Reserve this bucket only for timestamp tests, which take a long time to run
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py timestamp -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket07
     tags: ["pull_request", "unit_test"]
@@ -1004,6 +1008,9 @@ tasks:
             set -o errexit
             set -o verbose
 
+            # Non-timestamp tests in the 't' family
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -v 2 ${smp_command|} \
+              $(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp) 2>&1
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
 
   # End of Python unit test tasks
