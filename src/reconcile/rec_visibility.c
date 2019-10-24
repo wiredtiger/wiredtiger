@@ -218,14 +218,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *upd;
+    WT_UPDATE *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd, *upd;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
     uint32_t session_flags;
     uint8_t *p;
     bool all_stable, las_cursor_open, las_positioned, list_prepared, list_uncommitted;
-    bool skipped_birthmark, sweep_locked;
+    bool skipped_birthmark, sweep_locked, walked_past_sel_upd;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -245,6 +245,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     las_cursor_open = las_positioned = list_prepared = list_uncommitted = skipped_birthmark = false;
     sweep_locked = false;
+    walked_past_sel_upd = false;
 
     if (__wt_page_las_active(session, r->ref)) {
         /* Obtain the key to iterate the lookaside */
@@ -304,8 +305,54 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (upd == NULL)
         goto err;
 
+    /* Select the update to write to the disk image. */
     for (; ret == 0 && upd != NULL; ret = __get_next_rec_upd(session, &inmem_upd_pos,
                                       &las_positioned, las_cursor, S2BT(session)->id, key, &upd)) {
+        if ((txnid = upd->txnid) == WT_TXN_ABORTED)
+            continue;
+
+        /* Prepared updates aren't written to the disk. */
+        if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
+            continue;
+
+        /*
+         * Check whether the update was committed before reconciliation started. The global commit
+         * point can move forward during reconciliation so we use a cached copy to avoid races when
+         * a concurrent transaction commits or rolls back while we are examining its updates.
+         */
+        if (F_ISSET(r, WT_REC_EVICT) &&
+          (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                            !__txn_visible_id(session, txnid)))
+            continue;
+
+        /*
+         * Lookaside and update/restore eviction try to choose the same version as a subsequent
+         * checkpoint, so that checkpoint can skip over pages with lookaside entries. If the
+         * application has supplied a stable timestamp, we assume (a) that it is old, and (b) that
+         * the next checkpoint will use it, so we wait to see a stable update. If there is no stable
+         * timestamp, we assume the next checkpoint will write the most recent version (but we save
+         * enough information that checkpoint can fix things up if we choose an update that is too
+         * new).
+         */
+        if (r->las_skew_newest) {
+            upd_select->upd = upd;
+            break;
+        }
+
+        if (!__rec_update_durable(session, r, upd))
+            continue;
+
+        /*
+         * Lookaside without stable timestamp was taken care of above (set to the first uncommitted
+         * transaction). All other reconciliation takes the first stable update.
+         */
+        upd_select->upd = upd;
+        break;
+    }
+    WT_ERR(ret);
+
+    /* Accumulate information about in-memory updates. */
+    for (upd = first_inmem_upd; upd != NULL; upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
@@ -319,12 +366,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             first_txn_upd = upd;
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
-
-        /*
-         * Track if all the updates are not with in-progress prepare state.
-         */
-        if (upd->prepare_state == WT_PREPARE_RESOLVED)
-            r->all_upd_prepare_in_prog = false;
 
         /*
          * Check whether the update was committed before reconciliation started. The global commit
@@ -343,6 +384,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 list_prepared = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
+                last_inmem_upd = upd;
                 continue;
             }
         }
@@ -351,24 +393,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->durable_ts > max_ts)
             max_ts = upd->durable_ts;
 
-        /*
-         * Select the update to write to the disk image.
-         *
-         * Lookaside and update/restore eviction try to choose the same
-         * version as a subsequent checkpoint, so that checkpoint can
-         * skip over pages with lookaside entries.  If the application
-         * has supplied a stable timestamp, we assume (a) that it is
-         * old, and (b) that the next checkpoint will use it, so we wait
-         * to see a stable update.  If there is no stable timestamp, we
-         * assume the next checkpoint will write the most recent version
-         * (but we save enough information that checkpoint can fix
-         * things up if we choose an update that is too new).
-         */
-        if (upd_select->upd == NULL && r->las_skew_newest) {
-            upd_select->upd = upd;
-            if (upd_select->upd->ext == 1)
-                upd_select->upd->ext++;
-        }
+        if (!walked_past_sel_upd && upd_select->upd != NULL && upd_select->upd->ext == 0)
+            walked_past_sel_upd = upd_select->upd == upd;
 
         if (!__rec_update_durable(session, r, upd)) {
             if (F_ISSET(r, WT_REC_EVICT))
@@ -380,7 +406,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * to discard updates from the stable update and older for correctness and we can't
              * discard an uncommitted update.
              */
-            if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
+            if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && walked_past_sel_upd &&
               (list_prepared || list_uncommitted)) {
                 ret = __wt_set_return(session, EBUSY);
                 goto err;
@@ -395,23 +421,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * This is used to decide whether reads can use the page image, hence using the start
              * rather than the durable timestamp.
              */
-            if (upd_select->upd == NULL && upd->start_ts < r->min_skipped_ts)
+            if (!walked_past_sel_upd && upd->start_ts < r->min_skipped_ts)
                 r->min_skipped_ts = upd->start_ts;
 
+            last_inmem_upd = upd;
             continue;
         }
 
-        /*
-         * Lookaside without stable timestamp was taken care of above
-         * (set to the first uncommitted transaction). All other
-         * reconciliation takes the first stable update.
-         */
-        if (upd_select->upd == NULL) {
-            upd_select->upd = upd;
-            if (upd_select->upd->ext == 1)
-                upd_select->upd->ext++;
-        }
+        last_inmem_upd = upd;
 
+        // This doesn't seem correct if this is a checkpoint ?
         if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
@@ -433,12 +452,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_SESSION_IS_CHECKPOINT(session));
 
     /* If all of the updates were aborted, quit. */
+    // What if there are no new updates in-mem but the selected update is external.
+    // maybe in such a case first_txn_upd should point to external update
     if (first_txn_upd == NULL) {
         WT_ASSERT(session, upd == NULL);
         goto err;
     }
 
     /* If no updates were skipped, record that we're making progress. */
+    // What if there are no new updates in-mem but the selected update is external.
+    // maybe in such a case first_txn_upd should point to external update
     if (upd == first_txn_upd)
         r->update_used = true;
 
@@ -450,6 +473,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * first inserted (or last updated). The end timestamp is set when a key/value pair becomes
      * invalid, either because of a remove or a modify/update operation on the same key.
      */
+    // Ask Keith to confirm
     if (upd != NULL) {
         /*
          * TIMESTAMP-FIXME This is waiting on the WT_UPDATE structure's start/stop
@@ -500,6 +524,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (upd != NULL && (upd->type == WT_UPDATE_BIRTHMARK ||
                          (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark))) {
+        WT_ASSERT(session, upd->ext == 0);
         /*
          * Resolve the birthmark now regardless of whether the update being written to the data file
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
@@ -515,6 +540,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
+    // Need to check this again, specially if we let first_txn_upd point to external upd
+    // What happens if no new updates are in-mem, but selected upd is external
     all_stable = upd == first_txn_upd && !list_prepared && !list_uncommitted &&
       __wt_txn_visible_all(session, max_txn, max_ts);
 
@@ -560,7 +587,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * The order of the updates on the list matters, we can't move only the unresolved updates, move
      * the entire update list.
      */
-    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+    // Need to think harder about this case, where selected update is external, and hence whole
+    // in-memory list becomes saved updates ? At the moment choose to write saved updates from the
+    // oldest in-mem record. Also in this case the on-disk record comes from lookaside, but is not
+    // present in saved update list, so no birthmark is written out for it.
+    // What does upd_select->upd == NULL mean here ?
+    WT_ASSERT(
+      session, upd_select->upd == NULL || upd_select->upd->ext == 0 || last_inmem_upd != NULL);
+    if (upd_select->upd != NULL && upd_select->upd->ext == 0)
+        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+    else
+        WT_ERR(__rec_update_save(session, r, ins, ripcip, last_inmem_upd, upd_memsize));
     upd_select->upd_saved = true;
 
 check_original_value:
@@ -576,6 +613,8 @@ check_original_value:
      * during reconciliation of a backing overflow record that will be physically removed once it's
      * no longer needed
      */
+    // What happens if there was no in-mem update, possible ?
+    WT_ASSERT(session, first_inmem_upd != NULL);
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved ||
           (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
