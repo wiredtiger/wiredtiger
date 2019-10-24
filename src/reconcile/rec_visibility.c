@@ -294,8 +294,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
-     * for an on-page row-store WT_UPDATE list (which may not exist). Also, check for any updates in
-     * the lookaside. Return immediately if the item has no updates.
+     * for an on-page row-store WT_UPDATE list (which may not exist), and any updates in lookaside.
+     * Return immediately if the item has no updates.
      */
     if (ins != NULL)
         first_inmem_upd = ins->upd;
@@ -410,10 +410,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * discard an uncommitted update.
              */
             if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && walked_past_sel_upd &&
-              (list_prepared || list_uncommitted)) {
-                ret = __wt_set_return(session, EBUSY);
-                goto err;
-            }
+              (list_prepared || list_uncommitted))
+                WT_ERR(__wt_set_return(session, EBUSY));
 
             if (upd->type == WT_UPDATE_BIRTHMARK)
                 skipped_birthmark = true;
@@ -437,7 +435,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
-    WT_ERR(ret);
 
     /* Keep track of the selected update. */
     upd = upd_select->upd;
@@ -575,14 +572,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * path is the WT_REC_UPDATE_RESTORE flag, the lookaside table path is
      * the WT_REC_LOOKASIDE flag.
      */
-    if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE)) {
-        ret = __wt_set_return(session, EBUSY);
-        goto err;
-    }
-    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE)) {
-        ret = __wt_set_return(session, EBUSY);
-        goto err;
-    }
+    if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
+        WT_ERR(__wt_set_return(session, EBUSY));
+    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
+        WT_ERR(__wt_set_return(session, EBUSY));
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
