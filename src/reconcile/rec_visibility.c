@@ -238,6 +238,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     cache = S2C(session)->cache;
     las_cursor = NULL;
     page = r->page;
+    saved_isolation = 0; /*[-Wconditional-uninitialized] */
     first_txn_upd = last_inmem_upd = upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
