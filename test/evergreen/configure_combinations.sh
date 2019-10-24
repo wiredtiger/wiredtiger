@@ -1,7 +1,8 @@
 #!/bin/bash
 
 cd $(git rev-parse --show-toplevel)
-sh build_poisx/reconf
+echo `pwd`
+sh build_posix/reconf
 
 curdir=`pwd`
 
