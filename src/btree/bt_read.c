@@ -339,20 +339,25 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_ERR(__wt_update_alloc(session, &las_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
-                WT_ERR(las_cursor->prev(las_cursor));
 
                 /*
                  * Check that we haven't crossed over to another btree/key. If we've crossed a
                  * boundary then the base update that we're applying the modifies to should be the
-                 * on-disk value which won't be in the lookaside.
+                 * on-disk value which won't be in the lookaside. If we hit the beginning while
+                 * we're walking backwards, that also means we've hit a key boundary.
                  *
                  * The on-disk value cannot be a modify or a prepare so we can confidently assign
                  * the update type and prepare state to the resulting update.
                  */
-                WT_ERR(las_cursor->get_key(
-                  las_cursor, &las_btree_id, &las_key_tmp, &las_timestamp_tmp, &las_txnid_tmp));
-                WT_ERR(__wt_compare(session, NULL, &las_key, &las_key_tmp, &cmp));
-                if (las_btree_id != S2BT(session)->id || cmp != 0) {
+                WT_ERR_NOTFOUND_OK(las_cursor->prev(las_cursor));
+                las_txnid_tmp = WT_TXN_NONE;
+                las_timestamp_tmp = WT_TS_NONE;
+                if (ret != WT_NOTFOUND) {
+                    WT_ERR(las_cursor->get_key(
+                      las_cursor, &las_btree_id, &las_key_tmp, &las_timestamp_tmp, &las_txnid_tmp));
+                    WT_ERR(__wt_compare(session, NULL, &las_key, &las_key_tmp, &cmp));
+                }
+                if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
                     WT_ERR(__wt_value_return_buf(session, &cbt, ref, &las_value));
