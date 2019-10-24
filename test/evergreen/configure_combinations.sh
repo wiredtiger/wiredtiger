@@ -1,6 +1,7 @@
 #!/bin/bash
 
 cd $(git rev-parse --show-toplevel)
+sh build_poisx/reconf
 
 curdir=`pwd`
 
