@@ -274,8 +274,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
         /* Open a lookaside cursor, position at the latest update for this key */
         __wt_las_cursor(session, &las_cursor, &session_flags);
-	saved_isolation = session->txn.isolation;
-	session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+        saved_isolation = session->txn.isolation;
+        session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
         las_cursor_open = true;
         cache->las_reader = true;
         __wt_readlock(session, &cache->las_sweepwalk_lock);
@@ -620,7 +620,7 @@ err:
     __wt_scr_free(session, &key);
     if (las_cursor_open) {
         WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
-	session->txn.isolation = saved_isolation;
+        session->txn.isolation = saved_isolation;
     }
 
     if (sweep_locked)
