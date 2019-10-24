@@ -154,9 +154,8 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
 
-  # build with --disable-shared, without --enable-diagnostic
-  # the compiler builds turn on diagnostics
-  - name: compile-disable-shared-without-enable-diagnostic
+  # production build with --disable-shared
+  - name: compile-production-disable-shared
     tags: ["pull_request"]
     commands:
       - func: "get project"
@@ -164,9 +163,8 @@ tasks:
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
 
-  # build with --disable-static, without --enable-diagnostic
-  # the compiler builds turn on diagnostics
-  - name: compile-disable-static-without-enable-diagnostic
+  # production build with --disable-static
+  - name: compile-production-disable-static
     tags: ["pull_request"]
     commands:
       - func: "get project"
@@ -238,14 +236,14 @@ tasks:
           test_env_vars: ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
           directory: examples/c
 
-  - name: examples-c-disable-shared-without-enable-diagnostic-test
+  - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
     depends_on:
-      - name: compile-disable-shared-without-enable-diagnostic
+      - name: compile-production-disable-shared
     commands:
       - func: "fetch artifacts"
         vars:
-          dependent_task: compile-disable-shared-without-enable-diagnostic
+          dependent_task: compile-production-disable-shared
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
@@ -253,14 +251,14 @@ tasks:
         vars:
           directory: examples/c
 
-  - name: examples-c-disable-static-without-enable-diagnostic-test
+  - name: examples-c-production-disable-static-test
     tags: ["pull_request"]
     depends_on:
-      - name: compile-disable-static-without-enable-diagnostic
+      - name: compile-production-disable-static
     commands:
       - func: "fetch artifacts"
         vars:
-          dependent_task: compile-disable-static-without-enable-diagnostic
+          dependent_task: compile-production-disable-static
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
