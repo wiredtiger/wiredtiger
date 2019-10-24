@@ -354,6 +354,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
     WT_ERR(ret);
 
+    /*
+     * TODO:
+     * if (upd_select->upd->ext != 0 && upd_select->upd->type == MODIFY)
+     *     LAS is already positioned at modify record, iterate back to the base and replace
+     *     upd_select->upd with the full record.
+     */
+
     /* Accumulate information about in-memory updates. */
     for (upd = first_inmem_upd; upd != NULL; upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
