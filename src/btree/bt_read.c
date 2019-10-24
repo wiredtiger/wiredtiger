@@ -170,14 +170,15 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
-    WT_ITEM las_key, _las_key, las_value, next_las_key;
+    WT_ITEM las_key, las_key_tmp, las_value, next_las_key;
     WT_MODIFY_VECTOR modifies;
     WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
+    wt_timestamp_t las_timestamp, las_timestamp_tmp;
     size_t notused, size, total_incr;
-    uint64_t birthmark_cnt, las_txnid, _las_txnid, recno;
+    uint64_t birthmark_cnt, las_txnid, las_txnid_tmp, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
@@ -188,7 +189,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     cache = S2C(session)->cache;
     las_cursor = NULL;
     WT_CLEAR(las_key);
-    WT_CLEAR(_las_key);
+    WT_CLEAR(las_key_tmp);
     WT_CLEAR(las_value);
     __wt_modify_vector_init(&modifies, session);
     page_las = ref->page_las;
@@ -349,17 +350,17 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                  * the update type and prepare state to the resulting update.
                  */
                 WT_ERR(las_cursor->get_key(
-                  las_cursor, &las_btree_id, &_las_key, &_las_timestamp, &_las_txnid));
-                WT_ERR(__wt_compare(session, NULL, &las_key, &_las_key, &cmp));
+                  las_cursor, &las_btree_id, &las_key_tmp, &las_timestamp_tmp, &las_txnid_tmp));
+                WT_ERR(__wt_compare(session, NULL, &las_key, &las_key_tmp, &cmp));
                 if (las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
                     WT_ERR(__wt_value_return_buf(session, &cbt, ref, &las_value));
                     break;
                 } else
-                    WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
+                    WT_ASSERT(session, __wt_txn_visible(session, las_txnid_tmp, las_timestamp_tmp));
                 WT_ERR(las_cursor->get_value(
-                  las_cursor, &_durable_timestamp, &prepare_state, &upd_type, &las_value));
+                  las_cursor, &durable_timestamp_tmp, &prepare_state, &upd_type, &las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD || upd_type == WT_UPDATE_TOMBSTONE);
             while (modifies.size > 0) {

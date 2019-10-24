@@ -1365,18 +1365,18 @@ __wt_find_lookaside_upd(
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_UPDATE *birthmark_upd, *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, _durable_timestamp, las_timestamp, _las_timestamp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     wt_timestamp_t read_timestamp;
     size_t notused, size;
-    uint64_t las_txnid, _las_txnid, recno;
+    uint64_t las_txnid, las_txnid_tmp, recno;
     uint32_t las_btree_id, session_flags;
-    uint8_t prepare_state, _prepare_state, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
+    uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
     int cmp;
     bool modify, sweep_locked;
 
-    WT_UNUSED(_las_timestamp);
-    WT_UNUSED(_las_txnid);
+    WT_UNUSED(las_timestamp_tmp);
+    WT_UNUSED(las_txnid_tmp);
 
     *updp = NULL;
 
@@ -1493,7 +1493,7 @@ __wt_find_lookaside_upd(
                  * base update to apply the deltas on top of.
                  */
                 WT_ERR(las_cursor->get_key(
-                  las_cursor, &las_btree_id, las_key, &_las_timestamp, &_las_txnid));
+                  las_cursor, &las_btree_id, las_key, &las_timestamp_tmp, &las_txnid_tmp));
 
                 /*
                  * Another possibility is where the birthmark that we instantiated the lookaside
@@ -1503,9 +1503,9 @@ __wt_find_lookaside_upd(
                  * contents.
                  */
                 if (birthmark_upd != NULL && birthmark_upd->start_ts < read_timestamp &&
-                  ((birthmark_upd->start_ts > _las_timestamp) ||
-                      (birthmark_upd->start_ts == _las_timestamp &&
-                        birthmark_upd->txnid > _las_txnid))) {
+                  ((birthmark_upd->start_ts > las_timestamp_tmp) ||
+                      (birthmark_upd->start_ts == las_timestamp_tmp &&
+                        birthmark_upd->txnid > las_txnid_tmp))) {
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
                     WT_ERR(
@@ -1526,9 +1526,9 @@ __wt_find_lookaside_upd(
                     WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, las_value));
                     break;
                 } else
-                    WT_ASSERT(session, __wt_txn_visible(session, _las_txnid, _las_timestamp));
+                    WT_ASSERT(session, __wt_txn_visible(session, las_txnid_tmp, las_timestamp_tmp));
                 WT_ERR(las_cursor->get_value(
-                  las_cursor, &_durable_timestamp, &_prepare_state, &upd_type, las_value));
+                  las_cursor, &durable_timestamp_tmp, &prepare_state_tmp, &upd_type, las_value));
             }
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
             while (modifies.size > 0) {
