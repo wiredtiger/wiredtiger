@@ -931,8 +931,8 @@ tasks:
             set -o verbose
 
             # Non-compat tests in the 'c' family
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -v 2 ${smp_command|} \
-              $(ls ../test/suite/test_c*.py | xargs -n1 basename | grep -v compat) 2>&1
+            non_compat_tests=$(ls ../test/suite/test_c*.py | xargs -n1 basename | grep -v compat)
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_compat_tests -v 2 ${smp_command|} 2>&1
 
   - name: unit-test-bucket03
     tags: ["pull_request", "unit_test"]
@@ -1009,8 +1009,8 @@ tasks:
             set -o verbose
 
             # Non-timestamp tests in the 't' family
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -v 2 ${smp_command|} \
-              $(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp) 2>&1
+            non_ts_tests=$(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp)
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests -v 2 ${smp_command|} 2>&1
             ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
 
   # End of Python unit test tasks
