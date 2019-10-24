@@ -135,7 +135,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=address -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
 
   - name: compile-msan
@@ -177,6 +177,21 @@ tasks:
       - func: "make check all"
         vars:
           test_env_vars: MSAN_OPTIONS=abort_on_error=1:disable_coredump=0 MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+
+  - name: make-check-asan-test
+    depends_on:
+      - name: compile-asan
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-asan
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
+          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
+      - func: "make check all"
+        vars:
+          test_env_vars: ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
 
   # Start of normal make check test tasks
 
@@ -1321,6 +1336,7 @@ buildvariants:
     - name: compile-ubsan
     - name: ubsan-test
     - name: linux-directio
+    - name: make-check-asan-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
