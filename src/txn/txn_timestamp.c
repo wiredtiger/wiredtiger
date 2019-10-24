@@ -775,7 +775,7 @@ __wt_txn_parse_read_timestamp(WT_SESSION_IMPL *session, const char *cfg[], bool 
                  * problems. Don't output an error message because that logs a MongoDB error, use an
                  * informational message to provide the context instead.
                  */
-                WT_RET(__wt_msg(session, "read timestamp ", "%s older than oldest timestamp %s",
+                WT_RET(__wt_msg(session, "read timestamp %s older than oldest timestamp %s",
                   hex_timestamp[0], hex_timestamp[1]));
                 return (EINVAL);
             }
