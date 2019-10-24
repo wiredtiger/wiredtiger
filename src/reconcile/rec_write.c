@@ -1527,11 +1527,14 @@ __rec_split_write_supd(
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_PAGE_LOOKASIDE *orig_page_las;
     WT_REC_CHUNK *next;
     WT_SAVE_UPD *supd;
     WT_UPDATE *upd;
     uint32_t i, j;
     int cmp;
+
+    orig_page_las = r->ref->page_las;
 
     /*
      * Check if we've saved updates that belong to this block, and move any to the per-block
@@ -1601,11 +1604,24 @@ __rec_split_write_supd(
     }
 
 done:
-    if (F_ISSET(r, WT_REC_LOOKASIDE)) {
-        /* Track the oldest lookaside timestamp seen so far. */
+    /*
+     * Track the range of timestamps seen so far, include the information from the original page's
+     * lookaside.
+     *
+     * If there is lookaside information attached to the original page then there are records for
+     * this page in the lookaside that need to be accounted into the lookaside information for the
+     * replacement page. It is too expensive to figure out the exact content for the replacement
+     * page, so we take a superset of what is available to us.
+     */
+    if (F_ISSET(r, WT_REC_LOOKASIDE) && orig_page_las == NULL) {
         multi->page_las.max_txn = r->max_txn;
         multi->page_las.max_ondisk_ts = r->max_ondisk_ts;
         multi->page_las.min_skipped_ts = r->min_skipped_ts;
+    } else if (orig_page_las != NULL) {
+        multi->page_las.max_txn = WT_MAX(orig_page_las->max_txn, r->max_txn);
+        multi->page_las.max_ondisk_ts = WT_MAX(orig_page_las->max_ondisk_ts, r->max_ondisk_ts);
+        multi->page_las.min_skipped_ts = WT_MIN(orig_page_las->min_skipped_ts, r->min_skipped_ts);
+        multi->page_las.has_prepares = orig_page_las->has_prepares;
     }
 
 err:
@@ -2429,7 +2445,7 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * written.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && multi->page_las.has_las) {
+        if (multi->supd != NULL && multi->has_las) {
             if (multi->page_las.birthmarks_cnt != 0) {
                 WT_ASSERT(session, multi->page_las.birthmarks != NULL);
                 for (j = 0, birthmarkp = multi->page_las.birthmarks;

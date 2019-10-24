@@ -822,8 +822,8 @@ err:
           session, birthmarks_cnt, sizeof(WT_BIRTHMARK_DETAILS), &multi->page_las.birthmarks);
 
     if (ret == 0 && (insert_cnt > 0 || birthmarks_cnt > 0)) {
-        multi->page_las.has_las = true;
-        multi->page_las.has_prepares = prepared_insert_cnt > 0;
+        multi->has_las = true;
+        multi->page_las.has_prepares |= prepared_insert_cnt > 0;
         if (birthmarks_cnt > 0) {
             memcpy(multi->page_las.birthmarks, birthmarks->mem,
               birthmarks_cnt * sizeof(WT_BIRTHMARK_DETAILS));
