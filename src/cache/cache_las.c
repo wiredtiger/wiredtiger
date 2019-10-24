@@ -1483,36 +1483,39 @@ __wt_find_lookaside_upd(
                 WT_ERR(__wt_update_alloc(session, las_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
-                WT_ERR(las_cursor->prev(las_cursor));
+                WT_ERR_NOTFOUND_OK(las_cursor->prev(las_cursor));
+                las_timestamp_tmp = WT_TS_NONE;
+                las_txnid_tmp = WT_TXN_NONE;
+                if (ret != WT_NOTFOUND) {
+                    /*
+                     * Make sure we use the temporary variants of these variables. We need to retain
+                     * the timestamps of the original modify we saw.
+                     *
+                     * The regular case is where we keep looking back into lookaside until we find a
+                     * base update to apply the deltas on top of.
+                     */
+                    WT_ERR(las_cursor->get_key(
+                      las_cursor, &las_btree_id, las_key, &las_timestamp_tmp, &las_txnid_tmp));
 
-                /*
-                 * Make sure we use the underscore variants of these variables. We need to retain
-                 * the timestamps of the original modify we saw.
-                 *
-                 * The regular case is where we keep looking back into lookaside until we find a
-                 * base update to apply the deltas on top of.
-                 */
-                WT_ERR(las_cursor->get_key(
-                  las_cursor, &las_btree_id, las_key, &las_timestamp_tmp, &las_txnid_tmp));
-
-                /*
-                 * Another possibility is where the birthmark that we instantiated the lookaside
-                 * page with IS the base update that we should be applying the deltas to. If the
-                 * cursor positions itself on a modify, we immediately traverse the update list to
-                 * look for the birthmark update and compare its timestamp/txnid with the lookaside
-                 * contents.
-                 */
-                if (birthmark_upd != NULL && birthmark_upd->start_ts < read_timestamp &&
-                  ((birthmark_upd->start_ts > las_timestamp_tmp) ||
-                      (birthmark_upd->start_ts == las_timestamp_tmp &&
-                        birthmark_upd->txnid > las_txnid_tmp))) {
-                    upd_type = WT_UPDATE_STANDARD;
-                    prepare_state = WT_PREPARE_INIT;
-                    WT_ERR(
-                      __wt_buf_set(session, las_value, birthmark_upd->data, birthmark_upd->size));
-                    break;
+                    /*
+                     * Another possibility is where the birthmark that we instantiated the lookaside
+                     * page with IS the base update that we should be applying the deltas to. If the
+                     * cursor positions itself on a modify, we immediately traverse the update list
+                     * to look for the birthmark update and compare its timestamp/txnid with the
+                     * lookaside contents.
+                     */
+                    if (birthmark_upd != NULL && birthmark_upd->start_ts < read_timestamp &&
+                      ((birthmark_upd->start_ts > las_timestamp_tmp) ||
+                          (birthmark_upd->start_ts == las_timestamp_tmp &&
+                            birthmark_upd->txnid > las_txnid_tmp))) {
+                        upd_type = WT_UPDATE_STANDARD;
+                        prepare_state = WT_PREPARE_INIT;
+                        WT_ERR(__wt_buf_set(
+                          session, las_value, birthmark_upd->data, birthmark_upd->size));
+                        break;
+                    }
+                    WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
                 }
-                WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
 
                 /*
                  * The last possibility is where the on-disk value is the base update but is not a
@@ -1520,7 +1523,7 @@ __wt_find_lookaside_upd(
                  * existed. It will be not be a birthmark since we won't go through the lookaside
                  * eviction path in the case of a single value.
                  */
-                if (las_btree_id != S2BT(session)->id || cmp != 0) {
+                if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
                     WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, las_value));

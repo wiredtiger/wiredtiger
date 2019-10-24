@@ -350,8 +350,8 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                  * the update type and prepare state to the resulting update.
                  */
                 WT_ERR_NOTFOUND_OK(las_cursor->prev(las_cursor));
-                las_txnid_tmp = WT_TXN_NONE;
                 las_timestamp_tmp = WT_TS_NONE;
+                las_txnid_tmp = WT_TXN_NONE;
                 if (ret != WT_NOTFOUND) {
                     WT_ERR(las_cursor->get_key(
                       las_cursor, &las_btree_id, &las_key_tmp, &las_timestamp_tmp, &las_txnid_tmp));
