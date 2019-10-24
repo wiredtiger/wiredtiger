@@ -1308,11 +1308,11 @@ tasks:
       - func: "get project"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/test/evergreen"
           script: |
             set -o errexit
             set -o verbose
-            ./configure_combinations ${smp_command|} 2>&1
+            ./configure_combinations.sh ${smp_command|} 2>&1
   
   - name: linux-directio
     depends_on:
