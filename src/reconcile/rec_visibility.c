@@ -218,6 +218,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd, *upd;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
@@ -273,6 +274,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
         /* Open a lookaside cursor, position at the latest update for this key */
         __wt_las_cursor(session, &las_cursor, &session_flags);
+	saved_isolation = session->txn.isolation;
+	session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
         las_cursor_open = true;
         cache->las_reader = true;
         __wt_readlock(session, &cache->las_sweepwalk_lock);
@@ -622,12 +625,13 @@ check_original_value:
 
 err:
     __wt_scr_free(session, &key);
-    if (las_cursor_open)
+    if (las_cursor_open) {
         WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
-
-    if (sweep_locked) {
-        __wt_readunlock(session, &cache->las_sweepwalk_lock);
+	session->txn.isolation = saved_isolation;
     }
+
+    if (sweep_locked)
+        __wt_readunlock(session, &cache->las_sweepwalk_lock);
 
     return (ret);
 }
