@@ -356,12 +356,52 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
     WT_ERR(ret);
 
+#if 0
     /*
-     * TODO:
-     * if (upd_select->upd->ext != 0 && upd_select->upd->type == MODIFY)
-     *     LAS is already positioned at modify record, iterate back to the base and replace
-     *     upd_select->upd with the full record.
+     * This means that we're choosing an update from lookaside for reconciliation AND that it is a
+     * modify. If that's the case then we need to unflatten the modify into a full standard update
+     * since modifies don't go on-disk.
+     *
+     * We might need to think about this a bit more... since the allocation of the modify update was
+     * a waste.
      */
+    if (upd_select->upd && upd_select->upd->ext != 0 && upd_select->upd->type == WT_UPDATE_MODIFY) {
+        WT_UPDATE *modifies[1000];
+        int i = 0, j = 0;
+        WT_UPDATE *tmp_upd = NULL;
+        WT_ITEM las_value;
+        wt_timestamp_t durable_timestamp;
+        uint8_t upd_type = upd_select->upd->type;
+        uint8_t prepare_state;
+        size_t notused;
+        WT_CLEAR(las_value);
+        modifies[i++] = upd_select->upd;
+        for (;;) {
+            /* We start off pointing at one after the selected update. */
+            if (tmp_upd != NULL)
+                WT_ERR(las_cursor->prev(las_cursor));
+            WT_ERR(las_cursor->get_value(
+              las_cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
+            if (upd_type != WT_UPDATE_MODIFY)
+                break;
+            WT_ERR(__wt_update_alloc(session, &las_value, &tmp_upd, &notused, upd_type));
+            modifies[i++] = tmp_upd;
+        }
+        WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
+        j = i;
+        while (i > 0)
+            WT_ERR(__wt_modify_apply_item(session, &las_value, modifies[--i]->data, false));
+        WT_ERR(__wt_update_alloc(session, &las_value, &tmp_upd, &notused, upd_type));
+        tmp_upd->txnid = upd_select->upd->txnid;
+        tmp_upd->durable_ts = upd_select->upd->durable_ts;
+        tmp_upd->start_ts = upd_select->upd->start_ts;
+        tmp_upd->prepare_state = upd_select->upd->prepare_state;
+        tmp_upd->ext = 1;
+        while (j > 0)
+            __wt_free_update_list(session, &modifies[--j]);
+        upd_select->upd = tmp_upd;
+    }
+#endif
 
     /* Accumulate information about in-memory updates. */
     for (upd = first_inmem_upd; upd != NULL; upd = upd->next) {

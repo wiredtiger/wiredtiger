@@ -379,5 +379,48 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
+    def test_rec_las_modify_workload(self):
+        return
+
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
+
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        self.conn.set_timestamp(
+            'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+
+        # Base update.
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+
+        # Apply a modify on top. This is the one we want to get selected by the checkpoint.
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([
+                wiredtiger.Modify('B', 100, 1),
+                wiredtiger.Modify('C', 200, 1),
+                wiredtiger.Modify('D', 300, 1)
+            ]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        # Apply another update and evict the pages with the modifies out of cache.
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        # Checkpoint such that the modifies will be selected. When we grab it from lookaside, we'll
+        # need to unflatten it before using it for reconciliation.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(3))
+        self.session.checkpoint()
+
 if __name__ == '__main__':
     wttest.run()

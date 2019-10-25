@@ -548,6 +548,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         return (0);
 
+#if 0
+    /* Temp fix: do not evict a page with active las */
+    if (__wt_page_las_active(session, ref)) {
+        return (__wt_set_return(session, EBUSY));
+    }
+#endif
+
     /*
      * Retrieve the modified state of the page. This must happen after the check for evictable
      * internal pages otherwise there is a race where a page could be marked modified due to a child
