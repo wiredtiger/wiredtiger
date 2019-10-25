@@ -314,6 +314,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
+        last_inmem_upd = upd;
+
         /* Prepared updates aren't written to the disk. */
         if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
             continue;
@@ -394,7 +396,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 list_prepared = true;
                 if (upd->start_ts > max_ts)
                     max_ts = upd->start_ts;
-                last_inmem_upd = upd;
                 continue;
             }
         }
@@ -432,11 +433,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (!walked_past_sel_upd && upd->start_ts < r->min_skipped_ts)
                 r->min_skipped_ts = upd->start_ts;
 
-            last_inmem_upd = upd;
             continue;
         }
-
-        last_inmem_upd = upd;
 
         // This doesn't seem correct if this is a checkpoint ?
         if (!F_ISSET(r, WT_REC_EVICT))
@@ -458,18 +456,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
         WT_SESSION_IS_CHECKPOINT(session));
 
-    /* If all of the updates were aborted, quit. */
-    // What if there are no new updates in-mem but the selected update is external.
-    // maybe in such a case first_txn_upd should point to external update
-    if (first_txn_upd == NULL) {
-        WT_ASSERT(session, upd == NULL);
+    /* If all of the in-mem updates were aborted, and we did not find an update to write, quit. */
+    if (first_txn_upd == NULL && upd == NULL) {
         goto err;
     }
 
-    /* If no updates were skipped, record that we're making progress. */
-    // What if there are no new updates in-mem but the selected update is external.
-    // maybe in such a case first_txn_upd should point to external update
-    if (upd == first_txn_upd)
+    /*
+     * If no updates were skipped, record that we're making progress. Either we picked the first non
+     * aborted in-memory update or there were no updates in-memory
+     */
+    if ((first_txn_upd != NULL && upd == first_txn_upd) ||
+      (first_txn_upd == NULL && (upd == NULL || upd->ext != 0)))
         r->update_used = true;
 
     if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
@@ -547,10 +544,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
-    // Need to check this again, specially if we let first_txn_upd point to external upd
-    // What happens if no new updates are in-mem, but selected upd is external
-    all_stable = upd == first_txn_upd && !list_prepared && !list_uncommitted &&
-      __wt_txn_visible_all(session, max_txn, max_ts);
+    all_stable = (first_txn_upd == NULL ? first_inmem_upd == NULL : upd == first_txn_upd) &&
+      !list_prepared && !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
         goto check_original_value;
@@ -597,10 +592,19 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     // What does upd_select->upd == NULL mean here ?
     WT_ASSERT(
       session, upd_select->upd == NULL || upd_select->upd->ext == 0 || last_inmem_upd != NULL);
-    if (upd_select->upd != NULL && upd_select->upd->ext == 0)
+    if (upd_select->upd != NULL && upd_select->upd->ext == 0) {
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-    else
-        WT_ERR(__rec_update_save(session, r, ins, ripcip, last_inmem_upd, upd_memsize));
+    } else {
+        /*
+         * All of the in-memory updates are going into the saved update list. Original on-page
+         * update will be lost, make a copy and put in the update chain. That update will become the
+         * last update in the list.
+         */
+        WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
+        WT_ASSERT(session, last_inmem_upd != NULL);
+        WT_ERR(__rec_update_save(session, r, ins, ripcip,
+          last_inmem_upd->next == NULL ? last_inmem_upd : last_inmem_upd->next, upd_memsize));
+    }
     upd_select->upd_saved = true;
 
 check_original_value:
@@ -616,12 +620,14 @@ check_original_value:
      * during reconciliation of a backing overflow record that will be physically removed once it's
      * no longer needed
      */
-    // What happens if there was no in-mem update, possible ?
-    WT_ASSERT(session, first_inmem_upd != NULL);
-    if (upd_select->upd != NULL &&
-      (upd_select->upd_saved ||
-          (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-        WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
+    if (first_inmem_upd != NULL) {
+        if (upd_select->upd != NULL &&
+          (upd_select->upd_saved ||
+              (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+            WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
+    } else {
+        /* TODO: We are losing the on-disk value here */
+    }
 
 err:
     __wt_scr_free(session, &key);
