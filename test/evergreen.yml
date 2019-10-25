@@ -122,7 +122,7 @@ post:
   - func: "cleanup"
 
 tasks:
-## Base compile task on posix flavours
+  # Base compile task on posix flavours
   - name: compile
     tags: ["pull_request"]
     commands:
@@ -154,6 +154,23 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
 
+  # production build with --disable-shared
+  - name: compile-production-disable-shared
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
+
+  # production build with --disable-static
+  - name: compile-production-disable-static
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
 
   - name: make-check-test
     depends_on:
@@ -232,6 +249,36 @@ tasks:
       - func: "make check directory"
         vars:
           test_env_vars: ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+          directory: examples/c
+
+  - name: examples-c-production-disable-shared-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile-production-disable-shared
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-production-disable-shared
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-silent-rules --enable-strict --disable-shared
+      - func: "make check directory"
+        vars:
+          directory: examples/c
+
+  - name: examples-c-production-disable-static-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile-production-disable-static
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-production-disable-static
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
+      - func: "make check directory"
+        vars:
           directory: examples/c
 
   - name: bloom-test
