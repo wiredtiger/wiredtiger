@@ -807,7 +807,8 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     len = (size_t)file_size;
 
     if (len > 0) {
-        if ((pfh->mmapped_buf = (char *)mmap(NULL, len, PROT_WRITE | PROT_READ,
+        if ((pfh->mmapped_buf = (char *)mmap(NULL, len,
+					     LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE,
                                              MAP_SHARED | MAP_FILE, pfh->fd, 0)) == MAP_FAILED)
             WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", name);
         else
