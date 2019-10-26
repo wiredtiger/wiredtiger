@@ -359,7 +359,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 #if 0
     /*
      * This means that we're choosing an update from lookaside for reconciliation AND that it is a
-     * modify. If that's the case then we need to unflatten the modify into a full standard update
+     * modify. If that's the case then we need to expand the modify into a full standard update
      * since modifies don't go on-disk.
      *
      * We might need to think about this a bit more... since the allocation of the modify update was
