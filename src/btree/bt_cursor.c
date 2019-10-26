@@ -502,11 +502,23 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
     /* Get any uncommitted update from the in-memory page. */
     switch (cbt->btree->type) {
     case BTREE_ROW:
-        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+        /*
+         * Any update must be either in the insert list, in which case search will have returned a
+         * pointer for us, or as an update in a particular key's update list, in which case the slot
+         * will be returned to us. In either case, we want the most recent update (any update
+         * attempted after the prepare would have failed).
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         break;
     case BTREE_COL_FIX:
     case BTREE_COL_VAR:
+        /*
+         * Any update must be in the insert list and we want the most recent update (any update
+         * attempted after the prepare would have failed).
+         */
         if (cbt->ins != NULL)
             upd = cbt->ins->upd;
         break;
