@@ -502,7 +502,7 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
     /* Get any uncommitted update from the in-memory page. */
     switch (cbt->btree->type) {
     case BTREE_ROW:
-        if (cbt->ref->page->modify != NULL)
+        if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
             upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
         break;
     case BTREE_COL_FIX:
