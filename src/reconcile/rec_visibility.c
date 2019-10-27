@@ -568,7 +568,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (upd != NULL && (upd->type == WT_UPDATE_BIRTHMARK ||
                          (F_ISSET(r, WT_REC_UPDATE_RESTORE) && skipped_birthmark))) {
-        WT_ASSERT(session, upd->ext == 0);
         /*
          * Resolve the birthmark now regardless of whether the update being written to the data file
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
