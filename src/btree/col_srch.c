@@ -58,8 +58,7 @@ __check_leaf_key_range(WT_SESSION_IMPL *session, uint64_t recno, WT_REF *leaf, W
  *     Search a column-store tree for a specific record-based key.
  */
 int
-__wt_col_search(
-  WT_SESSION_IMPL *session, uint64_t search_recno, WT_REF *leaf, WT_CURSOR_BTREE *cbt, bool restore)
+__wt_col_search(WT_CURSOR_BTREE *cbt, uint64_t search_recno, WT_REF *leaf, bool restore)
 {
     WT_BTREE *btree;
     WT_COL *cip;
@@ -69,10 +68,12 @@ __wt_col_search(
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex, *parent_pindex;
     WT_REF *current, *descent;
+    WT_SESSION_IMPL *session;
     uint64_t recno;
     uint32_t base, indx, limit, read_flags;
     int depth;
 
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
     btree = S2BT(session);
     current = NULL;
 

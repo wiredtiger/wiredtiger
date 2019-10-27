@@ -206,8 +206,7 @@ __check_leaf_key_range(
  *     Search a row-store tree for a specific key.
  */
 int
-__wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CURSOR_BTREE *cbt,
-  bool insert, bool restore)
+__wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, WT_REF *leaf, bool insert, bool restore)
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
@@ -218,11 +217,13 @@ __wt_row_search(WT_SESSION_IMPL *session, WT_ITEM *srch_key, WT_REF *leaf, WT_CU
     WT_PAGE_INDEX *pindex, *parent_pindex;
     WT_REF *current, *descent;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
     size_t match, skiphigh, skiplow;
     uint32_t base, indx, limit, read_flags;
     int cmp, depth;
     bool append_check, descend_right, done;
 
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
     btree = S2BT(session);
     collator = btree->collator;
     item = cbt->tmp;
