@@ -206,7 +206,8 @@ __check_leaf_key_range(
  *     Search a row-store tree for a specific key.
  */
 int
-__wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, WT_REF *leaf, bool insert, bool restore)
+__wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, bool insert, WT_REF *leaf, bool leaf_safe,
+  bool *leaf_foundp)
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
@@ -252,21 +253,16 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key, WT_REF *leaf, bool inse
     /*
      * We may be searching only a single leaf page, not the full tree. In the normal case where we
      * are searching a tree, check the page's parent keys before doing the full search, it's faster
-     * when the cursor is being re-positioned. Skip this if the page is being re-instantiated in
-     * memory.
+     * when the cursor is being re-positioned. Skip that check if we know the page is the right one
+     * (for example, when re-instantiating a page in memory, in that case we know the target must be
+     * on the current page).
      */
     if (leaf != NULL) {
-        if (!restore) {
+        if (!leaf_safe) {
             WT_RET(__check_leaf_key_range(session, srch_key, leaf, cbt));
-            if (cbt->compare != 0) {
-                /*
-                 * !!!
-                 * WT_CURSOR.search_near uses the slot value to
-                 * decide if there was an on-page match.
-                 */
-                cbt->slot = 0;
+            *leaf_foundp = cbt->compare == 0;
+            if (!*leaf_foundp)
                 return (0);
-            }
         }
 
         current = leaf;

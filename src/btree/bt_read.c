@@ -31,7 +31,7 @@ __col_instantiate(
         __wt_free_update_list(session, upd);
 
     /* Search the page and add updates. */
-    WT_RET(__wt_col_search(cbt, recno, ref, true));
+    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
     WT_RET(__wt_col_modify(cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
     return (0);
 }
@@ -59,7 +59,7 @@ __row_instantiate(
         __wt_free_update_list(session, upd);
 
     /* Search the page and add updates. */
-    WT_RET(__wt_row_search(cbt, key, ref, true, true));
+    WT_RET(__wt_row_search(cbt, key, true, ref, true, NULL));
     WT_RET(__wt_row_modify(cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
     return (0);
 }
