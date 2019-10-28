@@ -308,15 +308,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (upd == NULL)
         goto err;
 
-    /* Select the update to write to the disk image. */
+    /*
+     * Select the update to write to the disk image:
+     * Maintain two pointers, one into the in-memory update chain, other into the lookaside records
+     * for this key. Walk both the lists comparing the pointers and selecting the next latest record
+     * (based on the timestamp and txn-id) to be considered for writing to the disk.
+     */
     for (; ret == 0 && upd != NULL; ret = __get_next_rec_upd(session, &inmem_upd_pos,
                                       &las_positioned, las_cursor, S2BT(session)->id, key, &upd)) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
-        last_inmem_upd = upd;
-
-        /* Prepared updates aren't written to the disk. */
+        /*
+         * Even though prepared updates are globally visible, they can rollback and hence are not
+         * written to the disk.
+         */
         if (upd->prepare_state == WT_PREPARE_LOCKED || upd->prepare_state == WT_PREPARE_INPROGRESS)
             continue;
 
@@ -403,13 +409,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 #endif
 
-    /* Accumulate information about in-memory updates. */
+    /* Gather information about in-memory updates. */
     for (upd = first_inmem_upd; upd != NULL; upd = upd->next) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
         ++r->updates_seen;
         upd_memsize += WT_UPDATE_MEMSIZE(upd);
+
+        /* Track the last non-aborted update. */
+        last_inmem_upd = upd;
 
         /*
          * Track the first update in the chain that is not aborted and the maximum transaction ID.
@@ -444,6 +453,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->durable_ts > max_ts)
             max_ts = upd->durable_ts;
 
+        /*
+         * If we selected an in-memory update to be written to the disk, keep track of whether or
+         * not we walked past it. We need this information to determine what range of timestamp we
+         * are skipping.
+         */
         if (!walked_past_sel_upd && upd_select->upd != NULL && upd_select->upd->ext == 0)
             walked_past_sel_upd = upd_select->upd == upd;
 
@@ -476,7 +490,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             continue;
         }
 
-        // This doesn't seem correct if this is a checkpoint ?
         if (!F_ISSET(r, WT_REC_EVICT))
             break;
     }
@@ -496,17 +509,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
         WT_SESSION_IS_CHECKPOINT(session));
 
-    /* If all of the in-mem updates were aborted, and we did not find an update to write, quit. */
+    /* All of the in-memory updates were aborted, and we did not find an update to write, quit. */
     if (first_txn_upd == NULL && upd == NULL) {
         goto err;
     }
 
     /*
      * If no updates were skipped, record that we're making progress. Either we picked the first non
-     * aborted in-memory update or there were no updates in-memory
+     * aborted in-memory update or there were no updates in-memory.
      */
-    if ((first_txn_upd != NULL && upd == first_txn_upd) ||
-      (first_txn_upd == NULL && (upd == NULL || upd->ext != 0)))
+    if ((first_txn_upd != NULL && upd == first_txn_upd) || first_txn_upd == NULL)
         r->update_used = true;
 
     if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
@@ -517,7 +529,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * first inserted (or last updated). The end timestamp is set when a key/value pair becomes
      * invalid, either because of a remove or a modify/update operation on the same key.
      */
-    // Ask Keith to confirm
     if (upd != NULL) {
         /*
          * TIMESTAMP-FIXME This is waiting on the WT_UPDATE structure's start/stop
@@ -588,7 +599,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
-    all_stable = ((upd != NULL && upd->ext != 0) || (upd == first_txn_upd)) && !list_prepared &&
+    all_stable = ((upd != NULL && upd->ext != 0) || upd == first_txn_upd) && !list_prepared &&
       !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
@@ -604,19 +615,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         goto check_original_value;
 
     /*
-     * We are attempting eviction with changes that are not yet stable
-     * (i.e. globally visible).  There are two ways to continue, the
-     * save/restore eviction path or the lookaside table eviction path.
-     * Both cannot be configured because the paths track different
-     * information. The update/restore path can handle uncommitted changes,
-     * by evicting most of the page and then creating a new, smaller page
-     * to which we re-attach those changes. Lookaside eviction writes
-     * changes into the lookaside table and restores them on demand if and
-     * when the page is read back into memory.
+     * We are attempting eviction with changes that are not yet stable (i.e. globally visible).
+     * There are two ways to continue, the save/restore eviction path or the lookaside table
+     * eviction path. Both cannot be configured because the paths track different information. The
+     * update/restore path can handle uncommitted changes, by evicting most of the page and then
+     * creating a new, smaller page to which we re-attach those changes. Lookaside eviction writes
+     * changes into the lookaside table and restores them on demand if and when the page is read
+     * back into memory.
      *
-     * Both paths are configured outside of reconciliation: the save/restore
-     * path is the WT_REC_UPDATE_RESTORE flag, the lookaside table path is
-     * the WT_REC_LOOKASIDE flag.
+     * Both paths are configured outside of reconciliation: the save/restore path is the
+     * WT_REC_UPDATE_RESTORE flag, the lookaside table path is the WT_REC_LOOKASIDE flag.
      */
     if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
         WT_ERR(__wt_set_return(session, EBUSY));
@@ -625,15 +633,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
-    /*
-     * The order of the updates on the list matters, we can't move only the unresolved updates, move
-     * the entire update list.
-     */
-    // Need to think harder about this case, where selected update is external, and hence whole
-    // in-memory list becomes saved updates ? At the moment choose to write saved updates from the
-    // oldest in-mem record. Also in this case the on-disk record comes from lookaside, but is not
-    // present in saved update list, so no birthmark is written out for it.
-    // What does upd_select->upd == NULL mean here ?
+/*
+ * The order of the updates on the list matters, we can't move only the unresolved updates, move the
+ * entire update list.
+ */
+#if 0
     WT_ASSERT(
       session, upd_select->upd == NULL || upd_select->upd->ext == 0 || last_inmem_upd != NULL);
     if (upd_select->upd != NULL && upd_select->upd->ext == 0) {
@@ -649,6 +653,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
           last_inmem_upd->next == NULL ? last_inmem_upd : last_inmem_upd->next, upd_memsize));
     }
+#endif
+    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
     upd_select->upd_saved = true;
 
 check_original_value:
@@ -670,7 +676,8 @@ check_original_value:
               (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
             WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
     } else {
-        /* TODO: We are losing the on-disk value here */
+        /* TODO: We are losing the on-disk value here, assert so that we catch testing here. */
+        WT_ASSERT(session, false);
     }
 
 err:
