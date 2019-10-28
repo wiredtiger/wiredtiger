@@ -984,8 +984,11 @@ __las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
     /*
      * If no files have been dropped and the lookaside file is empty, there's nothing to do.
      */
-    if (cache->las_dropped_next == 0 && __wt_las_empty(session))
-        WT_ERR(WT_NOTFOUND);
+    if (cache->las_dropped_next == 0) {
+        if (__wt_las_empty(session))
+            ret = WT_NOTFOUND;
+        goto err;
+    }
 
     /* Find the max key for the current sweep. */
     WT_ERR(las_cursor->reset(las_cursor));
