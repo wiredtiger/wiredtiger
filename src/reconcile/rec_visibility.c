@@ -215,16 +215,21 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 {
     WT_CACHE *cache;
     WT_CURSOR *las_cursor;
+    WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
+    WT_ITEM las_key, las_value;
+    WT_MODIFY_VECTOR modifies;
     WT_PAGE *page;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd, *upd;
-    wt_timestamp_t max_ts;
-    size_t upd_memsize;
-    uint64_t max_txn, txnid;
-    uint32_t session_flags;
-    uint8_t *p;
+    WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd;
+    WT_UPDATE *tmp_upd, *upd;
+    wt_timestamp_t durable_ts, las_ts, max_ts;
+    size_t notused, upd_memsize;
+    uint64_t las_txnid, max_txn, txnid;
+    uint32_t las_btree_id, session_flags;
+    uint8_t *p, prepare_state, upd_type;
+    int cmp;
     bool all_stable, las_cursor_open, las_positioned, list_prepared, list_uncommitted;
     bool skipped_birthmark, sweep_locked, walked_past_sel_upd;
 
@@ -237,9 +242,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     cache = S2C(session)->cache;
     las_cursor = NULL;
+    cbt = &r->update_modify_cbt;
+    __wt_modify_vector_init(&modifies, session);
     page = r->page;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
-    first_txn_upd = last_inmem_upd = upd = NULL;
+    first_txn_upd = last_inmem_upd = tmp_upd = upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -362,7 +369,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
     WT_ERR(ret);
 
-#if 0
     /*
      * This means that we're choosing an update from lookaside for reconciliation AND that it is a
      * modify. If that's the case then we need to expand the modify into a full standard update
@@ -371,43 +377,73 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * We might need to think about this a bit more... since the allocation of the modify update was
      * a waste.
      */
-    if (upd_select->upd && upd_select->upd->ext != 0 && upd_select->upd->type == WT_UPDATE_MODIFY) {
-        WT_UPDATE *modifies[1000];
-        int i = 0, j = 0;
-        WT_UPDATE *tmp_upd = NULL;
-        WT_ITEM las_value;
-        wt_timestamp_t durable_timestamp;
-        uint8_t upd_type = upd_select->upd->type;
-        uint8_t prepare_state;
-        size_t notused;
+    if (upd_select->upd != NULL && upd_select->upd->ext != 0 &&
+      upd_select->upd->type == WT_UPDATE_MODIFY) {
+        WT_CLEAR(las_key);
         WT_CLEAR(las_value);
-        modifies[i++] = upd_select->upd;
-        for (;;) {
-            /* We start off pointing at one after the selected update. */
-            if (tmp_upd != NULL)
-                WT_ERR(las_cursor->prev(las_cursor));
-            WT_ERR(las_cursor->get_value(
-              las_cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
-            if (upd_type != WT_UPDATE_MODIFY)
-                break;
+        las_btree_id = 0;
+        las_ts = WT_TS_NONE;
+        las_txnid = WT_TXN_NONE;
+
+        /* Find the birthmark update if one exists in the update list. */
+        for (birthmark_upd = first_inmem_upd;
+             birthmark_upd != NULL && birthmark_upd->type != WT_UPDATE_BIRTHMARK;
+             birthmark_upd = birthmark_upd->next)
+            ;
+
+        WT_ERR(__wt_modify_vector_push(&modifies, upd_select->upd));
+        WT_ERR(
+          las_cursor->get_value(las_cursor, &durable_ts, &prepare_state, &upd_type, &las_value));
+        while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_update_alloc(session, &las_value, &tmp_upd, &notused, upd_type));
-            modifies[i++] = tmp_upd;
+            WT_ERR(__wt_modify_vector_push(&modifies, tmp_upd));
+            ret = las_cursor->prev(las_cursor);
+            WT_ERR_NOTFOUND_OK(ret);
+            cmp = 0;
+            if (ret != WT_NOTFOUND) {
+                WT_ERR(
+                  las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_ts, &las_txnid));
+                if (birthmark_upd != NULL && las_ts < tmp_upd->start_ts &&
+                  ((birthmark_upd->start_ts > las_ts) ||
+                      (birthmark_upd->start_ts == las_ts && birthmark_upd->txnid > las_txnid))) {
+                    upd_type = WT_UPDATE_STANDARD;
+                    prepare_state = WT_PREPARE_INIT;
+                    WT_ERR(
+                      __wt_buf_set(session, &las_value, birthmark_upd->data, birthmark_upd->size));
+                    break;
+                }
+                WT_ERR(__wt_compare(session, NULL, &las_key, key, &cmp));
+            }
+            if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
+                upd_type = WT_UPDATE_STANDARD;
+                prepare_state = WT_PREPARE_INIT;
+                WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, &las_value));
+                break;
+            } else
+                WT_ASSERT(session, __wt_txn_visible(session, las_txnid, las_ts));
+            WT_ERR(las_cursor->get_value(
+              las_cursor, &durable_ts, &prepare_state, &upd_type, &las_value));
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
-        j = i;
-        while (i > 0)
-            WT_ERR(__wt_modify_apply_item(session, &las_value, modifies[--i]->data, false));
+        while (modifies.size > 0) {
+            __wt_modify_vector_pop(&modifies, &tmp_upd);
+            WT_ERR(__wt_modify_apply_item(session, &las_value, tmp_upd->data, false));
+            /*
+             * The first one is the modify update that got selected. Make sure we don't free that
+             * one since we'll need it below.
+             */
+            if (modifies.size != 0)
+                __wt_free_update_list(session, &tmp_upd);
+        }
         WT_ERR(__wt_update_alloc(session, &las_value, &tmp_upd, &notused, upd_type));
         tmp_upd->txnid = upd_select->upd->txnid;
         tmp_upd->durable_ts = upd_select->upd->durable_ts;
         tmp_upd->start_ts = upd_select->upd->start_ts;
         tmp_upd->prepare_state = upd_select->upd->prepare_state;
         tmp_upd->ext = 1;
-        while (j > 0)
-            __wt_free_update_list(session, &modifies[--j]);
+        __wt_free_update_list(session, &upd_select->upd);
         upd_select->upd = tmp_upd;
     }
-#endif
 
     /* Gather information about in-memory updates. */
     for (upd = first_inmem_upd; upd != NULL; upd = upd->next) {

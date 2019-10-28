@@ -441,8 +441,6 @@ class test_las06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_rec_las_modify_workload(self):
-        return
-
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
