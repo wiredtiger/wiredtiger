@@ -455,7 +455,16 @@ __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
     return (0);
 
 err:
+    /*
+     * This only happens when we're migrating from the stack to the heap but failed to allocate. In
+     * that case, point back to the stack allocated memory and set the allocation to zero to
+     * indicate that we don't have heap memory to free.
+     *
+     * If we're already on the heap, we have nothing to do. The realloc call above won't touch the
+     * list pointer unless allocation is successful and we won't have incremented the size yet.
+     */
     if (modifies->listp == NULL) {
+        WT_ASSERT(modifies->session, modifies->size == WT_MODIFY_VECTOR_STACK_SIZE);
         modifies->listp = modifies->list;
         modifies->allocated_bytes = 0;
     }
