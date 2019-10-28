@@ -415,3 +415,83 @@ err:
     __wt_scr_free((WT_SESSION_IMPL *)cursor->session, &modify);
     return (ret);
 }
+
+/*
+ * __wt_modify_vector_init --
+ *     Initialise a modify vector.
+ */
+void
+__wt_modify_vector_init(WT_MODIFY_VECTOR *modifies, WT_SESSION_IMPL *session)
+{
+    WT_CLEAR(*modifies);
+    modifies->session = session;
+    modifies->listp = modifies->list;
+}
+
+/*
+ * __wt_modify_vector_push --
+ *     Push a modify update pointer to a modify vector. If we exceed the allowed stack space in the
+ *     vector, we'll be doing malloc here.
+ */
+int
+__wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
+{
+    WT_DECL_RET;
+    bool migrate_from_stack;
+
+    migrate_from_stack = false;
+
+    if (modifies->size >= WT_MODIFY_VECTOR_STACK_SIZE) {
+        if (modifies->allocated_bytes == 0 && modifies->size == WT_MODIFY_VECTOR_STACK_SIZE) {
+            migrate_from_stack = true;
+            modifies->listp = NULL;
+        }
+        WT_ERR(__wt_realloc_def(
+          modifies->session, &modifies->allocated_bytes, modifies->size + 1, &modifies->listp));
+        if (migrate_from_stack)
+            memcpy(modifies->listp, modifies->list, sizeof(modifies->list));
+    }
+    modifies->listp[modifies->size++] = upd;
+    return (0);
+
+err:
+    /*
+     * This only happens when we're migrating from the stack to the heap but failed to allocate. In
+     * that case, point back to the stack allocated memory and set the allocation to zero to
+     * indicate that we don't have heap memory to free.
+     *
+     * If we're already on the heap, we have nothing to do. The realloc call above won't touch the
+     * list pointer unless allocation is successful and we won't have incremented the size yet.
+     */
+    if (modifies->listp == NULL) {
+        WT_ASSERT(modifies->session, modifies->size == WT_MODIFY_VECTOR_STACK_SIZE);
+        modifies->listp = modifies->list;
+        modifies->allocated_bytes = 0;
+    }
+    return (ret);
+}
+
+/*
+ * __wt_modify_vector_pop --
+ *     Pop an update pointer off a modify vector.
+ */
+void
+__wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp)
+{
+    WT_ASSERT(modifies->session, modifies->size > 0);
+
+    *updp = modifies->listp[--modifies->size];
+}
+
+/*
+ * __wt_modify_vector_free --
+ *     Free any resources associated with a modify vector. If we exceeded the allowed stack space on
+ *     the vector and had to fallback to dynamic allocations, we'll be doing a free here.
+ */
+void
+__wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
+{
+    if (modifies->allocated_bytes != 0)
+        __wt_free(modifies->session, modifies->listp);
+    __wt_modify_vector_init(modifies, modifies->session);
+}

@@ -68,11 +68,11 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __value_return --
- *     Change the cursor to reference an internal original-page return value.
+ * __wt_value_return_buf --
+ *     Change a buffer to reference an internal original-page return value.
  */
-static inline int
-__value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+int
+__wt_value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -84,31 +84,41 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
 
     btree = S2BT(session);
 
-    page = cbt->ref->page;
+    page = ref->page;
     cursor = &cbt->iface;
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
 
         /* Simple values have their location encoded in the WT_ROW. */
-        if (__wt_row_leaf_value(page, rip, &cursor->value))
+        if (__wt_row_leaf_value(page, rip, buf))
             return (0);
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
-        return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
+        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     if (page->type == WT_PAGE_COL_VAR) {
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
         __wt_cell_unpack(session, page, cell, &unpack);
-        return (__wt_page_cell_data_ref(session, page, &unpack, &cursor->value));
+        return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
     /* WT_PAGE_COL_FIX: Take the value from the original page. */
-    v = __bit_getv_recno(cbt->ref, cursor->recno, btree->bitcnt);
-    return (__wt_buf_set(session, &cursor->value, &v, 1));
+    v = __bit_getv_recno(ref, cursor->recno, btree->bitcnt);
+    return (__wt_buf_set(session, buf, &v, 1));
+}
+
+/*
+ * __value_return --
+ *     Change the cursor to reference an internal original-page return value.
+ */
+static inline int
+__value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+{
+    return (__wt_value_return_buf(session, cbt, cbt->ref, &cbt->iface.value));
 }
 
 /*
@@ -121,13 +131,11 @@ __wt_value_return_upd(
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_UPDATE **listp, *list[WT_MODIFY_ARRAY_SIZE];
-    size_t allocated_bytes;
-    u_int i;
+    WT_MODIFY_VECTOR modifies;
     bool skipped_birthmark;
 
     cursor = &cbt->iface;
-    allocated_bytes = 0;
+    __wt_modify_vector_init(&modifies, session);
 
     /*
      * We're passed a "standard" or "modified" update that's visible to us. Our caller should have
@@ -151,7 +159,7 @@ __wt_value_return_upd(
     /*
      * Find a complete update that's visible to us, tracking modifications that are visible to us.
      */
-    for (i = 0, listp = list, skipped_birthmark = false; upd != NULL; upd = upd->next) {
+    for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -170,19 +178,7 @@ __wt_value_return_upd(
             break;
 
         if (upd->type == WT_UPDATE_MODIFY) {
-            /*
-             * Update lists are expected to be short, but it's not guaranteed. There's sufficient
-             * room on the stack to avoid memory allocation in normal cases, but we have to handle
-             * the edge cases too.
-             */
-            if (i >= WT_MODIFY_ARRAY_SIZE) {
-                if (i == WT_MODIFY_ARRAY_SIZE)
-                    listp = NULL;
-                WT_ERR(__wt_realloc_def(session, &allocated_bytes, i + 1, &listp));
-                if (i == WT_MODIFY_ARRAY_SIZE)
-                    memcpy(listp, list, sizeof(list));
-            }
-            listp[i++] = upd;
+            WT_ERR(__wt_modify_vector_push(&modifies, upd));
 
             /*
              * Once a modify is found, all previously committed modifications should be applied
@@ -221,12 +217,13 @@ __wt_value_return_upd(
     /*
      * Once we have a base item, roll forward through any visible modify updates.
      */
-    while (i > 0)
-        WT_ERR(__wt_modify_apply(cursor, listp[--i]->data));
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ERR(__wt_modify_apply(cursor, upd->data));
+    }
 
 err:
-    if (allocated_bytes != 0)
-        __wt_free(session, listp);
+    __wt_modify_vector_free(&modifies);
     return (ret);
 }
 

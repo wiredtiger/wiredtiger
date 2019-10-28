@@ -364,10 +364,71 @@ class test_las06(wttest.WiredTigerTestCase):
         expected[300] = 'D'
         expected = str().join(expected)
 
-        self.session.breakpoint()
-
         # Go back and read. We should get the initial value with the 3 modifies applied on top.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
+        for i in range(1, 11):
+            self.assertEqual(cursor[i], expected)
+        self.session.rollback_transaction()
+
+    def test_modify_birthmark_is_base_update(self):
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
+
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        # Load 5Mb of data.
+        self.conn.set_timestamp(
+            'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+
+        # The base update is at timestamp 1.
+        # When we lookaside evict these pages, the base update will be used as the birthmark since
+        # it's the only thing behind the stable timestamp.
+        cursor = self.session.open_cursor(uri)
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
+
+        # Apply three sets of modifies.
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        # Make a bunch of updates to another table to flush everything out of cache.
+        uri2 = 'table:test_las06_extra'
+        self.session.create(uri2, create_params)
+        cursor2 = self.session.open_cursor(uri2)
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor2[i] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        expected = list(value1)
+        expected[100] = 'B'
+        expected[200] = 'C'
+        expected[300] = 'D'
+        expected = str().join(expected)
+
+        # Go back and read. We should get the initial value with the 3 modifies applied on top.
+        # Ensure that we're aware that the birthmark update could be the base update.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, 11):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
