@@ -123,7 +123,7 @@ functions:
         set -o errexit
         set -o verbose
 
-        ${test_env_vars|} ${python_binary|python} ../test/suite/run.py -v 2 ${smp_command|} 2>&1
+        ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "test format":
     command: shell.exec
     params:
@@ -187,7 +187,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
 
   - name: compile-msan
@@ -195,7 +195,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=memory -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
 
   - name: compile-ubsan
@@ -203,7 +203,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
 
   # production build with --disable-shared
@@ -248,7 +248,7 @@ tasks:
           dependent_task: compile-msan
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=memory -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check all"
         vars:
@@ -263,7 +263,7 @@ tasks:
           dependent_task: compile-asan
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check all"
         vars:
@@ -315,7 +315,7 @@ tasks:
           dependent_task: compile-asan
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-fsanitize=address -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check directory"
         vars:
@@ -493,7 +493,7 @@ tasks:
       - func: "fetch artifacts"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CFLAGS="-fsanitize=undefined -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
       - command: shell.exec
         params:
@@ -1501,6 +1501,69 @@ tasks:
         vars:
           checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
+  - name: coverage-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="--coverage -fPIC -ggdb" LDFLAGS=--coverage
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python --with-builtins=lz4,snappy,zlib
+      - func: "make check all"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=snappy logging=1 logging_compression=snappy logging_prealloc=1
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 rebalance=1 salvage=1 statistics=1 statistics_server=1 verify=1
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row direct_io=1 firstfit=1 internal_key_truncation=1
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=zlib huffman_key=1 huffman_value=1
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row isolation=random transaction_timestamps=0
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row data_source=lsm bloom=1
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=var compression=snappy checksum=uncompressed dictionary=1 repeat_data_pct=10
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=lz4 prefix_compression=1 leaf_page_max=9 internal_page_max=9 key_min=256 value_min=256
+      - func: "test format"
+        vars:
+          test_format_args: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=var leaf_page_max=9 internal_page_max=9 value_min=256
+      - func: "test format"
+        vars:
+          test_format_argas: -1 -q -c ../../../test/format/CONFIG.stress checkpoints=1 leak_memory=0 mmap=1 file_type=fix
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+            pip install gcovr --user
+            GCOV=/opt/mongodbtoolchain/v3/bin/gcov /home/ubuntu/.local/bin/gcovr --html -r .. -x -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -o ../coverage_report.html
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_file: wiredtiger/coverage_report.html
+          bucket: build_external
+          permissions: public-read
+          content_type: text/html
+          display_name: Coverage report
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1521,6 +1584,7 @@ buildvariants:
     - name: make-check-asan-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
+    - name: coverage-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
@@ -1619,8 +1683,8 @@ buildvariants:
   run_on:
   - macos-1012
   expansions:
-    smp_command: -j $(sysctl -n hw.logicalcpu)
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb"
+    smp_command: -j $(sysctl -n hw.logicalcpu)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
