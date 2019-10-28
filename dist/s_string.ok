@@ -362,6 +362,7 @@ Sevii
 SiH
 Skiplist
 SleepConditionVariableCS
+SmallVector
 Solaris
 Spinlock
 Spinlocks
@@ -929,6 +930,7 @@ libwiredtiger
 linkers
 llll
 llu
+llvm
 loadtext
 localTime
 localkey
@@ -1162,6 +1164,7 @@ regionp
 reinitialization
 relocked
 repl
+resizable
 resize
 resizing
 ret

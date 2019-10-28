@@ -235,6 +235,8 @@ struct __wt_lsm_worker_args;
 typedef struct __wt_lsm_worker_args WT_LSM_WORKER_ARGS;
 struct __wt_lsm_worker_cookie;
 typedef struct __wt_lsm_worker_cookie WT_LSM_WORKER_COOKIE;
+struct __wt_modify_vector;
+typedef struct __wt_modify_vector WT_MODIFY_VECTOR;
 struct __wt_multi;
 typedef struct __wt_multi WT_MULTI;
 struct __wt_myslot;
