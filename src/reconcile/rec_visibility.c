@@ -563,6 +563,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->max_ts = max_ts;
 
     /*
+     * TODO: Consider max_txn, max_ts from las: Aggregate r->max_txn and r->max_ts, reconciliation
+     * should not write max that is less than in page_las.
+     */
+
+    /*
      * If the update we chose was a birthmark, or we are doing update-restore and we skipped a
      * birthmark, the original on-page value must be retained.
      */
@@ -583,8 +588,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
-    all_stable = (first_txn_upd == NULL ? first_inmem_upd == NULL : upd == first_txn_upd) &&
-      !list_prepared && !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
+    all_stable = ((upd != NULL && upd->ext != 0) || (upd == first_txn_upd)) && !list_prepared &&
+      !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
         goto check_original_value;

@@ -1740,10 +1740,15 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->pindex_hint = ref->pindex_hint;
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
+
+    /* If there is lookaside content associated with the page being split, copy it to the child. */
+    if (ref->page_las != NULL) {
+        WT_ERR(__wt_calloc_one(session, &child->page_las));
+        *child->page_las = *ref->page_las;
+    }
+
     WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
       "unexpected page-delete structure when splitting a page");
-    WT_ERR_ASSERT(session, ref->page_las == NULL, WT_PANIC,
-      "unexpected page-lookaside structure when splitting a page");
 
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
@@ -1803,6 +1808,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     child->state = WT_REF_MEM;
+
+    /* If there is lookaside content associated with the page being split, copy it to the child. */
+    if (ref->page_las != NULL) {
+        WT_ERR(__wt_calloc_one(session, &child->page_las));
+        *child->page_las = *ref->page_las;
+    }
 
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_row_ikey(
@@ -1982,11 +1993,15 @@ err:
 
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
+        if (split_ref[0]->page_las != NULL)
+            __wt_page_las_free(session, &split_ref[0]->page_las);
         __wt_free(session, split_ref[0]);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
+        if (split_ref[1]->page_las != NULL)
+            __wt_page_las_free(session, &split_ref[1]->page_las);
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {
@@ -2072,37 +2087,9 @@ __split_multi(WT_SESSION_IMPL *session, WT_REF *ref, bool closing)
      * reference structures.
      */
     WT_RET(__wt_calloc_def(session, new_entries, &ref_new));
-    for (i = 0; i < new_entries; ++i) {
+    for (i = 0; i < new_entries; ++i)
         WT_ERR(
           __wt_multi_to_ref(session, page, &mod->mod_multi[i], &ref_new[i], &parent_incr, closing));
-        /*
-         * If there is lookaside information attached to the page being split then there are records
-         * for this page in the lookaside that need to be accounted for in the lookaside information
-         * attached to the split pages. It is too expensive to figure out the exact lookaside
-         * content for each split page separately, so we:
-         * 1. Copy the original page's lookaside information into a split page when the split page
-         *    itself didn't undergo lookaside eviction.
-         * 2. Aggregate the original page's lookaside information with the split page's
-         *    information when split page did undergo lookaside eviction.
-         */
-        if (ref->page_las != NULL) {
-            if (ref_new[i]->page_las == NULL) {
-                WT_ERR(__wt_calloc_one(session, &ref_new[i]->page_las));
-                *ref_new[i]->page_las = *ref->page_las;
-            } else {
-                ref_new[i]->page_las->max_txn =
-                  WT_MAX(ref_new[i]->page_las->max_txn, ref->page_las->max_txn);
-                ref_new[i]->page_las->max_ondisk_ts =
-                  WT_MAX(ref_new[i]->page_las->max_ondisk_ts, ref->page_las->max_ondisk_ts);
-                ref_new[i]->page_las->min_skipped_ts =
-                  WT_MIN(ref_new[i]->page_las->min_skipped_ts, ref->page_las->min_skipped_ts);
-                ref_new[i]->page_las->has_prepares |= ref->page_las->has_prepares;
-            }
-            /* If we haven't re-instantiated this page, this ref should go into lookaside state. */
-            if (ref_new[i]->state != WT_REF_MEM)
-                WT_REF_SET_STATE(ref_new[i], WT_REF_LOOKASIDE);
-        }
-    }
 
     /*
      * Split into the parent; if we're closing the file, we hold it exclusively.
