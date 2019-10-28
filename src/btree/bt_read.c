@@ -175,8 +175,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
-    wt_timestamp_t las_timestamp, las_timestamp_tmp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     size_t notused, size, total_incr;
     uint64_t birthmark_cnt, las_txnid, las_txnid_tmp, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
