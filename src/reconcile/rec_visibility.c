@@ -397,6 +397,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_update_alloc(session, &las_value, &tmp_upd, &notused, upd_type));
             WT_ERR(__wt_modify_vector_push(&modifies, tmp_upd));
+            tmp_upd = NULL;
             ret = las_cursor->prev(las_cursor);
             WT_ERR_NOTFOUND_OK(ret);
             cmp = 0;
@@ -443,6 +444,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         tmp_upd->ext = 1;
         __wt_free_update_list(session, &upd_select->upd);
         upd_select->upd = tmp_upd;
+        tmp_upd = NULL;
     }
 
     /* Gather information about in-memory updates. */
@@ -717,6 +719,12 @@ check_original_value:
     }
 
 err:
+    __wt_free_update_list(session, &tmp_upd);
+    while (modifies.size > 0) {
+        __wt_modify_vector_pop(&modifies, &tmp_upd);
+        __wt_free_update_list(session, &tmp_upd);
+    }
+    __wt_modify_vector_free(&modifies);
     __wt_scr_free(session, &key);
     if (las_cursor_open) {
         WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
