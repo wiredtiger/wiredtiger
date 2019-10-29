@@ -653,6 +653,9 @@ __wt_las_insert_block(
     WT_ERR(__wt_txn_begin(session, NULL));
     local_txn = true;
 
+    /* Inserts should be on the same page absent a split, search any pinned leaf page. */
+    F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
+
     /* Enter each update in the boundary's list into the lookaside store. */
     for (las_counter = 0, i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* Lookaside table key component: source key. */
@@ -751,8 +754,11 @@ __wt_las_insert_block(
                 cursor->set_value(
                   cursor, upd->txnid, upd->timestamp, upd->prepare_state, upd->type, &las_value);
 
-            /* Using insert so we don't keep the page pinned longer than necessary. */
-            WT_ERR(cursor->insert(cursor));
+            /*
+             * Using update instead of insert so the page stays pinned and can be searched before
+             * the tree.
+             */
+            WT_ERR(cursor->update(cursor));
             ++insert_cnt;
             if (upd->prepare_state == WT_PREPARE_INPROGRESS)
                 ++prepared_insert_cnt;
@@ -775,6 +781,7 @@ err:
             ret = __wt_txn_commit(session, NULL);
         else
             WT_TRET(__wt_txn_rollback(session, NULL));
+        F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
 
         /* Adjust the entry count. */
         if (ret == 0) {
