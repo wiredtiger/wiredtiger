@@ -691,8 +691,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
           last_inmem_upd->next == NULL ? last_inmem_upd : last_inmem_upd->next, upd_memsize));
     }
-#endif
+#else
     WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+#endif    
     upd_select->upd_saved = true;
 
 check_original_value:
