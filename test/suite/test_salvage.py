@@ -33,7 +33,8 @@ import wiredtiger, wttest
 # test_salvage.py
 #    Utilities: wt salvage
 class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
-    tablename = 'test_salvage.a'
+    #tablename = 'test_salvage.a'
+    tablename = 'xxx'
     nentries = 1000
     session_params = 'key_format=S,value_format=S'
     unique = 'SomeUniqueString'
@@ -155,12 +156,13 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         Test salvage in a 'wt' process, using an empty table
         """
         self.session.create('table:' + self.tablename, self.session_params)
+        print "====== Run Salvage ====="
         errfile = "salvageerr.out"
         self.runWt(["salvage", self.tablename + ".wt"], errfilename=errfile)
-        self.check_empty_file(errfile)
-        self.check_empty_table(self.tablename)
+        #self.check_empty_file(errfile)
+        #self.check_empty_table(self.tablename)
 
-    def test_salvage_process(self):
+    def xxtest_salvage_process(self):
         """
         Test salvage in a 'wt' process, using a populated table.
         """
@@ -171,7 +173,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_empty_file(errfile)
         self.check_populate(self.tablename)
 
-    def test_salvage_api_empty(self):
+    def xxtest_salvage_api_empty(self):
         """
         Test salvage via API, using an empty table
         """
@@ -179,7 +181,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.salvage('table:' + self.tablename, None)
         self.check_empty_table(self.tablename)
 
-    def test_salvage_api(self):
+    def xxtest_salvage_api(self):
         """
         Test salvage via API, using a populated table.
         """
@@ -188,7 +190,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.salvage('file:' + self.tablename + ".wt", None)
         self.check_populate(self.tablename)
 
-    def test_salvage_api_damaged(self):
+    def xxtest_salvage_api_damaged(self):
         """
         Test salvage via API, on a damaged table.
         """
@@ -205,7 +207,7 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.salvage('file:' + self.tablename + ".wt", None)
         self.check_damaged(self.tablename)
 
-    def test_salvage_process_damaged(self):
+    def xxtest_salvage_process_damaged(self):
         """
         Test salvage in a 'wt' process on a table that is purposely damaged.
         """

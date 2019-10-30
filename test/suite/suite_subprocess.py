@@ -28,6 +28,7 @@
 
 from __future__ import print_function
 import os, re, subprocess, sys
+from helper import copy_wiredtiger_home
 from run import wt_builddir
 from wttest import WiredTigerTestCase
 
@@ -221,6 +222,7 @@ class suite_subprocess:
         # we can open it from another process.
         if closeconn:
             self.close_conn()
+            copy_wiredtiger_home('.', 'SAVE')
 
         wtoutname = outfilename or "wt.out"
         wterrname = errfilename or "wt.err"
