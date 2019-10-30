@@ -108,6 +108,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
     int pause_cnt;
 
     conn = S2C(session);
+    start = 0; /* [-Wconditional-uninitialized] */
 
     /*
      * No lock is required because the session array is fixed size, but it may contain inactive
