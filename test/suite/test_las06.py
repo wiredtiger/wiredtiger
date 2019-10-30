@@ -459,27 +459,48 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[i] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Apply a modify on top. This is the one we want to get selected by the checkpoint.
+        # Apply three sets of modifies.
         for i in range(1, 11):
             self.session.begin_transaction()
             cursor.set_key(i)
-            self.assertEqual(cursor.modify([
-                wiredtiger.Modify('B', 100, 1),
-                wiredtiger.Modify('C', 200, 1),
-                wiredtiger.Modify('D', 300, 1)
-            ]), 0)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        # This is the one we want to be selected by the checkpoint.
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Apply another update and evict the pages with the modifies out of cache.
         for i in range(1, 10000):
             self.session.begin_transaction()
             cursor[i] = value2
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
         # Checkpoint such that the modifies will be selected. When we grab it from lookaside, we'll
         # need to unflatten it before using it for reconciliation.
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(3))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
         self.session.checkpoint()
+
+        expected = list(value1)
+        expected[100] = 'B'
+        expected[200] = 'C'
+        expected[300] = 'D'
+        expected = str().join(expected)
+
+        # Check that the correct value is visible after checkpoint.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
+        for i in range(1, 11):
+            self.assertEqual(cursor[i], expected)
+        self.session.rollback_transaction()
 
 if __name__ == '__main__':
     wttest.run()
