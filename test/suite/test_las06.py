@@ -61,7 +61,7 @@ class test_las06(wttest.WiredTigerTestCase):
     def get_non_page_image_memory_usage(self):
         return self.get_stat(stat.conn.cache_bytes_other)
 
-    def test_las_reads_workload(self):
+    def test_las_reads(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -117,7 +117,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # TODO: Uncomment this once the project work is done.
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
-    def test_las_modify_reads_workload(self):
+    def test_las_modify_reads(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -179,7 +179,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_las_prepare_reads_workload(self):
+    def test_las_prepare_reads(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -232,7 +232,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[i])
         self.session.rollback_transaction()
 
-    def test_las_multiple_updates_workload(self):
+    def test_las_multiple_updates(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -271,7 +271,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(cursor[i], value3)
         self.session.rollback_transaction()
 
-    def test_las_multiple_modifies_workload(self):
+    def test_las_multiple_modifies(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -316,7 +316,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_las_instantiated_modify_workload(self):
+    def test_las_instantiated_modify(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -377,7 +377,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_modify_birthmark_is_base_update(self):
+    def test_las_modify_birthmark_is_base_update(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -440,7 +440,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_rec_las_modify_workload(self):
+    def test_las_rec_modify(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
