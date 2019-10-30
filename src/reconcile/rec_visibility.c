@@ -224,7 +224,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd;
     WT_UPDATE *tmp_upd, *upd;
-    wt_timestamp_t durable_ts, las_ts, max_ts;
+    wt_timestamp_t durable_ts, las_ts, max_ts, mod_upd_ts;
     size_t notused, upd_memsize;
     uint64_t las_txnid, max_txn, txnid;
     uint32_t las_btree_id, session_flags;
@@ -391,20 +391,35 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              birthmark_upd = birthmark_upd->next)
             ;
 
+        /*
+         * We'll need to walk backwards accumulating modifies and then apply them to the next full
+         * update we come across.
+         */
         WT_ERR(__wt_modify_vector_push(&modifies, upd_select->upd));
         WT_ERR(
           las_cursor->get_value(las_cursor, &durable_ts, &prepare_state, &upd_type, &las_value));
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_update_alloc(session, &las_value, &tmp_upd, &notused, upd_type));
             WT_ERR(__wt_modify_vector_push(&modifies, tmp_upd));
+            mod_upd_ts = tmp_upd->start_ts;
             tmp_upd = NULL;
+
+            /*
+             * Getting "not found" means we've hit the beginning of the lookaside table and is the
+             * same thing as hitting a key boundary. It means that the base update that we're
+             * applying modifies on top of must be the on-disk value.
+             */
             ret = las_cursor->prev(las_cursor);
             WT_ERR_NOTFOUND_OK(ret);
             cmp = 0;
             if (ret != WT_NOTFOUND) {
                 WT_ERR(
                   las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_ts, &las_txnid));
-                if (birthmark_upd != NULL && las_ts < tmp_upd->start_ts &&
+                /*
+                 * If the birthmark update is more recent than the current lookaside record then we
+                 * should use that as the base update instead.
+                 */
+                if (birthmark_upd != NULL && las_ts < mod_upd_ts &&
                   ((birthmark_upd->start_ts > las_ts) ||
                       (birthmark_upd->start_ts == las_ts && birthmark_upd->txnid > las_txnid))) {
                     upd_type = WT_UPDATE_STANDARD;
@@ -415,6 +430,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 }
                 WT_ERR(__wt_compare(session, NULL, &las_key, key, &cmp));
             }
+            /*
+             * Checking whether we've crossed a key boundary or hit the beginning of the lookaside
+             * table. If so, use the on-disk value as the base update.
+             */
             if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                 upd_type = WT_UPDATE_STANDARD;
                 prepare_state = WT_PREPARE_INIT;
