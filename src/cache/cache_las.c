@@ -10,11 +10,9 @@
 
 /*
  * When an operation is accessing the lookaside table, it should ignore the cache size (since the
- * cache is already full), any pages it reads should be evicted before application data, and the
- * operation can't reenter reconciliation.
+ * cache is already full), and the operation can't reenter reconciliation.
  */
-#define WT_LAS_SESSION_FLAGS \
-    (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_READ_WONT_NEED | WT_SESSION_NO_RECONCILE)
+#define WT_LAS_SESSION_FLAGS (WT_SESSION_IGNORE_CACHE_SIZE | WT_SESSION_NO_RECONCILE)
 
 /*
  * __las_set_isolation --
