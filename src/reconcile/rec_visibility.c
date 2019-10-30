@@ -612,8 +612,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->max_ts = max_ts;
 
     /*
-     * TODO: Consider max_txn, max_ts from las: Aggregate r->max_txn and r->max_ts, reconciliation
-     * should not write max that is less than in page_las.
+     * TODO WT-5209: Consider max_txn, max_ts from las to be aggregated into r->max_txn and
+     * r->max_ts, reconciliation should not write max that is less than in page_las.
      */
 
     /*
@@ -671,11 +671,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
-/*
- * The order of the updates on the list matters, we can't move only the unresolved updates, move the
- * entire update list.
- */
-#if 0
+    /*
+     * The order of the updates on the list matters, we can't move only the unresolved updates, move
+     * the entire update list.
+     *
+     * TODO WT-5209: We need to re-work on the following code around writing the on-disk value as an
+     * update in the list. Even though the test passes, I suspect this is not quite right.
+     */
     WT_ASSERT(
       session, upd_select->upd == NULL || upd_select->upd->ext == 0 || last_inmem_upd != NULL);
     if (upd_select->upd != NULL && upd_select->upd->ext == 0) {
@@ -691,9 +693,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
           last_inmem_upd->next == NULL ? last_inmem_upd : last_inmem_upd->next, upd_memsize));
     }
-#else
-    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-#endif    
     upd_select->upd_saved = true;
 
 check_original_value:
@@ -715,8 +714,7 @@ check_original_value:
               (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
             WT_ERR(__rec_append_orig_value(session, page, first_inmem_upd, vpack));
     } else {
-        /* TODO: We are losing the on-disk value here, assert so that we catch testing here. */
-        WT_ASSERT(session, false);
+        /* TODO WT-5209: Are we losing the on-disk value here ? */
     }
 
 err:
