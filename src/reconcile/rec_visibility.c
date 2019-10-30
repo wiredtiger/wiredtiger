@@ -120,9 +120,8 @@ static int
 __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *las_positioned,
   WT_CURSOR *las_cursor, uint32_t btree_id, WT_ITEM *key, WT_UPDATE **updp)
 {
-    WT_DECL_ITEM(las_key);
-    WT_DECL_ITEM(las_value);
     WT_DECL_RET;
+    WT_ITEM las_key, las_value;
     wt_timestamp_t durable_timestamp, las_timestamp, las_txnid;
     size_t not_used;
     uint32_t las_btree_id;
@@ -130,6 +129,8 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
     int cmp;
     bool use_las_rec;
 
+    WT_CLEAR(las_key);
+    WT_CLEAR(las_value);
     las_timestamp = las_txnid = 0;
     use_las_rec = false;
 
@@ -139,15 +140,14 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
 
     /* Determine whether to use lookaside or an in-memory update. */
     if (*las_positioned) {
-        WT_RET(__wt_scr_alloc(session, 0, &las_key));
-
         /* Check if lookaside cursor is still positioned on an update for the given key. */
-        WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
+        WT_RET(
+          las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
         if (las_btree_id != btree_id) {
             *las_positioned = false;
             goto inmem;
         } else {
-            WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
+            WT_RET(__wt_compare(session, NULL, &las_key, key, &cmp));
             if (cmp != 0) {
                 *las_positioned = false;
                 goto inmem;
@@ -168,18 +168,16 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
     }
 
     if (use_las_rec) {
-        WT_ERR(__wt_scr_alloc(session, 0, &las_value));
-
         /* Create an update from the lookaside, mark it external and reposition lookaside cursor.*/
-        WT_ERR(las_cursor->get_value(
-          las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
+        WT_RET(las_cursor->get_value(
+          las_cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
         WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK);
 
         /*
          * Allocate an update structure for the record found. Mark this update as external and to be
          * discarded when not needed.
          */
-        WT_ERR(__wt_update_alloc(session, las_value, updp, &not_used, upd_type));
+        WT_RET(__wt_update_alloc(session, &las_value, updp, &not_used, upd_type));
         (*updp)->txnid = las_txnid;
         (*updp)->durable_ts = durable_timestamp;
         (*updp)->start_ts = las_timestamp;
@@ -191,18 +189,14 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
             *las_positioned = false;
             ret = 0;
         }
-        WT_ERR(ret);
+        WT_RET(ret);
     } else {
 inmem:
         *updp = *inmem_upd_pos;
         if (*inmem_upd_pos != NULL)
             *inmem_upd_pos = (*inmem_upd_pos)->next;
     }
-
-err:
-    __wt_scr_free(session, &las_key);
-    __wt_scr_free(session, &las_value);
-    return (ret);
+    return (0);
 }
 
 /*
