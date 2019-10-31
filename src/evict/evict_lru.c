@@ -1838,13 +1838,13 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (__wt_ref_is_root(ref))
             continue;
 
-        /* count internal pages seen. */
-        if (WT_PAGE_IS_INTERNAL(page))
-            internal_pages_seen++;
-
         page = ref->page;
         modified = __wt_page_is_modified(page);
         page->evict_pass_gen = cache->evict_pass_gen;
+
+        /* count internal pages seen. */
+        if (WT_PAGE_IS_INTERNAL(page))
+            internal_pages_seen++;
 
         /*
          * Use the EVICT_LRU flag to avoid putting pages onto the list multiple times.
