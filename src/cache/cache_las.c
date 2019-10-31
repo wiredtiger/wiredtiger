@@ -548,7 +548,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     WT_UPDATE *next_upd, *start_upd, *upd;
 
     WT_CLEAR(las_value);
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
     start_upd = upd = *updp;
     next_upd = start_upd->next;
 
@@ -1440,7 +1440,7 @@ __wt_find_lookaside_upd(
     las_cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
     notused = size = 0;
     las_btree_id = S2BT(session)->id;

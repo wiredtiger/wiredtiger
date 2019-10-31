@@ -193,7 +193,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CLEAR(las_key);
     WT_CLEAR(las_key_tmp);
     WT_CLEAR(las_value);
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
     page = ref->page;
     page_las = ref->page_las;
     mod_upd = upd = NULL;

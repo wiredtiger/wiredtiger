@@ -135,7 +135,7 @@ __wt_value_return_upd(
     bool skipped_birthmark;
 
     cursor = &cbt->iface;
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
 
     /*
      * We're passed a "standard" or "modified" update that's visible to us. Our caller should have

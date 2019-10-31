@@ -237,7 +237,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     cache = S2C(session)->cache;
     las_cursor = NULL;
     cbt = &r->update_modify_cbt;
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
     page = r->page;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     first_txn_upd = last_inmem_upd = tmp_upd = upd = NULL;
