@@ -837,6 +837,7 @@ err:
           session, birthmarks_cnt, sizeof(WT_BIRTHMARK_DETAILS), &multi->page_las.birthmarks);
 
     if (ret == 0 && (insert_cnt > 0 || birthmarks_cnt > 0)) {
+        WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
         multi->has_las = true;
         multi->page_las.has_prepares |= prepared_insert_cnt > 0;
         if (birthmarks_cnt > 0) {

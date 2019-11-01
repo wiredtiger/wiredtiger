@@ -1524,14 +1524,11 @@ __rec_split_write_supd(
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_PAGE_LOOKASIDE *orig_page_las;
     WT_REC_CHUNK *next;
     WT_SAVE_UPD *supd;
     WT_UPDATE *upd;
     uint32_t i, j;
     int cmp;
-
-    orig_page_las = r->ref->page_las;
 
     /*
      * Check if we've saved updates that belong to this block, and move any to the per-block
@@ -1546,7 +1543,7 @@ __rec_split_write_supd(
         WT_RET(__rec_supd_move(session, multi, r->supd, r->supd_next));
         r->supd_next = 0;
         r->supd_memsize = 0;
-        goto done;
+        return (ret);
     }
 
     /*
@@ -1600,27 +1597,6 @@ __rec_split_write_supd(
         r->supd_next = j;
     }
 
-done:
-    /*
-     * Track the range of timestamps seen so far, include the information from the original page's
-     * lookaside.
-     *
-     * If there is lookaside information attached to the original page then there are records for
-     * this page in the lookaside that need to be accounted into the lookaside information for the
-     * replacement page. It is too expensive to figure out the exact content for the replacement
-     * page, so we take a superset of what is available to us.
-     */
-    if (F_ISSET(r, WT_REC_LOOKASIDE) && orig_page_las == NULL) {
-        multi->page_las.max_txn = r->max_txn;
-        multi->page_las.max_ondisk_ts = r->max_ondisk_ts;
-        multi->page_las.min_skipped_ts = r->min_skipped_ts;
-    } else if (orig_page_las != NULL) {
-        multi->page_las.max_txn = WT_MAX(orig_page_las->max_txn, r->max_txn);
-        multi->page_las.max_ondisk_ts = WT_MAX(orig_page_las->max_ondisk_ts, r->max_ondisk_ts);
-        multi->page_las.min_skipped_ts = WT_MIN(orig_page_las->min_skipped_ts, r->min_skipped_ts);
-        multi->page_las.has_prepares = orig_page_las->has_prepares;
-    }
-
 err:
     __wt_scr_free(session, &key);
     return (ret);
@@ -1659,10 +1635,10 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     }
 
     /*
-     * Note in the page header if using the lookaside table eviction path and we found updates that
-     * weren't globally visible when reconciling this page.
+     * Note in the page header if we found updates that weren't globally visible when reconciling
+     * this page.
      */
-    if (F_ISSET(r, WT_REC_LOOKASIDE) && multi->supd != NULL)
+    if (multi->page_las.max_txn != WT_TXN_NONE)
         F_SET(dsk, WT_PAGE_LAS_UPDATE);
 
     dsk->unused = 0;
@@ -1836,14 +1812,16 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
+    WT_PAGE_LOOKASIDE *orig_page_las;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
 #ifdef HAVE_DIAGNOSTIC
-    bool verify_image;
+    bool block_las_evict, verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
+    orig_page_las = r->ref->page_las;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1886,6 +1864,30 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     /* Check if there are saved updates that might belong to this block. */
     if (r->supd_next != 0)
         WT_RET(__rec_split_write_supd(session, r, chunk, multi, last_block));
+
+    /*
+     * If we are configured to do lookaside eviction for this block or if the original page has
+     * lookaside content, accumulate the range of timestamps seen so far.
+     *
+     * If there is lookaside information attached to the original page then there are records for
+     * this page in the lookaside that need to be accounted into the lookaside information for the
+     * replacement page. It is too expensive to figure out the exact content for the replacement
+     * page, so we take a superset of what is available to us.
+     */
+    block_las_evict = multi->supd != NULL && F_ISSET(r, WT_REC_LOOKASIDE);
+    if (orig_page_las != NULL || block_las_evict) {
+        multi->page_las.max_txn = WT_MAX(
+          orig_page_las != NULL ? orig_page_las->max_txn : 0, block_las_evict ? r->max_txn : 0);
+        multi->page_las.max_ondisk_ts =
+          WT_MAX(orig_page_las != NULL ? orig_page_las->max_ondisk_ts : 0,
+            block_las_evict ? r->max_ondisk_ts : 0);
+        multi->page_las.min_skipped_ts =
+          WT_MIN(orig_page_las != NULL ? orig_page_las->min_skipped_ts : WT_TS_MAX,
+            block_las_evict ? r->min_skipped_ts : WT_TS_MAX);
+        multi->page_las.has_prepares = orig_page_las != NULL && orig_page_las->has_prepares;
+
+        WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
+    }
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);

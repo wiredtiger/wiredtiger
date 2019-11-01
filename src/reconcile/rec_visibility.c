@@ -288,7 +288,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * to position on an update for an adjacent key. We will check the validity of our position
          * again when fetching the record. The updates are sorted oldest to newest in the lookaside.
          */
-        ret = __wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, UINT64_MAX);
+        ret = __wt_las_cursor_position(session, las_cursor, S2BT(session)->id, key, WT_TXN_MAX);
         las_positioned = ret == 0;
         WT_ERR_NOTFOUND_OK(ret);
     }
@@ -693,9 +693,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     WT_ASSERT(
       session, upd_select->upd == NULL || upd_select->upd->ext == 0 || last_inmem_upd != NULL);
-    if (upd_select->upd != NULL && upd_select->upd->ext == 0) {
+    if (upd_select->upd != NULL && upd_select->upd->ext == 0)
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-    } else {
+    else {
         /*
          * All of the in-memory updates are going into the saved update list. Original on-page
          * update will be lost, make a copy and put in the update chain. That update will become the
