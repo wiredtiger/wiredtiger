@@ -1384,6 +1384,20 @@ tasks:
               ./t -1 -C "direct_io=[data]" -c ../../../test/format/CONFIG.stress
             done
 
+  - name: syscall-linux
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/syscall"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${python_binary|python} syscall.py
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1403,6 +1417,7 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
+    - name: syscall-linux
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
