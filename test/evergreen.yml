@@ -115,6 +115,17 @@ functions:
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
 
+  "test checkpoint for filetype":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix"
+      script: |
+        set -o errexit
+        set -o verbose
+        for fileType in m r c; do
+          ./test/checkpoint/t -t $fileType -n 1000000 -k 5000000 -C cache_size=100MB 2>&1
+        done
+
 pre:
   - func: "cleanup"
 post:
@@ -1384,6 +1395,15 @@ tasks:
               ./t -1 -C "direct_io=[data]" -c ../../../test/format/CONFIG.stress
             done
 
+  - name: test-checkpoint
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-ggdb"
+          posix_configure_flags: --enable-strict
+      - func: "test checkpoint for filetype"
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1403,6 +1423,7 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
+    - name: test-checkpoint
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
