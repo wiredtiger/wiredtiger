@@ -31,8 +31,8 @@ __col_instantiate(
         __wt_free_update_list(session, &upd);
 
     /* Search the page and add updates. */
-    WT_RET(__wt_col_search(session, recno, ref, cbt, true));
-    WT_RET(__wt_col_modify(session, cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
+    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
+    WT_RET(__wt_col_modify(cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
     return (0);
 }
 
@@ -59,8 +59,8 @@ __row_instantiate(
         __wt_free_update_list(session, &upd);
 
     /* Search the page and add updates. */
-    WT_RET(__wt_row_search(session, key, ref, cbt, true, true));
-    WT_RET(__wt_row_modify(session, cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
+    WT_RET(__wt_row_search(cbt, key, true, ref, true, NULL));
+    WT_RET(__wt_row_modify(cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
     return (0);
 }
 
@@ -372,7 +372,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                 if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
                     prepare_state = WT_PREPARE_INIT;
-                    WT_ERR(__wt_value_return_buf(session, &cbt, ref, &las_value));
+                    WT_ERR(__wt_value_return_buf(&cbt, ref, &las_value));
                     break;
                 } else
                     WT_ASSERT(session, __wt_txn_visible(session, las_txnid_tmp, las_timestamp_tmp));

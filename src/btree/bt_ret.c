@@ -13,15 +13,17 @@
  *     Change the cursor to reference an internal return key.
  */
 static inline int
-__key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__key_return(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
     WT_ITEM *tmp;
     WT_PAGE *page;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
 
     page = cbt->ref->page;
     cursor = &cbt->iface;
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
@@ -72,7 +74,7 @@ __key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *     Change a buffer to reference an internal original-page return value.
  */
 int
-__wt_value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
+__wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
 {
     WT_BTREE *btree;
     WT_CELL *cell;
@@ -80,8 +82,10 @@ __wt_value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_REF *re
     WT_CURSOR *cursor;
     WT_PAGE *page;
     WT_ROW *rip;
+    WT_SESSION_IMPL *session;
     uint8_t v;
 
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
     btree = S2BT(session);
 
     page = ref->page;
@@ -116,9 +120,9 @@ __wt_value_return_buf(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_REF *re
  *     Change the cursor to reference an internal original-page return value.
  */
 static inline int
-__value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__value_return(WT_CURSOR_BTREE *cbt)
 {
-    return (__wt_value_return_buf(session, cbt, cbt->ref, &cbt->iface.value));
+    return (__wt_value_return_buf(cbt, cbt->ref, &cbt->iface.value));
 }
 
 /*
@@ -126,15 +130,16 @@ __value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *     Change the cursor to reference an internal update structure return value.
  */
 int
-__wt_value_return_upd(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
+__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_MODIFY_VECTOR modifies;
+    WT_SESSION_IMPL *session;
     bool skipped_birthmark;
 
     cursor = &cbt->iface;
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
     __wt_modify_vector_init(session, &modifies);
 
     /*
@@ -207,7 +212,7 @@ __wt_value_return_upd(
              */
             WT_ASSERT(session, cbt->slot != UINT32_MAX);
 
-            WT_ERR(__value_return(session, cbt));
+            WT_ERR(__value_return(cbt));
         }
     } else if (upd->type == WT_UPDATE_TOMBSTONE)
         WT_ERR(__wt_buf_set(session, &cursor->value, "", 0));
@@ -232,7 +237,7 @@ err:
  *     Change the cursor to reference an internal return key.
  */
 int
-__wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__wt_key_return(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
 
@@ -248,7 +253,7 @@ __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
      */
     F_CLR(cursor, WT_CURSTD_KEY_EXT);
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
-        WT_RET(__key_return(session, cbt));
+        WT_RET(__key_return(cbt));
         F_SET(cursor, WT_CURSTD_KEY_INT);
     }
     return (0);
@@ -259,7 +264,7 @@ __wt_key_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
  *     Change the cursor to reference an internal return value.
  */
 int
-__wt_value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_CURSOR *cursor;
 
@@ -267,9 +272,9 @@ __wt_value_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
     if (upd == NULL)
-        WT_RET(__value_return(session, cbt));
+        WT_RET(__value_return(cbt));
     else
-        WT_RET(__wt_value_return_upd(session, cbt, upd, false));
+        WT_RET(__wt_value_return_upd(cbt, upd, false));
     F_SET(cursor, WT_CURSTD_VALUE_INT);
     return (0);
 }

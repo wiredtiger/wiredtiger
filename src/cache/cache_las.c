@@ -630,6 +630,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
 
+    /* Inserts should be on the same page absent a split, search any pinned leaf page. */
+    F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
+
     /* Enter each update in the boundary's list into the lookaside store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* Lookaside table key component: source key. */
@@ -787,8 +790,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
             cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
 
-            /* Using insert so we don't keep the page pinned longer than necessary. */
-            WT_ERR(cursor->insert(cursor));
+            /*
+             * Using update instead of insert so the page stays pinned and can be searched before
+             * the tree.
+             */
+            WT_ERR(cursor->update(cursor));
             ++insert_cnt;
 
             /*
@@ -822,6 +828,7 @@ err:
         else
             WT_TRET(__wt_txn_rollback(session, NULL));
         __las_restore_isolation(session, saved_isolation);
+        F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
 
         /* Adjust the entry count. */
         if (ret == 0) {
@@ -1592,7 +1599,7 @@ __wt_find_lookaside_upd(
                  */
                 if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
-                    WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, las_value));
+                    WT_ERR(__wt_value_return_buf(cbt, cbt->ref, las_value));
                     break;
                 } else
                     WT_ASSERT(session, __wt_txn_visible(session, las_txnid_tmp, las_timestamp_tmp));
@@ -1629,11 +1636,10 @@ __wt_find_lookaside_upd(
             case WT_PAGE_COL_VAR:
                 recnop = las_key->data;
                 WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
-                WT_ERR(__wt_col_modify(session, cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
+                WT_ERR(__wt_col_modify(cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
                 break;
             case WT_PAGE_ROW_LEAF:
-                WT_ERR(
-                  __wt_row_modify(session, cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
+                WT_ERR(__wt_row_modify(cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
                 break;
             }
 

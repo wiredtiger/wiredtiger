@@ -437,7 +437,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                 upd_type = WT_UPDATE_STANDARD;
-                WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, &las_value));
+                WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &las_value));
                 break;
             } else
                 WT_ASSERT(session, __wt_txn_visible(session, las_txnid, las_ts));

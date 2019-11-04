@@ -300,7 +300,7 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                 ++cbt->page_deleted_count;
             continue;
         }
-        return (__wt_value_return(session, cbt, upd));
+        return (__wt_value_return(cbt, upd));
     }
     /* NOTREACHED */
 }
@@ -370,7 +370,7 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                     ++cbt->page_deleted_count;
                 continue;
             }
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, upd));
         }
 
         /*
@@ -504,7 +504,7 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                     ++cbt->page_deleted_count;
                 continue;
             }
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, upd));
         }
 
         /* Check for the beginning of the page. */
