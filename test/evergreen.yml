@@ -1467,10 +1467,6 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
-    - name: compile-linux-no-ftruncate
-    - name: make-check-linux-no-ftruncate-test
-    - name: unit-linux-no-ftruncate-test
-    - name: format-linux-no-ftruncate
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
@@ -1487,6 +1483,21 @@ buildvariants:
     - name: compile
     - name: ".unit_test"
     - name: conf-dump-test
+
+- name: linux-no-ftruncate
+  display_name: Linux no ftruncate
+  batchtime: 10080 # 1 day
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+  tasks:
+    - name: compile-linux-no-ftruncate
+    - name: make-check-linux-no-ftruncate-test
+    - name: unit-linux-no-ftruncate-test
+    - name: format-linux-no-ftruncate
 
 - name: rhel80
   display_name: RHEL 8.0
