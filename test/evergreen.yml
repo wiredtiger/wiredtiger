@@ -1384,6 +1384,20 @@ tasks:
               ./t -1 -C "direct_io=[data]" -c ../../../test/format/CONFIG.stress
             done
 
+  - name: syscall-linux
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/syscall"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${python_binary|python} syscall.py --verbose
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1419,6 +1433,19 @@ buildvariants:
     - name: compile
     - name: ".unit_test"
     - name: conf-dump-test
+
+- name: syscall-linux
+  display_name: Syscall Linux
+  batchtime: 10080 # a week
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+  tasks:
+    - name: compile
+    - name: syscall-linux
 
 - name: rhel80
   display_name: RHEL 8.0
