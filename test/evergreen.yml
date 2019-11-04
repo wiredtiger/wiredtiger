@@ -1435,7 +1435,7 @@ buildvariants:
     - name: conf-dump-test
 
 - name: syscall-linux
-  display_name: Syscall linux
+  display_name: Syscall Linux
   batchtime: 10080 # a week
   run_on:
   - ubuntu1804-test
