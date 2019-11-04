@@ -368,8 +368,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * modify. If that's the case then we need to expand the modify into a full standard update
      * since modifies don't go on-disk.
      *
-     * We might need to think about this a bit more... since the allocation of the modify update was
-     * a waste.
+     * TODO: WT-5209: Possible performance improvement: WT_MODIFY_VECTOR is efficient for when we're
+     * reading a modify in the update list since we already have WT_UPDATE structures in memory.
+     * When we're reading from lookaside, it involves allocating an update each time (in addition to
+     * the actual buffer representing the value) even though we only use the data member and pass it
+     * as a void* when applying it to the base update. It might be worth considering a similar data
+     * structure for WT_ITEM since there's no need for them to be stored as WT_UPDATE structures.
      */
     if (upd_select->upd != NULL && upd_select->upd->ext != 0 &&
       upd_select->upd->type == WT_UPDATE_MODIFY) {
@@ -416,8 +420,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 if (birthmark_upd != NULL && las_ts < mod_upd_ts &&
                   ((birthmark_upd->start_ts > las_ts) ||
                       (birthmark_upd->start_ts == las_ts && birthmark_upd->txnid > las_txnid))) {
+                    /*
+                     * Normally we'd hit a base update in the lookaside which will set the update
+                     * type to "standard". Since we're use the birthmark value, set it explicitly.
+                     */
                     upd_type = WT_UPDATE_STANDARD;
-                    prepare_state = WT_PREPARE_INIT;
                     WT_ERR(
                       __wt_buf_set(session, &las_value, birthmark_upd->data, birthmark_upd->size));
                     break;
@@ -430,7 +437,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                 upd_type = WT_UPDATE_STANDARD;
-                prepare_state = WT_PREPARE_INIT;
                 WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, &las_value));
                 break;
             } else

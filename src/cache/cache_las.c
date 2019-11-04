@@ -1579,7 +1579,6 @@ __wt_find_lookaside_upd(
                           (birthmark_upd->start_ts == las_timestamp_tmp &&
                             birthmark_upd->txnid > las_txnid_tmp))) {
                         upd_type = WT_UPDATE_STANDARD;
-                        prepare_state = WT_PREPARE_INIT;
                         WT_ERR(__wt_buf_set(
                           session, las_value, birthmark_upd->data, birthmark_upd->size));
                         break;
@@ -1595,7 +1594,6 @@ __wt_find_lookaside_upd(
                  */
                 if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
-                    prepare_state = WT_PREPARE_INIT;
                     WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, las_value));
                     break;
                 } else
