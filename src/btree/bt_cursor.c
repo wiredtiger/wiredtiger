@@ -527,6 +527,10 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
     /*
      * In the case of prepare, there could be uncommitted updates in the lookaside newer than those
      * in the update list.
+     *
+     * TODO: WT-5209: Possible performance improvement: If this key doesn't have an on-disk value,
+     * The latest update in the update chain will be newer than the updates in lookaside. That newer
+     * record will be prepared update we are looking for.
      */
     if (cbt->ref->page_las != NULL && cbt->ref->page_las->has_prepares) {
         if ((ret = __wt_find_lookaside_upd(session, cbt, &las_upd, true)) == 0) {
