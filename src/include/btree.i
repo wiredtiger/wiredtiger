@@ -1395,6 +1395,23 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
 }
 
 /*
+ * __wt_should_evict_page --
+ *     Determine whether a page should be evicted.
+ */
+static inline bool
+__wt_should_evict_page(WT_PAGE *page)
+{
+    switch (page->read_gen) {
+    case WT_READGEN_OLDEST:
+        return false;
+    case WT_READGEN_WONT_NEED:
+        return !__wt_page_is_modified(page);
+    default:
+        return false;
+    }
+}
+
+/*
  * __wt_page_release --
  *     Release a reference to a page.
  */
@@ -1435,7 +1452,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      * evict it.
      */
     page = ref->page;
-    if (WT_READGEN_EVICT_SOON(page->read_gen) && btree->evict_disabled == 0 &&
+    if (__wt_should_evict_page(page) && btree->evict_disabled == 0 &&
       __wt_page_can_evict(session, ref, &inmem_split) &&
       (!WT_SESSION_IS_CHECKPOINT(session) || __wt_page_evict_clean(page))) {
         if (LF_ISSET(WT_READ_NO_EVICT) ||
