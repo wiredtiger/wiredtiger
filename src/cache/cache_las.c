@@ -695,7 +695,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * If the page being lookaside evicted has previous lookaside content associated with it,
          * there is a possibility that the update written to the disk is external (i.e. it came from
          * the existing lookaside content and not from in-memory updates). Since this update won't
-         * be a part of the saved update list, we need to write a birthmark for it separate to
+         * be a part of the saved update list, we need to write a birthmark for it, separate from
          * processing of the saved updates.
          */
         if (list->onpage_upd != NULL && list->onpage_upd->ext != 0 && list->onpage_upd->size > 0 &&
