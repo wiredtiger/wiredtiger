@@ -1384,7 +1384,7 @@ tasks:
               ./t -1 -C "direct_io=[data]" -c ../../../test/format/CONFIG.stress
             done
 
-  - name: release
+  - name: package
     commands:
       - func: "get project"
       - command: shell.exec
@@ -1414,7 +1414,6 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
-    - name: release
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
@@ -1431,6 +1430,14 @@ buildvariants:
     - name: compile
     - name: ".unit_test"
     - name: conf-dump-test
+
+- name: package
+  display_name: Package
+  batchtime: 1440 # 1 day
+  run_on:
+  - ubuntu1804-test
+  tasks:
+    - name: package
 
 - name: rhel80
   display_name: RHEL 8.0
