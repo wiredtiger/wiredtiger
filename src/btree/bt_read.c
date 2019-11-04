@@ -28,7 +28,7 @@ __col_instantiate(
      */
     if (updlist->next != NULL &&
       (upd = __wt_update_obsolete_check(session, page, updlist, false)) != NULL)
-        __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
 
     /* Search the page and add updates. */
     WT_RET(__wt_col_search(session, recno, ref, cbt, true));
@@ -56,7 +56,7 @@ __row_instantiate(
      */
     if (updlist->next != NULL &&
       (upd = __wt_update_obsolete_check(session, page, updlist, false)) != NULL)
-        __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
 
     /* Search the page and add updates. */
     WT_RET(__wt_row_search(session, key, ref, cbt, true, true));
@@ -107,6 +107,9 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     upd = NULL;
     total_incr = 0;
 
+    if (page_las->birthmarks_cnt == 0)
+        return (0);
+
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
@@ -153,11 +156,11 @@ err:
 }
 
 /*
- * __las_page_instantiate --
+ * __instantiate_lookaside --
  *     Instantiate lookaside update records that are not on disk image in a recently read page.
  */
 static int
-__las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
+__instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     struct las_page_prepared_updates {
         WT_ITEM key;
@@ -172,16 +175,16 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_DECL_RET;
     WT_ITEM las_key, las_key_tmp, las_value, next_las_key;
     WT_MODIFY_VECTOR modifies;
-    WT_PAGE_LOOKASIDE *page_las;
     WT_PAGE *page;
+    WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     size_t notused, size, total_incr;
-    uint64_t birthmark_cnt, las_txnid, las_txnid_tmp, recno;
+    uint64_t birthmark_cnt, instantiated_cnt, las_txnid, las_txnid_tmp, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
-    int cmp, exact, instantiated_cnt;
+    int cmp, exact;
     bool birthmark_record, first_scan, locked;
 
     birthmarkp = NULL;
@@ -190,9 +193,9 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CLEAR(las_key);
     WT_CLEAR(las_key_tmp);
     WT_CLEAR(las_value);
-    __wt_modify_vector_init(&modifies, session);
-    page_las = ref->page_las;
+    __wt_modify_vector_init(session, &modifies);
     page = ref->page;
+    page_las = ref->page_las;
     mod_upd = upd = NULL;
     birthmark_cnt = 0;
     recno = WT_RECNO_OOB;
@@ -207,21 +210,31 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     if (page_las->min_skipped_ts == WT_TS_MAX) {
         WT_RET(__instantiate_birthmarks(session, ref));
 
-        FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+        if (page->modify != NULL) {
+            /*
+             * Checkpoint may specify an older timestamp than the timestamp used to write the page,
+             * it must be included in the next checkpoint.
+             */
+            page->modify->first_dirty_txn = WT_TXN_FIRST;
+            FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
 
-        /*
-         * The page image contained the newest versions of data so the updates in lookaside are all
-         * older and we could consider marking it clean (i.e., the next checkpoint can use the
-         * version already on disk).
-         */
-        if (!page_las->has_prepares && !S2C(session)->txn_global.has_stable_timestamp &&
-          __wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts)) {
-            page->modify->rec_max_txn = page_las->max_txn;
-            page->modify->rec_max_timestamp = page_las->max_ondisk_ts;
-            __wt_page_modify_clear(session, page);
+            /*
+             * The page image contained the newest versions of data so the updates in lookaside are
+             * all older and we could consider marking it clean (i.e., the next checkpoint can use
+             * the version already on disk).
+             */
+            if (!page_las->has_prepares && !S2C(session)->txn_global.has_stable_timestamp &&
+              __wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts)) {
+                page->modify->rec_max_txn = page_las->max_txn;
+                page->modify->rec_max_timestamp = page_las->max_ondisk_ts;
+                __wt_page_modify_clear(session, page);
+            }
         }
 
-        return 0;
+        __wt_buf_free(session, &page_las->max_las_key);
+        __wt_buf_free(session, &page_las->min_las_key);
+
+        return (0);
     }
 
     __wt_btcur_init(session, &cbt);
@@ -299,7 +312,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             break;
 
         instantiated_cnt++;
-        if (ref->page_las->birthmarks_cnt > 0) {
+        if (page_las->birthmarks_cnt > 0) {
             for (birthmarkp = page_las->birthmarks + birthmark_cnt;
                  birthmark_cnt < page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++) {
                 if (birthmarkp->instantiated)
@@ -370,7 +383,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             while (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, &las_value, mod_upd->data, false));
-                __wt_free_update_list(session, mod_upd);
+                __wt_free_update_list(session, &mod_upd);
                 mod_upd = NULL;
                 /*
                  * We had to do some backtracking to construct this update. Unwind back to where we
@@ -427,11 +440,6 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     locked = false;
     WT_ERR_NOTFOUND_OK(ret);
 
-    __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
-      "Page is instantiated with LAS content for btree ID %" PRIu32
-      " with number of keys: %" PRId32,
-      las_btree_id, instantiated_cnt);
-
     /* Instantiate the remaining birthmark entries. */
     WT_ERR(__instantiate_birthmarks(session, ref));
 
@@ -441,8 +449,10 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * If the updates in lookaside are newer than the versions on the page, it must be included in
      * the next checkpoint.
      */
-    page->modify->first_dirty_txn = WT_TXN_FIRST;
-    FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+    if (page->modify != NULL) {
+        page->modify->first_dirty_txn = WT_TXN_FIRST;
+        FLD_SET(page->modify->restore_state, WT_PAGE_RS_LOOKASIDE);
+    }
 
     /*
      * Now the page is successfully instantiated. Remove the prepared updates from LAS that are
@@ -457,11 +467,15 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_buf_free(session, &page_las->max_las_key);
     __wt_buf_free(session, &page_las->min_las_key);
 
+    __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
+      "btree ID %" PRIu32 " page instantiated with %" PRIu64 " lookaside items", las_btree_id,
+      instantiated_cnt);
+
 err:
-    __wt_free_update_list(session, mod_upd);
+    __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &mod_upd);
-        __wt_free_update_list(session, mod_upd);
+        __wt_free_update_list(session, &mod_upd);
     }
     __wt_modify_vector_free(&modifies);
     if (las_prepare_cnt != 0)
@@ -660,13 +674,13 @@ skip_read:
          * and then apply the delete.
          */
         if (ref->page_las != NULL)
-            WT_ERR(__las_page_instantiate(session, ref));
+            WT_ERR(__instantiate_lookaside(session, ref));
 
         /* Move all records to a deleted state. */
         WT_ERR(__wt_delete_page_instantiate(session, ref));
         break;
     case WT_REF_LOOKASIDE:
-        WT_ERR(__las_page_instantiate(session, ref));
+        WT_ERR(__instantiate_lookaside(session, ref));
         break;
     }
 

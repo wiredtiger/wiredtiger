@@ -421,7 +421,7 @@ err:
  *     Initialise a modify vector.
  */
 void
-__wt_modify_vector_init(WT_MODIFY_VECTOR *modifies, WT_SESSION_IMPL *session)
+__wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies)
 {
     WT_CLEAR(*modifies);
     modifies->session = session;
@@ -493,5 +493,5 @@ __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies)
 {
     if (modifies->allocated_bytes != 0)
         __wt_free(modifies->session, modifies->listp);
-    __wt_modify_vector_init(modifies, modifies->session);
+    __wt_modify_vector_init(modifies->session, modifies);
 }

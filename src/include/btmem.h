@@ -247,7 +247,6 @@ struct __wt_page_lookaside {
     uint64_t max_txn;              /* Maximum transaction ID */
     wt_timestamp_t max_ondisk_ts;  /* Maximum timestamp on disk */
     wt_timestamp_t min_skipped_ts; /* Skipped in favor of disk version */
-    bool has_las;                  /* The page has lookaside content on disk */
     bool has_prepares;             /* One or more updates are prepared */
     WT_ITEM max_las_key;           /* The maximum key in the LAS for the page */
     WT_ITEM min_las_key;           /* The minimum key in the LAS for the page */
@@ -372,7 +371,12 @@ struct __wt_page_modify {
                 uint32_t size;
                 uint32_t checksum;
 
+                /*
+                 * Aggregated lookaside information from the page being replaced and from the
+                 * lookaside eviction of this block.
+                 */
                 WT_PAGE_LOOKASIDE page_las;
+                bool has_las; /* This block has lookaside contents of its own. */
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;

@@ -800,9 +800,6 @@ __split_parent(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF **ref_new, uint32_t
             }
         }
 
-        /* Check that we are not discarding active history. */
-        WT_ASSERT(session, !__wt_page_las_active(session, next_ref));
-
         /*
          * The page-delete and lookaside memory weren't added to the parent's footprint, ignore it
          * here.
@@ -1392,7 +1389,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     uint64_t recno;
     uint32_t i, slot;
 
-    WT_ASSERT(session, !multi->page_las.has_las);
+    WT_ASSERT(session, !multi->has_las);
 
     /*
      * In 04/2016, we removed column-store record numbers from the WT_PAGE structure, leading to
@@ -1491,17 +1488,17 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     mod->first_dirty_txn = WT_TXN_FIRST;
 
     /*
-     * If the new page is modified, save the eviction generation to avoid repeatedly attempting
-     * eviction on the same page.
+     * Restore the previous page's modify state to avoid repeatedly attempting eviction on the same
+     * page.
      */
     mod->last_evict_pass_gen = orig->modify->last_evict_pass_gen;
     mod->last_eviction_id = orig->modify->last_eviction_id;
     mod->last_eviction_timestamp = orig->modify->last_eviction_timestamp;
-
-    /* Add the update/restore flag to any previous state. */
-    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
     mod->rec_max_txn = orig->modify->rec_max_txn;
     mod->rec_max_timestamp = orig->modify->rec_max_timestamp;
+    mod->last_stable_timestamp = orig->modify->last_stable_timestamp;
+
+    /* Add the update/restore flag to any previous state. */
     mod->restore_state = orig->modify->restore_state;
     FLD_SET(mod->restore_state, WT_PAGE_RS_RESTORED);
 
@@ -1606,8 +1603,7 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      * There can be an address or a disk image or both, but if there is neither, there must be a
      * backing lookaside page.
      */
-    WT_ASSERT(
-      session, multi->page_las.has_las || multi->addr.addr != NULL || multi->disk_image != NULL);
+    WT_ASSERT(session, multi->has_las || multi->addr.addr != NULL || multi->disk_image != NULL);
 
     /* If closing the file, there better be an address. */
     WT_ASSERT(session, !closing || multi->addr.addr != NULL);
@@ -1649,16 +1645,15 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
      * Copy any associated lookaside reference, potentially resetting WT_REF.state. Regardless of a
      * backing address, WT_REF_LOOKASIDE overrides WT_REF_DISK.
      */
-    if (multi->page_las.has_las) {
+    if (multi->page_las.max_txn != WT_TXN_NONE) {
         /*
          * We should not have a disk image if we did lookaside eviction.
          */
-        WT_ASSERT(session, multi->disk_image == NULL);
+        WT_ASSERT(session, !multi->has_las || multi->disk_image == NULL);
 
         WT_RET(__wt_calloc_one(session, &ref->page_las));
         *ref->page_las = multi->page_las;
 
-        WT_ASSERT(session, ref->page_las->max_txn != WT_TXN_NONE);
         WT_REF_SET_STATE(ref, WT_REF_LOOKASIDE);
 
         /*
@@ -1745,6 +1740,15 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->state = WT_REF_MEM;
     child->addr = ref->addr;
 
+    /* If there is lookaside content associated with the page being split, copy it to the child. */
+    if (ref->page_las != NULL) {
+        WT_ERR(__wt_calloc_one(session, &child->page_las));
+        *child->page_las = *ref->page_las;
+    }
+
+    WT_ERR_ASSERT(session, ref->page_del == NULL, WT_PANIC,
+      "unexpected page-delete structure when splitting a page");
+
     /*
      * The address has moved to the replacement WT_REF. Make sure it isn't freed when the original
      * ref is discarded.
@@ -1803,6 +1807,12 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child = split_ref[1];
     child->page = right;
     child->state = WT_REF_MEM;
+
+    /* If there is lookaside content associated with the page being split, copy it to the child. */
+    if (ref->page_las != NULL) {
+        WT_ERR(__wt_calloc_one(session, &child->page_las));
+        *child->page_las = *ref->page_las;
+    }
 
     if (type == WT_PAGE_ROW_LEAF) {
         WT_ERR(__wt_row_ikey(
@@ -1982,11 +1992,15 @@ err:
 
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[0]->ref_ikey);
+        if (split_ref[0]->page_las != NULL)
+            __wt_page_las_free(session, &split_ref[0]->page_las);
         __wt_free(session, split_ref[0]);
     }
     if (split_ref[1] != NULL) {
         if (type == WT_PAGE_ROW_LEAF)
             __wt_free(session, split_ref[1]->ref_ikey);
+        if (split_ref[1]->page_las != NULL)
+            __wt_page_las_free(session, &split_ref[1]->page_las);
         __wt_free(session, split_ref[1]);
     }
     if (right != NULL) {

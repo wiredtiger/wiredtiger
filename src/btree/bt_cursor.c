@@ -479,52 +479,70 @@ __wt_btcur_search_uncommitted(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *tmp_upd, *upd;
+    WT_UPDATE *las_upd, *upd;
+
+    *updp = NULL;
 
     btree = cbt->btree;
     cursor = &cbt->iface;
     session = (WT_SESSION_IMPL *)cursor->session;
-    *updp = upd = NULL; /* -Wuninitialized */
+    upd = NULL; /* -Wuninitialized */
 
     WT_RET(btree->type == BTREE_ROW ? __cursor_row_search(session, cbt, NULL, false) :
                                       __cursor_col_search(session, cbt, NULL));
 
     /*
-     * Ideally exact match should be found, as this transaction has searched for updates done by
-     * itself. But, we cannot be sure of finding one, as pre processing of this prepared transaction
-     * updates could have happened as part of resolving earlier transaction operations.
+     * Ideally an exact match will be found, as this transaction is searching for updates done by
+     * itself. But, we cannot be sure of finding one, as pre-processing of the updates could have
+     * happened as part of resolving earlier transaction operations.
      */
     if (cbt->compare != 0)
         return (0);
 
-    /*
-     * Get the uncommitted update from the cursor. For column store there will be always a insert
-     * structure for updates irrespective of fixed length or variable length.
-     */
-    if (cbt->ins != NULL)
-        upd = cbt->ins->upd;
-    else {
-        WT_ASSERT(session, cbt->btree->type == BTREE_ROW && cbt->ref->page->modify != NULL &&
-            cbt->ref->page->modify->mod_row_update != NULL);
-        upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+    /* Get any uncommitted update from the in-memory page. */
+    switch (cbt->btree->type) {
+    case BTREE_ROW:
+        /*
+         * Any update must be either in the insert list, in which case search will have returned a
+         * pointer for us, or as an update in a particular key's update list, in which case the slot
+         * will be returned to us. In either case, we want the most recent update (any update
+         * attempted after the prepare would have failed).
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        else if (cbt->ref->page->modify != NULL && cbt->ref->page->modify->mod_row_update != NULL)
+            upd = cbt->ref->page->modify->mod_row_update[cbt->slot];
+        break;
+    case BTREE_COL_FIX:
+    case BTREE_COL_VAR:
+        /*
+         * Any update must be in the insert list and we want the most recent update (any update
+         * attempted after the prepare would have failed).
+         */
+        if (cbt->ins != NULL)
+            upd = cbt->ins->upd;
+        break;
     }
 
     /*
-     * In the case of prepare, there could be "uncommitted" updates in the lookaside that are newer
-     * than those in the update list.
+     * In the case of prepare, there could be uncommitted updates in the lookaside newer than those
+     * in the update list.
+     *
+     * TODO: WT-5209: Possible performance improvement: If this key doesn't have an on-disk value,
+     * The latest update in the update chain will be newer than the updates in lookaside. That newer
+     * record will be prepared update we are looking for.
      */
     if (cbt->ref->page_las != NULL && cbt->ref->page_las->has_prepares) {
-        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, true);
-        WT_RET_NOTFOUND_OK(ret);
-        if (ret == 0) {
-            if (upd == NULL || upd->start_ts < tmp_upd->start_ts) {
-                WT_ASSERT(session, tmp_upd->prepare_state == WT_PREPARE_INPROGRESS);
-                upd = tmp_upd;
+        if ((ret = __wt_find_lookaside_upd(session, cbt, &las_upd, true)) == 0) {
+            if (upd == NULL || upd->start_ts < las_upd->start_ts) {
+                WT_ASSERT(session, las_upd->prepare_state == WT_PREPARE_INPROGRESS);
+                upd = las_upd;
             } else {
+                __wt_free_update_list(session, &las_upd);
                 WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
-                __wt_free_update_list(session, tmp_upd);
             }
         }
+        WT_RET_NOTFOUND_OK(ret);
     }
 
     *updp = upd;

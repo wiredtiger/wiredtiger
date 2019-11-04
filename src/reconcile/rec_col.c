@@ -126,8 +126,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
          * Store the bulk cursor's last buffer, not the current value, we're tracking duplicates,
          * which means we want the previous value seen, not the current value.
          */
-        WT_RET(__wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, WT_TS_NONE,
-          WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
+        WT_RET(__wt_rec_cell_build_val(session, r, cbulk->last.data, cbulk->last.size, false,
+          WT_TS_NONE, WT_TXN_NONE, WT_TS_MAX, WT_TXN_MAX, cbulk->rle));
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
@@ -323,6 +323,7 @@ int
 __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_UPDATE *upd;
@@ -332,6 +333,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
     btree = S2BT(session);
     page = pageref->page;
+    upd = NULL;
 
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage));
 
@@ -342,9 +344,13 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         upd = upd_select.upd;
-        if (upd != NULL)
+        if (upd != NULL) {
             __bit_setv(
               r->first_free, WT_INSERT_RECNO(ins) - pageref->ref_recno, btree->bitcnt, *upd->data);
+            /* Free the update if it is external. */
+            if (upd->ext != 0)
+                __wt_free_update_list(session, &upd);
+        }
     }
 
     /* Calculate the number of entries per page remainder. */
@@ -410,12 +416,16 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
              * last, allowing it to grow in the future.
              */
             __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
-            WT_RET(__wt_rec_split(session, r, 0));
+            WT_ERR(__wt_rec_split(session, r, 0));
 
             /* Calculate the number of entries per page. */
             entry = 0;
             nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
         }
+
+        /* Free the update if it is external. */
+        if (upd != NULL && upd->ext != 0)
+            __wt_free_update_list(session, &upd);
 
         /*
          * Execute this loop once without an insert item to catch any missing records due to a
@@ -429,7 +439,14 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
     /* Write the remnant page. */
-    return (__wt_rec_split_finish(session, r));
+    ret = __wt_rec_split_finish(session, r);
+
+err:
+    /* Free the update if it is external. */
+    if (upd != NULL && upd->ext != 0)
+        __wt_free_update_list(session, &upd);
+
+    return (ret);
 }
 
 /*
@@ -449,16 +466,13 @@ __wt_rec_col_fix_slvg(
     page = pageref->page;
 
     /*
-     * !!!
-     * It's vanishingly unlikely and probably impossible for fixed-length
-     * column-store files to have overlapping key ranges.  It's possible
-     * for an entire key range to go missing (if a page is corrupted and
-     * lost), but because pages can't split, it shouldn't be possible to
-     * find pages where the key ranges overlap.  That said, we check for
-     * it during salvage and clean up after it here because it doesn't
-     * cost much and future column-store formats or operations might allow
-     * for fixed-length format ranges to overlap during salvage, and I
-     * don't want to have to retrofit the code later.
+     * It's vanishingly unlikely and probably impossible for fixed-length column-store files to have
+     * overlapping key ranges. It's possible for an entire key range to go missing (if a page is
+     * corrupted and lost), but because pages can't split, it shouldn't be possible to find pages
+     * where the key ranges overlap. That said, we check for it during salvage and clean up after it
+     * here because it doesn't cost much and future column-store formats or operations might allow
+     * for fixed-length format ranges to overlap during salvage, and I don't want to have to
+     * retrofit the code later.
      */
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage));
 
@@ -549,8 +563,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
         val->buf.size = value->size;
         val->len = val->cell_len + value->size;
     } else
-        WT_RET(__wt_rec_cell_build_val(
-          session, r, value->data, value->size, start_ts, start_txn, stop_ts, stop_txn, rle));
+        WT_RET(__wt_rec_cell_build_val(session, r, value->data, value->size, false, start_ts,
+          start_txn, stop_ts, stop_txn, rle));
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
@@ -764,8 +778,8 @@ __wt_rec_col_var(
                 ins = WT_SKIP_NEXT(ins);
             }
 
-            update_no_copy = true; /* No data copy */
-            repeat_count = 1;      /* Single record */
+            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
+            repeat_count = 1;                              /* Single record */
             deleted = false;
 
             if (upd != NULL) {
@@ -900,17 +914,12 @@ compare:
              */
             if (!deleted) {
                 /*
-                 * We can't simply assign the data values into
-                 * the last buffer because they may have come
-                 * from a copy built from an encoded/overflow
-                 * cell and creating the next record is going
-                 * to overwrite that memory.  Check, because
-                 * encoded/overflow cells aren't that common
-                 * and we'd like to avoid the copy.  If data
-                 * was taken from the current unpack structure
-                 * (which points into the page), or was taken
-                 * from an update structure, we can just use
-                 * the pointers, they're not moving.
+                 * We can't simply assign the data values into the last buffer because they may have
+                 * come from a copy built from an encoded/overflow cell and creating the next record
+                 * is going to overwrite that memory. Check, because encoded/overflow cells aren't
+                 * that common and we'd like to avoid the copy. If data was taken from the current
+                 * unpack structure (which points into the page), or was taken from an update
+                 * structure, we can just use the pointers, they're not moving.
                  */
                 if (data == vpack->data || update_no_copy) {
                     last.value->data = data;
@@ -918,6 +927,11 @@ compare:
                 } else
                     WT_ERR(__wt_buf_set(session, last.value, data, size));
             }
+
+            /* Free the update if it is external. */
+            if (upd != NULL && upd->ext != 0)
+                __wt_free_update_list(session, &upd);
+
             last.start_ts = start_ts;
             last.start_txn = start_txn;
             last.stop_ts = stop_ts;
@@ -984,8 +998,8 @@ compare:
             stop_txn = upd_select.stop_txn;
         }
         while (src_recno <= n) {
+            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
             deleted = false;
-            update_no_copy = true;
 
             /*
              * The application may have inserted records which left gaps in the name space, and
@@ -1082,6 +1096,10 @@ compare:
                     WT_ERR(__wt_buf_set(session, last.value, data, size));
             }
 
+            /* Free the update if it is external. */
+            if (upd != NULL && upd->ext != 0)
+                __wt_free_update_list(session, &upd);
+
             /* Ready for the next loop, reset the RLE counter. */
             last.start_ts = start_ts;
             last.start_txn = start_txn;
@@ -1117,6 +1135,10 @@ next:
     ret = __wt_rec_split_finish(session, r);
 
 err:
+    /* Free the update if it is external. */
+    if (upd != NULL && upd->ext != 0)
+        __wt_free_update_list(session, &upd);
+
     __wt_scr_free(session, &orig);
     return (ret);
 }

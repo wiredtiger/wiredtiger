@@ -60,6 +60,8 @@ extern const char *__wt_page_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, 
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_page_type_string(u_int type) WT_GCC_FUNC_DECL_ATTRIBUTE(
   (visibility("default"))) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern const char *__wt_ref_state_string(u_int state)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_session_strerror(WT_SESSION *wt_session, int error)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern const char *__wt_strerror(WT_SESSION_IMPL *session, int error, char *errbuf, size_t errlen)
@@ -1638,7 +1640,7 @@ extern void __wt_free_int(WT_SESSION_IMPL *session, const void *p_arg)
 extern void __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pages);
 extern void __wt_free_ref_index(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex, bool free_pages);
-extern void __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE *upd);
+extern void __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp);
 extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
@@ -1673,7 +1675,7 @@ extern void __wt_meta_track_sub_on(WT_SESSION_IMPL *session);
 extern void __wt_metadata_free_ckptlist(WT_SESSION *session, WT_CKPT *ckptbase)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_modify_vector_free(WT_MODIFY_VECTOR *modifies);
-extern void __wt_modify_vector_init(WT_MODIFY_VECTOR *modifies, WT_SESSION_IMPL *session);
+extern void __wt_modify_vector_init(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies);
 extern void __wt_modify_vector_pop(WT_MODIFY_VECTOR *modifies, WT_UPDATE **updp);
 extern void __wt_optrack_flush_buffer(WT_SESSION_IMPL *s);
 extern void __wt_optrack_record_funcid(
@@ -1922,7 +1924,7 @@ static inline int __wt_page_swap_func(
 static inline int __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len,
   void *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,
-  const void *data, size_t size, wt_timestamp_t start_ts, uint64_t start_txn,
+  const void *data, size_t size, bool copy_data, wt_timestamp_t start_ts, uint64_t start_txn,
   wt_timestamp_t stop_ts, uint64_t stop_txn, uint64_t rle)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_rec_dict_replace(WT_SESSION_IMPL *session, WT_RECONCILE *r,

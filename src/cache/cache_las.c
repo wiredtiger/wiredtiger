@@ -546,7 +546,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     WT_UPDATE *next_upd, *start_upd, *upd;
 
     WT_CLEAR(las_value);
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
     start_upd = upd = *updp;
     next_upd = start_upd->next;
 
@@ -680,8 +680,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         WT_WITH_BTREE(
           session, btree, upd = __wt_update_obsolete_check(session, page, first_upd, true));
-        if (upd != NULL)
-            __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
         upd = first_upd;
 
         /*
@@ -689,6 +688,31 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * below if necessary.
          */
         WT_ASSERT(session, __wt_count_birthmarks(first_upd) == 0);
+
+        /*
+         * If the page being lookaside evicted has previous lookaside content associated with it,
+         * there is a possibility that the update written to the disk is external (i.e. it came from
+         * the existing lookaside content and not from in-memory updates). Since this update won't
+         * be a part of the saved update list, we need to write a birthmark for it, separate from
+         * processing of the saved updates.
+         */
+        if (list->onpage_upd != NULL && list->onpage_upd->ext != 0 && list->onpage_upd->size > 0 &&
+          (list->onpage_upd->type == WT_UPDATE_STANDARD ||
+              list->onpage_upd->type == WT_UPDATE_MODIFY)) {
+            /* Extend the buffer if needed */
+            WT_ERR(__wt_buf_extend(
+              session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
+            birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + birthmarks_cnt;
+            birthmarkp->txnid = list->onpage_upd->txnid;
+            birthmarkp->durable_ts = list->onpage_upd->durable_ts;
+            birthmarkp->start_ts = list->onpage_upd->start_ts;
+            birthmarkp->prepare_state = list->onpage_upd->prepare_state;
+            birthmarkp->instantiated = false;
+            /* Copy the key as well for reference. */
+            WT_CLEAR(birthmarkp->key);
+            WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
+            birthmarks_cnt++;
+        }
 
         /*
          * Walk the list of updates, storing each key/value pair into the lookaside table. Skip
@@ -725,6 +749,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             if (upd == list->onpage_upd && upd->size > 0 &&
               (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
+                /* Make sure that we are generating a birthmark for an in-memory update. */
+                WT_ASSERT(session, upd->ext == 0);
+
                 /* Extend the buffer if needed */
                 WT_ERR(__wt_buf_extend(
                   session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
@@ -811,8 +838,9 @@ err:
           session, birthmarks_cnt, sizeof(WT_BIRTHMARK_DETAILS), &multi->page_las.birthmarks);
 
     if (ret == 0 && (insert_cnt > 0 || birthmarks_cnt > 0)) {
-        multi->page_las.has_las = true;
-        multi->page_las.has_prepares = prepared_insert_cnt > 0;
+        WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
+        multi->has_las = true;
+        multi->page_las.has_prepares |= prepared_insert_cnt > 0;
         if (birthmarks_cnt > 0) {
             memcpy(multi->page_las.birthmarks, birthmarks->mem,
               birthmarks_cnt * sizeof(WT_BIRTHMARK_DETAILS));
@@ -1414,7 +1442,7 @@ __wt_find_lookaside_upd(
     las_cursor = NULL;
     key = NULL;
     mod_upd = upd = NULL;
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
     txn = &session->txn;
     notused = size = 0;
     las_btree_id = S2BT(session)->id;
@@ -1549,7 +1577,6 @@ __wt_find_lookaside_upd(
                           (birthmark_upd->start_ts == las_timestamp_tmp &&
                             birthmark_upd->txnid > las_txnid_tmp))) {
                         upd_type = WT_UPDATE_STANDARD;
-                        prepare_state = WT_PREPARE_INIT;
                         WT_ERR(__wt_buf_set(
                           session, las_value, birthmark_upd->data, birthmark_upd->size));
                         break;
@@ -1565,7 +1592,6 @@ __wt_find_lookaside_upd(
                  */
                 if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
                     upd_type = WT_UPDATE_STANDARD;
-                    prepare_state = WT_PREPARE_INIT;
                     WT_ERR(__wt_value_return_buf(session, cbt, cbt->ref, las_value));
                     break;
                 } else
@@ -1577,7 +1603,7 @@ __wt_find_lookaside_upd(
             while (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, las_value, mod_upd->data, false));
-                __wt_free_update_list(session, mod_upd);
+                __wt_free_update_list(session, &mod_upd);
                 mod_upd = NULL;
             }
             WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
@@ -1641,10 +1667,10 @@ err:
     __wt_scr_free(session, &las_value);
 
     WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
-    __wt_free_update_list(session, mod_upd);
+    __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &upd);
-        __wt_free_update_list(session, upd);
+        __wt_free_update_list(session, &upd);
     }
     __wt_modify_vector_free(&modifies);
 

@@ -61,7 +61,7 @@ class test_las06(wttest.WiredTigerTestCase):
     def get_non_page_image_memory_usage(self):
         return self.get_stat(stat.conn.cache_bytes_other)
 
-    def test_las_reads_workload(self):
+    def test_las_reads(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -84,8 +84,15 @@ class test_las06(wttest.WiredTigerTestCase):
             cursor[i] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Now the latest version will get written to the data file.
+        # Write a version of the data to disk.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         self.session.checkpoint()
+
+        # Check the checkpoint wrote the expected values.
+        cursor2 = self.session.open_cursor(uri, None, 'checkpoint=WiredTigerCheckpoint')
+        for key, value in cursor2:
+            self.assertEqual(value, value1)
+        cursor2.close()
 
         start_usage = self.get_non_page_image_memory_usage()
 
@@ -110,7 +117,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # TODO: Uncomment this once the project work is done.
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
-    def test_las_modify_reads_workload(self):
+    def test_las_modify_reads(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -172,7 +179,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_las_prepare_reads_workload(self):
+    def test_las_prepare_reads(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -225,7 +232,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[i])
         self.session.rollback_transaction()
 
-    def test_las_multiple_updates_workload(self):
+    def test_las_multiple_updates(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -264,7 +271,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(cursor[i], value3)
         self.session.rollback_transaction()
 
-    def test_las_multiple_modifies_workload(self):
+    def test_las_multiple_modifies(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -309,7 +316,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_las_instantiated_modify_workload(self):
+    def test_las_instantiated_modify(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -370,7 +377,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
-    def test_modify_birthmark_is_base_update(self):
+    def test_las_modify_birthmark_is_base_update(self):
         # Create a small table.
         uri = "table:test_las06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -429,6 +436,68 @@ class test_las06(wttest.WiredTigerTestCase):
         # Go back and read. We should get the initial value with the 3 modifies applied on top.
         # Ensure that we're aware that the birthmark update could be the base update.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
+        for i in range(1, 11):
+            self.assertEqual(cursor[i], expected)
+        self.session.rollback_transaction()
+
+    def test_las_rec_modify(self):
+        # Create a small table.
+        uri = "table:test_las06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
+
+        value1 = 'a' * 500
+        value2 = 'b' * 500
+
+        self.conn.set_timestamp(
+            'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(uri)
+
+        # Base update.
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+
+        # Apply three sets of modifies.
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+
+        # This is the one we want to be selected by the checkpoint.
+        for i in range(1, 11):
+            self.session.begin_transaction()
+            cursor.set_key(i)
+            self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+
+        # Apply another update and evict the pages with the modifies out of cache.
+        for i in range(1, 10000):
+            self.session.begin_transaction()
+            cursor[i] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
+
+        # Checkpoint such that the modifies will be selected. When we grab it from lookaside, we'll
+        # need to unflatten it before using it for reconciliation.
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+        self.session.checkpoint()
+
+        expected = list(value1)
+        expected[100] = 'B'
+        expected[200] = 'C'
+        expected[300] = 'D'
+        expected = str().join(expected)
+
+        # Check that the correct value is visible after checkpoint.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
         for i in range(1, 11):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()

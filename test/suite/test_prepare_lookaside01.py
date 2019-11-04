@@ -102,7 +102,7 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
             sessions[j].close()
 
     def test_prepare_lookaside(self):
-        # Disabled for relevant-history-in-cache. WT-4677 to re-enable.
+        # WT-5210 to re-enable, fallout from reconciliation changes
         return
 
         # Create a small table.

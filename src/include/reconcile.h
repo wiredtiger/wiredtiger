@@ -43,9 +43,6 @@ struct __wt_reconcile {
     bool update_uncommitted; /* An update was uncommitted. */
     bool update_used;        /* An update could be used. */
 
-    /* All the updates are with prepare in-progress state. */
-    bool all_upd_prepare_in_prog;
-
     /*
      * When we can't mark the page clean (for example, checkpoint found some uncommitted updates),
      * there's a leave-dirty flag.

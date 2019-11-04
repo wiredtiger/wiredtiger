@@ -135,7 +135,7 @@ __wt_value_return_upd(
     bool skipped_birthmark;
 
     cursor = &cbt->iface;
-    __wt_modify_vector_init(&modifies, session);
+    __wt_modify_vector_init(session, &modifies);
 
     /*
      * We're passed a "standard" or "modified" update that's visible to us. Our caller should have
@@ -144,10 +144,10 @@ __wt_value_return_upd(
      * Fast path if it's a standard item, assert our caller's behavior.
      */
     if (upd->type == WT_UPDATE_STANDARD) {
-        if (upd->ext == 1) {
+        if (upd->ext != 0) {
             /* Copy an external update, and delete after using it */
             WT_RET(__wt_buf_set(session, &cursor->value, upd->data, upd->size));
-            __wt_free_update_list(session, upd);
+            __wt_free_update_list(session, &upd);
         } else {
             cursor->value.data = upd->data;
             cursor->value.size = upd->size;
