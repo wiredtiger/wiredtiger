@@ -158,6 +158,15 @@ functions:
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
 
+  "checkpoint test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/checkpoint"
+      script: |
+        set -o errexit
+        set -o verbose
+        ./t ${checkpoint_args} 2>&1
+
 pre:
   - func: "cleanup"
 post:
@@ -1475,6 +1484,23 @@ tasks:
             set -o verbose
             ${python_binary|python} syscall.py --verbose
 
+  - name: checkpoint-filetypes-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
+          posix_configure_flags: --enable-strict
+      - func: "checkpoint test"
+        vars:
+          checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      - func: "checkpoint test"
+        vars:
+          checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
+      - func: "checkpoint test"
+        vars:
+          checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1494,6 +1520,7 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
+    - name: checkpoint-filetypes-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
