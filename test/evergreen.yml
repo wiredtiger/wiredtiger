@@ -1552,7 +1552,7 @@ tasks:
             set -o errexit
             set -o verbose
             pip install gcovr --user
-            GCOV=/opt/mongodbtoolchain/v3/bin/gcov /home/ubuntu/.local/bin/gcovr --html -r .. -x -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -o ../coverage_report.html
+            GCOV=/opt/mongodbtoolchain/v3/bin/gcov /home/ubuntu/.local/bin/gcovr -r .. -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' --html -o ../coverage_report.html
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
