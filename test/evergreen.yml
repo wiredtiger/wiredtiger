@@ -1400,7 +1400,7 @@ tasks:
             make clean
 
             ../configure --enable-silent-rules CFLAGS="-Wall -Werror" --disable-static --enable-python
-            makes
+            make
             make -C examples/c check VERBOSE=1
             make clean
 
