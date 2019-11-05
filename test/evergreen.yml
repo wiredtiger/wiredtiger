@@ -115,14 +115,14 @@ functions:
         rm -rf "wiredtiger"
         rm -rf "wiredtiger.tgz"
 
-  "test checkpoint":
+  "checkpoint test":
     command: shell.exec
     params:
       working_dir: "wiredtiger/build_posix/test/checkpoint"
       script: |
         set -o errexit
         set -o verbose
-        ./t -t ${fileType} -n 1000000 -k 5000000 -C cache_size=100MB 2>&1
+        ./t ${testParams} 2>&1
 
 
 pre:
@@ -1394,22 +1394,22 @@ tasks:
               ./t -1 -C "direct_io=[data]" -c ../../../test/format/CONFIG.stress
             done
 
-  - name: test-checkpoint
+  - name: checkpoint-filetypes-test
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ CFLAGS="-ggdb"
+          # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
           posix_configure_flags: --enable-strict
-      - func: "test checkpoint"
+      - func: "checkpoint test"
         vars:
-          fileType: m
-      - func: "test checkpoint"
+          testParams: "-t m -n 1000000 -k 5000000 -C cache_size=100MB"
+      - func: "checkpoint test"
         vars:
-          fileType: r
-      - func: "test checkpoint"
+          testParams: "-t r -n 1000000 -k 5000000 -C cache_size=100MB"
+      - func: "checkpoint test"
         vars:
-          fileType: c
+          testParams: "-t c -n 1000000 -k 5000000 -C cache_size=100MB"
 
 buildvariants:
 - name: ubuntu1804
@@ -1430,7 +1430,7 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
-    - name: test-checkpoint
+    - name: checkpoint-filetypes-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
