@@ -122,8 +122,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ./t ${testParams} 2>&1
-
+        ./t ${checkpointArgs} 2>&1
 
 pre:
   - func: "cleanup"
@@ -1403,13 +1402,13 @@ tasks:
           posix_configure_flags: --enable-strict
       - func: "checkpoint test"
         vars:
-          testParams: "-t m -n 1000000 -k 5000000 -C cache_size=100MB"
+          checkpointArgs: -t m -n 1000000 -k 5000000 -C cache_size=100MB
       - func: "checkpoint test"
         vars:
-          testParams: "-t r -n 1000000 -k 5000000 -C cache_size=100MB"
+          checkpointArgs: -t r -n 1000000 -k 5000000 -C cache_size=100MB
       - func: "checkpoint test"
         vars:
-          testParams: "-t c -n 1000000 -k 5000000 -C cache_size=100MB"
+          checkpointArgs: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
 buildvariants:
 - name: ubuntu1804
