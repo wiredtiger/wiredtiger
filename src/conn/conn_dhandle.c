@@ -42,6 +42,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
 
     dhandle = session->dhandle;
     base = NULL;
+    tmp = NULL;
 
     /*
      * Read the object's entry from the metadata file, we're done if we don't find one.
