@@ -1384,37 +1384,6 @@ tasks:
               ./t -1 -C "direct_io=[data]" -c ../../../test/format/CONFIG.stress
             done
 
-  - name: wiredtiger
-    commands:
-      - func: "get project"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger"
-          script: |
-            cd build_posix
-            sh reconf
-            # A few different configurations
-            ../configure --enable-silent-rules CFLAGS="-Wall -Wno-unused -Werror" --disable-shared
-            make
-            make -C examples/c check VERBOSE=1
-            make clean
-
-            ../configure --enable-silent-rules CFLAGS="-Wall -Werror" --disable-static --enable-python
-            make
-            make -C examples/c check VERBOSE=1
-            make clean
-
-            ../configure --enable-strict --enable-silent-rules --disable-shared
-            make
-            make clean
-
-            # We're going to run tests, include debugging
-            ../configure CFLAGS="-g -Werror" --enable-silent-rules --enable-diagnostic --disable-static
-            make all
-            [ -e /usr/local/lib/libeatmydata.so ] && export LD_PRELOAD=/usr/local/lib/libeatmydata.so
-            make check VERBOSE=1
-            make clean
-  
   - name: package
     commands:
       - func: "get project"
@@ -1459,7 +1428,6 @@ buildvariants:
     - name: linux-directio
     - name: make-check-asan-test
     - name: configure-combinations
-    - name: wiredtiger
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)

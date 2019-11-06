@@ -7,15 +7,17 @@ sh build_posix/reconf
 curdir=`pwd`
 
 flags="CFLAGS=\"-Werror -Wall -Wextra -Waddress -Waggregate-return -Wbad-function-cast -Wcast-align -Wdeclaration-after-statement -Wformat-security -Wformat-nonliteral -Wformat=2 -Wmissing-declarations -Wmissing-field-initializers -Wmissing-prototypes -Wnested-externs -Wno-unused-parameter -Wpointer-arith -Wredundant-decls -Wshadow -Wundef -Wunused -Wwrite-strings -O -fno-strict-aliasing -Wuninitialized\"
-CC=clang CFLAGS=\"-Wall -Werror -Qunused-arguments -Wno-self-assign -Wno-parentheses-equality -Wno-array-bounds\""
+CC=clang CFLAGS=\"-Wall -Werror -Qunused-arguments -Wno-self-assign -Wno-parentheses-equality -Wno-array-bounds\"
+CFLAGS=\" \""
 
 options="--enable-diagnostic
 --disable-shared
---disable-static
+--disable-static --enable-python
 --enable-java --enable-python
 --enable-snappy --enable-zlib --enable-lz4
 --with-builtins=lz4,snappy,zlib
---enable-diagnostic --enable-java --enable-python"
+--enable-diagnostic --enable-java --enable-python
+--enable-strict --disable-shared"
 
 saved_IFS=$IFS
 cr_IFS="
@@ -64,8 +66,23 @@ for flag in $flags ; do
                        echo "*** ERROR: $flag, $option"
                fi
                IFS="$cr_IFS"
-               echo hello
        done
 done
 IFS=$saved_IFS
-exit $ecode
+if [ $ecode -eq 1 ]; then
+        exit 1
+fi
+
+# Handle special build combination for running all the diag tests.
+flag=`CFLAGS=\"-g -Werror\"`
+option=`--enable-silent-rules --enable-diagnostic --disable-static`
+echo "Building with: $flag $option"
+cd "$curdir"
+rm -rf ./build
+mkdir build
+cd ./build
+../configure $flag $option || { echo "*** ERROR: $flag, $option " ; exit 1; }
+make all "$@" || { echo "*** ERROR: $flag, $option " ; exit 1; }
+make check VERBOSE=1 || { echo "*** ERROR: $flag, $option " ; exit 1; }
+make clean
+exit 0
