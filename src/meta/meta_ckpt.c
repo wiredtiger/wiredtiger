@@ -12,7 +12,7 @@ static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
-static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *);
+static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 
 /*
@@ -94,7 +94,7 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
      * If we are unrolling a failed create, we may have already removed the metadata entry. If no
      * entry is found to update and we're trying to clear the checkpoint, just ignore it.
      */
-    WT_RET_NOTFOUND_OK(__ckpt_set(session, fname, NULL));
+    WT_RET_NOTFOUND_OK(__ckpt_set(session, fname, NULL, false));
 
     return (0);
 }
@@ -104,7 +104,7 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
  *     Set a file's checkpoint.
  */
 static int
-__ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
+__ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_base)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -117,8 +117,8 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
      * dhandle. In those cases, use the slower path.
      */
     config = newcfg = NULL;
-    str = v == NULL ? "checkpoint=(),checkpoint_lsn=," : v;
-    if (session->dhandle != NULL) {
+    str = v == NULL ? "checkpoint=(),checkpoint_lsn=" : v;
+    if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
         /* Concatenate the metadata base string with the checkpoint string. */
@@ -588,18 +588,18 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    bool has_lsn;
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
+    has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
-    else
-        WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn="));
 
-    WT_ERR(__ckpt_set(session, fname, buf->mem));
+    WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
     /* Review the checkpoint's write generation. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
