@@ -112,9 +112,10 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
     const char *cfg[3], *str;
 
     /*
-     * If we have a dhandle with a metadata base configuration, use it. We want to avoid using
-     * configuration parsing functions if we can during checkpoints but some paths don't have a
-     * dhandle. In those cases, use the slower path.
+     * If the caller knows we're on a path like checkpoints where we have a valid checkpoint and
+     * checkpoint LSN and should use the base, then use that faster path. Some paths don't have
+     * a dhandle or want to have the older value retained from the existing metadata. In those
+     * cases, use the slower path through configuration parsing functions.
      */
     config = newcfg = NULL;
     str = v == NULL ? "checkpoint=(),checkpoint_lsn=" : v;
