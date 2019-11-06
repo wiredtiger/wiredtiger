@@ -1501,6 +1501,21 @@ tasks:
         vars:
           checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
+  - name: test-unit-ppc
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib" CFLAGS="-g -fPIC"
+          posix_configure_flags: --enable-strict --enable-python --enable-diagnostic --enable-snappy
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+            env LD_LIBRARY_PATH=.libs python ../test/suite/run.py -v 2 $TESTFLAGS 2>&1
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1521,6 +1536,7 @@ buildvariants:
     - name: make-check-asan-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
+    - name: test-unit-ppc
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
