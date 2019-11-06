@@ -113,9 +113,9 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
 
     /*
      * If the caller knows we're on a path like checkpoints where we have a valid checkpoint and
-     * checkpoint LSN and should use the base, then use that faster path. Some paths don't have
-     * a dhandle or want to have the older value retained from the existing metadata. In those
-     * cases, use the slower path through configuration parsing functions.
+     * checkpoint LSN and should use the base, then use that faster path. Some paths don't have a
+     * dhandle or want to have the older value retained from the existing metadata. In those cases,
+     * use the slower path through configuration parsing functions.
      */
     config = newcfg = NULL;
     str = v == NULL ? "checkpoint=(),checkpoint_lsn=" : v;
@@ -265,7 +265,6 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
      * (for example, column names). We pass the block manager text that
      * describes the metadata (the encryption information), and the
      * possibly encrypted metadata encoded as a hexadecimal string.
-     * configuration string.
      */
     WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
     if (kencryptor == NULL) {
