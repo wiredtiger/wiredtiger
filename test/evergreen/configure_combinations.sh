@@ -61,19 +61,19 @@ for flag in $flags ; do
         for option in $options ; do
                cd "$curdir"
                IFS="$saved_IFS"
-               if ! BuildTest "$flag" "$option" "$@"; then
-                       ecode=1
-                       echo "*** ERROR: $flag, $option"
-               fi
+               #if ! BuildTest "$flag" "$option" "$@"; then
+               #        ecode=1
+               #        echo "*** ERROR: $flag, $option"
+               #fi
                IFS="$cr_IFS"
        done
 done
 IFS=$saved_IFS
-if [ $ecode -eq 1 ]; then
-        exit 1
+if [ $ecode -ne 0 ]; then
+        exit $ecode
 fi
 
-# Handle special build combination for running all the diag tests.
+# Handle special build combination for running all the diagnostic tests.
 flag=`CFLAGS=\"-g -Werror\"`
 option=`--enable-silent-rules --enable-diagnostic --disable-static`
 echo "Building with: $flag $option"
@@ -84,5 +84,4 @@ cd ./build
 ../configure $flag $option || { echo "*** ERROR: $flag, $option " ; exit 1; }
 make all "$@" || { echo "*** ERROR: $flag, $option " ; exit 1; }
 make check VERBOSE=1 || { echo "*** ERROR: $flag, $option " ; exit 1; }
-make clean
 exit 0
