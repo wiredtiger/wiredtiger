@@ -61,10 +61,10 @@ for flag in $flags ; do
         for option in $options ; do
                cd "$curdir"
                IFS="$saved_IFS"
-               #if ! BuildTest "$flag" "$option" "$@"; then
-               #        ecode=1
-               #        echo "*** ERROR: $flag, $option"
-               #fi
+               if ! BuildTest "$flag" "$option" "$@"; then
+                       ecode=1
+                       echo "*** ERROR: $flag, $option"
+               fi
                IFS="$cr_IFS"
        done
 done
