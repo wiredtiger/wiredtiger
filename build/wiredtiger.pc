@@ -1,0 +1,11 @@
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: WiredTiger
+Description: The WiredTiger Data Engine
+Requires:
+Version: 3.2.2
+Libs: -L${libdir} -lwiredtiger
+Cflags: -I${includedir}
