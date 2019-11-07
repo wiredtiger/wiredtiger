@@ -99,7 +99,6 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * Note: changes have been made, we must publish any state change from this point on.
      */
     if (ref->page_del != NULL) {
-        WT_ASSERT(session, ref->page_del->txnid == WT_TXN_ABORTED);
         __wt_free(session, ref->page_del->update_list);
         __wt_free(session, ref->page_del);
     }
