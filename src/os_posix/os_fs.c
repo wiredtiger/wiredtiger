@@ -446,6 +446,7 @@ __posix_file_read(
 static int
 __posix_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t *sizep);
 
+#define CAS 0
 /*
  * __posix_file_read_mmap --
  *     Get the buffer from the mmapped region.
@@ -467,16 +468,35 @@ __posix_file_read_mmap(
                  (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
 
     /*
+     * Indicate that we might be using the mapped area, so it doesn't disappear or
+     * change size underneath us.
+     */
+#if CAS
+    (void)__wt_atomic_addv32(&pfh->usecount, 1);
+#endif
+
+    /*
      * If the read is destined to the file area beyond the mapped buffer, we default
      * to a regular read. We do not currently support dynamically adjusting the mapped buffer
      * in case the file grows.
      */
     if (pfh->mmapped_buf != 0 && pfh->mmapped_size >= (size_t)offset + len) {
         memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
+
+#if CAS
+	/* Signal that we are done using the mmapped buffer. */
+	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+#endif
         return (0);
     }
-    else
+    else {
+#if CAS
+	/* Signal that we won't be using the mmapped buffer after all. */
+	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+#endif
+
         return __posix_file_read(file_handle, wt_session, offset, len, buf);
+    }
 }
 #endif
 
@@ -625,6 +645,14 @@ __posix_file_write_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmapped_buf, (uint64_t)pfh->mmapped_size);
 
+    /*
+     * Indicate that we might be using the mapped area, so it doesn't disappear or
+     * change size underneath us.
+     */
+#if CAS
+    (void)__wt_atomic_addv32(&pfh->usecount, 1);
+#endif
+
    /*
      * If the write is destined to the file area beyond the mapped buffer, we default
      * to a regular write. We do not currently support dynamically adjusting the mapped buffer
@@ -632,10 +660,21 @@ __posix_file_write_mmap(
      */
     if (pfh->mmapped_buf != NULL && pfh->mmapped_size >= (size_t)offset + len) {
         memcpy( (void*)(pfh->mmapped_buf + offset), buf, len);
+
+#if CAS
+	/* Signal that we are done using the mmapped buffer. */
+	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+#endif
         return (0);
     }
-    else
+    else {
+#if CAS
+	/* Signal that we won't be using the mmapped buffer after all. */
+	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+#endif
+
         return __posix_file_write(file_handle, wt_session, offset, len, buf);
+    }
 }
 #endif
 
