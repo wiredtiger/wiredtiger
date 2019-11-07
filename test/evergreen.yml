@@ -231,6 +231,16 @@ tasks:
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
 
+  # Compile pcc by enabling strict, python, diagnostic and snappy flags
+  - name: compile-ppc
+    tags: ["pull_request"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"
+          posix_configure_flags: --enable-strict --enable-python --enable-diagnostic --enable-snappy
+          
   - name: make-check-test
     depends_on:
       - name: compile
@@ -1502,15 +1512,15 @@ tasks:
           checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: test-unit-ppc
+    depends_on:
+    - name: compile-ppc
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ CPPFLAGS="-I/usr/local/include" LDFLAGS="-L/usr/local/lib" CFLAGS="-g -fPIC"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"
           posix_configure_flags: --enable-strict --enable-python --enable-diagnostic --enable-snappy
       - func: "unit test"
-        vars:
-          test_env_vars: env LD_LIBRARY_PATH=.libs
 
 buildvariants:
 - name: ubuntu1804
