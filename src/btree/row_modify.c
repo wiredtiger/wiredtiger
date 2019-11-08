@@ -315,7 +315,7 @@ __wt_update_obsolete_check(
      * first globally visible update as the previous updates can be aborted and be freed causing the
      * entire update chain being removed.
      */
-    for (first = prev = NULL, seen_visible_all = false, count = 0; upd != NULL;
+    for (first = prev = NULL, seen_upd_visible_all = false, count = 0; upd != NULL;
          prev = upd, upd = upd->next, count++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
