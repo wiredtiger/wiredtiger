@@ -231,7 +231,7 @@ tasks:
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
 
-  # Compile for pcc unit test by enabling strict, python, diagnostic and snappy flags
+  # Compile pcc by enabling strict, python, diagnostic and snappy flags
   - name: compile-ppc
     commands:
       - func: "get project"
