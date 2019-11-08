@@ -309,11 +309,11 @@ __wt_update_obsolete_check(
      * Only updates with globally visible, self-contained data can terminate update chains.
      *
      * Birthmarks are a special case: once a birthmark becomes obsolete, it can be discarded if
-     * there is an update visible to all sessions before it and subsequent reads will see the
-     * on-page value (as expected). Inserting updates into the lookaside table relies on this
-     * behavior to avoid creating update chains with multiple birthmarks. We cannot discard the
-     * birthmark if it's the first globally visible update as the previous updates can be aborted
-     * and be freed as well causing the entire update chain being removed.
+     * there is a globally visible update before it and subsequent reads will see the on-page value
+     * (as expected). Inserting updates into the lookaside table relies on this behavior to avoid
+     * creating update chains with multiple birthmarks. We cannot discard the birthmark if it's the
+     * first globally visible update as the previous updates can be aborted and be freed causing the
+     * entire update chain being removed.
      */
     for (first = prev = NULL, visible_all_before = false, count = 0; upd != NULL;
          prev = upd, upd = upd->next, count++) {
