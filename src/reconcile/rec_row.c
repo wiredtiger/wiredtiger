@@ -340,7 +340,6 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     r->cell_zero = true;
 
     page_image = 0;
-    key_onpage_ovfl = false;
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -500,10 +499,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
              * actual key. In that case, we have to build the key now because we are about to
              * promote it.
              */
-            if (key_onpage_ovfl) {
+            if (key_onpage_ovfl)
                 WT_ERR(__wt_buf_set(session, r->cur, WT_IKEY_DATA(ikey), ikey->size));
-                key_onpage_ovfl = false;
-            }
 
             WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, force));
         }
