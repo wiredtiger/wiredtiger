@@ -330,10 +330,11 @@ __wt_update_obsolete_check(
             if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
                 ++upd_unstable;
         } else {
-            if (first == NULL && upd->type == WT_UPDATE_BIRTHMARK && visible_all_before)
-                first = prev;
+            if (first == NULL && upd->type == WT_UPDATE_BIRTHMARK)
+                first = visible_all_before ? prev : upd;
             else if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
+
             visible_all_before = true;
         }
     }
