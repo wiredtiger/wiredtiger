@@ -219,7 +219,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             if (!ovfl_key)
                 WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
         }
-        WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len));
+        WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
     }
 
     /* Copy the key/value pair onto the page. */
@@ -272,7 +272,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len))
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len));
+            WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
 
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
@@ -304,9 +304,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_REC_KV *key, *val;
     WT_REF *ref;
     wt_timestamp_t newest_durable_ts, newest_stop_ts, oldest_start_ts;
-    size_t size;
+    size_t page_image, size;
     uint64_t newest_stop_txn, oldest_start_txn;
-    bool hazard, key_onpage_ovfl, ovfl_key;
+    bool force, hazard, key_onpage_ovfl, ovfl_key;
     const void *p;
 
     btree = S2BT(session);
@@ -322,7 +322,6 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     ikey = NULL; /* -Wuninitialized */
     cell = NULL;
-    key_onpage_ovfl = false;
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxintlpage_precomp));
 
@@ -340,6 +339,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     r->cell_zero = true;
 
+    page_image = 0;
+    key_onpage_ovfl = false;
+
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
         /*
@@ -350,15 +352,13 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * Note the cell reference and unpacked key cell are available only in the case of an
          * instantiated, off-page key, we don't bother setting them if that's not possible.
          */
-        if (F_ISSET_ATOMIC(page, WT_PAGE_OVERFLOW_KEYS)) {
-            cell = NULL;
-            key_onpage_ovfl = false;
-            ikey = __wt_ref_key_instantiated(ref);
-            if (ikey != NULL && ikey->cell_offset != 0) {
-                cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
-                __wt_cell_unpack(session, page, cell, kpack);
-                key_onpage_ovfl = kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
-            }
+        cell = NULL;
+        key_onpage_ovfl = false;
+        ikey = __wt_ref_key_instantiated(ref);
+        if (ikey != NULL && ikey->cell_offset != 0) {
+            cell = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+            __wt_cell_unpack(session, page, cell, kpack);
+            key_onpage_ovfl = kpack->ovfl && kpack->raw != WT_CELL_KEY_OVFL_RM;
         }
 
         WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
@@ -467,14 +467,34 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             key->cell_len = 0;
             key->len = key->buf.size;
             ovfl_key = true;
+            page_image += ikey->size;
         } else {
             __wt_ref_key(page, ref, &p, &size);
-            WT_ERR(__rec_cell_build_int_key(session, r, p, r->cell_zero ? 1 : size, &ovfl_key));
+            if (r->cell_zero)
+                size = 1;
+            WT_ERR(__rec_cell_build_int_key(session, r, p, size, &ovfl_key));
+            if (ovfl_key)
+                page_image += size;
         }
         r->cell_zero = false;
 
+        /*
+         * We always instantiate row-store internal page keys in order to avoid special casing the
+         * B+tree search code to handle keys that may not exist (and I/O in a search path). Because
+         * root pages are pinned, overflow keys on the root page can cause follow-on cache effects
+         * where huge root pages tie down lots of cache space and eviction frantically attempts to
+         * evict objects that can't be evicted. If the in-memory image is too large, force a split.
+         * Potentially, limiting ourselves to 10 items per page is going to result in deep trees
+         * which will impact search performance, but at some point, the application's configuration
+         * is too stupid to survive.
+         */
+        page_image += key->len + val->len;
+        force = r->entries > 20 && page_image > btree->maxmempage_image;
+        if (force)
+            page_image = 0;
+
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, key->len + val->len)) {
+        if (force || __wt_rec_need_split(r, key->len + val->len)) {
             /*
              * In one path above, we copied address blocks from the page rather than building the
              * actual key. In that case, we have to build the key now because we are about to
@@ -485,7 +505,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 key_onpage_ovfl = false;
             }
 
-            WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len));
+            WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, force));
         }
 
         /* Copy the key and value onto the page. */
@@ -528,6 +548,28 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, uint64_t s
 }
 
 /*
+ * __rec_need_split_leaf --
+ *     Check whether adding some bytes to the leaf page requires a split.
+ */
+static inline bool
+__rec_need_split_leaf(WT_RECONCILE *r, size_t len)
+{
+    /*
+     * In the case of a row-store leaf page, trigger a split if a threshold number of saved updates
+     * is reached. This allows pages to split for update/restore and lookaside eviction when there
+     * is no visible data causing the disk image to grow.
+     *
+     * In the case of small pages or large keys, we might try to split when a page has no updates or
+     * entries, which isn't possible. To consider update/restore or lookaside information, require
+     * either page entries or updates that will be attached to the image. The limit is one of
+     * either, but it doesn't make sense to create pages or images with few entries or updates, even
+     * where page sizes are small (especially as updates that will eventually become overflow items
+     * can throw off our calculations). Bound the combination at something reasonable.
+     */
+    return (__wt_rec_need_split(r, len + (r->entries + r->supd_next > 10 ? r->supd_memsize : 0)));
+}
+
+/*
  * __rec_row_leaf_insert --
  *     Walk an insert chain, writing K/V pairs.
  */
@@ -567,12 +609,12 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              */
             if (!upd_saved)
                 continue;
-            if (!__wt_rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
+            if (!__rec_need_split_leaf(r, WT_INSERT_KEY_SIZE(ins)))
                 continue;
 
             /* Copy the current key into place and then split. */
             WT_RET(__wt_buf_set(session, r->cur, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, WT_INSERT_KEY_SIZE(ins)));
+            WT_RET(__wt_rec_split_crossing_bnd(session, r, WT_INSERT_KEY_SIZE(ins), false));
 
             /*
              * Turn off prefix and suffix compression until a full key is written into the new page.
@@ -607,7 +649,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
           session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, key->len + val->len)) {
+        if (__rec_need_split_leaf(r, key->len + val->len)) {
             /*
              * Turn off prefix compression until a full key written to the new page, and (unless
              * already working with an overflow key), rebuild the key without compression.
@@ -618,7 +660,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
                     WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
 
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len));
+            WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
         }
 
         /* Copy the key/value pair onto the page. */
@@ -934,7 +976,7 @@ build:
         }
 
         /* Boundary: split or write the page. */
-        if (__wt_rec_need_split(r, key->len + val->len)) {
+        if (__rec_need_split_leaf(r, key->len + val->len)) {
             /*
              * If we copied address blocks from the page rather than building the actual key, we
              * have to build the key now because we are about to promote it.
@@ -954,7 +996,7 @@ build:
                     WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
 
-            WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len));
+            WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
         }
 
         /* Copy the key/value pair onto the page. */
