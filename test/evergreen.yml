@@ -231,9 +231,8 @@ tasks:
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
 
-  # Compile pcc by enabling strict, python, diagnostic and snappy flags
+  # Compile for pcc unit test by enabling strict, python, diagnostic and snappy flags
   - name: compile-ppc
-    tags: ["pull_request"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1515,7 +1514,9 @@ tasks:
     depends_on:
     - name: compile-ppc
     commands:
-      - func: "get project"
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-ppc
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"
@@ -1542,6 +1543,7 @@ buildvariants:
     - name: make-check-asan-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
+    - name: compile-ppc
     - name: test-unit-ppc
 
 - name: ubuntu1804-python3
