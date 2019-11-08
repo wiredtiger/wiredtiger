@@ -292,7 +292,7 @@ __wt_update_obsolete_check(
     size_t size;
     uint64_t oldest, stable;
     u_int count, upd_seen, upd_unstable;
-    bool visible_all_before;
+    bool seen_upd_visible_all;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -315,7 +315,7 @@ __wt_update_obsolete_check(
      * first globally visible update as the previous updates can be aborted and be freed causing the
      * entire update chain being removed.
      */
-    for (first = prev = NULL, visible_all_before = false, count = 0; upd != NULL;
+    for (first = prev = NULL, seen_visible_all = false, count = 0; upd != NULL;
          prev = upd, upd = upd->next, count++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
@@ -331,11 +331,11 @@ __wt_update_obsolete_check(
                 ++upd_unstable;
         } else {
             if (first == NULL && upd->type == WT_UPDATE_BIRTHMARK)
-                first = visible_all_before ? prev : upd;
+                first = seen_upd_visible_all ? prev : upd;
             else if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
 
-            visible_all_before = true;
+            seen_upd_visible_all = true;
         }
     }
 
