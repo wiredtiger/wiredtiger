@@ -1247,7 +1247,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
      * item if we haven't already consumed a reasonable portion of a split chunk.
      */
     inuse = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
-    if (!forced && inuse < r->split_size / 2)
+    if (!forced && inuse < r->split_size / 2 && !__wt_rec_need_split(r, 0))
         goto done;
 
     /* All page boundaries reset the dictionary. */

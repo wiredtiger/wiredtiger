@@ -545,28 +545,6 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, uint64_t s
 }
 
 /*
- * __rec_need_split_leaf --
- *     Check whether adding some bytes to the leaf page requires a split.
- */
-static inline bool
-__rec_need_split_leaf(WT_RECONCILE *r, size_t len)
-{
-    /*
-     * In the case of a row-store leaf page, trigger a split if a threshold number of saved updates
-     * is reached. This allows pages to split for update/restore and lookaside eviction when there
-     * is no visible data causing the disk image to grow.
-     *
-     * In the case of small pages or large keys, we might try to split when a page has no updates or
-     * entries, which isn't possible. To consider update/restore or lookaside information, require
-     * either page entries or updates that will be attached to the image. The limit is one of
-     * either, but it doesn't make sense to create pages or images with few entries or updates, even
-     * where page sizes are small (especially as updates that will eventually become overflow items
-     * can throw off our calculations). Bound the combination at something reasonable.
-     */
-    return (__wt_rec_need_split(r, len + (r->entries + r->supd_next > 10 ? r->supd_memsize : 0)));
-}
-
-/*
  * __rec_row_leaf_insert --
  *     Walk an insert chain, writing K/V pairs.
  */
@@ -606,7 +584,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              */
             if (!upd_saved)
                 continue;
-            if (!__rec_need_split_leaf(r, WT_INSERT_KEY_SIZE(ins)))
+            if (!__wt_rec_need_split(r, WT_INSERT_KEY_SIZE(ins)))
                 continue;
 
             /* Copy the current key into place and then split. */
@@ -646,7 +624,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
           session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
 
         /* Boundary: split or write the page. */
-        if (__rec_need_split_leaf(r, key->len + val->len)) {
+        if (__wt_rec_need_split(r, key->len + val->len)) {
             /*
              * Turn off prefix compression until a full key written to the new page, and (unless
              * already working with an overflow key), rebuild the key without compression.
@@ -973,7 +951,7 @@ build:
         }
 
         /* Boundary: split or write the page. */
-        if (__rec_need_split_leaf(r, key->len + val->len)) {
+        if (__wt_rec_need_split(r, key->len + val->len)) {
             /*
              * If we copied address blocks from the page rather than building the actual key, we
              * have to build the key now because we are about to promote it.
