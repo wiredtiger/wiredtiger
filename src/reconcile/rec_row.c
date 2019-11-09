@@ -478,6 +478,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         /*
+         * Boundary: split or write the page.
+         *
          * We always instantiate row-store internal page keys in order to avoid special casing the
          * B+tree search code to handle keys that may not exist (and I/O in a search path). Because
          * root pages are pinned, overflow keys on the root page can cause follow-on cache effects
@@ -487,13 +489,10 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * which will impact search performance, but at some point, the application's configuration
          * is too stupid to survive.
          */
-        page_image += key->len + val->len;
         force = r->entries > 20 && page_image > btree->maxmempage_image;
-        if (force)
+        if (force || __wt_rec_need_split(r, key->len + val->len)) {
             page_image = 0;
 
-        /* Boundary: split or write the page. */
-        if (force || __wt_rec_need_split(r, key->len + val->len)) {
             /*
              * In one path above, we copied address blocks from the page rather than building the
              * actual key. In that case, we have to build the key now because we are about to
