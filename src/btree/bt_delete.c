@@ -208,7 +208,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
             (*updp)->txnid = WT_TXN_ABORTED;
 
     /* Finally mark the truncate aborted */
-    WT_PUBLISH(ref->page_del->txnid, WT_TXN_ABORTED);
+    ref->page_del->txnid = WT_TXN_ABORTED;
+
     WT_REF_SET_STATE(ref, current_state);
     return (0);
 }
