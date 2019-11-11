@@ -304,7 +304,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_REC_KV *key, *val;
     WT_REF *ref;
     wt_timestamp_t newest_durable_ts, newest_stop_ts, oldest_start_ts;
-    size_t page_image, size;
+    size_t key_overflow_size, size;
     uint64_t newest_stop_txn, oldest_start_txn;
     bool force, hazard, key_onpage_ovfl, ovfl_key;
     const void *p;
@@ -339,7 +339,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     r->cell_zero = true;
 
-    page_image = 0;
+    key_overflow_size = 0;
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -466,14 +466,14 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             key->cell_len = 0;
             key->len = key->buf.size;
             ovfl_key = true;
-            page_image += ikey->size;
+            key_overflow_size += ikey->size;
         } else {
             __wt_ref_key(page, ref, &p, &size);
             if (r->cell_zero)
                 size = 1;
             WT_ERR(__rec_cell_build_int_key(session, r, p, size, &ovfl_key));
             if (ovfl_key)
-                page_image += size;
+                key_overflow_size += size;
         }
         r->cell_zero = false;
 
@@ -489,9 +489,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * which will impact search performance, but at some point, the application's configuration
          * is too stupid to survive.
          */
-        force = r->entries > 20 && page_image > btree->maxmempage_image;
+        force = r->entries > 20 && key_overflow_size > btree->maxmempage_image;
         if (force || __wt_rec_need_split(r, key->len + val->len)) {
-            page_image = 0;
+            key_overflow_size = 0;
 
             /*
              * In one path above, we copied address blocks from the page rather than building the
