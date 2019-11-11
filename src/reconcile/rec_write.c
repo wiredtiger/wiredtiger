@@ -1815,8 +1815,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE_LOOKASIDE *orig_page_las;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
+    bool block_las_evict;
 #ifdef HAVE_DIAGNOSTIC
-    bool block_las_evict, verify_image;
+    bool verify_image;
 #endif
 
     btree = S2BT(session);
