@@ -1435,6 +1435,15 @@ tasks:
             set -o errexit
             set -o verbose
             ./configure_combinations.sh ${smp_command|} 2>&1
+      # Handle special build combination for running all the diagnostic tests.
+      - func: "configure wiredtiger"
+        vars:
+          configure_env_vars: CFLAGS="-g -Werror"
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+      - func: "make wiredtiger"
+        vars:
+          make_command: make all
+      - func: "make check all"
   
   - name: linux-directio
     depends_on:
