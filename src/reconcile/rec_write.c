@@ -1823,7 +1823,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     btree = S2BT(session);
     page = r->page;
     orig_page_las = r->ref->page_las;
-    block_las_evict = false;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
