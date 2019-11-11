@@ -67,14 +67,28 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc_def(session, 3, &dhandle->cfg));
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
+        /*
+         * We are stripping out the checkpoint and checkpoint_lsn information from the config
+         * string. We save the rest of the metadata string, that is essentially static and
+         * unchanging and then concatenate the new checkpoint and LSN information on each
+         * checkpoint. The reason is performance and avoiding a lot of calls to the config parsing
+         * functions during a checkpoint for information that changes in a very well known way.
+         */
         cfg[0] = metaconf;
         cfg[1] = "checkpoint=()";
         cfg[2] = NULL;
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
         WT_ASSERT(session, dhandle->meta_base == NULL);
-        /* Overwrite any checkpoint info. */
+        /*
+         * First collapse and overwrite any checkpoint information because we do not know the name
+         * or how many checkpoints may be in this metadata. So first we have to set the string to
+         * the empty checkpoint string and call collapse to overwrite anything existing.
+         */
         WT_ERR(__wt_config_collapse(session, cfg, &tmp));
-        /* Now strip out the checkpoint. */
+        /*
+         * Now strip out the checkpoint and checkpoint LSN items from the configuration string and
+         * that is now our base metadata string.
+         */
         cfg[0] = tmp;
         cfg[1] = NULL;
         WT_ERR(__wt_config_merge(session, cfg, "checkpoint=,checkpoint_lsn=", &base));
