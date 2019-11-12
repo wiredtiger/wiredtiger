@@ -124,6 +124,7 @@ functions:
         set -o verbose
 
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
   "test format":
     command: shell.exec
     params:
@@ -1055,7 +1056,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ab] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [ab] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket01
     tags: ["pull_request", "unit_test"]
@@ -1071,7 +1073,8 @@ tasks:
             set -o verbose
 
             # Reserve this bucket only for compat tests, which take a long time to run
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py compat -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py compat ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket02
     tags: ["pull_request", "unit_test"]
@@ -1088,7 +1091,8 @@ tasks:
 
             # Non-compat tests in the 'c' family
             non_compat_tests=$(ls ../test/suite/test_c*.py | xargs -n1 basename | grep -v compat)
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_compat_tests -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_compat_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket03
     tags: ["pull_request", "unit_test"]
@@ -1103,7 +1107,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defghijk] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [defghijk] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket04
     tags: ["pull_request", "unit_test"]
@@ -1118,7 +1123,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [lmnopq] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket05
     tags: ["pull_request", "unit_test"]
@@ -1133,7 +1139,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [rs] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket06
     tags: ["pull_request", "unit_test"]
@@ -1149,7 +1156,8 @@ tasks:
             set -o verbose
 
             # Reserve this bucket only for timestamp tests, which take a long time to run
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py timestamp -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py timestamp ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   - name: unit-test-bucket07
     tags: ["pull_request", "unit_test"]
@@ -1166,8 +1174,9 @@ tasks:
 
             # Non-timestamp tests in the 't' family
             non_ts_tests=$(ls ../test/suite/test_t*.py | xargs -n1 basename | grep -v timestamp)
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests -v 2 ${smp_command|} 2>&1
-            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] -v 2 ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py $non_ts_tests ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            ${test_env_vars|} ${python_binary|python} ../test/suite/run.py [uvwxyz] ${unit_test_args|-v 2} ${smp_command|} 2>&1
+            find WT_TEST -name std*txt ! -size 0 | xargs tail -n 20
 
   # End of Python unit test tasks
 
@@ -1583,10 +1592,11 @@ buildvariants:
   run_on:
   - ubuntu1804-test
   expansions:
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd) CFLAGS="-fPIC -ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    unit_test_args: -v 2
   tasks:
     - name: ".pull_request !.windows_only"
     - name: compile-msan
@@ -1604,12 +1614,13 @@ buildvariants:
   run_on:
   - ubuntu1804-test
   expansions:
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd) CFLAGS="-fPIC -ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     configure_python_setting: PYTHON=python3
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     python_binary: python3
+    unit_test_args: -v 2
   tasks:
     - name: compile
     - name: ".unit_test"
@@ -1656,9 +1667,10 @@ buildvariants:
   run_on:
   - rhel80-test
   expansions:
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd) CFLAGS="-fPIC -ggdb"
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    unit_test_args: -v 2
   tasks:
     - name: compile
     - name: make-check-test
@@ -1696,10 +1708,11 @@ buildvariants:
   run_on:
   - macos-1012
   expansions:
-    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb"
+    configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fPIC -ggdb"
     smp_command: -j $(sysctl -n hw.logicalcpu)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    unit_test_args: -v 2
   tasks:
     - name: compile
     - name: make-check-test
