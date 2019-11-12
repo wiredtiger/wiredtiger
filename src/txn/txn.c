@@ -640,11 +640,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
     WT_DECL_RET;
     WT_TXN *txn;
     WT_UPDATE *upd;
-    int64_t resolved_prepare_count;
     const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
 
     txn = &session->txn;
-    resolved_prepare_count = 0;
 
     WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
 
@@ -690,8 +688,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
         if (upd->txnid != txn->id)
             break;
 
-        ++resolved_prepare_count;
-
         if (!commit) {
             upd->txnid = WT_TXN_ABORTED;
             continue;
@@ -723,7 +719,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
          */
         __txn_resolve_prepared_update(session, upd);
     }
-    WT_STAT_CONN_INCRV(session, txn_prepared_updates_resolved, resolved_prepare_count);
 
 err:
     WT_TRET(cursor->close(cursor));
