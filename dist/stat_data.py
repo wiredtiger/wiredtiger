@@ -222,7 +222,7 @@ connection_stats = [
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
     CacheStat('cache_eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
-    CacheStat('cache_eviction_fail_overflow_keys', 'pages selected for eviction unable to be evicted because of overflow keys'),
+    CacheStat('cache_eviction_fail_as_cannot_evict_dirty_page_with_overflow_keys', 'pages selected for eviction unable to be evicted as it cannot evict a dirty page with overflow keys'),
     CacheStat('cache_eviction_fail_with_newer_modifications_on_a_clean_page', 'pages selected for eviction unable to be evicted due to newer modifications on a clean page'),
     CacheStat('cache_eviction_force', 'forced eviction - pages selected count'),
     CacheStat('cache_eviction_force_clean', 'forced eviction - pages evicted that were clean count'),

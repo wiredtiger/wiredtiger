@@ -549,7 +549,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      */
     if (WT_PAGE_IS_INTERNAL(page)) {
         WT_WITH_PAGE_INDEX(session, ret = __evict_child_check(session, ref));
-        if (ret)
+        if (ret != 0)
             WT_STAT_CONN_INCR(session, cache_eviction_fail_active_children_on_an_internal_page);
         WT_RET(ret);
     }
@@ -685,7 +685,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         ret = __wt_reconcile(session, ref, NULL, flags, NULL);
     }
 
-    if (ret)
+    if (ret != 0)
         WT_STAT_CONN_INCR(session, cache_eviction_fail_in_reconciliation);
 
     WT_RET(ret);
