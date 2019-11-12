@@ -1697,6 +1697,8 @@ buildvariants:
   display_name: Windows 64-bit
   run_on:
   - windows-64-vs2017-test
+  expansions:
+    unit_test_args: -v 2
   tasks:
     - name: compile
     - name: ".windows_only"
