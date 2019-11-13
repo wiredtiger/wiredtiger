@@ -1352,8 +1352,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * no-longer-used overflow keys, which will corrupt the checkpoint's block management.
      */
     if (!__wt_btree_can_evict_dirty(session) && F_ISSET_ATOMIC(ref->home, WT_PAGE_OVERFLOW_KEYS)) {
-        WT_STAT_CONN_INCR(
-          session, cache_eviction_fail_as_cannot_evict_dirty_page_with_overflow_keys);
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_parent_has_overflow_items);
         return (false);
     }
 

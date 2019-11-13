@@ -715,8 +715,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages seen by eviction walk that are already queued",
   "cache: pages selected for eviction unable to be evicted",
-  "cache: pages selected for eviction unable to be evicted as it cannot evict a dirty page with "
-  "overflow keys",
+  "cache: pages selected for eviction unable to be evicted as the parent page has overflow items",
   "cache: pages selected for eviction unable to be evicted because of active children on an "
   "internal page",
   "cache: pages selected for eviction unable to be evicted because of failure in reconciliation",
@@ -1080,7 +1079,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_pages_already_queued = 0;
     stats->cache_eviction_fail = 0;
-    stats->cache_eviction_fail_as_cannot_evict_dirty_page_with_overflow_keys = 0;
+    stats->cache_eviction_fail_parent_has_overflow_items = 0;
     stats->cache_eviction_fail_active_children_on_an_internal_page = 0;
     stats->cache_eviction_fail_in_reconciliation = 0;
     stats->cache_eviction_fail_with_newer_modifications_on_a_clean_page = 0;
@@ -1525,8 +1524,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_pages_already_queued +=
       WT_STAT_READ(from, cache_eviction_pages_already_queued);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
-    to->cache_eviction_fail_as_cannot_evict_dirty_page_with_overflow_keys +=
-      WT_STAT_READ(from, cache_eviction_fail_as_cannot_evict_dirty_page_with_overflow_keys);
+    to->cache_eviction_fail_parent_has_overflow_items +=
+      WT_STAT_READ(from, cache_eviction_fail_parent_has_overflow_items);
     to->cache_eviction_fail_active_children_on_an_internal_page +=
       WT_STAT_READ(from, cache_eviction_fail_active_children_on_an_internal_page);
     to->cache_eviction_fail_in_reconciliation +=

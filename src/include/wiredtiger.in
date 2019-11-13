@@ -5144,10 +5144,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: pages selected for eviction unable to be evicted */
 #define	WT_STAT_CONN_CACHE_EVICTION_FAIL		1134
 /*!
- * cache: pages selected for eviction unable to be evicted as it cannot
- * evict a dirty page with overflow keys
+ * cache: pages selected for eviction unable to be evicted as the parent
+ * page has overflow items
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_AS_CANNOT_EVICT_DIRTY_PAGE_WITH_OVERFLOW_KEYS	1135
+#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_PARENT_HAS_OVERFLOW_ITEMS	1135
 /*!
  * cache: pages selected for eviction unable to be evicted because of
  * active children on an internal page
