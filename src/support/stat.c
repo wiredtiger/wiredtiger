@@ -849,7 +849,6 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: page reconciliation yielded due to child modification",
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates added to cache overflow",
-  "transaction: Number of prepared updates resolved",
   "transaction: durable timestamp queue entries walked",
   "transaction: durable timestamp queue insert to empty",
   "transaction: durable timestamp queue inserts to head",
@@ -1279,7 +1278,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->child_modify_blocked_page = 0;
     stats->txn_prepared_updates_count = 0;
     stats->txn_prepared_updates_lookaside_inserts = 0;
-    stats->txn_prepared_updates_resolved = 0;
     stats->txn_durable_queue_walked = 0;
     stats->txn_durable_queue_empty = 0;
     stats->txn_durable_queue_head = 0;
@@ -1712,7 +1710,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_prepared_updates_count += WT_STAT_READ(from, txn_prepared_updates_count);
     to->txn_prepared_updates_lookaside_inserts +=
       WT_STAT_READ(from, txn_prepared_updates_lookaside_inserts);
-    to->txn_prepared_updates_resolved += WT_STAT_READ(from, txn_prepared_updates_resolved);
     to->txn_durable_queue_walked += WT_STAT_READ(from, txn_durable_queue_walked);
     to->txn_durable_queue_empty += WT_STAT_READ(from, txn_durable_queue_empty);
     to->txn_durable_queue_head += WT_STAT_READ(from, txn_durable_queue_head);

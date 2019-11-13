@@ -642,7 +642,6 @@ struct __wt_connection_stats {
     int64_t child_modify_blocked_page;
     int64_t txn_prepared_updates_count;
     int64_t txn_prepared_updates_lookaside_inserts;
-    int64_t txn_prepared_updates_resolved;
     int64_t txn_durable_queue_walked;
     int64_t txn_durable_queue_empty;
     int64_t txn_durable_queue_head;
