@@ -338,7 +338,7 @@ __wt_update_obsolete_check(
                 if (upd_visible_all_seen && upd->type == WT_UPDATE_BIRTHMARK)
                     first = prev;
                 /*
-                 * We cannot discard the birthemark if it is the first golbally visible update as
+                 * We cannot discard the birthmark if it is the first globally visible update as
                  * the previous updates can be aborted resulting the entire update chain being
                  * removed.
                  */
