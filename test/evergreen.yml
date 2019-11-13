@@ -1737,7 +1737,7 @@ buildvariants:
   - name: verify-datafile-from-little-endian
 
 - name: ubuntu1804-powerpc
-  display_name: Ubuntu 18.04 PowerPC
+  display_name: Ubuntu 18.04 PowerPC
   run_on:
   - ubuntu1804-power8-test
   expansions:
