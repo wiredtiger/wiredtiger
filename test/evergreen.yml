@@ -1027,6 +1027,16 @@ tasks:
       - func: "fetch artifacts"
       - func: "unit test"
 
+  - name: unit-test-long
+    tags: ["unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: ${unit_test_args} --long
+
   - name: unit-linux-no-ftruncate-test
     depends_on:
     - name: compile-linux-no-ftruncate
