@@ -1020,7 +1020,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
     WT_ITEM *sweep_key;
-    WT_TXN_ISOLATION saved_isolation;
     wt_timestamp_t durable_timestamp, las_timestamp;
     uint64_t cnt, remove_cnt, las_pageid, saved_pageid, visit_cnt;
     uint64_t las_counter, las_txnid;
@@ -1032,7 +1031,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     cache = S2C(session)->cache;
     cursor = NULL;
     sweep_key = &cache->las_sweep_key;
-    saved_isolation = 0; /*[-Wconditional-uninitialized] */
     remove_cnt = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     local_txn = locked = removing_key_block = false;
@@ -1053,7 +1051,6 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     __wt_las_cursor(session, &cursor, &session_flags);
     WT_ASSERT(session, cursor->session == &session->iface);
     WT_ERR(__wt_txn_begin(session, NULL));
-    __las_set_isolation(session, &saved_isolation);
     local_txn = true;
 
     /* Encourage a race */
@@ -1230,7 +1227,6 @@ err:
             ret = __wt_txn_commit(session, NULL);
         else
             WT_TRET(__wt_txn_rollback(session, NULL));
-        __las_restore_isolation(session, saved_isolation);
         if (ret == 0)
             (void)__wt_atomic_add64(&cache->las_remove_count, remove_cnt);
     }
