@@ -334,6 +334,9 @@ extern int __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool 
   double pct_full) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
+  size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

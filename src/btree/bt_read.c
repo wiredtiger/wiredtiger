@@ -288,8 +288,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /*
              * If our update is a modify then rewrite it as a standard update. It's a problem if we
-             * need to read backwards into lookaside just to make sense of what we have in our
-             * update list.
+             * need to read forwards into lookaside just to make sense of what we have in our update
+             * list.
              *
              * The update we're constructing will have the same visibility as the modify that we're
              * replacing it with.
@@ -334,11 +334,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_ERR(__wt_modify_apply_item(session, &las_value, mod_upd->data, false));
                 __wt_free_update_list(session, &mod_upd);
                 mod_upd = NULL;
-                /*
-                 * We had to do some backtracking to construct this update. Unwind back to where we
-                 * were before.
-                 */
-                WT_ERR(las_cursor->next(las_cursor));
             }
 
             WT_ERR(__wt_update_alloc(session, &las_value, &upd, &size, upd_type));
