@@ -5592,132 +5592,130 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_COUNT		1347
 /*! transaction: Number of prepared updates added to cache overflow */
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_LOOKASIDE_INSERTS	1348
-/*! transaction: Number of prepared updates resolved */
-#define	WT_STAT_CONN_TXN_PREPARED_UPDATES_RESOLVED	1349
 /*! transaction: durable timestamp queue entries walked */
-#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_WALKED		1350
+#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_WALKED		1349
 /*! transaction: durable timestamp queue insert to empty */
-#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_EMPTY		1351
+#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_EMPTY		1350
 /*! transaction: durable timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_HEAD		1352
+#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_HEAD		1351
 /*! transaction: durable timestamp queue inserts total */
-#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_INSERTS		1353
+#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_INSERTS		1352
 /*! transaction: durable timestamp queue length */
-#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_LEN		1354
+#define	WT_STAT_CONN_TXN_DURABLE_QUEUE_LEN		1353
 /*! transaction: number of named snapshots created */
-#define	WT_STAT_CONN_TXN_SNAPSHOTS_CREATED		1355
+#define	WT_STAT_CONN_TXN_SNAPSHOTS_CREATED		1354
 /*! transaction: number of named snapshots dropped */
-#define	WT_STAT_CONN_TXN_SNAPSHOTS_DROPPED		1356
+#define	WT_STAT_CONN_TXN_SNAPSHOTS_DROPPED		1355
 /*! transaction: prepared transactions */
-#define	WT_STAT_CONN_TXN_PREPARE			1357
+#define	WT_STAT_CONN_TXN_PREPARE			1356
 /*! transaction: prepared transactions committed */
-#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1358
+#define	WT_STAT_CONN_TXN_PREPARE_COMMIT			1357
 /*! transaction: prepared transactions currently active */
-#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1359
+#define	WT_STAT_CONN_TXN_PREPARE_ACTIVE			1358
 /*! transaction: prepared transactions rolled back */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1360
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1359
 /*! transaction: query timestamp calls */
-#define	WT_STAT_CONN_TXN_QUERY_TS			1361
+#define	WT_STAT_CONN_TXN_QUERY_TS			1360
 /*! transaction: read timestamp queue entries walked */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_WALKED		1362
+#define	WT_STAT_CONN_TXN_READ_QUEUE_WALKED		1361
 /*! transaction: read timestamp queue insert to empty */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_EMPTY		1363
+#define	WT_STAT_CONN_TXN_READ_QUEUE_EMPTY		1362
 /*! transaction: read timestamp queue inserts to head */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_HEAD		1364
+#define	WT_STAT_CONN_TXN_READ_QUEUE_HEAD		1363
 /*! transaction: read timestamp queue inserts total */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_INSERTS		1365
+#define	WT_STAT_CONN_TXN_READ_QUEUE_INSERTS		1364
 /*! transaction: read timestamp queue length */
-#define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1366
+#define	WT_STAT_CONN_TXN_READ_QUEUE_LEN			1365
 /*! transaction: rollback to stable calls */
-#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE		1367
+#define	WT_STAT_CONN_TXN_ROLLBACK_TO_STABLE		1366
 /*! transaction: rollback to stable updates aborted */
-#define	WT_STAT_CONN_TXN_ROLLBACK_UPD_ABORTED		1368
+#define	WT_STAT_CONN_TXN_ROLLBACK_UPD_ABORTED		1367
 /*! transaction: rollback to stable updates removed from cache overflow */
-#define	WT_STAT_CONN_TXN_ROLLBACK_LAS_REMOVED		1369
+#define	WT_STAT_CONN_TXN_ROLLBACK_LAS_REMOVED		1368
 /*! transaction: set timestamp calls */
-#define	WT_STAT_CONN_TXN_SET_TS				1370
+#define	WT_STAT_CONN_TXN_SET_TS				1369
 /*! transaction: set timestamp durable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1371
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE			1370
 /*! transaction: set timestamp durable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1372
+#define	WT_STAT_CONN_TXN_SET_TS_DURABLE_UPD		1371
 /*! transaction: set timestamp oldest calls */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1373
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST			1372
 /*! transaction: set timestamp oldest updates */
-#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1374
+#define	WT_STAT_CONN_TXN_SET_TS_OLDEST_UPD		1373
 /*! transaction: set timestamp stable calls */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1375
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE			1374
 /*! transaction: set timestamp stable updates */
-#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1376
+#define	WT_STAT_CONN_TXN_SET_TS_STABLE_UPD		1375
 /*! transaction: transaction begins */
-#define	WT_STAT_CONN_TXN_BEGIN				1377
+#define	WT_STAT_CONN_TXN_BEGIN				1376
 /*! transaction: transaction checkpoint currently running */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1378
+#define	WT_STAT_CONN_TXN_CHECKPOINT_RUNNING		1377
 /*! transaction: transaction checkpoint generation */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1379
+#define	WT_STAT_CONN_TXN_CHECKPOINT_GENERATION		1378
 /*! transaction: transaction checkpoint max time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1380
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MAX		1379
 /*! transaction: transaction checkpoint min time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1381
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_MIN		1380
 /*! transaction: transaction checkpoint most recent time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1382
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_RECENT		1381
 /*! transaction: transaction checkpoint scrub dirty target */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1383
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TARGET	1382
 /*! transaction: transaction checkpoint scrub time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1384
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SCRUB_TIME		1383
 /*! transaction: transaction checkpoint total time (msecs) */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1385
+#define	WT_STAT_CONN_TXN_CHECKPOINT_TIME_TOTAL		1384
 /*! transaction: transaction checkpoints */
-#define	WT_STAT_CONN_TXN_CHECKPOINT			1386
+#define	WT_STAT_CONN_TXN_CHECKPOINT			1385
 /*!
  * transaction: transaction checkpoints skipped because database was
  * clean
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1387
+#define	WT_STAT_CONN_TXN_CHECKPOINT_SKIPPED		1386
 /*! transaction: transaction failures due to cache overflow */
-#define	WT_STAT_CONN_TXN_FAIL_CACHE			1388
+#define	WT_STAT_CONN_TXN_FAIL_CACHE			1387
 /*!
  * transaction: transaction fsync calls for checkpoint after allocating
  * the transaction ID
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1389
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST		1388
 /*!
  * transaction: transaction fsync duration for checkpoint after
  * allocating the transaction ID (usecs)
  */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1390
+#define	WT_STAT_CONN_TXN_CHECKPOINT_FSYNC_POST_DURATION	1389
 /*! transaction: transaction range of IDs currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_RANGE			1391
+#define	WT_STAT_CONN_TXN_PINNED_RANGE			1390
 /*! transaction: transaction range of IDs currently pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1392
+#define	WT_STAT_CONN_TXN_PINNED_CHECKPOINT_RANGE	1391
 /*!
  * transaction: transaction range of IDs currently pinned by named
  * snapshots
  */
-#define	WT_STAT_CONN_TXN_PINNED_SNAPSHOT_RANGE		1393
+#define	WT_STAT_CONN_TXN_PINNED_SNAPSHOT_RANGE		1392
 /*! transaction: transaction range of timestamps currently pinned */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1394
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP		1393
 /*! transaction: transaction range of timestamps pinned by a checkpoint */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1395
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_CHECKPOINT	1394
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * active read timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1396
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_READER	1395
 /*!
  * transaction: transaction range of timestamps pinned by the oldest
  * timestamp
  */
-#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1397
+#define	WT_STAT_CONN_TXN_PINNED_TIMESTAMP_OLDEST	1396
 /*! transaction: transaction read timestamp of the oldest active reader */
-#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1398
+#define	WT_STAT_CONN_TXN_TIMESTAMP_OLDEST_ACTIVE_READ	1397
 /*! transaction: transaction sync calls */
-#define	WT_STAT_CONN_TXN_SYNC				1399
+#define	WT_STAT_CONN_TXN_SYNC				1398
 /*! transaction: transactions committed */
-#define	WT_STAT_CONN_TXN_COMMIT				1400
+#define	WT_STAT_CONN_TXN_COMMIT				1399
 /*! transaction: transactions rolled back */
-#define	WT_STAT_CONN_TXN_ROLLBACK			1401
+#define	WT_STAT_CONN_TXN_ROLLBACK			1400
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1402
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1401
 
 /*!
  * @}
