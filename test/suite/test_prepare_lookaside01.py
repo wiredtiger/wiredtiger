@@ -102,9 +102,6 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
             sessions[j].close()
 
     def test_prepare_lookaside(self):
-        # WT-5210 to re-enable, fallout from reconciliation changes
-        return
-
         # Create a small table.
         uri = "table:test_prepare_lookaside01"
         nrows = 100

@@ -724,7 +724,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_inmem_upd, vpack));
         orig_val_appended = true;
     }
-    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+
+    /*
+     * If the update being written is the same as on-page update, we are not returning an update to
+     * the caller. In such a case we have put a copy of the on-disk value in the update chain after
+     * the birthmark. We will point to that copy as the on-disk update.
+     */
+    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK && orig_val_appended) {
+        WT_ASSERT(session, upd_select->upd == NULL);
+        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd->next, upd_memsize));
+    } else
+        WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
     upd_select->upd_saved = true;
 
 check_original_value:
