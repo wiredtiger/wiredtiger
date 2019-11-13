@@ -330,10 +330,21 @@ __wt_update_obsolete_check(
             if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
                 ++upd_unstable;
         } else {
-            if (first == NULL && upd->type == WT_UPDATE_BIRTHMARK)
-                first = upd_visible_all_seen ? prev : upd;
-            else if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
-                first = upd;
+            if (first == NULL) {
+                /*
+                 * If we have seen a globally visible update before the birthmark, the birthmark can
+                 * be discarded.
+                 */
+                if (upd_visible_all_seen && upd->type == WT_UPDATE_BIRTHMARK)
+                    first = prev;
+                /*
+                 * We cannot discard the birthemark if it is the first golbally visible update as
+                 * the previous updates can be aborted resulting the entire update chain being
+                 * removed.
+                 */
+                else if (upd->type == WT_UPDATE_BIRTHMARK || WT_UPDATE_DATA_VALUE(upd))
+                    first = upd;
+            }
 
             upd_visible_all_seen = true;
         }
