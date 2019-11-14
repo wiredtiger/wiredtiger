@@ -1,5 +1,5 @@
-AM_CPPFLAGS = `$(LLVM_CONFIG) --cxxflags --libs core`
-AM_LDFLAGS = `$(LLVM_CONFIG) --ldflags --libs core`
+AM_CPPFLAGS = `llvm-config --cxxflags --libs core`
+AM_LDFLAGS = `llvm-config --ldflags --libs core`
 
 noinst_PROGRAMS = xray_to_optrack
 xray_to_optrack_SOURCES = xray_to_optrack.cxx

@@ -162,14 +162,6 @@ if test "$wt_cv_enable_python" = "yes"; then
 	AC_SUBST(PYTHON_INSTALL_ARG)
 fi
 
-LLVM_CONFIG=llvm-config
-if test "$wt_cv_enable_llvm" = "yes"; then
-	if test -n "$with_llvm_config"; then
-        	LLVM_CONFIG="$with_llvm_config"
-        fi
-fi
-AC_SUBST(LLVM_CONFIG)
-
 AM_TYPES
 
 AC_PROG_INSTALL

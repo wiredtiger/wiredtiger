@@ -284,12 +284,14 @@ no)	wt_cv_enable_llvm=no;;
 *)	wt_cv_enable_llvm=yes;;
 esac
 AC_MSG_RESULT($wt_cv_enable_llvm)
+if test "$wt_cv_enable_llvm" = "yes"; then
+	AC_CHECK_PROG(wt_cv_llvm_config, llvm-config, yes)
+	if test "$wt_cv_llvm_config" != "yes"; then
+		AC_MSG_ERROR([--enable-llvm requires llvm-config])
+	fi
+	if ! test $(llvm-config --version | grep "^8"); then
+		AC_MSG_ERROR([llvm-config must be version 8])
+	fi
+fi
 AM_CONDITIONAL([LLVM], [test x$wt_cv_enable_llvm = xyes])
-
-AC_MSG_CHECKING(if --with-llvm-config option specified)
-AC_ARG_WITH(llvm-config,
-	[AS_HELP_STRING([--with-llvm-config=DIR],
-	    [Path to LLVM config.])])
-AC_MSG_RESULT($with_llvm_config)
-
 ])
