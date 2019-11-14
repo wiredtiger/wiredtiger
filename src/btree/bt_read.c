@@ -255,8 +255,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
      * The lookaside records are in key and update order, that is, there will be a set of in-order
      * updates for a key, then another set of in-order updates for a subsequent key. We find the
      * most recent of the updates for a key and then insert that update into the page, then all the
-     * updates for the next key, and so on. If the birthmark record exists for that key, then insert
-     * birthmark record into the page.
+     * updates for the next key, and so on. If a birthmark record exists for that key, then insert
+     * the birthmark record into the page.
      *
      * The search starts with the minimum LAS key of the page until the maximum LAS key (both
      * inclusive). We are going to instantiate only the most recent record for a key. To find out
@@ -289,10 +289,10 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(las_cursor->search_near(las_cursor, &exact));
         /*
          * Check whether the search_near returned the same key. If it returns the next key, continue
-         * with the previous record.
+         * with the previous record (assuming there is a previous record).
          */
-        if (exact > 0)
-            WT_ERR(las_cursor->prev(las_cursor));
+        if (exact > 0 && (ret = las_cursor->prev(las_cursor)) != 0)
+            break;
 
         WT_ERR(
           las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
