@@ -1768,7 +1768,7 @@ buildvariants:
   - name: unit-test
 
 - name: ubuntu1804-zseries
-  display_name: Ubuntu 18.04 ZSeries
+  display_name: Ubuntu 18.04 zSeries
   run_on:
   - ubuntu1804-zseries-test
   expansions:
