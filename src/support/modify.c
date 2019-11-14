@@ -50,9 +50,7 @@ __wt_modify_idempotent(const void *modify)
     const size_t *p;
     int nentries;
 
-    /*
-     * Get the number of modify entries and set a second pointer to reference the replacement data.
-     */
+    /* Get the number of modify entries. */
     p = modify;
     memcpy(&tmp, p++, sizeof(size_t));
     nentries = (int)tmp;
