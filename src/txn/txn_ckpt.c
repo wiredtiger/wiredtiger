@@ -639,6 +639,12 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_ASSERT(session, session->ckpt_handle_next == 0);
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_all(session, cfg, __wt_checkpoint_get_handles));
+
+    /* Add the history store handle to the checkpoint handle queue. */
+    WT_WITH_TABLE_READ_LOCK(
+      session, ret = __wt_schema_worker(session, WT_LAS_URI,
+          __wt_checkpoint_get_handles, NULL, cfg, 0));
+
     return (ret);
 }
 

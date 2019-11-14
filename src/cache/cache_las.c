@@ -268,8 +268,6 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session)
      */
     if (!F_ISSET(btree, WT_BTREE_LOOKASIDE))
         F_SET(btree, WT_BTREE_LOOKASIDE);
-    if (!F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
-        F_SET(btree, WT_BTREE_NO_CHECKPOINT);
     if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
         F_SET(btree, WT_BTREE_NO_LOGGING);
 

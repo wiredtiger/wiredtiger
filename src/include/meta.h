@@ -37,6 +37,7 @@
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
 #define WT_IS_METADATA(dh) F_ISSET((dh), WT_DHANDLE_IS_METADATA)
+#define WT_IS_LAS(dh) F_ISSET((WT_BTREE*)(dh)->handle, WT_BTREE_LOOKASIDE)
 #define WT_METAFILE_ID 0 /* Metadata file ID */
 
 #define WT_METADATA_COMPAT "Compatibility version"
