@@ -1028,14 +1028,13 @@ tasks:
       - func: "unit test"
 
   - name: unit-test-long
-    tags: ["unit_test"]
     depends_on:
     - name: compile
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
         vars:
-          unit_test_args: ${unit_test_args} --long
+          unit_test_args: -v 2 --long
 
   - name: unit-linux-no-ftruncate-test
     depends_on:
@@ -1618,6 +1617,7 @@ buildvariants:
     - name: configure-combinations
     - name: checkpoint-filetypes-test
     - name: coverage-report
+    - name: unit-test-long
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
