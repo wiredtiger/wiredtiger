@@ -39,6 +39,35 @@
     while (0)
 
 /*
+ * __wt_modify_idempotent --
+ *     Check if a modify operation is idempotent.
+ */
+bool
+__wt_modify_idempotent(const void *modify)
+{
+    WT_MODIFY mod;
+    size_t tmp;
+    const size_t *p;
+    int nentries;
+
+    /*
+     * Get the number of modify entries and set a second pointer to reference the replacement data.
+     */
+    p = modify;
+    memcpy(&tmp, p++, sizeof(size_t));
+    nentries = (int)tmp;
+
+    WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, 0)
+    {
+        if (mod.size != mod.data.size)
+            return (false);
+    }
+    WT_MODIFY_FOREACH_END;
+
+    return (true);
+}
+
+/*
  * __wt_modify_pack --
  *     Pack a modify structure into a buffer.
  */
