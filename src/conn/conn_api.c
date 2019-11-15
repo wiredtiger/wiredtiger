@@ -1652,7 +1652,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         ret = 0;
     }
     if (!F_ISSET(conn, WT_CONN_READONLY) && ret == ENOENT) {
-        F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+        F_SET(conn, WT_CONN_DATA_CORRUPTION);
         WT_ERR(WT_ERROR);
     }
     WT_ERR(ret);
@@ -1698,7 +1698,7 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
     } else {
         if (ret == ENOENT) {
-            F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
+            F_SET(conn, WT_CONN_DATA_CORRUPTION);
             WT_ERR(WT_ERROR);
         }
         WT_ERR(ret);
