@@ -439,6 +439,7 @@ __posix_file_read(
               "%s: handle-read: pread: failed to read %" WT_SIZET_FMT " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
     }
+    WT_STAT_CONN_INCRV(session, block_byte_read_syscall, len);
     return (0);
 }
 
@@ -473,6 +474,7 @@ __posix_file_read_mmap(
      */
     if (pfh->mmapped_buf != 0 && pfh->mmapped_size >= (size_t)offset + len) {
         memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
+	WT_STAT_CONN_INCRV(session, block_byte_read_mmap, len);
         return (0);
     }
     else
@@ -600,7 +602,7 @@ __posix_file_write(
               " bytes at offset %" PRIuMAX,
               file_handle->name, chunk, (uintmax_t)offset);
     }
-
+    WT_STAT_CONN_INCRV(session, block_byte_write_syscall, len);
     return (0);
 }
 
@@ -632,6 +634,7 @@ __posix_file_write_mmap(
      */
     if (pfh->mmapped_buf != NULL && pfh->mmapped_size >= (size_t)offset + len) {
         memcpy( (void*)(pfh->mmapped_buf + offset), buf, len);
+	WT_STAT_CONN_INCRV(session, block_byte_write_mmap, len);
         return (0);
     }
     else
