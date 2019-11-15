@@ -1503,7 +1503,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ${python_binary|python} syscall.py --verbose
+            ${python_binary|python} syscall.py --verbose --preserve
 
   - name: checkpoint-filetypes-test
     commands:
