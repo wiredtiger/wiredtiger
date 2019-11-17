@@ -606,7 +606,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
-    bool local_txn;
+    bool las_key_saved, local_txn;
 
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
@@ -692,6 +692,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         WT_ASSERT(session, __wt_count_birthmarks(first_upd) == 0);
 
+        las_key_saved = false;
+
         /*
          * If the page being lookaside evicted has previous lookaside content associated with it,
          * there is a possibility that the update written to the disk is external (i.e. it came from
@@ -715,6 +717,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             WT_CLEAR(birthmarkp->key);
             WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
             birthmarks_cnt++;
+
+            las_key_saved = true;
         }
 
         /*
@@ -725,6 +729,19 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         do {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
+
+            /* We have at least one LAS record from this key, save a copy of the key */
+            if (!las_key_saved) {
+                /* Extend the buffer if needed */
+                WT_ERR(__wt_buf_extend(
+                  session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
+                birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + birthmarks_cnt;
+                WT_CLEAR(birthmarkp->key);
+                WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
+                birthmarkp->txnid = WT_TXN_ABORTED;
+                las_key_saved = true;
+                birthmarks_cnt++;
+            }
 
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
@@ -755,19 +772,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 /* Make sure that we are generating a birthmark for an in-memory update. */
                 WT_ASSERT(session, upd->ext == 0);
 
-                /* Extend the buffer if needed */
-                WT_ERR(__wt_buf_extend(
-                  session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
-                birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + birthmarks_cnt;
                 birthmarkp->txnid = upd->txnid;
                 birthmarkp->durable_ts = upd->durable_ts;
                 birthmarkp->start_ts = upd->start_ts;
                 birthmarkp->prepare_state = upd->prepare_state;
                 birthmarkp->instantiated = false;
-                /* Copy the key as well for reference. */
-                WT_CLEAR(birthmarkp->key);
-                WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
-                birthmarks_cnt++;
 
                 /* Do not put birthmarks into the lookaside. */
                 continue;
