@@ -1651,10 +1651,20 @@ __conn_single(WT_SESSION_IMPL *session, const char *cfg[])
         bytelock = false;
         ret = 0;
     }
-    if (!F_ISSET(conn, WT_CONN_READONLY) && ret == ENOENT) {
-        F_SET(conn, WT_CONN_DATA_CORRUPTION);
-        WT_ERR(WT_ERROR);
+
+    /**
+     * The WiredTiger lock file will not be created if the WiredTiger file does not exist in the
+     * directory, suggesting possible corruption if the WiredTiger file was deleted. Suggest running
+     * salvage.
+     */
+    if (ret == ENOENT) {
+        WT_ERR(__wt_fs_exist(session, WT_WIREDTIGER, &exist));
+        if (!exist) {
+            F_SET(conn, WT_CONN_DATA_CORRUPTION);
+            WT_ERR(WT_ERROR);
+        }
     }
+
     WT_ERR(ret);
     if (bytelock) {
         /*
