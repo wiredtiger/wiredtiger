@@ -239,7 +239,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_MODIFY_VECTOR modifies;
     WT_PAGE *page;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd;
+    WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos;
     WT_UPDATE *tmp_upd, *upd;
     wt_timestamp_t durable_ts, las_ts, max_ts, mod_upd_ts;
     size_t notused, upd_memsize;
@@ -263,7 +263,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     __wt_modify_vector_init(session, &modifies);
     page = r->page;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
-    first_txn_upd = last_inmem_upd = tmp_upd = upd = NULL;
+    first_txn_upd = tmp_upd = upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -495,9 +495,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
         ++r->updates_seen;
         upd_memsize += WT_UPDATE_MEMSIZE(upd);
-
-        /* Track the last non-aborted update. */
-        last_inmem_upd = upd;
 
         /*
          * Track the first update in the chain that is not aborted and the maximum transaction ID.
