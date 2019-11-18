@@ -254,7 +254,6 @@ struct __wt_page_lookaside {
         wt_timestamp_t durable_ts;
         wt_timestamp_t start_ts;
         uint8_t prepare_state;
-        bool instantiated;
     } * birthmarks;          /* Birthmark details for a record */
     uint32_t birthmarks_cnt; /* Count of birthmark records */
 };
