@@ -1603,7 +1603,7 @@ tasks:
       - func: "test format"
         vars:
           times: 3
-      -func: "unit test"
+      - func: "unit test"
 
 buildvariants:
 - name: ubuntu1804
@@ -1627,6 +1627,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
+    - name: test-spinlock
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
