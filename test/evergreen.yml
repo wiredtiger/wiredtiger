@@ -1755,6 +1755,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
   - name: compile
   - name: unit-test
@@ -1767,6 +1768,7 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs:$(pwd)/lang/python top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
   - name: compile
   - name: unit-test
