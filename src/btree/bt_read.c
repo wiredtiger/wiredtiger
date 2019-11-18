@@ -175,7 +175,7 @@ __las_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         /* Allocate the WT_UPDATE structure. */
         WT_ERR(cursor->get_value(cursor, &las_txnid, &las_timestamp, &durable_timestamp,
           &prepare_state, &upd_type, &las_value));
-        WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type));
+        WT_ERR(__wt_update_alloc(session, &las_value, &upd, &incr, upd_type, 0x3ad01));
         total_incr += incr;
         upd->txnid = las_txnid;
         upd->durable_ts = durable_timestamp;

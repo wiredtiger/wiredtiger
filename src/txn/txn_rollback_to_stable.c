@@ -115,6 +115,7 @@ __txn_abort_newer_update(
                 upd == first_upd);
             first_upd = upd->next;
 
+            upd->orig_txnid = upd->txnid;
             upd->txnid = WT_TXN_ABORTED;
             WT_STAT_CONN_INCR(session, txn_rollback_upd_aborted);
             upd->durable_ts = upd->start_ts = WT_TS_NONE;

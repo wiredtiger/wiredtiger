@@ -91,7 +91,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             WT_ERR(__wt_txn_update_check(session, old_upd = *upd_entry));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type, 0xadd01));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
@@ -152,7 +152,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         cbt->ins = ins;
 
         if (upd_arg == NULL) {
-            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type));
+            WT_ERR(__wt_update_alloc(session, value, &upd, &upd_size, modify_type, 0xadd02));
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
@@ -247,7 +247,7 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
  */
 int
 __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **updp, size_t *sizep,
-  u_int modify_type)
+  u_int modify_type, uint32_t alloc_id)
 {
     WT_UPDATE *upd;
 
@@ -273,6 +273,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
         }
     }
     upd->type = (uint8_t)modify_type;
+    upd->alloc_id = alloc_id;
 
     *updp = upd;
     *sizep = WT_UPDATE_MEMSIZE(upd);

@@ -246,7 +246,7 @@ val_gen(WT_RAND_STATE *rnd, WT_ITEM *value, uint64_t keyno)
      * WiredTiger doesn't store zero-length data items in row-store files, test that by inserting a
      * zero-length data item every so often.
      */
-    if (keyno % 63 == 0) {
+    if (keyno % 5 == 0) {
         p[0] = '\0';
         value->size = 0;
         return;
@@ -328,6 +328,11 @@ path_setup(const char *home)
     len = strlen(g.home) + strlen("log") + 2;
     g.home_log = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_log, len, "%s/%s", g.home, "log"));
+
+    /* LAS dump file. */
+    len = strlen(g.home) + strlen("LASdump") + 2;
+    g.home_lasdump = dmalloc(len);
+    testutil_check(__wt_snprintf(g.home_lasdump, len, "%s/%s", g.home, "LASdump"));
 
     /* Page dump file. */
     len = strlen(g.home) + strlen("pagedump") + 2;

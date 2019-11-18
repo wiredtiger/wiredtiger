@@ -204,8 +204,10 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
     if (current_state == WT_REF_DELETED)
         current_state = ref->page_del->previous_state;
     else if ((updp = ref->page_del->update_list) != NULL)
-        for (; *updp != NULL; ++updp)
+        for (; *updp != NULL; ++updp) {
+            (*updp)->orig_txnid = (*updp)->txnid;
             (*updp)->txnid = WT_TXN_ABORTED;
+        }
 
     /* Finally mark the truncate aborted */
     ref->page_del->txnid = WT_TXN_ABORTED;
@@ -267,12 +269,12 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
  *     Allocate and initialize a page-deleted tombstone update structure.
  */
 static int
-__tombstone_update_alloc(
-  WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, WT_UPDATE **updp, size_t *sizep)
+__tombstone_update_alloc(WT_SESSION_IMPL *session, WT_PAGE_DELETED *page_del, WT_UPDATE **updp,
+  size_t *sizep, uint32_t alloc_id)
 {
     WT_UPDATE *upd;
 
-    WT_RET(__wt_update_alloc(session, NULL, &upd, sizep, WT_UPDATE_TOMBSTONE));
+    WT_RET(__wt_update_alloc(session, NULL, &upd, sizep, WT_UPDATE_TOMBSTONE, alloc_id));
 
     /*
      * Cleared memory matches the lowest possible transaction ID and timestamp, do nothing.
@@ -379,7 +381,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     upd_array = page->modify->mod_row_update;
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
         WT_SKIP_FOREACH (ins, insert) {
-            WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+            WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size, 0xde01));
             upd->next = ins->upd;
             ins->upd = upd;
 
@@ -387,7 +389,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 page_del->update_list[count++] = upd;
         }
     WT_ROW_FOREACH (page, rip, i) {
-        WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+        WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size, 0xde02));
         upd->next = upd_array[WT_ROW_SLOT(page, rip)];
         upd_array[WT_ROW_SLOT(page, rip)] = upd;
 
@@ -396,7 +398,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             WT_SKIP_FOREACH (ins, insert) {
-                WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size));
+                WT_ERR(__tombstone_update_alloc(session, page_del, &upd, &size, 0xde03));
                 upd->next = ins->upd;
                 ins->upd = upd;
 

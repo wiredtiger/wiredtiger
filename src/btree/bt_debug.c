@@ -682,6 +682,28 @@ __wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
 }
 
 /*
+ * __wt_debug_cursor_las --
+ *     Dump the LAS tree given a user cursor.
+ */
+int
+__wt_debug_cursor_las(void *cursor_arg, const char *ofile)
+  WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_SESSION_IMPL *las_session;
+
+    cursor = cursor_arg;
+    conn = S2C((WT_SESSION_IMPL *)cursor->session);
+    las_session = conn->cache->las_session[0];
+    if (las_session == NULL)
+        return (0);
+    cbt = (WT_CURSOR_BTREE *)las_session->las_cursor;
+    return (__wt_debug_tree_all(las_session, cbt->btree, NULL, ofile));
+}
+
+/*
  * __wt_debug_cursor_page --
  *     Dump the in-memory information for a cursor-referenced page.
  */
@@ -1169,7 +1191,8 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         if (upd->txnid == WT_TXN_ABORTED)
             WT_RET(ds->f(ds,
               "\t"
-              "txn id aborted"));
+              "txn id aborted (was %" PRIu64 ")",
+              upd->orig_txnid));
         else
             WT_RET(ds->f(ds,
               "\t"
@@ -1180,6 +1203,8 @@ __debug_update(WT_DBG *ds, WT_UPDATE *upd, bool hexbyte)
         if (upd->durable_ts != WT_TS_NONE)
             WT_RET(
               ds->f(ds, ", durable_ts %s", __wt_timestamp_to_string(upd->durable_ts, ts_string)));
+
+        WT_RET(ds->f(ds, ", alloc 0x%" PRIx32, upd->alloc_id));
 
         prepare_state = NULL;
         switch (upd->prepare_state) {

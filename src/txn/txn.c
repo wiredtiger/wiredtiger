@@ -689,6 +689,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
             break;
 
         if (!commit) {
+	    upd->orig_txnid = upd->txnid;
             upd->txnid = WT_TXN_ABORTED;
             continue;
         }
@@ -1014,6 +1015,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * Switch reserved operations to abort to simplify obsolete update list truncation.
                  */
                 if (upd->type == WT_UPDATE_RESERVE) {
+                    upd->orig_txnid = upd->txnid;
                     upd->txnid = WT_TXN_ABORTED;
                     break;
                 }
@@ -1180,6 +1182,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * again: it can be discarded.
              */
             if (upd->type == WT_UPDATE_RESERVE) {
+                upd->orig_txnid = upd->txnid;
                 upd->txnid = WT_TXN_ABORTED;
                 __wt_txn_op_free(session, op);
                 break;
@@ -1280,6 +1283,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (!prepare) {
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
+                upd->orig_txnid = upd->txnid;
                 upd->txnid = WT_TXN_ABORTED;
             } else {
                 /*

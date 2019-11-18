@@ -63,6 +63,7 @@ typedef struct {
     char *home_backup_init;  /* Initialize backup command */
     char *home_config;       /* Run CONFIG file path */
     char *home_init;         /* Initialize home command */
+    char *home_lasdump;      /* LAS dump filename */
     char *home_log;          /* Operation log file path */
     char *home_pagedump;     /* Page dump filename */
     char *home_rand;         /* RNG log file path */
@@ -352,7 +353,7 @@ void snap_init(TINFO *, uint64_t, bool);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
-void snap_track(TINFO *, thread_op);
+void snap_track(WT_CURSOR *, TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);

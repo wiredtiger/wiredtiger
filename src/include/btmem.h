@@ -1069,14 +1069,16 @@ struct __wt_ikey {
  *	formed into a forward-linked list.
  */
 struct __wt_update {
-    volatile uint64_t txnid; /* transaction ID */
+    volatile uint64_t txnid;      /* transaction ID */
+    volatile uint64_t orig_txnid; /* transaction ID */
 
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
 
     WT_UPDATE *next; /* forward-linked list */
 
-    uint32_t size; /* data length */
+    uint32_t size;     /* data length */
+    uint32_t alloc_id; /* allocation location */
 
 #define WT_UPDATE_INVALID 0   /* diagnostic check */
 #define WT_UPDATE_BIRTHMARK 1 /* transaction for on-page value */
@@ -1107,7 +1109,11 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
+#if 0
 #define WT_UPDATE_SIZE 38
+#else
+#define WT_UPDATE_SIZE 50
+#endif
 
 /*
  * The memory size of an update: include some padding because this is such a common case that

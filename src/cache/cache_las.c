@@ -741,11 +741,28 @@ __wt_las_insert_block(
             if (upd == list->onpage_upd && upd->size > 0 &&
               (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
                 las_value.size = 0;
+                __wt_errx(session, "LAS_INS: birthmark ZERO txn id %" PRIu64 " start_ts %" PRIu64
+                                   " type %d"
+                                   " key pg_id %" PRIu64,
+                  " btree %" PRIu32, " LAS cnt %" PRIu64, upd->txnid, upd->start_ts, (int)upd->type,
+                  las_pageid, btree_id, las_counter);
                 cursor->set_value(cursor, upd->txnid, upd->start_ts, upd->durable_ts,
                   upd->prepare_state, WT_UPDATE_BIRTHMARK, &las_value);
-            } else
+            } else {
+                if (upd->size == 0 && upd->txnid != WT_TXN_NONE)
+                    __wt_errx(session,
+                      "LAS_INS: ZERO txn id %" PRIu64 " start_ts %" PRIu64 " type %d",
+                      " key pg_id %" PRIu64, " btree %" PRIu32, " LAS cnt %" PRIu64, upd->txnid,
+                      upd->start_ts, (int)upd->type, las_pageid, btree_id, las_counter);
+                else
+                    __wt_errx(session,
+                      "LAS_INS: txn id %" PRIu64 " start_ts %" PRIu64 " type %d size %d",
+                      " key pg_id %" PRIu64, " btree %" PRIu32, " LAS cnt %" PRIu64, upd->txnid,
+                      upd->start_ts, (int)upd->type, (int)upd->size, las_pageid, btree_id,
+                      las_counter);
                 cursor->set_value(cursor, upd->txnid, upd->start_ts, upd->durable_ts,
                   upd->prepare_state, upd->type, &las_value);
+            }
 
             /*
              * Using update instead of insert so the page stays pinned and can be searched before

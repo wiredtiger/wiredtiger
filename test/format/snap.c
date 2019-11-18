@@ -28,6 +28,7 @@
 
 #include "format.h"
 
+static int snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap);
 /*
  * snap_init --
  *     Initialize the repeatable operation tracking.
@@ -49,7 +50,7 @@ snap_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
  *     Add a single snapshot isolation returned value to the list.
  */
 void
-snap_track(TINFO *tinfo, thread_op op)
+snap_track(WT_CURSOR *cursor, TINFO *tinfo, thread_op op)
 {
     WT_ITEM *ip;
     SNAP_OPS *snap;
@@ -79,6 +80,11 @@ snap_track(TINFO *tinfo, thread_op op)
             snap->vmemsize = ip->size;
         }
         memcpy(snap->vdata, ip->data, snap->vsize = ip->size);
+    }
+
+    if (op == READ) {
+        __wt_yield();
+        snap_verify(cursor, tinfo, snap);
     }
 
     /* Move to the next slot, wrap at the end of the circular buffer. */
@@ -193,8 +199,24 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 
 /* Things went pear-shaped. */
 #ifdef HAVE_DIAGNOSTIC
+    if (g.type == ROW) {
+        fprintf(
+          stderr, "snapshot-isolation %.*s search mismatch\n", (int)key->size, (char *)key->data);
+        if (snap->op == REMOVE)
+            fprintf(stderr, "expected {deleted}\n");
+        else
+            print_item_data("expected", snap->vdata, snap->vsize);
+        if (ret == WT_NOTFOUND)
+            fprintf(stderr, "   found {deleted}\n");
+        else
+            print_item_data("   found", value->data, value->size);
+    }
     fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
     testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
+    fprintf(stderr, "snapshot-isolation error: Dumping LAS to %s\n", g.home_lasdump);
+    testutil_check(__wt_debug_cursor_las(cursor, g.home_lasdump));
+    if (g.logging)
+        testutil_check(cursor->session->log_flush(cursor->session, "sync=off"));
 #endif
     switch (g.type) {
     case FIX:

@@ -523,7 +523,7 @@ prepare_transaction(TINFO *tinfo)
 #define SNAP_TRACK(tinfo, op)                                          \
     do {                                                               \
         if (intxn && !ckpt_handle && iso_config == ISOLATION_SNAPSHOT) \
-            snap_track(tinfo, op);                                     \
+            snap_track(cursor, tinfo, op);                             \
     } while (0)
 
 /*
@@ -974,6 +974,7 @@ ops(void *arg)
             snap_repeat_update(tinfo, true);
             break;
         case 5: /* 10% */
+        case 6: /* 20% */
 rollback:
             rollback_transaction(tinfo);
             snap_repeat_update(tinfo, false);
