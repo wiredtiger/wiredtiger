@@ -1628,7 +1628,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: test-spinlock
+    - name: spinlock-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
