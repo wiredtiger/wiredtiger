@@ -278,7 +278,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(__create_birthmark_upd(session, &page_las->birthmarks[i], &size, &upd));
             WT_ERR(__wt_buf_set(session, &las_key, page_las->birthmarks[i].key.data,
               page_las->birthmarks[i].key.size));
-            WT_ASSERT(session, las_key.data != page_las->birthmarks[i].key.data);
             birthmark_record = true;
         } else {
             WT_ERR(__wt_las_cursor_position(
