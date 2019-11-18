@@ -1586,6 +1586,25 @@ tasks:
           display_name: Coverage report
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
+  - name: test-spinlock
+    commands:
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: CFLAGS="-ggdb" --enable-python --with-spinlock=gcc --enable-strict
+      - func: "make check all"
+      - func: "test format"
+        vars:
+          times: 3
+      - func: "unit test"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: CFLAGS="-ggdb" --enable-python --with-spinlock=pthread_adaptive --enable-strict
+      - func: "make check all"
+      - func: "test format"
+        vars:
+          times: 3
+      -func: "unit test"
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
