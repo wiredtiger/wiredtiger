@@ -432,6 +432,7 @@ err:
             __wt_buf_free(session, &las_preparep->key);
 
     __wt_scr_free(session, &las_prepares);
+    __wt_scr_free(session, &error_buf);
     if (locked)
         __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
