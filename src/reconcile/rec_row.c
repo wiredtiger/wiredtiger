@@ -674,8 +674,8 @@ err:
  *     Reconcile a row-store leaf page.
  */
 int
-__wt_rec_row_leaf(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
+__wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
+  WT_SALVAGE_COOKIE *salvage, WT_UPDATE **updp)
 {
     WT_ADDR *addr;
     WT_BTREE *btree;
@@ -905,9 +905,6 @@ __wt_rec_row_leaf(
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
-            /* Free the update if it is external. */
-            if (upd->ext != 0)
-                __wt_free_update_list(session, &upd);
         }
 
         /*
@@ -1016,10 +1013,9 @@ build:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-
-    /* Free the update if it is external. */
+    /* Keep a handle on the update if it is external. */
     if (upd != NULL && upd->ext != 0)
-        __wt_free_update_list(session, &upd);
+        *updp = upd;
 
     __wt_scr_free(session, &tmpkey);
     __wt_scr_free(session, &tmpval);

@@ -283,8 +283,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         } else {
             WT_ERR(__wt_las_cursor_position(
               session, las_cursor, las_btree_id, &page_las->birthmarks[i].key, WT_TS_MAX));
-            WT_ERR(
-                las_cursor->get_key(las_cursor, &las_btree_id_tmp, &las_key, &las_timestamp, &las_txnid));
+            WT_ERR(las_cursor->get_key(
+              las_cursor, &las_btree_id_tmp, &las_key, &las_timestamp, &las_txnid));
             WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->birthmarks[i].key, &cmp));
             if (las_btree_id != las_btree_id_tmp || cmp != 0) {
                 WT_ERR(__wt_scr_alloc(session, 1024, &error_buf));

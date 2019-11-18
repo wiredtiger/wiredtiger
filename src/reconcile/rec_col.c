@@ -587,8 +587,8 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
  *     Reconcile a variable-width column-store leaf page.
  */
 int
-__wt_rec_col_var(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
+__wt_rec_col_var(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
+  WT_SALVAGE_COOKIE *salvage, WT_UPDATE **updp)
 {
     enum { OVFL_IGNORE, OVFL_UNUSED, OVFL_USED } ovfl_state;
     struct {
@@ -1096,10 +1096,6 @@ compare:
                     WT_ERR(__wt_buf_set(session, last.value, data, size));
             }
 
-            /* Free the update if it is external. */
-            if (upd != NULL && upd->ext != 0)
-                __wt_free_update_list(session, &upd);
-
             /* Ready for the next loop, reset the RLE counter. */
             last.start_ts = start_ts;
             last.start_txn = start_txn;
@@ -1135,9 +1131,9 @@ next:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    /* Free the update if it is external. */
+    /* Keep a handle on the update if it is external. */
     if (upd != NULL && upd->ext != 0)
-        __wt_free_update_list(session, &upd);
+        *updp = upd;
 
     __wt_scr_free(session, &orig);
     return (ret);
