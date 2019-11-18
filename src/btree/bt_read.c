@@ -203,8 +203,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     birthmark_record = false;
     locked = false;
 
-    /* Check whether the disk image contains all the newest versions of the page. */
-    if (page_las->min_skipped_ts == WT_TS_MAX) {
+    /*
+     * Check whether the disk image contains all the newest versions of the page. If the lookaside
+     * contains prepared updates for this page, we need to check it regardless.
+     */
+    if (page_las->min_skipped_ts == WT_TS_MAX && !page_las->has_prepares) {
         WT_RET(__instantiate_birthmarks(session, ref));
 
         if (page->modify != NULL) {
@@ -220,7 +223,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
              * all older and we could consider marking it clean (i.e., the next checkpoint can use
              * the version already on disk).
              */
-            if (!page_las->has_prepares && !S2C(session)->txn_global.has_stable_timestamp &&
+            if (!S2C(session)->txn_global.has_stable_timestamp &&
               __wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts)) {
                 page->modify->rec_max_txn = page_las->max_txn;
                 page->modify->rec_max_timestamp = page_las->max_ondisk_ts;
