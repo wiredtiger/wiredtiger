@@ -190,9 +190,9 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_modify_vector_init(session, &modifies);
     page = ref->page;
     page_las = ref->page_las;
+    mod_upd = upd = NULL;
     las_timestamp = WT_TS_NONE;
     las_txnid = WT_TXN_NONE;
-    mod_upd = upd = NULL;
     recno = WT_RECNO_OOB;
     las_btree_id = S2BT(session)->id;
     las_prepare_cnt = mod_counter = 0;
@@ -415,12 +415,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
       instantiated_cnt);
 
 err:
-    /* We do not need the birthmark information in the lookaside structure anymore. */
-    for (i = 0; i < page_las->birthmarks_cnt; i++)
-        __wt_buf_free(session, &page_las->birthmarks[i].key);
-    page_las->birthmarks_cnt = 0;
-    __wt_free(session, page_las->birthmarks);
-
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &mod_upd);
@@ -432,6 +426,13 @@ err:
             __wt_buf_free(session, &las_preparep->key);
 
     __wt_scr_free(session, &las_prepares);
+
+    /* We do not need the birthmark information in the lookaside structure anymore. */
+    for (i = 0; i < page_las->birthmarks_cnt; i++)
+        __wt_buf_free(session, &page_las->birthmarks[i].key);
+    page_las->birthmarks_cnt = 0;
+    __wt_free(session, page_las->birthmarks);
+
     if (locked)
         __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
