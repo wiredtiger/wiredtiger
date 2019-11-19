@@ -109,6 +109,7 @@ __cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
      */
     while ((current_state = cbt->ref->state) == WT_REF_LOCKED)
         __wt_yield();
+    WT_ASSERT(session, current_state == WT_REF_LIMBO || current_state == WT_REF_MEM);
     return (current_state == WT_REF_MEM);
 }
 
