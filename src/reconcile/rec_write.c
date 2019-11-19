@@ -178,7 +178,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         if (salvage != NULL)
             ret = __wt_rec_col_fix_slvg(session, r, ref, salvage);
         else
-            ret = __wt_rec_col_fix(session, r, ref);
+            ret = __wt_rec_col_fix(session, r, ref, &upd);
         break;
     case WT_PAGE_COL_INT:
         WT_WITH_PAGE_INDEX(session, ret = __wt_rec_col_int(session, r, ref));

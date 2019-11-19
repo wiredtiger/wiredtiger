@@ -320,7 +320,7 @@ err:
  *     Reconcile a fixed-width, column-store leaf page.
  */
 int
-__wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
+__wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_UPDATE **updp)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -344,13 +344,9 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page)) {
         WT_RET(__wt_rec_upd_select(session, r, ins, NULL, NULL, &upd_select));
         upd = upd_select.upd;
-        if (upd != NULL) {
+        if (upd != NULL)
             __bit_setv(
               r->first_free, WT_INSERT_RECNO(ins) - pageref->ref_recno, btree->bitcnt, *upd->data);
-            /* Free the update if it is external. */
-            if (upd->ext != 0)
-                __wt_free_update_list(session, &upd);
-        }
     }
 
     /* Calculate the number of entries per page remainder. */
@@ -423,10 +419,6 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
         }
 
-        /* Free the update if it is external. */
-        if (upd != NULL && upd->ext != 0)
-            __wt_free_update_list(session, &upd);
-
         /*
          * Execute this loop once without an insert item to catch any missing records due to a
          * split, then quit.
@@ -442,9 +434,9 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    /* Free the update if it is external. */
+    /* Keep a handle on the update if it is external. */
     if (upd != NULL && upd->ext != 0)
-        __wt_free_update_list(session, &upd);
+        *updp = upd;
 
     return (ret);
 }
@@ -928,10 +920,6 @@ compare:
                 } else
                     WT_ERR(__wt_buf_set(session, last.value, data, size));
             }
-
-            /* Free the update if it is external. */
-            if (upd != NULL && upd->ext != 0)
-                __wt_free_update_list(session, &upd);
 
             last.start_ts = start_ts;
             last.start_txn = start_txn;

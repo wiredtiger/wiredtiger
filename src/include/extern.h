@@ -1149,8 +1149,8 @@ extern int __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, W
   uint64_t stop_txn, uint64_t rle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_child_modify(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
   bool *hazardp, WT_CHILD_STATE *statep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
+  WT_UPDATE **updp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_col_fix_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
   WT_SALVAGE_COOKIE *salvage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
