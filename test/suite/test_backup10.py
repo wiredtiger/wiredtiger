@@ -148,7 +148,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         dupc.close()
 
         # Test we must use the log target.
-        msg = "/must be for logs/"
+        msg = "/must be for /"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, None), 0), msg)

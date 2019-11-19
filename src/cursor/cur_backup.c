@@ -13,7 +13,6 @@ static int __backup_list_append(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, const cha
 static int __backup_list_uri_append(WT_SESSION_IMPL *, const char *, bool *);
 static int __backup_start(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, bool, const char *[]);
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
-static int __backup_uri(WT_SESSION_IMPL *, const char *[], bool, bool *, bool *);
 
 /*
  * __curbackup_next --
@@ -406,10 +405,10 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      * Duplicate backup cursors are only for log targets or block-based incremental backups. But log
      * targets don't make sense with block-based incremental backup.
      */
-    if (!is_dup && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
+    if (!is_dup && log_only && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
         WT_ERR_MSG(session, EINVAL,
           "incremental log file backup not possible when automatic log archival configured");
-    if (is_dup && (!incremental_config && !log_only))
+    if (is_dup && (!incremental_config && !log_config))
         WT_ERR_MSG(session, EINVAL,
           "duplicate backup cursor must be for block-based incremental or logging backup");
     if (incremental_config && (log_config || target_list))
@@ -492,10 +491,10 @@ __backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool is_dup, cons
 
         /*
          * Create a temporary backup file. This must be opened before generating the list of targets
-         * in backup_uri. This file will later be renamed to the correct name depending on whether
-         * or not we're doing an incremental backup. We need a temp file so that if we fail or crash
-         * while filling it, the existence of a partial file doesn't confuse restarting in the
-         * source database.
+         * in backup_config. This file will later be renamed to the correct name depending on
+         * whether or not we're doing an incremental backup. We need a temp file so that if we fail
+         * or crash while filling it, the existence of a partial file doesn't confuse restarting in
+         * the source database.
          */
         WT_ERR(__wt_fopen(session, WT_BACKUP_TMP, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &cb->bfs));
     }
@@ -506,14 +505,10 @@ __backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool is_dup, cons
      */
     target_list = false;
     WT_ERR(__backup_config(session, cb, cfg, is_dup, &target_list, &log_only, &is_incr));
-    WT_ERR(__backup_uri(session, cfg, is_dup, &target_list, &log_only));
     /*
-     * For a duplicate cursor, all the work is done in backup_uri. The only usage accepted is
-     * "target=("log:")" so error if not log only.
+     * For a duplicate cursor, all the work is done in backup_config.
      */
     if (is_dup) {
-        if (!log_only)
-            WT_ERR_MSG(session, EINVAL, "duplicate backup cursor must be for logs only");
         F_SET(cb, WT_CURBACKUP_DUP);
         F_SET(session, WT_SESSION_BACKUP_DUP);
         goto done;
@@ -552,10 +547,10 @@ __backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool is_dup, cons
          */
         dest = WT_LOGINCR_BACKUP;
         WT_ERR(__wt_fopen(session, WT_LOGINCR_SRC, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &srcfs));
-        WT_ERR(__backup_list_append(session, cb, WT_LOGINCR_BACKUP));
+        WT_ERR(__backup_list_append(session, cb, dest));
     } else {
         dest = WT_METADATA_BACKUP;
-        WT_ERR(__backup_list_append(session, cb, WT_METADATA_BACKUP));
+        WT_ERR(__backup_list_append(session, cb, dest));
         WT_ERR(__wt_fs_exist(session, WT_BASECONFIG, &exist));
         if (exist)
             WT_ERR(__backup_list_append(session, cb, WT_BASECONFIG));
@@ -626,75 +621,6 @@ __backup_all(WT_SESSION_IMPL *session)
 {
     /* Build a list of the file objects that need to be copied. */
     return (__wt_meta_apply_all(session, NULL, __backup_list_uri_append, NULL));
-}
-
-/*
- * __backup_uri --
- *     Backup a list of objects.
- */
-static int
-__backup_uri(WT_SESSION_IMPL *session, const char *cfg[], bool is_dup, bool *foundp, bool *log_only)
-{
-    WT_CONFIG targetconf;
-    WT_CONFIG_ITEM cval, k, v;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    const char *uri;
-    bool target_list;
-
-    *foundp = *log_only = false;
-
-    /*
-     * If we find a non-empty target configuration string, we have a job, otherwise it's not our
-     * problem.
-     */
-    WT_RET(__wt_config_gets(session, cfg, "target", &cval));
-    __wt_config_subinit(session, &targetconf, &cval);
-    for (target_list = false; (ret = __wt_config_next(&targetconf, &k, &v)) == 0;
-         target_list = true) {
-        /* If it is our first time through, allocate. */
-        if (!target_list) {
-            *foundp = true;
-            WT_ERR(__wt_scr_alloc(session, 512, &tmp));
-        }
-
-        WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)k.len, k.str));
-        uri = tmp->data;
-        if (v.len != 0)
-            WT_ERR_MSG(session, EINVAL, "%s: invalid backup target: URIs may need quoting", uri);
-
-        /*
-         * Handle log targets. We do not need to go through the schema worker, just call the
-         * function to append them. Set log_only only if it is our only URI target.
-         */
-        if (WT_PREFIX_MATCH(uri, "log:")) {
-            /*
-             * Log archive cannot mix with incremental backup, don't let that happen. If we're a
-             * duplicate cursor archiving is already temporarily suspended.
-             */
-            if (!is_dup && FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ARCHIVE))
-                WT_ERR_MSG(session, EINVAL,
-                  "incremental backup not possible when "
-                  "automatic log archival configured");
-            *log_only = !target_list;
-            WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
-        } else {
-            *log_only = false;
-
-            /*
-             * If backing up individual tables, we have to include indexes, which may involve
-             * opening those indexes. Acquire the table lock in write mode for that case.
-             */
-            WT_WITH_TABLE_WRITE_LOCK(session,
-              ret = __wt_schema_worker(session, uri, NULL, __backup_list_uri_append, cfg, 0));
-            WT_ERR(ret);
-        }
-    }
-    WT_ERR_NOTFOUND_OK(ret);
-
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
 }
 
 /*
