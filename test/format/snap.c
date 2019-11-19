@@ -197,9 +197,9 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
     case FIX:
         fprintf(stderr, "snapshot-isolation: %" PRIu64
                         " search: "
-                        "expected {0x%02x}, found {0x%02x}",
-          keyno, snap->op == REMOVE ? 0 : *(uint8_t *)snap->vdata,
-          ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
+                        "expected {0x%02x}, found {0x%02x}\n",
+          keyno, snap->op == REMOVE ? 0U : *(uint8_t *)snap->vdata,
+          ret == WT_NOTFOUND ? 0U : *(uint8_t *)value->data);
         break;
     case ROW:
         fprintf(
