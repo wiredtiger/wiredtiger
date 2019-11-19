@@ -1603,7 +1603,7 @@ tasks:
   - name: spinlock-test-gcc-1
     tags: ["spinlock-test"]
     depends_on:
-    - name: compile-spinlock-gcc
+      - name: compile-spinlock-gcc
     commands:
       - func: "fetch artifacts"
       - func: "make check all"
@@ -1611,7 +1611,7 @@ tasks:
   - name: spinlock-test-gcc-2
     tags: ["spinlock-test"]
     depends_on:
-    - name: compile-spinlock-gcc
+      - name: compile-spinlock-gcc
     commands:
       - func: "fetch artifacts"
       - func: "test format"
@@ -1621,7 +1621,7 @@ tasks:
   - name: spinlock-test-gcc-3
     tags: ["spinlock-test"]
     depends_on:
-    - name: compile-spinlock-gcc
+      - name: compile-spinlock-gcc
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
@@ -1629,7 +1629,7 @@ tasks:
   - name: spinlock-test-pthread-adaptive-1
     tags: ["spinlock-test"]
     depends_on:
-    - name: compile-spinlock-pthread-adaptive
+      - name: compile-spinlock-pthread-adaptive
     commands:
       - func: "fetch artifacts"
       - func: "make check all"
@@ -1637,7 +1637,7 @@ tasks:
   - name: spinlock-test-pthread-adaptive-2
     tags: ["spinlock-test"]
     depends_on:
-    - name: compile-spinlock-pthread-adaptive
+      - name: compile-spinlock-pthread-adaptive
     commands:
       - func: "fetch artifacts"
       - func: "test format"
@@ -1647,7 +1647,7 @@ tasks:
   - name: spinlock-test-pthread-adaptive-3
     tags: ["spinlock-test"]
     depends_on:
-    - name: compile-spinlock-pthread-adaptive
+      - name: compile-spinlock-pthread-adaptive
     commands:
       - func: "fetch artifacts"
       - func: "unit test"
@@ -1674,6 +1674,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
+    - name: compile-spinlock-gcc
+    - name: compile-spinlock-pthread-adaptive
     - name: ".spinlock-test"
 
 - name: ubuntu1804-python3
