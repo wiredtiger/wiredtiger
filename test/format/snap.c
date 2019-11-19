@@ -192,7 +192,6 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
     }
 
 /* Things went pear-shaped. */
-#ifdef HAVE_DIAGNOSTIC
     switch (g.type) {
     case FIX:
         fprintf(stderr, "snapshot-isolation: %" PRIu64
@@ -229,6 +228,8 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 
         break;
     }
+
+#ifdef HAVE_DIAGNOSTIC
     /*
      * We have a mismatch. Try to print out as much information as we can. In doing so, we are
      * calling into the debug code directly and that does not take locks. So it is possible that the
