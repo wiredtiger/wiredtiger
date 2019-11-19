@@ -28,13 +28,18 @@
 
 import glob
 import os
-import resource
 import shutil
 import string
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+try:
+    # Windows does not getrlimit/setrlimit so we must catch the resource
+    # module load.
+    import resource
+except:
+    None
 
 # test_backup06.py
 #    Test that opening a backup cursor does not open file handles.
@@ -82,12 +87,16 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
         limits = resource.getrlimit(resource.RLIMIT_NOFILE)
-        if limits[0] < 1000:
-            self.skipTest('Too few open files available. Limit %d' % limits[0])
+        if limits[0] < 8192:
+            new = (8192, limits[1])
+            resource.setrlimit(resource.RLIMIT_NOFILE, new)
         self.populate_many()
         # Close and reopen the connection so the populate dhandles are
         # not in the list.
         self.reopen_conn()
+
+        new = (limits[0], limits[1])
+        resource.setrlimit(resource.RLIMIT_NOFILE, new)
 
         # Confirm that opening a backup cursor does not open
         # file handles.
