@@ -87,8 +87,8 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
         limits = resource.getrlimit(resource.RLIMIT_NOFILE)
-        if limits[0] < 8192:
-            new = (8192, limits[1])
+        if limits[0] < 1024:
+            new = (1024, limits[1])
             resource.setrlimit(resource.RLIMIT_NOFILE, new)
         self.populate_many()
         # Close and reopen the connection so the populate dhandles are
