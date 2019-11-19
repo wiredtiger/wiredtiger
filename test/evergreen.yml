@@ -1586,6 +1586,29 @@ tasks:
           display_name: Coverage report
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
+  - name: test-wtperf
+    depends_on:
+      - name: compile
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            mkdir WT_TEST
+            dir=../bench/wtperf/stress
+            for file in `ls $dir`
+            do
+              ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
+              rm -rf WT_TEST/*
+            done
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1608,6 +1631,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
+    - name: test-wtperf
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
