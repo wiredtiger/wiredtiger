@@ -1587,8 +1587,6 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
   - name: test-wtperf
-    depends_on:
-      - name: compile
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
