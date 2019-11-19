@@ -47,8 +47,9 @@ class test_las06(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
     key_format_values = [
-        ('column_store', dict(key_format='r')),
-        ('row_store', dict(key_format='i'))
+        ('column', dict(key_format='r')),
+        ('integer', dict(key_format='i')),
+        ('string', dict(key_format='S'))
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -60,6 +61,11 @@ class test_las06(wttest.WiredTigerTestCase):
 
     def get_non_page_image_memory_usage(self):
         return self.get_stat(stat.conn.cache_bytes_other)
+
+    def create_key(self, i):
+        if self.key_format == 'S':
+            return str(i)
+        return i
 
     def test_las_reads(self):
         # Create a small table.
@@ -75,13 +81,13 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 5Mb of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[i] = value2
+            cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Write a version of the data to disk.
@@ -101,7 +107,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # update chain of every version of the data.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         for i in range(1, 10000):
-            self.assertEqual(cursor[i], value1)
+            self.assertEqual(cursor[self.create_key(i)], value1)
         self.session.rollback_transaction()
 
         end_usage = self.get_non_page_image_memory_usage()
@@ -132,13 +138,13 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, 5000):
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 5000):
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             mods = [wiredtiger.Modify('B', 100, 1)]
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
@@ -146,7 +152,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # And another.
         self.session.begin_transaction()
         for i in range(1, 5000):
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             mods = [wiredtiger.Modify('C', 200, 1)]
             self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
@@ -154,7 +160,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # Now write something completely different.
         self.session.begin_transaction()
         for i in range(1, 5000):
-            cursor[i] = value2
+            cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Now the latest version will get written to the data file.
@@ -176,7 +182,7 @@ class test_las06(wttest.WiredTigerTestCase):
         #                             between on value1 to deduce value3.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, 5000):
-            self.assertEqual(cursor[i], expected)
+            self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
     def test_las_prepare_reads(self):
@@ -192,7 +198,7 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load prepared data and leave it in a prepared state.
@@ -200,14 +206,14 @@ class test_las06(wttest.WiredTigerTestCase):
         prepare_cursor = prepare_session.open_cursor(uri)
         prepare_session.begin_transaction()
         for i in range(1, 11):
-            prepare_cursor[i] = value2
+            prepare_cursor[self.create_key(i)] = value2
         prepare_session.prepare_transaction(
             'prepare_timestamp=' + timestamp_str(3))
 
         # Write some more to cause eviction of the prepared data.
         for i in range(11, 10000):
             self.session.begin_transaction()
-            cursor[i] = value2
+            cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         self.session.checkpoint()
@@ -217,7 +223,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # return a prepare conflict as appropriate.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         for i in range(1, 11):
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertRaisesException(
                 wiredtiger.WiredTigerError,
                 lambda: cursor.search(),
@@ -229,7 +235,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
         for i in range(1, 11):
-            self.assertEquals(value2, cursor[i])
+            self.assertEquals(value2, cursor[self.create_key(i)])
         self.session.rollback_transaction()
 
     def test_las_multiple_updates(self):
@@ -248,27 +254,27 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Do two different updates to the same key with the same timestamp.
         # We want to make sure that the second value is the one that is visible even after eviction.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor[i] = value2
-            cursor[i] = value3
+            cursor[self.create_key(i)] = value2
+            cursor[self.create_key(i)] = value3
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Write a newer value on top.
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value4
+            cursor[self.create_key(i)] = value4
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         # Ensure that we see the last of the two updates that got applied.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         for i in range(1, 11):
-            self.assertEquals(cursor[i], value3)
+            self.assertEquals(cursor[self.create_key(i)], value3)
         self.session.rollback_transaction()
 
     def test_las_multiple_modifies(self):
@@ -285,14 +291,14 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Apply three sets of modifies.
         # They specifically need to be in separate modify calls.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
             self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
             self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
@@ -307,13 +313,13 @@ class test_las06(wttest.WiredTigerTestCase):
         # Write a newer value on top.
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value2
+            cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         # Go back and read. We should get the initial value with the 3 modifies applied on top.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
         for i in range(1, 11):
-            self.assertEqual(cursor[i], expected)
+            self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
     def test_las_instantiated_modify(self):
@@ -331,19 +337,19 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Apply three sets of modifies.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
@@ -352,7 +358,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # We want to check that it gets converted into a standard update as appropriate.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
@@ -362,7 +368,7 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor2[i] = value2
+            cursor2[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
         expected = list(value1)
@@ -374,7 +380,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # Go back and read. We should get the initial value with the 3 modifies applied on top.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
         for i in range(1, 11):
-            self.assertEqual(cursor[i], expected)
+            self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
     def test_las_modify_birthmark_is_base_update(self):
@@ -396,25 +402,25 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
 
         # Apply three sets of modifies.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
@@ -424,7 +430,7 @@ class test_las06(wttest.WiredTigerTestCase):
         cursor2 = self.session.open_cursor(uri2)
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor2[i] = value2
+            cursor2[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         expected = list(value1)
@@ -437,7 +443,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # Ensure that we're aware that the birthmark update could be the base update.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
         for i in range(1, 11):
-            self.assertEqual(cursor[i], expected)
+            self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
     def test_las_rec_modify(self):
@@ -456,33 +462,33 @@ class test_las06(wttest.WiredTigerTestCase):
         # Base update.
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value1
+            cursor[self.create_key(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Apply three sets of modifies.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('B', 100, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('C', 200, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         # This is the one we want to be selected by the checkpoint.
         for i in range(1, 11):
             self.session.begin_transaction()
-            cursor.set_key(i)
+            cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.modify([wiredtiger.Modify('D', 300, 1)]), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Apply another update and evict the pages with the modifies out of cache.
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[i] = value2
+            cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(6))
 
         # Checkpoint such that the modifies will be selected. When we grab it from lookaside, we'll
@@ -499,7 +505,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # Check that the correct value is visible after checkpoint.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
         for i in range(1, 11):
-            self.assertEqual(cursor[i], expected)
+            self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
 if __name__ == '__main__':
