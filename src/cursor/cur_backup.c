@@ -405,7 +405,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      * Duplicate backup cursors are only for log targets or block-based incremental backups. But log
      * targets don't make sense with block-based incremental backup.
      */
-    if (!is_dup && log_only && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
+    if (!is_dup && log_config && FLD_ISSET(conn->log_flags, WT_CONN_LOG_ARCHIVE))
         WT_ERR_MSG(session, EINVAL,
           "incremental log file backup not possible when automatic log archival configured");
     if (is_dup && (!incremental_config && !log_config))
