@@ -275,8 +275,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
          */
         if (page_las->birthmarks[i].txnid != WT_TXN_ABORTED) {
             WT_ERR(__create_birthmark_upd(session, &page_las->birthmarks[i], &size, &upd));
-            WT_ERR(__wt_buf_set(session, &las_key, page_las->birthmarks[i].key.data,
-              page_las->birthmarks[i].key.size));
+            las_key.data = page_las->birthmarks[i].key.data;
+            las_key.size = page_las->birthmarks[i].key.size;
             birthmark_record = true;
         } else {
             WT_ERR(__wt_las_cursor_position(
