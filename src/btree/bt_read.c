@@ -166,7 +166,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CACHE *cache;
     WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE cbt;
-    WT_DECL_ITEM(error_buf);
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
     WT_ITEM las_key, las_key_tmp, las_value;
@@ -285,13 +284,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(las_cursor->get_key(
               las_cursor, &las_btree_id_tmp, &las_key, &las_timestamp, &las_txnid));
             WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->birthmarks[i].key, &cmp));
-            if (las_btree_id != las_btree_id_tmp || cmp != 0) {
-                WT_ERR(__wt_scr_alloc(session, 1024, &error_buf));
-                WT_PANIC_ERR(
-                  session, WT_NOTFOUND, "Could not find any lookaside records for key: %.1024s",
-                  __wt_buf_set_printable_format(session, page_las->birthmarks[i].key.data,
-                    page_las->birthmarks[i].key.size, S2BT(session)->key_format, error_buf));
-            }
+            WT_ASSERT(session, las_btree_id == las_btree_id_tmp && cmp == 0);
 
             /* Allocate the WT_UPDATE structure. */
             WT_ERR(las_cursor->get_value(
@@ -432,7 +425,6 @@ err:
             __wt_buf_free(session, &las_preparep->key);
 
     __wt_scr_free(session, &las_prepares);
-    __wt_scr_free(session, &error_buf);
     if (locked)
         __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
