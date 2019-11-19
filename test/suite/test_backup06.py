@@ -28,6 +28,7 @@
 
 import glob
 import os
+import resource
 import shutil
 import string
 from suite_subprocess import suite_subprocess
@@ -80,6 +81,9 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
+        limits = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if limits[0] < 1000:
+            self.skipTest('Too few open files available. Limit %d' % limits[0])
         self.populate_many()
         # Close and reopen the connection so the populate dhandles are
         # not in the list.
