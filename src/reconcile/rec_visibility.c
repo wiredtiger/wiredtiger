@@ -727,10 +727,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * the caller. In such a case we have put a copy of the on-disk value in the update chain after
      * the birthmark. We will point to that copy as the on-disk update.
      */
-    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK && orig_val_appended) {
-        WT_ASSERT(session, upd_select->upd == NULL);
+    if (upd != NULL && upd_select->upd == NULL)
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd->next, upd_memsize));
-    } else
+    else
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
     upd_select->upd_saved = true;
 

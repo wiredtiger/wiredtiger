@@ -102,9 +102,6 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
             sessions[j].close()
 
     def test_prepare_lookaside(self):
-        # Temporarily disabled
-        return
-
         # Create a small table.
         uri = "table:test_prepare_lookaside01"
         nrows = 100

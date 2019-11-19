@@ -247,10 +247,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /*
      * The lookaside records are in update order for a given key, that is, there will be a set of
-     * in-order updates for a key, then another set of in-order updates for a subsequent key. We
-     * find the most recent of the updates for a key and then insert that update into the page, then
-     * all the updates for the next key, and so on. If a birthmark record exists for that key, then
-     * insert birthmark record into the page.
+     * in-order updates for a key, then another set of in-order updates for another key. We have a
+     * list of keys in the page las structure for which we expect to find updates in the lookaside
+     * file. We iterate over these keys, locating the most recent of the updates for a key and then
+     * insert that update into the page. If a birthmark record exists for that key, we insert that
+     * birthmark instead of the update.
      *
      * An important point to note is that the keys for a given page are NOT necessarily next to each
      * other in the lookaside table since we can specify our own ordering for a given table with a
@@ -367,7 +368,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         }
 
         /* Remove the prepared record from LAS once the page is instantiated successfully. */
-        if (!birthmark_record && upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_ASSERT(session, !birthmark_record);
             /* Extend the buffer if needed. */
             WT_ERR(__wt_buf_extend(session, las_prepares,
               (las_prepare_cnt + 1) * sizeof(struct las_page_prepared_updates)));
