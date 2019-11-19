@@ -237,7 +237,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
      * The most important information is the key/value mismatch information. Then try to dump out
      * the other information. Right now we dump the entire lookaside table including what is on
      * disk. That can potentially be very large. If it becomes a problem, this can be modified to
-     * just dump out the page this key is on. 
+     * just dump out the page this key is on.
      */
     fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
     testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
