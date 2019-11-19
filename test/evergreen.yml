@@ -206,6 +206,19 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
 
+  - name: compile-spinlock-gcc
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
+
+  - name: compile-spinlock-pthread-adaptive
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
   # production build with --disable-shared
   - name: compile-production-disable-shared
     tags: ["pull_request"]
@@ -1586,24 +1599,57 @@ tasks:
           display_name: Coverage report
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
-  - name: spinlock-test
+  # creating bunch of spinlock tests so they can be scheduled in parallel
+  - name: spinlock-test-gcc-1
+    tags: ["spinlock-test"]
+    depends_on:
+    - name: compile-spinlock-gcc
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
+      - func: "fetch artifacts"
       - func: "make check all"
+
+  - name: spinlock-test-gcc-2
+    tags: ["spinlock-test"]
+    depends_on:
+    - name: compile-spinlock-gcc
+    commands:
+      - func: "fetch artifacts"
       - func: "test format"
         vars:
           times: 3
+
+  - name: spinlock-test-gcc-3
+    tags: ["spinlock-test"]
+    depends_on:
+    - name: compile-spinlock-gcc
+    commands:
+      - func: "fetch artifacts"
       - func: "unit test"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
+
+  - name: spinlock-test-pthread-adaptive-1
+    tags: ["spinlock-test"]
+    depends_on:
+    - name: compile-spinlock-pthread-adaptive
+    commands:
+      - func: "fetch artifacts"
       - func: "make check all"
+
+  - name: spinlock-test-pthread-adaptive-2
+    tags: ["spinlock-test"]
+    depends_on:
+    - name: compile-spinlock-pthread-adaptive
+    commands:
+      - func: "fetch artifacts"
       - func: "test format"
         vars:
           times: 3
+
+  - name: spinlock-test-pthread-adaptive-3
+    tags: ["spinlock-test"]
+    depends_on:
+    - name: compile-spinlock-pthread-adaptive
+    commands:
+      - func: "fetch artifacts"
       - func: "unit test"
 
 buildvariants:
@@ -1628,7 +1674,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: spinlock-test
+    - name: ".spinlock-test"
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
