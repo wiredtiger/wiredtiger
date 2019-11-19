@@ -14,10 +14,14 @@
 
 #define WT_USERCONFIG "WiredTiger.config" /* User configuration */
 
-#define WT_BACKUP_TMP "WiredTiger.backup.tmp"      /* Backup tmp file */
-#define WT_METADATA_BACKUP "WiredTiger.backup"     /* Hot backup file */
-#define WT_INCREMENTAL_BACKUP "WiredTiger.ibackup" /* Incremental backup */
-#define WT_INCREMENTAL_SRC "WiredTiger.isrc"       /* Incremental source */
+/*
+ * Backup related WiredTiger files.
+ */
+#define WT_BACKUP_TMP "WiredTiger.backup.tmp"       /* Backup tmp file */
+#define WT_BLKINCR_BACKUP "WiredTiger.backup.block" /* Block incremental durable file */
+#define WT_METADATA_BACKUP "WiredTiger.backup"      /* Hot backup file */
+#define WT_LOGINCR_BACKUP "WiredTiger.ibackup"      /* Log incremental backup */
+#define WT_LOGINCR_SRC "WiredTiger.isrc"            /* Log incremental source */
 
 #define WT_METADATA_TURTLE "WiredTiger.turtle"         /* Metadata metadata */
 #define WT_METADATA_TURTLE_SET "WiredTiger.turtle.set" /* Turtle temp file */
