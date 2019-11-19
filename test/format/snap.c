@@ -191,7 +191,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
             return (0);
     }
 
-/* Things went pear-shaped. */
+    /* Things went pear-shaped. */
     switch (g.type) {
     case FIX:
         fprintf(stderr, "snapshot-isolation: %" PRIu64
