@@ -198,7 +198,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     las_prepare_cnt = mod_counter = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     instantiated_cnt = 0;
-    cmp = 0;
     birthmark_record = locked = false;
 
     /*
