@@ -248,16 +248,12 @@ struct __wt_page_lookaside {
     wt_timestamp_t max_ondisk_ts;  /* Maximum timestamp on disk */
     wt_timestamp_t min_skipped_ts; /* Skipped in favor of disk version */
     bool has_prepares;             /* One or more updates are prepared */
-    // Delete max/min keys, not needed anymore
-    WT_ITEM max_las_key; /* The maximum key in the LAS for the page */
-    WT_ITEM min_las_key; /* The minimum key in the LAS for the page */
     struct __wt_birthmark_details {
         WT_ITEM key;
         uint64_t txnid;
         wt_timestamp_t durable_ts;
         wt_timestamp_t start_ts;
         uint8_t prepare_state;
-        bool instantiated;
     } * birthmarks;          /* Birthmark details for a record */
     uint32_t birthmarks_cnt; /* Count of birthmark records */
 };
