@@ -193,17 +193,14 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 
 /* Things went pear-shaped. */
 #ifdef HAVE_DIAGNOSTIC
-    fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
-    testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
-#endif
     switch (g.type) {
     case FIX:
-        testutil_die(ret, "snapshot-isolation: %" PRIu64
-                          " search: "
-                          "expected {0x%02x}, found {0x%02x}",
+        fprintf(stderr, "snapshot-isolation: %" PRIu64
+                        " search: "
+                        "expected {0x%02x}, found {0x%02x}",
           keyno, snap->op == REMOVE ? 0 : *(uint8_t *)snap->vdata,
           ret == WT_NOTFOUND ? 0 : *(uint8_t *)value->data);
-    /* NOTREACHED */
+        break;
     case ROW:
         fprintf(
           stderr, "snapshot-isolation %.*s search mismatch\n", (int)key->size, (char *)key->data);
@@ -217,9 +214,7 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
         else
             print_item_data("   found", value->data, value->size);
 
-        testutil_die(
-          ret, "snapshot-isolation: %.*s search mismatch", (int)key->size, (char *)key->data);
-    /* NOTREACHED */
+        break;
     case VAR:
         fprintf(stderr, "snapshot-isolation %" PRIu64 " search mismatch\n", keyno);
 
@@ -232,7 +227,33 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
         else
             print_item_data("   found", value->data, value->size);
 
+        break;
+    }
+    /*
+     * We have a mismatch. Try to print out as much information as we can. In doing so, we are
+     * calling into the debug code directly and that does not take locks. So it is possible that the
+     * calls may crash in some way.
+     *
+     * The most important information is the key/value mismatch information. Then try to dump out
+     * the other information. Right now we dump the entire lookaside table including what is on
+     * disk. That can potentially be very large. If it becomes a problem, this can be modified to
+     * just dump out the page this key is on. 
+     */
+    fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
+    testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
+    fprintf(stderr, "snapshot-isolation error: Dumping LAS to %s\n", g.home_lasdump);
+    testutil_check(__wt_debug_cursor_las(cursor, g.home_lasdump));
+    if (g.logging)
+        testutil_check(cursor->session->log_flush(cursor->session, "sync=off"));
+#endif
+    switch (g.type) {
+    case FIX:
+    case VAR:
         testutil_die(ret, "snapshot-isolation: %" PRIu64 " search mismatch", keyno);
+    /* NOTREACHED */
+    case ROW:
+        testutil_die(
+          ret, "snapshot-isolation: %.*s search mismatch", (int)key->size, (char *)key->data);
         /* NOTREACHED */
     }
 
