@@ -206,21 +206,6 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=undefined -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic
 
-  - name: compile-spinlock-gcc
-    tags: ["spinlock-test"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=gcc --enable-strict
-
-  - name: compile-spinlock-pthread-adaptive
-    tags: ["spinlock-test"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=pthread_adaptive --enable-strict
   # production build with --disable-shared
   - name: compile-production-disable-shared
     tags: ["pull_request"]
@@ -1602,68 +1587,28 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
   # creating bunch of spinlock tests so they can be scheduled in parallel
-  - name: spinlock-test-gcc-1
-    tags: ["spinlock-test"]
-    depends_on:
-      - name: compile-spinlock-gcc
+  - name: test-spinlock-gcc
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-spinlock-gcc
+          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=gcc --enable-strict
       - func: "make check all"
-
-  - name: spinlock-test-gcc-2
-    tags: ["spinlock-test"]
-    depends_on:
-      - name: compile-spinlock-gcc
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-spinlock-gcc
       - func: "test format"
         vars:
           times: 3
-
-  - name: spinlock-test-gcc-3
-    tags: ["spinlock-test"]
-    depends_on:
-      - name: compile-spinlock-gcc
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-spinlock-gcc
       - func: "unit test"
 
-  - name: spinlock-test-pthread-adaptive-1
-    tags: ["spinlock-test"]
-    depends_on:
-      - name: compile-spinlock-pthread-adaptive
+  - name: test-spinlock-pthread-adaptive
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
         vars:
-          dependent_task: compile-spinlock-pthread-adaptive
+          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=pthread_adaptive --enable-strict
       - func: "make check all"
-
-  - name: spinlock-test-pthread-adaptive-2
-    tags: ["spinlock-test"]
-    depends_on:
-      - name: compile-spinlock-pthread-adaptive
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-spinlock-pthread-adaptive
       - func: "test format"
         vars:
           times: 3
-
-  - name: spinlock-test-pthread-adaptive-3
-    tags: ["spinlock-test"]
-    depends_on:
-      - name: compile-spinlock-pthread-adaptive
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-spinlock-pthread-adaptive
       - func: "unit test"
 
 buildvariants:
@@ -1688,7 +1633,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: ".spinlock-test"
+    - name: test-spinlock-gcc
+    - name: test-spinlock-pthread-adaptive
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
