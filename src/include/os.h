@@ -144,7 +144,8 @@ struct __wt_file_handle_posix {
 #if WT_IO_VIA_MMAP
     char  *mmapped_buf;
     size_t mmapped_size;
-    volatile uint32_t usecount;
+    volatile uint32_t mmap_usecount;
+    volatile uint32_t mmap_stopflag;
 #endif
 };
 #endif

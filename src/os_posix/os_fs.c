@@ -473,7 +473,7 @@ __posix_file_read_mmap(
      * change size underneath us.
      */
 #if CAS
-    (void)__wt_atomic_addv32(&pfh->usecount, 1);
+    (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
 #endif
 
     /*
@@ -485,7 +485,7 @@ __posix_file_read_mmap(
         memcpy(buf, (void *)(pfh->mmapped_buf + offset), len);
 #if CAS
 	/* Signal that we are done using the mmapped buffer. */
-	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+	(void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 #endif
 
 	WT_STAT_CONN_INCRV(session, block_byte_read_mmap, len);
@@ -494,7 +494,7 @@ __posix_file_read_mmap(
     else {
 #if CAS
 	/* Signal that we won't be using the mmapped buffer after all. */
-	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+	(void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 #endif
 
         return __posix_file_read(file_handle, wt_session, offset, len, buf);
@@ -652,7 +652,7 @@ __posix_file_write_mmap(
      * change size underneath us.
      */
 #if CAS
-    (void)__wt_atomic_addv32(&pfh->usecount, 1);
+    (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
 #endif
 
    /*
@@ -662,21 +662,19 @@ __posix_file_write_mmap(
      */
     if (pfh->mmapped_buf != NULL && pfh->mmapped_size >= (size_t)offset + len) {
         memcpy( (void*)(pfh->mmapped_buf + offset), buf, len);
-<<<<<<< HEAD
 
 #if CAS
 	/* Signal that we are done using the mmapped buffer. */
-	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+	(void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 #endif
-=======
+
 	WT_STAT_CONN_INCRV(session, block_byte_write_mmap, len);
->>>>>>> wt-5107-mmap-for-io
         return (0);
     }
     else {
 #if CAS
 	/* Signal that we won't be using the mmapped buffer after all. */
-	(void)__wt_atomic_subv32(&pfh->usecount, 1);
+	(void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
 #endif
 
         return __posix_file_write(file_handle, wt_session, offset, len, buf);
