@@ -1631,6 +1631,7 @@ buildvariants:
     - name: compile-ubsan
     - name: ubsan-test
     - name: linux-directio
+    - name: syscall-linux
     - name: make-check-asan-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
@@ -1662,19 +1663,6 @@ buildvariants:
   - ubuntu1804-test
   tasks:
     - name: package
-
-- name: syscall-linux
-  display_name: Syscall Linux
-  batchtime: 10080 # a week
-  run_on:
-  - ubuntu1804-test
-  expansions:
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
-    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
-  tasks:
-    - name: compile
-    - name: syscall-linux
 
 - name: linux-no-ftruncate
   display_name: Linux no ftruncate
