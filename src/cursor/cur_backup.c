@@ -74,6 +74,7 @@ err:
 static int
 __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force)
 {
+    WT_BLKINCR *blkincr;
     WT_CONNECTION_IMPL *conn;
     u_int i;
 
