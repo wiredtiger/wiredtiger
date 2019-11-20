@@ -75,6 +75,7 @@ static int
 __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force)
 {
     WT_CONNECTION_IMPL *conn;
+    u_int i;
 
     WT_UNUSED(cb);
     WT_UNUSED(force);
@@ -83,9 +84,15 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
      * Clear flags. Remove file. Release any memory information.
      */
     F_CLR(conn, WT_CONN_INCR_BACKUP);
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blkincr = &conn->incr_backups[i];
+        /* If it isn't valid, skip it. */
+        F_CLR(blkincr, WT_BLKINCR_VALID);
+    }
     /* __wt_block_backup_remove... */
     conn->ckpt_incr_granularity = 0;
     WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP, true));
+
     return (0);
 }
 
@@ -214,6 +221,56 @@ err:
 }
 
 /*
+ * __backup_get_ckpt --
+ *     Get the most recent checkpoint information and store it in the structure.
+ */
+static int
+__backup_get_ckpt(WT_SESSION_IMPL *session, WT_BLKINCR *incr)
+{
+	WT_UNUSED(session);
+	WT_UNUSED(incr);
+	/*
+	 * Look up the most recent checkpoint and store information about it in incr.
+	 */
+	return (0);
+}
+
+/*
+ * __backup_add_id --
+ *     Add the identifier for block based incremental backup.
+ */
+static int
+__backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **incrp)
+{
+    WT_BLKINCR *blkincr;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    u_int i;
+
+    conn = S2C(session);
+    blkincr = NULL;
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blkincr = &conn->incr_backups[i];
+        /* If it isn't use we can use it. */
+        if (!F_ISSET(blkincr, WT_BLKINCR_INUSE)) {
+            WT_RET(__wt_strndup(session, cval->str, cval->len, &blkincr->id));
+            WT_ERR(__backup_get_ckpt(session, blkincr));
+            F_SET(blkincr, WT_BLKINCR_INUSE | WT_BLKINCR_VALID);
+            *incrp = blkincr;
+            return (0);
+        }
+    }
+    /*
+     * We didn't find an entry. This should not happen.
+     */
+    ret = WT_NOTFOUND;
+err:
+    if (blkincr != NULL)
+        __wt_free(session, blkincr->id);
+    return (ret);
+}
+
+/*
  * __backup_find_id --
  *     Find the source identifier for block based incremental backup. Error if it is not a valid id.
  */
@@ -334,7 +391,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     }
 
     /*
-     * See if we have a source identifier.
+     * See if we have a source identifier. We must process the source identifier before processing
+     * the 'this' identifier. That will mark which source is in use so that we can use any slot that
+     * is not in use as a new source starting point for this identifier.
      */
     WT_RET(__wt_config_gets(session, cfg, "incremental.src_id", &cval));
     if (cval.len != 0) {
@@ -347,11 +406,14 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         F_SET(cb->incr, WT_BLKINCR_INUSE);
         incremental_config = true;
     }
+    /*
+     * Use WT_ERR from here out because we need to clear the in use flag on error now.
+     */
 
     /*
      * Look for a new checkpoint name to retain and mark as a starting point.
      */
-    WT_RET(__wt_config_gets(session, cfg, "incremental.this_id", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "incremental.this_id", &cval));
     if (cval.len != 0) {
         if (is_dup)
             WT_ERR_MSG(session, EINVAL,
@@ -359,6 +421,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         ret = __backup_find_id(session, &cval, NULL);
         if (ret != WT_NOTFOUND)
             WT_ERR_MSG(session, EINVAL, "Incremental identifier already exists");
+
+        WT_ERR(__backup_add_id(session, &cval, &cb->incr));
         /* XXX might not need this incr_this field */
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &cb->incr_this));
         incremental_config = true;
@@ -622,6 +686,8 @@ __backup_stop(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     /* Remove any backup specific file. */
     WT_TRET(__wt_backup_file_remove(session));
 
+    if (cb->incr != NULL)
+        F_CLR(cb->incr, WT_BLKINCR_INUSE);
     /* Checkpoint deletion and next hot backup can proceed. */
     WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup = false);
     F_CLR(session, WT_SESSION_BACKUP_CURSOR);

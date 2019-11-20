@@ -129,15 +129,16 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c.close()
 
         # Add more data
-        for i in range(0, self.nops):
-            num = i + (loop * self.nops)
-            key = 'key' + str(num)
-            val = 'value' + str(num)
-            c[key] = val
-        loop += 1
-        c.close()
-        self.session.log_flush('sync=on')
-        self.session.checkpoint()
+        #c = self.session.open_cursor(self.uri)
+        #for i in range(0, self.nops):
+        #    num = i + (loop * self.nops)
+        #    key = 'key' + str(num)
+        #    val = 'value' + str(num)
+        #    c[key] = val
+        #loop += 1
+        #c.close()
+        #self.session.log_flush('sync=on')
+        #self.session.checkpoint()
 
         # Test a few error cases now.
         # - Incremental filename must be on duplicate, not primary.
@@ -184,9 +185,16 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
             dupc, config), 0), msg)
         dupc.close()
 
+        # - A duplicate cursor must specify incremental or log target.
+        msg = "/backup cursor must be for /"
+        config = 'target=("file:test.wt")'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.open_cursor(None,
+            bkup_c, config), 0), msg)
+
         # - We cannot mix block incremental with a log target on the same duplicate.
         config = 'incremental=(file=test.wt),target=("log:")'
-        msg = "/backup cursor must be for /"
+        msg = "/incremental backup incompatible/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
