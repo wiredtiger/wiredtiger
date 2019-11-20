@@ -238,6 +238,13 @@ tasks:
         vars:
           posix_configure_flags: --enable-strict --enable-diagnostic
 
+  - name: compile-enable-strict
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict
+
   - name: make-check-test
     depends_on:
       - name: compile
@@ -1614,6 +1621,25 @@ tasks:
               cp -rf WT_TEST WT_TEST_$file
             done
 
+  - name: time-shift-sensitivity-test
+    depends_on:
+      - name: compile-enable-strict
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-enable-strict
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            rundir=../../../test/csuite
+            cp $rundir/time_shift_test.sh ./
+            chmod a+x ./time_shift_test.sh
+            ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1704,6 +1730,8 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
+    - name: compile-enable-strict
+    - name: time-shift-sensitivity-test
 
 - name: large-scale-test
   display_name: Large scale testing
