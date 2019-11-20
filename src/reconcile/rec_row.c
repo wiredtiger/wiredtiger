@@ -905,7 +905,7 @@ __wt_rec_row_leaf(
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
-            /* Free the update list if it is external. */
+            /* Free the update if it is external. */
             if (upd->ext != 0)
                 __wt_free_update_list(session, &upd);
         }
