@@ -698,17 +698,17 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * be a part of the saved update list, we need to write a birthmark for it, separate from
          * processing of the saved updates.
          */
-        if (list->onpage_upd != NULL && list->onpage_upd->ext != 0 && list->onpage_upd->size > 0 &&
-          (list->onpage_upd->type == WT_UPDATE_STANDARD ||
-              list->onpage_upd->type == WT_UPDATE_MODIFY)) {
+        if (list->onpage_upd.has_upd && list->onpage_upd.from_las && list->onpage_upd.has_data &&
+          (list->onpage_upd.type == WT_UPDATE_STANDARD ||
+              list->onpage_upd.type == WT_UPDATE_MODIFY)) {
             /* Extend the buffer if needed */
             WT_ERR(__wt_buf_extend(
               session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
             birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + birthmarks_cnt;
-            birthmarkp->txnid = list->onpage_upd->txnid;
-            birthmarkp->durable_ts = list->onpage_upd->durable_ts;
-            birthmarkp->start_ts = list->onpage_upd->start_ts;
-            birthmarkp->prepare_state = list->onpage_upd->prepare_state;
+            birthmarkp->txnid = list->onpage_upd.txnid;
+            birthmarkp->durable_ts = list->onpage_upd.durable_ts;
+            birthmarkp->start_ts = list->onpage_upd.start_ts;
+            birthmarkp->prepare_state = list->onpage_upd.prepare_state;
             /* Copy the key as well for reference. */
             WT_CLEAR(birthmarkp->key);
             WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
@@ -763,7 +763,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
              * write zero-length data items.)
              */
-            if (upd == list->onpage_upd && upd->size > 0 &&
+            if (upd->txnid == list->onpage_upd.txnid &&
+              upd->start_ts == list->onpage_upd.start_ts && upd->size > 0 &&
               (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
                 /* Make sure that we are generating a birthmark for an in-memory update. */
                 WT_ASSERT(session, upd->ext == 0);

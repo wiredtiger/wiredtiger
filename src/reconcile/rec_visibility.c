@@ -29,10 +29,22 @@ static int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
   WT_UPDATE *onpage_upd, size_t upd_memsize)
 {
+    WT_SAVE_UPD *supd;
+
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
-    r->supd[r->supd_next].ins = ins;
-    r->supd[r->supd_next].ripcip = ripcip;
-    r->supd[r->supd_next].onpage_upd = onpage_upd;
+    supd = &r->supd[r->supd_next];
+    supd->ins = ins;
+    supd->ripcip = ripcip;
+    if (onpage_upd) {
+        supd->onpage_upd.txnid = onpage_upd->txnid;
+        supd->onpage_upd.durable_ts = onpage_upd->durable_ts;
+        supd->onpage_upd.start_ts = onpage_upd->start_ts;
+        supd->onpage_upd.type = onpage_upd->type;
+        supd->onpage_upd.prepare_state = onpage_upd->prepare_state;
+        supd->onpage_upd.has_upd = true;
+        supd->onpage_upd.has_data = (onpage_upd->size > 0);
+        supd->onpage_upd.from_las = (onpage_upd->ext != 0);
+    }
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -248,7 +260,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     uint8_t *p, prepare_state, upd_type;
     int cmp;
     bool all_stable, las_cursor_open, las_positioned, list_prepared, list_uncommitted;
-    bool orig_val_appended, skipped_birthmark, sweep_locked, walked_past_sel_upd;
+    bool orig_val_appended, skipped_birthmark, sweep_locked, upd_diff, walked_past_sel_upd;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -752,6 +764,11 @@ check_original_value:
         WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_inmem_upd, vpack));
 
 err:
+    upd_diff = (upd != upd_select->upd);
+    if (ret != 0 && upd != NULL && upd->ext != 0)
+        __wt_free_update_list(session, &upd);
+    if (ret != 0 && upd_diff && upd_select->upd != NULL && upd_select->upd->ext != 0)
+        __wt_free_update_list(session, &upd_select->upd);
     __wt_free_update_list(session, &tmp_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &tmp_upd);

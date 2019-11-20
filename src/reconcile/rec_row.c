@@ -548,7 +548,7 @@ __rec_row_zero_len(WT_SESSION_IMPL *session, wt_timestamp_t start_ts, uint64_t s
  *     Walk an insert chain, writing K/V pairs.
  */
 static int
-__rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, WT_UPDATE **updp)
+__rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 {
     WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
@@ -621,6 +621,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
             ret = __wt_illegal_value(session, upd->type);
             WT_ERR(ret);
         }
+        /* Free the update if it is external. */
+        if (upd->ext != 0)
+            __wt_free_update_list(session, &upd);
 
         /* Build key cell. */
         WT_ERR(__rec_cell_build_leaf_key(
@@ -659,9 +662,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
     }
 
 err:
-    /* Keep a handle on the update if it is external. */
+    /* Free the update if it is external. */
     if (upd != NULL && upd->ext != 0)
-        *updp = upd;
+        __wt_free_update_list(session, &upd);
 
     return (ret);
 }
@@ -671,8 +674,8 @@ err:
  *     Reconcile a row-store leaf page.
  */
 int
-__wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
-  WT_SALVAGE_COOKIE *salvage, WT_UPDATE **updp)
+__wt_rec_row_leaf(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref, WT_SALVAGE_COOKIE *salvage)
 {
     WT_ADDR *addr;
     WT_BTREE *btree;
@@ -729,7 +732,7 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
      * Write any K/V pairs inserted into the page before the first from-disk key on the page.
      */
     if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT_SMALLEST(page))) != NULL)
-        WT_RET(__rec_row_leaf_insert(session, r, ins, updp));
+        WT_RET(__rec_row_leaf_insert(session, r, ins));
 
     /*
      * Temporary buffers in which to instantiate any uninstantiated keys or value items we need.
@@ -902,6 +905,9 @@ __wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
+            /* Free the update list if it is external. */
+            if (upd->ext != 0)
+                __wt_free_update_list(session, &upd);
         }
 
         /*
@@ -1003,16 +1009,16 @@ build:
     leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
-            WT_ERR(__rec_row_leaf_insert(session, r, ins, updp));
+            WT_ERR(__rec_row_leaf_insert(session, r, ins));
     }
 
     /* Write the remnant page. */
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    /* Keep a handle on the update if it is external. */
+    /* Free the update if it is external. */
     if (upd != NULL && upd->ext != 0)
-        *updp = upd;
+        __wt_free_update_list(session, &upd);
 
     __wt_scr_free(session, &tmpkey);
     __wt_scr_free(session, &tmpval);

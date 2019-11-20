@@ -354,7 +354,16 @@ struct __wt_page_modify {
                 struct __wt_save_upd {
                     WT_INSERT *ins; /* Insert list reference */
                     WT_ROW *ripcip; /* Original on-page reference */
-                    WT_UPDATE *onpage_upd;
+                    struct {
+                        uint64_t txnid;
+                        wt_timestamp_t durable_ts;
+                        wt_timestamp_t start_ts;
+                        uint8_t type;
+                        uint8_t prepare_state;
+                        bool has_upd;
+                        bool has_data;
+                        bool from_las;
+                    } onpage_upd;
                 } * supd;
                 uint32_t supd_entries;
 

@@ -158,12 +158,10 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_RECONCILE *r;
-    WT_UPDATE *upd;
 
     btree = S2BT(session);
     page = ref->page;
     mod = page->modify;
-    upd = NULL;
 
     /* Save the eviction state. */
     __reconcile_save_evict_state(session, ref, flags);
@@ -178,19 +176,19 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         if (salvage != NULL)
             ret = __wt_rec_col_fix_slvg(session, r, ref, salvage);
         else
-            ret = __wt_rec_col_fix(session, r, ref, &upd);
+            ret = __wt_rec_col_fix(session, r, ref);
         break;
     case WT_PAGE_COL_INT:
         WT_WITH_PAGE_INDEX(session, ret = __wt_rec_col_int(session, r, ref));
         break;
     case WT_PAGE_COL_VAR:
-        ret = __wt_rec_col_var(session, r, ref, salvage, &upd);
+        ret = __wt_rec_col_var(session, r, ref, salvage);
         break;
     case WT_PAGE_ROW_INT:
         WT_WITH_PAGE_INDEX(session, ret = __wt_rec_row_int(session, r, page));
         break;
     case WT_PAGE_ROW_LEAF:
-        ret = __wt_rec_row_leaf(session, r, ref, salvage, &upd);
+        ret = __wt_rec_row_leaf(session, r, ref, salvage);
         break;
     default:
         ret = __wt_illegal_value(session, page->type);
@@ -212,15 +210,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         __rec_write_page_status(session, r);
     else
         WT_TRET(__rec_write_wrapup_err(session, r, page));
-
-    /*
-     * If we allocated during the update selection process, let's free that now. We need to keep
-     * this update alive for the wrapup phase.
-     */
-    if (upd != NULL) {
-        WT_ASSERT(session, upd->ext != 0);
-        __wt_free_update_list(session, &upd);
-    }
 
     /*
      * If reconciliation completes successfully, save the stable timestamp.
