@@ -1606,7 +1606,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            # Python test suite generates WT_TEST directory
+
             dir=../bench/wtperf/stress
             for file in `ls $dir`
             do
