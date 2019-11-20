@@ -212,7 +212,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
+          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=gcc --enable-strict
 
   - name: compile-spinlock-pthread-adaptive
     tags: ["spinlock-test"]
@@ -220,7 +220,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
+          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=pthread_adaptive --enable-strict
   # production build with --disable-shared
   - name: compile-production-disable-shared
     tags: ["pull_request"]
