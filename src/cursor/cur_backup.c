@@ -231,8 +231,8 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
         if (!F_ISSET(blkincr, WT_BLKINCR_VALID))
             continue;
         if (WT_STRING_MATCH(blkincr->id, cval->str, cval->len)) {
-            WT_RET_ASSERT(session, !F_ISSET(blkincr, WT_BLKINCR_INUSE), EINVAL,
-              "Incremental backup structure already in use.");
+            if (F_ISSET(blkincr, WT_BLKINCR_INUSE))
+                WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use.");
             if (incrp != NULL)
                 *incrp = blkincr;
             return (0);
@@ -300,8 +300,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
          * incremental backup will be released on cursor close and that is the only expected usage
          * for this cursor.
          */
-        WT_RET_ASSERT(session, !is_dup, EINVAL,
-          "Incremental force stop can only be specified on a primary backup cursor");
+        if (is_dup)
+            WT_RET_MSG(session, EINVAL,
+              "Incremental force stop can only be specified on a primary backup cursor");
         F_SET(cb, WT_CURBACKUP_FORCE_STOP);
         return (0);
     }
@@ -311,8 +312,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         if (!F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             WT_RET(__wt_config_gets(session, cfg, "incremental.granularity", &cval));
             /* XXX may not need cb->incr_granularity */
-            WT_RET_ASSERT(session, conn->ckpt_incr_granularity == 0, EINVAL,
-              "Cannot change the incremental backup granularity");
+            if (conn->ckpt_incr_granularity != 0)
+                WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
             conn->ckpt_incr_granularity = cb->incr_granularity = (uint64_t)cval.val;
         }
         /* XXX Granularity can only be set once at the beginning */
@@ -325,8 +326,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      */
     WT_RET(__wt_config_gets(session, cfg, "incremental.file", &cval));
     if (cval.len != 0) {
-        WT_RET_ASSERT(session, is_dup, EINVAL,
-          "Incremental file name can only be specified on a duplicate backup cursor");
+        if (!is_dup)
+            WT_RET_MSG(session, EINVAL,
+              "Incremental file name can only be specified on a duplicate backup cursor");
         WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->incr_file));
         incremental_config = true;
     }
@@ -336,8 +338,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      */
     WT_RET(__wt_config_gets(session, cfg, "incremental.src_id", &cval));
     if (cval.len != 0) {
-        WT_RET_ASSERT(session, !is_dup, EINVAL,
-          "Incremental source identifier can only be specified on a primary backup cursor");
+        if (is_dup)
+            WT_RET_MSG(session, EINVAL,
+              "Incremental source identifier can only be specified on a primary backup cursor");
         WT_RET(__backup_find_id(session, &cval, &cb->incr));
         /* XXX might not need this incr_src field */
         WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->incr_src));
@@ -350,10 +353,12 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
      */
     WT_RET(__wt_config_gets(session, cfg, "incremental.this_id", &cval));
     if (cval.len != 0) {
-        WT_ERR_ASSERT(session, !is_dup, EINVAL,
-          "Incremental identifier can only be specified on a primary backup cursor");
+        if (is_dup)
+            WT_ERR_MSG(session, EINVAL,
+              "Incremental identifier can only be specified on a primary backup cursor");
         ret = __backup_find_id(session, &cval, NULL);
-        WT_ERR_ASSERT(session, ret == WT_NOTFOUND, EINVAL, "Incremental identifier already exists");
+        if (ret != WT_NOTFOUND)
+            WT_ERR_MSG(session, EINVAL, "Incremental identifier already exists");
         /* XXX might not need this incr_this field */
         WT_ERR(__wt_strndup(session, cval.str, cval.len, &cb->incr_this));
         incremental_config = true;
@@ -420,9 +425,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
           session, EINVAL, "block-based incremental backup incompatible with a list of targets");
 
     if (incremental_config) {
-        WT_ERR_ASSERT(session, !is_dup || F_ISSET(othercb, WT_CURBACKUP_INCR), EINVAL,
-          "Incremental duplicate cursor must have an incremental primary backup cursor");
-        F_SET(othercb, WT_CURBACKUP_INCR);
+        if (is_dup && !F_ISSET(othercb, WT_CURBACKUP_INCR))
+            WT_ERR_MSG(session, EINVAL,
+              "Incremental duplicate cursor must have an incremental primary backup cursor");
         F_SET(cb, WT_CURBACKUP_INCR);
     }
 err:
