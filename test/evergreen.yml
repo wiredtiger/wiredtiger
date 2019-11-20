@@ -231,6 +231,13 @@ tasks:
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
 
+  - name: compile-wtperf
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic
+
   - name: make-check-test
     depends_on:
       - name: compile
@@ -1586,25 +1593,25 @@ tasks:
           display_name: Coverage report
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
-  - name: test-wtperf
+  - name: wtperf-test
+    depends_on:
+      - name: compile-wtperf
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
         vars:
-          posix_configure_flags: --enable-strict --enable-diagnostic
+          dependent_task: compile-wtperf
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
-
-            mkdir WT_TEST
+            # Python test suite generates WT_TEST directory
             dir=../bench/wtperf/stress
             for file in `ls $dir`
             do
               ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
-              rm -rf WT_TEST/*
+              cp -rf WT_TEST WT_TEST_$file
             done
 
 buildvariants:
@@ -1629,7 +1636,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: test-wtperf
+    - name: compile-wtperf
+    - name: wtperf-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
