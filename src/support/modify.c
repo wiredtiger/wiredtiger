@@ -9,6 +9,38 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_modify_idempotent --
+ *     Check if a modify operation is idempotent.
+ */
+bool
+__wt_modify_idempotent(const void *modify)
+{
+    WT_MODIFY mod;
+    const size_t *p;
+    size_t tmp;
+    int nentries;
+
+    /* Get the number of modify entries. */
+    p = modify;
+    memcpy(&tmp, p++, sizeof(size_t));
+    nentries = (int)tmp;
+
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0)
+	{
+	/*
+	 * If the number of bytes being replaced doesn't match the
+	 * number of bytes being written, we're resizing and the
+	 * operation isn't idempotent.
+	 */
+	if (mod.size != mod.data.size)
+	    return (false);
+    }
+    WT_MODIFY_FOREACH_END;
+
+    return (true);
+}
+
+/*
  * __wt_modify_pack --
  *	Pack a modify structure into a buffer.
  */
