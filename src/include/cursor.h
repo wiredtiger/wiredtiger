@@ -42,7 +42,7 @@ struct __wt_blkincr {
     uint64_t time;
     void *data;
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_BLKINCR_INUSE 0x1u /* This entry is valid */
+#define WT_BLKINCR_INUSE 0x1u /* This entry is active */
 #define WT_BLKINCR_VALID 0x2u /* This entry is valid */
                               /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint64_t flags;
@@ -83,7 +83,8 @@ struct __wt_cursor_backup {
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CURBACKUP_DUP 0x1u        /* Duplicated backup cursor */
 #define WT_CURBACKUP_FORCE_STOP 0x2u /* Force stop incremental backup */
-#define WT_CURBACKUP_LOCKER 0x4u     /* Hot-backup started */
+#define WT_CURBACKUP_INCR 0x4u       /* Incremental backup cursor */
+#define WT_CURBACKUP_LOCKER 0x8u     /* Hot-backup started */
                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };

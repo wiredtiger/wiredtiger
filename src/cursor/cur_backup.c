@@ -11,7 +11,8 @@
 static int __backup_all(WT_SESSION_IMPL *);
 static int __backup_list_append(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, const char *);
 static int __backup_list_uri_append(WT_SESSION_IMPL *, const char *, bool *);
-static int __backup_start(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, bool, const char *[]);
+static int __backup_start(
+  WT_SESSION_IMPL *, WT_CURSOR_BACKUP *, WT_CURSOR_BACKUP *, const char *[]);
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
 
 /*
@@ -176,7 +177,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
       __wt_cursor_reopen_notsup,                      /* reopen */
       __curbackup_close);                             /* close */
     WT_CURSOR *cursor;
-    WT_CURSOR_BACKUP *cb;
+    WT_CURSOR_BACKUP *cb, *othercb;
     WT_DECL_RET;
 
     WT_STATIC_ASSERT(offsetof(WT_CURSOR_BACKUP, iface) == 0);
@@ -189,14 +190,16 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     cursor->value_format = ""; /* No value. */
 
     session->bkp_cursor = cb;
-    WT_CURSOR_BACKUP_CHECK_STOP(cb);
+    othercb = (WT_CURSOR_BACKUP *)other;
+    if (othercb != NULL)
+        WT_CURSOR_BACKUP_CHECK_STOP(othercb);
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
      * view when creating a copy.
      */
     WT_WITH_CHECKPOINT_LOCK(
-      session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, other != NULL, cfg)));
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
     WT_ERR(ret);
 
     WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
@@ -270,8 +273,8 @@ err:
  *     Backup configuration.
  */
 static int
-__backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[], bool is_dup,
-  bool *foundp, bool *log_only, bool *incr_only)
+__backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[],
+  WT_CURSOR_BACKUP *othercb, bool *foundp, bool *log_only, bool *incr_only)
 {
     WT_CONFIG targetconf;
     WT_CONFIG_ITEM cval, k, v;
@@ -279,11 +282,12 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *uri;
-    bool incremental_config, log_config, target_list;
+    bool incremental_config, is_dup, log_config, target_list;
 
     conn = S2C(session);
     *foundp = *incr_only = *log_only = false;
     incremental_config = log_config = false;
+    is_dup = othercb != NULL;
 
     /*
      * Per-file offset incremental hot backup configurations take a starting checkpoint and optional
@@ -415,6 +419,12 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         WT_ERR_MSG(
           session, EINVAL, "block-based incremental backup incompatible with a list of targets");
 
+    if (incremental_config) {
+        WT_ERR_ASSERT(session, !is_dup || F_ISSET(othercb, WT_CURBACKUP_INCR), EINVAL,
+          "Incremental duplicate cursor must have an incremental primary backup cursor");
+        F_SET(othercb, WT_CURBACKUP_INCR);
+        F_SET(cb, WT_CURBACKUP_INCR);
+    }
 err:
     if (ret != 0 && cb->incr != NULL)
         F_CLR(cb->incr, WT_BLKINCR_INUSE);
@@ -427,18 +437,20 @@ err:
  *     Start a backup.
  */
 static int
-__backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool is_dup, const char *cfg[])
+__backup_start(
+  WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, WT_CURSOR_BACKUP *othercb, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_FSTREAM *srcfs;
     const char *dest;
-    bool exist, is_incr, log_only, target_list;
+    bool exist, is_dup, is_incr, log_only, target_list;
 
     conn = S2C(session);
     srcfs = NULL;
     dest = NULL;
+    is_dup = othercb != NULL;
 
     cb->next = 0;
     cb->list = NULL;
@@ -504,7 +516,7 @@ __backup_start(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool is_dup, cons
      * database objects and log files to the list.
      */
     target_list = false;
-    WT_ERR(__backup_config(session, cb, cfg, is_dup, &target_list, &log_only, &is_incr));
+    WT_ERR(__backup_config(session, cb, cfg, othercb, &target_list, &log_only, &is_incr));
     /*
      * For a duplicate cursor, all the work is done in backup_config.
      */
