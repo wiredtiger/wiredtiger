@@ -573,6 +573,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 #if WT_IO_VIA_MMAP
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRIu64 ","
                  "mapped size=%" PRIu64 "\n", file_handle->name, len, (uint64_t)pfh->mmapped_size);
+    if ((wt_off_t)pfh->mmapped_size != len)
     __drain_mmap_users(file_handle, wt_session);
 #endif
 
@@ -580,7 +581,8 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     if (ret == 0) {
 #if WT_IO_VIA_MMAP
         /* Remap the region with the new size */
-        __remap_region(file_handle, wt_session);
+        if ((wt_off_t)pfh->mmapped_size != len)
+            __remap_region(file_handle, wt_session);
 #endif
         return (0);
     }
@@ -1059,6 +1061,9 @@ __remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     __wt_verbose(session, WT_VERB_FILEOPS, "%s, remap-region: buffer=%p\n",
                  file_handle->name, (void*)pfh->mmapped_buf);
+
+    if (pfh->mmapped_buf)
+        __unmap_region(file_handle, wt_session);
 
     ret = __map_region(file_handle, wt_session);
 
