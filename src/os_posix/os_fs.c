@@ -580,9 +580,18 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+#if WT_IO_VIA_MMAP
+    __drain_mmap_users(file_handle, wt_session);
+#endif
+
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
-    if (ret == 0)
+    if (ret == 0) {
+#if WT_IO_VIA_MMAP
+	/* Remap the region with the new size */
+	__remap_region(file_handle, wt_session, len);
+#endif
         return (0);
+    }
     WT_RET_MSG(session, ret, "%s: handle-truncate: ftruncate", file_handle->name);
 }
 #endif
@@ -850,9 +859,9 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     len = (size_t)file_size;
 
     if (len > 0) {
-        if ((pfh->mmapped_buf = (char *)mmap(NULL, len,
-					     LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE,
-                                             MAP_SHARED | MAP_FILE, pfh->fd, 0)) == MAP_FAILED)
+	pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
+        if ((pfh->mmapped_buf = (char *)mmap(NULL, len, pfh->mmap_prot, MAP_SHARED | MAP_FILE,
+					     pfh->fd, 0)) == MAP_FAILED)
             WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", name);
         else
             pfh->mmapped_size = len;
@@ -971,3 +980,94 @@ __wt_os_posix(WT_SESSION_IMPL *session)
     return (0);
 }
 
+
+/*
+ * Wait until all the sessions using the memory mapped
+ * region are done.
+ */
+static void
+__drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session) {
+
+    WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
+    bool cas_result;
+    uint32_t old_state;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    /* Remember the old state of region resizing flag */
+    old_state = pfh->mmap_resizing;
+
+    /*
+     * If someone else is resizing the region, wait until they are done and set the
+     * resizing flag to signal that we are the next one to perform the resizing
+     * operation.
+     */
+    while ((cas_result = __wt_atomic_casv32(&pfh->mmap_resizing, old_state, 1)) == false)
+	;
+
+    /*
+     * Wait for any sessions using the region for I/O to finish. Now that we have set the
+     * resizing flag, new sessions will not use the region, defaulting to system calls instead.
+     */
+    while (pfh->mmap_usecount > 0)
+        __wt_yield();
+}
+
+/*
+ * Remap the region mapped for I/O with a new size.
+ */
+static into
+__remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session) {
+
+    WT_DECL_RET;
+    WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
+
+    ret = __map_region(file_handle, wt_session);
+
+    /* TODO Reset the resizing flag */
+    return ret;
+}
+
+static int
+__map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session) {
+
+    WT_DECL_RET;
+    WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
+    void *previous_address;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+
+    WT_ERR( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size));
+
+    if (file_size <= 0) {
+	if (pfh->mmapped_buf != NULL) {
+	    ; /* TODO UNMAP */
+	    /* TODO LOG */
+	    return -1;
+	}
+    }
+
+    if (pfh->mmap_prot == 0) {
+	/* TODO log */
+	return -1;
+    }
+
+    previous_address = pfh->mmapped_buf;
+    if ((pfh->mmapped_buf = (char *)mmap(previous_address, len, pfh->mmap_prot, MAP_SHARED | MAP_FILE,
+					 pfh->fd, 0)) == MAP_FAILED) {
+	pfh->mmapped_size = 0;
+	pfh->mmapped_buf = NULL;
+	WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", name);
+    }
+    else
+	pfh->mmapped_size = len;
+
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s: mmap: fd=%d, size=%" PRIu64 ", "
+		 "mapped buffer=%p\n", name, pfh->fd, (uint64_t)pfh->mmapped_size,
+		 (void*)pfh->mmapped_buf);
+}

@@ -143,9 +143,10 @@ struct __wt_file_handle_posix {
     bool direct_io; /* O_DIRECT configured */
 #if WT_IO_VIA_MMAP
     char  *mmapped_buf;
+    int    mmap_prot;
     size_t mmapped_size;
     volatile uint32_t mmap_usecount;
-    volatile uint32_t mmap_stopflag;
+    volatile uint32_t mmap_resizing;
 #endif
 };
 #endif
