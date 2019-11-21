@@ -1593,9 +1593,7 @@ tasks:
           display_name: Coverage report
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
-  # creating bunch of spinlock tests so they can be scheduled in parallel
   - name: spinlock-gcc-test
-    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1608,7 +1606,6 @@ tasks:
       - func: "unit test"
 
   - name: spinlock-pthread-adaptive-test
-    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1664,7 +1661,8 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: ".spinlock-test"
+    - name: spinlock-gcc-test
+    - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
 
