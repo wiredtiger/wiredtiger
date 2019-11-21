@@ -1587,8 +1587,8 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
   # creating bunch of spinlock tests so they can be scheduled in parallel
-  - name: test-spinlock-gcc-1
-    tags: ["test-spinlock"]
+  - name: spinlock-gcc-make-check-test
+    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1596,8 +1596,8 @@ tasks:
           posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "make check all"
 
-  - name: test-spinlock-gcc-2
-    tags: ["test-spinlock"]
+  - name: spinlock-gcc-format-test
+    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1607,8 +1607,8 @@ tasks:
         vars:
           times: 3
 
-  - name: test-spinlock-gcc-3
-    tags: ["test-spinlock"]
+  - name: spinlock-gcc-unit-test
+    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1616,8 +1616,8 @@ tasks:
           posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "unit test"
 
-  - name: test-spinlock-pthread-adaptive-1
-    tags: ["test-spinlock"]
+  - name: spinlock-pthread-adaptive-make-check-test
+    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1625,8 +1625,8 @@ tasks:
           posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "make check all"
 
-  - name: test-spinlock-pthread-adaptive-2
-    tags: ["test-spinlock"]
+  - name: spinlock-pthread-adaptive-format-test
+    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1636,8 +1636,8 @@ tasks:
         vars:
           times: 3
 
-  - name: test-spinlock-pthread-adaptive-3
-    tags: ["test-spinlock"]
+  - name: spinlock-pthread-adaptive-unit-test
+    tags: ["spinlock-test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1667,7 +1667,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: ".test-spinlock"
+    - name: ".spinlock-test"
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
