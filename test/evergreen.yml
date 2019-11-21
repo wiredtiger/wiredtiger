@@ -1644,6 +1644,27 @@ tasks:
         vars:
           posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "unit test"
+ 
+  - name: wtperf-test
+    depends_on:
+      - name: compile-wtperf
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-wtperf
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+            # The test will generate WT_TEST directory automatically
+            dir=../bench/wtperf/stress
+            for file in `ls $dir`
+            do
+              ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
+              cp -rf WT_TEST WT_TEST_$file
+            done
 
 buildvariants:
 - name: ubuntu1804
@@ -1668,6 +1689,8 @@ buildvariants:
     - name: coverage-report
     - name: unit-test-long
     - name: ".spinlock-test"
+    - name: compile-wtperf
+    - name: wtperf-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
