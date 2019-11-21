@@ -1587,28 +1587,62 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
   # creating bunch of spinlock tests so they can be scheduled in parallel
-  - name: test-spinlock-gcc
+  - name: test-spinlock-gcc-1
+    tags: ["test-spinlock"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=gcc --enable-strict
+          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "make check all"
+
+  - name: test-spinlock-gcc-2
+    tags: ["test-spinlock"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "test format"
         vars:
           times: 3
+
+  - name: test-spinlock-gcc-3
+    tags: ["test-spinlock"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "unit test"
 
-  - name: test-spinlock-pthread-adaptive
+  - name: test-spinlock-pthread-adaptive-1
+    tags: ["test-spinlock"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-python --enable-diagnostic --with-spinlock=pthread_adaptive --enable-strict
+          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "make check all"
+
+  - name: test-spinlock-pthread-adaptive-2
+    tags: ["test-spinlock"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "test format"
         vars:
           times: 3
+
+  - name: test-spinlock-pthread-adaptive-3
+    tags: ["test-spinlock"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "unit test"
 
 buildvariants:
@@ -1633,8 +1667,7 @@ buildvariants:
     - name: checkpoint-filetypes-test
     - name: coverage-report
     - name: unit-test-long
-    - name: test-spinlock-gcc
-    - name: test-spinlock-pthread-adaptive
+    - name: ".test-spinlock"
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
