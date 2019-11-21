@@ -1594,7 +1594,7 @@ tasks:
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
   # creating bunch of spinlock tests so they can be scheduled in parallel
-  - name: spinlock-gcc-make-check-test
+  - name: spinlock-gcc-test
     tags: ["spinlock-test"]
     commands:
       - func: "get project"
@@ -1602,28 +1602,12 @@ tasks:
         vars:
           posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "make check all"
-
-  - name: spinlock-gcc-format-test
-    tags: ["spinlock-test"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "test format"
         vars:
           times: 3
-
-  - name: spinlock-gcc-unit-test
-    tags: ["spinlock-test"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
       - func: "unit test"
 
-  - name: spinlock-pthread-adaptive-make-check-test
+  - name: spinlock-pthread-adaptive-test
     tags: ["spinlock-test"]
     commands:
       - func: "get project"
@@ -1631,27 +1615,11 @@ tasks:
         vars:
           posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "make check all"
-
-  - name: spinlock-pthread-adaptive-format-test
-    tags: ["spinlock-test"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "test format"
         vars:
           times: 3
-
-  - name: spinlock-pthread-adaptive-unit-test
-    tags: ["spinlock-test"]
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
       - func: "unit test"
- 
+
   - name: wtperf-test
     depends_on:
       - name: compile-wtperf
