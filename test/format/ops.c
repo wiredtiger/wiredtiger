@@ -75,6 +75,24 @@ set_alarm(void)
 #endif
 }
 
+static void
+random_failure(void)
+{
+    static char *core = NULL;
+    struct rlimit rlim;
+
+    /* Let our caller know. */
+    printf("%s: aborting to test recovery\n", progname);
+    fflush(stdout);
+
+    /* Don't drop core. */
+    rlim.rlim_cur = rlim.rlim_max = 0;
+    testutil_check(setrlimit(RLIMIT_CORE, &rlim));
+
+    /* Fail at a random moment. */
+    *core = 0;
+}
+
 TINFO **tinfo_list;
 
 /*
@@ -222,10 +240,8 @@ wts_ops(bool lastrun)
                 /*
                  * On the last execution, optionally drop core for recovery testing.
                  */
-                if (lastrun && g.c_abort) {
-                    static char *core = NULL;
-                    *core = 0;
-                }
+                if (lastrun && g.c_abort)
+		    random_failure();
                 tinfo->quit = true;
             }
         }
