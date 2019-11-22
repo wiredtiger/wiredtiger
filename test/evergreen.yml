@@ -134,6 +134,22 @@ functions:
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|}
         done
+  "many dbs test"
+    command: shell.exec
+    parms:
+      working_dir: "wiredtiger/build_posix/test/manydbs"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./t ${many_db_args|}
+  "thread check long test"
+    command: shell.exec
+    parms:
+      working_dir: "wiredtiger/build_posix/test/thread"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./t ${thread_check_args|}
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -1637,6 +1653,72 @@ tasks:
               ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
               cp -rf WT_TEST WT_TEST_$file
             done
+
+  - name: check-long-test-1
+    commands: 
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: ac_cv_func_ftruncate=no
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+            $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+            $(pwd)/../test/csuite/./test_truncated_log 2>&1
+
+  - name: check-long-test-2
+      - func: "configure wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+      - func: "make wiredtiger"
+        vars:
+          make_command: make all
+      - func: "make check all"
+        vars:
+          test_env_vars = TESTUTIL_ENABLE_LONG_TESTS=1
+      - func: "many dbs test"
+      - func: "many dbs test"
+        vars:
+          many_db_args: -I
+      - func: "many dbs test"
+        vars:
+          many_db_args: -D 40
+      - func: "many dbs test"
+        vars:
+          many_db_args: -I -D 40
+  
+  - name: check-long-test-3
+      - func: "configure wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+      - func: "make wiredtiger"
+        vars:
+          make_command: make all
+      - func: "thread check long test"
+        vars: 
+          thread_check_args: -t f
+      - func: "thread check long test"
+        vars: 
+          thread_check_args: -S -F -n 100000 -t f
+      - func: "thread check long test"
+        vars: 
+          thread_check_args: -t r
+      - func: "thread check long test"
+        vars: 
+          thread_check_args: -S -F -n 100000 -t r
+      - func: "thread check long test"
+        vars: 
+          thread_check_args: -t v
+      - func: "thread check long test"
+        vars: 
+          thread_check_args: -S -F -n 100000 -t v        
 
 buildvariants:
 - name: ubuntu1804
