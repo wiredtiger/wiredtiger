@@ -678,7 +678,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * two birthmark records in the same update chain.
          */
         WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_inmem_upd, vpack));
-        upd_select->upd = NULL;
+        if (upd->ext != 0)
+            __wt_free_update_list(session, &upd);
+        upd = upd_select->upd = NULL;
         orig_val_appended = true;
     }
 
