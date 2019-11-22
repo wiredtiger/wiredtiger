@@ -33,7 +33,7 @@ usage() {
 }
 
 # Smoke-tests.
-smoke_base_1="data_source=table ops=100000 rows=10000 threads=6"
+smoke_base_1="data_source=table rows=100000 threads=6 timer=4"
 smoke_base_2="$smoke_base_1 leaf_page_max=9 internal_page_max=9"
 smoke_list=(
 	"$smoke_base_1 file_type=fix"
@@ -210,7 +210,7 @@ run_format()
 	if [[ $smoke_test -ne 0 ]]; then
 		args=${smoke_list[$smoke_next]}
 		smoke_next=$(($smoke_next + 1))
-		echo "$0: starting smoke-test job #$smoke_next in $dir"
+		echo "$0: starting smoke-test job in $dir"
 	else
 		args=$format_args
 
