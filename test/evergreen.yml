@@ -134,7 +134,7 @@ functions:
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|}
         done
-  "many dbs test"
+  "many dbs test":
     command: shell.exec
     parms:
       working_dir: "wiredtiger/build_posix/test/manydbs"
@@ -142,7 +142,7 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${many_db_args|}
-  "thread check long test"
+  "thread check long test":
     command: shell.exec
     parms:
       working_dir: "wiredtiger/build_posix/test/thread"
@@ -1672,6 +1672,7 @@ tasks:
             $(pwd)/../test/csuite/./test_truncated_log 2>&1
 
   - name: check-long-test-2
+    commands:
       - func: "configure wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
@@ -1681,7 +1682,7 @@ tasks:
           make_command: make all
       - func: "make check all"
         vars:
-          test_env_vars = TESTUTIL_ENABLE_LONG_TESTS=1
+          test_env_vars: TESTUTIL_ENABLE_LONG_TESTS=1
       - func: "many dbs test"
       - func: "many dbs test"
         vars:
@@ -1694,6 +1695,7 @@ tasks:
           many_db_args: -I -D 40
   
   - name: check-long-test-3
+    commands:
       - func: "configure wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
