@@ -241,7 +241,7 @@ wts_ops(bool lastrun)
                  * On the last execution, optionally drop core for recovery testing.
                  */
                 if (lastrun && g.c_abort)
-		    random_failure();
+                    random_failure();
                 tinfo->quit = true;
             }
         }

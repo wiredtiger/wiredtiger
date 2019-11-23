@@ -39,7 +39,7 @@ extern char *__wt_optarg;
 
 /*
  * signal_timer --
- *	Alarm signal handler, report the signal and drop core.
+ *     Alarm signal handler, report the signal and drop core.
  */
 static void signal_timer(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
@@ -52,15 +52,15 @@ signal_timer(int signo)
 
 /*
  * signal_handler --
- *	Generic signal handler, report the signal and exit.
+ *     Generic signal handler, report the signal and exit.
  */
 static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 signal_handler(int signo)
 {
-    fprintf(stderr, "format caught signal %d, exitingn\n", signo);
+    fprintf(stderr, "format caught signal %d, exiting\n", signo);
     fflush(stderr);
-    exit (0);
+    exit(0);
 }
 
 int
