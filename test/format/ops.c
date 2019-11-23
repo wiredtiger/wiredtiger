@@ -60,6 +60,10 @@ modify_repl_init(void)
         modify_repl[i] = "zyxwvutsrqponmlkjihgfedcba"[i % 26];
 }
 
+/*
+ * set_alarm --
+ *     Set a timer.
+ */
 static void
 set_alarm(void)
 {
@@ -75,19 +79,36 @@ set_alarm(void)
 #endif
 }
 
+/*
+ * set_core_off --
+ *     Turn off core dumps.
+ */
+static void
+set_core_off(void)
+{
+#ifdef HAVE_SETRLIMIT
+    struct rlimit rlim;
+
+    rlim.rlim_cur = rlim.rlim_max = 0;
+    testutil_check(setrlimit(RLIMIT_CORE, &rlim));
+#endif
+}
+
+/*
+ * random_failure --
+ *     Fail the process.
+ */
 static void
 random_failure(void)
 {
     static char *core = NULL;
-    struct rlimit rlim;
 
     /* Let our caller know. */
     printf("%s: aborting to test recovery\n", progname);
     fflush(stdout);
 
-    /* Don't drop core. */
-    rlim.rlim_cur = rlim.rlim_max = 0;
-    testutil_check(setrlimit(RLIMIT_CORE, &rlim));
+    /* Turn off core dumps. */
+    set_core_off();
 
     /* Fail at a random moment. */
     *core = 0;
