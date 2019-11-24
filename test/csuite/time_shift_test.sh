@@ -42,7 +42,7 @@ then
     exit $EXIT_FAILURE
 fi
 
-# Find test_rwlock file from the wiredtiger directory(../../) level.
+# Find test_rwlock file from the wiredtiger directory(two level up ../../) level.
 rwlockfile=`find ../../ -type f -name "test_rwlock" -print -quit`
 if [ -z $rwlockfile ]
 then
