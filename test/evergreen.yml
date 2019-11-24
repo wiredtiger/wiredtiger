@@ -150,6 +150,14 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${thread_check_args|}
+  "random abort test"
+    command: shell.exec
+    parms:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_random_abort ${random_abort_args|}
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -1683,6 +1691,14 @@ tasks:
       - func: "make check all"
         vars:
           test_env_vars: TESTUTIL_ENABLE_LONG_TESTS=1
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            WT3363_CHECKPOINT_OP_RACES=1 $(pwd)/test/csuite/./test_wt3363_checkpoint_op_races
       - func: "many dbs test"
       - func: "many dbs test"
         vars:
@@ -1719,8 +1735,23 @@ tasks:
         vars: 
           thread_check_args: -t v
       - func: "thread check long test"
-        vars: 
-          thread_check_args: -S -F -n 100000 -t v        
+        vars:
+          thread_check_args: -S -F -n 100000 -t v
+      - func: "random abort test"
+      - func: "random abort test"
+        vars:
+          random_abort_args: -t 10
+      - func: "random abort test"
+        vars:
+          random_abort_args: -t 40
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/csuite/"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./test_truncated_log
 
 buildvariants:
 - name: ubuntu1804
