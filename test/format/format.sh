@@ -78,14 +78,14 @@ while :; do
 		shift ; shift ;;
 	-j)
 		jobs="$2"
-		[[ '^[1-9]+$' =~ "$jobs" ]] && {
+		[[ '^[0-9]+$' =~ "$jobs" ]] && {
 			echo "$0: -j option argument must be a non-zero integer"
 			exit 1
 		}
 		shift ; shift ;;
 	-n)
 		runs="$2"
-		[[ '^[1-9]+$' =~ "$runs" ]] && {
+		[[ '^[0-9]+$' =~ "$runs" ]] && {
 			echo "$0: -n option argument must be an non-zero integer"
 			exit 1
 		}
@@ -95,7 +95,7 @@ while :; do
 		shift ;;
 	-t)
 		minutes="$2"
-		[[ '^[1-9]+$' =~ "$minutes" ]] && {
+		[[ '^[0-9]+$' =~ "$minutes" ]] && {
 			echo "$0: -t option argument must be a non-zero integer"
 			exit 1
 		}
