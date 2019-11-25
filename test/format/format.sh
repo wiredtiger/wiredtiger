@@ -200,10 +200,12 @@ success=0
 # Resolve/cleanup completed jobs.
 resolve()
 {
-	for dir in $home/RUNDIR.[0-9]*; do
-		# Skip log files and failures we've already reported.
-		[[ ! -d $dir ]] || [[ -f "$dir/reported" ]] && continue
+	list=$(ls | grep '^RUNDIR.[0-9]*$')
+	for dir in $list; do
 		log="$dir.log"
+
+		# Skip failures we've already reported.
+		[[ -f "$dir/reported" ]] && continue
 
 		# Discard successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
