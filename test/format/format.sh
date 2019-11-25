@@ -156,7 +156,7 @@ find_file()
 		return
 	fi
 
-	# Check wiredtiger/build_posix/, like location of the wt binary.
+	# Check wiredtiger/build_posix/, likely location of the wt binary.
 	f="$d/../../build_posix/$1"
 	if [[ -f "$f" ]]; then
 		echo "$f"
