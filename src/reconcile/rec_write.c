@@ -753,6 +753,8 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             __wt_free(session, multi->key.ikey);
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
+        if (multi->supd != NULL && multi->has_las)
+            __wt_free(session, multi->page_las.birthmarks);
         __wt_free(session, multi->disk_image);
         __wt_free(session, multi->supd);
         __wt_free(session, multi->addr.addr);

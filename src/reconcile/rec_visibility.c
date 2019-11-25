@@ -260,7 +260,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     uint8_t *p, prepare_state, upd_type;
     int cmp;
     bool all_stable, las_cursor_open, las_positioned, list_prepared, list_uncommitted;
-    bool orig_val_appended, skipped_birthmark, sweep_locked, upd_diff, walked_past_sel_upd;
+    bool orig_val_appended, skipped_birthmark, sweep_locked, walked_past_sel_upd;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -766,10 +766,9 @@ check_original_value:
         WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_inmem_upd, vpack));
 
 err:
-    upd_diff = (upd != upd_select->upd);
-    if (ret != 0 && upd != NULL && upd->ext != 0)
+    if (upd != NULL && upd != upd_select->upd && upd->ext != 0)
         __wt_free_update_list(session, &upd);
-    if (ret != 0 && upd_diff && upd_select->upd != NULL && upd_select->upd->ext != 0)
+    if (ret != 0 && upd_select->upd != NULL && upd_select->upd->ext != 0)
         __wt_free_update_list(session, &upd_select->upd);
     __wt_free_update_list(session, &tmp_upd);
     while (modifies.size > 0) {
