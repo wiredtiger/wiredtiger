@@ -456,7 +456,10 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             log_config = true;
             *log_only = !target_list;
             WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
-        } else {
+        } else if (is_dup)
+	    WT_ERR_MSG(session, EINVAL,
+	     "duplicate backup cursor cannot be used for non-log target");
+	else {
             *log_only = false;
 
             /*

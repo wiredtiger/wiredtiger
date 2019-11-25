@@ -54,7 +54,7 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         return 'cache_size=1G,log=(archive=%s,' % self.archive + \
             'enabled,file_max=%s)' % self.logmax
 
-    def test_backup11(self):
+    def add_data(self):
         log2 = "WiredTigerLog.0000000002"
         log3 = "WiredTigerLog.0000000003"
 
@@ -71,16 +71,23 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
                 val = 'value' + str(num)
                 c[key] = val
             loop += 1
+        self.session.checkpoint()
+        c.close()
+        return loop
+
+    def test_backup11(self):
+
+        loop = self.add_data()
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
-        self.session.checkpoint()
         os.mkdir(self.dir)
         config = 'incremental=(enabled,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add some data that will appear in log file 3.
+        c = self.session.open_cursor(self.uri)
         for i in range(0, self.nops):
             num = i + (loop * self.nops)
             key = 'key' + str(num)
@@ -92,18 +99,18 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.checkpoint()
 
         # Now copy the files returned by the backup cursor.
-        #orig_logs = []
-        #while True:
-        #    ret = bkup_c.next()
-        #    if ret != 0:
-        #        break
-        #    newfile = bkup_c.get_key()
-        #    sz = os.path.getsize(newfile)
-        #    self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-        #    shutil.copy(newfile, self.dir)
-        #    if "WiredTigerLog" in newfile:
-        #        orig_logs.append(newfile)
-        #self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        orig_logs = []
+        while True:
+            ret = bkup_c.next()
+            if ret != 0:
+                break
+            newfile = bkup_c.get_key()
+            sz = os.path.getsize(newfile)
+            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
+            shutil.copy(newfile, self.dir)
+            if "WiredTigerLog" in newfile:
+                orig_logs.append(newfile)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
 
         # Now open a duplicate backup cursor.
         # We *can* use a log target duplicate on an incremental primary backup so that
@@ -111,34 +118,34 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         # is open.
         config = 'target=("log:")'
         dupc = self.session.open_cursor(None, bkup_c, config)
-        #dup_logs = []
-        #while True:
-        #    ret = dupc.next()
-        #    if ret != 0:
-        #        break
-        #    newfile = dupc.get_key()
-        #    self.assertTrue("WiredTigerLog" in newfile)
-        #    sz = os.path.getsize(newfile)
-        #    if (newfile not in orig_logs):
-        #        self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-        #        shutil.copy(newfile, self.dir)
-        #    # Record all log files returned for later verification.
-        #    dup_logs.append(newfile)
-        #self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        dup_logs = []
+        while True:
+            ret = dupc.next()
+            if ret != 0:
+                break
+            newfile = dupc.get_key()
+            self.assertTrue("WiredTigerLog" in newfile)
+            sz = os.path.getsize(newfile)
+            if (newfile not in orig_logs):
+                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
+                shutil.copy(newfile, self.dir)
+            # Record all log files returned for later verification.
+            dup_logs.append(newfile)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         dupc.close()
         bkup_c.close()
 
         # Add more data
-        #c = self.session.open_cursor(self.uri)
-        #for i in range(0, self.nops):
-        #    num = i + (loop * self.nops)
-        #    key = 'key' + str(num)
-        #    val = 'value' + str(num)
-        #    c[key] = val
-        #loop += 1
-        #c.close()
-        #self.session.log_flush('sync=on')
-        #self.session.checkpoint()
+        c = self.session.open_cursor(self.uri)
+        for i in range(0, self.nops):
+            num = i + (loop * self.nops)
+            key = 'key' + str(num)
+            val = 'value' + str(num)
+            c[key] = val
+        loop += 1
+        c.close()
+        self.session.log_flush('sync=on')
+        self.session.checkpoint()
 
         # Test a few error cases now.
         # - Incremental filename must be on duplicate, not primary.
@@ -169,12 +176,16 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         config = 'incremental=(src_id="ID1",this_id="ID2")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 
+        self.pr("Opened backup for error testing")
+
         # Now test all the error cases with an incremental primary open.
         # - We cannot make multiple incremental duplcate backup cursors.
         # - We cannot duplicate the duplicate backup cursor.
         config = 'incremental=(file=test.wt)'
         dupc = self.session.open_cursor(None, bkup_c, config)
         msg = "/already a duplicate backup cursor open/"
+        self.pr("Test multiple dups")
+        self.pr("=========")
         # Test multiple duplicate backup cursors.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
@@ -186,13 +197,17 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         dupc.close()
 
         # - A duplicate cursor must specify incremental or log target.
-        msg = "/backup cursor must be for /"
+        self.pr("Test dup and file target")
+        self.pr("=========")
+        msg = "/cannot be used for/"
         config = 'target=("file:test.wt")'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, config), 0), msg)
 
         # - We cannot mix block incremental with a log target on the same duplicate.
+        self.pr("Test mixed targets")
+        self.pr("=========")
         config = 'incremental=(file=test.wt),target=("log:")'
         msg = "/incremental backup incompatible/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -200,6 +215,8 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
             bkup_c, config), 0), msg)
 
         # - Incremental ids must be on primary, not duplicate.
+        self.pr("Test ids on dups")
+        self.pr("=========")
         config = 'incremental=(src_id="ID1")'
         msg = "/specified on a primary/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
@@ -211,25 +228,14 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
             bkup_c, config), 0), msg)
 
         # - Force stop must be on primary, not duplicate.
-        config = 'incremental=(force_stop=true)'
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.open_cursor(None,
-            bkup_c, config), 0), msg)
+        #self.pr("Test force stop")
+        #self.pr("=========")
+        #config = 'incremental=(force_stop=true)'
+        #print "config is " + config
+        #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+        #    lambda:self.assertEquals(self.session.open_cursor(None,
+        #    bkup_c, config), 0), msg)
 
-        # Open duplicate backup cursor again now that the first
-        # one is closed. Test every log file returned is the same
-        # as the first time.
-        #dupc = self.session.open_cursor(None, bkup_c, config)
-        #while True:
-        #    ret = dupc.next()
-        #    if ret != 0:
-        #        break
-        #    newfile = dupc.get_key()
-        #    self.assertTrue("WiredTigerLog" in newfile)
-        #    self.assertTrue(newfile in dup_logs)
-        #self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-
-        #dupc.close()
         bkup_c.close()
 
         # After the full backup, open and recover the backup database.
