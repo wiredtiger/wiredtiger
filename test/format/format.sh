@@ -261,9 +261,10 @@ run_format()
 
 		echo "$0: starting job in $dir"
 	fi
-	[[ $verbose -ne 0 ]] &&
-	    echo "$0: running $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
-	$format_binary -c "$config" -h "$dir" -1 $args quiet=1 > $log 2>&1 &
+
+	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	[[ $verbose -ne 0 ]] && echo "$0: $cmd"
+	$cmd > $log 2>&1 &
 }
 
 seconds=$((minutes * 60))
