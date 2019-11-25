@@ -16,18 +16,18 @@ onintr()
 trap 'onintr' 2
 
 usage() {
-        echo "usage: $0 [-aFSv] [-c config] "
-        echo "    [-h home] [-j jobs] [-n runs] [-t minutes] [format-configuration]"
-        echo
-        echo "    -a           abort/recovery testing (defaults to off)"
-        echo "    -c config    format configuration file (defaults to CONFIG.stress)"
-        echo "    -F           quit on first failure (defaults to off)"
-        echo "    -h home      run directory (defaults to .)"
-        echo "    -j jobs      parallel jobs (defaults to 8)"
-        echo "    -n runs      number of runs (defaults to no limit)"
-        echo "    -S           run smoke-test configurations (defaults to off)"
-        echo "    -t minutes   minutes to run (defaults to no limit)"
-        echo "    -v           verbose output (defaults to off)"
+	echo "usage: $0 [-aFSv] [-c config] "
+	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
+	echo
+	echo "    -a           abort/recovery testing (defaults to off)"
+	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
+	echo "    -F           quit on first failure (defaults to off)"
+	echo "    -h home      run directory (defaults to .)"
+	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
+	echo "    -n total     total jobs to execute (defaults to no limit)"
+	echo "    -S           run smoke-test configurations (defaults to off)"
+	echo "    -t minutes   minutes to run (defaults to no limit)"
+	echo "    -v           verbose output (defaults to off)"
 
 	exit 1
 }
@@ -56,10 +56,10 @@ config="CONFIG.stress"
 first_failure=0
 format_args=""
 home="."
-jobs=8
 minutes=0
-runs=0
+parallel_jobs=8
 smoke_test=0
+total_jobs=0
 verbose=0
 
 while :; do
@@ -77,15 +77,15 @@ while :; do
 		home="$2"
 		shift ; shift ;;
 	-j)
-		jobs="$2"
-		[[ "$jobs" =~ ^[1-9][0-9]*$ ]] || {
+		parallel_jobs="$2"
+		[[ "$parallel_jobs" =~ ^[1-9][0-9]*$ ]] || {
 			echo "$0: -j option argument must be a non-zero integer"
 			exit 1
 		}
 		shift ; shift ;;
 	-n)
-		runs="$2"
-		[[ "$runs" =~ ^[1-9][0-9]*$ ]] || {
+		total_jobs="$2"
+		[[ "$total_jobs" =~ ^[1-9][0-9]*$ ]] || {
 			echo "$0: -n option argument must be an non-zero integer"
 			exit 1
 		}
@@ -171,12 +171,14 @@ config=$(find_file "$config")
 	exit 1
 }
 [[ -d "$home" ]] || {
-	echo "$0: run directory \"$home\" not found"
+	echo "$0: directory \"$home\" not found"
 	exit 1
 }
 
-[[ $verbose -ne 0 ]] &&
-    echo "$0 [-c $config] [-h $home] [-j $jobs] [-n $runs] [-t $minutes] $format_args"
+[[ $verbose -ne 0 ]] && {
+	echo "$0 configuration: [-c $config] [-h $home]\
+[-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
+}
 
 failure=0
 success=0
@@ -188,7 +190,7 @@ resolve()
 		[[ ! -d $dir ]] || [[ -f "$dir/reported" ]] && continue
 		log="$dir.log"
 
-		# Discard successful runs.
+		# Discard successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
 			success=$(($success + 1))
@@ -196,7 +198,7 @@ resolve()
 			continue
 		}
 
-		# Test recovery on runs configured for random abort. */
+		# Test recovery on jobs configured for random abort. */
 		grep 'aborting to test recovery' $log > /dev/null && {
 			cp -pr $dir $dir.RECOVER
 
@@ -223,7 +225,7 @@ resolve()
 			continue
 		}
 
-		# Discard runs where the timer went off.
+		# Discard jobs where the timer went off.
 		grep 'caught signal' $log > /dev/null && {
 			rm -rf $dir $log
 			[[ $verbose -ne 0 ]] && echo "$0: job in $dir aborted"
@@ -231,7 +233,7 @@ resolve()
 		}
 
 		# Report failures.
-		# Check for the library abort message, or a run-time error from format.
+		# Check for the library abort message, or an error from format.
 		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
 			echo "$0: failure status reported" > $dir/reported
 			failure=$(($failure + 1))
@@ -242,11 +244,11 @@ resolve()
 }
 
 # Start a single job.
-count_runs=0
-run_format()
+count_jobs=0
+format()
 {
-	count_runs=$(($count_runs + 1))
-	dir="$home/RUNDIR.$count_runs"
+	count_jobs=$(($count_jobs + 1))
+	dir="$home/RUNDIR.$count_jobs"
 	log="$dir.log"
 
 	if [[ $smoke_test -ne 0 ]]; then
@@ -257,7 +259,7 @@ run_format()
 		args=$format_args
 
 		# If abort/recovery testing is configured, do it 5% of the time.
-		[[ $abort_test -ne 0 ]] && [[ $(($count_runs % 20)) -eq 0 ]] && args="$args abort=1"
+		[[ $abort_test -ne 0 ]] && [[ $(($count_jobs % 20)) -eq 0 ]] && args="$args abort=1"
 
 		echo "$0: starting job in $dir"
 	fi
@@ -287,8 +289,8 @@ while :; do
 		# Check if we're only running the smoke-tests and we're done.
 		[[ $smoke_test -ne 0 ]] && [[ $smoke_next -ge ${#smoke_list[@]} ]] && stop=1
 	
-		# Check if the total number of jobs to run has been reached.
-		[[ $runs -ne 0 ]] && [[ $count_runs -ge $runs ]] && stop=1
+		# Check if the total number of jobs has been reached.
+		[[ $total_jobs -ne 0 ]] && [[ $count_jobs -ge $total_jobs ]] && stop=1
 
 		# Check if less than 60 seconds left on any timer. The goal is to avoid killing
 		# jobs that haven't yet configured signal handlers, because we rely on handler
@@ -299,10 +301,10 @@ while :; do
 
 		# Check if the maximum number of jobs in parallel has been reached.
 		n=`jobs -p | wc -l`
-		[[ $n -ge $jobs ]] && break
+		[[ $n -ge $parallel_jobs ]] && break
 
 		# Start another job, but don't pound on the system.
-		run_format
+		format
 		sleep 2
 	done
 
@@ -323,7 +325,7 @@ while :; do
 	failure_save=$failure
 	resolve
 	[[ $success -ne $success_save ]] || [[ $failure -ne $failure_save ]] &&
-	    echo "$0: $success successful runs, $failure failed runs"
+	    echo "$0: $success successful jobs, $failure failed jobs"
 
 	# Quit if we're done and there aren't any jobs left to wait for.
 	children=$(pgrep -P $$)
@@ -338,7 +340,7 @@ while :; do
 	# Wait for awhile.
 	sleep 10
 done
-echo "$0: $success successful runs, $failure failed runs"
+echo "$0: $success successful jobs, $failure failed jobs"
 
 [[ $failure -ne 0 ]] && exit 1
 exit 0
