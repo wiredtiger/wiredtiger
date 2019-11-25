@@ -59,26 +59,25 @@ struct __wt_cursor_backup {
     size_t list_allocated;
     size_t list_next;
 
-#if 0
-    WT_CURSOR *incr_cursor; /* File cursor */
-    /* Start/stop checkpoints */
-    char *incr_checkpoint_start;
-    char *incr_checkpoint_stop;
-
-    bool incr_init;            /* Cursor traversal initialized */
-    uint64_t *incr_list;       /* List of file offset/size pairs */
-    uint64_t incr_list_count;  /* Count of file offset/size pairs */
-    uint64_t incr_list_offset; /* Current offset */
-    uint64_t incr_size;        /* Maximum transfer size */
-    WT_ITEM *incr_block;       /* Current block of data */
-#else
     /* File offset-based incremental backup. */
     WT_BLKINCR *incr;          /* Incremental backup in use */
     char *incr_file;           /* File name */
     char *incr_src;            /* Source identifier */
     char *incr_this;           /* New base identifier */
     uint64_t incr_granularity; /* Maximum transfer size */
-#endif
+
+    WT_CURSOR *incr_cursor; /* File cursor */
+    /* Start/stop checkpoints */
+    char *incr_checkpoint_start;
+    char *incr_checkpoint_stop;
+
+#define WT_BACKUP_INCR_COMPONENTS 3
+    bool incr_init;            /* Cursor traversal initialized */
+    uint64_t *incr_list;       /* List of file offset/size/type triples */
+    uint64_t incr_list_count;  /* Count of file offset/size/type triples */
+    uint64_t incr_list_offset; /* Current offset */
+    uint64_t incr_size;        /* Maximum transfer size */
+    WT_ITEM *incr_block;       /* Current block of data */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CURBACKUP_DUP 0x1u        /* Duplicated backup cursor */

@@ -117,7 +117,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
     if (cb->incr_init) {
         /* We have this object's incremental information, Check if we're done. */
-        if (cb->incr_list_offset >= cb->incr_list_count - 2)
+        if (cb->incr_list_offset >= cb->incr_list_count - WT_BACKUP_INCR_COMPONENTS)
             return (WT_NOTFOUND);
 
         /*
@@ -125,19 +125,21 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * of the current block.
          */
         if (cb->incr_list[cb->incr_list_offset + 1] <= cb->incr_granularity)
-            cb->incr_list_offset += 2;
+            cb->incr_list_offset += WT_BACKUP_INCR_COMPONENTS;
         else {
             cb->incr_list[cb->incr_list_offset] += cb->incr_granularity;
             cb->incr_list[cb->incr_list_offset + 1] -= cb->incr_granularity;
+            cb->incr_list[cb->incr_list_offset + 2] = WT_BACKUP_RANGE;
         }
     } else if (btree == NULL) {
         /* We don't have this objects incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
-        WT_ERR(__wt_calloc_def(session, 2, &cb->incr_list));
+        WT_ERR(__wt_calloc_def(session, WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));
         cb->incr_list[0] = 0;
         cb->incr_list[1] = (uint64_t)size;
-        cb->incr_list_count = 2;
+        cb->incr_list[2] = (uint64_t)WT_BACKUP_FILE;
+        cb->incr_list_count = WT_BACKUP_INCR_COMPONENTS;
         cb->incr_list_offset = 0;
         WT_ERR(__wt_scr_alloc(session, 0, &cb->incr_block));
         cb->incr_init = true;
@@ -145,7 +147,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
     } else {
         /*
-         * We don't have this objects incremental information, and it's not a full file copy. Get a
+         * We don't have this object's incremental information, and it's not a full file copy. Get a
          * list of the checkpoints available for the file and flag the starting/stopping ones. It
          * shouldn't be possible to specify checkpoints that no longer exist, but check anyway.
          */
@@ -159,8 +161,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         entries = 0;
         WT_CKPT_FOREACH (ckptbase, ckpt)
             entries += ckpt->alloc_list_entries;
-        WT_ERR(__wt_calloc_def(session, entries * 2, &a));
-        WT_ERR(__wt_calloc_def(session, entries * 2, &b));
+        WT_ERR(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &a));
+        WT_ERR(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &b));
 
         /* Merge the block lists into a final list of blocks to copy. */
         start = stop = false;
@@ -244,54 +246,69 @@ int
 __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
   WT_CURSOR *cursor, const char *cfg[], WT_CURSOR **cursorp)
 {
-    static const char *copy_entire[] = {WT_BASECONFIG, WT_METADATA_BACKUP, WT_WIREDTIGER, NULL};
+#if 0
+    static const char *copy_entire[] = {
+      WT_BASECONFIG, WT_METADATA_BACKUP, WT_WIREDTIGER, WT_LOG_FILENAME, NULL};
+#endif
     WT_CURSOR_BACKUP *cb, *other_cb;
     WT_DECL_ITEM(open_checkpoint);
     WT_DECL_ITEM(open_uri);
     WT_DECL_RET;
+#if 0
     size_t i;
     const char **p, **new_cfg;
+#endif
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     other_cb = (WT_CURSOR_BACKUP *)other;
+#if 0
     new_cfg = NULL;
+#endif
 
     cursor->key_format = "qqq";
-    cursor->value_format = "u";
+    cursor->value_format = "";
 
     cursor->next = __curbackup_incr_next;
     cursor->get_key = __curbackup_incr_get_key;
     cursor->get_value = __wt_cursor_get_value_notsup;
 
     /* We need a starting checkpoint. */
-    if (other_cb->incr_checkpoint_start == NULL)
+    if (other_cb->incr->ckpt_name == NULL)
         WT_ERR_MSG(session, EINVAL,
           "a starting checkpoint must be specified to open a hot backup cursor for file-based "
           "incremental backups");
 
+#if 0
     /* The two checkpoints aren't supposed to be the same. */
-    if (strcmp(other_cb->incr_checkpoint_start, other->checkpoint) == 0)
+    if (strcmp(other_cb->incr->ckpt_name, other->checkpoint) == 0)
         WT_ERR_MSG(session, EINVAL,
           "incremental backup start and stop checkpoints are the same: %s",
           other_cb->incr_checkpoint_start);
+#endif
 
     /* Copy information from the primary cursor to the current file. */
     WT_ERR(__wt_strdup(session, other_cb->incr_checkpoint_start, &cb->incr_checkpoint_start));
-    WT_ERR(__wt_strdup(session, other->checkpoint, &cb->incr_checkpoint_stop));
+    WT_ERR(__wt_strdup(session, other_cb->incr->ckpt_name, &cb->incr_checkpoint_stop));
     cb->incr_granularity = other_cb->incr_granularity;
 
-    /*
-     * Files that aren't underlying block-manager files have to be copied in their entirety. Catch
-     * them up front and don't try and read them.
-     */
+/*
+ * Files that aren't underlying block-manager files have to be copied in their entirety. Catch them
+ * up front and don't try and read them.
+ */
+#if 0
     for (p = copy_entire; *p != NULL; ++p)
-        if (strcmp(*p, cb->incr_file) == 0)
+        if (WT_PREFIX_MATCH(*p, cb->incr_file))
             return (__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
+#else
+    /* XXX Return full file info for all files for now. */
+    return (__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
+#endif
 
-    /*
-     * If doing a file-based incremental backup, we need an open cursor on the file. Open the backup
-     * checkpoint, confirming it exists.
-     */
+/*
+ * If doing a file-based incremental backup, we need an open cursor on the file. Open the backup
+ * checkpoint, confirming it exists.
+ */
+#if 0
     WT_ERR(__wt_scr_alloc(session, 0, &open_uri));
     WT_ERR(__wt_buf_fmt(session, open_uri, "file:%s", cb->incr_file));
     __wt_free(session, cb->incr_file);
@@ -313,10 +330,13 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
 
     /* XXX KEITH */
     WT_ERR(__wt_strdup(session, cb->incr_cursor->internal_uri, &cb->incr_cursor->internal_uri));
+#endif
 
 err:
     __wt_scr_free(session, &open_checkpoint);
     __wt_scr_free(session, &open_uri);
+#if 0
     __wt_free(session, new_cfg);
+#endif
     return (ret);
 }

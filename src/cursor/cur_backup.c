@@ -111,6 +111,7 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
             __wt_free(session, cb->list[i]);
         __wt_free(session, cb->list);
     }
+    __wt_curbackup_free_incr(session, cb);
 }
 
 /*
@@ -195,7 +196,7 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = "S";  /* Return the file names as the key. */
-    cursor->value_format = ""; /* No value. */
+    cursor->value_format = ""; /* No value, for now. */
 
     session->bkp_cursor = cb;
     othercb = (WT_CURSOR_BACKUP *)other;
@@ -209,8 +210,9 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __backup_start(session, cb, othercb, cfg)));
     WT_ERR(ret);
-
-    WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
+    WT_ERR(cb->incr_file == NULL ?
+        __wt_cursor_init(cursor, uri, NULL, cfg, cursorp) :
+        __wt_curbackup_open_incr(session, uri, other, cursor, cfg, cursorp));
 
     if (0) {
 err:
