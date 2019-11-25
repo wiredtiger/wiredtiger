@@ -153,7 +153,7 @@ err:
  */
 static int
 __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *las_positioned,
-  WT_CURSOR *las_cursor, uint32_t btree_id, WT_ITEM *key, WT_UPDATE **updp)
+  WT_CURSOR *las_cursor, uint32_t btree_id, WT_ITEM *key, WT_UPDATE **updp, uint64_t *max_txn)
 {
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
@@ -231,6 +231,8 @@ inmem:
         if (*inmem_upd_pos != NULL)
             *inmem_upd_pos = (*inmem_upd_pos)->next;
     }
+    if (*updp != NULL && WT_TXNID_LT(*max_txn, (*updp)->txnid))
+        *max_txn = (*updp)->txnid;
     return (0);
 }
 
@@ -338,8 +340,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         first_inmem_upd = WT_ROW_UPDATE(page, ripcip);
 
     inmem_upd_pos = first_inmem_upd;
-    WT_ERR(__get_next_rec_upd(
-      session, &inmem_upd_pos, &las_positioned, las_cursor, S2BT(session)->id, key, &upd));
+    WT_ERR(__get_next_rec_upd(session, &inmem_upd_pos, &las_positioned, las_cursor,
+      S2BT(session)->id, key, &upd, &max_txn));
     if (upd == NULL)
         goto err;
 
@@ -349,8 +351,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * for this key. Walk both the lists comparing the pointers and selecting the next latest record
      * (based on the timestamp and txn-id) to be considered for writing to the disk.
      */
-    for (; ret == 0 && upd != NULL; ret = __get_next_rec_upd(session, &inmem_upd_pos,
-                                      &las_positioned, las_cursor, S2BT(session)->id, key, &upd)) {
+    for (; ret == 0 && upd != NULL;
+         ret = __get_next_rec_upd(session, &inmem_upd_pos, &las_positioned, las_cursor,
+           S2BT(session)->id, key, &upd, &max_txn)) {
         if ((txnid = upd->txnid) == WT_TXN_ABORTED)
             continue;
 
