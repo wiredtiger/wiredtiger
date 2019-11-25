@@ -44,7 +44,6 @@ fi
 
 # Find test_rwlock file from the wiredtiger home directory.
 WT_HOME_DIR=$(git rev-parse --show-toplevel)
-echo "======== top level Directory : $WT_HOME_DIR ======="
 RW_LOCK_FILE=`find $WT_HOME_DIR -type f -name "test_rwlock" -print -quit`
 if [ -z $RW_LOCK_FILE ]
 then
