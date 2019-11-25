@@ -1675,10 +1675,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-
-            $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
-            $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
-            $(pwd)/../test/csuite/./test_truncated_log 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/random_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
+            ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
 
   - name: check-long-test-2
     tags: ["check-long-test"]
