@@ -150,7 +150,7 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${thread_check_args|}
-  "random abort test"
+  "random abort test":
     command: shell.exec
     parms:
       working_dir: "wiredtiger/build_posix/test/csuite"
@@ -1752,6 +1752,32 @@ tasks:
             set -o verbose
 
             ./test_truncated_log
+
+  - name: check-long-test-4
+    commands:
+      - func: "configure wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
+      - func: "make wiredtiger"
+        vars:
+          make_command: make all
+      - func: "test format"
+        vars:
+          extra_args: file_type=fix
+      - func: "test format"
+        vars:
+          extra_args: file_type=row
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/bench/wtperf"
+          script: |
+            rundir=../../../bench/wtperf/runners
+            $rundir/wtperf_run.sh $rundir/mongodb-oplog.wtperf
+            num_truncates=`grep "^Truncate count:" ./wtperf.out | cut -d ' ' -f 3`
+            echo "YVALUE=$num_truncates" > ../../truncate_truncate_count.properties
+            $rundir/wtperf_track.sh -c truncate_count $num_truncates
+            ./wtperf -O $rundir/checkpoint-schema-race.wtperf
 
 buildvariants:
 - name: ubuntu1804
