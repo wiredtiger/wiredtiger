@@ -572,15 +572,15 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             if (dhandle == NULL)
                 break;
 
-            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-              dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
-              WT_IS_METADATA(dhandle))
-                continue;
-
             if (WT_IS_LAS(dhandle)) {
                 las_dhandle = dhandle;
                 continue;
             }
+
+            if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
+              dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
+              WT_IS_METADATA(dhandle))
+                continue;
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
