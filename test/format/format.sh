@@ -5,11 +5,13 @@
 	exit 1
 }
 
+name=$(basename $0)
+
 forcequit=0
 stop=0
 onintr()
 {
-	echo "$0: interrupted, cleaning up..."
+	echo "$name: interrupted, cleaning up..."
 	forcequit=1
 	stop=1
 }
@@ -79,14 +81,14 @@ while :; do
 	-j)
 		parallel_jobs="$2"
 		[[ "$parallel_jobs" =~ ^[1-9][0-9]*$ ]] || {
-			echo "$0: -j option argument must be a non-zero integer"
+			echo "$name: -j option argument must be a non-zero integer"
 			exit 1
 		}
 		shift ; shift ;;
 	-n)
 		total_jobs="$2"
 		[[ "$total_jobs" =~ ^[1-9][0-9]*$ ]] || {
-			echo "$0: -n option argument must be an non-zero integer"
+			echo "$name: -n option argument must be an non-zero integer"
 			exit 1
 		}
 		shift ; shift ;;
@@ -96,7 +98,7 @@ while :; do
 	-t)
 		minutes="$2"
 		[[ "$minutes" =~ ^[1-9][0-9]*$ ]] || {
-			echo "$0: -t option argument must be a non-zero integer"
+			echo "$name: -t option argument must be a non-zero integer"
 			exit 1
 		}
 		shift ; shift ;;
@@ -155,28 +157,28 @@ find_file()
 # the configuration file and the run directory.
 format_binary=$(find_file "t")
 [[ ! -x "$format_binary" ]] && {
-	echo "$0: format program \"$format_binary\" not found"
+	echo "$name: format program \"$format_binary\" not found"
 	exit 1
 }
 [[ $abort_test -ne 0 ]] && {
     wt_binary=$(find_file "wt")
     [[ ! -x "$wt_binary" ]] && {
-	echo "$0: wt program \"$wt_binary\" not found"
+	echo "$name: wt program \"$wt_binary\" not found"
 	exit 1
     }
 }
 config=$(find_file "$config")
 [[ -f "$config" ]] || {
-	echo "$0: configuration file \"$config\" not found"
+	echo "$name: configuration file \"$config\" not found"
 	exit 1
 }
 [[ -d "$home" ]] || {
-	echo "$0: directory \"$home\" not found"
+	echo "$name: directory \"$home\" not found"
 	exit 1
 }
 
 [[ $verbose -ne 0 ]] && {
-	echo "$0 configuration: [-c $config] [-h $home]\
+	echo "$name configuration: [-c $config] [-h $home]\
 [-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
 }
 
@@ -194,7 +196,7 @@ resolve()
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
 			success=$(($success + 1))
-			[[ $verbose -ne 0 ]] && echo "$0: job in $dir successfully completed"
+			[[ $verbose -ne 0 ]] && echo "$name: job in $dir successfully completed"
 			continue
 		}
 
@@ -203,8 +205,8 @@ resolve()
 			cp -pr $dir $dir.RECOVER
 
 			(echo
-			 echo "$0: running recovery after abort test"
-			 echo "$0: original directory copied into $dir.RECOVER"
+			 echo "$name: running recovery after abort test"
+			 echo "$name: original directory copied into $dir.RECOVER"
 			 echo) >> $log
 
 			# Everything is a table unless explicitly a file.
@@ -216,11 +218,11 @@ resolve()
 				rm -rf $dir $dir.RECOVER $log
 				success=$(($success + 1))
 				[[ $verbose -ne 0 ]] &&
-				    echo "$0: job in $dir successfully completed"
+				    echo "$name: job in $dir successfully completed"
 			else
-				echo "$0: failure status reported" > $dir/reported
+				echo "$name: failure status reported" > $dir/reported
 				failure=$(($failure + 1))
-				echo "$0: job in $dir failed abort/recovery testing"
+				echo "$name: job in $dir failed abort/recovery testing"
 			fi
 			continue
 		}
@@ -228,16 +230,16 @@ resolve()
 		# Discard jobs where the timer went off.
 		grep 'caught signal' $log > /dev/null && {
 			rm -rf $dir $log
-			[[ $verbose -ne 0 ]] && echo "$0: job in $dir aborted"
+			[[ $verbose -ne 0 ]] && echo "$name: job in $dir aborted"
 			continue
 		}
 
 		# Report failures.
 		# Check for the library abort message, or an error from format.
 		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
-			echo "$0: failure status reported" > $dir/reported
+			echo "$name: failure status reported" > $dir/reported
 			failure=$(($failure + 1))
-			echo "$0: job in $dir failed"
+			echo "$name: job in $dir failed"
 		}
 	done
 	return 0
@@ -254,18 +256,18 @@ format()
 	if [[ $smoke_test -ne 0 ]]; then
 		args=${smoke_list[$smoke_next]}
 		smoke_next=$(($smoke_next + 1))
-		echo "$0: starting smoke-test job in $dir"
+		echo "$name: starting smoke-test job in $dir"
 	else
 		args=$format_args
 
 		# If abort/recovery testing is configured, do it 5% of the time.
 		[[ $abort_test -ne 0 ]] && [[ $(($count_jobs % 20)) -eq 0 ]] && args="$args abort=1"
 
-		echo "$0: starting job in $dir"
+		echo "$name: starting job in $dir"
 	fi
 
 	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
-	[[ $verbose -ne 0 ]] && echo "$0: $cmd"
+	[[ $verbose -ne 0 ]] && echo "$name: $cmd"
 	$cmd > $log 2>&1 &
 }
 
@@ -325,7 +327,7 @@ while :; do
 	failure_save=$failure
 	resolve
 	[[ $success -ne $success_save ]] || [[ $failure -ne $failure_save ]] &&
-	    echo "$0: $success successful jobs, $failure failed jobs"
+	    echo "$name: $success successful jobs, $failure failed jobs"
 
 	# Quit if we're done and there aren't any jobs left to wait for.
 	children=$(pgrep -P $$)
@@ -340,7 +342,7 @@ while :; do
 	# Wait for awhile.
 	sleep 10
 done
-echo "$0: $success successful jobs, $failure failed jobs"
+echo "$name: $success successful jobs, $failure failed jobs"
 
 [[ $failure -ne 0 ]] && exit 1
 exit 0
