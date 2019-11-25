@@ -332,7 +332,7 @@ format_die(void)
     fclose_and_clear(&g.logfp);
     fclose_and_clear(&g.randfp);
 
-    fprintf(stderr, "\n");
+    fprintf(stderr, "\n%s: run FAILED\n", progname); 
 
     /* Display the configuration that failed. */
     if (g.run_cnt)

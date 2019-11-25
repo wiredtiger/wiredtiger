@@ -231,7 +231,8 @@ resolve()
 		}
 
 		# Report failures.
-		grep 'RUN PARAMETERS' $log > /dev/null && {
+		# Check for the library abort message, or a run-time error from format.
+		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
 			echo "$0: failure status reported" > $dir/reported
 			failure=$(($failure + 1))
 			echo "$0: job in $dir failed"
