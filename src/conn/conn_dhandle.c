@@ -584,8 +584,8 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
 
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
-        WT_ASSERT(session, las_dhandle != NULL);
-        WT_ERR(__conn_btree_apply_internal(session, las_dhandle, file_func, name_func, cfg));
+        if (las_dhandle != NULL)
+            WT_ERR(__conn_btree_apply_internal(session, las_dhandle, file_func, name_func, cfg));
         return (0);
     }
 
