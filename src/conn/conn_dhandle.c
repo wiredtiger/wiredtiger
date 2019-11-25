@@ -541,12 +541,12 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
-    WT_DATA_HANDLE *dhandle;
+    WT_DATA_HANDLE *dhandle, *las_dhandle;
     WT_DECL_RET;
     uint64_t bucket;
 
     conn = S2C(session);
-
+    las_dhandle = NULL;
     /*
      * If we're given a URI, then we walk only the hash list for that name. If we don't have a URI
      * we walk the entire dhandle list.
@@ -570,14 +570,23 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             WT_WITH_HANDLE_LIST_READ_LOCK(
               session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
             if (dhandle == NULL)
-                return (0);
+                break;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
               dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
-              WT_IS_METADATA(dhandle) || WT_IS_LAS(dhandle))
+              WT_IS_METADATA(dhandle))
                 continue;
+
+            if (WT_IS_LAS(dhandle)) {
+                las_dhandle = dhandle;
+                continue;
+            }
+
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
+        WT_ASSERT(session, las_dhandle != NULL);
+        WT_ERR(__conn_btree_apply_internal(session, las_dhandle, file_func, name_func, cfg));
+        return (0);
     }
 
 err:
