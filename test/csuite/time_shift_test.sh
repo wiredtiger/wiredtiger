@@ -42,9 +42,11 @@ then
     exit $EXIT_FAILURE
 fi
 
-# Find test_rwlock file from the wiredtiger directory(two level up ../../) level.
-rwlockfile=`find ../../ -type f -name "test_rwlock" -print -quit`
-if [ -z $rwlockfile ]
+# Find test_rwlock file from the wiredtiger home directory.
+WT_HOME_DIR=$(git rev-parse --show-toplevel)
+echo "======== top level Directory : $WT_HOME_DIR ======="
+RW_LOCK_FILE=`find $WT_HOME_DIR -type f -name "test_rwlock" -print -quit`
+if [ -z $RW_LOCK_FILE ]
 then
     echo "test_rwlock file not found, so exiting"
     exit $EXIT_FAILURE
@@ -53,7 +55,7 @@ fi
 SEC1=`date +%s`
 if [ "$RUN_OS" = "Darwin" ]
 then
-    ./$rwlockfile
+    $RW_LOCK_FILE
 elif [ "$RUN_OS" = "Linux" ]
 then
     if [ -z $2 ]
@@ -62,7 +64,7 @@ then
     else
         CPU_SET=$2
     fi
-    taskset -c $CPU_SET ./$rwlockfile
+    taskset -c $CPU_SET $RW_LOCK_FILE
 else
     echo "not able to decide running OS, so exiting"
     exit $EXIT_FAILURE
@@ -76,9 +78,9 @@ if [ "$RUN_OS" = "Darwin" ]
 then
     export DYLD_FORCE_FLAT_NAMESPACE=y
     export DYLD_INSERT_LIBRARIES=$1
-    ./$rwlockfile &
+    $RW_LOCK_FILE &
 else
-    LD_PRELOAD=$1 taskset -c $CPU_SET ./$rwlockfile &
+    LD_PRELOAD=$1 taskset -c $CPU_SET $RW_LOCK_FILE &
 fi
 
 # get pid of test run in background
