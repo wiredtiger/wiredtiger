@@ -228,12 +228,12 @@ err:
 static int
 __backup_get_ckpt(WT_SESSION_IMPL *session, WT_BLKINCR *incr)
 {
-	WT_UNUSED(session);
-	WT_UNUSED(incr);
-	/*
-	 * Look up the most recent checkpoint and store information about it in incr.
-	 */
-	return (0);
+    WT_UNUSED(session);
+    WT_UNUSED(incr);
+    /*
+     * Look up the most recent checkpoint and store information about it in incr.
+     */
+    return (0);
 }
 
 /*
@@ -254,7 +254,12 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **inc
         blkincr = &conn->incr_backups[i];
         /* If it isn't use we can use it. */
         if (!F_ISSET(blkincr, WT_BLKINCR_INUSE)) {
-            WT_RET(__wt_strndup(session, cval->str, cval->len, &blkincr->id));
+            if (blkincr->id != NULL)
+                __wt_verbose(session, WT_VERB_BACKUP,
+                  "Freeing and reusing backup slot with old id %s", blkincr->id);
+            /* Free any string that was there. */
+            __wt_free(session, blkincr->id);
+            WT_ERR(__wt_strndup(session, cval->str, cval->len, &blkincr->id));
             WT_ERR(__backup_get_ckpt(session, blkincr));
             F_SET(blkincr, WT_BLKINCR_INUSE | WT_BLKINCR_VALID);
             *incrp = blkincr;
@@ -457,9 +462,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             *log_only = !target_list;
             WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
         } else if (is_dup)
-	    WT_ERR_MSG(session, EINVAL,
-	     "duplicate backup cursor cannot be used for non-log target");
-	else {
+            WT_ERR_MSG(
+              session, EINVAL, "duplicate backup cursor cannot be used for non-log target");
+        else {
             *log_only = false;
 
             /*
