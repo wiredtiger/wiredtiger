@@ -1663,6 +1663,7 @@ tasks:
             done
 
   - name: check-long-test-1
+    tags: ["check-long-test"]
     commands: 
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1680,6 +1681,7 @@ tasks:
             $(pwd)/../test/csuite/./test_truncated_log 2>&1
 
   - name: check-long-test-2
+    tags: ["check-long-test"]
     commands:
       - func: "configure wiredtiger"
         vars:
@@ -1711,6 +1713,7 @@ tasks:
           many_db_args: -I -D 40
   
   - name: check-long-test-3
+    tags: ["check-long-test"]
     commands:
       - func: "configure wiredtiger"
         vars:
@@ -1754,6 +1757,7 @@ tasks:
             ./test_truncated_log
 
   - name: check-long-test-4
+    tags: ["check-long-test"]
     commands:
       - func: "configure wiredtiger"
         vars:
@@ -1806,6 +1810,7 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
+    - name: ".check-long-test"
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
