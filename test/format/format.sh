@@ -113,6 +113,8 @@ while :; do
 done
 format_args="$*"
 
+[[ $verbose -ne 0 ]] && echo "$name: run starting at $(date)"
+
 # Find a component we need.
 # $1 name to find
 find_file()
@@ -281,6 +283,7 @@ while :; do
 
 		# If we've run out of time, terminate all running jobs.
 		[[ $elapsed -ge $seconds ]] && {
+			[[ $verbose -ne 0 ]] && echo "$name: run timed out at $(date)"
 			stop=1
 			forcequit=1
 		}
@@ -342,6 +345,8 @@ while :; do
 	# Wait for awhile.
 	sleep 10
 done
+
+[[ $verbose -ne 0 ]] && echo "$name: run ending at $(date)"
 echo "$name: $success successful jobs, $failure failed jobs"
 
 [[ $failure -ne 0 ]] && exit 1
