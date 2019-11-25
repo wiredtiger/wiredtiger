@@ -16,18 +16,18 @@ onintr()
 trap 'onintr' 2
 
 usage() {
-	echo "usage: $0 [-aFSv] [-c config] "
-	echo "	  [-h home] [-j jobs] [-n runs] [-t minutes] [format-configuration]"
-	echo
-	echo "	  -a	       abort/recovery testing (defaults to off)"
-	echo "	  -c config    format configuration file (defaults to CONFIG.stress)"
-	echo "	  -F	       quit on first failure (defaults to off)"
-	echo "	  -h home      run directory (defaults to .)"
-	echo "	  -j jobs      parallel jobs (defaults to 8)"
-	echo "	  -n runs      number of runs (defaults to no limit)"
-	echo "	  -S	       run smoke-test configurations (defaults to off)"
-	echo "	  -t minutes   minutes to run (defaults to no limit)"
-	echo "	  -v	       verbose output (defaults to off)"
+        echo "usage: $0 [-aFSv] [-c config] "
+        echo "    [-h home] [-j jobs] [-n runs] [-t minutes] [format-configuration]"
+        echo
+        echo "    -a           abort/recovery testing (defaults to off)"
+        echo "    -c config    format configuration file (defaults to CONFIG.stress)"
+        echo "    -F           quit on first failure (defaults to off)"
+        echo "    -h home      run directory (defaults to .)"
+        echo "    -j jobs      parallel jobs (defaults to 8)"
+        echo "    -n runs      number of runs (defaults to no limit)"
+        echo "    -S           run smoke-test configurations (defaults to off)"
+        echo "    -t minutes   minutes to run (defaults to no limit)"
+        echo "    -v           verbose output (defaults to off)"
 
 	exit 1
 }
@@ -52,7 +52,7 @@ smoke_next=0
 
 abort_test=0
 build=""
-config=""
+config="CONFIG.stress"
 first_failure=0
 format_args=""
 home="."
@@ -111,20 +111,61 @@ while :; do
 done
 format_args="$*"
 
-# Find the format and wt binaries (the latter is only required for abort/recovery testing).
-# Find the configuration file and run directory.
-build=$(dirname $0)
-format_binary="$build/t"
-wt_binary="$build/../../wt"
+# Find a component we need.
+# $1 name to find
+find_file()
+{
+	# Get the directory path to format.sh, which is always in wiredtiger/test/format, then
+	# use that as the base for all the other places we check.
+	d=$(dirname $0)
+
+	# Check wiredtiger/test/format/, likely location of the format binary and the CONFIG file.
+	f="$d/$1"
+	if [[ -f "$f" ]]; then
+		echo "$f"
+		return
+	fi
+
+	# Check wiredtiger/build_posix/test/format/, likely location of the format binary and the
+	# CONFIG file.
+	f="$d/../../build_posix/test/format/$1"
+	if [[ -f "$f" ]]; then
+		echo "$f"
+		return
+	fi
+
+	# Check wiredtiger/, likely location of the wt binary.
+	f="$d/../../$1"
+	if [[ -f "$f" ]]; then
+		echo "$f"
+		return
+	fi
+
+	# Check wiredtiger/build_posix/, like location of the wt binary.
+	f="$d/../../build_posix/$1"
+	if [[ -f "$f" ]]; then
+		echo "$f"
+		return
+	fi
+
+	echo "./$1"
+}
+
+# Find the format and wt binaries (the latter is only required for abort/recovery testing),
+# the configuration file and the run directory.
+format_binary=$(find_file "t")
 [[ ! -x "$format_binary" ]] && {
 	echo "$0: format program \"$format_binary\" not found"
 	exit 1
 }
-[[ $abort_test -ne 0 ]] && [[ ! -x "$wt_binary" ]] && {
+[[ $abort_test -ne 0 ]] && {
+    wt_binary=$(find_file "wt")
+    [[ ! -x "$wt_binary" ]] && {
 	echo "$0: wt program \"$wt_binary\" not found"
 	exit 1
+    }
 }
-[[ -z "$config" ]] && config="$build/CONFIG.stress"
+config=$(find_file "$config")
 [[ -f "$config" ]] || {
 	echo "$0: configuration file \"$config\" not found"
 	exit 1
