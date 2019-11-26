@@ -255,9 +255,14 @@ resolve()
 		# Report failures.
 		# Check for the library abort message, or an error from format.
 		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
+			echo "$name: job in $dir failed"
+			echo "$name: $dir log:"
+			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+			sed 's/^/    /' < $log
+			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+
 			echo "$name: failure status reported" > $dir/reported
 			failure=$(($failure + 1))
-			echo "$name: job in $dir failed"
 		}
 	done
 	return 0
