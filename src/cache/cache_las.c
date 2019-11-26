@@ -186,6 +186,43 @@ __wt_las_create(WT_SESSION_IMPL *session, const char **cfg)
 }
 
 /*
+ * __wt_las_destroy --
+ *     Destroy the database's lookaside store.
+ */
+int
+__wt_las_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_SESSION *wt_session;
+    int i;
+
+    conn = S2C(session);
+    cache = conn->cache;
+
+    F_CLR(conn, WT_CONN_LOOKASIDE_OPEN);
+    if (cache == NULL)
+        return (0);
+
+    for (i = 0; i < WT_LAS_NUM_SESSIONS; i++) {
+        if (cache->las_session[i] == NULL)
+            continue;
+
+        wt_session = &cache->las_session[i]->iface;
+        WT_TRET(wt_session->close(wt_session, NULL));
+        cache->las_session[i] = NULL;
+    }
+
+    __wt_buf_free(session, &cache->las_sweep_key);
+    __wt_buf_free(session, &cache->las_max_key);
+    __wt_free(session, cache->las_dropped);
+    __wt_free(session, cache->las_sweep_dropmap);
+
+    return (ret);
+}
+
+/*
  * __wt_las_cursor_open --
  *     Open a new lookaside table cursor.
  */
