@@ -202,8 +202,9 @@ success=0
 # Resolve/cleanup completed jobs.
 resolve()
 {
-	list=$(ls | grep '^RUNDIR.[0-9]*$')
-	for dir in $list; do
+	list=$(ls $home | grep '^RUNDIR.[0-9]*$')
+	for i in $list; do
+		dir="$home/$i"
 		log="$dir.log"
 
 		# Skip failures we've already reported.
