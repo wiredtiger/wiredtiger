@@ -124,7 +124,8 @@ while :; do
 done
 format_args="$*"
 
-verbose() {
+verbose()
+{
 	[[ $verbose -ne 0 ]] && echo "$@"
 }
 
