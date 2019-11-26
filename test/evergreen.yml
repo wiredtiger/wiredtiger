@@ -1711,18 +1711,6 @@ tasks:
       - func: "many dbs test"
         vars:
           many_db_args: -I -D 40
-  
-  - name: check-long-test-3
-    tags: ["check-long-test"]
-    commands:
-      - func: "get project"
-      - func: "configure wiredtiger"
-        vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
-      - func: "make wiredtiger"
-        vars:
-          make_command: make all
       - func: "thread check long test"
         vars: 
           thread_check_args: -t f
@@ -1756,18 +1744,6 @@ tasks:
             set -o verbose
 
             ./test_truncated_log
-
-  - name: check-long-test-4
-    tags: ["check-long-test"]
-    commands:
-      - func: "get project"
-      - func: "configure wiredtiger"
-        vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
-      - func: "make wiredtiger"
-        vars:
-          make_command: make all
       - func: "test format"
         vars:
           extra_args: file_type=fix
@@ -1812,7 +1788,8 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
-    - name: ".check-long-test"
+    - name: check-long-test-1
+    - name: check-long-test-2
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
