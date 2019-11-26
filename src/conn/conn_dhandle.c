@@ -784,9 +784,6 @@ restart:
         goto restart;
     }
 
-    /* Shut down the lookaside table after all eviction is complete. */
-    //WT_TRET(__wt_las_destroy(session));
-
     /*
      * Closing the files may have resulted in entries on our default session's list of open data
      * handles, specifically, we added the metadata file if any of the files were dirty. Clean up

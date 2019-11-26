@@ -521,6 +521,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
+    int t_ret;
+#if HAVE_DIAGNOSTIC
+    u_int i;
+#endif
 
     conn = S2C(session);
     txn = &session->txn;
@@ -640,12 +644,29 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_all(session, cfg, __wt_checkpoint_get_handles));
 
-    /* Add the history store handle to the checkpoint handle queue. */
+    /* Add the history store handle to the checkpoint handle queue. Currently recovery has
+     * an issue with this where the LAS file may not exist yet. As recovery runs checkpoint
+     * and it can run before the lookaside exists we ignore failures.
+     */
+    t_ret = ret;
     if (session->ckpt_handle_next == 0 ||
-          !WT_IS_LAS(session->ckpt_handle[session->ckpt_handle_next - 1]))
-        WT_WITH_TABLE_READ_LOCK(
-          session, ret = __wt_schema_worker(session, WT_LAS_URI,
-          __wt_checkpoint_get_handles, NULL, cfg, 0));
+      !WT_IS_LAS(session->ckpt_handle[session->ckpt_handle_next - 1]))
+        WT_WITH_TABLE_READ_LOCK(session,
+          ret = __wt_schema_worker(session, WT_LAS_URI, __wt_checkpoint_get_handles, NULL, cfg, 0));
+    /* Ignore return value of schema worker call for time being. */
+    ret = t_ret;
+
+#if HAVE_DIAGNOSTIC
+    /*
+     * Walk the array of ckpt_handles validating that if the LAS file is in the list, it is at the
+     * end of the list.
+     */
+    for (i = 0; i < session->ckpt_handle_next; i++) {
+        if (session->ckpt_handle[i]->name_hash == WT_LAS_URI_HASHED) {
+            WT_ASSERT(session, i == session->ckpt_handle_next - 1);
+        }
+    }
+#endif
 
     return (ret);
 }

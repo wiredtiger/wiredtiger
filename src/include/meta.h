@@ -27,8 +27,8 @@
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
-#define WT_LAS_FILE "WiredTigerLAS.wt"     /* Lookaside table */
-#define WT_LAS_URI "file:WiredTigerLAS.wt" /* Lookaside table URI*/
+#define WT_LAS_FILE "WiredTigerLAS.wt"       /* Lookaside table */
+#define WT_LAS_URI "file:WiredTigerLAS.wt"   /* Lookaside table URI*/
 #define WT_LAS_URI_HASHED 0xf2f88f2e3d0971dc /* Lookaside table URI Hashed */
 
 #define WT_SYSTEM_PREFIX "system:"             /* System URI prefix */
