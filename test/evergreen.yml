@@ -1638,6 +1638,24 @@ tasks:
               cp -rf WT_TEST WT_TEST_$file
             done
 
+  - name: time-shift-sensitivity-test
+    depends_on:
+      - name: compile
+        vars:
+          posix_configure_flags: --enable-strict
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          posix_configure_flags: --enable-strict
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1718,6 +1736,7 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
+    - name: time-shift-sensitivity-test
 
 - name: large-scale-test
   display_name: Large scale testing
