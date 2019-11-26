@@ -415,6 +415,8 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
                 btree->rec_max_txn = r->max_txn;
             if (btree->rec_max_timestamp < r->max_ts)
                 btree->rec_max_timestamp = r->max_ts;
+            WT_ASSERT(
+              session, r->ref->page_las == NULL || btree->rec_max_txn >= r->ref->page_las->max_txn);
         }
 
         /*
