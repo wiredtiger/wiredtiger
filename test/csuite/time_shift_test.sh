@@ -44,17 +44,11 @@ fi
 
 # Find test_rwlock file from the wiredtiger home directory.
 WT_HOME_DIR=$(git rev-parse --show-toplevel)
-RW_LOCK_FILE=`find $WT_HOME_DIR -type f -name "test_rwlock" -print -quit`
-if [ -z $RW_LOCK_FILE ]
-then
-    echo "test_rwlock file not found, so exiting"
-    exit $EXIT_FAILURE
-fi
 
 SEC1=`date +%s`
 if [ "$RUN_OS" = "Darwin" ]
 then
-    $RW_LOCK_FILE
+    $WT_HOME_DIR/build_posix/test/csuite/test_rwlock
 elif [ "$RUN_OS" = "Linux" ]
 then
     if [ -z $2 ]
@@ -63,7 +57,7 @@ then
     else
         CPU_SET=$2
     fi
-    taskset -c $CPU_SET $RW_LOCK_FILE
+    taskset -c $CPU_SET $WT_HOME_DIR/build_posix/test/csuite/test_rwlock
 else
     echo "not able to decide running OS, so exiting"
     exit $EXIT_FAILURE
@@ -77,9 +71,9 @@ if [ "$RUN_OS" = "Darwin" ]
 then
     export DYLD_FORCE_FLAT_NAMESPACE=y
     export DYLD_INSERT_LIBRARIES=$1
-    $RW_LOCK_FILE &
+    $WT_HOME_DIR/build_posix/test/csuite/test_rwlock &
 else
-    LD_PRELOAD=$1 taskset -c $CPU_SET $RW_LOCK_FILE &
+    LD_PRELOAD=$1 taskset -c $CPU_SET $WT_HOME_DIR/build_posix/test/csuite/test_rwlock &
 fi
 
 # get pid of test run in background
