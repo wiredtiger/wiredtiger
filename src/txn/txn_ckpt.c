@@ -522,7 +522,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
     int t_ret;
-#if HAVE_DIAGNOSTIC
+#ifdef HAVE_DIAGNOSTIC
     u_int i;
 #endif
 
@@ -656,7 +656,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     /* Ignore return value of schema worker call for time being. */
     ret = t_ret;
 
-#if HAVE_DIAGNOSTIC
+#ifdef HAVE_DIAGNOSTIC
     /*
      * Walk the array of ckpt_handles validating that if the LAS file is in the list, it is at the
      * end of the list.
