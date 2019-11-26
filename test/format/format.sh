@@ -124,7 +124,11 @@ while :; do
 done
 format_args="$*"
 
-[[ $verbose -ne 0 ]] && echo "$name: run starting at $(date)"
+verbose() {
+	[[ $verbose -ne 0 ]] && echo "$@"
+}
+
+verbose "$name: run starting at $(date)"
 
 # Find a component we need.
 # $1 name to find
@@ -190,10 +194,8 @@ config=$(find_file "$config")
 	exit 1
 }
 
-[[ $verbose -ne 0 ]] && {
-	echo "$name configuration: [-c $config] [-h $home]\
+verbose "$name configuration: [-c $config] [-h $home]\
 [-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
-}
 
 failure=0
 success=0
@@ -211,7 +213,7 @@ resolve()
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
 			success=$(($success + 1))
-			[[ $verbose -ne 0 ]] && echo "$name: job in $dir successfully completed"
+			verbose "$name: job in $dir successfully completed"
 			continue
 		}
 
@@ -232,8 +234,7 @@ resolve()
 			if  $($wt_binary -R -h $dir verify $uri >> $log 2>&1); then
 				rm -rf $dir $dir.RECOVER $log
 				success=$(($success + 1))
-				[[ $verbose -ne 0 ]] &&
-				    echo "$name: job in $dir successfully completed"
+				verbose "$name: job in $dir successfully completed"
 			else
 				echo "$name: failure status reported" > $dir/reported
 				failure=$(($failure + 1))
@@ -245,7 +246,7 @@ resolve()
 		# Discard jobs where the timer went off.
 		grep 'caught signal' $log > /dev/null && {
 			rm -rf $dir $log
-			[[ $verbose -ne 0 ]] && echo "$name: job in $dir aborted"
+			verbose "$name: job in $dir aborted"
 			continue
 		}
 
@@ -282,7 +283,7 @@ format()
 	fi
 
 	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
-	[[ $verbose -ne 0 ]] && echo "$name: $cmd"
+	verbose "$name: $cmd"
 	$cmd > $log 2>&1 &
 }
 
@@ -296,7 +297,7 @@ while :; do
 
 		# If we've run out of time, terminate all running jobs.
 		[[ $elapsed -ge $seconds ]] && {
-			[[ $verbose -ne 0 ]] && echo "$name: run timed out at $(date)"
+			verbose "$name: run timed out at $(date)"
 			stop=1
 			forcequit=1
 		}
@@ -359,7 +360,7 @@ while :; do
 	sleep 10
 done
 
-[[ $verbose -ne 0 ]] && echo "$name: run ending at $(date)"
+verbose "$name: run ending at $(date)"
 echo "$name: $success successful jobs, $failure failed jobs"
 
 [[ $failure -ne 0 ]] && exit 1
