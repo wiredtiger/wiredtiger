@@ -581,7 +581,6 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
               dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
               WT_IS_METADATA(dhandle))
                 continue;
-
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
         if (las_dhandle != NULL)

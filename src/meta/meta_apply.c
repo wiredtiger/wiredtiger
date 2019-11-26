@@ -13,7 +13,7 @@
  *     Conditionally apply a function to the given file URI.
  */
 static inline int
-__wt_meta_btree_apply(WT_SESSION_IMPL *session, const char *uri,
+__meta_btree_apply(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
 {
@@ -47,7 +47,7 @@ __wt_meta_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     return (ret);
 }
 /*
- * __meta_btree_apply --
+ * __meta_btree_walk_and_apply --
  *     Walk all files listed in the metadata, apart from the metadata file and LAS file. Applying a
  *     given function to each file. At the end apply this function to the LAS file.
  */
@@ -69,11 +69,11 @@ __meta_btree_walk_and_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
             WT_TRET(t_ret);
             continue;
         }
-        WT_TRET(__wt_meta_btree_apply(session, uri, file_func, name_func, cfg));
+        WT_TRET(__meta_btree_apply(session, uri, file_func, name_func, cfg));
     }
     WT_TRET_NOTFOUND_OK(t_ret);
 
-    WT_TRET(__wt_meta_btree_apply(session, WT_LAS_URI, file_func, name_func, cfg));
+    WT_TRET(__meta_btree_apply(session, WT_LAS_URI, file_func, name_func, cfg));
 
     return (ret);
 }
