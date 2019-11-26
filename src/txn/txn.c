@@ -469,9 +469,7 @@ __wt_txn_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Retrieve the maximum operation time, defaulting to the database-wide configuration. */
     WT_RET(__wt_config_gets(session, cfg, "operation_timeout_ms", &cval));
-    session->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
-    if (session->operation_timeout_us == 0)
-        session->operation_timeout_us = S2C(session)->operation_timeout_us;
+    txn->operation_timeout_us = (uint64_t)(cval.val * WT_THOUSAND);
 
     /*
      * The default sync setting is inherited from the connection, but can be overridden by an
@@ -621,7 +619,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
     txn->prepare_timestamp = WT_TS_NONE;
 
     /* Clear operation timer. */
-    session->operation_timeout_us = 0;
+    txn->operation_timeout_us = 0;
 }
 
 /*

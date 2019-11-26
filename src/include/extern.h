@@ -2109,6 +2109,7 @@ static inline void __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session);
 static inline void __wt_cursor_dhandle_incr_use(WT_SESSION_IMPL *session);
 static inline void __wt_epoch(WT_SESSION_IMPL *session, struct timespec *tsp);
 static inline void __wt_op_timer_start(WT_SESSION_IMPL *session);
+static inline void __wt_op_timer_stop(WT_SESSION_IMPL *session);
 static inline void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
