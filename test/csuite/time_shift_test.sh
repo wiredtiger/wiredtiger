@@ -42,7 +42,7 @@ then
     exit $EXIT_FAILURE
 fi
 
-# Find test_rwlock file from the wiredtiger home directory.
+# Locate Wiredtiger home directory.
 WT_HOME_DIR=$(git rev-parse --show-toplevel)
 
 SEC1=`date +%s`
