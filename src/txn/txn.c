@@ -1600,23 +1600,14 @@ __wt_txn_is_blocking_old(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_STATE *state;
-    uint64_t id, txn_id;
+    uint64_t id;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
     txn = &session->txn;
     txn_global = &conn->txn_global;
 
-    /* We can't rollback prepared transactions. */
-    if (F_ISSET(txn, WT_TXN_PREPARE))
-        return (false);
-
-    /* Take the oldest transaction ID of either its transaction ID or its snapshot. */
-    txn_id = txn->id;
-    if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) &&
-      (txn_id == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_id)))
-        txn_id = txn->snap_min;
-    if (txn_id == WT_TXN_NONE)
+    if (txn->id == WT_TXN_NONE || F_ISSET(txn, WT_TXN_PREPARE))
         return (false);
 
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
@@ -1630,7 +1621,7 @@ __wt_txn_is_blocking_old(WT_SESSION_IMPL *session)
             continue;
 
         WT_ORDERED_READ(id, state->id);
-        if (id != WT_TXN_NONE && WT_TXNID_LT(id, txn_id))
+        if (id != WT_TXN_NONE && WT_TXNID_LT(id, txn->id))
             break;
     }
     return (i == session_cnt ?
