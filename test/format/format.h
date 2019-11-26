@@ -28,6 +28,9 @@
 
 #include "test_util.h"
 
+#ifdef HAVE_SETRLIMIT
+#include <sys/resource.h>
+#endif
 #include <signal.h>
 
 #define EXTPATH "../../ext/" /* Extensions path */
