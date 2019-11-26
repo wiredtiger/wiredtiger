@@ -1662,7 +1662,7 @@ tasks:
               cp -rf WT_TEST WT_TEST_$file
             done
 
-  - name: check-long-test-1
+  - name: check-test-long-1
     tags: ["check-long-test"]
     commands: 
       - func: "get project"
@@ -1679,7 +1679,7 @@ tasks:
             ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
 
-  - name: check-long-test-2
+  - name: check-test-long-2
     tags: ["check-long-test"]
     commands:
       - func: "get project"
@@ -1788,8 +1788,8 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
-    - name: check-long-test-1
-    - name: check-long-test-2
+    - name: check-test-long-1
+    - name: check-test-long-2
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
