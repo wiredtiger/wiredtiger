@@ -28,9 +28,13 @@ __curbackup_incr_get_key(WT_CURSOR *cursor, ...)
     WT_ERR(__cursor_needkey(cursor));
 
     offset = cb->incr_list[cb->incr_list_offset];
-    size = WT_MIN(cb->incr_list[cb->incr_list_offset + 1], cb->incr_granularity);
-    /* XXX fix */
-    type = WT_BACKUP_FILE;
+    type = cb->incr_list[cb->incr_list_offset + 2];
+#if 0
+    if (type == WT_BACKUP_RANGE)
+        size = WT_MIN(cb->incr_list[cb->incr_list_offset + 1], cb->incr_granularity);
+#else
+    size = cb->incr_list[cb->incr_list_offset + 1];
+#endif
 
     *va_arg(ap, uint64_t *) = offset;
     *va_arg(ap, uint64_t *) = size;
@@ -231,7 +235,8 @@ void
 __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
 {
     __wt_free(session, cb->incr_file);
-    __wt_cursor_close(cb->incr_cursor);
+    if (cb->incr_cursor != NULL)
+        __wt_cursor_close(cb->incr_cursor);
     __wt_free(session, cb->incr_checkpoint_start);
     __wt_free(session, cb->incr_checkpoint_stop);
     __wt_free(session, cb->incr_list);
@@ -249,20 +254,20 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
 #if 0
     static const char *copy_entire[] = {
       WT_BASECONFIG, WT_METADATA_BACKUP, WT_WIREDTIGER, WT_LOG_FILENAME, NULL};
-#endif
-    WT_CURSOR_BACKUP *cb, *other_cb;
     WT_DECL_ITEM(open_checkpoint);
     WT_DECL_ITEM(open_uri);
     WT_DECL_RET;
-#if 0
     size_t i;
     const char **p, **new_cfg;
 #endif
+    WT_CURSOR_BACKUP *cb, *other_cb;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     other_cb = (WT_CURSOR_BACKUP *)other;
 #if 0
     new_cfg = NULL;
+#else
+    WT_UNUSED(session);
 #endif
 
     cursor->key_format = "qqq";
@@ -272,23 +277,23 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->get_key = __curbackup_incr_get_key;
     cursor->get_value = __wt_cursor_get_value_notsup;
 
-    /* We need a starting checkpoint. */
+/* We need a starting checkpoint. */
+#if 0
     if (other_cb->incr->ckpt_name == NULL)
         WT_ERR_MSG(session, EINVAL,
           "a starting checkpoint must be specified to open a hot backup cursor for file-based "
           "incremental backups");
 
-#if 0
     /* The two checkpoints aren't supposed to be the same. */
     if (strcmp(other_cb->incr->ckpt_name, other->checkpoint) == 0)
         WT_ERR_MSG(session, EINVAL,
           "incremental backup start and stop checkpoints are the same: %s",
           other_cb->incr_checkpoint_start);
-#endif
 
     /* Copy information from the primary cursor to the current file. */
     WT_ERR(__wt_strdup(session, other_cb->incr_checkpoint_start, &cb->incr_checkpoint_start));
     WT_ERR(__wt_strdup(session, other_cb->incr->ckpt_name, &cb->incr_checkpoint_stop));
+#endif
     cb->incr_granularity = other_cb->incr_granularity;
 
 /*
@@ -330,13 +335,11 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
 
     /* XXX KEITH */
     WT_ERR(__wt_strdup(session, cb->incr_cursor->internal_uri, &cb->incr_cursor->internal_uri));
-#endif
 
 err:
     __wt_scr_free(session, &open_checkpoint);
     __wt_scr_free(session, &open_uri);
-#if 0
     __wt_free(session, new_cfg);
-#endif
     return (ret);
+#endif
 }
