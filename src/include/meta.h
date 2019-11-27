@@ -27,9 +27,8 @@
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
-#define WT_LAS_FILE "WiredTigerLAS.wt"       /* Lookaside table */
-#define WT_LAS_URI "file:WiredTigerLAS.wt"   /* Lookaside table URI*/
-#define WT_LAS_URI_HASHED 0xf2f88f2e3d0971dc /* Lookaside table URI Hashed */
+#define WT_LAS_FILE "WiredTigerLAS.wt"     /* Lookaside table */
+#define WT_LAS_URI "file:WiredTigerLAS.wt" /* Lookaside table URI*/
 
 #define WT_SYSTEM_PREFIX "system:"             /* System URI prefix */
 #define WT_SYSTEM_CKPT_URI "system:checkpoint" /* Checkpoint URI */
@@ -38,7 +37,8 @@
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */
 #define WT_IS_METADATA(dh) F_ISSET((dh), WT_DHANDLE_IS_METADATA)
-#define WT_IS_LAS(dh) (dh->name_hash == WT_LAS_URI_HASHED)
+#define WT_IS_LAS(dh) \
+    ((dh)->type == WT_DHANDLE_TYPE_BTREE && F_ISSET(((WT_BTREE *)(dh)->handle), WT_BTREE_LOOKASIDE))
 #define WT_METAFILE_ID 0 /* Metadata file ID */
 
 #define WT_METADATA_COMPAT "Compatibility version"

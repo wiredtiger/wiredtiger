@@ -22,8 +22,10 @@ __meta_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     bool skip;
 
     skip = false;
-    if (name_func != NULL)
+    if (name_func != NULL) {
         ret = name_func(session, uri, &skip);
+        return (ret);
+    }
 
     if (file_func == NULL || skip || !WT_PREFIX_MATCH(uri, "file:"))
         return (ret);
@@ -74,6 +76,10 @@ __meta_btree_walk_and_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
     }
     WT_TRET_NOTFOUND_OK(t_ret);
 
+    /*
+     * Apply all operations to the LAS file at the end of list of files, as checkpoint expects the
+     * LAS file to be at the end of the list.
+     */
     WT_TRET(__meta_btree_apply(session, WT_LAS_URI, file_func, name_func, cfg));
 
     return (ret);
