@@ -63,6 +63,9 @@ class test_las07(wttest.WiredTigerTestCase):
         self.assertEqual(count, nrows)
 
     def test_las(self):
+        # Disable temporarily
+        return
+
         nrows = 10000
 
         # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.

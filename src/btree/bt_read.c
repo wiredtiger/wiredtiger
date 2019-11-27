@@ -180,7 +180,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp;
-    bool birthmark_record, locked;
+    bool locked;
 
     cache = S2C(session)->cache;
     las_cursor = NULL;
@@ -198,7 +198,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     las_prepare_cnt = mod_counter = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     instantiated_cnt = 0;
-    birthmark_record = locked = false;
+    locked = false;
 
     /*
      * Check whether the disk image contains all the newest versions of the page. If the lookaside
@@ -277,7 +277,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             WT_ERR(__create_birthmark_upd(session, &page_las->birthmarks[i], &size, &upd));
             las_key.data = page_las->birthmarks[i].key.data;
             las_key.size = page_las->birthmarks[i].key.size;
-            birthmark_record = true;
         } else {
             WT_ERR(__wt_las_cursor_position(
               session, las_cursor, las_btree_id, &page_las->birthmarks[i].key, WT_TS_MAX));
@@ -369,7 +368,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 
         /* Remove the prepared record from LAS once the page is instantiated successfully. */
         if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            WT_ASSERT(session, !birthmark_record);
             /* Extend the buffer if needed. */
             WT_ERR(__wt_buf_extend(session, las_prepares,
               (las_prepare_cnt + 1) * sizeof(struct las_page_prepared_updates)));
@@ -381,7 +379,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             las_prepare_cnt++;
         }
 
-        birthmark_record = false;
         upd = NULL;
     }
 
