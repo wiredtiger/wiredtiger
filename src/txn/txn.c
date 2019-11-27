@@ -1587,82 +1587,62 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
 }
 
 /*
- * __wt_txn_is_blocking_old --
- *     Return if this transaction is the oldest transaction in the system, called by eviction to
- *     determine if a worker thread should be released from eviction.
- */
-int
-__wt_txn_is_blocking_old(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_TXN *txn;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_STATE *state;
-    uint64_t id;
-    uint32_t i, session_cnt;
-
-    conn = S2C(session);
-    txn = &session->txn;
-    txn_global = &conn->txn_global;
-
-    if (txn->id == WT_TXN_NONE || F_ISSET(txn, WT_TXN_PREPARE))
-        return (false);
-
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-
-    /*
-     * Check if the transaction is oldest one in the system. It's safe to ignore sessions allocating
-     * transaction IDs, since we already have an ID, they are guaranteed to be newer.
-     */
-    for (i = 0, state = txn_global->states; i < session_cnt; i++, state++) {
-        if (state->is_allocating)
-            continue;
-
-        WT_ORDERED_READ(id, state->id);
-        if (id != WT_TXN_NONE && WT_TXNID_LT(id, txn->id))
-            break;
-    }
-    return (i == session_cnt ?
-        __wt_txn_rollback_required(session, "oldest transaction ID rolled back for eviction") :
-        0);
-}
-
-/*
- * __wt_txn_is_blocking_pin --
+ * __wt_txn_is_blocking --
  *     Return if this transaction is likely blocking eviction because of a pinned transaction ID,
  *     called by eviction to determine if a worker thread should be released from eviction.
  */
 int
-__wt_txn_is_blocking_pin(WT_SESSION_IMPL *session)
+__wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
     WT_TXN *txn;
-    uint64_t snap_min;
+    WT_TXN_STATE *state;
+    uint64_t id, snap_min, txn_oldest;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
     txn = &session->txn;
 
+    /* We can't roll back prepared transactions. */
+    if (F_ISSET(txn, WT_TXN_PREPARE))
+        return (false);
+
     /*
-     * Check if we hold the oldest pinned transaction ID in the system. This potentially means
-     * rolling back a read-only transaction, which MongoDB can't (yet) handle. For this reason,
-     * don't check unless we're configured to time out thread operations, a way to confirm our
-     * caller is prepared for rollback.
+     * Check the oldest transaction ID of either the current transaction ID or the snapshot. Using
+     * the snapshot potentially means rolling back a read-only transaction, which MongoDB can't
+     * (yet) handle. For this reason, don't use the snapshot unless there's also a transaction ID
+     * or we're configured to time out thread operations (a way to confirm our caller is prepared
+     * for rollback).
      */
-    if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || txn->snap_min == WT_TXN_NONE)
-        return (0);
-    if (!__wt_op_timer_fired(session))
-        return (0);
+    txn_oldest = txn->id;
+    if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && txn->snap_min != WT_TXN_NONE &&
+      (txn_oldest != WT_TXN_NONE || __wt_op_timer_fired(session)) &&
+      (txn_oldest == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_oldest)))
+        txn_oldest = txn->snap_min;
+    if (txn_oldest == WT_TXN_NONE)
+        return (false);
 
+    /*
+     * Check if we hold the oldest pinned transaction ID in the system. It's safe to ignore sessions
+     * allocating transaction IDs, they are guaranteed to be newer as we already have an ID.
+     */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-
-    for (s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
-        if (F_ISSET(s, WT_SESSION_INTERNAL) || !F_ISSET(&s->txn, WT_TXN_HAS_SNAPSHOT))
+    for (s = conn->sessions, state = conn->txn_global.states, i = 0; i < session_cnt;
+         ++s, ++state, ++i) {
+        if (F_ISSET(s, WT_SESSION_INTERNAL))
+            continue;
+        if (state->is_allocating)
             continue;
 
+        WT_ORDERED_READ(id, state->id);
+        if (id != WT_TXN_NONE && WT_TXNID_LT(id, txn_oldest))
+            break;
+
+        if (!F_ISSET(&s->txn, WT_TXN_HAS_SNAPSHOT))
+            continue;
         WT_ORDERED_READ(snap_min, s->txn.snap_min);
-        if (snap_min != WT_TXN_NONE && snap_min < txn->snap_min)
+        if (snap_min != WT_TXN_NONE && WT_TXNID_LT(snap_min, txn_oldest))
             break;
     }
     return (i == session_cnt ? __wt_txn_rollback_required(
