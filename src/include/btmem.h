@@ -218,10 +218,10 @@ struct __wt_ovfl_reuse {
 #else
 #define WT_LOOKASIDE_COMPRESSOR "none"
 #endif
-#define WT_LAS_CONFIG                                                             \
-    "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                          \
-            ",leaf_value_max=64MB"                                                \
+#define WT_LAS_CONFIG                                                               \
+    "key_format=" WT_UNCHECKED_STRING(IuQQQQ) ",value_format=" WT_UNCHECKED_STRING( \
+      QBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                            \
+            ",leaf_value_max=64MB"                                                  \
             ",prefix_compression=true"
 
 /*

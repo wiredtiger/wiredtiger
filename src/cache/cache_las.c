@@ -603,7 +603,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *first_upd, *upd;
     wt_off_t las_size;
-    uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
+    wt_timestamp_t stop_ts;
+    uint64_t insert_cnt, max_las_size, prepared_insert_cnt, stop_txnid;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
     bool local_txn;
@@ -718,6 +719,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         /*
+         * The most recent update in the list never make into WT history. Only the earlier updates
+         * in the list will make into WT history. All the entries in the WT history must have a stop
+         * timestamp.
+         */
+        stop_ts = WT_TS_MAX;
+        stop_txnid = WT_TXN_MAX;
+
+        /*
          * Walk the list of updates, storing each key/value pair into the lookaside table. Skip
          * aborted items (there's no point to restoring them), and assert we never see a reserved
          * item.
@@ -743,7 +752,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
 
-            cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid);
+            cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts, stop_txnid);
 
             /*
              * If saving a non-zero length value on the page, save a birthmark instead of
@@ -768,6 +777,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 WT_CLEAR(birthmarkp->key);
                 WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
                 birthmarks_cnt++;
+
+                /*
+                 * Store the current update start timestamp and transaction id, these are the stop
+                 * timestamp and transaction id's for the next record in the update list.
+                 */
+                stop_ts = upd->start_ts;
+                stop_txnid = upd->txnid;
 
                 /* Do not put birthmarks into the lookaside. */
                 continue;
@@ -796,6 +812,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             WT_ERR(cursor->update(cursor));
             ++insert_cnt;
+
+            /*
+             * Store the current update start timestamp and transaction id, these are the stop
+             * timestamp and transaction id's for the next record in the update list.
+             */
+            stop_ts = upd->start_ts;
+            stop_txnid = upd->txnid;
 
             /*
              * If we encounter subsequent updates with the same timestamp, skip them to avoid
