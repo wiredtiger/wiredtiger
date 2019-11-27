@@ -640,7 +640,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written", "block-manager: bytes written for checkpoint",
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API", "block-manager: mapped blocks read",
-  "block-manager: mapped bytes read",
+  "block-manager: mapped bytes read", "block-manager: number of times the region was remapped",
   "cache: application threads page read from disk to cache count",
   "cache: application threads page read from disk to cache time (usecs)",
   "cache: application threads page write from cache to disk count",
@@ -970,6 +970,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    stats->block_remap_region = 0;
     stats->cache_read_app_count = 0;
     stats->cache_read_app_time = 0;
     stats->cache_write_app_count = 0;
@@ -1391,6 +1392,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
+    to->block_remap_region += WT_STAT_READ(from, block_remap_region);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);
     to->cache_read_app_time += WT_STAT_READ(from, cache_read_app_time);
     to->cache_write_app_count += WT_STAT_READ(from, cache_write_app_count);

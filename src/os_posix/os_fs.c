@@ -639,6 +639,7 @@ __posix_file_write_mmap(
     WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_off_t offset,
     size_t len, const void *buf)
 {
+    WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
 
@@ -671,7 +672,16 @@ __posix_file_write_mmap(
     else {
         /* Signal that we won't be using the mmapped buffer after all. */
         (void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
-        return __posix_file_write(file_handle, wt_session, offset, len, buf);
+        ret = __posix_file_write(file_handle, wt_session, offset, len, buf);
+
+	/* If we are here we must have extended the file. Remap the region with the new size */
+	if (ret == 0) {
+	    __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
+			 file_handle->name, (uint64_t)pfh->mmapped_size);
+	    __drain_mmap_users(file_handle, wt_session);
+	    __remap_region(file_handle, wt_session);
+	}
+	return ret;
     }
 }
 #endif
@@ -842,9 +852,9 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
 
     WT_RET( __posix_file_size((WT_FILE_HANDLE *)pfh, wt_session, &file_size));
     len = (size_t)file_size;
+    pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
 
     if (len > 0) {
-        pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
         if ((pfh->mmapped_buf = (char *)mmap(NULL, len, pfh->mmap_prot, MAP_SHARED | MAP_FILE,
                                              pfh->fd, 0)) == MAP_FAILED)
             WT_RET_MSG(session, __wt_errno(), "%s: memory-map: mmap", name);
@@ -1069,6 +1079,8 @@ __remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     /* We are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);
+
+    WT_STAT_CONN_INCRV(session, block_remap_region, 1);
     return ret;
 }
 

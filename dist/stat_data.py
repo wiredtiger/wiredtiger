@@ -191,6 +191,7 @@ connection_stats = [
     BlockStat('block_byte_read', 'bytes read', 'size'),
     BlockStat('block_byte_read_mmap', 'bytes read via memory map API', 'size'),
     BlockStat('block_byte_read_syscall', 'bytes read via system call API', 'size'),
+    BlockStat('block_remap_region', 'number of times the region was remapped'),
     BlockStat('block_byte_write', 'bytes written', 'size'),
     BlockStat('block_byte_write_checkpoint', 'bytes written for checkpoint', 'size'),
     BlockStat('block_byte_write_mmap', 'bytes written via memory map API', 'size'),
