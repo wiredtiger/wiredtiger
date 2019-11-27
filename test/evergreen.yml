@@ -1773,7 +1773,7 @@ tasks:
             # We want to use the wtperf_track script here to give us a pass fail analysis.
             rundir=../../../bench/wtperf/runners
             echo "Run truncate btree job (mongodb oplog)"
-            $rundir/wtperf_run.sh $rundir/mongodb-oplog.wtperf
+            $rundir/wtperf_run.sh $rundir/mongodb-oplog.wtperf 1
             num_truncates=`grep "^Truncate count:" ./wtperf.out | cut -d ' ' -f 3`
             echo "YVALUE=$num_truncates" > ../../truncate_truncate_count.properties
             $rundir/wtperf_track.sh -c truncate_count $num_truncates
