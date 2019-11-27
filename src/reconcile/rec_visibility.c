@@ -35,15 +35,15 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     supd = &r->supd[r->supd_next];
     supd->ins = ins;
     supd->ripcip = ripcip;
-    if (onpage_upd) {
+    if (onpage_upd != NULL &&
+      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY)) {
         supd->onpage_upd.txnid = onpage_upd->txnid;
         supd->onpage_upd.durable_ts = onpage_upd->durable_ts;
         supd->onpage_upd.start_ts = onpage_upd->start_ts;
-        supd->onpage_upd.type = onpage_upd->type;
         supd->onpage_upd.prepare_state = onpage_upd->prepare_state;
-        supd->onpage_upd.has_upd = true;
-        supd->onpage_upd.has_data = (onpage_upd->size > 0);
-        supd->onpage_upd.from_las = (onpage_upd->ext != 0);
+        supd->onpage_upd.ext = onpage_upd->ext;
+        if (onpage_upd->ext == 0)
+            supd->onpage_upd.upd = onpage_upd;
     }
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
@@ -678,9 +678,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * two birthmark records in the same update chain.
          */
         WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_inmem_upd, vpack));
-        if (upd->ext != 0)
-            __wt_free_update_list(session, &upd);
-        upd = upd_select->upd = NULL;
+        upd_select->upd = NULL;
         orig_val_appended = true;
     }
 

@@ -698,9 +698,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * be a part of the saved update list, we need to write a birthmark for it, separate from
          * processing of the saved updates.
          */
-        if (list->onpage_upd.has_upd && list->onpage_upd.from_las && list->onpage_upd.has_data &&
-          (list->onpage_upd.type == WT_UPDATE_STANDARD ||
-              list->onpage_upd.type == WT_UPDATE_MODIFY)) {
+        if (WT_HAS_ONPAGE_UPDATE(list)) {
             /* Extend the buffer if needed */
             WT_ERR(__wt_buf_extend(
               session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));

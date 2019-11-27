@@ -355,17 +355,22 @@ struct __wt_page_modify {
                     WT_INSERT *ins; /* Insert list reference */
                     WT_ROW *ripcip; /* Original on-page reference */
                     struct {
+                        WT_UPDATE *upd;
                         uint64_t txnid;
                         wt_timestamp_t durable_ts;
                         wt_timestamp_t start_ts;
-                        uint8_t type;
                         uint8_t prepare_state;
-                        bool has_upd;
-                        bool has_data;
-                        bool from_las;
+                        uint8_t ext;
                     } onpage_upd;
                 } * supd;
                 uint32_t supd_entries;
+/*
+ * WT_HAS_ONPAGE_UPDATE --
+ *     If the onpage update has been set, we expect that either it is marked as external (meaning it
+ *     comes from lookaside) or the update pointer is set and pointing at a structure in the update
+ *     list.
+ */
+#define WT_HAS_ONPAGE_UPDATE(x) ((x)->onpage_upd.upd != NULL || (x)->onpage_upd.ext != 0)
 
                 /*
                  * Disk image was written: address, size and checksum. On subsequent reconciliations
