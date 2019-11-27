@@ -571,7 +571,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 #if WT_IO_VIA_MMAP
-    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRIu64 ","
+    __wt_verbose(session, WT_VERB_FILEOPS, "%s, file-truncate: size=%" PRId64 ","
                  "mapped size=%" PRIu64 "\n", file_handle->name, len, (uint64_t)pfh->mmapped_size);
     if ((wt_off_t)pfh->mmapped_size != len)
     __drain_mmap_users(file_handle, wt_session);
