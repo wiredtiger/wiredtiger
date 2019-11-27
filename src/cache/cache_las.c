@@ -698,7 +698,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * be a part of the saved update list, we need to write a birthmark for it, separate from
          * processing of the saved updates.
          */
-        if (WT_HAS_ONPAGE_UPDATE(list)) {
+        if (list->onpage_upd.ext != 0) {
             /* Extend the buffer if needed */
             WT_ERR(__wt_buf_extend(
               session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
@@ -761,19 +761,19 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
              * write zero-length data items.)
              */
-            if (upd->txnid == list->onpage_upd.txnid &&
-              upd->start_ts == list->onpage_upd.start_ts && upd->size > 0 &&
-              (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
-                /* Make sure that we are generating a birthmark for an in-memory update. */
-                WT_ASSERT(session, upd->ext == 0);
+            if (list->onpage_upd.upd != NULL) {
+                WT_ASSERT(session, list->onpage_upd.ext == 0);
+                if (upd == list->onpage_upd.upd && upd->size > 0 &&
+                  (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
+                    /* Make sure that we are generating a birthmark for an in-memory update. */
+                    birthmarkp->txnid = upd->txnid;
+                    birthmarkp->durable_ts = upd->durable_ts;
+                    birthmarkp->start_ts = upd->start_ts;
+                    birthmarkp->prepare_state = upd->prepare_state;
 
-                birthmarkp->txnid = upd->txnid;
-                birthmarkp->durable_ts = upd->durable_ts;
-                birthmarkp->start_ts = upd->start_ts;
-                birthmarkp->prepare_state = upd->prepare_state;
-
-                /* Do not put birthmarks into the lookaside. */
-                continue;
+                    /* Do not put birthmarks into the lookaside. */
+                    continue;
+                }
             }
 
             if (upd->prepare_state == WT_PREPARE_INPROGRESS)
