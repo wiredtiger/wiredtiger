@@ -1579,9 +1579,8 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            # FIX ME Remove once BUILD-5025 is done
-            pip install gcovr --user
-            GCOV=/opt/mongodbtoolchain/v3/bin/gcov /home/ubuntu/.local/bin/gcovr -r .. -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' --html -o ../coverage_report.html
+
+            GCOV=/opt/mongodbtoolchain/v3/bin/gcov gcovr -r .. -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' --html -o ../coverage_report.html
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
