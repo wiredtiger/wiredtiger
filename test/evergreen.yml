@@ -142,14 +142,14 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./t ${many_db_args|}
-  "thread check long test":
+  "thread test":
     command: shell.exec
     parms:
       working_dir: "wiredtiger/build_posix/test/thread"
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./t ${thread_check_args|}
+        ${test_env_vars|} ./t ${thread_test_args|}
   "random abort test":
     command: shell.exec
     parms:
@@ -1662,8 +1662,7 @@ tasks:
               cp -rf WT_TEST WT_TEST_$file
             done
 
-  - name: check-test-long-1
-    tags: ["check-long-test"]
+  - name: long-test-1
     commands: 
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1679,8 +1678,7 @@ tasks:
             ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
 
-  - name: check-test-long-2
-    tags: ["check-long-test"]
+  - name: long-test-2
     commands:
       - func: "get project"
       - func: "configure wiredtiger"
@@ -1688,8 +1686,8 @@ tasks:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -Werror"
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --disable-static
       - func: "make wiredtiger"
-        vars:
-          make_command: make all
+      
+      # Run the long version of make check, that includes the full csuite tests
       - func: "make check all"
         vars:
           test_env_vars: TESTUTIL_ENABLE_LONG_TESTS=1
@@ -1700,7 +1698,13 @@ tasks:
             set -o errexit
             set -o verbose
 
-            WT3363_CHECKPOINT_OP_RACES=1 $(pwd)/test/csuite/./test_wt3363_checkpoint_op_races
+            WT3363_CHECKPOINT_OP_RACES=1 test/csuite/./test_wt3363_checkpoint_op_races 2>&1
+      
+      # Many dbs test - Run with:
+      # 1.  The defaults
+      # 2.  Set idle flag to turn off operations.
+      # 3.  More dbs.
+      # 
       - func: "many dbs test"
       - func: "many dbs test"
         vars:
@@ -1711,31 +1715,39 @@ tasks:
       - func: "many dbs test"
         vars:
           many_db_args: -I -D 40
-      - func: "thread check long test"
+      
+      # extended test/thread runs
+      - func: "thread test"
         vars: 
-          thread_check_args: -t f
-      - func: "thread check long test"
+          thread_test_args: -t f
+      - func: "thread test"
         vars: 
-          thread_check_args: -S -F -n 100000 -t f
-      - func: "thread check long test"
+          thread_test_args: -S -F -n 100000 -t f
+      - func: "thread test"
         vars: 
-          thread_check_args: -t r
-      - func: "thread check long test"
+          thread_test_args: -t r
+      - func: "thread test"
         vars: 
-          thread_check_args: -S -F -n 100000 -t r
-      - func: "thread check long test"
+          thread_test_args: -S -F -n 100000 -t r
+      - func: "thread test"
         vars: 
-          thread_check_args: -t v
-      - func: "thread check long test"
+          thread_test_args: -t v
+      - func: "thread test"
         vars:
-          thread_check_args: -S -F -n 100000 -t v
+          thread_test_args: -S -F -n 100000 -t v
+      
+      # random-abort - default (random time and number of threads)
       - func: "random abort test"
+      # random-abort - minimum time, random number of threads
       - func: "random abort test"
         vars:
           random_abort_args: -t 10
+      # random-abort - maximum time, random number of threads
       - func: "random abort test"
         vars:
           random_abort_args: -t 40
+      
+      # truncated-log
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix/test/csuite/"
@@ -1744,21 +1756,32 @@ tasks:
             set -o verbose
 
             ./test_truncated_log
+      
+      # format test
       - func: "test format"
         vars:
           extra_args: file_type=fix
       - func: "test format"
         vars:
           extra_args: file_type=row
+      
+      
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix/bench/wtperf"
           script: |
+            set -o errexit
+            set -o verbose
+            
+            # We want to use the wtperf_track script here to give us a pass fail analysis.
             rundir=../../../bench/wtperf/runners
+            echo "Run truncate btree job (mongodb oplog)"
             $rundir/wtperf_run.sh $rundir/mongodb-oplog.wtperf
             num_truncates=`grep "^Truncate count:" ./wtperf.out | cut -d ' ' -f 3`
             echo "YVALUE=$num_truncates" > ../../truncate_truncate_count.properties
             $rundir/wtperf_track.sh -c truncate_count $num_truncates
+            
+            echo "Run the wtperf workload for WT-2798"
             ./wtperf -O $rundir/checkpoint-schema-race.wtperf
 
 buildvariants:
@@ -1788,8 +1811,8 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
-    - name: check-test-long-1
-    - name: check-test-long-2
+    - name: long-test-1
+    - name: long-test-2
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
