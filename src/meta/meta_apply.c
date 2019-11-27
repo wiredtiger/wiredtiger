@@ -39,6 +39,7 @@ __meta_btree_apply(WT_SESSION_IMPL *session, const char *uri,
      */
     if ((t_ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0)) != 0) {
         WT_TRET_BUSY_OK(t_ret);
+        return (ret);
     }
 
     WT_SAVE_DHANDLE(session, WT_TRET(file_func(session, cfg)));
