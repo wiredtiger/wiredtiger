@@ -1603,9 +1603,8 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            # FIX ME Remove once BUILD-5025 is done
-            pip install gcovr --user
-            GCOV=/opt/mongodbtoolchain/v3/bin/gcov /home/ubuntu/.local/bin/gcovr -r .. -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' --html -o ../coverage_report.html
+
+            GCOV=/opt/mongodbtoolchain/v3/bin/gcov gcovr -r .. -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' --html -o ../coverage_report.html
       - command: s3.put
         params:
           aws_secret: ${aws_secret}
@@ -1771,7 +1770,6 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-
             # We want to use the wtperf_track script here to give us a pass fail analysis.
             rundir=../../../bench/wtperf/runners
             echo "Run truncate btree job (mongodb oplog)"
@@ -1782,6 +1780,24 @@ tasks:
             
             echo "Run the wtperf workload for WT-2798"
             ./wtperf -O $rundir/checkpoint-schema-race.wtperf
+
+  - name: time-shift-sensitivity-test
+    depends_on:
+      - name: compile
+        vars:
+          posix_configure_flags: --enable-strict
+    commands:
+      - func: "fetch artifacts"
+        vars:
+          posix_configure_flags: --enable-strict
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/csuite"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
 buildvariants:
 - name: ubuntu1804
@@ -1865,6 +1881,7 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
     - name: fops
+    - name: time-shift-sensitivity-test
 
 - name: large-scale-test
   display_name: Large scale testing
