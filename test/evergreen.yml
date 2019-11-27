@@ -1765,14 +1765,13 @@ tasks:
         vars:
           extra_args: file_type=row
       
-      
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix/bench/wtperf"
           script: |
             set -o errexit
             set -o verbose
-            
+
             # We want to use the wtperf_track script here to give us a pass fail analysis.
             rundir=../../../bench/wtperf/runners
             echo "Run truncate btree job (mongodb oplog)"
