@@ -856,6 +856,14 @@ struct __wt_page_deleted {
     WT_UPDATE **update_list; /* List of updates for abort */
 };
 
+/* WT_TIME_PAIR --
+ * 	A pair containing a timestamp and transaction id.
+ */
+struct __wt_time_pair {
+    wt_timestamp_t timestamp;
+    uint64_t txnid;
+};
+
 /*
  * WT_REF --
  *	A single in-memory page and the state information used to determine if
@@ -865,12 +873,10 @@ struct __wt_ref {
     WT_PAGE *page; /* Page */
 
     /* Minimum start time pair. */
-    wt_timestamp_t min_start_ts;
-    uint64_t min_start_txn;
+    WT_TIME_PAIR min_time_pair;
 
     /* Maximum stop time pair. */
-    wt_timestamp_t max_stop_ts;
-    uint64_t max_stop_txn;
+    WT_TIME_PAIR max_time_pair;
 
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
