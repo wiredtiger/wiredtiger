@@ -1661,7 +1661,7 @@ tasks:
               cp -rf WT_TEST WT_TEST_$file
             done
 
-  - name: long-test-1
+  - name: ftruncate-test
     commands: 
       - func: "get project"
       - func: "compile wiredtiger"
@@ -1677,7 +1677,7 @@ tasks:
             ${test_env_vars|} $(pwd)/../test/csuite/timestamp_abort/smoke.sh 2>&1
             ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
 
-  - name: long-test-2
+  - name: long-test
     commands:
       - func: "get project"
       - func: "configure wiredtiger"
@@ -1701,16 +1701,16 @@ tasks:
       
       # Many dbs test - Run with:
       # 1.  The defaults
-      # 2.  Set idle flag to turn off operations.
-      # 3.  More dbs.
-      # 
       - func: "many dbs test"
+      # 2.  Set idle flag to turn off operations.
       - func: "many dbs test"
         vars:
           many_db_args: -I
+      # 3.  More dbs.
       - func: "many dbs test"
         vars:
           many_db_args: -D 40
+      # 4.  With idle flag and more dbs.
       - func: "many dbs test"
         vars:
           many_db_args: -I -D 40
@@ -1811,8 +1811,8 @@ buildvariants:
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
-    - name: long-test-1
-    - name: long-test-2
+    - name: ftruncate-test
+    - name: long-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
