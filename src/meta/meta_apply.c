@@ -22,10 +22,8 @@ __meta_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     bool skip;
 
     skip = false;
-    if (name_func != NULL) {
-        ret = name_func(session, uri, &skip);
-        return (ret);
-    }
+    if (name_func != NULL)
+        WT_RET(name_func(session, uri, &skip));
 
     if (file_func == NULL || skip || !WT_PREFIX_MATCH(uri, "file:"))
         return (ret);
