@@ -864,6 +864,14 @@ struct __wt_page_deleted {
 struct __wt_ref {
     WT_PAGE *page; /* Page */
 
+    /* Minimum start time pair. */
+    wt_timestamp_t min_start_ts;
+    uint64_t min_start_txn;
+
+    /* Maximum stop time pair. */
+    wt_timestamp_t max_stop_ts;
+    uint64_t max_stop_txn;
+
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
      * need to see that change when looking up our slot in the page's index structure.
