@@ -83,7 +83,7 @@ set_alarm(void)
  * set_core_off --
  *     Turn off core dumps.
  */
-static void
+void
 set_core_off(void)
 {
 #ifdef HAVE_SETRLIMIT
