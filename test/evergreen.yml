@@ -1689,7 +1689,7 @@ tasks:
       # Run the long version of make check, that includes the full csuite tests
       - func: "make check all"
         vars:
-          test_env_vars: TESTUTIL_ENABLE_LONG_TESTS=1
+          test_env_vars: ${test_env_vars} TESTUTIL_ENABLE_LONG_TESTS=1
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
