@@ -200,6 +200,23 @@ verbose "$name configuration: [-c $config] [-h $home]\
 
 failure=0
 success=0
+status="format.sh-status"
+
+# Report a failure.
+# $1 directory name
+report_failure()
+{
+	dir=$1
+	log="$dir.log"
+
+	echo "$name: failure status reported" > $dir/$status
+	failure=$(($failure + 1))
+
+	echo "$name: job in $dir failed"
+	echo "$name: $dir log:"
+	sed 's/^/    > /' < $log
+}
+
 # Resolve/cleanup completed jobs.
 resolve()
 {
@@ -209,13 +226,31 @@ resolve()
 		log="$dir.log"
 
 		# Skip failures we've already reported.
-		[[ -f "$dir/reported" ]] && continue
+		[[ -f "$dir/$status" ]] && continue
 
-		# Discard successful jobs.
+		# Get the proceess ID, ignore any jobs that aren't yet running.
+		pid=`grep -E 'process.*running' $log | awk '{print $3}'`
+		[[ "$pid" =~ ^[1-9][0-9]*$ ]] || continue
+
+		# If the job is still running, ignore it.
+		kill -s 0 $pid > /dev/null 2>&1 && continue
+
+		# Wait for the job and get an exit status.
+		wait $pid
+		eret=$?
+
+		# Remove successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
 			success=$(($success + 1))
 			verbose "$name: job in $dir successfully completed"
+			continue
+		}
+
+		# Remove jobs where the timer went off.
+		grep 'caught signal' $log > /dev/null && {
+			rm -rf $dir $log
+			verbose "$name: job in $dir signalled"
 			continue
 		}
 
@@ -238,32 +273,60 @@ resolve()
 				success=$(($success + 1))
 				verbose "$name: job in $dir successfully completed"
 			else
-				echo "$name: failure status reported" > $dir/reported
-				failure=$(($failure + 1))
 				echo "$name: job in $dir failed abort/recovery testing"
+				report_failure $dir
 			fi
-			continue
-		}
-
-		# Discard jobs where the timer went off.
-		grep 'caught signal' $log > /dev/null && {
-			rm -rf $dir $log
-			verbose "$name: job in $dir aborted"
 			continue
 		}
 
 		# Report failures.
 		# Check for the library abort message, or an error from format.
 		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
-			echo "$name: job in $dir failed"
-			echo "$name: $dir log:"
-			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-			sed 's/^/    /' < $log
-			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-
-			echo "$name: failure status reported" > $dir/reported
-			failure=$(($failure + 1))
+			report_failure $dir
+			continue
 		}
+
+		# There's some chance we just dropped core. We have the exit status of the process,
+		# but there's no way to be sure. There are reasons the process' exit status looks
+		# like a core dump was created (format deliberately causes a segfault in the case
+		# of abort/recovery testing, and does work that can often segfault in the case of a
+		# snapshot-isolation mismatch failure), but those cases have already been handled,
+		# format is responsible for logging a failure before the core can happen. If the
+		# process exited with a likely failure, call it a failure.
+		signame=""
+		case $eret in
+		$((128 + 3)))
+			signame="SIGQUIT";;
+		$((128 + 4)))
+			signame="SIGILL";;
+		$((128 + 6)))
+			signame="SIGABRT";;
+		$((128 + 7)))
+			signame="SIGBUS";;
+		$((128 + 8)))
+			signame="SIGFPE";;
+		$((128 + 11)))
+			signame="SIGSEGV";;
+		$((128 + 24)))
+			signame="SIGXCPU";;
+		$((128 + 25)))
+			signame="SIGXFSZ";;
+		$((128 + 31)))
+			signame="SIGSYS";;
+		esac
+		[[ ! -z $signame ]] && {
+			(echo
+			 echo "$name: job in $dir killed with signal $signame"
+			 echo "$name: there may be a core dump associated with this failure"
+			 echo) >> $log
+
+			echo "$name: job in $dir killed with signal $signame"
+			echo "$name: there may be a core dump associated with this failure"
+
+			report_failure $dir
+			continue
+		}
+
 	done
 	return 0
 }
@@ -340,12 +403,6 @@ while :; do
 		sleep 5
 	}
 
-	# Wait for any completed jobs.
-	children=$(pgrep -P $$)
-	for i in $children; do
-		kill -s 0 $i || wait -n
-	done
-
 	# Clean up and update status.
 	success_save=$success
 	failure_save=$failure
@@ -355,7 +412,7 @@ while :; do
 
 	# Quit if we're done and there aren't any jobs left to wait for.
 	children=$(pgrep -P $$)
-	[[ $stop -ne 0 ]] && [[ -z "$children" ]] && break;
+	[[ $stop -ne 0 ]] && [[ -z "$children" ]] && break
 
 	# Forcibly quit if there's a failure and first-failure configured.
 	[[ $failure -ne 0 ]] && [[ $first_failure -ne 0 ]] && {
