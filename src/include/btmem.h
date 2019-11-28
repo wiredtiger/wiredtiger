@@ -872,11 +872,8 @@ struct __wt_time_pair {
 struct __wt_ref {
     WT_PAGE *page; /* Page */
 
-    /* Minimum start time pair. */
-    WT_TIME_PAIR min_time_pair;
-
-    /* Maximum stop time pair. */
-    WT_TIME_PAIR max_time_pair;
+    WT_TIME_PAIR start_time_pair; /* Start time pair. */
+    WT_TIME_PAIR stop_time_pair;  /* Stop time pair. */
 
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
