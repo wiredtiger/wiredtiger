@@ -122,8 +122,9 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
 {
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
-    wt_timestamp_t durable_timestamp, las_timestamp, las_txnid;
+    wt_timestamp_t durable_timestamp, las_stop_timestamp, las_timestamp;
     size_t not_used;
+    uint64_t las_stop_txnid, las_txnid;
     uint32_t las_btree_id;
     uint8_t prepare_state, upd_type;
     int cmp;
@@ -141,8 +142,8 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
     /* Determine whether to use lookaside or an in-memory update. */
     if (*las_positioned) {
         /* Check if lookaside cursor is still positioned on an update for the given key. */
-        WT_RET(
-          las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_RET(las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid,
+          &las_stop_timestamp, &las_stop_txnid));
         if (las_btree_id != btree_id) {
             *las_positioned = false;
             goto inmem;
@@ -218,9 +219,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd;
     WT_UPDATE *tmp_upd, *upd;
-    wt_timestamp_t durable_ts, las_ts, max_ts, mod_upd_ts;
+    wt_timestamp_t durable_ts, las_stop_ts, las_ts, max_ts, mod_upd_ts;
     size_t notused, upd_memsize;
-    uint64_t las_txnid, max_txn, txnid;
+    uint64_t las_stop_txnid, las_txnid, max_txn, txnid;
     uint32_t las_btree_id, session_flags;
     uint8_t *p, prepare_state, upd_type;
     int cmp;
@@ -411,8 +412,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR_NOTFOUND_OK(ret);
             cmp = 0;
             if (ret != WT_NOTFOUND) {
-                WT_ERR(
-                  las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_ts, &las_txnid));
+                WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_ts, &las_txnid,
+                  &las_stop_ts, &las_stop_txnid));
                 /*
                  * If the birthmark update is more recent than the current lookaside record then we
                  * should use that as the base update instead.

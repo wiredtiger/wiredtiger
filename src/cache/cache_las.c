@@ -902,8 +902,8 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
   WT_ITEM *key, wt_timestamp_t timestamp)
 {
     WT_ITEM las_key;
-    wt_timestamp_t las_timestamp;
-    uint64_t las_txnid;
+    wt_timestamp_t las_stop_timestamp, las_timestamp;
+    uint64_t las_stop_txnid, las_txnid;
     uint32_t las_btree_id;
     int cmp, exact;
 
@@ -912,7 +912,7 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
      * search and the set of updates that we're interested in. Keep trying until we find it.
      */
     for (;;) {
-        cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX);
+        cursor->set_key(cursor, btree_id, key, timestamp, WT_TXN_MAX, WT_TS_MAX, WT_TXN_MAX);
         WT_RET(cursor->search_near(cursor, &exact));
         if (exact > 0)
             WT_RET(cursor->prev(cursor));
@@ -926,7 +926,8 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
          * removed by WT_CONNECTION::rollback_to_stable.
          */
         WT_CLEAR(las_key);
-        WT_RET(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_RET(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid,
+          &las_stop_timestamp, &las_stop_txnid));
         if (las_btree_id < btree_id)
             return (0);
         else if (las_btree_id == btree_id) {
@@ -1027,8 +1028,8 @@ __las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
     WT_CACHE *cache;
     WT_DECL_RET;
     WT_ITEM max_key;
-    wt_timestamp_t max_timestamp;
-    uint64_t max_txnid;
+    wt_timestamp_t max_start_timestamp, max_stop_timestamp;
+    uint64_t max_start_txnid, max_stop_txnid;
     uint32_t max_btree_id;
     u_int i;
 
@@ -1046,11 +1047,12 @@ __las_sweep_init(WT_SESSION_IMPL *session, WT_CURSOR *las_cursor)
     /* Find the max key for the current sweep. */
     WT_ERR(las_cursor->reset(las_cursor));
     WT_ERR(las_cursor->prev(las_cursor));
-    WT_ERR(las_cursor->get_key(las_cursor, &max_btree_id, &max_key, &max_timestamp, &max_txnid));
+    WT_ERR(las_cursor->get_key(las_cursor, &max_btree_id, &max_key, &max_start_timestamp,
+      &max_start_txnid, &max_stop_timestamp, &max_stop_txnid));
     WT_ERR(__wt_buf_set(session, &cache->las_max_key, max_key.data, max_key.size));
     cache->las_max_btree_id = max_btree_id;
-    cache->las_max_timestamp = max_timestamp;
-    cache->las_max_txnid = max_txnid;
+    cache->las_max_timestamp = max_start_timestamp;
+    cache->las_max_txnid = max_start_txnid;
 
     /* Scan the btree IDs to find min/max. */
     cache->las_sweep_dropmin = UINT32_MAX;
@@ -1121,9 +1123,10 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_ITEM las_key, las_value, remove_key;
     WT_ITEM *sweep_key;
-    wt_timestamp_t durable_timestamp, las_timestamp, remove_timestamp, saved_timestamp;
+    wt_timestamp_t durable_timestamp, las_stop_timestamp, las_timestamp, remove_stop_timestamp,
+      remove_timestamp, saved_timestamp;
     uint64_t cnt, remove_cnt, pending_remove_cnt, visit_cnt;
-    uint64_t las_txnid, remove_txnid, saved_txnid;
+    uint64_t las_stop_txnid, las_txnid, remove_stop_txnid, remove_txnid, saved_txnid;
     uint32_t las_btree_id, remove_btree_id, saved_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
     int cmp, notused;
@@ -1192,7 +1195,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid,
+          &las_stop_timestamp, &las_stop_txnid));
 
         /*
          * Check for the max range for the current sweep is reached.
@@ -1306,8 +1310,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
                  * first previous key that is getting removed must be verified the saved key.
                  */
                 if (key_change && !prev_rec_verified) {
-                    WT_ERR(cursor->get_key(
-                      cursor, &remove_btree_id, &remove_key, &remove_timestamp, &remove_txnid));
+                    WT_ERR(cursor->get_key(cursor, &remove_btree_id, &remove_key, &remove_timestamp,
+                      &remove_txnid, &remove_stop_timestamp, &remove_stop_txnid));
                     if (remove_btree_id != saved_btree_id || saved_key->size != remove_key.size ||
                       memcmp(saved_key->data, remove_key.data, remove_key.size) != 0 ||
                       saved_timestamp != remove_timestamp || saved_txnid != remove_txnid) {
@@ -1445,10 +1449,11 @@ __wt_find_lookaside_upd(
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_UPDATE *birthmark_upd, *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_timestamp, las_timestamp_tmp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_stop_timestamp,
+      las_stop_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     wt_timestamp_t read_timestamp;
     size_t notused, size;
-    uint64_t las_txnid, las_txnid_tmp, recno;
+    uint64_t las_stop_txnid, las_stop_txnid_tmp, las_txnid, las_txnid_tmp, recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
     const uint8_t *recnop;
@@ -1512,7 +1517,8 @@ __wt_find_lookaside_upd(
     read_timestamp = allow_prepare ? txn->prepare_timestamp : txn->read_timestamp;
     ret = __wt_las_cursor_position(session, las_cursor, las_btree_id, key, read_timestamp);
     for (; ret == 0; ret = las_cursor->prev(las_cursor)) {
-        WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid));
+        WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp, &las_txnid,
+          &las_stop_timestamp, &las_stop_txnid));
 
         /* Stop before crossing over to the next btree */
         if (las_btree_id != S2BT(session)->id)
@@ -1584,8 +1590,9 @@ __wt_find_lookaside_upd(
                      * The regular case (1) is where we keep looking back into lookaside until we
                      * find a base update to apply the deltas on top of.
                      */
-                    WT_ERR(las_cursor->get_key(
-                      las_cursor, &las_btree_id, las_key, &las_timestamp_tmp, &las_txnid_tmp));
+                    WT_ERR(
+                      las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_timestamp_tmp,
+                        &las_txnid_tmp, &las_stop_timestamp_tmp, &las_stop_txnid_tmp));
 
                     /*
                      * Another possibility (2) is where the birthmark that we instantiated the

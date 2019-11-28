@@ -164,8 +164,10 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     struct las_page_prepared_updates {
         WT_ITEM key;
-        wt_timestamp_t timestamp;
-        uint64_t txnid;
+        wt_timestamp_t start_timestamp;
+        uint64_t start_txnid;
+        wt_timestamp_t stop_timestamp;
+        uint64_t stop_txnid;
     } * las_preparep;
     WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CACHE *cache;
@@ -178,9 +180,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_timestamp, las_timestamp_tmp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_stop_timestamp,
+      las_stop_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     size_t notused, size, total_incr;
-    uint64_t birthmark_cnt, instantiated_cnt, las_txnid, las_txnid_tmp, recno;
+    uint64_t birthmark_cnt, instantiated_cnt, las_stop_txnid, las_stop_txnid_tmp, las_txnid,
+      las_txnid_tmp, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
@@ -278,14 +282,16 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     notused = size = total_incr = 0;
     first_scan = true;
     locked = true;
-    las_cursor->set_key(las_cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
+    las_cursor->set_key(las_cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX,
+      WT_TS_MAX, WT_TXN_MAX);
     for (; ret == 0; ret = las_cursor->next(las_cursor)) {
         if (!first_scan) {
-            WT_ERR(las_cursor->get_key(
-              las_cursor, &las_btree_id, &next_las_key, &las_timestamp, &las_txnid));
+            WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, &next_las_key, &las_timestamp,
+              &las_txnid, &las_stop_timestamp, &las_stop_txnid));
 
             /* Set the key to check with maximum timestamp and transaction id. */
-            las_cursor->set_key(las_cursor, las_btree_id, &next_las_key, WT_TS_MAX, WT_TXN_MAX);
+            las_cursor->set_key(las_cursor, las_btree_id, &next_las_key, WT_TS_MAX, WT_TXN_MAX,
+              WT_TS_MAX, WT_TXN_MAX);
         }
         first_scan = false;
 
@@ -297,8 +303,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         if (exact > 0)
             WT_ERR(las_cursor->prev(las_cursor));
 
-        WT_ERR(
-          las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid,
+          &las_stop_timestamp, &las_stop_txnid));
 
         /* Stop before crossing over to the next btree. */
         if (las_btree_id != S2BT(session)->id)
@@ -368,8 +374,9 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                 las_timestamp_tmp = WT_TS_NONE;
                 las_txnid_tmp = WT_TXN_NONE;
                 if (ret != WT_NOTFOUND) {
-                    WT_ERR(las_cursor->get_key(
-                      las_cursor, &las_btree_id, &las_key_tmp, &las_timestamp_tmp, &las_txnid_tmp));
+                    WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, &las_key_tmp,
+                      &las_timestamp_tmp, &las_txnid_tmp, &las_stop_timestamp_tmp,
+                      &las_stop_txnid_tmp));
                     WT_ERR(__wt_compare(session, NULL, &las_key, &las_key_tmp, &cmp));
                 }
                 if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
@@ -426,8 +433,10 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             las_preparep = (struct las_page_prepared_updates *)las_prepares->mem + las_prepare_cnt;
             WT_CLEAR(las_preparep->key);
             WT_ERR(__wt_buf_set(session, &las_preparep->key, las_key.data, las_key.size));
-            las_preparep->timestamp = las_timestamp;
-            las_preparep->txnid = las_txnid;
+            las_preparep->start_timestamp = las_timestamp;
+            las_preparep->start_txnid = las_txnid;
+            las_preparep->stop_timestamp = las_stop_timestamp;
+            las_preparep->stop_txnid = las_stop_txnid;
             las_prepare_cnt++;
         }
 
@@ -462,8 +471,9 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
      * instantiated.
      */
     for (i = 0, las_preparep = las_prepares->mem; i < las_prepare_cnt; i++, las_preparep++) {
-        las_cursor->set_key(las_cursor, las_btree_id, &las_preparep->key, las_preparep->timestamp,
-          las_preparep->txnid);
+        las_cursor->set_key(las_cursor, las_btree_id, &las_preparep->key,
+          las_preparep->start_timestamp, las_preparep->start_txnid, las_preparep->stop_timestamp,
+          las_preparep->stop_txnid);
         WT_ERR(las_cursor->remove(las_cursor));
     }
 
