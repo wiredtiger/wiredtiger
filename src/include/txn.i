@@ -375,7 +375,12 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             op->type = WT_TXN_OP_BASIC_COL;
     }
     op->u.op_upd = upd;
-    upd->txnid = session->txn.id;
+
+    /* Use the original txnid for the las inserts */
+    if (S2C(session)->cache->las_fileid != 0 && op->btree->id == S2C(session)->cache->las_fileid)
+        upd->txnid = S2C(session)->cache->las_txnid;
+    else
+        upd->txnid = session->txn.id;
 
     __wt_txn_op_set_timestamp(session, op);
     return (0);

@@ -22,7 +22,7 @@ static void
 __las_set_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp)
 {
     *saved_isolationp = session->txn.isolation;
-    session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
+    session->txn.isolation = WT_ISO_SNAPSHOT;
 }
 
 /*
@@ -580,7 +580,7 @@ int
 __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_BIRTHMARK_DETAILS *birthmarkp;
-    WT_CONNECTION_IMPL *conn;
+    WT_CACHE *cache;
     WT_DECL_ITEM(birthmarks);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
@@ -597,7 +597,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     bool local_txn;
 
     session = (WT_SESSION_IMPL *)cursor->session;
-    conn = S2C(session);
+    cache = S2C(session)->cache;
     WT_CLEAR(las_value);
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = prepared_insert_cnt = 0;
@@ -611,7 +611,16 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     /* Wrap all the updates in a transaction. */
     WT_ERR(__wt_txn_begin(session, NULL));
     __las_set_isolation(session, &saved_isolation);
+
     local_txn = true;
+
+    /*
+     * Set the oldest timestamp as the first commit timestamp for the LAS transaction. None of the
+     * transactions with commit timestamp less than oldest timestamp will go into history store. AS
+     * they will be cleaned as part of the obsolete check.
+     */
+    if (S2C(session)->txn_global.oldest_timestamp != WT_TS_NONE)
+        WT_ERR(__wt_txn_set_commit_timestamp(session, S2C(session)->txn_global.oldest_timestamp));
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -794,10 +803,33 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
 
             /*
+             * Set the current update start time pair as the commit time pair of the LAS
+             * transaction.
+             */
+            if (upd->start_ts != WT_TS_NONE)
+                WT_ERR(__wt_txn_set_commit_timestamp(session, upd->start_ts));
+            cache->las_txnid = upd->txnid;
+
+            /*
              * Using update instead of insert so the page stays pinned and can be searched before
              * the tree.
              */
             WT_ERR(cursor->update(cursor));
+            ++insert_cnt;
+
+            /* Append a delete record to represent stop time pair for the above insert record */
+            cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts, stop_txnid);
+
+            /*
+             * Set the stop time pair as the commit time pair of the LAS transaction to represent
+             * delete operation.
+             */
+            if (stop_ts != WT_TS_NONE)
+                WT_ERR(__wt_txn_set_commit_timestamp(session, stop_ts));
+            cache->las_txnid = stop_txnid;
+
+            /* Remove the inserted record with stop timestamp. */
+            WT_ERR(cursor->remove(cursor));
             ++insert_cnt;
 
             /*
@@ -842,7 +874,7 @@ err:
 
         /* Adjust the entry count. */
         if (ret == 0) {
-            (void)__wt_atomic_add64(&conn->cache->las_insert_count, insert_cnt);
+            (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
             WT_STAT_CONN_INCRV(
               session, txn_prepared_updates_lookaside_inserts, prepared_insert_cnt);
         }

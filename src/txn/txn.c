@@ -1021,10 +1021,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 /*
                  * Writes to the lookaside file can be evicted as soon as they commit.
                  */
-                if (conn->cache->las_fileid != 0 && fileid == conn->cache->las_fileid) {
-                    upd->txnid = WT_TXN_NONE;
+                if (conn->cache->las_fileid != 0 && fileid == conn->cache->las_fileid)
                     break;
-                }
 
                 __wt_txn_op_set_timestamp(session, op);
             } else {
@@ -1260,10 +1258,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        /* Assert it's not an update to the lookaside file. */
-        WT_ASSERT(
-          session, S2C(session)->cache->las_fileid == 0 || !F_ISSET(op->btree, WT_BTREE_LOOKASIDE));
-
         /* Metadata updates should never be rolled back. */
         WT_ASSERT(session, !WT_IS_METADATA(op->btree->dhandle));
         if (WT_IS_METADATA(op->btree->dhandle))
@@ -1279,6 +1273,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
             upd = op->u.op_upd;
 
             if (!prepare) {
+                if (S2C(session)->cache->las_fileid != 0 &&
+                  op->btree->id == S2C(session)->cache->las_fileid)
+                    break;
                 WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
                 upd->txnid = WT_TXN_ABORTED;
             } else {
