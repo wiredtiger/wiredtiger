@@ -1595,11 +1595,8 @@ int
 __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_SESSION_IMPL *s;
     WT_TXN *txn;
-    WT_TXN_STATE *state;
-    uint64_t id, snap_min, txn_oldest;
-    uint32_t i, session_cnt;
+    uint64_t txn_oldest;
 
     conn = S2C(session);
     txn = &session->txn;
@@ -1620,34 +1617,10 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
       (txn_oldest != WT_TXN_NONE || __wt_op_timer_fired(session)) &&
       (txn_oldest == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_oldest)))
         txn_oldest = txn->snap_min;
-    if (txn_oldest == WT_TXN_NONE)
-        return (false);
-
-    /*
-     * Check if we hold the oldest pinned transaction ID in the system. It's safe to ignore sessions
-     * allocating transaction IDs, they are guaranteed to be newer as we already have an ID.
-     */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, state = conn->txn_global.states, i = 0; i < session_cnt;
-         ++s, ++state, ++i) {
-        if (F_ISSET(s, WT_SESSION_INTERNAL))
-            continue;
-        if (state->is_allocating)
-            continue;
-
-        WT_ORDERED_READ(id, state->id);
-        if (id != WT_TXN_NONE && WT_TXNID_LT(id, txn_oldest))
-            break;
-
-        if (!F_ISSET(&s->txn, WT_TXN_HAS_SNAPSHOT))
-            continue;
-        WT_ORDERED_READ(snap_min, s->txn.snap_min);
-        if (snap_min != WT_TXN_NONE && WT_TXNID_LT(snap_min, txn_oldest))
-            break;
-    }
-    return (i == session_cnt ? __wt_txn_rollback_required(
-                                 session, "oldest pinned transaction ID rolled back for eviction") :
-                               0);
+    return (txn_oldest == conn->txn_global.oldest_id ?
+        __wt_txn_rollback_required(
+          session, "oldest pinned transaction ID rolled back for eviction") :
+        0);
 }
 
 /*
