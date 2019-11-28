@@ -180,11 +180,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE *page;
     WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_stop_timestamp,
-      las_stop_timestamp_tmp, las_timestamp, las_timestamp_tmp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_stop_timestamp;
+    wt_timestamp_t las_stop_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     size_t notused, size, total_incr;
-    uint64_t birthmark_cnt, instantiated_cnt, las_stop_txnid, las_stop_txnid_tmp, las_txnid,
-      las_txnid_tmp, recno;
+    uint64_t birthmark_cnt, instantiated_cnt, las_stop_txnid, las_stop_txnid_tmp;
+    uint64_t las_txnid, las_txnid_tmp, recno;
     uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;

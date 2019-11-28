@@ -1123,8 +1123,8 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     WT_ITEM las_key, las_value, remove_key;
     WT_ITEM *sweep_key;
-    wt_timestamp_t durable_timestamp, las_stop_timestamp, las_timestamp, remove_stop_timestamp,
-      remove_timestamp, saved_timestamp;
+    wt_timestamp_t durable_timestamp, las_stop_timestamp, las_timestamp;
+    wt_timestamp_t remove_stop_timestamp, remove_timestamp, saved_timestamp;
     uint64_t cnt, remove_cnt, pending_remove_cnt, visit_cnt;
     uint64_t las_stop_txnid, las_txnid, remove_stop_txnid, remove_txnid, saved_txnid;
     uint32_t las_btree_id, remove_btree_id, saved_btree_id, session_flags;
@@ -1449,8 +1449,8 @@ __wt_find_lookaside_upd(
     WT_MODIFY_VECTOR modifies;
     WT_TXN *txn;
     WT_UPDATE *birthmark_upd, *mod_upd, *upd;
-    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_stop_timestamp,
-      las_stop_timestamp_tmp, las_timestamp, las_timestamp_tmp;
+    wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_stop_timestamp;
+    wt_timestamp_t las_stop_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     wt_timestamp_t read_timestamp;
     size_t notused, size;
     uint64_t las_stop_txnid, las_stop_txnid_tmp, las_txnid, las_txnid_tmp, recno;
