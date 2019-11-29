@@ -225,6 +225,9 @@ resolve()
 		dir="$home/$i"
 		log="$dir.log"
 
+		# Skip directories that aren't ours.
+		[[ ! -f "$log" ]] && continue
+
 		# Skip failures we've already reported.
 		[[ -f "$dir/$status" ]] && continue
 
