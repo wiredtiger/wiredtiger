@@ -9,12 +9,22 @@
 #include "wt_internal.h"
 
 /*
+ * do nothing
+ */
+static int
+__rec_blah(WT_SESSION_IMPL *session, int abcd)
+{
+    return 0;
+}
+
+/*
  * __rec_update_durable --
  *     Return whether an update is suitable for writing to a disk image.
  */
 static bool
 __rec_update_durable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
+    WT_RET(__rec_blah(session));
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
         __wt_txn_upd_visible_type(session, upd) == WT_VISIBLE_TRUE &&
