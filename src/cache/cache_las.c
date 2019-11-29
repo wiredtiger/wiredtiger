@@ -779,10 +779,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 birthmarks_cnt++;
 
                 /*
-                 * Store the current update durable timestamp and transaction id, these are the stop
+                 * Store the current update commit timestamp and transaction id, these are the stop
                  * timestamp and transaction id's for the next record in the update list.
                  */
-                stop_ts = upd->durable_ts;
+                stop_ts = upd->start_ts;
                 stop_txnid = upd->txnid;
 
                 /* Do not put birthmarks into the lookaside. */
@@ -814,10 +814,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             ++insert_cnt;
 
             /*
-             * Store the current update durable timestamp and transaction id, these are the stop
+             * Store the current update comit timestamp and transaction id, these are the stop
              * timestamp and transaction id's for the next record in the update list.
              */
-            stop_ts = upd->durable_ts;
+            stop_ts = upd->start_ts;
             stop_txnid = upd->txnid;
 
             /*
