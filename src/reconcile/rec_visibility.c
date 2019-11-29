@@ -122,7 +122,8 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
 {
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
-    wt_timestamp_t durable_timestamp, las_timestamp, las_txnid;
+    WT_TIME_PAIR las_start, las_stop;
+    wt_timestamp_t durable_timestamp;
     size_t not_used;
     uint32_t las_btree_id;
     uint8_t prepare_state, upd_type;
@@ -131,7 +132,8 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
 
     WT_CLEAR(las_key);
     WT_CLEAR(las_value);
-    las_timestamp = las_txnid = 0;
+    las_start.timestamp = WT_TS_NONE;
+    las_start.txnid = WT_TXN_NONE;
     use_las_rec = false;
 
     /* Free any external update we're holding. */
@@ -141,8 +143,8 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
     /* Determine whether to use lookaside or an in-memory update. */
     if (*las_positioned) {
         /* Check if lookaside cursor is still positioned on an update for the given key. */
-        WT_RET(
-          las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
+        WT_RET(las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_start.timestamp,
+          &las_start.txnid, &las_stop.timestamp, &las_stop.txnid));
         if (las_btree_id != btree_id) {
             *las_positioned = false;
             goto inmem;
@@ -158,10 +160,10 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
             /* There are no more in-memory updates to consider. */
             use_las_rec = true;
         } else {
-            if (las_timestamp > (*inmem_upd_pos)->start_ts)
+            if (las_start.timestamp > (*inmem_upd_pos)->start_ts)
                 use_las_rec = true;
-            else if (las_timestamp == (*inmem_upd_pos)->start_ts) {
-                if (las_txnid > (*inmem_upd_pos)->txnid)
+            else if (las_start.timestamp == (*inmem_upd_pos)->start_ts) {
+                if (las_start.txnid > (*inmem_upd_pos)->txnid)
                     use_las_rec = true;
             }
         }
@@ -178,9 +180,9 @@ __get_next_rec_upd(WT_SESSION_IMPL *session, WT_UPDATE **inmem_upd_pos, bool *la
          * discarded when not needed.
          */
         WT_RET(__wt_update_alloc(session, &las_value, updp, &not_used, upd_type));
-        (*updp)->txnid = las_txnid;
+        (*updp)->txnid = las_start.txnid;
         (*updp)->durable_ts = durable_timestamp;
-        (*updp)->start_ts = las_timestamp;
+        (*updp)->start_ts = las_start.timestamp;
         (*updp)->prepare_state = prepare_state;
         (*updp)->ext = 1;
 
@@ -215,12 +217,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_ITEM las_key, las_value;
     WT_MODIFY_VECTOR modifies;
     WT_PAGE *page;
+    WT_TIME_PAIR las_start, las_stop;
     WT_TXN_ISOLATION saved_isolation;
     WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd;
     WT_UPDATE *tmp_upd, *upd;
-    wt_timestamp_t durable_ts, las_ts, max_ts, mod_upd_ts;
+    wt_timestamp_t durable_ts, max_ts, mod_upd_ts;
     size_t notused, upd_memsize;
-    uint64_t las_txnid, max_txn, txnid;
+    uint64_t max_txn, txnid;
     uint32_t las_btree_id, session_flags;
     uint8_t *p, prepare_state, upd_type;
     int cmp;
@@ -380,8 +383,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_CLEAR(las_key);
         WT_CLEAR(las_value);
         las_btree_id = 0;
-        las_ts = WT_TS_NONE;
-        las_txnid = WT_TXN_NONE;
+        las_start.timestamp = WT_TS_NONE;
+        las_start.txnid = WT_TXN_NONE;
 
         /* Find the birthmark update if one exists in the update list. */
         for (birthmark_upd = first_inmem_upd;
@@ -411,15 +414,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR_NOTFOUND_OK(ret);
             cmp = 0;
             if (ret != WT_NOTFOUND) {
-                WT_ERR(
-                  las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_ts, &las_txnid));
+                WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, &las_key,
+                  &las_start.timestamp, &las_start.txnid, &las_stop.timestamp, &las_stop.txnid));
                 /*
                  * If the birthmark update is more recent than the current lookaside record then we
                  * should use that as the base update instead.
                  */
-                if (birthmark_upd != NULL && las_ts < mod_upd_ts &&
-                  ((birthmark_upd->start_ts > las_ts) ||
-                      (birthmark_upd->start_ts == las_ts && birthmark_upd->txnid > las_txnid))) {
+                if (birthmark_upd != NULL && las_start.timestamp < mod_upd_ts &&
+                  ((birthmark_upd->start_ts > las_start.timestamp) ||
+                      (birthmark_upd->start_ts == las_start.timestamp &&
+                        birthmark_upd->txnid > las_start.txnid))) {
                     /*
                      * Normally we'd hit a base update in the lookaside which will set the update
                      * type to "standard". Since we're use the birthmark value, set it explicitly.
@@ -440,7 +444,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 WT_ERR(__wt_value_return_buf(cbt, cbt->ref, &las_value));
                 break;
             } else
-                WT_ASSERT(session, __wt_txn_visible(session, las_txnid, las_ts));
+                WT_ASSERT(session, __wt_txn_visible(session, las_start.txnid, las_start.timestamp));
             WT_ERR(las_cursor->get_value(
               las_cursor, &durable_ts, &prepare_state, &upd_type, &las_value));
         }
