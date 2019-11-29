@@ -814,7 +814,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             ++insert_cnt;
 
             /*
-             * Store the current update comit timestamp and transaction id, these are the stop
+             * Store the current update commit timestamp and transaction id, these are the stop
              * timestamp and transaction id's for the next record in the update list.
              */
             stop_ts = upd->start_ts;
