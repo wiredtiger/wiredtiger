@@ -403,6 +403,17 @@ snap_repeat_txn(WT_CURSOR *cursor, TINFO *tinfo)
         if (current->opid != tinfo->opid)
             break;
 
+        /*
+         * First, reads may simply not be repeatable because the read timestamp chosen wasn't older
+         * than all concurrently running uncommitted updates.
+         */
+        if (!tinfo->repeatable_reads && current->op == READ)
+            continue;
+
+        /*
+         * Second, as we have not yet resolved the transaction, the rules are as if the transaction
+         * committed successfully.
+         */
         if (snap_repeat_ok_commit(tinfo, current))
             WT_RET(snap_verify(cursor, tinfo, current));
     }
