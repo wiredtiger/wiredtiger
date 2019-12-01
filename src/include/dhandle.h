@@ -39,6 +39,9 @@
 /* The metadata cursor's data handle. */
 #define WT_SESSION_META_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->meta_cursor))->btree->dhandle)
 
+/* The metadata cursor's data handle. */
+#define WT_SESSION_LAS_DHANDLE(s) (((WT_CURSOR_BTREE *)((s)->las_cursor))->btree->dhandle)
+
 #define WT_DHANDLE_ACQUIRE(dhandle) (void)__wt_atomic_add32(&(dhandle)->session_ref, 1)
 
 #define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)

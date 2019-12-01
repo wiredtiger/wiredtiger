@@ -183,7 +183,8 @@ err:
 
 /*
  * __checkpoint_apply_to_dhandles --
- *     Apply an operation to all handles locked for a checkpoint.
+ *     Apply an operation to all handles locked for a checkpoint. Skipping LAS as it is checkpointed
+ *     separately after all the other handles have been checkpointed.
  */
 static int
 __checkpoint_apply_to_dhandles(
@@ -194,7 +195,7 @@ __checkpoint_apply_to_dhandles(
 
     /* If we have already locked the handles, apply the operation. */
     for (i = 0; i < session->ckpt_handle_next; ++i) {
-        if (session->ckpt_handle[i] == NULL)
+        if (session->ckpt_handle[i] == NULL || WT_IS_LAS(session->ckpt_handle[i]))
             continue;
         WT_WITH_DHANDLE(session, session->ckpt_handle[i], ret = (*op)(session, cfg));
         WT_RET(ret);
@@ -262,7 +263,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     btree = S2BT(session);
 
     /* Skip files that are never involved in a checkpoint. */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || F_ISSET(btree, WT_BTREE_LOOKASIDE))
         return (0);
 
     /*
@@ -521,9 +522,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     const char *txn_cfg[] = {
       WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
-#ifdef HAVE_DIAGNOSTIC
-    u_int i;
-#endif
 
     conn = S2C(session);
     txn = &session->txn;
@@ -642,29 +640,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_ASSERT(session, session->ckpt_handle_next == 0);
     WT_WITH_TABLE_READ_LOCK(
       session, ret = __checkpoint_apply_operation(session, cfg, __wt_checkpoint_get_handles));
-
-    /*
-     * Add the history store handle to the checkpoint handle queue. Currently recovery has an issue
-     * with this where the LAS file may not exist yet. As recovery runs checkpoint and it can run
-     * before the lookaside exists we ignore failures.
-     *
-     * TODO: Ignore return value of schema worker call for time being. This value should stop being
-     * ignored once the recovery has been updated for handling the LAS file persisting between runs.
-     */
-    if (session->ckpt_handle_next == 0 ||
-      !WT_IS_LAS(session->ckpt_handle[session->ckpt_handle_next - 1]))
-        WT_WITH_TABLE_READ_LOCK(session, WT_IGNORE_RET(__wt_schema_worker(session, WT_LAS_URI,
-                                           __wt_checkpoint_get_handles, NULL, cfg, 0)));
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * Walk the array of ckpt_handles validating that if the LAS file is in the list, it is at the
-     * end of the list.
-     */
-    for (i = 0; i < session->ckpt_handle_next; i++)
-        if (strcmp(session->ckpt_handle[i]->name, WT_LAS_URI) == 0)
-            WT_ASSERT(session, i == session->ckpt_handle_next - 1);
-#endif
 
     return (ret);
 }
@@ -787,6 +762,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
     }
 
+    /* Open a LAS cursor. */
+    if (session->las_cursor == NULL)
+        WT_RET(__wt_las_cursor_open(session));
+
     /*
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
      */
@@ -874,8 +853,16 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
     __checkpoint_timing_stress(session);
-
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
+
+    /* Checkpoint the history store file. */
+    session->isolation = txn->isolation = WT_ISO_READ_COMMITTED;
+    __wt_txn_get_snapshot(session);
+
+    /* Ensure a transaction ID is allocated prior to sharing it globally */
+
+    WT_WITH_DHANDLE(session, WT_SESSION_LAS_DHANDLE(session), ret = __wt_checkpoint(session, cfg));
+    WT_ERR(ret);
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -901,7 +888,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Mark all trees as open for business (particularly eviction). */
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_presync));
-    __wt_evict_server_wake(session);
 
     __checkpoint_verbose_track(session, "committing transaction");
 
@@ -911,6 +897,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     time_start = __wt_clock(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
+    WT_WITH_DHANDLE(
+      session, WT_SESSION_LAS_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
+    WT_ERR(ret);
     time_stop = __wt_clock(session);
     fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
     WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
@@ -923,7 +912,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
      * files in the checkpoint are now in a consistent state.
      */
+    //WT_ERR(__wt_txn_commit(session, NULL));
+
+
     WT_ERR(__wt_txn_commit(session, NULL));
+
+    __checkpoint_verbose_track(session, "history store sync completed");
+    __wt_evict_server_wake(session);
 
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Do this by
@@ -1260,9 +1255,11 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      * Mark old checkpoints that are being deleted and figure out which trees we can skip in this
      * checkpoint.
      */
-    WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
-    if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
-        return (0);
+    if (!F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
+        WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
+        if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+            return (0);
+    }
     /*
      * Lock the checkpoints that will be deleted.
      *
@@ -1399,6 +1396,7 @@ __checkpoint_lock_dirty_tree(
     WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
       ret = __checkpoint_lock_dirty_tree_int(session, is_checkpoint, force, btree, ckpt, ckptbase));
     WT_ERR(ret);
+
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
         goto err;
 
