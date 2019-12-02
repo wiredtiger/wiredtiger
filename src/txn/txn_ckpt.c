@@ -183,8 +183,8 @@ err:
 
 /*
  * __checkpoint_apply_to_dhandles --
- *     Apply an operation to all handles locked for a checkpoint. Skipping LAS as it is checkpointed
- *     separately after all the other handles have been checkpointed.
+ *     Apply an operation to all handles locked for a checkpoint. Skipping the lookaside file as it
+ *     will be manually operated on.
  */
 static int
 __checkpoint_apply_to_dhandles(
@@ -738,6 +738,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *las_dhandle;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -750,6 +751,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cache = conn->cache;
+    las_dhandle = NULL;
     txn = &session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
@@ -855,30 +857,19 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_txn_get_snapshot(session);
 
     /*
-     * Make sure there is space for the new entry: do this before getting the handle to avoid
-     * cleanup if we can't allocate the memory.
-     */
-    WT_RET(__wt_realloc_def(session, &session->ckpt_handle_allocated, session->ckpt_handle_next + 1,
-      &session->ckpt_handle));
-
-    /*
      * Get an LAS dhandle. If the LAS file is opened for a special operation this will return EBUSY
      * which we treat as an error.
      */
     WT_ERR(__wt_session_get_dhandle(session, WT_LAS_URI, NULL, NULL, 0));
+    las_dhandle = session->dhandle;
 
     /*
      * TODO: Is is possible that we don't have a LAS file in certain recovery scenarios. As such we
      * could get a NULL dhandle.
      */
-    if (session->dhandle != NULL) {
-        WT_WITH_DHANDLE(session, session->dhandle, ret = __wt_checkpoint(session, cfg));
+    if (las_dhandle != NULL) {
+        WT_WITH_DHANDLE(session, las_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
-        /*
-         * Add the LAS file to the checkpoint handles list so all further operations are applied to
-         * it also.
-         */
-        session->ckpt_handle[session->ckpt_handle_next++] = session->dhandle;
     }
 
     /*
@@ -913,7 +904,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * we don't support them yet).
      */
     time_start = __wt_clock(session);
+
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
+
+    /* Sync the lookaside file. */
+    if (las_dhandle != NULL)
+        WT_WITH_DHANDLE(session, las_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+
     time_stop = __wt_clock(session);
     fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
     WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
@@ -929,7 +926,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_txn_commit(session, NULL));
 
     __checkpoint_verbose_track(session, "history store sync completed");
-    __wt_evict_server_wake(session);
 
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Do this by
@@ -1407,7 +1403,6 @@ __checkpoint_lock_dirty_tree(
     WT_WITH_HOTBACKUP_READ_LOCK_UNCOND(session,
       ret = __checkpoint_lock_dirty_tree_int(session, is_checkpoint, force, btree, ckpt, ckptbase));
     WT_ERR(ret);
-
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
         goto err;
 
