@@ -7,13 +7,12 @@
 
 name=$(basename $0)
 
-forcequit=0
-stop=0
+quit=0
+force_quit=0
 onintr()
 {
 	echo "$name: interrupted, cleaning up..."
-	forcequit=1
-	stop=1
+	force_quit=1
 }
 trap 'onintr' 2
 
@@ -30,6 +29,7 @@ usage() {
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
+	echo "    --           separates $name arguments from format arguments"
 
 	exit 1
 }
@@ -116,6 +116,8 @@ while :; do
 	-v)
 		verbose=1
 		shift ;;
+	--)
+		shift; break;;
 	-*)
 		usage ;;
 	*)
@@ -178,12 +180,12 @@ format_binary=$(find_file "t")
 	echo "$name: format program \"$format_binary\" not found"
 	exit 1
 }
-[[ $abort_test -ne 0 ]] && {
-    wt_binary=$(find_file "wt")
-    [[ ! -x "$wt_binary" ]] && {
-	echo "$name: wt program \"$wt_binary\" not found"
-	exit 1
-    }
+[[ $abort_test -ne 0 ]] || [[ $smoke_test -ne 0 ]] && {
+	wt_binary=$(find_file "wt")
+	[[ ! -x "$wt_binary" ]] && {
+		echo "$name: wt program \"$wt_binary\" not found"
+		exit 1
+	}
 }
 config=$(find_file "$config")
 [[ -f "$config" ]] || {
@@ -195,27 +197,82 @@ config=$(find_file "$config")
 	exit 1
 }
 
-verbose "$name configuration: [-c $config] [-h $home]\
-[-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
+verbose "$name configuration: $format_binary [-c $config]\
+[-h $home] [-j $parallel_jobs] [-n $total_jobs] [-t $minutes] $format_args"
 
 failure=0
 success=0
+running=0
+status="format.sh-status"
+
+# Report a failure.
+# $1 directory name
+report_failure()
+{
+	dir=$1
+	log="$dir.log"
+
+	echo "$name: failure status reported" > $dir/$status
+	failure=$(($failure + 1))
+
+	# Forcibly quit if first-failure configured.
+	[[ $first_failure -ne 0 ]] && force_quit=1
+
+	echo "$name: job in $dir failed"
+	echo "$name: $dir log:"
+	sed 's/^/    > /' < $log
+}
+
 # Resolve/cleanup completed jobs.
 resolve()
 {
+	running=0
 	list=$(ls $home | grep '^RUNDIR.[0-9]*$')
 	for i in $list; do
 		dir="$home/$i"
 		log="$dir.log"
 
-		# Skip failures we've already reported.
-		[[ -f "$dir/reported" ]] && continue
+		# Skip directories that aren't ours.
+		[[ ! -f "$log" ]] && continue
 
-		# Discard successful jobs.
+		# Skip failures we've already reported.
+		[[ -f "$dir/$status" ]] && continue
+
+		# Get the process ID, ignore any jobs that aren't yet running.
+		pid=`grep -E 'process.*running' $log | awk '{print $3}'`
+		[[ "$pid" =~ ^[1-9][0-9]*$ ]] || continue
+
+		# Leave any process waiting for a gdb attach running, but report it as a failure.
+		grep -E 'waiting for debugger' $log > /dev/null && {
+			report_failure $dir
+			continue
+		}
+
+		# If the job is still running, ignore it unless we're forcibly quitting.
+		kill -s 0 $pid > /dev/null 2>&1 && {
+			[[ $force_quit -eq 0 ]] && {
+				running=$((running + 1))
+				continue
+			}
+			kill -s TERM $pid
+		}
+
+		# Wait for the job and get an exit status.
+		wait $pid
+		eret=$?
+
+		# Remove successful jobs.
 		grep 'successful run completed' $log > /dev/null && {
 			rm -rf $dir $log
 			success=$(($success + 1))
 			verbose "$name: job in $dir successfully completed"
+			continue
+		}
+
+		# Remove jobs we killed.
+		grep 'caught signal' $log > /dev/null && {
+			rm -rf $dir $log
+			verbose "$name: job in $dir signalled"
 			continue
 		}
 
@@ -238,32 +295,59 @@ resolve()
 				success=$(($success + 1))
 				verbose "$name: job in $dir successfully completed"
 			else
-				echo "$name: failure status reported" > $dir/reported
-				failure=$(($failure + 1))
 				echo "$name: job in $dir failed abort/recovery testing"
+				report_failure $dir
 			fi
 			continue
 		}
 
-		# Discard jobs where the timer went off.
-		grep 'caught signal' $log > /dev/null && {
-			rm -rf $dir $log
-			verbose "$name: job in $dir aborted"
+		# Check for the library abort message, or an error from format.
+		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
+			report_failure $dir
 			continue
 		}
 
-		# Report failures.
-		# Check for the library abort message, or an error from format.
-		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
-			echo "$name: job in $dir failed"
-			echo "$name: $dir log:"
-			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
-			sed 's/^/    /' < $log
-			echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+		# There's some chance we just dropped core. We have the exit status of the process,
+		# but there's no way to be sure. There are reasons the process' exit status looks
+		# like a core dump was created (format deliberately causes a segfault in the case
+		# of abort/recovery testing, and does work that can often segfault in the case of a
+		# snapshot-isolation mismatch failure), but those cases have already been handled,
+		# format is responsible for logging a failure before the core can happen. If the
+		# process exited with a likely failure, call it a failure.
+		signame=""
+		case $eret in
+		$((128 + 3)))
+			signame="SIGQUIT";;
+		$((128 + 4)))
+			signame="SIGILL";;
+		$((128 + 6)))
+			signame="SIGABRT";;
+		$((128 + 7)))
+			signame="SIGBUS";;
+		$((128 + 8)))
+			signame="SIGFPE";;
+		$((128 + 11)))
+			signame="SIGSEGV";;
+		$((128 + 24)))
+			signame="SIGXCPU";;
+		$((128 + 25)))
+			signame="SIGXFSZ";;
+		$((128 + 31)))
+			signame="SIGSYS";;
+		esac
+		[[ ! -z $signame ]] && {
+			(echo
+			 echo "$name: job in $dir killed with signal $signame"
+			 echo "$name: there may be a core dump associated with this failure"
+			 echo) >> $log
 
-			echo "$name: failure status reported" > $dir/reported
-			failure=$(($failure + 1))
+			echo "$name: job in $dir killed with signal $signame"
+			echo "$name: there may be a core dump associated with this failure"
+
+			report_failure $dir
+			continue
 		}
+
 	done
 	return 0
 }
@@ -291,7 +375,10 @@ format()
 
 	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
 	verbose "$name: $cmd"
-	$cmd > $log 2>&1 &
+
+	# Disassociate the command from the shell script so we can exit and let the command
+	# continue to run.
+	nohup $cmd > $log 2>&1 &
 }
 
 seconds=$((minutes * 60))
@@ -305,45 +392,33 @@ while :; do
 		# If we've run out of time, terminate all running jobs.
 		[[ $elapsed -ge $seconds ]] && {
 			verbose "$name: run timed out at $(date)"
-			stop=1
-			forcequit=1
+			force_quit=1
 		}
 	}
 
 	# Start more jobs.
 	while :; do
 		# Check if we're only running the smoke-tests and we're done.
-		[[ $smoke_test -ne 0 ]] && [[ $smoke_next -ge ${#smoke_list[@]} ]] && stop=1
+		[[ $smoke_test -ne 0 ]] && [[ $smoke_next -ge ${#smoke_list[@]} ]] && quit=1
 	
 		# Check if the total number of jobs has been reached.
-		[[ $total_jobs -ne 0 ]] && [[ $count_jobs -ge $total_jobs ]] && stop=1
+		[[ $total_jobs -ne 0 ]] && [[ $count_jobs -ge $total_jobs ]] && quit=1
 
 		# Check if less than 60 seconds left on any timer. The goal is to avoid killing
 		# jobs that haven't yet configured signal handlers, because we rely on handler
 		# output to determine their final status.
-		[[ $seconds -ne 0 ]] && [[ $(($seconds - $elapsed)) -lt 60 ]] && stop=1
+		[[ $seconds -ne 0 ]] && [[ $(($seconds - $elapsed)) -lt 60 ]] && quit=1
 
-		[[ $stop -ne 0 ]] && break;
+		# Don't create more jobs if we're quitting for any reason.
+		[[ $force_quit -ne 0 ]] || [[ $quit -ne 0 ]] && break;
 
 		# Check if the maximum number of jobs in parallel has been reached.
-		n=`jobs -p | wc -l`
-		[[ $n -ge $parallel_jobs ]] && break
+		[[ $running -ge $parallel_jobs ]] && break
+		running=$(($running + 1))
 
 		# Start another job, but don't pound on the system.
 		format
 		sleep 2
-	done
-
-	# Forcibly quit in some cases.
-	[[ $forcequit -ne 0 ]] && {
-		pkill --signal TERM -P $$
-		sleep 5
-	}
-
-	# Wait for any completed jobs.
-	children=$(pgrep -P $$)
-	for i in $children; do
-		kill -s 0 $i || wait -n
 	done
 
 	# Clean up and update status.
@@ -354,21 +429,14 @@ while :; do
 	    echo "$name: $success successful jobs, $failure failed jobs"
 
 	# Quit if we're done and there aren't any jobs left to wait for.
-	children=$(pgrep -P $$)
-	[[ $stop -ne 0 ]] && [[ -z "$children" ]] && break;
+	[[ $quit -ne 0 ]] || [[ $force_quit -ne 0 ]] && [[ $running -eq 0 ]] && break
 
-	# Forcibly quit if there's a failure and first-failure configured.
-	[[ $failure -ne 0 ]] && [[ $first_failure -ne 0 ]] && {
-		forcequit=1
-		stop=1
-	}
-
-	# Wait for awhile.
-	sleep 10
+	# Wait for awhile, unless there are jobs to start.
+	[[ $running -ge $parallel_jobs ]] && sleep 10
 done
 
-verbose "$name: run ending at $(date)"
 echo "$name: $success successful jobs, $failure failed jobs"
 
+verbose "$name: run ending at $(date)"
 [[ $failure -ne 0 ]] && exit 1
 exit 0
