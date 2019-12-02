@@ -762,10 +762,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         return (0);
     }
 
-    /* Open a LAS cursor. */
-    if (session->las_cursor == NULL)
-        WT_RET(__wt_las_cursor_open(session));
-
     /*
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
      */
@@ -855,14 +851,35 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __checkpoint_timing_stress(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
-    /* Checkpoint the history store file. */
-    session->isolation = txn->isolation = WT_ISO_READ_COMMITTED;
+    /* Checkpoint the history store file at snapshot isolation but first refresh our snapshot. */
     __wt_txn_get_snapshot(session);
 
-    /* Ensure a transaction ID is allocated prior to sharing it globally */
+    /*
+     * Make sure there is space for the new entry: do this before getting the handle to avoid
+     * cleanup if we can't allocate the memory.
+     */
+    WT_RET(__wt_realloc_def(session, &session->ckpt_handle_allocated, session->ckpt_handle_next + 1,
+      &session->ckpt_handle));
 
-    WT_WITH_DHANDLE(session, WT_SESSION_LAS_DHANDLE(session), ret = __wt_checkpoint(session, cfg));
-    WT_ERR(ret);
+    /*
+     * Get an LAS dhandle. If the LAS file is opened for a special operation this will return EBUSY
+     * which we treat as an error.
+     */
+    WT_ERR(__wt_session_get_dhandle(session, WT_LAS_URI, NULL, NULL, 0));
+
+    /*
+     * TODO: Is is possible that we don't have a LAS file in certain recovery scenarios. As such we
+     * could get a NULL dhandle.
+     */
+    if (session->dhandle != NULL) {
+        WT_WITH_DHANDLE(session, session->dhandle, ret = __wt_checkpoint(session, cfg));
+        WT_ERR(ret);
+        /*
+         * Add the LAS file to the checkpoint handles list so all further operations are applied to
+         * it also.
+         */
+        session->ckpt_handle[session->ckpt_handle_next++] = session->dhandle;
+    }
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -897,9 +914,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     time_start = __wt_clock(session);
     WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
-    WT_WITH_DHANDLE(
-      session, WT_SESSION_LAS_DHANDLE(session), ret = __wt_checkpoint_sync(session, NULL));
-    WT_ERR(ret);
     time_stop = __wt_clock(session);
     fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
     WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
@@ -912,9 +926,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
      * files in the checkpoint are now in a consistent state.
      */
-    //WT_ERR(__wt_txn_commit(session, NULL));
-
-
     WT_ERR(__wt_txn_commit(session, NULL));
 
     __checkpoint_verbose_track(session, "history store sync completed");

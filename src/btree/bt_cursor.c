@@ -1279,9 +1279,6 @@ retry:
     WT_ERR(__cursor_func_init(cbt, true));
     WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, NULL, NULL) :
                                       __cursor_col_search(cbt, NULL, NULL));
-    if(!F_ISSET(&session->txn, WT_TXN_RUNNING)) {
-        __cursor_row_search(cbt, true, NULL, NULL);
-    }
 
 update_local:
     if (btree->type == BTREE_ROW) {

@@ -93,7 +93,6 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
                   'commit_timestamp=' + timestamp_str(i))
             # Set the oldest and stable timestamp a bit earlier than the data
             # we inserted. Take a checkpoint to the stable timestamp.
-            self.pr("stable ts: " + str(ts))
             self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(ts) +
                 ',stable_timestamp=' + timestamp_str(ts))
             # This forces a different checkpoint timestamp for each table.
