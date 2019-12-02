@@ -244,8 +244,10 @@ int
 __wt_key_return(WT_CURSOR_BTREE *cbt)
 {
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
+    session = (WT_SESSION_IMPL *)cursor->session;
 
     /*
      * We may already have an internal key and the cursor may not be set up to get another copy, so
@@ -260,6 +262,9 @@ __wt_key_return(WT_CURSOR_BTREE *cbt)
         WT_RET(__key_return(cbt));
         F_SET(cursor, WT_CURSTD_KEY_INT);
     }
+    if (F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA))
+        WT_RET(
+          __wt_buf_grow(session, &cursor->key, cursor->key.size)); /* Force an allocated copy. */
     return (0);
 }
 
@@ -271,8 +276,10 @@ int
 __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
     WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
+    session = (WT_SESSION_IMPL *)cursor->session;
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
     if (upd == NULL)
@@ -280,5 +287,8 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
     else
         WT_RET(__wt_value_return_upd(cbt, upd, false));
     F_SET(cursor, WT_CURSTD_VALUE_INT);
+    if (F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA))
+        WT_RET(__wt_buf_grow(
+          session, &cursor->value, cursor->value.size)); /* Force an allocated copy. */
     return (0);
 }

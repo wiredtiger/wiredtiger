@@ -606,7 +606,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     if (truncating)
         LF_SET(WT_READ_TRUNCATE);
 
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_ERR(__cursor_unset_key(session, cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
 
     WT_ERR(__cursor_func_init(cbt, false));
 

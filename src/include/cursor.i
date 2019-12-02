@@ -18,6 +18,46 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 }
 
 /*
+ * __cursor_free_key --
+ *     Potentially release memory from a key.
+ */
+static inline int
+__cursor_free_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    void *copy_addr;
+
+    if (cursor->key.mem != NULL && F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA)) {
+        if (WT_DATA_IN_ITEM(&cursor->key)) {
+            WT_RET(__wt_memdup(session, cursor->key.mem, cursor->key.memsize, &copy_addr));
+            __wt_free(session, cursor->key.mem);
+            cursor->key.data = cursor->key.mem = copy_addr;
+        } else
+            __wt_buf_free(session, &cursor->key);
+    }
+    return (0);
+}
+
+/*
+ * __cursor_free_value --
+ *     Potentially release memory from a value.
+ */
+static inline int
+__cursor_free_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    void *copy_addr;
+
+    if (cursor->value.mem != NULL && F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA)) {
+        if (WT_DATA_IN_ITEM(&cursor->value)) {
+            WT_RET(__wt_memdup(session, cursor->value.mem, cursor->value.memsize, &copy_addr));
+            __wt_free(session, cursor->value.mem);
+            cursor->value.data = cursor->value.mem = copy_addr;
+        } else
+            __wt_buf_free(session, &cursor->value);
+    }
+    return (0);
+}
+
+/*
  * __cursor_novalue --
  *     Release any cached value before an operation that could update the transaction context and
  *     free data a value is pointing to.
@@ -55,10 +95,13 @@ __cursor_checkvalue(WT_CURSOR *cursor)
 static inline int
 __cursor_localkey(WT_CURSOR *cursor)
 {
+    WT_SESSION_IMPL *session;
+
     if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+        session = (WT_SESSION_IMPL *)cursor->session;
+        WT_RET(__cursor_free_key(session, cursor));
         if (!WT_DATA_IN_ITEM(&cursor->key))
-            WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->key, cursor->key.data,
-              cursor->key.size));
+            WT_RET(__wt_buf_set(session, &cursor->key, cursor->key.data, cursor->key.size));
         F_CLR(cursor, WT_CURSTD_KEY_INT);
         F_SET(cursor, WT_CURSTD_KEY_EXT);
     }
@@ -72,7 +115,11 @@ __cursor_localkey(WT_CURSOR *cursor)
 static inline int
 __cursor_localvalue(WT_CURSOR *cursor)
 {
+    WT_SESSION_IMPL *session;
+
     if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
+        session = (WT_SESSION_IMPL *)cursor->session;
+        WT_RET(__cursor_free_value(session, cursor));
         if (!WT_DATA_IN_ITEM(&cursor->value))
             WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->value,
               cursor->value.data, cursor->value.size));
@@ -129,6 +176,30 @@ __cursor_pos_clear(WT_CURSOR_BTREE *cbt)
     cbt->ins_stack[0] = NULL;
 
     F_CLR(cbt, WT_CBT_POSITION_MASK);
+}
+
+/*
+ * __cursor_unset_key --
+ *     Unset a key, and potentially release its memory.
+ */
+static inline int
+__cursor_unset_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    WT_RET(__cursor_free_key(session, cursor));
+    F_CLR(cursor, WT_CURSTD_KEY_SET);
+    return (0);
+}
+
+/*
+ * __cursor_unset_value --
+ *     Unset a value, and potentially release its memory.
+ */
+static inline int
+__cursor_unset_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    WT_RET(__cursor_free_value(session, cursor));
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
+    return (0);
 }
 
 /*

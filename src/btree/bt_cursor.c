@@ -464,7 +464,8 @@ __wt_btcur_reset(WT_CURSOR_BTREE *cbt)
     WT_STAT_CONN_INCR(session, cursor_reset);
     WT_STAT_DATA_INCR(session, cursor_reset);
 
-    F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
+    WT_RET(__cursor_unset_key(session, cursor));
+    WT_RET(__cursor_unset_value(session, cursor));
 
     return (__cursor_reset(cbt));
 }
@@ -546,6 +547,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * they currently have pinned.)
      */
     WT_ERR(__cursor_localkey(cursor));
+    __cursor_free_value(session, cursor);
     __cursor_novalue(cursor);
     __cursor_state_save(cursor, &state);
 
@@ -639,6 +641,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * they currently have pinned.)
      */
     WT_ERR(__cursor_localkey(cursor));
+    __cursor_free_value(session, cursor);
     __cursor_novalue(cursor);
     __cursor_state_save(cursor, &state);
 

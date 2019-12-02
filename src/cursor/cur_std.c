@@ -447,7 +447,7 @@ err:
      * memory in the meantime, free it.
      */
     if (tmp.mem != NULL) {
-        if (buf->mem == NULL) {
+        if (buf->mem == NULL && !F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA)) {
             buf->mem = tmp.mem;
             buf->memsize = tmp.memsize;
         } else
@@ -581,7 +581,7 @@ err:
      * memory in the meantime, free it.
      */
     if (tmp.mem != NULL) {
-        if (buf->mem == NULL) {
+        if (buf->mem == NULL && !F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA)) {
             buf->mem = tmp.mem;
             buf->memsize = tmp.memsize;
         } else
