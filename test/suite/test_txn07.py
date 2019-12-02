@@ -34,7 +34,7 @@ import fnmatch, os, shutil, run, time
 from suite_subprocess import suite_subprocess
 from wiredtiger import stat
 from wtscenario import make_scenarios
-import wttest
+import unittest, wttest
 
 class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = "100K"
@@ -126,10 +126,8 @@ class test_txn07(wttest.WiredTigerTestCase, suite_subprocess):
         finally:
             backup_conn.close()
 
+    @unittest.skip("Temporarily disabled")
     def test_ops(self):
-        # WT-5210 to re-enable, fallout from reconciliation changes
-        return
-
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         self.session2 = self.conn.open_session()
 

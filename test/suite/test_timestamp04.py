@@ -31,7 +31,7 @@
 #
 
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
@@ -109,10 +109,8 @@ class test_timestamp04(wttest.WiredTigerTestCase, suite_subprocess):
             print("Failed conn at '%s' with config '%s'" % (dir, conn_params))
         self.session = wttest.WiredTigerTestCase.setUpSessionOpen(self, self.conn)
 
+    @unittest.skip("Temporarily disabled")
     def test_rollback_to_stable(self):
-        # WT-5210 to re-enable, fallout from reconciliation changes
-        return
-
         self.ConnectionOpen(self.cacheSize)
         # Configure small page sizes to ensure eviction comes through and we
         # have a somewhat complex tree.
