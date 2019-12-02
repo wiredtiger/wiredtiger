@@ -183,8 +183,7 @@ err:
 
 /*
  * __checkpoint_apply_to_dhandles --
- *     Apply an operation to all handles locked for a checkpoint. Skipping the lookaside file as it
- *     will be manually operated on.
+ *     Apply an operation to all handles locked for a checkpoint.
  */
 static int
 __checkpoint_apply_to_dhandles(
@@ -195,7 +194,7 @@ __checkpoint_apply_to_dhandles(
 
     /* If we have already locked the handles, apply the operation. */
     for (i = 0; i < session->ckpt_handle_next; ++i) {
-        if (session->ckpt_handle[i] == NULL || WT_IS_LAS(session->ckpt_handle[i]))
+        if (session->ckpt_handle[i] == NULL)
             continue;
         WT_WITH_DHANDLE(session, session->ckpt_handle[i], ret = (*op)(session, cfg));
         WT_RET(ret);
@@ -262,7 +261,10 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
-    /* Skip files that are never involved in a checkpoint. */
+    /*
+     * Skip files that are never involved in a checkpoint. Skip the look aside file as it is,
+     * checkpointed manually later.
+     */
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || F_ISSET(btree, WT_BTREE_LOOKASIDE))
         return (0);
 
@@ -864,7 +866,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     las_dhandle = session->dhandle;
 
     /*
-     * TODO: Is is possible that we don't have a LAS file in certain recovery scenarios. As such we
+     * TODO: It is possible that we don't have a LAS file in certain recovery scenarios. As such we
      * could get a NULL dhandle.
      */
     if (las_dhandle != NULL) {
