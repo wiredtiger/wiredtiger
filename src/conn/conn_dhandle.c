@@ -551,6 +551,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     uint64_t bucket;
 
     conn = S2C(session);
+
     /*
      * If we're given a URI, then we walk only the hash list for that name. If we don't have a URI
      * we walk the entire dhandle list.
@@ -582,7 +583,6 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
-        return (0);
     }
 
 err:
