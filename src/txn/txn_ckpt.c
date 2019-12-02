@@ -925,8 +925,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     WT_ERR(__wt_txn_commit(session, NULL));
 
-    __checkpoint_verbose_track(session, "history store sync completed");
-
     /*
      * Ensure that the metadata changes are durable before the checkpoint is resolved. Do this by
      * either checkpointing the metadata or syncing the log file. Recovery relies on the checkpoint
@@ -1262,11 +1260,9 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      * Mark old checkpoints that are being deleted and figure out which trees we can skip in this
      * checkpoint.
      */
-    if (!F_ISSET(btree, WT_BTREE_LOOKASIDE)) {
-        WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
-        if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
-            return (0);
-    }
+    WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
+    if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+        return (0);
     /*
      * Lock the checkpoints that will be deleted.
      *
