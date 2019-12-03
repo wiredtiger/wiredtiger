@@ -1611,29 +1611,31 @@ tasks:
   #         display_name: Coverage report
   #         remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
-  - name: spinlock-gcc-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
-      - func: "make check all"
-      - func: "test format"
-        vars:
-          times: 3
-      - func: "unit test"
+  # Temporarily disabled
+  # - name: spinlock-gcc-test
+  #   commands:
+  #     - func: "get project"
+  #     - func: "compile wiredtiger"
+  #       vars:
+  #         posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
+  #     - func: "make check all"
+  #     - func: "test format"
+  #       vars:
+  #         times: 3
+  #     - func: "unit test"
 
-  - name: spinlock-pthread-adaptive-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
-      - func: "make check all"
-      - func: "test format"
-        vars:
-          times: 3
-      - func: "unit test"
+  # Temporarily disabled
+  # - name: spinlock-pthread-adaptive-test
+  #   commands:
+  #     - func: "get project"
+  #     - func: "compile wiredtiger"
+  #       vars:
+  #         posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
+  #     - func: "make check all"
+  #     - func: "test format"
+  #       vars:
+  #         times: 3
+  #     - func: "unit test"
 
   - name: wtperf-test
     depends_on:
@@ -1699,8 +1701,9 @@ buildvariants:
     # - name: checkpoint-filetypes-test
     # - name: coverage-report
     - name: unit-test-long
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
+    # Temporarily disabled
+    # - name: spinlock-gcc-test
+    # - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
 
