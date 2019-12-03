@@ -33,7 +33,7 @@
 import fnmatch, os, shutil, time
 from wtscenario import make_scenarios
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 
 # This test uses an artificially small log file limit, and creates
 # large records so two fit into a log file. This allows us to test
@@ -477,6 +477,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         key = self.kind + ':' + self.filename
         return key not in self.not_salvageable
 
+    @unittest.skip("Temporarily disabled")
     def test_corrupt_meta(self):
         errfile = 'list.err'
         outfile = 'list.out'
@@ -520,11 +521,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
 
         if expect_fail:
             self.check_file_contains_one_of(errfile,
-                ['/unknown configuration key/',
-                '/handle-open:/',
-                '/turtle file read error: WT_NOTFOUND: item not found/',
-                'WT_ERROR: non-specific WiredTiger error',
-                'WT_TRY_SALVAGE: database corruption detected'])
+                ['WT_TRY_SALVAGE: database corruption detected'])
 
         for salvagedir in [ newdir, newdir2 ]:
             # Removing the 'WiredTiger.turtle' file has weird behavior:

@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
 
@@ -61,6 +61,7 @@ class test_las06(wttest.WiredTigerTestCase):
     def get_non_page_image_memory_usage(self):
         return self.get_stat(stat.conn.cache_bytes_other)
 
+    @unittest.skip("Temporarily disabled")
     def test_las_reads(self):
         # Create a small table.
         uri = "table:test_las06"
