@@ -562,20 +562,21 @@ tasks:
 
             ${test_env_vars|} $(pwd)/../test/csuite/random_directio/smoke.sh 2>&1
 
-  - name: csuite-schema-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
+  # Temporarily disabled
+  # - name: csuite-schema-abort-test
+  #   tags: ["pull_request"]
+  #   depends_on:
+  #     - name: compile
+  #   commands:
+  #     - func: "fetch artifacts"
+  #     - command: shell.exec
+  #       params:
+  #         working_dir: "wiredtiger/build_posix"
+  #         script: |
+  #           set -o errexit
+  #           set -o verbose
 
-            ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
+  #           ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
 
   # Temporarily disabled
   # - name: csuite-timestamp-abort-test
@@ -1610,29 +1611,31 @@ tasks:
   #         display_name: Coverage report
   #         remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}.html
 
-  - name: spinlock-gcc-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
-      - func: "make check all"
-      - func: "test format"
-        vars:
-          times: 3
-      - func: "unit test"
+  # Temporarily disabled
+  # - name: spinlock-gcc-test
+  #   commands:
+  #     - func: "get project"
+  #     - func: "compile wiredtiger"
+  #       vars:
+  #         posix_configure_flags: --enable-python --with-spinlock=gcc --enable-strict
+  #     - func: "make check all"
+  #     - func: "test format"
+  #       vars:
+  #         times: 3
+  #     - func: "unit test"
 
-  - name: spinlock-pthread-adaptive-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
-      - func: "make check all"
-      - func: "test format"
-        vars:
-          times: 3
-      - func: "unit test"
+  # Temporarily disabled
+  # - name: spinlock-pthread-adaptive-test
+  #   commands:
+  #     - func: "get project"
+  #     - func: "compile wiredtiger"
+  #       vars:
+  #         posix_configure_flags: --enable-python --with-spinlock=pthread_adaptive --enable-strict
+  #     - func: "make check all"
+  #     - func: "test format"
+  #       vars:
+  #         times: 3
+  #     - func: "unit test"
 
   - name: wtperf-test
     depends_on:
@@ -1698,8 +1701,9 @@ buildvariants:
     # - name: checkpoint-filetypes-test
     # - name: coverage-report
     - name: unit-test-long
-    - name: spinlock-gcc-test
-    - name: spinlock-pthread-adaptive-test
+    # Temporarily disabled
+    # - name: spinlock-gcc-test
+    # - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
     - name: wtperf-test
 
