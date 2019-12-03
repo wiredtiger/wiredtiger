@@ -1653,7 +1653,7 @@ __wt_verbose_dump_txn_one(
 
     /*
      * Store the diagnostic information in a char array which will be logged either in standard
-     * output or error based on parameter (write_stdout).
+     * output or standard error based on error_code.
      */
     WT_RET(__wt_snprintf(buf,
       sizeof(buf), "transaction id: %" PRIu64 ", mod count: %u"
