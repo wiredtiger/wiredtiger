@@ -262,7 +262,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
     btree = S2BT(session);
 
     /*
-     * Skip files that are never involved in a checkpoint. Skip the look aside file as it is,
+     * Skip files that are never involved in a checkpoint. Skip the lookaside file as it is,
      * checkpointed manually later.
      */
     if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || F_ISSET(btree, WT_BTREE_LOOKASIDE))
