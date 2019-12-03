@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
 def timestamp_str(t):
@@ -101,10 +101,8 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
             cursors[j].close()
             sessions[j].close()
 
+    @unittest.skip("Temporarily disabled")
     def test_prepare_lookaside(self):
-        # WT-5210 to re-enable, fallout from reconciliation changes
-        return
-
         # Create a small table.
         uri = "table:test_prepare_lookaside01"
         nrows = 100

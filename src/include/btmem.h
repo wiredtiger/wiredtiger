@@ -218,10 +218,10 @@ struct __wt_ovfl_reuse {
 #else
 #define WT_LOOKASIDE_COMPRESSOR "none"
 #endif
-#define WT_LAS_CONFIG                                                             \
-    "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                          \
-            ",leaf_value_max=64MB"                                                \
+#define WT_LAS_CONFIG                                                               \
+    "key_format=" WT_UNCHECKED_STRING(IuQQQQ) ",value_format=" WT_UNCHECKED_STRING( \
+      QBBu) ",block_compressor=" WT_LOOKASIDE_COMPRESSOR                            \
+            ",leaf_value_max=64MB"                                                  \
             ",prefix_compression=true"
 
 /*
@@ -856,6 +856,14 @@ struct __wt_page_deleted {
     WT_UPDATE **update_list; /* List of updates for abort */
 };
 
+/* WT_TIME_PAIR --
+ * 	A pair containing a timestamp and transaction id.
+ */
+struct __wt_time_pair {
+    wt_timestamp_t timestamp;
+    uint64_t txnid;
+};
+
 /*
  * WT_REF --
  *	A single in-memory page and the state information used to determine if
@@ -863,6 +871,9 @@ struct __wt_page_deleted {
  */
 struct __wt_ref {
     WT_PAGE *page; /* Page */
+
+    WT_TIME_PAIR start_time_pair; /* Start time pair. */
+    WT_TIME_PAIR stop_time_pair;  /* Stop time pair. */
 
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
@@ -948,9 +959,9 @@ struct __wt_ref {
  * inserted padding which would break the world.
  */
 #ifdef HAVE_DIAGNOSTIC
-#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (88 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 56
+#define WT_REF_SIZE 88
 #endif
 
 /*

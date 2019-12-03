@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 
 def timestamp_str(t):
     return '%x' %t
@@ -38,10 +38,8 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=10MB'
     session_config = 'isolation=snapshot'
 
+    @unittest.skip("Temporarily disabled")
     def test_durable_ts03(self):
-        # Disabled for relevant-history-in-cache. WT-5072 to re-enable.
-        return
-
         # Create a table.
         uri = 'table:test_durable_ts03'
         nrows = 3000
