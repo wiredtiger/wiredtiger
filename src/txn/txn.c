@@ -841,9 +841,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
             upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
             if (op_zero_ts != upd_zero_ts) {
                 WT_RET(__wt_verbose_dump_update(session, upd));
-                WT_RET(__wt_verbose_dump_txn_one(session, &session->txn, false));
-                WT_RET_MSG(session, EINVAL,
-                  "per-key timestamps used inconsistently, dumping relevant information");
+                WT_RET(__wt_verbose_dump_txn_one(session, &session->txn, EINVAL, "per-key timestamps used inconsistently, dumping relevant information"));
             }
             /*
              * If we aren't using timestamps for this transaction then we are done checking. Don't
@@ -1632,7 +1630,7 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
  *     Output diagnostic information about a transaction structure.
  */
 int
-__wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, bool write_stdout)
+__wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, int error_code, const char* error_string)
 {
     char buf[512];
     char ts_string[5][WT_TS_INT_STRING_SIZE];
@@ -1676,10 +1674,13 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn, bool write_stdo
       txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
-    if (write_stdout) {
-        WT_RET(__wt_msg(session, "%s", buf));
+    /*
+    * Dump the information to standard error if error code is passed and return.
+    */
+    if (0 != error_code) {
+        WT_RET_MSG(session, error_code, "%s, %s", buf, error_string);
     } else {
-        __wt_errx(session, "%s", buf);
+        WT_RET(__wt_msg(session, "%s", buf));
     }
 
     return (0);
@@ -1757,7 +1758,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session,
           "ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s", id,
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
-        WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn, true));
+        WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn, 0, NULL));
     }
 
     return (0);
