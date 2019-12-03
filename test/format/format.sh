@@ -5,6 +5,10 @@
 	exit 1
 }
 
+# Enable job control so child processes we create appear in their own process groups and we can
+# individually terminate (and clean up) running jobs and their children.
+set -m
+
 name=$(basename $0)
 
 quit=0
@@ -254,7 +258,15 @@ resolve()
 				running=$((running + 1))
 				continue
 			}
-			kill -s TERM $pid
+
+			# Kill the process group to catch any child processes.
+			kill -KILL -- -$pid
+			wait $pid
+
+			# Remove jobs we killed, they count as neither success or failure.
+			rm -rf $dir $log
+			verbose "$name: job in $dir killed"
+			continue
 		}
 
 		# Wait for the job and get an exit status.
@@ -266,13 +278,6 @@ resolve()
 			rm -rf $dir $log
 			success=$(($success + 1))
 			verbose "$name: job in $dir successfully completed"
-			continue
-		}
-
-		# Remove jobs we killed.
-		grep 'caught signal' $log > /dev/null && {
-			rm -rf $dir $log
-			verbose "$name: job in $dir signalled"
 			continue
 		}
 
@@ -302,7 +307,9 @@ resolve()
 		}
 
 		# Check for the library abort message, or an error from format.
-		grep -E 'aborting WiredTiger library|run FAILED' $log > /dev/null && {
+		grep -E \
+		    'aborting WiredTiger library|format alarm timed out|run FAILED' \
+		    $log > /dev/null && {
 			report_failure $dir
 			continue
 		}
@@ -431,8 +438,8 @@ while :; do
 	# Quit if we're done and there aren't any jobs left to wait for.
 	[[ $quit -ne 0 ]] || [[ $force_quit -ne 0 ]] && [[ $running -eq 0 ]] && break
 
-	# Wait for awhile, unless there are jobs to start.
-	[[ $running -ge $parallel_jobs ]] && sleep 10
+	# Wait for awhile, unless we're killing everything or there are jobs to start.
+	[[ $force_quit -eq 0 ]] && [[ $running -ge $parallel_jobs ]] && sleep 10
 done
 
 echo "$name: $success successful jobs, $failure failed jobs"
