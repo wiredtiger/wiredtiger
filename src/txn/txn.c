@@ -1770,7 +1770,6 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
  * __wt_verbose_dump_update --
  *     Output diagnostic information about an update structure.
  */
-
 int
 __wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
