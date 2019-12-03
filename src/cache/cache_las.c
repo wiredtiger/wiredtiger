@@ -154,9 +154,7 @@ __wt_las_create(WT_SESSION_IMPL *session, const char **cfg)
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     int i;
-    const char *drop_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_drop), "force=true", NULL};
 
     conn = S2C(session);
     cache = conn->cache;
@@ -164,15 +162,6 @@ __wt_las_create(WT_SESSION_IMPL *session, const char **cfg)
     /* Read-only and in-memory configurations don't need the LAS table. */
     if (F_ISSET(conn, WT_CONN_IN_MEMORY | WT_CONN_READONLY))
         return (0);
-
-    /*
-     * Done at startup: we cannot do it on demand because we require the schema lock to create and
-     * drop the table, and it may not always be available.
-     *
-     * Discard any previous incarnation of the table.
-     */
-    WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_drop(session, WT_LAS_URI, drop_cfg));
-    WT_RET(ret);
 
     /* Re-create the table. */
     WT_RET(__wt_session_create(session, WT_LAS_URI, WT_LAS_CONFIG));
@@ -268,8 +257,6 @@ __wt_las_cursor_open(WT_SESSION_IMPL *session)
      */
     if (!F_ISSET(btree, WT_BTREE_LOOKASIDE))
         F_SET(btree, WT_BTREE_LOOKASIDE);
-    if (!F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
-        F_SET(btree, WT_BTREE_NO_CHECKPOINT);
     if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
         F_SET(btree, WT_BTREE_NO_LOGGING);
 

@@ -33,7 +33,7 @@
 import fnmatch, os, shutil, time
 from wtscenario import make_scenarios
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 
 # This test uses an artificially small log file limit, and creates
 # large records so two fit into a log file. This allows us to test
@@ -477,6 +477,7 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         key = self.kind + ':' + self.filename
         return key not in self.not_salvageable
 
+    @unittest.skip("Temporarily disabled")
     def test_corrupt_meta(self):
         errfile = 'list.err'
         outfile = 'list.out'

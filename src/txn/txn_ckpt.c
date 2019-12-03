@@ -106,11 +106,11 @@ __checkpoint_update_generation(WT_SESSION_IMPL *session)
 }
 
 /*
- * __checkpoint_apply_all --
- *     Apply an operation to all files involved in a checkpoint.
+ * __checkpoint_apply_operation --
+ *     Apply a preliminary operation to all files involved in a checkpoint.
  */
 static int
-__checkpoint_apply_all(
+__checkpoint_apply_operation(
   WT_SESSION_IMPL *session, const char *cfg[], int (*op)(WT_SESSION_IMPL *, const char *[]))
 {
     WT_CONFIG targetconf;
@@ -182,11 +182,11 @@ err:
 }
 
 /*
- * __checkpoint_apply --
+ * __checkpoint_apply_to_dhandles --
  *     Apply an operation to all handles locked for a checkpoint.
  */
 static int
-__checkpoint_apply(
+__checkpoint_apply_to_dhandles(
   WT_SESSION_IMPL *session, const char *cfg[], int (*op)(WT_SESSION_IMPL *, const char *[]))
 {
     WT_DECL_RET;
@@ -261,8 +261,11 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
 
     btree = S2BT(session);
 
-    /* Skip files that are never involved in a checkpoint. */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT))
+    /*
+     * Skip files that are never involved in a checkpoint. Skip the lookaside file as it is,
+     * checkpointed manually later.
+     */
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || F_ISSET(btree, WT_BTREE_LOOKASIDE))
         return (0);
 
     /*
@@ -638,7 +641,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     WT_ASSERT(session, session->ckpt_handle_next == 0);
     WT_WITH_TABLE_READ_LOCK(
-      session, ret = __checkpoint_apply_all(session, cfg, __wt_checkpoint_get_handles));
+      session, ret = __checkpoint_apply_operation(session, cfg, __wt_checkpoint_get_handles));
+
     return (ret);
 }
 
@@ -736,6 +740,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *las_dhandle;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -748,6 +753,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cache = conn->cache;
+    las_dhandle = NULL;
     txn = &session->txn;
     txn_global = &conn->txn_global;
     saved_isolation = session->isolation;
@@ -763,7 +769,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     /*
      * Do a pass over the configuration arguments and figure out what kind of checkpoint this is.
      */
-    WT_RET(__checkpoint_apply_all(session, cfg, NULL));
+    WT_RET(__checkpoint_apply_operation(session, cfg, NULL));
 
     logging = FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED);
 
@@ -847,8 +853,26 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_txn_checkpoint_log(session, full, WT_TXN_LOG_CKPT_START, NULL));
 
     __checkpoint_timing_stress(session);
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_tree_helper));
 
-    WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_tree_helper));
+    /* Checkpoint the history store file at snapshot isolation but first refresh our snapshot. */
+    __wt_txn_get_snapshot(session);
+
+    /*
+     * Get an LAS dhandle. If the LAS file is opened for a special operation this will return EBUSY
+     * which we treat as an error.
+     */
+    WT_ERR(__wt_session_get_dhandle(session, WT_LAS_URI, NULL, NULL, 0));
+    las_dhandle = session->dhandle;
+
+    /*
+     * TODO: It is possible that we don't have a LAS file in certain recovery scenarios. As such we
+     * could get a NULL dhandle.
+     */
+    if (las_dhandle != NULL) {
+        WT_WITH_DHANDLE(session, las_dhandle, ret = __wt_checkpoint(session, cfg));
+        WT_ERR(ret);
+    }
 
     /*
      * Clear the dhandle so the visibility check doesn't get confused about the snap min. Don't
@@ -873,8 +897,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_txn_release_snapshot(session);
 
     /* Mark all trees as open for business (particularly eviction). */
-    WT_ERR(__checkpoint_apply(session, cfg, __checkpoint_presync));
-    __wt_evict_server_wake(session);
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __checkpoint_presync));
 
     __checkpoint_verbose_track(session, "committing transaction");
 
@@ -883,7 +906,13 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * we don't support them yet).
      */
     time_start = __wt_clock(session);
-    WT_ERR(__checkpoint_apply(session, cfg, __wt_checkpoint_sync));
+
+    WT_ERR(__checkpoint_apply_to_dhandles(session, cfg, __wt_checkpoint_sync));
+
+    /* Sync the lookaside file. */
+    if (las_dhandle != NULL)
+        WT_WITH_DHANDLE(session, las_dhandle, ret = __wt_checkpoint_sync(session, NULL));
+
     time_stop = __wt_clock(session);
     fsync_duration_usecs = WT_CLOCKDIFF_US(time_stop, time_start);
     WT_STAT_CONN_INCR(session, txn_checkpoint_fsync_post);
