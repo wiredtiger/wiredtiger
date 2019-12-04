@@ -136,7 +136,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
             cb->incr_list[cb->incr_list_offset + 2] = WT_BACKUP_RANGE;
         }
     } else if (btree == NULL) {
-        /* We don't have this objects incremental information, and it's a full file copy. */
+        /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
         WT_ERR(__wt_calloc_def(session, WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));

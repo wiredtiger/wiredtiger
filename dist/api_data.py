@@ -1216,15 +1216,15 @@ methods = {
         Config('enabled', 'false', r'''
             whether to configure this backup as an incremental starting point''',
             type='boolean'),
+        Config('file', '', r'''
+            the file name of interest when opening a duplicate incremental backup
+            cursor. That duplicate cursor will walk the block modifications relevant
+            to the given file name'''),
         Config('force_stop', 'false', r'''
             causes all block incremental backup information to be released. This is
             on an open_cursor call and the resources will be released when this
             cursor is closed. No other operations should be done on this open cursor''',
             type='boolean'),
-        Config('file', '', r'''
-            the file name of interest when opening a duplicate incremental backup
-            cursor. That duplicate cursor will walk the block modifications relevant
-            to the given file name'''),
         Config('granularity', '16MB', r'''
             this setting manages the granularity of how WiredTiger maintains modification
             maps internally. The larger the granularity, the smaller amount of information
