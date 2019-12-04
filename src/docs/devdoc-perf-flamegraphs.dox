@@ -4,7 +4,7 @@
 
 [FlameGraphs](http://www.brendangregg.com/FlameGraphs/cpuflamegraphs.html),
 invented by [Brendan Gregg](http://www.brendangregg.com), help visually
-summarize on-CPU callstacks.
+summarize on-CPU call stacks.
 
 Below is an image of a FlameGraph generated from a 10-second run of the
 evict-btree-stress-multi wtperf job:
@@ -43,7 +43,7 @@ their full names.
 To generate FlameGraphs, you first need to run perf and generate a perf.data
 file using the `perf record -g` command. [Click here](@ref devdoc-perf) for
 instructions explaining how to do this with WiredTiger. Don't forget the `-g`
-option: you need it in order to record the callstacks!
+option: you need it in order to record the call stacks!
 
     # Clone the FlameGraph repository
     git clone https://github.com/brendangregg/FlameGraph
@@ -66,7 +66,7 @@ Download the non-redacted interactive version
 [here](https://github.com/wiredtiger/wiredtiger/wiki/images/FlameGraph-many-tables-stress.svg)
 and open it in your web browser.
 
-If you see 'unknown' callstacks in your FlameGraph, this means that perf could
+If you see 'unknown' call stacks in your FlameGraph, this means that perf could
 not resolve the symbols. To fix this, install the versions of the libraries or
 the OS kernel with symbols included, link against those libraries and re-gather
 the `perf` output.

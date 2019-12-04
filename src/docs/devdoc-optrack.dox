@@ -70,9 +70,9 @@ connection configuration string.
 For example, if you are running `wtperf`, you would add it to the `conn_config`
 string:
 
-    ./wtperf –c conn_config=”operation_tracking=(enabled=true,path=.)”
+    ./wtperf -c conn_config="operation_tracking=(enabled=true,path=.)"
 
-The “path” argument determines where the log files, produced by operation
+The "path" argument determines where the log files, produced by operation
 tracking, will be stored. Now you can run your workload.
 
 # Working with log files
@@ -99,7 +99,7 @@ efficient than writing strings, and the map file is needed to decode them.
 Now the binary log files need to be converted into the text format. To do that
 use the script `wt_optrack_decode.py` in the WiredTiger tree. We will refer to
 the path to your WiredTiger tree as WT. Suppose that the process ID that
-generated the operation tracking files is 25660. Then you’d run the decode
+generated the operation tracking files is 25660. Then you'd run the decode
 script like so:
 
     % WT/tools/optrack/wt_optrack_decode.py -m optrack-map.0000025660 optrack.0000025660.00000000*
@@ -117,12 +117,12 @@ convert the timestamps, which are recorded in clock cycles for efficiency, to
 nanoseconds.
 
 In the end, you should see lots of output files whose names look like the
-optrack log files, but with the suffixes `–internal.txt` and `–external.txt`.
-The “internal” files are the log files for WT internal sessions (such as
-eviction threads). The “external” files are for the sessions created by the
+optrack log files, but with the suffixes `-internal.txt` and `-external.txt`.
+The "internal" files are the log files for WT internal sessions (such as
+eviction threads). The "external" files are for the sessions created by the
 client application.
 
-Now that the files have been decoded, it’s time to visualize the data. This can
+Now that the files have been decoded, it's time to visualize the data. This can
 be done using the script find-latency-spikes.py located in the `tools/optrack`
 directory of the WiredTiger tree. To process your text files from our example,
 you would run this script like so:
@@ -183,24 +183,24 @@ execution.
 
 You can click on outlier bars and look at the detailed visualization of the
 period during which the abnormally long function invocations occurred. But
-before we do that, let’s talk about what is considered an “outlier” or an
-“abnormally long execution” and how to control these thresholds. As annotations
+before we do that, let's talk about what is considered an "outlier" or an
+"abnormally long execution" and how to control these thresholds. As annotations
 on the histograms show, by default a function invocation is considered an
 outlier if its duration is longer than two standard deviations above average.
 (The average is computed for this function over the entire execution). If you
 would like a more precise control of outlier thresholds, you can do that in a
 configuration file that is read by the execution script.
 
-Before we talk about other visualization screens, let’s actually generate a
+Before we talk about other visualization screens, let's actually generate a
 visualization with some more meaningful outlier thresholds than two standard
 deviations. This way, it will be easier to navigate the data, and we will be
 able to observe some very interesting behavior that gives us a clue as to why
-eviction is sometimes slow. (If you can’t wait to find out, skip over the next
+eviction is sometimes slow. (If you can't wait to find out, skip over the next
 step.)
 
 ## Getting a more precise control of the outlier thresholds
 
-Let’s learn how to configure custom outlier thresholds. The easiest way to
+Let's learn how to configure custom outlier thresholds. The easiest way to
 begin is to grab a sample configuration file and edit it to your needs:
 
     % cp WT/tools/optrack/sample.config .
@@ -226,8 +226,8 @@ In that file all lines prefixed with a # are comments.
 The first non-comment line specifies the units in which your timestamps are
 recorded. The units are specified by providing a value indicating how many time
 units there are in a second. By default operation scripts generate timestamps
-in nanoseconds, hence you see a value of “1000000000” on the first line in our
-sample file. If your time units were, say, milliseconds, you’d change that
+in nanoseconds, hence you see a value of 1000000000 on the first line in our
+sample file. If your time units were, say, milliseconds, you'd change that
 value to 1000, and so on.
 
 The remaining non-comment lines in the file provide the outlier thresholds for
@@ -236,15 +236,15 @@ any functions you care to have a custom threshold. The format is:
     <function name> <value> <unit>
 
 For example, to specify a threshold of 15 milliseconds for the
-`__wt_cache_eviction_worker` function, you’d insert the following line:
+`__wt_cache_eviction_worker` function, you'd insert the following line:
 
     __wt_cache_eviction_worker 15 ms
 
 Valid units are nanoseconds (ns), microseconds (us), milliseconds (ms) and
 seconds (s).
 
-If you don’t specify a threshold for a function the default of two standard
-deviations will be used.  Let’s actually configure some more meaningful outlier
+If you don't specify a threshold for a function the default of two standard
+deviations will be used. Let's actually configure some more meaningful outlier
 thresholds in our `sample.config` file and re-run the visualization script. Here
 is the modified `sample.config`:
 
@@ -269,7 +269,7 @@ The new charts can be accessed
 
 # Looking at the data: Part 2
 
-Let’s examine the visualized data in more detail. Please click on [this
+Let's examine the visualized data in more detail. Please click on [this
 URL](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/):
 
 Although I insert the screenshots here, you will have more fun if you access it
@@ -281,7 +281,7 @@ see only the intervals where that function took longer than 15 ms to complete.
 
 ![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/wt_cache_eviction_worker_outliers.png)
 
-Let’s click on one of those intervals to examine what happened there. I am
+Let's click on one of those intervals to examine what happened there. I am
 going to click on the tallest bar in the chart, which will take me to a
 detailed output of function call activity by thread for interval 137 at [this
 URL](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/BUCKET-FILES/bucket-137.html).
@@ -331,21 +331,21 @@ Looking at the internal thread with session id 1 shows something suspicious.
 ![](http://www.ece.ubc.ca/~sasha/TUTORIAL-DEMO-CONFIG/IMG/session_1_dead_period.png)
 
 During this period where all threads are waiting, this thread shows no activity
-at all, whereas prior and after that “dead” period it was making regular calls
-to `__evict_walk`. Perhaps that thread got descheduled or stopped calling
+at all, whereas prior and after that "dead" period it was making regular calls
+to `__evict_walk`. Perhaps that thread was unscheduled or stopped calling
 __evict_walk for other reasons. Perhaps other threads were dependent on work
 performed within `__evict_walk` to make forward progress.
 
 To better understand why `__evict_walk` was interrupted for almost 10ms we
 might want to go back and insert operation tracking macros inside the functions
 called by `__evict_walk`, to see if the thread was doing some other work during
-this time or was simply descheduled.
+this time or was simply unscheduled.
 
 # Summary
 
 Operation tracking is great for debugging performance problems where you are
 interested in understanding the activity of the workload over time and across
-threads. To effectively navigate large quantities of data it's best to
+threads. To effectively navigate large quantities of data it is best to
 reproduce your performance problem in a short run.
 
 */

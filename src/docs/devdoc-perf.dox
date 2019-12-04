@@ -104,7 +104,7 @@ simplest way to invoke it is like so:
 
     perf record <command>
 
-This will sample on-cpu functions.
+This will sample on-CPU functions.
 
 # Examining the output
 
@@ -113,8 +113,8 @@ it, run:
 
     perf report
 
-`perf report` will show, for each sampled event, the callstacks that were
-recorded at the time of sampling. The callstacks will be sorted from the most
+`perf report` will show, for each sampled event, the call stacks that were
+recorded at the time of sampling. The call stacks will be sorted from the most
 frequently occurring to the least frequently occurring.
 
 At the time of this writing, the default sampling frequency is 4000; that is, a
@@ -131,27 +131,27 @@ And run the reporting with the `-i` option:
 
     perf report -i <new_output_file>
 
-Here is a way to look at the output with all the callstacks expanded:
+Here is a way to look at the output with all the call stacks expanded:
 
     perf report -n --stdio
 
 # More examples
 
-Sample on-cpu functions with callstacks:
+Sample on-cpu functions with call stacks:
 
-    perf record –g <command>
+    perf record -g <command>
 
 Sample as above, but using a specific sampling frequency (99 hertz):
 
-    perf record -F 99 –g <command>
+    perf record -F 99 -g <command>
 
-Sample last-level cache load misses with callstacks:
+Sample last-level cache load misses with call stacks:
 
-    perf record -e LLC-load-misses –g <command>
+    perf record -e LLC-load-misses -g <command>
 
 Sample cache misses for a running process:
 
-    perf record -e LLC-load-misses –g -p <PID>
+    perf record -e LLC-load-misses -g -p <PID>
 
 Sample page faults:
 
