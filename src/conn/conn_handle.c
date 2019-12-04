@@ -94,6 +94,7 @@ void
 __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
 {
     WT_SESSION_IMPL *session;
+    u_int i;
 
     /* Check there's something to destroy. */
     if (conn == NULL)
@@ -131,6 +132,9 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_cond_destroy(session, &conn->lsm_manager.work_cond);
 
     /* Free allocated memory. */
+    for (i = 0; i < WT_BLKINCR_MAX; ++i)
+        __wt_free(session, conn->incr_backups[i].id);
+
     __wt_free(session, conn->cfg);
     __wt_free(session, conn->debug_ckpt);
     __wt_free(session, conn->error_prefix);

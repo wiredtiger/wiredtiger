@@ -111,6 +111,12 @@ __backup_free(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
             __wt_free(session, cb->list[i]);
         __wt_free(session, cb->list);
     }
+    if (cb->incr_file != NULL)
+        __wt_free(session, cb->incr_file);
+    if (cb->incr_src != NULL)
+        __wt_free(session, cb->incr_src);
+    if (cb->incr_this != NULL)
+        __wt_free(session, cb->incr_this);
     __wt_curbackup_free_incr(session, cb);
 }
 
