@@ -48,7 +48,7 @@ typedef struct __filelist {
 static FILELIST *last_flist = NULL;
 static size_t filelist_count = 0;
 
-#define LIST_INIT 16
+#define FLIST_INIT 16
 
 #if 0
 #define CONN_CONFIG \
@@ -212,16 +212,18 @@ static int
 process_file(FILELIST **flistp, size_t *countp, size_t *allocp, const char *filename)
 {
     FILELIST *flist;
-    size_t alloc, i;
+    size_t alloc, i, new, orig;
 
     /* Build up the current list, growing as needed. */
     i = *countp;
     alloc = *allocp;
     flist = *flistp;
     if (i == alloc) {
-        flist = realloc(flist, alloc * 2 * sizeof(FILELIST));
+        orig = alloc * sizeof(FILELIST);
+        new = orig * 2;
+        flist = realloc(flist, new);
         testutil_assert(flist != NULL);
-        memset(flist + alloc * sizeof(FILELIST), 0, alloc * sizeof(FILELIST));
+        memset(flist + alloc, 0, new - orig);
         *allocp = alloc * 2;
         *flistp = flist;
     }
@@ -269,7 +271,7 @@ take_full_backup(WT_SESSION *session, int i)
         error_check(session->open_cursor(session, "backup:", NULL, NULL, &cursor));
 
     count = 0;
-    alloc = LIST_INIT;
+    alloc = FLIST_INIT;
     flist = calloc(alloc, sizeof(FILELIST));
     testutil_assert(flist != NULL);
     while ((ret = cursor->next(cursor)) == 0) {
@@ -315,7 +317,7 @@ take_incr_backup(WT_SESSION *session, int i)
     error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
     rfd = wfd = -1;
     count = 0;
-    alloc = LIST_INIT;
+    alloc = FLIST_INIT;
     flist = calloc(alloc, sizeof(FILELIST));
     testutil_assert(flist != NULL);
     /* For each file listed, open a duplicate backup cursor and copy the blocks. */
@@ -398,6 +400,7 @@ int
 main(int argc, char *argv[])
 {
     WT_CONNECTION *wt_conn;
+    WT_CURSOR *backup_cur;
     WT_SESSION *session;
     int i;
     char cmd_buf[256];
@@ -441,6 +444,13 @@ main(int argc, char *argv[])
         printf("Iteration %d: dumping and comparing data\n", i);
         error_check(compare_backups(i));
     }
+
+    /*
+     * After we're done, release resources. Test the force stop setting.
+     */
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(force_stop=true)");
+    error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
+    error_check(backup_cur->close(backup_cur));
 
     /*
      * Close the connection. We're done and want to run the final comparison between the incremental

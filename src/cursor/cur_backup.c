@@ -74,7 +74,7 @@ err:
 static int
 __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force)
 {
-    WT_BLKINCR *blkincr;
+    WT_BLKINCR *blk;
     WT_CONNECTION_IMPL *conn;
     u_int i;
 
@@ -86,9 +86,9 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
      */
     F_CLR(conn, WT_CONN_INCR_BACKUP);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blkincr = &conn->incr_backups[i];
+        blk = &conn->incr_backups[i];
         /* If it isn't valid, skip it. */
-        F_CLR(blkincr, WT_BLKINCR_VALID);
+        F_CLR(blk, WT_BLKINCR_VALID);
     }
     /* __wt_block_backup_remove... */
     conn->ckpt_incr_granularity = 0;
@@ -226,16 +226,21 @@ err:
 /*
  * __backup_get_ckpt --
  *     Get the most recent checkpoint information and store it in the structure.
+ *
+ * XXX - Currently set return to static void for the compiler, when this function has real content
+ *     it should be static int.
  */
-static int
+static void
 __backup_get_ckpt(WT_SESSION_IMPL *session, WT_BLKINCR *incr)
 {
     WT_UNUSED(session);
     WT_UNUSED(incr);
     /*
      * Look up the most recent checkpoint and store information about it in incr.
+     *
+     * XXX When this function has content, return a real value. return (0);
      */
-    return (0);
+    return;
 }
 
 /*
@@ -245,26 +250,31 @@ __backup_get_ckpt(WT_SESSION_IMPL *session, WT_BLKINCR *incr)
 static int
 __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
 {
-    WT_BLKINCR *blkincr;
+    WT_BLKINCR *blk;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     u_int i;
 
     conn = S2C(session);
-    blkincr = NULL;
+    blk = NULL;
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blkincr = &conn->incr_backups[i];
+        blk = &conn->incr_backups[i];
         /* If it isn't use we can use it. */
-        if (!F_ISSET(blkincr, WT_BLKINCR_INUSE)) {
-            if (blkincr->id != NULL)
+        if (!F_ISSET(blk, WT_BLKINCR_INUSE)) {
+            if (blk->id != NULL)
                 __wt_verbose(session, WT_VERB_BACKUP,
-                  "Freeing and reusing backup slot with old id %s", blkincr->id);
+                  "Freeing and reusing backup slot with old id %s", blk->id);
             /* Free any string that was there. */
-            __wt_free(session, blkincr->id);
-            WT_ERR(__wt_strndup(session, cval->str, cval->len, &blkincr->id));
-            __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %d for id %s", i, blkincr->id);
-            WT_ERR(__backup_get_ckpt(session, blkincr));
-            F_SET(blkincr, WT_BLKINCR_VALID);
+            __wt_free(session, blk->id);
+            WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id));
+            __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s", i, blk->id);
+            /*
+             * XXX
+             *
+             * WT_ERR(__backup_get_ckpt(session, blk));
+             */
+            __backup_get_ckpt(session, blk);
+            F_SET(blk, WT_BLKINCR_VALID);
             return (0);
         }
     }
@@ -274,8 +284,8 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     ret = WT_NOTFOUND;
     abort();
 err:
-    if (blkincr != NULL)
-        __wt_free(session, blkincr->id);
+    if (blk != NULL)
+        __wt_free(session, blk->id);
     return (ret);
 }
 
@@ -286,22 +296,22 @@ err:
 static int
 __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **incrp)
 {
-    WT_BLKINCR *blkincr;
+    WT_BLKINCR *blk;
     WT_CONNECTION_IMPL *conn;
     u_int i;
 
     conn = S2C(session);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blkincr = &conn->incr_backups[i];
+        blk = &conn->incr_backups[i];
         /* If it isn't valid, skip it. */
-        if (!F_ISSET(blkincr, WT_BLKINCR_VALID))
+        if (!F_ISSET(blk, WT_BLKINCR_VALID))
             continue;
-        if (WT_STRING_MATCH(blkincr->id, cval->str, cval->len)) {
-            if (F_ISSET(blkincr, WT_BLKINCR_INUSE))
+        if (WT_STRING_MATCH(blk->id, cval->str, cval->len)) {
+            if (F_ISSET(blk, WT_BLKINCR_INUSE))
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use.");
             if (incrp != NULL)
-                *incrp = blkincr;
-            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %d for id %s", i, blkincr->id);
+                *incrp = blk;
+            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id);
             return (0);
         }
     }
