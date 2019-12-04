@@ -355,6 +355,11 @@ resolve()
 			continue
 		}
 
+		# If we don't understand why the job exited, report it as a failure and flag
+		# a problem in this script.
+		echo "$name: job in $dir exited for an unknown reason, reporting it as a failure"
+		echo "$name: $name needs to be updated"
+		report_failure $dir
 	done
 	return 0
 }
