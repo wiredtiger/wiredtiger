@@ -30,7 +30,7 @@
  */
 #include <test_util.h>
 
-static const char *const home = "WT_EXINCR";
+static const char *const home = "WT_BLOCK";
 static const char *const home_full = "WT_BLOCK_LOG_FULL";
 static const char *const home_incr = "WT_BLOCK_LOG_INCR";
 
