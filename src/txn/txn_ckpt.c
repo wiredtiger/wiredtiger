@@ -685,9 +685,11 @@ __txn_checkpoint_can_skip(
 
     /*
      * If the checkpoint is using timestamps, and the stable timestamp hasn't been updated since the
-     * last checkpoint there is nothing more that could be written.
+     * last checkpoint there is nothing more that could be written. Except when a non timestamped
+     * file has been modified, as such if the connection has been modified it is currently unsafe to
+     * skip checkpoints.
      */
-    if (use_timestamp && txn_global->has_stable_timestamp &&
+    if (!conn->modified && use_timestamp && txn_global->has_stable_timestamp &&
       txn_global->last_ckpt_timestamp != WT_TS_NONE &&
       txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
         *can_skipp = true;
@@ -821,7 +823,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
      * reset to zero.
      */
-    ckpt_tmp_ts = txn_global->checkpoint_timestamp;
+    WT_ORDERED_READ(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
 
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
