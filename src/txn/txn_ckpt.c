@@ -702,11 +702,13 @@ __txn_checkpoint_can_skip(
      * be. We might skip a checkpoint in that short instance, which is okay because by the next time
      * we get to checkpoint, the connection would have been marked dirty and hence the checkpoint
      * will not be skipped again.
+     *
+     * If we are using timestamps then we shouldn't skip as the stable timestamp must have moved,
+     * and as such we still need to run checkpoint to update the checkpoint timestamp and the
+     * metadata.
      */
-    if (!conn->modified) {
+    if (!use_timestamp && !conn->modified)
         *can_skipp = true;
-        return (0);
-    }
 
     return (0);
 }
