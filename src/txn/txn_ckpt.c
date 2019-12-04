@@ -817,6 +817,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
 
+    /*
+     * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll
+     * be reset to zero.
+     */
+    ckpt_tmp_ts = txn_global->checkpoint_timestamp;
+
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
     /*
@@ -858,14 +864,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * checkpoint.
      */
     session->dhandle = NULL;
-
-    /*
-     * Record the timestamp from the transaction if we were successful. Store it in a temp variable
-     * now because it will be invalidated during commit but we don't want to set it until we know
-     * the checkpoint is successful. We have to set the system information before we release the
-     * snapshot.
-     */
-    ckpt_tmp_ts = txn_global->checkpoint_timestamp;
+    /* We have to set the system information before we release the snapshot. */
     if (full) {
         WT_ERR(__wt_meta_sysinfo_set(session));
     }
@@ -948,7 +947,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp is WT_TS_NONE, set it to 1 so we can tell the difference.
          */
         if (use_timestamp) {
-            conn->txn_global.last_ckpt_timestamp = conn->txn_global.stable_timestamp;
+            conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
             /*
              * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
              * cases it queries the recovery timestamp to determine the last stable recovery
