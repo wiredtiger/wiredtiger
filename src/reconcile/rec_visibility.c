@@ -586,35 +586,59 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->max_ondisk_ts = upd->durable_ts;
 
     /*
-     * TIMESTAMP-FIXME The start timestamp is determined by the commit timestamp when the key is
-     * first inserted (or last updated). The end timestamp is set when a key/value pair becomes
-     * invalid, either because of a remove or a modify/update operation on the same key.
+     * The start timestamp is determined by the commit timestamp when the key is first inserted (or
+     * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
+     * of a remove or a modify/update operation on the same key.
      */
     if (upd != NULL) {
-        /*
-         * TIMESTAMP-FIXME This is waiting on the WT_UPDATE structure's start/stop
-         * timestamp/transaction work. For now, if we don't have a timestamp/transaction, just
-         * pretend it's durable. If we do have a timestamp/transaction, make the durable and start
-         * timestamps equal to the start timestamp and the start transaction equal to the
-         * transaction, and again, pretend it's durable.
-         */
         upd_select->durable_ts = WT_TS_NONE;
         upd_select->start_ts = WT_TS_NONE;
         upd_select->start_txn = WT_TXN_NONE;
         upd_select->stop_ts = WT_TS_MAX;
         upd_select->stop_txn = WT_TXN_MAX;
-        if (upd_select->upd->start_ts != WT_TS_NONE)
+        /*
+         * If the newest is a tombstone then select the update before it and set the end of the
+         * visibility window to its time pair as appropriate to indicate that we should return "not
+         * found" for reads after this point.
+         *
+         * Otherwise, leave the end of the visibility window at the maximum possible value to
+         * indicate that the value is visible to any timestamp/transaction id ahead of it.
+         */
+        WT_ASSERT(session, upd_select->upd != NULL);
+        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
+            upd_select->stop_ts = upd_select->upd->start_ts;
+            upd_select->stop_txn = upd_select->upd->txnid;
+            upd_select->upd = upd_select->upd->next;
+        }
+        if (upd_select->upd != NULL) {
+            /* The beginning of the validity window is the selected update's time pair. */
             upd_select->durable_ts = upd_select->start_ts = upd_select->upd->start_ts;
-        if (upd_select->upd->txnid != WT_TXN_NONE)
             upd_select->start_txn = upd_select->upd->txnid;
+        } else {
+            /*
+             * The only time we don't get the unpacked value is when we insert a key in which case
+             * we can't have a tombstone.
+             */
+            WT_ASSERT(session, vpack != NULL);
+            /*
+             * It's possible to have a tombstone as the only update in the update list. If we
+             * reconciled before with only a single update and then read the page back into cache,
+             * we'll have an empty update list. And applying a delete on top of that will result in
+             * ONLY a tombstone in the update list.
+             *
+             * In this case, we should leave the selected update unset to indicate that we want to
+             * keep the same on-disk value but set the stop time pair to indicate that the validity
+             * window ends when this tombstone started.
+             */
+            upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
+            upd_select->start_txn = vpack->start_txn;
+        }
 
         /*
          * Finalize the timestamps and transactions, checking if the update is globally visible and
          * nothing needs to be written.
          */
-        if ((upd_select->stop_ts == WT_TS_MAX && upd_select->stop_txn == WT_TXN_MAX) &&
-          ((upd_select->start_ts == WT_TS_NONE && upd_select->start_txn == WT_TXN_NONE) ||
-              __wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts))) {
+        if (__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts)) {
             upd_select->start_ts = WT_TS_NONE;
             upd_select->start_txn = WT_TXN_NONE;
             upd_select->stop_ts = WT_TS_MAX;
