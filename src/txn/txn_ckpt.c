@@ -818,8 +818,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
     /*
-     * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll
-     * be reset to zero.
+     * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
+     * reset to zero.
      */
     ckpt_tmp_ts = txn_global->checkpoint_timestamp;
 
