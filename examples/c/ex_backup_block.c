@@ -30,9 +30,9 @@
  */
 #include <test_util.h>
 
-static const char *const home = "WT_HOME_LOG";
-static const char *const home_full = "WT_HOME_LOG_FULL";
-static const char *const home_incr = "WT_HOME_LOG_INCR";
+static const char *const home = "WT_EXINCR";
+static const char *const home_full = "WT_EXINCR_LOG_FULL";
+static const char *const home_incr = "WT_EXINCR_LOG_INCR";
 
 static const char *const full_out = "./backup_full";
 static const char *const incr_out = "./backup_incr";
@@ -190,7 +190,7 @@ finalize_files(FILELIST *flistp, size_t count)
         if (last_flist[i].name == NULL)
             break;
         if (!last_flist[i].exist) {
-            (void)snprintf(buf, sizeof(buf), "rm WT_HOME_LOG_*/%s", last_flist[i].name);
+            (void)snprintf(buf, sizeof(buf), "rm WT_EXINCR_LOG_*/%s", last_flist[i].name);
             error_check(system(buf));
         }
         free((void *)last_flist[i].name);
