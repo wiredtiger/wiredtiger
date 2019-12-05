@@ -28,7 +28,7 @@
 
 import fnmatch, os, shutil, time
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 
 def timestamp_str(t):
@@ -139,6 +139,7 @@ class test_prepare07(wttest.WiredTigerTestCase):
         cursor_b.close()
         session_b.close()
 
+    @unittest.skip("Temporarily disabled")
     def test_older_prepare_updates(self):
         # Create a small table.
         uri = "table:test"
