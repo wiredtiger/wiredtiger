@@ -1232,6 +1232,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     /* If our caller configures for a local search and we have a page pinned, do that search. */
     if (F_ISSET(cursor, WT_CURSTD_UPDATE_LOCAL) && __cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
+	WT_ERR(__wt_txn_autocommit_check(session));
 
         WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, cbt->ref, &leaf_found) :
                                           __cursor_col_search(cbt, cbt->ref, &leaf_found));
@@ -1763,6 +1764,8 @@ __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
     session = (WT_SESSION_IMPL *)start->iface.session;
     btree = start->btree;
     WT_STAT_DATA_INCR(session, cursor_truncate);
+
+    WT_ERR(__wt_txn_autocommit_check(session));
 
     /*
      * For recovery, log the start and stop keys for a truncate operation, not the individual
