@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -62,6 +62,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         return self.keyfmt == 'r' and \
             (self.ds.is_lsm() or self.uri == 'lsm')
 
+    @unittest.skip("Temporarily disabled")
     # Test durable timestamp.
     def test_durable_ts01(self):
         if self.skip():

@@ -33,7 +33,7 @@
 from helper import copy_wiredtiger_home
 import random
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
 
 def timestamp_str(t):
@@ -154,6 +154,7 @@ class test_timestamp03(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_check(check_value, valcnt_ts_log, valcnt_ts_nolog,
             valcnt_nots_log, valcnt_nots_nolog)
 
+    @unittest.skip("Temporarily disabled")
     def test_timestamp03(self):
         uri_ts_log      = self.uri + self.table_ts_log
         uri_ts_nolog    = self.uri + self.table_ts_nolog

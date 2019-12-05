@@ -30,7 +30,7 @@
 #   Timestamps: Test the use_timestamp setting when closing the connection.
 #
 
-import shutil, os, wiredtiger, wttest
+import shutil, os, unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
 import unittest
 
@@ -65,7 +65,7 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         #print coll_actual
         self.assertTrue(coll_actual == coll_exp)
 
-    @unittest.skip("timestamp recovery")
+    @unittest.skip("Temporarily disabled")
     def test_timestamp_recovery(self):
         #
         # Create several collection-like tables that are checkpoint durability.
