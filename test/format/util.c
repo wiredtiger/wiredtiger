@@ -578,13 +578,14 @@ checkpoint(void *arg)
 void
 timestamp_once(void)
 {
+    static const char *oldest_timestamp_str = "oldest_timestamp=";
     WT_CONNECTION *conn;
     WT_DECL_RET;
     char buf[WT_TS_HEX_STRING_SIZE + 64];
 
     conn = g.wts_conn;
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", "oldest_timestamp="));
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", oldest_timestamp_str));
 
     /*
      * Lock out transaction timestamp operations. The lock acts as a barrier ensuring we've checked
@@ -592,7 +593,7 @@ timestamp_once(void)
      */
     testutil_check(pthread_rwlock_wrlock(&g.ts_lock));
 
-    ret = conn->query_timestamp(conn, buf + strlen("oldest_timestamp="), "get=all_committed");
+    ret = conn->query_timestamp(conn, buf + strlen(oldest_timestamp_str), "get=all_durable");
     testutil_assert(ret == 0 || ret == WT_NOTFOUND);
     if (ret == 0)
         testutil_check(conn->set_timestamp(conn, buf));
