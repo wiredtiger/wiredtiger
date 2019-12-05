@@ -1234,7 +1234,14 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 
         WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, cbt->ref, &leaf_found) :
                                           __cursor_col_search(cbt, cbt->ref, &leaf_found));
-        if (leaf_found)
+        /*
+         * If searching an already pinned page returns the first or last page slots, discard the
+         * results and search the full tree, a non-existent record might belong on an entirely
+         * different page. This test is simplistic as we're ignoring append lists (there may be no
+         * page slots or we might be legitimately positioned after the last page slot). Ignore those
+         * cases, it makes things too complicated.
+         */
+        if (leaf_found && cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)
             goto update_local;
     }
 
