@@ -1267,7 +1267,8 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
 void
 __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 {
-
+    WT_UNUSED(session);
+    return;
 }
 
 /*
