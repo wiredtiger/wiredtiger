@@ -1652,8 +1652,8 @@ __wt_verbose_dump_txn_one(
     }
 
     /*
-     * Store the diagnostic information in a char array which will be logged either in standard
-     * output or standard error based on error_code.
+     * Dump the information of the passed transaction into a buffer, to be logged with an optional
+     * error message.
      */
     WT_RET(__wt_snprintf(buf,
       sizeof(buf), "transaction id: %" PRIu64 ", mod count: %u"
@@ -1677,10 +1677,10 @@ __wt_verbose_dump_txn_one(
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
 
     /*
-     * Dump the information to standard error if error code is passed and return.
+     * Log a message and return an error if error code and an optional error string has been passed.
      */
     if (0 != error_code) {
-        WT_RET_MSG(session, error_code, "%s, %s", buf, error_string);
+        WT_RET_MSG(session, error_code, "%s, %s", buf, error_string != NULL ? error_string : "");
     } else {
         WT_RET(__wt_msg(session, "%s", buf));
     }
