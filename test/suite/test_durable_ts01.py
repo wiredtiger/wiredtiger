@@ -141,8 +141,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         session.timestamp_transaction('durable_timestamp=' + timestamp_str(300))
         session.commit_transaction()
 
-        # Checkpoint so that first update value will be visible and durable,
-        # but second update value will be only visible but not durable.
+        # Checkpoint the second update value will be durable.
         self.session.checkpoint()
 
         # Check that second update value is visible.
@@ -155,7 +154,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
-        # Check that second update value was not durable by reopening.
+        # Check that second update value was durable by reopening.
         self.reopen_conn()
         session = self.conn.open_session(self.session_config)
         cursor = session.open_cursor(uri, None)
@@ -163,7 +162,7 @@ class test_durable_ts01(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(250))
         self.assertEquals(cursor.next(), 0)
         for i in range(1, 50):
-            self.assertEquals(cursor.get_value(), ds.value(111))
+            self.assertEquals(cursor.get_value(), ds.value(222))
             self.assertEquals(cursor.next(), 0)
 
 if __name__ == '__main__':

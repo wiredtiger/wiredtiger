@@ -441,6 +441,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("writing and reading timestamp pairs from cell not implemented")
     def test_las_rec_modify(self):
         # Create a small table.
         uri = "table:test_las06"
