@@ -658,11 +658,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         WT_ERR(__cursor_row_search(cbt, true, cbt->ref, &leaf_found));
 
         /*
-         * If searching an already pinned page doesn't find an exact match and returns the first or
-         * last page slots, discard the results and search the full tree as the neighbor pages might
-         * offer better matches. This test is simplistic as we're ignoring append lists (there may
-         * be no page slots or we might be legitimately positioned after the last page slot). Ignore
-         * those cases, it makes things too complicated.
+         * Only use the pinned page search results if search returns an exact match or a slot other
+         * than the page's boundary slots, if that's not the case, a neighbor page might offer a
+         * better match. This test is simplistic as we're ignoring append lists (there may be no
+         * page slots or we might be legitimately positioned after the last page slot). Ignore those
+         * cases, it makes things too complicated.
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
@@ -1237,11 +1237,11 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
         WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, cbt->ref, &leaf_found) :
                                           __cursor_col_search(cbt, cbt->ref, &leaf_found));
         /*
-         * If searching an already pinned page doesn't find an exact match and returns the first or
-         * last page slots, discard the results and search the full tree, a non-existent record
-         * might belong on an entirely different page. This test is simplistic as we're ignoring
-         * append lists (there may be no page slots or we might be legitimately positioned after the
-         * last page slot). Ignore those cases, it makes things too complicated.
+         * Only use the pinned page search results if search returns an exact match or a slot other
+         * than the page's boundary slots, if that's not the case, the record might belong on an
+         * entirely different page. This test is simplistic as we're ignoring append lists (there
+         * may be no page slots or we might be legitimately positioned after the last page slot).
+         * Ignore those cases, it makes things too complicated.
          */
         if (leaf_found &&
           (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
