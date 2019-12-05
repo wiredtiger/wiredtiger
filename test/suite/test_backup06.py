@@ -86,6 +86,9 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
+        if os.name == "nt":
+            self.skipTest('Unix specific test skipped on Windows')
+
         limits = resource.getrlimit(resource.RLIMIT_NOFILE)
         if limits[0] < 1024:
             new = (1024, limits[1])
