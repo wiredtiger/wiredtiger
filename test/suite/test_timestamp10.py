@@ -33,6 +33,7 @@
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
+import unittest
 
 def timestamp_str(t):
     return '%x' % t
@@ -126,6 +127,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr("query recovery ts: " + q)
         self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
 
+    @unittest.skip("timestamp recovery")
     def test_timestamp_recovery(self):
         # Add some data and checkpoint at a stable timestamp.
         last_stable = self.data_and_checkpoint()

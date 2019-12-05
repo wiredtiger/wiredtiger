@@ -168,19 +168,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * a concurrent transaction commits or rolls back while we are examining its updates. As
          * prepared transaction IDs are globally visible, need to check the update state as well.
          */
-        if (F_ISSET(r, WT_REC_EVICT)) {
-            if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                                 !__txn_visible_id(session, txnid)) {
-                r->update_uncommitted = list_uncommitted = true;
-                continue;
-            }
-            if (upd->prepare_state == WT_PREPARE_LOCKED ||
-              upd->prepare_state == WT_PREPARE_INPROGRESS) {
-                list_prepared = true;
-                if (upd->start_ts > max_ts)
-                    max_ts = upd->start_ts;
-                continue;
-            }
+        if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                            !__txn_visible_id(session, txnid)) {
+            r->update_uncommitted = list_uncommitted = true;
+            continue;
+        }
+        if (upd->prepare_state == WT_PREPARE_LOCKED ||
+            upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            list_prepared = true;
+            if (upd->start_ts > max_ts)
+                max_ts = upd->start_ts;
+            continue;
         }
 
         /* Track the first update with non-zero timestamp. */

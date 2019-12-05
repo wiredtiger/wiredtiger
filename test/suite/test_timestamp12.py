@@ -32,6 +32,7 @@
 
 import shutil, os, wiredtiger, wttest
 from wtscenario import make_scenarios
+import unittest
 
 def timestamp_str(t):
     return '%x' % t
@@ -64,6 +65,7 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         #print coll_actual
         self.assertTrue(coll_actual == coll_exp)
 
+    @unittest.skip("timestamp recovery")
     def test_timestamp_recovery(self):
         #
         # Create several collection-like tables that are checkpoint durability.
