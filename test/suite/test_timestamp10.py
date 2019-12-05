@@ -33,6 +33,7 @@
 from suite_subprocess import suite_subprocess
 import unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
+import unittest
 
 def timestamp_str(t):
     return '%x' % t

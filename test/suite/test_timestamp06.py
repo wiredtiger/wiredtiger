@@ -181,28 +181,9 @@ class test_timestamp06(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session, 'read_timestamp=' + stable_ts,
             self.table_ts_nolog, dict((k, 2) for k in orig_keys))
 
-        # For logged table we should see latest values (i.e. 3) when logging
-        # is enabled.
-        if self.using_log == True:
-            valcnt_ts_log = nkeys
-        else:
-            # When logging is disabled, we should not see the values beyond the
-            # stable timestamp with timestamped checkpoints.
-            if self.ckpt_ts == True:
-                valcnt_ts_log = 0
-            else:
-                valcnt_ts_log = nkeys
-
-        # For non-logged table we should not see the values beyond the
-        # stable timestamp with timestamped checkpoints.
-        if self.ckpt_ts == True:
-            valcnt_ts_nolog = 0
-        else:
-            valcnt_ts_nolog = nkeys
-
         # Check to see the count of latest values as expected from checkpoint.
-        self.ckpt_backup(3, valcnt_ts_log, valcnt_ts_nolog)
-        self.ckpt_backup(2, (nkeys - valcnt_ts_log), (nkeys - valcnt_ts_nolog))
+        self.ckpt_backup(3, nkeys, nkeys)
+        self.ckpt_backup(2, 0, 0)
 
         # Scenario: 3
         # Check we see all the data values correctly after rollback. Skip the case where the most
