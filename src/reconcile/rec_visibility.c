@@ -246,6 +246,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /* If all of the updates were aborted, quit. */
     if (first_txn_upd == NULL) {
+        WT_ASSERT(session, upd == NULL);
         return (0);
     }
 
@@ -325,8 +326,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
-    all_stable =
-      !list_prepared && !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
+    all_stable = upd == first_stable_upd && !list_prepared && !list_uncommitted &&
+      __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
         goto check_original_value;
