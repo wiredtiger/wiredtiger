@@ -1501,7 +1501,9 @@ __split_multi_inmem(
 			WT_ERR(__wt_row_search(
 			    &cbt, key, true, ref, true, NULL));
 
-			/* Birthmarks should only be applied to on-page values. */
+			/*
+			 * Birthmarks should only be applied to on-page values.
+			 */
 			WT_ASSERT(session, cbt.compare == 0 ||
 			    upd->type != WT_UPDATE_BIRTHMARK);
 

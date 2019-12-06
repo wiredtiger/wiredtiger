@@ -263,7 +263,7 @@ __wt_row_search(WT_CURSOR_BTREE *cbt, WT_ITEM *srch_key,
 			WT_RET(__check_leaf_key_range(
 			    session, srch_key, leaf, cbt));
 			*leaf_foundp = cbt->compare == 0;
-	    if (!*leaf_foundp)
+			if (!*leaf_foundp)
 				return (0);
 		}
 

@@ -5877,7 +5877,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
 	btree = S2BT(session);
 	cbt = &r->update_modify_cbt;
-    cbt->iface.session = (WT_SESSION *)session;
+	cbt->iface.session = (WT_SESSION *)session;
 
 	key = &r->k;
 	val = &r->v;

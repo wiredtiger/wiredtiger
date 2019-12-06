@@ -138,7 +138,8 @@ __value_return(WT_CURSOR_BTREE *cbt)
  *	value.
  */
 int
-__wt_value_return_upd(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
+__wt_value_return_upd(
+    WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool ignore_visibility)
 {
 	WT_CURSOR *cursor;
 	WT_DECL_RET;

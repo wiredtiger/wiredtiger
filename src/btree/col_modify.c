@@ -15,7 +15,7 @@ static int __col_insert_alloc(
  * __wt_col_modify --
  *	Column-store delete, insert, and update.
  */
-int 
+int
 __wt_col_modify(WT_CURSOR_BTREE *cbt,
     uint64_t recno, const WT_ITEM *value,
     WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
