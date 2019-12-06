@@ -22,7 +22,7 @@ static void
 __las_set_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION *saved_isolationp)
 {
     *saved_isolationp = session->txn.isolation;
-    session->txn.isolation = WT_ISO_SNAPSHOT;
+    session->txn.isolation = WT_ISO_READ_UNCOMMITTED;
 }
 
 /*
@@ -33,6 +33,17 @@ static void
 __las_restore_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolation)
 {
     session->txn.isolation = saved_isolation;
+}
+
+/*
+ * __las_store_time_pair --
+ *     Store the time pair to use for the lookaside inserts.
+ */
+static void
+__las_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
+{
+    S2C(session)->cache->org_timestamp_to_las = timestamp;
+    S2C(session)->cache->org_txnid_to_las = txnid;
 }
 
 /*
@@ -562,7 +573,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     }
     cursor->set_value(
       cursor, start_upd->durable_ts, start_upd->prepare_state, WT_UPDATE_STANDARD, &las_value);
-    WT_ERR(cursor->insert(cursor));
+    WT_ERR(cursor->update(cursor));
 
 err:
     __wt_modify_vector_free(&modifies);
@@ -570,6 +581,80 @@ err:
     WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
     *updp = next_upd;
     return (ret);
+}
+
+/*
+ * __las_insert_record --
+ *     A helper function to insert the record into the lookaside including stop time pair.
+ */
+static int
+__las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint64_t btree_id, WT_ITEM *key,
+  WT_UPDATE *upd, wt_timestamp_t *stop_ts, uint64_t *stop_txnid)
+{
+    WT_ITEM las_value;
+
+    WT_CLEAR(las_value);
+
+    /* Check the update type and get the value */
+    switch (upd->type) {
+    case WT_UPDATE_MODIFY:
+    case WT_UPDATE_STANDARD:
+        las_value.data = upd->data;
+        las_value.size = upd->size;
+        break;
+    case WT_UPDATE_TOMBSTONE:
+        las_value.size = 0;
+        break;
+    default:
+        /*
+         * It is never OK to see a birthmark here - it would be referring to the wrong page image.
+         */
+        WT_RET(__wt_illegal_value(session, upd->type));
+    }
+
+    cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, *stop_ts, *stop_txnid);
+
+    /*
+     * Set the current update start time pair as the commit time pair to the lookaside record.
+     */
+    __las_store_time_pair(session, upd->start_ts, upd->txnid);
+
+    /*
+     * If we encounter a modify with preceding updates that have the same timestamp and transaction
+     * id, they need to be squashed into a single lookaside entry to avoid displacing each other.
+     */
+    if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
+      upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid)
+        WT_RET(__las_squash_modifies(session, cursor, &upd));
+    else {
+        cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
+
+        /*
+         * Using update instead of insert so the page stays pinned and can be searched before the
+         * tree.
+         */
+        WT_RET(cursor->update(cursor));
+    }
+
+    /* Append a delete record to represent stop time pair for the above insert record */
+    cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, *stop_ts, *stop_txnid);
+
+    /*
+     * Set the stop time pair as the commit time pair of the lookaside delete record.
+     */
+    __las_store_time_pair(session, *stop_ts, *stop_txnid);
+
+    /* Remove the inserted record with stop timestamp. */
+    WT_RET(cursor->remove(cursor));
+
+    /*
+     * Store the current update commit timestamp and transaction id, these are the stop timestamp
+     * and transaction id's for the next record in the update list.
+     */
+    *stop_ts = upd->start_ts;
+    *stop_txnid = upd->txnid;
+
+    return 0;
 }
 
 /*
@@ -584,7 +669,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_DECL_ITEM(birthmarks);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_ITEM las_value;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
@@ -598,7 +682,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     session = (WT_SESSION_IMPL *)cursor->session;
     cache = S2C(session)->cache;
-    WT_CLEAR(las_value);
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = prepared_insert_cnt = 0;
     birthmarks_cnt = 0;
@@ -613,14 +696,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     __las_set_isolation(session, &saved_isolation);
 
     local_txn = true;
-
-    /*
-     * Set the oldest timestamp as the first commit timestamp for the LAS transaction. None of the
-     * transactions with commit timestamp less than oldest timestamp will go into history store. AS
-     * they will be cleaned as part of the obsolete check.
-     */
-    if (S2C(session)->txn_global.oldest_timestamp != WT_TS_NONE)
-        WT_ERR(__wt_txn_set_commit_timestamp(session, S2C(session)->txn_global.oldest_timestamp));
 
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -731,25 +806,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            switch (upd->type) {
-            case WT_UPDATE_MODIFY:
-            case WT_UPDATE_STANDARD:
-                las_value.data = upd->data;
-                las_value.size = upd->size;
-                break;
-            case WT_UPDATE_TOMBSTONE:
-                las_value.size = 0;
-                break;
-            default:
-                /*
-                 * It is never OK to see a birthmark here - it would be referring to the wrong page
-                 * image.
-                 */
-                WT_ERR(__wt_illegal_value(session, upd->type));
-            }
-
-            cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts, stop_txnid);
-
             /*
              * If saving a non-zero length value on the page, save a birthmark instead of
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
@@ -788,56 +844,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             if (upd->prepare_state == WT_PREPARE_INPROGRESS)
                 ++prepared_insert_cnt;
 
-            /*
-             * If we encounter a modify with preceding updates that have the same timestamp and
-             * transaction id, they need to be squashed into a single lookaside entry to avoid
-             * displacing each other.
-             */
-            if (upd->type == WT_UPDATE_MODIFY && upd->next != NULL &&
-              upd->start_ts == upd->next->start_ts && upd->txnid == upd->next->txnid) {
-                WT_ERR(__las_squash_modifies(session, cursor, &upd));
-                ++insert_cnt;
-                continue;
-            }
-
-            cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, upd->type, &las_value);
-
-            /*
-             * Set the current update start time pair as the commit time pair of the LAS
-             * transaction.
-             */
-            if (upd->start_ts != WT_TS_NONE)
-                WT_ERR(__wt_txn_set_commit_timestamp(session, upd->start_ts));
-            cache->las_txnid = upd->txnid;
-
-            /*
-             * Using update instead of insert so the page stays pinned and can be searched before
-             * the tree.
-             */
-            WT_ERR(cursor->update(cursor));
+            WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd, &stop_ts, &stop_txnid));
             ++insert_cnt;
-
-            /* Append a delete record to represent stop time pair for the above insert record */
-            cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts, stop_txnid);
-
-            /*
-             * Set the stop time pair as the commit time pair of the LAS transaction to represent
-             * delete operation.
-             */
-            if (stop_ts != WT_TS_NONE)
-                WT_ERR(__wt_txn_set_commit_timestamp(session, stop_ts));
-            cache->las_txnid = stop_txnid;
-
-            /* Remove the inserted record with stop timestamp. */
-            WT_ERR(cursor->remove(cursor));
-            ++insert_cnt;
-
-            /*
-             * Store the current update commit timestamp and transaction id, these are the stop
-             * timestamp and transaction id's for the next record in the update list.
-             */
-            stop_ts = upd->start_ts;
-            stop_txnid = upd->txnid;
 
             /*
              * If we encounter subsequent updates with the same timestamp, skip them to avoid

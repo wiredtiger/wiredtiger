@@ -196,9 +196,12 @@ struct __wt_cache {
     bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
     uint32_t las_fileid;       /* Lookaside table file ID */
-    uint64_t las_txnid;        /* Original txnid of the lookaside record */
     uint64_t las_insert_count; /* Count of inserts to lookaside */
     uint64_t las_remove_count; /* Count of removes from lookaside */
+
+    /* Original transaction time pair to use for the lookaside inserts */
+    uint64_t org_txnid_to_las;
+    wt_timestamp_t org_timestamp_to_las;
 
     bool las_reader; /* Indicate an LAS reader to sweep */
     WT_RWLOCK las_sweepwalk_lock;
@@ -290,6 +293,11 @@ struct __wt_cache_pool {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
+
+/*
+ * Optimize comparisons against the lookaside URI, flag handles that reference the lookaside file.
+ */
+#define WT_IS_BTREE_LOOKASIDE(session) F_ISSET(S2BT((session)), WT_BTREE_LOOKASIDE)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */
