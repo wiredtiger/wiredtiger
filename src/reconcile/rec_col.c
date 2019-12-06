@@ -983,9 +983,9 @@ compare:
             update_no_copy = true;
 
             /*
-            * The application may have inserted records which left gaps in the name space, and
-            * these gaps can be huge. If we're in a set of deleted records, skip the boring part.
-            */
+             * The application may have inserted records which left gaps in the name space, and
+             * these gaps can be huge. If we're in a set of deleted records, skip the boring part.
+             */
             if (src_recno < n) {
                 deleted = true;
                 if (last.deleted && (!__wt_process.page_version_ts ||
