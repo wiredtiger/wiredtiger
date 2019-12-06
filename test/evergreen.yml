@@ -132,7 +132,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|}
+          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
         done
   "many dbs test":
     command: shell.exec
@@ -141,7 +141,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./t ${many_db_args|}
+        ${test_env_vars|} ./t ${many_db_args|} 2>&1
   "thread test":
     command: shell.exec
     parms:
@@ -149,7 +149,7 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./t ${thread_test_args|}
+        ${test_env_vars|} ./t ${thread_test_args|} 2>&1
   "random abort test":
     command: shell.exec
     parms:
@@ -157,7 +157,23 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./test_random_abort ${random_abort_args|}
+        ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+  "timestamp abort test":
+    command: shell.exec
+    parms:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_timestamp_abort ${timestamp_abort_args|} 2>&1
+  "truncated log test":
+    command: shell.exec
+    parms:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -632,14 +648,7 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+      - func: "truncated log test"
 
   - name: csuite-wt1965-col-efficiency-test
     tags: ["pull_request"]
@@ -1747,14 +1756,7 @@ tasks:
           random_abort_args: -t 40
       
       # truncated-log
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/csuite/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ./test_truncated_log
+      - func: "truncated log test"
       
       # format test
       - func: "test format"
@@ -1783,6 +1785,40 @@ tasks:
             set -o verbose
 
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
+
+  - name: recovery-stress-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      # Run the various combinations of args.  Let time and threads be random.
+      # Run current version with write-no-sync txns.
+      - func: "random abort test"
+      - func: "timestamp abort test"
+      # Current version with memory-based txns (MongoDB usage).
+      - func: "random abort test"
+        vars: 
+          random_abort_args: -m
+      - func: "timestamp abort test"
+        vars: 
+          random_abort_args: -m
+      # V1 log compatibility mode with write-no-sync txns.
+      - func: "random abort test"
+        vars: 
+          random_abort_args: -C
+      - func: "timestamp abort test"
+        vars: 
+          random_abort_args: -C
+      # V1 log compatibility mode with memory-based txns.
+      - func: "random abort test"
+        vars: 
+          random_abort_args: -C -m
+      - func: "timestamp abort test"
+        vars: 
+          random_abort_args: -C -m
+      # Truncate log test.
+      - func: "truncated log test"
 
 buildvariants:
 - name: ubuntu1804
