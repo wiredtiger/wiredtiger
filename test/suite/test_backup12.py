@@ -150,19 +150,24 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
         # Now do an incremental backup.
         config = 'incremental=(src_id="ID1",this_id="ID2")'
         bkup_c = self.session.open_cursor('backup:', None, config)
+        self.pr('Open backup cursor ID1')
         while True:
             ret = bkup_c.next()
             if ret != 0:
                 break
             newfile = bkup_c.get_key()
             config = 'incremental=(file=' + newfile + ')'
+            self.pr('Open incremental cursor with ' + config)
             dup_cnt = 0
             dupc = self.session.open_cursor(None, bkup_c, config)
             while True:
                 ret = dupc.next()
                 if ret != 0:
                     break
-                [offset,size,curtype] = dupc.get_key()
+                incrlist = dupc.get_keys()
+                offset = incrlist[0]
+                size = incrlist[1]
+                curtype = incrlist[2]
                 self.assertEqual(offset, 0)
                 # For now assert WT_BACKUP_FILE (which is 1).
                 self.assertEqual(curtype, 1)

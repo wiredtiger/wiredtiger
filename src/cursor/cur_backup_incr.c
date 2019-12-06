@@ -9,43 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __curbackup_incr_get_key --
- *     WT_CURSOR->get_key for incremental hot backup cursors.
- */
-static int
-__curbackup_incr_get_key(WT_CURSOR *cursor, ...)
-{
-    WT_CURSOR_BACKUP *cb;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    uint64_t offset, size, type;
-    va_list ap;
-
-    va_start(ap, cursor);
-    cb = (WT_CURSOR_BACKUP *)cursor;
-    CURSOR_API_CALL(cursor, session, get_key, NULL);
-
-    WT_ERR(__cursor_needkey(cursor));
-
-    offset = cb->incr_list[cb->incr_list_offset];
-    type = cb->incr_list[cb->incr_list_offset + 2];
-#if 0
-    if (type == WT_BACKUP_RANGE)
-        size = WT_MIN(cb->incr_list[cb->incr_list_offset + 1], cb->incr_granularity);
-#else
-    size = cb->incr_list[cb->incr_list_offset + 1];
-#endif
-
-    *va_arg(ap, uint64_t *) = offset;
-    *va_arg(ap, uint64_t *) = size;
-    *va_arg(ap, uint64_t *) = type;
-
-err:
-    va_end(ap);
-    API_END_RET(session, ret);
-}
-
-/*
  * __alloc_merge --
  *     Merge two allocation lists.
  */
@@ -110,6 +73,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
     wt_off_t size;
     uint64_t *a, *b, *current, *next;
     uint64_t entries, total;
+    uint32_t raw;
     bool start, stop;
 
     ckptbase = NULL;
@@ -117,7 +81,9 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     btree = cb->incr_cursor == NULL ? NULL : ((WT_CURSOR_BTREE *)cb->incr_cursor)->btree;
+    raw = F_MASK(cursor, WT_CURSTD_RAW);
     CURSOR_API_CALL(cursor, session, get_value, btree);
+    F_CLR(cursor, WT_CURSTD_RAW);
 
     if (cb->incr_init) {
         /* We have this object's incremental information, Check if we're done. */
@@ -139,16 +105,18 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
+#if 0
         WT_ERR(__wt_calloc_def(session, WT_BACKUP_INCR_COMPONENTS, &cb->incr_list));
         cb->incr_list[0] = 0;
         cb->incr_list[1] = (uint64_t)size;
         cb->incr_list[2] = (uint64_t)WT_BACKUP_FILE;
-        cb->incr_list_count = WT_BACKUP_INCR_COMPONENTS;
-        cb->incr_list_offset = 0;
         WT_ERR(__wt_scr_alloc(session, 0, &cb->incr_block));
+#else
+        cb->incr_list_count = WT_BACKUP_INCR_COMPONENTS;
         cb->incr_init = true;
-
-        F_SET(cursor, WT_CURSTD_KEY_EXT | WT_CURSTD_VALUE_EXT);
+        cb->incr_list_offset = 0;
+        __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
+#endif
     } else {
         /*
          * We don't have this object's incremental information, and it's not a full file copy. Get a
@@ -224,6 +192,7 @@ err:
     __wt_free(session, a);
     __wt_free(session, b);
     __wt_meta_ckptlist_free(session, &ckptbase);
+    F_SET(cursor, raw);
     API_END_RET(session, ret);
 }
 
@@ -269,16 +238,17 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
 #else
     WT_UNUSED(session);
 #endif
-
-    cursor->key_format = "qqq";
+    cursor->key_format = WT_UNCHECKED_STRING(qqq);
     cursor->value_format = "";
 
+    /*
+     * Inherit from the backup cursor but reset specific functions for incremental.
+     */
     cursor->next = __curbackup_incr_next;
-    cursor->get_key = __curbackup_incr_get_key;
+    cursor->get_key = __wt_cursor_get_key;
     cursor->get_value = __wt_cursor_get_value_notsup;
-
-/* We need a starting checkpoint. */
 #if 0
+    /* We need a starting checkpoint. */
     if (other_cb->incr->ckpt_name == NULL)
         WT_ERR_MSG(session, EINVAL,
           "a starting checkpoint must be specified to open a hot backup cursor for file-based "

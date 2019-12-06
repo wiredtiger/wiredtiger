@@ -302,8 +302,8 @@ take_full_backup(WT_SESSION *session, int i)
 static void
 take_incr_backup(WT_SESSION *session, int i)
 {
-    WT_CURSOR *backup_cur, *incr_cur;
     FILELIST *flist;
+    WT_CURSOR *backup_cur, *incr_cur;
     uint64_t offset, size, type;
     size_t alloc, count;
     int j, ret, rfd, wfd;
