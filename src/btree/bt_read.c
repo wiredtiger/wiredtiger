@@ -167,7 +167,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_TIME_PAIR start, stop;
     } * las_preparep;
     WT_BIRTHMARK_DETAILS *birthmarkp;
-    WT_CACHE *cache;
     WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(las_prepares);
@@ -185,10 +184,9 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp, exact;
-    bool birthmark_record, first_scan, locked;
+    bool birthmark_record, first_scan;
 
     birthmarkp = NULL;
-    cache = S2C(session)->cache;
     las_cursor = NULL;
     WT_CLEAR(las_key);
     WT_CLEAR(las_key_tmp);
@@ -204,7 +202,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     instantiated_cnt = 0;
     birthmark_record = false;
-    locked = false;
 
     /*
      * Check whether the disk image contains all the newest versions of the page. If the lookaside
@@ -272,12 +269,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
      * next entry is guaranteed to be for the next key in the LAS and again set the search for the
      * next key with maximum timestamp and transaction id.
      */
-    cache->las_reader = true;
-    __wt_readlock(session, &cache->las_sweepwalk_lock);
-    cache->las_reader = false;
     notused = size = total_incr = 0;
     first_scan = true;
-    locked = true;
     las_cursor->set_key(las_cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX,
       WT_TS_MAX, WT_TXN_MAX);
     for (; ret == 0; ret = las_cursor->next(las_cursor)) {
@@ -445,8 +438,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         upd = NULL;
     }
 
-    __wt_readunlock(session, &cache->las_sweepwalk_lock);
-    locked = false;
     WT_ERR_NOTFOUND_OK(ret);
 
     /* Instantiate the remaining birthmark entries. */
@@ -497,8 +488,6 @@ err:
          birthmark_cnt < page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++)
         birthmarkp->instantiated = false;
 
-    if (locked)
-        __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_free(session, upd);

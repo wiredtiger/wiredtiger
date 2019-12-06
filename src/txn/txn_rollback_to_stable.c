@@ -44,7 +44,6 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     F_SET(session, WT_SESSION_READ_WONT_NEED);
 
     /* Walk the file. */
-    __wt_writelock(session, &conn->cache->las_sweepwalk_lock);
     while ((ret = cursor->next(cursor)) == 0) {
         ++las_total;
         WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
@@ -76,7 +75,6 @@ err:
         conn->cache->las_insert_count = las_total;
         conn->cache->las_remove_count = 0;
     }
-    __wt_writeunlock(session, &conn->cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);
@@ -427,13 +425,11 @@ __txn_rollback_to_stable_check(WT_SESSION_IMPL *session)
      * against spurious conflicts with the sweep server: we exclude it from running concurrent with
      * rolling back the lookaside contents.
      */
-    __wt_writelock(session, &conn->cache->las_sweepwalk_lock);
     ret = __wt_txn_activity_check(session, &txn_active);
 #ifdef HAVE_DIAGNOSTIC
     if (txn_active)
         WT_TRET(__wt_verbose_dump_txn(session));
 #endif
-    __wt_writeunlock(session, &conn->cache->las_sweepwalk_lock);
 
     if (ret == 0 && txn_active)
         WT_RET_MSG(session, EINVAL, "rollback_to_stable illegal with active transactions");
