@@ -213,6 +213,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_ITEM las_key, las_value;
     WT_MODIFY_VECTOR modifies;
@@ -222,7 +223,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_UPDATE *birthmark_upd, *first_txn_upd, *first_inmem_upd, *inmem_upd_pos, *last_inmem_upd;
     WT_UPDATE *tmp_upd, *upd;
     wt_timestamp_t durable_ts, max_ts, mod_upd_ts;
-    size_t notused, upd_memsize;
+    size_t notused, size, upd_memsize;
     uint64_t max_txn, txnid;
     uint32_t las_btree_id, session_flags;
     uint8_t *p, prepare_state, upd_type;
@@ -632,7 +633,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
             upd_select->start_txn = vpack->start_txn;
+            /*
+             * Leaving the update unset means that we can skip reconciling. If we've set the stop
+             * time pair because of a tombstone after the on-disk value, we still have work to do so
+             * that is NOT ok. Let's allocate an update equivalent to the on-disk value and continue
+             * on our way!
+             */
+            WT_RET(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
+            WT_ERR(__wt_update_alloc(session, tmp, &upd_select->upd, &size, WT_UPDATE_STANDARD));
+            upd_select->upd->ext = 1;
         }
+        WT_ASSERT(session, upd == NULL || upd_select->upd->type != WT_UPDATE_TOMBSTONE);
 
         /*
          * Finalize the timestamps and transactions, checking if the update is globally visible and
@@ -765,6 +777,7 @@ check_original_value:
     }
 
 err:
+    __wt_scr_free(session, &tmp);
     __wt_free_update_list(session, &tmp_upd);
     while (modifies.size > 0) {
         __wt_modify_vector_pop(&modifies, &tmp_upd);
