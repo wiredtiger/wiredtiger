@@ -98,7 +98,7 @@ __wt_col_search(
 	 * cursor is being re-positioned.  Skip this if the page is being
 	 * re-instantiated in memory. when the cursor is being re-positioned.
 	 * Skip that check if we know the page is the right one
-     * (for example, when re-instantiating a page in memory, in that
+	 * (for example, when re-instantiating a page in memory, in that
 	 * case we know the target must be on the current page).
 	 */
 	if (leaf != NULL) {

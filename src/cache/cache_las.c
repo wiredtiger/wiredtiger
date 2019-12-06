@@ -704,8 +704,11 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 	WT_ERR(__wt_txn_begin(session, NULL));
 	local_txn = true;
 
-     /* Inserts should be on the same page absent a split, search any pinned leaf page. */
-    F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
+	/*
+	 * Inserts should be on the same page absent a split, search any pinned
+	 * leaf page.
+	 */
+	F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
 
 	/* Enter each update in the boundary's list into the lookaside store. */
 	for (las_counter = 0, i = 0,
@@ -801,10 +804,10 @@ __wt_las_insert_block(WT_CURSOR *cursor,
 				    &las_timestamp, upd->prepare_state,
 				    upd->type, &las_value);
 
-	    /*
-	     * Using update instead of insert so the page stays pinned
-			 * and can be searched before the tree.
-	     */
+			/*
+			 * Using update instead of insert so the page stays
+			 * pinned and can be searched before the tree.
+			 */
 			WT_ERR(cursor->update(cursor));
 			++insert_cnt;
 		} while ((upd = upd->next) != NULL);
