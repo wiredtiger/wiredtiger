@@ -1849,6 +1849,7 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: recovery-stress-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
