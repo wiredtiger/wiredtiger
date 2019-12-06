@@ -701,8 +701,6 @@ __wt_rec_row_leaf(
     val = &r->v;
     vpack = &_vpack;
 
-    upd = NULL;
-
     /*
      * Acquire the newest-durable timestamp for this page so we can roll it forward. If it exists,
      * it's in the WT_REF structure or the parent's disk image.
@@ -895,9 +893,6 @@ __wt_rec_row_leaf(
             default:
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
-            /* Free the update if it is external. */
-            if (upd->ext != 0)
-                __wt_free_update_list(session, &upd);
         }
 
         /*
@@ -1006,11 +1001,6 @@ build:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-
-    /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
-        __wt_free_update_list(session, &upd);
-
     __wt_scr_free(session, &tmpkey);
     __wt_scr_free(session, &tmpval);
     return (ret);

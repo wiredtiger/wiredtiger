@@ -323,7 +323,6 @@ int
 __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 {
     WT_BTREE *btree;
-    WT_DECL_RET;
     WT_INSERT *ins;
     WT_PAGE *page;
     WT_UPDATE *upd;
@@ -333,7 +332,6 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
     btree = S2BT(session);
     page = pageref->page;
-    upd = NULL;
 
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage));
 
@@ -347,9 +345,6 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (upd != NULL) {
             __bit_setv(
               r->first_free, WT_INSERT_RECNO(ins) - pageref->ref_recno, btree->bitcnt, *upd->data);
-            /* Free the update if it is external. */
-            if (upd->ext != 0)
-                __wt_free_update_list(session, &upd);
         }
     }
 
@@ -416,16 +411,12 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
              * last, allowing it to grow in the future.
              */
             __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
-            WT_ERR(__wt_rec_split(session, r, 0, false));
+            WT_RET(__wt_rec_split(session, r, 0, false));
 
             /* Calculate the number of entries per page. */
             entry = 0;
             nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
         }
-
-        /* Free the update if it is external. */
-        if (upd != NULL && upd->ext != 0)
-            __wt_free_update_list(session, &upd);
 
         /*
          * Execute this loop once without an insert item to catch any missing records due to a
@@ -439,14 +430,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
     /* Write the remnant page. */
-    ret = __wt_rec_split_finish(session, r);
-
-err:
-    /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
-        __wt_free_update_list(session, &upd);
-
-    return (ret);
+    return (__wt_rec_split_finish(session, r));
 }
 
 /*
@@ -780,8 +764,8 @@ __wt_rec_col_var(
                 ins = WT_SKIP_NEXT(ins);
             }
 
-            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
-            repeat_count = 1;                              /* Single record */
+            update_no_copy = true; /* No data copy */
+            repeat_count = 1;      /* Single record */
             deleted = false;
 
             if (upd != NULL) {
@@ -929,10 +913,6 @@ compare:
                     WT_ERR(__wt_buf_set(session, last.value, data, size));
             }
 
-            /* Free the update if it is external. */
-            if (upd != NULL && upd->ext != 0)
-                __wt_free_update_list(session, &upd);
-
             last.start_ts = start_ts;
             last.start_txn = start_txn;
             last.stop_ts = stop_ts;
@@ -999,13 +979,13 @@ compare:
             stop_txn = upd_select.stop_txn;
         }
         while (src_recno <= n) {
-            update_no_copy = upd == NULL || upd->ext == 0; /* No data copy */
             deleted = false;
+            update_no_copy = true;
 
             /*
-             * The application may have inserted records which left gaps in the name space, and
-             * these gaps can be huge. If we're in a set of deleted records, skip the boring part.
-             */
+            * The application may have inserted records which left gaps in the name space, and
+            * these gaps can be huge. If we're in a set of deleted records, skip the boring part.
+            */
             if (src_recno < n) {
                 deleted = true;
                 if (last.deleted && (!__wt_process.page_version_ts ||
@@ -1096,10 +1076,6 @@ compare:
                     WT_ERR(__wt_buf_set(session, last.value, data, size));
             }
 
-            /* Free the update if it is external. */
-            if (upd != NULL && upd->ext != 0)
-                __wt_free_update_list(session, &upd);
-
             /* Ready for the next loop, reset the RLE counter. */
             last.start_ts = start_ts;
             last.start_txn = start_txn;
@@ -1135,10 +1111,6 @@ next:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-    /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
-        __wt_free_update_list(session, &upd);
-
     __wt_scr_free(session, &orig);
     return (ret);
 }
