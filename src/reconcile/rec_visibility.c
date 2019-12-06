@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __rec_update_durable --
- *     Return whether an update is suitable for writing to a disk image.
+ * __rec_update_stable --
+ *     Return whether an update is stable or not.
  */
 static bool
-__rec_update_durable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
+__rec_update_stable(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
 {
     return (F_ISSET(r, WT_REC_VISIBLE_ALL) ?
         __wt_txn_upd_visible_all(session, upd) :
@@ -121,7 +121,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
   WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
-    WT_UPDATE *first_durable_upd, *first_txn_upd, *first_upd, *upd;
+    WT_UPDATE *first_stable_upd, *first_txn_upd, *first_upd, *upd;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
@@ -135,7 +135,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->upd_saved = false;
 
     page = r->page;
-    first_durable_upd = first_txn_upd = upd = NULL;
+    first_stable_upd = first_txn_upd = upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -173,12 +173,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * prepared transaction IDs are globally visible, need to check the update state as well.
          */
         if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
-                                            !__txn_visible_id(session, txnid)) {
+                                             !__txn_visible_id(session, txnid)) {
             r->update_uncommitted = list_uncommitted = true;
             continue;
         }
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
-            upd->prepare_state == WT_PREPARE_INPROGRESS) {
+          upd->prepare_state == WT_PREPARE_INPROGRESS) {
             r->update_inprogress = list_prepared = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
@@ -195,7 +195,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
-        if (!__rec_update_durable(session, r, upd)) {
+        if (!__rec_update_stable(session, r, upd)) {
             if (F_ISSET(r, WT_REC_EVICT))
                 ++r->updates_unstable;
 
@@ -217,15 +217,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             if (upd_select->upd == NULL && upd->start_ts < r->min_skipped_ts)
                 r->min_skipped_ts = upd->start_ts;
-            
+
             continue;
-        } else {
+        } else if (first_stable_upd == NULL)
             /*
              * Track the first update in the chain that is durable.
              */
-            if (first_durable_upd == NULL)
-                first_durable_upd = upd;
-        }
+            first_stable_upd = upd;
 
         if (!F_ISSET(r, WT_REC_EVICT))
             break;
@@ -252,7 +250,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /* If the selected on disk value is durable, record that we're making progress. */
-    if (upd == first_durable_upd)
+    /* FIXME: Should remove this when we change the eviction flow */
+    if (upd == first_stable_upd)
         r->update_used = true;
 
     if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
@@ -326,8 +325,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
-    all_stable = !list_prepared && !list_uncommitted &&
-      __wt_txn_visible_all(session, max_txn, max_ts);
+    all_stable =
+      !list_prepared && !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
         goto check_original_value;
@@ -338,6 +337,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
 
     /* If not trying to evict the page, we know what we'll write and we're done. */
+    /* FIXME We need to save updates for checkpoints as it needs to write to history store as well
+     */
     if (!F_ISSET(r, WT_REC_EVICT))
         goto check_original_value;
 
@@ -378,7 +379,7 @@ check_original_value:
      */
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved ||
-        (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+          (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
         WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
 
     return (0);
