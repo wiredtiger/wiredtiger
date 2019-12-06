@@ -5,10 +5,6 @@
 	exit 1
 }
 
-# Enable job control so child processes we create appear in their own process groups and we can
-# individually terminate (and clean up) running jobs and their children.
-set -m
-
 name=$(basename $0)
 
 quit=0
@@ -137,68 +133,54 @@ verbose()
 
 verbose "$name: run starting at $(date)"
 
-# Find a component we need.
-# $1 name to find
-find_file()
-{
-	# Get the directory path to format.sh, which is always in wiredtiger/test/format, then
-	# use that as the base for all the other places we check.
-	d=$(dirname $0)
-
-	# Check wiredtiger/test/format/, likely location of the format binary and the CONFIG file.
-	f="$d/$1"
-	if [[ -f "$f" ]]; then
-		echo "$f"
-		return
-	fi
-
-	# Check wiredtiger/build_posix/test/format/, likely location of the format binary and the
-	# CONFIG file.
-	f="$d/../../build_posix/test/format/$1"
-	if [[ -f "$f" ]]; then
-		echo "$f"
-		return
-	fi
-
-	# Check wiredtiger/, likely location of the wt binary.
-	f="$d/../../$1"
-	if [[ -f "$f" ]]; then
-		echo "$f"
-		return
-	fi
-
-	# Check wiredtiger/build_posix/, likely location of the wt binary.
-	f="$d/../../build_posix/$1"
-	if [[ -f "$f" ]]; then
-		echo "$f"
-		return
-	fi
-
-	echo "./$1"
-}
-
-# Find the format and wt binaries (the latter is only required for abort/recovery testing),
-# the configuration file and the run directory.
-format_binary=$(find_file "t")
-[[ ! -x "$format_binary" ]] && {
-	echo "$name: format program \"$format_binary\" not found"
-	exit 1
-}
-[[ $abort_test -ne 0 ]] || [[ $smoke_test -ne 0 ]] && {
-	wt_binary=$(find_file "wt")
-	[[ ! -x "$wt_binary" ]] && {
-		echo "$name: wt program \"$wt_binary\" not found"
-		exit 1
-	}
-}
-config=$(find_file "$config")
-[[ -f "$config" ]] || {
-	echo "$name: configuration file \"$config\" not found"
-	exit 1
-}
+# Home is possibly relative to our current directory and we're about to change directories.
+# Get an absolute path for home.
 [[ -d "$home" ]] || {
 	echo "$name: directory \"$home\" not found"
 	exit 1
+}
+home=$(cd $home && echo $PWD)
+
+# Config is possibly relative to our current directory and we're about to change directories.
+# Get an absolute path for config if it's local.
+config_found=0
+[[ -f "$config" ]] && config_found=1 && config="$PWD/$config"
+
+# Move to the format.sh directory (assumed to be in a WiredTiger build tree).
+cd $(dirname $0) || exit 1
+
+# If we haven't already found it, check for the config file (by default it's CONFIG.stress which
+# lives in the same directory of the WiredTiger build tree as format.sh. We're about to change
+# directories if we don't find the format binary here, get an absolute path for config if it's
+# local.
+[[ $config_found -eq 0 ]] && [[ -f "$config" ]] && config="$PWD/$config"
+
+# Find the format binary. Builds are normally in the WiredTiger source tree, in which case it's
+# in the same directory as format.sh, else it's in the build_posix tree. If the build is in the
+# build_posix tree, move there, we have to run in the directory where the format binary lives
+# because the format binary "knows" the wt utility is two directory levels above it.
+format_binary="./t"
+[[ -x $format_binary ]] || {
+	build_posix_directory="../../build_posix/test/format"
+	[[ ! -d $build_posix_directory ]] || cd $build_posix_directory || exit 1
+	[[ -x $format_binary ]] || {
+		echo "$name: format program \"$format_binary\" not found"
+		exit 1
+	}
+}
+
+# Find the wt binary (required for abort/recovery testing).
+wt_binary="../../wt"
+[[ -x $wt_binary ]] || {
+	echo "$name: wt program \"$wt_binary\" not found"
+	exit 1
+}
+
+# We tested for the CONFIG file in the original directory, then in the WiredTiger source directory,
+# the last place to check is in the WiredTiger build directory. Fail if we don't find it.
+[[ -f "$config" ]] || {
+    echo "$name: configuration file \"$config\" not found"
+    exit 1
 }
 
 verbose "$name configuration: $format_binary [-c $config]\
@@ -237,7 +219,7 @@ resolve()
 		log="$dir.log"
 
 		# Skip directories that aren't ours.
-		[[ ! -f "$log" ]] && continue
+		[[ -f "$log" ]] || continue
 
 		# Skip failures we've already reported.
 		[[ -f "$dir/$status" ]] && continue
@@ -342,7 +324,7 @@ resolve()
 		$((128 + 31)))
 			signame="SIGSYS";;
 		esac
-		[[ ! -z $signame ]] && {
+		[[ -z $signame ]] || {
 			(echo
 			 echo "$name: job in $dir killed with signal $signame"
 			 echo "$name: there may be a core dump associated with this failure"
@@ -355,6 +337,12 @@ resolve()
 			continue
 		}
 
+		# If we don't understand why the job exited, report it as a failure and flag
+		# a problem in this script.
+		echo "$name: job in $dir exited with status $eret for an unknown reason"
+		echo "$name: reporting job in $dir as a failure"
+		echo "$name: $name needs to be updated"
+		report_failure $dir
 	done
 	return 0
 }
@@ -385,7 +373,9 @@ format()
 
 	# Disassociate the command from the shell script so we can exit and let the command
 	# continue to run.
-	nohup $cmd > $log 2>&1 &
+	# Run format in its own session so child processes are in their own process gorups
+	# and we can individually terminate (and clean up) running jobs and their children.
+	nohup setsid $cmd > $log 2>&1 &
 }
 
 seconds=$((minutes * 60))
