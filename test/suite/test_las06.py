@@ -180,6 +180,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_las_prepare_reads(self):
         # Create a small table.
         uri = "table:test_las06"
@@ -233,6 +234,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(value2, cursor[i])
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_las_multiple_updates(self):
         # Create a small table.
         uri = "table:test_las06"
@@ -272,6 +274,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEquals(cursor[i], value3)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_las_multiple_modifies(self):
         # Create a small table.
         uri = "table:test_las06"
@@ -441,6 +444,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[i], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_las_rec_modify(self):
         # Create a small table.
         uri = "table:test_las06"
