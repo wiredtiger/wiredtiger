@@ -42,7 +42,7 @@ struct __wt_reconcile {
 
     bool update_uncommitted; /* An update was uncommitted. */
     bool update_inprogress;  /* An update in prepare */
-    bool update_used; /* An update could be used. */
+    bool update_used;        /* An update could be used. */
 
     /*
      * When we can't mark the page clean (for example, checkpoint found some uncommitted updates),
