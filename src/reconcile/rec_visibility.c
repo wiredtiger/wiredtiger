@@ -843,16 +843,6 @@ __wt_rec_upd_select_new(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *in
             if (F_ISSET(r, WT_REC_EVICT))
                 ++r->updates_unstable;
 
-            /*
-             * Rare case: when applications run at low isolation levels, update/restore eviction may
-             * see a stable update followed by an uncommitted update. Give up in that case: we need
-             * to discard updates from the stable update and older for correctness and we can't
-             * discard an uncommitted update.
-             */
-            if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
-              (list_prepared || list_uncommitted))
-                return (__wt_set_return(session, EBUSY));
-
             continue;
         }
 
