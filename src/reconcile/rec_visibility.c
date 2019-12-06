@@ -758,3 +758,253 @@ err:
 
     return (ret);
 }
+
+/*
+ * __wt_rec_upd_select_new --
+ *     Return the update in a list that should be written for both eviction and checkpoint (or NULL
+ *     if none can be written).
+ */
+int
+__wt_rec_upd_select_new(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
+  WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
+{
+    WT_PAGE *page;
+    WT_UPDATE *first_upd, *upd;
+    wt_timestamp_t max_ts;
+    size_t upd_memsize;
+    uint64_t max_txn, txnid;
+    bool all_stable, list_prepared, list_uncommitted;
+
+    /*
+     * The "saved updates" return value is used independently of returning an update we can write,
+     * both must be initialized.
+     */
+    upd_select->upd = NULL;
+    upd_select->upd_saved = false;
+
+    page = r->page;
+    upd = NULL;
+    upd_memsize = 0;
+    max_ts = WT_TS_NONE;
+    max_txn = WT_TXN_NONE;
+    list_prepared = list_uncommitted = false;
+
+    /*
+     * If called with a WT_INSERT item, use its WT_UPDATE list (which must
+     * exist), otherwise check for an on-page row-store WT_UPDATE list
+     * (which may not exist). Return immediately if the item has no updates.
+     */
+    if (ins != NULL)
+        first_upd = ins->upd;
+    else if ((first_upd = WT_ROW_UPDATE(page, ripcip)) == NULL)
+        return (0);
+
+    for (upd = first_upd; upd != NULL; upd = upd->next) {
+        if ((txnid = upd->txnid) == WT_TXN_ABORTED)
+            continue;
+
+        ++r->updates_seen;
+        upd_memsize += WT_UPDATE_MEMSIZE(upd);
+
+        /* Track the max txnid */
+        if (WT_TXNID_LT(max_txn, txnid))
+            max_txn = txnid;
+
+        /*
+         * Check whether the update was committed before reconciliation started. The global commit
+         * point can move forward during reconciliation so we use a cached copy to avoid races when
+         * a concurrent transaction commits or rolls back while we are examining its updates. As
+         * prepared transaction IDs are globally visible, need to check the update state as well.
+         */
+        if (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
+                                             !__txn_visible_id(session, txnid)) {
+            r->update_uncommitted = list_uncommitted = true;
+            continue;
+        }
+        if (upd->prepare_state == WT_PREPARE_LOCKED ||
+          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+            list_prepared = true;
+            if (upd->start_ts > max_ts)
+                max_ts = upd->start_ts;
+            continue;
+        }
+
+        /* Track the first update with non-zero timestamp. */
+        if (upd->durable_ts > max_ts)
+            max_ts = upd->durable_ts;
+
+        /*
+         * Always select the newest committed update to write to disk
+         */
+        if (upd_select->upd == NULL)
+            upd_select->upd = upd;
+
+        if (!__rec_update_durable(session, r, upd)) {
+            if (F_ISSET(r, WT_REC_EVICT))
+                ++r->updates_unstable;
+
+            /*
+             * Rare case: when applications run at low isolation levels, update/restore eviction may
+             * see a stable update followed by an uncommitted update. Give up in that case: we need
+             * to discard updates from the stable update and older for correctness and we can't
+             * discard an uncommitted update.
+             */
+            if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
+              (list_prepared || list_uncommitted))
+                return (__wt_set_return(session, EBUSY));
+
+            continue;
+        }
+
+        if (!F_ISSET(r, WT_REC_EVICT))
+            break;
+    }
+
+    /* Keep track of the selected update. */
+    upd = upd_select->upd;
+
+    /* Reconciliation should never see an aborted or reserved update. */
+    WT_ASSERT(
+      session, upd == NULL || (upd->txnid != WT_TXN_ABORTED && upd->type != WT_UPDATE_RESERVE));
+
+    /*
+     * The checkpoint transaction is special. Make sure we never write metadata updates from a
+     * checkpoint in a concurrent session.
+     */
+    WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
+        upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+        WT_SESSION_IS_CHECKPOINT(session));
+
+    /* If all of the updates were aborted, quit. */
+    if (upd == NULL) {
+        return (0);
+    }
+
+    if (upd != NULL && upd->durable_ts > r->max_ondisk_ts)
+        r->max_ondisk_ts = upd->durable_ts;
+
+    /*
+     * TIMESTAMP-FIXME The start timestamp is determined by the commit timestamp when the key is
+     * first inserted (or last updated). The end timestamp is set when a key/value pair becomes
+     * invalid, either because of a remove or a modify/update operation on the same key.
+     */
+    if (upd != NULL) {
+        /*
+         * TIMESTAMP-FIXME This is waiting on the WT_UPDATE structure's start/stop
+         * timestamp/transaction work. For now, if we don't have a timestamp/transaction, just
+         * pretend it's durable. If we do have a timestamp/transaction, make the durable and start
+         * timestamps equal to the start timestamp and the start transaction equal to the
+         * transaction, and again, pretend it's durable.
+         */
+        upd_select->durable_ts = WT_TS_NONE;
+        upd_select->start_ts = WT_TS_NONE;
+        upd_select->start_txn = WT_TXN_NONE;
+        upd_select->stop_ts = WT_TS_MAX;
+        upd_select->stop_txn = WT_TXN_MAX;
+        if (upd_select->upd->start_ts != WT_TS_NONE)
+            upd_select->durable_ts = upd_select->start_ts = upd_select->upd->start_ts;
+        if (upd_select->upd->txnid != WT_TXN_NONE)
+            upd_select->start_txn = upd_select->upd->txnid;
+
+        /*
+         * Finalize the timestamps and transactions, checking if the update is globally visible and
+         * nothing needs to be written.
+         */
+        if ((upd_select->stop_ts == WT_TS_MAX && upd_select->stop_txn == WT_TXN_MAX) &&
+          ((upd_select->start_ts == WT_TS_NONE && upd_select->start_txn == WT_TXN_NONE) ||
+              __wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts))) {
+            upd_select->start_ts = WT_TS_NONE;
+            upd_select->start_txn = WT_TXN_NONE;
+            upd_select->stop_ts = WT_TS_MAX;
+            upd_select->stop_txn = WT_TXN_MAX;
+        }
+    }
+
+    /*
+     * Track the most recent transaction in the page. We store this in the tree at the end of
+     * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
+     * memory when they have changes required to satisfy a snapshot read.
+     */
+    if (WT_TXNID_LT(r->max_txn, max_txn))
+        r->max_txn = max_txn;
+
+    /* Update the maximum timestamp. */
+    if (max_ts > r->max_ts)
+        r->max_ts = max_ts;
+
+    /*
+     * If the update we chose was a birthmark.
+     */
+    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK) {
+        /*
+         * Resolve the birthmark now regardless of whether the update being written to the data file
+         * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
+         * two birthmark records in the same update chain.
+         */
+        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
+        upd_select->upd = NULL;
+    }
+
+    /*
+     * Check if all updates on the page are visible, if not, it must stay dirty.
+     *
+     * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
+     * maximum transaction ID and the newest update with a timestamp (if any).
+     */
+    all_stable =
+      !list_prepared && !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
+
+    if (all_stable)
+        goto check_original_value;
+
+    r->leave_dirty = true;
+
+    if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+        WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
+
+    /* If not trying to evict the page, we know what we'll write and we're done. */
+    if (!F_ISSET(r, WT_REC_EVICT))
+        goto check_original_value;
+
+    /*
+     * We are attempting eviction with changes that are not yet stable (i.e. globally visible).
+     * There are two ways to continue, the save/restore eviction path or the lookaside table
+     * eviction path. Both cannot be configured because the paths track different information. The
+     * update/restore path can handle uncommitted changes, by evicting most of the page and then
+     * creating a new, smaller page to which we re-attach those changes. Lookaside eviction writes
+     * changes into the lookaside table and restores them on demand if and when the page is read
+     * back into memory.
+     *
+     * Both paths are configured outside of reconciliation: the save/restore path is the
+     * WT_REC_UPDATE_RESTORE flag, the lookaside table path is the WT_REC_LOOKASIDE flag.
+     */
+    if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
+        return (__wt_set_return(session, EBUSY));
+    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
+        return (__wt_set_return(session, EBUSY));
+
+check_original_value:
+    WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
+
+    WT_RET(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+    upd_select->upd_saved = true;
+
+    /*
+     * Paranoia: check that we didn't choose an update that has since been rolled back.
+     */
+    WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid != WT_TXN_ABORTED);
+
+    /*
+     * Returning an update means the original on-page value might be lost, and that's a problem if
+     * there's a reader that needs it. This call makes a copy of the on-page value and if there is a
+     * birthmark in the update list, replaces it. We do that any time there are saved updates and
+     * during reconciliation of a backing overflow record that will be physically removed once it's
+     * no longer needed
+     */
+    if (upd_select->upd != NULL &&
+      (upd_select->upd_saved ||
+          (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
+        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
+
+    return (0);
+}
