@@ -798,17 +798,17 @@ __wt_rec_row_leaf(
                   session, r, p, size, false, start_ts, start_txn, stop_ts, stop_txn, 0));
                 dictionary = true;
             } else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
-                /*
-                 * If doing an update save and restore, and the underlying value is a removed
-                 * overflow value, we end up here.
-                 *
-                 * If necessary, when the overflow value was originally removed, reconciliation
-                 * appended a globally visible copy of the value to the key's update list, meaning
-                 * the on-page item isn't accessed after page re-instantiation.
-                 *
-                 * Assert the case.
-                 */
-                WT_ASSERT(session, F_ISSET(r, WT_REC_UPDATE_RESTORE));
+                // /*
+                //  * If doing an update save and restore, and the underlying value is a removed
+                //  * overflow value, we end up here.
+                //  *
+                //  * If necessary, when the overflow value was originally removed, reconciliation
+                //  * appended a globally visible copy of the value to the key's update list, meaning
+                //  * the on-page item isn't accessed after page re-instantiation.
+                //  *
+                //  * Assert the case.
+                //  */
+                // WT_ASSERT(session, F_ISSET(r, WT_REC_UPDATE_RESTORE));
 
                 /*
                  * If the key is also a removed overflow item, don't write anything at all.

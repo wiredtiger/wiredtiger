@@ -594,7 +594,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt, stop_txnid;
     uint32_t birthmarks_cnt, btree_id, i, slot;
     uint8_t *p;
-    bool local_txn;
+    bool local_txn, onpage_seen;
 
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
@@ -603,7 +603,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     insert_cnt = prepared_insert_cnt = 0;
     birthmarks_cnt = 0;
     btree_id = btree->id;
-    local_txn = false;
+    local_txn = onpage_seen = false;
 
     if (!btree->lookaside_entries)
         btree->lookaside_entries = true;
@@ -720,6 +720,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         do {
             if (upd->txnid == WT_TXN_ABORTED)
+                continue;
+
+            if (upd == list->onpage_upd) {
+                onpage_seen = true;
+                continue;
+            }
+            
+            if (!onpage_seen)
                 continue;
 
             switch (upd->type) {
