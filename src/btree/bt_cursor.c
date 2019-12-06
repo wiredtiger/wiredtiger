@@ -647,14 +647,15 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * WT_CURSOR.search, ignore pinned pages in the case of column-store, search-near isn't an
      * interesting enough case for column-store to add the complexity needed to avoid the tree
      * search.
-     *
-     * Set the "insert" flag for the btree row-store search; we may intend to position the cursor at
-     * the end of the tree, rather than match an existing record.
      */
     valid = false;
     if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
+        /*
+         * Set the "insert" flag for row-store search; we may intend to position the cursor at the
+         * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
+         */
         WT_ERR(__cursor_row_search(cbt, true, cbt->ref, &leaf_found));
 
         /*
@@ -670,6 +671,11 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     }
     if (!valid) {
         WT_ERR(__cursor_func_init(cbt, true));
+
+        /*
+         * Set the "insert" flag for row-store search; we may intend to position the cursor at the
+         * the end of the tree, rather than match an existing record. (LSM requires this semantic.)
+         */
         WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, NULL, NULL) :
                                           __cursor_col_search(cbt, NULL, NULL));
         WT_ERR(__wt_cursor_valid(cbt, &upd, &valid));
