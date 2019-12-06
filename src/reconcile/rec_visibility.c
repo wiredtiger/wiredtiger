@@ -945,7 +945,7 @@ __wt_rec_upd_select_new(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *in
       !list_prepared && !list_uncommitted && __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
-        goto check_original_value;
+        goto save_and_check_original;
 
     r->leave_dirty = true;
 
