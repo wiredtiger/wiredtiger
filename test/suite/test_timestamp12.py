@@ -32,7 +32,6 @@
 
 import shutil, os, unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
-import unittest
 
 def timestamp_str(t):
     return '%x' % t
