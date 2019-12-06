@@ -964,7 +964,7 @@ __wt_rec_upd_select_new(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *in
 
     /* If not trying to evict the page, we know what we'll write and we're done. */
     if (!F_ISSET(r, WT_REC_EVICT))
-        goto check_original_value;
+        goto save_and_check_original;
 
     /*
      * We are attempting eviction with changes that are not yet stable (i.e. globally visible).
@@ -983,7 +983,7 @@ __wt_rec_upd_select_new(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *in
     if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
         return (__wt_set_return(session, EBUSY));
 
-check_original_value:
+save_and_check_original:
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
     WT_RET(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
