@@ -121,7 +121,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
   WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
 {
     WT_PAGE *page;
-    WT_UPDATE *first_durable_upd, *first_upd, *upd;
+    WT_UPDATE *first_durable_upd, *first_txn_upd, *first_upd, *upd;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
@@ -135,7 +135,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->upd_saved = false;
 
     page = r->page;
-    first_durable_upd = upd = NULL;
+    first_durable_upd = first_txn_upd = upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -158,7 +158,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         ++r->updates_seen;
         upd_memsize += WT_UPDATE_MEMSIZE(upd);
 
-        /* Track the max txnid */
+        /*
+         * Track the first update in the chain that is not aborted and the maximum transaction ID.
+         */
+        if (first_txn_upd == NULL)
+            first_txn_upd = upd;
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
 
@@ -175,7 +179,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
             upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            list_prepared = true;
+            r->update_inprogress = list_prepared = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
             continue;
@@ -243,7 +247,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_SESSION_IS_CHECKPOINT(session));
 
     /* If all of the updates were aborted, quit. */
-    if (upd == NULL) {
+    if (first_txn_upd == NULL) {
         return (0);
     }
 
@@ -322,7 +326,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      */
-    all_stable = upd == first_durable_upd && !list_prepared && !list_uncommitted &&
+    all_stable = !list_prepared && !list_uncommitted &&
       __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
