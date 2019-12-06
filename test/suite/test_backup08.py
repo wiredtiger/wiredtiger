@@ -31,7 +31,7 @@
 #
 
 import os, shutil
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
 
 def timestamp_str(t):
@@ -125,6 +125,7 @@ class test_backup08(wttest.WiredTigerTestCase):
         self.pr("query recovery ts: " + q)
         self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
 
+    @unittest.skip("Temporarily disabled")
     def test_timestamp_backup(self):
         # Add some data and checkpoint using the timestamp or not
         # depending on the configuration. Get the expected timestamp
