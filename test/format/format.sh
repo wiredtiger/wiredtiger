@@ -18,7 +18,7 @@ trap 'onintr' 2
 
 usage() {
 	echo "usage: $0 [-aFSv] [-c config] "
-	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
+	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [-p prefix-command][format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
 	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
@@ -29,6 +29,7 @@ usage() {
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
+	echo "    -p           prefix command to prepend before executable (defaults to empty)"
 	echo "    --           separates $name arguments from format arguments"
 
 	exit 1
@@ -74,6 +75,7 @@ parallel_jobs=8
 smoke_test=0
 total_jobs=0
 verbose=0
+prefix_cmd=""
 
 while :; do
 	case "$1" in
@@ -116,6 +118,9 @@ while :; do
 	-v)
 		verbose=1
 		shift ;;
+	-p)
+		prefix_cmd="$2"
+		shift; shift;;
 	--)
 		shift; break;;
 	-*)
@@ -368,7 +373,7 @@ format()
 		echo "$name: starting job in $dir"
 	fi
 
-	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$prefix_cmd $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
 	verbose "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
