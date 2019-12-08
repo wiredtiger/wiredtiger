@@ -26,10 +26,10 @@ usage() {
 	echo "    -h home      run directory (defaults to .)"
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
+	echo "    -p           prefix command to prepend before binary (defaults to empty)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
-	echo "    -p           prefix command to prepend before executable (defaults to empty)"
 	echo "    --           separates $name arguments from format arguments"
 
 	exit 1
@@ -105,6 +105,9 @@ while :; do
 			exit 1
 		}
 		shift ; shift ;;
+	-p)
+		prefix_cmd="$2"
+		shift; shift;;
 	-S)
 		smoke_test=1
 		shift ;;
@@ -118,9 +121,6 @@ while :; do
 	-v)
 		verbose=1
 		shift ;;
-	-p)
-		prefix_cmd="$2"
-		shift; shift;;
 	--)
 		shift; break;;
 	-*)
