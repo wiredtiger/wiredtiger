@@ -26,7 +26,7 @@ usage() {
 	echo "    -h home      run directory (defaults to .)"
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
-	echo "    -p           prefix command to prepend before binary (defaults to empty)"
+	echo "    -p           pre settings to prepend before binary (defaults to empty)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
@@ -75,7 +75,7 @@ parallel_jobs=8
 smoke_test=0
 total_jobs=0
 verbose=0
-prefix_cmd=""
+pre_setting=""
 
 while :; do
 	case "$1" in
@@ -106,7 +106,7 @@ while :; do
 		}
 		shift ; shift ;;
 	-p)
-		prefix_cmd="$2"
+		pre_setting="$2"
 		shift; shift;;
 	-S)
 		smoke_test=1
@@ -373,7 +373,7 @@ format()
 		echo "$name: starting job in $dir"
 	fi
 
-	cmd="$prefix_cmd $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$pre_setting $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
 	verbose "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
