@@ -18,7 +18,7 @@ trap 'onintr' 2
 
 usage() {
 	echo "usage: $0 [-aFSv] [-c config] "
-	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [-p prefix-command][format-configuration]"
+	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-p prefix-command] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
 	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
