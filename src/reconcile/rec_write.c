@@ -2439,7 +2439,7 @@ err:
 static void
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-    WT_BIRTHMARK_DETAILS *birthmarkp;
+    WT_KEY_MEMENTO *mementop;
     WT_MULTI *multi;
     uint32_t i, j;
 
@@ -2449,13 +2449,13 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL && multi->has_las) {
-            if (multi->page_las.birthmarks_cnt != 0) {
-                WT_ASSERT(session, multi->page_las.birthmarks != NULL);
-                for (j = 0, birthmarkp = multi->page_las.birthmarks;
-                     j < multi->page_las.birthmarks_cnt; j++, birthmarkp++)
-                    __wt_buf_free(session, &birthmarkp->key);
+            if (multi->page_las.mementos_cnt != 0) {
+                WT_ASSERT(session, multi->page_las.mementos != NULL);
+                for (j = 0, mementop = multi->page_las.mementos; j < multi->page_las.mementos_cnt;
+                     j++, mementop++)
+                    __wt_buf_free(session, &mementop->key);
             }
-            __wt_free(session, multi->page_las.birthmarks);
+            __wt_free(session, multi->page_las.mementos);
         }
 }
 
