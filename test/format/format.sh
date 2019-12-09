@@ -21,8 +21,8 @@ usage() {
 	echo "    [-b format-binary-cmd] [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
-	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
 	echo "    -b binary    format binary command (defaults to "./t")"
+	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
 	echo "    -F           quit on first failure (defaults to off)"
 	echo "    -h home      run directory (defaults to .)"
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
@@ -82,11 +82,11 @@ while :; do
 	-a)
 		abort_test=1
 		shift ;;
-	-c)
-		config="$2"
-		shift ; shift ;;
 	-b)
 		format_binary_cmd="$2"
+		shift ; shift ;;
+	-c)
+		config="$2"
 		shift ; shift ;;
 	-F)
 		first_failure=1
