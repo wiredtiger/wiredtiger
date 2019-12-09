@@ -204,8 +204,6 @@ __wt_las_destroy(WT_SESSION_IMPL *session)
         cache->las_session[i] = NULL;
     }
 
-    __wt_free(session, cache->las_dropped);
-
     return (ret);
 }
 
@@ -913,51 +911,6 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
     }
 
     /* NOTREACHED */
-}
-
-/*
- * __wt_las_remove_dropped --
- *     Remove an opened btree ID if it is in the dropped table.
- */
-void
-__wt_las_remove_dropped(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_CACHE *cache;
-    u_int i, j;
-
-    btree = S2BT(session);
-    cache = S2C(session)->cache;
-
-    for (i = 0; i < cache->las_dropped_next && cache->las_dropped[i] != btree->id; i++)
-        ;
-
-    if (i < cache->las_dropped_next) {
-        cache->las_dropped_next--;
-        for (j = i; j < cache->las_dropped_next; j++)
-            cache->las_dropped[j] = cache->las_dropped[j + 1];
-    }
-}
-
-/*
- * __wt_las_save_dropped --
- *     Save a dropped btree ID to be swept from the lookaside table.
- */
-int
-__wt_las_save_dropped(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_CACHE *cache;
-    WT_DECL_RET;
-
-    btree = S2BT(session);
-    cache = S2C(session)->cache;
-
-    WT_ERR(__wt_realloc_def(
-      session, &cache->las_dropped_alloc, cache->las_dropped_next + 1, &cache->las_dropped));
-    cache->las_dropped[cache->las_dropped_next++] = btree->id;
-err:
-    return (ret);
 }
 
 /*

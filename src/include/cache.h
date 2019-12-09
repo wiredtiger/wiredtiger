@@ -197,10 +197,6 @@ struct __wt_cache {
     uint64_t las_insert_count; /* Count of inserts to lookaside */
     uint64_t las_remove_count; /* Count of removes from lookaside */
 
-    uint32_t *las_dropped;    /* List of dropped btree IDs. */
-    size_t las_dropped_next;  /* Next index into drop list. */
-    size_t las_dropped_alloc; /* Allocated size of drop list. */
-
     /*
      * The "lookaside_activity" verbose messages are throttled to once per checkpoint. To accomplish
      * this we track the checkpoint generation for the most recent read and write verbose messages.
