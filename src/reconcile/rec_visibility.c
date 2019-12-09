@@ -217,16 +217,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              */
             if (upd_select->upd == NULL && upd->start_ts < r->min_skipped_ts)
                 r->min_skipped_ts = upd->start_ts;
-
-            continue;
-        } else if (first_stable_upd == NULL)
+        } else if (first_stable_upd == NULL) {
             /*
              * Track the first update in the chain that is durable.
              */
             first_stable_upd = upd;
 
-        if (!F_ISSET(r, WT_REC_EVICT))
-            break;
+            if (!F_ISSET(r, WT_REC_EVICT))
+                break;
+        }
     }
 
     /* Keep track of the selected update. */
