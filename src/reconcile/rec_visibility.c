@@ -605,16 +605,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * Otherwise, leave the end of the visibility window at the maximum possible value to
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
-        WT_ASSERT(session, upd_select->upd != NULL);
-        if (upd_select->upd->type == WT_UPDATE_TOMBSTONE) {
-            upd_select->stop_ts = upd_select->upd->start_ts;
-            upd_select->stop_txn = upd_select->upd->txnid;
-            upd_select->upd = upd_select->upd->next;
+        if (upd->type == WT_UPDATE_TOMBSTONE) {
+            upd_select->stop_ts = upd->start_ts;
+            upd_select->stop_txn = upd->txnid;
+            upd_select->upd = upd = upd->next;
         }
-        if (upd_select->upd != NULL) {
+        if (upd != NULL) {
             /* The beginning of the validity window is the selected update's time pair. */
-            upd_select->durable_ts = upd_select->start_ts = upd_select->upd->start_ts;
-            upd_select->start_txn = upd_select->upd->txnid;
+            upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            upd_select->start_txn = upd->txnid;
         } else {
             /*
              * The only time we don't get the unpacked value is when we insert a key in which case
@@ -639,12 +638,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * that is NOT ok. Let's allocate an update equivalent to the on-disk value and continue
              * on our way!
              */
-            WT_RET(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
-            WT_ERR(__wt_update_alloc(session, tmp, &upd_select->upd, &size, WT_UPDATE_STANDARD));
-            upd_select->upd->ext = 1;
+            WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
+            upd->ext = 1;
+            upd_select->upd = upd;
         }
-        WT_ASSERT(session, upd == NULL || upd_select->upd->type != WT_UPDATE_TOMBSTONE);
+        WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
     }
 
     /*
