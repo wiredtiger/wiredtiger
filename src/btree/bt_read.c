@@ -70,17 +70,17 @@ __row_instantiate(
  */
 static int
 __create_birthmark_upd(
-  WT_SESSION_IMPL *session, WT_BIRTHMARK_DETAILS *birthmarkp, size_t *sizep, WT_UPDATE **updp)
+  WT_SESSION_IMPL *session, WT_KEY_MEMENTO *mementop, size_t *sizep, WT_UPDATE **updp)
 {
     WT_UPDATE *upd;
 
     *updp = NULL;
 
     WT_RET(__wt_update_alloc(session, NULL, &upd, sizep, WT_UPDATE_BIRTHMARK));
-    upd->txnid = birthmarkp->txnid;
-    upd->durable_ts = birthmarkp->durable_ts;
-    upd->start_ts = birthmarkp->start_ts;
-    upd->prepare_state = birthmarkp->prepare_state;
+    upd->txnid = mementop->txnid;
+    upd->durable_ts = mementop->durable_ts;
+    upd->start_ts = mementop->start_ts;
+    upd->prepare_state = mementop->prepare_state;
     *updp = upd;
 
     return (0);
@@ -93,9 +93,9 @@ __create_birthmark_upd(
 static int
 __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
+    WT_KEY_MEMENTO *mementop;
     WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *upd;
     size_t incr, total_incr;
@@ -107,48 +107,43 @@ __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
     upd = NULL;
     total_incr = 0;
 
-    if (page_las->birthmarks_cnt == 0)
+    if (page_las->mementos_cnt == 0)
         return (0);
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    for (i = 0, birthmarkp = page_las->birthmarks; i < page_las->birthmarks_cnt;
-         i++, birthmarkp++) {
-        if (birthmarkp->instantiated)
+    for (i = 0, mementop = page_las->mementos; i < page_las->mementos_cnt; i++, mementop++) {
+        if (mementop->txnid == WT_TXN_ABORTED)
             continue;
 
-        WT_ERR(__create_birthmark_upd(session, birthmarkp, &incr, &upd));
+        WT_ERR(__create_birthmark_upd(session, mementop, &incr, &upd));
         total_incr += incr;
 
         switch (ref->page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
-            p = birthmarkp->key.data;
+            p = mementop->key.data;
             WT_ERR(__wt_vunpack_uint(&p, 0, &recno));
             WT_ERR(__col_instantiate(session, recno, ref, &cbt, upd));
             upd = NULL;
             break;
         case WT_PAGE_ROW_LEAF:
-            WT_ERR(__row_instantiate(session, &birthmarkp->key, ref, &cbt, upd));
+            WT_ERR(__row_instantiate(session, &mementop->key, ref, &cbt, upd));
             upd = NULL;
             break;
         }
-        birthmarkp->instantiated = true;
     }
 
-    /* We do not need the birthmark information in the lookaside structure anymore. */
-    for (i = 0, birthmarkp = page_las->birthmarks; i < page_las->birthmarks_cnt; i++, birthmarkp++)
-        __wt_buf_free(session, &birthmarkp->key);
+    /* We do not need the key memento information in the lookaside structure anymore. */
+    for (i = 0, mementop = page_las->mementos; i < page_las->mementos_cnt; i++, mementop++)
+        __wt_buf_free(session, &mementop->key);
 
-    page_las->birthmarks_cnt = 0;
-    __wt_free(session, page_las->birthmarks);
+    page_las->mementos_cnt = 0;
+    __wt_free(session, page_las->mementos);
     __wt_cache_page_inmem_incr(session, ref->page, total_incr);
 
 err:
-    for (i = 0, birthmarkp = page_las->birthmarks; i < page_las->birthmarks_cnt; i++, birthmarkp++)
-        birthmarkp->instantiated = false;
-
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_free(session, upd);
 
@@ -167,27 +162,25 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         wt_timestamp_t timestamp;
         uint64_t txnid;
     } * las_preparep;
-    WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CACHE *cache;
     WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(las_prepares);
     WT_DECL_RET;
-    WT_ITEM las_key, las_key_tmp, las_value, next_las_key;
+    WT_ITEM las_key, las_key_tmp, las_value;
     WT_MODIFY_VECTOR modifies;
     WT_PAGE *page;
     WT_PAGE_LOOKASIDE *page_las;
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, las_timestamp, las_timestamp_tmp;
     size_t notused, size, total_incr;
-    uint64_t birthmark_cnt, instantiated_cnt, las_txnid, las_txnid_tmp, recno;
-    uint32_t i, las_btree_id, las_prepare_cnt, mod_counter, session_flags;
+    uint64_t instantiated_cnt, las_txnid, las_txnid_tmp, recno;
+    uint32_t i, las_btree_id, las_btree_id_tmp, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
-    int cmp, exact;
-    bool birthmark_record, first_scan, locked;
+    int cmp;
+    bool locked;
 
-    birthmarkp = NULL;
     cache = S2C(session)->cache;
     las_cursor = NULL;
     WT_CLEAR(las_key);
@@ -197,13 +190,13 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     page = ref->page;
     page_las = ref->page_las;
     mod_upd = upd = NULL;
-    birthmark_cnt = 0;
     recno = WT_RECNO_OOB;
+    las_timestamp = WT_TS_NONE;
+    las_txnid = WT_TXN_NONE;
     las_btree_id = S2BT(session)->id;
     las_prepare_cnt = mod_counter = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     instantiated_cnt = 0;
-    birthmark_record = false;
     locked = false;
 
     /*
@@ -234,9 +227,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             }
         }
 
-        __wt_buf_free(session, &page_las->max_las_key);
-        __wt_buf_free(session, &page_las->min_las_key);
-
         return (0);
     }
 
@@ -255,89 +245,45 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_las_cursor(session, &las_cursor, &session_flags);
 
     /*
-     * The lookaside records are in key and update order, that is, there will be a set of in-order
-     * updates for a key, then another set of in-order updates for a subsequent key. We find the
-     * most recent of the updates for a key and then insert that update into the page, then all the
-     * updates for the next key, and so on. If the birthmark record exists for that key, then insert
-     * birthmark record into the page.
+     * The lookaside records are in update order for a given key, that is, there will be a set of
+     * in-order updates for a key, then another set of in-order updates for another key. We have a
+     * list of keys in the page las structure for which we expect to find updates in the lookaside
+     * file. We iterate over these keys, locating the most recent of the updates for a key and then
+     * insert that update into the page. If a birthmark record exists for that key, we insert that
+     * birthmark instead of the update.
      *
-     * The search starts with the minimum LAS key of the page until the maximum LAS key (both
-     * inclusive). We are going to instantiate only the most recent record for a key. To find out
-     * the most recent record for a key, we use the search_near cursor function with both the
-     * maximum timestamp and the transaction id as part of the key search. This search can return
-     * either the last record of the search key or the first record of the next key.
+     * An important point to note is that the keys for a given page are NOT necessarily next to each
+     * other in the lookaside table since we can specify our own ordering for a given table with a
+     * custom collator. Therefore, we need to make use of the keys that we have stored in-memory
+     * last time we evicted to instantiate each key.
      *
-     * Once we instantiate the most recent record for a key, the search continues to the next key.
-     * Since we're pointing at the max timestamp and transaction id pairing for a given key, the
-     * next entry is guaranteed to be for the next key in the LAS and again set the search for the
-     * next key with maximum timestamp and transaction id.
+     * During instantiation, we iterate over our set of keys from eviction. If the key memento has a
+     * specific txn id that isn't "aborted" then it indicates that birthmark update should be
+     * instantiated for that key. Otherwise it is just an indicator that we need to search the
+     * lookaside for that particular key.
      */
     cache->las_reader = true;
     __wt_readlock(session, &cache->las_sweepwalk_lock);
     cache->las_reader = false;
     notused = size = total_incr = 0;
-    first_scan = true;
     locked = true;
-    las_cursor->set_key(las_cursor, las_btree_id, &page_las->min_las_key, WT_TS_MAX, WT_TXN_MAX);
-    for (; ret == 0; ret = las_cursor->next(las_cursor)) {
-        if (!first_scan) {
-            WT_ERR(las_cursor->get_key(
-              las_cursor, &las_btree_id, &next_las_key, &las_timestamp, &las_txnid));
-
-            /* Set the key to check with maximum timestamp and transaction id. */
-            las_cursor->set_key(las_cursor, las_btree_id, &next_las_key, WT_TS_MAX, WT_TXN_MAX);
-        }
-        first_scan = false;
-
-        WT_ERR(las_cursor->search_near(las_cursor, &exact));
+    for (i = 0; i < page_las->mementos_cnt; ++i) {
         /*
-         * Check whether the search_near returned the same key. If it returns the next key, continue
-         * with the previous record.
+         * An "aborted transaction id means that this is a birthmark update as opposed to just
+         * keeping the key in memory so we can search lookaside.
          */
-        if (exact > 0)
-            WT_ERR(las_cursor->prev(las_cursor));
+        if (page_las->mementos[i].txnid != WT_TXN_ABORTED) {
+            WT_ERR(__create_birthmark_upd(session, &page_las->mementos[i], &size, &upd));
+            las_key.data = page_las->mementos[i].key.data;
+            las_key.size = page_las->mementos[i].key.size;
+        } else {
+            WT_ERR(__wt_las_cursor_position(
+              session, las_cursor, las_btree_id, &page_las->mementos[i].key, WT_TS_MAX));
+            WT_ERR(las_cursor->get_key(
+              las_cursor, &las_btree_id_tmp, &las_key, &las_timestamp, &las_txnid));
+            WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->mementos[i].key, &cmp));
+            WT_ASSERT(session, las_btree_id == las_btree_id_tmp && cmp == 0);
 
-        WT_ERR(
-          las_cursor->get_key(las_cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
-
-        /* Stop before crossing over to the next btree. */
-        if (las_btree_id != S2BT(session)->id)
-            break;
-
-        WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->min_las_key, &cmp));
-        /* We got a key that is less than the minimum key of the page. */
-        if (cmp < 0)
-            break;
-
-        WT_ERR(__wt_compare(session, NULL, &las_key, &page_las->max_las_key, &cmp));
-        /* We reached the end of the key of the LAS records related to the current page. */
-        if (cmp > 0)
-            break;
-
-        instantiated_cnt++;
-        if (page_las->birthmarks_cnt > 0) {
-            for (birthmarkp = page_las->birthmarks + birthmark_cnt;
-                 birthmark_cnt < page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++) {
-                if (birthmarkp->instantiated)
-                    continue;
-
-                WT_ERR(__wt_compare(session, NULL, &las_key, &birthmarkp->key, &cmp));
-                if (cmp == 0) {
-                    WT_ERR(__create_birthmark_upd(session, birthmarkp, &size, &upd));
-                    birthmark_record = true;
-                    break;
-                } else if (cmp < 0)
-                    /* LAS key is less than birthmark key, so no birthmark record for that key. */
-                    break;
-                else
-                    /*
-                     * LAS key is greater than birthmark key, check next set of birthmark records.
-                     */
-                    continue;
-            }
-        }
-
-        if (upd == NULL) {
             /* Allocate the WT_UPDATE structure. */
             WT_ERR(las_cursor->get_value(
               las_cursor, &durable_timestamp, &prepare_state, &upd_type, &las_value));
@@ -402,6 +348,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->prepare_state = prepare_state;
         }
 
+        ++instantiated_cnt;
         total_incr += size;
 
         switch (page->type) {
@@ -419,7 +366,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         }
 
         /* Remove the prepared record from LAS once the page is instantiated successfully. */
-        if (!birthmark_record && upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        if (upd->prepare_state == WT_PREPARE_INPROGRESS) {
             /* Extend the buffer if needed. */
             WT_ERR(__wt_buf_extend(session, las_prepares,
               (las_prepare_cnt + 1) * sizeof(struct las_page_prepared_updates)));
@@ -431,20 +378,12 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
             las_prepare_cnt++;
         }
 
-        if (birthmark_record) {
-            birthmarkp->instantiated = true;
-            birthmark_record = false;
-        }
-
         upd = NULL;
     }
 
     __wt_readunlock(session, &cache->las_sweepwalk_lock);
     locked = false;
     WT_ERR_NOTFOUND_OK(ret);
-
-    /* Instantiate the remaining birthmark entries. */
-    WT_ERR(__instantiate_birthmarks(session, ref));
 
     __wt_cache_page_inmem_incr(session, page, total_incr);
 
@@ -467,9 +406,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ERR(las_cursor->remove(las_cursor));
     }
 
-    __wt_buf_free(session, &page_las->max_las_key);
-    __wt_buf_free(session, &page_las->min_las_key);
-
     __wt_verbose(session, WT_VERB_LOOKASIDE_ACTIVITY,
       "btree ID %" PRIu32 " page instantiated with %" PRIu64 " lookaside items", las_btree_id,
       instantiated_cnt);
@@ -486,9 +422,12 @@ err:
             __wt_buf_free(session, &las_preparep->key);
 
     __wt_scr_free(session, &las_prepares);
-    for (birthmark_cnt = 0, birthmarkp = page_las->birthmarks;
-         birthmark_cnt < page_las->birthmarks_cnt; birthmark_cnt++, birthmarkp++)
-        birthmarkp->instantiated = false;
+
+    /* We do not need the birthmark information in the lookaside structure anymore. */
+    for (i = 0; i < page_las->mementos_cnt; ++i)
+        __wt_buf_free(session, &page_las->mementos[i].key);
+    page_las->mementos_cnt = 0;
+    __wt_free(session, page_las->mementos);
 
     if (locked)
         __wt_readunlock(session, &cache->las_sweepwalk_lock);

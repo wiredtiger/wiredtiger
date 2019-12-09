@@ -33,7 +33,7 @@
 from helper import copy_wiredtiger_home
 import random
 from suite_subprocess import suite_subprocess
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtscenario import make_scenarios
 
 def timestamp_str(t):
@@ -173,6 +173,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_reads(self.session, 'read_timestamp=' + self.stablets,
             check_value, valcnt, valcnt2, valcnt)
 
+    @unittest.skip("Temporarily disabled")
     def test_timestamp07(self):
         uri = self.uri + self.tablename
         uri2 = self.uri + self.tablename2
