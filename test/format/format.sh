@@ -18,10 +18,10 @@ trap 'onintr' 2
 
 usage() {
 	echo "usage: $0 [-aFSv] [-c config] "
-	echo "    [-b format-binary-cmd] [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
+	echo "    [-b format-binary] [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
-	echo "    -b binary    format binary command (defaults to "./t")"
+	echo "    -b binary    format binary (defaults to "./t")"
 	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
 	echo "    -F           quit on first failure (defaults to off)"
 	echo "    -h home      run directory (defaults to .)"
