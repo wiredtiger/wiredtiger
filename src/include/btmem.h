@@ -856,7 +856,8 @@ struct __wt_page_deleted {
     WT_UPDATE **update_list; /* List of updates for abort */
 };
 
-/* WT_TIME_PAIR --
+/*
+ * WT_TIME_PAIR --
  * 	A pair containing a timestamp and transaction id.
  */
 struct __wt_time_pair {

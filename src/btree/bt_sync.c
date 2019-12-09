@@ -107,6 +107,7 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 int
 __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
+    WT_ADDR *addr;
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -117,7 +118,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags;
-    bool timer, tried_eviction;
+    bool is_las, timer, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -226,6 +227,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
+        is_las = F_ISSET(btree, WT_BTREE_LOOKASIDE);
 
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
@@ -248,6 +250,29 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
+
+                /*
+                 * Check whether the tree is lookaside btree and verify whether the page contents
+                 * are obsolete or not by checking the visibility of the page stop time pair.
+                 */
+                addr = walk->addr;
+                if (is_las &&
+                  __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts)) {
+                    /* Initialize the modify structure if it doesn't exist */
+                    if (mod == NULL)
+                        WT_ERR(__wt_page_modify_init(session, walk->page));
+
+                    /*
+                     * Mark the page as empty and also set the parent page as dirty. This is to
+                     * ensure when the parent page is checkpointing, the empty child page will be
+                     * cleaned.
+                     */
+                    if (!WT_PAGE_IS_INTERNAL(walk->page)) {
+                        walk->page->modify->rec_result = WT_PM_REC_EMPTY;
+                        WT_ERR(__wt_page_parent_modify_set(session, walk, true));
+                    }
+                }
+
                 continue;
             }
 
