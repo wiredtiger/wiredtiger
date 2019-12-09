@@ -645,17 +645,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->upd->ext = 1;
         }
         WT_ASSERT(session, upd == NULL || upd_select->upd->type != WT_UPDATE_TOMBSTONE);
-
-        /*
-         * Finalize the timestamps and transactions, checking if the update is globally visible and
-         * nothing needs to be written.
-         */
-        if (__wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts)) {
-            upd_select->start_ts = WT_TS_NONE;
-            upd_select->start_txn = WT_TXN_NONE;
-            upd_select->stop_ts = WT_TS_MAX;
-            upd_select->stop_txn = WT_TXN_MAX;
-        }
     }
 
     /*
