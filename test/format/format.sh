@@ -18,15 +18,15 @@ trap 'onintr' 2
 
 usage() {
 	echo "usage: $0 [-aFSv] [-c config] "
-	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-p pre-setting] [-t minutes] [format-configuration]"
+	echo "    [-b format-binary-cmd] [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
 	echo
 	echo "    -a           abort/recovery testing (defaults to off)"
 	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
+	echo "    -b binary    format binary command (defaults to "./t")"
 	echo "    -F           quit on first failure (defaults to off)"
 	echo "    -h home      run directory (defaults to .)"
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
-	echo "    -p           pre settings to prepend before binary (defaults to empty)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
@@ -75,7 +75,7 @@ parallel_jobs=8
 smoke_test=0
 total_jobs=0
 verbose=0
-pre_setting=""
+format_binary_cmd="./t"
 
 while :; do
 	case "$1" in
@@ -84,6 +84,9 @@ while :; do
 		shift ;;
 	-c)
 		config="$2"
+		shift ; shift ;;
+	-b)
+		format_binary_cmd="$2"
 		shift ; shift ;;
 	-F)
 		first_failure=1
@@ -105,9 +108,6 @@ while :; do
 			exit 1
 		}
 		shift ; shift ;;
-	-p)
-		pre_setting="$2"
-		shift; shift;;
 	-S)
 		smoke_test=1
 		shift ;;
@@ -160,11 +160,13 @@ cd $(dirname $0) || exit 1
 # local.
 [[ $config_found -eq 0 ]] && [[ -f "$config" ]] && config="$PWD/$config"
 
-# Find the format binary. Builds are normally in the WiredTiger source tree, in which case it's
-# in the same directory as format.sh, else it's in the build_posix tree. If the build is in the
-# build_posix tree, move there, we have to run in the directory where the format binary lives
-# because the format binary "knows" the wt utility is two directory levels above it.
-format_binary="./t"
+# Find the last part of format_binary_cmd, which is format binary. Builds are normally in the
+# WiredTiger source tree, in which case it's in the same directory as format.sh, else it's in
+# the build_posix tree. If the build is in the build_posix tree, move there, we have to run in
+# the directory where the format binary lives because the format binary "knows" the wt utility
+# is two directory levels above it.
+format_binary=${format_binary_cmd##* }
+
 [[ -x $format_binary ]] || {
 	build_posix_directory="../../build_posix/test/format"
 	[[ ! -d $build_posix_directory ]] || cd $build_posix_directory || exit 1
@@ -373,7 +375,7 @@ format()
 		echo "$name: starting job in $dir"
 	fi
 
-	cmd="$pre_setting $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$format_binary_cmd -c "$config" -h "$dir" -1 $args quiet=1"
 	verbose "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
