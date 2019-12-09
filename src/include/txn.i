@@ -377,9 +377,9 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* Use the original transaction time pair for the lookaside inserts */
-    if (WT_IS_BTREE_LOOKASIDE(session)) {
-        upd->txnid = S2C(session)->cache->org_txnid_to_las;
-        upd->start_ts = S2C(session)->cache->org_timestamp_to_las;
+    if (WT_DHANDLE_IS_LOOKASIDE(session)) {
+        upd->txnid = S2C(session)->cache->orig_txnid_to_las;
+        upd->start_ts = S2C(session)->cache->orig_timestamp_to_las;
     } else {
         upd->txnid = session->txn.id;
         __wt_txn_op_set_timestamp(session, op);

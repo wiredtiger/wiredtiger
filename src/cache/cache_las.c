@@ -42,8 +42,8 @@ __las_restore_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolati
 static void
 __las_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
 {
-    S2C(session)->cache->org_timestamp_to_las = timestamp;
-    S2C(session)->cache->org_txnid_to_las = txnid;
+    S2C(session)->cache->orig_timestamp_to_las = timestamp;
+    S2C(session)->cache->orig_txnid_to_las = txnid;
 }
 
 /*
@@ -614,9 +614,7 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint64_t btree_
 
     cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, *stop_ts, *stop_txnid);
 
-    /*
-     * Set the current update start time pair as the commit time pair to the lookaside record.
-     */
+    /* Set the current update start time pair as the commit time pair to the lookaside record. */
     __las_store_time_pair(session, upd->start_ts, upd->txnid);
 
     /*
@@ -639,9 +637,7 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint64_t btree_
     /* Append a delete record to represent stop time pair for the above insert record */
     cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, *stop_ts, *stop_txnid);
 
-    /*
-     * Set the stop time pair as the commit time pair of the lookaside delete record.
-     */
+    /* Set the stop time pair as the commit time pair of the lookaside delete record. */
     __las_store_time_pair(session, *stop_ts, *stop_txnid);
 
     /* Remove the inserted record with stop timestamp. */

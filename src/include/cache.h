@@ -200,8 +200,8 @@ struct __wt_cache {
     uint64_t las_remove_count; /* Count of removes from lookaside */
 
     /* Original transaction time pair to use for the lookaside inserts */
-    uint64_t org_txnid_to_las;
-    wt_timestamp_t org_timestamp_to_las;
+    uint64_t orig_txnid_to_las;
+    wt_timestamp_t orig_timestamp_to_las;
 
     bool las_reader; /* Indicate an LAS reader to sweep */
     WT_RWLOCK las_sweepwalk_lock;
@@ -297,7 +297,7 @@ struct __wt_cache_pool {
 /*
  * Optimize comparisons against the lookaside URI, flag handles that reference the lookaside file.
  */
-#define WT_IS_BTREE_LOOKASIDE(session) F_ISSET(S2BT((session)), WT_BTREE_LOOKASIDE)
+#define WT_DHANDLE_IS_LOOKASIDE(session) F_ISSET(S2BT((session)), WT_BTREE_LOOKASIDE)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */
