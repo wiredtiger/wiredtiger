@@ -179,7 +179,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            r->update_inprogress = list_prepared = true;
+            r->update_prepared = list_prepared = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
             continue;
