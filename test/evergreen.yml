@@ -190,6 +190,15 @@ functions:
         set -o errexit
         set -o verbose
         ./t ${checkpoint_args} 2>&1
+  
+  "format test script":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/test/format"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./format.sh ${format_test_script_args|} ${smp_command|} 2>&1
 
 pre:
   - func: "cleanup"
@@ -1783,6 +1792,31 @@ tasks:
             set -o verbose
 
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
+  
+  - name: format-stress-sanitizer-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: CC="clang -fsanitize=address" CFLAGS="-g -fno-omit-frame-pointer" --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - command: shell.exec
+        params: 
+          working_dir: "wiredtiger/build_posix/test/format"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            export ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
+            if [ -f /usr/bin/llvm-symbolizer ]; then
+              ASAN_SYMBOLIZER_PATH="/usr/bin/llvm-symbolizer"
+            else
+              ASAN_SYMBOLIZER_PATH=`ls /usr/bin/llvm-symbolizer* | tail -1`
+            fi
+            export ASAN_SYMBOLIZER_PATH
+      - func: "format test script"
+        vars:
+          # run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
+          format_test_script_args: "-F -t 2"
 
 buildvariants:
 - name: ubuntu1804
@@ -1813,6 +1847,7 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: format-stress-sanitizer-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
