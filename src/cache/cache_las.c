@@ -575,8 +575,7 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
       cursor, start_upd->durable_ts, start_upd->prepare_state, WT_UPDATE_STANDARD, &las_value);
 
     /*
-     * Using update instead of insert so the page stays pinned and can be searched before the
-     * tree.
+     * Using update instead of insert so the page stays pinned and can be searched before the tree.
      */
     WT_ERR(cursor->update(cursor));
 
