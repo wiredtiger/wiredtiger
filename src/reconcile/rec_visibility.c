@@ -29,10 +29,23 @@ static int
 __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
   WT_UPDATE *onpage_upd, size_t upd_memsize)
 {
+    WT_SAVE_UPD *supd;
+
     WT_RET(__wt_realloc_def(session, &r->supd_allocated, r->supd_next + 1, &r->supd));
-    r->supd[r->supd_next].ins = ins;
-    r->supd[r->supd_next].ripcip = ripcip;
-    r->supd[r->supd_next].onpage_upd = onpage_upd;
+    supd = &r->supd[r->supd_next];
+    supd->ins = ins;
+    supd->ripcip = ripcip;
+    WT_CLEAR(supd->onpage_upd);
+    if (onpage_upd != NULL &&
+      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY)) {
+        supd->onpage_upd.txnid = onpage_upd->txnid;
+        supd->onpage_upd.durable_ts = onpage_upd->durable_ts;
+        supd->onpage_upd.start_ts = onpage_upd->start_ts;
+        supd->onpage_upd.prepare_state = onpage_upd->prepare_state;
+        supd->onpage_upd.ext = onpage_upd->ext;
+        if (onpage_upd->ext == 0)
+            supd->onpage_upd.upd = onpage_upd;
+    }
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
@@ -43,28 +56,48 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
  *     Append the key's original value to its update list.
  */
 static int
-__rec_append_orig_value(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
+__rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT *ins, void *ripcip,
+  WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_UPDATE *append;
+    WT_PAGE_MODIFY *mod;
+    WT_UPDATE *append, **upd_entry;
     size_t size;
 
-    /* Done if at least one self-contained update is globally visible. */
-    for (;; upd = upd->next) {
-        if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
-            return (0);
+    mod = page->modify;
+    upd_entry = NULL;
 
-        /* Add the original value after birthmarks. */
-        if (upd->type == WT_UPDATE_BIRTHMARK) {
-            WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
-            break;
+    if (upd != NULL) {
+        /* Done if at least one self-contained update is globally visible. */
+        for (;; upd = upd->next) {
+            if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
+                return (0);
+
+            /* Add the original value after birthmarks. */
+            if (upd->type == WT_UPDATE_BIRTHMARK) {
+                WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
+                break;
+            }
+
+            /* Leave reference at the last item in the chain. */
+            if (upd->next == NULL)
+                break;
         }
+    } else {
+        /* There are no updates for this key yet. Allocate an update array if necessary. */
+        if (ins == NULL) {
+            WT_ASSERT(session, WT_ROW_UPDATE(page, ripcip) == NULL);
 
-        /* Leave reference at the last item in the chain. */
-        if (upd->next == NULL)
-            break;
+            /* Allocate an update array if necessary. */
+            WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
+
+            /* Set the WT_UPDATE array reference. */
+            upd_entry = &page->modify->mod_row_update[WT_ROW_SLOT(page, ripcip)];
+        } else {
+            WT_ASSERT(session, ins->upd == NULL);
+            upd_entry = &ins->upd;
+        }
     }
 
     /*
@@ -91,7 +124,7 @@ __rec_append_orig_value(
      * Else, set the entry's transaction information to the lowest possible value. Cleared memory
      * matches the lowest possible transaction ID and timestamp, do nothing.
      */
-    if (upd->type == WT_UPDATE_BIRTHMARK) {
+    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK) {
         append->txnid = upd->txnid;
         append->start_ts = upd->start_ts;
         append->durable_ts = upd->durable_ts;
@@ -99,7 +132,10 @@ __rec_append_orig_value(
     }
 
     /* Append the new entry into the update list. */
-    WT_PUBLISH(upd->next, append);
+    if (upd_entry != NULL)
+        WT_PUBLISH(*upd_entry, append);
+    else
+        WT_PUBLISH(upd->next, append);
     __wt_cache_page_inmem_incr(session, page, size);
 
     if (upd->type == WT_UPDATE_BIRTHMARK) {
@@ -315,7 +351,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
          * two birthmark records in the same update chain.
          */
-        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
+        WT_RET(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
         upd_select->upd = NULL;
     }
 
@@ -380,7 +416,7 @@ check_original_value:
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved ||
           (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-        WT_RET(__rec_append_orig_value(session, page, first_upd, vpack));
+        WT_RET(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
 
     return (0);
 }
