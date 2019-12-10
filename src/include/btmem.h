@@ -248,17 +248,19 @@ struct __wt_page_lookaside {
     wt_timestamp_t max_ondisk_ts;  /* Maximum timestamp on disk */
     wt_timestamp_t min_skipped_ts; /* Skipped in favor of disk version */
     bool has_prepares;             /* One or more updates are prepared */
-    WT_ITEM max_las_key;           /* The maximum key in the LAS for the page */
-    WT_ITEM min_las_key;           /* The minimum key in the LAS for the page */
-    struct __wt_birthmark_details {
+
+    /*
+     * Reference to the keys in the lookaside, with the birthmark information for the on-disk record
+     * if available.
+     */
+    struct __wt_key_memento {
         WT_ITEM key;
         uint64_t txnid;
         wt_timestamp_t durable_ts;
         wt_timestamp_t start_ts;
         uint8_t prepare_state;
-        bool instantiated;
-    } * birthmarks;          /* Birthmark details for a record */
-    uint64_t birthmarks_cnt; /* Count of birthmark records */
+    } * mementos;
+    uint32_t mementos_cnt; /* Count of key references */
 };
 
 /*
@@ -357,7 +359,14 @@ struct __wt_page_modify {
                 struct __wt_save_upd {
                     WT_INSERT *ins; /* Insert list reference */
                     WT_ROW *ripcip; /* Original on-page reference */
-                    WT_UPDATE *onpage_upd;
+                    struct {
+                        WT_UPDATE *upd;
+                        uint64_t txnid;
+                        wt_timestamp_t durable_ts;
+                        wt_timestamp_t start_ts;
+                        uint8_t prepare_state;
+                        uint8_t ext;
+                    } onpage_upd;
                 } * supd;
                 uint32_t supd_entries;
 
