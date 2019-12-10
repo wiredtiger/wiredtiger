@@ -615,10 +615,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
             upd_select->start_txn = upd->txnid;
         } else {
-            /*
-             * The only time we don't get the unpacked value is when we insert a key in which case
-             * we can't have a tombstone.
-             */
+            /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
             /*
              * It's possible to have a tombstone as the only update in the update list. If we
