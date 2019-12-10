@@ -105,12 +105,10 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          if [ "$OS" != "Windows_NT" ]; then
-            sh reconf
-            CC="clang -fsanitize=address" CFLAGS="-g -fno-omit-frame-pointer" \
-              ../configure ${configure_python_setting|} \
-              --enable-diagnostic --with-builtins=lz4,snappy,zlib
-          fi
+          sh reconf
+          CC="clang -fsanitize=address" CFLAGS="-g -fno-omit-frame-pointer" \
+            ../configure ${configure_python_setting|} \
+            --enable-diagnostic --with-builtins=lz4,snappy,zlib
     - *make_wiredtiger
   "make check directory":
     command: shell.exec
@@ -1809,6 +1807,7 @@ tasks:
   
   - name: format-stress-sanitizer-test
     commands:
+      - func: "get project"
       - func: "compile wiredtiger sanitizer"
       - func: "format test script"
         vars:
@@ -1818,7 +1817,8 @@ tasks:
   
   - name: format-stress-sanitizer-smoke-test
     commands:
-      - func: compile wiredtiger sanitizer 
+      - func: "get project"
+      - func: "compile wiredtiger sanitizer" 
       - func: "format test script"
         vars:
           # smoke tests including overflow testing, run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
