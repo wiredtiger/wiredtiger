@@ -588,13 +588,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *first_upd, *upd;
+    WT_UPDATE *upd;
     wt_off_t las_size;
     wt_timestamp_t stop_ts;
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt, stop_txnid;
-    uint32_t mementos_cnt, btree_id, i, slot;
+    uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
-    bool las_key_saved, local_txn, onpage_upd_seen;
+    bool las_key_saved, local_txn;
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -624,6 +624,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     /* Enter each update in the boundary's list into the lookaside store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
+        /* If no onpage_upd is selected, we don't need to insert anything to lookaside */
+        if (list->onpage_upd.upd == NULL)
+            continue;
+
+        /* onpage_upd now is always from the update chain */
+        WT_ASSERT(session, list->onpage_upd.upd->ext == 0);
+
         /* Lookaside table key component: source key. */
         switch (page->type) {
         case WT_PAGE_COL_FIX:
@@ -647,61 +654,22 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         /*
-         * Lookaside table value component: update reference. Updates come from the row-store insert
-         * list (an inserted item), or update array (an update to an original on-page item), or from
-         * a column-store insert list (column-store format has no update array, the insert list
-         * contains both inserted items and updates to original on-page items). When rolling forward
-         * a modify update from an original on-page item, we need an on-page slot so we can find the
-         * original on-page item. When rolling forward from an inserted item, no on-page slot is
-         * possible.
-         */
-        slot = UINT32_MAX; /* Impossible slot */
-        if (list->ripcip != NULL)
-            slot = page->type == WT_PAGE_ROW_LEAF ? WT_ROW_SLOT(page, list->ripcip) :
-                                                    WT_COL_SLOT(page, list->ripcip);
-        first_upd = list->ins == NULL ? page->modify->mod_row_update[slot] : list->ins->upd;
-
-        /*
          * Trim any updates before writing to lookaside. This saves wasted work, but is also
          * necessary because the reconciliation only resolves existing birthmarks if they aren't
          * obsolete.
          */
-        WT_WITH_BTREE(
-          session, btree, upd = __wt_update_obsolete_check(session, page, first_upd, true));
+        WT_WITH_BTREE(session, btree,
+          upd = __wt_update_obsolete_check(session, page, list->onpage_upd.upd, true));
         __wt_free_update_list(session, &upd);
-        upd = first_upd;
+        upd = list->onpage_upd.upd;
 
         /*
          * It's not OK for the update list to contain a birthmark on entry - we will generate one
          * below if necessary.
          */
-        WT_ASSERT(session, __wt_count_birthmarks(first_upd) == 0);
+        WT_ASSERT(session, __wt_count_birthmarks(upd) == 0);
 
         las_key_saved = false;
-
-        /*
-         * If the page being lookaside evicted has previous lookaside content associated with it,
-         * there is a possibility that the update written to the disk is external (i.e. it came from
-         * the existing lookaside content and not from in-memory updates). Since this update won't
-         * be a part of the saved update list, we need to write a birthmark for it, separate from
-         * processing of the saved updates.
-         */
-        WT_ASSERT(session, list->onpage_upd.upd == NULL || list->onpage_upd.ext == 0);
-        if (list->onpage_upd.ext != 0) {
-            /* Extend the buffer if needed */
-            WT_ERR(__wt_buf_extend(session, mementos, (mementos_cnt + 1) * sizeof(WT_KEY_MEMENTO)));
-            mementop = (WT_KEY_MEMENTO *)mementos->mem + mementos_cnt;
-            mementop->txnid = list->onpage_upd.txnid;
-            mementop->durable_ts = list->onpage_upd.durable_ts;
-            mementop->start_ts = list->onpage_upd.start_ts;
-            mementop->prepare_state = list->onpage_upd.prepare_state;
-            /* Copy the key as well for reference. */
-            WT_CLEAR(mementop->key);
-            WT_ERR(__wt_buf_set(session, &mementop->key, key->data, key->size));
-            mementos_cnt++;
-
-            las_key_saved = true;
-        }
 
         /*
          * The most recent update in the list never make into WT history. Only the earlier updates
@@ -710,7 +678,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         stop_ts = WT_TS_MAX;
         stop_txnid = WT_TXN_MAX;
-        onpage_upd_seen = false;
 
         /*
          * Walk the list of updates, storing each key/value pair into the lookaside table. Skip
@@ -718,18 +685,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * item.
          */
         do {
-            if (upd->txnid == WT_TXN_ABORTED)
-                continue;
-
-            /* Ignore updates up to the onpage value as the uncommitted and prepared updates should
-             * remain in cache, and the onpage value is written to the data file.
-             */
-            if (upd == list->onpage_upd.upd)
-                onpage_upd_seen = true;
-            
-            if (!onpage_upd_seen)
-                continue;
-
             /* We have at least one LAS record from this key, save a copy of the key */
             if (!las_key_saved) {
                 /* Extend the buffer if needed */
