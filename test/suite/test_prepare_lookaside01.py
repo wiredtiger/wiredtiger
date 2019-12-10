@@ -101,7 +101,6 @@ class test_prepare_lookaside01(wttest.WiredTigerTestCase):
             cursors[j].close()
             sessions[j].close()
 
-    @unittest.skip("Temporarily disabled")
     def test_prepare_lookaside(self):
         # Create a small table.
         uri = "table:test_prepare_lookaside01"
