@@ -42,8 +42,8 @@ __las_restore_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolati
 static void
 __las_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64_t txnid)
 {
-    S2C(session)->cache->orig_timestamp_to_las = timestamp;
-    S2C(session)->cache->orig_txnid_to_las = txnid;
+    session->orig_timestamp_to_las = timestamp;
+    session->orig_txnid_to_las = txnid;
 }
 
 /*
@@ -573,6 +573,11 @@ __las_squash_modifies(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_UPDATE **u
     }
     cursor->set_value(
       cursor, start_upd->durable_ts, start_upd->prepare_state, WT_UPDATE_STANDARD, &las_value);
+
+    /*
+     * Using update instead of insert so the page stays pinned and can be searched before the
+     * tree.
+     */
     WT_ERR(cursor->update(cursor));
 
 err:

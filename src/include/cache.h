@@ -199,10 +199,6 @@ struct __wt_cache {
     uint64_t las_insert_count; /* Count of inserts to lookaside */
     uint64_t las_remove_count; /* Count of removes from lookaside */
 
-    /* Original transaction time pair to use for the lookaside inserts */
-    uint64_t orig_txnid_to_las;
-    wt_timestamp_t orig_timestamp_to_las;
-
     bool las_reader; /* Indicate an LAS reader to sweep */
     WT_RWLOCK las_sweepwalk_lock;
     WT_SPINLOCK las_sweep_lock;
