@@ -462,6 +462,7 @@ scanf
 sched
 schemas
 scons
+screenshots
 secretkey
 selectable
 seqname
@@ -503,6 +504,8 @@ td
 th
 thang
 tid
+timeline
+timelines
 timestamp
 timestamps
 todo
