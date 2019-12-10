@@ -594,7 +594,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt, stop_txnid;
     uint32_t mementos_cnt, btree_id, i, slot;
     uint8_t *p;
-    bool las_key_saved, local_txn;
+    bool las_key_saved, local_txn, onpage_upd_seen;
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -710,6 +710,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         stop_ts = WT_TS_MAX;
         stop_txnid = WT_TXN_MAX;
+        onpage_upd_seen = list->onpage_upd.upd == NULL;
 
         /*
          * Walk the list of updates, storing each key/value pair into the lookaside table. Skip
@@ -719,6 +720,15 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         do {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
+
+            /* Ignore updates upto the onpage value as the uncommitted and prepared updates should
+             * remain in cache, and the onpage value is written to the data file.
+             */
+            if (!onpage_upd_seen) {
+                if (upd == list->onpage_upd.upd)
+                    onpage_upd_seen = true;
+                continue;
+            }
 
             /* We have at least one LAS record from this key, save a copy of the key */
             if (!las_key_saved) {
