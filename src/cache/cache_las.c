@@ -42,12 +42,7 @@ __las_restore_isolation(WT_SESSION_IMPL *session, WT_TXN_ISOLATION saved_isolati
 static uint64_t
 __las_entry_count(WT_CACHE *cache)
 {
-    uint64_t insert_cnt, remove_cnt;
-
-    insert_cnt = cache->las_insert_count;
-    WT_ORDERED_READ(remove_cnt, cache->las_remove_count);
-
-    return (insert_cnt > remove_cnt ? insert_cnt - remove_cnt : 0);
+    return (cache->las_insert_count);
 }
 
 /*

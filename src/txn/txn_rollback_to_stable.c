@@ -71,10 +71,8 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    if (ret == 0) {
+    if (ret == 0)
         conn->cache->las_insert_count = las_total;
-        conn->cache->las_remove_count = 0;
-    }
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);

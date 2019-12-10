@@ -195,7 +195,6 @@ struct __wt_cache {
 
     uint32_t las_fileid;       /* Lookaside table file ID */
     uint64_t las_insert_count; /* Count of inserts to lookaside */
-    uint64_t las_remove_count; /* Count of removes from lookaside */
 
     /*
      * The "lookaside_activity" verbose messages are throttled to once per checkpoint. To accomplish
