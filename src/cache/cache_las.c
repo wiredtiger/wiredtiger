@@ -710,7 +710,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         stop_ts = WT_TS_MAX;
         stop_txnid = WT_TXN_MAX;
-        onpage_upd_seen = list->onpage_upd.upd == NULL;
+        onpage_upd_seen = false;
 
         /*
          * Walk the list of updates, storing each key/value pair into the lookaside table. Skip
@@ -724,11 +724,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             /* Ignore updates up to the onpage value as the uncommitted and prepared updates should
              * remain in cache, and the onpage value is written to the data file.
              */
-            if (!onpage_upd_seen) {
-                if (upd == list->onpage_upd.upd)
-                    onpage_upd_seen = true;
+            if (upd == list->onpage_upd.upd)
+                onpage_upd_seen = true;
+            
+            if (!onpage_upd_seen)
                 continue;
-            }
 
             /* We have at least one LAS record from this key, save a copy of the key */
             if (!las_key_saved) {
