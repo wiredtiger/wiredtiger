@@ -191,7 +191,7 @@ AC_MSG_CHECKING(if --enable-page-version-ts option specified)
 AC_ARG_ENABLE(page-version-ts,
 	[AS_HELP_STRING([--enable-page-version-ts],
 	    [Configure for timestamp version page formats])],
-	    r=$enableval, r=no)
+	    r=$enableval, r=yes)
 case "$r" in
 no)	wt_cv_enable_page_version_ts=no;;
 *)	AC_DEFINE(HAVE_PAGE_VERSION_TS)

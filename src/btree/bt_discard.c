@@ -273,7 +273,7 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
 void
 __wt_page_las_free(WT_SESSION_IMPL *session, WT_PAGE_LOOKASIDE **page_lasp)
 {
-    WT_BIRTHMARK_DETAILS *birthmarkp;
+    WT_KEY_MEMENTO *mementop;
     WT_PAGE_LOOKASIDE *page_las;
     uint32_t i;
 
@@ -281,14 +281,11 @@ __wt_page_las_free(WT_SESSION_IMPL *session, WT_PAGE_LOOKASIDE **page_lasp)
     if (page_las == NULL)
         return;
 
-    if (page_las->birthmarks != NULL) {
-        for (i = 0, birthmarkp = page_las->birthmarks; i < page_las->birthmarks_cnt;
-             i++, birthmarkp++)
-            __wt_buf_free(session, &birthmarkp->key);
-        __wt_free(session, page_las->birthmarks);
+    if (page_las->mementos != NULL) {
+        for (i = 0, mementop = page_las->mementos; i < page_las->mementos_cnt; i++, mementop++)
+            __wt_buf_free(session, &mementop->key);
+        __wt_free(session, page_las->mementos);
     }
-    __wt_buf_free(session, &page_las->max_las_key);
-    __wt_buf_free(session, &page_las->min_las_key);
     __wt_free(session, page_las);
     *page_lasp = NULL;
 }
