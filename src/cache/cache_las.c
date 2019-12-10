@@ -665,9 +665,7 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint64_t btree_
 int
 __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
-    WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CACHE *cache;
-    WT_DECL_ITEM(birthmarks);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(mementos);
     WT_DECL_RET;
