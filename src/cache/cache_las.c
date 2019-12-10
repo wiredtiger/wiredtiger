@@ -721,7 +721,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
-            /* Ignore updates upto the onpage value as the uncommitted and prepared updates should
+            /* Ignore updates up to the onpage value as the uncommitted and prepared updates should
              * remain in cache, and the onpage value is written to the data file.
              */
             if (!onpage_upd_seen) {
