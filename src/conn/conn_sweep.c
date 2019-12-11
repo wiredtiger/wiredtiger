@@ -266,13 +266,12 @@ __sweep_server(void *arg)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t last, now;
-    uint64_t min_sleep, sweep_interval;
+    uint64_t sweep_interval;
     u_int dead_handles;
     bool cv_signalled;
 
     session = arg;
     conn = S2C(session);
-    min_sleep = conn->sweep_interval;
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
         sweep_interval = conn->sweep_interval / 10;
     else
@@ -285,10 +284,10 @@ __sweep_server(void *arg)
     for (;;) {
         /* Wait until the next event. */
         if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
-            __wt_cond_wait_signal(session, conn->sweep_cond, min_sleep * 100 * WT_THOUSAND,
-              __sweep_server_run_chk, &cv_signalled);
+            __wt_cond_wait_signal(session, conn->sweep_cond,
+              conn->sweep_interval * 100 * WT_THOUSAND, __sweep_server_run_chk, &cv_signalled);
         else
-            __wt_cond_wait_signal(session, conn->sweep_cond, min_sleep * WT_MILLION,
+            __wt_cond_wait_signal(session, conn->sweep_cond, conn->sweep_interval * WT_MILLION,
               __sweep_server_run_chk, &cv_signalled);
 
         /* Check if we're quitting or being reconfigured. */
