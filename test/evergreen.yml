@@ -106,7 +106,7 @@ functions:
           set -o errexit
           set -o verbose
           sh reconf
-          CC="clang -fsanitize=address" CFLAGS="-g -fno-omit-frame-pointer" \
+          CC="/opt/mongodbtoolchain/v3/bin/clang -fsanitize=address" CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer" \
             ../configure ${configure_python_setting|} \
             --enable-diagnostic --with-builtins=lz4,snappy,zlib
     - *make_wiredtiger
