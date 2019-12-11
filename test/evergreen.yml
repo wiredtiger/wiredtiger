@@ -1811,19 +1811,27 @@ tasks:
       - func: "compile wiredtiger sanitizer"
       - func: "format test script"
         vars:
+          test_env_vars: ${test_env_vars|} ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
           # run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
-          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          format_test_script_args: "-F -t 20"
+          format_test_script_args: -F -t 60
   
   - name: format-stress-sanitizer-smoke-test
     commands:
       - func: "get project"
-      - func: "compile wiredtiger sanitizer" 
-      - func: "format test script"
-        vars:
-          # smoke tests including overflow testing, run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
-          test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          format_test_script_args: "-S -F -t 20"
+      - func: "compile wiredtiger sanitizer"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/test/format"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
+            # run smoke tests, stop at first error, use default config (-F -S)
+            for i in {1..2}; do
+              ${test_env_vars|} ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer \
+                ./format.sh -F -S ${smp_command|} 2>&1
+            done
 
 buildvariants:
 - name: ubuntu1804
