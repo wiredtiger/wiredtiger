@@ -132,6 +132,10 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_cond_destroy(session, &conn->lsm_manager.work_cond);
 
     /* Free allocated memory. */
+    /*
+     * XXX we need to persist this information when we are working on making incremental backups
+     * persistent across restarts.
+     */
     for (i = 0; i < WT_BLKINCR_MAX; ++i)
         __wt_free(session, conn->incr_backups[i].id);
 

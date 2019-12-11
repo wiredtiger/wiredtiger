@@ -1068,19 +1068,20 @@ struct __wt_session {
 	 * formats are only compatible with the backup data source; see @ref backup., a set of
 	 * related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled,
-	 * whether to configure this backup as an incremental starting point., a boolean flag;
-	 * default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file, the file name of interest when
-	 * opening a duplicate incremental backup cursor.  That duplicate cursor will walk the block
-	 * modifications relevant to the given file name., a string; default empty.}
+	 * whether to configure this backup as the starting point for a subsequent incremental
+	 * backup., a boolean flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;file, the
+	 * file name when opening a duplicate incremental backup cursor.  That duplicate cursor will
+	 * return the block modifications relevant to the given file name., a string; default
+	 * empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;force_stop, causes all block incremental backup
 	 * information to be released.  This is on an open_cursor call and the resources will be
 	 * released when this cursor is closed.  No other operations should be done on this open
 	 * cursor., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;granularity,
 	 * this setting manages the granularity of how WiredTiger maintains modification maps
-	 * internally.  The larger the granularity\, the smaller amount of information we need to
-	 * maintain., an integer between 1MB and 2GB; default \c 16MB.}
+	 * internally.  The larger the granularity\, the smaller amount of information WiredTiger
+	 * need to maintain., an integer between 1MB and 2GB; default \c 16MB.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;src_id, a string that identifies a previous checkpoint
 	 * backup source as the source of this incremental backup.  This identifier must have
 	 * already been created by use of the 'this_id' configuration in an earlier backup.  A

@@ -313,7 +313,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
             continue;
         if (WT_STRING_MATCH(blk->id, cval->str, cval->len)) {
             if (F_ISSET(blk, WT_BLKINCR_INUSE))
-                WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use.");
+                WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
             __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id);
@@ -367,8 +367,9 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     const char *uri;
     bool incremental_config, is_dup, log_config, target_list;
 
-    conn = S2C(session);
     *foundp = *incr_only = *log_only = false;
+
+    conn = S2C(session);
     incremental_config = log_config = false;
     is_dup = othercb != NULL;
 
@@ -391,7 +392,6 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     }
     WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "incremental.enabled", &cval));
     if (cval.val) {
-
         if (!F_ISSET(conn, WT_CONN_INCR_BACKUP)) {
             WT_RET(__wt_config_gets(session, cfg, "incremental.granularity", &cval));
             /* XXX may not need cb->incr_granularity */

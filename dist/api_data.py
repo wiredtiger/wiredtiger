@@ -1214,11 +1214,12 @@ methods = {
         are only compatible with the backup data source; see @ref backup''',
         type='category', subconfig=[
         Config('enabled', 'false', r'''
-            whether to configure this backup as an incremental starting point''',
+            whether to configure this backup as the starting point for a subsequent
+            incremental backup''',
             type='boolean'),
         Config('file', '', r'''
-            the file name of interest when opening a duplicate incremental backup
-            cursor. That duplicate cursor will walk the block modifications relevant
+            the file name when opening a duplicate incremental backup cursor.
+            That duplicate cursor will return the block modifications relevant
             to the given file name'''),
         Config('force_stop', 'false', r'''
             causes all block incremental backup information to be released. This is
@@ -1228,7 +1229,7 @@ methods = {
         Config('granularity', '16MB', r'''
             this setting manages the granularity of how WiredTiger maintains modification
             maps internally. The larger the granularity, the smaller amount of information
-            we need to maintain''',
+            WiredTiger need to maintain''',
             min='1MB', max='2GB'),
         Config('src_id', '', r'''
             a string that identifies a previous checkpoint backup source as the source
@@ -1237,8 +1238,8 @@ methods = {
             required to begin an incremental backup'''),
         Config('this_id', '', r'''
             a string that identifies the most recent checkpoint as a future backup source
-            for an incremental backup via 'src_id'. This identifier is required and an
-            error will be returned if one is not provided'''),
+            for an incremental backup via 'src_id'. This identifier is required when opening
+            an incremental backup cursor and an error will be returned if one is not provided'''),
         ]),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the
