@@ -245,7 +245,8 @@ __wt_btree_close(WT_SESSION_IMPL *session)
     F_SET(btree, WT_BTREE_CLOSED);
 
     /*
-     * Verify the lookaside state.
+     * Verify the lookaside state. If the lookaside is open and this btree has lookaside entries, it
+     * can't be a metadata file, nor can it be the lookaside file.
      */
     WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) ||
         !btree->lookaside_entries ||
