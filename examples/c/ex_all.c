@@ -912,6 +912,7 @@ transaction_ops(WT_SESSION *session_arg)
 
         error_check(session->commit_transaction(session, NULL));
 
+        // TODO remove all committed from testing/examples
         error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_committed"));
         /*! [query timestamp] */
     }
