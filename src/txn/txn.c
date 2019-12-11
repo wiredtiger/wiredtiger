@@ -1017,7 +1017,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                 }
 
                 /*
-                 * Writes to the lookaside file can be evicted as soon as they commit.
+                 * Don't reset the timestamp of the lookaside records with lookaside transaction
+                 * timestamp. Those records should already have the original time pair when they are
+                 * inserted into lookaside.
                  */
                 if (conn->cache->las_fileid != 0 && fileid == conn->cache->las_fileid)
                     break;
