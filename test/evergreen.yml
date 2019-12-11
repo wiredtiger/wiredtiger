@@ -283,7 +283,7 @@ tasks:
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "make check all"
         vars:
-          test_env_vars: MSAN_OPTIONS=abort_on_error=1:disable_coredump=0 MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+          test_env_vars: MSAN_OPTIONS=abort_on_error=1:disable_coredump=0 MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer TESTUTIL_SLOW_MACHINE=1
 
   - name: make-check-asan-test
     depends_on:
