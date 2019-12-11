@@ -15,17 +15,7 @@
 int
 __wt_config_upgrade(WT_SESSION_IMPL *session, WT_ITEM *buf)
 {
-    WT_CONFIG_ITEM v;
-    const char *config;
-
-    config = buf->data;
-
-    /*
-     * wiredtiger_open:
-     *	lsm_merge=boolean -> lsm_manager=(merge=boolean)
-     */
-    if (__wt_config_getones(session, config, "lsm_merge", &v) != WT_NOTFOUND)
-        WT_RET(__wt_buf_catfmt(session, buf, ",lsm_manager=(merge=%s)", v.val ? "true" : "false"));
-
+    WT_UNUSED(buf);
+    WT_UNUSED(session);
     return (0);
 }
