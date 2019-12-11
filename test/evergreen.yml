@@ -276,6 +276,11 @@ tasks:
         vars:
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python
 
+  - name: compile-sanitizer
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger sanitizer"
+
   - name: compile-wtperf
     commands:
       - func: "get project"
@@ -1806,8 +1811,12 @@ tasks:
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
   
   - name: format-stress-sanitizer-test
+    depends_on:
+      - name: compile-sanitizer
     commands:
-      - func: "get project"
+      - func: "fetch artifacts"
+        vars: 
+          dependent_task: compile-sanitizer
       - func: "compile wiredtiger sanitizer"
       - func: "format test script"
         vars:
@@ -1816,8 +1825,12 @@ tasks:
           format_test_script_args: -F -t 60
   
   - name: format-stress-sanitizer-smoke-test
+    depends_on:
+      - name: compile-sanitizer
     commands:
-      - func: "get project"
+      - func: "fetch artifacts"
+        vars:
+          dependent_task: compile-sanitizer
       - func: "compile wiredtiger sanitizer"
       - command: shell.exec
         params:
@@ -1862,6 +1875,7 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: compile-sanitizer
     - name: format-stress-sanitizer-test
     - name: format-stress-sanitizer-smoke-test
 
