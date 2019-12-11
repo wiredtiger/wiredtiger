@@ -15,6 +15,7 @@
 int
 __wt_config_upgrade(WT_SESSION_IMPL *session, WT_ITEM *buf)
 {
+    // Currently not used and included in the func_ok list of s_void
     WT_UNUSED(buf);
     WT_UNUSED(session);
     return (0);
