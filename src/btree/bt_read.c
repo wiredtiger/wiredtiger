@@ -161,7 +161,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ITEM key;
         WT_TIME_PAIR start, stop;
     } * las_preparep;
-    WT_CACHE *cache;
     WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(las_prepares);
@@ -175,12 +174,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
     size_t notused, size, total_incr;
     uint64_t instantiated_cnt, recno;
-    uint32_t i, las_btree_id, las_btree_id_tmp, las_prepare_cnt, mod_counter, sessino_flags;
+    uint32_t i, las_btree_id, las_btree_id_tmp, las_prepare_cnt, mod_counter, session_flags;
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp;
 
-    cache = S2C(session)->cache;
     las_cursor = NULL;
     WT_CLEAR(las_key);
     WT_CLEAR(las_key_tmp);
