@@ -1811,6 +1811,8 @@ tasks:
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
   
   - name: format-stress-sanitizer-test
+    #set a 25 hours timeout
+    exec_timeout_secs: 90000
     depends_on:
       - name: compile-sanitizer
     commands:
@@ -1825,6 +1827,8 @@ tasks:
           format_test_script_args: -F -t 60
   
   - name: format-stress-sanitizer-smoke-test
+    #set a 25 hours timeout
+    exec_timeout_secs: 90000
     depends_on:
       - name: compile-sanitizer
     commands:
