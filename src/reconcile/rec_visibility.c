@@ -248,7 +248,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 r->min_skipped_ts = upd->start_ts;
         } else if (first_stable_upd == NULL) {
             /*
-             * Track the first update in the chain that is durable.
+             * Track the first update in the chain that is stable.
              */
             first_stable_upd = upd;
 
