@@ -237,15 +237,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
               (list_prepared || list_uncommitted))
                 return (__wt_set_return(session, EBUSY));
-
-            /*
-             * Track the oldest update not on the page.
-             *
-             * This is used to decide whether reads can use the page image, hence using the start
-             * rather than the durable timestamp.
-             */
-            if (upd_select->upd == NULL && upd->start_ts < r->min_skipped_ts)
-                r->min_skipped_ts = upd->start_ts;
         } else if (first_stable_upd == NULL) {
             /*
              * Track the first update in the chain that is stable.
@@ -268,7 +259,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
      *
-     * FIXME: temporarily disable the assert until we figured out what is wrong
+     * FIXME PM-1521: temporarily disable the assert until we figured out what is wrong
      */
     // WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
     //     upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id
@@ -281,8 +272,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
-    /* If the selected on disk value is durable, record that we're making progress. */
-    /* FIXME: Should remove this when we change the eviction flow */
+    /* If the selected on disk value is durable, record that we're making progress.
+     *
+     * FIXME PM-1521: Should remove this when we change the eviction flow
+     */
     if (upd == first_stable_upd)
         r->update_used = true;
 
@@ -368,8 +361,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
         WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
 
-    /* If not trying to evict the page, we know what we'll write and we're done. */
-    /* FIXME We need to save updates for checkpoints as it needs to write to history store as well
+    /* If not trying to evict the page, we know what we'll write and we're done.
+     * FIXME PM-1521: We need to save updates for checkpoints as it needs to write to history store
+     * as well
      */
     if (!F_ISSET(r, WT_REC_EVICT))
         goto check_original_value;
