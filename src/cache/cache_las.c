@@ -685,6 +685,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * item.
          */
         do {
+            if (upd->txnid == WT_TXN_ABORTED)
+                continue;
+
             /* We have at least one LAS record from this key, save a copy of the key */
             if (!las_key_saved) {
                 /* Extend the buffer if needed */
