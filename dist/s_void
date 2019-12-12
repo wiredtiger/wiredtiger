@@ -124,7 +124,6 @@ func_ok()
 	    -e '/int wiredtiger_extension_init$/d' \
 	    -e '/int wiredtiger_extension_terminate$/d' \
 	    -e '/int wiredtiger_pack_close$/d' \
-	    -e '/int __wt_config_upgrade$/d' \
 	    -e '/int zlib_error$/d' \
 	    -e '/int zlib_terminate$/d' \
 	    -e '/int zstd_error$/d' \
