@@ -625,11 +625,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     /* Enter each update in the boundary's list into the lookaside store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* If no onpage_upd is selected, we don't need to insert anything to lookaside */
-        if (list->onpage_upd.upd == NULL)
+        if (list->onpage_upd == NULL)
             continue;
 
         /* onpage_upd now is always from the update chain */
-        WT_ASSERT(session, list->onpage_upd.upd->ext == 0);
+        WT_ASSERT(session, list->onpage_upd->ext == 0);
 
         /* Lookaside table key component: source key. */
         switch (page->type) {
@@ -659,9 +659,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * obsolete.
          */
         WT_WITH_BTREE(session, btree,
-          upd = __wt_update_obsolete_check(session, page, list->onpage_upd.upd, true));
+          upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
-        upd = list->onpage_upd.upd;
+        upd = list->onpage_upd;
 
         /*
          * It's not OK for the update list to contain a birthmark on entry - we will generate one
@@ -725,7 +725,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
              * write zero-length data items.)
              */
-            if (upd == list->onpage_upd.upd && upd->size > 0) {
+            if (upd == list->onpage_upd && upd->size > 0) {
                 WT_ASSERT(
                   session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
                 /* Make sure that we are generating a birthmark for an in-memory update. */

@@ -37,15 +37,8 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
     supd->ripcip = ripcip;
     WT_CLEAR(supd->onpage_upd);
     if (onpage_upd != NULL &&
-      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY)) {
-        supd->onpage_upd.txnid = onpage_upd->txnid;
-        supd->onpage_upd.durable_ts = onpage_upd->durable_ts;
-        supd->onpage_upd.start_ts = onpage_upd->start_ts;
-        supd->onpage_upd.prepare_state = onpage_upd->prepare_state;
-        supd->onpage_upd.ext = onpage_upd->ext;
-        if (onpage_upd->ext == 0)
-            supd->onpage_upd.upd = onpage_upd;
-    }
+      (onpage_upd->type == WT_UPDATE_STANDARD || onpage_upd->type == WT_UPDATE_MODIFY))
+        supd->onpage_upd = onpage_upd;
     ++r->supd_next;
     r->supd_memsize += upd_memsize;
     return (0);
