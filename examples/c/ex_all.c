@@ -912,12 +912,12 @@ transaction_ops(WT_SESSION *session_arg)
 
         error_check(session->commit_transaction(session, NULL));
 
-        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_committed"));
+        error_check(conn->query_timestamp(conn, timestamp_buf, "get=all_durable"));
         /*! [query timestamp] */
     }
 
     /*! [set commit timestamp] */
-    error_check(conn->set_timestamp(conn, "commit_timestamp=2a"));
+    error_check(conn->set_timestamp(conn, "durable_timestamp=2a"));
     /*! [set commit timestamp] */
 
     /*! [set oldest timestamp] */
