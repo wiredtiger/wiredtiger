@@ -154,7 +154,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
-    bool all_committed, list_prepared, list_uncommitted;
+    bool all_stable, list_prepared, list_uncommitted;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -344,11 +344,20 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         upd_select->upd = NULL;
     }
 
-    /* Check if all updates on the page are committed, if not, it must stay dirty */
-    all_committed = upd == first_txn_upd && __wt_txn_visible_all(session, max_txn, max_ts);
-    WT_ASSERT(session, !all_committed || (!list_prepared && !list_uncommitted));
+    /*
+     * Check if all updates on the page are visible, if not, it must stay dirty.
+     *
+     * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
+     * maximum transaction ID and the newest update with a timestamp (if any).
+     *
+     * FIXME-PM-1521: In durable history, page should be clean after reconcilation if there is no
+     * uncommitted and prepared updates. However, we cannot change it here as we need to first
+     * implement inserting older versions to history store for update restore.
+     */
+    all_stable = upd == first_stable_upd && !list_prepared && !list_uncommitted &&
+      __wt_txn_visible_all(session, max_txn, max_ts);
 
-    if (all_committed)
+    if (all_stable)
         goto check_original_value;
 
     r->leave_dirty = true;
