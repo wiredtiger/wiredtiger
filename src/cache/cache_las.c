@@ -658,8 +658,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * necessary because the reconciliation only resolves existing birthmarks if they aren't
          * obsolete.
          */
-        WT_WITH_BTREE(session, btree,
-          upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
+        WT_WITH_BTREE(
+          session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
         upd = list->onpage_upd;
 

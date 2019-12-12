@@ -267,11 +267,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     /*
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
-     * 
+     *
      * FIXME: temporarily disable the assert until we figured out what is wrong
      */
     // WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
-    //     upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id ||
+    //     upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id
+    //     ||
     //     WT_SESSION_IS_CHECKPOINT(session));
 
     /* If all of the updates were aborted, quit. */
