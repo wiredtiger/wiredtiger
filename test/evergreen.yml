@@ -106,7 +106,7 @@ functions:
           set -o errexit
           set -o verbose
           sh reconf
-          CC="/opt/mongodbtoolchain/v3/bin/clang -fsanitize=address" CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer" \
+          CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
             ../configure ${configure_python_setting|} \
             --enable-diagnostic --with-builtins=lz4,snappy,zlib
     - *make_wiredtiger
@@ -154,7 +154,9 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./format.sh ${format_test_script_args|} ${smp_command|} 2>&1
+        for i in $(seq ${times|1}); do
+          ${test_env_vars|} ./format.sh ${format_test_script_args|} ${smp_command|} 2>&1
+        done
   "many dbs test":
     command: shell.exec
     parms:
@@ -1836,19 +1838,14 @@ tasks:
         vars:
           dependent_task: compile-sanitizer
       - func: "compile wiredtiger sanitizer"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/test/format"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-            # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
-            # run smoke tests, stop at first error, use default config (-F -S)
-            for i in {1..2}; do
-              ${test_env_vars|} ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer \
-                ./format.sh -F -S ${smp_command|} 2>&1
-            done
+      - func: "format test script"
+        # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
+        # run smoke tests, stop at first error, use default config (-F -S)
+        vars:
+          test_env_vars: ${test_env_vars|} ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+          # run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
+          format_test_script_args: -F -S
+          times: 2
 
 buildvariants:
 - name: ubuntu1804
