@@ -350,7 +350,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
      * maximum transaction ID and the newest update with a timestamp (if any).
      *
-     * FIXME-PM-1521: In durable history, page should be clean after reconcilation if there is no
+     * FIXME-PM-1521: In durable history, page should be clean after reconciliation if there is no
      * uncommitted and prepared updates. However, we cannot change it here as we need to first
      * implement inserting older versions to history store for update restore.
      */
