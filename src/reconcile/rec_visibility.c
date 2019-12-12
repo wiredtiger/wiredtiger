@@ -154,7 +154,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, txnid;
-    bool all_stable, list_prepared, list_uncommitted;
+    bool all_committed, list_prepared, list_uncommitted;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -259,7 +259,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * The checkpoint transaction is special. Make sure we never write metadata updates from a
      * checkpoint in a concurrent session.
      *
-     * FIXME PM-1521: temporarily disable the assert until we figured out what is wrong
+     * FIXME-PM-1521: temporarily disable the assert until we figured out what is wrong
      */
     // WT_ASSERT(session, !WT_IS_METADATA(session->dhandle) || upd == NULL ||
     //     upd->txnid == WT_TXN_NONE || upd->txnid != S2C(session)->txn_global.checkpoint_state.id
@@ -274,7 +274,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
     /* If the selected on disk value is durable, record that we're making progress.
      *
-     * FIXME PM-1521: Should remove this when we change the eviction flow
+     * FIXME-PM-1521: Should remove this when we change the eviction flow
      */
     if (upd == first_stable_upd)
         r->update_used = true;
@@ -344,16 +344,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         upd_select->upd = NULL;
     }
 
-    /*
-     * Check if all updates on the page are visible, if not, it must stay dirty.
-     *
-     * Updates can be out of transaction ID order (but not out of timestamp order), so we track the
-     * maximum transaction ID and the newest update with a timestamp (if any).
-     */
-    all_stable = upd == first_stable_upd && !list_prepared && !list_uncommitted &&
-      __wt_txn_visible_all(session, max_txn, max_ts);
+    /* Check if all updates on the page are committed, if not, it must stay dirty */
+    all_committed = upd == first_txn_upd && __wt_txn_visible_all(session, max_txn, max_ts);
+    WT_ASSERT(session, !all_committed || (!list_prepared && !list_uncommitted));
 
-    if (all_stable)
+    if (all_committed)
         goto check_original_value;
 
     r->leave_dirty = true;
@@ -362,7 +357,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
 
     /* If not trying to evict the page, we know what we'll write and we're done.
-     * FIXME PM-1521: We need to save updates for checkpoints as it needs to write to history store
+     * FIXME-PM-1521: We need to save updates for checkpoints as it needs to write to history store
      * as well
      */
     if (!F_ISSET(r, WT_REC_EVICT))
