@@ -602,9 +602,6 @@ connection_runtime_config = [
             merge LSM chunks where possible''',
             type='boolean')
         ]),
-    Config('lsm_merge', 'true', r'''
-        merge LSM chunks where possible (deprecated)''',
-        type='boolean', undoc=True),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the number of elapsed real time milliseconds
         application threads will take to complete database operations. Time is measured from the

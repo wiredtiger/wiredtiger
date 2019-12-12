@@ -1428,9 +1428,6 @@ __conn_config_file(
     /* Check any version. */
     WT_ERR(__conn_config_check_version(session, cbuf->data));
 
-    /* Upgrade the configuration string. */
-    WT_ERR(__wt_config_upgrade(session, cbuf));
-
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session, is_user ? WT_CONFIG_REF(session, wiredtiger_open_usercfg) :
                                                 WT_CONFIG_REF(session, wiredtiger_open_basecfg),
@@ -1519,7 +1516,6 @@ __conn_config_env(WT_SESSION_IMPL *session, const char *cfg[], WT_ITEM *cbuf)
 
     /* Upgrade the configuration string. */
     WT_ERR(__wt_buf_setstr(session, cbuf, env_config));
-    WT_ERR(__wt_config_upgrade(session, cbuf));
 
     /* Check the configuration information. */
     WT_ERR(__wt_config_check(session, WT_CONFIG_REF(session, wiredtiger_open), env_config, 0));
