@@ -408,8 +408,6 @@ extern int __wt_config_subgetraw(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, 
   WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_config_subgets(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, const char *key,
   WT_CONFIG_ITEM *value) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_config_upgrade(WT_SESSION_IMPL *session, WT_ITEM *buf)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *uri,
   const char *config, const char *type, const char *check)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
