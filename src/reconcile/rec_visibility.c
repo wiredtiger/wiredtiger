@@ -171,9 +171,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     list_prepared = list_uncommitted = false;
 
     /*
-     * If called with a WT_INSERT item, use its WT_UPDATE list (which must
-     * exist), otherwise check for an on-page row-store WT_UPDATE list
-     * (which may not exist). Return immediately if the item has no updates.
+     * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
+     * for an on-page row-store WT_UPDATE list (which may not exist). Return immediately if the item
+     * has no updates.
      */
     if (ins != NULL)
         first_upd = ins->upd;
@@ -218,9 +218,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         if (upd->durable_ts > max_ts)
             max_ts = upd->durable_ts;
 
-        /*
-         * Always select the newest committed update to write to disk
-         */
+        /* Always select the newest committed update to write to disk */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 
@@ -272,7 +270,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         return (0);
     }
 
-    /* If the selected on disk value is durable, record that we're making progress.
+    /*
+     * If the selected on disk value is stable, record that we're making progress.
      *
      * FIXME-PM-1521: Should remove this when we change the eviction flow
      */
