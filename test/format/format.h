@@ -28,6 +28,9 @@
 
 #include "test_util.h"
 
+#ifdef HAVE_SETRLIMIT
+#include <sys/resource.h>
+#endif
 #include <signal.h>
 
 #define EXTPATH "../../ext/" /* Extensions path */
@@ -63,6 +66,7 @@ typedef struct {
     char *home_backup_init;  /* Initialize backup command */
     char *home_config;       /* Run CONFIG file path */
     char *home_init;         /* Initialize home command */
+    char *home_lasdump;      /* LAS dump filename */
     char *home_log;          /* Operation log file path */
     char *home_pagedump;     /* Page dump filename */
     char *home_rand;         /* RNG log file path */
@@ -348,12 +352,14 @@ WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
 int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 uint32_t rng(WT_RAND_STATE *);
+void set_core_off(void);
 void snap_init(TINFO *, uint64_t, bool);
 void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
+void timestamp_once(void);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);

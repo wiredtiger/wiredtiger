@@ -244,7 +244,6 @@ struct __wt_txn_op {
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TXN_OP_KEY_REPEATED 0x1u
-#define WT_TXN_OP_KEY_RESERVED 0x2u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
@@ -320,6 +319,9 @@ struct __wt_txn {
     uint32_t ckpt_nsnapshot;
     WT_ITEM *ckpt_snapshot;
     bool full_ckpt;
+
+    /* Timeout */
+    uint64_t operation_timeout_us;
 
     const char *rollback_reason; /* If rollback, the reason */
 
