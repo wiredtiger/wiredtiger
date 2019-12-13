@@ -134,6 +134,16 @@ functions:
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|}
         done
+  "format test script":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/test/format"
+      script: |
+        set -o errexit
+        set -o verbose
+        for i in $(seq ${times|1}); do
+          ${test_env_vars|} ./format.sh ${format_test_script_args|} ${smp_command|} 2>&1
+        done
   "many dbs test":
     command: shell.exec
     parms:
@@ -1798,6 +1808,34 @@ tasks:
             set -o verbose
             for i in {1..10}; do ${python_binary|python} split_stress.py; done
 
+  - name: format-stress-test
+    # Set 25 hours timeout
+    exec_timeout_secs: 90000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "format test script"
+        vars:
+          #run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
+          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 1440
+
+  - name: format-stress-smoke-test
+    # Set 25 hours timeout
+    exec_timeout_secs: 90000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "format test script"
+        vars:
+          # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
+          # run smoke tests, stop at first error, use default config (-F -S)
+          format_test_script_args: -S -t 1440
+          times: 16
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1828,6 +1866,8 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: split-stress-test
+    - name: format-stress-test
+    - name: format-stress-smoke-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
