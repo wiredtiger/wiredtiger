@@ -341,7 +341,8 @@ struct __wt_connection_stats {
     int64_t block_byte_write_syscall;
     int64_t block_map_read;
     int64_t block_byte_map_read;
-    int64_t block_remap_region;
+    int64_t block_remap_region_trunc;
+    int64_t block_remap_region_write;
     int64_t cache_read_app_count;
     int64_t cache_read_app_time;
     int64_t cache_write_app_count;

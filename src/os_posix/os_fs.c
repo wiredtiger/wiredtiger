@@ -556,6 +556,7 @@ __posix_file_sync_nowait(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 #endif
 
 #ifdef HAVE_FTRUNCATE
+
 /*
  * __posix_file_truncate --
  *     POSIX ftruncate.
@@ -582,8 +583,10 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     if (ret == 0) {
 #if WT_IO_VIA_MMAP
         /* Remap the region with the new size */
-	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len)
+	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len) {
             __remap_region(file_handle, wt_session);
+	    WT_STAT_CONN_INCRV(session, block_remap_region_trunc, 1);
+	}
 #endif
         return (0);
     }
@@ -643,6 +646,7 @@ __posix_file_write_mmap(
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
+    static int skip_count = 0;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -679,11 +683,12 @@ __posix_file_write_mmap(
         ret = __posix_file_write(file_handle, wt_session, offset, len, buf);
 
 	/* If we are here we must have extended the file. Remap the region with the new size */
-	if (ret == 0 && pfh->mmap_file_mappable) {
+	if (ret == 0 && pfh->mmap_file_mappable && (skip_count++)%10 == 0) {
 	    __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
 			 file_handle->name, (uint64_t)pfh->mmap_size);
 	    __drain_mmap_users(file_handle, wt_session);
 	    __remap_region(file_handle, wt_session);
+	    WT_STAT_CONN_INCRV(session, block_remap_region_write, 1);
 	}
 	return ret;
     }
@@ -1087,7 +1092,6 @@ __remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     /* We are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);
 
-    WT_STAT_CONN_INCRV(session, block_remap_region, 1);
     return ret;
 }
 
