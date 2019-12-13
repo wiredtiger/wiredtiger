@@ -106,9 +106,11 @@ functions:
           set -o errexit
           set -o verbose
           sh reconf
-          CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
-            ../configure ${configure_python_setting|} \
-            --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          if [ "$OS" != "Windows_NT" ]; then
+            CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
+              ../configure ${configure_python_setting|} \
+              --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          fi
     - *make_wiredtiger
   "make check directory":
     command: shell.exec
