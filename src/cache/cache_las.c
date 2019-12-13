@@ -579,29 +579,30 @@ err:
 int
 __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
-    WT_BIRTHMARK_DETAILS *birthmarkp;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_ITEM(birthmarks);
     WT_DECL_ITEM(key);
+    WT_DECL_ITEM(mementos);
     WT_DECL_RET;
     WT_ITEM las_value;
+    WT_KEY_MEMENTO *mementop;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
-    WT_UPDATE *first_upd, *upd;
+    WT_UPDATE *upd;
     wt_off_t las_size;
     wt_timestamp_t stop_ts;
     uint64_t insert_cnt, max_las_size, prepared_insert_cnt, stop_txnid;
-    uint32_t birthmarks_cnt, btree_id, i, slot;
+    uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
-    bool local_txn;
+    bool las_key_saved, local_txn;
 
+    mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
     conn = S2C(session);
     WT_CLEAR(las_value);
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = prepared_insert_cnt = 0;
-    birthmarks_cnt = 0;
+    mementos_cnt = 0;
     btree_id = btree->id;
     local_txn = false;
 
@@ -616,13 +617,20 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
-    WT_ERR(__wt_scr_alloc(session, 0, &birthmarks));
+    WT_ERR(__wt_scr_alloc(session, 0, &mementos));
 
     /* Inserts should be on the same page absent a split, search any pinned leaf page. */
     F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
 
     /* Enter each update in the boundary's list into the lookaside store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
+        /* If no onpage_upd is selected, we don't need to insert anything to lookaside */
+        if (list->onpage_upd == NULL)
+            continue;
+
+        /* onpage_upd now is always from the update chain */
+        WT_ASSERT(session, list->onpage_upd->ext == 0);
+
         /* Lookaside table key component: source key. */
         switch (page->type) {
         case WT_PAGE_COL_FIX:
@@ -645,65 +653,23 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        /* Set the first key as the minimum key. */
-        if (i == 0)
-            WT_ERR(__wt_buf_set(session, &multi->page_las.min_las_key, key->data, key->size));
-
-        /*
-         * Lookaside table value component: update reference. Updates come from the row-store insert
-         * list (an inserted item), or update array (an update to an original on-page item), or from
-         * a column-store insert list (column-store format has no update array, the insert list
-         * contains both inserted items and updates to original on-page items). When rolling forward
-         * a modify update from an original on-page item, we need an on-page slot so we can find the
-         * original on-page item. When rolling forward from an inserted item, no on-page slot is
-         * possible.
-         */
-        slot = UINT32_MAX; /* Impossible slot */
-        if (list->ripcip != NULL)
-            slot = page->type == WT_PAGE_ROW_LEAF ? WT_ROW_SLOT(page, list->ripcip) :
-                                                    WT_COL_SLOT(page, list->ripcip);
-        first_upd = list->ins == NULL ? page->modify->mod_row_update[slot] : list->ins->upd;
-
         /*
          * Trim any updates before writing to lookaside. This saves wasted work, but is also
          * necessary because the reconciliation only resolves existing birthmarks if they aren't
          * obsolete.
          */
         WT_WITH_BTREE(
-          session, btree, upd = __wt_update_obsolete_check(session, page, first_upd, true));
+          session, btree, upd = __wt_update_obsolete_check(session, page, list->onpage_upd, true));
         __wt_free_update_list(session, &upd);
-        upd = first_upd;
+        upd = list->onpage_upd;
 
         /*
          * It's not OK for the update list to contain a birthmark on entry - we will generate one
          * below if necessary.
          */
-        WT_ASSERT(session, __wt_count_birthmarks(first_upd) == 0);
+        WT_ASSERT(session, __wt_count_birthmarks(upd) == 0);
 
-        /*
-         * If the page being lookaside evicted has previous lookaside content associated with it,
-         * there is a possibility that the update written to the disk is external (i.e. it came from
-         * the existing lookaside content and not from in-memory updates). Since this update won't
-         * be a part of the saved update list, we need to write a birthmark for it, separate from
-         * processing of the saved updates.
-         */
-        if (list->onpage_upd != NULL && list->onpage_upd->ext != 0 && list->onpage_upd->size > 0 &&
-          (list->onpage_upd->type == WT_UPDATE_STANDARD ||
-              list->onpage_upd->type == WT_UPDATE_MODIFY)) {
-            /* Extend the buffer if needed */
-            WT_ERR(__wt_buf_extend(
-              session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
-            birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + birthmarks_cnt;
-            birthmarkp->txnid = list->onpage_upd->txnid;
-            birthmarkp->durable_ts = list->onpage_upd->durable_ts;
-            birthmarkp->start_ts = list->onpage_upd->start_ts;
-            birthmarkp->prepare_state = list->onpage_upd->prepare_state;
-            birthmarkp->instantiated = false;
-            /* Copy the key as well for reference. */
-            WT_CLEAR(birthmarkp->key);
-            WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
-            birthmarks_cnt++;
-        }
+        las_key_saved = false;
 
         /*
          * The most recent update in the list never make into WT history. Only the earlier updates
@@ -721,6 +687,19 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         do {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
+
+            /* We have at least one LAS record from this key, save a copy of the key */
+            if (!las_key_saved) {
+                /* Extend the buffer if needed */
+                WT_ERR(
+                  __wt_buf_extend(session, mementos, (mementos_cnt + 1) * sizeof(WT_KEY_MEMENTO)));
+                mementop = (WT_KEY_MEMENTO *)mementos->mem + mementos_cnt;
+                WT_CLEAR(mementop->key);
+                WT_ERR(__wt_buf_set(session, &mementop->key, key->data, key->size));
+                mementop->txnid = WT_TXN_ABORTED;
+                las_key_saved = true;
+                mementos_cnt++;
+            }
 
             switch (upd->type) {
             case WT_UPDATE_MODIFY:
@@ -746,24 +725,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              * duplicating it in the lookaside table. (We check the length because row-store doesn't
              * write zero-length data items.)
              */
-            if (upd == list->onpage_upd && upd->size > 0 &&
-              (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY)) {
+            if (upd == list->onpage_upd && upd->size > 0) {
+                WT_ASSERT(
+                  session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
                 /* Make sure that we are generating a birthmark for an in-memory update. */
-                WT_ASSERT(session, upd->ext == 0);
-
-                /* Extend the buffer if needed */
-                WT_ERR(__wt_buf_extend(
-                  session, birthmarks, (birthmarks_cnt + 1) * sizeof(WT_BIRTHMARK_DETAILS)));
-                birthmarkp = (WT_BIRTHMARK_DETAILS *)birthmarks->mem + birthmarks_cnt;
-                birthmarkp->txnid = upd->txnid;
-                birthmarkp->durable_ts = upd->durable_ts;
-                birthmarkp->start_ts = upd->start_ts;
-                birthmarkp->prepare_state = upd->prepare_state;
-                birthmarkp->instantiated = false;
-                /* Copy the key as well for reference. */
-                WT_CLEAR(birthmarkp->key);
-                WT_ERR(__wt_buf_set(session, &birthmarkp->key, key->data, key->size));
-                birthmarks_cnt++;
+                mementop->txnid = upd->txnid;
+                mementop->durable_ts = upd->durable_ts;
+                mementop->start_ts = upd->start_ts;
+                mementop->prepare_state = upd->prepare_state;
 
                 /*
                  * Store the current update commit timestamp and transaction id, these are the stop
@@ -818,9 +787,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         } while ((upd = upd->next) != NULL);
     }
 
-    /* Set the last key of the page as the maximum key written to LAS. */
-    WT_ERR(__wt_buf_set(session, &multi->page_las.max_las_key, key->data, key->size));
-
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
     WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
     max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
@@ -850,31 +816,26 @@ err:
 
     __las_restore_isolation(session, saved_isolation);
 
-    if (ret == 0 && birthmarks_cnt > 0)
-        ret = __wt_calloc(
-          session, birthmarks_cnt, sizeof(WT_BIRTHMARK_DETAILS), &multi->page_las.birthmarks);
+    if (ret == 0 && mementos_cnt > 0)
+        ret = __wt_calloc(session, mementos_cnt, sizeof(WT_KEY_MEMENTO), &multi->page_las.mementos);
 
-    if (ret == 0 && (insert_cnt > 0 || birthmarks_cnt > 0)) {
+    if (ret == 0 && (insert_cnt > 0 || mementos_cnt > 0)) {
         WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
         multi->has_las = true;
         multi->page_las.has_prepares |= prepared_insert_cnt > 0;
-        if (birthmarks_cnt > 0) {
-            memcpy(multi->page_las.birthmarks, birthmarks->mem,
-              birthmarks_cnt * sizeof(WT_BIRTHMARK_DETAILS));
-            multi->page_las.birthmarks_cnt = birthmarks_cnt;
+        if (mementos_cnt > 0) {
+            memcpy(multi->page_las.mementos, mementos->mem, mementos_cnt * sizeof(WT_KEY_MEMENTO));
+            multi->page_las.mementos_cnt = mementos_cnt;
         }
         __las_insert_updates_verbose(session, btree, multi);
     }
 
     __wt_scr_free(session, &key);
-    /* Free all the birthmark keys if there was a failure */
-    if (ret != 0) {
-        for (i = 0, birthmarkp = birthmarks->mem; i < birthmarks_cnt; i++, birthmarkp++)
-            __wt_buf_free(session, &birthmarkp->key);
-        __wt_buf_free(session, &multi->page_las.min_las_key);
-        __wt_buf_free(session, &multi->page_las.max_las_key);
-    }
-    __wt_scr_free(session, &birthmarks);
+    /* Free all the key mementos if there was a failure */
+    if (ret != 0)
+        for (i = 0, mementop = mementos->mem; i < mementos_cnt; i++, mementop++)
+            __wt_buf_free(session, &mementop->key);
+    __wt_scr_free(session, &mementos);
     return (ret);
 }
 

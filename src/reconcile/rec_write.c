@@ -308,7 +308,7 @@ __rec_write_check_complete(
      * Fall back to lookaside eviction during checkpoints if a page can't be evicted.
      */
     if (tret == EBUSY && lookaside_retryp != NULL && !F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-      !r->update_uncommitted)
+      !r->update_uncommitted && !r->update_prepared)
         *lookaside_retryp = true;
 
     /* Don't continue if we have already given up. */
@@ -342,7 +342,7 @@ __rec_write_check_complete(
      * Check if lookaside eviction is possible. If any of the updates we saw were uncommitted, the
      * lookaside table cannot be used.
      */
-    if (r->update_uncommitted || r->update_used)
+    if (r->update_uncommitted || r->update_prepared || r->update_used)
         return (0);
 
     *lookaside_retryp = true;
@@ -415,6 +415,10 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
                 btree->rec_max_txn = r->max_txn;
             if (btree->rec_max_timestamp < r->max_ts)
                 btree->rec_max_timestamp = r->max_ts;
+            /*
+             * WT_ASSERT(session, r->ref->page_las == NULL || btree->rec_max_txn >=
+             * r->ref->page_las->max_txn);
+             */
         }
 
         /*
@@ -647,7 +651,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if updates were used and/or uncommitted. */
     r->updates_seen = r->updates_unstable = 0;
-    r->update_uncommitted = r->update_used = false;
+    r->update_uncommitted = r->update_prepared = r->update_used = false;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
@@ -2435,7 +2439,7 @@ err:
 static void
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-    WT_BIRTHMARK_DETAILS *birthmarkp;
+    WT_KEY_MEMENTO *mementop;
     WT_MULTI *multi;
     uint32_t i, j;
 
@@ -2445,15 +2449,13 @@ __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL && multi->has_las) {
-            if (multi->page_las.birthmarks_cnt != 0) {
-                WT_ASSERT(session, multi->page_las.birthmarks != NULL);
-                for (j = 0, birthmarkp = multi->page_las.birthmarks;
-                     j < multi->page_las.birthmarks_cnt; j++, birthmarkp++)
-                    __wt_buf_free(session, &birthmarkp->key);
+            if (multi->page_las.mementos_cnt != 0) {
+                WT_ASSERT(session, multi->page_las.mementos != NULL);
+                for (j = 0, mementop = multi->page_las.mementos; j < multi->page_las.mementos_cnt;
+                     j++, mementop++)
+                    __wt_buf_free(session, &mementop->key);
             }
-            __wt_free(session, multi->page_las.birthmarks);
-            __wt_buf_free(session, &multi->page_las.max_las_key);
-            __wt_buf_free(session, &multi->page_las.min_las_key);
+            __wt_free(session, multi->page_las.mementos);
         }
 }
 

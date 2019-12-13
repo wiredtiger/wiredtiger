@@ -1016,7 +1016,6 @@ build:
     ret = __wt_rec_split_finish(session, r);
 
 err:
-
     /* Free the update if it is external. */
     if (upd != NULL && upd->ext != 0)
         __wt_free_update_list(session, &upd);

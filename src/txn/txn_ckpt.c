@@ -604,11 +604,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
          * because recovery doesn't set the recovery timestamp until its checkpoint is complete.
          */
         if (txn_global->has_stable_timestamp) {
-            txn->read_timestamp = txn_global->stable_timestamp;
-            txn_global->checkpoint_timestamp = txn->read_timestamp;
-            F_SET(txn, WT_TXN_HAS_TS_READ);
+            txn_global->checkpoint_timestamp = txn_global->stable_timestamp;
             if (!F_ISSET(conn, WT_CONN_RECOVERING))
-                txn_global->meta_ckpt_timestamp = txn->read_timestamp;
+                txn_global->meta_ckpt_timestamp = txn_global->checkpoint_timestamp;
         } else if (!F_ISSET(conn, WT_CONN_RECOVERING))
             txn_global->meta_ckpt_timestamp = txn_global->recovery_timestamp;
     } else {
@@ -619,18 +617,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
 
     __wt_writeunlock(session, &txn_global->rwlock);
 
-    if (F_ISSET(txn, WT_TXN_HAS_TS_READ)) {
+    if (use_timestamp)
         __wt_verbose_timestamp(
-          session, txn->read_timestamp, "Checkpoint requested at stable timestamp");
-
-        /*
-         * The snapshot we established when the transaction started may be too early to match the
-         * timestamp we just read.
-         *
-         * Get a new one.
-         */
-        __wt_txn_get_snapshot(session);
-    }
+          session, txn_global->checkpoint_timestamp, "Checkpoint requested at stable timestamp");
 
     /*
      * Get a list of handles we want to flush; for named checkpoints this may pull closed objects
@@ -699,11 +688,17 @@ __txn_checkpoint_can_skip(
         return (0);
 
     /*
-     * It isn't currently safe to skip timestamp checkpoints - see WT-4958. We should fix this so we
-     * can skip timestamp checkpoints if they don't have new content.
+     * If the checkpoint is using timestamps, and the stable timestamp hasn't been updated since the
+     * last checkpoint there is nothing more that could be written. Except when a non timestamped
+     * file has been modified, as such if the connection has been modified it is currently unsafe to
+     * skip checkpoints.
      */
-    if (use_timestamp)
+    if (!conn->modified && use_timestamp && txn_global->has_stable_timestamp &&
+      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
+      txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
+        *can_skipp = true;
         return (0);
+    }
 
     /*
      * Skip checkpointing the database if nothing has been dirtied since the last checkpoint. That
@@ -711,22 +706,13 @@ __txn_checkpoint_can_skip(
      * be. We might skip a checkpoint in that short instance, which is okay because by the next time
      * we get to checkpoint, the connection would have been marked dirty and hence the checkpoint
      * will not be skipped again.
+     *
+     * If we are using timestamps then we shouldn't skip as the stable timestamp must have moved,
+     * and as such we still need to run checkpoint to update the checkpoint timestamp and the
+     * metadata.
      */
-    if (!conn->modified) {
+    if (!use_timestamp && !conn->modified)
         *can_skipp = true;
-        return (0);
-    }
-
-    /*
-     * If the checkpoint is using timestamps, and the stable timestamp hasn't been updated since the
-     * last checkpoint there is nothing more that could be written.
-     */
-    if (use_timestamp && txn_global->has_stable_timestamp &&
-      txn_global->last_ckpt_timestamp != WT_TS_NONE &&
-      txn_global->last_ckpt_timestamp == txn_global->stable_timestamp) {
-        *can_skipp = true;
-        return (0);
-    }
 
     return (0);
 }
@@ -839,6 +825,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_WITH_SCHEMA_LOCK(session, ret = __checkpoint_prepare(session, &tracking, cfg));
     WT_ERR(ret);
 
+    /*
+     * Save the checkpoint timestamp in a temporary variable, when we release our snapshot it'll be
+     * reset to zero.
+     */
+    WT_ORDERED_READ(ckpt_tmp_ts, txn_global->checkpoint_timestamp);
+
     WT_ASSERT(session, txn->isolation == WT_ISO_SNAPSHOT);
 
     /*
@@ -880,17 +872,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * checkpoint.
      */
     session->dhandle = NULL;
-
-    /*
-     * Record the timestamp from the transaction if we were successful. Store it in a temp variable
-     * now because it will be invalidated during commit but we don't want to set it until we know
-     * the checkpoint is successful. We have to set the system information before we release the
-     * snapshot.
-     */
-    ckpt_tmp_ts = 0;
+    /* We have to set the system information before we release the snapshot. */
     if (full) {
         WT_ERR(__wt_meta_sysinfo_set(session));
-        ckpt_tmp_ts = txn->read_timestamp;
     }
 
     /* Release the snapshot so we aren't pinning updates in cache. */
@@ -971,7 +955,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
          * timestamp is WT_TS_NONE, set it to 1 so we can tell the difference.
          */
         if (use_timestamp) {
-            conn->txn_global.last_ckpt_timestamp = use_timestamp ? ckpt_tmp_ts : WT_TS_NONE;
+            conn->txn_global.last_ckpt_timestamp = ckpt_tmp_ts;
             /*
              * MongoDB assumes the checkpoint timestamp will be initialized with WT_TS_NONE. In such
              * cases it queries the recovery timestamp to determine the last stable recovery

@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 from helper import copy_wiredtiger_home
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
@@ -57,6 +57,7 @@ class test_las03(wttest.WiredTigerTestCase):
             session.commit_transaction('commit_timestamp=' + timestamp_str(i))
         cursor.close()
 
+    @unittest.skip("Temporarily disabled")
     def test_checkpoint_las_reads(self):
         # Create a small table.
         uri = "table:test_las03"
