@@ -1802,21 +1802,21 @@ tasks:
           random_abort_args: -m
       - func: "timestamp abort test"
         vars: 
-          random_abort_args: -m
+          timestamp_abort_args: -m
       # V1 log compatibility mode with write-no-sync txns.
       - func: "random abort test"
         vars: 
           random_abort_args: -C
       - func: "timestamp abort test"
         vars: 
-          random_abort_args: -C
+          timestamp_abort_args: -C
       # V1 log compatibility mode with memory-based txns.
       - func: "random abort test"
         vars: 
           random_abort_args: -C -m
       - func: "timestamp abort test"
         vars: 
-          random_abort_args: -C -m
+          timestamp_abort_args: -C -m
       # Truncate log test.
       - func: "truncated log test"
 
