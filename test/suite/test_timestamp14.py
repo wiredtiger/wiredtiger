@@ -257,8 +257,7 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
             self.conn.query_timestamp('get=all_durable'), '3')
 
         # We have a running transaction with a lower commit_timestamp than we've
-        # seen before. So all_durable (like all_durable) should return (lowest
-        # commit timestamp - 1).
+        # seen before. So all_durable should return (lowest commit timestamp - 1).
         session1.begin_transaction()
         cur1[1] = 2
         session1.timestamp_transaction('commit_timestamp=2')
