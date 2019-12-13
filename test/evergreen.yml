@@ -1777,12 +1777,13 @@ tasks:
             ./test_truncated_log
 
       # format test
-      - func: "test format"
-        vars:
-          extra_args: file_type=fix
-      - func: "test format"
-        vars:
-          extra_args: file_type=row
+      # Temporarily disabled
+      # - func: "test format"
+      #   vars:
+      #     extra_args: file_type=fix
+      # - func: "test format"
+      #   vars:
+      #     extra_args: file_type=row
 
       #FIXME: Add wtperf testing from Jenkin "wiredtiger-test-check-long" after fixing WT-5270
 

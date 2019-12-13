@@ -308,7 +308,7 @@ __rec_write_check_complete(
      * Fall back to lookaside eviction during checkpoints if a page can't be evicted.
      */
     if (tret == EBUSY && lookaside_retryp != NULL && !F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
-      !r->update_uncommitted)
+      !r->update_uncommitted && !r->update_prepared)
         *lookaside_retryp = true;
 
     /* Don't continue if we have already given up. */
@@ -342,7 +342,7 @@ __rec_write_check_complete(
      * Check if lookaside eviction is possible. If any of the updates we saw were uncommitted, the
      * lookaside table cannot be used.
      */
-    if (r->update_uncommitted || r->update_used)
+    if (r->update_uncommitted || r->update_prepared || r->update_used)
         return (0);
 
     *lookaside_retryp = true;
@@ -651,7 +651,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     /* Track if updates were used and/or uncommitted. */
     r->updates_seen = r->updates_unstable = 0;
-    r->update_uncommitted = r->update_used = false;
+    r->update_uncommitted = r->update_prepared = r->update_used = false;
 
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;

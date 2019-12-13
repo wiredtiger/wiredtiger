@@ -152,8 +152,8 @@ class test_las01(wttest.WiredTigerTestCase):
         bigvalue4 = b"ddddd" * 100
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
         self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
-        # Check to see data can be see only till the stable_timestamp
-        self.durable_check(bigvalue3, uri, ds, nrows)
+        # Check that the latest data can be seen.
+        self.durable_check(bigvalue4, uri, ds, nrows)
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(i + 1))
         # Check that the latest data can be seen.
