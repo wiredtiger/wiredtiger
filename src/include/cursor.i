@@ -19,7 +19,7 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 
 /*
  * __cursor_free_key --
- *     Potentially release memory from a key.
+ *     Release memory used by the key in cursor copy debug mode.
  */
 static inline int
 __cursor_free_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
@@ -27,12 +27,21 @@ __cursor_free_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     void *copy_addr;
 
     if (cursor->key.mem != NULL && F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA)) {
+        /*
+         * If we own the memory for the key, make a copy and point to the copy. That allows us to
+         * overwrite and free the original memory, potentially uncovering programming errors related
+         * to retaining pointers to key memory beyond API boundaries. If the key has memory not
+         * currently in use, free that as well.
+         */
         if (WT_DATA_IN_ITEM(&cursor->key)) {
             WT_RET(__wt_memdup(session, cursor->key.mem, cursor->key.memsize, &copy_addr));
+            __wt_explicit_overwrite(cursor->key.mem, cursor->key.memsize);
             __wt_free(session, cursor->key.mem);
             cursor->key.data = cursor->key.mem = copy_addr;
-        } else
+        } else {
+            __wt_explicit_overwrite(cursor->key.mem, cursor->key.memsize);
             __wt_buf_free(session, &cursor->key);
+        }
     }
     return (0);
 }
@@ -47,12 +56,21 @@ __cursor_free_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
     void *copy_addr;
 
     if (cursor->value.mem != NULL && F_ISSET(S2C(session), WT_CONN_DEBUG_COPY_CURSOR_DATA)) {
+        /*
+         * If we own the memory for the value, make a copy and point to the copy. That allows us to
+         * overwrite and free the original memory, potentially uncovering programming errors related
+         * to retaining pointers to value memory beyond API boundaries. If the value has memory not
+         * currently in use, free that as well.
+         */
         if (WT_DATA_IN_ITEM(&cursor->value)) {
             WT_RET(__wt_memdup(session, cursor->value.mem, cursor->value.memsize, &copy_addr));
+            __wt_explicit_overwrite(cursor->value.mem, cursor->value.memsize);
             __wt_free(session, cursor->value.mem);
             cursor->value.data = cursor->value.mem = copy_addr;
-        } else
+        } else {
+            __wt_explicit_overwrite(cursor->value.mem, cursor->value.memsize);
             __wt_buf_free(session, &cursor->value);
+        }
     }
     return (0);
 }
