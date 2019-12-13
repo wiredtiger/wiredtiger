@@ -838,6 +838,10 @@ __wt_row_leaf_key_info(
             *ikeyp = NULL;
         if (cellp != NULL)
             *cellp = WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+        if (datap != NULL) {
+            *(void **)datap = NULL;
+            *sizep = 0;
+        }
         return (false);
     case WT_K_FLAG:
         /* Encoded key: no instantiated key, no cell. */
