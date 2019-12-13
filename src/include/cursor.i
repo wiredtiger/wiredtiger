@@ -48,7 +48,7 @@ __cursor_free_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 
 /*
  * __cursor_free_value --
- *     Potentially release memory from a value.
+ *     Release memory used by the value in cursor copy debug mode.
  */
 static inline int
 __cursor_free_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
