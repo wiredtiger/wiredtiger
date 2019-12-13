@@ -97,7 +97,7 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
     - *make_wiredtiger
-  "compile wiredtiger sanitizer":
+  "compile wiredtiger address sanitizer":
     - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
@@ -155,7 +155,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ${test_env_vars|} ./format.sh ${format_test_script_args|} ${smp_command|} 2>&1
+          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
   "many dbs test":
     command: shell.exec
@@ -1808,30 +1808,29 @@ tasks:
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
   
   - name: format-stress-sanitizer-test
-    #set a 25 hours timeout
+    #set a 25 hours (25*60*60 = 90000 seconds) timeout
     exec_timeout_secs: 90000
     commands:
       - func: "get project"
-      - func: "compile wiredtiger sanitizer"
+      - func: "compile wiredtiger address sanitizer"
       - func: "format test script"
         vars:
           test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          # run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
-          format_test_script_args: -F -t 60
+          # run for 24 hours ( 24 * 60 = 1440 minutes), don't stop at failed tests, use default config
+          format_test_script_args: -t 60
   
   - name: format-stress-sanitizer-smoke-test
     #set a 25 hours timeout
     exec_timeout_secs: 90000
     commands:
       - func: "get project"
-      - func: "compile wiredtiger sanitizer"
+      - func: "compile wiredtiger address sanitizer"
       - func: "format test script"
         # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
-        # run smoke tests, stop at first error, use default config (-F -S)
+        # run smoke tests, don't stop at failed tests, use default config
         vars:
           test_env_vars: ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0" ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          # run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
-          format_test_script_args: -F -S
+          format_test_script_args: -S
           times: 2
 
   - name: split-stress-test
