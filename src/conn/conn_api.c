@@ -1792,9 +1792,9 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.cursor_copy", &cval));
     if (cval.val)
-        F_SET(conn, WT_CONN_DEBUG_COPY_CURSOR_DATA);
+        F_SET(conn, WT_CONN_DEBUG_CURSOR_COPY);
     else
-        F_CLR(conn, WT_CONN_DEBUG_COPY_CURSOR_DATA);
+        F_CLR(conn, WT_CONN_DEBUG_CURSOR_COPY);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.eviction", &cval));
     if (cval.val)
