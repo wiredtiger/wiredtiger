@@ -466,6 +466,9 @@ __posix_file_read_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmap_buf, (uint64_t)pfh->mmap_size);
 
+    if (!pfh->mmap_file_mappable)
+	goto syscall;
+
     /* Indicate that we might be using the mapped area */
     (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
 
@@ -473,8 +476,8 @@ __posix_file_read_mmap(
      * If the I/O falls outside of the mapped buffer, or the buffer is being
      * resized, we defer to the regular system call.
      */
-    if (pfh->mmap_buf != 0 && pfh->mmap_size >= (size_t)offset + len &&
-        !pfh->mmap_resizing) {
+    if (pfh->mmap_buf != 0 &&
+	pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
 
         memcpy(buf, (void *)(pfh->mmap_buf + offset), len);
 
@@ -487,6 +490,7 @@ __posix_file_read_mmap(
     else {
         /* Signal that we won't be using the mmapped buffer after all. */
         (void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
+syscall:
         return __posix_file_read(file_handle, wt_session, offset, len, buf);
     }
 }
@@ -646,7 +650,8 @@ __posix_file_write_mmap(
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
-    static int skip_count = 0;
+    static int remap_opportunities = 0;
+    const int REMAP_SKIP = 10;
 
     session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
@@ -656,15 +661,18 @@ __posix_file_write_mmap(
                  file_handle->name, pfh->fd, offset, (uint64_t)len,
                  (void*)pfh->mmap_buf, (uint64_t)pfh->mmap_size);
 
+
+    if (!pfh->mmap_file_mappable)
+	goto syscall;
+
     /* Indicate that we might be using the mapped area */
-    if (pfh->mmap_file_mappable)
-	(void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
+    (void)__wt_atomic_addv32(&pfh->mmap_usecount, 1);
 
     /*
      * If the I/O falls outside of the mapped buffer, or the buffer is being
      * resized, we defer to the regular system call.
      */
-    if (pfh->mmap_file_mappable && pfh->mmap_buf != NULL &&
+    if (pfh->mmap_buf != NULL &&
 	pfh->mmap_size >= (size_t)offset + len && !pfh->mmap_resizing) {
 
         memcpy( (void*)(pfh->mmap_buf + offset), buf, len);
@@ -677,13 +685,15 @@ __posix_file_write_mmap(
     }
     else {
         /* Signal that we won't be using the mmapped buffer after all. */
-	if (pfh->mmap_file_mappable)
-	    (void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
-
+	(void)__wt_atomic_subv32(&pfh->mmap_usecount, 1);
+syscall:
         ret = __posix_file_write(file_handle, wt_session, offset, len, buf);
 
-	/* If we are here we must have extended the file. Remap the region with the new size */
-	if (ret == 0 && pfh->mmap_file_mappable && (skip_count++)%10 == 0) {
+	/*
+	 * If we are here and the file is mappable, we must have extended its size.
+	 * Remap the region with the new size.
+	 */
+	if (pfh->mmap_file_mappable && ret == 0 && ((remap_opportunities++) % REMAP_SKIP == 0)) {
 	    __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
 			 file_handle->name, (uint64_t)pfh->mmap_size);
 	    __drain_mmap_users(file_handle, wt_session);
@@ -875,11 +885,7 @@ directory_open:
     if (!pfh->direct_io)
         file_handle->fh_advise = __posix_file_advise;
 #endif
-#if WT_IO_VIA_MMAP
-    file_handle->fh_extend = NULL;
-#else
     file_handle->fh_extend = __wt_posix_file_extend;
-#endif
     file_handle->fh_lock = __posix_file_lock;
 #ifdef WORDS_BIGENDIAN
 /*

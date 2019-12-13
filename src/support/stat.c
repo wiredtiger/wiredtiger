@@ -641,6 +641,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: bytes written via memory map API",
   "block-manager: bytes written via system call API", "block-manager: mapped blocks read",
   "block-manager: mapped bytes read",
+  "block-manager: number of times the region was remapped via extend",
   "block-manager: number of times the region was remapped via truncate",
   "block-manager: number of times the region was remapped via write",
   "cache: application threads page read from disk to cache count",
@@ -972,6 +973,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_byte_write_syscall = 0;
     stats->block_map_read = 0;
     stats->block_byte_map_read = 0;
+    stats->block_remap_region_extend = 0;
     stats->block_remap_region_trunc = 0;
     stats->block_remap_region_write = 0;
     stats->cache_read_app_count = 0;
@@ -1395,6 +1397,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_byte_write_syscall += WT_STAT_READ(from, block_byte_write_syscall);
     to->block_map_read += WT_STAT_READ(from, block_map_read);
     to->block_byte_map_read += WT_STAT_READ(from, block_byte_map_read);
+    to->block_remap_region_extend += WT_STAT_READ(from, block_remap_region_extend);
     to->block_remap_region_trunc += WT_STAT_READ(from, block_remap_region_trunc);
     to->block_remap_region_write += WT_STAT_READ(from, block_remap_region_write);
     to->cache_read_app_count += WT_STAT_READ(from, cache_read_app_count);

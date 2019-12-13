@@ -28,7 +28,20 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+#if WT_IO_VIA_MMAP
+    if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
+	__drain_mmap_users(file_handle, wt_session);
+#endif
+
     WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, (wt_off_t)0, offset), ret);
+#if WT_IO_VIA_MMAP
+    if (ret == 0)
+	/* Remap the region with the new size */
+	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
+	    __remap_region(file_handle, wt_session);
+	    WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
+	}
+#endif
     return (ret);
 #else
     WT_UNUSED(file_handle);
@@ -53,12 +66,26 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+#if WT_IO_VIA_MMAP
+    if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
+	__drain_mmap_users(file_handle, wt_session);
+#endif
+
     /*
      * Try the system call for fallocate even if the C library wrapper was not found. The system
      * call actually exists in the kernel for some Linux versions (RHEL 5.5), but not in the version
      * of the C library. This allows it to work everywhere the kernel supports it.
      */
     WT_SYSCALL_RETRY(syscall(SYS_fallocate, pfh->fd, 0, (wt_off_t)0, offset), ret);
+
+#if WT_IO_VIA_MMAP
+    if (ret == 0)
+	/* Remap the region with the new size */
+	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
+	    __remap_region(file_handle, wt_session);
+	    WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
+	}
+#endif
     return (ret);
 #else
     WT_UNUSED(file_handle);
@@ -83,7 +110,20 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
 
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
+#if WT_IO_VIA_MMAP
+    if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
+	__drain_mmap_users(file_handle, wt_session);
+#endif
+
     WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, (wt_off_t)0, offset), ret);
+#if WT_IO_VIA_MMAP
+    if (ret == 0)
+	/* Remap the region with the new size */
+	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
+	    __remap_region(file_handle, wt_session);
+	    WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
+	}
+#endif
     return (ret);
 #else
     WT_UNUSED(file_handle);
