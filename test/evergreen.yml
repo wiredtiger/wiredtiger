@@ -136,7 +136,7 @@ functions:
         done
   "many dbs test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/manydbs"
       script: |
         set -o errexit
@@ -144,7 +144,7 @@ functions:
         ${test_env_vars|} ./t ${many_db_args|} 2>&1
   "thread test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/thread"
       script: |
         set -o errexit
@@ -152,7 +152,7 @@ functions:
         ${test_env_vars|} ./t ${thread_test_args|} 2>&1
   "random abort test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/csuite"
       script: |
         set -o errexit
@@ -160,7 +160,7 @@ functions:
         ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
   "timestamp abort test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/csuite"
       script: |
         set -o errexit
@@ -168,7 +168,7 @@ functions:
         ${test_env_vars|} ./test_timestamp_abort ${timestamp_abort_args|} 2>&1
   "truncated log test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/csuite"
       script: |
         set -o errexit
