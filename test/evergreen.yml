@@ -911,7 +911,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4891_meta_ckptlist_get_alloc 2>&1
 
-  - name: csuite-wt5165-cursor-copy-debug
+  - name: csuite-wt5165-cursor-copy-debug-test
     tags: ["pull_request"]
     depends_on:
       - name: compile
