@@ -60,10 +60,10 @@ static const char *V3 = "value333";
 
 #define ASSERT_ALLOCED(mem, prev_mem) testutil_assert(strcmp(mem, prev_mem) == 0)
 
-#define SAVE(save_array, save_ptr, p)               \
-    do {                                            \
-        save_ptr = p;                               \
-        strncpy(save_array, p, sizeof(save_array)); \
+#define SAVE(save_array, save_ptr, p)                              \
+    do {                                                           \
+        save_ptr = p;                                              \
+        memcpy(save_array, p, strnlen(p, sizeof(save_array) - 1)); \
     } while (0)
 
 int
