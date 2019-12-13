@@ -34,14 +34,15 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_las08.py
-# Verify that we write the second newest version to lookaside.
+# Verify that we write the newest committed version to data store and the
+# second newest committed version to history store.
 class test_las08(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
     uri = "table:test_las06"
     key_format_values = [
-        # ('column_store', dict(key_format='r')),
+        ('column_store', dict(key_format='r')),
         ('row_store', dict(key_format='i'))
     ]
     scenarios = make_scenarios(key_format_values)
