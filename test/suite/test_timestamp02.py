@@ -106,9 +106,9 @@ class test_timestamp02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(200))
 
         # Test that we can manually move the commit timestamp back
-        self.conn.set_timestamp('durable_timestamp=' + timestamp_str(150))
+        self.conn.set_timestamp('commit_timestamp=' + timestamp_str(150))
         self.assertTimestampsEqual(self.conn.query_timestamp(), timestamp_str(150))
-        self.conn.set_timestamp('durable_timestamp=' + timestamp_str(200))
+        self.conn.set_timestamp('commit_timestamp=' + timestamp_str(200))
 
         # Now the stable timestamp before we read.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(200))

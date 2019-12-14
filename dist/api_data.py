@@ -602,6 +602,9 @@ connection_runtime_config = [
             merge LSM chunks where possible''',
             type='boolean')
         ]),
+    Config('lsm_merge', 'true', r'''
+        merge LSM chunks where possible (deprecated)''',
+        type='boolean', undoc=True),
     Config('operation_timeout_ms', '0', r'''
         when non-zero, a requested limit on the number of elapsed real time milliseconds
         application threads will take to complete database operations. Time is measured from the
@@ -1568,7 +1571,8 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query:
+        specify which timestamp to query: \c all_committed returns the largest
+        timestamp such that all timestamps up to that value have committed,
         \c all_durable returns the largest timestamp such that all timestamps
         up to that value have been made durable, \c last_checkpoint returns the
         timestamp of the most recent stable checkpoint, \c oldest returns the
@@ -1579,11 +1583,20 @@ methods = {
         timestamp of the most recent stable checkpoint taken prior to a shutdown
         and \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
-        choices=['all_durable','last_checkpoint',
+        choices=['all_committed','all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
+    Config('commit_timestamp', '', r'''
+        (deprecated) reset the maximum commit timestamp tracked by WiredTiger.
+        This will cause future calls to WT_CONNECTION::query_timestamp to
+        ignore commit timestamps greater than the specified value until the
+        next commit moves the tracked commit timestamp forwards.  This is only
+        intended for use where the application is rolling back locally
+        committed transactions. The supplied value must not be older than the
+        current oldest and stable timestamps.
+        See @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         reset the maximum durable timestamp tracked by WiredTiger.  This will
         cause future calls to WT_CONNECTION::query_timestamp to ignore durable
