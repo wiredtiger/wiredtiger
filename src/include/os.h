@@ -189,3 +189,10 @@ struct __wt_fstream {
     int (*fstr_getline)(WT_SESSION_IMPL *, WT_FSTREAM *, WT_ITEM *);
     int (*fstr_printf)(WT_SESSION_IMPL *, WT_FSTREAM *, const char *, va_list);
 };
+
+#if WT_IO_VIA_MMAP
+void __wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+int __wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+int __wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+int __wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
+#endif

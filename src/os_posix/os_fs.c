@@ -28,11 +28,6 @@
 
 #include "wt_internal.h"
 
-static void __drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
-static int __map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
-static int __remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
-static int __unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session);
-
 /*
  * __posix_sync --
  *     Underlying support function to flush a file descriptor. Fsync calls (or fsync-style calls,
@@ -354,7 +349,7 @@ __posix_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
                  file_handle->name, pfh->fd);
 
     if (pfh->mmap_buf != NULL)
-        __unmap_region(file_handle, wt_session);
+        __wt_unmap_region(file_handle, wt_session);
 #endif
 
     /* Close the file handle. */
@@ -580,7 +575,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 		 "mapped size=%" PRIu64 "\n", file_handle->name, len, (uint64_t)pfh->mmap_size);
 
     if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len)
-	__drain_mmap_users(file_handle, wt_session);
+	__wt_drain_mmap_users(file_handle, wt_session);
 #endif
 
     WT_SYSCALL_RETRY(ftruncate(pfh->fd, len), ret);
@@ -588,7 +583,7 @@ __posix_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 #if WT_IO_VIA_MMAP
         /* Remap the region with the new size */
 	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != len) {
-            __remap_region(file_handle, wt_session);
+            __wt_remap_region(file_handle, wt_session);
 	    WT_STAT_CONN_INCRV(session, block_remap_region_trunc, 1);
 	}
 #endif
@@ -696,8 +691,8 @@ syscall:
 	if (pfh->mmap_file_mappable && ret == 0 && ((remap_opportunities++) % REMAP_SKIP == 0)) {
 	    __wt_verbose(session, WT_VERB_FILEOPS, "%s, write-mmap-remap: mapped len=%" PRIu64 "\n",
 			 file_handle->name, (uint64_t)pfh->mmap_size);
-	    __drain_mmap_users(file_handle, wt_session);
-	    __remap_region(file_handle, wt_session);
+	    __wt_drain_mmap_users(file_handle, wt_session);
+	    __wt_remap_region(file_handle, wt_session);
 	    WT_STAT_CONN_INCRV(session, block_remap_region_write, 1);
 	}
 	return ret;
@@ -873,7 +868,7 @@ directory_open:
     if (file_type == WT_FS_OPEN_FILE_TYPE_DATA || file_type == WT_FS_OPEN_FILE_TYPE_LOG) {
 	pfh->mmap_file_mappable = true;
 	pfh->mmap_prot = LF_ISSET(WT_FS_OPEN_READONLY) ? PROT_READ : PROT_READ | PROT_WRITE;
-	__map_region(file_handle, wt_session);
+	__wt_map_region(file_handle, wt_session);
     }
 #endif
 
@@ -978,8 +973,8 @@ __wt_os_posix(WT_SESSION_IMPL *session)
  * Wait until all the sessions using the memory mapped
  * region are done.
  */
-static void
-__drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+void
+__wt_drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 
     WT_FILE_HANDLE_POSIX *pfh;
@@ -1011,28 +1006,28 @@ __drain_mmap_users(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
         WT_PAUSE();
 }
 
-    /*
-     * This LWN article (https://lwn.net/Articles/731706/) describes a potential problem
-     * when mmap is used over a direct-access (DAX) file system. If a new block is created
-     * and then the file is memory-mapped and the client writes to that block via mmap directly
-     * into storage (via DAX), the file system may not know that the data was written, so it
-     * may not flush the metadata prior to data being written. Therefore, the block may be
-     * reallocated or lost upon crash.
-     *
-     * There are several ways to avoid this behaviour:
-     * (1) To not use DAX. The downside is caching the data in the buffer cache, which is
-     * probably not necessary if the storage device is persistent RAM.
-     *
-     * (2) Use MAP_SYNC flag available on some versions of Linux. The downside is being
-     * Linux-specific and not extensively tested (this is a recent flag).
-     *
-     * (3) Always fsync when we unmap the file. In our implementation, if a session extends
-     * the file by writing a new block beyond the current file size, we always unmap the
-     * file and then re-map it before allowing any reads or writes via mmap into the new block.
-     * If we sync the file upon unmapping, we will be certain that the metadata is persistent.
-     */
-static int
-__map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+/*
+ * This LWN article (https://lwn.net/Articles/731706/) describes a potential problem
+ * when mmap is used over a direct-access (DAX) file system. If a new block is created
+ * and then the file is memory-mapped and the client writes to that block via mmap directly
+ * into storage (via DAX), the file system may not know that the data was written, so it
+ * may not flush the metadata prior to data being written. Therefore, the block may be
+ * reallocated or lost upon crash.
+ *
+ * There are several ways to avoid this behaviour:
+ * (1) To not use DAX. The downside is caching the data in the buffer cache, which is
+ * probably not necessary if the storage device is persistent RAM.
+ *
+ * (2) Use MAP_SYNC flag available on some versions of Linux. The downside is being
+ * Linux-specific and not extensively tested (this is a recent flag).
+ *
+ * (3) Always fsync when we unmap the file. In our implementation, if a session extends
+ * the file by writing a new block beyond the current file size, we always unmap the
+ * file and then re-map it before allowing any reads or writes via mmap into the new block.
+ * If we sync the file upon unmapping, we will be certain that the metadata is persistent.
+ */
+int
+__wt_map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
     WT_FILE_HANDLE_POSIX *pfh;
     WT_SESSION_IMPL *session;
@@ -1050,7 +1045,7 @@ __map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     if (file_size <= 0) {
         if (pfh->mmap_buf != NULL)
-            __unmap_region(file_handle, wt_session);
+            __wt_unmap_region(file_handle, wt_session);
 	return 0;
     }
 
@@ -1074,8 +1069,8 @@ __map_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 /*
  * Remap the region mapped for I/O with a new size.
  */
-static int
-__remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+int
+__wt_remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 
     WT_DECL_RET;
@@ -1091,9 +1086,9 @@ __remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     WT_ASSERT(session, pfh->mmap_file_mappable);
 
     if (pfh->mmap_buf)
-        __unmap_region(file_handle, wt_session);
+        __wt_unmap_region(file_handle, wt_session);
 
-    ret = __map_region(file_handle, wt_session);
+    ret = __wt_map_region(file_handle, wt_session);
 
     /* We are done resizing the buffer */
     (void)__wt_atomic_subv32(&pfh->mmap_resizing, 1);
@@ -1101,8 +1096,8 @@ __remap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
     return ret;
 }
 
-static int
-__unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
+int
+__wt_unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 {
 
     WT_DECL_RET;
@@ -1121,7 +1116,7 @@ __unmap_region(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
 
     /*
      * If running over a direct-access file system (DAX), fsync the file here. See comment
-     * atop __map_region.
+     * atop __wt_map_region.
      */
     pfh->mmap_buf = 0;
     pfh->mmap_size = 0;

@@ -23,14 +23,14 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 #if defined(HAVE_FALLOCATE)
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
 
-    WT_UNUSED(wt_session);
-
+    session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 #if WT_IO_VIA_MMAP
     if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
-	__drain_mmap_users(file_handle, wt_session);
+	__wt_drain_mmap_users(file_handle, wt_session);
 #endif
 
     WT_SYSCALL_RETRY(fallocate(pfh->fd, 0, (wt_off_t)0, offset), ret);
@@ -38,7 +38,7 @@ __posix_std_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     if (ret == 0)
 	/* Remap the region with the new size */
 	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
-	    __remap_region(file_handle, wt_session);
+	    __wt_remap_region(file_handle, wt_session);
 	    WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
 	}
 #endif
@@ -61,14 +61,14 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
 #if defined(__linux__) && defined(SYS_fallocate)
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
+    WT_SESSION_IMPL *session;
 
-    WT_UNUSED(wt_session);
-
+    session = (WT_SESSION_IMPL *)wt_session;
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
 
 #if WT_IO_VIA_MMAP
     if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
-	__drain_mmap_users(file_handle, wt_session);
+	__wt_drain_mmap_users(file_handle, wt_session);
 #endif
 
     /*
@@ -82,7 +82,7 @@ __posix_sys_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_of
     if (ret == 0)
 	/* Remap the region with the new size */
 	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
-	    __remap_region(file_handle, wt_session);
+	    __wt_remap_region(file_handle, wt_session);
 	    WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
 	}
 #endif
@@ -105,14 +105,14 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
 #if defined(HAVE_POSIX_FALLOCATE)
     WT_DECL_RET;
     WT_FILE_HANDLE_POSIX *pfh;
-
-    WT_UNUSED(wt_session);
+    WT_SESSION_IMPL *session;
 
     pfh = (WT_FILE_HANDLE_POSIX *)file_handle;
+    session = (WT_SESSION_IMPL *)wt_session;
 
 #if WT_IO_VIA_MMAP
     if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset)
-	__drain_mmap_users(file_handle, wt_session);
+	__wt_drain_mmap_users(file_handle, wt_session);
 #endif
 
     WT_SYSCALL_RETRY(posix_fallocate(pfh->fd, (wt_off_t)0, offset), ret);
@@ -120,7 +120,7 @@ __posix_posix_fallocate(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session, wt_
     if (ret == 0)
 	/* Remap the region with the new size */
 	if (pfh->mmap_file_mappable && (wt_off_t)pfh->mmap_size != offset) {
-	    __remap_region(file_handle, wt_session);
+	    __wt_remap_region(file_handle, wt_session);
 	    WT_STAT_CONN_INCRV(session, block_remap_region_extend, 1);
 	}
 #endif
