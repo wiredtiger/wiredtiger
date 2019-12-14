@@ -152,7 +152,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_stable_upd, *first_txn_upd, *first_upd, *upd;
+    WT_UPDATE *first_stable_upd, *first_txn_upd, *first_upd, *orig_upd, *upd;
     wt_timestamp_t max_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
@@ -287,7 +287,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * The start timestamp is determined by the commit timestamp when the key is first inserted (or
      * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
      * of a remove or a modify/update operation on the same key.
+     *
+     * In the case of a tombstone where the previous update is the ondisk value, we'll allocate an
+     * update here to represent the ondisk value. Keep a pointer to the original update (the
+     * tombstone) since we do some pointer comparisons below to check whether or not all updates are
+     * stable.
      */
+    orig_upd = upd;
     if (upd != NULL) {
         upd_select->durable_ts = WT_TS_NONE;
         upd_select->start_ts = WT_TS_NONE;
@@ -303,8 +309,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
-            upd_select->stop_ts = upd->start_ts;
-            upd_select->stop_txn = upd->txnid;
+            if (upd->start_ts != WT_TS_NONE)
+                upd_select->stop_ts = upd->start_ts;
+            if (upd->txnid != WT_TXN_NONE)
+                upd_select->stop_txn = upd->txnid;
             upd_select->upd = upd = upd->next;
         }
         if (upd != NULL) {
@@ -376,7 +384,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * uncommitted and prepared updates. However, we cannot change it here as we need to first
      * implement inserting older versions to history store for update restore.
      */
-    all_stable = upd == first_stable_upd && !list_prepared && !list_uncommitted &&
+    all_stable = orig_upd == first_stable_upd && !list_prepared && !list_uncommitted &&
       __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
