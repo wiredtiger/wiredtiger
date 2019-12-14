@@ -97,6 +97,21 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
     - *make_wiredtiger
+  "compile wiredtiger with builtins":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger/build_posix"
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          sh reconf
+          if [ "$OS" != "Windows_NT" ]; then
+            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC" \
+              ../configure ${configure_python_setting|} \
+              --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          fi
+    - *make_wiredtiger
   "make check directory":
     command: shell.exec
     params:
@@ -142,7 +157,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ${test_env_vars|} ./format.sh ${format_test_script_args|} ${smp_command|} 2>&1
+          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
   "many dbs test":
     command: shell.exec
@@ -1813,12 +1828,10 @@ tasks:
     exec_timeout_secs: 90000
     commands:
       - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "compile wiredtiger with builtins"
       - func: "format test script"
         vars:
-          #run for 24 hours ( 24 * 60 = 1440 minutes), stop at first error, use default config
+          #run for 24 hours ( 24 * 60 = 1440 minutes), use default config
           format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 1440
 
   - name: format-stress-smoke-test
@@ -1826,14 +1839,12 @@ tasks:
     exec_timeout_secs: 90000
     commands:
       - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "compile wiredtiger with builtins"
       - func: "format test script"
         vars:
           # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
-          # run smoke tests, stop at first error, use default config (-F -S)
-          format_test_script_args: -S -t 1440
+          # run smoke tests, use default config (-S)
+          format_test_script_args: -S
           times: 16
 
 buildvariants:
