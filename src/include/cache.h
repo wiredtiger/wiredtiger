@@ -271,6 +271,11 @@ struct __wt_cache_pool {
     uint8_t flags;
 };
 
+/*
+ * Optimize comparisons against the lookaside URI, flag handles that reference the lookaside file.
+ */
+#define WT_DHANDLE_IS_LOOKASIDE(session) F_ISSET(S2BT((session)), WT_BTREE_LOOKASIDE)
+
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_EVICT_CALL_CLOSING 0x1u  /* Closing connection or tree */
