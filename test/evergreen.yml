@@ -1844,7 +1844,7 @@ tasks:
         vars:
           # to emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
           # run smoke tests, use default config (-S)
-          format_test_script_args: -S
+          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -S
           times: 16
 
 buildvariants:
