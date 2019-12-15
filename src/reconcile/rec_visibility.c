@@ -333,6 +333,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * In this case, we should leave the selected update unset to indicate that we want to
              * keep the same on-disk value but set the stop time pair to indicate that the validity
              * window ends when this tombstone started.
+             *
+             * FIXME-PM-1521: Any workload/test that involves reopening a connection or opening a
+             * connection on an existing database will run into issues with the logic below. When
+             * opening a connection, the transaction id allocations are reset and therefore, on-disk
+             * values that were previously written can have later timestamps/transaction ids than
+             * new updates being applied which can lead to a malformed cell (stop time pair earlier
+             * than start time pair). I've added some checks below to guard against malformed cells
+             * but this logic still isn't correct and should be handled properly when we begin the
+             * recovery work.
              */
             if (vpack->start_ts < upd_select->stop_ts)
                 upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
