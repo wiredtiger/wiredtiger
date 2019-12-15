@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, sys
+import os, sys, unittest
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 
@@ -352,6 +352,7 @@ class test_jsondump02(wttest.WiredTigerTestCase, suite_subprocess):
             result += chr(b & mask)
         return result
 
+    @unittest.skip("Temporarily disabled")
     def test_json_all_bytes(self):
         """
         Test the generated JSON for all byte values in byte array and
