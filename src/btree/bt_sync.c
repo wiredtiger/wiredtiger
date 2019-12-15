@@ -116,7 +116,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
-    uint32_t flags;
+    uint32_t flags, rec_flags;
     bool timer, tried_eviction;
 
     conn = S2C(session);
@@ -128,6 +128,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
     /* Only visit pages in cache and don't bump page read generations. */
     flags = WT_READ_CACHE | WT_READ_NO_GEN;
+
+    rec_flags = WT_REC_CHECKPOINT;
 
     /*
      * Skip all deleted pages. For a page to be marked deleted, it must have been evicted from cache
@@ -302,7 +304,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
             tried_eviction = false;
 
-            WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
+            /* Add in lookaside reconcilliation for standard files.*/
+            if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
+                rec_flags |= WT_REC_LOOKASIDE | WT_REC_EVICT;
+
+            WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags, NULL));
 
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
