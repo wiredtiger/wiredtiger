@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, struct
+import os, struct, unittest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wiredtiger, wttest
@@ -73,6 +73,7 @@ class test_stat04(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(statcursor[stat.dsrc.btree_entries][2], expectpairs)
         statcursor.close()
 
+    @unittest.skip("Temporarily disabled")
     def test_stat_nentries(self):
         """
         Test to make sure the number of key/value pairs is accurate.
