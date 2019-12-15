@@ -30,7 +30,7 @@
 #       session level operations on tables
 #
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -110,6 +110,7 @@ class test_truncate_fast_delete(wttest.WiredTigerTestCase):
         s.close()
 
     # Trigger fast delete and test cursor counts.
+    @unittest.skip("Temporarily disabled")
     def test_truncate_fast_delete(self):
         uri = self.type + self.name
 

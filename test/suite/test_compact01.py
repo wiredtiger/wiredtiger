@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from wtdataset import SimpleDataSet, ComplexDataSet
 from wiredtiger import stat
@@ -61,6 +61,7 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
         'eviction_dirty_target=80,eviction_dirty_trigger=95,statistics=(all)'
 
     # Test compaction.
+    @unittest.skip("Temporarily disabled")
     def test_compact(self):
         # Populate an object
         uri = self.type + self.name

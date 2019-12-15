@@ -30,7 +30,7 @@
 # Transactions: commits and rollbacks
 #
 
-import fnmatch, os, shutil, time
+import fnmatch, os, shutil, time, unittest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wttest
@@ -166,6 +166,7 @@ class test_txn05(wttest.WiredTigerTestCase, suite_subprocess):
         #
         self.runWt(['-h', self.backup_dir, 'printlog'], outfilename='printlog.out')
 
+    @unittest.skip("Temporarily disabled")
     def test_ops(self):
         self.backup_dir = os.path.join(self.home, "WT_BACKUP")
         self.session2 = self.conn.open_session()
