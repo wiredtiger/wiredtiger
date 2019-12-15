@@ -149,10 +149,12 @@ int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
   WT_CELL_UNPACK *vpack, WT_UPDATE_SELECT *upd_select)
 {
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_stable_upd, *first_txn_upd, *first_upd, *upd;
+    WT_UPDATE *first_stable_upd, *first_txn_upd, *first_upd, *orig_upd, *upd;
     wt_timestamp_t max_ts;
-    size_t upd_memsize;
+    size_t size, upd_memsize;
     uint64_t max_txn, txnid;
     bool all_stable, list_prepared, list_uncommitted;
 
@@ -282,40 +284,82 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         r->max_ondisk_ts = upd->durable_ts;
 
     /*
-     * TIMESTAMP-FIXME The start timestamp is determined by the commit timestamp when the key is
-     * first inserted (or last updated). The end timestamp is set when a key/value pair becomes
-     * invalid, either because of a remove or a modify/update operation on the same key.
+     * The start timestamp is determined by the commit timestamp when the key is first inserted (or
+     * last updated). The end timestamp is set when a key/value pair becomes invalid, either because
+     * of a remove or a modify/update operation on the same key.
+     *
+     * In the case of a tombstone where the previous update is the ondisk value, we'll allocate an
+     * update here to represent the ondisk value. Keep a pointer to the original update (the
+     * tombstone) since we do some pointer comparisons below to check whether or not all updates are
+     * stable.
      */
+    orig_upd = upd;
     if (upd != NULL) {
-        /*
-         * TIMESTAMP-FIXME This is waiting on the WT_UPDATE structure's start/stop
-         * timestamp/transaction work. For now, if we don't have a timestamp/transaction, just
-         * pretend it's durable. If we do have a timestamp/transaction, make the durable and start
-         * timestamps equal to the start timestamp and the start transaction equal to the
-         * transaction, and again, pretend it's durable.
-         */
         upd_select->durable_ts = WT_TS_NONE;
         upd_select->start_ts = WT_TS_NONE;
         upd_select->start_txn = WT_TXN_NONE;
         upd_select->stop_ts = WT_TS_MAX;
         upd_select->stop_txn = WT_TXN_MAX;
-        if (upd_select->upd->start_ts != WT_TS_NONE)
-            upd_select->durable_ts = upd_select->start_ts = upd_select->upd->start_ts;
-        if (upd_select->upd->txnid != WT_TXN_NONE)
-            upd_select->start_txn = upd_select->upd->txnid;
-
         /*
-         * Finalize the timestamps and transactions, checking if the update is globally visible and
-         * nothing needs to be written.
+         * If the newest is a tombstone then select the update before it and set the end of the
+         * visibility window to its time pair as appropriate to indicate that we should return "not
+         * found" for reads after this point.
+         *
+         * Otherwise, leave the end of the visibility window at the maximum possible value to
+         * indicate that the value is visible to any timestamp/transaction id ahead of it.
          */
-        if ((upd_select->stop_ts == WT_TS_MAX && upd_select->stop_txn == WT_TXN_MAX) &&
-          ((upd_select->start_ts == WT_TS_NONE && upd_select->start_txn == WT_TXN_NONE) ||
-              __wt_txn_visible_all(session, upd_select->start_txn, upd_select->start_ts))) {
-            upd_select->start_ts = WT_TS_NONE;
-            upd_select->start_txn = WT_TXN_NONE;
-            upd_select->stop_ts = WT_TS_MAX;
-            upd_select->stop_txn = WT_TXN_MAX;
+        if (upd->type == WT_UPDATE_TOMBSTONE) {
+            if (upd->start_ts != WT_TS_NONE)
+                upd_select->stop_ts = upd->start_ts;
+            if (upd->txnid != WT_TXN_NONE)
+                upd_select->stop_txn = upd->txnid;
+            upd_select->upd = upd = upd->next;
         }
+        if (upd != NULL) {
+            /* The beginning of the validity window is the selected update's time pair. */
+            if (upd->start_ts < upd_select->stop_ts)
+                upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
+            if (upd->txnid < upd_select->stop_txn)
+                upd_select->start_txn = upd->txnid;
+        } else {
+            /* If we only have a tombstone in the update list, we must have an ondisk value. */
+            WT_ASSERT(session, vpack != NULL);
+            /*
+             * It's possible to have a tombstone as the only update in the update list. If we
+             * reconciled before with only a single update and then read the page back into cache,
+             * we'll have an empty update list. And applying a delete on top of that will result in
+             * ONLY a tombstone in the update list.
+             *
+             * In this case, we should leave the selected update unset to indicate that we want to
+             * keep the same on-disk value but set the stop time pair to indicate that the validity
+             * window ends when this tombstone started.
+             *
+             * FIXME-PM-1521: Any workload/test that involves reopening a connection or opening a
+             * connection on an existing database will run into issues with the logic below. When
+             * opening a connection, the transaction id allocations are reset and therefore, on-disk
+             * values that were previously written can have later timestamps/transaction ids than
+             * new updates being applied which can lead to a malformed cell (stop time pair earlier
+             * than start time pair). I've added some checks below to guard against malformed cells
+             * but this logic still isn't correct and should be handled properly when we begin the
+             * recovery work.
+             */
+            if (vpack->start_ts < upd_select->stop_ts)
+                upd_select->durable_ts = upd_select->start_ts = vpack->start_ts;
+            if (vpack->start_txn < upd_select->stop_txn)
+                upd_select->start_txn = vpack->start_txn;
+            /*
+             * Leaving the update unset means that we can skip reconciling. If we've set the stop
+             * time pair because of a tombstone after the on-disk value, we still have work to do so
+             * that is NOT ok. Let's allocate an update equivalent to the on-disk value and continue
+             * on our way!
+             */
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
+            WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
+            upd->ext = 1;
+            upd_select->upd = upd;
+        }
+        WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
     }
 
     /*
@@ -339,7 +383,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
          * two birthmark records in the same update chain.
          */
-        WT_RET(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
         upd_select->upd = NULL;
     }
 
@@ -353,7 +397,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * uncommitted and prepared updates. However, we cannot change it here as we need to first
      * implement inserting older versions to history store for update restore.
      */
-    all_stable = upd == first_stable_upd && !list_prepared && !list_uncommitted &&
+    all_stable = orig_upd == first_stable_upd && !list_prepared && !list_uncommitted &&
       __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (all_stable)
@@ -362,7 +406,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     r->leave_dirty = true;
 
     if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-        WT_PANIC_RET(session, EINVAL, "reconciliation error, update not visible");
+        WT_PANIC_ERR(session, EINVAL, "reconciliation error, update not visible");
 
     /* If not trying to evict the page, we know what we'll write and we're done.
      * FIXME-PM-1521: We need to save updates for checkpoints as it needs to write to history store
@@ -384,13 +428,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * WT_REC_UPDATE_RESTORE flag, the lookaside table path is the WT_REC_LOOKASIDE flag.
      */
     if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
-        return (__wt_set_return(session, EBUSY));
+        WT_ERR(__wt_set_return(session, EBUSY));
     if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
-        return (__wt_set_return(session, EBUSY));
+        WT_ERR(__wt_set_return(session, EBUSY));
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
-    WT_RET(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
     upd_select->upd_saved = true;
 
 check_original_value:
@@ -409,7 +453,9 @@ check_original_value:
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved ||
           (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-        WT_RET(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
 
-    return (0);
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }

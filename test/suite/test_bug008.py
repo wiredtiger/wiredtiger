@@ -29,7 +29,7 @@
 # test_bug008.py
 #       Regression tests.
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
@@ -98,6 +98,7 @@ class test_bug008(wttest.WiredTigerTestCase):
 
     # Verify cursor search-near operations before and after a set of
     # column-store duplicates.
+    @unittest.skip("Temporarily disabled")
     def test_search_duplicate(self):
         if self.colvar == 0:
                 return
@@ -141,6 +142,7 @@ class test_bug008(wttest.WiredTigerTestCase):
 
     # Verify cursor search and search-near operations on a file with a set of
     # on-page visible records, and a set of insert-list invisible records.
+    @unittest.skip("Temporarily disabled")
     def test_search_invisible_one(self):
         # Populate the tree.
         ds = SimpleDataSet(self, self.uri, 100, key_format=self.key_format,
