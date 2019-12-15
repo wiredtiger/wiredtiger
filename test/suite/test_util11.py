@@ -32,6 +32,7 @@ import wiredtiger, wttest
 
 # test_util11.py
 #    Utilities: wt list
+@unittest.skip("Temporarily disabled")
 class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
     tablenamepfx = 'test_util11.'
     session_params = 'key_format=S,value_format=S'
@@ -102,7 +103,6 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["list", "table:"], outfilename=outfile)
         self.check_file_content(outfile, tablelist)
 
-    @unittest.skip("Temporarily disabled")
     def test_list_drop_all(self):
         """
         Test list in a 'wt' process, with a mix of populated and empty tables,
