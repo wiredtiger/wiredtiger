@@ -142,7 +142,8 @@ all_TESTS += test_wt4699_json
 
 test_wt4803_cache_overflow_abort_SOURCES = wt4803_cache_overflow_abort/main.c
 noinst_PROGRAMS += test_wt4803_cache_overflow_abort
-all_TESTS += test_wt4803_cache_overflow_abort
+# Temporarily disabled
+# all_TESTS += test_wt4803_cache_overflow_abort
 
 test_wt4891_meta_ckptlist_get_alloc_SOURCES=wt4891_meta_ckptlist_get_alloc/main.c
 noinst_PROGRAMS += test_wt4891_meta_ckptlist_get_alloc

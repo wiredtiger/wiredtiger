@@ -893,20 +893,21 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt4699_json 2>&1
 
-  - name: csuite-wt4803-cache-overflow-abort-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
+  # Temporarily disabled
+  # - name: csuite-wt4803-cache-overflow-abort-test
+  #   tags: ["pull_request"]
+  #   depends_on:
+  #     - name: compile
+  #   commands:
+  #     - func: "fetch artifacts"
+  #     - command: shell.exec
+  #       params:
+  #         working_dir: "wiredtiger/build_posix"
+  #         script: |
+  #           set -o errexit
+  #           set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_cache_overflow_abort 2>&1
+  #           ${test_env_vars|} $(pwd)/test/csuite/test_wt4803_cache_overflow_abort 2>&1
 
   - name: csuite-wt4891-meta-ckptlist-get-alloc-test
     tags: ["pull_request"]
