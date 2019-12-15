@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, struct
+import os, struct, unittest
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 
@@ -102,6 +102,7 @@ class test_util11(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(["list", "table:"], outfilename=outfile)
         self.check_file_content(outfile, tablelist)
 
+    @unittest.skip("Temporarily disabled")
     def test_list_drop_all(self):
         """
         Test list in a 'wt' process, with a mix of populated and empty tables,
