@@ -1822,8 +1822,8 @@ tasks:
           format_test_script_args: -t 1440
   
   - name: format-stress-sanitizer-smoke-test
-    #set a 25 hours timeout
-    exec_timeout_secs: 90000
+    #set a 7 hours timeout
+    exec_timeout_secs: 25200
     commands:
       - func: "get project"
       - func: "compile wiredtiger address sanitizer"
