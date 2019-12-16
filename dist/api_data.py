@@ -1237,7 +1237,7 @@ methods = {
             by use of the 'this_id' configuration in an earlier backup. A source id is
             required to begin an incremental backup'''),
         Config('this_id', '', r'''
-            a string that identifies the most recent checkpoint as a future backup source
+            a string that identifies the current system state  as a future backup source
             for an incremental backup via 'src_id'. This identifier is required when opening
             an incremental backup cursor and an error will be returned if one is not provided'''),
         ]),

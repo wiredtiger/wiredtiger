@@ -137,7 +137,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
      * persistent across restarts.
      */
     for (i = 0; i < WT_BLKINCR_MAX; ++i)
-        __wt_free(session, conn->incr_backups[i].id);
+        __wt_free(session, conn->incr_backups[i].id_str);
 
     __wt_free(session, conn->cfg);
     __wt_free(session, conn->debug_ckpt);

@@ -87,7 +87,6 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
     F_CLR(conn, WT_CONN_INCR_BACKUP);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        /* If it isn't valid, skip it. */
         F_CLR(blk, WT_BLKINCR_VALID);
     }
     /* __wt_block_backup_remove... */
@@ -265,32 +264,36 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     blk = NULL;
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        /* If it isn't use we can use it. */
-        if (!F_ISSET(blk, WT_BLKINCR_INUSE)) {
-            if (blk->id != NULL)
-                __wt_verbose(session, WT_VERB_BACKUP,
-                  "Freeing and reusing backup slot with old id %s", blk->id);
-            /* Free any string that was there. */
-            __wt_free(session, blk->id);
-            WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id));
-            __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s", i, blk->id);
-            /*
-             * XXX
-             *
-             * WT_ERR(__backup_get_ckpt(session, blk));
-             */
-            __backup_get_ckpt(session, blk);
-            F_SET(blk, WT_BLKINCR_VALID);
-            return (0);
-        }
+        /* If it isn't use, we can use it. */
+        if (!F_ISSET(blk, WT_BLKINCR_INUSE))
+            break;
     }
     /*
      * We didn't find an entry. This should not happen.
      */
-    ret = WT_NOTFOUND;
+    if (i == WT_BLKINCR_MAX)
+        WT_PANIC_RET(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
+
+    /* Use the slot.  */
+    if (blk->id_str != NULL)
+        __wt_verbose(
+          session, WT_VERB_BACKUP, "Freeing and reusing backup slot with old id %s", blk->id_str);
+    /* Free any string that was there. */
+    __wt_free(session, blk->id_str);
+    WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id_str));
+    __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s", i, blk->id_str);
+    /*
+     * XXX This function can error in the future.
+     *
+     * WT_ERR(__backup_get_ckpt(session, blk));
+     */
+    __backup_get_ckpt(session, blk);
+    F_SET(blk, WT_BLKINCR_VALID);
+    return (0);
+
 err:
     if (blk != NULL)
-        __wt_free(session, blk->id);
+        __wt_free(session, blk->id_str);
     return (ret);
 }
 
@@ -311,12 +314,12 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
         /* If it isn't valid, skip it. */
         if (!F_ISSET(blk, WT_BLKINCR_VALID))
             continue;
-        if (WT_STRING_MATCH(blk->id, cval->str, cval->len)) {
+        if (WT_STRING_MATCH(blk->id_str, cval->str, cval->len)) {
             if (F_ISSET(blk, WT_BLKINCR_INUSE))
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
-            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id);
+            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id_str);
             return (0);
         }
     }

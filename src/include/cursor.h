@@ -37,7 +37,7 @@
  */
 #define WT_BLKINCR_MAX 2
 struct __wt_blkincr {
-    const char *id;        /* User's name for this backup. */
+    const char *id_str;    /* User's name for this backup. */
     const char *ckpt_name; /* Requires WT-5115. All checkpoints must be this name */
     void *data;
 /* AUTOMATIC FLAG VALUE GENERATION START */
