@@ -174,6 +174,34 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+  "recovery stress test script":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+
+        for i in $(seq ${times|1}); do
+          # Run the various combinations of args.  Let time and threads be random.
+          # Run current version with write-no-sync txns.
+          ${test_env_vars|} ./test_random_abort 2>&1
+          ${test_env_vars|} ./test_timestamp_abort 2>&1
+
+          # Current version with memory-based txns (MongoDB usage).
+          ${test_env_vars|} ./test_random_abort -m 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -m 2>&1
+
+          # V1 log compatibility mode with write-no-sync txns.
+          ${test_env_vars|} ./test_random_abort -C 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C 2>&1
+
+          # V1 log compatibility mode with memory-based txns.
+          ${test_env_vars|} ./test_random_abort -C -m 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C -m 2>&1
+
+          ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+        done
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -1787,38 +1815,18 @@ tasks:
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
   - name: recovery-stress-test
+    #set a 25 hours timeout
+    exec_timeout_secs: 90000
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
-      # Run the various combinations of args.  Let time and threads be random.
-      # Run current version with write-no-sync txns.
-      - func: "random abort test"
-      - func: "timestamp abort test"
-      # Current version with memory-based txns (MongoDB usage).
-      - func: "random abort test"
-        vars: 
-          random_abort_args: -m
-      - func: "timestamp abort test"
-        vars: 
-          timestamp_abort_args: -m
-      # V1 log compatibility mode with write-no-sync txns.
-      - func: "random abort test"
-        vars: 
-          random_abort_args: -C
-      - func: "timestamp abort test"
-        vars: 
-          timestamp_abort_args: -C
-      # V1 log compatibility mode with memory-based txns.
-      - func: "random abort test"
-        vars: 
-          random_abort_args: -C -m
-      - func: "timestamp abort test"
-        vars: 
-          timestamp_abort_args: -C -m
-      # Truncate log test.
-      - func: "truncated log test"
+      - func: "recovery stress test script"
+        vars:
+          # Repeat this script enough times to make this task run for 24 hours
+          # At the time of writing this script, one cal to underlying scripts takes about 8 mins to finish.
+          times: 180
 
 buildvariants:
 - name: ubuntu1804
@@ -2002,3 +2010,4 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
+  - name: recovery-stress-test
