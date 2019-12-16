@@ -308,7 +308,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                  * The on-disk value cannot be a modify or a prepare so we can confidently assign
                  * the update type and prepare state to the resulting update.
                  */
-                WT_ERR_NOTFOUND_OK(las_cursor->prev(las_cursor));
+                WT_ERR_NOTFOUND_OK(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
                 las_start_tmp.txnid = WT_TXN_NONE;
                 if (ret != WT_NOTFOUND) {
@@ -333,7 +333,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                 __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, &las_value, mod_upd->data, false));
                 __wt_free_update_list(session, &mod_upd);
-                mod_upd = NULL;
             }
 
             WT_ERR(__wt_update_alloc(session, &las_value, &upd, &size, upd_type));

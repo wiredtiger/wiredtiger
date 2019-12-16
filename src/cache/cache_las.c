@@ -728,14 +728,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             full_value->size = upd->size;
         }
 
+        squashed = false;
+
         /* Flush the updates on stack */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
                                   prev_full_value = tmp, upd = prev_upd) {
             /* Should not see BIRTHMARK or TOMBSTONE */
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
-
-            /* Should not see BIRTHMARK or TOMBSTONE */
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             __wt_modify_vector_pop(&modifies, &prev_upd);
             stop_ts_pair.timestamp = prev_upd->start_ts;
@@ -1506,7 +1505,7 @@ __wt_find_lookaside_upd(
          * searching after finding the newest visible record.
          */
         if (!__wt_txn_visible(session, las_start.txnid, las_start.timestamp))
-            break;
+            continue;
 
         WT_ERR(las_cursor->get_value(
           las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
@@ -1549,7 +1548,7 @@ __wt_find_lookaside_upd(
                  * value for that key. Note that if we hit the end of the lookaside table
                  * when backtracking, this equates to crossing a key boundary.
                  */
-                WT_ERR_NOTFOUND_OK(las_cursor->prev(las_cursor));
+                WT_ERR_NOTFOUND_OK(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
                 las_start_tmp.txnid = WT_TXN_NONE;
                 if (ret != WT_NOTFOUND) {
