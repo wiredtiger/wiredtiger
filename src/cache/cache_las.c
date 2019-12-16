@@ -721,7 +721,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         __wt_modify_vector_pop(&modifies, &upd);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
             (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-                                upd->start_ts == WT_TXN_NONE));
+                             upd->start_ts == WT_TXN_NONE));
         /* Skip TOMBSTONE at the end of the update chain */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
@@ -734,7 +734,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         full_value->size = upd->size;
 
         /* Flush the updates on stack */
-        for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp, upd = prev_upd) {
+        for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
+                                  prev_full_value = tmp, upd = prev_upd) {
             /* Should not see BIRTHMARK or TOMBSTONE */
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
@@ -764,22 +765,23 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
             /*
              * Skip the updates have the same start timestamp and transaction id
-             * 
-             * The update after the onpage_upd can be squashed away. Insert a full update anyway to simplify the code.
-             * It will take some extra space but such case should be rare.
+             *
+             * The update older than onpage_upd can be squashed away. Insert a full update anyway to
+             * simplify the code. It will take some extra space but such case should be rare.
              */
-            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid || modifies.size == 0) {
+            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid ||
+              modifies.size == 0) {
                 /*
-                 * Calculate reverse delta.
-                 * Insert full update for the newest historical record even it's a MODIFY.
+                 * Calculate reverse delta. Insert full update for the newest historical record even
+                 * it's a MODIFY.
                  *
-                 * It is not correct to check prev_upd == list->onpage_upd as we may have
-                 * aborted updates in the middle.
+                 * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
+                 * updates in the middle.
                  */
                 if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0) {
                     nentries = MAX_REVERSE_MODIFY_NUM;
                     if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
-                        prev_full_value->size / 10, entries, &nentries) != 0)
+                          prev_full_value->size / 10, entries, &nentries) != 0)
                         insert_modify = false;
                     else {
                         WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
@@ -1521,17 +1523,17 @@ __wt_find_lookaside_upd(
                 WT_ERR(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
                 las_start_tmp.txnid = WT_TXN_NONE;
-                
+
                 /*
-                 * Make sure we use the temporary variants of these variables. We need to retain
-                 * the timestamps of the original modify we saw.
+                 * Make sure we use the temporary variants of these variables. We need to retain the
+                 * timestamps of the original modify we saw.
                  *
-                 * We keep looking back into lookaside until we
-                 * find a base update to apply the reverse deltas on top of.
+                 * We keep looking back into lookaside until we find a base update to apply the
+                 * reverse deltas on top of.
                  */
-                WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key,
-                      &las_start_tmp.timestamp, &las_start_tmp.txnid, &las_stop_tmp.timestamp,
-                      &las_stop_tmp.txnid));
+                WT_ERR(
+                  las_cursor->get_key(las_cursor, &las_btree_id, las_key, &las_start_tmp.timestamp,
+                    &las_start_tmp.txnid, &las_stop_tmp.timestamp, &las_stop_tmp.txnid));
 
                 WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
 
@@ -1554,11 +1556,10 @@ __wt_find_lookaside_upd(
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_start.timestamp;
         upd->prepare_state = prepare_state;
-        
+
         /*
-         * We're not keeping this in our update list as we want to get rid of it after the read
-         * has been dealt with. Mark this update as external and to be discarded when not
-         * needed.
+         * We're not keeping this in our update list as we want to get rid of it after the read has
+         * been dealt with. Mark this update as external and to be discarded when not needed.
          */
         upd->ext = 1;
         *updp = upd;
