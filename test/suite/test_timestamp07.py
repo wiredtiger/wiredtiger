@@ -165,8 +165,6 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         self.backup_check(check_value, valcnt, valcnt2, valcnt3)
 
     def check_stable(self, check_value, valcnt, valcnt2, valcnt3):
-        self.ckpt_backup(check_value, valcnt, valcnt2, valcnt3)
-
         # When reading as-of a timestamp, tables 1 and 3 should match (both
         # use timestamps and we're not running recovery, so logging behavior
         # should be irrelevant).
@@ -248,6 +246,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # Take a checkpoint using the given configuration.  Then verify
         # whether value2 appears in a copy of that data or not.
         # print "check_stable 1"
+        self.ckpt_backup(self.value2, self.nkeys, self.nkeys, self.nkeys)
         self.check_stable(self.value2, 0, self.nkeys, self.nkeys if self.using_log else 0)
 
         # Update the stable timestamp to the latest, but not the oldest
@@ -256,6 +255,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         self.stablets = timestamp_str(self.nkeys*2)
         self.conn.set_timestamp('stable_timestamp=' + self.stablets)
         # print "check_stable 2"
+        self.ckpt_backup(self.value2, self.nkeys, self.nkeys, self.nkeys)
         self.check_stable(self.value2, self.nkeys, self.nkeys, self.nkeys)
 
         # If we're not using the log we're done.
@@ -290,6 +290,7 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
         # all the data regardless of timestamps.  The table that is not
         # logged should not see any of it.
         # print "check_stable 3"
+        self.ckpt_backup(self.value3, self.nkeys, self.nkeys, self.nkeys)
         self.check_stable(self.value3, 0, self.nkeys, self.nkeys)
 
 if __name__ == '__main__':

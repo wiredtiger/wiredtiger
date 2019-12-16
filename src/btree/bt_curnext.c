@@ -62,8 +62,11 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         if (upd == NULL) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
-        } else
+        } else {
+            if (upd->ext != 0)
+                return (__wt_value_return(cbt, upd));
             cbt->iface.value.data = upd->data;
+        }
     }
     cbt->iface.value.size = 1;
     return (0);
@@ -116,8 +119,11 @@ new_page:
     if (upd == NULL) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
-    } else
+    } else {
+        if (upd->ext != 0)
+            return (__wt_value_return(cbt, upd));
         cbt->iface.value.data = upd->data;
+    }
     cbt->iface.value.size = 1;
     return (0);
 }
@@ -157,6 +163,8 @@ __cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
+            if (upd->ext != 0)
+                __wt_free_update_list(session, &upd);
             continue;
         }
         return (__wt_value_return(cbt, upd));
@@ -226,6 +234,8 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
             if (upd->type == WT_UPDATE_TOMBSTONE) {
                 if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                     ++cbt->page_deleted_count;
+                if (upd->ext != 0)
+                    __wt_free_update_list(session, &upd);
                 continue;
             }
             return (__wt_value_return(cbt, upd));
@@ -351,6 +361,8 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
             if (upd->type == WT_UPDATE_TOMBSTONE) {
                 if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                     ++cbt->page_deleted_count;
+                if (upd->ext != 0)
+                    __wt_free_update_list(session, &upd);
                 continue;
             }
             return (__wt_value_return(cbt, upd));
@@ -382,6 +394,8 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
             if (upd->txnid != WT_TXN_NONE && __wt_txn_upd_visible_all(session, upd))
                 ++cbt->page_deleted_count;
+            if (upd->ext != 0)
+                __wt_free_update_list(session, &upd);
             continue;
         }
         return (__cursor_row_slot_val_return(cbt, rip, kpack_used ? &kpack : NULL, upd));

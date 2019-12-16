@@ -95,6 +95,10 @@ struct __wt_session_impl {
 
     WT_CURSOR *las_cursor; /* Lookaside table cursor */
 
+    /* Original transaction time pair to use for the lookaside inserts */
+    uint64_t orig_txnid_to_las;
+    wt_timestamp_t orig_timestamp_to_las;
+
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */
     void *meta_track_next;   /* Current position */

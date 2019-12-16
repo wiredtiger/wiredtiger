@@ -375,9 +375,16 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
             op->type = WT_TXN_OP_BASIC_COL;
     }
     op->u.op_upd = upd;
-    upd->txnid = session->txn.id;
 
-    __wt_txn_op_set_timestamp(session, op);
+    /* Use the original transaction time pair for the lookaside inserts */
+    if (WT_DHANDLE_IS_LOOKASIDE(session)) {
+        upd->txnid = session->orig_txnid_to_las;
+        upd->start_ts = session->orig_timestamp_to_las;
+    } else {
+        upd->txnid = session->txn.id;
+        __wt_txn_op_set_timestamp(session, op);
+    }
+
     return (0);
 }
 
