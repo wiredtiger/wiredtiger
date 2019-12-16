@@ -356,7 +356,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
             WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
-            upd->ext = 1;
+            F_SET(upd, WT_UPDATE_TEMP_FROM_LAS);
             upd_select->upd = upd;
         }
         WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);

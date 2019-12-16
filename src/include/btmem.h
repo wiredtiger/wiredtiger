@@ -1114,8 +1114,11 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
-    /* Temp: Remove after integrating las cursors with btree cursors */
-    uint8_t ext;
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_UPDATE_HISTORY_STORE 0x1u /* Update has been written to history store. */
+#define WT_UPDATE_TEMP_FROM_LAS 0x2u /* Update is temporary retrieved from LAS. */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags;
 
     /*
      * Zero or more bytes of value (the payload) immediately follows the WT_UPDATE structure. We use
@@ -1128,7 +1131,7 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
-#define WT_UPDATE_SIZE 39
+#define WT_UPDATE_SIZE 44
 
 /*
  * The memory size of an update: include some padding because this is such a common case that

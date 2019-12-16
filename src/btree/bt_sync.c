@@ -304,9 +304,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
             tried_eviction = false;
 
-            /* Add in lookaside reconcilliation for standard files.*/
+            /* Add in lookaside reconciliation for standard files.*/
             if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
-                rec_flags |= WT_REC_LOOKASIDE | WT_REC_EVICT;
+                rec_flags |= WT_REC_LOOKASIDE;
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags, NULL));
 

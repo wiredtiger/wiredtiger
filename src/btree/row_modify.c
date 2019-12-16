@@ -273,6 +273,7 @@ __wt_update_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, WT_UPDATE **up
         memcpy(upd->data, value->data, value->size);
     }
     upd->type = (uint8_t)modify_type;
+    upd->flags = 0;
 
     *updp = upd;
     *sizep = WT_UPDATE_MEMSIZE(upd);

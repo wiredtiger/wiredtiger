@@ -713,7 +713,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             continue;
 
         /* onpage_upd now is always from the update chain */
-        WT_ASSERT(session, list->onpage_upd->ext == 0);
+        WT_ASSERT(session, !F_ISSET(list->onpage_upd, WT_UPDATE_TEMP_FROM_LAS));
 
         /* Lookaside table key component: source key. */
         switch (page->type) {
@@ -769,7 +769,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * item.
          */
         do {
-            if (upd->txnid == WT_TXN_ABORTED)
+            if (upd->txnid == WT_TXN_ABORTED || F_ISSET(upd, WT_UPDATE_HISTORY_STORE))
                 continue;
 
             /* We have at least one LAS record from this key, save a copy of the key */
@@ -815,6 +815,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
             WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd, &stop_ts, &stop_txnid));
             ++insert_cnt;
+
+            /* Flag the update as now in the lookaside file */
+            upd->flags = WT_UPDATE_HISTORY_STORE;
 
             /*
              * If we encounter subsequent updates with the same timestamp, skip them to avoid
@@ -1664,7 +1667,7 @@ __wt_find_lookaside_upd(
              * has been dealt with. Mark this update as external and to be discarded when not
              * needed.
              */
-            upd->ext = 1;
+            F_SET(upd, WT_UPDATE_TEMP_FROM_LAS);
         *updp = upd;
 
         /* We are done, we found the record we were searching for */
