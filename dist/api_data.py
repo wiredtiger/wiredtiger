@@ -513,8 +513,8 @@ connection_runtime_config = [
             skipped in recovery.''',
             type='boolean'),
         Config('slow_checkpoint', 'false', r'''
-            if true, each time checkpoint visits an internal page it will
-            sleep for 10000 ms.
+            if true, slow down checkpoint creation by slowing down internal 
+            page processing.
             ''',
             type='boolean')
         ]),

@@ -271,7 +271,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_PAGE_IS_INTERNAL(page)) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
-                /* slow down checkpoints */
+                /* Slow down checkpoints. */
                 if (conn->debug_slow_ckpt)
                     __wt_sleep(0, 10000);
 
