@@ -712,7 +712,6 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
     WT_DECL_RET;
-    WT_UPDATE *tmp_upd;
     WT_VISIBLE_TYPE upd_visible;
 
     *updp = NULL;
@@ -727,20 +726,12 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         }
     }
 
-    /* Find a visible record in the lookaside and check if we should use that instead. */
-    if ((upd == NULL || session->txn.read_timestamp != 0) &&
-      __wt_page_las_active(session, cbt->ref)) {
-        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, false);
+    /* Cannot find the update in memory. Try lookaside. */
+    if (upd == NULL && __wt_page_las_active(session, cbt->ref)) {
+        ret = __wt_find_lookaside_upd(session, cbt, &upd, false);
         WT_RET_NOTFOUND_OK(ret);
-        if (ret == 0) {
-            /* Pick newer of the visible updates */
-            if (upd == NULL || upd->start_ts < tmp_upd->start_ts)
-                upd = tmp_upd;
-            else {
-                WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
-                __wt_free_update_list(session, &tmp_upd);
-            }
-        }
+        if (ret == 0)
+            WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
     }
 
     *updp = upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd;

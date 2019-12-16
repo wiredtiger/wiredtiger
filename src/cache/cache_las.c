@@ -544,7 +544,7 @@ __las_insert_update(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
     /* Set the current update start time pair as the commit time pair to the lookaside record. */
     __las_store_time_pair(session, upd->start_ts, upd->txnid);
 
-    cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, type, &las_value);
+    cursor->set_value(cursor, upd->durable_ts, upd->prepare_state, type, las_value);
 
     /*
      * Using update instead of insert so the page stays pinned and can be searched before the tree.
@@ -712,11 +712,16 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         insert_modify = squashed = false;
         modify_value = NULL;
 
+        /*
+         * Get the oldest full update on chain. It is either the oldest update or the second oldest
+         * update if the oldest update is a TOMBSTONE and its txnid is WT_TXN_NONE and its timestamp
+         * is WT_TXN_NONE
+         */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
             (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-                                upd->start_ts == WT_TS_NONE));
+                                upd->start_ts == WT_TXN_NONE));
         /* Skip TOMBSTONE at the end of the update chain */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
@@ -729,8 +734,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         full_value->size = upd->size;
 
         /* Flush the updates on stack */
-        for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
-                                  prev_full_value = tmp, upd = prev_upd) {
+        for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp, upd = prev_upd) {
             /* Should not see BIRTHMARK or TOMBSTONE */
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
@@ -738,22 +742,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             stop_ts_pair.timestamp = prev_upd->start_ts;
             stop_ts_pair.txnid = prev_upd->txnid;
 
-            /* Skip the updates have the same start timestamp and transaction id */
-            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid) {
-                if (!insert_modify)
-                    WT_ERR(__las_insert_update(session, cursor, btree_id, key, upd,
-                      WT_UPDATE_STANDARD, full_value, stop_ts_pair));
-                else if (__las_insert_update(session, cursor, btree_id, key, upd, WT_UPDATE_MODIFY,
-                           modify_value, stop_ts_pair) != 0) {
-                    __wt_scr_free(session, &modify_value);
-                    goto err;
-                } else
-                    __wt_scr_free(session, &modify_value);
-
-                ++insert_cnt;
-            } else
-                squashed = true;
-
+            /* Skip TOMBSTONE */
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
@@ -771,21 +760,46 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 prev_full_value->data = prev_upd->data;
                 prev_full_value->size = prev_upd->size;
                 insert_modify = false;
-                continue;
             }
 
-            if(prev_upd == list->onpage_upd)
-                continue;
+            /*
+             * Skip the updates have the same start timestamp and transaction id
+             * 
+             * The update after the onpage_upd can be squashed away. Insert a full update anyway to simplify the code.
+             * It will take some extra space but such case should be rare.
+             */
+            if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid || modifies.size == 0) {
+                /*
+                 * Calculate reverse delta.
+                 * Insert full update for the newest historical record even it's a MODIFY.
+                 *
+                 * It is not correct to check prev_upd == list->onpage_upd as we may have
+                 * aborted updates in the middle.
+                 */
+                if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0) {
+                    nentries = MAX_REVERSE_MODIFY_NUM;
+                    if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
+                        prev_full_value->size / 10, entries, &nentries) != 0)
+                        insert_modify = false;
+                    else {
+                        WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
+                        insert_modify = true;
+                    }
+                }
 
-            /* Calculate reverse delta */
-            nentries = MAX_REVERSE_MODIFY_NUM;
-            if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
-                  prev_full_value->size / 10, entries, &nentries) != 0)
-                insert_modify = false;
-            else {
-                WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
-                insert_modify = true;
-            }
+                if (!insert_modify)
+                    WT_ERR(__las_insert_update(session, cursor, btree_id, key, upd,
+                      WT_UPDATE_STANDARD, full_value, stop_ts_pair));
+                else if (__las_insert_update(session, cursor, btree_id, key, upd, WT_UPDATE_MODIFY,
+                           modify_value, stop_ts_pair) != 0) {
+                    __wt_scr_free(session, &modify_value);
+                    goto err;
+                } else
+                    __wt_scr_free(session, &modify_value);
+
+                ++insert_cnt;
+            } else
+                squashed = true;
         }
 
         if (squashed)
@@ -1378,33 +1392,6 @@ err:
 }
 
 /*
- * __find_birthmark_update --
- *     A helper function to find a birthmark update for a given key. If there is no birthmark record
- *     (either no lookaside content or the most recent value was instantiated) the update pointer
- *     will be set to null.
- */
-static void
-__find_birthmark_update(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
-{
-    WT_PAGE *page;
-    WT_UPDATE *upd;
-
-    page = cbt->ref->page;
-
-    upd = NULL;
-    if (cbt->ins != NULL)
-        upd = cbt->ins->upd;
-    else if (cbt->btree->type == BTREE_ROW && page->modify != NULL &&
-      page->modify->mod_row_update != NULL)
-        upd = page->modify->mod_row_update[cbt->slot];
-
-    for (; upd != NULL && upd->type != WT_UPDATE_BIRTHMARK; upd = upd->next)
-        ;
-
-    *updp = upd;
-}
-
-/*
  * __wt_find_lookaside_upd --
  *     Scan the lookaside for a record the btree cursor wants to position on. Create an update for
  *     the record and return to the caller. The caller may choose to optionally allow prepared
@@ -1424,13 +1411,11 @@ __wt_find_lookaside_upd(
     WT_MODIFY_VECTOR modifies;
     WT_TIME_PAIR las_start, las_start_tmp, las_stop, las_stop_tmp;
     WT_TXN *txn;
-    WT_UPDATE *birthmark_upd, *mod_upd, *upd;
+    WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp;
     size_t notused, size;
-    uint64_t recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
-    const uint8_t *recnop;
     int cmp;
     bool modify, sweep_locked;
 
@@ -1513,21 +1498,11 @@ __wt_find_lookaside_upd(
         WT_ERR(las_cursor->get_value(
           las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
 
-        /*
-         * Found a visible record, return success unless it is prepared and we are not ignoring
-         * prepared.
-         *
-         * It's necessary to explicitly signal a prepare conflict so that the callers don't fallback
-         * to using something from the update list.
-         */
-        if (prepare_state == WT_PREPARE_INPROGRESS &&
-          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
-            ret = WT_PREPARE_CONFLICT;
-            break;
-        }
+        /* We do not have have prepared updates in the lookaside anymore */
+        WT_ASSERT(session, prepare_state != WT_PREPARE_INPROGRESS);
 
-        /* We do not have birthmarks in the lookaside anymore. */
-        WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK);
+        /* We do not have birthmarks and tombstones in the lookaside anymore. */
+        WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK && upd_type != WT_UPDATE_TOMBSTONE);
 
         /*
          * Keep walking until we get a non-modify update. Once we get to that point, squash the
@@ -1535,72 +1510,35 @@ __wt_find_lookaside_upd(
          */
         if (upd_type == WT_UPDATE_MODIFY) {
             WT_NOT_READ(modify, true);
-            __find_birthmark_update(cbt, &birthmark_upd);
             while (upd_type == WT_UPDATE_MODIFY) {
                 WT_ERR(__wt_update_alloc(session, las_value, &mod_upd, &notused, upd_type));
                 WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
                 mod_upd = NULL;
 
                 /*
-                 * This loop can exit on three conditions:
-                 * 1: We find a standard update in the lookaside table to apply the reverse deltas
-                 * to.
-                 * 2: We find that the birthmark record for the given key is older than
-                 * the current lookaside record.
-                 * 3: We cross the key boundary meaning that the base update MUST be the on-disk
-                 * value for that key. Note that if we hit the end of the lookaside table
-                 * when backtracking, this equates to crossing a key boundary.
+                 * Find the base update to apply the reverse delta
                  */
-                WT_ERR_NOTFOUND_OK(las_cursor->next(las_cursor));
+                WT_ERR(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
                 las_start_tmp.txnid = WT_TXN_NONE;
-                if (ret != WT_NOTFOUND) {
-                    /*
-                     * Make sure we use the temporary variants of these variables. We need to retain
-                     * the timestamps of the original modify we saw.
-                     *
-                     * The regular case (1) is where we keep looking back into lookaside until we
-                     * find a base update to apply the reverse deltas on top of.
-                     */
-                    WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key,
+                
+                /*
+                 * Make sure we use the temporary variants of these variables. We need to retain
+                 * the timestamps of the original modify we saw.
+                 *
+                 * We keep looking back into lookaside until we
+                 * find a base update to apply the reverse deltas on top of.
+                 */
+                WT_ERR(las_cursor->get_key(las_cursor, &las_btree_id, las_key,
                       &las_start_tmp.timestamp, &las_start_tmp.txnid, &las_stop_tmp.timestamp,
                       &las_stop_tmp.txnid));
 
-                    /*
-                     * Another possibility (2) is where the birthmark that we instantiated the
-                     * lookaside page with IS the base update that we should be applying the reverse
-                     * deltas to. If the cursor positions itself on a modify, we immediately
-                     * traverse the update list to look for the birthmark update and compare its
-                     * timestamp/txnid with the lookaside contents.
-                     */
-                    if (birthmark_upd != NULL && birthmark_upd->start_ts > read_timestamp &&
-                      ((birthmark_upd->start_ts < las_start_tmp.timestamp) ||
-                          (birthmark_upd->start_ts == las_start_tmp.timestamp &&
-                            birthmark_upd->txnid < las_start_tmp.txnid))) {
-                        upd_type = WT_UPDATE_STANDARD;
-                        WT_ERR(__wt_buf_set(
-                          session, las_value, birthmark_upd->data, birthmark_upd->size));
-                        break;
-                    }
-                    WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
-                }
+                WT_ERR(__wt_compare(session, NULL, las_key, key, &cmp));
 
-                /*
-                 * The last possibility (3) is where the on-disk value is the base update but is not
-                 * a birthmark record. This can happen if reconciliation occurred when ONLY that
-                 * value existed. It will be not be a birthmark since we won't go through the
-                 * lookaside eviction path in the case of a single value.
-                 */
-                if (ret == WT_NOTFOUND || las_btree_id != S2BT(session)->id || cmp != 0) {
-                    upd_type = WT_UPDATE_STANDARD;
-                    WT_ERR(__wt_value_return_buf(cbt, cbt->ref, las_value));
-                    break;
-                } else
-                    WT_ASSERT(session,
-                      __wt_txn_visible(session, las_start_tmp.txnid, las_start_tmp.timestamp));
                 WT_ERR(las_cursor->get_value(
                   las_cursor, &durable_timestamp_tmp, &prepare_state_tmp, &upd_type, las_value));
             }
+
             WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
             while (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &mod_upd);
@@ -1616,43 +1554,13 @@ __wt_find_lookaside_upd(
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_start.timestamp;
         upd->prepare_state = prepare_state;
-
+        
         /*
-         * When we find a prepared update in lookaside, we should add it to our update list and
-         * subsequently delete the corresponding lookaside entry. If it gets committed, the
-         * timestamp in the las key may differ so it's easier if we get rid of it now and rewrite
-         * the entry on eviction/commit/rollback.
+         * We're not keeping this in our update list as we want to get rid of it after the read
+         * has been dealt with. Mark this update as external and to be discarded when not
+         * needed.
          */
-        if (prepare_state == WT_PREPARE_INPROGRESS) {
-            WT_ASSERT(session, !modify);
-            switch (cbt->ref->page->type) {
-            case WT_PAGE_COL_FIX:
-            case WT_PAGE_COL_VAR:
-                recnop = las_key->data;
-                WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
-                WT_ERR(__wt_col_modify(cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
-                break;
-            case WT_PAGE_ROW_LEAF:
-                WT_ERR(__wt_row_modify(cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
-                break;
-            }
-
-            ret = las_cursor->remove(las_cursor);
-            if (ret != 0)
-                WT_PANIC_ERR(session, ret,
-                  "initialised prepared update but was unable to remove the corresponding "
-                  "entry "
-                  "from lookaside");
-
-            /* This is going in our update list so it should be accounted for in cache usage. */
-            __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
-        } else
-            /*
-             * We're not keeping this in our update list as we want to get rid of it after the read
-             * has been dealt with. Mark this update as external and to be discarded when not
-             * needed.
-             */
-            upd->ext = 1;
+        upd->ext = 1;
         *updp = upd;
 
         /* We are done, we found the record we were searching for */
