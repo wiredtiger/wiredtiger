@@ -709,6 +709,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         upd = prev_upd = NULL;
+        insert_modify = squashed = false;
 
         if (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &upd);
@@ -723,12 +724,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 } else
                     continue;
             }
-            insert_modify = false;
             full_value->data = upd->data;
             full_value->size = upd->size;
         }
-
-        squashed = false;
 
         /* Flush the updates on stack */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
