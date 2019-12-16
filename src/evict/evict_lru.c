@@ -2301,9 +2301,9 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
                 if (timer)
-                    WT_ERR(__wt_msg(session, "%s", 
-                        "Application thread returned a rollback error because "
-                        "it was forced to evict and eviction is stuck"));
+                    WT_ERR(__wt_msg(session, "%s",
+                      "Application thread returned a rollback error because "
+                      "it was forced to evict and eviction is stuck"));
             }
             WT_ERR(ret);
         }
