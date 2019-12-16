@@ -710,23 +710,23 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         upd = prev_upd = NULL;
         insert_modify = squashed = false;
+        modify_value = NULL;
 
-        if (modifies.size > 0) {
-            __wt_modify_vector_pop(&modifies, &upd);
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
-                (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-                                 upd->start_ts == WT_TS_NONE));
-            /* Skip TOMBSTONE at the end of the update chain */
-            if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (modifies.size > 0) {
-                    __wt_modify_vector_pop(&modifies, &upd);
-                    WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-                } else
-                    continue;
-            }
-            full_value->data = upd->data;
-            full_value->size = upd->size;
+        WT_ASSERT(session, modifies.size > 0);
+        __wt_modify_vector_pop(&modifies, &upd);
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
+            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
+                                upd->start_ts == WT_TS_NONE));
+        /* Skip TOMBSTONE at the end of the update chain */
+        if (upd->type == WT_UPDATE_TOMBSTONE) {
+            if (modifies.size > 0) {
+                __wt_modify_vector_pop(&modifies, &upd);
+                WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+            } else
+                continue;
         }
+        full_value->data = upd->data;
+        full_value->size = upd->size;
 
         /* Flush the updates on stack */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
@@ -774,6 +774,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 continue;
             }
 
+            if(prev_upd == list->onpage_upd)
+                continue;
+
             /* Calculate reverse delta */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
@@ -795,9 +798,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * in the lookaside table. (We check the length because row-store doesn't write zero-length
          * data items.)
          */
-        if (upd != NULL && upd->size > 0) {
+        if (upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
-            WT_ASSERT(session, upd->ext == 0 &&
+            WT_ASSERT(session, upd != NULL && upd->ext == 0 &&
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
 
@@ -1603,7 +1606,6 @@ __wt_find_lookaside_upd(
                 __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, las_value, mod_upd->data, false));
                 __wt_free_update_list(session, &mod_upd);
-                mod_upd = NULL;
             }
             WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
         }
