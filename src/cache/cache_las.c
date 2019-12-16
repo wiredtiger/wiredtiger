@@ -973,20 +973,17 @@ __las_sweep_count(WT_CACHE *cache)
     uint64_t las_entry_count;
 
     /*
-     * The sweep server is a slow moving thread. Try to review the entire lookaside table once
-     * every 5 minutes.
+     * The sweep server is a slow moving thread. Try to review the entire lookaside table once every
+     * 5 minutes.
      *
-     * The reason is because the lookaside table exists because we're seeing cache/eviction
-     * pressure
-     * (it allows us to trade performance and disk space for cache space), and it's likely
-     * lookaside blocks are being evicted, and reading them back in doesn't help things. A trickier,
-     * but
-     * possibly better, alternative might be to review all lookaside blocks in the cache in
-     * order to get rid of them, and slowly review lookaside blocks that have already been evicted.
+     * The reason is because the lookaside table exists because we're seeing cache/eviction pressure
+     * (it allows us to trade performance and disk space for cache space), and it's likely lookaside
+     * blocks are being evicted, and reading them back in doesn't help things. A trickier, but
+     * possibly better, alternative might be to review all lookaside blocks in the cache in order to
+     * get rid of them, and slowly review lookaside blocks that have already been evicted.
      *
-     * Put upper and lower bounds on the calculation: since reads of pages with lookaside
-     * entries are blocked during sweep, make sure we do some work but don't block reads for too
-     * long.
+     * Put upper and lower bounds on the calculation: since reads of pages with lookaside entries
+     * are blocked during sweep, make sure we do some work but don't block reads for too long.
      */
     las_entry_count = __las_entry_count(cache);
     return (
@@ -1241,8 +1238,7 @@ __wt_las_sweep(WT_SESSION_IMPL *session)
           ((prepare_state != WT_PREPARE_INPROGRESS || durable_timestamp == 0) &&
             (prepare_state == WT_PREPARE_INPROGRESS || durable_timestamp >= las_start.timestamp)),
           EINVAL,
-          "Either LAS record is a in-progress prepared update with wrong durable timestamp or "
-          "not"
+          "Either LAS record is a in-progress prepared update with wrong durable timestamp or not"
           " a prepared update with wrong durable timestamp (prepared state: %" PRIu8
           " durable timestamp: %" PRIu64 ")",
           prepare_state, durable_timestamp);
