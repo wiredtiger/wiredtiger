@@ -512,6 +512,11 @@ connection_runtime_config = [
             versions of WiredTiger. These operations are informational and
             skipped in recovery.''',
             type='boolean'),
+        Config('slow_checkpoint', 'false', r'''
+            if true, each time checkpoint visits an internal page it will
+            sleep for 10000 ms.
+            ''',
+            type='boolean')
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),

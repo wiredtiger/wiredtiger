@@ -1805,6 +1805,9 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_checkpoint", &cval));
+    conn->debug_slow_ckpt = cval.val ? true : false;
+
     return (0);
 }
 
