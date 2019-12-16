@@ -760,7 +760,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
 
-                /* Update newer to a TOMBSTONE must be a full update */
+                /* The update newer to a TOMBSTONE must be a full update */
                 WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             }
 
@@ -791,9 +791,11 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
 
         /*
-         * The last element on the stack must be the onpage_upd If saving a non-zero length value on
-         * the page, save a birthmark instead of duplicating it in the lookaside table. (We check
-         * the length because row-store doesn't write zero-length data items.)
+         * The last element on the stack must be the onpage_upd.
+         *
+         * If saving a non-zero length value on the page, save a birthmark instead of duplicating it
+         * in the lookaside table. (We check the length because row-store doesn't write zero-length
+         * data items.)
          */
         if (upd != NULL && upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
