@@ -530,37 +530,16 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
- * __las_convert_full_update --
- *     convert a modify to a full update or copy the full update
- */
-static inline int
-__las_convert_full_update(WT_SESSION_IMPL *session, const WT_UPDATE *upd, const void *base_update,
-  const size_t size, WT_ITEM *result)
-{
-    if (upd->type == WT_UPDATE_MODIFY) {
-        WT_RET(__wt_buf_set(session, result, base_update, size));
-        WT_RET(__wt_modify_apply_item(session, result, upd->data, false));
-    } else {
-        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-
-        result->data = upd->data;
-        result->size = upd->size;
-    }
-
-    return (0);
-}
-
-/*
  * __las_insert_update --
  *     insert a single update to lookaside
  */
 static inline int
 __las_insert_update(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *las_value,
-  WT_TIME_PAIR *stop_ts_pair)
+  WT_TIME_PAIR stop_ts_pair)
 {
-    cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair->timestamp,
-      stop_ts_pair->txnid);
+    cursor->set_key(
+      cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
     /* Set the current update start time pair as the commit time pair to the lookaside record. */
     __las_store_time_pair(session, upd->start_ts, upd->txnid);
@@ -573,21 +552,14 @@ __las_insert_update(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
     WT_RET(cursor->update(cursor));
 
     /* Append a delete record to represent stop time pair for the above insert record */
-    cursor->set_key(cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair->timestamp,
-      stop_ts_pair->txnid);
+    cursor->set_key(
+      cursor, btree_id, key, upd->start_ts, upd->txnid, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
     /* Set the stop time pair as the commit time pair of the lookaside delete record. */
-    __las_store_time_pair(session, stop_ts_pair->timestamp, stop_ts_pair->txnid);
+    __las_store_time_pair(session, stop_ts_pair.timestamp, stop_ts_pair.txnid);
 
     /* Remove the inserted record with stop timestamp. */
     WT_RET(cursor->remove(cursor));
-
-    /*
-     * Store the current update commit timestamp and transaction id, these are the stop timestamp
-     * and transaction id's for the next record in the update list.
-     */
-    stop_ts_pair->timestamp = upd->start_ts;
-    stop_ts_pair->txnid = upd->txnid;
 
     return (0);
 }
@@ -704,13 +676,18 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         las_key_saved = false;
 
         /*
-         * The most recent update in the list never make into WT history. Only the earlier updates
-         * in the list will make into WT history. All the entries in the WT history must have a stop
-         * timestamp.
+         * The algorithm assumes the oldest update on the update chain in memory is either a full
+         * update or a tombstone with transaction id WT_TXN_NONE and start timestamp WT_TS_NONE.
+         * This is guaranteed by __wt_rec_upd_select appends the original onpage value at the end of
+         * the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the update
+         * newer to a TOMBSTONE must be a full update.
+         *
+         * The algorithm walks from the oldest update to the newest update and build full updates
+         * along the way. It sets the stop time pair of the update to the start time pair of the
+         * next update, squashes the updates that are from the same transaction and of the same
+         * start timestamp, and inserts the update to lookaside. It then skips TOMBSTONE and
+         * calculates reverse modification if prev_upd is a MODIFY.
          */
-        stop_ts_pair.timestamp = WT_TS_MAX;
-        stop_ts_pair.txnid = WT_TXN_MAX;
-
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
                 continue;
@@ -735,24 +712,42 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         if (modifies.size > 0) {
             __wt_modify_vector_pop(&modifies, &upd);
-            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
+                (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
+                                 upd->start_ts == WT_TS_NONE));
+            /* Skip TOMBSTONE at the end of the update chain */
+            if (upd->type == WT_UPDATE_TOMBSTONE) {
+                if (modifies.size > 0) {
+                    __wt_modify_vector_pop(&modifies, &upd);
+                    WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
+                } else
+                    continue;
+            }
             insert_modify = false;
-            WT_ERR(__las_convert_full_update(session, upd, upd->data, upd->size, full_value));
+            full_value->data = upd->data;
+            full_value->size = upd->size;
         }
 
         /* Flush the updates on stack */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
                                   prev_full_value = tmp, upd = prev_upd) {
+            /* Should not see BIRTHMARK or TOMBSTONE */
+            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+
+            /* Should not see BIRTHMARK or TOMBSTONE */
+            WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+
             __wt_modify_vector_pop(&modifies, &prev_upd);
             stop_ts_pair.timestamp = prev_upd->start_ts;
             stop_ts_pair.txnid = prev_upd->txnid;
+
             /* Skip the updates have the same start timestamp and transaction id */
             if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid) {
                 if (!insert_modify)
                     WT_ERR(__las_insert_update(session, cursor, btree_id, key, upd,
-                      WT_UPDATE_STANDARD, full_value, &stop_ts_pair));
+                      WT_UPDATE_STANDARD, full_value, stop_ts_pair));
                 else if (__las_insert_update(session, cursor, btree_id, key, upd, WT_UPDATE_MODIFY,
-                           modify_value, &stop_ts_pair) != 0) {
+                           modify_value, stop_ts_pair) != 0) {
                     __wt_scr_free(session, &modify_value);
                     goto err;
                 } else
@@ -765,12 +760,24 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             if (prev_upd->type == WT_UPDATE_TOMBSTONE) {
                 WT_ASSERT(session, modifies.size > 0);
                 __wt_modify_vector_pop(&modifies, &prev_upd);
+
+                /* Update newer to a TOMBSTONE must be a full update */
+                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
             }
 
-            WT_ERR(__las_convert_full_update(
-              session, prev_upd, full_value->data, full_value->size, prev_full_value));
+            if (prev_upd->type == WT_UPDATE_MODIFY) {
+                WT_ERR(__wt_buf_set(session, prev_full_value, full_value->data, full_value->size));
+                WT_ERR(__wt_modify_apply_item(session, prev_full_value, prev_upd->data, false));
+            } else {
+                WT_ASSERT(session, prev_upd->type == WT_UPDATE_STANDARD);
 
-            /* Calculate reverse delta and flush */
+                prev_full_value->data = prev_upd->data;
+                prev_full_value->size = prev_upd->size;
+                insert_modify = false;
+                continue;
+            }
+
+            /* Calculate reverse delta */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
                   prev_full_value->size / 10, entries, &nentries) != 0)
@@ -779,17 +786,15 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
                 insert_modify = true;
             }
-
-            if (squashed)
-                WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
         }
 
+        if (squashed)
+            WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+
         /*
-         * If saving a non-zero length value on the page, save a birthmark instead of duplicating it
-         * in the lookaside table. (We check the length because row-store doesn't write zero-length
-         * data items.)
-         *
-         * The last element on the stack must be the onpage_upd
+         * The last element on the stack must be the onpage_upd If saving a non-zero length value on
+         * the page, save a birthmark instead of duplicating it in the lookaside table. (We check
+         * the length because row-store doesn't write zero-length data items.)
          */
         if (upd != NULL && upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
