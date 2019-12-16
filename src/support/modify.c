@@ -22,17 +22,6 @@
             if (__i < (napplied))                                              \
                 continue;
 
-#define WT_MODIFY_FOREACH_REVERSE(mod, p, nentries, napplied, datasz) \
-    do {                                                              \
-        const size_t *__p = (p) + (size_t)(nentries)*3;               \
-        const uint8_t *__data = (const uint8_t *)__p + datasz;        \
-        int __i;                                                      \
-        for (__i = (napplied); __i < (nentries); ++__i) {             \
-            memcpy(&(mod).size, --__p, sizeof(size_t));               \
-            memcpy(&(mod).offset, --__p, sizeof(size_t));             \
-            memcpy(&(mod).data.size, --__p, sizeof(size_t));          \
-            (mod).data.data = (__data -= (mod).data.size);
-
 #define WT_MODIFY_FOREACH_END \
     }                         \
     }                         \

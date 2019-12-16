@@ -1474,6 +1474,8 @@ extern int __wt_huffman_encode(WT_SESSION_IMPL *session, void *huffman_arg, cons
   size_t from_len, WT_ITEM *to_buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_huffman_decode(WT_SESSION_IMPL *session, void *huffman_arg, const uint8_t *from_arg,
   size_t from_len, WT_ITEM *to_buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_modify_idempotent(const void *modify)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_pack(WT_SESSION_IMPL *session, WT_ITEM **modifyp, WT_MODIFY *entries,
   int nentries) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_apply_api(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_MODIFY *entries,
