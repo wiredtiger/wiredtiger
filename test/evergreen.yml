@@ -1827,6 +1827,21 @@ tasks:
           # Repeat this script enough times to make this task run for 24 hours
           # At the time of writing this script, one cal to underlying scripts takes about 8 mins to finish.
           times: 180
+  
+  - name: recovery-stress-test-without-lz4
+    #set a 25 hours timeout
+    exec_timeout_secs: 90000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=snappy,zlib
+      - func: "recovery stress test script"
+        vars:
+          # Repeat this script enough times to make this task run for 24 hours
+          # At the time of writing this script, one cal to underlying scripts takes about 8 mins to finish.
+          times: 180
+
   - name: split-stress-test
     commands:
       - func: "get project"
@@ -2024,5 +2039,5 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
-  - name: recovery-stress-test
+  - name: recovery-stress-test-without-lz4 # Evergreen Z-series distro doesn't support lz4
   - name: split-stress-test
