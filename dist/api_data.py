@@ -501,6 +501,11 @@ connection_runtime_config = [
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
+        Config('realloc_exact', 'false', r'''
+            if true, reallocation of memory will only provide the exact
+            amount requested. This will help with spotting memory allocation
+            issues more easily.''',
+            type='boolean'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about
             every Nth operation to simulate a collision''',
