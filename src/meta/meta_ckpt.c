@@ -381,7 +381,13 @@ __wt_meta_ckptlist_get(
 
         WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
 
+        /*
+         * Set the add-a-checkpoint flag, and if we're doing hot backups, request a list of the
+         * checkpoint's modified blocks from the block manager.
+         */
         F_SET(ckpt, WT_CKPT_ADD);
+        if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
+            F_SET(ckpt, WT_CKPT_BLOCK_MODS);
     }
 
     /* Return the array to our caller. */

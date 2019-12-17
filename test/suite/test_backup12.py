@@ -51,7 +51,7 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self):
-        return 'cache_size=1G,log=(archive=%s,' % self.archive + \
+        return 'cache_size=1G,verbose=(backup),log=(archive=%s,' % self.archive + \
             'enabled,file_max=%s)' % self.logmax
 
     def add_data(self):
@@ -83,6 +83,9 @@ class test_backup12(wttest.WiredTigerTestCase, suite_subprocess):
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
         os.mkdir(self.dir)
+        #
+        # Note, this first backup is actually done before a checkpoint is taken.
+        #
         config = 'incremental=(enabled,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 

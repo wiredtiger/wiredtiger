@@ -229,26 +229,6 @@ err:
 }
 
 /*
- * __backup_get_ckpt --
- *     Get the most recent checkpoint information and store it in the structure.
- *
- * XXX - Currently set return to static void for the compiler, when this function has real content
- *     it should be static int.
- */
-static void
-__backup_get_ckpt(WT_SESSION_IMPL *session, WT_BLKINCR *incr)
-{
-    WT_UNUSED(session);
-    WT_UNUSED(incr);
-    /*
-     * Look up the most recent checkpoint and store information about it in incr.
-     *
-     * XXX When this function has content, return a real value. return (0);
-     */
-    return;
-}
-
-/*
  * __backup_add_id --
  *     Add the identifier for block based incremental backup.
  */
@@ -262,8 +242,10 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
 
     conn = S2C(session);
     blk = NULL;
+    __wt_verbose(session, WT_VERB_BACKUP, "Trying to add ID %.*s", (int)cval->len, cval->str);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
+        __wt_verbose(session, WT_VERB_BACKUP, "blk[%u] flags 0x%" PRIx64, i, blk->flags);
         /* If it isn't use, we can use it. */
         if (!F_ISSET(blk, WT_BLKINCR_INUSE))
             break;
@@ -281,13 +263,12 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     /* Free any string that was there. */
     __wt_free(session, blk->id_str);
     WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id_str));
-    __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s", i, blk->id_str);
     /*
-     * XXX This function can error in the future.
-     *
-     * WT_ERR(__backup_get_ckpt(session, blk));
+     * Get the most recent checkpoint name. For now just use the one that is part of the metadata.
      */
-    __backup_get_ckpt(session, blk);
+    WT_ERR(__wt_meta_checkpoint_last_name(session, WT_METAFILE_URI, &blk->ckpt_name));
+    __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s, checkpoint name %s", i,
+      blk->id_str, blk->ckpt_name);
     F_SET(blk, WT_BLKINCR_VALID);
     return (0);
 
