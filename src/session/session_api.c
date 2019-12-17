@@ -1658,7 +1658,6 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
     }
 
 err:
-    WT_ASSERT(session, WT_SESSION_TXN_STATE(session)->id == WT_TXN_NONE);
     API_END_RET(session, ret);
 }
 
