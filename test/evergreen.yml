@@ -97,6 +97,21 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
     - *make_wiredtiger
+  "compile wiredtiger with builtins":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger/build_posix"
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          sh reconf
+          if [ "$OS" != "Windows_NT" ]; then
+            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC" \
+              ../configure ${configure_python_setting|} \
+              --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          fi
+    - *make_wiredtiger
   "make check directory":
     command: shell.exec
     params:
@@ -1784,6 +1799,32 @@ tasks:
 
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
+  - name: checkpoint-stress-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
+
+            CMD='./t -h WT_TEST.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+
+            NPROCS=10
+            echo "Shell - $SHELL , Sequence - $NPROCS"
+
+            for i in $(seq $NPROCS); do
+              nohup $CMD > nohup.out.$i 2>&1 &
+            done
+
+            #for i in $(seq $NPROCS); do
+            wait #|| exit $?
+            #done
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -1813,6 +1854,7 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: checkpoint-stress-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
