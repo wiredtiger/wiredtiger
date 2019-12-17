@@ -1799,14 +1799,14 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.rollback_error", &cval));
     txn_global->debug_rollback = (uint64_t)cval.val;
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_checkpoint", &cval));
+    conn->debug_slow_ckpt = cval.val;
+
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.table_logging", &cval));
     if (cval.val)
         FLD_SET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
     else
         FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
-
-    WT_RET(__wt_config_gets(session, cfg, "debug_mode.slow_checkpoint", &cval));
-    conn->debug_slow_ckpt = cval.val;
 
     return (0);
 }
