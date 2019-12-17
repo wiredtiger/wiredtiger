@@ -2653,6 +2653,9 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
 
     WT_ERR(__wt_metadata_cursor(session, NULL));
 
+    /* Load any incremental backup information. */
+    WT_ERR(__wt_backup_open(session));
+
     /* Start the worker threads and run recovery. */
     WT_ERR(__wt_connection_workers(session, cfg));
 

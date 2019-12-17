@@ -50,7 +50,7 @@ static size_t filelist_count = 0;
 
 #define FLIST_INIT 16
 
-#define CONN_CONFIG "create,cache_size=100MB,log=(enabled=true,file_max=100K)"
+#define CONN_CONFIG "create,verbose=(backup),cache_size=100MB,log=(enabled=true,file_max=100K)"
 #define MAX_ITERATIONS 5
 #define MAX_KEYS 10000
 
@@ -439,6 +439,15 @@ main(int argc, char *argv[])
         printf("Iteration %d: dumping and comparing data\n", i);
         error_check(compare_backups(i));
     }
+
+    /*
+     * Open and close the connection to illustrate the durability of id information.
+     */
+    error_check(wt_conn->close(wt_conn, NULL));
+    error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i);
+    error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
+    error_check(backup_cur->close(backup_cur));
 
     /*
      * After we're done, release resources. Test the force stop setting.

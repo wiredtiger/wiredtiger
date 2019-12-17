@@ -16,6 +16,138 @@ static int __backup_start(
 static int __backup_stop(WT_SESSION_IMPL *, WT_CURSOR_BACKUP *);
 
 /*
+ * __wt_backup_destroy --
+ *     Shut down any incremental backup information.
+ */
+int
+__wt_backup_destroy(WT_SESSION_IMPL *session)
+{
+    WT_BLKINCR *blk;
+    WT_DECL_RET;
+    WT_FSTREAM *fs;
+    u_int i;
+
+    /*
+     * Persist this information so that it survives a restart. Write to a temp file so we don't
+     * overwrite any valid information until we know we've been successful writing it.
+     */
+    WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP_TMP, false));
+    WT_ERR(__wt_fopen(session, WT_BLKINCR_BACKUP_TMP, WT_FS_OPEN_CREATE, WT_STREAM_WRITE, &fs));
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk = &S2C(session)->incr_backups[i];
+        WT_ERR(__wt_fprintf(session, fs, "%s\n%s\n", blk->id_str, blk->ckpt_name));
+        /*
+         * XXX Write out block data. There is none if there's no checkpoint information.
+         * if (blk->data != NULL)
+         *     WT_ERR(__wt_fprintf(session, fs, "%s\n", blk->data));
+         * __wt_free(session, blk->data);
+         */
+        __wt_free(session, blk->id_str);
+        __wt_free(session, blk->ckpt_name);
+    }
+    ret = __wt_sync_and_rename(session, &fs, WT_BLKINCR_BACKUP_TMP, WT_BLKINCR_BACKUP);
+err:
+    WT_TRET(__wt_fclose(session, &fs));
+    WT_TRET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP_TMP, false));
+
+    return (ret);
+}
+
+/*
+ * __wt_backup_open --
+ *     Shut down any incremental backup information.
+ */
+int
+__wt_backup_open(WT_SESSION_IMPL *session)
+{
+    WT_BLKINCR *blk;
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    WT_FSTREAM *fs;
+    u_int i;
+    bool exist;
+
+    WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP_TMP, false));
+    WT_RET(__wt_fs_exist(session, WT_BLKINCR_BACKUP, &exist));
+    /*
+     * If there is no backup file there is nothing to do.
+     */
+    if (!exist)
+        return (0);
+
+    /*
+     * Read any block information.
+     */
+    WT_ERR(__wt_fopen(session, WT_BLKINCR_BACKUP, 0, WT_STREAM_READ, &fs));
+    WT_ERR(__wt_scr_alloc(session, 512, &buf));
+    i = 0;
+    /*
+     * Read in each id string, checkpoint name and its block data.
+     *
+     * XXX This means that this value cannot change between restarts. So an older durable backup
+     * file could contain more entries than a current library can accept. This value is not
+     * user-configurable so risk is low. We could just save whatever we find and then stop but
+     * we have no way to know which entries may be more recent.
+     */
+    while (i < WT_BLKINCR_MAX) {
+        /* First is the id string. */
+        WT_ERR(__wt_getline(session, fs, buf));
+        /* If we have no more to read, we're done. */
+        if (buf->size == 0)
+            break;
+        blk = &S2C(session)->incr_backups[i];
+        WT_ERR(__wt_strdup(session, buf->data, &blk->id_str));
+
+        /* Second is the checkpoint name. */
+        WT_ERR(__wt_getline(session, fs, buf));
+        /*
+         * If we have no more to read, that is a bug. This info is written in groups. We could
+         * consider just breaking out of the loop so that any earlier valid information we have
+         * could be used, rather than having a panic. But things should be written together.
+         */
+        if (buf->size == 0)
+            WT_PANIC_RET(
+              session, WT_PANIC, "%s: invalid incremental backup file", WT_BLKINCR_BACKUP);
+        WT_ERR(__wt_strdup(session, buf->data, &blk->ckpt_name));
+        if (WT_STRING_MATCH(blk->ckpt_name, WT_BLKINCR_NOCKPT, strlen(WT_BLKINCR_NOCKPT)))
+            F_SET(blk, WT_BLKINCR_FULL);
+        else
+            /* Third is the block data. */
+            /* XXX WT_ERR(__wt_getline(session, fs, buf)) */
+            F_SET(blk, WT_BLKINCR_INUSE | WT_BLKINCR_VALID);
+        __wt_verbose(session, WT_VERB_BACKUP, "OPEN: Using backup slot %u for id %s, checkpoint name %s",
+          i, blk->id_str, blk->ckpt_name);
+        ++i;
+    }
+err:
+    WT_TRET(__wt_fclose(session, &fs));
+    __wt_scr_free(session, &buf);
+
+    return (ret);
+}
+
+/*
+ * __wt_backup_file_remove --
+ *     Remove the incremental and meta-data backup files.
+ */
+int
+__wt_backup_file_remove(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+
+    /*
+     * Note that order matters for removing the incremental files. We must remove the backup file
+     * before removing the source file so that we always know we were a source directory while
+     * there's any chance of an incremental backup file existing.
+     */
+    WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP, true));
+    WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
+    WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
+    WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
+    return (ret);
+}
+
+/*
  * __curbackup_next --
  *     WT_CURSOR->next method for the backup cursor type.
  */
@@ -84,13 +216,14 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
     /*
      * Clear flags. Remove file. Release any memory information.
      */
-    F_CLR(conn, WT_CONN_INCR_BACKUP);
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
+	__wt_free(session, blk->id_str);
+	__wt_free(session, blk->ckpt_name);
         F_CLR(blk, WT_BLKINCR_VALID);
     }
-    /* __wt_block_backup_remove... */
     conn->ckpt_incr_granularity = 0;
+    F_CLR(conn, WT_CONN_INCR_BACKUP);
     WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP, true));
 
     return (0);
@@ -260,19 +393,25 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     if (blk->id_str != NULL)
         __wt_verbose(
           session, WT_VERB_BACKUP, "Freeing and reusing backup slot with old id %s", blk->id_str);
-    /* Free any string that was there. */
+    /* Free anything that was there. */
     __wt_free(session, blk->id_str);
+    __wt_free(session, blk->ckpt_name);
     WT_ERR(__wt_strndup(session, cval->str, cval->len, &blk->id_str));
     /*
      * Get the most recent checkpoint name. For now just use the one that is part of the metadata.
+     * XXX Need to make sure this checkpoint does not go away.
      */
     ret = __wt_meta_checkpoint_last_name(session, WT_METAFILE_URI, &blk->ckpt_name);
     if (ret != 0 && ret != WT_NOTFOUND)
         WT_ERR(ret);
     if (ret == WT_NOTFOUND) {
+        /*
+         * If we don't find a checkpoint, save a special string for the durable file.
+         */
         __wt_verbose(session, WT_VERB_BACKUP, "ID %s: Did not find any metadata checkpoint for %s.",
           blk->id_str, WT_METAFILE_URI);
-        blk->ckpt_name = NULL;
+        WT_ERR(
+          __wt_strndup(session, WT_BLKINCR_NOCKPT, strlen(WT_BLKINCR_NOCKPT), &blk->ckpt_name));
         F_SET(blk, WT_BLKINCR_FULL);
     } else
         __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s, checkpoint name %s",
@@ -725,27 +864,6 @@ __backup_all(WT_SESSION_IMPL *session)
 {
     /* Build a list of the file objects that need to be copied. */
     return (__wt_meta_apply_all(session, NULL, __backup_list_uri_append, NULL));
-}
-
-/*
- * __wt_backup_file_remove --
- *     Remove the incremental and meta-data backup files.
- */
-int
-__wt_backup_file_remove(WT_SESSION_IMPL *session)
-{
-    WT_DECL_RET;
-
-    /*
-     * Note that order matters for removing the incremental files. We must remove the backup file
-     * before removing the source file so that we always know we were a source directory while
-     * there's any chance of an incremental backup file existing.
-     */
-    WT_TRET(__wt_remove_if_exists(session, WT_BACKUP_TMP, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_BACKUP, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_LOGINCR_SRC, true));
-    WT_TRET(__wt_remove_if_exists(session, WT_METADATA_BACKUP, true));
-    return (ret);
 }
 
 /*

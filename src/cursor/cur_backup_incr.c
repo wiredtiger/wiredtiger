@@ -101,7 +101,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
             cb->incr_list[cb->incr_list_offset + 1] -= cb->incr_granularity;
             cb->incr_list[cb->incr_list_offset + 2] = WT_BACKUP_RANGE;
         }
-    } else if (btree == NULL || F_ISSET(cb, WT_CURSOR_FORCE_FULL)) {
+    } else if (btree == NULL || F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
