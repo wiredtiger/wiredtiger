@@ -2183,10 +2183,10 @@ struct __wt_connection {
 	 * transaction operation about every Nth operation to simulate a collision., an integer
 	 * between 0 and 10M; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;slow_checkpoint, if
-	 * true\, each time checkpoint visits an internal page it will sleep for 10000 ms., a
-	 * boolean flag; default \c false.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\,
-	 * write transaction related information to the log for all operations\, even operations for
+	 * true\, slow down checkpoint creation by slowing down internal page processing., a boolean
+	 * flag; default \c false.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\, write
+	 * transaction related information to the log for all operations\, even operations for
 	 * tables with logging turned off.  This setting introduces a log format change that may
 	 * break older versions of WiredTiger.  These operations are informational and skipped in
 	 * recovery., a boolean flag; default \c false.}
@@ -2778,11 +2778,11 @@ struct __wt_connection {
  * WT_ROLLBACK error from a transaction operation about every Nth operation to simulate a
  * collision., an integer between 0 and 10M; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * slow_checkpoint, if true\, each time checkpoint visits an internal page it will sleep for 10000
- * ms., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if true\,
- * write transaction related information to the log for all operations\, even operations for tables
- * with logging turned off.  This setting introduces a log format change that may break older
+ * slow_checkpoint, if true\, slow down checkpoint creation by slowing down internal page
+ * processing., a boolean flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;table_logging, if
+ * true\, write transaction related information to the log for all operations\, even operations for
+ * tables with logging turned off.  This setting introduces a log format change that may break older
  * versions of WiredTiger.  These operations are informational and skipped in recovery., a boolean
  * flag; default \c false.}
  * @config{ ),,}
