@@ -39,10 +39,11 @@
 struct __wt_blkincr {
     const char *id_str;    /* User's name for this backup. */
     const char *ckpt_name; /* Requires WT-5115. All checkpoints must be this name */
-    void *data;
+    void *data;            /* Blocks */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_BLKINCR_INUSE 0x1u /* This entry is active */
-#define WT_BLKINCR_VALID 0x2u /* This entry is valid */
+#define WT_BLKINCR_FULL 0x1u  /* This has no checkpoint, always do full file */
+#define WT_BLKINCR_INUSE 0x2u /* This entry is active */
+#define WT_BLKINCR_VALID 0x4u /* This entry is valid */
                               /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint64_t flags;
 };
@@ -79,11 +80,12 @@ struct __wt_cursor_backup {
     WT_ITEM *incr_block;       /* Current block of data */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CURBACKUP_DUP 0x1u        /* Duplicated backup cursor */
-#define WT_CURBACKUP_FORCE_STOP 0x2u /* Force stop incremental backup */
-#define WT_CURBACKUP_INCR 0x4u       /* Incremental backup cursor */
-#define WT_CURBACKUP_LOCKER 0x8u     /* Hot-backup started */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CURBACKUP_DUP 0x01u        /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_FULL 0x02u /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x04u /* Force stop incremental backup */
+#define WT_CURBACKUP_INCR 0x08u       /* Incremental backup cursor */
+#define WT_CURBACKUP_LOCKER 0x10u     /* Hot-backup started */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
 #define WT_CURSOR_BACKUP_CHECK_STOP(cursor) \

@@ -101,7 +101,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
             cb->incr_list[cb->incr_list_offset + 1] -= cb->incr_granularity;
             cb->incr_list[cb->incr_list_offset + 2] = WT_BACKUP_RANGE;
         }
-    } else if (btree == NULL) {
+    } else if (btree == NULL || F_ISSET(cb, WT_CURSOR_FORCE_FULL)) {
         /* We don't have this object's incremental information, and it's a full file copy. */
         WT_ERR(__wt_fs_size(session, cb->incr_file, &size));
 
@@ -219,6 +219,13 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     WT_UNUSED(session);
     cursor->key_format = WT_UNCHECKED_STRING(qqq);
     cursor->value_format = "";
+
+    WT_ASSERT(session, other_cb->incr != NULL);
+    if (F_ISSET(other_cb->incr, WT_BLKINCR_FULL)) {
+        __wt_verbose(
+          session, WT_VERB_BACKUP, "Forcing full file copies for id %s", other_cb->incr->id_str);
+        F_SET(cb, WT_CURBACKUP_FORCE_FULL);
+    }
 
     /*
      * Inherit from the backup cursor but reset specific functions for incremental.

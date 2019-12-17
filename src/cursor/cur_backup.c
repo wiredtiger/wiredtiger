@@ -266,9 +266,17 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     /*
      * Get the most recent checkpoint name. For now just use the one that is part of the metadata.
      */
-    WT_ERR(__wt_meta_checkpoint_last_name(session, WT_METAFILE_URI, &blk->ckpt_name));
-    __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s, checkpoint name %s", i,
-      blk->id_str, blk->ckpt_name);
+    ret = __wt_meta_checkpoint_last_name(session, WT_METAFILE_URI, &blk->ckpt_name);
+    if (ret != 0 && ret != WT_NOTFOUND)
+        WT_ERR(ret);
+    if (ret == WT_NOTFOUND) {
+        __wt_verbose(session, WT_VERB_BACKUP, "ID %s: Did not find any metadata checkpoint for %s.",
+          blk->id_str, WT_METAFILE_URI);
+        blk->ckpt_name = NULL;
+        F_SET(blk, WT_BLKINCR_FULL);
+    } else
+        __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s, checkpoint name %s",
+          i, blk->id_str, blk->ckpt_name);
     F_SET(blk, WT_BLKINCR_VALID);
     return (0);
 
