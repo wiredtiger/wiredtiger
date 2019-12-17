@@ -1643,10 +1643,12 @@ __session_commit_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, true));
 
-    if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0)
-        WT_ERR_MSG(session, EINVAL, "failed transaction requires rollback%s%s",
+    if (F_ISSET(txn, WT_TXN_ERROR) && txn->mod_count != 0) {
+        __wt_err(session, EINVAL, "failed transaction requires rollback%s%s",
           txn->rollback_reason == NULL ? "" : ": ",
           txn->rollback_reason == NULL ? "" : txn->rollback_reason);
+        ret = EINVAL;
+    }
 
     if (ret == 0)
         ret = __wt_txn_commit(session, cfg);
