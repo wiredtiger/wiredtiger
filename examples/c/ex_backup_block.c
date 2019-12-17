@@ -445,7 +445,11 @@ main(int argc, char *argv[])
      */
     error_check(wt_conn->close(wt_conn, NULL));
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 1, i);
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
+    /*
+     * We should have an entry for i-1 and i-2. Use the older one.
+     */
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
     error_check(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur));
     error_check(backup_cur->close(backup_cur));
 

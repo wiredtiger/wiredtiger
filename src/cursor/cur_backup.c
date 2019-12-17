@@ -114,7 +114,7 @@ __wt_backup_open(WT_SESSION_IMPL *session)
         else
             /* Third is the block data. */
             /* XXX WT_ERR(__wt_getline(session, fs, buf)) */
-            F_SET(blk, WT_BLKINCR_INUSE | WT_BLKINCR_VALID);
+            F_SET(blk, WT_BLKINCR_VALID);
         __wt_verbose(session, WT_VERB_BACKUP, "OPEN: Using backup slot %u for id %s, checkpoint name %s",
           i, blk->id_str, blk->ckpt_name);
         ++i;
