@@ -131,7 +131,7 @@ class CapturedFd(object):
         """
         if self.file != None:
             self.file.flush()
-        gotstr = self.readFileFrom(self.filename, self.expectpos, 1000)
+        gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
         if re.search(pat, gotstr) == None:
             testcase.fail('in ' + self.desc +
                           ', expected pattern "' + pat + '", but got "' +
@@ -160,7 +160,7 @@ class TestSuiteConnection(object):
 class ExtensionList(list):
     skipIfMissing = False
     def extension(self, dirname, name, extarg=None):
-        if name != None and name != 'none':
+        if name and name != 'none':
             ext = '' if extarg == None else '=' + extarg
             self.append(dirname + '/' + name + ext)
 
