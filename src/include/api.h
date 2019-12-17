@@ -115,7 +115,7 @@
     if (__autotxn) {                                               \
         if (F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT))                 \
             F_CLR(&(s)->txn, WT_TXN_AUTOCOMMIT);                   \
-        else if ((ret) == 0 && !F_ISSET(&(s)->txn, WT_TXN_ERROR))  \
+        else if ((ret) == 0)                                       \
             (ret) = __wt_txn_commit((s), NULL);                    \
         else {                                                     \
             if (retry)                                             \
