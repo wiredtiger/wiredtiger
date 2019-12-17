@@ -110,11 +110,14 @@
  *     Common case allocate-and-grow function. Starts by allocating the requested number of items
  *     (at least 10), then doubles each time the list needs to grow.
  */
-#define __wt_realloc_def(session, sizep, number, addr) \
-    (((number) * sizeof(**(addr)) <= *(sizep)) ?       \
-        0 :                                            \
-        __wt_realloc(                                  \
-          session, sizep, WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))), addr))
+#define __wt_realloc_def(session, sizep, number, addr)                     \
+    (((number) * sizeof(**(addr)) <= *(sizep)) ?                           \
+        0 :                                                                \
+        __wt_realloc(session, sizep, (S2C(session)->debug_realloc_exact) ? \
+            (number) * sizeof(**(addr)) :                                  \
+            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),   \
+          addr))
+
 /*
  * Our internal free function clears the underlying address atomically so there is a smaller chance
  * of racing threads seeing intermediate results while a structure is being free'd. (That would be a

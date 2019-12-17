@@ -214,6 +214,8 @@ struct __wt_connection_impl {
     WT_LSN *debug_ckpt;      /* Debug mode checkpoint LSNs. */
     uint32_t debug_ckpt_cnt; /* Checkpoint retention number */
 
+    bool debug_realloc_exact; /* Reallocate exact size */
+
     void **foc;      /* Free-on-close array */
     size_t foc_cnt;  /* Array entries */
     size_t foc_size; /* Array size */
