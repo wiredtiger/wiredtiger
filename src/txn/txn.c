@@ -1605,15 +1605,16 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
         return (false);
 
     /*
-     * Check the oldest transaction ID of either the current transaction ID or the snapshot. Using
-     * the snapshot potentially means rolling back a read-only transaction, which MongoDB can't
-     * (yet) handle. For this reason, don't use the snapshot unless there's also a transaction ID
-     * or we're configured to time out thread operations (a way to confirm our caller is prepared
-     * for rollback).
+     * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
+     * unless there's at least one update or we're configured to time out thread operations (a way
+     * to confirm our caller is prepared for rollback).
      */
+    if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (false);
+
+    /* Check the oldest transaction ID of either the current transaction ID or the snapshot. */
     txn_oldest = txn->id;
     if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && txn->snap_min != WT_TXN_NONE &&
-      (txn_oldest != WT_TXN_NONE || __wt_op_timer_fired(session)) &&
       (txn_oldest == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_oldest)))
         txn_oldest = txn->snap_min;
     return (txn_oldest == conn->txn_global.oldest_id ?
