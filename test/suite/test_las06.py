@@ -124,6 +124,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # TODO: Uncomment this once the project work is done.
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
+    @unittest.skip("Temporarily disabled")
     def test_las_modify_reads(self):
         # Create a small table.
         uri = "table:test_las06"
