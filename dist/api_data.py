@@ -516,7 +516,7 @@ connection_runtime_config = [
             This setting introduces a log format change that may break older
             versions of WiredTiger. These operations are informational and
             skipped in recovery.''',
-            type='boolean')
+            type='boolean'),
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
