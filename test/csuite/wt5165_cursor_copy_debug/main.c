@@ -49,6 +49,8 @@ static const char *V1 = "value1";
 static const char *V2 = "value2222";
 static const char *V3 = "value333";
 
+static int check_free(void *mem, const char *prev_mem);
+
 /*
  * Assert that the memory was freed at some point by the WiredTiger API, and if allocated and reused
  * since then, does not have the contents it previously held.
@@ -74,7 +76,7 @@ static const char *V3 = "value333";
  * so we instead check if the memory is valid, and if so, it does not contain the previously set
  * contents.
  */
-int
+static int
 check_free(void *mem, const char *prev_mem)
 {
     size_t len, wrote;
