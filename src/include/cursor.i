@@ -39,11 +39,10 @@ __cursor_copy_release_item(WT_SESSION_IMPL *session, WT_ITEM *item)
      */
     if (WT_DATA_IN_ITEM(item)) {
         /*
-         * Allocate some extra memory first, when it is freed later, it will be the first available
-         * memory when the final allocation is done for the item. Without doing this, we've seen the
-         * allocator return the exact same memory location that we originally had for the item, and
-         * with the same contents, there would be no point in this exercise. Ideally, We want the
-         * memory originally used by the item to end up on the malloc free list when we return.
+         * We need an extra allocation and a free of it at the right time. Otherwise, with some
+         * allocators, we may get the exact same memory address back in the item. and we will never
+         * catch any accesses to the original memory. Ideally, We want the memory originally used by
+         * the item to end up on the malloc free list when we return.
          */
         WT_ERR(__wt_malloc(session, item->size, &extra_mem));
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
