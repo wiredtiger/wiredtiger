@@ -30,14 +30,16 @@
 /*
  * JIRA ticket reference: WT-5165 Test case description: Using the cursor copy debug mode, verify
  * that keys and values returned by API calls are freed as appropriate (typically at the next API
- * call boundary). Because it is not possible to portably tell if memory has been freed (as it may
- * be reused by the allocator for something else), we instead make sure it does not have the
- * previously set key or value in it. We do rely on the fact that after memory is freed, it remains
- * a valid memory address, but is either on the memory free list, or has been reused.
+ * call boundary).
  */
 
 #include <stdio.h>
 #include <stdlib.h>
+
+/*
+ * Used by ASSERT_FREE/check_free
+ */
+static FILE *tmpfp;
 
 static const char *K1 = "key1";
 static const char *K2 = "key2222";
@@ -48,23 +50,49 @@ static const char *V2 = "value2222";
 static const char *V3 = "value333";
 
 /*
- * We expect that the memory was freed at some point by the WiredTiger API. However, that same
- * memory may have been reused for another purpose. The best we can do is verify that either the
- * memory is marked free by malloc, or if not, that it has been overwritten with some other value.
+ * Assert that the memory was freed at some point by the WiredTiger API, and if allocated and reused
+ * since then, does not have the contents it previously held.
  */
-#define ASSERT_FREE(mem, prev_mem)                       \
+#define ASSERT_FREE(mem, prev_mem) testutil_assert(check_free(mem, prev_mem))
+
+/*
+ * Asserts that the memory is valid and has the expected value.
+ */
+#define ASSERT_ALLOCED(mem, prev_mem) testutil_assert(!check_free(mem, prev_mem))
+
+#define SAVE(save_array, save_ptr, p)                    \
     do {                                                 \
-        testutil_assert(strcmp(mem, prev_mem) != 0);     \
-        printf(" expect junk: %s\n", (const char *)mem); \
+        size_t _len = strlen(p);                         \
+        save_ptr = p;                                    \
+        testutil_assert(_len + 1 <= sizeof(save_array)); \
+        memcpy(save_array, p, _len + 1);                 \
     } while (0)
 
-#define ASSERT_ALLOCED(mem, prev_mem) testutil_assert(strcmp(mem, prev_mem) == 0)
+/*
+ * Check if the memory has been freed, return 1 if so, otherwise zero. It is not possible to
+ * portably tell if memory has been freed (as it may be reused by the allocator for something else),
+ * so we instead check if the memory is valid, and if so, it does not contain the previously set
+ * contents.
+ */
+int
+check_free(void *mem, const char *prev_mem)
+{
+    size_t len, wrote;
 
-#define SAVE(save_array, save_ptr, p)                              \
-    do {                                                           \
-        save_ptr = p;                                              \
-        memcpy(save_array, p, strnlen(p, sizeof(save_array) - 1)); \
-    } while (0)
+    /*
+     * Checking memory without faulting in user memory can be done via accessing the memory in a
+     * system call. It's not fast, but it doesn't need to be.
+     */
+    len = strlen(prev_mem);
+    errno = 0;
+    wrote = fwrite(mem, 1, len, tmpfp);
+    if (wrote == 0 && errno == EFAULT)
+        return (1);
+    testutil_assert(wrote == len);
+
+    printf(" expect junk: %s (cannot be %s)\n", (const char *)mem, prev_mem);
+    return (strncmp(mem, prev_mem, len) != 0);
+}
 
 int
 main(int argc, char *argv[])
@@ -81,6 +109,8 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
+    tmpfp = tmpfile();
+    testutil_assert(tmpfp != NULL);
 
     testutil_check(
       wiredtiger_open(opts->home, NULL, "create,debug_mode=(cursor_copy=true)", &opts->conn));
@@ -111,6 +141,9 @@ main(int argc, char *argv[])
     while ((ret = cursor->next(cursor)) == 0) {
         testutil_check(cursor->get_key(cursor, &key));
         testutil_check(cursor->get_value(cursor, &value));
+        if (strcmp(key, K3) == 0) {
+            printf("GOT IT\n");
+        }
 
         if (oldkey != NULL) {
             ASSERT_FREE(oldkey, saved_oldkey);
@@ -249,5 +282,6 @@ main(int argc, char *argv[])
     testutil_check(session->close(session, NULL));
     printf("Success\n");
     testutil_cleanup(opts);
+    fclose(tmpfp);
     return (EXIT_SUCCESS);
 }
