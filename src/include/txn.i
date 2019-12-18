@@ -35,6 +35,47 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state
 }
 
 /*
+ * __wt_txn_context_prepare_check --
+ *     Return an error if the current transaction is in the prepare state.
+ */
+static inline int
+__wt_txn_context_prepare_check(WT_SESSION_IMPL *session, const char *name)
+{
+    if (F_ISSET(&session->txn, WT_TXN_PREPARE))
+        WT_RET_MSG(session, EINVAL, "%s: not permitted in a prepared transaction", name);
+    return (0);
+}
+
+/*
+ * __wt_txn_context_check --
+ *     Complain if a transaction is/isn't running.
+ */
+static inline int
+__wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
+{
+    if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
+        WT_RET_MSG(session, EINVAL, "%s: only permitted in a running transaction", session->name);
+    if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
+        WT_RET_MSG(session, EINVAL, "%s: not permitted in a running transaction", session->name);
+    return (0);
+}
+
+/*
+ * __wt_txn_err_chk --
+ *     Check the transaction hasn't already failed.
+ */
+static inline int
+__wt_txn_err_chk(WT_SESSION_IMPL *session)
+{
+#ifdef HAVE_DIAGNOSTIC
+    WT_ASSERT(session, !F_ISSET(&(session->txn), WT_TXN_ERROR));
+#endif
+    if (F_ISSET(&(session->txn), WT_TXN_ERROR))
+        WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
+    return (0);
+}
+
+/*
  * __wt_txn_timestamp_flags --
  *     Set transaction related timestamp flags.
  */
