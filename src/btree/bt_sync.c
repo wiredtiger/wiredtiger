@@ -123,7 +123,6 @@ __wt_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref, bool *obsoletep)
 int
 __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 {
-    WT_ADDR *addr;
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
