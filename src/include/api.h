@@ -32,18 +32,19 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
-#define API_SESSION_NAME_PUSH(s, h, n) \
-    const char *__oldname = (s)->name; \
+#define API_SESSION_PUSH(s, h, n, dh)       \
+    WT_DATA_HANDLE *__olddh = (s)->dhandle; \
+    const char *__oldname = (s)->name;      \
+    (s)->dhandle = (dh);                    \
     (s)->name = (s)->lastop = #h "." #n
-#define API_SESSION_NAME_POP(s) (s)->name = __oldname
+#define API_SESSION_POP(s)  \
+    (s)->dhandle = __olddh; \
+    (s)->name = __oldname
 
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, h, n, dh)                              \
     WT_TRACK_OP_DECL;                                              \
-    WT_DATA_HANDLE *__olddh;                                       \
-    API_SESSION_NAME_PUSH(s, h, n);                                \
-    __olddh = (s)->dhandle;                                        \
-    (s)->dhandle = (dh);                                           \
+    API_SESSION_PUSH(s, h, n, dh);                                 \
     /*                                                             \
      * No code before this line, otherwise error handling won't be \
      * correct.                                                    \
@@ -81,8 +82,7 @@
          * No code after this line, otherwise error handling                   \
          * won't be correct.                                                   \
          */                                                                    \
-        (s)->dhandle = __olddh;                                                \
-        API_SESSION_NAME_POP(s);                                               \
+        API_SESSION_POP(s);                                                    \
     }                                                                          \
     }                                                                          \
     while (0)
@@ -173,11 +173,13 @@
 #define SESSION_API_CALL_PREPARE_ALLOWED(s, n, config, cfg) \
     API_CALL(s, WT_SESSION, n, NULL, config, cfg)
 
-#define SESSION_API_PREPARE_CHECK(s, h, n)         \
-    do {                                           \
-        API_SESSION_NAME_PUSH(s, WT_SESSION, n);   \
-        WT_RET(__wt_txn_context_prepare_check(s)); \
-        API_SESSION_NAME_POP(s);                   \
+#define SESSION_API_PREPARE_CHECK(s, h, n)                 \
+    do {                                                   \
+        int __prepare_ret;                                 \
+        API_SESSION_PUSH(s, WT_SESSION, n, NULL);          \
+        __prepare_ret = __wt_txn_context_prepare_check(s); \
+        API_SESSION_POP(s);                                \
+        WT_RET(__prepare_ret);                             \
     } while (0)
 
 #define SESSION_API_CALL(s, n, config, cfg)      \
