@@ -39,10 +39,10 @@ __wt_ref_cas_state_int(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t old_state
  *     Return an error if the current transaction is in the prepare state.
  */
 static inline int
-__wt_txn_context_prepare_check(WT_SESSION_IMPL *session, const char *name)
+__wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
 {
     if (F_ISSET(&session->txn, WT_TXN_PREPARE))
-        WT_RET_MSG(session, EINVAL, "%s: not permitted in a prepared transaction", name);
+        WT_RET_MSG(session, EINVAL, "not permitted in a prepared transaction");
     return (0);
 }
 

@@ -819,7 +819,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
     wt_timestamp_t oldest_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    WT_RET(__wt_txn_context_prepare_check(session, "set prepare timestamp"));
+    WT_RET(__wt_txn_context_prepare_check(session));
 
     if (F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
         WT_RET_MSG(session, EINVAL, "prepare timestamp is already set");
@@ -879,7 +879,7 @@ __wt_txn_set_read_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t read_ts)
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool did_roundup_to_oldest;
 
-    WT_RET(__wt_txn_context_prepare_check(session, "set read timestamp"));
+    WT_RET(__wt_txn_context_prepare_check(session));
 
     /* Read timestamps imply / require snapshot isolation. */
     if (!F_ISSET(txn, WT_TXN_RUNNING))
