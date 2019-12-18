@@ -441,7 +441,7 @@ main(int argc, char *argv[])
     }
 
     /*
-     * Open and close the connection to illustrate the durability of id information.
+     * Close and reopen the connection to illustrate the durability of id information.
      */
     error_check(wt_conn->close(wt_conn, NULL));
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
@@ -468,6 +468,19 @@ main(int argc, char *argv[])
 
     printf("Final comparison: dumping and comparing data\n");
     error_check(compare_backups(0));
+
+    /*
+     * Reopen the connection to verify that the forced stop should remove incremental information.
+     */
+    error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
+    error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
+    /*
+     * We should not have any information.
+     */
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
+    testutil_assert(
+      session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
+    error_check(wt_conn->close(wt_conn, NULL));
 
     return (EXIT_SUCCESS);
 }
