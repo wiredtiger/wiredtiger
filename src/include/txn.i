@@ -54,9 +54,9 @@ static inline int
 __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 {
     if (requires_txn && !F_ISSET(&session->txn, WT_TXN_RUNNING))
-        WT_RET_MSG(session, EINVAL, "%s: only permitted in a running transaction", session->name);
+        WT_RET_MSG(session, EINVAL, "only permitted in a running transaction");
     if (!requires_txn && F_ISSET(&session->txn, WT_TXN_RUNNING))
-        WT_RET_MSG(session, EINVAL, "%s: not permitted in a running transaction", session->name);
+        WT_RET_MSG(session, EINVAL, "not permitted in a running transaction");
     return (0);
 }
 
