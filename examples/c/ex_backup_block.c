@@ -394,10 +394,11 @@ take_incr_backup(WT_SESSION *session, int i)
 int
 main(int argc, char *argv[])
 {
+    struct stat sb;
     WT_CONNECTION *wt_conn;
     WT_CURSOR *backup_cur;
     WT_SESSION *session;
-    int i;
+    int i, ret;
     char cmd_buf[256];
 
     (void)argc; /* Unused variable */
@@ -465,6 +466,10 @@ main(int argc, char *argv[])
      * and original.
      */
     error_check(wt_conn->close(wt_conn, NULL));
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home);
+    ret = stat(cmd_buf, &sb);
+    printf("backup block %s ret: %d\n", cmd_buf, ret);
+    testutil_assert(ret == ENOENT);
 
     printf("Final comparison: dumping and comparing data\n");
     error_check(compare_backups(0));
@@ -481,6 +486,11 @@ main(int argc, char *argv[])
     testutil_assert(
       session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
     error_check(wt_conn->close(wt_conn, NULL));
+
+    (void)snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home);
+    ret = stat(cmd_buf, &sb);
+    printf("backup block 2 %s ret: %d\n", cmd_buf, ret);
+    testutil_assert(ret == ENOENT);
 
     return (EXIT_SUCCESS);
 }
