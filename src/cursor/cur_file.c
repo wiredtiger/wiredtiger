@@ -89,6 +89,9 @@ __curfile_next(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, next, cbt->btree);
 
+    WT_ERR(__cursor_unset_key(session, cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
+
     WT_ERR(__wt_btcur_next(cbt, false));
 
     /* Next maintains a position, key and value. */
@@ -115,6 +118,9 @@ __wt_curfile_next_random(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, next, cbt->btree);
 
+    WT_ERR(__cursor_unset_key(session, cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
+
     WT_ERR(__wt_btcur_next_random(cbt));
 
     /* Next-random maintains a position, key and value. */
@@ -139,6 +145,9 @@ __curfile_prev(WT_CURSOR *cursor)
 
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, prev, cbt->btree);
+
+    WT_ERR(__cursor_unset_key(session, cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
 
     WT_ERR(__wt_btcur_prev(cbt, false));
 
@@ -165,6 +174,9 @@ __curfile_reset(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, cbt->btree);
 
+    WT_ERR(__cursor_unset_key(session, cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
+
     ret = __wt_btcur_reset(cbt);
 
     /* Reset maintains no position, key or value. */
@@ -190,6 +202,7 @@ __curfile_search(WT_CURSOR *cursor)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search, cbt->btree);
     WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_search(cbt));
@@ -220,6 +233,7 @@ __curfile_search_near(WT_CURSOR *cursor, int *exact)
     cbt = (WT_CURSOR_BTREE *)cursor;
     CURSOR_API_CALL(cursor, session, search_near, cbt->btree);
     WT_ERR(__cursor_checkkey(cursor));
+    WT_ERR(__cursor_unset_value(session, cursor));
 
     time_start = __wt_clock(session);
     WT_ERR(__wt_btcur_search_near(cbt, exact));

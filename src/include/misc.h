@@ -128,6 +128,8 @@
         if (*(void **)__p != NULL)       \
             __wt_free_int(session, __p); \
     } while (0)
+
+/* Overwrite whether or not this is a diagnostic build. */
 #define __wt_explicit_overwrite(p, size) memset(p, WT_DEBUG_BYTE, size)
 #ifdef HAVE_DIAGNOSTIC
 #define __wt_overwrite_and_free(session, p)       \

@@ -18,52 +18,67 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 }
 
 /*
- * __cursor_free_item --
+ * __cursor_copy_release_item --
  *     Release memory used by the key or value item in cursor copy debug mode.
  */
 static inline int
-__cursor_free_item(WT_SESSION_IMPL *session, WT_ITEM *item)
+__cursor_copy_release_item(WT_SESSION_IMPL *session, WT_ITEM *item)
 {
-    void *copy_addr;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    void *extra_mem;
 
-    if (item->mem != NULL && F_ISSET(S2C(session), WT_CONN_DEBUG_CURSOR_COPY)) {
+    if (!F_ISSET(S2C(session), WT_CONN_DEBUG_CURSOR_COPY))
+        return (0);
+
+    /*
+     * If we own the memory for the item, make a copy and use that instead. That allows us to
+     * overwrite and free the original memory, potentially uncovering programming errors related to
+     * retaining pointers to key/value memory beyond API boundaries. If the item has memory not
+     * currently in use, free that as well.
+     */
+    if (WT_DATA_IN_ITEM(item)) {
         /*
-         * If we own the memory for the item, make a copy and point to the copy. That allows us to
-         * overwrite and free the original memory, potentially uncovering programming errors related
-         * to retaining pointers to key/value memory beyond API boundaries. If the item has memory
-         * not currently in use, free that as well.
+         * Allocate some extra memory first, when it is freed later, it will be the first available
+         * memory when the final allocation is done for the item. Without doing this, we've seen the
+         * allocator return the exact same memory location that we originally had for the item, and
+         * with the same contents, there would be no point in this exercise. Ideally, We want the
+         * memory originally used by the item to end up on the malloc free list when we return.
          */
-        if (WT_DATA_IN_ITEM(item)) {
-            WT_RET(__wt_memdup(session, item->mem, item->memsize, &copy_addr));
-            __wt_explicit_overwrite(item->mem, item->memsize);
-            __wt_free(session, item->mem);
-            item->data = item->mem = copy_addr;
-        } else {
-            __wt_explicit_overwrite(item->mem, item->memsize);
-            __wt_buf_free(session, item);
-        }
+        WT_ERR(__wt_malloc(session, item->size, &extra_mem));
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ERR(__wt_buf_set(session, tmp, item->data, item->size));
+        __wt_explicit_overwrite(item->mem, item->memsize);
+        __wt_buf_free(session, item);
+        __wt_free(session, extra_mem);
+        WT_ERR(__wt_buf_set(session, item, tmp->data, tmp->size));
+    } else {
+        __wt_explicit_overwrite(item->mem, item->memsize);
+        __wt_buf_free(session, item);
     }
-    return (0);
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
- * __cursor_free_key --
+ * __cursor_copy_release_key --
  *     Release memory used by the key in cursor copy debug mode.
  */
 static inline int
-__cursor_free_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__cursor_copy_release_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    return (__cursor_free_item(session, &cursor->key));
+    return (__cursor_copy_release_item(session, &cursor->key));
 }
 
 /*
- * __cursor_free_value --
+ * __cursor_copy_release_value --
  *     Release memory used by the value in cursor copy debug mode.
  */
 static inline int
-__cursor_free_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__cursor_copy_release_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    return (__cursor_free_item(session, &cursor->value));
+    return (__cursor_copy_release_item(session, &cursor->value));
 }
 
 /*
@@ -108,7 +123,7 @@ __cursor_localkey(WT_CURSOR *cursor)
 
     if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
         session = (WT_SESSION_IMPL *)cursor->session;
-        WT_RET(__cursor_free_key(session, cursor));
+        WT_RET(__cursor_copy_release_key(session, cursor));
         if (!WT_DATA_IN_ITEM(&cursor->key))
             WT_RET(__wt_buf_set(session, &cursor->key, cursor->key.data, cursor->key.size));
         F_CLR(cursor, WT_CURSTD_KEY_INT);
@@ -128,7 +143,7 @@ __cursor_localvalue(WT_CURSOR *cursor)
 
     if (F_ISSET(cursor, WT_CURSTD_VALUE_INT)) {
         session = (WT_SESSION_IMPL *)cursor->session;
-        WT_RET(__cursor_free_value(session, cursor));
+        WT_RET(__cursor_copy_release_value(session, cursor));
         if (!WT_DATA_IN_ITEM(&cursor->value))
             WT_RET(__wt_buf_set((WT_SESSION_IMPL *)cursor->session, &cursor->value,
               cursor->value.data, cursor->value.size));
@@ -194,7 +209,7 @@ __cursor_pos_clear(WT_CURSOR_BTREE *cbt)
 static inline int
 __cursor_unset_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    WT_RET(__cursor_free_key(session, cursor));
+    WT_RET(__cursor_copy_release_key(session, cursor));
     F_CLR(cursor, WT_CURSTD_KEY_SET);
     return (0);
 }
@@ -206,7 +221,7 @@ __cursor_unset_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 static inline int
 __cursor_unset_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    WT_RET(__cursor_free_value(session, cursor));
+    WT_RET(__cursor_copy_release_value(session, cursor));
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
     return (0);
 }
