@@ -1,8 +1,8 @@
 # List of WiredTiger #defines that are "unused", but it's OK.
 API_CALL
 API_CALL_NOCONF
-API_SESSION_INIT
 API_END
+API_SESSION_INIT
 FLD_MASK
 JOINABLE_CURSOR_CALL_CHECK
 LF_MASK
