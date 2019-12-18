@@ -33,23 +33,24 @@
 #endif
 
 /* Standard entry points to the API: declares/initializes local variables. */
-#define API_SESSION_INIT(s, h, n, dh)                               \
-    WT_TRACK_OP_DECL;                                               \
-    WT_DATA_HANDLE *__olddh = (s)->dhandle;                         \
-    const char *__oldname = (s)->name;                              \
-    (s)->dhandle = (dh);                                            \
-    (s)->name = (s)->lastop = #h "." #n;                            \
-    /*                                                              \
-     * No code before this line, otherwise error handling  won't be \
-     * correct.                                                     \
-     */                                                             \
-    WT_TRACK_OP_INIT(s);                                            \
-    WT_SINGLE_THREAD_CHECK_START(s);                                \
-    __wt_op_timer_start(s);                                         \
-    WT_ERR(WT_SESSION_CHECK_PANIC(s));                              \
-    /* Reset wait time if this isn't an API reentry. */             \
-    if (__oldname == NULL)                                          \
-        (s)->cache_wait_us = 0;                                     \
+#define API_SESSION_INIT(s, h, n, dh)                              \
+    WT_TRACK_OP_DECL;                                              \
+    WT_DATA_HANDLE *__olddh = (s)->dhandle;                        \
+    const char *__oldname = (s)->name;                             \
+    (s)->dhandle = (dh);                                           \
+    (s)->name = (s)->lastop = #h "." #n;                           \
+    /*                                                             \
+     * No code before this line, otherwise error handling won't be \
+     * correct.                                                    \
+     */                                                            \
+    WT_ERR(WT_SESSION_CHECK_PANIC(s));                             \
+    WT_SINGLE_THREAD_CHECK_START(s);                               \
+    WT_ERR(__wt_txn_err_chk(s));                                   \
+    WT_TRACK_OP_INIT(s);                                           \
+    __wt_op_timer_start(s);                                        \
+    /* Reset wait time if this isn't an API reentry. */            \
+    if (__oldname == NULL)                                         \
+        (s)->cache_wait_us = 0;                                    \
     __wt_verbose((s), WT_VERB_API, "%s", "CALL: " #h ":" #n)
 
 #define API_CALL_NOCONF(s, h, n, dh) \
@@ -86,7 +87,6 @@
     do {                                                                     \
         bool __autotxn = false, __update = false;                            \
         API_CALL(s, h, n, bt, config, cfg);                                  \
-        WT_ERR(__wt_txn_err_chk(s));                                         \
         __wt_txn_timestamp_flags(s);                                         \
         __autotxn = !F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                       \
@@ -100,7 +100,6 @@
     do {                                                                     \
         bool __autotxn = false, __update = false;                            \
         API_CALL_NOCONF(s, h, n, dh);                                        \
-        WT_ERR(__wt_txn_err_chk(s));                                         \
         __wt_txn_timestamp_flags(s);                                         \
         __autotxn = !F_ISSET(&(s)->txn, WT_TXN_AUTOCOMMIT | WT_TXN_RUNNING); \
         if (__autotxn)                                                       \

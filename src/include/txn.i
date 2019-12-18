@@ -67,12 +67,15 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 static inline int
 __wt_txn_err_chk(WT_SESSION_IMPL *session)
 {
+    /* Allow transaction rollback, but nothing else. */
+    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) ||
+      strcmp(session->name, "rollback_transaction") != 0)
+        return (0);
+
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, !F_ISSET(&(session->txn), WT_TXN_ERROR));
 #endif
-    if (F_ISSET(&(session->txn), WT_TXN_ERROR))
-        WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
-    return (0);
+    WT_RET_MSG(session, EINVAL, "additional transaction operations attempted after error");
 }
 
 /*
