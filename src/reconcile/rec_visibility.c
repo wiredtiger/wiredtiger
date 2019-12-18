@@ -49,48 +49,34 @@ __rec_update_save(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, voi
  *     Append the key's original value to its update list.
  */
 static int
-__rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT *ins, void *ripcip,
-  WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
+__rec_append_orig_value(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, WT_CELL_UNPACK *unpack)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_PAGE_MODIFY *mod;
-    WT_UPDATE *append, **upd_entry;
+    WT_UPDATE *append, *tombstone;
     size_t size;
 
-    mod = page->modify;
-    upd_entry = NULL;
+    WT_ASSERT(session, upd != NULL);
+    /* Done if at least one self-contained update is globally visible. */
 
-    if (upd != NULL) {
-        /* Done if at least one self-contained update is globally visible. */
-        for (;; upd = upd->next) {
-            if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
-                return (0);
+    for (;; upd = upd->next) {
+        if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
+            return (0);
 
-            /* Add the original value after birthmarks. */
-            if (upd->type == WT_UPDATE_BIRTHMARK) {
-                WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
-                break;
-            }
-
-            /* Leave reference at the last item in the chain. */
-            if (upd->next == NULL)
-                break;
+        /* Add the original value after birthmarks. */
+        if (upd->type == WT_UPDATE_BIRTHMARK) {
+            WT_ASSERT(session, unpack != NULL && unpack->type != WT_CELL_DEL);
+            break;
         }
-    } else {
-        /* There are no updates for this key yet. Allocate an update array if necessary. */
-        if (ins == NULL) {
-            WT_ASSERT(session, WT_ROW_UPDATE(page, ripcip) == NULL);
 
-            /* Allocate an update array if necessary. */
-            WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
+        /* On page value already on chain */
+        if (unpack != NULL && unpack->start_ts == upd->start_ts && unpack->start_txn == upd->txnid)
+            return (0);
 
-            /* Set the WT_UPDATE array reference. */
-            upd_entry = &page->modify->mod_row_update[WT_ROW_SLOT(page, ripcip)];
-        } else {
-            WT_ASSERT(session, ins->upd == NULL);
-            upd_entry = &ins->upd;
-        }
+        /* Leave reference at the last item in the chain. */
+        if (upd->next == NULL)
+            break;
     }
 
     /*
@@ -100,14 +86,23 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT *ins,
      * If we don't have a value cell, it's an insert/append list key/value pair which simply doesn't
      * exist for some reader; place a deleted record at the end of the update list.
      */
-    append = NULL; /* -Wconditional-uninitialized */
-    size = 0;      /* -Wconditional-uninitialized */
+    append = tombstone = NULL; /* -Wconditional-uninitialized */
+    size = 0;                  /* -Wconditional-uninitialized */
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
     else {
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
+        append->start_ts = append->durable_ts = unpack->start_ts;
+        append->txnid = unpack->start_txn;
+        if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
+            WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
+            tombstone->txnid = unpack->stop_txn;
+            tombstone->start_ts = unpack->stop_ts;
+            tombstone->durable_ts = unpack->stop_ts;
+            tombstone->next = append;
+        }
     }
 
     /*
@@ -117,18 +112,16 @@ __rec_append_orig_value(WT_SESSION_IMPL *session, WT_PAGE *page, WT_INSERT *ins,
      * Else, set the entry's transaction information to the lowest possible value. Cleared memory
      * matches the lowest possible transaction ID and timestamp, do nothing.
      */
-    if (upd != NULL && upd->type == WT_UPDATE_BIRTHMARK) {
-        append->txnid = upd->txnid;
-        append->start_ts = upd->start_ts;
-        append->durable_ts = upd->durable_ts;
+    if (upd->type == WT_UPDATE_BIRTHMARK)
         append->next = upd->next;
-    }
+
+    if (tombstone != NULL)
+        append = tombstone;
 
     /* Append the new entry into the update list. */
-    if (upd_entry != NULL)
-        WT_PUBLISH(*upd_entry, append);
-    else
-        WT_PUBLISH(upd->next, append);
+    WT_PUBLISH(upd->next, append);
+    /* Timestamp should always be in descending order */
+    WT_ASSERT(session, upd->start_ts >= append->start_ts);
     __wt_cache_page_inmem_incr(session, page, size);
 
     if (upd->type == WT_UPDATE_BIRTHMARK) {
@@ -383,7 +376,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
          * two birthmark records in the same update chain.
          */
-        WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, first_upd, vpack));
         upd_select->upd = NULL;
     }
 
@@ -453,7 +446,7 @@ check_original_value:
     if (upd_select->upd != NULL &&
       (upd_select->upd_saved ||
           (vpack != NULL && vpack->ovfl && vpack->raw != WT_CELL_VALUE_OVFL_RM)))
-        WT_ERR(__rec_append_orig_value(session, page, ins, ripcip, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, first_upd, vpack));
 
 err:
     __wt_scr_free(session, &tmp);

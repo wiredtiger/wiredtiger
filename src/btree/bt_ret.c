@@ -94,12 +94,18 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
     if (page->type == WT_PAGE_ROW_LEAF) {
         rip = &page->pg_row[cbt->slot];
 
-        /* Simple values have their location encoded in the WT_ROW. */
+        /*
+         * Simple values have their location encoded in the WT_ROW.
+         *
+         * Cannot check visibility here so there is chance some visibility issues not caught.
+         */
         if (__wt_row_leaf_value(page, rip, buf))
             return (0);
 
         /* Take the value from the original page cell. */
         __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+
+        WT_ASSERT(session, __wt_txn_visible(session, unpack.start_txn, unpack.start_ts));
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
@@ -107,6 +113,8 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf)
         /* Take the value from the original page cell. */
         cell = WT_COL_PTR(page, &page->pg_var[cbt->slot]);
         __wt_cell_unpack(session, page, cell, &unpack);
+
+        WT_ASSERT(session, __wt_txn_visible(session, unpack.start_txn, unpack.start_ts));
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));
     }
 
