@@ -86,8 +86,8 @@ __wt_backup_open(WT_SESSION_IMPL *session)
      *
      * XXX This means that this value cannot change between restarts. So an older durable backup
      * file could contain more entries than a current library can accept. This value is not
-     * user-configurable so risk is low. We could just save whatever we find and then stop but
-     * we have no way to know which entries may be more recent.
+     * user-configurable so risk is low. We could just save whatever we find and then stop but we
+     * have no way to know which entries may be more recent.
      */
     while (i < WT_BLKINCR_MAX) {
         /* First is the id string. */
@@ -115,8 +115,9 @@ __wt_backup_open(WT_SESSION_IMPL *session)
             /* Third is the block data. */
             /* XXX WT_ERR(__wt_getline(session, fs, buf)) */
             F_SET(blk, WT_BLKINCR_VALID);
-        __wt_verbose(session, WT_VERB_BACKUP, "OPEN: Using backup slot %u for id %s, checkpoint name %s",
-          i, blk->id_str, blk->ckpt_name);
+        __wt_verbose(session, WT_VERB_BACKUP,
+          "OPEN: Using backup slot %u for id %s, checkpoint name %s", i, blk->id_str,
+          blk->ckpt_name);
         ++i;
     }
 err:
@@ -218,8 +219,8 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
      */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-	__wt_free(session, blk->id_str);
-	__wt_free(session, blk->ckpt_name);
+        __wt_free(session, blk->id_str);
+        __wt_free(session, blk->ckpt_name);
         F_CLR(blk, WT_BLKINCR_VALID);
     }
     conn->ckpt_incr_granularity = 0;
