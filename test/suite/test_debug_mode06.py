@@ -35,14 +35,24 @@ class test_debug_mode06(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled=true),debug_mode=(slow_checkpoint=true)'
     uri = 'file:test_debug_mode06'
 
-    # Test (re)configuring the flag on and off.
-    def test_slow_checkpoints(self):
+    # Insert some data to ensure setting/unsetting the flag does not
+    # break existing functionality
+    def insert_data(self):
         self.session.create(self.uri, 'key_format=s,value_format=s')
+        cursor = self.session.open_cursor(self.uri, None)
+        cursor['key'] = 'value'
+        cursor.close()
+        self.session.checkpoint()
 
+    # Ensure flag works when set.
+    def test_slow_checkpoints(self):
+        self.insert_data()
+
+    # Make sure the flag can be 'turned off' as well.
     def test_slow_checkpoints_off(self):
         conn_reconfig = 'debug_mode=(slow_checkpoint=false)'
         self.conn.reconfigure(conn_reconfig)
-        self.session.create(self.uri, 'key_format=s,value_format=s')
+        self.insert_data()
 
 if __name__ == '__main__':
     wttest.run()
