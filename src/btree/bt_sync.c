@@ -108,20 +108,11 @@ static void
 __wt_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref, bool *obsoletep)
 {
     WT_ADDR *addr;
-    WT_PAGE_MODIFY *mod;
 
     *obsoletep = false;
 
     addr = ref->addr;
-    mod = ref->page ? ref->page->modify : NULL;
     if (addr && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts))
-        *obsoletep = true;
-    else if (mod && mod->rec_result == WT_PM_REC_REPLACE &&
-      __wt_txn_visible_all(
-               session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts))
-        *obsoletep = true;
-    else if (mod && mod->rec_result == WT_PM_REC_MULTIBLOCK &&
-      __wt_txn_visible_all(session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts))
         *obsoletep = true;
 }
 
@@ -300,6 +291,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                          * ensure when the parent page is checkpointing, the empty child page will
                          * be cleaned.
                          */
+                        previous_state = walk->state;
                         if (!WT_PAGE_IS_INTERNAL(walk->page)) {
                             if (!WT_REF_CAS_STATE(session, walk, previous_state, WT_REF_LOCKED))
                                 continue;
@@ -319,8 +311,8 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             }
 
             /*
-             * Scan the internal page of the history store to find out the obsolete leaf
-             * pages and discard them.
+             * Scan the internal page of the history store to find out the obsolete leaf pages and
+             * discard them.
              */
             if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
             }
