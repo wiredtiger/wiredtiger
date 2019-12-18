@@ -201,6 +201,9 @@ functions:
           ${test_env_vars|} ./test_timestamp_abort -C -m 2>&1
 
           ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+
+          # Just let the system take a breath
+          sleep 10s
         done
   "upload artifact":
     - command: archive.targz_pack
@@ -1825,8 +1828,9 @@ tasks:
       - func: "recovery stress test script"
         vars:
           # Repeat this script enough times to make this task run for 24 hours
-          # At the time of writing this script, one call to underlying scripts takes about 8 mins to finish.
-          times: 150
+          # At the time of writing this script, one call to underlying scripts takes about ~15 mins to finish in worst case.
+          # We are giving an extra ~20% room for vairance in execution time.
+          times: 80
 
   # This is special task until lz4 issues are resolved for zSeries distros
   - name: recovery-stress-test-without-lz4
@@ -1840,8 +1844,9 @@ tasks:
       - func: "recovery stress test script"
         vars:
           # Repeat this script enough times to make this task run for 24 hours
-          # At the time of writing this script, one call to underlying scripts takes about 8 mins to finish.
-          times: 150
+          # At the time of writing this script, one call to underlying scripts takes about 8 mins to finish in worst case.
+          # We are giving an extra ~20% room for vairance in execution time.
+          times: 120
           
   - name: split-stress-test
     commands:
