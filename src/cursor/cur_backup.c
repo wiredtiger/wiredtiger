@@ -28,6 +28,12 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
     u_int i;
 
     /*
+     * If incremental backup is not turned on, there is nothing to do.
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
+        return (0);
+
+    /*
      * Persist this information so that it survives a restart. Write to a temp file so we don't
      * overwrite any valid information until we know we've been successful writing it.
      */
@@ -219,7 +225,6 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
      */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        __wt_verbose(session, WT_VERB_BACKUP, "Free id %s ckpt %s", blk->id_str, blk->ckpt_name);
         __wt_free(session, blk->id_str);
         __wt_free(session, blk->ckpt_name);
         F_CLR(blk, WT_BLKINCR_VALID);
@@ -227,7 +232,6 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
     conn->ckpt_incr_granularity = 0;
     F_CLR(conn, WT_CONN_INCR_BACKUP);
 
-    __wt_verbose(session, WT_VERB_BACKUP, "Remove file %s/%s", conn->home, WT_BLKINCR_BACKUP);
     WT_RET(__wt_remove_if_exists(session, WT_BLKINCR_BACKUP, true));
 
     return (0);

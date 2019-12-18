@@ -81,11 +81,8 @@ __wt_remove_if_exists(WT_SESSION_IMPL *session, const char *name, bool durable)
     bool exist;
 
     WT_RET(__wt_fs_exist(session, name, &exist));
-    if (exist) {
+    if (exist)
         WT_RET(__wt_fs_remove(session, name, durable));
-	WT_RET(__wt_fs_exist(session, name, &exist));
-	WT_ASSERT(session, exist == false);
-    }
     return (0);
 }
 

@@ -466,10 +466,6 @@ main(int argc, char *argv[])
      * and original.
      */
     error_check(wt_conn->close(wt_conn, NULL));
-    (void)snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home);
-    ret = stat(cmd_buf, &sb);
-    printf("backup block %s ret: %d\n", cmd_buf, ret);
-    testutil_assert(ret == ENOENT);
 
     printf("Final comparison: dumping and comparing data\n");
     error_check(compare_backups(0));
@@ -483,14 +479,12 @@ main(int argc, char *argv[])
      * We should not have any information.
      */
     (void)snprintf(cmd_buf, sizeof(cmd_buf), "incremental=(src_id=ID%d,this_id=ID%d)", i - 2, i);
-    testutil_assert(
-      session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
+    testutil_assert(session->open_cursor(session, "backup:", NULL, cmd_buf, &backup_cur) == ENOENT);
     error_check(wt_conn->close(wt_conn, NULL));
 
     (void)snprintf(cmd_buf, sizeof(cmd_buf), "%s/WiredTiger.backup.block", home);
     ret = stat(cmd_buf, &sb);
-    printf("backup block 2 %s ret: %d\n", cmd_buf, ret);
-    testutil_assert(ret == ENOENT);
+    testutil_assert(ret == -1 && errno == ENOENT);
 
     return (EXIT_SUCCESS);
 }

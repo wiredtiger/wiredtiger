@@ -201,7 +201,6 @@ __posix_fs_remove(
      * simplify error handling; where we're not doing any special checking for standards compliance,
      * using unlink may be marginally safer.
      */
-    __wt_verbose(session, WT_VERB_BACKUP, "Unlink: %s", name);
     WT_SYSCALL(unlink(name), ret);
     if (ret != 0)
         WT_RET_MSG(session, ret, "%s: file-remove: unlink", name);
