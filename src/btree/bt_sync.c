@@ -252,7 +252,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-        skip_dup_walk:
+skipwalk:
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL)
@@ -271,24 +271,20 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                  * Check whether the tree is lookaside btree and verify whether the page contents
                  * are obsolete or not by checking the visibility of the page stop time pair.
                  */
-
                 if (is_las) {
-                    obsolete = false;
-
                     __wt_ref_is_obsolete(session, walk, &obsolete);
-
                     if (obsolete) {
                         /*
-                         * Get the duplicate tree walk point before marking the current tree page as
-                         * deleted, because the duplicate tree walk expects the ref state should be
-                         * in memory.
+                         * The duplicate tree walk code expects the ref state to be in memory. We
+                         * need to get the duplicate tree walk pointer before marking the current
+                         * tree page as deleted.
                          */
                         WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
 
                         /*
-                         * Mark the page as empty and also set the parent page as dirty. This is to
-                         * ensure when the parent page is checkpointing, the empty child page will
-                         * be cleaned.
+                         * Mark the page as deleted and also set the parent page as dirty. This is
+                         * to ensure when the parent page is checkpointing, the empty child page
+                         * will be cleaned.
                          */
                         previous_state = walk->state;
                         if (!WT_PAGE_IS_INTERNAL(walk->page)) {
@@ -298,22 +294,17 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                             /* Mark the page as deleted */
                             WT_REF_SET_STATE(walk, WT_REF_DELETED);
                             WT_ERR(__wt_page_parent_modify_set(session, walk, true));
-                        } else {
-                            /* Mark all the child pages as obsolete, including the current page */
                         }
 
-                        goto skip_dup_walk;
+                        /*
+                         * The Duplicate tree walk pointer is already obtained whenever an obsolete
+                         * page is identified before mark the page as deleted, continue with the
+                         * rest of the tree walk without duplicating walk pointer.
+                         */
+                        goto skipwalk;
                     }
                 }
-
                 continue;
-            }
-
-            /*
-             * Scan the internal page of the history store to find out the obsolete leaf pages and
-             * discard them.
-             */
-            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
             }
 
             /*
