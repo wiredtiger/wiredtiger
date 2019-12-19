@@ -18,7 +18,12 @@ __alloc_merge(
 {
     uint64_t total;
 
-    for (total = 0; a_cnt > 0 || b_cnt > 0; ++total, res += 2) {
+    /*
+     * The block allocation list is saved with just offsets and lengths. We add in the type for the
+     * return result.
+     */
+    for (total = 0; a_cnt > 0 || b_cnt > 0; ++total, res += WT_BACKUP_INCR_COMPONENTS) {
+        res[2] = WT_BACKUP_RANGE;
         if (a_cnt > 0 && b_cnt > 0) {
             if (a[0] <= b[0]) {
                 res[0] = a[0];
@@ -26,10 +31,10 @@ __alloc_merge(
                     res[1] = a[1];
                 else {
                     res[1] = (b[0] + b[1]) - a[0];
-                    b += 2;
+                    b += WT_BACKUP_INCR_COMPONENTS;
                     --b_cnt;
                 }
-                a += 2;
+                a += WT_BACKUP_INCR_COMPONENTS;
                 --a_cnt;
             } else if (b[0] <= a[0]) {
                 res[0] = b[0];
@@ -37,21 +42,21 @@ __alloc_merge(
                     res[1] = b[1];
                 else {
                     res[1] = (a[0] + a[1]) - b[0];
-                    a += 2;
+                    a += WT_BACKUP_INCR_COMPONENTS;
                     --a_cnt;
                 }
-                b += 2;
+                b += WT_BACKUP_INCR_COMPONENTS;
                 --b_cnt;
             }
         } else if (a_cnt > 0) {
             res[0] = a[0];
             res[1] = a[1];
-            a += 2;
+            a += WT_BACKUP_INCR_COMPONENTS;
             --a_cnt;
         } else if (b_cnt > 0) {
             res[0] = b[0];
             res[1] = b[1];
-            b += 2;
+            b += WT_BACKUP_INCR_COMPONENTS;
             --b_cnt;
         }
     }

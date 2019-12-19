@@ -411,7 +411,9 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 {
     WT_CONFIG_ITEM a;
     WT_DECL_RET;
+    uint64_t entries, *list;
     char timebuf[64];
+    const char *p;
 
     /*
      * Copy the name, address (raw and hex), order and time into the slot. If there's no address,
@@ -447,20 +449,56 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     ret = __wt_config_subgets(session, v, "newest_durable_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_durable_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
-    ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
-    WT_RET_NOTFOUND_OK(ret);
-    ckpt->oldest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
-    ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
-    WT_RET_NOTFOUND_OK(ret);
-    ckpt->oldest_start_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_NONE : (uint64_t)a.val;
     ret = __wt_config_subgets(session, v, "newest_stop_ts", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_stop_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_MAX : (uint64_t)a.val;
     ret = __wt_config_subgets(session, v, "newest_stop_txn", &a);
     WT_RET_NOTFOUND_OK(ret);
     ckpt->newest_stop_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_MAX : (uint64_t)a.val;
+    ret = __wt_config_subgets(session, v, "oldest_start_ts", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->oldest_start_ts = ret == WT_NOTFOUND || a.len == 0 ? WT_TS_NONE : (uint64_t)a.val;
+    ret = __wt_config_subgets(session, v, "oldest_start_txn", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    ckpt->oldest_start_txn = ret == WT_NOTFOUND || a.len == 0 ? WT_TXN_NONE : (uint64_t)a.val;
     __wt_check_addr_validity(session, ckpt->oldest_start_ts, ckpt->oldest_start_txn,
       ckpt->newest_stop_ts, ckpt->newest_stop_txn);
+
+    /*
+     * Load any modified block lists from incremental backups.
+     */
+    ret = __wt_config_subgets(session, v, "modified_blocks", &a);
+    WT_RET_NOTFOUND_OK(ret);
+    if (ret != WT_NOTFOUND) {
+        p = a.str;
+        if (*p != '(')
+            goto format;
+        if (p[1] != ')') {
+            for (entries = 0; p < a.str + a.len; ++p)
+                if (*p == ',')
+                    ++entries;
+            if (p[-1] != ')' || ++entries % 2 != 0)
+                goto format;
+
+            /* This is now the number of actual entries. */
+            entries /= 2;
+            ckpt->alloc_list_entries = entries;
+            /*
+             * Make space for the range field.
+             */
+            WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
+            ckpt->alloc_list = list;
+            for (p = a.str + 1; *p != ')'; ++list) {
+                if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
+                    goto format;
+                for (; *p != ',' && *p != ')'; ++p)
+                    ;
+                *(++list) = WT_BACKUP_RANGE;
+                if (*p == ',')
+                    ++p;
+            }
+        }
+    }
 
     WT_RET(__wt_config_subgets(session, v, "write_gen", &a));
     if (a.len == 0)
@@ -537,6 +575,7 @@ int
 __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM *buf)
 {
     WT_CKPT *ckpt;
+    uint64_t entries, *p;
     const char *sep;
 
     sep = "";
@@ -572,11 +611,22 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         WT_RET(__wt_buf_catfmt(session, buf,
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",oldest_start_txn=%" PRId64
-          ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64 ")",
+          ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64 ",write_gen=%" PRId64
+          ",modified_blocks=(",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->newest_durable_ts, (int64_t)ckpt->oldest_start_ts,
           (int64_t)ckpt->oldest_start_txn, (int64_t)ckpt->newest_stop_ts,
           (int64_t)ckpt->newest_stop_txn, (int64_t)ckpt->write_gen));
+        /*
+         * We only write out the first two pieces of information. We don't need to write out the
+         * piece that we return to the user indicating a range.
+         */
+        for (entries = 0, p = ckpt->alloc_list; entries < ckpt->alloc_list_entries;
+             ++entries, p += WT_BACKUP_INCR_COMPONENTS)
+            WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
+              (int64_t)p[0], (int64_t)p[1]));
+
+        WT_RET(__wt_buf_catfmt(session, buf, "))"));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 
