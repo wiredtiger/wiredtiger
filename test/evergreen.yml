@@ -112,8 +112,8 @@ functions:
               --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
     - *make_wiredtiger
-  "compile wiredtiger address sanitizer":
-      - command: shell.exec
+  "compile wiredtiger with builtins":
+    - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
         shell: bash
