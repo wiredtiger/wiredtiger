@@ -995,6 +995,9 @@ __wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
     size_t size;
     void *copy, *key;
 
+    size = 0;   /* -Werror=maybe-uninitialized */
+    key = NULL; /* -Werror=maybe-uninitialized */
+
     /* If we already have an unpacked key cell, use it. */
     if (kpack != NULL)
         vcell = (WT_CELL *)((uint8_t *)kpack->cell + __wt_cell_total_len(kpack));
