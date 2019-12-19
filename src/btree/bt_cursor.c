@@ -1133,7 +1133,7 @@ err:
          * subsequent iteration can succeed, we cannot return success.)
          */
         if (0) {
-        search_notfound:
+search_notfound:
             ret = WT_NOTFOUND;
             if (!iterating && !positioned && F_ISSET(cursor, WT_CURSTD_OVERWRITE))
                 ret = 0;
