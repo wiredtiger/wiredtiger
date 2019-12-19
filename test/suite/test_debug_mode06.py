@@ -26,27 +26,35 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wttest, wiredtiger
 
 # test_debug_mode06.py
 #   Test the debug mode settings. Test slow_checkpoint use (from WT-4981).
 #   Note: testing timing will make results unreliable so we won't do that.
 class test_debug_mode06(wttest.WiredTigerTestCase):
-    conn_config = 'log=(enabled=true),debug_mode=(slow_checkpoint=true)'
+    conn_config = 'log=(enabled=true),debug_mode=(slow_checkpoint=true),statistics=(all)'
     uri = 'file:test_debug_mode06'
 
     # Insert some data to ensure setting/unsetting the flag does not
     # break existing functionality
-    def insert_data(self):
+    def insert_data(self, assert_time=0):
         self.session.create(self.uri, 'key_format=s,value_format=s')
-        cursor = self.session.open_cursor(self.uri, None)
-        cursor['key'] = 'value'
-        cursor.close()
+        self.cursor = self.session.open_cursor(self.uri, None)
+        self.cursor['key'] = 'value'
+        self.cursor.close()
         self.session.checkpoint()
 
-    # Ensure flag works when set.
+        # Validate checkpoint time if asked for.
+        if (assert_time > 0):
+            stat_cur = self.session.open_cursor('statistics:', None, None)
+            checkpoint_time = int(stat_cur[wiredtiger.stat.conn.txn_checkpoint_time_recent][2])
+            self.assertTrue(checkpoint_time >= assert_time)
+            stat_cur.close()
+
+    # Make flag works when set.
     def test_slow_checkpoints(self):
-        self.insert_data()
+        # Ensure the checkpoint takes at least 10ms (the delay we have set).
+        self.insert_data(10)
 
     # Make sure the flag can be 'turned off' as well.
     def test_slow_checkpoints_off(self):

@@ -507,8 +507,7 @@ connection_runtime_config = [
             min='0', max='10M'),
         Config('slow_checkpoint', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal
-            page processing.
-            ''',
+            page processing.''',
             type='boolean'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all
