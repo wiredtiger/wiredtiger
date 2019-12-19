@@ -505,6 +505,10 @@ connection_runtime_config = [
             return a WT_ROLLBACK error from a transaction operation about
             every Nth operation to simulate a collision''',
             min='0', max='10M'),
+        Config('slow_checkpoint', 'false', r'''
+            if true, slow down checkpoint creation by slowing down internal
+            page processing.''',
+            type='boolean'),
         Config('table_logging', 'false', r'''
             if true, write transaction related information to the log for all
             operations, even operations for tables with logging turned off.
