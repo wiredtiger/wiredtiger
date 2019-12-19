@@ -1801,14 +1801,14 @@ tasks:
 
   # Ravi
   - name: checkpoint-stress-test
-    # set a 5 hour timeout for 5 processes
-    #exec_timeout_secs: 18000
+    # set a 24 hour timeout
+    exec_timeout_secs: 86400
     #timeout_secs: 18000
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 90000
-          timeout_secs: 90000
+          #exec_timeout_secs: 90000
+          timeout_secs: 86400
       - func: "get project"
       - func: "compile wiredtiger with builtins"
       - command: shell.exec
@@ -1823,15 +1823,18 @@ tasks:
             # timeout.update
             # exec_timeout_secs: 90000
             # timeout_secs: 90000
-            CMD='./t -h WT_TEST.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
-            NPROCS=5
+            CMD='./t -h WT_TEST.$t.$i -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+            NPROCS=10
+            times=1
 
-            for t in $(seq $NPROCS); do
-              eval nohup $CMD > nohup.out.$t 2>&1 &
-            done
+            for i in $(seq $times); do
+              for t in $(seq $NPROCS); do
+                eval nohup $CMD > nohup.out.$t.$i 2>&1 &
+              done
 
-            for t in $(seq $NPROCS); do
-              wait -n || exit $?
+              for t in $(seq $NPROCS); do
+                wait -n || exit $?
+              done
             done
 
   - name: split-stress-test
