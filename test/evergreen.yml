@@ -1940,7 +1940,7 @@ tasks:
           format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 1440
 
   - name: format-stress-smoke-test
-    # Set 25 hours timeout
+    # Set 7 hours timeout
     exec_timeout_secs: 25200
     commands:
       - func: "get project"
