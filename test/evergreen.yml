@@ -97,11 +97,7 @@ functions:
           set -o verbose
           echo '#undef HAVE_FTRUNCATE' >> wiredtiger_config.h
     - *make_wiredtiger
-<<<<<<< HEAD
-  "compile wiredtiger with builtins":
-=======
   "compile wiredtiger address sanitizer":
->>>>>>> develop
     - command: shell.exec
       params:
         working_dir: "wiredtiger/build_posix"
@@ -111,15 +107,24 @@ functions:
           set -o verbose
           sh reconf
           if [ "$OS" != "Windows_NT" ]; then
-<<<<<<< HEAD
-            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC" \
-              ../configure ${configure_python_setting|} \
-              --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
-=======
             CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" \
               ../configure ${configure_python_setting|} \
               --enable-diagnostic --with-builtins=lz4,snappy,zlib
->>>>>>> develop
+          fi
+    - *make_wiredtiger
+  "compile wiredtiger address sanitizer":
+      - command: shell.exec
+      params:
+        working_dir: "wiredtiger/build_posix"
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          sh reconf
+          if [ "$OS" != "Windows_NT" ]; then
+            CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC" \
+              ../configure ${configure_python_setting|} \
+              --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
           fi
     - *make_wiredtiger
   "make check directory":
@@ -158,16 +163,6 @@ functions:
         set -o verbose
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
-        done
-  "format test script":
-    command: shell.exec
-    params:
-      working_dir: "wiredtiger/test/format"
-      script: |
-        set -o errexit
-        set -o verbose
-        for i in $(seq ${times|1}); do
-          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
   "format test script":
     command: shell.exec
@@ -1946,7 +1941,7 @@ tasks:
 
   - name: format-stress-smoke-test
     # Set 25 hours timeout
-    exec_timeout_secs: 90000
+    exec_timeout_secs: 25200
     commands:
       - func: "get project"
       - func: "compile wiredtiger with builtins"
