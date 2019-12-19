@@ -1799,31 +1799,41 @@ tasks:
 
             ./time_shift_test.sh /usr/local/lib/faketime/libfaketimeMT.so.1 0-1 2>&1
 
+  # Ravi
   - name: checkpoint-stress-test
+    # set a 5 hour timeout for 5 processes
+    #exec_timeout_secs: 18000
+    #timeout_secs: 18000
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 90000
+          timeout_secs: 90000
       - func: "get project"
       - func: "compile wiredtiger with builtins"
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
 
             export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
-
+            # timeout.update
+            # exec_timeout_secs: 90000
+            # timeout_secs: 90000
             CMD='./t -h WT_TEST.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+            NPROCS=5
 
-            NPROCS=10
-            echo "Shell - $SHELL , Sequence - $NPROCS"
-
-            for i in $(seq $NPROCS); do
-              nohup $CMD > nohup.out.$i 2>&1 &
+            for t in $(seq $NPROCS); do
+              eval nohup $CMD > nohup.out.$t 2>&1 &
             done
 
-            #for i in $(seq $NPROCS); do
-            wait #|| exit $?
-            #done
+            for t in $(seq $NPROCS); do
+              wait -n || exit $?
+            done
+
   - name: split-stress-test
     commands:
       - func: "get project"
