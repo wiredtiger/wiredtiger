@@ -414,7 +414,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * therefore not have any updates that need to be written to the history store after it. If
      * we're doing checkpoint reconciliation, and the update doesn't have any further updates that
      * need to be written to the history store, skip saving the update as saving the update will
-     * cause reonciliation to think there is work that needs to be done when there might not be.
+     * cause reconciliation to think there is work that needs to be done when there might not be.
      */
     if ((upd_select->upd != NULL && F_ISSET(upd_select->upd, WT_UPDATE_RESTORED_FROM_DISK)) ||
       (F_ISSET(r, WT_REC_CHECKPOINT) &&
@@ -436,13 +436,24 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
         WT_ERR(__wt_set_return(session, EBUSY));
+
+    /*
+     * If we have a list with an uncommitted update on it we still want to write out to the
+     * lookaside file in checkpoint.
+     */
     if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE) && !F_ISSET(r, WT_REC_CHECKPOINT))
         WT_ERR(__wt_set_return(session, EBUSY));
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
     WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-    upd_select->upd_saved = true;
+
+    /*
+     * There is an odd corner case here where checkpoint shouldn't write updates to the lookaside
+     * file when we have an insert list. However eviction should in some scenario.
+     */
+    if (ins == NULL || !F_ISSET(r, WT_REC_CHECKPOINT))
+        upd_select->upd_saved = true;
 
 check_original_value:
     /*

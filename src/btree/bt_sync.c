@@ -229,7 +229,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
 
-        /* Add in lookaside reconciliation for standard files.*/
+        /* Add in lookaside reconciliation for standard files. */
         if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
             rec_flags |= WT_REC_LOOKASIDE;
 
