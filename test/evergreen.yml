@@ -147,7 +147,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|}
+          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
         done
   "format test script":
     command: shell.exec
@@ -161,28 +161,75 @@ functions:
         done
   "many dbs test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/manydbs"
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./t ${many_db_args|}
+        ${test_env_vars|} ./t ${many_db_args|} 2>&1
   "thread test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/thread"
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./t ${thread_test_args|}
+        ${test_env_vars|} ./t ${thread_test_args|} 2>&1
   "random abort test":
     command: shell.exec
-    parms:
+    params:
       working_dir: "wiredtiger/build_posix/test/csuite"
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./test_random_abort ${random_abort_args|}
+        ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+  "timestamp abort test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_timestamp_abort ${timestamp_abort_args|} 2>&1
+  "truncated log test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+  "recovery stress test script":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+
+        for i in $(seq ${times|1}); do
+          # Run the various combinations of args.  Let time and threads be random.
+          # Run current version with write-no-sync txns.
+          ${test_env_vars|} ./test_random_abort 2>&1
+          ${test_env_vars|} ./test_timestamp_abort 2>&1
+
+          # Current version with memory-based txns (MongoDB usage).
+          ${test_env_vars|} ./test_random_abort -m 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -m 2>&1
+
+          # V1 log compatibility mode with write-no-sync txns.
+          ${test_env_vars|} ./test_random_abort -C 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C 2>&1
+
+          # V1 log compatibility mode with memory-based txns.
+          ${test_env_vars|} ./test_random_abort -C -m 2>&1
+          ${test_env_vars|} ./test_timestamp_abort -C -m 2>&1
+
+          ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+
+          # Just let the system take a breath
+          sleep 10s
+        done
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -657,14 +704,7 @@ tasks:
       - name: compile
     commands:
       - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/csuite/test_truncated_log 2>&1
+      - func: "truncated log test"
 
   - name: csuite-wt1965-col-efficiency-test
     tags: ["pull_request"]
@@ -1772,14 +1812,7 @@ tasks:
           random_abort_args: -t 40
       
       # truncated-log
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/csuite/"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ./test_truncated_log
+      - func: "truncated log test"
       
       # format test
       - func: "format test"
@@ -1835,6 +1868,37 @@ tasks:
           format_test_script_args: -S
           times: 16
 
+  - name: recovery-stress-test
+    #set a 25 hours timeout
+    exec_timeout_secs: 90000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "recovery stress test script"
+        vars:
+          # Repeat this script enough times to make this task run for 24 hours
+          # At the time of writing this script, one call to underlying scripts takes about ~15 mins to finish in worst case.
+          # We are giving an extra ~20% room for vairance in execution time.
+          times: 80
+
+  # This is special task until lz4 issues are resolved for zSeries distros
+  - name: recovery-stress-test-without-lz4
+    #set a 25 hours timeout
+    exec_timeout_secs: 90000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=snappy,zlib
+      - func: "recovery stress test script"
+        vars:
+          # Repeat this script enough times to make this task run for 24 hours
+          # At the time of writing this script, one call to underlying scripts takes about 8 mins to finish in worst case.
+          # We are giving an extra ~20% room for vairance in execution time.
+          times: 120
+          
   - name: split-stress-test
     commands:
       - func: "get project"
@@ -1878,6 +1942,7 @@ buildvariants:
     - name: wtperf-test
     - name: ftruncate-test
     - name: long-test
+    - name: recovery-stress-test
     - name: format-stress-sanitizer-test
     - name: format-stress-sanitizer-smoke-test
     - name: split-stress-test
@@ -2033,4 +2098,5 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
+  - name: recovery-stress-test-without-lz4
   - name: split-stress-test
