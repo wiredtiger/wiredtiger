@@ -229,6 +229,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
 
+        /* Add in lookaside reconciliation for standard files.*/
+        if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
+            rec_flags |= WT_REC_LOOKASIDE;
+
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
 
@@ -303,10 +307,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 continue;
             }
             tried_eviction = false;
-
-            /* Add in lookaside reconciliation for standard files.*/
-            if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
-                rec_flags |= WT_REC_LOOKASIDE;
 
             WT_ERR(__wt_reconcile(session, walk, NULL, rec_flags, NULL));
 

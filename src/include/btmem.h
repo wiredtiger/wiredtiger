@@ -1115,9 +1115,9 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_HISTORY_STORE 0x1u /* Update has been written to history store. */
-#define WT_UPDATE_TEMP_FROM_LAS 0x2u /* Update is temporary retrieved from LAS. */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_UPDATE_HISTORY_STORE 0x1u      /* Update has been written to history store. */
+#define WT_UPDATE_RESTORED_FROM_DISK 0x2u /* Update is temporary retrieved from LAS. */
+                                          /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 
     /*

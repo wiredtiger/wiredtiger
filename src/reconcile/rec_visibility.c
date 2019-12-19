@@ -356,7 +356,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
             WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
-            F_SET(upd, WT_UPDATE_TEMP_FROM_LAS);
+            F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
             upd_select->upd = upd;
         }
         WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
@@ -408,11 +408,18 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
         WT_PANIC_ERR(session, EINVAL, "reconciliation error, update not visible");
 
-    /* If not trying to evict the page, we know what we'll write and we're done.
-     * FIXME-PM-1521: We need to save updates for checkpoints as it needs to write to history store
-     * as well
+    /*
+     * If the update we've selected was an on disk update restored from lookaside or the data store
+     * skip saving an update as it should always be the update at the end of the update chain, and
+     * therefore not have any updates that need to be written to the history store after it. If
+     * we're doing checkpoint reconciliation, and the update doesn't have any further updates that
+     * need to be written to the history store, skip saving the update as saving the update will
+     * cause reonciliation to think there is work that needs to be done when there might not be.
      */
-    if (!F_ISSET(r, WT_REC_EVICT))
+    if ((upd_select->upd != NULL && F_ISSET(upd_select->upd, WT_UPDATE_RESTORED_FROM_DISK)) ||
+      (F_ISSET(r, WT_REC_CHECKPOINT) &&
+          (!F_ISSET(r, WT_REC_LOOKASIDE) ||
+            (upd_select->upd == NULL || upd_select->upd->next == NULL))))
         goto check_original_value;
 
     /*
@@ -429,7 +436,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      */
     if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
         WT_ERR(__wt_set_return(session, EBUSY));
-    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE))
+    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE) && !F_ISSET(r, WT_REC_CHECKPOINT))
         WT_ERR(__wt_set_return(session, EBUSY));
 
     WT_ASSERT(session, r->max_txn != WT_TXN_NONE);

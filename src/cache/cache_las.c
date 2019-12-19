@@ -713,7 +713,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             continue;
 
         /* onpage_upd now is always from the update chain */
-        WT_ASSERT(session, !F_ISSET(list->onpage_upd, WT_UPDATE_TEMP_FROM_LAS));
+        WT_ASSERT(session, !F_ISSET(list->onpage_upd, WT_UPDATE_RESTORED_FROM_DISK));
 
         /* Lookaside table key component: source key. */
         switch (page->type) {
@@ -1667,7 +1667,7 @@ __wt_find_lookaside_upd(
              * has been dealt with. Mark this update as external and to be discarded when not
              * needed.
              */
-            F_SET(upd, WT_UPDATE_TEMP_FROM_LAS);
+            F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
         *updp = upd;
 
         /* We are done, we found the record we were searching for */
