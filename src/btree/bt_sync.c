@@ -297,9 +297,8 @@ skipwalk:
                         }
 
                         /*
-                         * The Duplicate tree walk pointer is already obtained whenever an obsolete
-                         * page is identified before mark the page as deleted, continue with the
-                         * rest of the tree walk without duplicating walk pointer.
+                         * The duplicate tree walk pointer, prev, was obtained before we marked the
+                         * page as deleted. Continue the rest of the tree walk using that pointer.
                          */
                         goto skipwalk;
                     }
