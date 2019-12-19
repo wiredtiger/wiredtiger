@@ -644,6 +644,7 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         return;
 
     __wt_free(session, ckpt->name);
+    __wt_free(session, ckpt->alloc_list);
     __wt_free(session, ckpt->block_metadata);
     __wt_free(session, ckpt->block_checkpoint);
     __wt_buf_free(session, &ckpt->addr);
