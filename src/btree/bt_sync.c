@@ -110,10 +110,56 @@ __wt_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref, bool *obsoletep)
     WT_ADDR *addr;
 
     *obsoletep = false;
-
     addr = ref->addr;
+
     if (addr && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts))
         *obsoletep = true;
+}
+
+/*
+ * __wt_ref_int_obsolete_cleanup --
+ *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
+ *     deleted.
+ */
+static int
+__wt_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t previous_state, slot;
+    bool obsolete;
+
+    pindex = NULL;
+
+    pindex = WT_INTL_INDEX_GET_SAFE(intref->page);
+    for (slot = 0; slot < pindex->entries; slot++) {
+        /*
+         * Get a reference, setting the reference hint if it's wrong (used when we continue the
+         * walk). We don't always update the hints when splitting, it's expected for them to be
+         * incorrect in some workloads.
+         */
+        ref = pindex->index[slot];
+        if (ref->pindex_hint != slot)
+            ref->pindex_hint = slot;
+
+        __wt_ref_is_obsolete(session, ref, &obsolete);
+        if (obsolete) {
+            /*
+             * Mark the page as deleted and also set the parent page as dirty. This is to ensure
+             * when the parent page is checkpointing, the empty child page will be cleaned.
+             */
+            previous_state = ref->state;
+
+            if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+                continue;
+
+            /* Mark the page as deleted */
+            WT_REF_SET_STATE(ref, WT_REF_DELETED);
+            WT_RET(__wt_page_parent_modify_set(session, ref, true));
+        }
+    }
+
+    return (0);
 }
 
 /*
@@ -250,6 +296,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         /* Read pages with lookaside entries and evict them asap. */
         LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
 
+        /* Read internal pages if it is history store */
+        if (is_las)
+            LF_SET(WT_READ_INT_PAGE);
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
 skipwalk:
@@ -287,14 +337,12 @@ skipwalk:
                          * will be cleaned.
                          */
                         previous_state = walk->state;
-                        if (!WT_PAGE_IS_INTERNAL(walk->page)) {
-                            if (!WT_REF_CAS_STATE(session, walk, previous_state, WT_REF_LOCKED))
-                                continue;
+                        if (!WT_REF_CAS_STATE(session, walk, previous_state, WT_REF_LOCKED))
+                            continue;
 
-                            /* Mark the page as deleted */
-                            WT_REF_SET_STATE(walk, WT_REF_DELETED);
-                            WT_ERR(__wt_page_parent_modify_set(session, walk, true));
-                        }
+                        /* Mark the page as deleted */
+                        WT_REF_SET_STATE(walk, WT_REF_DELETED);
+                        WT_ERR(__wt_page_parent_modify_set(session, walk, true));
 
                         /*
                          * The Duplicate tree walk pointer is already obtained whenever an obsolete
@@ -306,6 +354,9 @@ skipwalk:
                 }
                 continue;
             }
+
+            if (is_las && WT_PAGE_IS_INTERNAL(walk->page))
+                WT_ERR(__wt_ref_int_obsolete_cleanup(session, walk));
 
             /*
              * Take a local reference to the page modify structure now that we know the page is
