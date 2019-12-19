@@ -33,8 +33,9 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_open_session[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_query_timestamp[] = {
   {"get", "string", NULL,
-    "choices=[\"all_durable\",\"last_checkpoint\",\"oldest\","
-    "\"oldest_reader\",\"pinned\",\"recovery\",\"stable\"]",
+    "choices=[\"all_committed\",\"all_durable\","
+    "\"last_checkpoint\",\"oldest\",\"oldest_reader\",\"pinned\","
+    "\"recovery\",\"stable\"]",
     NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -133,7 +134,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"block\",\"checkpoint\","
+    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_progress\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
     "\"fileops\",\"handleops\",\"log\",\"lookaside\","
@@ -146,6 +147,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
+  {"commit_timestamp", "string", NULL, NULL, NULL, 0},
   {"durable_timestamp", "string", NULL, NULL, NULL, 0}, {"force", "boolean", NULL, NULL, NULL, 0},
   {"oldest_timestamp", "string", NULL, NULL, NULL, 0},
   {"stable_timestamp", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
@@ -292,11 +294,19 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_log_flush[] = {
   {"sync", "string", NULL, "choices=[\"background\",\"off\",\"on\"]", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor_incremental_subconfigs[] = {
+  {"enabled", "boolean", NULL, NULL, NULL, 0}, {"file", "string", NULL, NULL, NULL, 0},
+  {"force_stop", "boolean", NULL, NULL, NULL, 0},
+  {"granularity", "int", NULL, "min=1MB,max=2GB", NULL, 0},
+  {"src_id", "string", NULL, NULL, NULL, 0}, {"this_id", "string", NULL, NULL, NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"append", "boolean", NULL, NULL, NULL, 0}, {"bulk", "string", NULL, NULL, NULL, 0},
   {"checkpoint", "string", NULL, NULL, NULL, 0},
   {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0},
   {"dump", "string", NULL, "choices=[\"hex\",\"json\",\"print\"]", NULL, 0},
+  {"incremental", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_incremental_subconfigs, 6},
   {"next_random", "boolean", NULL, NULL, NULL, 0},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0},
   {"overwrite", "boolean", NULL, NULL, NULL, 0}, {"raw", "boolean", NULL, NULL, NULL, 0},
@@ -573,7 +583,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"use_environment", "boolean", NULL, NULL, NULL, 0},
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"block\",\"checkpoint\","
+    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_progress\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
     "\"fileops\",\"handleops\",\"log\",\"lookaside\","
@@ -640,7 +650,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"use_environment", "boolean", NULL, NULL, NULL, 0},
   {"use_environment_priv", "boolean", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"block\",\"checkpoint\","
+    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_progress\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
     "\"fileops\",\"handleops\",\"log\",\"lookaside\","
@@ -705,7 +715,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"block\",\"checkpoint\","
+    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_progress\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
     "\"fileops\",\"handleops\",\"log\",\"lookaside\","
@@ -770,7 +780,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
   {"verbose", "list", NULL,
-    "choices=[\"api\",\"block\",\"checkpoint\","
+    "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
     "\"checkpoint_progress\",\"compact\",\"compact_progress\","
     "\"error_returns\",\"evict\",\"evict_stuck\",\"evictserver\","
     "\"fileops\",\"handleops\",\"log\",\"lookaside\","
@@ -823,9 +833,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_WT_CONNECTION_reconfigure, 26},
   {"WT_CONNECTION.rollback_to_stable", "", NULL, 0}, {"WT_CONNECTION.set_file_system", "", NULL, 0},
   {"WT_CONNECTION.set_timestamp",
-    "durable_timestamp=,force=false,oldest_timestamp=,"
-    "stable_timestamp=",
-    confchk_WT_CONNECTION_set_timestamp, 4},
+    "commit_timestamp=,durable_timestamp=,force=false,"
+    "oldest_timestamp=,stable_timestamp=",
+    confchk_WT_CONNECTION_set_timestamp, 5},
   {"WT_CURSOR.close", "", NULL, 0},
   {"WT_CURSOR.reconfigure", "append=false,overwrite=true", confchk_WT_CURSOR_reconfigure, 2},
   {"WT_SESSION.alter",
@@ -881,10 +891,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.log_printf", "", NULL, 0},
   {"WT_SESSION.open_cursor",
     "append=false,bulk=false,checkpoint=,checkpoint_wait=true,dump=,"
-    "next_random=false,next_random_sample_size=0,overwrite=true,"
-    "raw=false,read_once=false,readonly=false,skip_sort_check=false,"
-    "statistics=,target=",
-    confchk_WT_SESSION_open_cursor, 14},
+    "incremental=(enabled=false,file=,force_stop=false,"
+    "granularity=16MB,src_id=,this_id=),next_random=false,"
+    "next_random_sample_size=0,overwrite=true,raw=false,"
+    "read_once=false,readonly=false,skip_sort_check=false,statistics="
+    ",target=",
+    confchk_WT_SESSION_open_cursor, 15},
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},

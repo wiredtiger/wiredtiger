@@ -681,6 +681,7 @@ connection_runtime_config = [
         list, such as <code>"verbose=[evictserver,read]"</code>''',
         type='list', choices=[
             'api',
+            'backup',
             'block',
             'checkpoint',
             'checkpoint_progress',
@@ -1209,6 +1210,38 @@ methods = {
         characters are hexadecimal encoded.  These formats are compatible
         with the @ref util_dump and @ref util_load commands''',
         choices=['hex', 'json', 'print']),
+    Config('incremental', '', r'''
+        configure the cursor for block incremental backup usage. These formats
+        are only compatible with the backup data source; see @ref backup''',
+        type='category', subconfig=[
+        Config('enabled', 'false', r'''
+            whether to configure this backup as the starting point for a subsequent
+            incremental backup''',
+            type='boolean'),
+        Config('file', '', r'''
+            the file name when opening a duplicate incremental backup cursor.
+            That duplicate cursor will return the block modifications relevant
+            to the given file name'''),
+        Config('force_stop', 'false', r'''
+            causes all block incremental backup information to be released. This is
+            on an open_cursor call and the resources will be released when this
+            cursor is closed. No other operations should be done on this open cursor''',
+            type='boolean'),
+        Config('granularity', '16MB', r'''
+            this setting manages the granularity of how WiredTiger maintains modification
+            maps internally. The larger the granularity, the smaller amount of information
+            WiredTiger need to maintain''',
+            min='1MB', max='2GB'),
+        Config('src_id', '', r'''
+            a string that identifies a previous checkpoint backup source as the source
+            of this incremental backup. This identifier must have already been created
+            by use of the 'this_id' configuration in an earlier backup. A source id is
+            required to begin an incremental backup'''),
+        Config('this_id', '', r'''
+            a string that identifies the current system state  as a future backup source
+            for an incremental backup via 'src_id'. This identifier is required when opening
+            an incremental backup cursor and an error will be returned if one is not provided'''),
+        ]),
     Config('next_random', 'false', r'''
         configure the cursor to return a pseudo-random record from the
         object when the WT_CURSOR::next method is called; valid only for
@@ -1572,7 +1605,8 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query:
+        specify which timestamp to query: \c all_committed returns the largest
+        timestamp such that all timestamps up to that value have committed,
         \c all_durable returns the largest timestamp such that all timestamps
         up to that value have been made durable, \c last_checkpoint returns the
         timestamp of the most recent stable checkpoint, \c oldest returns the
@@ -1583,11 +1617,20 @@ methods = {
         timestamp of the most recent stable checkpoint taken prior to a shutdown
         and \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
-        choices=['all_durable','last_checkpoint',
+        choices=['all_committed','all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
 'WT_CONNECTION.set_timestamp' : Method([
+    Config('commit_timestamp', '', r'''
+        (deprecated) reset the maximum commit timestamp tracked by WiredTiger.
+        This will cause future calls to WT_CONNECTION::query_timestamp to
+        ignore commit timestamps greater than the specified value until the
+        next commit moves the tracked commit timestamp forwards.  This is only
+        intended for use where the application is rolling back locally
+        committed transactions. The supplied value must not be older than the
+        current oldest and stable timestamps.
+        See @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         reset the maximum durable timestamp tracked by WiredTiger.  This will
         cause future calls to WT_CONNECTION::query_timestamp to ignore durable
