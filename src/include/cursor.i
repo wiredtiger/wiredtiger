@@ -28,7 +28,7 @@ __cursor_copy_release_item(WT_SESSION_IMPL *session, WT_ITEM *item)
     WT_DECL_RET;
     void *extra_mem;
 
-    if (!F_ISSET(S2C(session), WT_CONN_DEBUG_CURSOR_COPY))
+    if (!F_ISSET(S2C(session), WT_CONN_DEBUG_CURSOR_COPY) || item->mem == NULL)
         return (0);
 
     /*
@@ -199,30 +199,6 @@ __cursor_pos_clear(WT_CURSOR_BTREE *cbt)
     cbt->ins_stack[0] = NULL;
 
     F_CLR(cbt, WT_CBT_POSITION_MASK);
-}
-
-/*
- * __cursor_unset_key --
- *     Unset a key, and potentially release its memory.
- */
-static inline int
-__cursor_unset_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
-{
-    WT_RET(__cursor_copy_release_key(session, cursor));
-    F_CLR(cursor, WT_CURSTD_KEY_SET);
-    return (0);
-}
-
-/*
- * __cursor_unset_value --
- *     Unset a value, and potentially release its memory.
- */
-static inline int
-__cursor_unset_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
-{
-    WT_RET(__cursor_copy_release_value(session, cursor));
-    F_CLR(cursor, WT_CURSTD_VALUE_SET);
-    return (0);
 }
 
 /*
