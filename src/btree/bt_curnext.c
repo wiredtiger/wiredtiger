@@ -41,26 +41,23 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     __cursor_set_recno(cbt, cbt->recno + 1);
 
     /*
-     * Fixed-width column store appends are inherently non-transactional.
-     * Even a non-visible update by a concurrent or aborted transaction
-     * changes the effective end of the data.  The effect is subtle because
-     * of the blurring between deleted and empty values, but ideally we
-     * would skip all uncommitted changes at the end of the data.  This
-     * doesn't apply to variable-width column stores because the implicitly
-     * created records written by reconciliation are deleted and so can be
-     * never seen by a read.
+     * Fixed-width column store appends are inherently non-transactional. Even a non-visible update
+     * by a concurrent or aborted transaction changes the effective end of the data. The effect is
+     * subtle because of the blurring between deleted and empty values, but ideally we would skip
+     * all uncommitted changes at the end of the data. This doesn't apply to variable-width column
+     * stores because the implicitly created records written by reconciliation are deleted and so
+     * can be never seen by a read.
      *
-     * The problem is that we don't know at this point whether there may be
-     * multiple uncommitted changes at the end of the data, and it would be
-     * expensive to check every time we hit an aborted update.  If an
-     * insert is aborted, we simply return zero (empty), regardless of
-     * whether we are at the end of the data.
+     * The problem is that we don't know at this point whether there may be multiple uncommitted
+     * changes at the end of the data, and it would be expensive to check every time we hit an
+     * aborted update. If an insert is aborted, we simply return zero (empty), regardless of whether
+     * we are at the end of the data.
      */
     if (cbt->recno < WT_INSERT_RECNO(cbt->ins)) {
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
     } else {
-    restart_read:
+restart_read:
         WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
         if (upd == NULL) {
             cbt->v = 0;
@@ -114,7 +111,7 @@ new_page:
     if (cbt->ins != NULL && cbt->recno != WT_INSERT_RECNO(cbt->ins))
         cbt->ins = NULL;
     if (cbt->ins != NULL)
-    restart_read:
+restart_read:
     WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
     if (upd == NULL) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
@@ -148,12 +145,12 @@ __cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     for (;;) {
         cbt->ins = WT_SKIP_NEXT(cbt->ins);
-    new_page:
+new_page:
         if (cbt->ins == NULL)
             return (WT_NOTFOUND);
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
-    restart_read:
+restart_read:
         WT_RET(__wt_txn_read(session, cbt->ins->upd, &upd));
         if (upd == NULL)
             continue;
@@ -162,7 +159,7 @@ __cursor_var_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                 ++cbt->page_deleted_count;
             continue;
         }
-        return (__wt_value_return(session, cbt, upd));
+        return (__wt_value_return(cbt, upd));
     }
     /* NOTREACHED */
 }
@@ -212,8 +209,8 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
             return (WT_NOTFOUND);
         __cursor_set_recno(cbt, cbt->recno + 1);
 
-    new_page:
-    restart_read:
+new_page:
+restart_read:
         /* Find the matching WT_COL slot. */
         if ((cip = __col_var_search(cbt->ref, cbt->recno, &rle_start)) == NULL)
             return (WT_NOTFOUND);
@@ -231,7 +228,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                     ++cbt->page_deleted_count;
                 continue;
             }
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, upd));
         }
 
         /*
@@ -249,14 +246,12 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
                     continue;
 
                 /*
-                 * There can be huge gaps in the variable-length
-                 * column-store name space appearing as deleted
-                 * records. If more than one deleted record, do
-                 * the work of finding the next record to return
-                 * instead of looping through the records.
+                 * There can be huge gaps in the variable-length column-store name space appearing
+                 * as deleted records. If more than one deleted record, do the work of finding the
+                 * next record to return instead of looping through the records.
                  *
-                 * First, find the smallest record in the update
-                 * list that's larger than the current record.
+                 * First, find the smallest record in the update list that's larger than the current
+                 * record.
                  */
                 ins = __col_insert_search_gt(cbt->ins_head, cbt->recno);
 
@@ -313,13 +308,11 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     cbt->iter_retry = WT_CBT_RETRY_NOTSET;
 
     /*
-     * For row-store pages, we need a single item that tells us the part
-     * of the page we're walking (otherwise switching from next to prev
-     * and vice-versa is just too complicated), so we map the WT_ROW and
-     * WT_INSERT_HEAD insert array slots into a single name space: slot 1
-     * is the "smallest key insert list", slot 2 is WT_ROW[0], slot 3 is
-     * WT_INSERT_HEAD[0], and so on.  This means WT_INSERT lists are
-     * odd-numbered slots, and WT_ROW array slots are even-numbered slots.
+     * For row-store pages, we need a single item that tells us the part of the page we're walking
+     * (otherwise switching from next to prev and vice-versa is just too complicated), so we map the
+     * WT_ROW and WT_INSERT_HEAD insert array slots into a single name space: slot 1 is the
+     * "smallest key insert list", slot 2 is WT_ROW[0], slot 3 is WT_INSERT_HEAD[0], and so on. This
+     * means WT_INSERT lists are odd-numbered slots, and WT_ROW array slots are even-numbered slots.
      *
      * Initialize for each new page.
      */
@@ -344,9 +337,9 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         if (cbt->ins != NULL)
             cbt->ins = WT_SKIP_NEXT(cbt->ins);
 
-    new_insert:
+new_insert:
         cbt->iter_retry = WT_CBT_RETRY_INSERT;
-    restart_read_insert:
+restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             WT_RET(__wt_txn_read(session, ins->upd, &upd));
             if (upd == NULL)
@@ -358,7 +351,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
             }
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            return (__wt_value_return(session, cbt, upd));
+            return (__wt_value_return(cbt, upd));
         }
 
         /* Check for the end of the page. */
@@ -380,7 +373,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
         cbt->iter_retry = WT_CBT_RETRY_PAGE;
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
-    restart_read_page:
+restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__wt_txn_read(session, WT_ROW_UPDATE(page, rip), &upd));
         if (upd != NULL && upd->type == WT_UPDATE_TOMBSTONE) {
@@ -488,8 +481,12 @@ __wt_cursor_key_order_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool
  *     Initialize key ordering checks for cursor movements after a successful search.
  */
 int
-__wt_cursor_key_order_init(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
+__wt_cursor_key_order_init(WT_CURSOR_BTREE *cbt)
 {
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
+
     /*
      * Cursor searches set the position for cursor movements, set the last-key value for diagnostic
      * checking.
@@ -696,17 +693,13 @@ err:
         F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 #ifdef HAVE_DIAGNOSTIC
         /*
-         * Skip key order check, if prev is called after a next returned
-         * a prepare conflict error, i.e cursor has changed direction
-         * at a prepared update, hence current key returned could be
-         * same as earlier returned key.
+         * Skip key order check, if prev is called after a next returned a prepare conflict error,
+         * i.e cursor has changed direction at a prepared update, hence current key returned could
+         * be same as earlier returned key.
          *
-         * eg: Initial data set : (1,2,3,...10)
-         * insert key 11 in a prepare transaction.
-         * loop on next will return 1,2,3...10 and subsequent call to
-         * next will return a prepare conflict. Now if we call prev
-         * key 10 will be returned which will be same as earlier
-         * returned key.
+         * eg: Initial data set : (1,2,3,...10) insert key 11 in a prepare transaction. loop on next
+         * will return 1,2,3...10 and subsequent call to next will return a prepare conflict. Now if
+         * we call prev key 10 will be returned which will be same as earlier returned key.
          */
         if (!F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV))
             ret = __wt_cursor_key_order_check(session, cbt, true);

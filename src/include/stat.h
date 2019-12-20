@@ -9,74 +9,67 @@
 /*
  * Statistics counters:
  *
- * We use an array of statistics structures; threads write different structures
- * to avoid writing the same cache line and incurring cache coherency overheads,
- * which can dramatically slow fast and otherwise read-mostly workloads.
+ * We use an array of statistics structures; threads write different structures to avoid writing the
+ * same cache line and incurring cache coherency overheads, which can dramatically slow fast and
+ * otherwise read-mostly workloads.
  *
- * With an 8B statistics value and 64B cache-line alignment, 8 values share the
- * same cache line. There are collisions when different threads choose the same
- * statistics structure and update values that live on the cache line. There is
- * likely some locality however: a thread updating the cursor search statistic
- * is likely to update other cursor statistics with a chance of hitting already
- * cached values.
+ * With an 8B statistics value and 64B cache-line alignment, 8 values share the same cache line.
+ * There are collisions when different threads choose the same statistics structure and update
+ * values that live on the cache line. There is likely some locality however: a thread updating the
+ * cursor search statistic is likely to update other cursor statistics with a chance of hitting
+ * already cached values.
  *
- * The actual statistic value must be signed, because one thread might increment
- * the value in its structure, and then another thread might decrement the same
- * value in another structure (where the value was initially zero), so the value
- * in the second thread's slot will go negative.
+ * The actual statistic value must be signed, because one thread might increment the value in its
+ * structure, and then another thread might decrement the same value in another structure (where the
+ * value was initially zero), so the value in the second thread's slot will go negative.
  *
- * When reading a statistics value, the array values are summed and returned to
- * the caller. The summation is performed without locking, so the value read
- * may be inconsistent (and might be negative, if increments/decrements race
- * with the reader).
+ * When reading a statistics value, the array values are summed and returned to the caller. The
+ * summation is performed without locking, so the value read may be inconsistent (and might be
+ * negative, if increments/decrements race with the reader).
  *
- * Choosing how many structures isn't easy: obviously, a smaller number creates
- * more conflicts while a larger number uses more memory.
+ * Choosing how many structures isn't easy: obviously, a smaller number creates more conflicts while
+ * a larger number uses more memory.
  *
- * Ideally, if the application running on the system is CPU-intensive, and using
- * all CPUs on the system, we want to use the same number of slots as there are
- * CPUs (because their L1 caches are the units of coherency). However, in
- * practice we cannot easily determine how many CPUs are actually available to
- * the application.
+ * Ideally, if the application running on the system is CPU-intensive, and using all CPUs on the
+ * system, we want to use the same number of slots as there are CPUs (because their L1 caches are
+ * the units of coherency). However, in practice we cannot easily determine how many CPUs are
+ * actually available to the application.
  *
- * Our next best option is to use the number of threads in the application as a
- * heuristic for the number of CPUs (presumably, the application architect has
- * figured out how many CPUs are available). However, inside WiredTiger we don't
- * know when the application creates its threads.
+ * Our next best option is to use the number of threads in the application as a heuristic for the
+ * number of CPUs (presumably, the application architect has figured out how many CPUs are
+ * available). However, inside WiredTiger we don't know when the application creates its threads.
  *
- * For now, we use a fixed number of slots. Ideally, we would approximate the
- * largest number of cores we expect on any machine where WiredTiger might be
- * run, however, we don't want to waste that much memory on smaller machines.
- * As of 2015, machines with more than 24 CPUs are relatively rare.
+ * For now, we use a fixed number of slots. Ideally, we would approximate the largest number of
+ * cores we expect on any machine where WiredTiger might be run, however, we don't want to waste
+ * that much memory on smaller machines. As of 2015, machines with more than 24 CPUs are relatively
+ * rare.
  *
- * Default hash table size; use a prime number of buckets rather than assuming
- * a good hash (Reference Sedgewick, Algorithms in C, "Hash Functions").
+ * Default hash table size; use a prime number of buckets rather than assuming a good hash
+ * (Reference Sedgewick, Algorithms in C, "Hash Functions").
  */
 #define WT_COUNTER_SLOTS 23
 
 /*
  * WT_STATS_SLOT_ID is the thread's slot ID for the array of structures.
  *
- * Ideally, we want a slot per CPU, and we want each thread to index the slot
- * corresponding to the CPU it runs on. Unfortunately, getting the ID of the
- * current CPU is difficult: some operating systems provide a system call to
- * acquire a CPU ID, but not all (regardless, making a system call to increment
- * a statistics value is far too expensive).
+ * Ideally, we want a slot per CPU, and we want each thread to index the slot corresponding to the
+ * CPU it runs on. Unfortunately, getting the ID of the current CPU is difficult: some operating
+ * systems provide a system call to acquire a CPU ID, but not all (regardless, making a system call
+ * to increment a statistics value is far too expensive).
  *
- * Our second-best option is to use the thread ID. Unfortunately, there is no
- * portable way to obtain a unique thread ID that's a small-enough number to
- * be used as an array index (portable thread IDs are usually a pointer or an
- * opaque chunk, not a simple integer).
+ * Our second-best option is to use the thread ID. Unfortunately, there is no portable way to obtain
+ * a unique thread ID that's a small-enough number to be used as an array index (portable thread IDs
+ * are usually a pointer or an opaque chunk, not a simple integer).
  *
- * Our solution is to use the session ID; there is normally a session per thread
- * and the session ID is a small, monotonically increasing number.
+ * Our solution is to use the session ID; there is normally a session per thread and the session ID
+ * is a small, monotonically increasing number.
  */
 #define WT_STATS_SLOT_ID(session) (((session)->id) % WT_COUNTER_SLOTS)
 
 /*
- * Statistic structures are arrays of int64_t's. We have functions to read/write
- * those structures regardless of the specific statistic structure we're working
- * with, by translating statistics structure field names to structure offsets.
+ * Statistic structures are arrays of int64_t's. We have functions to read/write those structures
+ * regardless of the specific statistic structure we're working with, by translating statistics
+ * structure field names to structure offsets.
  *
  * Translate a statistic's value name to an offset in the array.
  */
@@ -109,20 +102,17 @@ __wt_stats_aggregate(void *stats_arg, int slot)
         aggr_v += stats[i][slot];
 
     /*
-     * This can race. However, any implementation with a single value can
-     * race as well, different threads could set the same counter value
-     * simultaneously. While we are making races more likely, we are not
-     * fundamentally weakening the isolation semantics found in updating a
-     * single value.
+     * This can race. However, any implementation with a single value can race as well, different
+     * threads could set the same counter value simultaneously. While we are making races more
+     * likely, we are not fundamentally weakening the isolation semantics found in updating a single
+     * value.
      *
-     * Additionally, the aggregation can go negative (imagine a thread
-     * incrementing a value after aggregation has passed its slot and a
-     * second thread decrementing a value before aggregation has reached
-     * its slot).
+     * Additionally, the aggregation can go negative (imagine a thread incrementing a value after
+     * aggregation has passed its slot and a second thread decrementing a value before aggregation
+     * has reached its slot).
      *
-     * For historic API compatibility, the external type is a uint64_t;
-     * limit our return to positive values, negative numbers would just
-     * look really, really large.
+     * For historic API compatibility, the external type is a uint64_t; limit our return to positive
+     * values, negative numbers would just look really, really large.
      */
     if (aggr_v < 0)
         aggr_v = 0;
@@ -223,12 +213,11 @@ __wt_stats_clear(void *stats_arg, int slot)
 #define WT_STAT_CONN_SET(session, fld, value) WT_STAT_SET(session, S2C(session)->stats, fld, value)
 
 /*
- * Update data-source handle statistics if statistics gathering is enabled
- * and the data-source handle is set.
+ * Update data-source handle statistics if statistics gathering is enabled and the data-source
+ * handle is set.
  *
- * XXX
- * We shouldn't have to check if the data-source handle is NULL, but it's
- * necessary until everything is converted to using data-source handles.
+ * XXX We shouldn't have to check if the data-source handle is NULL, but it's necessary until
+ * everything is converted to using data-source handles.
  */
 #define WT_STAT_DATA_DECRV(session, fld, value)                                   \
     do {                                                                          \
@@ -376,14 +365,15 @@ struct __wt_connection_stats {
     int64_t cache_eviction_server_slept;
     int64_t cache_eviction_slow;
     int64_t cache_eviction_walk_leaf_notfound;
-    int64_t cache_eviction_walk_internal_wait;
-    int64_t cache_eviction_walk_internal_yield;
     int64_t cache_eviction_state;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
+    int64_t cache_eviction_target_strategy_both_clean_and_dirty;
+    int64_t cache_eviction_target_strategy_clean;
+    int64_t cache_eviction_target_strategy_dirty;
     int64_t cache_eviction_walks_abandoned;
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
@@ -414,6 +404,9 @@ struct __wt_connection_stats {
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
     int64_t cache_eviction_internal;
+    int64_t cache_eviction_internal_pages_queued;
+    int64_t cache_eviction_internal_pages_seen;
+    int64_t cache_eviction_internal_pages_already_queued;
     int64_t cache_eviction_split_internal;
     int64_t cache_eviction_split_leaf;
     int64_t cache_bytes_max;
@@ -440,7 +433,12 @@ struct __wt_connection_stats {
     int64_t cache_read_lookaside_delay_checkpoint;
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;
+    int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
+    int64_t cache_eviction_fail_parent_has_overflow_items;
+    int64_t cache_eviction_fail_active_children_on_an_internal_page;
+    int64_t cache_eviction_fail_in_reconciliation;
+    int64_t cache_eviction_fail_with_newer_modifications_on_a_clean_page;
     int64_t cache_eviction_walk;
     int64_t cache_write;
     int64_t cache_write_restore;
@@ -660,7 +658,6 @@ struct __wt_connection_stats {
     int64_t child_modify_blocked_page;
     int64_t txn_prepared_updates_count;
     int64_t txn_prepared_updates_lookaside_inserts;
-    int64_t txn_prepared_updates_resolved;
     int64_t txn_durable_queue_walked;
     int64_t txn_durable_queue_empty;
     int64_t txn_durable_queue_head;

@@ -226,9 +226,9 @@ cb_asyncop(WT_ASYNC_CALLBACK *cb, WT_ASYNC_OP *op, int ret, uint32_t flags)
     /*
      * Either we have success and we track it, or failure and panic.
      *
-     * Reads and updates can fail with WT_NOTFOUND: we may be searching
-     * in a random range, or an insert op might have updated the
-     * last record in the table but not yet finished the actual insert.
+     * Reads and updates can fail with WT_NOTFOUND: we may be searching in a random range, or an
+     * insert op might have updated the last record in the table but not yet finished the actual
+     * insert.
      */
     if (type == WT_AOP_COMPACT)
         return (0);
@@ -401,7 +401,7 @@ worker_async(void *arg)
                 break;
             goto op_err;
         default:
-        op_err:
+op_err:
             lprintf(wtperf, ret, 0, "%s failed for: %s, range: %" PRIu64, op_name(op), key_buf,
               wtperf_value_range(wtperf));
             goto err; /* can't happen */
@@ -831,7 +831,7 @@ worker(void *arg)
             if (ret == WT_NOTFOUND)
                 break;
 
-        op_err:
+op_err:
             if (ret == WT_ROLLBACK && (ops_per_txn != 0 || opts->log_like_table)) {
                 /*
                  * If we are running with explicit transactions configured and we hit a WT_ROLLBACK,

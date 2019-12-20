@@ -131,7 +131,7 @@ class CapturedFd(object):
         """
         if self.file != None:
             self.file.flush()
-        gotstr = self.readFileFrom(self.filename, self.expectpos, 1000)
+        gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
         if re.search(pat, gotstr) == None:
             testcase.fail('in ' + self.desc +
                           ', expected pattern "' + pat + '", but got "' +
@@ -160,7 +160,7 @@ class TestSuiteConnection(object):
 class ExtensionList(list):
     skipIfMissing = False
     def extension(self, dirname, name, extarg=None):
-        if name != None and name != 'none':
+        if name and name != 'none':
             ext = '' if extarg == None else '=' + extarg
             self.append(dirname + '/' + name + ext)
 
@@ -411,6 +411,8 @@ class WiredTigerTestCase(unittest.TestCase):
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
         # https://stackoverflow.com/questions/4414234/getting-pythons-unittest-results-in-a-teardown-method
+        # In addition, check to make sure exc_info is "clean", because
+        # the ConcurrencyTestSuite in Python2 indicates failures using that.
         if hasattr(self, '_outcome'):  # Python 3.4+
             result = self.defaultTestResult()  # these 2 methods have no side effects
             self._feedErrorsToResult(result, self._outcome.errors)
@@ -418,7 +420,9 @@ class WiredTigerTestCase(unittest.TestCase):
             result = getattr(self, '_outcomeForDoCleanups', self._resultForDoCleanups)
         error = self.list2reason(result, 'errors')
         failure = self.list2reason(result, 'failures')
-        passed = not error and not failure
+        exc_failure = (sys.exc_info() != (None, None, None))
+
+        passed = not error and not failure and not exc_failure
 
         self.pr('finishing')
 

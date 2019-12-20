@@ -60,6 +60,10 @@ modify_repl_init(void)
         modify_repl[i] = "zyxwvutsrqponmlkjihgfedcba"[i % 26];
 }
 
+/*
+ * set_alarm --
+ *     Set a timer.
+ */
 static void
 set_alarm(void)
 {
@@ -73,6 +77,41 @@ set_alarm(void)
     timer_val.it_value.tv_nsec = 0;
     testutil_check(timer_settime(timer_id, 0, &timer_val, NULL));
 #endif
+}
+
+/*
+ * set_core_off --
+ *     Turn off core dumps.
+ */
+void
+set_core_off(void)
+{
+#ifdef HAVE_SETRLIMIT
+    struct rlimit rlim;
+
+    rlim.rlim_cur = rlim.rlim_max = 0;
+    testutil_check(setrlimit(RLIMIT_CORE, &rlim));
+#endif
+}
+
+/*
+ * random_failure --
+ *     Fail the process.
+ */
+static void
+random_failure(void)
+{
+    static char *core = NULL;
+
+    /* Let our caller know. */
+    printf("%s: aborting to test recovery\n", progname);
+    fflush(stdout);
+
+    /* Turn off core dumps. */
+    set_core_off();
+
+    /* Fail at a random moment. */
+    *core = 0;
 }
 
 TINFO **tinfo_list;
@@ -107,15 +146,13 @@ wts_ops(bool lastrun)
     modify_repl_init();
 
     /*
-     * There are two mechanisms to specify the length of the run, a number
-     * of operations and a timer, when either expire the run terminates.
+     * There are two mechanisms to specify the length of the run, a number of operations and a
+     * timer, when either expire the run terminates.
      *
-     * Each thread does an equal share of the total operations (and make
-     * sure that it's not 0).
+     * Each thread does an equal share of the total operations (and make sure that it's not 0).
      *
-     * Calculate how many fourth-of-a-second sleeps until the timer expires.
-     * If the timer expires and threads don't return in 15 minutes, assume
-     * there is something hung, and force the quit.
+     * Calculate how many fourth-of-a-second sleeps until the timer expires. If the timer expires
+     * and threads don't return in 15 minutes, assume there is something hung, and force the quit.
      */
     if (g.c_ops == 0)
         thread_ops = -1;
@@ -224,10 +261,8 @@ wts_ops(bool lastrun)
                 /*
                  * On the last execution, optionally drop core for recovery testing.
                  */
-                if (lastrun && g.c_abort) {
-                    static char *core = NULL;
-                    *core = 0;
-                }
+                if (lastrun && g.c_abort)
+                    random_failure();
                 tinfo->quit = true;
             }
         }
@@ -340,9 +375,8 @@ begin_transaction_ts(TINFO *tinfo, u_int *iso_configp)
     /*
      * Otherwise, pick a current timestamp.
      *
-     * Prepare returns an error if the prepare timestamp is less
-     * than any active read timestamp, single-thread transaction
-     * prepare and begin.
+     * Prepare returns an error if the prepare timestamp is less than any active read timestamp,
+     * single-thread transaction prepare and begin.
      *
      * Lock out the oldest timestamp update.
      */
@@ -474,12 +508,12 @@ prepare_transaction(TINFO *tinfo)
     ++tinfo->prepare;
 
     /*
-     * Prepare timestamps must be less than or equal to the eventual commit
-     * timestamp. Set the prepare timestamp to whatever the global value is
-     * now. The subsequent commit will increment it, ensuring correctness.
+     * Prepare timestamps must be less than or equal to the eventual commit timestamp. Set the
+     * prepare timestamp to whatever the global value is now. The subsequent commit will increment
+     * it, ensuring correctness.
      *
-     * Prepare returns an error if the prepare timestamp is less than any
-     * active read timestamp, single-thread transaction prepare and begin.
+     * Prepare returns an error if the prepare timestamp is less than any active read timestamp,
+     * single-thread transaction prepare and begin.
      *
      * Lock out the oldest timestamp update.
      */
@@ -488,6 +522,8 @@ prepare_transaction(TINFO *tinfo)
     ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(__wt_snprintf(buf, sizeof(buf), "prepare_timestamp=%" PRIx64, ts));
     ret = session->prepare_transaction(session, buf);
+
+    logop(session, "prepare ts=%" PRIu64, ts);
 
     testutil_check(pthread_rwlock_unlock(&g.ts_lock));
 
@@ -573,11 +609,9 @@ ops_open_session(TINFO *tinfo, bool *ckpt_handlep)
     }
     if (cursor == NULL) {
         /*
-         * Configure "append", in the case of column stores, we append
-         * when inserting new rows.
+         * Configure "append", in the case of column stores, we append when inserting new rows.
          *
-         * WT_SESSION.open_cursor can return EBUSY if concurrent with a
-         * metadata operation, retry.
+         * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
          */
         while ((ret = session->open_cursor(session, g.uri, NULL, "append", &cursor)) == EBUSY)
             __wt_yield();
@@ -808,7 +842,7 @@ ops(void *arg)
                 READ_OP_FAILED(true);
             break;
         case REMOVE:
-        remove_instead_of_truncate:
+remove_instead_of_truncate:
             switch (g.type) {
             case ROW:
                 ret = row_remove(tinfo, cursor, positioned);
@@ -842,16 +876,13 @@ ops(void *arg)
                 tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
 
             /*
-             * Truncate up to 5% of the table. If the range overlaps
-             * the beginning/end of the table, set the key to 0 (the
-             * truncate function then sets a cursor to NULL so that
-             * code is tested).
+             * Truncate up to 5% of the table. If the range overlaps the beginning/end of the table,
+             * set the key to 0 (the truncate function then sets a cursor to NULL so that code is
+             * tested).
              *
-             * This gets tricky: there are 2 directions (truncating
-             * from lower keys to the current position or from
-             * the current position to higher keys), and collation
-             * order (truncating from lower keys to higher keys or
-             * vice-versa).
+             * This gets tricky: there are 2 directions (truncating from lower keys to the current
+             * position or from the current position to higher keys), and collation order
+             * (truncating from lower keys to higher keys or vice-versa).
              */
             greater_than = mmrand(&tinfo->rnd, 0, 1) == 1;
             range = g.rows < 20 ? 0 : mmrand(&tinfo->rnd, 0, (u_int)g.rows / 20);
@@ -899,7 +930,7 @@ ops(void *arg)
                 WRITE_OP_FAILED(false);
             break;
         case UPDATE:
-        update_instead_of_chosen_op:
+update_instead_of_chosen_op:
             ++tinfo->update;
             switch (g.type) {
             case ROW:
@@ -1219,7 +1250,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
             } else if (tinfo->keyno > keyno || (!record_gaps && keyno != tinfo->keyno + 1))
                 goto order_error_col;
             if (0) {
-            order_error_col:
+order_error_col:
                 testutil_die(
                   0, "%s returned %" PRIu64 " then %" PRIu64, which, tinfo->keyno, keyno);
             }
@@ -1253,7 +1284,7 @@ nextprev(TINFO *tinfo, WT_CURSOR *cursor, bool next)
                     goto order_error_row;
             }
             if (0) {
-            order_error_row:
+order_error_row:
                 testutil_die(0, "%s returned {%.*s} then {%.*s}", which, (int)tinfo->key->size,
                   (char *)tinfo->key->data, (int)key.size, (char *)key.data);
             }
@@ -1583,30 +1614,26 @@ table_append(uint64_t keyno)
     ep = g.append + g.append_max;
 
     /*
-     * We don't want to ignore records we append, which requires we update
-     * the "last row" as we insert new records. Threads allocating record
-     * numbers can race with other threads, so the thread allocating record
-     * N may return after the thread allocating N + 1.  We can't update a
-     * record before it's been inserted, and so we can't leave gaps when the
-     * count of records in the table is incremented.
+     * We don't want to ignore records we append, which requires we update the "last row" as we
+     * insert new records. Threads allocating record numbers can race with other threads, so the
+     * thread allocating record N may return after the thread allocating N + 1. We can't update a
+     * record before it's been inserted, and so we can't leave gaps when the count of records in the
+     * table is incremented.
      *
-     * The solution is the append table, which contains an unsorted list of
-     * appended records.  Every time we finish appending a record, process
-     * the table, trying to update the total records in the object.
+     * The solution is the append table, which contains an unsorted list of appended records. Every
+     * time we finish appending a record, process the table, trying to update the total records in
+     * the object.
      *
      * First, enter the new key into the append list.
      *
-     * It's technically possible to race: we allocated space for 10 records
-     * per thread, but the check for the maximum number of records being
-     * appended doesn't lock.  If a thread allocated a new record and went
-     * to sleep (so the append table fills up), then N threads of control
-     * used the same g.append_cnt value to decide there was an available
-     * slot in the append table and both allocated new records, we could run
-     * out of space in the table. It's unfortunately not even unlikely in
-     * the case of a large number of threads all inserting as fast as they
-     * can and a single thread going to sleep for an unexpectedly long time.
-     * If it happens, sleep and retry until earlier records are resolved
-     * and we find a slot.
+     * It's technically possible to race: we allocated space for 10 records per thread, but the
+     * check for the maximum number of records being appended doesn't lock. If a thread allocated a
+     * new record and went to sleep (so the append table fills up), then N threads of control used
+     * the same g.append_cnt value to decide there was an available slot in the append table and
+     * both allocated new records, we could run out of space in the table. It's unfortunately not
+     * even unlikely in the case of a large number of threads all inserting as fast as they can and
+     * a single thread going to sleep for an unexpectedly long time. If it happens, sleep and retry
+     * until earlier records are resolved and we find a slot.
      */
     for (done = 0;;) {
         testutil_check(pthread_rwlock_wrlock(&g.append_lock));

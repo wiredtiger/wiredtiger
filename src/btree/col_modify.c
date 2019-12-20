@@ -15,8 +15,8 @@ static int __col_insert_alloc(WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, 
  *     Column-store delete, insert, and update.
  */
 int
-__wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
-  const WT_ITEM *value, WT_UPDATE *upd_arg, u_int modify_type, bool exclusive)
+__wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg,
+  u_int modify_type, bool exclusive)
 {
     static const WT_ITEM col_fix_remove = {"", 1, NULL, 0, 0};
     WT_BTREE *btree;
@@ -25,6 +25,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
     WT_INSERT_HEAD *ins_head, **ins_headp;
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
+    WT_SESSION_IMPL *session;
     WT_UPDATE *old_upd, *upd;
     size_t ins_size, upd_size;
     u_int i, skipdepth;
@@ -33,6 +34,7 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
     btree = cbt->btree;
     ins = NULL;
     page = cbt->ref->page;
+    session = (WT_SESSION_IMPL *)cbt->iface.session;
     upd = upd_arg;
     append = logged = false;
 
@@ -109,12 +111,11 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
     /*
      * Delete, insert or update a column-store entry.
      *
-     * If modifying a previously modified record, cursor.ins will be set to
-     * point to the correct update list. Create a new update entry and link
-     * it into the existing list.
+     * If modifying a previously modified record, cursor.ins will be set to point to the correct
+     * update list. Create a new update entry and link it into the existing list.
      *
-     * Else, allocate an insert array as necessary, build an insert/update
-     * structure pair, and link it into place.
+     * Else, allocate an insert array as necessary, build an insert/update structure pair, and link
+     * it into place.
      */
     if (cbt->compare == 0 && cbt->ins != NULL) {
         /*
@@ -190,17 +191,15 @@ __wt_col_modify(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, uint64_t recno,
         ins_size += upd_size;
 
         /*
-         * If there was no insert list during the search, or there was
-         * no search because the record number has not been allocated
-         * yet, the cursor's information cannot be correct, search
+         * If there was no insert list during the search, or there was no search because the record
+         * number has not been allocated yet, the cursor's information cannot be correct, search
          * couldn't have initialized it.
          *
-         * Otherwise, point the new WT_INSERT item's skiplist to the
-         * next elements in the insert list (which we will check are
-         * still valid inside the serialization function).
+         * Otherwise, point the new WT_INSERT item's skiplist to the next elements in the insert
+         * list (which we will check are still valid inside the serialization function).
          *
-         * The serial mutex acts as our memory barrier to flush these
-         * writes before inserting them into the list.
+         * The serial mutex acts as our memory barrier to flush these writes before inserting them
+         * into the list.
          */
         if (cbt->ins_stack[0] == NULL || recno == WT_RECNO_OOB)
             for (i = 0; i < skipdepth; i++) {

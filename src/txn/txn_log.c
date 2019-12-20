@@ -28,12 +28,11 @@ __txn_op_log_row_key_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     memset(&key, 0, sizeof(key));
 
     /*
-     * We used to take the row-store logging key from the page referenced by
-     * the cursor, then switched to taking it from the cursor itself. Check
-     * they are the same.
+     * We used to take the row-store logging key from the page referenced by the cursor, then
+     * switched to taking it from the cursor itself. Check they are the same.
      *
-     * If the cursor references a WT_INSERT item, take the key from there,
-     * else take the key from the original page.
+     * If the cursor references a WT_INSERT item, take the key from there, else take the key from
+     * the original page.
      */
     if (cbt->ins == NULL) {
         session = (WT_SESSION_IMPL *)cbt->iface.session;
@@ -81,7 +80,16 @@ __txn_op_log(
 #endif
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
-            WT_RET(__wt_logop_row_modify_pack(session, logrec, fileid, &cursor->key, &value));
+            /*
+             * Write full updates to the log for size-changing modify operations: they aren't
+             * idempotent and recovery cannot guarantee that they will be applied exactly once. We
+             * rely on the cursor value already having the modify applied.
+             */
+            if (__wt_modify_idempotent(upd->data))
+                WT_RET(__wt_logop_row_modify_pack(session, logrec, fileid, &cursor->key, &value));
+            else
+                WT_RET(
+                  __wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &cursor->value));
             break;
         case WT_UPDATE_STANDARD:
             WT_RET(__wt_logop_row_put_pack(session, logrec, fileid, &cursor->key, &value));
@@ -98,7 +106,10 @@ __txn_op_log(
 
         switch (upd->type) {
         case WT_UPDATE_MODIFY:
-            WT_RET(__wt_logop_col_modify_pack(session, logrec, fileid, recno, &value));
+            if (__wt_modify_idempotent(upd->data))
+                WT_RET(__wt_logop_col_modify_pack(session, logrec, fileid, recno, &value));
+            else
+                WT_RET(__wt_logop_col_put_pack(session, logrec, fileid, recno, &cursor->value));
             break;
         case WT_UPDATE_STANDARD:
             WT_RET(__wt_logop_col_put_pack(session, logrec, fileid, recno, &value));

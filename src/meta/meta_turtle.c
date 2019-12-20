@@ -185,7 +185,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     char *metaconf, *unused_value;
-    bool exist_backup, exist_incr, exist_isrc, exist_turtle;
+    bool exist_backup, exist_bincr, exist_incr, exist_isrc, exist_turtle;
     bool load, loadTurtle;
 
     load = loadTurtle = false;
@@ -197,24 +197,33 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
     WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE_SET, false));
 
     /*
-     * If we found a corrupted turtle file, then delete it and create a new.
-     * We could die after creating the turtle file and before creating the
-     * metadata file, or worse, the metadata file might be in some random
-     * state.  Make sure that doesn't happen: if we don't find the turtle
-     * file, first create the metadata file, load any hot backup, and then
-     * create the turtle file.  No matter what happens, if metadata file
-     * creation doesn't fully complete, we won't have a turtle file and we
-     * will repeat the process until we succeed.
+     * If we found a corrupted turtle file, then delete it and create a new. We could die after
+     * creating the turtle file and before creating the metadata file, or worse, the metadata file
+     * might be in some random state. Make sure that doesn't happen: if we don't find the turtle
+     * file, first create the metadata file, load any hot backup, and then create the turtle file.
+     * No matter what happens, if metadata file creation doesn't fully complete, we won't have a
+     * turtle file and we will repeat the process until we succeed.
      *
-     * Incremental backups can occur only if recovery is run and it becomes
-     * live. So, if there is a turtle file and an incremental backup file,
-     * that is an error.  Otherwise, if there's already a turtle file, we're
-     * done.
+     * Incremental backups can occur only if recovery is run and it becomes live. So, if there is a
+     * turtle file and an incremental backup file, that is an error. Otherwise, if there's already a
+     * turtle file, we're done.
      */
-    WT_RET(__wt_fs_exist(session, WT_INCREMENTAL_BACKUP, &exist_incr));
-    WT_RET(__wt_fs_exist(session, WT_INCREMENTAL_SRC, &exist_isrc));
+    WT_RET(__wt_fs_exist(session, WT_LOGINCR_BACKUP, &exist_incr));
+    WT_RET(__wt_fs_exist(session, WT_LOGINCR_SRC, &exist_isrc));
     WT_RET(__wt_fs_exist(session, WT_METADATA_BACKUP, &exist_backup));
     WT_RET(__wt_fs_exist(session, WT_METADATA_TURTLE, &exist_turtle));
+    /*
+     * Block incremental is different. If it exists, then we have block incremental information we
+     * need to keep. Mark the connection as having block-based incremental backup turned on. XXX -
+     * Need to call something to read it in and set this up. Maybe here, maybe not.
+     */
+    WT_RET(__wt_fs_exist(session, WT_BLKINCR_BACKUP, &exist_bincr));
+    if (exist_bincr) {
+        F_SET(S2C(session), WT_CONN_INCR_BACKUP);
+        /* Load content into some structure. Not sure this is the right place. It may be too early.
+         */
+    }
+
     if (exist_turtle) {
         /*
          * Failure to read means a bad turtle file. Remove it and create a new turtle file.
@@ -338,7 +347,7 @@ err:
      */
     if (ret == 0 || strcmp(key, WT_METADATA_COMPAT) == 0 || F_ISSET(S2C(session), WT_CONN_SALVAGE))
         return (ret);
-    WT_PANIC_RET(session, ret, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
+    WT_PANIC_RET(session, WT_TRY_SALVAGE, "%s: fatal turtle file read error", WT_METADATA_TURTLE);
 }
 
 /*

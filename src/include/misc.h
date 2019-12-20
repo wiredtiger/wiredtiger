@@ -110,11 +110,14 @@
  *     Common case allocate-and-grow function. Starts by allocating the requested number of items
  *     (at least 10), then doubles each time the list needs to grow.
  */
-#define __wt_realloc_def(session, sizep, number, addr) \
-    (((number) * sizeof(**(addr)) <= *(sizep)) ?       \
-        0 :                                            \
-        __wt_realloc(                                  \
-          session, sizep, WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))), addr))
+#define __wt_realloc_def(session, sizep, number, addr)                                      \
+    (((number) * sizeof(**(addr)) <= *(sizep)) ?                                            \
+        0 :                                                                                 \
+        __wt_realloc(session, sizep, (F_ISSET(S2C(session), WT_CONN_DEBUG_REALLOC_EXACT)) ? \
+            (number) * sizeof(**(addr)) :                                                   \
+            WT_MAX(*(sizep)*2, WT_MAX(10, (number)) * sizeof(**(addr))),                    \
+          addr))
+
 /*
  * Our internal free function clears the underlying address atomically so there is a smaller chance
  * of racing threads seeing intermediate results while a structure is being free'd. (That would be a
@@ -147,13 +150,13 @@
 /*
  * Flag set, clear and test.
  *
- * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure
- * referenced by its argument), LF_XXX (handles a local variable named "flags"),
- * and FLD_XXX (handles any variable, anywhere).
+ * They come in 3 flavors: F_XXX (handles a field named "flags" in the structure referenced by its
+ * argument), LF_XXX (handles a local variable named "flags"), and FLD_XXX (handles any variable,
+ * anywhere).
  *
- * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the
- * hex constant might be a negative integer), and to ensure the hex constant is
- * the correct size before applying the bitwise not operator.
+ * Flags are unsigned 32-bit values -- we cast to keep the compiler quiet (the hex constant might be
+ * a negative integer), and to ensure the hex constant is the correct size before applying the
+ * bitwise not operator.
  */
 #define FLD_CLR(field, mask) ((void)((field) &= ~(mask)))
 #define FLD_MASK(field, mask) ((field) & (mask))
@@ -173,8 +176,8 @@
 /*
  * Insertion sort, for sorting small sets of values.
  *
- * The "compare_lt" argument is a function or macro that returns true when
- * its first argument is less than its second argument.
+ * The "compare_lt" argument is a function or macro that returns true when its first argument is
+ * less than its second argument.
  */
 #define WT_INSERTION_SORT(arrayp, n, value_type, compare_lt)                           \
     do {                                                                               \

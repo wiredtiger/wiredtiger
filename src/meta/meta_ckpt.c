@@ -12,7 +12,7 @@ static int __ckpt_last(WT_SESSION_IMPL *, const char *, WT_CKPT *);
 static int __ckpt_last_name(WT_SESSION_IMPL *, const char *, const char **);
 static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT_CKPT *);
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
-static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *);
+static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
 
 /*
@@ -40,9 +40,8 @@ __wt_meta_checkpoint(
     /*
      * Retrieve the named checkpoint or the last checkpoint.
      *
-     * If we don't find a named checkpoint, we're done, they're read-only.
-     * If we don't find a default checkpoint, it's creation, return "no
-     * data" and let our caller handle it.
+     * If we don't find a named checkpoint, we're done, they're read-only. If we don't find a
+     * default checkpoint, it's creation, return "no data" and let our caller handle it.
      */
     if (checkpoint == NULL) {
         if ((ret = __ckpt_last(session, config, ckpt)) == WT_NOTFOUND) {
@@ -95,7 +94,7 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
      * If we are unrolling a failed create, we may have already removed the metadata entry. If no
      * entry is found to update and we're trying to clear the checkpoint, just ignore it.
      */
-    WT_RET_NOTFOUND_OK(__ckpt_set(session, fname, NULL));
+    WT_RET_NOTFOUND_OK(__ckpt_set(session, fname, NULL, false));
 
     return (0);
 }
@@ -105,25 +104,40 @@ __wt_meta_checkpoint_clear(WT_SESSION_IMPL *session, const char *fname)
  *     Set a file's checkpoint.
  */
 static int
-__ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v)
+__ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_base)
 {
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     char *config, *newcfg;
-    const char *cfg[3];
+    const char *cfg[3], *str;
 
+    /*
+     * If the caller knows we're on a path like checkpoints where we have a valid checkpoint and
+     * checkpoint LSN and should use the base, then use that faster path. Some paths don't have a
+     * dhandle or want to have the older value retained from the existing metadata. In those cases,
+     * use the slower path through configuration parsing functions.
+     */
     config = newcfg = NULL;
-
-    /* Retrieve the metadata for this file. */
-    WT_ERR(__wt_metadata_search(session, fname, &config));
-
-    /* Replace the checkpoint entry. */
-    cfg[0] = config;
-    cfg[1] = v == NULL ? "checkpoint=()" : v;
-    cfg[2] = NULL;
-    WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
-    WT_ERR(__wt_metadata_update(session, fname, newcfg));
+    str = v == NULL ? "checkpoint=(),checkpoint_lsn=" : v;
+    if (use_base && session->dhandle != NULL) {
+        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+        WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
+        /* Concatenate the metadata base string with the checkpoint string. */
+        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", session->dhandle->meta_base, str));
+        WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
+    } else {
+        /* Retrieve the metadata for this file. */
+        WT_ERR(__wt_metadata_search(session, fname, &config));
+        /* Replace the checkpoint entry. */
+        cfg[0] = config;
+        cfg[1] = str;
+        cfg[2] = NULL;
+        WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
+        WT_ERR(__wt_metadata_update(session, fname, newcfg));
+    }
 
 err:
+    __wt_scr_free(session, &tmp);
     __wt_free(session, config);
     __wt_free(session, newcfg);
     return (ret);
@@ -237,37 +251,27 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
     WT_DECL_RET;
     WT_KEYED_ENCRYPTOR *kencryptor;
     size_t encrypt_size, metadata_len;
-    char *min_config;
     const char *metadata, *filecfg[] = {WT_CONFIG_BASE(session, file_meta), NULL, NULL};
 
-    min_config = NULL;
     WT_ERR(__wt_scr_alloc(session, 0, &a));
     WT_ERR(__wt_scr_alloc(session, 0, &b));
-
-    /*
-     * The metadata has to be encrypted because it contains private data
-     * (for example, column names). We pass the block manager text that
-     * describes the metadata (the encryption information), and the
-     * possibly encrypted metadata encoded as a hexadecimal string.
-     * configuration string.
-     *
-     * Get a minimal configuration string, just the non-default entries.
-     */
-    WT_ERR(__wt_config_discard_defaults(session, filecfg, config, &min_config));
 
     /* Fill out the configuration array for normal retrieval. */
     filecfg[1] = config;
 
     /*
-     * Find out if this file is encrypted. If encrypting, encrypt and encode the minimal
-     * configuration.
+     * Find out if this file is encrypted. If encrypting, encrypt and encode.
+     * The metadata has to be encrypted because it contains private data
+     * (for example, column names). We pass the block manager text that
+     * describes the metadata (the encryption information), and the
+     * possibly encrypted metadata encoded as a hexadecimal string.
      */
     WT_ERR(__wt_btree_config_encryptor(session, filecfg, &kencryptor));
     if (kencryptor == NULL) {
-        metadata = min_config;
-        metadata_len = strlen(min_config);
+        metadata = config;
+        metadata_len = strlen(config);
     } else {
-        WT_ERR(__wt_buf_set(session, a, min_config, strlen(min_config)));
+        WT_ERR(__wt_buf_set(session, a, config, strlen(config)));
         __wt_encrypt_size(session, kencryptor, a->size, &encrypt_size);
         WT_ERR(__wt_buf_grow(session, b, encrypt_size));
         WT_ERR(__wt_encrypt(session, kencryptor, 0, a, b));
@@ -290,7 +294,6 @@ __wt_meta_block_metadata(WT_SESSION_IMPL *session, const char *config, WT_CKPT *
     WT_ERR(__wt_strndup(session, b->data, b->size, &ckpt->block_metadata));
 
 err:
-    __wt_free(session, min_config);
     __wt_scr_free(session, &a);
     __wt_scr_free(session, &b);
     return (ret);
@@ -358,13 +361,11 @@ __wt_meta_ckptlist_get(
 
     if (update) {
         /*
-         * This isn't clean, but there's necessary cooperation between
-         * the schema layer (that maintains the list of checkpoints),
-         * the btree layer (that knows when the root page is written,
-         * creating a new checkpoint), and the block manager (which
-         * actually creates the checkpoint). All of that cooperation is
-         * handled in the array of checkpoint structures referenced from
-         * the WT_BTREE structure.
+         * This isn't clean, but there's necessary cooperation between the schema layer (that
+         * maintains the list of checkpoints), the btree layer (that knows when the root page is
+         * written, creating a new checkpoint), and the block manager (which actually creates the
+         * checkpoint). All of that cooperation is handled in the array of checkpoint structures
+         * referenced from the WT_BTREE structure.
          *
          * Allocate a slot for a new value, plus a slot to mark the end.
          */
@@ -498,21 +499,17 @@ __ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     uint64_t v;
 
     /*
-     * Every page written in a given wiredtiger_open() session needs to be
-     * in a single "generation", it's how we know to ignore transactional
-     * information found on pages written in previous generations. We make
-     * this work by writing the maximum write generation we've ever seen
-     * as the write-generation of the metadata file's checkpoint. When
-     * wiredtiger_open() is called, we copy that write generation into the
-     * connection's name space as the base write generation value. Then,
-     * whenever we open a file, if the file's write generation is less than
-     * the base value, we update the file's write generation so all writes
-     * will appear after the base value, and we ignore transactions on pages
-     * where the write generation is less than the base value.
+     * Every page written in a given wiredtiger_open() session needs to be in a single "generation",
+     * it's how we know to ignore transactional information found on pages written in previous
+     * generations. We make this work by writing the maximum write generation we've ever seen as the
+     * write-generation of the metadata file's checkpoint. When wiredtiger_open() is called, we copy
+     * that write generation into the connection's name space as the base write generation value.
+     * Then, whenever we open a file, if the file's write generation is less than the base value, we
+     * update the file's write generation so all writes will appear after the base value, and we
+     * ignore transactions on pages where the write generation is less than the base value.
      *
-     * At every checkpoint, if the file's checkpoint write generation is
-     * larger than the connection's maximum write generation, update the
-     * connection.
+     * At every checkpoint, if the file's checkpoint write generation is larger than the
+     * connection's maximum write generation, update the connection.
      */
     do {
         WT_ORDERED_READ(v, S2C(session)->max_write_gen);
@@ -591,16 +588,18 @@ __wt_meta_ckptlist_set(
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    bool has_lsn;
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
 
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
 
+    has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
-    WT_ERR(__ckpt_set(session, fname, buf->mem));
+    WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
     /* Review the checkpoint's write generation. */
     WT_CKPT_FOREACH (ckptbase, ckpt)

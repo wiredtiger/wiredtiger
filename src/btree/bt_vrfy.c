@@ -423,7 +423,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         goto recno_chk;
     case WT_PAGE_COL_VAR:
         recno = ref->ref_recno;
-    recno_chk:
+recno_chk:
         if (recno != vs->record_total + 1)
             WT_RET_MSG(session, WT_ERROR, "page at %s has a starting record of %" PRIu64
                                           " when the expected starting record is %" PRIu64,
@@ -473,7 +473,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
         if (addr_unpack->raw != WT_CELL_ADDR_INT)
-        celltype_err:
+celltype_err:
         WT_RET_MSG(session, WT_ERROR,
           "page at %s, of type %s, is referenced in "
           "its parent by a cell of type %s",
@@ -537,12 +537,10 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
         entry = 0;
         WT_INTL_FOREACH_BEGIN (session, page, child_ref) {
             /*
-             * It's a depth-first traversal: this entry's starting
-             * key should be larger than the largest key previously
-             * reviewed.
+             * It's a depth-first traversal: this entry's starting key should be larger than the
+             * largest key previously reviewed.
              *
-             * The 0th key of any internal page is magic, and we
-             * can't test against it.
+             * The 0th key of any internal page is magic, and we can't test against it.
              */
             ++entry;
             if (entry != 1)
@@ -638,12 +636,10 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
         /*
          * Compare the key against the largest key we've seen so far.
          *
-         * If we're comparing against a key taken from an internal page,
-         * we can compare equal (which is an expected path, the internal
-         * page key is often a copy of the leaf page's first key).  But,
-         * in the case of the 0th slot on an internal page, the last key
-         * we've seen was a key from a previous leaf page, and it's not
-         * OK to compare equally in that case.
+         * If we're comparing against a key taken from an internal page, we can compare equal (which
+         * is an expected path, the internal page key is often a copy of the leaf page's first key).
+         * But, in the case of the 0th slot on an internal page, the last key we've seen was a key
+         * from a previous leaf page, and it's not OK to compare equally in that case.
          */
         WT_RET(__wt_compare(session, btree->collator, vs->tmp1, (WT_ITEM *)vs->max_key, &cmp));
         if (cmp < 0)

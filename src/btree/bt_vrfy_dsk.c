@@ -264,14 +264,13 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     /*
-     * Check timestamp and transaction order, and optionally against parent
-     * values. Timestamps and transactions in the parent address aren't
-     * necessarily an exact match, but should be within the boundaries of
-     * the parent's information.
+     * Check timestamp and transaction order, and optionally against parent values. Timestamps and
+     * transactions in the parent address aren't necessarily an exact match, but should be within
+     * the boundaries of the parent's information.
      *
-     * There's no checking if validity information should appear on a page
-     * because the cell-unpacking code hides it by always returning durable
-     * values if they don't appear on the page.
+     * There's no checking if validity information should appear on a page because the
+     * cell-unpacking code hides it by always returning durable values if they don't appear on the
+     * page.
      */
     switch (unpack->type) {
     case WT_CELL_ADDR_DEL:
@@ -507,8 +506,7 @@ __verify_dsk_row(
         /*
          * Prefix compression checks.
          *
-         * Confirm the first non-overflow key on a page has a zero
-         * prefix compression count.
+         * Confirm the first non-overflow key on a page has a zero prefix compression count.
          */
         prefix = unpack->prefix;
         if (last_pfx->size == 0 && prefix != 0)
@@ -559,13 +557,12 @@ __verify_dsk_row(
             current->size = prefix + unpack->size;
         }
 
-    key_compare:
+key_compare:
         /*
          * Compare the current key against the last key.
          *
-         * Be careful about the 0th key on internal pages: we only store
-         * the first byte and custom collators may not be able to handle
-         * truncated keys.
+         * Be careful about the 0th key on internal pages: we only store the first byte and custom
+         * collators may not be able to handle truncated keys.
          */
         if ((dsk->type == WT_PAGE_ROW_INT && cell_num > 3) ||
           (dsk->type != WT_PAGE_ROW_INT && cell_num > 1)) {
@@ -773,7 +770,7 @@ __verify_dsk_col_var(
                 goto match_err;
         } else if (cell_type == WT_CELL_VALUE && last.data != NULL && last.size == unpack->size &&
           memcmp(last.data, unpack->data, last.size) == 0)
-        match_err:
+match_err:
         WT_RET_VRFY(session, "data entries %" PRIu32 " and %" PRIu32
                              " on page at %s are identical and should "
                              "have been run-length encoded",

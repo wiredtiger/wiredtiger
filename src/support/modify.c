@@ -39,6 +39,36 @@
     while (0)
 
 /*
+ * __wt_modify_idempotent --
+ *     Check if a modify operation is idempotent.
+ */
+bool
+__wt_modify_idempotent(const void *modify)
+{
+    WT_MODIFY mod;
+    size_t tmp;
+    const size_t *p;
+    int nentries;
+
+    /* Get the number of modify entries. */
+    p = modify;
+    memcpy(&tmp, p++, sizeof(size_t));
+    nentries = (int)tmp;
+
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, 0) {
+        /*
+         * If the number of bytes being replaced doesn't match the number of bytes being written,
+         * we're resizing and the operation isn't idempotent.
+         */
+        if (mod.size != mod.data.size)
+            return (false);
+    }
+    WT_MODIFY_FOREACH_END;
+
+    return (true);
+}
+
+/*
  * __wt_modify_pack --
  *     Pack a modify structure into a buffer.
  */
@@ -111,17 +141,15 @@ __modify_apply_one(WT_SESSION_IMPL *session, WT_ITEM *value, WT_MODIFY *modify, 
     size = modify->size;
 
     /*
-     * Grow the buffer to the maximum size we'll need. This is pessimistic
-     * because it ignores replacement bytes, but it's a simpler calculation.
+     * Grow the buffer to the maximum size we'll need. This is pessimistic because it ignores
+     * replacement bytes, but it's a simpler calculation.
      *
-     * Grow the buffer first. This function is often called using a cursor
-     * buffer referencing on-page memory and it's easy to overwrite a page.
-     * A side-effect of growing the buffer is to ensure the buffer's value
-     * is in buffer-local memory.
+     * Grow the buffer first. This function is often called using a cursor buffer referencing
+     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
+     * ensure the buffer's value is in buffer-local memory.
      *
-     * Because the buffer may reference an overflow item, the data may not
-     * start at the start of the buffer's memory and we have to correct for
-     * that.
+     * Because the buffer may reference an overflow item, the data may not start at the start of the
+     * buffer's memory and we have to correct for that.
      */
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
     WT_RET(__wt_buf_grow(
@@ -217,20 +245,16 @@ __modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp
     WT_CLEAR(prev); /* [-Werror=maybe-uninitialized] */
 
     /*
-     * If the modifications are sorted and don't overlap in the old or new
-     * values, we can do a fast application of all the modifications
-     * modifications in a single pass.
+     * If the modifications are sorted and don't overlap in the old or new values, we can do a fast
+     * application of all the modifications modifications in a single pass.
      *
-     * The requirement for ordering is unfortunate, but modifications are
-     * performed in order, and applications specify byte offsets based on
-     * that. In other words, byte offsets are cumulative, modifications
-     * that shrink or grow the data affect subsequent modification's byte
-     * offsets.
+     * The requirement for ordering is unfortunate, but modifications are performed in order, and
+     * applications specify byte offsets based on that. In other words, byte offsets are cumulative,
+     * modifications that shrink or grow the data affect subsequent modification's byte offsets.
      */
     fastpath = first = true;
     *nappliedp = 0;
-    WT_MODIFY_FOREACH_BEGIN(current, p, nentries, 0)
-    {
+    WT_MODIFY_FOREACH_BEGIN (current, p, nentries, 0) {
         datasz += current.data.size;
 
         if (fastpath && current.data.size == current.size &&
@@ -300,8 +324,7 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
 
     from = (const uint8_t *)value->data + value->size;
     to = (uint8_t *)value->data + destsz;
-    WT_MODIFY_FOREACH_REVERSE(current, p, nentries, napplied, datasz)
-    {
+    WT_MODIFY_FOREACH_REVERSE (current, p, nentries, napplied, datasz) {
         /* Move the current unmodified block into place if necessary. */
         sz = WT_PTRDIFF(to, value->data) - (current.offset + current.data.size);
         from -= sz;
@@ -348,14 +371,12 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
     nentries = (int)tmp;
 
     /*
-     * Grow the buffer first. This function is often called using a cursor
-     * buffer referencing on-page memory and it's easy to overwrite a page.
-     * A side-effect of growing the buffer is to ensure the buffer's value
-     * is in buffer-local memory.
+     * Grow the buffer first. This function is often called using a cursor buffer referencing
+     * on-page memory and it's easy to overwrite a page. A side-effect of growing the buffer is to
+     * ensure the buffer's value is in buffer-local memory.
      *
-     * Because the buffer may reference an overflow item, the data may not
-     * start at the start of the buffer's memory and we have to correct for
-     * that.
+     * Because the buffer may reference an overflow item, the data may not start at the start of the
+     * buffer's memory and we have to correct for that.
      */
     item_offset = WT_DATA_IN_ITEM(value) ? WT_PTRDIFF(value->data, value->mem) : 0;
     WT_RET(__wt_buf_grow(session, value, item_offset + value->size));
@@ -381,8 +402,7 @@ __wt_modify_apply(WT_CURSOR *cursor, const void *modify)
         goto done;
     }
 
-    WT_MODIFY_FOREACH_BEGIN(mod, p, nentries, napplied)
-    {
+    WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, napplied) {
         WT_RET(__modify_apply_one(session, value, &mod, sformat));
     }
     WT_MODIFY_FOREACH_END;

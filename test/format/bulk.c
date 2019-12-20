@@ -57,6 +57,9 @@ bulk_commit_transaction(WT_SESSION *session)
     ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
     testutil_check(session->commit_transaction(session, buf));
+
+    /* Update the oldest timestamp, otherwise updates are pinned in memory. */
+    timestamp_once();
 }
 
 /*
@@ -151,15 +154,13 @@ wts_load(void)
         }
 
         /*
-         * We don't want to size the cache to ensure the initial data
-         * set can load in the in-memory case, guaranteeing the load
-         * succeeds probably means future updates are also guaranteed
-         * to succeed, which isn't what we want. If we run out of space
-         * in the initial load, reset the row counter and continue.
+         * We don't want to size the cache to ensure the initial data set can load in the in-memory
+         * case, guaranteeing the load succeeds probably means future updates are also guaranteed to
+         * succeed, which isn't what we want. If we run out of space in the initial load, reset the
+         * row counter and continue.
          *
-         * Decrease inserts, they can't be successful if we're at the
-         * cache limit, and increase the delete percentage to get some
-         * extra space once the run starts.
+         * Decrease inserts, they can't be successful if we're at the cache limit, and increase the
+         * delete percentage to get some extra space once the run starts.
          */
         if ((ret = cursor->insert(cursor)) != 0) {
             testutil_assert(ret == WT_CACHE_FULL || ret == WT_ROLLBACK);

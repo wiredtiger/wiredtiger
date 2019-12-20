@@ -303,10 +303,10 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
  *     Return a page referenced key/value pair to the application.
  */
 static inline int
-__cursor_kv_return(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
 {
-    WT_RET(__wt_key_return(session, cbt));
-    WT_RET(__wt_value_return(session, cbt, upd));
+    WT_RET(__wt_key_return(cbt));
+    WT_RET(__wt_value_return(cbt, upd));
 
     return (0);
 }
@@ -384,10 +384,9 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
     copy = WT_ROW_KEY_COPY(rip);
 
     /*
-     * Get a key: we could just call __wt_row_leaf_key, but as a cursor
-     * is running through the tree, we may have additional information
-     * here (we may have the fully-built key that's immediately before
-     * the prefix-compressed key we want, so it's a faster construction).
+     * Get a key: we could just call __wt_row_leaf_key, but as a cursor is running through the tree,
+     * we may have additional information here (we may have the fully-built key that's immediately
+     * before the prefix-compressed key we want, so it's a faster construction).
      *
      * First, check for an immediately available key.
      */
@@ -399,14 +398,12 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
         goto slow;
 
     /*
-     * Unpack the cell and deal with overflow and prefix-compressed keys.
-     * Inline building simple prefix-compressed keys from a previous key,
-     * otherwise build from scratch.
+     * Unpack the cell and deal with overflow and prefix-compressed keys. Inline building simple
+     * prefix-compressed keys from a previous key, otherwise build from scratch.
      *
-     * Clear the key cell structure. It shouldn't be necessary (as far as I
-     * can tell, and we don't do it in lots of other places), but disabling
-     * shared builds (--disable-shared) results in the compiler complaining
-     * about uninitialized field use.
+     * Clear the key cell structure. It shouldn't be necessary (as far as I can tell, and we don't
+     * do it in lots of other places), but disabling shared builds (--disable-shared) results in the
+     * compiler complaining about uninitialized field use.
      */
     kpack = &_kpack;
     memset(kpack, 0, sizeof(*kpack));
@@ -415,12 +412,11 @@ __cursor_row_slot_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_UPDATE *upd)
         WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
 
         /*
-         * Grow the buffer as necessary as well as ensure data has been
-         * copied into local buffer space, then append the suffix to the
-         * prefix already in the buffer.
+         * Grow the buffer as necessary as well as ensure data has been copied into local buffer
+         * space, then append the suffix to the prefix already in the buffer.
          *
-         * Don't grow the buffer unnecessarily or copy data we don't
-         * need, truncate the item's data length to the prefix bytes.
+         * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's data
+         * length to the prefix bytes.
          */
         cbt->row_key->size = kpack->prefix;
         WT_RET(__wt_buf_grow(session, cbt->row_key, cbt->row_key->size + kpack->size));
@@ -445,7 +441,7 @@ value:
      * (if any) is visible.
      */
     if (upd != NULL)
-        return (__wt_value_return(session, cbt, upd));
+        return (__wt_value_return(cbt, upd));
 
     /* Else, simple values have their location encoded in the WT_ROW. */
     if (__wt_row_leaf_value(page, rip, vb))

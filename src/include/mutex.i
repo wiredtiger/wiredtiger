@@ -9,9 +9,8 @@
 /*
  * Spin locks:
  *
- * These used for cases where fast mutual exclusion is needed (where operations
- * done while holding the spin lock are expected to complete in a small number
- * of instructions.
+ * These used for cases where fast mutual exclusion is needed (where operations done while holding
+ * the spin lock are expected to complete in a small number of instructions.
  */
 
 /*
@@ -68,7 +67,7 @@ __wt_spin_trylock(WT_SESSION_IMPL *session, WT_SPINLOCK *t)
 {
     WT_UNUSED(session);
 
-    return (__atomic_test_and_set(&t->lock, __ATOMIC_ACQUIRE) ? 0 : EBUSY);
+    return (!__atomic_test_and_set(&t->lock, __ATOMIC_ACQUIRE) ? 0 : EBUSY);
 }
 
 /*

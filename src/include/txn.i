@@ -136,121 +136,17 @@ __txn_resolve_prepared_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 
     txn = &session->txn;
     /*
-     * In case of a prepared transaction, the order of modification of the
-     * prepare timestamp to commit timestamp in the update chain will not
-     * affect the data visibility, a reader will encounter a prepared
-     * update resulting in prepare conflict.
+     * In case of a prepared transaction, the order of modification of the prepare timestamp to
+     * commit timestamp in the update chain will not affect the data visibility, a reader will
+     * encounter a prepared update resulting in prepare conflict.
      *
-     * As updating timestamp might not be an atomic operation, we will
-     * manage using state.
+     * As updating timestamp might not be an atomic operation, we will manage using state.
      */
     upd->prepare_state = WT_PREPARE_LOCKED;
     WT_WRITE_BARRIER();
     upd->start_ts = txn->commit_timestamp;
     upd->durable_ts = txn->durable_timestamp;
     WT_PUBLISH(upd->prepare_state, WT_PREPARE_RESOLVED);
-}
-
-/*
- * __wt_txn_resolve_prepared_op --
- *     Resolve a transaction's operations indirect references. In case of prepared transactions, the
- *     prepared updates could be evicted using cache overflow mechanism. Transaction operations
- *     referring to these prepared updates would be referring to them using indirect references (i.e
- *     keys/recnos), which need to be resolved as part of that transaction commit/rollback. If no
- *     updates are resolved throw an error. Increment resolved update count for each resolved update
- *     count we locate.
- */
-static inline int
-__wt_txn_resolve_prepared_op(
-  WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, int64_t *resolved_update_countp)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_TXN *txn;
-    WT_UPDATE *upd;
-    const char *open_cursor_cfg[] = {WT_CONFIG_BASE(session, WT_SESSION_open_cursor), NULL};
-
-    txn = &session->txn;
-
-    if (op->type == WT_TXN_OP_NONE || op->type == WT_TXN_OP_REF_DELETE ||
-      op->type == WT_TXN_OP_TRUNCATE_COL || op->type == WT_TXN_OP_TRUNCATE_ROW)
-        return (0);
-
-    WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
-
-    /*
-     * Transaction prepare is cleared temporarily as cursor functions are not allowed for prepared
-     * transactions.
-     */
-    F_CLR(txn, WT_TXN_PREPARE);
-    if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)
-        __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
-    else
-        ((WT_CURSOR_BTREE *)cursor)->iface.recno = op->u.op_col.recno;
-    F_SET(txn, WT_TXN_PREPARE);
-
-    WT_WITH_BTREE(
-      session, op->btree, ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
-    WT_ERR(ret);
-
-    /* If we haven't found anything then there's an error. */
-    if (upd == NULL) {
-        WT_ERR_ASSERT(session, upd != NULL, WT_NOTFOUND,
-          "Unable to locate update associated with a prepared operation.");
-    }
-
-    for (; upd != NULL; upd = upd->next) {
-        /*
-         * Aborted updates can exist in the update chain of our txn. Generally this will occur due
-         * to a reserved update. As such we should skip over these updates. If the txn id is then
-         * different and not aborted we know we've reached the end of our update chain and can exit.
-         */
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
-        if (upd->txnid != txn->id)
-            break;
-
-        ++(*resolved_update_countp);
-
-        if (!commit) {
-            upd->txnid = WT_TXN_ABORTED;
-            continue;
-        }
-
-        /*
-         * Newer updates are inserted at head of update chain, and
-         * transaction operations are added at the tail of the
-         * transaction modify chain.
-         *
-         * For example, a transaction has modified [k,v] as
-         * [k, v]  -> [k, u1]   (txn_op : txn_op1)
-         * [k, u1] -> [k, u2]   (txn_op : txn_op2)
-         * update chain : u2->u1
-         * txn_mod      : txn_op1->txn_op2.
-         *
-         * Only the key is saved in the transaction operation
-         * structure, hence we cannot identify whether "txn_op1"
-         * corresponds to "u2" or "u1" during commit/rollback.
-         *
-         * To make things simpler we will handle all the updates
-         * that match the key saved in a transaction operation in a
-         * single go. As a result, multiple updates of a key, if any
-         * will be resolved as part of the first transaction operation
-         * resolution of that key, and subsequent transaction operation
-         * resolution of the same key will be effectively
-         * a no-op.
-         *
-         * In the above example, we will resolve "u2" and "u1" as part
-         * of resolving "txn_op1" and will not do any significant
-         * thing as part of "txn_op2".
-         */
-
-        /* Resolve the prepared update to be committed update. */
-        __txn_resolve_prepared_update(session, upd);
-    }
-err:
-    WT_TRET(cursor->close(cursor));
-    return (ret);
 }
 
 /*
@@ -552,14 +448,12 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
     WT_READ_BARRIER();
 
     /*
-     * Checkpoint transactions often fall behind ordinary application
-     * threads.  Take special effort to not keep changes pinned in cache
-     * if they are only required for the checkpoint and it has already
-     * seen them.
+     * Checkpoint transactions often fall behind ordinary application threads. Take special effort
+     * to not keep changes pinned in cache if they are only required for the checkpoint and it has
+     * already seen them.
      *
-     * If there is no active checkpoint or this handle is up to date with
-     * the active checkpoint then it's safe to ignore the checkpoint ID in
-     * the visibility check.
+     * If there is no active checkpoint or this handle is up to date with the active checkpoint then
+     * it's safe to ignore the checkpoint ID in the visibility check.
      */
     checkpoint_pinned = txn_global->checkpoint_state.pinned_id;
     if (checkpoint_pinned == WT_TXN_NONE || WT_TXNID_LT(oldest_id, checkpoint_pinned))
@@ -586,14 +480,12 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
 
     /*
-     * Checkpoint transactions often fall behind ordinary application
-     * threads.  Take special effort to not keep changes pinned in cache if
-     * they are only required for the checkpoint and it has already seen
-     * them.
+     * Checkpoint transactions often fall behind ordinary application threads. Take special effort
+     * to not keep changes pinned in cache if they are only required for the checkpoint and it has
+     * already seen them.
      *
-     * If there is no active checkpoint or this handle is up to date with
-     * the active checkpoint then it's safe to ignore the checkpoint ID in
-     * the visibility check.
+     * If there is no active checkpoint or this handle is up to date with the active checkpoint then
+     * it's safe to ignore the checkpoint ID in the visibility check.
      */
     include_checkpoint_txn =
       btree == NULL || (!F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
@@ -639,6 +531,13 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 {
     wt_timestamp_t pinned_ts;
 
+    /*
+     * When shutting down, the transactional system has finished running and all we care about is
+     * eviction, make everything visible.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_CLOSING))
+        return (true);
+
     if (!__txn_visible_all_id(session, id))
         return (false);
 
@@ -646,15 +545,13 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
     if (timestamp == WT_TS_NONE)
         return (true);
 
-    /*
-     * If no oldest timestamp has been supplied, updates have to stay in cache until we are shutting
-     * down.
-     */
-    if (!S2C(session)->txn_global.has_pinned_timestamp)
-        return (F_ISSET(S2C(session), WT_CONN_CLOSING));
+    /* If no oldest timestamp has been supplied, updates have to stay in cache. */
+    if (S2C(session)->txn_global.has_pinned_timestamp) {
+        __wt_txn_pinned_timestamp(session, &pinned_ts);
+        return (timestamp <= pinned_ts);
+    }
 
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-    return (timestamp <= pinned_ts);
+    return (false);
 }
 
 /*
@@ -709,13 +606,11 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
         return (true);
 
     /*
-     * WT_ISO_SNAPSHOT, WT_ISO_READ_COMMITTED: the ID is visible if it is
-     * not the result of a concurrent transaction, that is, if was
-     * committed before the snapshot was taken.
+     * WT_ISO_SNAPSHOT, WT_ISO_READ_COMMITTED: the ID is visible if it is not the result of a
+     * concurrent transaction, that is, if was committed before the snapshot was taken.
      *
-     * The order here is important: anything newer than the maximum ID we
-     * saw when taking the snapshot should be invisible, even if the
-     * snapshot is empty.
+     * The order here is important: anything newer than the maximum ID we saw when taking the
+     * snapshot should be invisible, even if the snapshot is empty.
      */
     if (WT_TXNID_LE(txn->snap_max, id))
         return (false);
@@ -936,26 +831,21 @@ __wt_txn_id_alloc(WT_SESSION_IMPL *session, bool publish)
     /*
      * Allocating transaction IDs involves several steps.
      *
-     * Firstly, publish that this transaction is allocating its ID, then
-     * publish the transaction ID as the current global ID.  Note that this
-     * transaction ID might not be unique among threads and hence not valid
-     * at this moment. The flag will notify other transactions that are
-     * attempting to get their own snapshot for this transaction ID to
-     * retry.
+     * Firstly, publish that this transaction is allocating its ID, then publish the transaction ID
+     * as the current global ID. Note that this transaction ID might not be unique among threads and
+     * hence not valid at this moment. The flag will notify other transactions that are attempting
+     * to get their own snapshot for this transaction ID to retry.
      *
-     * Then we do an atomic increment to allocate a unique ID. This will
-     * give the valid ID to this transaction that we publish to the global
-     * transaction table.
+     * Then we do an atomic increment to allocate a unique ID. This will give the valid ID to this
+     * transaction that we publish to the global transaction table.
      *
-     * We want the global value to lead the allocated values, so that any
-     * allocated transaction ID eventually becomes globally visible.  When
-     * there are no transactions running, the oldest_id will reach the
-     * global current ID, so we want post-increment semantics.  Our atomic
-     * add primitive does pre-increment, so adjust the result here.
+     * We want the global value to lead the allocated values, so that any allocated transaction ID
+     * eventually becomes globally visible. When there are no transactions running, the oldest_id
+     * will reach the global current ID, so we want post-increment semantics. Our atomic add
+     * primitive does pre-increment, so adjust the result here.
      *
-     * We rely on atomic reads of the current ID to create snapshots, so
-     * for unlocked reads to be well defined, we must use an atomic
-     * increment here.
+     * We rely on atomic reads of the current ID to create snapshots, so for unlocked reads to be
+     * well defined, we must use an atomic increment here.
      */
     if (publish) {
         WT_PUBLISH(txn_state->is_allocating, true);
@@ -1086,8 +976,8 @@ __wt_txn_read_last(WT_SESSION_IMPL *session)
     /*
      * Release the snap_min ID we put in the global table.
      *
-     * If the isolation has been temporarily forced, don't touch the
-     * snapshot here: it will be restored by WT_WITH_TXN_ISOLATION.
+     * If the isolation has been temporarily forced, don't touch the snapshot here: it will be
+     * restored by WT_WITH_TXN_ISOLATION.
      */
     if ((!F_ISSET(txn, WT_TXN_RUNNING) || txn->isolation != WT_ISO_SNAPSHOT) &&
       txn->forced_iso == 0)

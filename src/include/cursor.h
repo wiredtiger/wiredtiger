@@ -32,6 +32,21 @@
       0                      /* uint32_t flags */                                               \
     }
 
+/*
+ * Block based incremental backup structure. These live in the connection.
+ */
+#define WT_BLKINCR_MAX 2
+struct __wt_blkincr {
+    const char *id_str;    /* User's name for this backup. */
+    const char *ckpt_name; /* Requires WT-5115. All checkpoints must be this name */
+    void *data;
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_BLKINCR_INUSE 0x1u /* This entry is active */
+#define WT_BLKINCR_VALID 0x2u /* This entry is valid */
+                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint64_t flags;
+};
+
 struct __wt_cursor_backup {
     WT_CURSOR iface;
 
@@ -43,12 +58,36 @@ struct __wt_cursor_backup {
     size_t list_allocated;
     size_t list_next;
 
+    /* File offset-based incremental backup. */
+    WT_BLKINCR *incr;          /* Incremental backup in use */
+    char *incr_file;           /* File name */
+    char *incr_src;            /* Source identifier */
+    char *incr_this;           /* New base identifier */
+    uint64_t incr_granularity; /* Maximum transfer size */
+
+    WT_CURSOR *incr_cursor; /* File cursor */
+    /* Start/stop checkpoints */
+    char *incr_checkpoint_start;
+    char *incr_checkpoint_stop;
+
+#define WT_BACKUP_INCR_COMPONENTS 3
+    bool incr_init;            /* Cursor traversal initialized */
+    uint64_t *incr_list;       /* List of file offset/size/type triples */
+    uint64_t incr_list_count;  /* Count of file offset/size/type triples */
+    uint64_t incr_list_offset; /* Current offset */
+    uint64_t incr_size;        /* Maximum transfer size */
+    WT_ITEM *incr_block;       /* Current block of data */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CURBACKUP_DUP 0x1u    /* Duplicated backup cursor */
-#define WT_CURBACKUP_LOCKER 0x2u /* Hot-backup started */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CURBACKUP_DUP 0x1u        /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x2u /* Force stop incremental backup */
+#define WT_CURBACKUP_INCR 0x4u       /* Incremental backup cursor */
+#define WT_CURBACKUP_LOCKER 0x8u     /* Hot-backup started */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
+#define WT_CURSOR_BACKUP_CHECK_STOP(cursor) \
+    WT_RET(F_ISSET(((WT_CURSOR_BACKUP *)(cursor)), WT_CURBACKUP_FORCE_STOP) ? EINVAL : 0);
 #define WT_CURSOR_BACKUP_ID(cursor) (((WT_CURSOR_BACKUP *)(cursor))->maxid)
 
 struct __wt_cursor_btree {
@@ -265,26 +304,22 @@ struct __wt_cursor_index {
 };
 
 /*
- * A join iterator structure is used to generate candidate primary keys. It
- * is the responsibility of the caller of the iterator to filter these
- * primary key against the other conditions of the join before returning
- * them the caller of WT_CURSOR::next.
+ * A join iterator structure is used to generate candidate primary keys. It is the responsibility of
+ * the caller of the iterator to filter these primary key against the other conditions of the join
+ * before returning them the caller of WT_CURSOR::next.
  *
- * For a conjunction join (the default), entry_count will be 1, meaning that
- * the iterator only consumes the first entry (WT_CURSOR_JOIN_ENTRY).  That
- * is, it successively returns primary keys from a cursor for the first
- * index that was joined.  When the values returned by that cursor are
- * exhausted, the iterator has completed.  For a disjunction join,
- * exhausting a cursor just means that the iterator advances to the next
- * entry. If the next entry represents an index, a new cursor is opened and
- * primary keys from that index are then successively returned.
+ * For a conjunction join (the default), entry_count will be 1, meaning that the iterator only
+ * consumes the first entry (WT_CURSOR_JOIN_ENTRY). That is, it successively returns primary keys
+ * from a cursor for the first index that was joined. When the values returned by that cursor are
+ * exhausted, the iterator has completed. For a disjunction join, exhausting a cursor just means
+ * that the iterator advances to the next entry. If the next entry represents an index, a new cursor
+ * is opened and primary keys from that index are then successively returned.
  *
- * When positioned on an entry that represents a nested join, a new child
- * iterator is created that will be bound to the nested WT_CURSOR_JOIN.
- * That iterator is then used to generate candidate primary keys.  When its
- * iteration is completed, that iterator is destroyed and the parent
- * iterator advances to the next entry.  Thus, depending on how deeply joins
- * are nested, a similarly deep stack of iterators is created.
+ * When positioned on an entry that represents a nested join, a new child iterator is created that
+ * will be bound to the nested WT_CURSOR_JOIN. That iterator is then used to generate candidate
+ * primary keys. When its iteration is completed, that iterator is destroyed and the parent iterator
+ * advances to the next entry. Thus, depending on how deeply joins are nested, a similarly deep
+ * stack of iterators is created.
  */
 struct __wt_cursor_join_iter {
     WT_SESSION_IMPL *session;

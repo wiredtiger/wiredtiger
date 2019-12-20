@@ -26,18 +26,16 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
     if (cbulk->entry == cbulk->nrecs) {
         if (cbulk->entry != 0) {
             /*
-             * If everything didn't fit, update the counters and
-             * split.
+             * If everything didn't fit, update the counters and split.
              *
              * Boundary: split or write the page.
              *
-             * No need to have a minimum split size boundary, all
-             * pages are filled 100% except the last, allowing it to
-             * grow in the future.
+             * No need to have a minimum split size boundary, all pages are filled 100% except the
+             * last, allowing it to grow in the future.
              */
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
-            WT_RET(__wt_rec_split(session, r, 0));
+            WT_RET(__wt_rec_split(session, r, 0, false));
         }
         cbulk->entry = 0;
         cbulk->nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
@@ -133,7 +131,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
-        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
+        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len, false));
 
     /* Copy the value onto the page. */
     if (btree->dictionary)
@@ -176,7 +174,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
+            WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len, false));
 
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
@@ -300,7 +298,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
-            WT_ERR(__wt_rec_split_crossing_bnd(session, r, val->len));
+            WT_ERR(__wt_rec_split_crossing_bnd(session, r, val->len, false));
 
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
@@ -404,17 +402,15 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             }
 
             /*
-             * If everything didn't fit, update the counters and
-             * split.
+             * If everything didn't fit, update the counters and split.
              *
              * Boundary: split or write the page.
              *
-             * No need to have a minimum split size boundary, all
-             * pages are filled 100% except the last, allowing it to
-             * grow in the future.
+             * No need to have a minimum split size boundary, all pages are filled 100% except the
+             * last, allowing it to grow in the future.
              */
             __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
-            WT_RET(__wt_rec_split(session, r, 0));
+            WT_RET(__wt_rec_split(session, r, 0, false));
 
             /* Calculate the number of entries per page. */
             entry = 0;
@@ -558,7 +554,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
-        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
+        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len, false));
 
     /* Copy the value onto the page. */
     if (!deleted && !overflow_type && btree->dictionary)
@@ -610,11 +606,13 @@ __wt_rec_col_var(
 
     btree = S2BT(session);
     vpack = &_vpack;
-    cbt = &r->update_modify_cbt;
     page = pageref->page;
     upd = NULL;
     size = 0;
     data = NULL;
+
+    cbt = &r->update_modify_cbt;
+    cbt->iface.session = (WT_SESSION *)session;
 
     /*
      * Acquire the newest-durable timestamp for this page so we can roll it forward. If it exists,
@@ -708,21 +706,16 @@ __wt_rec_col_var(
             goto record_loop;
 
         /*
-         * Overflow items are tricky: we don't know until we're
-         * finished processing the set of values if we need the
-         * overflow value or not.  If we don't use the overflow
-         * item at all, we have to discard it from the backing
-         * file, otherwise we'll leak blocks on the checkpoint.
-         * That's safe because if the backing overflow value is
-         * still needed by any running transaction, we'll cache
-         * a copy in the update list.
+         * Overflow items are tricky: we don't know until we're finished processing the set of
+         * values if we need the overflow value or not. If we don't use the overflow item at all, we
+         * have to discard it from the backing file, otherwise we'll leak blocks on the checkpoint.
+         * That's safe because if the backing overflow value is still needed by any running
+         * transaction, we'll cache a copy in the update list.
          *
-         * Regardless, we avoid copying in overflow records: if
-         * there's a WT_INSERT entry that modifies a reference
-         * counted overflow record, we may have to write copies
-         * of the overflow record, and in that case we'll do the
-         * comparisons, but we don't read overflow items just to
-         * see if they match records on either side.
+         * Regardless, we avoid copying in overflow records: if there's a WT_INSERT entry that
+         * modifies a reference counted overflow record, we may have to write copies of the overflow
+         * record, and in that case we'll do the comparisons, but we don't read overflow items just
+         * to see if they match records on either side.
          */
         if (vpack->ovfl) {
             ovfl_state = OVFL_UNUSED;
@@ -738,7 +731,7 @@ __wt_rec_col_var(
          */
         WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_COL_VAR, vpack, orig));
 
-    record_loop:
+record_loop:
         /*
          * Generate on-page entries: loop repeat records, looking for WT_INSERT entries matching the
          * record number. The WT_INSERT lists are in sorted order, so only need check the next one.
@@ -781,8 +774,7 @@ __wt_rec_col_var(
                 switch (upd->type) {
                 case WT_UPDATE_MODIFY:
                     cbt->slot = WT_COL_SLOT(page, cip);
-                    WT_ERR(
-                      __wt_value_return_upd(session, cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
+                    WT_ERR(__wt_value_return_upd(cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
@@ -799,15 +791,12 @@ __wt_rec_col_var(
                 }
             } else if (vpack->raw == WT_CELL_VALUE_OVFL_RM) {
                 /*
-                 * If doing an update save and restore, and the
-                 * underlying value is a removed overflow value,
-                 * we end up here.
+                 * If doing an update save and restore, and the underlying value is a removed
+                 * overflow value, we end up here.
                  *
-                 * If necessary, when the overflow value was
-                 * originally removed, reconciliation appended
-                 * a globally visible copy of the value to the
-                 * key's update list, meaning the on-page item
-                 * isn't accessed after page re-instantiation.
+                 * If necessary, when the overflow value was originally removed, reconciliation
+                 * appended a globally visible copy of the value to the key's update list, meaning
+                 * the on-page item isn't accessed after page re-instantiation.
                  *
                  * Assert the case.
                  */
@@ -844,8 +833,7 @@ __wt_rec_col_var(
                     /*
                      * An as-yet-unused overflow item.
                      *
-                     * We're going to copy the on-page cell,
-                     * write out any record we're tracking.
+                     * We're going to copy the on-page cell, write out any record we're tracking.
                      */
                     if (rle != 0) {
                         WT_ERR(__rec_col_var_helper(session, r, salvage, last.value, durable_ts,
@@ -1043,8 +1031,7 @@ compare:
                      * Impossible slot, there's no backing on-page item.
                      */
                     cbt->slot = UINT32_MAX;
-                    WT_ERR(
-                      __wt_value_return_upd(session, cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
+                    WT_ERR(__wt_value_return_upd(cbt, upd, F_ISSET(r, WT_REC_VISIBLE_ALL)));
                     data = cbt->iface.value.data;
                     size = (uint32_t)cbt->iface.value.size;
                     update_no_copy = false;
