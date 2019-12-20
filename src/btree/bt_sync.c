@@ -194,7 +194,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     WT_TXN *txn;
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
-    uint32_t flags, previous_state;
+    uint32_t flags;
     bool is_las, timer, tried_eviction;
 
     conn = S2C(session);
