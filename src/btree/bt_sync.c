@@ -413,10 +413,6 @@ skipwalk:
 
             WT_ERR(__wt_reconcile(session, walk, NULL, WT_REC_CHECKPOINT, NULL));
 
-            /* Reconciliation of a history store page resulted as empty, mark it for deletion. */
-            if (is_las && page->modify && page->modify->rec_result == WT_PM_REC_EMPTY)
-                WT_ERR(__wt_ref_mark_deleted(session, walk));
-
             /*
              * Update checkpoint IO tracking data if configured to log verbose progress messages.
              */
@@ -427,6 +423,18 @@ skipwalk:
                 /* Periodically log checkpoint progress. */
                 if (conn->ckpt_write_pages % 5000 == 0)
                     __wt_checkpoint_progress(session, false);
+            }
+
+            /* Reconciliation of a history store page resulted as empty, mark it for deletion. */
+            if (is_las && page->modify && page->modify->rec_result == WT_PM_REC_EMPTY) {
+                /*
+                 * The duplicate tree walk code expects the ref state to be in memory. We need to
+                 * get the duplicate tree walk pointer before marking the current tree page as
+                 * deleted.
+                 */
+                WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
+                WT_ERR(__wt_ref_mark_deleted(session, walk));
+                goto skipwalk;
             }
         }
         break;
