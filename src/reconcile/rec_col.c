@@ -1073,8 +1073,8 @@ compare:
                       (last.start_ts == start_ts && last.start_txn == start_txn &&
                         last.stop_ts == stop_ts && last.stop_txn == stop_txn)) &&
                   ((deleted && last.deleted) ||
-                      (!deleted && !last.deleted && last.value->size == size &&
-                        memcmp(last.value->data, data, size) == 0))) {
+                      (!deleted && !last.deleted && last.value->size != 0 &&
+                        last.value->size == size && memcmp(last.value->data, data, size) == 0))) {
                     ++rle;
                     goto next;
                 }
