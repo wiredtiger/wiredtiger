@@ -510,11 +510,11 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
 }
 
 /*
- * __las_insert_update --
- *     insert a single update to lookaside
+ * __las_insert_record --
+ *     A helper function to insert the record into the lookaside including stop time pair.
  */
-static inline int
-__las_insert_update(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
+static int
+__las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t btree_id,
   const WT_ITEM *key, const WT_UPDATE *upd, const uint8_t type, const WT_ITEM *las_value,
   WT_TIME_PAIR stop_ts_pair)
 {
@@ -770,9 +770,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 }
 
                 if (!insert_modify)
-                    WT_ERR(__las_insert_update(session, cursor, btree_id, key, upd,
+                    WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
-                else if (__las_insert_update(session, cursor, btree_id, key, upd, WT_UPDATE_MODIFY,
+                else if (__las_insert_record(session, cursor, btree_id, key, upd, WT_UPDATE_MODIFY,
                            modify_value, stop_ts_pair) != 0) {
                     __wt_scr_free(session, &modify_value);
                     goto err;
@@ -910,33 +910,6 @@ __wt_las_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t b
     }
 
     /* NOTREACHED */
-}
-
-/*
- * __find_birthmark_update --
- *     A helper function to find a birthmark update for a given key. If there is no birthmark record
- *     (either no lookaside content or the most recent value was instantiated) the update pointer
- *     will be set to null.
- */
-static void
-__find_birthmark_update(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp)
-{
-    WT_PAGE *page;
-    WT_UPDATE *upd;
-
-    page = cbt->ref->page;
-
-    upd = NULL;
-    if (cbt->ins != NULL)
-        upd = cbt->ins->upd;
-    else if (cbt->btree->type == BTREE_ROW && page->modify != NULL &&
-      page->modify->mod_row_update != NULL)
-        upd = page->modify->mod_row_update[cbt->slot];
-
-    for (; upd != NULL && upd->type != WT_UPDATE_BIRTHMARK; upd = upd->next)
-        ;
-
-    *updp = upd;
 }
 
 /*
