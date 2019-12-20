@@ -699,14 +699,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
-            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE && upd->start_ts == WT_TXN_NONE));
+            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
+                             upd->start_ts == WT_TXN_NONE));
         /* Skip TOMBSTONE at the end of the update chain */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &upd);
                 WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-            }
-            else
+            } else
                 continue;
         }
         full_value->data = upd->data;
@@ -761,7 +761,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                     nentries = MAX_REVERSE_MODIFY_NUM;
                     if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
                           prev_full_value->size / 10, entries, &nentries) == 0) {
-                              WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
+                        WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
                         WT_ASSERT(session, modify_value != NULL);
                         insert_modify = true;
                     }
@@ -777,7 +777,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 } else
                     __wt_scr_free(session, &modify_value);
 
-            ++insert_cnt;
+                ++insert_cnt;
             } else
                 squashed = true;
         }
