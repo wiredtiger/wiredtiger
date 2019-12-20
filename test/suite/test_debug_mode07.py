@@ -35,7 +35,8 @@ class test_debug_mode07(wttest.WiredTigerTestCase):
     uri = 'file:test_debug_mode07'
 
     # Insert some data to ensure setting/unsetting the flag does not
-    # break existing functionality.
+    # break existing functionality (checkpointing causes reallocation
+    # function to be called numerous times).
     def insert_data(self):
         self.session.create(self.uri, 'key_format=s,value_format=s')
         self.cursor = self.session.open_cursor(self.uri, None)
