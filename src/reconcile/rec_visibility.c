@@ -156,7 +156,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t max_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
-    bool all_stable, list_prepared, list_uncommitted;
+    bool all_stable, list_uncommitted;
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -170,7 +170,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    list_prepared = list_uncommitted = false;
+    list_uncommitted = false;
 
     /*
      * If called with a WT_INSERT item, use its WT_UPDATE list (which must exist), otherwise check
@@ -210,7 +210,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
         if (upd->prepare_state == WT_PREPARE_LOCKED ||
           upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            r->update_prepared = list_prepared = true;
+            r->update_prepared = list_uncommitted = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
             continue;
@@ -234,8 +234,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
              * to discard updates from the stable update and older for correctness and we can't
              * discard an uncommitted update.
              */
-            if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL &&
-              (list_prepared || list_uncommitted))
+            if (F_ISSET(r, WT_REC_UPDATE_RESTORE) && upd_select->upd != NULL && list_uncommitted)
                 return (__wt_set_return(session, EBUSY));
         } else if (first_stable_upd == NULL) {
             /*
@@ -397,7 +396,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * uncommitted and prepared updates. However, we cannot change it here as we need to first
      * implement inserting older versions to history store for update restore.
      */
-    all_stable = orig_upd == first_stable_upd && !list_prepared && !list_uncommitted &&
+    all_stable = orig_upd == first_stable_upd && !list_uncommitted &&
       __wt_txn_visible_all(session, max_txn, max_ts);
 
     if (!all_stable) {

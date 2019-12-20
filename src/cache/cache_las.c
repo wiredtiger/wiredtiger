@@ -796,8 +796,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd, &stop_ts, &stop_txnid));
             ++insert_cnt;
 
-            /* Flag the update as now in the lookaside file */
-            upd->flags = WT_UPDATE_HISTORY_STORE;
+            /* Flag the update as now in the lookaside file. */
+            F_SET(upd, WT_UPDATE_HISTORY_STORE);
 
             /*
              * If we encounter subsequent updates with the same timestamp, skip them to avoid
