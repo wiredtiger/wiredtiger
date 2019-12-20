@@ -278,6 +278,27 @@ functions:
         set -o verbose
         ./t ${checkpoint_args} 2>&1
 
+  "checkpoint stress test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/test/format"
+      script: |
+        set -o errexit
+        set -o verbose
+
+        export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
+        CMD='./t -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+
+        for i in $(seq ${times|1}); do
+          for t in $(seq ${no_of_procs|1}}); do
+            eval nohup $CMD > nohup.out.$i.$t 2>&1 &
+          done
+
+          for t in $(seq ${no_of_procs|1}); do
+            wait -n || exit $?
+          done
+        done
+
 pre:
   - func: "cleanup"
 post:
@@ -1898,44 +1919,6 @@ tasks:
           # We are giving an extra ~20% room for vairance in execution time.
           times: 80
 
-  # Ravi
-  - name: checkpoint-stress-test
-    # set a 24 hour timeout
-    exec_timeout_secs: 86400
-    #timeout_secs: 18000
-    commands:
-      - command: timeout.update
-        params:
-          #exec_timeout_secs: 90000
-          timeout_secs: 86400
-      - func: "get project"
-      - func: "compile wiredtiger with builtins"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/checkpoint"
-          shell: bash
-          script: |
-            set -o errexit
-            set -o verbose
-
-            export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
-            # timeout.update
-            # exec_timeout_secs: 90000
-            # timeout_secs: 90000
-            CMD='./t -h WT_TEST.$t.$i -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
-            NPROCS=10
-            times=1
-
-            for i in $(seq $times); do
-              for t in $(seq $NPROCS); do
-                eval nohup $CMD > nohup.out.$t.$i 2>&1 &
-              done
-
-              for t in $(seq $NPROCS); do
-                wait -n || exit $?
-              done
-            done
-
   # This is special task until lz4 issues are resolved for zSeries distros
   - name: recovery-stress-test-without-lz4
     #set a 25 hours timeout
@@ -1989,6 +1972,20 @@ tasks:
           # run smoke tests, use default config (-S)
           format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -S
           times: 16
+
+  - name: checkpoint-stress-test
+    commands:
+      - command: timeout.update
+        params:
+          # set 24 hour timeout for the task and command
+          exec_timeout_secs: 86400
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - func: "checkpoint stress test"
+        vars:
+          times: 2
+          no_of_procs: 10
 
 buildvariants:
 - name: ubuntu1804
