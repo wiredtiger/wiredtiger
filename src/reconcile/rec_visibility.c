@@ -96,6 +96,15 @@ __rec_append_orig_value(
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
         append->start_ts = append->durable_ts = unpack->start_ts;
         append->txnid = unpack->start_txn;
+
+        /*
+         * We need to append a TOMBSTONE before the on page value if the onpage value has a valid
+         * stop pair.
+         *
+         * Imagine a case we insert and delete a value respectively at timestamp 0 and 10, and later
+         * insert it again at 20. We need the TOMBSTONE to tell us there is no value between 10 and
+         * 20.
+         */
         if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
             WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
             tombstone->txnid = unpack->stop_txn;
