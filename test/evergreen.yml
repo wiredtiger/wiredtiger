@@ -281,7 +281,8 @@ functions:
   "checkpoint stress test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/test/format"
+      working_dir: "wiredtiger/build_posix/test/checkpoint"
+      shell: bash
       script: |
         set -o errexit
         set -o verbose
@@ -290,7 +291,7 @@ functions:
         CMD='./t -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
 
         for i in $(seq ${times|1}); do
-          for t in $(seq ${no_of_procs|1}}); do
+          for t in $(seq ${no_of_procs|1}); do
             eval nohup $CMD > nohup.out.$i.$t 2>&1 &
           done
 
