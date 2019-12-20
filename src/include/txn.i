@@ -713,6 +713,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
 {
     static WT_UPDATE tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     WT_DECL_RET;
+    WT_UPDATE *tmp_upd;
     WT_VISIBLE_TYPE upd_visible;
     bool skipped_birthmark;
 
@@ -731,12 +732,20 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
             skipped_birthmark = true;
     }
 
-    /* Cannot find the update in memory. Try lookaside. */
-    if (upd == NULL && __wt_page_las_active(session, cbt->ref)) {
-        ret = __wt_find_lookaside_upd(session, cbt, &upd, false);
+    /* Find a visible record in the lookaside and check if we should use that instead. */
+    if ((upd == NULL || session->txn.read_timestamp != 0) &&
+      __wt_page_las_active(session, cbt->ref)) {
+        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, false);
         WT_RET_NOTFOUND_OK(ret);
-        if (ret == 0)
-            WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
+        if (ret == 0) {
+            /* Pick newer of the visible updates */
+            if (upd == NULL || upd->start_ts < tmp_upd->start_ts)
+                upd = tmp_upd;
+            else {
+                WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
+                __wt_free_update_list(session, &tmp_upd);
+            }
+        }
     }
 
     if (upd == NULL && skipped_birthmark)
