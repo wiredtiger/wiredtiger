@@ -1984,7 +1984,9 @@ tasks:
       - func: "compile wiredtiger with builtins"
       - func: "checkpoint stress test"
         vars:
+          # No of times to run the loop
           times: 2
+          # No of processes to run in the background
           no_of_procs: 10
 
 buildvariants:
