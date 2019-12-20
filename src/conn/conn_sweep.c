@@ -266,14 +266,12 @@ __sweep_server(void *arg)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t last, now;
-    uint64_t last_las_sweep_id, min_sleep, oldest_id, sweep_interval;
+    uint64_t sweep_interval;
     u_int dead_handles;
     bool cv_signalled;
 
     session = arg;
     conn = S2C(session);
-    last_las_sweep_id = WT_TXN_NONE;
-    min_sleep = WT_MIN(WT_LAS_SWEEP_SEC, conn->sweep_interval);
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
         sweep_interval = conn->sweep_interval / 10;
     else
@@ -286,10 +284,10 @@ __sweep_server(void *arg)
     for (;;) {
         /* Wait until the next event. */
         if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
-            __wt_cond_wait_signal(session, conn->sweep_cond, min_sleep * 100 * WT_THOUSAND,
-              __sweep_server_run_chk, &cv_signalled);
+            __wt_cond_wait_signal(session, conn->sweep_cond,
+              conn->sweep_interval * 100 * WT_THOUSAND, __sweep_server_run_chk, &cv_signalled);
         else
-            __wt_cond_wait_signal(session, conn->sweep_cond, min_sleep * WT_MILLION,
+            __wt_cond_wait_signal(session, conn->sweep_cond, conn->sweep_interval * WT_MILLION,
               __sweep_server_run_chk, &cv_signalled);
 
         /* Check if we're quitting or being reconfigured. */
@@ -297,25 +295,6 @@ __sweep_server(void *arg)
             break;
 
         __wt_seconds(session, &now);
-
-        /*
-         * Sweep the lookaside table. If the lookaside table hasn't yet been written, there's no
-         * work to do.
-         *
-         * Don't sweep the lookaside table if the cache is stuck full. The sweep uses the cache and
-         * can exacerbate the problem. If we try to sweep when the cache is full or we aren't making
-         * progress in eviction, sweeping can wind up constantly bringing in and evicting pages from
-         * the lookaside table, which will stop the cache from moving into the stuck state.
-         */
-        if ((FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP) ||
-              now - last >= WT_LAS_SWEEP_SEC) &&
-          !__wt_las_empty(session) && !__wt_cache_stuck(session)) {
-            oldest_id = __wt_txn_oldest_id(session);
-            if (WT_TXNID_LT(last_las_sweep_id, oldest_id)) {
-                WT_ERR(__wt_las_sweep(session));
-                last_las_sweep_id = oldest_id;
-            }
-        }
 
         /*
          * See if it is time to sweep the data handles. Those are swept less frequently than the

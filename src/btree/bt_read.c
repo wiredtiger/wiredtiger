@@ -161,7 +161,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ITEM key;
         WT_TIME_PAIR start, stop;
     } * las_preparep;
-    WT_CACHE *cache;
     WT_CURSOR *las_cursor;
     WT_CURSOR_BTREE cbt;
     WT_DECL_ITEM(las_prepares);
@@ -179,9 +178,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     uint8_t prepare_state, upd_type;
     const uint8_t *p;
     int cmp;
-    bool locked;
 
-    cache = S2C(session)->cache;
     las_cursor = NULL;
     WT_CLEAR(las_key);
     WT_CLEAR(las_key_tmp);
@@ -195,7 +192,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     las_prepare_cnt = mod_counter = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
     instantiated_cnt = 0;
-    locked = false;
 
     /*
      * Check whether the disk image contains all the newest versions of the page. If the lookaside
@@ -260,11 +256,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
      * instantiated for that key. Otherwise it is just an indicator that we need to search the
      * lookaside for that particular key.
      */
-    cache->las_reader = true;
-    __wt_readlock(session, &cache->las_sweepwalk_lock);
-    cache->las_reader = false;
     notused = size = total_incr = 0;
-    locked = true;
     for (i = 0; i < page_las->mementos_cnt; ++i) {
         /*
          * An "aborted transaction id means that this is a birthmark update as opposed to just
@@ -377,8 +369,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
         upd = NULL;
     }
 
-    __wt_readunlock(session, &cache->las_sweepwalk_lock);
-    locked = false;
     WT_ERR_NOTFOUND_OK(ret);
 
     __wt_cache_page_inmem_incr(session, page, total_incr);
@@ -426,8 +416,6 @@ err:
     page_las->mementos_cnt = 0;
     __wt_free(session, page_las->mementos);
 
-    if (locked)
-        __wt_readunlock(session, &cache->las_sweepwalk_lock);
     WT_TRET(__wt_las_cursor_close(session, &las_cursor, session_flags));
     WT_TRET(__wt_btcur_close(&cbt, true));
     __wt_free(session, upd);

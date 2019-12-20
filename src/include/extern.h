@@ -26,8 +26,6 @@ extern bool __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 extern bool __wt_hazard_check_assert(WT_SESSION_IMPL *session, void *ref, bool waitfor)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_ispo2(uint32_t v) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern bool __wt_las_empty(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_las_page_skip(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -774,10 +772,6 @@ extern int __wt_las_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page,
   WT_MULTI *multi) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_las_save_dropped(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_las_sweep(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_library_init(void) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1650,7 +1644,6 @@ extern void __wt_hazard_close(WT_SESSION_IMPL *session);
 extern void __wt_huffman_close(WT_SESSION_IMPL *session, void *huffman_arg);
 extern void __wt_json_close(WT_SESSION_IMPL *session, WT_CURSOR *cursor);
 extern void __wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session_flags);
-extern void __wt_las_remove_dropped(WT_SESSION_IMPL *session);
 extern void __wt_las_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_log_background(WT_SESSION_IMPL *session, WT_LSN *lsn);
 extern void __wt_log_ckpt(WT_SESSION_IMPL *session, WT_LSN *ckpt_lsn);
