@@ -132,6 +132,10 @@ __wt_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_ref_is_root(ref))
         return (0);
 
+    /* Guard against marking a page to be deleted when its reconciliation state is not empty. */
+    if (ref->page && ref->page->modify && ref->page->modify->rec_result != WT_PM_REC_EMPTY)
+        return (0);
+
     /*
      * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
      * parent page is checkpointing, the empty child page will be cleaned.

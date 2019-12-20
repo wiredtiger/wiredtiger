@@ -74,8 +74,8 @@ class test_gc02(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
 
-        bigvalue = "aaaaa" * 200
-        bigvalue2 = "ddddd" * 200
+        bigvalue = "aaaaa" * 100
+        bigvalue2 = "ddddd" * 100
         self.large_updates(uri, bigvalue, ds, nrows, 10)
 
         # Check that all updates are seen
