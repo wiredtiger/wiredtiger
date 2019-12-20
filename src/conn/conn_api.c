@@ -1797,7 +1797,10 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
         F_CLR(cache, WT_CACHE_EVICT_DEBUG_MODE);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.realloc_exact", &cval));
-    conn->debug_realloc_exact = cval.val;
+    if (cval.val)
+        F_SET(conn, WT_CONN_DEBUG_REALLOC_EXACT);
+    else
+        F_CLR(conn, WT_CONN_DEBUG_REALLOC_EXACT);
 
     WT_RET(__wt_config_gets(session, cfg, "debug_mode.rollback_error", &cval));
     txn_global->debug_rollback = (uint64_t)cval.val;
