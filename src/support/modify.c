@@ -110,7 +110,7 @@ __wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int n
     }
     modify->size = WT_PTRDIFF(data, modify->data);
     *modifyp = modify;
-
+    WT_ASSERT(session, *modifyp != NULL);
     /*
      * Update statistics. This is the common path called by WT_CURSOR::modify implementations.
      */

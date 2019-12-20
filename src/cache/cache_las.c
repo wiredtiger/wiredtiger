@@ -740,7 +740,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
                 prev_full_value->data = prev_upd->data;
                 prev_full_value->size = prev_upd->size;
-                insert_modify = false;
             }
 
             /*
@@ -751,6 +750,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid ||
               modifies.size == 0) {
+                insert_modify = false;
                 /*
                  * Calculate reverse delta. Insert full update for the newest historical record even
                  * it's a MODIFY.
@@ -761,10 +761,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0) {
                     nentries = MAX_REVERSE_MODIFY_NUM;
                     if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
-                          prev_full_value->size / 10, entries, &nentries) != 0)
-                        insert_modify = false;
-                    else {
-                        WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
+                          prev_full_value->size / 10, entries, &nentries) == 0) {
+                              WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
+                        WT_ASSERT(session, modify_value != NULL);
                         insert_modify = true;
                     }
                 }
