@@ -39,11 +39,9 @@ class test_debug_mode07(wttest.WiredTigerTestCase):
     def insert_data(self):
         self.session.create(self.uri, 'key_format=s,value_format=s')
         self.cursor = self.session.open_cursor(self.uri, None)
-        for i in range(0,20):
-            self.cursor[str(i)] = 'value'
-            self.cursor.next()
-            self.session.checkpoint()
+        self.cursor[str(i)] = 'value'
         self.cursor.close()
+        self.session.checkpoint()
 
     # Make flag works when set.
     def test_realloc_exact(self):
