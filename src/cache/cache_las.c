@@ -690,7 +690,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         upd = prev_upd = NULL;
         insert_modify = squashed = false;
-        modify_value = NULL;
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
@@ -700,14 +699,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
-            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-                             upd->start_ts == WT_TXN_NONE));
+            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE && upd->start_ts == WT_TXN_NONE));
         /* Skip TOMBSTONE at the end of the update chain */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &upd);
                 WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
-            } else
+            }
+            else
                 continue;
         }
         full_value->data = upd->data;
@@ -778,7 +777,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 } else
                     __wt_scr_free(session, &modify_value);
 
-                ++insert_cnt;
+            ++insert_cnt;
             } else
                 squashed = true;
         }
@@ -793,9 +792,9 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * in the lookaside table. (We check the length because row-store doesn't write zero-length
          * data items.)
          */
-        if (upd->size > 0) {
+        if (upd != NULL && upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
-            WT_ASSERT(session, upd != NULL && upd->ext == 0 &&
+            WT_ASSERT(session, upd->ext == 0 &&
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
 
@@ -1008,6 +1007,21 @@ __wt_find_lookaside_upd(
         /* We do not have have prepared updates in the lookaside anymore */
         WT_ASSERT(session, prepare_state != WT_PREPARE_INPROGRESS);
 
+        /*
+         * Found a visible record, return success unless it is prepared and we are not ignoring
+         * prepared.
+         *
+         * It's necessary to explicitly signal a prepare conflict so that the callers don't fallback
+         * to using something from the update list.
+         *
+         * FIXME-PM-1521: To be removed or reverted in the future
+         */
+        // if (prepare_state == WT_PREPARE_INPROGRESS &&
+        //   !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
+        //     ret = WT_PREPARE_CONFLICT;
+        //     break;
+        // }
+
         /* We do not have birthmarks and tombstones in the lookaside anymore. */
         WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK && upd_type != WT_UPDATE_TOMBSTONE);
 
@@ -1051,6 +1065,7 @@ __wt_find_lookaside_upd(
                 __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, las_value, mod_upd->data, false));
                 __wt_free_update_list(session, &mod_upd);
+                mod_upd = NULL;
             }
             WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
         }
@@ -1061,6 +1076,38 @@ __wt_find_lookaside_upd(
         upd->durable_ts = durable_timestamp;
         upd->start_ts = las_start.timestamp;
         upd->prepare_state = prepare_state;
+
+        /*
+         * When we find a prepared update in lookaside, we should add it to our update list and
+         * subsequently delete the corresponding lookaside entry. If it gets committed, the
+         * timestamp in the las key may differ so it's easier if we get rid of it now and rewrite
+         * the entry on eviction/commit/rollback.
+         *
+         * FIXME-PM-1521: To be removed or reverted in the future
+         */
+        // if (prepare_state == WT_PREPARE_INPROGRESS) {
+        //     WT_ASSERT(session, !modify);
+        //     switch (cbt->ref->page->type) {
+        //     case WT_PAGE_COL_FIX:
+        //     case WT_PAGE_COL_VAR:
+        //         recnop = las_key->data;
+        //         WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
+        //         WT_ERR(__wt_col_modify(cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
+        //         break;
+        //     case WT_PAGE_ROW_LEAF:
+        //         WT_ERR(__wt_row_modify(cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
+        //         break;
+        //     }
+
+        //     ret = las_cursor->remove(las_cursor);
+        //     if (ret != 0)
+        //         WT_PANIC_ERR(session, ret,
+        //           "initialised prepared update but was unable to remove the corresponding entry "
+        //           "from lookaside");
+
+        //     /* This is going in our update list so it should be accounted for in cache usage. */
+        //     __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
+        // }
 
         /*
          * We're not keeping this in our update list as we want to get rid of it after the read has
