@@ -400,62 +400,62 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     all_stable = orig_upd == first_stable_upd && !list_prepared && !list_uncommitted &&
       __wt_txn_visible_all(session, max_txn, max_ts);
 
-    if (all_stable)
-        goto check_original_value;
+    if (!all_stable) {
+        r->leave_dirty = true;
 
-    r->leave_dirty = true;
+        if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
+            WT_PANIC_ERR(session, EINVAL, "reconciliation error, update not visible");
 
-    if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-        WT_PANIC_ERR(session, EINVAL, "reconciliation error, update not visible");
+        /*
+         * If we're doing checkpoint reconciliation, and the update doesn't have any further updates
+         * that need to be written to the history store, skip saving the update as saving the update
+         * will cause reconciliation to think there is work that needs to be done when there might
+         * not be.
+         *
+         * Additionally if we have arrived here via checkpoint but lookaside reconciliation is not
+         * set skip saving an update.
+         */
+        if (F_ISSET(r, WT_REC_EVICT) ||
+          (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) &&
+              upd_select->upd != NULL && upd_select->upd->next != NULL)) {
 
-    /*
-     * If the update we've selected was an on disk update restored from lookaside or the data store
-     * skip saving an update as it should always be the update at the end of the update chain, and
-     * therefore not have any updates that need to be written to the history store after it. If
-     * we're doing checkpoint reconciliation, and the update doesn't have any further updates that
-     * need to be written to the history store, skip saving the update as saving the update will
-     * cause reconciliation to think there is work that needs to be done when there might not be.
-     */
-    if ((upd_select->upd != NULL && F_ISSET(upd_select->upd, WT_UPDATE_RESTORED_FROM_DISK)) ||
-      (F_ISSET(r, WT_REC_CHECKPOINT) &&
-          (!F_ISSET(r, WT_REC_LOOKASIDE) ||
-            (upd_select->upd == NULL || upd_select->upd->next == NULL))))
-        goto check_original_value;
+            /*
+             * We are attempting eviction with changes that are not yet stable (i.e. globally
+             * visible). There are two ways to continue, the save/restore eviction path or the
+             * lookaside table eviction path. Both cannot be configured because the paths track
+             * different information. The update/restore path can handle uncommitted changes, by
+             * evicting most of the page and then creating a new, smaller page to which we re-attach
+             * those changes. Lookaside eviction writes changes into the lookaside table and
+             * restores them on demand if and when the page is read back into memory.
+             *
+             * Both paths are configured outside of reconciliation: the save/restore path is the
+             * WT_REC_UPDATE_RESTORE flag, the lookaside table path is the WT_REC_LOOKASIDE flag.
+             */
+            if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
+                WT_ERR(__wt_set_return(session, EBUSY));
 
-    /*
-     * We are attempting eviction with changes that are not yet stable (i.e. globally visible).
-     * There are two ways to continue, the save/restore eviction path or the lookaside table
-     * eviction path. Both cannot be configured because the paths track different information. The
-     * update/restore path can handle uncommitted changes, by evicting most of the page and then
-     * creating a new, smaller page to which we re-attach those changes. Lookaside eviction writes
-     * changes into the lookaside table and restores them on demand if and when the page is read
-     * back into memory.
-     *
-     * Both paths are configured outside of reconciliation: the save/restore path is the
-     * WT_REC_UPDATE_RESTORE flag, the lookaside table path is the WT_REC_LOOKASIDE flag.
-     */
-    if (!F_ISSET(r, WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE))
-        WT_ERR(__wt_set_return(session, EBUSY));
+            /*
+             * If we have a list with an uncommitted update on it we still want to write out to the
+             * lookaside file in checkpoint.
+             */
+            if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE) &&
+              !F_ISSET(r, WT_REC_CHECKPOINT))
+                WT_ERR(__wt_set_return(session, EBUSY));
 
-    /*
-     * If we have a list with an uncommitted update on it we still want to write out to the
-     * lookaside file in checkpoint.
-     */
-    if (list_uncommitted && !F_ISSET(r, WT_REC_UPDATE_RESTORE) && !F_ISSET(r, WT_REC_CHECKPOINT))
-        WT_ERR(__wt_set_return(session, EBUSY));
+            WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
-    WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
+            WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
 
-    WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
+            /*
+             * There is an odd corner case here where checkpoint shouldn't write updates to the
+             * lookaside file when we have an insert list. However there is a scenario where
+             * lookaside eviction should save the update.
+             */
+            if (ins == NULL || !F_ISSET(r, WT_REC_CHECKPOINT))
+                upd_select->upd_saved = true;
+        }
+    }
 
-    /*
-     * There is an odd corner case here where checkpoint shouldn't write updates to the lookaside
-     * file when we have an insert list. However eviction should in some scenario.
-     */
-    if (ins == NULL || !F_ISSET(r, WT_REC_CHECKPOINT))
-        upd_select->upd_saved = true;
-
-check_original_value:
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.
      */

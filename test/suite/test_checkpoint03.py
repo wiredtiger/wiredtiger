@@ -76,7 +76,7 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         # how many writes we did, just that we did write. Hence for multiple writes it may only
         # increment a single time.
         las_writes = self.get_stat(stat.conn.cache_write_lookaside)
-        self.assertEqual(1, las_writes)
+        self.assertGreaterEqual(las_writes, 1)
 
         # Add a new update.
         self.session.begin_transaction()
@@ -87,7 +87,7 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
         # Check that we wrote something to lookaside in the last checkpoint we ran, as we should've
         # written the previous update.
         las_writes = self.get_stat(stat.conn.cache_write_lookaside)
-        self.assertEqual(2, las_writes)
+        self.assertGreaterEqual(las_writes, 2)
 
         # Close the connection.
         self.close_conn()
