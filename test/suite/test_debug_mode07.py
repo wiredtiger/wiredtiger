@@ -28,15 +28,15 @@
 
 import wttest, wiredtiger
 
-# test_debug_mode06.py
+# test_debug_mode07.py
 #   Test the debug mode settings. Test realloc_exact use (from WT-4919).
 class test_debug_mode07(wttest.WiredTigerTestCase):
     conn_config = 'log=(enabled=true),debug_mode=(realloc_exact=true),statistics=(all)'
     uri = 'file:test_debug_mode07'
 
     # Insert some data to ensure setting/unsetting the flag does not
-    # break existing functionality (checkpointing causes reallocation
-    # function to be called numerous times).
+    # break existing functionality. Also call checkpoint because it
+    # causes the realloc function to be called numerous times.
     def insert_data(self):
         self.session.create(self.uri, 'key_format=s,value_format=s')
         self.cursor = self.session.open_cursor(self.uri, None)
