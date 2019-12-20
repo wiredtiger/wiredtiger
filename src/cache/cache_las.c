@@ -1037,7 +1037,7 @@ __wt_find_lookaside_upd(
                 mod_upd = NULL;
 
                 /*
-                 * Find the base update to apply the reverse delta
+                 * Find the base update to apply the reverse deltas
                  */
                 WT_ERR(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
