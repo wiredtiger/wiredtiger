@@ -328,6 +328,10 @@ skipwalk:
             if (walk == NULL)
                 break;
 
+            /* Traverse through the internal page for obsolete child pages. */
+            if (is_las && WT_PAGE_IS_INTERNAL(walk->page))
+                WT_ERR(__wt_ref_int_obsolete_cleanup(session, walk));
+
             /*
              * Skip clean pages, but need to make sure maximum transaction ID is always updated.
              */
@@ -360,9 +364,6 @@ skipwalk:
                 }
                 continue;
             }
-
-            if (is_las && WT_PAGE_IS_INTERNAL(walk->page))
-                WT_ERR(__wt_ref_int_obsolete_cleanup(session, walk));
 
             /*
              * Take a local reference to the page modify structure now that we know the page is
