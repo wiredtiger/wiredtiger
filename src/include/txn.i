@@ -711,13 +711,9 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
-    /* FIXME-PM1521: To be Removed by WT-5282 */
-    // static WT_UPDATE tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
     WT_VISIBLE_TYPE upd_visible;
-    // bool skipped_birthmark;
 
     *updp = NULL;
-    // skipped_birthmark = false;
     for (; upd != NULL; upd = upd->next) {
         /* Skip reserved place-holders, they're never visible. */
         if (upd->type != WT_UPDATE_RESERVE) {
@@ -727,21 +723,11 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
             if (upd_visible == WT_VISIBLE_PREPARE)
                 return (WT_PREPARE_CONFLICT);
         }
-
-        /*
-         * FIXME-PM1521: To be Removed by WT-5282 An invisible birthmark is equivalent to a
-         * tombstone.
-         */
-        // if (upd->type == WT_UPDATE_BIRTHMARK)
-        //     skipped_birthmark = true;
     }
 
     /* Cannot find the update in memory. Try lookaside. */
     if (upd == NULL && __wt_page_las_active(session, cbt->ref))
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
-
-    // if (upd == NULL && skipped_birthmark)
-    //     upd = &tombstone;
 
     *updp = upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd;
     return (0);
