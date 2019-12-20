@@ -573,7 +573,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn, insert_modify, squashed;
+    bool las_key_saved, local_txn, squashed;
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -689,7 +689,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         upd = prev_upd = NULL;
-        insert_modify = squashed = false;
+        squashed = false;
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
@@ -749,7 +749,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
              */
             if (upd->start_ts != prev_upd->start_ts || upd->txnid != prev_upd->txnid ||
               modifies.size == 0) {
-                insert_modify = false;
                 /*
                  * Calculate reverse delta. Insert full update for the newest historical record even
                  * it's a MODIFY.
@@ -763,19 +762,18 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                           prev_full_value->size / 10, entries, &nentries) == 0) {
                         WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
                         WT_ASSERT(session, modify_value != NULL);
-                        insert_modify = true;
-                    }
-                }
-
-                if (!insert_modify)
+                        if (__las_insert_record(session, cursor, btree_id, key, upd,
+                              WT_UPDATE_MODIFY, modify_value, stop_ts_pair) != 0) {
+                            __wt_scr_free(session, &modify_value);
+                            goto err;
+                        } else
+                            __wt_scr_free(session, &modify_value);
+                    } else
+                        WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
+                          WT_UPDATE_STANDARD, full_value, stop_ts_pair));
+                } else
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
-                else if (__las_insert_record(session, cursor, btree_id, key, upd, WT_UPDATE_MODIFY,
-                           modify_value, stop_ts_pair) != 0) {
-                    __wt_scr_free(session, &modify_value);
-                    goto err;
-                } else
-                    __wt_scr_free(session, &modify_value);
 
                 ++insert_cnt;
             } else
