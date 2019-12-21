@@ -35,7 +35,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_gc02.py
-# Test that checkpint cleans the obsolete lookaside pages.
+# Test that checkpoint cleans the obsolete lookaside pages.
 class test_gc02(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=1GB,log=(enabled)'
     session_config = 'isolation=snapshot'
@@ -48,6 +48,18 @@ class test_gc02(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+        cursor.close()
+
+    def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
+        # Load a slight modification with a later timestamp.
+        session = self.session
+        cursor = session.open_cursor(uri)
+        session.begin_transaction()
+        for i in range(1, nrows):
+            cursor.set_key(i)
+            mods = [wiredtiger.Modify(value, location, nbytes)]
+            self.assertEqual(cursor.modify(mods), 0)
+        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
@@ -97,30 +109,9 @@ class test_gc02(wttest.WiredTigerTestCase):
         #self.check(bigvalue2, uri, nrows, 100)
 
         # Load a slight modification with a later timestamp.
-        cursor = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('A', 10, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(110))
-
-        # Load a slight modification with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('B', 20, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(120))
-
-        # Load a slight modification with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify('C', 30, 1)]
-            self.assertEqual(cursor.modify(mods), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(130))
-        cursor.close()
+        self.large_modifies(uri, 'A', ds, 10, 1, nrows, 110)
+        self.large_modifies(uri, 'B', ds, 20, 1, nrows, 120)
+        self.large_modifies(uri, 'C', ds, 30, 1, nrows, 130)
 
         # set of update operations with increased timestamp
         self.large_updates(uri, bigvalue2, ds, nrows, 150)
@@ -146,6 +137,9 @@ class test_gc02(wttest.WiredTigerTestCase):
 
         # Check that the new updates are only seen after the update timestamp
         #self.check(bigvalue2, uri, nrows, 200)
+
+        # When this limitation is fixed we'll need to uncomment the calls to self.check
+        self.KNOWN_LIMITATION('values stored by this test are not yet validated')
 
 if __name__ == '__main__':
     wttest.run()

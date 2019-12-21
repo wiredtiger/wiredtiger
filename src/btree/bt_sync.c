@@ -128,7 +128,7 @@ __wt_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     uint32_t previous_state;
 
-    /* Ignore root pages as they never be deleted */
+    /* Ignore root pages as they are never be deleted */
     if (__wt_ref_is_root(ref))
         return (0);
 
