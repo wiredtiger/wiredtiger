@@ -278,6 +278,28 @@ functions:
         set -o verbose
         ./t ${checkpoint_args} 2>&1
 
+  "checkpoint stress test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/checkpoint"
+      shell: bash
+      script: |
+        set -o errexit
+        set -o verbose
+
+        export WIREDTIGER_CONFIG='checkpoint_sync=0,transaction_sync=(method=none)'
+        CMD='./t -h WT_TEST.$i.$t -t r -r 2 -W 3 -n 1000000 -k 1000000 -C "cache_size=100MB"'
+
+        for i in $(seq ${times|1}); do
+          for t in $(seq ${no_of_procs|1}); do
+            eval nohup $CMD > nohup.out.$i.$t 2>&1 &
+          done
+
+          for t in $(seq ${no_of_procs|1}); do
+            wait -n || exit $?
+          done
+        done
+
 pre:
   - func: "cleanup"
 post:
@@ -1952,6 +1974,22 @@ tasks:
           format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -S
           times: 16
 
+  - name: checkpoint-stress-test
+    commands:
+      - command: timeout.update
+        params:
+          # set 24 hour timeout for the task and command
+          exec_timeout_secs: 86400
+          timeout_secs: 86400
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - func: "checkpoint stress test"
+        vars:
+          # No of times to run the loop
+          times: 2
+          # No of processes to run in the background
+          no_of_procs: 10
+
   - name: format-stress-ppc-zseries-test
     # Set 25 hours timeout
     exec_timeout_secs: 90000
@@ -2028,6 +2066,7 @@ buildvariants:
     - name: split-stress-test
     - name: format-stress-test
     - name: format-stress-smoke-test
+    - name: checkpoint-stress-test
 
 - name: ubuntu1804-python3
   display_name: Ubuntu 18.04 (Python3)
