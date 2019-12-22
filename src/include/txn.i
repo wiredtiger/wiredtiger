@@ -716,20 +716,23 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     *updp = NULL;
     for (; upd != NULL; upd = upd->next) {
         /* Skip reserved place-holders, they're never visible. */
-        if (upd->type != WT_UPDATE_RESERVE) {
-            upd_visible = __wt_txn_upd_visible_type(session, upd);
-            if (upd_visible == WT_VISIBLE_TRUE)
-                break;
-            if (upd_visible == WT_VISIBLE_PREPARE)
-                return (WT_PREPARE_CONFLICT);
+        if (upd->type == WT_UPDATE_RESERVE)
+            continue;
+        upd_visible = __wt_txn_upd_visible_type(session, upd);
+        if (upd_visible == WT_VISIBLE_TRUE) {
+            if (upd->type != WT_UPDATE_BIRTHMARK)
+                *updp = upd;
+            return (0);
         }
+        if (upd_visible == WT_VISIBLE_PREPARE)
+            return (WT_PREPARE_CONFLICT);
     }
 
-    /* Cannot find the update in memory. Try lookaside. */
-    if (upd == NULL && __wt_page_las_active(session, cbt->ref))
+    /* If there's no visible update in memory, check the history file. */
+    if (__wt_page_las_active(session, cbt->ref))
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
-    *updp = upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd;
+    *updp = upd;
     return (0);
 }
 
