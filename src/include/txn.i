@@ -733,7 +733,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
     /* There is no BIRTHMARK in history file. */
-    WT_ASSERT(session, upd->type != WT_UPDATE_BIRTHMARK);
+    WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
     *updp = upd;
     return (0);
 }
