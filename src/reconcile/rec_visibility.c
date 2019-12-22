@@ -55,12 +55,10 @@ __rec_append_orig_value(
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_UPDATE *append, *tombstone;
-    size_t size;
-
-    WT_ASSERT(session, upd != NULL);
-    /* Done if at least one self-contained update is globally visible. */
+    size_t size, total_size;
 
     for (;; upd = upd->next) {
+        /* Done if at least one self-contained update is globally visible. */
         if (WT_UPDATE_DATA_VALUE(upd) && __wt_txn_upd_visible_all(session, upd))
             return (0);
 
@@ -87,18 +85,22 @@ __rec_append_orig_value(
      * exist for some reader; place a deleted record at the end of the update list.
      */
     append = tombstone = NULL; /* -Wconditional-uninitialized */
-    size = 0;                  /* -Wconditional-uninitialized */
+    total_size = size = 0;     /* -Wconditional-uninitialized */
     if (unpack == NULL || unpack->type == WT_CELL_DEL)
         WT_RET(__wt_update_alloc(session, NULL, &append, &size, WT_UPDATE_TOMBSTONE));
     else {
+        /* Timestamp should always be in descending order */
+        WT_ASSERT(session, upd->start_ts >= unpack->start_ts);
+
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
         WT_ERR(__wt_page_cell_data_ref(session, page, unpack, tmp));
         WT_ERR(__wt_update_alloc(session, tmp, &append, &size, WT_UPDATE_STANDARD));
         append->start_ts = append->durable_ts = unpack->start_ts;
         append->txnid = unpack->start_txn;
+        total_size = size;
 
         /*
-         * We need to append a TOMBSTONE before the on page value if the onpage value has a valid
+         * We need to append a TOMBSTONE before the onpage value if the onpage value has a valid
          * stop pair.
          *
          * Imagine a case we insert and delete a value respectively at timestamp 0 and 10, and later
@@ -106,11 +108,15 @@ __rec_append_orig_value(
          * 20.
          */
         if (unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) {
+            /* Timestamp should always be in descending order */
+            WT_ASSERT(session, upd->start_ts >= unpack->stop_ts);
+
             WT_ERR(__wt_update_alloc(session, NULL, &tombstone, &size, WT_UPDATE_TOMBSTONE));
             tombstone->txnid = unpack->stop_txn;
             tombstone->start_ts = unpack->stop_ts;
             tombstone->durable_ts = unpack->stop_ts;
             tombstone->next = append;
+            total_size += size;
         }
     }
 
@@ -129,14 +135,13 @@ __rec_append_orig_value(
 
     /* Append the new entry into the update list. */
     WT_PUBLISH(upd->next, append);
-    /* Timestamp should always be in descending order */
-    WT_ASSERT(session, upd->start_ts >= append->start_ts);
-    __wt_cache_page_inmem_incr(session, page, size);
 
     if (upd->type == WT_UPDATE_BIRTHMARK) {
         upd->type = WT_UPDATE_STANDARD;
         upd->txnid = WT_TXN_ABORTED;
     }
+
+    __wt_cache_page_inmem_incr(session, page, total_size);
 
 err:
     __wt_scr_free(session, &tmp);
