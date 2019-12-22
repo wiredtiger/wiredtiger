@@ -127,8 +127,10 @@ __rec_append_orig_value(
      * Else, set the entry's transaction information to the lowest possible value. Cleared memory
      * matches the lowest possible transaction ID and timestamp, do nothing.
      */
-    if (upd->type == WT_UPDATE_BIRTHMARK)
+    if (upd->type == WT_UPDATE_BIRTHMARK) {
+        WT_ASSERT(session, append->start_ts == upd->start_ts && append->txnid == upd->txnid);
         append->next = upd->next;
+    }
 
     if (tombstone != NULL)
         append = tombstone;
