@@ -322,6 +322,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->stop_ts = upd->start_ts;
             if (upd->txnid != WT_TXN_NONE)
                 upd_select->stop_txn = upd->txnid;
+            /* Ignore all the aborted transactions. */
+            while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
+                upd = upd->next;
+            WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
             upd_select->upd = upd = upd->next;
         }
         if (upd != NULL) {
@@ -392,7 +396,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * is the same as it was the previous reconciliation. Otherwise lookaside can end up with
          * two birthmark records in the same update chain.
          */
-        WT_ERR(__rec_append_orig_value(session, page, first_upd, vpack));
+        WT_ERR(__rec_append_orig_value(session, page, upd, vpack));
         upd_select->upd = NULL;
     }
 
