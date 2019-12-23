@@ -167,6 +167,10 @@ __wt_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
         if (ref->pindex_hint != slot)
             ref->pindex_hint = slot;
 
+        /* Skip the deleted child pages. */
+        if (ref->state == WT_REF_DELETED)
+            continue;
+
         if (__sync_ref_is_obsolete(session, ref))
             WT_RET(__sync_ref_mark_deleted(session, ref));
     }
