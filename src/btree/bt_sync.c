@@ -127,7 +127,8 @@ __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
         return (0);
 
     /* Guard against marking a page to be deleted when its reconciliation state is not empty. */
-    if (ref->page && ref->page->modify && ref->page->modify->rec_result != WT_PM_REC_EMPTY)
+    if (ref->page != NULL && ref->page->modify != NULL &&
+      ref->page->modify->rec_result != WT_PM_REC_EMPTY)
         return (0);
 
     /*

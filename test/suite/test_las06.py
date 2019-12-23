@@ -124,7 +124,8 @@ class test_las06(wttest.WiredTigerTestCase):
         # TODO: Uncomment this once the project work is done.
         # self.assertLessEqual(end_usage, (start_usage * 2))
 
-    @unittest.skip("Temporarily disabled")
+    # WT-5336 causing the read at timestamp 4 returning the value committed at timestamp 5 or 3
+    @unittest.skip("Temporarily disabled until WT-5336 is fixed")
     def test_las_modify_reads(self):
         # Create a small table.
         uri = "table:test_las06"
@@ -139,13 +140,13 @@ class test_las06(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 5000):
+        for i in range(1, 10000):
             cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load a slight modification with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 5000):
+        for i in range(1, 10000):
             cursor.set_key(self.create_key(i))
             mods = [wiredtiger.Modify('B', 100, 1)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -153,7 +154,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         # And another.
         self.session.begin_transaction()
-        for i in range(1, 5000):
+        for i in range(1, 10000):
             cursor.set_key(self.create_key(i))
             mods = [wiredtiger.Modify('C', 200, 1)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -161,7 +162,7 @@ class test_las06(wttest.WiredTigerTestCase):
 
         # Now write something completely different.
         self.session.begin_transaction()
-        for i in range(1, 5000):
+        for i in range(1, 10000):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
@@ -183,7 +184,7 @@ class test_las06(wttest.WiredTigerTestCase):
         # t2: value2 (full update) <= And finish here, applying all deltas in
         #                             between on value1 to deduce value3.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
-        for i in range(1, 5000):
+        for i in range(1, 10000):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
