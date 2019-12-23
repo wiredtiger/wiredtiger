@@ -670,15 +670,15 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          *
          * It deals with the following scenarios:
          * 1) We only have full updates on the chain and we only insert full updates to lookaside.
-         * 2) We have MODIFYs on the chain, i.e., U (selected onpage value) -> M -> M ->U. We
+         * 2) We have modifies on the chain, i.e., U (selected onpage value) -> M -> M ->U. We
          * reverse the modifies and insert the reversed modifies to lookaside if it is not the
          * newest update written to lookaside and the reverse operation is successful.
          * With regard to the example, we insert U -> RM -> U to lookaside.
-         * 3) We have TOMBSTONEs in the middle of the chain, i.e.,
+         * 3) We have tombstones in the middle of the chain, i.e.,
          * U (selected onpage value) -> U -> T -> M -> U.
-         * We write the stop time pair of M with the start time pair of the TOMBSTONE and skip the
-         * TOMBSTONE.
-         * 4) We have a TOMBSTONE at the end of the chain with transaction id WT_TXN_NONE
+         * We write the stop time pair of M with the start time pair of the tombstone and skip the
+         * tombstone.
+         * 4) We have a tombstone at the end of the chain with transaction id WT_TXN_NONE
          * and start timestamp WT_TS_NONE, it is simply ignored.
          */
         for (; upd != NULL; upd = upd->next) {
@@ -944,8 +944,10 @@ __wt_find_lookaside_upd(
     WT_UPDATE *mod_upd, *upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp, read_timestamp;
     size_t notused, size;
+    uint64_t recno;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, prepare_state_tmp, *p, recno_key[WT_INTPACK64_MAXSIZE], upd_type;
+    const uint8_t *recnop;
     int cmp;
     bool modify;
 
@@ -1026,13 +1028,13 @@ __wt_find_lookaside_upd(
          * It's necessary to explicitly signal a prepare conflict so that the callers don't fallback
          * to using something from the update list.
          *
-         * FIXME-PM-1521: To be removed or reverted in the future
+         * FIXME-PM-1521: review the code in future
          */
-        // if (prepare_state == WT_PREPARE_INPROGRESS &&
-        //   !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
-        //     ret = WT_PREPARE_CONFLICT;
-        //     break;
-        // }
+        if (prepare_state == WT_PREPARE_INPROGRESS &&
+          !F_ISSET(&session->txn, WT_TXN_IGNORE_PREPARE) && !allow_prepare) {
+            ret = WT_PREPARE_CONFLICT;
+            break;
+        }
 
         /* We do not have birthmarks and tombstones in the lookaside anymore. */
         WT_ASSERT(session, upd_type != WT_UPDATE_BIRTHMARK && upd_type != WT_UPDATE_TOMBSTONE);
@@ -1095,37 +1097,37 @@ __wt_find_lookaside_upd(
          * timestamp in the las key may differ so it's easier if we get rid of it now and rewrite
          * the entry on eviction/commit/rollback.
          *
-         * FIXME-PM-1521: To be removed or reverted in the future
+         * FIXME-PM-1521: review the code in future
          */
-        // if (prepare_state == WT_PREPARE_INPROGRESS) {
-        //     WT_ASSERT(session, !modify);
-        //     switch (cbt->ref->page->type) {
-        //     case WT_PAGE_COL_FIX:
-        //     case WT_PAGE_COL_VAR:
-        //         recnop = las_key->data;
-        //         WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
-        //         WT_ERR(__wt_col_modify(cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
-        //         break;
-        //     case WT_PAGE_ROW_LEAF:
-        //         WT_ERR(__wt_row_modify(cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
-        //         break;
-        //     }
+        if (prepare_state == WT_PREPARE_INPROGRESS) {
+            WT_ASSERT(session, !modify);
+            switch (cbt->ref->page->type) {
+            case WT_PAGE_COL_FIX:
+            case WT_PAGE_COL_VAR:
+                recnop = las_key->data;
+                WT_ERR(__wt_vunpack_uint(&recnop, 0, &recno));
+                WT_ERR(__wt_col_modify(cbt, recno, NULL, upd, WT_UPDATE_STANDARD, false));
+                break;
+            case WT_PAGE_ROW_LEAF:
+                WT_ERR(__wt_row_modify(cbt, las_key, NULL, upd, WT_UPDATE_STANDARD, false));
+                break;
+            }
 
-        //     ret = las_cursor->remove(las_cursor);
-        //     if (ret != 0)
-        //         WT_PANIC_ERR(session, ret,
-        //           "initialised prepared update but was unable to remove the corresponding entry "
-        //           "from lookaside");
+            ret = las_cursor->remove(las_cursor);
+            if (ret != 0)
+                WT_PANIC_ERR(session, ret,
+                  "initialised prepared update but was unable to remove the corresponding entry "
+                  "from lookaside");
 
-        //     /* This is going in our update list so it should be accounted for in cache usage. */
-        //     __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
-        // }
-
-        /*
-         * We're not keeping this in our update list as we want to get rid of it after the read has
-         * been dealt with. Mark this update as external and to be discarded when not needed.
-         */
-        upd->ext = 1;
+            /* This is going in our update list so it should be accounted for in cache usage. */
+            __wt_cache_page_inmem_incr(session, cbt->ref->page, size);
+        } else
+            /*
+             * We're not keeping this in our update list as we want to get rid of it after the read
+             * has been dealt with. Mark this update as external and to be discarded when not
+             * needed.
+             */
+            upd->ext = 1;
         *updp = upd;
 
         /* We are done, we found the record we were searching for */
