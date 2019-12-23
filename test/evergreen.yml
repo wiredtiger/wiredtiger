@@ -172,7 +172,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
+          ${test_env_vars|} ${format_test_setting|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
   "many dbs test":
     command: shell.exec
@@ -1990,6 +1990,7 @@ tasks:
           # No of processes to run in the background
           no_of_procs: 10
 
+  # The task name is ppc-zseries because this task will be used in both buildVariants
   - name: format-stress-ppc-zseries-test
     # Set 25 hours timeout
     exec_timeout_secs: 90000
@@ -1998,7 +1999,7 @@ tasks:
       - func: "compile wiredtiger with builtins"
       - func: "format test script"
         vars:
-          test_env_vars: ulimit -c unlimited
+          format_test_setting: ulimit -c unlimited
           #run for 24 hours ( 24 * 60 = 1440 minutes), use default config
           format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 1440
 
@@ -2014,19 +2015,19 @@ tasks:
             set -o verbose
 
             cat > split_heavy.wtperf << EOF
-            conn_config="cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=5,json=false)"
-            table_config="leaf_page_max=8k,internal_page_max=8k,leaf_item_max=1433,internal_item_max=3100,type=file,memory_page_max=1MB,split_deepen_min_child=100"
-            table_count=3
-            icount=50000
-            populate_threads=1
-            random_range=100000000
-            checkpoint_threads=0
-            report_interval=5
-            run_time=10
-            threads=((count=20,inserts=1))
-            value_sz=200
-            key_sz=64
-            reopen_connection=false
+                  conn_config="cache_size=100MB,log=(enabled=false),statistics=[fast],statistics_log=(wait=5,json=false)"
+                  table_config="leaf_page_max=8k,internal_page_max=8k,leaf_item_max=1433,internal_item_max=3100,type=file,memory_page_max=1MB,split_deepen_min_child=100"
+                  table_count=3
+                  icount=50000
+                  populate_threads=1
+                  random_range=100000000
+                  checkpoint_threads=0
+                  report_interval=5
+                  run_time=10
+                  threads=((count=20,inserts=1))
+                  value_sz=200
+                  key_sz=64
+                  reopen_connection=false
             EOF
 
             ./bench/wtperf/wtperf -O ./split_heavy.wtperf -o verbose=2
