@@ -1992,16 +1992,16 @@ tasks:
 
   # The task name is ppc-zseries because this task will be used in both buildVariants
   - name: format-stress-ppc-zseries-test
-    # Set 25 hours timeout
-    exec_timeout_secs: 90000
+    # Set 13 hours timeout
+    exec_timeout_secs: 46800
     commands:
       - func: "get project"
       - func: "compile wiredtiger with builtins"
       - func: "format test script"
         vars:
           format_test_setting: ulimit -c unlimited
-          #run for 24 hours ( 24 * 60 = 1440 minutes), use default config
-          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 1440
+          #run for 12 hours ( 12 * 60 = 720 minutes), use default config
+          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 720
 
   - name: format-wtperf-test
     commands:
