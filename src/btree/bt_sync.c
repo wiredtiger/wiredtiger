@@ -101,33 +101,27 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
- * __wt_ref_is_obsolete --
- *     Check whether the ref is obsolete according to the newest stop time pair.
+ * __sync_ref_is_obsolete --
+ *     Return whether the ref is obsolete according to the newest stop time pair.
  */
 static bool
-__wt_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR *addr;
-    bool obsolete;
-
-    obsolete = false;
 
     addr = ref->addr;
-    if (addr && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts))
-        obsolete = true;
 
-    return obsolete;
+    return (
+      addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
 }
 
 /*
- * __wt_ref_mark_deleted --
+ * __sync_ref_mark_deleted --
  *     Lock the ref and change state as deleted. Also mark the parent page as dirty.
  */
 static int
-__wt_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    uint32_t previous_state;
-
     /* Ignore root pages as they are never be deleted */
     if (__wt_ref_is_root(ref))
         return (0);
@@ -140,12 +134,10 @@ __wt_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
      * parent page is checkpointing, the empty child page will be cleaned.
      */
-    previous_state = ref->state;
-    if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-        return (0);
-
-    WT_REF_SET_STATE(ref, WT_REF_DELETED);
-    WT_RET(__wt_page_parent_modify_set(session, ref, true));
+    if (WT_REF_CAS_STATE(session, ref, ref->state, WT_REF_LOCKED)) {
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        WT_RET(__wt_page_parent_modify_set(session, ref, true));
+    }
 
     return (0);
 }
@@ -345,7 +337,7 @@ skipwalk:
                  * Check whether the tree is lookaside btree and verify whether the page contents
                  * are obsolete or not by checking the visibility of the page stop time pair.
                  */
-                if (is_las && __wt_ref_is_obsolete(session, walk)) {
+                if (is_las && __sync_ref_is_obsolete(session, walk)) {
                     /*
                      * The duplicate tree walk code expects the ref state to be in memory. We need
                      * to get the duplicate tree walk pointer before marking the current tree page
@@ -354,7 +346,7 @@ skipwalk:
                     WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
 
                     /* Mark the page as deleted */
-                    WT_ERR(__wt_ref_mark_deleted(session, walk));
+                    WT_ERR(__sync_ref_mark_deleted(session, walk));
 
                     /*
                      * The duplicate tree walk pointer, prev, was obtained before we marked the page
