@@ -110,36 +110,46 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ADDR *addr;
     WT_CELL_UNPACK vpack;
     WT_PAGE_MODIFY *mod;
+    bool obsolete;
 
     /* Ignore root pages as they can never be deleted. */
-    if (__wt_ref_is_root(ref))
+    if (__wt_ref_is_root(ref)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping root page", (void *)ref);
         return (false);
+    }
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (!__wt_ref_is_leaf(session, ref))
+    if (!__wt_ref_is_leaf(session, ref)) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
+          (void *)ref, (void *)ref->home);
         return (false);
+    }
+
+    obsolete = false;
 
     /* Check for the page obsolete, if the page is modified and reconciled. */
     mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
-        return (__wt_txn_visible_all(
-          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts));
+        obsolete = __wt_txn_visible_all(
+          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
 
     if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK)
-        return (__wt_txn_visible_all(
-          session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts));
+        obsolete = __wt_txn_visible_all(
+          session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts);
 
     /* Check for the obsolete from page disk address. */
     addr = ref->addr;
     if (addr != NULL) {
         if (!__wt_off_page(ref->home, addr)) {
             __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-            return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+            obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
         }
-        return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+        obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
     }
 
-    return (false);
+    if (obsolete)
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
+    return obsolete;
 }
 
 /*
@@ -155,11 +165,15 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page is marked for deletion with parent page: %p", (void *)ref, (void *)ref->home);
         return (__wt_page_parent_modify_set(session, ref, true));
     }
 
     /* Evict the in-memory obsolete page */
     WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+      "%p: is an in-memory obsolete page, added to urgent eviction queue.", (void *)ref);
     return (0);
 }
 
@@ -176,6 +190,10 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
     uint32_t slot;
 
     WT_INTL_INDEX_GET(session, parent->page, pindex);
+    __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+      "%p: traversing the internal page %p for obsolete child pages", (void *)parent,
+      (void *)parent->page);
+
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
