@@ -711,6 +711,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
+        /* The key didn't exist back then and is globally visible. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
             (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
                              upd->start_ts == WT_TXN_NONE));
