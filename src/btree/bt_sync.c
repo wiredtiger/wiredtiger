@@ -306,7 +306,7 @@ skipwalk:
                     WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
 
                     /* Mark the page as deleted */
-                    __sync_ref_mark_deleted(session, walk);
+                    WT_ERR(__sync_ref_mark_deleted(session, walk));
 
                     /*
                      * The duplicate tree walk pointer, prev, was obtained before we marked the page
