@@ -372,7 +372,7 @@ tasks:
           posix_configure_flags: --enable-strict --enable-diagnostic
 
   - name: compile-gcc-4.8
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -380,7 +380,7 @@ tasks:
           configure_env_vars: CC=gcc-4.8
 
   - name: compile-gcc-5
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -388,7 +388,7 @@ tasks:
           configure_env_vars: CC=gcc-5
 
   - name: compile-gcc-6
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -396,7 +396,7 @@ tasks:
           configure_env_vars: CC=gcc-6
 
   - name: compile-gcc-6-visibility-hidden
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -404,7 +404,7 @@ tasks:
           configure_env_vars: CC=gcc-6 CPPFLAGS=-fvisibility=hidden
 
   - name: compile-gcc-7
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -412,7 +412,7 @@ tasks:
           configure_env_vars: CC=gcc-7
 
   - name: compile-gcc-8
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -420,7 +420,7 @@ tasks:
           configure_env_vars: CC=gcc-8
 
   - name: compile-gcc-9
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -428,7 +428,7 @@ tasks:
           configure_env_vars: CC=gcc-9
 
   - name: compile-clang-3.9
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -436,7 +436,7 @@ tasks:
           configure_env_vars: CC=clang-3.9
 
   - name: compile-clang-4.0
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -444,7 +444,7 @@ tasks:
           configure_env_vars: CC=clang-4.0
 
   - name: compile-clang-5.0
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -452,7 +452,7 @@ tasks:
           configure_env_vars: CC=clang-5.0
 
   - name: compile-clang-6.0
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -460,7 +460,7 @@ tasks:
           configure_env_vars: CC=clang-6.0
 
   - name: compile-clang-7
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -468,7 +468,7 @@ tasks:
           configure_env_vars: CC=clang-7
 
   - name: compile-clang-8
-    tags: ["pull_request_compilers"]
+    tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2105,7 +2105,7 @@ buildvariants:
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
-    - name: ".pull_request !.windows_only"
+    - name: ".pull_request !.windows_only !.pull_request_compilers"
     - name: compile-msan
     - name: make-check-msan-test
     - name: compile-ubsan
