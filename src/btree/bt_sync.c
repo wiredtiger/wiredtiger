@@ -108,13 +108,11 @@ static bool
 __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR *addr;
+    WT_PAGE_MODIFY *mod;
+    bool obsolete;
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref))
-        return (false);
-
-    /* Guard against marking an in-memory page to be deleted. */
-    if (ref->state != WT_REF_DISK)
         return (false);
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
@@ -124,25 +122,38 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     /* DON'T WE HAVE TO POTENTIALLY UNPACK THE CELL? */
 
     addr = ref->addr;
-    return (
-      addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+    mod = ref->page ? ref->page->modify : NULL;
+    obsolete = false;
+
+    if (addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts))
+        obsolete = true;
+    else if (mod && mod->rec_result == WT_PM_REC_REPLACE &&
+      __wt_txn_visible_all(
+               session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts))
+        obsolete = true;
+    else if (mod && mod->rec_result == WT_PM_REC_MULTIBLOCK &&
+      __wt_txn_visible_all(session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts))
+        obsolete = true;
+
+    return obsolete;
 }
 
 /*
- * __sync_ref_mark_deleted --
- *     Lock the ref and change state as deleted. Also mark the parent page as dirty.
+ * __sync_ref_evict_or_mark_deleted --
+ *     Evict the in memory page or delete the on disk page.
  */
 static int
-__sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+__sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     /*
-     * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
-     * parent page is checkpointing, the empty child page will be cleaned.
+     * Mark the on disk page as deleted and also set the parent page as dirty. This is to ensure
+     * when the parent page is checkpointing, the empty child page will be cleaned.
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_RET(__wt_page_parent_modify_set(session, ref, true));
-    }
+    } else
+        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
 
     return (0);
 }
@@ -164,7 +175,7 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
         ref = pindex->index[slot];
 
         if (__sync_ref_is_obsolete(session, ref))
-            WT_RET(__sync_ref_mark_deleted(session, ref));
+            WT_RET(__sync_ref_evict_or_mark_deleted(session, ref));
     }
 
     return (0);
@@ -312,6 +323,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
+skipwalk:
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL)
@@ -338,6 +350,29 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                     btree->rec_max_txn = mod->rec_max_txn;
                 if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
                     btree->rec_max_timestamp = mod->rec_max_timestamp;
+
+                /*
+                 * Check whether the tree is lookaside btree and verify whether the page contents
+                 * are obsolete or not by checking the visibility of the page stop time pair.
+                 */
+                if (is_las && __sync_ref_is_obsolete(session, walk)) {
+                    /*
+                     * The duplicate tree walk code expects the ref state to be in memory. We need
+                     * to get the duplicate tree walk pointer before marking the current tree page
+                     * as deleted.
+                     */
+                    WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
+
+                    /* Evict or mark the page as deleted */
+                    WT_ERR(__sync_ref_evict_or_mark_deleted(session, walk));
+
+                    /*
+                     * The duplicate tree walk pointer, prev, was obtained before we marked the page
+                     * as deleted. Continue the rest of the tree walk using that pointer.
+                     */
+                    goto skipwalk;
+                }
+
                 continue;
             }
 
