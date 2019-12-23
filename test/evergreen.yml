@@ -378,7 +378,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-4.8
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-gcc-5
     tags: ["pull_request_compilers"]
@@ -387,7 +386,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-5
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-gcc-6
     tags: ["pull_request_compilers"]
@@ -396,7 +394,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-6
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-gcc-6-visibility-hidden
     tags: ["pull_request_compilers"]
@@ -405,7 +402,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-6 CPPFLAGS=-fvisibility=hidden
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-gcc-7
     tags: ["pull_request_compilers"]
@@ -414,7 +410,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-7
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-gcc-8
     tags: ["pull_request_compilers"]
@@ -423,7 +418,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-8
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-gcc-9
     tags: ["pull_request_compilers"]
@@ -432,7 +426,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-9
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-clang-3.9
     tags: ["pull_request_compilers"]
@@ -441,7 +434,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-3.9
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
 
   - name: compile-clang-4.0
     tags: ["pull_request_compilers"]
@@ -450,7 +442,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-4.0
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
 
   - name: compile-clang-5.0
     tags: ["pull_request_compilers"]
@@ -459,7 +450,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-5.0
-          posix_configure_flags: --enable-silent-rules --enable-strict --disable-static --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
 
   - name: compile-clang-6.0
     tags: ["pull_request_compilers"]
@@ -468,7 +458,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-6.0
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-clang-7
     tags: ["pull_request_compilers"]
@@ -477,7 +466,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-7
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: compile-clang-8
     tags: ["pull_request_compilers"]
@@ -486,7 +474,6 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-8
-          posix_configure_flags: --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd
 
   - name: make-check-test
     depends_on:
@@ -2150,6 +2137,7 @@ buildvariants:
   run_on:
   - ubuntu1804-wt-build
   expansions:
+    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
