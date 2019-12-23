@@ -665,8 +665,21 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * The algorithm walks from the oldest update to the newest update and build full updates
          * along the way. It sets the stop time pair of the update to the start time pair of the
          * next update, squashes the updates that are from the same transaction and of the same
-         * start timestamp, and inserts the update to lookaside. It then skips TOMBSTONE and
-         * calculates reverse modification if prev_upd is a MODIFY.
+         * start timestamp, calculates reverse modification if prev_upd is a MODIFY, and inserts the
+         * update to lookaside.
+         *
+         * It deals with the following scenarios:
+         * 1) We only have full updates on the chain and we only insert full updates to lookaside.
+         * 2) We have MODIFYs on the chain, i.e., U (selected onpage value) -> M -> M ->U. We
+         * reverse the modifies and insert the reversed modifies to lookaside if it is not the
+         * newest update written to lookaside and the reverse operation is successful.
+         * With regard to the example, we insert U -> RM -> U to lookaside.
+         * 3) We have TOMBSTONEs in the middle of the chain, i.e.,
+         * U (selected onpage value) -> U -> T -> M -> U.
+         * We write the stop time pair of M with the start time pair of the TOMBSTONE and skip the
+         * TOMBSTONE.
+         * 4) We have a TOMBSTONE at the end of the chain with transaction id WT_TXN_NONE
+         * and start timestamp WT_TS_NONE, it is simply ignored.
          */
         for (; upd != NULL; upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
@@ -1037,7 +1050,7 @@ __wt_find_lookaside_upd(
                 /*
                  * Find the base update to apply the reverse deltas
                  */
-                WT_ERR(las_cursor->next(las_cursor));
+                WT_ERR_NOTFOUND_OK(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
                 las_start_tmp.txnid = WT_TXN_NONE;
 
