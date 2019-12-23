@@ -30,7 +30,7 @@
 #   Transactions: recovery toggling logging
 #
 
-import fnmatch, os, shutil, time
+import fnmatch, os, shutil, time, unittest
 from suite_subprocess import suite_subprocess
 from wtscenario import make_scenarios
 import wttest
@@ -110,6 +110,7 @@ class test_txn09(wttest.WiredTigerTestCase, suite_subprocess):
         self.check(self.session2, "isolation=read-committed", committed)
         self.check(self.session2, "isolation=read-uncommitted", current)
 
+    @unittest.skip("Temporarily disabled")
     def test_ops(self):
         # print "Creating %s with config '%s'" % (self.uri, self.create_params)
         self.session.create(self.uri, self.create_params)

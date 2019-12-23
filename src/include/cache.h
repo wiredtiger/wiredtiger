@@ -56,8 +56,6 @@ typedef enum __wt_cache_op {
 
 #define WT_LAS_FILE_MIN (100 * WT_MEGABYTE)
 #define WT_LAS_NUM_SESSIONS 5
-#define WT_LAS_SWEEP_ENTRIES (20 * WT_THOUSAND)
-#define WT_LAS_SWEEP_SEC 2
 
 /*
  * WiredTiger cache structure.
@@ -188,7 +186,7 @@ struct __wt_cache {
 
     /*
      * Shared lookaside lock, session and cursor, used by threads accessing the lookaside table
-     * (other than eviction server and worker threads and the sweep thread, all of which have their
+     * (other than eviction server and worker threads, all of which have their
      * own lookaside cursors).
      */
     WT_SPINLOCK las_lock;
@@ -197,23 +195,6 @@ struct __wt_cache {
 
     uint32_t las_fileid;       /* Lookaside table file ID */
     uint64_t las_insert_count; /* Count of inserts to lookaside */
-    uint64_t las_remove_count; /* Count of removes from lookaside */
-
-    bool las_reader; /* Indicate an LAS reader to sweep */
-    WT_RWLOCK las_sweepwalk_lock;
-    WT_SPINLOCK las_sweep_lock;
-    WT_ITEM las_sweep_key;            /* Track sweep position. */
-    uint32_t las_sweep_dropmin;       /* Minimum btree ID in current set. */
-    uint8_t *las_sweep_dropmap;       /* Bitmap of dropped btree IDs. */
-    uint32_t las_sweep_dropmax;       /* Maximum btree ID in current set. */
-    uint32_t las_max_btree_id;        /* Maximum btree ID for sweep. */
-    WT_ITEM las_max_key;              /* Maximum key for sweep. */
-    wt_timestamp_t las_max_timestamp; /* Maximum timestamp for sweep. */
-    uint64_t las_max_txnid;           /* Maximum txn ID for sweep. */
-
-    uint32_t *las_dropped;    /* List of dropped btree IDs. */
-    size_t las_dropped_next;  /* Next index into drop list. */
-    size_t las_dropped_alloc; /* Allocated size of drop list. */
 
     /*
      * The "lookaside_activity" verbose messages are throttled to once per checkpoint. To accomplish
@@ -289,6 +270,11 @@ struct __wt_cache_pool {
                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };
+
+/*
+ * Optimize comparisons against the lookaside URI, flag handles that reference the lookaside file.
+ */
+#define WT_DHANDLE_IS_LOOKASIDE(session) F_ISSET(S2BT((session)), WT_BTREE_LOOKASIDE)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */
