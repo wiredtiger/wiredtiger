@@ -42,9 +42,9 @@ class test_las08(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     uri = "table:test_las08"
     key_format_values = [
-        ('column_store', dict(key_format='r')),
-        ('row_store', dict(key_format='i')),
-        ('row_store', dict(key_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer', dict(key_format='i')),
+        ('string', dict(key_format='S')),
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -89,19 +89,19 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value1
+            cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 5Mb of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value2
+            cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Uncommitted changes
         self.session.begin_transaction()
         for i in range(1, 11):
-            cursor[self.createKey(i)] = value3
+            cursor[self.create_key(i)] = value3
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
@@ -126,18 +126,17 @@ class test_las08(wttest.WiredTigerTestCase):
         # Load another 5Mb of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value2
+            cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Prepare some updates
         self.session.begin_transaction()
         for i in range(1, 11):
-            cursor[self.createKey(i)] = value3
-        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(5))
+            cursor[self.create_key(i)] = value3
+        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
-    @unittest.skip("Temparorily disabled until reading time pairs from cells implemented")
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -151,18 +150,17 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value1
+            cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 5Mb of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value2
+            cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
-    @unittest.skip("Temparorily disabled until reading time pairs from cells implemented")
     def test_write_deleted_version_to_data_store(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -176,17 +174,22 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value1
+            cursor[self.create_key(i)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Load another 5Mb of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 10000):
-            cursor[self.createKey(i)] = value2
+            cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Drop table
-        self.session.drop(self.uri, 'commit_timestamp=' + timestamp_str(4))
+        # Delete records.
+        self.session.begin_transaction()
+        for i in range(5, 10):
+            cursor = self.session.open_cursor(self.uri)
+            cursor.set_key(self.create_key(i))
+            self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
