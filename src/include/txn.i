@@ -711,47 +711,30 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
-    static WT_UPDATE tombstone = {.txnid = WT_TXN_NONE, .type = WT_UPDATE_TOMBSTONE};
-    WT_DECL_RET;
-    WT_UPDATE *tmp_upd;
     WT_VISIBLE_TYPE upd_visible;
-    bool skipped_birthmark;
 
     *updp = NULL;
-    for (skipped_birthmark = false; upd != NULL; upd = upd->next) {
+    for (; upd != NULL; upd = upd->next) {
         /* Skip reserved place-holders, they're never visible. */
-        if (upd->type != WT_UPDATE_RESERVE) {
-            upd_visible = __wt_txn_upd_visible_type(session, upd);
-            if (upd_visible == WT_VISIBLE_TRUE)
-                break;
-            if (upd_visible == WT_VISIBLE_PREPARE)
-                return (WT_PREPARE_CONFLICT);
+        if (upd->type == WT_UPDATE_RESERVE)
+            continue;
+        upd_visible = __wt_txn_upd_visible_type(session, upd);
+        if (upd_visible == WT_VISIBLE_TRUE) {
+            if (upd->type != WT_UPDATE_BIRTHMARK)
+                *updp = upd;
+            return (0);
         }
-        /* An invisible birthmark is equivalent to a tombstone. */
-        if (upd->type == WT_UPDATE_BIRTHMARK)
-            skipped_birthmark = true;
+        if (upd_visible == WT_VISIBLE_PREPARE)
+            return (WT_PREPARE_CONFLICT);
     }
 
-    /* Find a visible record in the lookaside and check if we should use that instead. */
-    if ((upd == NULL || session->txn.read_timestamp != 0) &&
-      __wt_page_las_active(session, cbt->ref)) {
-        ret = __wt_find_lookaside_upd(session, cbt, &tmp_upd, false);
-        WT_RET_NOTFOUND_OK(ret);
-        if (ret == 0) {
-            /* Pick newer of the visible updates */
-            if (upd == NULL || upd->start_ts < tmp_upd->start_ts)
-                upd = tmp_upd;
-            else {
-                WT_STAT_CONN_INCR(session, cache_lookaside_read_wasted);
-                __wt_free_update_list(session, &tmp_upd);
-            }
-        }
-    }
+    /* If there's no visible update in the update chain, check the lookaside file. */
+    if (__wt_page_las_active(session, cbt->ref))
+        WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
-    if (upd == NULL && skipped_birthmark)
-        upd = &tombstone;
-
-    *updp = upd == NULL || upd->type == WT_UPDATE_BIRTHMARK ? NULL : upd;
+    /* There is no BIRTHMARK in lookaside file. */
+    WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_BIRTHMARK);
+    *updp = upd;
     return (0);
 }
 
