@@ -2131,7 +2131,6 @@ buildvariants:
     - name: format-stress-smoke-test
     - name: checkpoint-stress-test
 
-buildvariants:
 - name: ubuntu1804-compilers
   display_name: Ubuntu 18.04 Compilers
   run_on:
