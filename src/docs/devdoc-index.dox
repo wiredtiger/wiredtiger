@@ -2,8 +2,7 @@
 
 @subpage devdoc-glossary
 
-WiredTiger assigns specific meanings to some words, the following page decodes
-them.
+WiredTiger assigns specific meanings to certain words. Here we decode them.
 
 @subpage devdoc-schema
 

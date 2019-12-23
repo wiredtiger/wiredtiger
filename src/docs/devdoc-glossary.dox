@@ -4,7 +4,7 @@ WiredTiger has a lot of domain specific nomenclature - this page attempts
 to decode it. This is intended for those navigating the WiredTiger source
 tree - it describes terms internal to the storage engine.
 
-@section devdoc-glossary-general General terms Used in WiredTiger
+@section devdoc-glossary-general General Terms Used in WiredTiger
 
 <table>
 <caption id="general_terms">General Term Table</caption>
