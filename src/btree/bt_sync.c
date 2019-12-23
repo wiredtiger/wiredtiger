@@ -167,8 +167,8 @@ __wt_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
         if (ref->pindex_hint != slot)
             ref->pindex_hint = slot;
 
-        if (__wt_ref_is_obsolete(session, ref))
-            WT_RET(__wt_ref_mark_deleted(session, ref));
+        if (__sync_ref_is_obsolete(session, ref))
+            WT_RET(__sync_ref_mark_deleted(session, ref));
     }
 
     return (0);
@@ -430,7 +430,7 @@ skipwalk:
                  * deleted.
                  */
                 WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-                WT_ERR(__wt_ref_mark_deleted(session, walk));
+                WT_ERR(__sync_ref_mark_deleted(session, walk));
                 goto skipwalk;
             }
         }
