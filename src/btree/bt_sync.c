@@ -155,18 +155,9 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
     WT_REF *ref;
     uint32_t slot;
 
-    pindex = NULL;
-
-    pindex = WT_INTL_INDEX_GET_SAFE(intref->page);
+    WT_INTL_INDEX_GET(session, intref->page, pindex);
     for (slot = 0; slot < pindex->entries; slot++) {
-        /*
-         * Get a reference, setting the reference hint if it's wrong (used when we continue the
-         * walk). We don't always update the hints when splitting, it's expected for them to be
-         * incorrect in some workloads.
-         */
         ref = pindex->index[slot];
-        if (ref->pindex_hint != slot)
-            ref->pindex_hint = slot;
 
         /* Skip the deleted child pages. */
         if (ref->state == WT_REF_DELETED)
@@ -326,8 +317,10 @@ skipwalk:
                 break;
 
             /* Traverse through the internal page for obsolete child pages. */
-            if (is_las && WT_PAGE_IS_INTERNAL(walk->page))
-                WT_ERR(__sync_ref_int_obsolete_cleanup(session, walk));
+            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
+                WT_WITH_PAGE_INDEX(session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
+                WT_ERR(ret);
+            }
 
             /*
              * Skip clean pages, but need to make sure maximum transaction ID is always updated.
