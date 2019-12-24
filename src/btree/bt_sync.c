@@ -144,12 +144,12 @@ __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_ref_int_obsolete_cleanup --
+ * __sync_ref_int_obsolete_cleanup --
  *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
  *     deleted.
  */
 static int
-__wt_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
@@ -327,7 +327,7 @@ skipwalk:
 
             /* Traverse through the internal page for obsolete child pages. */
             if (is_las && WT_PAGE_IS_INTERNAL(walk->page))
-                WT_ERR(__wt_ref_int_obsolete_cleanup(session, walk));
+                WT_ERR(__sync_ref_int_obsolete_cleanup(session, walk));
 
             /*
              * Skip clean pages, but need to make sure maximum transaction ID is always updated.
@@ -428,7 +428,7 @@ skipwalk:
             }
 
             /* Reconciliation of a history store page resulted as empty, mark it for deletion. */
-            if (is_las && page->modify && page->modify->rec_result == WT_PM_REC_EMPTY) {
+            if (is_las && page->modify != NULL && page->modify->rec_result == WT_PM_REC_EMPTY) {
                 /*
                  * The duplicate tree walk code expects the ref state to be in memory. We need to
                  * get the duplicate tree walk pointer before marking the current tree page as

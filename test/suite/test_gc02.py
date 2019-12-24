@@ -35,13 +35,13 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_gc02.py
-# Test that checkpoint cleans the obsolete lookaside pages.
+# Test that checkpoint cleans the obsolete lookaside internal pages.
 class test_gc02(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=1GB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records, we'll hang if the lookaside table isn't working.
+        # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(1, nrows + 1):
@@ -51,7 +51,7 @@ class test_gc02(wttest.WiredTigerTestCase):
         cursor.close()
 
     def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
-        # Load a slight modification with a later timestamp.
+        # Load a slight modification.
         session = self.session
         cursor = session.open_cursor(uri)
         session.begin_transaction()
@@ -76,7 +76,7 @@ class test_gc02(wttest.WiredTigerTestCase):
     def test_gc(self):
         nrows = 100000
 
-        # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.
+        # Create a table without logging.
         uri = "table:gc02"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')

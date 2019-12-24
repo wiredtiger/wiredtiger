@@ -42,7 +42,7 @@ class test_gc01(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records, we'll hang if the lookaside table isn't working.
+        # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(1, nrows + 1):
@@ -52,7 +52,7 @@ class test_gc01(wttest.WiredTigerTestCase):
         cursor.close()
 
     def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
-        # Load a slight modification with a later timestamp.
+        # Load a slight modification.
         session = self.session
         cursor = session.open_cursor(uri)
         session.begin_transaction()
@@ -77,7 +77,7 @@ class test_gc01(wttest.WiredTigerTestCase):
     def test_gc(self):
         nrows = 10000
 
-        # Create a table without logging to ensure we get "skew_newest" lookaside eviction behavior.
+        # Create a table without logging.
         uri = "table:gc01"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
