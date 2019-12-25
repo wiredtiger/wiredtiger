@@ -306,7 +306,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         /* Read internal pages if it is history store */
         if (is_las)
-            LF_SET(WT_READ_INT_PAGE);
+            LF_SET(WT_READ_CACHE_LEAF);
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));

@@ -701,7 +701,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             goto read;
         case WT_REF_DISK:
             /* Read internal pages if requested */
-            if (LF_ISSET(WT_READ_INT_PAGE) && ((WT_ADDR *)ref->addr)->type == WT_ADDR_INT)
+            if (LF_ISSET(WT_READ_CACHE_LEAF) && !__wt_ref_is_leaf(session, ref))
                 goto read;
             if (LF_ISSET(WT_READ_CACHE))
                 return (WT_NOTFOUND);
