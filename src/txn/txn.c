@@ -1595,14 +1595,13 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char *config, const cha
 int
 __wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_TXN *txn;
     WT_TXN_STATE *txn_state;
-    uint64_t txn_oldest;
+    uint64_t global_oldest, txn_oldest;
 
-    conn = S2C(session);
     txn = &session->txn;
     txn_state = WT_SESSION_TXN_STATE(session);
+    global_oldest = S2C(session)->txn_global.oldest_id;
 
     /* We can't roll back prepared transactions. */
     if (F_ISSET(txn, WT_TXN_PREPARE))
@@ -1616,24 +1615,19 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
         return (false);
 
-    /* Check the oldest transaction ID of either the current transaction ID or the snapshot. */
-    txn_oldest = txn->id;
-    if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && txn->snap_min != WT_TXN_NONE &&
-      (txn_oldest == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_oldest)))
-        txn_oldest = txn->snap_min;
-
     /*
+     * Check the oldest transaction ID of either the current transaction ID or the snapshot.
+     *
      * Read-committed and read-uncommitted transactions enter transaction IDs into the global table
      * to stop updates they're reading from being freed, and that can prevent the oldest ID from
      * moving forward.
      */
-    if (txn_state->pinned_id != WT_TXN_NONE && WT_TXNID_LT(txn_state->pinned_id, txn_oldest))
-        txn_oldest = txn_state->pinned_id;
-    if (txn_state->metadata_pinned != WT_TXN_NONE &&
-      WT_TXNID_LT(txn_state->metadata_pinned, txn_oldest))
-        txn_oldest = txn_state->metadata_pinned;
-
-    return (txn_oldest == conn->txn_global.oldest_id ?
+    txn_oldest = txn->id;
+    if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && txn->snap_min != WT_TXN_NONE &&
+      (txn_oldest == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_oldest)))
+        txn_oldest = txn->snap_min;
+    return (txn_oldest == global_oldest || txn_state->pinned_id == global_oldest ||
+          txn_state->metadata_pinned == global_oldest ?
         __wt_txn_rollback_required(
           session, "oldest pinned transaction ID rolled back for eviction") :
         0);
