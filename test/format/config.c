@@ -39,7 +39,6 @@ static bool config_fix(void);
 static void config_in_memory(void);
 static void config_in_memory_reset(void);
 static int config_is_perm(const char *);
-static void config_lrt(void);
 static void config_lsm_reset(void);
 static void config_map_checkpoint(const char *, u_int *);
 static void config_map_checksum(const char *, u_int *);
@@ -176,7 +175,6 @@ config_setup(void)
     config_compression("compression");
     config_compression("logging_compression");
     config_encryption();
-    config_lrt();
 
     /* Configuration based on the configuration already chosen. */
     config_pct();
@@ -451,12 +449,7 @@ config_encryption(void)
 static bool
 config_fix(void)
 {
-    /*
-     * Fixed-length column stores don't support the lookaside table (so, no long running
-     * transactions), or modify operations.
-     */
-    if (config_is_perm("long_running_txn"))
-        return (false);
+    /* Fixed-length column stores don't support the lookaside table, so no modify operations. */
     if (config_is_perm("modify_pct"))
         return (false);
     return (true);
@@ -569,25 +562,6 @@ config_lsm_reset(void)
     if (!config_is_perm("prepare") && !config_is_perm("transaction_timestamps")) {
         config_single("prepare=off", false);
         config_single("transaction_timestamps=off", false);
-    }
-}
-
-/*
- * config_lrt --
- *     Long-running transaction configuration.
- */
-static void
-config_lrt(void)
-{
-    /*
-     * WiredTiger doesn't support a lookaside file for fixed-length column stores.
-     */
-    if (g.type == FIX && g.c_long_running_txn) {
-        if (config_is_perm("long_running_txn"))
-            testutil_die(EINVAL,
-              "long_running_txn not supported with fixed-length "
-              "column store");
-        config_single("long_running_txn=off", false);
     }
 }
 
