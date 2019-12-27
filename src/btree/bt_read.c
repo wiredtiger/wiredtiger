@@ -664,14 +664,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
     /* Sanity check flag combinations. */
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
-        LF_ISSET(WT_READ_CACHE));
+        LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF));
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE)) {
+    if (!LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF)) {
         WT_STAT_CONN_INCR(session, cache_pages_requested);
         WT_STAT_DATA_INCR(session, cache_pages_requested);
     }
@@ -700,10 +700,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             }
             goto read;
         case WT_REF_DISK:
-            /* Read internal pages if requested */
-            if (LF_ISSET(WT_READ_CACHE_LEAF) && !__wt_ref_is_leaf(session, ref))
-                goto read;
-            if (LF_ISSET(WT_READ_CACHE))
+            /* Limit reads to cache-only, or internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE) ||
+              (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
                 return (WT_NOTFOUND);
 
 read:

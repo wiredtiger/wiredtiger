@@ -122,13 +122,12 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    /* Ignore root pages as they are never be deleted */
+    /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref))
         return (0);
 
-    /* Guard against marking a page to be deleted when its reconciliation state is not empty. */
-    if (ref->page != NULL && ref->page->modify != NULL &&
-      ref->page->modify->rec_result != WT_PM_REC_EMPTY)
+    /* Guard against marking an in-memory page to be deleted. */
+    if (ref->page != NULL)
         return (0);
 
     /*
@@ -158,10 +157,6 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
     WT_INTL_INDEX_GET(session, intref->page, pindex);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
-
-        /* Skip the deleted child pages. */
-        if (ref->state == WT_REF_DELETED)
-            continue;
 
         if (__sync_ref_is_obsolete(session, ref))
             WT_RET(__sync_ref_mark_deleted(session, ref));
@@ -305,8 +300,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
 
         /* Read internal pages if it is history store */
-        if (is_las)
+        if (is_las) {
+            LF_CLR(WT_READ_CACHE);
             LF_SET(WT_READ_CACHE_LEAF);
+        }
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
@@ -418,18 +415,6 @@ skipwalk:
                 /* Periodically log checkpoint progress. */
                 if (conn->ckpt_write_pages % 5000 == 0)
                     __wt_checkpoint_progress(session, false);
-            }
-
-            /* Reconciliation of a history store page resulted as empty, mark it for deletion. */
-            if (is_las && page->modify != NULL && page->modify->rec_result == WT_PM_REC_EMPTY) {
-                /*
-                 * The duplicate tree walk code expects the ref state to be in memory. We need to
-                 * get the duplicate tree walk pointer before marking the current tree page as
-                 * deleted.
-                 */
-                WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-                WT_ERR(__sync_ref_mark_deleted(session, walk));
-                goto skipwalk;
             }
         }
         break;
