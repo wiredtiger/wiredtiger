@@ -312,7 +312,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-skipwalk:
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL)
