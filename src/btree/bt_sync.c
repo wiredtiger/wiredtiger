@@ -108,6 +108,7 @@ static bool
 __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR *addr;
+    WT_CELL_UNPACK vpack;
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref))
@@ -121,11 +122,12 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!__wt_ref_is_leaf(session, ref))
         return (false);
 
-    /* DON'T WE HAVE TO POTENTIALLY UNPACK THE CELL? */
-
-    addr = ref->addr;
-    return (
-      addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+    WT_ORDERED_READ(addr, ref->addr);
+    if (!__wt_off_page(ref->home, addr)) {
+        __wt_cell_unpack(session, ref->home, addr, &vpack);
+        return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+    } else
+        return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
 }
 
 /*
@@ -153,13 +155,13 @@ __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
  *     deleted.
  */
 static int
-__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *intref)
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 {
     WT_PAGE_INDEX *pindex;
     WT_REF *ref;
     uint32_t slot;
 
-    WT_INTL_INDEX_GET(session, intref->page, pindex);
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
     for (slot = 0; slot < pindex->entries; slot++) {
         ref = pindex->index[slot];
 
