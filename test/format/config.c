@@ -236,7 +236,7 @@ config_setup(void)
 static void
 config_cache(void)
 {
-    uint32_t required;
+    uint32_t required, workers;
 
     /* Page sizes are powers-of-two for bad historic reasons. */
     g.intl_page_max = 1U << g.c_intl_page_max;
@@ -267,7 +267,8 @@ config_cache(void)
      * This code is what dramatically increases the cache size when there are lots of threads, it
      * grows the cache to several megabytes per thread.
      */
-    g.c_cache = WT_MAX(g.c_cache, 2 * g.c_threads * g.c_memory_page_max);
+    workers = g.c_threads + (g.c_random_cursor ? 1 : 0);
+    g.c_cache = WT_MAX(g.c_cache, 2 * workers * g.c_memory_page_max);
 
     /*
      * Ensure cache size sanity for LSM runs. An LSM tree open requires 3
@@ -279,7 +280,7 @@ config_cache(void)
      */
     if (DATASOURCE("lsm")) {
         required = WT_LSM_TREE_MINIMUM_SIZE(
-          g.c_chunk_size * WT_MEGABYTE, g.c_threads * g.c_merge_max, g.c_threads * g.leaf_page_max);
+          g.c_chunk_size * WT_MEGABYTE, workers * g.c_merge_max, workers * g.leaf_page_max);
         required = (required + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
         if (g.c_cache < required)
             g.c_cache = required;
