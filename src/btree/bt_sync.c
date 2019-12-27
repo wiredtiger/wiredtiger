@@ -117,6 +117,10 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     if (ref->state != WT_REF_DISK || !WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
         return false;
 
+    /* Ignore internal pages, these are taken care during reconciliation. */
+    if (!__wt_ref_is_leaf(session, ref))
+        return false;
+
     addr = ref->addr;
     return (
       addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
