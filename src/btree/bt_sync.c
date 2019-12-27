@@ -109,8 +109,15 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR *addr;
 
-    addr = ref->addr;
+    /* Ignore root pages as they can never be deleted. */
+    if (__wt_ref_is_root(ref))
+        return false;
 
+    /* Guard against marking an in-memory page to be deleted. */
+    if (ref->state != WT_REF_DISK || !WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+        return false;
+
+    addr = ref->addr;
     return (
       addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
 }
@@ -122,14 +129,6 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    /* Ignore root pages as they can never be deleted. */
-    if (__wt_ref_is_root(ref))
-        return (0);
-
-    /* Guard against marking an in-memory page to be deleted. */
-    if (ref->page != NULL)
-        return (0);
-
     /*
      * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
      * parent page is checkpointing, the empty child page will be cleaned.
