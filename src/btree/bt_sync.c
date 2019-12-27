@@ -111,15 +111,15 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref))
-        return false;
+        return (false);
 
     /* Guard against marking an in-memory page to be deleted. */
     if (ref->state != WT_REF_DISK)
-        return false;
+        return (false);
 
     /* Ignore internal pages, these are taken care of during reconciliation. */
     if (!__wt_ref_is_leaf(session, ref))
-        return false;
+        return (false);
 
     /* DON'T WE HAVE TO POTENTIALLY UNPACK THE CELL? */
 
