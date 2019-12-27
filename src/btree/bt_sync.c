@@ -114,12 +114,14 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return false;
 
     /* Guard against marking an in-memory page to be deleted. */
-    if (ref->state != WT_REF_DISK || !WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED))
+    if (ref->state != WT_REF_DISK)
         return false;
 
-    /* Ignore internal pages, these are taken care during reconciliation. */
+    /* Ignore internal pages, these are taken care of during reconciliation. */
     if (!__wt_ref_is_leaf(session, ref))
         return false;
+
+    /* DON'T WE HAVE TO POTENTIALLY UNPACK THE CELL? */
 
     addr = ref->addr;
     return (
@@ -137,7 +139,7 @@ __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
      * parent page is checkpointing, the empty child page will be cleaned.
      */
-    if (WT_REF_CAS_STATE(session, ref, ref->state, WT_REF_LOCKED)) {
+    if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_RET(__wt_page_parent_modify_set(session, ref, true));
     }
@@ -323,44 +325,22 @@ skipwalk:
             }
 
             /*
-             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
-             */
-            if (!__wt_page_is_modified(walk->page)) {
-                if (((mod = walk->page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
-                    btree->rec_max_txn = mod->rec_max_txn;
-                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
-                    btree->rec_max_timestamp = mod->rec_max_timestamp;
-
-                /*
-                 * Check whether the tree is lookaside btree and verify whether the page contents
-                 * are obsolete or not by checking the visibility of the page stop time pair.
-                 */
-                if (is_las && __sync_ref_is_obsolete(session, walk)) {
-                    /*
-                     * The duplicate tree walk code expects the ref state to be in memory. We need
-                     * to get the duplicate tree walk pointer before marking the current tree page
-                     * as deleted.
-                     */
-                    WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-
-                    /* Mark the page as deleted */
-                    WT_ERR(__sync_ref_mark_deleted(session, walk));
-
-                    /*
-                     * The duplicate tree walk pointer, prev, was obtained before we marked the page
-                     * as deleted. Continue the rest of the tree walk using that pointer.
-                     */
-                    goto skipwalk;
-                }
-                continue;
-            }
-
-            /*
              * Take a local reference to the page modify structure now that we know the page is
              * dirty. It needs to be done in this order otherwise the page modify structure could
              * have been created between taking the reference and checking modified.
              */
             page = walk->page;
+
+            /*
+             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
+             */
+            if (!__wt_page_is_modified(page)) {
+                if (((mod = page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
+                    btree->rec_max_txn = mod->rec_max_txn;
+                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
+                    btree->rec_max_timestamp = mod->rec_max_timestamp;
+                continue;
+            }
 
             /*
              * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty. The
