@@ -127,11 +127,11 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     if (addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts))
         obsolete = true;
-    else if (mod && mod->rec_result == WT_PM_REC_REPLACE &&
+    else if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE &&
       __wt_txn_visible_all(
                session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts))
         obsolete = true;
-    else if (mod && mod->rec_result == WT_PM_REC_MULTIBLOCK &&
+    else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK &&
       __wt_txn_visible_all(session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts))
         obsolete = true;
 
