@@ -108,11 +108,27 @@ static bool
 __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR *addr;
+    WT_CELL_UNPACK vpack;
 
-    addr = ref->addr;
+    /* Ignore root pages as they can never be deleted. */
+    if (__wt_ref_is_root(ref))
+        return (false);
 
-    return (
-      addr != NULL && __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+    /* Guard against marking an in-memory page to be deleted. */
+    if (ref->state != WT_REF_DISK)
+        return (false);
+
+    /* Ignore internal pages, these are taken care of during reconciliation. */
+    if (!__wt_ref_is_leaf(session, ref))
+        return (false);
+
+    WT_ORDERED_READ(addr, ref->addr);
+    if (!__wt_off_page(ref->home, addr)) {
+        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+        return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+    }
+
+    return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
 }
 
 /*
@@ -122,22 +138,36 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 static int
 __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    /* Ignore root pages as they are never be deleted */
-    if (__wt_ref_is_root(ref))
-        return (0);
-
-    /* Guard against marking a page to be deleted when its reconciliation state is not empty. */
-    if (ref->page != NULL && ref->page->modify != NULL &&
-      ref->page->modify->rec_result != WT_PM_REC_EMPTY)
-        return (0);
-
     /*
-     * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
-     * parent page is checkpointing, the empty child page will be cleaned.
+     * Mark the page as deleted and also set the parent page as dirty. This is to ensure the parent
+     * page must be written during checkpoint and the child page discarded.
      */
-    if (WT_REF_CAS_STATE(session, ref, ref->state, WT_REF_LOCKED)) {
+    if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
         WT_RET(__wt_page_parent_modify_set(session, ref, true));
+    }
+
+    return (0);
+}
+
+/*
+ * __sync_ref_int_obsolete_cleanup --
+ *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
+ *     deleted.
+ */
+static int
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t slot;
+
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
+    for (slot = 0; slot < pindex->entries; slot++) {
+        ref = pindex->index[slot];
+
+        if (__sync_ref_is_obsolete(session, ref))
+            WT_RET(__sync_ref_mark_deleted(session, ref));
     }
 
     return (0);
@@ -277,45 +307,23 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         /* Read pages with lookaside entries and evict them asap. */
         LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
 
+        /* Read internal pages if it is history store */
+        if (is_las) {
+            LF_CLR(WT_READ_CACHE);
+            LF_SET(WT_READ_CACHE_LEAF);
+        }
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-skipwalk:
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL)
                 break;
 
-            /*
-             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
-             */
-            if (!__wt_page_is_modified(walk->page)) {
-                if (((mod = walk->page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
-                    btree->rec_max_txn = mod->rec_max_txn;
-                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
-                    btree->rec_max_timestamp = mod->rec_max_timestamp;
-
-                /*
-                 * Check whether the tree is lookaside btree and verify whether the page contents
-                 * are obsolete or not by checking the visibility of the page stop time pair.
-                 */
-                if (is_las && __sync_ref_is_obsolete(session, walk)) {
-                    /*
-                     * The duplicate tree walk code expects the ref state to be in memory. We need
-                     * to get the duplicate tree walk pointer before marking the current tree page
-                     * as deleted.
-                     */
-                    WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-
-                    /* Mark the page as deleted */
-                    WT_ERR(__sync_ref_mark_deleted(session, walk));
-
-                    /*
-                     * The duplicate tree walk pointer, prev, was obtained before we marked the page
-                     * as deleted. Continue the rest of the tree walk using that pointer.
-                     */
-                    goto skipwalk;
-                }
-                continue;
+            /* Traverse through the internal page for obsolete child pages. */
+            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
+                WT_WITH_PAGE_INDEX(session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
+                WT_ERR(ret);
             }
 
             /*
@@ -324,6 +332,17 @@ skipwalk:
              * have been created between taking the reference and checking modified.
              */
             page = walk->page;
+
+            /*
+             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
+             */
+            if (!__wt_page_is_modified(page)) {
+                if (((mod = page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
+                    btree->rec_max_txn = mod->rec_max_txn;
+                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
+                    btree->rec_max_timestamp = mod->rec_max_timestamp;
+                continue;
+            }
 
             /*
              * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty. The
