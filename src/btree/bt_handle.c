@@ -416,8 +416,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     case BTREE_ROW:
         btree->bt_traits = &BT_ROW_TRAITS;
         break;
-    default:
-        WT_RET(__wt_illegal_value(session, btree->type));
     }
 
     /* Page sizes */
