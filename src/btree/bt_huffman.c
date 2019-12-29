@@ -197,12 +197,14 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
 {
     struct __wt_huffman_table *table;
     WT_BTREE *btree;
+    const WT_BT_TRAITS *bt_traits;
     WT_CONFIG_ITEM key_conf, value_conf;
     WT_DECL_RET;
     u_int entries, numbytes;
     const char **cfg;
 
     btree = S2BT(session);
+    bt_traits = btree->bt_traits;
     cfg = btree->dhandle->cfg;
 
     WT_RET(__wt_config_gets_none(session, cfg, "huffman_key", &key_conf));
@@ -212,19 +214,8 @@ __wt_btree_huffman_open(WT_SESSION_IMPL *session)
     if (key_conf.len == 0 && value_conf.len == 0)
         return (0);
 
-    switch (btree->type) { /* Check file type compatibility. */
-    case BTREE_COL_FIX:
-        WT_RET_MSG(session, EINVAL, "fixed-size column-store files may not be Huffman encoded");
-    /* NOTREACHED */
-    case BTREE_COL_VAR:
-        if (key_conf.len != 0)
-            WT_RET_MSG(session, EINVAL,
-              "the keys of variable-length column-store files "
-              "may not be Huffman encoded");
-        break;
-    case BTREE_ROW:
-        break;
-    }
+    /* Check file type compatibility. */
+    WT_RET(bt_traits->huffman(session, key_conf.len));
 
     if (key_conf.len == 0) {
         ;

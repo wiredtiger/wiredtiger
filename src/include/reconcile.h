@@ -242,6 +242,7 @@ struct __wt_reconcile {
      * violation and fragile, we need a better solution.
      */
     WT_CURSOR_BTREE update_modify_cbt;
+    const WT_REC_TRAITS *rec_traits;
 };
 
 typedef struct {

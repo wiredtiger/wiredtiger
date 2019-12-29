@@ -171,29 +171,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     r = session->reconcile;
 
     /* Reconcile the page. */
-    switch (page->type) {
-    case WT_PAGE_COL_FIX:
-        if (salvage != NULL)
-            ret = __wt_rec_col_fix_slvg(session, r, ref, salvage);
-        else
-            ret = __wt_rec_col_fix(session, r, ref);
-        break;
-    case WT_PAGE_COL_INT:
-        WT_WITH_PAGE_INDEX(session, ret = __wt_rec_col_int(session, r, ref));
-        break;
-    case WT_PAGE_COL_VAR:
-        ret = __wt_rec_col_var(session, r, ref, salvage);
-        break;
-    case WT_PAGE_ROW_INT:
-        WT_WITH_PAGE_INDEX(session, ret = __wt_rec_row_int(session, r, page));
-        break;
-    case WT_PAGE_ROW_LEAF:
-        ret = __wt_rec_row_leaf(session, r, ref, salvage);
-        break;
-    default:
-        ret = __wt_illegal_value(session, page->type);
-        break;
-    }
+    ret = r->rec_traits->page_reconcile(session, r, ref, salvage);
 
     /*
      * Update the global lookaside score. Only use observations during eviction, not checkpoints and
@@ -721,6 +699,26 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      */
     r->update_modify_cbt.ref = ref;
     r->update_modify_cbt.iface.value_format = btree->value_format;
+
+    switch (page->type) {
+    case WT_PAGE_COL_FIX:
+        r->rec_traits = &REC_PAGE_COL_FIX_TRAITS;
+        break;
+    case WT_PAGE_COL_INT:
+        r->rec_traits = &REC_PAGE_COL_INT_TRAITS;
+        break;
+    case WT_PAGE_COL_VAR:
+        r->rec_traits = &REC_PAGE_COL_VAR_TRAITS;
+        break;
+    case WT_PAGE_ROW_INT:
+        r->rec_traits = &REC_PAGE_ROW_INT_TRAITS;
+        break;
+    case WT_PAGE_ROW_LEAF:
+        r->rec_traits = &REC_PAGE_ROW_LEAF_TRAITS;
+        break;
+    default:
+        WT_ERR(__wt_illegal_value(session, page->type));
+    }
 
 /*
  * If we allocated the reconciliation structure and there was an error, clean up. If our caller
@@ -2406,7 +2404,8 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_las_insert_block(cursor, S2BT(session), r->page, multi, key));
+            WT_ERR(__wt_las_insert_block(
+              cursor, S2BT(session), r->page, r->rec_traits->cache_las_traits, multi, key));
 
             __wt_free(session, multi->supd);
             multi->supd_entries = 0;

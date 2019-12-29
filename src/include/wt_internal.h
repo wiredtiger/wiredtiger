@@ -93,10 +93,14 @@ struct __wt_bloom_hash;
 typedef struct __wt_bloom_hash WT_BLOOM_HASH;
 struct __wt_bm;
 typedef struct __wt_bm WT_BM;
+struct __wt_bt_traits;
+typedef struct __wt_bt_traits WT_BT_TRAITS;
 struct __wt_btree;
 typedef struct __wt_btree WT_BTREE;
 struct __wt_cache;
 typedef struct __wt_cache WT_CACHE;
+struct __wt_cache_las_traits;
+typedef struct __wt_cache_las_traits WT_CACHE_LAS_TRAITS;
 struct __wt_cache_pool;
 typedef struct __wt_cache_pool WT_CACHE_POOL;
 struct __wt_capacity;
@@ -279,6 +283,8 @@ struct __wt_rec_dictionary;
 typedef struct __wt_rec_dictionary WT_REC_DICTIONARY;
 struct __wt_rec_kv;
 typedef struct __wt_rec_kv WT_REC_KV;
+struct __wt_rec_traits;
+typedef struct __wt_rec_traits WT_REC_TRAITS;
 struct __wt_reconcile;
 typedef struct __wt_reconcile WT_RECONCILE;
 struct __wt_ref;
@@ -379,6 +385,9 @@ typedef uint64_t wt_timestamp_t;
 #include "block.h"
 #include "bloom.h"
 #include "btmem.h"
+#include "bt_traits.h"
+#include "cache_las_traits.h"
+#include "rec_traits.h"
 #include "btree.h"
 #include "cache.h"
 #include "capacity.h"

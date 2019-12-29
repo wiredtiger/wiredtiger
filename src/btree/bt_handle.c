@@ -406,6 +406,20 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         }
     }
 
+    switch (btree->type) {
+    case BTREE_COL_FIX:
+        btree->bt_traits = &BT_COL_FIX_TRAITS;
+        break;
+    case BTREE_COL_VAR:
+        btree->bt_traits = &BT_COL_VAR_TRAITS;
+        break;
+    case BTREE_ROW:
+        btree->bt_traits = &BT_ROW_TRAITS;
+        break;
+    default:
+        WT_RET(__wt_illegal_value(session, btree->type));
+    }
+
     /* Page sizes */
     WT_RET(__btree_page_sizes(session));
 

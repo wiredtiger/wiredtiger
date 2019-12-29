@@ -74,6 +74,8 @@ struct __wt_btree {
         BTREE_ROW = 3      /* Row-store */
     } type;                /* Type */
 
+    const WT_BT_TRAITS *bt_traits;
+
     const char *key_format;   /* Key format */
     const char *value_format; /* Value format */
     uint8_t bitcnt;           /* Fixed-length field size in bits */

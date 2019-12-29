@@ -212,18 +212,14 @@ __cursor_fix_implicit(WT_BTREE *btree, WT_CURSOR_BTREE *cbt)
 int
 __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
 {
-    WT_BTREE *btree;
-    WT_CELL *cell;
-    WT_COL *cip;
-    WT_PAGE *page;
+    const WT_BT_TRAITS *bt_traits;
     WT_SESSION_IMPL *session;
     WT_UPDATE *upd;
 
     if (updp != NULL)
         *updp = NULL;
     *valid = false;
-    btree = cbt->btree;
-    page = cbt->ref->page;
+    bt_traits = cbt->btree->bt_traits;
     session = (WT_SESSION_IMPL *)cbt->iface.session;
 
     /*
@@ -288,77 +284,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
      * key, and the slot as set by the search function is valid, we can use the original page
      * information.
      */
-    switch (btree->type) {
-    case BTREE_COL_FIX:
-        /*
-         * If search returned an insert object, there may or may not be a matching on-page object,
-         * we have to check. Fixed-length column-store pages don't have slots, but map one-to-one to
-         * keys, check for retrieval past the end of the page.
-         */
-        if (cbt->recno >= cbt->ref->ref_recno + page->entries)
-            return (0);
-
-        /*
-         * An update would have appeared as an "insert" object; no further checks to do.
-         */
-        break;
-    case BTREE_COL_VAR:
-        /* The search function doesn't check for empty pages. */
-        if (page->entries == 0)
-            return (0);
-        /*
-         * In case of prepare conflict, the slot might not have a valid value, if the update in the
-         * insert list of a new page scanned is in prepared state.
-         */
-        WT_ASSERT(session, cbt->slot == UINT32_MAX || cbt->slot < page->entries);
-
-        /*
-         * Column-store updates are stored as "insert" objects. If search returned an insert object
-         * we can't return, the returned on-page object must be checked for a match.
-         */
-        if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
-            return (0);
-
-        /*
-         * Although updates would have appeared as an "insert" objects, variable-length column store
-         * deletes are written into the backing store; check the cell for a record already deleted
-         * when read.
-         */
-        cip = &page->pg_var[cbt->slot];
-        cell = WT_COL_PTR(page, cip);
-        if (__wt_cell_type(cell) == WT_CELL_DEL)
-            return (0);
-        break;
-    case BTREE_ROW:
-        /* The search function doesn't check for empty pages. */
-        if (page->entries == 0)
-            return (0);
-        /*
-         * In case of prepare conflict, the slot might not have a valid value, if the update in the
-         * insert list of a new page scanned is in prepared state.
-         */
-        WT_ASSERT(session, cbt->slot == UINT32_MAX || cbt->slot < page->entries);
-
-        /*
-         * See above: for row-store, no insert object can have the same key as an on-page object,
-         * we're done.
-         */
-        if (cbt->ins != NULL)
-            return (0);
-
-        /* Check for an update. */
-        if (page->modify != NULL && page->modify->mod_row_update != NULL) {
-            WT_RET(__wt_txn_read(session, page->modify->mod_row_update[cbt->slot], &upd));
-            if (upd != NULL) {
-                if (upd->type == WT_UPDATE_TOMBSTONE)
-                    return (0);
-                if (updp != NULL)
-                    *updp = upd;
-            }
-        }
-        break;
-    }
-    *valid = true;
+    WT_RET(bt_traits->cursor_valid(cbt, updp, valid));
     return (0);
 }
 

@@ -600,8 +600,8 @@ __las_insert_block_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI *
  *     Copy one set of saved updates into the database's lookaside table.
  */
 int
-__wt_las_insert_block(
-  WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi, WT_ITEM *key)
+__wt_las_insert_block(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page,
+  const WT_CACHE_LAS_TRAITS *cache_las_traits, WT_MULTI *multi, WT_ITEM *key)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -614,7 +614,6 @@ __wt_las_insert_block(
     uint64_t insert_cnt, las_counter, las_pageid, max_las_size;
     uint64_t prepared_insert_cnt;
     uint32_t btree_id, i, slot;
-    uint8_t *p;
     bool local_txn;
 
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -652,26 +651,7 @@ __wt_las_insert_block(
     /* Enter each update in the boundary's list into the lookaside store. */
     for (las_counter = 0, i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
         /* Lookaside table key component: source key. */
-        switch (page->type) {
-        case WT_PAGE_COL_FIX:
-        case WT_PAGE_COL_VAR:
-            p = key->mem;
-            WT_ERR(__wt_vpack_uint(&p, 0, WT_INSERT_RECNO(list->ins)));
-            key->size = WT_PTRDIFF(p, key->data);
-            break;
-        case WT_PAGE_ROW_LEAF:
-            if (list->ins == NULL) {
-                WT_WITH_BTREE(
-                  session, btree, ret = __wt_row_leaf_key(session, page, list->ripcip, key, false));
-                WT_ERR(ret);
-            } else {
-                key->data = WT_INSERT_KEY(list->ins);
-                key->size = WT_INSERT_KEY_SIZE(list->ins);
-            }
-            break;
-        default:
-            WT_ERR(__wt_illegal_value(session, page->type));
-        }
+        WT_ERR(cache_las_traits->get_key(session, btree, page, list, key));
 
         /*
          * Lookaside table value component: update reference. Updates come from the row-store insert
