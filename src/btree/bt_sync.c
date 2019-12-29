@@ -119,30 +119,23 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!__wt_ref_is_leaf(session, ref))
         return (false);
 
+    /* In-memory ref address must be from an off page address. */
     mod = ref->page ? ref->page->modify : NULL;
+    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
+        return (__wt_txn_visible_all(
+          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts));
+
+    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK)
+        return (__wt_txn_visible_all(
+          session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts));
+
     WT_ORDERED_READ(addr, ref->addr);
-    if (addr != NULL) {
-    	if (!__wt_off_page(ref->home, addr)) {
-        	__wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-        	return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
-    	}
-    	return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+    WT_ASSERT(addr != NULL);
+    if (!__wt_off_page(ref->home, addr)) {
+        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+        return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
     }
-
-    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
-	addr = &mod->mod_replace;
-    	if (!__wt_off_page(ref->home, addr)) {
-        	__wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-        	return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
-    	}
-	    
-    	return (__wt_txn_visible_all(
-               session, addr->newest_stop_txn, addr->newest_stop_ts));
-    } 
-    
-    WT_ASSERT (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK);
-
-    return (__wt_txn_visible_all(session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts))
+    return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
 }
 
 /*
@@ -158,10 +151,11 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
-        WT_RET(__wt_page_parent_modify_set(session, ref, true));
-    } else
-        WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+        return (__wt_page_parent_modify_set(session, ref, true));
+    }
 
+    /* Evict the in-memory obsolete page */
+    WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
     return (0);
 }
 
