@@ -126,8 +126,9 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!__wt_off_page(ref->home, addr)) {
         __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
         return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
-    } else
-        return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+    }
+
+    return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
 }
 
 /*
@@ -138,8 +139,8 @@ static int
 __sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     /*
-     * Mark the page as deleted and also set the parent page as dirty. This is to ensure when the
-     * parent page is checkpointing, the empty child page will be cleaned.
+     * Mark the page as deleted and also set the parent page as dirty. This is to ensure the parent
+     * page must be written during checkpoint and the child page discarded.
      */
     if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
         WT_REF_SET_STATE(ref, WT_REF_DELETED);
