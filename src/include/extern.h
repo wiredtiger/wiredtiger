@@ -332,7 +332,7 @@ extern int __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool 
   double pct_full) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_cache_pool_config(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
+extern int __wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
   size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_calloc(WT_SESSION_IMPL *session, size_t number, size_t size, void *retp)
@@ -1063,7 +1063,7 @@ extern int __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nent
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_apply_item(WT_SESSION_IMPL *session, WT_ITEM *value, const void *modify,
   bool sformat) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_modify_pack(WT_CURSOR *cursor, WT_ITEM **modifyp, WT_MODIFY *entries, int nentries)
+extern int __wt_modify_pack(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries, WT_ITEM **modifyp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_vector_push(WT_MODIFY_VECTOR *modifies, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

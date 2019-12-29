@@ -109,8 +109,8 @@ __cm_fingerprint(const uint8_t *p)
  *     Calculate a set of WT_MODIFY operations to represent an update.
  */
 int
-__wt_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv, size_t maxdiff,
-  WT_MODIFY *entries, int *nentriesp)
+__wt_calc_modify(WT_SESSION_IMPL *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
+  size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
 {
     WT_CM_MATCH match;
     WT_CM_STATE cms;
@@ -200,7 +200,5 @@ int
 wiredtiger_calc_modify(WT_SESSION *wt_session, const WT_ITEM *oldv, const WT_ITEM *newv,
   size_t maxdiff, WT_MODIFY *entries, int *nentriesp)
 {
-    WT_RET(__wt_calc_modify(wt_session, oldv, newv, maxdiff, entries, nentriesp));
-
-    return (0);
+    return __wt_calc_modify((WT_SESSION_IMPL *)wt_session, oldv, newv, maxdiff, entries, nentriesp);
 }

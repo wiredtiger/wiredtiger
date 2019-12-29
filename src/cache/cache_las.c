@@ -560,6 +560,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_KEY_MEMENTO *mementop;
+/* If the limit is exceeded, we will insert a full update to lookaside */
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
@@ -714,7 +715,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         /* The key didn't exist back then, which is globally visible. */
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
             (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-                             upd->start_ts == WT_TXN_NONE));
+                             upd->start_ts == WT_TS_NONE));
         /* Skip TOMBSTONE at the end of the update chain */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
@@ -770,21 +771,14 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                  * It is not correct to check prev_upd == list->onpage_upd as we may have aborted
                  * updates in the middle.
                  */
-                if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0) {
-                    nentries = MAX_REVERSE_MODIFY_NUM;
-                    if (__wt_calc_modify((WT_SESSION *)session, prev_full_value, full_value,
-                          prev_full_value->size / 10, entries, &nentries) == 0) {
-                        WT_ERR(__wt_modify_pack(cursor, &modify_value, entries, nentries));
-                        WT_ASSERT(session, modify_value != NULL);
-                        if (__las_insert_record(session, cursor, btree_id, key, upd,
-                              WT_UPDATE_MODIFY, modify_value, stop_ts_pair) != 0) {
-                            __wt_scr_free(session, &modify_value);
-                            goto err;
-                        } else
-                            __wt_scr_free(session, &modify_value);
-                    } else
-                        WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
-                          WT_UPDATE_STANDARD, full_value, stop_ts_pair));
+                nentries = MAX_REVERSE_MODIFY_NUM;
+                if (upd->type == WT_UPDATE_MODIFY && modifies.size > 0 &&
+                  __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
+                    entries, &nentries) == 0) {
+                    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
+                    WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
+                      WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
+                    __wt_scr_free(session, &modify_value);
                 } else
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
@@ -837,11 +831,8 @@ err:
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
 
         /* Adjust the entry count. */
-        if (ret == 0) {
+        if (ret == 0)
             (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
-            WT_STAT_CONN_INCRV(
-              session, txn_prepared_updates_lookaside_inserts, prepared_insert_cnt);
-        }
     }
 
     __las_restore_isolation(session, saved_isolation);
@@ -865,6 +856,8 @@ err:
     if (ret != 0)
         for (i = 0, mementop = mementos->mem; i < mementos_cnt; i++, mementop++)
             __wt_buf_free(session, &mementop->key);
+    if (modify_value != NULL)
+        __wt_scr_free(session, &modify_value);
     __wt_scr_free(session, &mementos);
     __wt_modify_vector_free(&modifies);
     __wt_scr_free(session, &full_value);
@@ -1018,7 +1011,7 @@ __wt_find_lookaside_upd(
         WT_ERR(las_cursor->get_value(
           las_cursor, &durable_timestamp, &prepare_state, &upd_type, las_value));
 
-        /* We do not have have prepared updates in the lookaside anymore */
+        /* We do not have prepared updates in the lookaside anymore */
         WT_ASSERT(session, prepare_state != WT_PREPARE_INPROGRESS);
 
         /*
