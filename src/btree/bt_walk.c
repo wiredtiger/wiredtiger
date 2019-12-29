@@ -73,25 +73,6 @@ found:
 }
 
 /*
- * __ref_is_leaf --
- *     Check if a reference is for a leaf page.
- */
-static inline bool
-__ref_is_leaf(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    size_t addr_size;
-    const uint8_t *addr;
-    u_int type;
-
-    /*
-     * If the page has a disk address, we can crack it to figure out if this page is a leaf page or
-     * not. If there's no address, the page isn't on disk and we don't know the page type.
-     */
-    __wt_ref_info(session, ref, &addr, &addr_size, &type);
-    return (addr == NULL ? false : type == WT_CELL_ADDR_LEAF || type == WT_CELL_ADDR_LEAF_NO);
-}
-
-/*
  * __ref_ascend --
  *     Ascend the tree one level.
  */
@@ -594,7 +575,7 @@ __tree_walk_skip_count_callback(WT_SESSION_IMPL *session, WT_REF *ref, void *con
      */
     if (ref->state == WT_REF_DELETED && __wt_delete_page_skip(session, ref, false))
         *skipp = true;
-    else if (*skipleafcntp > 0 && __ref_is_leaf(session, ref)) {
+    else if (*skipleafcntp > 0 && __wt_ref_is_leaf(session, ref)) {
         --*skipleafcntp;
         *skipp = true;
     } else

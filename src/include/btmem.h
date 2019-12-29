@@ -10,19 +10,20 @@
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_READ_CACHE 0x0001u
-#define WT_READ_DELETED_CHECK 0x0002u
-#define WT_READ_DELETED_SKIP 0x0004u
-#define WT_READ_IGNORE_CACHE_SIZE 0x0008u
-#define WT_READ_LOOKASIDE 0x0010u
-#define WT_READ_NOTFOUND_OK 0x0020u
-#define WT_READ_NO_GEN 0x0040u
-#define WT_READ_NO_SPLIT 0x0080u
-#define WT_READ_NO_WAIT 0x0100u
-#define WT_READ_PREV 0x0200u
-#define WT_READ_RESTART_OK 0x0400u
-#define WT_READ_SKIP_INTL 0x0800u
-#define WT_READ_TRUNCATE 0x1000u
-#define WT_READ_WONT_NEED 0x2000u
+#define WT_READ_CACHE_LEAF 0x0002u
+#define WT_READ_DELETED_CHECK 0x0004u
+#define WT_READ_DELETED_SKIP 0x0008u
+#define WT_READ_IGNORE_CACHE_SIZE 0x0010u
+#define WT_READ_LOOKASIDE 0x0020u
+#define WT_READ_NOTFOUND_OK 0x0040u
+#define WT_READ_NO_GEN 0x0080u
+#define WT_READ_NO_SPLIT 0x0100u
+#define WT_READ_NO_WAIT 0x0200u
+#define WT_READ_PREV 0x0400u
+#define WT_READ_RESTART_OK 0x0800u
+#define WT_READ_SKIP_INTL 0x1000u
+#define WT_READ_TRUNCATE 0x2000u
+#define WT_READ_WONT_NEED 0x4000u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
@@ -858,7 +859,8 @@ struct __wt_page_deleted {
     WT_UPDATE **update_list; /* List of updates for abort */
 };
 
-/* WT_TIME_PAIR --
+/*
+ * WT_TIME_PAIR --
  * 	A pair containing a timestamp and transaction id.
  */
 struct __wt_time_pair {
@@ -873,9 +875,6 @@ struct __wt_time_pair {
  */
 struct __wt_ref {
     WT_PAGE *page; /* Page */
-
-    WT_TIME_PAIR start_time_pair; /* Start time pair. */
-    WT_TIME_PAIR stop_time_pair;  /* Stop time pair. */
 
     /*
      * When the tree deepens as a result of a split, the home page value changes. Don't cache it, we
@@ -961,9 +960,9 @@ struct __wt_ref {
  * inserted padding which would break the world.
  */
 #ifdef HAVE_DIAGNOSTIC
-#define WT_REF_SIZE (88 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
+#define WT_REF_SIZE (56 + WT_REF_SAVE_STATE_MAX * sizeof(WT_REF_HIST) + 8)
 #else
-#define WT_REF_SIZE 88
+#define WT_REF_SIZE 56
 #endif
 
 /*
