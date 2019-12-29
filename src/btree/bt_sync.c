@@ -183,6 +183,29 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
 }
 
 /*
+ * __sync_ref_int_obsolete_cleanup --
+ *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
+ *     deleted.
+ */
+static int
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t slot;
+
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
+    for (slot = 0; slot < pindex->entries; slot++) {
+        ref = pindex->index[slot];
+
+        if (__sync_ref_is_obsolete(session, ref))
+            WT_RET(__sync_ref_mark_deleted(session, ref));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_sync_file --
  *     Flush pages for a specific file.
  */
@@ -324,7 +347,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
-skipwalk:
             WT_ERR(__wt_tree_walk(session, &walk, flags));
 
             if (walk == NULL)
