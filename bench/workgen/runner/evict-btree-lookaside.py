@@ -28,9 +28,9 @@
 
 # This benchmark is designed to stress disk access to the LAS/History Store file.
 # This is achieved through:
-#   - Long running transcations consisting of read and update operations.
+#   - Long running transactions consisting of read and update operations.
 #   - Low cache size (~20%) for a reasonably sized WT table with large documents.
-#   - Pareto distribution for operations in long running transcations. This will cause
+#   - Pareto distribution for operations in long running transactions. This will cause
 #     skewed access for a selective set of keys in WT table.
 #   - Relatively large number of read operation threads to stress cache.
 
