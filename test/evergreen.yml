@@ -379,98 +379,48 @@ tasks:
         vars:
           configure_env_vars: CC=gcc-4.8 CXX=g++-4.8 CFLAGS="-ggdb -fPIC"
 
-  - name: compile-gcc-5
+  - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-5 CXX=g++-5 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-gcc-6
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-6 CXX=g++-6 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-gcc-6-visibility-hidden
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-6 CXX=g++-6 CFLAGS="-ggdb -fPIC" CPPFLAGS=-fvisibility=hidden
-
-  - name: compile-gcc-7
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-7 CXX=g++-7 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-gcc-8
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-8 CXX=g++-8 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-gcc-9
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-9 CXX=g++-9 CFLAGS="-ggdb -fPIC"
 
-  - name: compile-clang-3.9
+  - name: compile-clang
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-3.9 CXX=clang++-3.9 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-clang-4.0
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-4.0 CXX=clang++-4.0 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-clang-5.0
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-clang-6.0
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-6.0 CXX=clang++-6.0 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-clang-7
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-7 CXX=clang++-7 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-clang-8
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-8 CXX=clang++-8 CFLAGS="-ggdb -fPIC"
