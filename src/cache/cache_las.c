@@ -785,7 +785,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 ++insert_cnt;
             } else
                 WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
-        }   
+        }
 
         /*
          * The last element on the stack must be the onpage_upd.
