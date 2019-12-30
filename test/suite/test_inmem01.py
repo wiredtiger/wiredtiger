@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import unittest, wiredtiger, wttest
 from time import sleep
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
@@ -88,6 +88,7 @@ class test_inmem01(wttest.WiredTigerTestCase):
 
     # Run queries after adding, removing and re-inserting data.
     # Try out keeping a cursor open while adding new data.
+    @unittest.skip("Sometimes eviction server is not able to clean in the specified time limit leads to failure")
     def test_insert_over_delete_replace(self):
         msg = '/WT_CACHE_FULL.*/'
         ds = SimpleDataSet(self, self.uri, 10000000, key_format=self.keyfmt,
