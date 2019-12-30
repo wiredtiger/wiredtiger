@@ -126,20 +126,18 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     obsolete = false;
+    addr = ref->addr;
+    mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
 
     /* Check for the page obsolete, if the page is modified and reconciled. */
-    mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
         obsolete = __wt_txn_visible_all(
           session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
-
-    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK)
+    else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK)
         obsolete = __wt_txn_visible_all(
           session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts);
-
     /* Check for the obsolete from page disk address. */
-    addr = ref->addr;
-    if (addr != NULL) {
+    else if (addr != NULL) {
         if (!__wt_off_page(ref->home, addr)) {
             __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
             obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
@@ -149,7 +147,7 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     if (obsolete)
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
-    return obsolete;
+    return (obsolete);
 }
 
 /*
