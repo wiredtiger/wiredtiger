@@ -119,7 +119,7 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!__wt_ref_is_leaf(session, ref))
         return (false);
 
-    /* In-memory ref address must be from an off page address. */
+    /* Check for the page obsolete, if the page is modified and reconciled. */
     mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
         return (__wt_txn_visible_all(
@@ -129,13 +129,17 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return (__wt_txn_visible_all(
           session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts));
 
-    WT_ORDERED_READ(addr, ref->addr);
-    WT_ASSERT(session, addr != NULL);
-    if (!__wt_off_page(ref->home, addr)) {
-        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-        return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+    /* Check for the obsolete from page disk address. */
+    addr = ref->addr;
+    if (addr != NULL) {
+        if (!__wt_off_page(ref->home, addr)) {
+            __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+            return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+        }
+        return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
     }
-    return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+
+    return (false);
 }
 
 /*
@@ -355,9 +359,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                  * Check whether the tree is lookaside btree and verify whether the page contents
                  * are obsolete or not by checking the visibility of the page stop time pair.
                  */
-                if (is_las && __sync_ref_is_obsolete(session, walk))
-                    /* Must be an in-memory leaf page. Evict it. */
+                if (is_las && __sync_ref_is_obsolete(session, walk)) {
+                    /* Must be leaf page. Evict it. */
+                    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page));
                     WT_ERR(__sync_ref_evict_or_mark_deleted(session, walk));
+                }
 
                 continue;
             }
