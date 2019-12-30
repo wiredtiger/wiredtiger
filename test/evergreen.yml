@@ -1999,6 +1999,7 @@ tasks:
       - func: "compile wiredtiger with builtins"
       - func: "format test script"
         vars:
+          # Make sure we dump core on failure
           format_test_setting: ulimit -c unlimited
           #run for 2 hours ( 2 * 60 = 120 minutes), use default config
           format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 120
