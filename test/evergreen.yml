@@ -371,18 +371,13 @@ tasks:
         vars:
           posix_configure_flags: --enable-strict --enable-diagnostic
 
-  - name: compile-gcc-4.8
+  - name: compile-gcc
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-4.8 CXX=g++-4.8 CFLAGS="-ggdb -fPIC"
-
-  - name: compile-gcc
-    tags: ["pull_request", "pull_request_compilers"]
-    commands:
-      - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=gcc-5 CXX=g++-5 CFLAGS="-ggdb -fPIC"
