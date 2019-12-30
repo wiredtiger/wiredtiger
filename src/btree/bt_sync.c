@@ -141,7 +141,7 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         if (!__wt_off_page(ref->home, addr)) {
             __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
             obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
-        } else 
+        } else
             obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
     }
 
