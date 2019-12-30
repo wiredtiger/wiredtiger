@@ -101,6 +101,79 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
+ * __sync_ref_is_obsolete --
+ *     Return whether the ref is obsolete according to the newest stop time pair.
+ */
+static bool
+__sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR *addr;
+    WT_CELL_UNPACK vpack;
+
+    /* Ignore root pages as they can never be deleted. */
+    if (__wt_ref_is_root(ref))
+        return (false);
+
+    /* Guard against marking an in-memory page to be deleted. */
+    if (ref->state != WT_REF_DISK)
+        return (false);
+
+    /* Ignore internal pages, these are taken care of during reconciliation. */
+    if (!__wt_ref_is_leaf(session, ref))
+        return (false);
+
+    WT_ORDERED_READ(addr, ref->addr);
+    if (!__wt_off_page(ref->home, addr)) {
+        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+        return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+    }
+
+    return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+}
+
+/*
+ * __sync_ref_mark_deleted --
+ *     Lock the ref and change state as deleted. Also mark the parent page as dirty.
+ */
+static int
+__sync_ref_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    /*
+     * Mark the page as deleted and also set the parent page as dirty. This is to ensure the parent
+     * page must be written during checkpoint and the child page discarded.
+     */
+    if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        WT_RET(__wt_page_parent_modify_set(session, ref, true));
+    }
+
+    return (0);
+}
+
+/*
+ * __sync_ref_int_obsolete_cleanup --
+ *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
+ *     deleted.
+ */
+static int
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t slot;
+
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
+    for (slot = 0; slot < pindex->entries; slot++) {
+        ref = pindex->index[slot];
+
+        if (__sync_ref_is_obsolete(session, ref))
+            WT_RET(__sync_ref_mark_deleted(session, ref));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_sync_file --
  *     Flush pages for a specific file.
  */
@@ -117,7 +190,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags;
-    bool timer, tried_eviction;
+    bool is_las, timer, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -226,12 +299,19 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
+        is_las = F_ISSET(btree, WT_BTREE_LOOKASIDE);
 
         /* Write all dirty in-cache pages. */
         LF_SET(WT_READ_NO_EVICT);
 
         /* Read pages with lookaside entries and evict them asap. */
         LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
+
+        /* Read internal pages if it is history store */
+        if (is_las) {
+            LF_CLR(WT_READ_CACHE);
+            LF_SET(WT_READ_CACHE_LEAF);
+        }
 
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
@@ -240,15 +320,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (walk == NULL)
                 break;
 
-            /*
-             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
-             */
-            if (!__wt_page_is_modified(walk->page)) {
-                if (((mod = walk->page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
-                    btree->rec_max_txn = mod->rec_max_txn;
-                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
-                    btree->rec_max_timestamp = mod->rec_max_timestamp;
-                continue;
+            /* Traverse through the internal page for obsolete child pages. */
+            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
+                WT_WITH_PAGE_INDEX(session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
+                WT_ERR(ret);
             }
 
             /*
@@ -257,6 +332,17 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * have been created between taking the reference and checking modified.
              */
             page = walk->page;
+
+            /*
+             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
+             */
+            if (!__wt_page_is_modified(page)) {
+                if (((mod = page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
+                    btree->rec_max_txn = mod->rec_max_txn;
+                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
+                    btree->rec_max_timestamp = mod->rec_max_timestamp;
+                continue;
+            }
 
             /*
              * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty. The
