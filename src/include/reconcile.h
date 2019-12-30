@@ -40,10 +40,6 @@ struct __wt_reconcile {
     u_int updates_seen;     /* Count of updates seen. */
     u_int updates_unstable; /* Count of updates not visible_all. */
 
-    bool update_uncommitted; /* An update was uncommitted. */
-    bool update_prepared;    /* An update in prepare */
-    bool update_used;        /* An update could be used. */
-
     /*
      * When we can't mark the page clean (for example, checkpoint found some uncommitted updates),
      * there's a leave-dirty flag.
@@ -154,9 +150,9 @@ struct __wt_reconcile {
     size_t min_space_avail; /* Remaining space in this chunk to put a minimum size boundary */
 
     /*
-     * Saved update list, supporting the WT_REC_UPDATE_RESTORE and WT_REC_LOOKASIDE configurations.
-     * While reviewing updates for each page, we save WT_UPDATE lists here, and then move them to
-     * per-block areas as the blocks are defined.
+     * Saved update list, supporting WT_REC_LOOKASIDE configurations. While reviewing updates for
+     * each page, we save WT_UPDATE lists here, and then move them to per-block areas as the blocks
+     * are defined.
      */
     WT_SAVE_UPD *supd; /* Saved updates */
     uint32_t supd_next;
@@ -230,7 +226,6 @@ struct __wt_reconcile {
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
     bool cache_write_lookaside; /* Used the lookaside table */
-    bool cache_write_restore;   /* Used update/restoration */
 
     uint32_t tested_ref_state; /* Debugging information */
 

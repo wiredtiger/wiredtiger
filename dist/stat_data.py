@@ -315,7 +315,6 @@ connection_stats = [
     CacheStat('cache_write_app_count', 'application threads page write from cache to disk count'),
     CacheStat('cache_write_app_time', 'application threads page write from cache to disk time (usecs)'),
     CacheStat('cache_write_lookaside', 'page written requiring cache overflow records'),
-    CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################
     # Capacity statistics
@@ -715,7 +714,6 @@ dsrc_stats = [
     CacheStat('cache_read_overflow', 'overflow pages read into cache'),
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_lookaside', 'page written requiring cache overflow records'),
-    CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
 
     ##########################################
     # Cache content statistics

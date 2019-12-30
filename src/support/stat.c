@@ -50,8 +50,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages read into cache by checkpoint requiring cache overflow entries.",
   "cache: pages read into cache requiring cache overflow entries.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
-  "cache: pages written from cache", "cache: pages written requiring in-memory restoration",
-  "cache: tracked dirty bytes in the cache", "cache: unmodified pages evicted",
+  "cache: pages written from cache", "cache: tracked dirty bytes in the cache",
+  "cache: unmodified pages evicted",
   "cache_walk: Average difference between current eviction generation when the page was last "
   "considered",
   "cache_walk: Average on-disk page image size seen",
@@ -211,7 +211,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
-    stats->cache_write_restore = 0;
     /* not clearing cache_bytes_dirty */
     stats->cache_eviction_clean = 0;
     /* not clearing cache_state_gen_avg_gap */
@@ -386,7 +385,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
-    to->cache_write_restore += from->cache_write_restore;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
     to->cache_eviction_clean += from->cache_eviction_clean;
     to->cache_state_gen_avg_gap += from->cache_state_gen_avg_gap;
@@ -558,7 +556,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_READ(from, cache_write);
-    to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
     to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
     to->cache_state_gen_avg_gap += WT_STAT_READ(from, cache_state_gen_avg_gap);
@@ -732,8 +729,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages selected for eviction unable to be evicted due to newer modifications on a clean "
   "page",
   "cache: pages walked for eviction", "cache: pages written from cache",
-  "cache: pages written requiring in-memory restoration", "cache: percentage overhead",
-  "cache: tracked bytes belonging to internal pages in the cache",
+  "cache: percentage overhead", "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to leaf pages in the cache",
   "cache: tracked dirty bytes in the cache", "cache: tracked dirty pages in the cache",
   "cache: unmodified pages evicted", "capacity: background fsync file handles considered",
@@ -1093,7 +1089,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_fail_with_newer_modifications_on_a_clean_page = 0;
     stats->cache_eviction_walk = 0;
     stats->cache_write = 0;
-    stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_leaf */
@@ -1541,7 +1536,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_fail_with_newer_modifications_on_a_clean_page);
     to->cache_eviction_walk += WT_STAT_READ(from, cache_eviction_walk);
     to->cache_write += WT_STAT_READ(from, cache_write);
-    to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
     to->cache_overhead += WT_STAT_READ(from, cache_overhead);
     to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
     to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);

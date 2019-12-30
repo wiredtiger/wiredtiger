@@ -436,7 +436,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_fail_with_newer_modifications_on_a_clean_page;
     int64_t cache_eviction_walk;
     int64_t cache_write;
-    int64_t cache_write_restore;
     int64_t cache_overhead;
     int64_t cache_bytes_internal;
     int64_t cache_bytes_leaf;
@@ -791,7 +790,6 @@ struct __wt_dsrc_stats {
     int64_t cache_pages_requested;
     int64_t cache_eviction_pages_seen;
     int64_t cache_write;
-    int64_t cache_write_restore;
     int64_t cache_bytes_dirty;
     int64_t cache_eviction_clean;
     int64_t cache_state_gen_avg_gap;

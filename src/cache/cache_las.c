@@ -549,7 +549,7 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
  *     Copy one set of saved updates into the database's lookaside table.
  */
 int
-__wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
+__wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_MULTI *multi)
 {
     WT_CACHE *cache;
     WT_DECL_ITEM(full_value);
@@ -564,6 +564,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
+    WT_PAGE *page;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
@@ -574,9 +575,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn;
+    bool las_key_saved, local_txn, squashed;
 
     mementop = NULL;
+    page = r->page;
     session = (WT_SESSION_IMPL *)cursor->session;
     cache = S2C(session)->cache;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
@@ -704,6 +706,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         upd = prev_upd = NULL;
+        squashed = false;
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
@@ -776,7 +779,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                     __wt_scr_free(session, &modify_value);
-                    modify_value = NULL;
                 } else
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
@@ -784,8 +786,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 /* Flag the update as now in the lookaside file. */
                 F_SET(upd, WT_UPDATE_HISTORY_STORE);
                 ++insert_cnt;
+
+                if (squashed) {
+                    WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+                    squashed = false;
+                }
             } else
-                WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+                squashed = true;
         }
 
         /*
@@ -805,6 +812,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             mementop->durable_ts = upd->durable_ts;
             mementop->start_ts = upd->start_ts;
             mementop->prepare_state = upd->prepare_state;
+        }
+
+        /* Free updates moved to lookaside in eviction as we have exclusive access. */
+        if (F_ISSET(r, WT_REC_EVICT)) {
+            upd = upd->next;
+            __wt_free_update_list(session, &upd);
+            list->onpage_upd->next = NULL;
         }
     }
 
