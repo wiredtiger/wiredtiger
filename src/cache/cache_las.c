@@ -574,7 +574,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn, squashed;
+    bool las_key_saved, local_txn;
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -703,7 +703,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         upd = prev_upd = NULL;
-        squashed = false;
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
@@ -785,11 +784,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
                 ++insert_cnt;
             } else
-                squashed = true;
-        }
-
-        if (squashed)
-            WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+                WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+        }   
 
         /*
          * The last element on the stack must be the onpage_upd.
