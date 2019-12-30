@@ -172,7 +172,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ${test_env_vars|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
+          ${test_env_vars|} ${format_test_setting|} ./format.sh ${smp_command|} ${format_test_script_args|} 2>&1
         done
   "many dbs test":
     command: shell.exec
@@ -2094,6 +2094,34 @@ tasks:
           # No of processes to run in the background
           no_of_procs: 10
 
+  # The task name is ppc-zseries because this task will be used in both buildVariants
+  - name: format-stress-ppc-zseries-test
+    # Set 2.5 hours timeout (60 * 60 * 2.5)
+    exec_timeout_secs: 9000
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - func: "format test script"
+        vars:
+          # Make sure we dump core on failure
+          format_test_setting: ulimit -c unlimited
+          #run for 2 hours ( 2 * 60 = 120 minutes), use default config
+          format_test_script_args: -b "SEGFAULT_SIGNALS=all catchsegv ./t" -t 120
+
+  - name: format-wtperf-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/bench/wtperf"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            cp ../../../bench/wtperf/split_heavy.wtperf .
+            ./wtperf -O ./split_heavy.wtperf -o verbose=2
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
@@ -2280,6 +2308,9 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
+  - name: format-stress-ppc-zseries-test
+  - name: format-stress-smoke-test
+  - name: format-wtperf-test
 
 - name: ubuntu1804-zseries
   display_name: Ubuntu 18.04 zSeries
