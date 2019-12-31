@@ -129,6 +129,8 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return (__wt_txn_visible_all(
           session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts));
 
+    multi_newest_stop_ts = WT_TS_NONE;
+    multi_newest_stop_txn = WT_TXN_NONE;
     if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         /* Calculate the max stop time pair by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
