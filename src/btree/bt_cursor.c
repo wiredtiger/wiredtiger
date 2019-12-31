@@ -1470,7 +1470,7 @@ __wt_btcur_modify(WT_CURSOR_BTREE *cbt, WT_MODIFY *entries, int nentries)
     if (!F_ISSET(cursor, WT_CURSTD_KEY_INT) || !F_ISSET(cursor, WT_CURSTD_VALUE_INT))
         WT_ERR(__wt_btcur_search(cbt));
 
-    WT_ERR(__wt_modify_pack(cursor, &modify, entries, nentries));
+    WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify));
 
     orig = cursor->value.size;
     WT_ERR(__wt_modify_apply(cursor, modify->data));
