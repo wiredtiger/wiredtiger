@@ -682,6 +682,7 @@ connection_runtime_config = [
             'api',
             'block',
             'checkpoint',
+            'checkpoint_gc',
             'checkpoint_progress',
             'compact',
             'compact_progress',
