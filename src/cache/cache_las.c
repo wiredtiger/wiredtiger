@@ -549,7 +549,7 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
  *     Copy one set of saved updates into the database's lookaside table.
  */
 int
-__wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
+__wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_MULTI *multi)
 {
     WT_CACHE *cache;
     WT_DECL_ITEM(full_value);
@@ -564,6 +564,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
     WT_MODIFY_VECTOR modifies;
+    WT_PAGE *page;
     WT_SAVE_UPD *list;
     WT_SESSION_IMPL *session;
     WT_TXN_ISOLATION saved_isolation;
@@ -577,9 +578,10 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     bool las_key_saved, local_txn;
 
     mementop = NULL;
+    page = r->page;
     session = (WT_SESSION_IMPL *)cursor->session;
     cache = S2C(session)->cache;
-    saved_isolation = 0; /*[-Wconditional-uninitialized] */
+    saved_isolation = WT_ISO_READ_COMMITTED; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     mementos_cnt = 0;
     btree_id = btree->id;
@@ -589,12 +591,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     if (!btree->lookaside_entries)
         btree->lookaside_entries = true;
 
-    /* Wrap all the updates in a transaction. */
-    WT_ERR(__wt_txn_begin(session, NULL));
-    __las_set_isolation(session, &saved_isolation);
-
-    local_txn = true;
-
     /* Ensure enough room for a column-store key without checking. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
@@ -603,9 +599,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_full_value));
-
-    /* Inserts should be on the same page absent a split, search any pinned leaf page. */
-    F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
 
     /* Enter each update in the boundary's list into the lookaside store. */
     for (i = 0, list = multi->supd; i < multi->supd_entries; ++i, ++list) {
@@ -726,6 +719,15 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         full_value->data = upd->data;
         full_value->size = upd->size;
 
+        /* Wrap all the updates of a key in a transaction. */
+        WT_ERR(__wt_txn_begin(session, NULL));
+        __las_set_isolation(session, &saved_isolation);
+
+        local_txn = true;
+
+        /* Inserts should be on the same page absent a split, search any pinned leaf page. */
+        F_SET(cursor, WT_CURSTD_UPDATE_LOCAL);
+
         /* Flush the updates on stack */
         for (; modifies.size > 0; tmp = full_value, full_value = prev_full_value,
                                   prev_full_value = tmp, upd = prev_upd) {
@@ -795,6 +797,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * in the lookaside table. (We check the length because row-store doesn't write zero-length
          * data items.)
          */
+        WT_ASSERT(session, upd == list->onpage_upd);
         if (upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
             WT_ASSERT(session, upd->ext == 0 &&
@@ -806,6 +809,19 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
             mementop->start_ts = upd->start_ts;
             mementop->prepare_state = upd->prepare_state;
         }
+
+        ret = __wt_txn_commit(session, NULL);
+        __las_restore_isolation(session, saved_isolation);
+        F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
+        local_txn = false;
+
+        /* Free updates moved to lookaside in eviction as we have exculsive access. */
+        if (ret == 0 && F_ISSET(r, WT_REC_EVICT)) {
+            upd = upd->next;
+            __wt_free_update_list(session, &upd);
+            list->onpage_upd->next = NULL;
+        } else if (ret != 0)
+            WT_ERR(ret);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
@@ -818,21 +834,16 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
           (uint64_t)las_size, max_las_size);
 
 err:
-    /* Resolve the transaction. */
+    /* Adjust the entry count. */
+    (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
+
+    /* Failed in txn. */
     if (local_txn) {
-        if (ret == 0)
-            ret = __wt_txn_commit(session, NULL);
-        else
-            WT_TRET(__wt_txn_rollback(session, NULL));
+        WT_ASSERT(session, ret != 0);
+        WT_TRET(__wt_txn_rollback(session, NULL));
         __las_restore_isolation(session, saved_isolation);
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
-
-        /* Adjust the entry count. */
-        if (ret == 0)
-            (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
     }
-
-    __las_restore_isolation(session, saved_isolation);
 
     if (ret == 0 && mementos_cnt > 0)
         ret = __wt_calloc(session, mementos_cnt, sizeof(WT_KEY_MEMENTO), &multi->page_las.mementos);
@@ -848,7 +859,11 @@ err:
     }
 
     __wt_scr_free(session, &key);
-    /* Free all the key mementos if there was a failure */
+    /*
+     * Free all the key mementos if there was a failure
+     * 
+     * We can do this because mementos will be regenerated when we retry reconciling this page.
+     */
     if (ret != 0)
         for (i = 0, mementop = mementos->mem; i < mementos_cnt; i++, mementop++)
             __wt_buf_free(session, &mementop->key);
