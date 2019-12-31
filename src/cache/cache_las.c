@@ -815,7 +815,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
         local_txn = false;
 
-        /* Free updates moved to lookaside in eviction as we have exculsive access. */
+        /* Free updates moved to lookaside in eviction as we have exclusive access. */
         if (ret == 0 && F_ISSET(r, WT_REC_EVICT)) {
             upd = upd->next;
             __wt_free_update_list(session, &upd);
@@ -861,7 +861,7 @@ err:
     __wt_scr_free(session, &key);
     /*
      * Free all the key mementos if there was a failure
-     * 
+     *
      * We can do this because mementos will be regenerated when we retry reconciling this page.
      */
     if (ret != 0)
