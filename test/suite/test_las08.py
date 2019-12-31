@@ -68,7 +68,7 @@ class test_las08(wttest.WiredTigerTestCase):
             self.assertNotEqual(type, 5)
             # WT_UPDATE_STANDARD
             if (type == 4):
-                self.assertEqual(value, expected_las_value + '\x00')
+                self.assertEqual(value.decode(), expected_las_value + '\x00')
                 self.assertEqual(start_ts, expected_start_ts)
                 self.assertEqual(stop_ts, expected_stop_ts)
         cursor.close()
