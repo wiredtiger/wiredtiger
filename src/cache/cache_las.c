@@ -834,9 +834,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_RECONCILE *r, WT_
           (uint64_t)las_size, max_las_size);
 
 err:
-    /* Adjust the entry count. */
-    (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
-
     /* Failed in txn. */
     if (local_txn) {
         WT_ASSERT(session, ret != 0);
@@ -844,6 +841,10 @@ err:
         __las_restore_isolation(session, saved_isolation);
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
     }
+
+    /* Adjust the entry count. */
+    if (ret == 0)
+        (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
 
     if (ret == 0 && mementos_cnt > 0)
         ret = __wt_calloc(session, mementos_cnt, sizeof(WT_KEY_MEMENTO), &multi->page_las.mementos);
