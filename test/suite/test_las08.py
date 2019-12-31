@@ -61,11 +61,13 @@ class test_las08(wttest.WiredTigerTestCase):
         for _, value in cursor:
             self.assertEqual(value, expected_data_value)
         cursor.close()
-        # Check the history file value
+        # Check the lookaside file value
         cursor = session.open_cursor("file:WiredTigerLAS.wt", None, 'checkpoint=WiredTigerCheckpoint')
         for _, _, start_ts, _, stop_ts, _, _, _, type, value in cursor:
-            # No WT_UPDATE_TOMBSTONE in history store
+            # No WT_UPDATE_TOMBSTONE in lookaside
             self.assertNotEqual(type, 5)
+            # No WT_UPDATE_BIRTHMARK in lookaside
+            self.assertNotEqual(type, 1)
             # WT_UPDATE_STANDARD
             if (type == 4):
                 self.assertEqual(value.decode(), expected_las_value + '\x00')
