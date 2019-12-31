@@ -570,7 +570,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     WT_UPDATE *upd, *prev_upd;
     wt_off_t las_size;
     WT_TIME_PAIR stop_ts_pair;
-    uint64_t insert_cnt, max_las_size, prepared_insert_cnt;
+    uint64_t insert_cnt, max_las_size;
     uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
     int nentries;
@@ -580,7 +580,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     session = (WT_SESSION_IMPL *)cursor->session;
     cache = S2C(session)->cache;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
-    insert_cnt = prepared_insert_cnt = 0;
+    insert_cnt = 0;
     mementos_cnt = 0;
     btree_id = btree->id;
     local_txn = false;
@@ -839,7 +839,6 @@ err:
     if (ret == 0 && (insert_cnt > 0 || mementos_cnt > 0)) {
         WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
         multi->has_las = true;
-        multi->page_las.has_prepares |= prepared_insert_cnt > 0;
         if (mementos_cnt > 0) {
             memcpy(multi->page_las.mementos, mementos->mem, mementos_cnt * sizeof(WT_KEY_MEMENTO));
             multi->page_las.mementos_cnt = mementos_cnt;
