@@ -74,7 +74,7 @@ class test_las08(wttest.WiredTigerTestCase):
         cursor.close()
         session.close()
 
-    @unittest.skip("Temporarily disabled until update restore also writes history to history store")
+    @unittest.skip("Temporarily disabled until update restore also writes to lookaside")
     def test_uncommitted_updates_not_written_to_lookaside(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
@@ -105,7 +105,7 @@ class test_las08(wttest.WiredTigerTestCase):
 
         self.check_ckpt_las(value2, value1, 2, 3)
 
-    @unittest.skip("Temporarily disabled until update restore also writes history to history store")
+    @unittest.skip("Temporarily disabled until update restore also writes to lookaside")
     def test_prepared_updates_not_written_to_lookaside(self):
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
