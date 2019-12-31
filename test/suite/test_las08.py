@@ -185,7 +185,7 @@ class test_las08(wttest.WiredTigerTestCase):
 
         # Delete records.
         self.session.begin_transaction()
-        for i in range(5, 10):
+        for i in range(1, 10000):
             cursor = self.session.open_cursor(self.uri)
             cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.remove(), 0)
