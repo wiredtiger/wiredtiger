@@ -382,19 +382,11 @@ struct __wt_page_modify {
                 bool has_las; /* This block has lookaside contents of its own. */
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
-
-            /* Aggregated stop time pair of multiple replacement blocks */
-            wt_timestamp_t newest_stop_ts;
-            uint64_t newest_stop_txn;
         } m;
 #undef mod_multi
 #define mod_multi u1.m.multi
 #undef mod_multi_entries
 #define mod_multi_entries u1.m.multi_entries
-#undef mod_multi_newest_stop_ts
-#define mod_multi_newest_stop_ts u1.m.newest_stop_ts
-#undef mod_multi_newest_stop_txn
-#define mod_multi_newest_stop_txn u1.m.newest_stop_txn
     } u1;
 
     /*

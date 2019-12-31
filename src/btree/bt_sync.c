@@ -109,7 +109,11 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_ADDR *addr;
     WT_CELL_UNPACK vpack;
+    WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
+    wt_timestamp_t multi_newest_stop_ts;
+    uint64_t multi_newest_stop_txn;
+    uint32_t i;
 
     /* Ignore root pages as they can never be deleted. */
     if (__wt_ref_is_root(ref))
@@ -125,11 +129,16 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return (__wt_txn_visible_all(
           session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts));
 
-    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK)
-        return (__wt_txn_visible_all(
-          session, mod->mod_multi_newest_stop_txn, mod->mod_multi_newest_stop_ts));
+    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+        /* Calculate the max stop time pair by traversing all multi addresses. */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            multi_newest_stop_ts = WT_MAX(multi_newest_stop_ts, multi->addr.newest_stop_ts);
+            multi_newest_stop_txn = WT_MAX(multi_newest_stop_txn, multi->addr.newest_stop_txn);
+        }
+        return (__wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts));
+    }
 
-    /* Check for the obsolete from page disk address. */
+    /* Check if the page is obsolete using the page disk address. */
     addr = ref->addr;
     if (addr != NULL) {
         if (!__wt_off_page(ref->home, addr)) {
@@ -357,7 +366,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
                 /*
                  * Check whether the tree is lookaside btree and verify whether the page contents
-                 * are obsolete or not by checking the visibility of the page stop time pair.
+                 * are obsolete.
                  */
                 if (is_las && __sync_ref_is_obsolete(session, walk)) {
                     /* Must be leaf page. Evict it. */

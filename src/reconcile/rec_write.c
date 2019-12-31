@@ -2334,13 +2334,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * reconciliation we would fail to remove blocks that are being discarded.
      */
 split:
-        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i) {
-            mod->mod_multi_newest_stop_ts =
-              WT_MAX(mod->mod_multi_newest_stop_ts, multi->addr.newest_stop_ts);
-            mod->mod_multi_newest_stop_txn =
-              WT_MAX(mod->mod_multi_newest_stop_txn, multi->addr.newest_stop_txn);
+        for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             multi->addr.reuse = 0;
-        }
         mod->mod_multi = r->multi;
         mod->mod_multi_entries = r->multi_next;
         mod->rec_result = WT_PM_REC_MULTIBLOCK;
