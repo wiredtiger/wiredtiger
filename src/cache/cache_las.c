@@ -778,6 +778,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_MODIFY, modify_value, stop_ts_pair));
                     __wt_scr_free(session, &modify_value);
+                    modify_value = NULL;
                 } else
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
@@ -851,6 +852,7 @@ err:
     if (ret != 0)
         for (i = 0, mementop = mementos->mem; i < mementos_cnt; i++, mementop++)
             __wt_buf_free(session, &mementop->key);
+    /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */
     if (modify_value != NULL)
         __wt_scr_free(session, &modify_value);
     __wt_scr_free(session, &mementos);
