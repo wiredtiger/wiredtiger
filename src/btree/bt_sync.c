@@ -101,6 +101,103 @@ __sync_dup_walk(WT_SESSION_IMPL *session, WT_REF *walk, uint32_t flags, WT_REF *
 }
 
 /*
+ * __sync_ref_is_obsolete --
+ *     Return whether the ref is obsolete according to the newest stop time pair.
+ */
+static bool
+__sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR *addr;
+    WT_CELL_UNPACK vpack;
+    WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod;
+    wt_timestamp_t multi_newest_stop_ts;
+    uint64_t multi_newest_stop_txn;
+    uint32_t i;
+
+    /* Ignore root pages as they can never be deleted. */
+    if (__wt_ref_is_root(ref))
+        return (false);
+
+    /* Ignore internal pages, these are taken care of during reconciliation. */
+    if (!__wt_ref_is_leaf(session, ref))
+        return (false);
+
+    /* Check for the page obsolete, if the page is modified and reconciled. */
+    mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
+    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
+        return (__wt_txn_visible_all(
+          session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts));
+
+    multi_newest_stop_ts = WT_TS_NONE;
+    multi_newest_stop_txn = WT_TXN_NONE;
+    if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+        /* Calculate the max stop time pair by traversing all multi addresses. */
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            multi_newest_stop_ts = WT_MAX(multi_newest_stop_ts, multi->addr.newest_stop_ts);
+            multi_newest_stop_txn = WT_MAX(multi_newest_stop_txn, multi->addr.newest_stop_txn);
+        }
+        return (__wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts));
+    }
+
+    /* Check if the page is obsolete using the page disk address. */
+    addr = ref->addr;
+    if (addr != NULL) {
+        if (!__wt_off_page(ref->home, addr)) {
+            __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+            return (__wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts));
+        }
+        return (__wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts));
+    }
+
+    return (false);
+}
+
+/*
+ * __sync_ref_evict_or_mark_deleted --
+ *     Evict the in memory page or delete the on disk page.
+ */
+static int
+__sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    /*
+     * Mark the page as deleted and also set the parent page as dirty. This is to ensure the parent
+     * page must be written during checkpoint and the child page discarded.
+     */
+    if (WT_REF_CAS_STATE(session, ref, WT_REF_DISK, WT_REF_LOCKED)) {
+        WT_REF_SET_STATE(ref, WT_REF_DELETED);
+        return (__wt_page_parent_modify_set(session, ref, true));
+    }
+
+    /* Evict the in-memory obsolete page */
+    WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    return (0);
+}
+
+/*
+ * __sync_ref_int_obsolete_cleanup --
+ *     Traverse the internal page and identify the leaf pages that are obsolete and mark them as
+ *     deleted.
+ */
+static int
+__sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent)
+{
+    WT_PAGE_INDEX *pindex;
+    WT_REF *ref;
+    uint32_t slot;
+
+    WT_INTL_INDEX_GET(session, parent->page, pindex);
+    for (slot = 0; slot < pindex->entries; slot++) {
+        ref = pindex->index[slot];
+
+        if (__sync_ref_is_obsolete(session, ref))
+            WT_RET(__sync_ref_evict_or_mark_deleted(session, ref));
+    }
+
+    return (0);
+}
+
+/*
  * __wt_sync_file --
  *     Flush pages for a specific file.
  */
@@ -117,7 +214,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     uint64_t internal_bytes, internal_pages, leaf_bytes, leaf_pages;
     uint64_t oldest_id, saved_pinned_id, time_start, time_stop;
     uint32_t flags, rec_flags;
-    bool timer, tried_eviction;
+    bool is_las, timer, tried_eviction;
 
     conn = S2C(session);
     btree = S2BT(session);
@@ -228,6 +325,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
+        is_las = F_ISSET(btree, WT_BTREE_LOOKASIDE);
 
         /* Add in lookaside reconciliation for standard files. */
         if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
@@ -239,6 +337,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         /* Read pages with lookaside entries and evict them asap. */
         LF_SET(WT_READ_LOOKASIDE | WT_READ_WONT_NEED);
 
+        /* Read internal pages if it is history store */
+        if (is_las) {
+            LF_CLR(WT_READ_CACHE);
+            LF_SET(WT_READ_CACHE_LEAF);
+        }
+
         for (;;) {
             WT_ERR(__sync_dup_walk(session, walk, flags, &prev));
             WT_ERR(__wt_tree_walk(session, &walk, flags));
@@ -246,15 +350,10 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (walk == NULL)
                 break;
 
-            /*
-             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
-             */
-            if (!__wt_page_is_modified(walk->page)) {
-                if (((mod = walk->page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
-                    btree->rec_max_txn = mod->rec_max_txn;
-                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
-                    btree->rec_max_timestamp = mod->rec_max_timestamp;
-                continue;
+            /* Traverse through the internal page for obsolete child pages. */
+            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
+                WT_WITH_PAGE_INDEX(session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
+                WT_ERR(ret);
             }
 
             /*
@@ -263,6 +362,28 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * have been created between taking the reference and checking modified.
              */
             page = walk->page;
+
+            /*
+             * Skip clean pages, but need to make sure maximum transaction ID is always updated.
+             */
+            if (!__wt_page_is_modified(page)) {
+                if (((mod = page->modify) != NULL) && mod->rec_max_txn > btree->rec_max_txn)
+                    btree->rec_max_txn = mod->rec_max_txn;
+                if (mod != NULL && btree->rec_max_timestamp < mod->rec_max_timestamp)
+                    btree->rec_max_timestamp = mod->rec_max_timestamp;
+
+                /*
+                 * Check whether the tree is lookaside btree and verify whether the page contents
+                 * are obsolete.
+                 */
+                if (is_las && __sync_ref_is_obsolete(session, walk)) {
+                    /* Must be leaf page. Evict it. */
+                    WT_ASSERT(session, !WT_PAGE_IS_INTERNAL(page));
+                    WT_ERR(__sync_ref_evict_or_mark_deleted(session, walk));
+                }
+
+                continue;
+            }
 
             /*
              * Write dirty pages, if we can't skip them. If we skip a page, mark the tree dirty. The

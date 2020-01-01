@@ -280,8 +280,8 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /*
              * If our update is a modify then rewrite it as a standard update. It's a problem if we
-             * need to read backwards into lookaside just to make sense of what we have in our
-             * update list.
+             * need to read forwards into lookaside just to make sense of what we have in our update
+             * list.
              *
              * The update we're constructing will have the same visibility as the modify that we're
              * replacing it with.
@@ -300,7 +300,7 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                  * The on-disk value cannot be a modify or a prepare so we can confidently assign
                  * the update type and prepare state to the resulting update.
                  */
-                WT_ERR_NOTFOUND_OK(las_cursor->prev(las_cursor));
+                WT_ERR_NOTFOUND_OK(las_cursor->next(las_cursor));
                 las_start_tmp.timestamp = WT_TS_NONE;
                 las_start_tmp.txnid = WT_TXN_NONE;
                 if (ret != WT_NOTFOUND) {
@@ -325,12 +325,6 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
                 __wt_modify_vector_pop(&modifies, &mod_upd);
                 WT_ERR(__wt_modify_apply_item(session, &las_value, mod_upd->data, false));
                 __wt_free_update_list(session, &mod_upd);
-                mod_upd = NULL;
-                /*
-                 * We had to do some backtracking to construct this update. Unwind back to where we
-                 * were before.
-                 */
-                WT_ERR(las_cursor->next(las_cursor));
             }
 
             WT_ERR(__wt_update_alloc(session, &las_value, &upd, &size, upd_type));
@@ -664,14 +658,14 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
 
     /* Sanity check flag combinations. */
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT | WT_READ_LOOKASIDE) ||
-        LF_ISSET(WT_READ_CACHE));
+        LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF));
     WT_ASSERT(session, !LF_ISSET(WT_READ_DELETED_CHECK) || !LF_ISSET(WT_READ_DELETED_SKIP));
 
     /*
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE)) {
+    if (!LF_ISSET(WT_READ_CACHE | WT_READ_CACHE_LEAF)) {
         WT_STAT_CONN_INCR(session, cache_pages_requested);
         WT_STAT_DATA_INCR(session, cache_pages_requested);
     }
@@ -700,7 +694,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
             }
             goto read;
         case WT_REF_DISK:
-            if (LF_ISSET(WT_READ_CACHE))
+            /* Limit reads to cache-only, or internal pages only. */
+            if (LF_ISSET(WT_READ_CACHE) ||
+              (LF_ISSET(WT_READ_CACHE_LEAF) && __wt_ref_is_leaf(session, ref)))
                 return (WT_NOTFOUND);
 
 read:
