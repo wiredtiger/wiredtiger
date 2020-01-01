@@ -22,11 +22,14 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
  *     Release memory used by the key or value item in cursor copy debug mode.
  */
 static inline int
-__cursor_copy_release_item(WT_SESSION_IMPL *session, WT_ITEM *item)
+__cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_SESSION_IMPL *session;
     void *extra_mem;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
 
     if (!F_ISSET(S2C(session), WT_CONN_DEBUG_CURSOR_COPY) || item->mem == NULL)
         return (0);
@@ -65,9 +68,9 @@ err:
  *     Release memory used by the key in cursor copy debug mode.
  */
 static inline int
-__cursor_copy_release_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__cursor_copy_release_key(WT_CURSOR *cursor)
 {
-    return (__cursor_copy_release_item(session, &cursor->key));
+    return (__cursor_copy_release_item(cursor, &cursor->key));
 }
 
 /*
@@ -75,9 +78,9 @@ __cursor_copy_release_key(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
  *     Release memory used by the value in cursor copy debug mode.
  */
 static inline int
-__cursor_copy_release_value(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__cursor_copy_release_value(WT_CURSOR *cursor)
 {
-    return (__cursor_copy_release_item(session, &cursor->value));
+    return (__cursor_copy_release_item(cursor, &cursor->value));
 }
 
 /*

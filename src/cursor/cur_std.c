@@ -395,7 +395,7 @@ __wt_cursor_set_keyv(WT_CURSOR *cursor, uint32_t flags, va_list ap)
     tmp.mem = NULL;
 
     CURSOR_API_CALL(cursor, session, set_key, NULL);
-    WT_ERR(__cursor_copy_release_key(session, cursor));
+    WT_ERR(__cursor_copy_release_key(cursor));
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET) && WT_DATA_IN_ITEM(buf)) {
         tmp = *buf;
         buf->mem = NULL;
@@ -547,7 +547,7 @@ __wt_cursor_set_valuev(WT_CURSOR *cursor, va_list ap)
     tmp.mem = NULL;
 
     CURSOR_API_CALL(cursor, session, set_value, NULL);
-    WT_ERR(__cursor_copy_release_value(session, cursor));
+    WT_ERR(__cursor_copy_release_value(cursor));
     if (F_ISSET(cursor, WT_CURSTD_VALUE_SET) && WT_DATA_IN_ITEM(buf)) {
         tmp = *buf;
         buf->mem = NULL;
