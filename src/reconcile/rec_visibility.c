@@ -433,13 +433,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
               upd_select->upd != NULL && upd_select->upd->next != NULL)) {
 
             /*
-             * We are attempting eviction with changes that are not yet stable (i.e. globally
-             * visible). There are two ways to continue, the save/restore eviction path or the
-             * lookaside table eviction path. Both cannot be configured because the paths track
-             * different information. The update/restore path can handle uncommitted changes, by
-             * evicting most of the page and then creating a new, smaller page to which we re-attach
-             * those changes. Lookaside eviction writes changes into the lookaside table and
-             * restores them on demand if and when the page is read back into memory.
+             * There are two ways to continue, the save/restore eviction path or the lookaside table
+             * eviction path. Both cannot be configured because the paths track different
+             * information. The update/restore path can handle uncommitted changes, by evicting most
+             * of the page and then creating a new, smaller page to which we re-attach those
+             * changes. Lookaside eviction writes changes into the lookaside table and restores them
+             * on demand if and when the page is read back into memory, lookaside eviction can also
+             * handle uncommitted updates when checkpointing.
+             *
+             * FIXME-PM-1521: We should be able to evict to lookaside with uncommitted updates even
+             * in standard eviction. Consider changing this.
              *
              * Both paths are configured outside of reconciliation: the save/restore path is the
              * WT_REC_UPDATE_RESTORE flag, the lookaside table path is the WT_REC_LOOKASIDE flag.

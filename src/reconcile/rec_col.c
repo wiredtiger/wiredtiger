@@ -1069,6 +1069,9 @@ compare:
              * the same thing.
              */
             if (rle != 0) {
+                /*
+                 * FIXME-PM-1521: Follow up clang sanitizer issue introduced in WT-5341.
+                 */
                 if ((!__wt_process.page_version_ts ||
                       (last.start_ts == start_ts && last.start_txn == start_txn &&
                         last.stop_ts == stop_ts && last.stop_txn == stop_txn)) &&

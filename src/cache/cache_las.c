@@ -800,7 +800,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         if (upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
-            WT_ASSERT(session, upd->ext == 0 &&
+            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) == 0 &&
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
 

@@ -226,8 +226,6 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
     /* Only visit pages in cache and don't bump page read generations. */
     flags = WT_READ_CACHE | WT_READ_NO_GEN;
 
-    rec_flags = WT_REC_CHECKPOINT;
-
     /*
      * Skip all deleted pages. For a page to be marked deleted, it must have been evicted from cache
      * and marked clean. Checkpoint should never instantiate deleted pages: if a truncate is not
@@ -327,8 +325,14 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_RUNNING;
         is_las = F_ISSET(btree, WT_BTREE_LOOKASIDE);
 
-        /* Add in lookaside reconciliation for standard files. */
-        if (!F_ISSET(btree, WT_BTREE_LOOKASIDE) && !WT_IS_METADATA(btree->dhandle))
+        /*
+         * Add in lookaside reconciliation for standard files.
+         *
+         * FIXME-PM-1521: Remove the WT_BTREE_LOOKASIDE check, and assert that no updates from
+         * lookaside are copied to lookaside recursively.
+         */
+        rec_flags = WT_REC_CHECKPOINT;
+        if (!WT_IS_LOOKASIDE(btree) && !WT_IS_METADATA(btree->dhandle))
             rec_flags |= WT_REC_LOOKASIDE;
 
         /* Write all dirty in-cache pages. */
