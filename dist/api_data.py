@@ -500,7 +500,7 @@ connection_runtime_config = [
             returned by a cursor operation and return the copy instead.
             The copy is freed on the next cursor operation. This allows
             memory sanitizers to detect inappropriate references to memory
-            owned by cursor cursors.''',
+            owned by cursors.''',
             type='boolean'),
         Config('eviction', 'false', r'''
             if true, modify internal algorithms to change skew to force
