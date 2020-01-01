@@ -129,7 +129,6 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
-    obsolete = false;
     multi_newest_stop_ts = WT_TS_NONE;
     multi_newest_stop_txn = WT_TXN_NONE;
     addr = ref->addr;
