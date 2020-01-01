@@ -739,13 +739,14 @@ __verify_ts_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num, c
 static int
 __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
   const char *txn1_name, uint64_t txn1, const char *txn2_name, uint64_t txn2, bool gt,
-  WT_VSTUFF *vs)
+  WT_VSTUFF *vs, const WT_PAGE_HEADER *dsk)
 {
     /*
      * If we unpack a value that was written as part of a previous startup generation, we set start
      * id to "none" and the stop id to "max" so we need an exception here.
      */
-    if (txn1 == WT_TXN_NONE || txn1 == WT_TXN_MAX)
+    if ((txn1 == WT_TXN_NONE || txn1 == WT_TXN_MAX) &&
+      dsk->write_gen <= S2BT(session)->base_write_gen)
         return (0);
     if (gt && txn1 >= txn2)
         return (0);
@@ -849,11 +850,12 @@ __verify_page_cell(
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "oldest start",
               unpack.oldest_start_ts, "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "oldest start",
-              unpack.oldest_start_txn, "oldest start", addr_unpack->oldest_start_txn, true, vs));
+              unpack.oldest_start_txn, "oldest start", addr_unpack->oldest_start_txn, true, vs,
+              dsk));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "newest stop",
               unpack.newest_stop_ts, "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "newest stop",
-              unpack.newest_stop_txn, "newest stop", addr_unpack->newest_stop_txn, false, vs));
+              unpack.newest_stop_txn, "newest stop", addr_unpack->newest_stop_txn, false, vs, dsk));
             break;
         case WT_CELL_DEL:
         case WT_CELL_VALUE:
@@ -890,11 +892,11 @@ __verify_page_cell(
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_ts,
               "oldest start", addr_unpack->oldest_start_ts, true, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "start", unpack.start_txn,
-              "oldest start", addr_unpack->oldest_start_txn, true, vs));
+              "oldest start", addr_unpack->oldest_start_txn, true, vs, dsk));
             WT_RET(__verify_ts_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_ts,
               "newest stop", addr_unpack->newest_stop_ts, false, vs));
             WT_RET(__verify_txn_addr_cmp(session, ref, cell_num - 1, "stop", unpack.stop_txn,
-              "newest stop", addr_unpack->newest_stop_txn, false, vs));
+              "newest stop", addr_unpack->newest_stop_txn, false, vs, dsk));
             break;
         }
     }

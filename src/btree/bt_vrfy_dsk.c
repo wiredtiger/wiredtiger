@@ -238,8 +238,17 @@ __verify_dsk_ts_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const char
  */
 static int
 __verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const char *txn1_name,
-  uint64_t txn1, const char *txn2_name, uint64_t txn2, bool gt, const char *tag)
+  uint64_t txn1, const char *txn2_name, uint64_t txn2, bool gt, const char *tag,
+  const WT_PAGE_HEADER *dsk)
 {
+
+    /*
+     * If we unpack a value that was written as part of a previous startup generation, we set start
+     * id to "none" and the stop id to "max" so we need an exception here.
+     */
+    if ((txn1 == WT_TXN_NONE || txn1 == WT_TXN_MAX) &&
+      dsk->write_gen <= S2BT(session)->base_write_gen)
+        return (0);
     if (gt && txn1 >= txn2)
         return (0);
     if (!gt && txn1 <= txn2)
@@ -259,7 +268,7 @@ __verify_dsk_txn_addr_cmp(WT_SESSION_IMPL *session, uint32_t cell_num, const cha
  */
 static int
 __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t cell_num,
-  WT_ADDR *addr, const char *tag)
+  WT_ADDR *addr, const char *tag, const WT_PAGE_HEADER *dsk)
 {
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -310,11 +319,11 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "oldest start",
           unpack->oldest_start_ts, "oldest start", addr->oldest_start_ts, true, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "oldest start",
-          unpack->oldest_start_txn, "oldest start", addr->oldest_start_txn, true, tag));
+          unpack->oldest_start_txn, "oldest start", addr->oldest_start_txn, true, tag, dsk));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "newest stop",
           unpack->newest_stop_ts, "newest stop", addr->newest_stop_ts, false, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "newest stop",
-          unpack->newest_stop_txn, "newest stop", addr->newest_stop_txn, false, tag));
+          unpack->newest_stop_txn, "newest stop", addr->newest_stop_txn, false, tag, dsk));
         break;
     case WT_CELL_DEL:
     case WT_CELL_VALUE:
@@ -352,11 +361,11 @@ __verify_dsk_validity(WT_SESSION_IMPL *session, WT_CELL_UNPACK *unpack, uint32_t
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "start", unpack->start_ts,
           "oldest start", addr->oldest_start_ts, true, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "start", unpack->start_txn,
-          "oldest start", addr->oldest_start_txn, true, tag));
+          "oldest start", addr->oldest_start_txn, true, tag, dsk));
         WT_RET(__verify_dsk_ts_addr_cmp(session, cell_num - 1, "stop", unpack->stop_ts,
           "newest stop", addr->newest_stop_ts, false, tag));
         WT_RET(__verify_dsk_txn_addr_cmp(session, cell_num - 1, "stop", unpack->stop_txn,
-          "newest stop", addr->newest_stop_txn, false, tag));
+          "newest stop", addr->newest_stop_txn, false, tag, dsk));
         break;
     }
 
@@ -471,7 +480,7 @@ __verify_dsk_row(
         }
 
         /* Check the validity window. */
-        WT_ERR(__verify_dsk_validity(session, unpack, cell_num, addr, tag));
+        WT_ERR(__verify_dsk_validity(session, unpack, cell_num, addr, tag, dsk));
 
         /* Check if any referenced item has an invalid address. */
         switch (cell_type) {
@@ -666,7 +675,7 @@ __verify_dsk_col_int(
         WT_RET(__err_cell_type(session, cell_num, tag, unpack->type, dsk->type));
 
         /* Check the validity window. */
-        WT_RET(__verify_dsk_validity(session, unpack, cell_num, addr, tag));
+        WT_RET(__verify_dsk_validity(session, unpack, cell_num, addr, tag, dsk));
 
         /* Check if any referenced item is entirely in the file. */
         ret = bm->addr_invalid(bm, session, unpack->data, unpack->size);
@@ -748,7 +757,7 @@ __verify_dsk_col_var(
         cell_type = unpack->type;
 
         /* Check the validity window. */
-        WT_RET(__verify_dsk_validity(session, unpack, cell_num, addr, tag));
+        WT_RET(__verify_dsk_validity(session, unpack, cell_num, addr, tag, dsk));
 
         /* Check if any referenced item is entirely in the file. */
         if (cell_type == WT_CELL_VALUE_OVFL) {
