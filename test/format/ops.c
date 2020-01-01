@@ -29,6 +29,7 @@
 #include "format.h"
 
 static int col_insert(TINFO *, WT_CURSOR *);
+static void col_insert_resolve(TINFO *);
 static int col_modify(TINFO *, WT_CURSOR *, bool);
 static int col_remove(TINFO *, WT_CURSOR *, bool);
 static int col_reserve(TINFO *, WT_CURSOR *, bool);
@@ -940,6 +941,10 @@ update_instead_of_chosen_op:
             break;
         }
 
+        /* If we have pending inserts, try and update the total rows. */
+        if (tinfo->insert_list_cnt > 0)
+            col_insert_resolve(tinfo);
+
         /*
          * The cursor is positioned if we did any operation other than insert, do a small number of
          * next/prev cursor operations in a random direction.
@@ -1609,11 +1614,11 @@ row_insert(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
 }
 
 /*
- * col_insert_track --
- *     Track newly inserted records.
+ * col_insert_resolve --
+ *     Resolve newly inserted records.
  */
 static void
-col_insert_track(TINFO *tinfo)
+col_insert_resolve(TINFO *tinfo)
 {
     uint64_t v, *p;
     u_int i;
@@ -1625,12 +1630,37 @@ col_insert_track(TINFO *tinfo)
      * can't update a record before it's been inserted, and so we can't leave gaps when the count of
      * records in the table is incremented.
      *
-     * The solution is a per-thread array which contains an unsorted list of inserted records. Every
-     * time we finish inserting a record, process the table, trying to update the total records in
-     * the object.
+     * The solution is a per-thread array which contains an unsorted list of inserted records. If
+     * there are pending inserts, we review the table after every operation, trying to update the
+     * total rows. This is wasteful, but we want to give other threads immediate access to the row,
+     * ideally they'll collide with our insert before we resolve.
      *
-     * Add the inserted record to the array.
+     * Process the existing records and advance the last row count until we can't go further.
      */
+    do {
+        WT_ORDERED_READ(v, g.rows);
+        for (i = 0, p = tinfo->insert_list; i < WT_ELEMENTS(tinfo->insert_list); ++i) {
+            if (*p == v + 1) {
+                testutil_assert(__wt_atomic_casv64(&g.rows, v, v + 1));
+                *p = 0;
+                --tinfo->insert_list_cnt;
+                break;
+            }
+            testutil_assert(*p == 0 || *p > v);
+        }
+    } while (tinfo->insert_list_cnt > 0 && i < WT_ELEMENTS(tinfo->insert_list));
+}
+
+/*
+ * col_insert_add --
+ *     Add newly inserted records.
+ */
+static void
+col_insert_add(TINFO *tinfo)
+{
+    u_int i;
+
+    /* Add the inserted record to the array. */
     for (i = 0; i < WT_ELEMENTS(tinfo->insert_list); ++i)
         if (tinfo->insert_list[i] == 0) {
             tinfo->insert_list[i] = tinfo->keyno;
@@ -1638,29 +1668,6 @@ col_insert_track(TINFO *tinfo)
             break;
         }
     testutil_assert(i < WT_ELEMENTS(tinfo->insert_list));
-
-    /*
-     * Process the existing records and advance the last row count until we can't go further. This
-     * is wasteful, but we want to give other threads immediate access to the row, ideally they'll
-     * collide with our insert before we resolve.
-     */
-    do {
-        WT_ORDERED_READ(v, g.rows);
-        for (i = 0, p = tinfo->insert_list; i < WT_ELEMENTS(tinfo->insert_list); ++i) {
-            if (*p == 0)
-                continue;
-            if (*p <= v) {
-                *p = 0;
-                --tinfo->insert_list_cnt;
-                continue;
-            }
-            if (*p == v + 1 && __wt_atomic_casv64(&g.rows, v, v + 1)) {
-                *p = 0;
-                --tinfo->insert_list_cnt;
-                break;
-            }
-        }
-    } while (i < WT_ELEMENTS(tinfo->insert_list));
 }
 
 /*
@@ -1683,7 +1690,7 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
 
     testutil_check(cursor->get_key(cursor, &tinfo->keyno));
 
-    col_insert_track(tinfo); /* Extend the object. */
+    col_insert_add(tinfo); /* Extend the object. */
 
     if (g.type == FIX)
         logop(cursor->session, "%-10s%" PRIu64 " {0x%02" PRIx8 "}", "insert", tinfo->keyno,
