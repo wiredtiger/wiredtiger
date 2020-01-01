@@ -146,14 +146,12 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
             multi_newest_stop_txn = WT_MAX(multi_newest_stop_txn, multi->addr.newest_stop_txn);
         }
         obsolete = __wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts);
-    } else if (addr != NULL) {
+    } else if (!__wt_off_page(ref->home, addr)) {
         /* Check if the page is obsolete using the page disk address. */
-        if (!__wt_off_page(ref->home, addr)) {
-            __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
-            obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
-        } else
-            obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
-    }
+        __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+        obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
+    } else
+        obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
 
     if (obsolete)
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
