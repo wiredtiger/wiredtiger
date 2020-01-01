@@ -468,28 +468,6 @@ format:
 }
 
 /*
- * __wt_metadata_set_base_write_gen --
- *     Set the connection's base write generation.
- */
-int
-__wt_metadata_set_base_write_gen(WT_SESSION_IMPL *session)
-{
-    WT_CKPT ckpt;
-
-    WT_RET(__wt_meta_checkpoint(session, WT_METAFILE_URI, NULL, &ckpt));
-
-    /*
-     * We track the maximum page generation we've ever seen, and I'm not interested in debugging
-     * off-by-ones.
-     */
-    S2C(session)->base_write_gen = ckpt.write_gen + 1;
-
-    __wt_meta_checkpoint_free(session, &ckpt);
-
-    return (0);
-}
-
-/*
  * __ckptlist_review_write_gen --
  *     Review the checkpoint's write generation.
  */
@@ -515,12 +493,6 @@ __ckptlist_review_write_gen(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         WT_ORDERED_READ(v, S2C(session)->max_write_gen);
     } while (
       ckpt->write_gen > v && !__wt_atomic_cas64(&S2C(session)->max_write_gen, v, ckpt->write_gen));
-
-    /*
-     * If checkpointing the metadata file, update its write generation to be the maximum we've seen.
-     */
-    if (session->dhandle != NULL && WT_IS_METADATA(session->dhandle) && ckpt->write_gen < v)
-        ckpt->write_gen = v;
 }
 
 /*

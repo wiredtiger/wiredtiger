@@ -656,7 +656,7 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         uint64_t stop_txn;
         uint32_t len;
     } copy;
-    uint64_t v;
+    uint64_t txnid_tmp, v;
     const uint8_t *p;
     uint8_t flags;
 
@@ -762,18 +762,22 @@ restart:
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(
               &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_ts));
-        if (LF_ISSET(WT_CELL_TXN_START))
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->oldest_start_txn));
+        if (LF_ISSET(WT_CELL_TXN_START)) {
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
+            /* Transaction ids from a previous startup generation must be ignored. */
+            if (dsk->write_gen > S2BT(session)->base_write_gen)
+                unpack->oldest_start_txn = txnid_tmp;
+        }
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(
               __wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_ts));
             unpack->newest_stop_ts += unpack->oldest_start_ts;
         }
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
-            WT_RET(__wt_vunpack_uint(
-              &p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->newest_stop_txn));
-            unpack->newest_stop_txn += unpack->oldest_start_txn;
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
+            /* Transaction ids from a previous startup generation must be ignored. */
+            if (dsk->write_gen > S2BT(session)->base_write_gen)
+                unpack->newest_stop_txn = txnid_tmp + unpack->oldest_start_txn;
         }
         __wt_check_addr_validity(session, unpack->oldest_start_ts, unpack->oldest_start_txn,
           unpack->newest_stop_ts, unpack->newest_stop_txn);
@@ -789,15 +793,21 @@ restart:
 
         if (LF_ISSET(WT_CELL_TS_START))
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_ts));
-        if (LF_ISSET(WT_CELL_TXN_START))
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->start_txn));
+        if (LF_ISSET(WT_CELL_TXN_START)) {
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
+            /* Transaction ids from a previous startup generation must be ignored. */
+            if (dsk->write_gen > S2BT(session)->base_write_gen)
+                unpack->start_txn = txnid_tmp;
+        }
         if (LF_ISSET(WT_CELL_TS_STOP)) {
             WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_ts));
             unpack->stop_ts += unpack->start_ts;
         }
         if (LF_ISSET(WT_CELL_TXN_STOP)) {
-            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &unpack->stop_txn));
-            unpack->stop_txn += unpack->start_txn;
+            WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &txnid_tmp));
+            /* Transaction ids from a previous startup generation must be ignored. */
+            if (dsk->write_gen > S2BT(session)->base_write_gen)
+                unpack->stop_txn = txnid_tmp + unpack->start_txn;
         }
         __cell_check_value_validity(
           session, unpack->start_ts, unpack->start_txn, unpack->stop_ts, unpack->stop_txn);

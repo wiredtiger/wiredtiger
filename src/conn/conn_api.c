@@ -2651,9 +2651,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         WT_ERR(__wt_metadata_salvage(session));
 
-    /* Set the connection's base write generation. */
-    WT_ERR(__wt_metadata_set_base_write_gen(session));
-
     WT_ERR(__wt_metadata_cursor(session, NULL));
 
     /* Start the worker threads and run recovery. */

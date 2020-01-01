@@ -317,14 +317,11 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
  *     Optionally skip unstable entries
  */
 static inline bool
-__unstable_skip(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK *unpack)
+__unstable_skip(WT_CELL_UNPACK *unpack)
 {
-    /*
-     * Skip unstable entries after downgrade to releases without validity windows and from previous
-     * wiredtiger_open connections.
-     */
+    /* Skip unstable entries after downgrade to releases without validity windows. */
     return ((unpack->stop_ts != WT_TS_MAX || unpack->stop_txn != WT_TXN_MAX) &&
-      (S2C(session)->base_write_gen > dsk->write_gen || !__wt_process.page_version_ts));
+      !__wt_process.page_version_ts);
 }
 
 /*
@@ -358,7 +355,7 @@ __inmem_col_var(
     cip = page->pg_var;
     WT_CELL_FOREACH_BEGIN (session, btree, page->dsk, unpack) {
         /* Optionally skip unstable values */
-        if (check_unstable && __unstable_skip(session, page->dsk, &unpack)) {
+        if (check_unstable && __unstable_skip(&unpack)) {
             --page->entries;
             continue;
         }
@@ -578,7 +575,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
             break;
         case WT_CELL_VALUE:
             /* Optionally skip unstable values */
-            if (check_unstable && __unstable_skip(session, page->dsk, &unpack)) {
+            if (check_unstable && __unstable_skip(&unpack)) {
                 --rip;
                 --page->entries;
             }
@@ -592,7 +589,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool check_unstable)
             break;
         case WT_CELL_VALUE_OVFL:
             /* Optionally skip unstable values */
-            if (check_unstable && __unstable_skip(session, page->dsk, &unpack)) {
+            if (check_unstable && __unstable_skip(&unpack)) {
                 --rip;
                 --page->entries;
             }

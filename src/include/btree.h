@@ -161,8 +161,9 @@ struct __wt_btree {
     WT_BM *bm;          /* Block manager reference */
     u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
 
-    uint64_t write_gen;   /* Write generation */
-    uint64_t rec_max_txn; /* Maximum txn seen (clean trees) */
+    uint64_t write_gen;      /* Write generation */
+    uint64_t base_write_gen; /* Base write generation */
+    uint64_t rec_max_txn;    /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
 
     uint64_t checkpoint_gen;       /* Checkpoint generation */

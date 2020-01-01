@@ -741,6 +741,12 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
   const char *txn1_name, uint64_t txn1, const char *txn2_name, uint64_t txn2, bool gt,
   WT_VSTUFF *vs)
 {
+    /*
+     * If we unpack a value that was written as part of a previous startup generation, we set start
+     * id to "none" and the stop id to "max" so we need an exception here.
+     */
+    if (txn1 == WT_TXN_NONE || txn1 == WT_TXN_MAX)
+        return (0);
     if (gt && txn1 >= txn2)
         return (0);
     if (!gt && txn1 <= txn2)

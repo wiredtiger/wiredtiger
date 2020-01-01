@@ -549,8 +549,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     btree->syncing = WT_BTREE_SYNC_OFF; /* Not syncing */
                                         /* Checkpoint generation */
     btree->checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
+
+    /* Keep track of the latest write gen for this btree from the previous run. */
+    btree->base_write_gen = ckpt->write_gen;
+
     /* Write generation */
-    btree->write_gen = WT_MAX(ckpt->write_gen, conn->base_write_gen);
+    btree->write_gen = ckpt->write_gen + 1;
 
     return (0);
 }
