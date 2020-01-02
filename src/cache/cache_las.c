@@ -684,7 +684,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          * and start timestamp WT_TS_NONE, it is simply ignored.
          */
         for (; upd != NULL; upd = upd->next) {
-            if (upd->txnid == WT_TXN_ABORTED || F_ISSET(upd, WT_UPDATE_HISTORY_STORE))
+            if (upd->txnid == WT_TXN_ABORTED)
                 continue;
 
             /* We have at least one LAS record from this key, save a copy of the key */
@@ -753,9 +753,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 prev_full_value->size = prev_upd->size;
             }
 
-            /* Flag the update as now in the lookaside file. */
-            F_SET(upd, WT_UPDATE_HISTORY_STORE);
-
             /*
              * Skip the updates have the same start timestamp and transaction id
              *
@@ -784,6 +781,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                     WT_ERR(__las_insert_record(session, cursor, btree_id, key, upd,
                       WT_UPDATE_STANDARD, full_value, stop_ts_pair));
 
+                /* Flag the update as now in the lookaside file. */
+                F_SET(upd, WT_UPDATE_HISTORY_STORE);
                 ++insert_cnt;
             } else
                 WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
