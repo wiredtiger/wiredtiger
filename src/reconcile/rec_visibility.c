@@ -461,14 +461,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
             WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
-
-            /*
-             * There is an odd corner case here where checkpoint shouldn't write updates to the
-             * lookaside file when we have an insert list. However there is a scenario where
-             * lookaside eviction should save the update.
-             */
-            if (ins == NULL || !F_ISSET(r, WT_REC_CHECKPOINT))
-                upd_select->upd_saved = true;
+            upd_select->upd_saved = true;
         }
     }
 
