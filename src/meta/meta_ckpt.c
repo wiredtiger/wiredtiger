@@ -411,7 +411,7 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
 {
     WT_CONFIG_ITEM a;
     WT_DECL_RET;
-    uint64_t entries, *list;
+    uint64_t entries, i, *list;
     char timebuf[64];
     const char *p;
 
@@ -488,12 +488,19 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
              */
             WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
             ckpt->alloc_list = list;
-            for (p = a.str + 1; *p != ')'; ++list) {
+            for (i = 0, p = a.str + 1; *p != ')'; ++i, ++list) {
                 if (sscanf(p, "%" SCNu64 "[,)]", list) != 1)
                     goto format;
                 for (; *p != ',' && *p != ')'; ++p)
                     ;
-                *(++list) = WT_BACKUP_RANGE;
+		/*
+		 * The modified block lists are in pairs. After each pair, insert the
+		 * WT_BACKUP_RANGE token.
+		 */
+		if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
+		    *(++list) = WT_BACKUP_RANGE;
+		    ++i;
+		}
                 if (*p == ',')
                     ++p;
             }
