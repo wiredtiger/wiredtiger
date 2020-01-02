@@ -658,7 +658,8 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
-         * update or a tombstone with transaction id WT_TXN_NONE and start timestamp WT_TS_NONE.
+         * update or a tombstone.
+         *
          * This is guaranteed by __wt_rec_upd_select appends the original onpage value at the end of
          * the chain. It also assumes the onpage_upd selected cannot be a TOMBSTONE and the update
          * newer to a TOMBSTONE must be a full update.
@@ -706,16 +707,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
-         * update if the oldest update is a TOMBSTONE and its txnid is WT_TXN_NONE and its timestamp
-         * is WT_TXN_NONE
+         * update if the oldest update is a TOMBSTONE.
          */
         WT_ASSERT(session, modifies.size > 0);
         __wt_modify_vector_pop(&modifies, &upd);
         /* The key didn't exist back then, which is globally visible. */
-        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD ||
-            (upd->type == WT_UPDATE_TOMBSTONE && upd->txnid == WT_TXN_NONE &&
-                             upd->start_ts == WT_TS_NONE));
-        /* Skip TOMBSTONE at the end of the update chain */
+        WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_TOMBSTONE);
+        /* Skip TOMBSTONE at the end of the update chain. */
         if (upd->type == WT_UPDATE_TOMBSTONE) {
             if (modifies.size > 0) {
                 __wt_modify_vector_pop(&modifies, &upd);
@@ -800,7 +798,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
          */
         if (upd->size > 0) {
             /* Make sure that we are generating a birthmark for an in-memory update. */
-            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) == 0 &&
+            WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK) &&
                 (upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY) &&
                 upd == list->onpage_upd);
 
