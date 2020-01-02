@@ -403,6 +403,7 @@ class test_las06(wttest.WiredTigerTestCase):
             self.assertEqual(cursor[self.create_key(i)], expected)
         self.session.rollback_transaction()
 
+    @unittest.skip("Temporarily disabled")
     def test_las_modify_birthmark_is_base_update(self):
         # Create a small table.
         uri = "table:test_las06"
