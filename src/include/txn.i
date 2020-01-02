@@ -77,7 +77,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(op->btree, WT_BTREE_LOOKASIDE) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_LAS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return;
 
@@ -109,7 +109,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || F_ISSET(op->btree, WT_BTREE_LOOKASIDE) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_LAS(op->btree) ||
       WT_IS_METADATA(op->btree->dhandle))
         return (0);
 
@@ -377,7 +377,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* Use the original transaction time pair for the lookaside inserts */
-    if (WT_DHANDLE_IS_LOOKASIDE(session)) {
+    if (WT_IS_LAS(S2BT(session))) {
         upd->txnid = session->orig_txnid_to_las;
         upd->start_ts = session->orig_timestamp_to_las;
     } else {
@@ -441,9 +441,8 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * Take a local copy of these IDs in case they are updated while we are checking visibility.
      */
     oldest_id = txn_global->oldest_id;
-    include_checkpoint_txn =
-      btree == NULL || (!F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-                         btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn = btree == NULL ||
+      (!WT_IS_LAS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return (oldest_id);
 
@@ -494,9 +493,8 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
      * If there is no active checkpoint or this handle is up to date with the active checkpoint then
      * it's safe to ignore the checkpoint ID in the visibility check.
      */
-    include_checkpoint_txn =
-      btree == NULL || (!F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-                         btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
+    include_checkpoint_txn = btree == NULL ||
+      (!WT_IS_LAS(btree) && btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
     if (!include_checkpoint_txn)
         return;
 

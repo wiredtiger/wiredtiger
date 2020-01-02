@@ -199,7 +199,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Update the global lookaside score. Only use observations during eviction, not checkpoints and
      * don't count eviction of the lookaside table itself.
      */
-    if (F_ISSET(r, WT_REC_EVICT) && !F_ISSET(btree, WT_BTREE_LOOKASIDE))
+    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_LAS(btree))
         __wt_cache_update_lookaside_score(session, r->updates_seen, r->updates_unstable);
 
     /* Check for a successful reconciliation. */
@@ -621,8 +621,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
      * When operating on the lookaside table, we should never try update/restore or lookaside
      * eviction.
      */
-    WT_ASSERT(session,
-      !F_ISSET(btree, WT_BTREE_LOOKASIDE) || !LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
+    WT_ASSERT(session, !WT_IS_LAS(btree) || !LF_ISSET(WT_REC_LOOKASIDE | WT_REC_UPDATE_RESTORE));
 
     /*
      * Lookaside table eviction is configured when eviction gets aggressive,

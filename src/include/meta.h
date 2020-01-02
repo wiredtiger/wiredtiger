@@ -33,7 +33,6 @@
 #define WT_SYSTEM_PREFIX "system:"             /* System URI prefix */
 #define WT_SYSTEM_CKPT_URI "system:checkpoint" /* Checkpoint URI */
 
-#define WT_IS_LOOKASIDE(btree) F_ISSET(btree, WT_BTREE_LOOKASIDE)
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
  */

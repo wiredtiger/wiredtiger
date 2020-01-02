@@ -323,16 +323,16 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
-        is_las = F_ISSET(btree, WT_BTREE_LOOKASIDE);
+        is_las = WT_IS_LAS(btree);
 
         /*
          * Add in lookaside reconciliation for standard files.
          *
-         * FIXME-PM-1521: Remove the WT_BTREE_LOOKASIDE check, and assert that no updates from
-         * lookaside are copied to lookaside recursively.
+         * FIXME-PM-1521: Remove the is_las check, and assert that no updates from lookaside are
+         * copied to lookaside recursively.
          */
         rec_flags = WT_REC_CHECKPOINT;
-        if (!WT_IS_LOOKASIDE(btree) && !WT_IS_METADATA(btree->dhandle))
+        if (!is_las && !WT_IS_METADATA(btree->dhandle))
             rec_flags |= WT_REC_LOOKASIDE;
 
         /* Write all dirty in-cache pages. */
