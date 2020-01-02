@@ -156,7 +156,8 @@ functions:
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
-    timeout_secs: 36000
+    # Let this test run for 25 hour
+    timeout_secs: 90000
     params:
       working_dir: "wiredtiger/build_posix/test/format"
       script: |
@@ -1713,7 +1714,8 @@ tasks:
           checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
-    exec_timeout_secs: 36000
+    # Let this task run for 25 hour
+    exec_timeout_secs: 90000
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
