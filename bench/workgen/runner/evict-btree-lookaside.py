@@ -34,17 +34,21 @@
 #     skewed access for a selective set of keys in WT table.
 #   - Relatively large number of read operation threads to stress cache.
 
-# This benchmark is based on a wtperf config: wiredtiger/bench/wtperf/runners/evict-btree-scan.wtperf
+# Benchmark is based on a wtperf config: wiredtiger/bench/wtperf/runners/evict-btree-scan.wtperf
 # There are number of changes made to original configs such as:
 #   - Reduced the number of documents inserts during initial warm-up phase.
 #   - Increased the sizes of key and value.
 #   - Reduced the WT cache size.
-#   - Added transaction based operations and repurposed some of the read threads as long-running 
+#   - Added transaction based operations and repurposed some of the read threads as long-running
 #     transcation threads.
 
+###################################################################################################
 '''
 # wtperf options file: evict btree configuration
-conn_config="cache_size=40G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,eviction_target=60,statistics=(fast),statistics_log=(wait=1,json)"
+conn_config="cache_size=40G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,
+threads_max=12),log=(enabled=true),session_max=600,eviction_target=60,statistics=(fast),
+statistics_log=(wait=1,json)"
+
 # 1B records * (key=12 + value=138) is about 150G total data size
 key_sz=12
 value_sz=138
@@ -67,7 +71,8 @@ threads=((count=400,reads=1),(count=20,inserts=1,throttle=500),(count=10,updates
 # Add throughput/latency monitoring
 max_latency=50000
 sample_interval=5
-''' 
+'''
+###################################################################################################
 
 from runner import *
 from wiredtiger import *
@@ -75,8 +80,9 @@ from workgen import *
 
 context = Context()
 homedir = "WT_TEST"
-conn_config = ""
-conn_config += ",cache_size=1G,checkpoint=(wait=60,log_size=2GB),eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,eviction_target=60,statistics=(fast),statistics_log=(wait=1,json)"   # explicitly added
+conn_config =   "cache_size=1G,checkpoint=(wait=60,log_size=2GB),\
+                eviction=(threads_min=12,threads_max=12),log=(enabled=true),session_max=600,\
+                eviction_target=60,statistics=(fast),statistics_log=(wait=1,json)"# explicitly added
 conn = wiredtiger_open(homedir, "create," + conn_config)
 s = conn.open_session("")
 
@@ -109,7 +115,8 @@ pop_workload.run(conn)
 
 # Log like file, requires that logging be enabled in the connection config.
 log_name = "table:log"
-s.create(log_name, wtperf_table_config + "key_format=S,value_format=S," + compress_table_config + table_config + ",log=(enabled=true)")
+s.create(log_name, wtperf_table_config + "key_format=S,value_format=S," +\
+        compress_table_config + table_config + ",log=(enabled=true)")
 log_table = Table(log_name)
 
 ops = Operation(Operation.OP_SEARCH, tables[0])
@@ -137,8 +144,9 @@ thread2 = Thread(ops)
 thread2.options.throttle=500
 thread2.options.throttle_burst=1.0
 
-# Long running transactions. There is a 0.1 second sleep after a series of search and update operations.
-# The sleep op is repeated 10000 times and this will make these transcations to at least run for ~17 minutes.  
+# Long running transactions. There is a 0.1 second sleep after a series of search and update
+# operations. The sleep op is repeated 10000 times and this will make these transcations to at
+# least run for ~17 minutes.
 search_op = Operation(Operation.OP_SEARCH, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 update_op = Operation(Operation.OP_UPDATE, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(1)))
 ops = txn(((search_op + update_op) * 1000 + sleep(0.1)) * 10000)
@@ -148,7 +156,8 @@ ops = Operation(Operation.OP_SLEEP, "0.1") + \
       Operation(Operation.OP_LOG_FLUSH, "")
 logging_thread = Thread(ops)
 
-workload = Workload(context, 350 * thread0 + 10 * thread1 + 50 * thread2 + 100 * thread3 + logging_thread)
+workload = Workload(context, 350 * thread0 + 10 * thread1 +\
+                    50 * thread2 + 100 * thread3 + logging_thread)
 workload.options.report_interval=5
 workload.options.run_time=300
 workload.options.max_latency=50000
