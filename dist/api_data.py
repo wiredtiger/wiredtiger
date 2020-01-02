@@ -501,6 +501,11 @@ connection_runtime_config = [
             is not limited to not skewing newest, not favoring leaf pages,
             and modifying the eviction score mechanism.''',
             type='boolean'),
+        Config('realloc_exact', 'false', r'''
+            if true, reallocation of memory will only provide the exact
+            amount requested. This will help with spotting memory allocation
+            issues more easily.''',
+            type='boolean'),
         Config('rollback_error', '0', r'''
             return a WT_ROLLBACK error from a transaction operation about
             every Nth operation to simulate a collision''',
@@ -1605,8 +1610,7 @@ methods = {
 
 'WT_CONNECTION.query_timestamp' : Method([
     Config('get', 'all_durable', r'''
-        specify which timestamp to query: \c all_committed returns the largest
-        timestamp such that all timestamps up to that value have committed,
+        specify which timestamp to query:
         \c all_durable returns the largest timestamp such that all timestamps
         up to that value have been made durable, \c last_checkpoint returns the
         timestamp of the most recent stable checkpoint, \c oldest returns the
@@ -1617,7 +1621,7 @@ methods = {
         timestamp of the most recent stable checkpoint taken prior to a shutdown
         and \c stable returns the most recent \c stable_timestamp set with
         WT_CONNECTION::set_timestamp. See @ref transaction_timestamps''',
-        choices=['all_committed','all_durable','last_checkpoint',
+        choices=['all_durable','last_checkpoint',
             'oldest','oldest_reader','pinned','recovery','stable']),
 ]),
 
