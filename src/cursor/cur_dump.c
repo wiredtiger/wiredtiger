@@ -60,7 +60,6 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
     cdump = (WT_CURSOR_DUMP *)cursor;
     child = cdump->child;
 
-    va_start(ap, cursor);
     CURSOR_API_CALL(cursor, session, get_key, NULL);
 
     if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON)) {
@@ -93,16 +92,17 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
               __raw_to_dump(session, &item, &cursor->key, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
         }
 
+        va_start(ap, cursor);
         if (F_ISSET(cursor, WT_CURSTD_RAW)) {
             itemp = va_arg(ap, WT_ITEM *);
             itemp->data = cursor->key.data;
             itemp->size = cursor->key.size;
         } else
             *va_arg(ap, const char **) = cursor->key.data;
+        va_end(ap);
     }
 
 err:
-    va_end(ap);
     API_END_RET(session, ret);
 }
 
@@ -221,7 +221,6 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
     cdump = (WT_CURSOR_DUMP *)cursor;
     child = cdump->child;
 
-    va_start(ap, cursor);
     CURSOR_API_CALL(cursor, session, get_value, NULL);
 
     if (F_ISSET(cursor, WT_CURSTD_DUMP_JSON)) {
@@ -235,16 +234,17 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
 
         WT_ERR(__raw_to_dump(session, &item, &cursor->value, F_ISSET(cursor, WT_CURSTD_DUMP_HEX)));
 
+        va_start(ap, cursor);
         if (F_ISSET(cursor, WT_CURSTD_RAW)) {
             itemp = va_arg(ap, WT_ITEM *);
             itemp->data = cursor->value.data;
             itemp->size = cursor->value.size;
         } else
             *va_arg(ap, const char **) = cursor->value.data;
+        va_end(ap);
     }
 
 err:
-    va_end(ap);
     API_END_RET(session, ret);
 }
 
