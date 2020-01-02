@@ -139,14 +139,14 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         current = NULL;
         next = a;
         WT_CKPT_FOREACH (ckptbase, ckpt) {
-            if (strcmp(ckpt->name, cb->incr_checkpoint_start) == 0) {
+            if (strcmp(ckpt->name, cb->incr_start->ckpt_name) == 0) {
                 start = true;
                 WT_ERR_ASSERT(session, ckpt->alloc_list_entries == 0, __wt_panic(session),
                   "incremental backup start checkpoint has allocation list blocks");
                 continue;
             }
             if (start == true) {
-                if (strcmp(ckpt->name, cb->incr_checkpoint_stop) == 0)
+                if (strcmp(ckpt->name, cb->incr_stop->ckpt_name) == 0)
                     stop = true;
 
                 __alloc_merge(
@@ -161,10 +161,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
 
         if (!start)
             WT_ERR_MSG(session, ENOENT, "incremental backup start checkpoint %s not found",
-              cb->incr_checkpoint_start);
+              cb->incr_start->ckpt_name);
         if (!stop)
             WT_ERR_MSG(session, ENOENT, "incremental backup stop checkpoint %s not found",
-              cb->incr_checkpoint_stop);
+              cb->incr_stop->ckpt_name);
 
         /* There may be nothing that needs copying. */
         if (total == 0)
@@ -203,8 +203,6 @@ __wt_curbackup_free_incr(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
     __wt_free(session, cb->incr_file);
     if (cb->incr_cursor != NULL)
         __wt_cursor_close(cb->incr_cursor);
-    __wt_free(session, cb->incr_checkpoint_start);
-    __wt_free(session, cb->incr_checkpoint_stop);
     __wt_free(session, cb->incr_list);
     __wt_scr_free(session, &cb->incr_block);
 }
@@ -225,10 +223,10 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->key_format = WT_UNCHECKED_STRING(qqq);
     cursor->value_format = "";
 
-    WT_ASSERT(session, other_cb->incr != NULL);
-    if (F_ISSET(other_cb->incr, WT_BLKINCR_FULL)) {
-        __wt_verbose(
-          session, WT_VERB_BACKUP, "Forcing full file copies for id %s", other_cb->incr->id_str);
+    WT_ASSERT(session, other_cb->incr_start != NULL);
+    if (F_ISSET(other_cb->incr_start, WT_BLKINCR_FULL)) {
+        __wt_verbose(session, WT_VERB_BACKUP, "Forcing full file copies for id %s",
+          other_cb->incr_start->id_str);
         F_SET(cb, WT_CURBACKUP_FORCE_FULL);
     }
 
