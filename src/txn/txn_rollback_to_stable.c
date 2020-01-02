@@ -21,7 +21,7 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
     WT_ITEM las_key, las_value;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t durable_timestamp, las_timestamp, rollback_timestamp;
-    uint64_t las_total, las_txnid;
+    uint64_t las_txnid;
     uint32_t las_btree_id, session_flags;
     uint8_t prepare_state, upd_type;
 
