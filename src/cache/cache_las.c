@@ -535,7 +535,6 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
 int
 __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
-    WT_CACHE *cache;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(mementos);
@@ -562,7 +561,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
-    cache = S2C(session)->cache;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     mementos_cnt = 0;
