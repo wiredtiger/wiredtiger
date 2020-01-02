@@ -193,7 +193,7 @@ struct __wt_cache {
     WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
     bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
-    uint32_t las_fileid;       /* Lookaside table file ID */
+    uint32_t las_fileid; /* Lookaside table file ID */
 
     /*
      * The "lookaside_activity" verbose messages are throttled to once per checkpoint. To accomplish
