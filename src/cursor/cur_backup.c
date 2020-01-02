@@ -51,6 +51,8 @@ __wt_backup_destroy(WT_SESSION_IMPL *session)
          *     WT_ERR(__wt_fprintf(session, fs, "%s\n", blk->data));
          * __wt_free(session, blk->data);
          */
+        __wt_verbose(session, WT_VERB_BACKUP, "DESTROY: blk %p id %s ckpt %s", (void *)blk, blk->id_str,
+          blk->ckpt_name);
         __wt_free(session, blk->id_str);
         __wt_free(session, blk->ckpt_name);
     }
@@ -125,7 +127,7 @@ __wt_backup_open(WT_SESSION_IMPL *session)
             /* XXX WT_ERR(__wt_getline(session, fs, buf)) */
             F_SET(blk, WT_BLKINCR_VALID);
         __wt_verbose(session, WT_VERB_BACKUP,
-          "OPEN: Using backup slot %u for id %s, checkpoint name %s", i, blk->id_str,
+          "OPEN: Using backup slot %u %p for id %s, checkpoint name %s", i, (void *)blk, blk->id_str,
           blk->ckpt_name);
         ++i;
     }
@@ -228,6 +230,8 @@ __backup_incr_release(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool force
      */
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
+        __wt_verbose(session, WT_VERB_BACKUP, "RELEASE: free blk %p id %s ckpt %s", (void *)blk,
+          blk->id_str, blk->ckpt_name);
         __wt_free(session, blk->id_str);
         __wt_free(session, blk->ckpt_name);
         F_CLR(blk, WT_BLKINCR_VALID);
@@ -429,6 +433,8 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CURSOR_BACKUP
           i, blk->id_str, blk->ckpt_name);
     F_SET(blk, WT_BLKINCR_VALID);
     cb->incr_stop = blk;
+    __wt_verbose(session, WT_VERB_BACKUP, "ADD_ID: incr_stop %p id %s ckpt %s", (void *)cb->incr_stop,
+      cb->incr_stop->id_str, cb->incr_stop->ckpt_name);
     return (0);
 
 err:
@@ -459,7 +465,8 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
-            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id_str);
+            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s checkpoint %s", i,
+              blk->id_str, blk->ckpt_name);
             return (0);
         }
     }
@@ -570,6 +577,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             WT_RET_MSG(session, EINVAL,
               "Incremental source identifier can only be specified on a primary backup cursor");
         WT_RET(__backup_find_id(session, &cval, &cb->incr_start));
+        __wt_verbose(session, WT_VERB_BACKUP, "CONFIG: incr_start %p id %s ckpt %s", (void *)cb->incr_start,
+          cb->incr_start->id_str, cb->incr_start->ckpt_name);
         /* XXX might not need this incr_src field */
         WT_RET(__wt_strndup(session, cval.str, cval.len, &cb->incr_src));
         F_SET(cb->incr_start, WT_BLKINCR_INUSE);

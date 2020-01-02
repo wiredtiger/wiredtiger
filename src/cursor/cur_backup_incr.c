@@ -216,6 +216,11 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
   WT_CURSOR *cursor, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CURSOR_BACKUP *cb, *other_cb;
+    WT_DECL_ITEM(open_checkpoint);
+    WT_DECL_ITEM(open_uri);
+    WT_DECL_RET;
+    size_t i;
+    const char **new_cfg;
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     other_cb = (WT_CURSOR_BACKUP *)other;
@@ -238,6 +243,38 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
     cursor->get_value = __wt_cursor_get_value_notsup;
     cb->incr_granularity = other_cb->incr_granularity;
 
-    /* XXX Return full file info for all files for now. */
-    return (__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
+    /*
+     * Set up the incremental backup information, if we are not forcing a full file copy. We need an
+     * open cursor on the file. Open the backup checkpoint, confirming it exists.
+     */
+    if (!F_ISSET(cb, WT_CURBACKUP_FORCE_FULL)) {
+        WT_ERR(__wt_scr_alloc(session, 0, &open_uri));
+        WT_ERR(__wt_buf_fmt(session, open_uri, "file:%s", cb->incr_file));
+        __wt_free(session, cb->incr_file);
+        WT_ERR(__wt_strdup(session, open_uri->data, &cb->incr_file));
+        WT_ERR(__wt_scr_alloc(session, 0, &open_checkpoint));
+        __wt_verbose(session, WT_VERB_BACKUP, "OPEN_INCR: incr_start %p id %s", (void *)cb->incr_start,
+          cb->incr_start->id_str);
+	__wt_yield();
+        __wt_verbose(session, WT_VERB_BACKUP, "Opening checkpoint %s", cb->incr_start->ckpt_name);
+        WT_ERR(__wt_buf_fmt(session, open_checkpoint, "checkpoint=%s", cb->incr_start->ckpt_name));
+        for (i = 0; cfg[i] != NULL; ++i)
+            ;
+        WT_ERR(__wt_calloc_def(session, i + 2, &new_cfg));
+        for (i = 0; cfg[i] != NULL; ++i)
+            new_cfg[i] = cfg[i];
+        new_cfg[i++] = open_checkpoint->data;
+        new_cfg[i] = NULL;
+
+        WT_ERR(__wt_curfile_open(session, cb->incr_file, NULL, new_cfg, &cb->incr_cursor));
+        WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
+        WT_ERR(__wt_strdup(session, cb->incr_cursor->internal_uri, &cb->incr_cursor->internal_uri));
+    } else
+        WT_ERR(__wt_cursor_init(cursor, uri, NULL, cfg, cursorp));
+
+err:
+    __wt_scr_free(session, &open_checkpoint);
+    __wt_scr_free(session, &open_uri);
+    __wt_free(session, new_cfg);
+    return (ret);
 }
