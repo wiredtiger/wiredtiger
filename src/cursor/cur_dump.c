@@ -79,7 +79,9 @@ __curdump_get_key(WT_CURSOR *cursor, ...)
             else
                 fmt = cursor->key_format;
         }
+        va_start(ap, cursor);
         ret = __wt_json_alloc_unpack(session, buffer, size, fmt, json, true, ap);
+        va_end(ap);
     } else {
         if (WT_CURSOR_RECNO(cursor) && !F_ISSET(cursor, WT_CURSTD_RAW)) {
             WT_ERR(child->get_key(child, &recno));
@@ -228,7 +230,9 @@ __curdump_get_value(WT_CURSOR *cursor, ...)
         WT_ASSERT(session, json != NULL);
         WT_ERR(__wt_cursor_get_raw_value(child, &item));
         fmt = F_ISSET(cursor, WT_CURSTD_RAW) ? "u" : cursor->value_format;
+        va_start(ap, cursor);
         ret = __wt_json_alloc_unpack(session, item.data, item.size, fmt, json, false, ap);
+        va_end(ap);
     } else {
         WT_ERR(child->get_value(child, &item));
 
