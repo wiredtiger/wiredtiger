@@ -567,7 +567,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
         WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOOKASIDE_CURSOR));
 
         las_tree = ((WT_CURSOR_BTREE *)session->las_cursor)->btree;
-        cache->bytes_lookaside = las_tree->bytes_inmem;
+        cache->bytes_hs = las_tree->bytes_inmem;
     }
 
     /*

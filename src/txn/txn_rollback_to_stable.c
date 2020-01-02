@@ -27,7 +27,6 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     cursor = NULL;
-    las_total = 0;
     session_flags = 0; /* [-Werror=maybe-uninitialized] */
 
     /*
@@ -45,7 +44,6 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
 
     /* Walk the file. */
     while ((ret = cursor->next(cursor)) == 0) {
-        ++las_total;
         WT_ERR(cursor->get_key(cursor, &las_btree_id, &las_key, &las_timestamp, &las_txnid));
 
         /* Check the file ID so we can skip durable tables */
@@ -65,14 +63,11 @@ __txn_rollback_to_stable_lookaside_fixup(WT_SESSION_IMPL *session)
          */
         if (rollback_timestamp < durable_timestamp) {
             WT_ERR(cursor->remove(cursor));
-            WT_STAT_CONN_INCR(session, txn_rollback_las_removed);
-            --las_total;
+            WT_STAT_CONN_INCR(session, txn_rollback_hs_removed);
         }
     }
     WT_ERR_NOTFOUND_OK(ret);
 err:
-    if (ret == 0)
-        conn->cache->las_insert_count = las_total;
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
 
     F_CLR(session, WT_SESSION_READ_WONT_NEED);

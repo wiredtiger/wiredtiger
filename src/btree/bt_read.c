@@ -228,11 +228,11 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     __wt_btcur_open(&cbt);
 
     WT_ERR(__wt_scr_alloc(session, 0, &las_prepares));
-    WT_STAT_CONN_INCR(session, cache_page_instantiate_read_lookaside);
-    WT_STAT_DATA_INCR(session, cache_page_instantiate_read_lookaside);
+    WT_STAT_CONN_INCR(session, cache_page_instantiate_read_hs);
+    WT_STAT_DATA_INCR(session, cache_page_instantiate_read_hs);
     if (WT_SESSION_IS_CHECKPOINT(session)) {
-        WT_STAT_CONN_INCR(session, cache_page_instantiate_read_lookaside_checkpoint);
-        WT_STAT_DATA_INCR(session, cache_page_instantiate_read_lookaside_checkpoint);
+        WT_STAT_CONN_INCR(session, cache_page_instantiate_read_hs_checkpoint);
+        WT_STAT_DATA_INCR(session, cache_page_instantiate_read_hs_checkpoint);
     }
 
     /* Open a lookaside table cursor. */
