@@ -493,14 +493,14 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
                     goto format;
                 for (; *p != ',' && *p != ')'; ++p)
                     ;
-		/*
-		 * The modified block lists are in pairs. After each pair, insert the
-		 * WT_BACKUP_RANGE token.
-		 */
-		if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
-		    *(++list) = WT_BACKUP_RANGE;
-		    ++i;
-		}
+                /*
+                 * The modified block lists are in pairs. After each pair, insert the
+                 * WT_BACKUP_RANGE token.
+                 */
+                if (i % WT_BACKUP_INCR_COMPONENTS == 1) {
+                    *(++list) = WT_BACKUP_RANGE;
+                    ++i;
+                }
                 if (*p == ',')
                     ++p;
             }
