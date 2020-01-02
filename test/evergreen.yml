@@ -2067,6 +2067,34 @@ tasks:
             cp ../../../bench/wtperf/split_heavy.wtperf .
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
+  - name: static-wt-build-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -static"
+          posix_configure_flags: --disable-shared --with-builtins=snappy,zlib
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ./wt -V
+
+            if [ $? -ne 0 ]; then
+              echo "Error, WT Utility was not generated or is not functioning"
+            fi
+
+            ldd wt || FAIL=1
+
+            if [ $FAIL -ne 1 ]; then
+              echo "Error, WT util is not statically linked"
+              exit 1
+            fi
+
+
 buildvariants:
 - name: ubuntu1804
   display_name: Ubuntu 18.04
