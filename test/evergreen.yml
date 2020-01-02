@@ -156,14 +156,22 @@ functions:
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
+    timeout_secs: 36000
     params:
       working_dir: "wiredtiger/build_posix/test/format"
       script: |
         set -o errexit
         set -o verbose
+        start=$(date +%s.%N)
+
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
         done
+
+        duration=$(echo "$(date +%s.%N) - $start" | bc)
+        execution_time=`printf "%.2f seconds" $duration`
+        echo "Time Spent : $execution_time"
+
   "format test script":
     command: shell.exec
     params:
@@ -1705,16 +1713,17 @@ tasks:
           checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
+    exec_timeout_secs: 36000
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="--coverage -fPIC -ggdb" LDFLAGS=--coverage
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python --with-builtins=lz4,snappy,zlib
-      - func: "make check all"
-      - func: "unit test"
-        vars:
-          unit_test_args: -v 2 --long
+      #- func: "make check all"
+      #- func: "unit test"
+      #  vars:
+      #    unit_test_args: -v 2 --long
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=snappy logging=1 logging_compression=snappy logging_prealloc=1
