@@ -741,24 +741,28 @@ __ckpt_update(
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
             ++entries;
 
-        WT_RET(__wt_calloc_def(session, entries * 2, &list));
+        WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
         ckpt->alloc_list = list;
         ckpt->alloc_list_entries = entries;
         WT_EXT_FOREACH (ext, ci->alloc.off) {
             *list++ = (uint64_t)ext->off;
             *list++ = (uint64_t)ext->size;
+            *list++ = WT_BACKUP_RANGE;
         }
         if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET) {
             *list++ = (uint64_t)ci->alloc.offset;
             *list++ = (uint64_t)ci->alloc.size;
+            *list++ = WT_BACKUP_RANGE;
         }
         if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET) {
             *list++ = (uint64_t)ci->discard.offset;
             *list++ = (uint64_t)ci->discard.size;
+            *list++ = WT_BACKUP_RANGE;
         }
         if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET) {
             *list++ = (uint64_t)ci->avail.offset;
             *list++ = (uint64_t)ci->avail.size;
+            *list++ = WT_BACKUP_RANGE;
         }
     }
     /*
