@@ -95,14 +95,14 @@ class test_las05(wttest.WiredTigerTestCase):
         for i in range(1, 9):
             bigvalue2 = valstr[i].encode() * 50
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
-            entries_start = self.get_stat(stat.conn.cache_lookaside_entries)
+            entries_start = self.get_stat(stat.conn.cache_hs_insert)
             score_start = self.get_stat(stat.conn.cache_hs_score)
             self.pr("Update iteration: " + str(i) + " Value: " + str(bigvalue2))
             self.pr("Update iteration: " + str(i) + " Score: " + str(score_start))
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, nrows)
             self.stable += nrows
             score_end = self.get_stat(stat.conn.cache_hs_score)
-            entries_end = self.get_stat(stat.conn.cache_lookaside_entries)
+            entries_end = self.get_stat(stat.conn.cache_hs_insert)
             # We expect to see the lookaside score increase but not writing
             # any new entries to lookaside.
             self.assertGreaterEqual(score_end, score_start)
