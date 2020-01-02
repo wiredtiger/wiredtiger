@@ -746,7 +746,7 @@ __verify_txn_addr_cmp(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t cell_num,
      * id to "none" and the stop id to "max" so we need an exception here.
      */
     if ((txn1 == WT_TXN_NONE || txn1 == WT_TXN_MAX) &&
-      dsk->write_gen <= S2BT(session)->base_write_gen)
+      dsk->write_gen <= S2C(session)->base_write_gen)
         return (0);
     if (gt && txn1 >= txn2)
         return (0);
