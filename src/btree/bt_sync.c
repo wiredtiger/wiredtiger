@@ -135,22 +135,39 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
     mod = (ref->page != NULL) ? (ref->page->modify) : NULL;
 
     /* Check for the page obsolete, if the page is modified and reconciled. */
-    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE)
+    if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with reconciled replace block stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
         obsolete = __wt_txn_visible_all(
           session, mod->mod_replace.newest_stop_txn, mod->mod_replace.newest_stop_ts);
-    else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
+    } else if (mod != NULL && mod->rec_result == WT_PM_REC_MULTIBLOCK) {
         /* Calculate the max stop time pair by traversing all multi addresses. */
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
             multi_newest_stop_ts = WT_MAX(multi_newest_stop_ts, multi->addr.newest_stop_ts);
             multi_newest_stop_txn = WT_MAX(multi_newest_stop_txn, multi->addr.newest_stop_txn);
         }
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with reconciled multi block stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, multi_newest_stop_txn, multi_newest_stop_ts);
         obsolete = __wt_txn_visible_all(session, multi_newest_stop_txn, multi_newest_stop_ts);
     } else if (!__wt_off_page(ref->home, addr)) {
         /* Check if the page is obsolete using the page disk address. */
         __wt_cell_unpack(session, ref->home, (WT_CELL *)addr, &vpack);
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with unpacked address stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, vpack.newest_stop_txn, vpack.newest_stop_ts);
         obsolete = __wt_txn_visible_all(session, vpack.newest_stop_txn, vpack.newest_stop_ts);
-    } else
+    } else {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
+          "%p: page obsolete check with off page address stop time pair txn "
+          "and timestamp: %" PRIu64 ", %" PRIu64,
+          (void *)ref, addr->newest_stop_txn, addr->newest_stop_ts);
         obsolete = __wt_txn_visible_all(session, addr->newest_stop_txn, addr->newest_stop_ts);
+    }
 
     if (obsolete)
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: page is found as obsolete", (void *)ref);
