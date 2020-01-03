@@ -1783,8 +1783,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * create "deserts" in trees where no good eviction candidates can be found. Abandon the
          * walk if we get into that situation.
          */
-        give_up = !__wt_cache_aggressive(session) && !F_ISSET(btree, WT_BTREE_LOOKASIDE) &&
-          pages_seen > min_pages &&
+        give_up = !__wt_cache_aggressive(session) && !WT_IS_LAS(btree) && pages_seen > min_pages &&
           (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
         if (give_up) {
             /*
@@ -1884,7 +1883,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * by definition and we want to free space.
          */
         if (__wt_page_is_empty(page) || F_ISSET(session->dhandle, WT_DHANDLE_DEAD) ||
-          F_ISSET(btree, WT_BTREE_LOOKASIDE))
+          WT_IS_LAS(btree))
             goto fast;
 
         /*

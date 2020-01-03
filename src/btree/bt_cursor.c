@@ -274,7 +274,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
         WT_RET(__wt_txn_read(session, cbt, cbt->ins->upd, &upd));
         if (upd != NULL) {
             if (upd->type == WT_UPDATE_TOMBSTONE) {
-                if (upd->ext != 0)
+                if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                     __wt_free_update_list(session, &upd);
                 return (0);
             }
@@ -354,7 +354,7 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_UPDATE **updp, bool *valid)
             WT_RET(__wt_txn_read(session, cbt, page->modify->mod_row_update[cbt->slot], &upd));
             if (upd != NULL) {
                 if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    if (upd->ext != 0)
+                    if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                         __wt_free_update_list(session, &upd);
                     return (0);
                 }

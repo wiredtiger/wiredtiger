@@ -249,8 +249,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      * can't be a metadata file, nor can it be the lookaside file.
      */
     WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_LOOKASIDE_OPEN) ||
-        !btree->lookaside_entries ||
-        (!WT_IS_METADATA(btree->dhandle) && !F_ISSET(btree, WT_BTREE_LOOKASIDE)));
+        !btree->lookaside_entries || (!WT_IS_METADATA(btree->dhandle) && !WT_IS_LAS(btree)));
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
