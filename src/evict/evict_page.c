@@ -213,6 +213,21 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint3
 
     if (0) {
 err:
+        /*
+         * Add back the eviction failed page to the urgent queue, if the page is from history store.
+         * It is possible that checkpoint adds an obsolete page of history store to get it evicted
+         * but because of concurrent access of the page by checkpoint and eviction, it may fail. Add
+         * them back to the queue and try to evict again.
+         *
+         * It is possible that an eviction failure occurs to a page that is not added by a
+         * checkpoint thread, but we consider those scenarios are limited.
+         */
+        if (WT_IS_LAS(S2BT(session))) {
+            WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+            WT_STAT_CONN_INCR(session, cache_eviction_history_store_pages_queued_urgent_again);
+            __wt_yield();
+        }
+
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 

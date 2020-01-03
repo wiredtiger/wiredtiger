@@ -122,8 +122,15 @@ __sync_ref_is_obsolete(WT_SESSION_IMPL *session, WT_REF *ref)
         return (false);
     }
 
+    /* Ignore deleted pages. */
+    if (ref->state == WT_REF_DELETED) {
+        __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping deleted page", (void *)ref);
+        return (false);
+    }
+
     /* Ignore internal pages, these are taken care of during reconciliation. */
-    if (!__wt_ref_is_leaf(session, ref)) {
+    if ((ref->addr != NULL && !__wt_ref_is_leaf(session, ref)) ||
+      (ref->page != NULL && WT_PAGE_IS_INTERNAL(ref->page))) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_GC, "%p: skipping internal page with parent: %p",
           (void *)ref, (void *)ref->home);
         return (false);

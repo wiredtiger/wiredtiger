@@ -399,6 +399,7 @@ struct __wt_connection_stats {
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
+    int64_t cache_eviction_history_store_pages_queued_urgent_again;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
     int64_t cache_eviction_internal;

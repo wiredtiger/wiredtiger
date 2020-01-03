@@ -237,6 +237,7 @@ connection_stats = [
     CacheStat('cache_eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     CacheStat('cache_eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
     CacheStat('cache_eviction_hazard', 'hazard pointer blocked page eviction'),
+    CacheStat('cache_eviction_history_store_pages_queued_urgent_again', 'history store pages queued for urgent eviction again'),
     CacheStat('cache_eviction_internal', 'internal pages evicted'),
     CacheStat('cache_eviction_internal_pages_seen', 'internal pages seen by eviction walk'),
     CacheStat('cache_eviction_internal_pages_already_queued', 'internal pages seen by eviction walk that are already queued'),
