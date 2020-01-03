@@ -2085,7 +2085,7 @@ tasks:
             ./wt -V
 
             if [ $? -ne 0 ]; then
-              echo "Error, WT Utility was not generated or is not functioning"
+              echo "Error, WT util was not generated or is not functioning"
               exit 1
             fi
 
