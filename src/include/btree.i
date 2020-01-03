@@ -1171,6 +1171,7 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 static inline bool
 __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+#if 0
     WT_PAGE_LOOKASIDE *page_las;
 
     if ((page_las = ref->page_las) == NULL)
@@ -1179,6 +1180,10 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
         return (true);
 
     return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
+#endif
+    WT_UNUSED(session);
+    WT_UNUSED(ref);
+    return (true);
 }
 
 /*

@@ -65,34 +65,16 @@ __row_instantiate(
 }
 
 /*
- * __create_birthmark_upd --
- *     Create a birthmark update to be put on the page.
- */
-static int
-__create_birthmark_upd(
-  WT_SESSION_IMPL *session, WT_KEY_MEMENTO *mementop, size_t *sizep, WT_UPDATE **updp)
-{
-    WT_UPDATE *upd;
-
-    *updp = NULL;
-
-    WT_RET(__wt_update_alloc(session, NULL, &upd, sizep, WT_UPDATE_BIRTHMARK));
-    upd->txnid = mementop->txnid;
-    upd->durable_ts = mementop->durable_ts;
-    upd->start_ts = mementop->start_ts;
-    upd->prepare_state = mementop->prepare_state;
-    *updp = upd;
-
-    return (0);
-}
-
-/*
  * __instantiate_birthmarks --
  *     Instantiate birthmark records in a recently read page.
  */
 static int
 __instantiate_birthmarks(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_UNUSED(session);
+    WT_UNUSED(ref);
+    return (0);
+#if 0
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
     WT_KEY_MEMENTO *mementop;
@@ -148,6 +130,7 @@ err:
     __wt_free(session, upd);
 
     return (ret);
+#endif
 }
 
 /*
@@ -157,6 +140,10 @@ err:
 static int
 __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_UNUSED(session);
+    WT_UNUSED(ref);
+    return (0);
+#if 0
     struct las_page_prepared_updates {
         WT_ITEM key;
         WT_TIME_PAIR start, stop;
@@ -185,7 +172,10 @@ __instantiate_lookaside(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_CLEAR(las_value);
     __wt_modify_vector_init(session, &modifies);
     page = ref->page;
+#if 0
     page_las = ref->page_las;
+#endif
+    page_las = NULL;
     mod_upd = upd = NULL;
     recno = WT_RECNO_OOB;
     las_btree_id = S2BT(session)->id;
@@ -421,6 +411,7 @@ err:
     __wt_free(session, upd);
 
     return (ret);
+#endif
 }
 
 /*
@@ -600,7 +591,7 @@ skip_read:
          * eviction (writing the lookaside information), first update based on the lookaside table
          * and then apply the delete.
          */
-        if (ref->page_las != NULL)
+        if (ref->has_las)
             WT_ERR(__instantiate_lookaside(session, ref));
 
         /* Move all records to a deleted state. */

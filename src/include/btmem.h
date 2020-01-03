@@ -226,45 +226,6 @@ struct __wt_ovfl_reuse {
             ",prefix_compression=true"
 
 /*
- * WT_PAGE_LOOKASIDE --
- *	Information for on-disk pages with lookaside entries.
- *
- * This information is used to decide whether history evicted to lookaside is
- * needed for a read, and when it is no longer needed at all. We track the
- * newest update written to the disk image in `max_ondisk_ts`, and the oldest
- * update skipped to choose the on-disk version in `min_skipped_ts`.  If no
- * updates were skipped, then the disk image contains the newest versions of
- * all updates and `min_skipped_ts == WT_TS_MAX`.
- *
- * For reads without a timestamp, we check that there are no skipped updates
- * and that the reader's snapshot can see everything on disk.
- *
- * For readers with a timestamp, it is safe to ignore lookaside if either
- * (a) there are no skipped updates and everything on disk is visible, or
- * (b) everything on disk is visible, and the minimum skipped update is in
- * the future of the reader.
- */
-struct __wt_page_lookaside {
-    uint64_t max_txn;              /* Maximum transaction ID */
-    wt_timestamp_t max_ondisk_ts;  /* Maximum timestamp on disk */
-    wt_timestamp_t min_skipped_ts; /* Skipped in favor of disk version */
-    bool has_prepares;             /* One or more updates are prepared */
-
-    /*
-     * Reference to the keys in the lookaside, with the birthmark information for the on-disk record
-     * if available.
-     */
-    struct __wt_key_memento {
-        WT_ITEM key;
-        uint64_t txnid;
-        wt_timestamp_t durable_ts;
-        wt_timestamp_t start_ts;
-        uint8_t prepare_state;
-    } * mementos;
-    uint32_t mementos_cnt; /* Count of key references */
-};
-
-/*
  * WT_PAGE_MODIFY --
  *	When a page is modified, there's additional information to maintain.
  */
@@ -323,14 +284,14 @@ struct __wt_page_modify {
             void *disk_image;
 
             /* The page has lookaside entries. */
-            WT_PAGE_LOOKASIDE page_las;
+            bool has_las;
         } r;
 #undef mod_replace
 #define mod_replace u1.r.replace
 #undef mod_disk_image
 #define mod_disk_image u1.r.disk_image
-#undef mod_page_las
-#define mod_page_las u1.r.page_las
+#undef mod_has_las
+#define mod_has_las u1.r.has_las
 
         struct { /* Multiple replacement blocks */
             struct __wt_multi {
@@ -374,11 +335,6 @@ struct __wt_page_modify {
                 uint32_t size;
                 uint32_t checksum;
 
-                /*
-                 * Aggregated lookaside information from the page being replaced and from the
-                 * lookaside eviction of this block.
-                 */
-                WT_PAGE_LOOKASIDE page_las;
                 bool has_las; /* This block has lookaside contents of its own. */
             } * multi;
             uint32_t multi_entries; /* Multiple blocks element count */
@@ -911,8 +867,8 @@ struct __wt_ref {
 #undef ref_ikey
 #define ref_ikey key.ikey
 
-    WT_PAGE_DELETED *page_del;   /* Deleted page information */
-    WT_PAGE_LOOKASIDE *page_las; /* Lookaside information */
+    WT_PAGE_DELETED *page_del; /* Deleted page information */
+    bool has_las;
 
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in

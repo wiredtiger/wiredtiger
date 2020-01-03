@@ -1640,7 +1640,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
      * Note in the page header if we found updates that weren't globally visible when reconciling
      * this page.
      */
-    if (multi->page_las.max_txn != WT_TXN_NONE)
+    if (multi->has_las)
         F_SET(dsk, WT_PAGE_LAS_UPDATE);
 
     dsk->unused = 0;
@@ -1814,7 +1814,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
-    WT_PAGE_LOOKASIDE *orig_page_las;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
     bool block_las_evict;
@@ -1824,7 +1823,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     btree = S2BT(session);
     page = r->page;
-    orig_page_las = r->ref->page_las;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1878,19 +1876,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * page, so we take a superset of what is available to us.
      */
     block_las_evict = multi->supd != NULL && F_ISSET(r, WT_REC_LOOKASIDE);
-    if (orig_page_las != NULL || block_las_evict) {
-        multi->page_las.max_txn = WT_MAX(
-          orig_page_las != NULL ? orig_page_las->max_txn : 0, block_las_evict ? r->max_txn : 0);
-        multi->page_las.max_ondisk_ts =
-          WT_MAX(orig_page_las != NULL ? orig_page_las->max_ondisk_ts : 0,
-            block_las_evict ? r->max_ondisk_ts : 0);
-        multi->page_las.min_skipped_ts =
-          WT_MIN(orig_page_las != NULL ? orig_page_las->min_skipped_ts : WT_TS_MAX,
-            block_las_evict ? r->min_skipped_ts : WT_TS_MAX);
-        multi->page_las.has_prepares = orig_page_las != NULL && orig_page_las->has_prepares;
-
-        WT_ASSERT(session, multi->page_las.max_txn != WT_TXN_NONE);
-    }
+    if (r->ref->has_las || block_las_evict)
+        multi->has_las = r->ref->has_las;
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);
@@ -2307,7 +2294,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             r->multi->addr.addr = NULL;
             mod->mod_disk_image = r->multi->disk_image;
             r->multi->disk_image = NULL;
-            mod->mod_page_las = r->multi->page_las;
+            mod->mod_has_las = r->multi->has_las;
         } else {
             __wt_checkpoint_tree_reconcile_update(session, r->multi->addr.newest_durable_ts,
               r->multi->addr.oldest_start_ts, r->multi->addr.oldest_start_txn,
@@ -2438,24 +2425,19 @@ err:
 static void
 __rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-    WT_KEY_MEMENTO *mementop;
     WT_MULTI *multi;
     uint32_t i, j;
+
+    WT_UNUSED(session);
+    WT_UNUSED(j);
 
     /*
      * Note the additional check for whether lookaside table entries for this page have been
      * written.
      */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && multi->has_las) {
-            if (multi->page_las.mementos_cnt != 0) {
-                WT_ASSERT(session, multi->page_las.mementos != NULL);
-                for (j = 0, mementop = multi->page_las.mementos; j < multi->page_las.mementos_cnt;
-                     j++, mementop++)
-                    __wt_buf_free(session, &mementop->key);
-            }
-            __wt_free(session, multi->page_las.mementos);
-        }
+        if (multi->supd != NULL && multi->has_las)
+            ;
 }
 
 /*

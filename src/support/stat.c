@@ -664,7 +664,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: cache overflow table remove calls", "cache: cache overflow table update reads",
   "cache: cache overflow table update reads missed",
   "cache: cache overflow table update reads requiring squashed modifies",
-  "cache: cache overflow table update reads wasted",
   "cache: cache overflow table update writes requiring squashed modifies",
   "cache: checkpoint blocked page eviction", "cache: eviction calls to get a page",
   "cache: eviction calls to get a page found queue empty",
@@ -1005,7 +1004,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_lookaside_read = 0;
     stats->cache_lookaside_read_miss = 0;
     stats->cache_lookaside_read_squash = 0;
-    stats->cache_lookaside_read_wasted = 0;
     stats->cache_lookaside_write_squash = 0;
     stats->cache_eviction_checkpoint = 0;
     stats->cache_eviction_get_ref = 0;
@@ -1433,7 +1431,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_lookaside_read += WT_STAT_READ(from, cache_lookaside_read);
     to->cache_lookaside_read_miss += WT_STAT_READ(from, cache_lookaside_read_miss);
     to->cache_lookaside_read_squash += WT_STAT_READ(from, cache_lookaside_read_squash);
-    to->cache_lookaside_read_wasted += WT_STAT_READ(from, cache_lookaside_read_wasted);
     to->cache_lookaside_write_squash += WT_STAT_READ(from, cache_lookaside_write_squash);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
     to->cache_eviction_get_ref += WT_STAT_READ(from, cache_eviction_get_ref);
