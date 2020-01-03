@@ -793,6 +793,7 @@ func
 funcid
 fvisibility
 fwrite
+gc
 gcc
 gdb
 ge
