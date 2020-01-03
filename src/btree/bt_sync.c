@@ -194,6 +194,7 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Evict the in-memory obsolete page */
     WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    WT_STAT_CONN_INCR(session, hs_gc_pages_removed);
     __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
       "%p: is an in-memory obsolete page, added to urgent eviction queue.", (void *)ref);
     return (0);
@@ -384,9 +385,13 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
                 break;
 
             /* Traverse through the internal page for obsolete child pages. */
-            if (is_las && WT_PAGE_IS_INTERNAL(walk->page)) {
-                WT_WITH_PAGE_INDEX(session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
-                WT_ERR(ret);
+            if (is_las) {
+                WT_STAT_CONN_INCR(session, hs_gc_pages_visited);
+                if (WT_PAGE_IS_INTERNAL(walk->page)) {
+                    WT_WITH_PAGE_INDEX(
+                      session, ret = __sync_ref_int_obsolete_cleanup(session, walk));
+                    WT_ERR(ret);
+                }
             }
 
             /*
