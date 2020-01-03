@@ -2072,19 +2072,21 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-g -static"
-          posix_configure_flags: --disable-shared --with-builtins=snappy,zlib
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-static
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
 
+            # -V option displays Wiredtiger library version
             ./wt -V
 
             if [ $? -ne 0 ]; then
               echo "Error, WT Utility was not generated or is not functioning"
+              exit 1
             fi
 
             ldd wt || FAIL=1
@@ -2093,7 +2095,6 @@ tasks:
               echo "Error, WT util is not statically linked"
               exit 1
             fi
-
 
 buildvariants:
 - name: ubuntu1804
