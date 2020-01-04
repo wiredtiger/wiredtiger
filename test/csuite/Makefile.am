@@ -142,10 +142,6 @@ test_wt4891_meta_ckptlist_get_alloc_SOURCES=wt4891_meta_ckptlist_get_alloc/main.
 noinst_PROGRAMS += test_wt4891_meta_ckptlist_get_alloc
 all_TESTS += test_wt4891_meta_ckptlist_get_alloc
 
-test_wt5165_cursor_copy_debug_SOURCES=wt5165_cursor_copy_debug/main.c
-noinst_PROGRAMS += test_wt5165_cursor_copy_debug
-all_TESTS += test_wt5165_cursor_copy_debug
-
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)
 LOG_COMPILER = env top_builddir=$(top_builddir) top_srcdir=$(top_srcdir) $(TEST_WRAPPER)
