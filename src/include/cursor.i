@@ -18,59 +18,16 @@ __cursor_set_recno(WT_CURSOR_BTREE *cbt, uint64_t v)
 }
 
 /*
- * __cursor_copy_release_item --
- *     Release memory used by the key or value item in cursor copy debug mode.
- */
-static inline int
-__cursor_copy_release_item(WT_CURSOR *cursor, WT_ITEM *item)
-{
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-    void *extra_mem;
-
-    session = (WT_SESSION_IMPL *)cursor->session;
-
-    if (!F_ISSET(S2C(session), WT_CONN_DEBUG_CURSOR_COPY) || item->mem == NULL)
-        return (0);
-
-    /*
-     * If we own the memory for the item, make a copy and use that instead. That allows us to
-     * overwrite and free the original memory, potentially uncovering programming errors related to
-     * retaining pointers to key/value memory beyond API boundaries. If the item has memory not
-     * currently in use, free that as well.
-     */
-    if (WT_DATA_IN_ITEM(item)) {
-        /*
-         * We need an extra allocation and a free of it at the right time. Otherwise, with some
-         * allocators, we may get the exact same memory address back in the item. and we will never
-         * catch any accesses to the original memory. Ideally, We want the memory originally used by
-         * the item to end up on the malloc free list when we return.
-         */
-        WT_ERR(__wt_malloc(session, item->size, &extra_mem));
-        WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-        WT_ERR(__wt_buf_set(session, tmp, item->data, item->size));
-        __wt_explicit_overwrite(item->mem, item->memsize);
-        __wt_buf_free(session, item);
-        __wt_free(session, extra_mem);
-        WT_ERR(__wt_buf_set(session, item, tmp->data, tmp->size));
-    } else {
-        __wt_explicit_overwrite(item->mem, item->memsize);
-        __wt_buf_free(session, item);
-    }
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
  * __cursor_copy_release_key --
  *     Release memory used by the key in cursor copy debug mode.
  */
 static inline int
 __cursor_copy_release_key(WT_CURSOR *cursor)
 {
-    return (__cursor_copy_release_item(cursor, &cursor->key));
+    if (!F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY))
+        return (0);
+
+    return (__wt_cursor_copy_release_item(cursor, &cursor->key));
 }
 
 /*
@@ -80,7 +37,10 @@ __cursor_copy_release_key(WT_CURSOR *cursor)
 static inline int
 __cursor_copy_release_value(WT_CURSOR *cursor)
 {
-    return (__cursor_copy_release_item(cursor, &cursor->value));
+    if (!F_ISSET(S2C((WT_SESSION_IMPL *)cursor->session), WT_CONN_DEBUG_CURSOR_COPY))
+        return (0);
+
+    return (__wt_cursor_copy_release_item(cursor, &cursor->value));
 }
 
 /*
