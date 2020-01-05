@@ -574,7 +574,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     uint32_t mementos_cnt, btree_id, i;
     uint8_t *p;
     int nentries;
-    bool las_key_saved, local_txn;
+    bool las_key_saved, local_txn, squashed;
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
@@ -704,6 +704,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
         }
 
         upd = prev_upd = NULL;
+        squashed = false;
 
         /*
          * Get the oldest full update on chain. It is either the oldest update or the second oldest
@@ -784,8 +785,13 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 /* Flag the update as now in the lookaside file. */
                 F_SET(upd, WT_UPDATE_HISTORY_STORE);
                 ++insert_cnt;
+
+                if (squashed) {
+                    WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+                    squashed = false;
+                }
             } else
-                WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+                squashed = true;
         }
 
         /*
