@@ -610,9 +610,9 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
     evict_skip = false;
     if (LF_ISSET(WT_READ_NO_SPLIT) || btree->evict_disabled > 0 || btree->lsm_primary)
         evict_skip = true;
-    if (strcmp(session->name, "commit_transaction") == 0 ||
-      strcmp(session->name, "prepare_transaction") == 0 ||
-      strcmp(session->name, "rollback_transaction") == 0)
+    if (session->name != NULL && (strcmp(session->name, "commit_transaction") == 0 ||
+                                   strcmp(session->name, "prepare_transaction") == 0 ||
+                                   strcmp(session->name, "rollback_transaction") == 0))
         evict_skip = true;
 
     for (stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;;) {
