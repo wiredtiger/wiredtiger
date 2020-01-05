@@ -615,7 +615,7 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
       strcmp(session->name, "rollback_transaction") == 0)
         evict_skip = true;
 
-    for (stalled = wont_need = false, sleep_usecs = yield_cnt = 0;;) {
+    for (stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;;) {
         switch (current_state = ref->state) {
         case WT_REF_DELETED:
             if (LF_ISSET(WT_READ_DELETED_SKIP | WT_READ_NO_WAIT))
