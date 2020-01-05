@@ -632,7 +632,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  *     count we locate.
  */
 static int
-__txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
+__txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, WT_CURSOR **cursorp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -642,7 +642,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
 
     txn = &session->txn;
 
-    WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+    cursor = *cursorp;
+    if (cursor == NULL || ((WT_CURSOR_BTREE *)cursor)->btree->id != op->btree->id) {
+        *cursorp = NULL;
+        if (cursor != NULL)
+            WT_RET(cursor->close(cursor));
+        WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+    }
 
     switch (op->type) {
     case WT_TXN_OP_BASIC_COL:
@@ -663,16 +669,16 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
     case WT_TXN_OP_REF_DELETE:
     case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
-        WT_ERR_ASSERT(session, false, WT_PANIC, "invalid prepared operation update type");
+        WT_RET_ASSERT(session, false, WT_PANIC, "invalid prepared operation update type");
         break;
     }
 
     WT_WITH_BTREE(
       session, op->btree, ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
-    WT_ERR(ret);
+    WT_RET(ret);
 
     /* If we haven't found anything then there's an error. */
-    WT_ERR_ASSERT(session, upd != NULL, WT_NOTFOUND,
+    WT_RET_ASSERT(session, upd != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
 
     for (; upd != NULL; upd = upd->next) {
@@ -718,9 +724,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit)
         __txn_resolve_prepared_update(session, upd);
     }
 
-err:
-    WT_TRET(cursor->close(cursor));
-    return (ret);
+    return (0);
 }
 
 /*
@@ -866,6 +870,9 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     return (0);
 }
 
+/* File object comparison macro for the insertion sort of transaction operations. */
+#define WT_TXN_OP_CMP_LT(entry1, entry2) ((entry1).btree->id < ((entry2).btree->id))
+
 /*
  * __wt_txn_commit --
  *     Commit the current transaction.
@@ -875,6 +882,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
@@ -887,6 +895,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     txn = &session->txn;
     conn = S2C(session);
+    cursor = NULL;
     txn_global = &conn->txn_global;
     locked = false;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
@@ -999,6 +1008,14 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Note: we're going to commit: nothing can fail after this point. */
 
+    /*
+     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
+     * file are done at the same time. The assumption is there won't be enough modifications in a
+     * single transaction to justify the memory allocation and additional work of a qsort call.
+     */
+    if (prepare)
+        WT_INSERTION_SORT(txn->mod, txn->mod_count, WT_TXN_OP, WT_TXN_OP_CMP_LT);
+
     /* Process and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         fileid = op->btree->id;
@@ -1035,7 +1052,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * the work will happen on a different modification in this txn.
                  */
                 if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
-                    WT_ERR(__txn_resolve_prepared_op(session, op, true));
+                    WT_ERR(__txn_resolve_prepared_op(session, op, true, &cursor));
             }
             break;
         case WT_TXN_OP_REF_DELETE:
@@ -1112,6 +1129,9 @@ err:
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
     WT_TRET(__wt_txn_rollback(session, cfg));
+
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 
@@ -1242,6 +1262,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_TXN *txn;
     WT_TXN_OP *op;
@@ -1251,6 +1272,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_UNUSED(cfg);
 
+    cursor = NULL;
     txn = &session->txn;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
@@ -1260,6 +1282,14 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     /* Rollback notification. */
     if (txn->notify != NULL)
         WT_TRET(txn->notify->notify(txn->notify, (WT_SESSION *)session, txn->id, 0));
+
+    /*
+     * Resolving prepared updates is expensive. Sort prepared modifications so all updates for each
+     * file are done at the same time. The assumption is there won't be enough modifications in a
+     * single transaction to justify the memory allocation and additional work of a qsort call.
+     */
+    if (prepare)
+        WT_INSERTION_SORT(txn->mod, txn->mod_count, WT_TXN_OP, WT_TXN_OP_CMP_LT);
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
@@ -1286,7 +1316,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * the work will happen on a different modification in this txn.
                  */
                 if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
-                    WT_RET(__txn_resolve_prepared_op(session, op, false));
+                    WT_TRET(__txn_resolve_prepared_op(session, op, false, &cursor));
             }
             break;
         case WT_TXN_OP_REF_DELETE:
@@ -1313,6 +1343,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
+
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 
