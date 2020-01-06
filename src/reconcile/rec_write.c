@@ -13,7 +13,6 @@ static void __rec_destroy(WT_SESSION_IMPL *, void *);
 static int __rec_destroy_session(WT_SESSION_IMPL *);
 static int __rec_init(WT_SESSION_IMPL *, WT_REF *, uint32_t, WT_SALVAGE_COOKIE *, void *);
 static int __rec_las_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *);
-static void __rec_las_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *);
 static int __rec_root_write(WT_SESSION_IMPL *, WT_PAGE *, uint32_t);
 static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
@@ -2372,14 +2371,6 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
         }
 
-    /*
-     * If using the lookaside table eviction path and we found updates that weren't globally visible
-     * when reconciling this page, we might have already copied them into the database's lookaside
-     * store. Remove them.
-     */
-    if (F_ISSET(r, WT_REC_LOOKASIDE))
-        __rec_las_wrapup_err(session, r);
-
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 
     return (ret);
@@ -2417,28 +2408,6 @@ __rec_las_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 err:
     WT_TRET(__wt_las_cursor_close(session, &cursor, session_flags));
     return (ret);
-}
-
-/*
- * __rec_las_wrapup_err --
- *     Discard any saved updates from the database's lookaside buffer.
- */
-static void
-__rec_las_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r)
-{
-    WT_MULTI *multi;
-    uint32_t i, j;
-
-    WT_UNUSED(session);
-    WT_UNUSED(j);
-
-    /*
-     * Note the additional check for whether lookaside table entries for this page have been
-     * written.
-     */
-    for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
-        if (multi->supd != NULL && multi->has_las)
-            ;
 }
 
 /*
