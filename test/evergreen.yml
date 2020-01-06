@@ -2072,7 +2072,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-static
+          posix_configure_flags: --disable-shared
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -2081,6 +2081,10 @@ tasks:
             set -o errexit
             set -o verbose
 
+            # Delete wt util
+            rm -f wt
+            # Build static wt util
+            make CC='eval "g++ -static"'
             # -V option displays Wiredtiger library version
             ./wt -V
 
