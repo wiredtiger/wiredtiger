@@ -102,8 +102,8 @@ __rec_append_orig_value(
 
     /* Replace the birthmark with an aborted transaction. */
     if (upd->type == WT_UPDATE_BIRTHMARK) {
-        upd->txnid = WT_TXN_ABORTED;
-        WT_PUBLISH(upd->type, WT_UPDATE_STANDARD);
+        WT_ORDERED_WRITE(upd->txnid, WT_TXN_ABORTED);
+        WT_ORDERED_WRITE(upd->type, WT_UPDATE_STANDARD);
     }
 
     __wt_cache_page_inmem_incr(session, page, size);
