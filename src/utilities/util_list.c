@@ -137,7 +137,7 @@ list_print(WT_SESSION *session, const char *uri, bool cflag, bool vflag)
          * !!!
          * We don't normally say anything about the WiredTiger metadata
          * since it's not an application/user "object" in the database.
-         * I'm making an exception for the checkpoint and verbose 
+         * I'm making an exception for the checkpoint and verbose
          * options. However, skip over the metadata system information
          * for anything except the verbose option.
          */
