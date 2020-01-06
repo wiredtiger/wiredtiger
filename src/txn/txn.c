@@ -648,6 +648,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         if (cursor != NULL)
             WT_RET(cursor->close(cursor));
         WT_RET(__wt_open_cursor(session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
+        *cursorp = cursor;
     }
 
     switch (op->type) {
@@ -673,8 +674,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         break;
     }
 
-    WT_WITH_BTREE(
-      session, op->btree, ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
+    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_uncommitted(cursor, &upd));
     WT_RET(ret);
 
     /* If we haven't found anything then there's an error. */
@@ -790,16 +790,18 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
             if (F_ISSET(txn, WT_TXN_PREPARE)) {
                 WT_RET(__wt_open_cursor(
                   session, op->btree->dhandle->name, NULL, open_cursor_cfg, &cursor));
-                F_CLR(txn, WT_TXN_PREPARE);
-                if (op->type == WT_TXN_OP_BASIC_ROW)
+                if (op->type == WT_TXN_OP_BASIC_ROW) {
+                    F_CLR(txn, WT_TXN_PREPARE);
                     __wt_cursor_set_raw_key(cursor, &op->u.op_row.key);
-                else
+                    F_SET(txn, WT_TXN_PREPARE);
+                } else
                     ((WT_CURSOR_BTREE *)cursor)->iface.recno = op->u.op_col.recno;
-                F_SET(txn, WT_TXN_PREPARE);
-                WT_WITH_BTREE(session, op->btree,
-                  ret = __wt_btcur_search_uncommitted((WT_CURSOR_BTREE *)cursor, &upd));
-                if (ret != 0)
-                    WT_RET_MSG(session, EINVAL, "prepared update restore failed");
+                WT_WITH_BTREE(
+                  session, op->btree, ret = __wt_btcur_search_uncommitted(cursor, &upd));
+                if (ret != 0) {
+                    WT_IGNORE_RET(cursor->close(cursor));
+                    WT_RET_MSG(session, ret, "prepared update restore failed");
+                }
             } else
                 upd = op->u.op_upd;
 
@@ -828,7 +830,6 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
              * reference to the page.
              */
             if (cursor != NULL) {
-                WT_ASSERT(session, F_ISSET(txn, WT_TXN_PREPARE));
                 WT_RET(cursor->close(cursor));
                 cursor = NULL;
             }
@@ -1068,6 +1069,11 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
     txn->mod_count = 0;
 
+    if (cursor != NULL) {
+        WT_ERR(cursor->close(cursor));
+        cursor = NULL;
+    }
+
     /*
      * If durable is set, we'll try to update the global durable timestamp with that value. If
      * durable isn't set, durable is implied to be the same as commit so we'll use that instead.
@@ -1120,6 +1126,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     return (0);
 
 err:
+    if (cursor != NULL)
+        WT_TRET(cursor->close(cursor));
+
     /*
      * If anything went wrong, roll back.
      *
@@ -1129,9 +1138,6 @@ err:
     if (locked)
         __wt_readunlock(session, &txn_global->visibility_rwlock);
     WT_TRET(__wt_txn_rollback(session, cfg));
-
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 
@@ -1336,6 +1342,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     }
     txn->mod_count = 0;
 
+    if (cursor != NULL) {
+        WT_TRET(cursor->close(cursor));
+        cursor = NULL;
+    }
+
     __wt_txn_release(session);
     /*
      * We're between transactions, if we need to block for eviction, it's a good time to do so. Note
@@ -1344,8 +1355,6 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
 
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
     return (ret);
 }
 
