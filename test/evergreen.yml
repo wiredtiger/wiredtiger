@@ -2093,9 +2093,9 @@ tasks:
               exit 1
             fi
 
-            ldd wt || FAIL=1
+            ldd wt || wt_static_build=1
 
-            if [ $FAIL -ne 1 ]; then
+            if [ $wt_static_build -ne 1 ]; then
               echo "Error, WT util is not statically linked"
               exit 1
             fi
