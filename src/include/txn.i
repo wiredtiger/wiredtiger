@@ -68,8 +68,7 @@ static inline int
 __wt_txn_err_chk(WT_SESSION_IMPL *session)
 {
     /* Allow transaction rollback, but nothing else. */
-    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) ||
-      strcmp(session->name, "WT_CURSOR.close") == 0 ||
+    if (!F_ISSET(&(session->txn), WT_TXN_ERROR) || strcmp(session->name, "WT_CURSOR.close") == 0 ||
       strcmp(session->name, "WT_CURSOR.reset") == 0 ||
       strcmp(session->name, "WT_SESSION.rollback_transaction") == 0)
         return (0);
