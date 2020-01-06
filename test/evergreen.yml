@@ -1722,10 +1722,10 @@ tasks:
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="--coverage -fPIC -ggdb" LDFLAGS=--coverage
           posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python --with-builtins=lz4,snappy,zlib
-      #- func: "make check all"
-      #- func: "unit test"
-      #  vars:
-      #    unit_test_args: -v 2 --long
+      - func: "make check all"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --long
       - func: "format test"
         vars:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=snappy logging=1 logging_compression=snappy logging_prealloc=1
@@ -1734,7 +1734,7 @@ tasks:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 rebalance=1 salvage=1 statistics=1 statistics_server=1 verify=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row direct_io=1 firstfit=1 internal_key_truncation=1
+          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row firstfit=1 internal_key_truncation=1
       - func: "format test"
         vars:
           extra_args: leak_memory=0 mmap=1 file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
