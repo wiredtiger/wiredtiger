@@ -1182,8 +1182,7 @@ __wt_page_las_active(WT_SESSION_IMPL *session, WT_REF *ref)
     return (!__wt_txn_visible_all(session, page_las->max_txn, page_las->max_ondisk_ts));
 #endif
     WT_UNUSED(session);
-    WT_UNUSED(ref);
-    return (true);
+    return (ref->has_las);
 }
 
 /*

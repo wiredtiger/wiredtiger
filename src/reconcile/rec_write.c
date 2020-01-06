@@ -1816,13 +1816,14 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size;
     uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE];
-    bool block_las_evict;
+    bool block_las_evict, orig_has_las;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
 
     btree = S2BT(session);
     page = r->page;
+    orig_has_las = r->ref->has_las;
 #ifdef HAVE_DIAGNOSTIC
     verify_image = true;
 #endif
@@ -1876,8 +1877,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
      * page, so we take a superset of what is available to us.
      */
     block_las_evict = multi->supd != NULL && F_ISSET(r, WT_REC_LOOKASIDE);
-    if (r->ref->has_las || block_las_evict)
-        multi->has_las = r->ref->has_las;
+    if (orig_has_las || block_las_evict)
+        multi->has_las = true;
 
     /* Initialize the page header(s). */
     __rec_split_write_header(session, r, chunk, multi, chunk->image.mem);

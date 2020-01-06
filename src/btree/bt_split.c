@@ -1388,7 +1388,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     uint64_t recno;
     uint32_t i, slot;
 
-    WT_ASSERT(session, !multi->has_las);
+    /* FIXME: What is this assertion? */
+    // WT_ASSERT(session, !multi->has_las);
 
     /*
      * In 04/2016, we removed column-store record numbers from the WT_PAGE structure, leading to
