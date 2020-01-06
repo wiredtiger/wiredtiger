@@ -367,9 +367,9 @@ __wt_las_cursor_close(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t se
 bool
 __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_ADDR *addr;
     WT_TXN *txn;
 
-    WT_UNUSED(ref);
     txn = &session->txn;
 
     /*
@@ -393,15 +393,12 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))
         return (false);
 
-#if 0
     /*
-     * If some of the page's history overlaps with the reader's snapshot then we have to read it.
-     *
-     * FIXME: Not obvious how to fix this.
+     * Everything in lookaside must be older than the newest stop transaction id for this page. If
+     * we're trying to read past that transaction id then we can ignore this page's history.
      */
-    if (WT_TXNID_LE(txn->snap_min, ref->page_las->max_txn))
-        return (false);
-#endif
+    if ((addr = (WT_ADDR *)ref->addr) != NULL && addr->newest_stop_txn <= txn->snap_min)
+        return (true);
 
     /*
      * Otherwise, if not reading at a timestamp, the page's history is in the past, so the page
@@ -410,26 +407,6 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
      */
     if (!F_ISSET(txn, WT_TXN_HAS_TS_READ))
         return (true);
-
-#if 0
-    /*
-     * Skip lookaside history if reading as of a timestamp, we evicted new versions of data and all
-     * the updates are in the past. This is not possible for prepared updates, because the commit
-     * timestamp was not known when the page was evicted.
-     *
-     * Otherwise, skip reading lookaside history if everything on the page is older than the read
-     * timestamp, and the oldest update in lookaside newer than the page is in the future of the
-     * reader. This seems unlikely, but is exactly what eviction tries to do when a checkpoint is
-     * running.
-     */
-    if (!ref->page_las->has_prepares && ref->page_las->min_skipped_ts == WT_TS_MAX &&
-      txn->read_timestamp >= ref->page_las->max_ondisk_ts)
-        return (true);
-
-    if (txn->read_timestamp >= ref->page_las->max_ondisk_ts &&
-      txn->read_timestamp < ref->page_las->min_skipped_ts)
-        return (true);
-#endif
 
     return (false);
 }
