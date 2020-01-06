@@ -243,7 +243,7 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     if (!WT_REF_CAS_STATE(session, ref, WT_REF_DELETED, WT_REF_LOCKED))
         return (false);
 
-    skip = !__wt_page_del_active(session, ref, visible_all) && !__wt_page_las_active(session, ref);
+    skip = !__wt_page_del_active(session, ref, visible_all) && !ref->has_las;
 
     /*
      * The page_del structure can be freed as soon as the delete is stable: it is only read when the

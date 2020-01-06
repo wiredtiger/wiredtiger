@@ -727,7 +727,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
 
     /* If there's no visible update in the update chain, check the lookaside file. */
-    if (__wt_page_las_active(session, cbt->ref))
+    if (cbt->ref->has_las)
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 
     /* There is no BIRTHMARK in lookaside file. */

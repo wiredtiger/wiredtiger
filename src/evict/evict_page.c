@@ -494,7 +494,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
                                 * If the lookaside history is obsolete, the reference can be
                                 * ignored.
                                 */
-            if (__wt_page_las_active(session, child))
+            if (child->has_las)
                 return (__wt_set_return(session, EBUSY));
             break;
         default:
