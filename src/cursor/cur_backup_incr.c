@@ -141,8 +141,10 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         WT_CKPT_FOREACH (ckptbase, ckpt) {
             if (strcmp(ckpt->name, cb->incr_start->ckpt_name) == 0) {
                 start = true;
+#if 0
                 WT_ERR_ASSERT(session, ckpt->alloc_list_entries == 0, __wt_panic(session),
                   "incremental backup start checkpoint has allocation list blocks");
+#endif
                 continue;
             }
             if (start == true) {
@@ -250,8 +252,7 @@ __wt_curbackup_open_incr(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *o
      * Set up the incremental backup information, if we are not forcing a full file copy. We need an
      * open cursor on the file. Open the backup checkpoint, confirming it exists.
      */
-    if (!F_ISSET(cb, WT_CURBACKUP_FORCE_FULL) &&
-      !WT_PREFIX_MATCH(cb->incr_file, "WiredTiger")) {
+    if (!F_ISSET(cb, WT_CURBACKUP_FORCE_FULL) && !WT_PREFIX_MATCH(cb->incr_file, "WiredTiger")) {
         WT_ERR(__wt_scr_alloc(session, 0, &open_uri));
         WT_ERR(__wt_buf_fmt(session, open_uri, "file:%s", cb->incr_file));
         __wt_free(session, cb->incr_file);
