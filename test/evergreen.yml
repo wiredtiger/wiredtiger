@@ -156,23 +156,15 @@ functions:
         ${test_env_vars|} ${python_binary|python} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
-    # Let this test run for 25 hour
-    timeout_secs: 90000
     params:
       working_dir: "wiredtiger/build_posix/test/format"
       script: |
         set -o errexit
         set -o verbose
-        start=$(date +%s.%N)
 
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
         done
-
-        duration=$(echo "$(date +%s.%N) - $start" | bc)
-        execution_time=`printf "%.2f seconds" $duration`
-        echo "Time Spent : $execution_time"
-
   "format test script":
     command: shell.exec
     params:
@@ -1714,8 +1706,6 @@ tasks:
           checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
-    # Let this task run for 25 hour
-    exec_timeout_secs: 90000
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
