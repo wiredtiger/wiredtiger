@@ -2072,7 +2072,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --disable-shared
+          posix_configure_flags: --disable-shared --with-builtins=snappy,zlib
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
