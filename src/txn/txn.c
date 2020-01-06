@@ -1267,8 +1267,16 @@ __wt_txn_activity_drain(WT_SESSION_IMPL *session)
 void
 __wt_txn_global_shutdown(WT_SESSION_IMPL *session)
 {
-    WT_UNUSED(session);
-    return;
+    /*
+     * All application transactions have completed, ignore the pinned
+     * timestamp so that updates can be evicted from the cache during
+     * connection close.
+     *
+     * Note that we are relying on a special case in __wt_txn_visible_all
+     * that returns true during close when there is no pinned timestamp
+     * set.
+     */
+    S2C(session)->txn_global.has_pinned_timestamp = false;
 }
 
 /*
