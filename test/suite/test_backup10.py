@@ -38,7 +38,6 @@ from wtscenario import make_scenarios
 class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
-    newuri="table:newtable"
     uri="table:test"
     nops=100
 
@@ -95,7 +94,6 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
             if ret != 0:
                 break
             newfile = bkup_c.get_key()
-            self.assertNotEqual(newfile, self.newuri)
             sz = os.path.getsize(newfile)
             self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
             shutil.copy(newfile, self.dir)
@@ -130,6 +128,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         diff = dup_set.difference(orig_set)
         self.assertEqual(len(diff), 1)
         self.assertTrue(log3 in dup_set)
+        self.assertFalse(log3 in orig_set)
 
         # Test a few error cases now.
         # - We cannot make multiple duplcate backup cursors.
@@ -148,7 +147,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         dupc.close()
 
         # Test we must use the log target.
-        msg = "/must be for logs/"
+        msg = "/must be for /"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, None), 0), msg)
