@@ -2168,6 +2168,8 @@ buildvariants:
     - name: unit-test
     - name: fops
     - name: time-shift-sensitivity-test
+    - name: compile-msan
+    - name: make-check-msan-test
 
 - name: large-scale-test
   display_name: Large scale testing
