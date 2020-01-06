@@ -161,7 +161,6 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-
         for i in $(seq ${times|1}); do
           ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} 2>&1
         done
