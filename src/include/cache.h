@@ -273,7 +273,7 @@ struct __wt_cache_pool {
 /*
  * Optimize comparisons against the lookaside URI, flag handles that reference the lookaside file.
  */
-#define WT_DHANDLE_IS_LOOKASIDE(session) F_ISSET(S2BT((session)), WT_BTREE_LOOKASIDE)
+#define WT_IS_LAS(btree) F_ISSET(btree, WT_BTREE_LOOKASIDE)
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START */

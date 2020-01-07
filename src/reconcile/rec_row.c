@@ -612,8 +612,9 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             break;
         case WT_UPDATE_STANDARD:
             /* Take the value from the update. */
-            WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, upd->ext != 0,
-              start_ts, start_txn, stop_ts, stop_txn, 0));
+            WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size,
+              F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK), start_ts, start_txn, stop_ts, stop_txn,
+              0));
             break;
         case WT_UPDATE_TOMBSTONE:
             continue;
@@ -622,7 +623,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             WT_ERR(ret);
         }
         /* Free the update if it is external. */
-        if (upd->ext != 0)
+        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
             __wt_free_update_list(session, &upd);
 
         /* Build key cell. */
@@ -663,7 +664,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
 
 err:
     /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
         __wt_free_update_list(session, &upd);
 
     return (ret);
@@ -870,8 +871,9 @@ __wt_rec_row_leaf(
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
-                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, upd->ext != 0,
-                  start_ts, start_txn, stop_ts, stop_txn, 0));
+                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size,
+                  F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK), start_ts, start_txn, stop_ts,
+                  stop_txn, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
@@ -906,7 +908,7 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_illegal_value(session, upd->type));
             }
             /* Free the update if it is external. */
-            if (upd->ext != 0)
+            if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
                 __wt_free_update_list(session, &upd);
         }
 
@@ -1006,7 +1008,7 @@ build:
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
 
-    leaf_insert:
+leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */
         if ((ins = WT_SKIP_FIRST(WT_ROW_INSERT(page, rip))) != NULL)
             WT_ERR(__rec_row_leaf_insert(session, r, ins));
@@ -1017,7 +1019,7 @@ build:
 
 err:
     /* Free the update if it is external. */
-    if (upd != NULL && upd->ext != 0)
+    if (upd != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DISK))
         __wt_free_update_list(session, &upd);
 
     __wt_scr_free(session, &tmpkey);
