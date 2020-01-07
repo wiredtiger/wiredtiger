@@ -47,16 +47,6 @@ __las_store_time_pair(WT_SESSION_IMPL *session, wt_timestamp_t timestamp, uint64
 }
 
 /*
- * __las_entry_count --
- *     Return when there are entries in the lookaside table.
- */
-static uint64_t
-__las_entry_count(WT_CACHE *cache)
-{
-    return (cache->las_insert_count);
-}
-
-/*
  * __wt_las_config --
  *     Configure the lookaside table.
  */
@@ -86,7 +76,7 @@ __wt_las_config(WT_SESSION_IMPL *session, const char **cfg)
     las_cursor = (WT_CURSOR_BTREE *)las_session->las_cursor;
     las_cursor->btree->file_max = (uint64_t)cval.val;
 
-    WT_STAT_CONN_SET(session, cache_lookaside_ondisk_max, las_cursor->btree->file_max);
+    WT_STAT_CONN_SET(session, cache_hs_ondisk_max, las_cursor->btree->file_max);
 
     return (0);
 }
@@ -117,8 +107,6 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
     /* Set the connection-wide statistics. */
     cstats = conn->stats;
 
-    WT_STAT_SET(session, cstats, cache_lookaside_entries, __las_entry_count(cache));
-
     /*
      * We have a cursor, and we need the underlying data handle; we can get to it by way of the
      * underlying btree handle, but it's a little ugly.
@@ -126,19 +114,15 @@ __wt_las_stats_update(WT_SESSION_IMPL *session)
     dstats = ((WT_CURSOR_BTREE *)cache->las_session[0]->las_cursor)->btree->dhandle->stats;
 
     v = WT_STAT_READ(dstats, cursor_update);
-    WT_STAT_SET(session, cstats, cache_lookaside_insert, v);
-    v = WT_STAT_READ(dstats, cursor_remove);
-    WT_STAT_SET(session, cstats, cache_lookaside_remove, v);
+    WT_STAT_SET(session, cstats, cache_hs_insert, v);
 
     /*
      * If we're clearing stats we need to clear the cursor values we just read. This does not clear
      * the rest of the statistics in the lookaside data source stat cursor, but we own that
      * namespace so we don't have to worry about users seeing inconsistent data source information.
      */
-    if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR)) {
-        WT_STAT_SET(session, dstats, cursor_insert, 0);
-        WT_STAT_SET(session, dstats, cursor_remove, 0);
-    }
+    if (FLD_ISSET(conn->stat_flags, WT_STAT_CLEAR))
+        WT_STAT_SET(session, dstats, cursor_update, 0);
 }
 
 /*
@@ -305,9 +289,9 @@ __wt_las_cursor(WT_SESSION_IMPL *session, WT_CURSOR **cursorp, uint32_t *session
              */
             __wt_sleep(0, WT_THOUSAND);
             if (F_ISSET(session, WT_SESSION_INTERNAL))
-                WT_STAT_CONN_INCRV(session, cache_lookaside_cursor_wait_internal, WT_THOUSAND);
+                WT_STAT_CONN_INCRV(session, cache_hs_cursor_wait_internal, WT_THOUSAND);
             else
-                WT_STAT_CONN_INCRV(session, cache_lookaside_cursor_wait_application, WT_THOUSAND);
+                WT_STAT_CONN_INCRV(session, cache_hs_cursor_wait_application, WT_THOUSAND);
         }
     }
 
@@ -494,14 +478,14 @@ __las_insert_updates_verbose(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_MULTI
           "Max txn ID %" PRIu64
           ", max ondisk timestamp %s, "
           "first skipped ts %s. "
-          "Entries now in lookaside file: %" PRId64
+          "Current history store file size: %" PRId64
           ", "
           "cache dirty: %2.3f%% , "
           "cache use: %2.3f%%",
           btree_id, multi->page_las.max_txn,
           __wt_timestamp_to_string(multi->page_las.max_ondisk_ts, ts_string[0]),
           __wt_timestamp_to_string(multi->page_las.min_skipped_ts, ts_string[1]),
-          WT_STAT_READ(conn->stats, cache_lookaside_entries), pct_dirty, pct_full);
+          WT_STAT_READ(conn->stats, cache_hs_ondisk), pct_dirty, pct_full);
     }
 
     /* Never skip updating the tracked generation */
@@ -551,7 +535,6 @@ __las_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, const uint32_t 
 int
 __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MULTI *multi)
 {
-    WT_CACHE *cache;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(mementos);
@@ -578,7 +561,6 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
 
     mementop = NULL;
     session = (WT_SESSION_IMPL *)cursor->session;
-    cache = S2C(session)->cache;
     saved_isolation = 0; /*[-Wconditional-uninitialized] */
     insert_cnt = 0;
     mementos_cnt = 0;
@@ -787,7 +769,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
                 ++insert_cnt;
 
                 if (squashed) {
-                    WT_STAT_CONN_INCR(session, cache_lookaside_write_squash);
+                    WT_STAT_CONN_INCR(session, cache_hs_write_squash);
                     squashed = false;
                 }
             } else
@@ -815,7 +797,7 @@ __wt_las_insert_updates(WT_CURSOR *cursor, WT_BTREE *btree, WT_PAGE *page, WT_MU
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_LAS_FILE, &las_size));
-    WT_STAT_CONN_SET(session, cache_lookaside_ondisk, las_size);
+    WT_STAT_CONN_SET(session, cache_hs_ondisk, las_size);
     max_las_size = ((WT_CURSOR_BTREE *)cursor)->btree->file_max;
     if (max_las_size != 0 && (uint64_t)las_size > max_las_size)
         WT_PANIC_ERR(session, WT_PANIC, "WiredTigerLAS: file size of %" PRIu64
@@ -832,10 +814,6 @@ err:
             WT_TRET(__wt_txn_rollback(session, NULL));
         __las_restore_isolation(session, saved_isolation);
         F_CLR(cursor, WT_CURSTD_UPDATE_LOCAL);
-
-        /* Adjust the entry count. */
-        if (ret == 0)
-            (void)__wt_atomic_add64(&cache->las_insert_count, insert_cnt);
     }
 
     __las_restore_isolation(session, saved_isolation);
@@ -1077,7 +1055,7 @@ __wt_find_lookaside_upd(
                 __wt_free_update_list(session, &mod_upd);
                 mod_upd = NULL;
             }
-            WT_STAT_CONN_INCR(session, cache_lookaside_read_squash);
+            WT_STAT_CONN_INCR(session, cache_hs_read_squash);
         }
 
         /* Allocate an update structure for the record found. */
@@ -1147,10 +1125,10 @@ err:
         /* Couldn't find a record. */
         if (upd == NULL) {
             ret = WT_NOTFOUND;
-            WT_STAT_CONN_INCR(session, cache_lookaside_read_miss);
+            WT_STAT_CONN_INCR(session, cache_hs_read_miss);
         } else {
-            WT_STAT_CONN_INCR(session, cache_lookaside_read);
-            WT_STAT_DATA_INCR(session, cache_lookaside_read);
+            WT_STAT_CONN_INCR(session, cache_hs_read);
+            WT_STAT_DATA_INCR(session, cache_hs_read);
         }
     }
 
