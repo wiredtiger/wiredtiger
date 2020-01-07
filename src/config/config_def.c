@@ -362,11 +362,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
   {"dump_address", "boolean", NULL, NULL, NULL, 0}, {"dump_blocks", "boolean", NULL, NULL, NULL, 0},
   {"dump_layout", "boolean", NULL, NULL, NULL, 0}, {"dump_offsets", "list", NULL, NULL, NULL, 0},
   {"dump_pages", "boolean", NULL, NULL, NULL, 0},
-  {"dump_time_pairs", "boolean", NULL, NULL, NULL, 0}, {"strict", "boolean", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
-
-static const WT_CONFIG_CHECK confchk_colgroup_meta[] = {
-  {"app_metadata", "string", NULL, NULL, NULL, 0}, {"collator", "string", NULL, NULL, NULL, 0},
   {"columns", "list", NULL, NULL, NULL, 0}, {"source", "string", NULL, NULL, NULL, 0},
   {"type", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
