@@ -627,7 +627,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-    else if (WT_PAGE_IS_INTERNAL(page) || WT_IS_LAS(S2BT(session)))
+
+    if (WT_PAGE_IS_INTERNAL(page) || WT_IS_LAS(S2BT(session)))
         ;
     else if (WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_LOOKASIDE);
@@ -670,7 +671,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /*
      * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
-    WT_ASSERT(session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_LOOKASIDE));
+    WT_ASSERT(
+      session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_LOOKASIDE | WT_REC_IN_MEMORY));
 
     return (0);
 }

@@ -162,7 +162,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd;
+    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd;
     wt_timestamp_t max_ts;
     size_t size, upd_memsize;
     uint64_t max_txn, txnid;
@@ -176,7 +176,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_select->upd_saved = false;
 
     page = r->page;
-    first_txn_upd = upd = NULL;
+    first_txn_upd = upd = last_upd = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -310,6 +310,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             while (upd->next != NULL && upd->next->txnid == WT_TXN_ABORTED)
                 upd = upd->next;
             WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
+            if (upd->next == NULL)
+                last_upd = upd;
             upd_select->upd = upd = upd->next;
         }
         if (upd != NULL) {
@@ -353,7 +355,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
             WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
-            F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
+            /* Append to the end of the chain */
+            WT_ASSERT(session,
+              last_upd != NULL && last_upd->next == NULL && (last_upd->txnid == WT_TXN_ABORTED || last_upd->type == WT_UPDATE_TOMBSTONE));
+            WT_PUBLISH(last_upd->next, upd);
             upd_select->upd = upd;
         }
         WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
@@ -388,9 +393,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_ASSERT(session, !F_ISSET(S2BT(session), WT_BTREE_LOOKASIDE) || !list_uncommitted);
 
     r->leave_dirty |= list_uncommitted;
-
-    if (F_ISSET(r, WT_REC_VISIBILITY_ERR))
-        WT_PANIC_ERR(session, EINVAL, "reconciliation error, update not visible");
 
     /*
      * The update doesn't have any further updates that need to be written to the history store,
