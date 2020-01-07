@@ -44,7 +44,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: internal pages evicted", "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction", "cache: modified pages evicted",
   "cache: overflow pages read into cache", "cache: page split during eviction deepened the tree",
-  "cache: page written requiring history records", "cache: pages read into cache",
+  "cache: page written requiring history store records", "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",

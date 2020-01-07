@@ -5966,7 +5966,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_CACHE_READ_OVERFLOW		2068
 /*! cache: page split during eviction deepened the tree */
 #define	WT_STAT_DSRC_CACHE_EVICTION_DEEPEN		2069
-/*! cache: page written requiring history records */
+/*! cache: page written requiring history store records */
 #define	WT_STAT_DSRC_CACHE_WRITE_HS			2070
 /*! cache: pages read into cache */
 #define	WT_STAT_DSRC_CACHE_READ				2071
