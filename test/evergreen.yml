@@ -2159,9 +2159,7 @@ buildvariants:
   run_on:
   - rhel80-test
   expansions:
-    configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC"
     test_env_vars: LD_PRELOAD=/usr/local/lib/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
-    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
   tasks:
@@ -2178,9 +2176,7 @@ buildvariants:
     - name: syscall-linux
     - name: compile-asan
     - name: make-check-asan-test
-    - name: configure-combinations
     - name: checkpoint-filetypes-test
-    - name: coverage-report
     - name: unit-test-long
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
