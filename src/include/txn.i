@@ -751,8 +751,8 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp,
-  bool force_inmem)
+__wt_txn_read(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp, bool skip_disk)
 {
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
@@ -777,8 +777,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
     }
     WT_ASSERT(session, upd == NULL);
 
-    if (force_inmem)
-        return (0);
+    /*
+     * FIXME-PM-1521: In some code paths, we don't expect to access the ondisk value. If we're doing
+     * a read, we need to be able to see everything otherwise we'll risk spotting a stale version.
+     * This is just a hack to keep things running but we need to get to the bottom of this at some
+     * point.
+     */
+    if (skip_disk)
+        goto lookaside;
 
     /* Check the ondisk value. */
     WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
@@ -808,6 +814,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         return (0);
     }
 
+lookaside:
     /* If there's no visible update in the update chain or ondisk, check the lookaside file. */
     WT_ASSERT(session, upd == NULL);
     if (cbt->ref->has_las)
