@@ -291,6 +291,10 @@ def testsFromArg(tests, loader, arg, scenario):
     for t in xrange(start, end+1):
         addScenarioTests(tests, loader, 'test%03d' % t, scenario)
 
+def error(exitval, prefix, msg):
+    print('*** ERROR: {}: {}'.format(prefix, msg.replace('\n', '\n*** ')))
+    sys.exit(exitval)
+
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
     preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = ignoreStdout = False
@@ -412,7 +416,18 @@ if __name__ == '__main__':
         # Our solution is to set the variables as appropriate, and then restart
         # Python with the same argument list. The shared library loader will
         # have everything it needs on the second go round.
-
+        #
+        # Note: If the ASAN stops the program with the error:
+        #    Shadow memory range interleaves with an existing memory mapping.
+        #    ASan cannot proceed correctly.
+        #
+        # try rebuilding with the clang options:
+        #    "-mllvm -asan-force-dynamic-shadow=1"
+        # and make sure that clang is used for all compiles.
+        #
+        # We'd like to show this as a message, but there's no good way to
+        # detect this error from here short of capturing/parsing all output
+        # from the test run.
         ASAN_ENV = "__WT_TEST_SUITE_ASAN"    # if set, we've been here before
         ASAN_SYMBOLIZER_PROG = "llvm-symbolizer"
         ASAN_SYMBOLIZER_ENV = "ASAN_SYMBOLIZER_PATH"
@@ -426,8 +441,8 @@ if __name__ == '__main__':
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
                 os.environ[ASAN_SYMBOLIZER_ENV] = which(ASAN_SYMBOLIZER_PROG)
             if not os.environ.get(ASAN_SYMBOLIZER_ENV):
-                print('*** ERROR: %s: symbolizer program not found in PATH'
-                      % ASAN_SYMBOLIZER_ENV)
+                error(ASAN_SYMBOLIZER_ENV,
+                      'symbolizer program not found in PATH')
             show_env(verbose, ASAN_SYMBOLIZER_ENV)
             if not os.environ.get(LD_PRELOAD_ENV):
                 symbolizer = follow_symlinks(os.environ[ASAN_SYMBOLIZER_ENV])
@@ -437,11 +452,15 @@ if __name__ == '__main__':
                     libdir = os.path.join(os.path.dirname(bindir), 'lib')
                     sofiles = find(libdir, SO_FILE_NAME)
                 if len(sofiles) != 1:
-                    print('*** ERROR: %s: ASAN shared library file not found'
-                          % SO_FILE_NAME)
-                    print('***        Set %s to the file location and rerun.'
-                          % LD_PRELOAD_ENV)
-                    sys.exit(3)
+                    if len(sofiles) == 0:
+                        fmt = 'ASAN shared library file not found.\n' + \
+                          'Set {} to the file location and rerun.'
+                        error(3, SO_FILE_NAME, fmt.format(LD_PRELOAD_ENV))
+                    else:
+                        fmt = 'multiple ASAN shared library files found\n' + \
+                          'under {}, expected just one.\n' + \
+                          'Set {} to the correct file location and rerun.'
+                        error(3, SO_FILE_NAME, fmt.format(libdir, LD_PRELOAD_ENV))
                 os.environ[LD_PRELOAD_ENV] = sofiles[0]
             show_env(verbose, LD_PRELOAD_ENV)
 
