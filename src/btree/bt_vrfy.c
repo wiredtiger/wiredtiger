@@ -20,12 +20,15 @@ typedef struct {
 
     uint64_t fcnt; /* Progress counter */
 
-#define WT_VRFY_DUMP(vs) \
-    ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages)
+#define WT_VRFY_DUMP(vs)                                                                 \
+    ((vs)->dump_address || (vs)->dump_blocks || (vs)->dump_layout || (vs)->dump_pages || \
+      (vs)->dump_timestamps)
+
     bool dump_address; /* Configure: dump special */
     bool dump_blocks;
     bool dump_layout;
     bool dump_pages;
+    bool dump_timestamps;
     /* Page layout information */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
@@ -59,6 +62,9 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "dump_timestamps", &cval));
+    vs->dump_timestamps = cval.val != 0;
 
 #if !defined(HAVE_DIAGNOSTIC)
     if (vs->dump_blocks || vs->dump_pages)
@@ -348,6 +354,7 @@ __verify_addr_ts(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *unpack, 
 static int
 __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack, WT_VSTUFF *vs)
 {
+    WT_ADDR *addr;
     WT_BM *bm;
     WT_CELL *cell;
     WT_CELL_UNPACK *unpack, _unpack;
@@ -360,6 +367,7 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
 
     bm = S2BT(session)->bm;
     page = ref->page;
+    addr = NULL;
 
     unpack = &_unpack;
 
@@ -370,6 +378,13 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     if (vs->dump_address)
         WT_RET(__wt_msg(session, "%s %s", __wt_page_addr_string(session, ref, vs->tmp1),
           __wt_page_type_string(page->type)));
+
+    /* Optionally dump the timestamp range. */
+    if (vs->dump_timestamps) {
+        addr = ref->addr;
+        if (addr != NULL)
+            WT_RET(__wt_msg(session, "<%lu, %lu>", addr->oldest_start_ts, addr->newest_stop_ts));
+    }
 
     /* Track the shape of the tree. */
     if (WT_PAGE_IS_INTERNAL(page))
