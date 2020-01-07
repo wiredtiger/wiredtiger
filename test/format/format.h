@@ -106,15 +106,6 @@ typedef struct {
 
     uint64_t truncate_cnt; /* Counter for truncation */
 
-    /*
-     * We have a list of records that are appended, but not yet "resolved", that is, we haven't yet
-     * incremented the g.rows value to reflect the new records.
-     */
-    uint64_t *append;             /* Appended records */
-    size_t append_max;            /* Maximum unresolved records */
-    size_t append_cnt;            /* Current unresolved records */
-    pthread_rwlock_t append_lock; /* Single-thread resolution */
-
     pthread_rwlock_t death_lock; /* Single-thread failure */
 
     char *uri; /* Object name */
@@ -169,7 +160,6 @@ typedef struct {
     char *c_logging_compression;
     uint32_t c_logging_file_max;
     uint32_t c_logging_prealloc;
-    uint32_t c_long_running_txn;
     uint32_t c_lsm_worker_threads;
     uint32_t c_memory_page_max;
     uint32_t c_merge_max;
@@ -316,6 +306,9 @@ typedef struct {
     uint64_t commit_ts;    /* commit timestamp */
     SNAP_OPS *snap, *snap_first, snap_list[512];
 
+    uint64_t insert_list[256]; /* column-store inserted records */
+    u_int insert_list_cnt;
+
     WT_ITEM *tbuf, _tbuf; /* temporary buffer */
 
 #define TINFO_RUNNING 1  /* Running */
@@ -347,7 +340,6 @@ void key_gen_init(WT_ITEM *);
 void key_gen_insert(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void key_gen_teardown(WT_ITEM *);
 void key_init(void);
-WT_THREAD_RET lrt(void *);
 WT_THREAD_RET random_kv(void *);
 void path_setup(const char *);
 int read_row_worker(WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
@@ -359,6 +351,7 @@ int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 WT_THREAD_RET timestamp(void *);
+void timestamp_once(void);
 void track(const char *, uint64_t, TINFO *);
 void val_gen(WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
