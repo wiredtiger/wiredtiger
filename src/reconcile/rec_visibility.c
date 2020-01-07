@@ -404,7 +404,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally lookaside reconciliation is not set skip saving an update.
      */
-    if (r->max_txn != WT_TXN_NONE &&
+    if (max_txn != WT_TXN_NONE &&
       (F_ISSET(r, WT_REC_EVICT) || (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) &&
                                      upd_select->upd != NULL && upd_select->upd->next != NULL))) {
 
