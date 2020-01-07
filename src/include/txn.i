@@ -67,7 +67,10 @@ __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
 static inline int
 __wt_txn_err_chk(WT_SESSION_IMPL *session)
 {
-    /* Allow transaction rollback, but nothing else. */
+    /*
+     * Allow only a few select operations after an error: WT_CURSOR.{close,reset} are called
+     * internally and WT_SESSION.rollback_transaction is the expected application resolution.
+     */
     if (!F_ISSET(&(session->txn), WT_TXN_ERROR) || strcmp(session->name, "WT_CURSOR.close") == 0 ||
       strcmp(session->name, "WT_CURSOR.reset") == 0 ||
       strcmp(session->name, "WT_SESSION.rollback_transaction") == 0)
