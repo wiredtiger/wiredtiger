@@ -709,7 +709,12 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
 {
+    WT_ITEM buf;
+    WT_TIME_PAIR start, stop;
     WT_VISIBLE_TYPE upd_visible;
+    size_t size;
+
+    WT_CLEAR(buf);
 
     *updp = NULL;
     for (; upd != NULL; upd = upd->next) {
@@ -725,8 +730,38 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
         if (upd_visible == WT_VISIBLE_PREPARE)
             return (WT_PREPARE_CONFLICT);
     }
+    WT_ASSERT(session, upd == NULL);
 
-    /* If there's no visible update in the update chain, check the lookaside file. */
+    /* Check the ondisk value. */
+    WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
+
+    /*
+     * If the stop pair is set, that means that there is a tombstone at that time. If the stop time
+     * pair is visible to our txn then that means we've just spotted a tombstone and should return
+     * "not found".
+     */
+    if (stop.txnid != WT_TXN_MAX && stop.timestamp != WT_TS_MAX &&
+      __wt_txn_visible(session, stop.txnid, stop.timestamp))
+        return (0);
+
+    /*
+     * If the start time pair is visible then we need to return on the ondisk value.
+     *
+     * FIXME-PM-1521: This should be probably be refactored to return a buffer of bytes rather than
+     * an update. This allocation is expensive and doesn't serve a purpose other than to work within
+     * the current system.
+     */
+    if (__wt_txn_visible(session, start.txnid, start.timestamp)) {
+        WT_RET(__wt_update_alloc(session, &buf, &upd, &size, WT_UPDATE_STANDARD));
+        upd->txnid = start.txnid;
+        upd->start_ts = upd->durable_ts = start.timestamp;
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DISK);
+        *updp = upd;
+        return (0);
+    }
+
+    /* If there's no visible update in the update chain or ondisk, check the lookaside file. */
+    WT_ASSERT(session, upd == NULL);
     if (cbt->ref->has_las)
         WT_RET_NOTFOUND_OK(__wt_find_lookaside_upd(session, cbt, &upd, false));
 

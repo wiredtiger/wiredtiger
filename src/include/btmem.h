@@ -868,7 +868,7 @@ struct __wt_ref {
 #define ref_ikey key.ikey
 
     WT_PAGE_DELETED *page_del; /* Deleted page information */
-    bool has_las;              /* Lookaside information. */
+    bool has_las;              /* Lookaside information */
 
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in
