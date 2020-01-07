@@ -1723,7 +1723,7 @@ tasks:
           extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 rebalance=1 salvage=1 statistics=1 statistics_server=1 verify=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row direct_io=1 firstfit=1 internal_key_truncation=1
+          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row firstfit=1 internal_key_truncation=1
       - func: "format test"
         vars:
           extra_args: leak_memory=0 mmap=1 file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
