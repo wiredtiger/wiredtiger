@@ -372,6 +372,7 @@ format()
 		for k in {1..7}; do
 			args+=" timing_stress_split_$k=$(($RANDOM%2))"
 		done
+		echo "$name: starting timing-stress-split job in $dir ($(date))"
 	else
 		args=$format_args
 
