@@ -53,13 +53,13 @@ class test_las05(wttest.WiredTigerTestCase):
         # Update a large number of records, we'll hang if the lookaside table
         # isn't doing its thing.
         cursor = session.open_cursor(uri)
-        score_start = self.get_stat(stat.conn.cache_lookaside_score)
+        score_start = self.get_stat(stat.conn.cache_hs_score)
         for i in range(nrows + 1, nrows + nops + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             session.commit_transaction('commit_timestamp=' + timestamp_str(self.stable + i))
         cursor.close()
-        score_end = self.get_stat(stat.conn.cache_lookaside_score)
+        score_end = self.get_stat(stat.conn.cache_hs_score)
         score_diff = score_end - score_start
         self.pr("After large updates score start: " + str(score_start))
         self.pr("After large updates score end: " + str(score_end))
@@ -91,18 +91,18 @@ class test_las05(wttest.WiredTigerTestCase):
         #
         # Use smaller values, 50 bytes and fill 8 times, under full cache.
         valstr='abcdefghijklmnopqrstuvwxyz'
-        loop_start = self.get_stat(stat.conn.cache_lookaside_score)
+        loop_start = self.get_stat(stat.conn.cache_hs_score)
         for i in range(1, 9):
             bigvalue2 = valstr[i].encode() * 50
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
-            entries_start = self.get_stat(stat.conn.cache_lookaside_entries)
-            score_start = self.get_stat(stat.conn.cache_lookaside_score)
+            entries_start = self.get_stat(stat.conn.cache_hs_insert)
+            score_start = self.get_stat(stat.conn.cache_hs_score)
             self.pr("Update iteration: " + str(i) + " Value: " + str(bigvalue2))
             self.pr("Update iteration: " + str(i) + " Score: " + str(score_start))
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, nrows)
             self.stable += nrows
-            score_end = self.get_stat(stat.conn.cache_lookaside_score)
-            entries_end = self.get_stat(stat.conn.cache_lookaside_entries)
+            score_end = self.get_stat(stat.conn.cache_hs_score)
+            entries_end = self.get_stat(stat.conn.cache_hs_insert)
             # We expect to see the lookaside score increase but not writing
             # any new entries to lookaside.
             self.assertGreaterEqual(score_end, score_start)
@@ -110,7 +110,7 @@ class test_las05(wttest.WiredTigerTestCase):
 
         # While each iteration may or may not increase the score, we expect the
         # score to have strictly increased from before the loop started.
-        loop_end = self.get_stat(stat.conn.cache_lookaside_score)
+        loop_end = self.get_stat(stat.conn.cache_hs_score)
         self.assertGreater(loop_end, loop_start)
 
         # Now move oldest timestamp forward and insert a couple large updates
@@ -127,7 +127,7 @@ class test_las05(wttest.WiredTigerTestCase):
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
             self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(self.stable))
             self.stable += nrows
-        score_end = self.get_stat(stat.conn.cache_lookaside_score)
+        score_end = self.get_stat(stat.conn.cache_hs_score)
         self.assertLess(score_end, score_start)
         self.assertEqual(score_end, 0)
 

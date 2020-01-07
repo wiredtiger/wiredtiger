@@ -223,6 +223,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             list_uncommitted = true;
             if (upd->start_ts > max_ts)
                 max_ts = upd->start_ts;
+
+            /*
+             * Track the oldest update not on the page, used to decide whether reads can use the
+             * page image, hence using the start rather than the durable timestamp.
+             */
+            if (upd->start_ts < r->min_skipped_ts)
+                r->min_skipped_ts = upd->start_ts;
             continue;
         }
 
@@ -354,7 +361,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             WT_ERR(__rec_append_orig_value(session, page, last_upd, vpack));
             /* last_upd->next can be NULL if the oldest txn id is moved concurrently. */
             upd_select->upd = last_upd->next;
-        /* We only have a globally visible tombstone, no need to reconcile the key. */
+            /* We only have a globally visible tombstone, no need to reconcile the key. */
         } else
             upd_select->upd = NULL;
         WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
@@ -398,8 +405,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      * Additionally lookaside reconciliation is not set skip saving an update.
      */
     if (F_ISSET(r, WT_REC_EVICT) ||
-      (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) &&
-        upd_select->upd != NULL && upd_select->upd->next != NULL)) {
+      (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) && upd_select->upd != NULL &&
+          upd_select->upd->next != NULL)) {
         WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
 
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));

@@ -225,7 +225,8 @@ struct __wt_reconcile {
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 
-    bool cache_write_lookaside; /* Used the lookaside table */
+    bool cache_write_hs;      /* Used the history store table */
+    bool cache_write_restore; /* Used update/restoration */
 
     uint32_t tested_ref_state; /* Debugging information */
 
