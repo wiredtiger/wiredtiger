@@ -196,6 +196,7 @@ __sync_ref_evict_or_mark_deleted(WT_SESSION_IMPL *session, WT_REF *ref)
 
     /* Evict the in-memory obsolete page */
     WT_IGNORE_RET_BOOL(__wt_page_evict_urgent(session, ref));
+    WT_STAT_CONN_INCR(session, hs_gc_pages_evict);
     __wt_verbose(session, WT_VERB_CHECKPOINT_GC,
       "%p: is an in-memory obsolete page, added to urgent eviction queue.", (void *)ref);
     return (0);

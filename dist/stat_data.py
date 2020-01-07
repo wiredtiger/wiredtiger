@@ -393,6 +393,7 @@ connection_stats = [
     ##########################################
     HistoryStat('hs_gc_pages_visited', 'history pages visited for garbage collection'),
     HistoryStat('hs_gc_pages_removed', 'history pages removed for garbage collection'),
+    HistoryStat('hs_gc_pages_evict', 'history pages added for eviction during garbage collection'),
 
     ##########################################
     # Locking statistics
