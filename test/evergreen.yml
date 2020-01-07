@@ -2084,7 +2084,7 @@ tasks:
             # Delete wt util
             rm -f wt
             # Build static wt util
-            make CC='eval "g++ -static"'
+            make CC='eval "g++ -static"' ${smp_command|}
             # -V option displays Wiredtiger library version
             ./wt -V
 
