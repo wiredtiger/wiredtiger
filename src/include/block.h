@@ -137,6 +137,18 @@ struct __wt_size {
  */
 #define WT_BLOCK_CHECKPOINT_BUFFER (1 + 14 * WT_INTPACK64_MAXSIZE)
 
+/*
+ * Block modifications from an incremental identifier going forward.
+ */
+struct __wt_block_mods {
+    const char *id_str;
+    uint64_t *alloc_list;
+    uint64_t alloc_list_entries;
+    size_t alloc_size;
+#define WT_BLOCK_MODS_VALID 0x0u /* Entry is valid */
+    uint32_t flags;
+};
+
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
@@ -147,10 +159,14 @@ struct __wt_block_ckpt {
     WT_EXTLIST avail;   /* Extents available */
     WT_EXTLIST discard; /* Extents discarded */
 
+    uint64_t *alloc_list;
+
     wt_off_t file_size; /* Checkpoint file size */
     uint64_t ckpt_size; /* Checkpoint byte count */
 
     WT_EXTLIST ckpt_avail; /* Checkpoint free'd extents */
+
+    WT_BLOCK_MODS ckpt_mods[WT_BLKINCR_MAX];
 
     /*
      * Checkpoint archive: the block manager may potentially free a lot of memory from the

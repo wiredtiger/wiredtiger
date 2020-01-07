@@ -118,7 +118,7 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
      * use the slower path through configuration parsing functions.
      */
     config = newcfg = NULL;
-    str = v == NULL ? "checkpoint=(),checkpoint_lsn=" : v;
+    str = v == NULL ? "checkpoint=(),checkpoint_incremental=(),checkpoint_lsn=" : v;
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
@@ -641,12 +641,45 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
 }
 
 /*
+ * __ckpt_blkmods_to_meta --
+ *     Add in any modification block string needed.
+ */
+static int
+__ckpt_blkmods_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_BLOCK_MODS *blk_mods)
+{
+    WT_BLOCK_MODS *blk;
+    uint64_t entries, *p;
+    u_int i;
+    bool valid;
+
+    valid = false;
+    for (i = 0; i < WT_BLKINCR_MAX; ++i, ++blk_mods)
+        if (F_ISSET(blk_mods, WT_BLOCK_MODS_VALID))
+            valid = true;
+    if (!valid)
+        return (0);
+
+    WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_mods=("));
+    for (i = 0, blk = blk_mods; i < WT_BLKINCR_MAX; ++i, ++blk) {
+        WT_RET(__wt_buf_catfmt(session, buf,
+	  "%s%s=(id=%" PRIu32 ",blocks=(", i == 0 ? "" : ",", blk->id_str, i));
+        for(entries = 0, p = blk->alloc_list; entries < blk->alloc_list_entries;
+	  ++entries, p += WT_BACKUP_INCR_COMPONENTS)
+	    WT_RET(__wt_buf_catfmt(session, buf, "%s%" PRId64 ",%" PRId64, entries == 0 ? "" : ",",
+              (int64_t)p[0], (int64_t)p[1]));
+	WT_RET(__wt_buf_catfmt(session, buf, "))"));
+    }
+    WT_RET(__wt_buf_catfmt(session, buf, ")"));
+    return (0);
+}
+
+/*
  * __wt_meta_ckptlist_set --
  *     Set a file's checkpoint value from the WT_CKPT list.
  */
 int
-__wt_meta_ckptlist_set(
-  WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
+__wt_meta_ckptlist_set(WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckptbase,
+  WT_BLOCK_MODS *blk_mods, WT_LSN *ckptlsn)
 {
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
@@ -655,7 +688,7 @@ __wt_meta_ckptlist_set(
 
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
 
-    WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
+    WT_ERR(__ckpt_blkmods_to_meta(session, buf, blk_mods));
 
     has_lsn = ckptlsn != NULL;
     if (ckptlsn != NULL)

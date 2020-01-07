@@ -38,7 +38,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     char *metaconf, *tmp;
-    const char *base, *cfg[3];
+    const char *base, *cfg[4];
 
     dhandle = session->dhandle;
     base = NULL;
@@ -76,7 +76,8 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          */
         cfg[0] = metaconf;
         cfg[1] = "checkpoint=()";
-        cfg[2] = NULL;
+        cfg[2] = "checkpoint_incremental=()";
+        cfg[3] = NULL;
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, file_meta), &dhandle->cfg[0]));
         WT_ASSERT(session, dhandle->meta_base == NULL);
         /*
@@ -91,7 +92,8 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          */
         cfg[0] = tmp;
         cfg[1] = NULL;
-        WT_ERR(__wt_config_merge(session, cfg, "checkpoint=,checkpoint_lsn=", &base));
+        WT_ERR(__wt_config_merge(
+          session, cfg, "checkpoint=,checkpoint_incremental=,checkpoint_lsn=", &base));
         __wt_free(session, tmp);
         break;
     case WT_DHANDLE_TYPE_TABLE:

@@ -97,6 +97,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
     filecfg[1] = a->data;
     filecfg[2] = checkpoint_list;
     filecfg[3] = "checkpoint_lsn=";
+    filecfg[4] = "checkpoint_incremental=";
     WT_WITH_SCHEMA_LOCK(session,
       ret = __wt_snprintf(fileid, sizeof(fileid), "id=%" PRIu32, ++S2C(session)->next_file_id));
     WT_ERR(ret);
@@ -134,7 +135,7 @@ __wt_import(WT_SESSION_IMPL *session, const char *uri)
         WT_ERR_MSG(session, EINVAL, "no checkpoint information available to import");
     F_SET(ckpt, WT_CKPT_UPDATE);
     WT_ERR(__wt_buf_set(session, &ckpt->raw, checkpoint->data, checkpoint->size));
-    WT_ERR(__wt_meta_ckptlist_set(session, uri, ckptbase, NULL));
+    WT_ERR(__wt_meta_ckptlist_set(session, uri, ckptbase, NULL, NULL));
 
 err:
     __wt_meta_ckptlist_free(session, &ckptbase);

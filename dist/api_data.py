@@ -377,6 +377,8 @@ file_config = format_meta + file_runtime_config + [
 file_meta = file_config + [
     Config('checkpoint', '', r'''
         the file checkpoint entries'''),
+    Config('checkpoint_incremental', '', r'''
+        the checkpoint incremental backup block lists'''),
     Config('checkpoint_lsn', '', r'''
         LSN of the last checkpoint'''),
     Config('id', '', r'''

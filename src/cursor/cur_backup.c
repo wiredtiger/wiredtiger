@@ -426,9 +426,11 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CURSOR_BACKUP
         WT_ERR(
           __wt_strndup(session, WT_BLKINCR_NOCKPT, strlen(WT_BLKINCR_NOCKPT), &blk->ckpt_name));
         F_SET(blk, WT_BLKINCR_FULL);
-    } else
+    } else {
         __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s, checkpoint name %s",
           i, blk->id_str, blk->ckpt_name);
+        F_CLR(blk, WT_BLKINCR_FULL);
+    }
     F_SET(blk, WT_BLKINCR_VALID);
     cb->incr_stop = blk;
     __wt_verbose(session, WT_VERB_BACKUP, "ADD_ID: incr_stop %p id %s ckpt %s",

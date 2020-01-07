@@ -654,6 +654,144 @@ err:
 }
 
 /*
+ * __ckpt_valid_blk_mods --
+ *     Make sure that this set of block mods reflects the current valid backup identifiers. If so,
+ *     there is nothing to do. If not, free up old information and set it up for the current
+ *     information.
+ */
+static int
+__ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_MODS *blk_mod, u_int i)
+{
+    WT_BLKINCR *blk;
+    bool free, setup;
+
+    blk = &S2C(session)->incr_backups[i];
+    /*
+     * Default is that we have no information so there is nothing to free but we need to do setup.
+     */
+    free = false;
+    setup = true;
+
+    /*
+     * Check the state of our block list array compared to the global one. There are
+     * several possibilities:
+     * - There is no global information for this index, nothing to do but free our resources.
+     * - We don't have any backup information locally. Set up our entry.
+     * - Our entry's id string matches the current global information. We just want to add our
+     *   information to the existing list.
+     * - Our entry's id string does not match the current one. It is outdated. Free old resources
+     *   and then set up our entry.
+     */
+
+    /*
+     * Check if the global entry is valid at our index.
+     */
+    if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
+        free = true;
+        setup = false;
+    } else {
+        if (F_ISSET(blk_mod, WT_BLOCK_MODS_VALID) &&
+	  WT_STRING_MATCH(blk_mod->id_str, blk->id_str, strlen(blk->id_str))) {
+            /* We match, keep our entry and don't set up. */
+            setup = false;
+            free = false;
+        } else {
+            /* We don't match, free any old information. */
+            free = true;
+            setup = true;
+        }
+    }
+
+    /*
+     * Free any old information if we need to do so.
+     */
+    if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
+        __wt_free(session, blk_mod->alloc_list);
+        __wt_free(session, blk_mod->id_str);
+        blk_mod->alloc_list_entries = 0;
+        blk_mod->alloc_size = 0;
+        F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
+    }
+
+    /*
+     * Set up the block list to point to the current information.
+     */
+    if (setup) {
+        WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
+        blk_mod->alloc_list_entries = 0;
+        blk_mod->alloc_list = NULL;
+        blk_mod->alloc_size = 0;
+        F_SET(blk_mod, WT_BLOCK_MODS_VALID);
+    }
+    return (0);
+}
+
+/*
+ * __ckpt_add_blk_mods --
+ *     Add the blocks to all valid incremental backup source identifiers.
+ */
+static int
+__ckpt_add_blk_mods(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci)
+{
+    WT_BLOCK_MODS *blk_mod;
+    WT_EXT *ext;
+    uint64_t end, entries, *list, start;
+    u_int i;
+
+    entries = ci->alloc.entries;
+    if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
+        ++entries;
+    if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
+        ++entries;
+    if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
+        ++entries;
+
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blk_mod = &ci->ckpt_mods[i];
+        WT_RET(__ckpt_valid_blk_mods(session, blk_mod, i));
+        /*
+         * If there is no information at this entry, we're done.
+         */
+        if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
+            continue;
+
+        start = blk_mod->alloc_list_entries;
+        end = start + entries;
+        if (blk_mod->alloc_size == 0) {
+            WT_RET(__wt_calloc_def(session, end * WT_BACKUP_INCR_COMPONENTS, &list));
+            blk_mod->alloc_list = list;
+            blk_mod->alloc_size = end * WT_BACKUP_INCR_COMPONENTS * sizeof(uint64_t);
+        } else {
+            WT_RET(__wt_realloc_def(session, &blk_mod->alloc_size, end * WT_BACKUP_INCR_COMPONENTS,
+              &blk_mod->alloc_list));
+            list = &blk_mod->alloc_list[start * WT_BACKUP_INCR_COMPONENTS];
+        }
+        blk_mod->alloc_list_entries = end;
+        WT_EXT_FOREACH (ext, ci->alloc.off) {
+            *list++ = (uint64_t)ext->off;
+            *list++ = (uint64_t)ext->size;
+            *list++ = WT_BACKUP_RANGE;
+        }
+        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET) {
+            *list++ = (uint64_t)ci->alloc.offset;
+            *list++ = (uint64_t)ci->alloc.size;
+            *list++ = WT_BACKUP_RANGE;
+        }
+        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET) {
+            *list++ = (uint64_t)ci->discard.offset;
+            *list++ = (uint64_t)ci->discard.size;
+            *list++ = WT_BACKUP_RANGE;
+        }
+        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET) {
+            *list++ = (uint64_t)ci->avail.offset;
+            *list++ = (uint64_t)ci->avail.size;
+            *list++ = WT_BACKUP_RANGE;
+        }
+    }
+    return (0);
+}
+
+/*
  * __ckpt_update --
  *     Update a checkpoint.
  */
@@ -663,8 +801,6 @@ __ckpt_update(
 {
     WT_DECL_ITEM(a);
     WT_DECL_RET;
-    WT_EXT *ext;
-    uint64_t entries, *list;
     uint8_t *endp;
     bool is_live;
 
@@ -733,38 +869,9 @@ __ckpt_update(
      */
     if (F_ISSET(ckpt, WT_CKPT_BLOCK_MODS)) {
         WT_ASSERT(session, is_live == true);
-        entries = ci->alloc.entries;
-        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET)
-            ++entries;
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET)
-            ++entries;
-        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET)
-            ++entries;
-
-        WT_RET(__wt_calloc_def(session, entries * WT_BACKUP_INCR_COMPONENTS, &list));
-        ckpt->alloc_list = list;
-        ckpt->alloc_list_entries = entries;
-        WT_EXT_FOREACH (ext, ci->alloc.off) {
-            *list++ = (uint64_t)ext->off;
-            *list++ = (uint64_t)ext->size;
-            *list++ = WT_BACKUP_RANGE;
-        }
-        if (ci->alloc.offset != WT_BLOCK_INVALID_OFFSET) {
-            *list++ = (uint64_t)ci->alloc.offset;
-            *list++ = (uint64_t)ci->alloc.size;
-            *list++ = WT_BACKUP_RANGE;
-        }
-        if (ci->discard.offset != WT_BLOCK_INVALID_OFFSET) {
-            *list++ = (uint64_t)ci->discard.offset;
-            *list++ = (uint64_t)ci->discard.size;
-            *list++ = WT_BACKUP_RANGE;
-        }
-        if (ci->avail.offset != WT_BLOCK_INVALID_OFFSET) {
-            *list++ = (uint64_t)ci->avail.offset;
-            *list++ = (uint64_t)ci->avail.size;
-            *list++ = WT_BACKUP_RANGE;
-        }
+        WT_RET(__ckpt_add_blk_mods(session, ci));
     }
+
     /*
      * Set the file size for the live system.
      *

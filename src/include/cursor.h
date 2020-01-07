@@ -32,23 +32,6 @@
       0                      /* uint32_t flags */                                               \
     }
 
-/*
- * Block based incremental backup structure. These live in the connection.
- */
-#define WT_BLKINCR_MAX 2
-struct __wt_blkincr {
-    const char *id_str; /* User's name for this backup. */
-#define WT_BLKINCR_NOCKPT "NoCheckpoint"
-    const char *ckpt_name; /* Requires WT-5115. All checkpoints must be this name */
-    void *data;            /* Blocks */
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_BLKINCR_FULL 0x1u  /* This has no checkpoint, always do full file */
-#define WT_BLKINCR_INUSE 0x2u /* This entry is active */
-#define WT_BLKINCR_VALID 0x4u /* This entry is valid */
-                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint64_t flags;
-};
-
 struct __wt_cursor_backup {
     WT_CURSOR iface;
 

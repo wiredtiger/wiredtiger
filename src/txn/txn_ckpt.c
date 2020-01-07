@@ -1226,6 +1226,12 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
               "cannot be deleted during a hot backup",
               ckpt->name);
         }
+
+    /*
+     * If incremental backups are in play we need to read in the modification blocks for any
+     * incremental sources we have. Remove them if they're not valid.
+     */
+
     /*
      * Mark old checkpoints that are being deleted and figure out which trees we can skip in this
      * checkpoint.
@@ -1585,7 +1591,8 @@ fake:
     if (WT_IS_METADATA(dhandle) || !F_ISSET(&session->txn, WT_TXN_RUNNING))
         WT_ERR(__wt_checkpoint_sync(session, NULL));
 
-    WT_ERR(__wt_meta_ckptlist_set(session, dhandle->name, btree->ckpt, &ckptlsn));
+    WT_ERR(__wt_meta_ckptlist_set(
+      session, dhandle->name, btree->ckpt, &bm->block->live.ckpt_mods[0], &ckptlsn));
 
     /*
      * If we wrote a checkpoint (rather than faking one), we have to resolve it. Normally, tracking
