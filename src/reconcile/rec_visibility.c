@@ -162,9 +162,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd;
+    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *orig_selected;
     wt_timestamp_t max_ts;
-    size_t size, upd_memsize;
+    size_t upd_memsize;
     uint64_t max_txn, txnid;
     bool list_uncommitted;
 
@@ -251,7 +251,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     }
 
     /* Keep track of the selected update. */
-    upd = upd_select->upd;
+    orig_selected = upd = upd_select->upd;
 
     /* Reconciliation should never see an aborted or reserved update. */
     WT_ASSERT(
@@ -320,7 +320,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                 upd_select->durable_ts = upd_select->start_ts = upd->start_ts;
             if (upd->txnid < upd_select->stop_txn)
                 upd_select->start_txn = upd->txnid;
-        } else {
+        } else if (!__wt_txn_upd_visible_all(session, orig_selected)) {
             /* If we only have a tombstone in the update list, we must have an ondisk value. */
             WT_ASSERT(session, vpack != NULL);
             /*
@@ -349,18 +349,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             /*
              * Leaving the update unset means that we can skip reconciling. If we've set the stop
              * time pair because of a tombstone after the on-disk value, we still have work to do so
-             * that is NOT ok. Let's allocate an update equivalent to the on-disk value and continue
-             * on our way!
+             * that is NOT ok. Let's append the on-disk value to the chain.
              */
-            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-            WT_ERR(__wt_page_cell_data_ref(session, page, vpack, tmp));
-            WT_ERR(__wt_update_alloc(session, tmp, &upd, &size, WT_UPDATE_STANDARD));
-            /* Append to the end of the chain */
-            WT_ASSERT(session,
-              last_upd != NULL && last_upd->next == NULL && (last_upd->txnid == WT_TXN_ABORTED || last_upd->type == WT_UPDATE_TOMBSTONE));
-            WT_PUBLISH(last_upd->next, upd);
-            upd_select->upd = upd;
-        }
+            WT_ERR(__rec_append_orig_value(session, page, last_upd, vpack));
+            /* last_upd->next can be NULL if the oldest txn id is moved concurrently. */
+            upd_select->upd = last_upd->next;
+        /* We only have a globally visible tombstone, no need to reconcile the key. */
+        } else
+            upd_select->upd = NULL;
         WT_ASSERT(session, upd == NULL || upd->type != WT_UPDATE_TOMBSTONE);
     }
 

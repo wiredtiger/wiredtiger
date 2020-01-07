@@ -2171,7 +2171,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     mod->rec_result = 0;
 
     /*
-     * If using the lookaside table eviction path, copy them into the database's lookaside store.
+     * If using the lookaside table eviction path and we found updates that weren't globally visible
+     * when reconciling this page, copy them into the database's lookaside store.
      *
      * If no updates were saved, no need to write to lookaside.
      */
