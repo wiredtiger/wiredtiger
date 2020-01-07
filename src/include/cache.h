@@ -81,7 +81,7 @@ struct __wt_cache {
     uint64_t bytes_read;     /* Bytes read into memory */
     uint64_t bytes_written;
 
-    uint64_t bytes_lookaside; /* Lookaside bytes inmem */
+    uint64_t bytes_hs; /* History store bytes inmem */
 
     volatile uint64_t eviction_progress; /* Eviction progress count */
     uint64_t last_eviction_progress;     /* Tracked eviction progress */
@@ -193,8 +193,7 @@ struct __wt_cache {
     WT_SESSION_IMPL *las_session[WT_LAS_NUM_SESSIONS];
     bool las_session_inuse[WT_LAS_NUM_SESSIONS];
 
-    uint32_t las_fileid;       /* Lookaside table file ID */
-    uint64_t las_insert_count; /* Count of inserts to lookaside */
+    uint32_t las_fileid; /* Lookaside table file ID */
 
     /*
      * The "lookaside_activity" verbose messages are throttled to once per checkpoint. To accomplish

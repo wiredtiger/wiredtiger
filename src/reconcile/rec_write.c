@@ -228,9 +228,9 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_STAT_CONN_INCR(session, rec_pages_eviction);
         WT_STAT_DATA_INCR(session, rec_pages_eviction);
     }
-    if (r->cache_write_lookaside) {
-        WT_STAT_CONN_INCR(session, cache_write_lookaside);
-        WT_STAT_DATA_INCR(session, cache_write_lookaside);
+    if (r->cache_write_hs) {
+        WT_STAT_CONN_INCR(session, cache_write_hs);
+        WT_STAT_DATA_INCR(session, cache_write_hs);
     }
     if (r->cache_write_restore) {
         WT_STAT_CONN_INCR(session, cache_write_restore);
@@ -713,7 +713,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
 
     r->salvage = salvage;
 
-    r->cache_write_lookaside = r->cache_write_restore = false;
+    r->cache_write_hs = r->cache_write_restore = false;
 
     /*
      * The fake cursor used to figure out modified update values points to the enclosing WT_REF as a
@@ -1938,7 +1938,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             return (__wt_set_return(session, EBUSY));
 
         if (F_ISSET(r, WT_REC_LOOKASIDE)) {
-            r->cache_write_lookaside = true;
+            r->cache_write_hs = true;
 
             /*
              * Lookaside eviction writes disk images, but if no entries were used, there's no disk
