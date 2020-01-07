@@ -434,6 +434,9 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             if (WT_PAGE_IS_INTERNAL(page)) {
                 internal_bytes += page->memory_footprint;
                 ++internal_pages;
+                /* Slow down checkpoints. */
+                if (F_ISSET(conn, WT_CONN_DEBUG_SLOW_CKPT))
+                    __wt_sleep(0, 10000);
             } else {
                 leaf_bytes += page->memory_footprint;
                 ++leaf_pages;
@@ -451,9 +454,12 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
              * if eviction fails (the page may stay in cache clean but with history that cannot be
              * discarded), that is not wasted effort because checkpoint doesn't need to write the
              * page again.
+             *
+             * Once the transaction has given up it's snapshot it is no longer safe to reconcile
+             * pages. That happens prior to the final metadata checkpoint.
              */
             if (!WT_PAGE_IS_INTERNAL(page) && page->read_gen == WT_READGEN_WONT_NEED &&
-              !tried_eviction) {
+              !tried_eviction && F_ISSET(&session->txn, WT_TXN_HAS_SNAPSHOT)) {
                 ret = __wt_page_release_evict(session, walk, 0);
                 walk = NULL;
                 WT_ERR_BUSY_OK(ret);

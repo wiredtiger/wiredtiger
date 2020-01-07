@@ -839,8 +839,11 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
              */
             op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
             upd_zero_ts = prev_op_timestamp == WT_TS_NONE;
-            if (op_zero_ts != upd_zero_ts)
-                WT_RET_MSG(session, EINVAL, "per-key timestamps used inconsistently");
+            if (op_zero_ts != upd_zero_ts) {
+                WT_RET(__wt_verbose_dump_update(session, upd));
+                WT_RET(__wt_verbose_dump_txn_one(session, &session->txn, EINVAL,
+                  "per-key timestamps used inconsistently, dumping relevant information"));
+            }
             /*
              * If we aren't using timestamps for this transaction then we are done checking. Don't
              * check the timestamp because the one in the transaction is not cleared.
@@ -889,6 +892,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
 
+    /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
 
@@ -1128,7 +1132,8 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     txn_prepared_updates_count = 0;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
-    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
+    WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
+
     /*
      * A transaction should not have updated any of the logged tables, if debug mode logging is not
      * turned on.
@@ -1607,15 +1612,16 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
         return (false);
 
     /*
-     * Check the oldest transaction ID of either the current transaction ID or the snapshot. Using
-     * the snapshot potentially means rolling back a read-only transaction, which MongoDB can't
-     * (yet) handle. For this reason, don't use the snapshot unless there's also a transaction ID
-     * or we're configured to time out thread operations (a way to confirm our caller is prepared
-     * for rollback).
+     * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
+     * unless there's at least one update or we're configured to time out thread operations (a way
+     * to confirm our caller is prepared for rollback).
      */
+    if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
+        return (false);
+
+    /* Check the oldest transaction ID of either the current transaction ID or the snapshot. */
     txn_oldest = txn->id;
     if (F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) && txn->snap_min != WT_TXN_NONE &&
-      (txn_oldest != WT_TXN_NONE || __wt_op_timer_fired(session)) &&
       (txn_oldest == WT_TXN_NONE || WT_TXNID_LT(txn->snap_min, txn_oldest)))
         txn_oldest = txn->snap_min;
     return (txn_oldest == conn->txn_global.oldest_id ?
@@ -1629,8 +1635,10 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
  *     Output diagnostic information about a transaction structure.
  */
 int
-__wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
+__wt_verbose_dump_txn_one(
+  WT_SESSION_IMPL *session, WT_TXN *txn, int error_code, const char *error_string)
 {
+    char buf[512];
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     const char *iso_tag;
 
@@ -1646,17 +1654,23 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
         iso_tag = "WT_ISO_SNAPSHOT";
         break;
     }
-    WT_RET(__wt_msg(session, "transaction id: %" PRIu64 ", mod count: %u"
-                             ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
-                             ", commit_timestamp: %s"
-                             ", durable_timestamp: %s"
-                             ", first_commit_timestamp: %s"
-                             ", prepare_timestamp: %s"
-                             ", read_timestamp: %s"
-                             ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
-                             ", full checkpoint: %s"
-                             ", rollback reason: %s"
-                             ", flags: 0x%08" PRIx32 ", isolation: %s",
+
+    /*
+     * Dump the information of the passed transaction into a buffer, to be logged with an optional
+     * error message.
+     */
+    WT_RET(__wt_snprintf(buf,
+      sizeof(buf), "transaction id: %" PRIu64 ", mod count: %u"
+                   ", snap min: %" PRIu64 ", snap max: %" PRIu64 ", snapshot count: %u"
+                   ", commit_timestamp: %s"
+                   ", durable_timestamp: %s"
+                   ", first_commit_timestamp: %s"
+                   ", prepare_timestamp: %s"
+                   ", read_timestamp: %s"
+                   ", checkpoint LSN: [%" PRIu32 "][%" PRIu32 "]"
+                   ", full checkpoint: %s"
+                   ", rollback reason: %s"
+                   ", flags: 0x%08" PRIx32 ", isolation: %s",
       txn->id, txn->mod_count, txn->snap_min, txn->snap_max, txn->snapshot_count,
       __wt_timestamp_to_string(txn->commit_timestamp, ts_string[0]),
       __wt_timestamp_to_string(txn->durable_timestamp, ts_string[1]),
@@ -1665,6 +1679,16 @@ __wt_verbose_dump_txn_one(WT_SESSION_IMPL *session, WT_TXN *txn)
       __wt_timestamp_to_string(txn->read_timestamp, ts_string[4]), txn->ckpt_lsn.l.file,
       txn->ckpt_lsn.l.offset, txn->full_ckpt ? "true" : "false",
       txn->rollback_reason == NULL ? "" : txn->rollback_reason, txn->flags, iso_tag));
+
+    /*
+     * Log a message and return an error if error code and an optional error string has been passed.
+     */
+    if (0 != error_code) {
+        WT_RET_MSG(session, error_code, "%s, %s", buf, error_string != NULL ? error_string : "");
+    } else {
+        WT_RET(__wt_msg(session, "%s", buf));
+    }
+
     return (0);
 }
 
@@ -1740,8 +1764,73 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
         WT_RET(__wt_msg(session,
           "ID: %" PRIu64 ", pinned ID: %" PRIu64 ", metadata pinned ID: %" PRIu64 ", name: %s", id,
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
-        WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn));
+        WT_RET(__wt_verbose_dump_txn_one(session, &sess->txn, 0, NULL));
     }
 
+    return (0);
+}
+
+/*
+ * __wt_verbose_dump_update --
+ *     Output diagnostic information about an update structure.
+ */
+int
+__wt_verbose_dump_update(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+{
+    char ts_string[2][WT_TS_INT_STRING_SIZE];
+    const char *prepare_state, *upd_type;
+
+    if (upd == NULL) {
+        WT_RET(__wt_msg(session, "NULL update"));
+        return (0);
+    }
+    WT_NOT_READ(upd_type, "WT_UPDATE_INVALID");
+    switch (upd->type) {
+    case WT_UPDATE_INVALID:
+        upd_type = "WT_UPDATE_INVALID";
+        break;
+    case WT_UPDATE_BIRTHMARK:
+        upd_type = "WT_UPDATE_BIRTHMARK";
+        break;
+    case WT_UPDATE_MODIFY:
+        upd_type = "WT_UPDATE_MODIFY";
+        break;
+    case WT_UPDATE_RESERVE:
+        upd_type = "WT_UPDATE_RESERVE";
+        break;
+    case WT_UPDATE_STANDARD:
+        upd_type = "WT_UPDATE_STANDARD";
+        break;
+    case WT_UPDATE_TOMBSTONE:
+        upd_type = "WT_UPDATE_TOMBSTONE";
+        break;
+    }
+
+    WT_NOT_READ(prepare_state, "WT_PREPARE_INVALID");
+    switch (upd->prepare_state) {
+    case WT_PREPARE_INIT:
+        prepare_state = "WT_PREPARE_INIT";
+        break;
+    case WT_PREPARE_INPROGRESS:
+        prepare_state = "WT_PREPARE_INPROGRESS";
+        break;
+    case WT_PREPARE_LOCKED:
+        prepare_state = "WT_PREPARE_LOCKED";
+        break;
+    case WT_PREPARE_RESOLVED:
+        prepare_state = "WT_PREPARE_RESOLVED";
+        break;
+    }
+
+    __wt_errx(session, "transaction id: %" PRIu64
+                       ", commit timestamp: %s"
+                       ", durable timestamp: %s"
+                       ", has next: %s"
+                       ", size: %" PRIu32
+                       ", type: %s"
+                       ", prepare state: %s",
+      upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+      __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->next == NULL ? "no" : "yes",
+      upd->size, upd_type, prepare_state);
     return (0);
 }
