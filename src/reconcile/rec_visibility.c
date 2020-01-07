@@ -404,10 +404,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
      *
      * Additionally lookaside reconciliation is not set skip saving an update.
      */
-    if (F_ISSET(r, WT_REC_EVICT) ||
-      (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) && upd_select->upd != NULL &&
-          upd_select->upd->next != NULL)) {
-        WT_ASSERT(session, r->max_txn != WT_TXN_NONE);
+    if (r->max_txn != WT_TXN_NONE &&
+      (F_ISSET(r, WT_REC_EVICT) || (F_ISSET(r, WT_REC_CHECKPOINT) && F_ISSET(r, WT_REC_LOOKASIDE) &&
+                                     upd_select->upd != NULL && upd_select->upd->next != NULL))) {
 
         WT_ERR(__rec_update_save(session, r, ins, ripcip, upd_select->upd, upd_memsize));
         upd_select->upd_saved = true;
