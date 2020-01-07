@@ -397,7 +397,8 @@ __wt_las_page_skip_locked(WT_SESSION_IMPL *session, WT_REF *ref)
      * Everything in lookaside must be older than the newest stop transaction id for this page. If
      * we're trying to read past that transaction id then we can ignore this page's history.
      */
-    if ((addr = (WT_ADDR *)ref->addr) != NULL && addr->newest_stop_txn <= txn->snap_min)
+    if ((addr = (WT_ADDR *)ref->addr) != NULL &&
+      (addr->newest_stop_txn <= txn->snap_min || addr->oldest_start_txn > txn->snap_max))
         return (true);
 
     /*

@@ -707,7 +707,8 @@ __wt_txn_upd_visible(WT_SESSION_IMPL *session, WT_UPDATE *upd)
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp)
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **updp,
+  bool force_inmem)
 {
     WT_ITEM buf;
     WT_TIME_PAIR start, stop;
@@ -731,6 +732,9 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT
             return (WT_PREPARE_CONFLICT);
     }
     WT_ASSERT(session, upd == NULL);
+
+    if (force_inmem)
+        return (0);
 
     /* Check the ondisk value. */
     WT_RET(__wt_value_return_buf(cbt, cbt->ref, &buf, &start, &stop));
