@@ -39,7 +39,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walks gave up because they saw too many pages and found too few candidates",
   "cache: eviction walks reached end of tree", "cache: eviction walks started from root of tree",
   "cache: eviction walks started from saved location in tree",
-  "cache: hazard pointer blocked page eviction", "cache: history store table update reads",
+  "cache: hazard pointer blocked page eviction", "cache: history store table reads",
   "cache: in-memory page passed criteria to be split", "cache: in-memory page splits",
   "cache: internal pages evicted", "cache: internal pages split during eviction",
   "cache: leaf pages split during eviction", "cache: modified pages evicted",
@@ -47,8 +47,6 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: page written requiring history records", "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
-  "cache: pages read into cache by checkpoint requiring history store entries.",
-  "cache: pages read into cache requiring history store entries.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages written from cache", "cache: pages written requiring in-memory restoration",
   "cache: tracked dirty bytes in the cache", "cache: unmodified pages evicted",
@@ -206,8 +204,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
-    stats->cache_page_instantiate_read_hs_checkpoint = 0;
-    stats->cache_page_instantiate_read_hs = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
@@ -380,9 +376,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_read += from->cache_read;
     to->cache_read_deleted += from->cache_read_deleted;
     to->cache_read_deleted_prepared += from->cache_read_deleted_prepared;
-    to->cache_page_instantiate_read_hs_checkpoint +=
-      from->cache_page_instantiate_read_hs_checkpoint;
-    to->cache_page_instantiate_read_hs += from->cache_page_instantiate_read_hs;
     to->cache_pages_requested += from->cache_pages_requested;
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
@@ -551,9 +544,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_read += WT_STAT_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
-    to->cache_page_instantiate_read_hs_checkpoint +=
-      WT_STAT_READ(from, cache_page_instantiate_read_hs_checkpoint);
-    to->cache_page_instantiate_read_hs += WT_STAT_READ(from, cache_page_instantiate_read_hs);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_READ(from, cache_write);
@@ -697,11 +687,11 @@ static const char *const __stats_connection_desc[] = {
   "cache: history store cursor application thread wait time (usecs)",
   "cache: history store cursor internal thread wait time (usecs)", "cache: history store score",
   "cache: history store table insert calls", "cache: history store table max on-disk size",
-  "cache: history store table on-disk size", "cache: history store table update reads",
-  "cache: history store table update reads missed",
-  "cache: history store table update reads requiring squashed modifies",
-  "cache: history store table update reads wasted",
-  "cache: history store table update writes requiring squashed modifies",
+  "cache: history store table on-disk size", "cache: history store table reads",
+  "cache: history store table reads missed",
+  "cache: history store table reads requiring squashed modifies",
+  "cache: history store table reads wasted",
+  "cache: history store table writes requiring squashed modifies",
   "cache: in-memory page passed criteria to be split", "cache: in-memory page splits",
   "cache: internal pages evicted", "cache: internal pages queued for eviction",
   "cache: internal pages seen by eviction walk",
@@ -717,8 +707,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages queued for urgent eviction during walk", "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
-  "cache: pages read into cache by checkpoint requiring history store entries.",
-  "cache: pages read into cache requiring history store entries.",
   "cache: pages requested from the cache", "cache: pages seen by eviction walk",
   "cache: pages seen by eviction walk that are already queued",
   "cache: pages selected for eviction unable to be evicted",
@@ -1076,8 +1064,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
-    stats->cache_page_instantiate_read_hs_checkpoint = 0;
-    stats->cache_page_instantiate_read_hs = 0;
     stats->cache_pages_requested = 0;
     stats->cache_eviction_pages_seen = 0;
     stats->cache_eviction_pages_already_queued = 0;
@@ -1513,9 +1499,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_read += WT_STAT_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
-    to->cache_page_instantiate_read_hs_checkpoint +=
-      WT_STAT_READ(from, cache_page_instantiate_read_hs_checkpoint);
-    to->cache_page_instantiate_read_hs += WT_STAT_READ(from, cache_page_instantiate_read_hs);
     to->cache_pages_requested += WT_STAT_READ(from, cache_pages_requested);
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_eviction_pages_already_queued +=
