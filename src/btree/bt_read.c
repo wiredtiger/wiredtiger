@@ -9,62 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __col_instantiate --
- *     Update a column-store page entry based on a lookaside table update list.
- */
-static int
-__col_instantiate(
-  WT_SESSION_IMPL *session, uint64_t recno, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
-{
-    WT_PAGE *page;
-    WT_UPDATE *upd;
-
-    page = ref->page;
-
-    /*
-     * Discard any of the updates we don't need.
-     *
-     * Just free the memory: it hasn't been accounted for on the page yet.
-     */
-    if (updlist->next != NULL &&
-      (upd = __wt_update_obsolete_check(session, page, updlist, false)) != NULL)
-        __wt_free_update_list(session, &upd);
-
-    /* Search the page and add updates. */
-    WT_RET(__wt_col_search(cbt, recno, ref, true, NULL));
-    WT_RET(__wt_col_modify(cbt, recno, NULL, updlist, WT_UPDATE_INVALID, false));
-    return (0);
-}
-
-/*
- * __row_instantiate --
- *     Update a row-store page entry based on a lookaside table update list.
- */
-static int
-__row_instantiate(
-  WT_SESSION_IMPL *session, WT_ITEM *key, WT_REF *ref, WT_CURSOR_BTREE *cbt, WT_UPDATE *updlist)
-{
-    WT_PAGE *page;
-    WT_UPDATE *upd;
-
-    page = ref->page;
-
-    /*
-     * Discard any of the updates we don't need.
-     *
-     * Just free the memory: it hasn't been accounted for on the page yet.
-     */
-    if (updlist->next != NULL &&
-      (upd = __wt_update_obsolete_check(session, page, updlist, false)) != NULL)
-        __wt_free_update_list(session, &upd);
-
-    /* Search the page and add updates. */
-    WT_RET(__wt_row_search(cbt, key, true, ref, true, NULL));
-    WT_RET(__wt_row_modify(cbt, key, NULL, updlist, WT_UPDATE_INVALID, false));
-    return (0);
-}
-
-/*
  * __evict_force_check --
  *     Check if a page matches the criteria for forced eviction.
  */
