@@ -73,6 +73,7 @@ class test_gc02(wttest.WiredTigerTestCase):
         session.rollback_transaction()
         self.assertEqual(count, nrows)
 
+    @unittest.skip("Temporarily disabled")
     def test_gc(self):
         nrows = 100000
 
