@@ -374,16 +374,17 @@ __verify_tree(WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK *addr_unpack
     __wt_verbose(session, WT_VERB_VERIFY, "%s %s", __wt_page_addr_string(session, ref, vs->tmp1),
       __wt_page_type_string(page->type));
 
-    /* Optionally dump the address. */
-    if (vs->dump_address)
-        WT_RET(__wt_msg(session, "%s %s", __wt_page_addr_string(session, ref, vs->tmp1),
-          __wt_page_type_string(page->type)));
-
-    /* Optionally dump the timestamp range. */
-    if (vs->dump_timestamps) {
-        addr = ref->addr;
-        if (addr != NULL)
-            WT_RET(__wt_msg(session, "<%lu, %lu>", addr->oldest_start_ts, addr->newest_stop_ts));
+    /* Optionally dump the address/timestamp information. */
+    if (vs->dump_address || vs->dump_timestamps) {
+        WT_RET(__wt_msg(session, "%s", __wt_page_type_string(page->type)));
+        if (vs->dump_address)
+            WT_RET(__wt_msg(session, "\t%s", __wt_page_addr_string(session, ref, vs->tmp1)));
+        if (vs->dump_timestamps) {
+            addr = ref->addr;
+            if (addr != NULL)
+                WT_RET(__wt_msg(session, "\t<%lx:%lx, %lx:%lx>", addr->oldest_start_ts, 
+                  addr->oldest_start_txn, addr->newest_stop_ts, addr->newest_stop_txn));
+        }
     }
 
     /* Track the shape of the tree. */
